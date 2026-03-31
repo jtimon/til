@@ -7,31 +7,31 @@ try_eval_call := ext_func(scope: Scope, fcall: Expr, shallow require_known: Bool
 track_literal := ext_proc(scope: Scope, name: Str, rhs: Expr) {}
 
 is_macro_call := func(e: Expr) returns shallow Bool {
-    if is_variant(e.data, ExprData.FCall).not() { return false }
+    if is_variant(e.data, NodeType.FCall).not() { return false }
     if e.child_count().eq(0) { return false }
     ref callee : Expr = e.child(0)
-    if is_variant(callee.data, ExprData.Ident).not() { return false }
+    if is_variant(callee.data, NodeType.Ident).not() { return false }
     return precomp_has_macro(get_payload(callee.data))
 }
 
 is_func_call := func(e: Expr) returns shallow Bool {
-    if is_variant(e.data, ExprData.FCall).not() { return false }
+    if is_variant(e.data, NodeType.FCall).not() { return false }
     if e.child_count().eq(0) { return false }
     ref callee : Expr = e.child(0)
-    if is_variant(callee.data, ExprData.Ident).not() { return false }
+    if is_variant(callee.data, NodeType.Ident).not() { return false }
     return precomp_has_func(get_payload(callee.data))
 }
 
 process_body := proc(scope: Scope, body: Expr) {
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
-        if is_variant(stmt.data, ExprData.Decl) {
+        if is_variant(stmt.data, NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.data)
             if stmt.child_count().eq(0) { }
-            else if is_variant(stmt.child(0).data, ExprData.FuncDef)
-                .or(is_variant(stmt.child(0).data, ExprData.StructDef))
-                .or(is_variant(stmt.child(0).data, ExprData.EnumDef)) {
-                if is_variant(stmt.child(0).data, ExprData.FuncDef)
+            else if is_variant(stmt.child(0).data, NodeType.FuncDef)
+                .or(is_variant(stmt.child(0).data, NodeType.StructDef))
+                .or(is_variant(stmt.child(0).data, NodeType.EnumDef)) {
+                if is_variant(stmt.child(0).data, NodeType.FuncDef)
                     .and(stmt.child(0).child_count().gt(0)) {
                     process_body(scope, stmt.child(0).child(0))
                 }
@@ -54,18 +54,18 @@ process_body := proc(scope: Scope, body: Expr) {
             } else {
                 track_literal(scope, dd.name, stmt.child(0))
             }
-        } else if is_variant(stmt.data, ExprData.If) {
+        } else if is_variant(stmt.data, NodeType.If) {
             if stmt.child_count().gt(1) {
                 process_body(scope, stmt.child(1))
             }
             if stmt.child_count().gt(2) {
                 process_body(scope, stmt.child(2))
             }
-        } else if is_variant(stmt.data, ExprData.While) {
+        } else if is_variant(stmt.data, NodeType.While) {
             if stmt.child_count().gt(1) {
                 process_body(scope, stmt.child(1))
             }
-        } else if is_variant(stmt.data, ExprData.FCall) {
+        } else if is_variant(stmt.data, NodeType.FCall) {
             if is_macro_call(stmt) {
                 ref lit : Expr = try_eval_call(scope, stmt, true)
                 if is_null(lit).not() {

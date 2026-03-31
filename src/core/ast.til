@@ -126,9 +126,9 @@ StructDefData := struct {
     to_str := func(self: StructDefData) returns Str { return "StructDef" }
 }
 
-// --- ExprData payload enum (25 variants) ---
+// --- NodeType payload enum (25 variants) ---
 
-ExprData := enum {
+NodeType := enum {
     Body,
     LiteralStr: Str,
     LiteralNum: Str,
@@ -159,7 +159,7 @@ ExprData := enum {
 // --- Expr struct ---
 
 Expr := struct {
-    mut data := ExprData.Body
+    mut data := NodeType.Body
     mut til_type := TilType.Unknown
     mut struct_name := ""
     mut is_own_arg := false
@@ -208,9 +208,9 @@ Expr := struct {
     child_count := func(parent: Expr) returns shallow USize {
         return parent.children.len()
     }
-    new := func(data: ExprData, shallow line: U32, shallow col: U32, path: Str) returns Expr {
+    new := func(data: NodeType, shallow line: U32, shallow col: U32, path: Str) returns Expr {
         mut out := Expr(data = data.clone(), line = line, col = col, path = path.clone())
-        if out.data.is(ExprData.FCall) {
+        if out.data.is(NodeType.FCall) {
             ref mut fcall_data : FCallData = get_payload(out.data)
             fcall_data.variadic_index = -1.to_i32()
             fcall_data.variadic_count = 0
@@ -247,33 +247,33 @@ Expr := struct {
 }
 
 // --- node_name ---
-node_name := func(data: ExprData) returns Str {
+node_name := func(data: NodeType) returns Str {
     switch data {
-    case ExprData.Body:        return "body"
-    case ExprData.LiteralStr:  return "str"
-    case ExprData.LiteralNum:  return "num"
-    case ExprData.LiteralBool: return "bool"
-    case ExprData.LiteralNull: return "null"
-    case ExprData.Ident:       return "ident"
-    case ExprData.Decl:        return "decl"
-    case ExprData.Assign:      return "assign"
-    case ExprData.FCall:       return "fcall"
-    case ExprData.FuncDef:     return "func_def"
-    case ExprData.StructDef:   return "struct_def"
-    case ExprData.EnumDef:     return "enum_def"
-    case ExprData.FieldAccess: return "field_access"
-    case ExprData.FieldAssign: return "field_assign"
-    case ExprData.Return:      return "return"
-    case ExprData.If:          return "if"
-    case ExprData.While:       return "while"
-    case ExprData.ForIn:       return "for_in"
-    case ExprData.NamedArg:    return "named_arg"
-    case ExprData.Break:       return "break"
-    case ExprData.Continue:    return "continue"
-    case ExprData.MapLit:      return "map_lit"
-    case ExprData.SetLit:      return "set_lit"
-    case ExprData.Switch:      return "switch"
-    case ExprData.Case:        return "case"
+    case NodeType.Body:        return "body"
+    case NodeType.LiteralStr:  return "str"
+    case NodeType.LiteralNum:  return "num"
+    case NodeType.LiteralBool: return "bool"
+    case NodeType.LiteralNull: return "null"
+    case NodeType.Ident:       return "ident"
+    case NodeType.Decl:        return "decl"
+    case NodeType.Assign:      return "assign"
+    case NodeType.FCall:       return "fcall"
+    case NodeType.FuncDef:     return "func_def"
+    case NodeType.StructDef:   return "struct_def"
+    case NodeType.EnumDef:     return "enum_def"
+    case NodeType.FieldAccess: return "field_access"
+    case NodeType.FieldAssign: return "field_assign"
+    case NodeType.Return:      return "return"
+    case NodeType.If:          return "if"
+    case NodeType.While:       return "while"
+    case NodeType.ForIn:       return "for_in"
+    case NodeType.NamedArg:    return "named_arg"
+    case NodeType.Break:       return "break"
+    case NodeType.Continue:    return "continue"
+    case NodeType.MapLit:      return "map_lit"
+    case NodeType.SetLit:      return "set_lit"
+    case NodeType.Switch:      return "switch"
+    case NodeType.Case:        return "case"
     case: return "?"
     }
 }
@@ -301,17 +301,17 @@ ast_print := proc(e: Expr, shallow indent: U32) {
         print(":", til_type_name_c(e.til_type))
     }
     switch e.data {
-    case ExprData.Ident(s):      print(" \"", s, "\"")
-    case ExprData.LiteralStr(s): print(" \"", s, "\"")
-    case ExprData.LiteralNum(s): print(" \"", s, "\"")
-    case ExprData.LiteralBool(b): if b { print(" true") } else { print(" false") }
-    case ExprData.ForIn(s):      print(" \"", s, "\"")
-    case ExprData.Decl(decl):
+    case NodeType.Ident(s):      print(" \"", s, "\"")
+    case NodeType.LiteralStr(s): print(" \"", s, "\"")
+    case NodeType.LiteralNum(s): print(" \"", s, "\"")
+    case NodeType.LiteralBool(b): if b { print(" true") } else { print(" false") }
+    case NodeType.ForIn(s):      print(" \"", s, "\"")
+    case NodeType.Decl(decl):
         if decl.is_mut { print(" mut") }
         print(" ", decl.name)
-    case ExprData.Assign(s):     print(" ", s)
-    case ExprData.NamedArg(s):   print(" ", s)
-    case ExprData.FuncDef(fdef): print(" ", func_type_name(fdef.func_type))
+    case NodeType.Assign(s):     print(" ", s)
+    case NodeType.NamedArg(s):   print(" ", s)
+    case NodeType.FuncDef(fdef): print(" ", func_type_name(fdef.func_type))
     case: // nothing
     }
     if e.children.len().gt(0) {
@@ -332,7 +332,7 @@ enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
     ref body : Expr = enum_def.child(0)
     for i in 0..body.child_count() {
         ref f : Expr = body.child(i)
-        if is_variant(f.data, ExprData.Decl) {
+        if is_variant(f.data, NodeType.Decl) {
             ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not().and(decl.explicit_type.len().gt(0)) {
                 return true
@@ -347,7 +347,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
     mut tag : I32 = 0
     for i in 0..body.child_count() {
         ref f : Expr = body.child(i)
-        if is_variant(f.data, ExprData.Decl) {
+        if is_variant(f.data, NodeType.Decl) {
             ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not() {
                 if decl.name.eq(variant_name) { return tag }
@@ -363,7 +363,7 @@ enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
     mut idx : I32 = 0
     for i in 0..body.child_count() {
         ref f : Expr = body.child(i)
-        if is_variant(f.data, ExprData.Decl) {
+        if is_variant(f.data, NodeType.Decl) {
             ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not() {
                 if idx.eq(tag) { return decl.explicit_type }

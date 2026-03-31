@@ -225,7 +225,7 @@ Expr *find_field_decl(Expr *struct_def, Str *fname) {
     Expr *body = Expr_child(struct_def, &(USize){(USize)(0)});
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = Expr_child(body, &(USize){(USize)(i)});
-        if (f->data.tag == ExprData_TAG_Decl && !f->data.data.Decl.is_namespace &&
+        if (f->data.tag == NodeType_TAG_Decl && !f->data.data.Decl.is_namespace &&
             Str_eq(&f->data.data.Decl.name, fname))
             return f;
     }
@@ -279,7 +279,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     if (ftype && (ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return val_bool(*(Bool *)ptr);
     // Enum field: payload enums stored as EnumInstance *, simple enums as I32
     if (fdecl->data.data.Decl.field_struct_def &&
-        fdecl->data.data.Decl.field_struct_def->data.tag == ExprData_TAG_EnumDef) {
+        fdecl->data.data.Decl.field_struct_def->data.tag == NodeType_TAG_EnumDef) {
         Expr *edef = fdecl->data.data.Decl.field_struct_def;
         if (enum_has_payloads(edef)) {
             EnumInstance *ei = *(EnumInstance **)ptr;
@@ -489,7 +489,7 @@ Value clone_value(Value v) {
             }
             // Tagged enum fields: clone the EnumInstance pointer + flat buffer
             if (field->data.data.Decl.field_struct_def &&
-                field->data.data.Decl.field_struct_def->data.tag == ExprData_TAG_EnumDef &&
+                field->data.data.Decl.field_struct_def->data.tag == NodeType_TAG_EnumDef &&
                 enum_has_payloads(field->data.data.Decl.field_struct_def)) {
                 EnumInstance *ei = *(EnumInstance **)((char *)src->data + foff);
                 if (ei) {
@@ -505,7 +505,7 @@ Value clone_value(Value v) {
             }
             // Inline struct fields: recursively deep-clone
             if (field->data.data.Decl.field_struct_def &&
-                field->data.data.Decl.field_struct_def->data.tag != ExprData_TAG_EnumDef) {
+                field->data.data.Decl.field_struct_def->data.tag != NodeType_TAG_EnumDef) {
                 Expr *nested = field->data.data.Decl.field_struct_def;
                 Value tmp_val;
                 tmp_val.tag = Value_TAG_Struct;
@@ -597,7 +597,7 @@ Value eval_call(Scope *scope, Expr *e) {
     Expr *callee_expr = Expr_child(e, &(USize){(USize)(0)});
 
     // Namespace method call: Struct.method(args)
-    if (callee_expr->data.tag == ExprData_TAG_FieldAccess) {
+    if (callee_expr->data.tag == NodeType_TAG_FieldAccess) {
         Value fn_val = eval_expr(scope,callee_expr);
         if (fn_val.tag != Value_TAG_Func) {
             Expr_error(e, &(Str){.c_str = (U8*)"namespace field is not a function", .count = 37, .cap = CAP_LIT});
@@ -624,7 +624,7 @@ Value eval_call(Scope *scope, Expr *e) {
                         Str fp_flat = {.c_str = (U8 *)fp_flat_buf, .count = qn->count};
                         Expr orig_callee = *Expr_child(e, &(USize){(USize)(0)});
                         Expr flat_ident = orig_callee;
-                        flat_ident.data.tag = ExprData_TAG_Ident;
+                        flat_ident.data.tag = NodeType_TAG_Ident;
                         flat_ident.data.data.Ident = fp_flat;
                         memcpy(Vec_get(&e->children, &(USize){(USize)(0)}), &flat_ident, sizeof(Expr));
                         Value result = eval_call(scope, e);
@@ -642,13 +642,13 @@ Value eval_call(Scope *scope, Expr *e) {
             Str *parent_sname = &Expr_child(callee_expr, &(USize){(USize)(0)})->struct_name;
             if (parent_sname) {
                 Cell *tc = scope_get(scope, parent_sname);
-                if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_EnumDef) {
+                if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == NodeType_TAG_EnumDef) {
                     Value eresult;
                     if (enum_method_dispatch(&callee_expr->data.data.Ident, scope,
                             ((Expr*)tc->val.data.Func), parent_sname, e, &eresult)) {
                         // Null cells of own-arg idents
                         for (U32 i = 1; i < e->children.count; i++) {
-                            if (Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_Ident && Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
+                            if (Expr_child(e, &(USize){(USize)(i)})->data.tag == NodeType_TAG_Ident && Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
                                 Cell *c = scope_get(scope, &Expr_child(e, &(USize){(USize)(i)})->data.data.Ident);
                                 if (c) c->val = val_none();
                             }
@@ -668,7 +668,7 @@ Value eval_call(Scope *scope, Expr *e) {
             Str flat_str = {.c_str = (U8 *)flat_name_buf, .count = flen};
             Expr orig_callee_val = *Expr_child(e, &(USize){(USize)(0)});
             Expr flat_ident = orig_callee_val;
-            flat_ident.data.tag = ExprData_TAG_Ident;
+            flat_ident.data.tag = NodeType_TAG_Ident;
             flat_ident.data.data.Ident = flat_str;
             memcpy(Vec_get(&e->children, &(USize){(USize)(0)}), &flat_ident, sizeof(Expr));
             Value result = eval_call(scope, e);
@@ -681,7 +681,7 @@ Value eval_call(Scope *scope, Expr *e) {
         if (func_def->data.data.FuncDef.nparam > 0 &&
             func_def->data.data.FuncDef.params.count > 0 &&
             PARAM_IS_OWN(((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))) &&
-            e->children.count > 1 && Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident) {
+            e->children.count > 1 && Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_Ident) {
             Cell *fc = scope_get(scope, &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident);
             if (fc && fc->val.tag == Value_TAG_None) return val_none();
             if (fc && fc->val.tag == Value_TAG_Struct && fc->val.data.Struct.borrowed) {
@@ -698,7 +698,7 @@ Value eval_call(Scope *scope, Expr *e) {
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++) {
             Param *_ipi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)});
             Expr *arg_expr = Expr_child(e, &(USize){(USize)(i + 1)});
-            if (arg_expr->data.tag == ExprData_TAG_Ident) {
+            if (arg_expr->data.tag == NodeType_TAG_Ident) {
                 Cell *arg_cell = scope_get(scope, &arg_expr->data.data.Ident);
                 // Reinterpret Value_TAG_Ptr based on param type
                 if (arg_cell->val.tag == Value_TAG_Ptr && _ipi->ptype.count > 0) {
@@ -785,7 +785,7 @@ Value eval_call(Scope *scope, Expr *e) {
     if (ext_function_dispatch(name, scope, e, &ext_result)) {
         // Null cells of own-arg idents (ext dispatch evaluates by value, not borrowed cell)
         for (U32 i = 1; i < e->children.count; i++) {
-            if (Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_Ident && Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
+            if (Expr_child(e, &(USize){(USize)(i)})->data.tag == NodeType_TAG_Ident && Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
                 Cell *c = scope_get(scope, &Expr_child(e, &(USize){(USize)(i)})->data.data.Ident);
                 if (c) c->val = val_none();
             }
@@ -803,7 +803,7 @@ Value eval_call(Scope *scope, Expr *e) {
     }
 
     // Struct instantiation — typer already desugared named args to positional
-    if (fn_cell->val.tag == Value_TAG_Func && ((Expr*)fn_cell->val.data.Func)->data.tag == ExprData_TAG_StructDef) {
+    if (fn_cell->val.tag == Value_TAG_Func && ((Expr*)fn_cell->val.data.Func)->data.tag == NodeType_TAG_StructDef) {
         Expr *sdef = ((Expr*)fn_cell->val.data.Func);
         Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
 
@@ -819,7 +819,7 @@ Value eval_call(Scope *scope, Expr *e) {
             if (field->data.data.Decl.is_namespace) continue;
             Expr *arg = Expr_child(e, &(USize){(USize)(arg_idx++)});
             Value val;
-            if (arg->data.tag == ExprData_TAG_Ident) {
+            if (arg->data.tag == NodeType_TAG_Ident) {
                 Cell *src = scope_get(scope, &arg->data.data.Ident);
                 val = src->val;
                 if (arg->is_own_arg && val.tag != Value_TAG_Func)
@@ -850,7 +850,7 @@ Value eval_call(Scope *scope, Expr *e) {
     if (func_def->data.data.FuncDef.nparam > 0 &&
         func_def->data.data.FuncDef.params.count > 0 &&
         PARAM_IS_OWN(((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))) &&
-        e->children.count > 1 && Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident) {
+        e->children.count > 1 && Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_Ident) {
         Cell *fc = scope_get(scope, &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident);
         if (fc && fc->val.tag == Value_TAG_None) return val_none();
         if (fc && fc->val.tag == Value_TAG_Struct && fc->val.data.Struct.borrowed) {
@@ -869,7 +869,7 @@ Value eval_call(Scope *scope, Expr *e) {
     for (U32 i = 0; i < nparam; i++) {
         Expr *arg_expr = Expr_child(e, &(USize){(USize)(i + 1)});
         Param *_rpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)});
-        if (arg_expr->data.tag == ExprData_TAG_Ident) {
+        if (arg_expr->data.tag == NodeType_TAG_Ident) {
             Cell *arg_cell = scope_get(scope, &arg_expr->data.data.Ident);
             if (needs_widen(arg_cell->val, &_rpi->ptype)) {
                 Value arg = clone_value(arg_cell->val);
@@ -899,7 +899,7 @@ Value eval_call(Scope *scope, Expr *e) {
 
 Value eval_expr(Scope *scope, Expr *e) {
     switch (e->data.tag) {
-    case ExprData_TAG_LiteralStr: {
+    case NodeType_TAG_LiteralStr: {
         // Process C escape sequences (\n, \t, \\, \", \0)
         const char *raw = (const char *)e->data.data.LiteralStr.c_str;
         U64 raw_len = e->data.data.LiteralStr.count;
@@ -924,7 +924,7 @@ Value eval_expr(Scope *scope, Expr *e) {
         free(buf);
         return v;
     }
-    case ExprData_TAG_LiteralNum:
+    case NodeType_TAG_LiteralNum:
         if (e->til_type.tag == TilType_TAG_U8)
             return val_u8(atoll((const char *)e->data.data.LiteralNum.c_str));
         if (e->til_type.tag == TilType_TAG_U32)
@@ -938,11 +938,11 @@ Value eval_expr(Scope *scope, Expr *e) {
         if (e->til_type.tag == TilType_TAG_F32)
             return val_f32((F32)atof((const char *)e->data.data.LiteralNum.c_str));
         return val_i64(atoll((const char *)e->data.data.LiteralNum.c_str));
-    case ExprData_TAG_LiteralBool:
+    case NodeType_TAG_LiteralBool:
         return val_bool(e->data.data.LiteralBool);
-    case ExprData_TAG_LiteralNull:
+    case NodeType_TAG_LiteralNull:
         return (Value){.tag = Value_TAG_Ptr, .data.Ptr = NULL};
-    case ExprData_TAG_Ident: {
+    case NodeType_TAG_Ident: {
         Cell *cell = scope_get(scope, &e->data.data.Ident);
         if (!cell) {
             char buf[128];
@@ -952,14 +952,14 @@ Value eval_expr(Scope *scope, Expr *e) {
         }
         return cell->val;
     }
-    case ExprData_TAG_FCall:
+    case NodeType_TAG_FCall:
         return eval_call(scope, e);
-    case ExprData_TAG_FuncDef:
+    case NodeType_TAG_FuncDef:
         return (Value){.tag = Value_TAG_Func, .data.Func = (void*)e};
-    case ExprData_TAG_StructDef:
-    case ExprData_TAG_EnumDef:
+    case NodeType_TAG_StructDef:
+    case NodeType_TAG_EnumDef:
         return (Value){.tag = Value_TAG_Func, .data.Func = (void*)e};
-    case ExprData_TAG_FieldAccess: {
+    case NodeType_TAG_FieldAccess: {
         Value obj = eval_expr(scope,Expr_child(e, &(USize){(USize)(0)}));
         Str *fname = &e->data.data.FieldAccess;
         if (e->is_ns_field) {
@@ -973,11 +973,11 @@ Value eval_expr(Scope *scope, Expr *e) {
                 // Auto-call enum variant constructors used bare (without parens)
                 // Check til_type == Enum to distinguish bare refs from FCall callees
                 if (nsv->tag == Value_TAG_Func && nsv->data.Func &&
-                    ((Expr*)nsv->data.Func)->data.tag == ExprData_TAG_FuncDef &&
+                    ((Expr*)nsv->data.Func)->data.tag == NodeType_TAG_FuncDef &&
                     ((Expr*)nsv->data.Func)->data.data.FuncDef.func_type.tag == FuncType_TAG_ExtFunc &&
                     e->til_type.tag == TilType_TAG_Enum) {
                     Cell *tc = scope_get(scope, sname);
-                    if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_EnumDef) {
+                    if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == NodeType_TAG_EnumDef) {
                         I32 tag = *enum_variant_tag(((Expr*)tc->val.data.Func), fname);
                         if (tag >= 0) {
                             Expr *edef = (Expr*)tc->val.data.Func;
@@ -999,7 +999,7 @@ Value eval_expr(Scope *scope, Expr *e) {
             Expr *obj_expr = Expr_child(e, &(USize){(USize)(0)});
             if (obj_expr->struct_name.count > 0) {
                 Cell *tc = scope_get(scope, &obj_expr->struct_name);
-                if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_StructDef) {
+                if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == NodeType_TAG_StructDef) {
                     void *saved_ptr = obj.data.Ptr;
                     obj.tag = Value_TAG_Struct;
                     obj.data.Struct.struct_name = &obj_expr->struct_name;
@@ -1035,19 +1035,19 @@ static void eval_body(Scope *scope, Expr *body) {
         if (has_return || has_break || has_continue) return;
         Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         switch (stmt->data.tag) {
-        case ExprData_TAG_Decl: {
+        case NodeType_TAG_Decl: {
             Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
             // Skip type aliases (already pre-registered; typer sets til_type=None, RHS is Ident)
-            if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) {
+            if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == NodeType_TAG_Ident) {
                 break;
             }
-            if (stmt->data.data.Decl.is_ref && rhs->data.tag == ExprData_TAG_Ident) {
+            if (stmt->data.data.Decl.is_ref && rhs->data.tag == NodeType_TAG_Ident) {
                 // Ref decl from ident: borrow the same cell (no move, no free)
                 Cell *src = scope_get(scope, &rhs->data.data.Ident);
                 scope_set_borrowed(scope, (&stmt->data.data.Decl.name), src);
             } else {
                 Value val;
-                if (rhs->data.tag == ExprData_TAG_Ident) {
+                if (rhs->data.tag == NodeType_TAG_Ident) {
                     // Move semantics: transfer value from source, null source
                     Cell *src = scope_get(scope, &rhs->data.data.Ident);
                     if (!src) {
@@ -1093,14 +1093,14 @@ static void eval_body(Scope *scope, Expr *body) {
                         // Check for FuncSig type: dereference to get function pointer
                         Cell *tc = scope_get(scope, etype);
                         if (tc && tc->val.tag == Value_TAG_Func &&
-                            ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_FuncDef &&
+                            ((Expr*)tc->val.data.Func)->data.tag == NodeType_TAG_FuncDef &&
                             ((Expr*)tc->val.data.Func)->children.count == 0) {
                             // FuncSig: payload is a function pointer (void *)
                             void *fp = *(void **)val.data.Ptr;
                             val = (Value){.tag = Value_TAG_Func, .data.Func = fp};
                         }
                         // EnumDef: wrap in EnumInstance
-                        else if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_EnumDef) {
+                        else if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == NodeType_TAG_EnumDef) {
                             Expr *edef = (Expr*)tc->val.data.Func;
                             I32 esz = (I32)sizeof(I64);
                             U8 *ecopy = malloc(esz);
@@ -1112,7 +1112,7 @@ static void eval_body(Scope *scope, Expr *body) {
                             val.data.Enum.data_size = esz;
                         }
                         // User-defined struct: wrap ptr in borrowed StructInstance
-                        else if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_StructDef) {
+                        else if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == NodeType_TAG_StructDef) {
                             void *saved_ptr = val.data.Ptr;
                             val.tag = Value_TAG_Struct;
                             val.data.Struct.struct_name = etype;
@@ -1126,7 +1126,7 @@ static void eval_body(Scope *scope, Expr *body) {
             }
             break;
         }
-        case ExprData_TAG_Assign: {
+        case NodeType_TAG_Assign: {
             Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
             Cell *cell = scope_get(scope, &stmt->data.data.Assign);
             if (!cell) {
@@ -1135,7 +1135,7 @@ static void eval_body(Scope *scope, Expr *body) {
                 Expr_error(stmt, &(Str){.c_str = (U8*)buf, .count = (U64)strlen(buf), .cap = CAP_VIEW});
                 exit(1);
             }
-            if (stmt->til_type.tag == TilType_TAG_Dynamic && rhs->data.tag == ExprData_TAG_Ident) {
+            if (stmt->til_type.tag == TilType_TAG_Dynamic && rhs->data.tag == NodeType_TAG_Ident) {
                 // Move semantics: transfer value from source, null source
                 Cell *src = scope_get(scope, &rhs->data.data.Ident);
                 free_value(cell->val);
@@ -1149,11 +1149,11 @@ static void eval_body(Scope *scope, Expr *body) {
             }
             break;
         }
-        case ExprData_TAG_FieldAssign: {
+        case NodeType_TAG_FieldAssign: {
             Expr *val_expr = Expr_child(stmt, &(USize){(USize)(1)});
             Value val;
             Cell *move_src = NULL;
-            if (val_expr->til_type.tag == TilType_TAG_Dynamic && val_expr->data.tag == ExprData_TAG_Ident) {
+            if (val_expr->til_type.tag == TilType_TAG_Dynamic && val_expr->data.tag == NodeType_TAG_Ident) {
                 move_src = scope_get(scope, &val_expr->data.data.Ident);
                 val = move_src->val;
             } else {
@@ -1171,17 +1171,17 @@ static void eval_body(Scope *scope, Expr *body) {
                 void *base = NULL;
                 Expr *cur_sdef = NULL;
                 Expr *obj_expr = Expr_child(stmt, &(USize){(USize)(0)});
-                if (obj_expr->data.tag == ExprData_TAG_Ident) {
+                if (obj_expr->data.tag == NodeType_TAG_Ident) {
                     Cell *cell = scope_get(scope, &obj_expr->data.data.Ident);
                     if (cell && cell->val.tag == Value_TAG_Struct) {
                         base = cell->val.data.Struct.data;
                         cur_sdef = cell->val.data.Struct.struct_def;
                     }
-                } else if (obj_expr->data.tag == ExprData_TAG_FieldAccess) {
+                } else if (obj_expr->data.tag == NodeType_TAG_FieldAccess) {
                     // Chained: e.g. l1.start.x — walk chain to compute offset
                     Expr *chain[32]; I32 depth = 0;
                     Expr *cur = obj_expr;
-                    while (cur->data.tag == ExprData_TAG_FieldAccess) {
+                    while (cur->data.tag == NodeType_TAG_FieldAccess) {
                         chain[depth++] = cur;
                         cur = Expr_child(cur, &(USize){(USize)(0)});
                     }
@@ -1258,16 +1258,16 @@ static void eval_body(Scope *scope, Expr *body) {
             }
             break;
         }
-        case ExprData_TAG_FCall:
+        case NodeType_TAG_FCall:
             eval_call(scope, stmt);
             break;
-        case ExprData_TAG_Body: {
+        case NodeType_TAG_Body: {
             Scope *block_scope = scope_new(scope);
             eval_body(block_scope, stmt);
             scope_free(block_scope);
             break;
         }
-        case ExprData_TAG_If: {
+        case NodeType_TAG_If: {
             Value cond = eval_expr(scope,Expr_child(stmt, &(USize){(USize)(0)}));
             if (cond.data.Boolean) {
                 Scope *then_scope = scope_new(scope);
@@ -1280,7 +1280,7 @@ static void eval_body(Scope *scope, Expr *body) {
             }
             break;
         }
-        case ExprData_TAG_While: {
+        case NodeType_TAG_While: {
             while (1) {
                 if (has_return) break;
                 Value cond = eval_expr(scope,Expr_child(stmt, &(USize){(USize)(0)}));
@@ -1293,13 +1293,13 @@ static void eval_body(Scope *scope, Expr *body) {
             }
             break;
         }
-        case ExprData_TAG_Break:
+        case NodeType_TAG_Break:
             has_break = 1;
             return;
-        case ExprData_TAG_Continue:
+        case NodeType_TAG_Continue:
             has_continue = 1;
             return;
-        case ExprData_TAG_Return:
+        case NodeType_TAG_Return:
             if (stmt->children.count > 0) {
                 return_value = eval_expr(scope,Expr_child(stmt, &(USize){(USize)(0)}));
             } else {
@@ -1321,12 +1321,12 @@ void interpreter_init_ns(Scope *global, Expr *program) {
     { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); ns_keys = *_vp; free(_vp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                                        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+        if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                                        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *sdef = Expr_child(stmt, &(USize){(USize)(0)});
             // Cache struct defs for C-side construction
-            if (sdef->data.tag == ExprData_TAG_StructDef) {
+            if (sdef->data.tag == NodeType_TAG_StructDef) {
                 if ((sname->count == 3 && memcmp(sname->c_str, "Str", 3) == 0))   { cached_str_def = sdef; cached_str_name = sname; }
                 if ((sname->count == 5 && memcmp(sname->c_str, "Array", 5) == 0)) { cached_array_def = sdef; cached_array_name = sname; }
                 if ((sname->count == 3 && memcmp(sname->c_str, "Vec", 3) == 0))   { cached_vec_def = sdef; cached_vec_name = sname; }
@@ -1337,7 +1337,7 @@ void interpreter_init_ns(Scope *global, Expr *program) {
                 if (field->data.data.Decl.is_namespace) {
                     Value fval = eval_expr(global, Expr_child(field, &(USize){(USize)(0)}));
                     // Simple enum variant tags: convert I64 literal to I32 (matching C enum)
-                    if (sdef->data.tag == ExprData_TAG_EnumDef && !enum_has_payloads(sdef) &&
+                    if (sdef->data.tag == NodeType_TAG_EnumDef && !enum_has_payloads(sdef) &&
                         fval.tag == Value_TAG_Int) {
                         I32 tag = (I32)fval.data.Int;
                         fval = val_i32(tag);
@@ -1486,10 +1486,10 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
     // Pre-register all top-level func/proc/struct definitions for forward references
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl &&
-            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
-             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+        if (stmt->data.tag == NodeType_TAG_Decl &&
+            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Value val = {.tag = Value_TAG_Func, .data.Func = (void*)Expr_child(stmt, &(USize){(USize)(0)})};
             scope_set_owned(global, (&stmt->data.data.Decl.name), val);
         }
@@ -1498,14 +1498,14 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
     // Pre-register type aliases (Name := ExistingType where RHS is Ident and is a type)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (stmt->data.tag != NodeType_TAG_Decl) continue;
         if (stmt->til_type.tag != TilType_TAG_None) continue; // type defs have None
         Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-        if (rhs->data.tag != ExprData_TAG_Ident) continue;
+        if (rhs->data.tag != NodeType_TAG_Ident) continue;
         Cell *src = scope_get(global, &rhs->data.data.Ident);
         if (src && src->val.tag == Value_TAG_Func &&
-            (((Expr*)src->val.data.Func)->data.tag == ExprData_TAG_StructDef ||
-             ((Expr*)src->val.data.Func)->data.tag == ExprData_TAG_EnumDef)) {
+            (((Expr*)src->val.data.Func)->data.tag == NodeType_TAG_StructDef ||
+             ((Expr*)src->val.data.Func)->data.tag == NodeType_TAG_EnumDef)) {
             Value val = {.tag = Value_TAG_Func, .data.Func = src->val.data.Func};
             scope_set_owned(global, &stmt->data.data.Decl.name, val);
         }
@@ -1517,16 +1517,16 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
     // Copy namespace entries for type aliases
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (stmt->data.tag != NodeType_TAG_Decl) continue;
         if (stmt->til_type.tag != TilType_TAG_None) continue;
         Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-        if (rhs->data.tag != ExprData_TAG_Ident) continue;
+        if (rhs->data.tag != NodeType_TAG_Ident) continue;
         Str *alias_name = &stmt->data.data.Decl.name;
         Str *target_name = &rhs->data.data.Ident;
         Cell *tc = scope_get(global, target_name);
         if (!tc || tc->val.tag != Value_TAG_Func) continue;
         Expr *sdef = ((Expr*)tc->val.data.Func);
-        if (sdef->data.tag != ExprData_TAG_StructDef && sdef->data.tag != ExprData_TAG_EnumDef) continue;
+        if (sdef->data.tag != NodeType_TAG_StructDef && sdef->data.tag != NodeType_TAG_EnumDef) continue;
         Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = Expr_child(body, &(USize){(USize)(j)});
@@ -1545,9 +1545,9 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
         I32 test_count = 0, pass_count = 0;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag != ExprData_TAG_Decl) continue;
+            if (stmt->data.tag != NodeType_TAG_Decl) continue;
             Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-            if (rhs->data.tag != ExprData_TAG_FuncDef) continue;
+            if (rhs->data.tag != NodeType_TAG_FuncDef) continue;
             if (rhs->data.data.FuncDef.func_type.tag != FuncType_TAG_Test) continue;
             Str *tname = &stmt->data.data.Decl.name;
             test_count++;

@@ -169,7 +169,7 @@
   <text x="328" y="1792" class="line">mut total_struct_size : I32 = 0</text>
   <text x="328" y="1810" class="line">mut fields := Vec.new(&quot;FieldDef&quot;, FieldDef.size())</text>
   <rect x="314" y="1836" width="212" height="496" rx="10" ry="10" class="box"/>
-  <text x="328" y="1874" class="title">ExprData: EnumDef</text>
+  <text x="328" y="1874" class="title">NodeType: EnumDef</text>
   <text x="328" y="1892" class="line">Body</text>
   <text x="328" y="1910" class="line">LiteralStr:Str</text>
   <text x="328" y="1928" class="line">LiteralNum:Str</text>
@@ -197,7 +197,7 @@
   <text x="328" y="2324" class="line">Case</text>
   <rect x="314" y="2350" width="476" height="424" rx="10" ry="10" class="box"/>
   <text x="328" y="2388" class="title">Expr: StructDef</text>
-  <text x="328" y="2406" class="line">mut data := ExprData.Body</text>
+  <text x="328" y="2406" class="line">mut data := NodeType.Body</text>
   <text x="328" y="2424" class="line">mut til_type := TilType.Unknown</text>
   <text x="328" y="2442" class="line">mut struct_name := &quot;&quot;</text>
   <text x="328" y="2460" class="line">mut is_own_arg := false</text>

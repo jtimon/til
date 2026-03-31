@@ -67,9 +67,9 @@ extract_imports := proc(mut body: Expr) returns Vec {
     for i in 0..Expr.child_count(body) {
         ref stmt : Expr = Expr.child(body, i)
         mut is_import := false
-        if is_variant(stmt.data, ExprData.FCall).and(Expr.child_count(stmt).eq(2)) {
-            if is_variant(Expr.child(stmt, 0).data, ExprData.Ident)
-                .and(is_variant(Expr.child(stmt, 1).data, ExprData.LiteralStr)) {
+        if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
+            if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
+                .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
                 ref _c0id : Str = get_payload(Expr.child(stmt, 0).data)
                 if _c0id.eq("import") {
                     is_import = true
@@ -346,9 +346,9 @@ main := proc(args: ..Str) {
     for i in 0..Expr.child_count(ast) {
         ref stmt : Expr = Expr.child(ast, i)
         mut is_directive := false
-        if is_variant(stmt.data, ExprData.FCall).and(Expr.child_count(stmt).eq(2)) {
-            if is_variant(Expr.child(stmt, 0).data, ExprData.Ident)
-                .and(is_variant(Expr.child(stmt, 1).data, ExprData.LiteralStr)) {
+        if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
+            if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
+                .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
                 is_directive = true
             }
         }

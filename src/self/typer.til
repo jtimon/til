@@ -39,11 +39,11 @@ find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
     ref body : Expr = sdef.child(0)
     for i in 0..body.child_count() {
         ref field : Expr = body.child(i)
-        if is_variant(field.data, ExprData.Decl).not() { continue }
+        if is_variant(field.data, NodeType.Decl).not() { continue }
         ref fd : Declaration = get_payload(field.data)
         if fd.is_namespace.not() { continue }
         if fd.name.eq(method).not() { continue }
-        if is_variant(field.child(0).data, ExprData.FuncDef).not() { continue }
+        if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
         return field.child(0)
     }
     return NULL
@@ -73,7 +73,7 @@ try_ufcs_rewrite := proc(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
         }
     }
     if ufcs_match.eq(0) { return false }
-    mut fn_ident := Expr.new(ExprData.Ident(method.clone()), fa.line, fa.col, fa.path)
+    mut fn_ident := Expr.new(NodeType.Ident(method.clone()), fa.line, fa.col, fa.path)
     e.children.set(0, own fn_ident)
     mut instance := obj
     mut new_children := Vec.new("Expr", Expr.size())
@@ -91,7 +91,7 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
     ref body : Expr = sdef.child(0)
     for fi in 0..body.child_count() {
         ref field : Expr = body.child(fi)
-        if is_variant(field.data, ExprData.Decl).not() { continue }
+        if is_variant(field.data, NodeType.Decl).not() { continue }
         ref fd : Declaration = get_payload(field.data)
         if fd.is_namespace { continue }
         if fd.name.eq(method).not() { continue }
@@ -177,7 +177,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
             type_error(arg, "'own' on argument but parameter '".concat(pp2.name).concat("' is not 'own'"))
         }
         if pown {
-            if is_variant(arg.data, ExprData.Ident) {
+            if is_variant(arg.data, NodeType.Ident) {
                 sf_ab := scope.find(get_payload(arg.data))
                 if is_variant(sf_ab, ScopeFind.Found) {
                     ref ab : TypeBinding = get_payload(sf_ab)
@@ -188,12 +188,12 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
             }
         }
         if pown {
-            if is_variant(arg.data, ExprData.LiteralNull) {
+            if is_variant(arg.data, NodeType.LiteralNull) {
                 type_error(arg, "cannot pass null to 'own' parameter")
             }
         }
         if pp2.own_type.eq(OwnType.Shallow) {
-            if is_variant(arg.data, ExprData.LiteralNull) {
+            if is_variant(arg.data, NodeType.LiteralNull) {
                 type_error(arg, "cannot pass null to 'shallow' parameter")
             }
         }
@@ -237,7 +237,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
     }
     for i in 1..e.child_count() {
         ref arg : Expr = e.child(i)
-        if is_variant(arg.data, ExprData.NamedArg).not() {
+        if is_variant(arg.data, NodeType.NamedArg).not() {
             type_error(arg, "struct instantiation requires named arguments")
             continue
         }
@@ -327,7 +327,7 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
     mut seen_named := false
     for i in 1..e.child_count() {
         ref arg : Expr = e.child(i)
-        if is_variant(arg.data, ExprData.NamedArg) {
+        if is_variant(arg.data, NodeType.NamedArg) {
             seen_named = true
             ref aname : Str = get_payload(arg.data)
             mut slot := -1.to_i32()
@@ -503,7 +503,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
             pi = pi.add(1)
             continue
         }
-        if is_variant(arg.data, ExprData.LiteralNum) {
+        if is_variant(arg.data, NodeType.LiteralNum) {
             if is_numeric_type(ptype) {
                 if literal_in_range(get_payload(arg.data), ptype).not() {
                     type_error(arg, "integer literal ".concat(get_payload(arg.data)).concat(" out of range for ").concat(type_to_name(ptype, "")))
@@ -544,7 +544,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")).or(name.eq("dyn_fn")) {
         if e.child_count().gte(3) {
             ref method_arg : Expr = e.child(2)
-            if is_variant(method_arg.data, ExprData.LiteralStr).not() {
+            if is_variant(method_arg.data, NodeType.LiteralStr).not() {
                 type_error(method_arg, "dyn_call method argument must be a string literal")
             }
         }
@@ -552,7 +552,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     if name.eq("array").or(name.eq("vec")) {
         if e.child_count().gte(2) {
             ref type_arg : Expr = e.child(1)
-            if is_variant(type_arg.data, ExprData.LiteralStr).not() {
+            if is_variant(type_arg.data, NodeType.LiteralStr).not() {
                 type_error(type_arg, "array/vec type_name argument must be a string literal")
             }
         }
@@ -683,7 +683,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     infer_expr(scope, obj, in_func)
 
     mut obj_is_type := false
-    if is_variant(obj.data, ExprData.Ident) {
+    if is_variant(obj.data, NodeType.Ident) {
         sf_tb := scope.find(get_payload(obj.data))
         if is_variant(sf_tb, ScopeFind.Found) {
             ref tb : TypeBinding = get_payload(sf_tb)
@@ -740,7 +740,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         }
         ufcs_desugared = true
         mut instance := obj.clone()
-        mut type_ident := Expr.new(ExprData.Ident(type_name.clone()), obj.line, obj.col, obj.path)
+        mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), obj.line, obj.col, obj.path)
         fa.children.set(0, own type_ident)
         mut new_children := Vec.new("Expr", Expr.size())
         new_children.push(own e.child(0).clone())
@@ -781,7 +781,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         mut seen_named := false
         for i in 1..e.child_count() {
             ref arg : Expr = e.child(i)
-            if is_variant(arg.data, ExprData.NamedArg) {
+            if is_variant(arg.data, NodeType.NamedArg) {
                 seen_named = true
                 ref aname : Str = get_payload(arg.data)
                 mut slot := -1.to_i32()
@@ -856,7 +856,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         if is_variant(arg.til_type, TilType.Dynamic) { continue }
         ptype := type_from_name(ptype_name, scope)
         if is_variant(ptype, TilType.Dynamic) { continue }
-        if is_variant(arg.data, ExprData.LiteralNum) {
+        if is_variant(arg.data, NodeType.LiteralNum) {
             if is_numeric_type(ptype) {
                 if literal_in_range(get_payload(arg.data), ptype).not() {
                     type_error(arg, format(
@@ -915,7 +915,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                     type_error(arg, format("'own' on argument but parameter '", pp.name, "' is not 'own'"))
                 }
                 if pown {
-                    if is_variant(arg.data, ExprData.Ident) {
+                    if is_variant(arg.data, NodeType.Ident) {
                         sf_ab := scope.find(get_payload(arg.data))
                         if is_variant(sf_ab, ScopeFind.Found) {
                             ref ab : TypeBinding = get_payload(sf_ab)
@@ -926,12 +926,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                     }
                 }
                 if pown {
-                    if is_variant(arg.data, ExprData.LiteralNull) {
+                    if is_variant(arg.data, NodeType.LiteralNull) {
                         type_error(arg, "cannot pass null to 'own' parameter")
                     }
                 }
                 if pp.own_type.eq(OwnType.Shallow) {
-                    if is_variant(arg.data, ExprData.LiteralNull) {
+                    if is_variant(arg.data, NodeType.LiteralNull) {
                         type_error(arg, "cannot pass null to 'shallow' parameter")
                     }
                 }
@@ -953,7 +953,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
 }
 
 infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32) {
-    if is_variant(e.child(0).data, ExprData.FieldAccess) {
+    if is_variant(e.child(0).data, NodeType.FieldAccess) {
         if infer_field_access_fcall(scope, e, in_func) { return }
     }
     ref mut callee : Expr = e.child(0)
@@ -961,7 +961,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32) {
     mut name := name0.clone()
     ref resolved_name : Str = resolve_type_alias(scope, name)
     if resolved_name.eq(name).not() {
-        callee.data = ExprData.Ident(resolved_name.clone())
+        callee.data = NodeType.Ident(resolved_name.clone())
         name = resolved_name.clone()
     }
     if infer_struct_constructor_fcall(scope, e, name, in_func) { return }
@@ -980,26 +980,26 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32) {
 }
 
 infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
-    if is_variant(expr.data, ExprData.LiteralStr)
-        .or(is_variant(expr.data, ExprData.LiteralNum))
-        .or(is_variant(expr.data, ExprData.LiteralBool))
-        .or(is_variant(expr.data, ExprData.LiteralNull)) {
+    if is_variant(expr.data, NodeType.LiteralStr)
+        .or(is_variant(expr.data, NodeType.LiteralNum))
+        .or(is_variant(expr.data, NodeType.LiteralBool))
+        .or(is_variant(expr.data, NodeType.LiteralNull)) {
         infer_literal_expr(expr)
-    } else if is_variant(expr.data, ExprData.Ident) {
+    } else if is_variant(expr.data, NodeType.Ident) {
         infer_ident_expr(scope, expr)
-    } else if is_variant(expr.data, ExprData.FuncDef) {
+    } else if is_variant(expr.data, NodeType.FuncDef) {
         infer_func_def_expr(scope, expr)
-    } else if is_variant(expr.data, ExprData.StructDef).or(is_variant(expr.data, ExprData.EnumDef)) {
+    } else if is_variant(expr.data, NodeType.StructDef).or(is_variant(expr.data, NodeType.EnumDef)) {
         infer_type_def_expr(scope, expr)
-    } else if is_variant(expr.data, ExprData.FCall) {
+    } else if is_variant(expr.data, NodeType.FCall) {
         infer_fcall_expr(scope, expr, in_func)
-    } else if is_variant(expr.data, ExprData.FieldAccess) {
+    } else if is_variant(expr.data, NodeType.FieldAccess) {
         infer_field_access_expr(scope, expr, in_func)
-    } else if is_variant(expr.data, ExprData.MapLit) {
+    } else if is_variant(expr.data, NodeType.MapLit) {
         infer_map_lit_expr(scope, expr, in_func)
-    } else if is_variant(expr.data, ExprData.SetLit) {
+    } else if is_variant(expr.data, NodeType.SetLit) {
         infer_set_lit_expr(scope, expr, in_func)
-    } else if is_variant(expr.data, ExprData.NamedArg) {
+    } else if is_variant(expr.data, NodeType.NamedArg) {
         infer_named_arg_expr(scope, expr, in_func)
     } else {
         expr.til_type = TilType.Unknown
@@ -1053,11 +1053,11 @@ infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I3
 
 infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr) {
     expr.til_type = TilType.None
-    if is_variant(expr.data, ExprData.EnumDef) {
+    if is_variant(expr.data, NodeType.EnumDef) {
         ref body : Expr = expr.child(0)
         for vi in 0..body.child_count() {
             ref v : Expr = body.child(vi)
-            if is_variant(v.data, ExprData.Decl) {
+            if is_variant(v.data, NodeType.Decl) {
                 ref dd : Declaration = get_payload(v.data)
                 if dd.is_namespace.not().and(dd.explicit_type.len().gt(0)).and(dd.is_ref) {
                     type_error(v, "ref payloads in tagged enum variants are not supported")
@@ -1092,7 +1092,7 @@ check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr) {
     ref body : Expr = expr.child(0)
     for ri in 0..body.child_count() {
         ref stmt : Expr = body.child(ri)
-        if is_variant(stmt.data, ExprData.Return).not() { continue }
+        if is_variant(stmt.data, NodeType.Return).not() { continue }
         if stmt.child_count().eq(0) { continue }
         ref rv : Expr = stmt.child(0)
         if expr_is_borrow_source(rv, func_scope).not() {
@@ -1208,7 +1208,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     if stmt.child_count().gt(0) {
         infer_expr(scope, stmt.child(0), in_func)
         stmt.til_type = stmt.child(0).til_type
-        if returns_ref.eq(0).and(is_variant(stmt.child(0).data, ExprData.Ident)) {
+        if returns_ref.eq(0).and(is_variant(stmt.child(0).data, NodeType.Ident)) {
             sf := scope.find(get_payload(stmt.child(0).data))
             if is_variant(sf, ScopeFind.Found) {
                 ref b : TypeBinding = get_payload(sf)
@@ -1217,7 +1217,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                 }
             }
         }
-        if returns_ref.eq(0).and(is_variant(stmt.child(0).data, ExprData.Ident)) {
+        if returns_ref.eq(0).and(is_variant(stmt.child(0).data, NodeType.Ident)) {
             sf := scope.find(get_payload(stmt.child(0).data))
             if is_variant(sf, ScopeFind.Found) {
                 ref b : TypeBinding = get_payload(sf)
@@ -1263,7 +1263,7 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
             for i in 0..body.child_count() {
                 ref field : Expr = body.child(i)
                 ref fld_decl : Declaration = get_payload(field.data)
-                if is_variant(sdef.data, ExprData.EnumDef).and(fld_decl.is_namespace.not()) {
+                if is_variant(sdef.data, NodeType.EnumDef).and(fld_decl.is_namespace.not()) {
                     continue
                 }
                 if fld_decl.name.eq(fname) {
@@ -1281,9 +1281,9 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
                             expr.struct_name = obj.struct_name.clone()
                         }
                     }
-                    if is_variant(sdef.data, ExprData.EnumDef).and(fld_decl.is_namespace).and(field.child_count().gt(0)) {
+                    if is_variant(sdef.data, NodeType.EnumDef).and(fld_decl.is_namespace).and(field.child_count().gt(0)) {
                         ref fc : Expr = field.child(0)
-                        if is_variant(fc.data, ExprData.FuncDef).not() {
+                        if is_variant(fc.data, NodeType.FuncDef).not() {
                             expr.til_type = TilType.Enum
                             if obj.struct_name.len().gt(0) {
                                 expr.struct_name = obj.struct_name.clone()
@@ -1304,7 +1304,7 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
             }
             if found.not() {
                 mut kind := "struct"
-                if is_variant(sdef.data, ExprData.EnumDef) { kind = "enum" }
+                if is_variant(sdef.data, NodeType.EnumDef) { kind = "enum" }
                 type_error(expr, kind.concat(" '").concat(obj.struct_name).concat("' has no field '").concat(fname).concat("'"))
                 expr.til_type = TilType.Unknown
             }
@@ -1337,7 +1337,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                     if fld_decl.is_mut.not() {
                         type_error(stmt, "cannot assign to immutable field '".concat(fname).concat("'"))
                     }
-                    if is_variant(rhs.data, ExprData.LiteralNum).and(is_numeric_type(field.til_type)) {
+                    if is_variant(rhs.data, NodeType.LiteralNum).and(is_numeric_type(field.til_type)) {
                         if literal_in_range(get_payload(rhs.data), field.til_type).not() {
                             type_error(rhs, "integer literal out of range for field '".concat(fname).concat("'"))
                         }
@@ -1364,8 +1364,8 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
     }
     stmt.til_type = TilType.None
     if stmt.is_ref_field.not().and(
-        is_variant(rhs.data, ExprData.Ident).or(
-            is_variant(rhs.data, ExprData.FieldAccess).and(
+        is_variant(rhs.data, NodeType.Ident).or(
+            is_variant(rhs.data, NodeType.FieldAccess).and(
                 is_variant(rhs.til_type, TilType.Struct).or(
                     is_variant(rhs.til_type, TilType.Enum)
                 )
@@ -1394,26 +1394,26 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         wname := "_wcond_Bool_".concat(hoist_counter.to_str())
         hoist_counter.inc()
 
-        mut decl := Expr.new(ExprData.Decl(Declaration(name = wname.clone())), line, col, path)
+        mut decl := Expr.new(NodeType.Decl(Declaration(name = wname.clone())), line, col, path)
         decl.til_type = TilType.Bool
         decl.add_child(own cond.clone())
         ref mut decl_rhs : Expr = decl.child(0)
         decl_rhs.til_type = TilType.Bool
 
-        mut ident := Expr.new(ExprData.Ident(wname.clone()), line, col, path)
+        mut ident := Expr.new(NodeType.Ident(wname.clone()), line, col, path)
         ident.til_type = TilType.Bool
 
-        mut if_node := Expr.new(ExprData.If, line, col, path)
+        mut if_node := Expr.new(NodeType.If, line, col, path)
         if_node.til_type = TilType.None
         if_node.add_child(own ident)
 
-        mut then_body := Expr.new(ExprData.Body, line, col, path)
+        mut then_body := Expr.new(NodeType.Body, line, col, path)
         then_body.til_type = TilType.None
         if_node.add_child(own then_body)
 
-        mut else_body := Expr.new(ExprData.Body, line, col, path)
+        mut else_body := Expr.new(NodeType.Body, line, col, path)
         else_body.til_type = TilType.None
-        mut brk := Expr.new(ExprData.Break, line, col, path)
+        mut brk := Expr.new(NodeType.Break, line, col, path)
         brk.til_type = TilType.None
         else_body.add_child(own brk)
         if_node.add_child(own else_body)
@@ -1426,7 +1426,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         }
         body.children = new_ch
 
-        mut true_lit := Expr.new(ExprData.LiteralBool(true), line, col, path)
+        mut true_lit := Expr.new(NodeType.LiteralBool(true), line, col, path)
         true_lit.til_type = TilType.Bool
         stmt.children.set(0, own true_lit)
     }
@@ -1437,10 +1437,10 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
 }
 
 infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
-    if is_variant(stmt.child(0).data, ExprData.StructDef).not().and(is_variant(stmt.child(0).data, ExprData.EnumDef).not()) {
+    if is_variant(stmt.child(0).data, NodeType.StructDef).not().and(is_variant(stmt.child(0).data, NodeType.EnumDef).not()) {
         return false
     }
-    is_enum := is_variant(stmt.child(0).data, ExprData.EnumDef)
+    is_enum := is_variant(stmt.child(0).data, NodeType.EnumDef)
     ref mut sdecl : Declaration = get_payload(stmt.data)
     if sdecl.explicit_type.len().gt(0) {
         declared := type_from_name(sdecl.explicit_type, scope)
@@ -1495,7 +1495,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
 }
 
 infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
-    if is_variant(stmt.child(0).data, ExprData.FuncDef).not() { return false }
+    if is_variant(stmt.child(0).data, NodeType.FuncDef).not() { return false }
     ref mut sdecl : Declaration = get_payload(stmt.data)
     if sdecl.explicit_type.len().gt(0).and(sdecl.explicit_type.eq("FunctionDef").not()) {
         type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is FunctionDef"))
@@ -1522,7 +1522,7 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
 }
 
 infer_decl_type_alias_passthrough := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
-    if is_variant(stmt.child(0).data, ExprData.Ident).not() { return false }
+    if is_variant(stmt.child(0).data, NodeType.Ident).not() { return false }
     ref mut sdecl : Declaration = get_payload(stmt.data)
     ref alias_b : TypeBinding = scope.get_binding(sdecl.name)
     if is_null(alias_b).not() {
@@ -1540,12 +1540,12 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
     ref mut val : Expr = stmt.child(0)
     if is_variant(declared, TilType.Unknown) {
         type_error(stmt, "undefined type '".concat(sdecl.explicit_type).concat("'"))
-    } else if is_variant(val.data, ExprData.LiteralNum).and(is_numeric_type(declared).or(is_variant(declared, TilType.Dynamic))) {
+    } else if is_variant(val.data, NodeType.LiteralNum).and(is_numeric_type(declared).or(is_variant(declared, TilType.Dynamic))) {
         if is_numeric_type(declared).and(literal_in_range(get_payload(val.data), declared).not()) {
             type_error(val, "integer literal ".concat(get_payload(val.data)).concat(" out of range for ").concat(type_to_name(declared, "")))
         }
         val.til_type = declared
-    } else if is_variant(val.data, ExprData.LiteralNull).and(sdecl.is_ref.not()) {
+    } else if is_variant(val.data, NodeType.LiteralNull).and(sdecl.is_ref.not()) {
         type_error(stmt, "null can only be assigned to 'ref' declarations")
     } else if can_implicit_usize_coerce(val.til_type, declared, sdecl.explicit_type).not()
         .and(is_variant(val.til_type, declared).not())
@@ -1598,7 +1598,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
     if is_variant(stmt.til_type, TilType.FuncPtr) {
         if is_null(sdecl.fn_sig).not() {
             decl_b.func_def = sdecl.fn_sig
-        } else if is_variant(rhs.data, ExprData.Ident) {
+        } else if is_variant(rhs.data, NodeType.Ident) {
             ref src : TypeBinding = scope.get_binding(get_payload(rhs.data))
             if is_null(src).not() {
                 if is_null(src.func_def).not() { decl_b.func_def = src.func_def }
@@ -1625,10 +1625,10 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
             type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable")
         }
     }
-    if sdecl.is_ref.not().and(is_variant(rhs.data, ExprData.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
+    if sdecl.is_ref.not().and(is_variant(rhs.data, NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
         type_error(stmt, "cannot own result of ref-returning function; use 'ref' or Type.clone()")
     }
-    if sdecl.is_ref.not().and(sdecl.is_mut.not()).and(is_variant(stmt.til_type, TilType.FuncPtr).not()).and(is_variant(rhs.data, ExprData.Ident)) {
+    if sdecl.is_ref.not().and(sdecl.is_mut.not()).and(is_variant(stmt.til_type, TilType.FuncPtr).not()).and(is_variant(rhs.data, NodeType.Ident)) {
         ref rb : TypeBinding = scope.get_binding(get_payload(rhs.data))
         if is_null(rb).not() {
             if rb.is_mut.not().and(rb.is_own.not()).and(rb.is_ref.not().or(rb.is_alias)).and(rb.is_param.not()) {
@@ -1638,8 +1638,8 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
             }
         }
     }
-    if is_variant(rhs.data, ExprData.Ident).or(
-        is_variant(rhs.data, ExprData.FieldAccess).and(
+    if is_variant(rhs.data, NodeType.Ident).or(
+        is_variant(rhs.data, NodeType.FieldAccess).and(
             is_variant(rhs.til_type, TilType.Struct).or(is_variant(rhs.til_type, TilType.Enum))
         )
     ) {
@@ -1671,9 +1671,9 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
 mark_switch_case_covered_variant := proc(switch_enum_def: Expr, mut covered_variants: Vec, shallow n_variants: I32, sw_expr: Expr, match_expr: Expr) {
     if is_null(switch_enum_def).or(covered_variants.len().eq(0)) { return }
     mut covered_variant_name := ""
-    if is_variant(match_expr.data, ExprData.FieldAccess) {
+    if is_variant(match_expr.data, NodeType.FieldAccess) {
         if match_expr.child_count().gt(0) {
-            if is_variant(match_expr.child(0).data, ExprData.Ident) {
+            if is_variant(match_expr.child(0).data, NodeType.Ident) {
                 ref base_name : Str = get_payload(match_expr.child(0).data)
                 if base_name.eq(sw_expr.struct_name) {
                     ref field_name : Str = get_payload(match_expr.data)
@@ -1683,12 +1683,12 @@ mark_switch_case_covered_variant := proc(switch_enum_def: Expr, mut covered_vari
         }
     }
     if covered_variant_name.len().eq(0) {
-        if is_variant(match_expr.data, ExprData.FCall) {
+        if is_variant(match_expr.data, NodeType.FCall) {
             if match_expr.child_count().eq(2) {
-                if is_variant(match_expr.child(0).data, ExprData.FieldAccess) {
+                if is_variant(match_expr.child(0).data, NodeType.FieldAccess) {
                     if match_expr.child(0).child_count().gt(0) {
-                        if is_variant(match_expr.child(0).child(0).data, ExprData.Ident) {
-                            if is_variant(match_expr.child(1).data, ExprData.Ident) {
+                        if is_variant(match_expr.child(0).child(0).data, NodeType.Ident) {
+                            if is_variant(match_expr.child(1).data, NodeType.Ident) {
                                 ref type_name : Str = get_payload(match_expr.child(0).child(0).data)
                                 if type_name.eq(sw_expr.struct_name) {
                                     ref field_name : Str = get_payload(match_expr.child(0).data)
@@ -1707,7 +1707,7 @@ mark_switch_case_covered_variant := proc(switch_enum_def: Expr, mut covered_vari
     ref enum_body : Expr = switch_enum_def.child(0)
     for vi in 0..enum_body.child_count() {
         ref variant : Expr = enum_body.child(vi)
-        if is_variant(variant.data, ExprData.Decl) {
+        if is_variant(variant.data, NodeType.Decl) {
             ref vd : Declaration = get_payload(variant.data)
             if vd.is_namespace { continue }
             if vd.name.eq(covered_variant_name) {
@@ -1724,37 +1724,37 @@ mark_switch_case_covered_variant := proc(switch_enum_def: Expr, mut covered_vari
 }
 
 make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_name: Str, shallow sw_line: U32, shallow sw_col: U32, sw_path: Str) returns Expr {
-    mut condition := Expr.new(ExprData.Body, sw_line, sw_col, sw_path)
+    mut condition := Expr.new(NodeType.Body, sw_line, sw_col, sw_path)
     mut has_condition := false
-    if is_variant(match_expr.data, ExprData.FCall) {
+    if is_variant(match_expr.data, NodeType.FCall) {
         if match_expr.child_count().eq(3) {
-            if is_variant(match_expr.child(0).data, ExprData.FieldAccess) {
+            if is_variant(match_expr.child(0).data, NodeType.FieldAccess) {
                 ref method_name : Str = get_payload(match_expr.child(0).data)
                 if method_name.eq("new") {
                     if match_expr.child(0).child_count().gt(0) {
-                        if is_variant(match_expr.child(0).child(0).data, ExprData.Ident) {
+                        if is_variant(match_expr.child(0).child(0).data, NodeType.Ident) {
                             ref range_name : Str = get_payload(match_expr.child(0).child(0).data)
                             if range_name.eq("Range") {
                 ref start_expr : Expr = match_expr.child(1)
                 ref end_expr : Expr = match_expr.child(2)
 
-                mut sw1 := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
-                mut gte_acc := Expr.new(ExprData.FieldAccess("gte"), sw_line, sw_col, sw_path)
+                mut sw1 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                mut gte_acc := Expr.new(NodeType.FieldAccess("gte"), sw_line, sw_col, sw_path)
                 gte_acc.add_child(own sw1)
-                mut gte_call := Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                mut gte_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
                 gte_call.add_child(own gte_acc)
                 gte_call.add_child(own start_expr.clone())
 
-                mut sw2 := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
-                mut lte_acc := Expr.new(ExprData.FieldAccess("lte"), sw_line, sw_col, sw_path)
+                mut sw2 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                mut lte_acc := Expr.new(NodeType.FieldAccess("lte"), sw_line, sw_col, sw_path)
                 lte_acc.add_child(own sw2)
-                mut lte_call := Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                mut lte_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
                 lte_call.add_child(own lte_acc)
                 lte_call.add_child(own end_expr.clone())
 
-                mut and_acc := Expr.new(ExprData.FieldAccess("and"), sw_line, sw_col, sw_path)
+                mut and_acc := Expr.new(NodeType.FieldAccess("and"), sw_line, sw_col, sw_path)
                 and_acc.add_child(own gte_call)
-                condition = Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
                 condition.add_child(own and_acc)
                 condition.add_child(own lte_call)
                 has_condition = true
@@ -1767,23 +1767,23 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
     }
 
     if has_condition.not() {
-        if is_variant(match_expr.data, ExprData.FCall) {
+        if is_variant(match_expr.data, NodeType.FCall) {
             if match_expr.child_count().eq(2) {
-                if is_variant(match_expr.child(0).data, ExprData.FieldAccess) {
+                if is_variant(match_expr.child(0).data, NodeType.FieldAccess) {
                     if match_expr.child(0).child_count().gt(0) {
-                        if is_variant(match_expr.child(0).child(0).data, ExprData.Ident) {
-                            if is_variant(match_expr.child(1).data, ExprData.Ident) {
+                        if is_variant(match_expr.child(0).child(0).data, NodeType.Ident) {
+                            if is_variant(match_expr.child(1).data, NodeType.Ident) {
                                 ref callee : Expr = match_expr.child(0)
                                 ref type_name : Str = get_payload(callee.child(0).data)
                                 ref variant_name : Str = get_payload(callee.data)
                                 ref binding_name : Str = get_payload(match_expr.child(1).data)
                                 ref enum_def : Expr = scope.get_struct(type_name)
-                                if is_null(enum_def).not().and(is_variant(enum_def.data, ExprData.EnumDef)) {
+                                if is_null(enum_def).not().and(is_variant(enum_def.data, NodeType.EnumDef)) {
                                     mut payload_type := ""
                                     ref enum_body : Expr = enum_def.child(0)
                                     for vi in 0..enum_body.child_count() {
                                         ref variant : Expr = enum_body.child(vi)
-                                        if is_variant(variant.data, ExprData.Decl) {
+                                        if is_variant(variant.data, NodeType.Decl) {
                                             ref vd : Declaration = get_payload(variant.data)
                                             if vd.is_namespace.not().and(vd.name.eq(variant_name)) {
                                                 payload_type = vd.explicit_type.clone()
@@ -1792,23 +1792,23 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         }
                                     }
                                     if payload_type.len().gt(0) {
-                    mut iv_id := Expr.new(ExprData.Ident("is_variant"), sw_line, sw_col, sw_path)
-                    mut sw_id := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
-                    mut vtype_id := Expr.new(ExprData.Ident(type_name.clone()), sw_line, sw_col, sw_path)
-                    mut vref := Expr.new(ExprData.FieldAccess(variant_name.clone()), sw_line, sw_col, sw_path)
+                    mut iv_id := Expr.new(NodeType.Ident("is_variant"), sw_line, sw_col, sw_path)
+                    mut sw_id := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                    mut vtype_id := Expr.new(NodeType.Ident(type_name.clone()), sw_line, sw_col, sw_path)
+                    mut vref := Expr.new(NodeType.FieldAccess(variant_name.clone()), sw_line, sw_col, sw_path)
                     vref.add_child(own vtype_id)
-                    condition = Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                    condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
                     condition.add_child(own iv_id)
                     condition.add_child(own sw_id)
                     condition.add_child(own vref)
 
-                    mut gp_ident := Expr.new(ExprData.Ident("get_payload"), sw_line, sw_col, sw_path)
-                    mut sw_id2 := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
-                    mut get_call := Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                    mut gp_ident := Expr.new(NodeType.Ident("get_payload"), sw_line, sw_col, sw_path)
+                    mut sw_id2 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                    mut get_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
                     get_call.add_child(own gp_ident)
                     get_call.add_child(own sw_id2)
 
-                    mut bind_decl := Expr.new(ExprData.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), is_ref = true)), sw_line, sw_col, sw_path)
+                    mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), is_ref = true)), sw_line, sw_col, sw_path)
                     bind_decl.add_child(own get_call)
 
                     mut new_ch := Vec.new("Expr", Expr.size())
@@ -1829,18 +1829,18 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
     }
 
     if has_condition.not() {
-        if is_variant(match_expr.data, ExprData.FieldAccess) {
+        if is_variant(match_expr.data, NodeType.FieldAccess) {
             if match_expr.child_count().gt(0) {
-                if is_variant(match_expr.child(0).data, ExprData.Ident) {
+                if is_variant(match_expr.child(0).data, NodeType.Ident) {
                     ref type_name : Str = get_payload(match_expr.child(0).data)
                     ref variant_name : Str = get_payload(match_expr.data)
                     ref enum_def : Expr = scope.get_struct(type_name)
-                    if is_null(enum_def).not().and(is_variant(enum_def.data, ExprData.EnumDef)) {
+                    if is_null(enum_def).not().and(is_variant(enum_def.data, NodeType.EnumDef)) {
                         mut payload_type := ""
                         ref enum_body : Expr = enum_def.child(0)
                         for vi in 0..enum_body.child_count() {
                             ref variant : Expr = enum_body.child(vi)
-                            if is_variant(variant.data, ExprData.Decl) {
+                            if is_variant(variant.data, NodeType.Decl) {
                                 ref vd : Declaration = get_payload(variant.data)
                                 if vd.is_namespace.not().and(vd.name.eq(variant_name)) {
                                     payload_type = vd.explicit_type.clone()
@@ -1849,12 +1849,12 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                             }
                         }
                         if payload_type.len().gt(0) {
-                            mut iv_id := Expr.new(ExprData.Ident("is_variant"), sw_line, sw_col, sw_path)
-                            mut sw_id := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
-                            mut vtype_id := Expr.new(ExprData.Ident(type_name.clone()), sw_line, sw_col, sw_path)
-                            mut vref := Expr.new(ExprData.FieldAccess(variant_name.clone()), sw_line, sw_col, sw_path)
+                            mut iv_id := Expr.new(NodeType.Ident("is_variant"), sw_line, sw_col, sw_path)
+                            mut sw_id := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                            mut vtype_id := Expr.new(NodeType.Ident(type_name.clone()), sw_line, sw_col, sw_path)
+                            mut vref := Expr.new(NodeType.FieldAccess(variant_name.clone()), sw_line, sw_col, sw_path)
                             vref.add_child(own vtype_id)
-                            condition = Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                            condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
                             condition.add_child(own iv_id)
                             condition.add_child(own sw_id)
                             condition.add_child(own vref)
@@ -1867,10 +1867,10 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
     }
 
     if has_condition.not() {
-        mut sw_ident := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
-        mut eq_access := Expr.new(ExprData.FieldAccess("eq"), sw_line, sw_col, sw_path)
+        mut sw_ident := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+        mut eq_access := Expr.new(NodeType.FieldAccess("eq"), sw_line, sw_col, sw_path)
         eq_access.add_child(own sw_ident)
-        condition = Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+        condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
         condition.add_child(own eq_access)
         condition.add_child(own match_expr.clone())
     }
@@ -1885,13 +1885,13 @@ append_switch_else_if := proc(mut root_if: Expr, if_node: Expr) {
     if root_if.child_count().gt(2) {
         ref mut else_body : Expr = root_if.child(2)
         if else_body.child_count().gt(0) {
-            if is_variant(else_body.child(0).data, ExprData.If) {
+            if is_variant(else_body.child(0).data, NodeType.If) {
                 append_switch_else_if(else_body.child(0), if_node)
                 return
             }
         }
     }
-    mut else_body := Expr.new(ExprData.Body, if_node.line, if_node.col, if_node.path)
+    mut else_body := Expr.new(NodeType.Body, if_node.line, if_node.col, if_node.path)
     else_body.add_child(own if_node.clone())
     root_if.add_child(own else_body)
 }
@@ -1900,7 +1900,7 @@ attach_switch_default_body := proc(mut root_if: Expr, default_body: Expr) {
     if root_if.child_count().gt(2) {
         ref mut else_body : Expr = root_if.child(2)
         if else_body.child_count().gt(0) {
-            if is_variant(else_body.child(0).data, ExprData.If) {
+            if is_variant(else_body.child(0).data, NodeType.If) {
                 attach_switch_default_body(else_body.child(0), default_body)
                 return
             }
@@ -1922,12 +1922,12 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     mut has_switch_enum_def := false
     if is_variant(sw_expr.til_type, TilType.Enum).and(sw_expr.struct_name.len().gt(0)) {
         ref switch_enum_def : Expr = scope.get_struct(sw_expr.struct_name)
-        if is_null(switch_enum_def).not().and(is_variant(switch_enum_def.data, ExprData.EnumDef)) {
+        if is_null(switch_enum_def).not().and(is_variant(switch_enum_def.data, NodeType.EnumDef)) {
             has_switch_enum_def = true
             ref enum_body : Expr = switch_enum_def.child(0)
             for vi in 0..enum_body.child_count() {
                 ref variant : Expr = enum_body.child(vi)
-                if is_variant(variant.data, ExprData.Decl) {
+                if is_variant(variant.data, NodeType.Decl) {
                     ref vd : Declaration = get_payload(variant.data)
                     if vd.is_namespace.not() {
                         n_variants.inc()
@@ -1942,8 +1942,8 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     sw_name := "_sw_".concat(tp).concat("_").concat(hoist_counter.to_str())
     hoist_counter.inc()
 
-    mut block := Expr.new(ExprData.Body, stmt.line, stmt.col, sw_path)
-    mut decl := Expr.new(ExprData.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col, sw_path)
+    mut block := Expr.new(NodeType.Body, stmt.line, stmt.col, sw_path)
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col, sw_path)
     decl.add_child(own sw_expr.clone())
     block.add_child(own decl)
 
@@ -1965,7 +1965,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         }
         condition := make_switch_case_condition(scope, case_body, match_expr, sw_name, sw_line, sw_col, sw_path)
 
-        mut if_node := Expr.new(ExprData.If, case_node.line, case_node.col, sw_path)
+        mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col, sw_path)
         if_node.add_child(own condition)
         if_node.add_child(own case_body.clone())
 
@@ -1990,7 +1990,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         mut missing := false
         for vi in 0..enum_body.child_count() {
             ref variant : Expr = enum_body.child(vi)
-            if is_variant(variant.data, ExprData.Decl).not() { continue }
+            if is_variant(variant.data, NodeType.Decl).not() { continue }
             ref vd : Declaration = get_payload(variant.data)
             if vd.is_namespace { continue }
             ref covered : Bool = covered_variants.get(variant_idx)
@@ -2013,31 +2013,31 @@ replace_body_stmt_with_block := proc(mut body: Expr, shallow stmt_idx: U32, mut 
 }
 
 make_field_access_call0 := func(base: Expr, field: Str, shallow line: U32, shallow col: U32, path: Str) returns Expr {
-    mut fa := Expr.new(ExprData.FieldAccess(field.clone()), line, col, path)
+    mut fa := Expr.new(NodeType.FieldAccess(field.clone()), line, col, path)
     fa.add_child(own base.clone())
-    mut fc := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+    mut fc := Expr.new(NodeType.FCall(FCallData()), line, col, path)
     fc.add_child(own fa)
     return fc
 }
 
 make_field_access_call1 := func(base: Expr, field: Str, arg: Expr, shallow line: U32, shallow col: U32, path: Str) returns Expr {
-    mut fa := Expr.new(ExprData.FieldAccess(field.clone()), line, col, path)
+    mut fa := Expr.new(NodeType.FieldAccess(field.clone()), line, col, path)
     fa.add_child(own base.clone())
-    mut fc := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+    mut fc := Expr.new(NodeType.FCall(FCallData()), line, col, path)
     fc.add_child(own fa)
     fc.add_child(own arg.clone())
     return fc
 }
 
 make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, path: Str, elem_type: Str) returns Expr {
-    mut wb := Expr.new(ExprData.Body, line, col, path)
+    mut wb := Expr.new(NodeType.Body, line, col, path)
 
-    mut vd := Expr.new(ExprData.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone())), line, col, path)
-    mut cur_ident := Expr.new(ExprData.Ident(cur_name.clone()), line, col, path)
+    mut vd := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone())), line, col, path)
+    mut cur_ident := Expr.new(NodeType.Ident(cur_name.clone()), line, col, path)
     vd.add_child(own cur_ident)
     wb.add_child(own vd)
 
-    mut step_ident := Expr.new(ExprData.Ident(cur_name.clone()), line, col, path)
+    mut step_ident := Expr.new(NodeType.Ident(cur_name.clone()), line, col, path)
     wb.add_child(own make_field_access_call0(step_ident, step, line, col, path))
 
     for bi in 0..for_body.child_count() {
@@ -2049,15 +2049,15 @@ make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, fo
 desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32) returns shallow Bool {
     ref mut stmt : Expr = body.child(stmt_idx)
     ref mut iter : Expr = stmt.child(0)
-    if is_variant(iter.data, ExprData.FCall).not() { return false }
+    if is_variant(iter.data, NodeType.FCall).not() { return false }
     if iter.child_count().neq(3) { return false }
     ref callee : Expr = iter.child(0)
-    if is_variant(callee.data, ExprData.FieldAccess).not() { return false }
+    if is_variant(callee.data, NodeType.FieldAccess).not() { return false }
     ref callee_field : Str = get_payload(callee.data)
     if callee_field.eq("new").not() { return false }
     if callee.child_count().eq(0) { return false }
     ref callee_base : Expr = callee.child(0)
-    if is_variant(callee_base.data, ExprData.Ident).not() { return false }
+    if is_variant(callee_base.data, NodeType.Ident).not() { return false }
     ref callee_name : Str = get_payload(callee_base.data)
     if callee_name.eq("Range").not() { return false }
 
@@ -2069,9 +2069,9 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
     mut elem_type := stmt.struct_name.clone()
     if elem_type.len().eq(0) {
         ref mut type_src : Expr = start_expr
-        if is_variant(start_expr.data, ExprData.LiteralNum).and(is_variant(end_expr.data, ExprData.LiteralNum).not()) {
+        if is_variant(start_expr.data, NodeType.LiteralNum).and(is_variant(end_expr.data, NodeType.LiteralNum).not()) {
             type_src = end_expr
-        } else if is_variant(end_expr.data, ExprData.LiteralNum).and(is_variant(start_expr.data, ExprData.LiteralNum).not()) {
+        } else if is_variant(end_expr.data, NodeType.LiteralNum).and(is_variant(start_expr.data, NodeType.LiteralNum).not()) {
             type_src = start_expr
         }
         if is_variant(type_src.til_type, TilType.Struct).or(is_variant(type_src.til_type, TilType.Enum)) {
@@ -2096,38 +2096,38 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
     end_name := "_re_".concat(elem_type).concat("_").concat(counter.to_str())
     cur_name := "_rc_".concat(elem_type).concat("_").concat(counter.to_str())
 
-    mut block := Expr.new(ExprData.Body, line, col, path)
+    mut block := Expr.new(NodeType.Body, line, col, path)
 
-    mut end_decl := Expr.new(ExprData.Decl(Declaration(name = end_name.clone(), explicit_type = elem_type.clone())), line, col, path)
+    mut end_decl := Expr.new(NodeType.Decl(Declaration(name = end_name.clone(), explicit_type = elem_type.clone())), line, col, path)
     end_decl.add_child(own end_expr.clone())
     block.add_child(own end_decl)
 
-    mut cur_decl := Expr.new(ExprData.Decl(Declaration(name = cur_name.clone(), explicit_type = elem_type.clone(), is_mut = true)), line, col, path)
+    mut cur_decl := Expr.new(NodeType.Decl(Declaration(name = cur_name.clone(), explicit_type = elem_type.clone(), is_mut = true)), line, col, path)
     cur_decl.add_child(own start_expr.clone())
     block.add_child(own cur_decl)
 
-    mut cur_ident_lt := Expr.new(ExprData.Ident(cur_name.clone()), line, col, path)
-    mut end_ident_lt := Expr.new(ExprData.Ident(end_name.clone()), line, col, path)
-    mut asc_while := Expr.new(ExprData.While, line, col, path)
+    mut cur_ident_lt := Expr.new(NodeType.Ident(cur_name.clone()), line, col, path)
+    mut end_ident_lt := Expr.new(NodeType.Ident(end_name.clone()), line, col, path)
+    mut asc_while := Expr.new(NodeType.While, line, col, path)
     asc_while.add_child(own make_field_access_call1(cur_ident_lt, "lt", end_ident_lt, line, col, path))
     asc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, path, elem_type))
 
-    mut cur_ident_gt := Expr.new(ExprData.Ident(cur_name.clone()), line, col, path)
-    mut end_ident_gt := Expr.new(ExprData.Ident(end_name.clone()), line, col, path)
-    mut desc_while := Expr.new(ExprData.While, line, col, path)
+    mut cur_ident_gt := Expr.new(NodeType.Ident(cur_name.clone()), line, col, path)
+    mut end_ident_gt := Expr.new(NodeType.Ident(end_name.clone()), line, col, path)
+    mut desc_while := Expr.new(NodeType.While, line, col, path)
     desc_while.add_child(own make_field_access_call1(cur_ident_gt, "gt", end_ident_gt, line, col, path))
     desc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, path, elem_type))
 
-    mut if_node := Expr.new(ExprData.If, line, col, path)
-    mut cur_ident_lte := Expr.new(ExprData.Ident(cur_name.clone()), line, col, path)
-    mut end_ident_lte := Expr.new(ExprData.Ident(end_name.clone()), line, col, path)
+    mut if_node := Expr.new(NodeType.If, line, col, path)
+    mut cur_ident_lte := Expr.new(NodeType.Ident(cur_name.clone()), line, col, path)
+    mut end_ident_lte := Expr.new(NodeType.Ident(end_name.clone()), line, col, path)
     if_node.add_child(own make_field_access_call1(cur_ident_lte, "lte", end_ident_lte, line, col, path))
 
-    mut then_body := Expr.new(ExprData.Body, line, col, path)
+    mut then_body := Expr.new(NodeType.Body, line, col, path)
     then_body.add_child(own asc_while)
     if_node.add_child(own then_body)
 
-    mut else_body := Expr.new(ExprData.Body, line, col, path)
+    mut else_body := Expr.new(NodeType.Body, line, col, path)
     else_body.add_child(own desc_while)
     if_node.add_child(own else_body)
     block.add_child(own if_node)
@@ -2164,10 +2164,10 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     ref mut get_func : Expr = NULL
     for fi in 0..sbody.child_count() {
         ref field : Expr = sbody.child(fi)
-        if is_variant(field.data, ExprData.Decl).not() { continue }
+        if is_variant(field.data, NodeType.Decl).not() { continue }
         ref fd : Declaration = get_payload(field.data)
         if fd.is_namespace.not() { continue }
-        if is_variant(field.child(0).data, ExprData.FuncDef).not() { continue }
+        if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
         if fd.name.eq("len") { len_func = field.child(0) }
         if fd.name.eq("get") { get_func = field.child(0) }
     }
@@ -2218,35 +2218,35 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     col_name := "_fc_".concat(type_name).concat("_").concat(counter.to_str())
     idx_name := "_fi_USize_".concat(counter.to_str())
 
-    mut block := Expr.new(ExprData.Body, line, col, path)
+    mut block := Expr.new(NodeType.Body, line, col, path)
 
-    mut col_decl := Expr.new(ExprData.Decl(Declaration(name = col_name.clone())), line, col, path)
+    mut col_decl := Expr.new(NodeType.Decl(Declaration(name = col_name.clone())), line, col, path)
     col_decl.add_child(own iter.clone())
     block.add_child(own col_decl)
 
-    mut idx_decl := Expr.new(ExprData.Decl(Declaration(name = idx_name.clone(), explicit_type = idx_type.clone(), is_mut = true)), line, col, path)
-    mut zero := Expr.new(ExprData.LiteralNum("0"), line, col, path)
+    mut idx_decl := Expr.new(NodeType.Decl(Declaration(name = idx_name.clone(), explicit_type = idx_type.clone(), is_mut = true)), line, col, path)
+    mut zero := Expr.new(NodeType.LiteralNum("0"), line, col, path)
     idx_decl.add_child(own zero)
     block.add_child(own idx_decl)
 
-    mut while_node := Expr.new(ExprData.While, line, col, path)
+    mut while_node := Expr.new(NodeType.While, line, col, path)
 
-    mut idx_ident_cond := Expr.new(ExprData.Ident(idx_name.clone()), line, col, path)
-    mut col_ident_len := Expr.new(ExprData.Ident(col_name.clone()), line, col, path)
+    mut idx_ident_cond := Expr.new(NodeType.Ident(idx_name.clone()), line, col, path)
+    mut col_ident_len := Expr.new(NodeType.Ident(col_name.clone()), line, col, path)
     len_call := make_field_access_call0(col_ident_len, "len", line, col, path)
     while_node.add_child(own make_field_access_call1(idx_ident_cond, "lt", len_call, line, col, path))
 
-    mut wbody := Expr.new(ExprData.Body, line, col, path)
+    mut wbody := Expr.new(NodeType.Body, line, col, path)
 
-    mut elem_decl := Expr.new(ExprData.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), is_ref = get_def.return_own_type.eq(OwnType.Ref))), line, col, path)
-    mut col_ident_get := Expr.new(ExprData.Ident(col_name.clone()), line, col, path)
-    mut idx_ident_get := Expr.new(ExprData.Ident(idx_name.clone()), line, col, path)
+    mut elem_decl := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), is_ref = get_def.return_own_type.eq(OwnType.Ref))), line, col, path)
+    mut col_ident_get := Expr.new(NodeType.Ident(col_name.clone()), line, col, path)
+    mut idx_ident_get := Expr.new(NodeType.Ident(idx_name.clone()), line, col, path)
     elem_decl.add_child(own make_field_access_call1(col_ident_get, "get", idx_ident_get, line, col, path))
     wbody.add_child(own elem_decl)
 
-    mut idx_assign := Expr.new(ExprData.Assign(idx_name.clone()), line, col, path)
-    mut idx_ident_inc := Expr.new(ExprData.Ident(idx_name.clone()), line, col, path)
-    mut one := Expr.new(ExprData.LiteralNum("1"), line, col, path)
+    mut idx_assign := Expr.new(NodeType.Assign(idx_name.clone()), line, col, path)
+    mut idx_ident_inc := Expr.new(NodeType.Ident(idx_name.clone()), line, col, path)
+    mut one := Expr.new(NodeType.LiteralNum("1"), line, col, path)
     idx_assign.add_child(own make_field_access_call1(idx_ident_inc, "add", one, line, col, path))
     wbody.add_child(own idx_assign)
 
@@ -2263,38 +2263,38 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
 infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32) {
     ref mut stmt : Expr = body.child(i)
     switch stmt.data {
-    case ExprData.Decl:
+    case NodeType.Decl:
         infer_decl_stmt(scope, stmt, in_func, in_type_body)
-    case ExprData.Assign:
+    case NodeType.Assign:
         infer_assign_stmt(scope, stmt, in_func)
-    case ExprData.FieldAssign:
+    case NodeType.FieldAssign:
         infer_field_assign_stmt(scope, stmt, in_func)
-    case ExprData.FCall:
+    case NodeType.FCall:
         infer_expr(scope, stmt, in_func)
-    case ExprData.Return:
+    case NodeType.Return:
         infer_return_stmt(scope, stmt, in_func, returns_ref)
-    case ExprData.Break:
+    case NodeType.Break:
         if in_loop.eq(0) {
             type_error(stmt, "break outside loop")
         }
         stmt.til_type = TilType.None
-    case ExprData.Continue:
+    case NodeType.Continue:
         if in_loop.eq(0) {
             type_error(stmt, "continue outside loop")
         }
         stmt.til_type = TilType.None
-    case ExprData.If:
+    case NodeType.If:
         infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref)
-    case ExprData.Body:
+    case NodeType.Body:
         block_scope := TypeScope.new(scope)
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0)
         TypeScope.delete(own block_scope)
-    case ExprData.While:
+    case NodeType.While:
         infer_while_stmt(scope, stmt, in_func, returns_ref)
-    case ExprData.Switch:
+    case NodeType.Switch:
         infer_switch_stmt(scope, body, i, in_func)
         i = i.sub(1)
-    case ExprData.ForIn:
+    case NodeType.ForIn:
         if desugar_for_in_range_stmt(scope, body, i, in_func) {
             i = i.sub(1)
         } else if desugar_for_in_collection_stmt(scope, body, i, in_func) {
@@ -2343,7 +2343,7 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                 println(stmt.path, ":", b.line.to_str(), ":", b.col.to_str(), ": note: '", aname, "' declared here, consider adding 'mut'")
             }
         }
-    } else if is_variant(rhs.data, ExprData.LiteralNum).and(is_numeric_type(existing)) {
+    } else if is_variant(rhs.data, NodeType.LiteralNum).and(is_numeric_type(existing)) {
         if literal_in_range(get_payload(rhs.data), existing).not() {
             type_error(stmt, "integer literal out of range for assignment to '".concat(aname).concat("'"))
         }
@@ -2352,8 +2352,8 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     } else if is_variant(rhs.til_type, existing).not().and(is_variant(rhs.til_type, TilType.Unknown).not()) {
         type_error(stmt, "'".concat(aname).concat("' assignment type mismatch"))
     }
-    if is_variant(rhs.data, ExprData.Ident).or(
-        is_variant(rhs.data, ExprData.FieldAccess).and(
+    if is_variant(rhs.data, NodeType.Ident).or(
+        is_variant(rhs.data, NodeType.FieldAccess).and(
             is_variant(rhs.til_type, TilType.Struct).or(is_variant(rhs.til_type, TilType.Enum))
         )
     ) {
@@ -2497,7 +2497,7 @@ type_from_name := func(name: Str, scope: TypeScope) returns TilType {
         }
         ref sdef : Expr = scope.get_struct(name)
         if is_null(sdef).not() {
-            if is_variant(sdef.data, ExprData.EnumDef) {
+            if is_variant(sdef.data, NodeType.EnumDef) {
                 return TilType.Enum
             }
             return TilType.Struct
@@ -2531,7 +2531,7 @@ type_has_cmp := func(scope: TypeScope, type_name: Str) returns shallow Bool {
     ref body : Expr = sdef.child(0)
     for i in 0..body.child_count() {
         ref f : Expr = body.child(i)
-        if is_variant(f.data, ExprData.Decl) {
+        if is_variant(f.data, NodeType.Decl) {
             ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.and(decl.name.eq("cmp")) {
                 return true
@@ -2542,7 +2542,7 @@ type_has_cmp := func(scope: TypeScope, type_name: Str) returns shallow Bool {
 }
 
 expr_contains_fcall := func(e: Expr) returns shallow Bool {
-    if is_variant(e.data, ExprData.FCall) { return true }
+    if is_variant(e.data, NodeType.FCall) { return true }
     for i in 0..e.child_count() {
         if expr_contains_fcall(e.child(i)) { return true }
     }
@@ -2550,12 +2550,12 @@ expr_contains_fcall := func(e: Expr) returns shallow Bool {
 }
 
 expr_uses_var := func(e: Expr, name: Str) returns shallow Bool {
-    if is_variant(e.data, ExprData.FuncDef) { return false }
-    if is_variant(e.data, ExprData.Ident) {
+    if is_variant(e.data, NodeType.FuncDef) { return false }
+    if is_variant(e.data, NodeType.Ident) {
         ref _id : Str = get_payload(e.data)
         if _id.eq(name) { return true }
     }
-    if is_variant(e.data, ExprData.Assign) {
+    if is_variant(e.data, NodeType.Assign) {
         ref _as : Str = get_payload(e.data)
         if _as.eq(name) { return true }
     }
@@ -2566,8 +2566,8 @@ expr_uses_var := func(e: Expr, name: Str) returns shallow Bool {
 }
 
 expr_contains_decl := func(e: Expr, name: Str) returns shallow Bool {
-    if is_variant(e.data, ExprData.FuncDef) { return false }
-    if is_variant(e.data, ExprData.Decl) {
+    if is_variant(e.data, NodeType.FuncDef) { return false }
+    if is_variant(e.data, NodeType.Decl) {
         ref _dd : Declaration = get_payload(e.data)
         if _dd.name.eq(name) { return true }
     }
@@ -2578,7 +2578,7 @@ expr_contains_decl := func(e: Expr, name: Str) returns shallow Bool {
 }
 
 expr_used_in_nested_func := func(e: Expr, name: Str) returns shallow Bool {
-    if is_variant(e.data, ExprData.FuncDef) {
+    if is_variant(e.data, NodeType.FuncDef) {
         ref fdef : FunctionDef = get_payload(e.data)
         for j in 0..fdef.nparam {
             ref p : Param = fdef.params.get(j)
@@ -2597,14 +2597,14 @@ expr_used_in_nested_func := func(e: Expr, name: Str) returns shallow Bool {
 
 find_variadic_fcall := func(e: Expr) returns ref Expr {
     if is_null(e) { return NULL }
-    if is_variant(e.data, ExprData.FuncDef) { return NULL }
-    if is_variant(e.data, ExprData.StructDef) { return NULL }
-    if is_variant(e.data, ExprData.EnumDef) { return NULL }
-    if is_variant(e.data, ExprData.Body) { return NULL }
-    if is_variant(e.data, ExprData.FCall) {
+    if is_variant(e.data, NodeType.FuncDef) { return NULL }
+    if is_variant(e.data, NodeType.StructDef) { return NULL }
+    if is_variant(e.data, NodeType.EnumDef) { return NULL }
+    if is_variant(e.data, NodeType.Body) { return NULL }
+    if is_variant(e.data, NodeType.FCall) {
         ref fcall : FCallData = get_payload(e.data)
         if fcall.variadic_index.gte(0) {
-            if e.child(0).data.is(ExprData.Ident) {
+            if e.child(0).data.is(NodeType.Ident) {
                 ref cn : Str = get_payload(e.child(0).data)
                 if cn.eq("array").or(cn.eq("vec")) {
                     return NULL
@@ -2622,11 +2622,11 @@ find_variadic_fcall := func(e: Expr) returns ref Expr {
 
 find_kwargs_fcall := func(e: Expr) returns ref Expr {
     if is_null(e) { return NULL }
-    if is_variant(e.data, ExprData.FuncDef) { return NULL }
-    if is_variant(e.data, ExprData.StructDef) { return NULL }
-    if is_variant(e.data, ExprData.EnumDef) { return NULL }
-    if is_variant(e.data, ExprData.Body) { return NULL }
-    if is_variant(e.data, ExprData.FCall) {
+    if is_variant(e.data, NodeType.FuncDef) { return NULL }
+    if is_variant(e.data, NodeType.StructDef) { return NULL }
+    if is_variant(e.data, NodeType.EnumDef) { return NULL }
+    if is_variant(e.data, NodeType.Body) { return NULL }
+    if is_variant(e.data, NodeType.FCall) {
         ref fcall : FCallData = get_payload(e.data)
         if fcall.kwargs_index.gte(0) { return e }
     }
@@ -2678,25 +2678,25 @@ make_field_delete := func(field_assign: Expr, shallow is_own: Bool) returns Expr
     tname := type_to_name(rhs.til_type, rhs.struct_name)
     if tname.len().eq(0) { return NULL }
 
-    mut call := Expr.new(ExprData.FCall(FCallData()), field_assign.line, field_assign.col, field_assign.path)
+    mut call := Expr.new(NodeType.FCall(FCallData()), field_assign.line, field_assign.col, field_assign.path)
     call.til_type = TilType.None
 
-    mut type_id := Expr.new(ExprData.Ident(tname.clone()), field_assign.line, field_assign.col, field_assign.path)
+    mut type_id := Expr.new(NodeType.Ident(tname.clone()), field_assign.line, field_assign.col, field_assign.path)
     type_id.struct_name = tname.clone()
 
-    mut fa := Expr.new(ExprData.FieldAccess("delete"), field_assign.line, field_assign.col, field_assign.path)
+    mut fa := Expr.new(NodeType.FieldAccess("delete"), field_assign.line, field_assign.col, field_assign.path)
     fa.is_ns_field = true
     fa.add_child(own type_id)
     call.add_child(own fa)
 
-    mut field_acc := Expr.new(ExprData.FieldAccess(get_payload(field_assign.data)), field_assign.line, field_assign.col, field_assign.path)
+    mut field_acc := Expr.new(NodeType.FieldAccess(get_payload(field_assign.data)), field_assign.line, field_assign.col, field_assign.path)
     field_acc.is_own_field = is_own
     field_acc.til_type = rhs.til_type
     if rhs.struct_name.len().gt(0) { field_acc.struct_name = rhs.struct_name.clone() }
     field_acc.add_child(own field_assign.child(0).clone())
     call.add_child(own field_acc)
 
-    mut cf_lit := Expr.new(ExprData.LiteralBool(is_own), field_assign.line, field_assign.col, field_assign.path)
+    mut cf_lit := Expr.new(NodeType.LiteralBool(is_own), field_assign.line, field_assign.col, field_assign.path)
     cf_lit.til_type = TilType.Bool
     call.add_child(own cf_lit)
 
@@ -2707,24 +2707,24 @@ make_delete_call := func(var_name: Str, shallow type: TilType, struct_name: Str,
     tname := type_to_name(type, struct_name)
     if tname.len().eq(0) { return NULL }
 
-    mut call := Expr.new(ExprData.FCall(FCallData()), src.line, src.col, src.path)
+    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col, src.path)
     call.til_type = TilType.None
 
-    mut type_id := Expr.new(ExprData.Ident(tname.clone()), src.line, src.col, src.path)
+    mut type_id := Expr.new(NodeType.Ident(tname.clone()), src.line, src.col, src.path)
     type_id.struct_name = tname.clone()
 
-    mut fa := Expr.new(ExprData.FieldAccess("delete"), src.line, src.col, src.path)
+    mut fa := Expr.new(NodeType.FieldAccess("delete"), src.line, src.col, src.path)
     fa.is_ns_field = true
     fa.add_child(own type_id)
     call.add_child(own fa)
 
-    mut arg := Expr.new(ExprData.Ident(var_name.clone()), src.line, src.col, src.path)
+    mut arg := Expr.new(NodeType.Ident(var_name.clone()), src.line, src.col, src.path)
     arg.til_type = type
     if struct_name.len().gt(0) { arg.struct_name = struct_name.clone() }
     arg.is_own_arg = arg_is_own
     call.add_child(own arg)
 
-    mut cf_lit := Expr.new(ExprData.LiteralBool(call_free), src.line, src.col, src.path)
+    mut cf_lit := Expr.new(NodeType.LiteralBool(call_free), src.line, src.col, src.path)
     cf_lit.til_type = TilType.Bool
     call.add_child(own cf_lit)
 
@@ -2732,16 +2732,16 @@ make_delete_call := func(var_name: Str, shallow type: TilType, struct_name: Str,
 }
 
 make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: Expr) returns Expr {
-    mut call := Expr.new(ExprData.FCall(FCallData()), src.line, src.col, src.path)
+    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col, src.path)
     call.til_type = type
     if type.eq(TilType.Struct).or(type.eq(TilType.Enum)) {
         call.struct_name = type_name.clone()
     }
 
-    mut type_id := Expr.new(ExprData.Ident(type_name.clone()), src.line, src.col, src.path)
+    mut type_id := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col, src.path)
     type_id.struct_name = type_name.clone()
 
-    mut fa := Expr.new(ExprData.FieldAccess("clone"), src.line, src.col, src.path)
+    mut fa := Expr.new(NodeType.FieldAccess("clone"), src.line, src.col, src.path)
     fa.is_ns_field = true
     fa.add_child(own type_id)
     call.add_child(own fa)
@@ -2751,14 +2751,14 @@ make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: E
 }
 
 make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, ret_sname: Str, src: Expr) returns Expr {
-    mut call := Expr.new(ExprData.FCall(FCallData()), src.line, src.col, src.path)
+    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col, src.path)
     call.til_type = ret_type
     if ret_sname.len().gt(0) { call.struct_name = ret_sname.clone() }
 
-    mut type_id := Expr.new(ExprData.Ident(sname.clone()), src.line, src.col, src.path)
+    mut type_id := Expr.new(NodeType.Ident(sname.clone()), src.line, src.col, src.path)
     type_id.struct_name = sname.clone()
 
-    mut fa := Expr.new(ExprData.FieldAccess(method.clone()), src.line, src.col, src.path)
+    mut fa := Expr.new(NodeType.FieldAccess(method.clone()), src.line, src.col, src.path)
     fa.is_ns_field = true
     fa.add_child(own type_id)
     call.add_child(own fa)
@@ -2767,7 +2767,7 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, ret_sna
 
 build_kwargs_dynmap_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     mut new_call := make_ns_call("DynMap", "new", TilType.Struct, "DynMap", fcall)
-    mut kw_decl := Expr.new(ExprData.Decl(Declaration()), fcall.line, fcall.col, fcall.path)
+    mut kw_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col, fcall.path)
     ref mut dd : Declaration = get_payload(kw_decl.data)
     dd.name = kw_name.clone()
     kw_decl.til_type = TilType.Struct
@@ -2780,19 +2780,19 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     ref val : Expr = named_arg.child(0)
     mut set_call := make_ns_call("DynMap", "set", TilType.None, "", fcall)
 
-    mut self_id := Expr.new(ExprData.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
+    mut self_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
     self_id.til_type = TilType.Struct
     self_id.struct_name = "DynMap"
     set_call.add_child(own self_id)
 
-    mut key_lit := Expr.new(ExprData.LiteralStr(key_name.clone()), fcall.line, fcall.col, fcall.path)
+    mut key_lit := Expr.new(NodeType.LiteralStr(key_name.clone()), fcall.line, fcall.col, fcall.path)
     key_lit.til_type = TilType.Struct
     key_lit.struct_name = "Str"
     key_lit.is_own_arg = true
     set_call.add_child(own key_lit)
 
     tname := type_to_name(val.til_type, val.struct_name)
-    mut type_lit := Expr.new(ExprData.LiteralStr(tname.clone()), fcall.line, fcall.col, fcall.path)
+    mut type_lit := Expr.new(NodeType.LiteralStr(tname.clone()), fcall.line, fcall.col, fcall.path)
     type_lit.til_type = TilType.Struct
     type_lit.struct_name = "Str"
     type_lit.is_own_arg = true
@@ -2802,7 +2802,7 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     set_call.add_child(own size_call)
 
     mut out_val := val.clone()
-    if is_variant(val.data, ExprData.Ident).or(is_variant(val.data, ExprData.FieldAccess)) {
+    if is_variant(val.data, NodeType.Ident).or(is_variant(val.data, NodeType.FieldAccess)) {
         if tname.len().gt(0) {
             out_val = make_clone_call(tname, val.til_type, val, val)
         }
@@ -2815,7 +2815,7 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
 build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, shallow vc: U32) returns Expr {
     mut new_call := make_ns_call("Array", "new", TilType.Struct, "Array", fcall)
 
-    mut et := Expr.new(ExprData.LiteralStr(elem_type.clone()), fcall.line, fcall.col, fcall.path)
+    mut et := Expr.new(NodeType.LiteralStr(elem_type.clone()), fcall.line, fcall.col, fcall.path)
     et.til_type = TilType.Struct
     et.struct_name = "Str"
     new_call.add_child(own et)
@@ -2824,11 +2824,11 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
     new_call.add_child(own sz)
 
     cap_str := vc.to_i64().to_str()
-    mut cap := Expr.new(ExprData.LiteralNum(cap_str.clone()), fcall.line, fcall.col, fcall.path)
+    mut cap := Expr.new(NodeType.LiteralNum(cap_str.clone()), fcall.line, fcall.col, fcall.path)
     cap.til_type = usize_type(scope)
     new_call.add_child(own cap)
 
-    mut va_decl := Expr.new(ExprData.Decl(Declaration()), fcall.line, fcall.col, fcall.path)
+    mut va_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col, fcall.path)
     ref mut dd : Declaration = get_payload(va_decl.data)
     dd.name = va_name.clone()
     va_decl.til_type = TilType.Struct
@@ -2839,19 +2839,19 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
 build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr {
     mut set_call := make_ns_call("Array", "set", TilType.None, "", fcall)
 
-    mut self_id := Expr.new(ExprData.Ident(va_name.clone()), fcall.line, fcall.col, fcall.path)
+    mut self_id := Expr.new(NodeType.Ident(va_name.clone()), fcall.line, fcall.col, fcall.path)
     self_id.til_type = TilType.Struct
     self_id.struct_name = "Array"
     set_call.add_child(own self_id)
 
     idx_str := j.to_i64().to_str()
-    mut idx := Expr.new(ExprData.LiteralNum(idx_str.clone()), fcall.line, fcall.col, fcall.path)
+    mut idx := Expr.new(NodeType.LiteralNum(idx_str.clone()), fcall.line, fcall.col, fcall.path)
     idx.til_type = usize_type(scope)
     set_call.add_child(own idx)
 
     ref val_in : Expr = fcall.child(vi.add(j.to_i64().to_i32()).to_i64().to_usize())
     mut val := val_in.clone()
-    if is_variant(val_in.data, ExprData.Ident).or(is_variant(val_in.data, ExprData.FieldAccess)) {
+    if is_variant(val_in.data, NodeType.Ident).or(is_variant(val_in.data, NodeType.FieldAccess)) {
         tname := type_to_name(val_in.til_type, val_in.struct_name)
         if tname.len().gt(0) {
             val = make_clone_call(tname, val_in.til_type, val_in, val_in)
@@ -2894,14 +2894,14 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     }
 
     mut new_call := make_ns_call("Set", "new", TilType.Struct, "Set", set_lit)
-    mut et_str := Expr.new(ExprData.LiteralStr(elem_type.clone()), set_lit.line, set_lit.col, set_lit.path)
+    mut et_str := Expr.new(NodeType.LiteralStr(elem_type.clone()), set_lit.line, set_lit.col, set_lit.path)
     et_str.til_type = TilType.Struct
     et_str.struct_name = "Str"
     new_call.add_child(own et_str)
     mut esz := make_ns_call(elem_type, "size", usize_type(scope), "", set_lit)
     new_call.add_child(own esz)
 
-    mut decl := Expr.new(ExprData.Decl(Declaration()), stmt.line, stmt.col, set_lit.path)
+    mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col, set_lit.path)
     ref mut dd : Declaration = get_payload(decl.data)
     dd.name = var_name.clone()
     dd.is_mut = true
@@ -2916,7 +2916,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 
     for j in 0..set_lit.child_count() {
         mut add_call := make_ns_call("Set", "add", TilType.None, "", set_lit)
-        mut self_id := Expr.new(ExprData.Ident(var_name.clone()), set_lit.line, set_lit.col, set_lit.path)
+        mut self_id := Expr.new(NodeType.Ident(var_name.clone()), set_lit.line, set_lit.col, set_lit.path)
         self_id.til_type = TilType.Struct
         self_id.struct_name = "Set"
         add_call.add_child(own self_id)
@@ -2981,20 +2981,20 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     }
 
     mut new_call := make_ns_call("Map", "new", TilType.Struct, "Map", map_lit)
-    mut kt_str := Expr.new(ExprData.LiteralStr(key_type.clone()), map_lit.line, map_lit.col, map_lit.path)
+    mut kt_str := Expr.new(NodeType.LiteralStr(key_type.clone()), map_lit.line, map_lit.col, map_lit.path)
     kt_str.til_type = TilType.Struct
     kt_str.struct_name = "Str"
     new_call.add_child(own kt_str)
     mut ksz := make_ns_call(key_type, "size", usize_type(scope), "", map_lit)
     new_call.add_child(own ksz)
-    mut vt_str := Expr.new(ExprData.LiteralStr(val_type.clone()), map_lit.line, map_lit.col, map_lit.path)
+    mut vt_str := Expr.new(NodeType.LiteralStr(val_type.clone()), map_lit.line, map_lit.col, map_lit.path)
     vt_str.til_type = TilType.Struct
     vt_str.struct_name = "Str"
     new_call.add_child(own vt_str)
     mut vsz := make_ns_call(val_type, "size", usize_type(scope), "", map_lit)
     new_call.add_child(own vsz)
 
-    mut decl := Expr.new(ExprData.Decl(Declaration()), stmt.line, stmt.col, map_lit.path)
+    mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col, map_lit.path)
     ref mut dd : Declaration = get_payload(decl.data)
     dd.name = var_name.clone()
     dd.is_mut = true
@@ -3009,7 +3009,7 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 
     for j in 0..n_pairs {
         mut set_call := make_ns_call("Map", "set", TilType.None, "", map_lit)
-        mut self_id := Expr.new(ExprData.Ident(var_name.clone()), map_lit.line, map_lit.col, map_lit.path)
+        mut self_id := Expr.new(NodeType.Ident(var_name.clone()), map_lit.line, map_lit.col, map_lit.path)
         self_id.til_type = TilType.Struct
         self_id.struct_name = "Map"
         set_call.add_child(own self_id)
@@ -3029,7 +3029,7 @@ desugar_set_literals := proc(mut body: Expr, mut scope: TypeScope) {
 
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
-        if is_variant(stmt.data, ExprData.Decl).not() {
+        if is_variant(stmt.data, NodeType.Decl).not() {
             new_ch.push(own stmt.clone())
             continue
         }
@@ -3037,7 +3037,7 @@ desugar_set_literals := proc(mut body: Expr, mut scope: TypeScope) {
             new_ch.push(own stmt.clone())
             continue
         }
-        if is_variant(stmt.child(0).data, ExprData.SetLit).not() {
+        if is_variant(stmt.child(0).data, NodeType.SetLit).not() {
             new_ch.push(own stmt.clone())
             continue
         }
@@ -3056,7 +3056,7 @@ desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
 
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
-        if is_variant(stmt.data, ExprData.Decl).not() {
+        if is_variant(stmt.data, NodeType.Decl).not() {
             new_ch.push(own stmt.clone())
             continue
         }
@@ -3064,7 +3064,7 @@ desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
             new_ch.push(own stmt.clone())
             continue
         }
-        if is_variant(stmt.child(0).data, ExprData.MapLit).not() {
+        if is_variant(stmt.child(0).data, NodeType.MapLit).not() {
             new_ch.push(own stmt.clone())
             continue
         }
@@ -3087,12 +3087,12 @@ hoist_param_swap_assign := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Typ
         if is_variant(ab.type, TilType.Enum).not() { return }
     }
 
-    mut call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+    mut call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
     call.til_type = TilType.None
-    mut fn := Expr.new(ExprData.Ident("swap"), stmt.line, stmt.col, stmt.path)
+    mut fn := Expr.new(NodeType.Ident("swap"), stmt.line, stmt.col, stmt.path)
     call.add_child(own fn)
     ref stmt_name : Str = get_payload(stmt.data)
-    mut a := Expr.new(ExprData.Ident(stmt_name.clone()), stmt.line, stmt.col, stmt.path)
+    mut a := Expr.new(NodeType.Ident(stmt_name.clone()), stmt.line, stmt.col, stmt.path)
     a.til_type = ab.type
     if ab.struct_name.len().gt(0) { a.struct_name = ab.struct_name.clone() }
     call.add_child(own a)
@@ -3105,21 +3105,21 @@ hoist_param_swap_assign := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Typ
 }
 
 hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
-    if is_variant(expr.data, ExprData.FuncDef) { return }
-    if is_variant(expr.data, ExprData.StructDef) { return }
-    if is_variant(expr.data, ExprData.EnumDef) { return }
-    if is_variant(expr.data, ExprData.Body) { return }
+    if is_variant(expr.data, NodeType.FuncDef) { return }
+    if is_variant(expr.data, NodeType.StructDef) { return }
+    if is_variant(expr.data, NodeType.EnumDef) { return }
+    if is_variant(expr.data, NodeType.Body) { return }
 
     for i in 0..expr.child_count() {
         hoist_expr(expr.child(i), hoisted, scope)
     }
-    if is_variant(expr.data, ExprData.FCall).not() { return }
+    if is_variant(expr.data, NodeType.FCall).not() { return }
 
     ref mut ctor_body : Expr = NULL
     if expr.struct_name.len().gt(0) {
         if expr.child_count().gt(0) {
             ref callee : Expr = expr.child(0)
-            if is_variant(callee.data, ExprData.Ident) {
+            if is_variant(callee.data, NodeType.Ident) {
                 ref callee_name : Str = get_payload(callee.data)
                 if callee_name.eq(expr.struct_name) {
                     ref sdef : Expr = scope.get_struct(expr.struct_name)
@@ -3134,7 +3134,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     mut is_dyn_call := false
     if expr.child_count().gt(0) {
         ref callee : Expr = expr.child(0)
-        if is_variant(callee.data, ExprData.Ident) {
+        if is_variant(callee.data, NodeType.Ident) {
             ref cn : Str = get_payload(callee.data)
             if cn.eq("dyn_call") { is_dyn_call = true }
             if cn.eq("dyn_call_ret") { is_dyn_call = true }
@@ -3146,7 +3146,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     mut is_array_vec := false
     if expr.child_count().gt(0) {
         ref callee : Expr = expr.child(0)
-        if is_variant(callee.data, ExprData.Ident) {
+        if is_variant(callee.data, NodeType.Ident) {
             ref cn : Str = get_payload(callee.data)
             if cn.eq("array") { is_array_vec = true }
             if cn.eq("vec") { is_array_vec = true }
@@ -3163,10 +3163,10 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
         }
 
         ref arg : Expr = expr.child(i)
-        if is_variant(arg.data, ExprData.FCall).not() {
-            if is_variant(arg.data, ExprData.LiteralNum).not() {
-                if is_variant(arg.data, ExprData.LiteralStr).not() {
-                    if is_variant(arg.data, ExprData.LiteralBool).not() {
+        if is_variant(arg.data, NodeType.FCall).not() {
+            if is_variant(arg.data, NodeType.LiteralNum).not() {
+                if is_variant(arg.data, NodeType.LiteralStr).not() {
+                    if is_variant(arg.data, NodeType.LiteralBool).not() {
                         continue
                     }
                 }
@@ -3179,7 +3179,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
             while fi.lt(ctor_body.child_count()) {
                 ref field : Expr = ctor_body.child(fi)
                 fi = fi.add(1)
-                if is_variant(field.data, ExprData.Decl) {
+                if is_variant(field.data, NodeType.Decl) {
                     ref fd : Declaration = get_payload(field.data)
                     if fd.is_namespace.not() {
                         is_own = fd.is_own
@@ -3206,7 +3206,7 @@ hoist_decl_rhs := proc(stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
 hoist_if_cond := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     hoist_expr(stmt.child(0), hoisted, scope)
     ref cond : Expr = stmt.child(0)
-    if is_variant(cond.data, ExprData.FCall) {
+    if is_variant(cond.data, NodeType.FCall) {
         stmt.children.set(0, own hoist_to_temp(cond, hoisted, scope))
     }
 }
@@ -3215,10 +3215,10 @@ hoist_return_expr := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope
     if stmt.child_count().eq(0) { return }
     hoist_expr(stmt.child(0), hoisted, scope)
     ref rhs : Expr = stmt.child(0)
-    if is_variant(rhs.data, ExprData.FCall)
-        .or(is_variant(rhs.data, ExprData.LiteralNum))
-        .or(is_variant(rhs.data, ExprData.LiteralStr))
-        .or(is_variant(rhs.data, ExprData.LiteralBool)) {
+    if is_variant(rhs.data, NodeType.FCall)
+        .or(is_variant(rhs.data, NodeType.LiteralNum))
+        .or(is_variant(rhs.data, NodeType.LiteralStr))
+        .or(is_variant(rhs.data, NodeType.LiteralBool)) {
         stmt.children.set(0, own hoist_to_temp(rhs, hoisted, scope))
     }
 }
@@ -3237,10 +3237,10 @@ hoist_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
     }
     ref rhs : Expr = stmt.child(0)
     if do_hoist.and(
-        is_variant(rhs.data, ExprData.FCall)
-        .or(is_variant(rhs.data, ExprData.LiteralNum))
-        .or(is_variant(rhs.data, ExprData.LiteralStr))
-        .or(is_variant(rhs.data, ExprData.LiteralBool))
+        is_variant(rhs.data, NodeType.FCall)
+        .or(is_variant(rhs.data, NodeType.LiteralNum))
+        .or(is_variant(rhs.data, NodeType.LiteralStr))
+        .or(is_variant(rhs.data, NodeType.LiteralBool))
     ) {
         stmt.children.set(0, own hoist_to_temp(rhs, hoisted, scope))
     }
@@ -3257,10 +3257,10 @@ hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Type
     }
     ref rhs : Expr = stmt.child(1)
     if fa_hoist.and(
-        is_variant(rhs.data, ExprData.FCall)
-        .or(is_variant(rhs.data, ExprData.LiteralNum))
-        .or(is_variant(rhs.data, ExprData.LiteralStr))
-        .or(is_variant(rhs.data, ExprData.LiteralBool))
+        is_variant(rhs.data, NodeType.FCall)
+        .or(is_variant(rhs.data, NodeType.LiteralNum))
+        .or(is_variant(rhs.data, NodeType.LiteralStr))
+        .or(is_variant(rhs.data, NodeType.LiteralBool))
     ) {
         stmt.children.set(1, own hoist_to_temp(rhs, hoisted, scope))
     }
@@ -3284,21 +3284,21 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
         mut hoisted := Vec.new("Expr", Expr.size())
 
         switch stmt.data {
-        case ExprData.Decl:
+        case NodeType.Decl:
             hoist_decl_rhs(stmt, hoisted, scope)
-        case ExprData.FCall:
+        case NodeType.FCall:
             stmt = hoist_stmt_fcall(stmt, hoisted, scope)
-        case ExprData.Return:
+        case NodeType.Return:
             hoist_return_expr(stmt, hoisted, scope)
-        case ExprData.Assign:
+        case NodeType.Assign:
             hoist_assign_rhs(stmt, hoisted, scope)
             hoist_param_swap_assign(stmt, hoisted, scope)
-        case ExprData.FieldAssign:
+        case NodeType.FieldAssign:
             hoist_field_assign_rhs(stmt, hoisted, scope)
-        case ExprData.If:
+        case NodeType.If:
             hoist_if_cond(stmt, hoisted, scope)
         case:
-            // ExprData.While: skip condition -- hoisting changes loop semantics
+            // NodeType.While: skip condition -- hoisting changes loop semantics
         }
 
         for j in 0..hoisted.len() {
@@ -3319,7 +3319,7 @@ insert_field_deletes := proc(mut body: Expr) {
 
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
-        if is_variant(stmt.data, ExprData.FieldAssign) {
+        if is_variant(stmt.data, NodeType.FieldAssign) {
             is_own := stmt.is_own_field
             if field_assign_needs_delete(stmt) {
                 ref rhs : Expr = stmt.child(1)
@@ -3350,7 +3350,7 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
     for j in 0..fcall.child_count() {
         if j.to_i64().to_i32().gte(vi).and(j.to_i64().to_i32().lt(vi.add(vc.to_i64().to_i32()))) {
             if va_inserted.not() {
-                mut va_id := Expr.new(ExprData.Ident(va_name.clone()), line, col, path)
+                mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col, path)
                 va_id.til_type = TilType.Struct
                 va_id.struct_name = "Array"
                 va_id.is_own_arg = true
@@ -3360,7 +3360,7 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
             continue
         }
         if j.to_i64().to_i32().eq(vi).and(va_inserted.not()) {
-            mut va_id := Expr.new(ExprData.Ident(va_name.clone()), line, col, path)
+            mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col, path)
             va_id.til_type = TilType.Struct
             va_id.struct_name = "Array"
             va_id.is_own_arg = true
@@ -3370,7 +3370,7 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
         fcall_new_ch.push(own fcall.child(j).clone())
     }
     if va_inserted.not() {
-        mut va_id := Expr.new(ExprData.Ident(va_name.clone()), line, col, path)
+        mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col, path)
         va_id.til_type = TilType.Struct
         va_id.struct_name = "Array"
         va_id.is_own_arg = true
@@ -3434,7 +3434,7 @@ desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
 
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
-    if is_variant(callee.data, ExprData.Ident) {
+    if is_variant(callee.data, NodeType.Ident) {
         ref callee_name : Str = get_payload(callee.data)
         ref cb : TypeBinding = scope.get_binding(callee_name)
         if is_null(cb).not() {
@@ -3447,10 +3447,10 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
                 }
             }
         }
-    } else if is_variant(callee.data, ExprData.FieldAccess) {
+    } else if is_variant(callee.data, NodeType.FieldAccess) {
         if callee.is_ns_field {
             ref type_node : Expr = callee.child(0)
-            if is_variant(type_node.data, ExprData.Ident) {
+            if is_variant(type_node.data, NodeType.Ident) {
                 ref type_name : Str = get_payload(type_node.data)
                 ref sdef : Expr = scope.get_struct(type_name)
                 if is_null(sdef).not() {
@@ -3458,11 +3458,11 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
                     ref method_name : Str = get_payload(callee.data)
                     for j in 0..sbody.child_count() {
                         ref f : Expr = sbody.child(j)
-                        if is_variant(f.data, ExprData.Decl).not() { continue }
+                        if is_variant(f.data, NodeType.Decl).not() { continue }
                         ref fd : Declaration = get_payload(f.data)
                         if fd.is_namespace.not() { continue }
                         if fd.name.eq(method_name).not() { continue }
-                        if is_variant(f.child(0).data, ExprData.FuncDef).not() { continue }
+                        if is_variant(f.child(0).data, NodeType.FuncDef).not() { continue }
                         ref ffd : FunctionDef = get_payload(f.child(0).data)
                         fvi := ffd.variadic_index
                         if fvi.gte(0) {
@@ -3488,7 +3488,7 @@ desugar_pure_splat_variadic_call := proc(mut fcall: Expr, mut new_ch: Vec, stmt:
     ref splat_in : Expr = fcall.child(vi.to_i64().to_usize())
     mut splat := splat_in.clone()
     splat.is_splat = false
-    if is_variant(splat_in.data, ExprData.Ident) {
+    if is_variant(splat_in.data, NodeType.Ident) {
         splat = make_clone_call("Array", TilType.Struct, splat_in, splat_in)
     }
     splat.is_own_arg = true
@@ -3561,7 +3561,7 @@ rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
         ji := j.to_i64().to_i32()
         if ji.gte(ki).and(ji.lt(ki.add(kc.to_i64().to_i32()))) {
             if kw_inserted.not() {
-                mut kw_id := Expr.new(ExprData.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
+                mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
                 kw_id.til_type = TilType.Struct
                 kw_id.struct_name = "DynMap"
                 kw_id.is_own_arg = true
@@ -3571,7 +3571,7 @@ rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
             continue
         }
         if ji.eq(ki).and(kw_inserted.not()) {
-            mut kw_id := Expr.new(ExprData.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
+            mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
             kw_id.til_type = TilType.Struct
             kw_id.struct_name = "DynMap"
             kw_id.is_own_arg = true
@@ -3581,7 +3581,7 @@ rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
         fcall_new_ch.push(own fcall.child(j).clone())
     }
     if kw_inserted.not() {
-        mut kw_id := Expr.new(ExprData.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
+        mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
         kw_id.til_type = TilType.Struct
         kw_id.struct_name = "DynMap"
         kw_id.is_own_arg = true
@@ -3601,7 +3601,7 @@ check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow B
         ref p : Param = fd.params.get(i)
         if p.own_type.eq(OwnType.Own) {
             ref arg : Expr = fcall.child(i.add(1))
-            if is_variant(arg.data, ExprData.Ident) {
+            if is_variant(arg.data, NodeType.Ident) {
                 ref _ai : Str = get_payload(arg.data)
                 if _ai.eq(var_name) { return true }
             }
@@ -3611,10 +3611,10 @@ check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow B
 }
 
 fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns shallow Bool {
-    if is_variant(fcall.data, ExprData.FCall).not() { return false }
+    if is_variant(fcall.data, NodeType.FCall).not() { return false }
     if fcall.child_count().lt(2) { return false }
     // Struct constructor
-    if fcall.struct_name.len().gt(0) { if is_variant(fcall.child(0).data, ExprData.Ident) {
+    if fcall.struct_name.len().gt(0) { if is_variant(fcall.child(0).data, NodeType.Ident) {
         ref _c0s : Str = get_payload(fcall.child(0).data)
         if _c0s.eq(fcall.struct_name) {
         ref sdef : Expr = scope.get_struct(fcall.struct_name)
@@ -3623,14 +3623,14 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
             mut fi : USize = 0
             for i in 0..body.child_count() {
                 ref fld : Expr = body.child(i)
-                if is_variant(fld.data, ExprData.Decl).not() { continue }
+                if is_variant(fld.data, NodeType.Decl).not() { continue }
                 ref fld_decl : Declaration = get_payload(fld.data)
                 if fld_decl.is_namespace { continue }
                 arg_idx := fi.add(1)
                 fi = fi.add(1)
                 if arg_idx.lt(fcall.child_count()) {
                     ref arg : Expr = fcall.child(arg_idx)
-                    if is_variant(arg.data, ExprData.Ident) {
+                    if is_variant(arg.data, NodeType.Ident) {
                         ref _an : Str = get_payload(arg.data)
                         if _an.eq(var_name).and(fld_decl.is_ref.not()) {
                             if fld_decl.is_own.or(type_ctor_consumes(fld.til_type)) {
@@ -3643,7 +3643,7 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
         }
     } } }
     // Direct call
-    if is_variant(fcall.child(0).data, ExprData.Ident) {
+    if is_variant(fcall.child(0).data, NodeType.Ident) {
         ref fn_name : Str = get_payload(fcall.child(0).data)
         ref fb : TypeBinding = scope.get_binding(fn_name)
         if is_null(fb).not() {
@@ -3653,20 +3653,20 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
         return false
     }
     // Namespace method call
-    if is_variant(fcall.child(0).data, ExprData.FieldAccess).and(fcall.child(0).is_ns_field) {
+    if is_variant(fcall.child(0).data, NodeType.FieldAccess).and(fcall.child(0).is_ns_field) {
         ref method : Str = get_payload(fcall.child(0).data)
         ref type_node : Expr = fcall.child(0).child(0)
-        if is_variant(type_node.data, ExprData.Ident).not() { return false }
+        if is_variant(type_node.data, NodeType.Ident).not() { return false }
         ref _tn : Str = get_payload(type_node.data)
         ref sdef : Expr = scope.get_struct(_tn)
         if is_null(sdef) { return false }
         ref body : Expr = sdef.child(0)
         for i in 0..body.child_count() {
             ref field : Expr = body.child(i)
-            if is_variant(field.data, ExprData.Decl) {
+            if is_variant(field.data, NodeType.Decl) {
                 ref fd : Declaration = get_payload(field.data)
                 if fd.is_namespace.and(fd.name.eq(method)) {
-                    if is_variant(field.child(0).data, ExprData.FuncDef) {
+                    if is_variant(field.child(0).data, NodeType.FuncDef) {
                         return check_own_args(field.child(0), fcall, var_name)
                     }
                 }
@@ -3677,11 +3677,11 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
 }
 
 expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool {
-    if is_variant(e.data, ExprData.FuncDef) { return false }
+    if is_variant(e.data, NodeType.FuncDef) { return false }
     if fcall_has_own_arg(e, var_name, scope) { return true }
-    if is_variant(e.data, ExprData.FieldAssign).and(e.is_own_field) {
+    if is_variant(e.data, NodeType.FieldAssign).and(e.is_own_field) {
         if e.child_count().gt(1) {
-            if is_variant(e.child(1).data, ExprData.Ident) {
+            if is_variant(e.child(1).data, NodeType.Ident) {
                 ref _ei : Str = get_payload(e.child(1).data)
                 if _ei.eq(var_name) { return true }
             }
@@ -3695,9 +3695,9 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope) returns sha
 
 expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
     if is_null(e) { return false }
-    if is_variant(e.data, ExprData.LiteralNull) { return true }
-    if is_variant(e.data, ExprData.FCall).and(fcall_returns_ref(e, scope).neq(0)) { return true }
-    if is_variant(e.data, ExprData.Ident) {
+    if is_variant(e.data, NodeType.LiteralNull) { return true }
+    if is_variant(e.data, NodeType.FCall).and(fcall_returns_ref(e, scope).neq(0)) { return true }
+    if is_variant(e.data, NodeType.Ident) {
         ref id : Str = get_payload(e.data)
         sf := scope.find(id)
         if is_variant(sf, ScopeFind.Found) {
@@ -3705,7 +3705,7 @@ expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
             if b.is_ref.or(b.is_param) { return true }
         }
     }
-    if is_variant(e.data, ExprData.FieldAccess) {
+    if is_variant(e.data, NodeType.FieldAccess) {
         if e.is_ns_field { return false }
         return expr_is_borrow_source(e.child(0), scope)
     }
@@ -3715,7 +3715,7 @@ expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
 expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns shallow Bool {
     if is_null(e) { return false }
     if expr_is_borrow_source(e, scope) { return true }
-    if is_variant(e.data, ExprData.Ident) {
+    if is_variant(e.data, NodeType.Ident) {
         ref id : Str = get_payload(e.data)
         sf := scope.find(id)
         if is_variant(sf, ScopeFind.Found).not() { return false }
@@ -3724,7 +3724,7 @@ expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns shallow Boo
         if is_null(b.struct_def).not() { return false }
         return true
     }
-    if is_variant(e.data, ExprData.FieldAccess) {
+    if is_variant(e.data, NodeType.FieldAccess) {
         if e.is_ns_field { return false }
         return expr_is_stable_field_base(e.child(0), scope)
     }
@@ -3734,7 +3734,7 @@ expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns shallow Boo
 expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
     if is_null(e) { return false }
     if expr_is_borrow_source(e, scope) { return true }
-    if is_variant(e.data, ExprData.FieldAccess) {
+    if is_variant(e.data, NodeType.FieldAccess) {
         if e.is_ns_field { return false }
         return expr_is_stable_field_base(e.child(0), scope)
     }
@@ -3752,10 +3752,10 @@ field_assign_needs_delete := func(stmt: Expr) returns shallow Bool {
 alias_used_in_expr := func(body: Expr, name: Str, expr: Expr) returns shallow Bool {
     for k in 0..body.child_count() {
         ref d : Expr = body.child(k)
-        if is_variant(d.data, ExprData.Decl) {
+        if is_variant(d.data, NodeType.Decl) {
             ref dd : Declaration = get_payload(d.data)
             if dd.is_ref.and(d.child_count().gt(0)) {
-                if is_variant(d.child(0).data, ExprData.Ident) {
+                if is_variant(d.child(0).data, NodeType.Ident) {
                     ref _di : Str = get_payload(d.child(0).data)
                     if _di.eq(name) {
                         if expr_uses_var(expr, dd.name) { return true }
@@ -3777,7 +3777,7 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
         mut decl_idx := -1.to_i32()
         for j in 0..body.child_count() {
             ref s : Expr = body.child(j)
-            if is_variant(s.data, ExprData.Decl) {
+            if is_variant(s.data, NodeType.Decl) {
                 ref dd : Declaration = get_payload(s.data)
                 if dd.name.eq(b.name) {
                     decl_idx = j.to_i64().to_i32()
@@ -3841,7 +3841,7 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
         ref_changed = false
         for i in 0..body.child_count() {
             ref stmt : Expr = body.child(i)
-            if is_variant(stmt.data, ExprData.Decl).not() { continue }
+            if is_variant(stmt.data, NodeType.Decl).not() { continue }
             ref dd : Declaration = get_payload(stmt.data)
             if dd.is_ref.not() { continue }
             ref rhs : Expr = stmt.child(0)
@@ -3860,7 +3860,7 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
                 }
             }
 
-            if is_variant(rhs.data, ExprData.Ident) {
+            if is_variant(rhs.data, NodeType.Ident) {
                 ref src_name : Str = get_payload(rhs.data)
                 for j in 0..n_locals {
                     ref mut local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
@@ -3871,13 +3871,13 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
                 }
                 continue
             }
-            if is_variant(rhs.data, ExprData.FCall).not() { continue }
+            if is_variant(rhs.data, NodeType.FCall).not() { continue }
             for a in 1..rhs.child_count() {
                 ref mut arg : Expr = rhs.child(a)
-                while is_variant(arg.data, ExprData.FieldAccess).and(arg.child_count().gt(0)) {
+                while is_variant(arg.data, NodeType.FieldAccess).and(arg.child_count().gt(0)) {
                     arg = arg.child(0)
                 }
-                if is_variant(arg.data, ExprData.Ident).not() { continue }
+                if is_variant(arg.data, NodeType.Ident).not() { continue }
                 ref aname : Str = get_payload(arg.data)
                 for j in 0..n_locals {
                     ref mut local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
@@ -3908,15 +3908,15 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
-        if is_variant(stmt.data, ExprData.If) {
+        if is_variant(stmt.data, NodeType.If) {
             for c in 1..stmt.child_count() {
                 insert_exit_deletes(stmt.child(c), live, n_live, return_only)
             }
         }
-        if is_variant(stmt.data, ExprData.While) {
+        if is_variant(stmt.data, NodeType.While) {
             insert_exit_deletes(stmt.child(1), live, n_live, true)
         }
-        if is_variant(stmt.data, ExprData.Return).or(return_only.not().and(is_variant(stmt.data, ExprData.Break).or(is_variant(stmt.data, ExprData.Continue)))) {
+        if is_variant(stmt.data, NodeType.Return).or(return_only.not().and(is_variant(stmt.data, NodeType.Break).or(is_variant(stmt.data, NodeType.Continue)))) {
             for j in 0..n_live {
                 ref local : LocalInfo = ptr_add(live, j.mul(LocalInfo.size()))
                 if stmt.child_count().gt(0) {
@@ -3939,8 +3939,8 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
 }
 
 insert_nested_exit_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: U32, shallow stmt_idx: U32) {
-    if is_variant(stmt.data, ExprData.If).not() {
-        if is_variant(stmt.data, ExprData.While).not() { return }
+    if is_variant(stmt.data, NodeType.If).not() {
+        if is_variant(stmt.data, NodeType.While).not() { return }
     }
     mut live_vec := Vec.new("LocalInfo", LocalInfo.size())
     for j in 0..n_locals {
@@ -3956,7 +3956,7 @@ insert_nested_exit_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals
     if live_vec.len().gt(0) {
         n_live := live_vec.len()
         live : Dynamic = Vec_take(live_vec)
-        if is_variant(stmt.data, ExprData.If) {
+        if is_variant(stmt.data, NodeType.If) {
             for c in 1..stmt.child_count() {
                 insert_exit_deletes(stmt.child(c), live, n_live, false)
             }
@@ -3968,9 +3968,9 @@ insert_nested_exit_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals
 }
 
 insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, shallow n_locals: U32, shallow stmt_idx: U32, mut new_ch: Vec) {
-    if is_variant(stmt.data, ExprData.Return).not() {
-        if is_variant(stmt.data, ExprData.Break).not() {
-            if is_variant(stmt.data, ExprData.Continue).not() { return }
+    if is_variant(stmt.data, NodeType.Return).not() {
+        if is_variant(stmt.data, NodeType.Break).not() {
+            if is_variant(stmt.data, NodeType.Continue).not() { return }
         }
     }
     for j in 0..n_locals {
@@ -3995,7 +3995,7 @@ insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, s
 }
 
 insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: U32, shallow stmt_idx: U32, mut new_ch: Vec) {
-    if is_variant(stmt.data, ExprData.Return).or(is_variant(stmt.data, ExprData.Break)).or(is_variant(stmt.data, ExprData.Continue)) {
+    if is_variant(stmt.data, NodeType.Return).or(is_variant(stmt.data, NodeType.Break)).or(is_variant(stmt.data, NodeType.Continue)) {
         return
     }
     for j in 0..n_locals {
@@ -4018,7 +4018,7 @@ insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: 
 }
 
 insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: U32, mut new_ch: Vec) {
-    if is_variant(stmt.data, ExprData.Assign).not() { return }
+    if is_variant(stmt.data, NodeType.Assign).not() { return }
     ref vname : Str = get_payload(stmt.data)
     for j in 0..n_locals {
         ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
@@ -4072,16 +4072,16 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
 
 infer_literal_expr := proc(mut expr: Expr) {
     switch expr.data {
-    case ExprData.LiteralStr:
+    case NodeType.LiteralStr:
         expr.til_type = TilType.Struct
         expr.struct_name = "Str"
-    case ExprData.LiteralNum:
+    case NodeType.LiteralNum:
         if is_variant(expr.til_type, TilType.U8).not() {
             expr.til_type = TilType.I64
         }
-    case ExprData.LiteralBool:
+    case NodeType.LiteralBool:
         expr.til_type = TilType.Bool
-    case ExprData.LiteralNull:
+    case NodeType.LiteralNull:
         expr.til_type = TilType.Dynamic
     case:
     }
@@ -4098,9 +4098,9 @@ narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str)
 }
 
 fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
-    if is_variant(fcall.data, ExprData.FCall).not() { return 0.to_i32() }
+    if is_variant(fcall.data, NodeType.FCall).not() { return 0.to_i32() }
     ref callee : Expr = fcall.child(0)
-    if is_variant(callee.data, ExprData.Ident) {
+    if is_variant(callee.data, NodeType.Ident) {
         ref _cn : Str = get_payload(callee.data)
         ref cb : TypeBinding = scope.get_binding(_cn)
         if is_null(cb).not() {
@@ -4110,7 +4110,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
         }
         return 0.to_i32()
     }
-    if is_variant(callee.data, ExprData.FieldAccess).and(callee.is_ns_field) {
+    if is_variant(callee.data, NodeType.FieldAccess).and(callee.is_ns_field) {
         ref _cti : Str = get_payload(callee.child(0).data)
         ref sdef : Expr = scope.get_struct(_cti)
         if is_null(sdef) { return 0.to_i32() }
@@ -4118,10 +4118,10 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
         ref _cfa : Str = get_payload(callee.data)
         for j in 0..body.child_count() {
             ref f : Expr = body.child(j)
-            if is_variant(f.data, ExprData.Decl) {
+            if is_variant(f.data, NodeType.Decl) {
                 ref fd : Declaration = get_payload(f.data)
                 if fd.is_namespace.and(fd.name.eq(_cfa)) {
-                    if is_variant(f.child(0).data, ExprData.FuncDef) {
+                    if is_variant(f.child(0).data, NodeType.FuncDef) {
                         ref _ffd : FunctionDef = get_payload(f.child(0).data)
                         return _ffd.return_own_type.eq(OwnType.Ref)
                     }
@@ -4137,7 +4137,7 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns
     tname := "_t_".concat(tp).concat("_").concat(hoist_counter.to_i64().to_str())
     hoist_counter.inc()
 
-    mut decl := Expr.new(ExprData.Decl(Declaration()), val.line, val.col, val.path)
+    mut decl := Expr.new(NodeType.Decl(Declaration()), val.line, val.col, val.path)
     ref mut dd : Declaration = get_payload(decl.data)
     dd.name = tname.clone()
     dd.is_mut = false
@@ -4148,13 +4148,13 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns
     }
 
     mut val_is_ref := false
-    if is_variant(val.data, ExprData.FCall) {
+    if is_variant(val.data, NodeType.FCall) {
         val_is_ref = fcall_returns_ref(val, scope).eq(0).not()
     }
 
     decl.add_child(own val.clone())
 
-    mut ident := Expr.new(ExprData.Ident(tname.clone()), val.line, val.col, val.path)
+    mut ident := Expr.new(NodeType.Ident(tname.clone()), val.line, val.col, val.path)
     ident.til_type = val.til_type
     if val.struct_name.len().gt(0) {
         ident.struct_name = val.struct_name.clone()

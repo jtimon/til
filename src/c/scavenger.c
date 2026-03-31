@@ -35,13 +35,13 @@ static void collect_refs(Expr *e, Vec *refs) {
     if (!e) return;
 
     switch (e->data.tag) {
-    case ExprData_TAG_Ident:
+    case NodeType_TAG_Ident:
         vec_push_str(refs, &e->data.data.Ident);
         break;
 
-    case ExprData_TAG_FCall:
+    case NodeType_TAG_FCall:
         // Check for namespace method call: Type.method(args...)
-        if (e->children.count > 0 && Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+        if (e->children.count > 0 && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FieldAccess &&
             Expr_child(e, &(USize){(USize)(0)})->is_ns_field) {
             Expr *fa = Expr_child(e, &(USize){(USize)(0)});
             Str *type_name = &Expr_child(fa, &(USize){(USize)(0)})->data.data.Ident;
@@ -54,7 +54,7 @@ static void collect_refs(Expr *e, Vec *refs) {
             return;
         }
         // array()/vec() builtins need Array/Vec constructor methods
-        if (e->children.count >= 2 && Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+        if (e->children.count >= 2 && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident) {
             Str *cn = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
             // array()/vec() builtins: their namespace methods are called from
             // C code (ext.c/dispatch.c) which the scavenger can't see
@@ -72,7 +72,7 @@ static void collect_refs(Expr *e, Vec *refs) {
         }
         break;
 
-    case ExprData_TAG_FuncDef: {
+    case NodeType_TAG_FuncDef: {
         U32 np = e->data.data.FuncDef.nparam;
         I32 fvi = e->data.data.FuncDef.variadic_index;
         for (U32 i = 0; i < np; i++) {
@@ -93,25 +93,25 @@ static void collect_refs(Expr *e, Vec *refs) {
         break;
     }
 
-    case ExprData_TAG_FieldAccess:
+    case NodeType_TAG_FieldAccess:
         // Namespace field access: Type.field
-        if (e->is_ns_field && Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+        if (e->is_ns_field && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident) {
             Str *type_name = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
             vec_push_str(refs, type_name);
             vec_push_str(refs, gc_str(qualified_name(type_name, &e->data.data.FieldAccess)));
         }
         break;
 
-    case ExprData_TAG_FieldAssign:
+    case NodeType_TAG_FieldAssign:
         // Namespace field assignment: Type.field = value
-        if (e->is_ns_field && Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+        if (e->is_ns_field && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident) {
             Str *type_name = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
             vec_push_str(refs, type_name);
             vec_push_str(refs, gc_str(qualified_name(type_name, &e->data.data.FieldAssign)));
         }
         break;
 
-    case ExprData_TAG_Decl:
+    case NodeType_TAG_Decl:
         if (e->data.data.Decl.explicit_type.count > 0)
             vec_push_str(refs, &e->data.data.Decl.explicit_type);
         break;
@@ -134,7 +134,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     Map top; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); top = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl) {
+        if (stmt->data.tag == NodeType_TAG_Decl) {
             Str *name = &stmt->data.data.Decl.name;
             { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(stmt)); memcpy(_v, &stmt, sizeof(stmt)); Map_set(&top, _k, _v); }
         }
@@ -144,8 +144,8 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     Map methods; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); methods = *_mp; free(_mp); }
     for (U32 i = 0; i < top.count; i++) {
         Expr *decl = *(Expr **)(top.val_data + i * top.val_size);
-        if (Expr_child(decl, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef &&
-            Expr_child(decl, &(USize){(USize)(0)})->data.tag != ExprData_TAG_EnumDef) continue;
+        if (Expr_child(decl, &(USize){(USize)(0)})->data.tag != NodeType_TAG_StructDef &&
+            Expr_child(decl, &(USize){(USize)(0)})->data.tag != NodeType_TAG_EnumDef) continue;
         Str *sname = (Str *)(top.key_data + i * top.key_size);
         Expr *body = Expr_child(Expr_child(decl, &(USize){(USize)(0)}), &(USize){(USize)(0)});
         for (U32 j = 0; j < body->children.count; j++) {
@@ -163,10 +163,10 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
         // Also seed from top-level variable declarations (e.g. mode auto-imports)
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl &&
-                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
-                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef))
+            if (stmt->data.tag == NodeType_TAG_Decl &&
+                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef ||
+                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef))
                 continue;
             collect_refs(stmt, &worklist);
         }
@@ -174,7 +174,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
         // Test execution: seed with all test function names
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef &&
+            if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef &&
                 Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type.tag == FuncType_TAG_Test) {
                 vec_push_str(&worklist, &stmt->data.data.Decl.name);
             }
@@ -183,10 +183,10 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
         // Script mode: collect refs from all top-level executable statements
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl &&
-                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
-                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef))
+            if (stmt->data.tag == NodeType_TAG_Decl &&
+                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef ||
+                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef))
                 continue;
             collect_refs(stmt, &worklist);
         }
@@ -203,8 +203,8 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
         // Top-level declaration?
         Expr *decl = map_get_expr(&top, name);
         if (decl) {
-            if (Expr_child(decl, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                Expr_child(decl, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
+            if (Expr_child(decl, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                Expr_child(decl, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
                 // For structs/enums: only walk instance fields, not namespace methods.
                 // Namespace methods are walked individually via qualified names.
                 Expr *body = Expr_child(Expr_child(decl, &(USize){(USize)(0)}), &(USize){0});
@@ -225,7 +225,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
 
         // Namespace method?
         Expr *method = map_get_expr(&methods, name);
-        if (method && Expr_child(method, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+        if (method && Expr_child(method, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             collect_refs(Expr_child(method, &(USize){(USize)(0)}), &worklist);
         }
     }
@@ -234,10 +234,10 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     I32 w = 0;
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl &&
-            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
-             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+        if (stmt->data.tag == NodeType_TAG_Decl &&
+            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Str *dname = &stmt->data.data.Decl.name;
             if (!Set_has(&visited, dname)) continue;
         }
@@ -248,8 +248,8 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     // 6. Filter namespace methods in kept structs
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl || (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef &&
-                                        Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_EnumDef))
+        if (stmt->data.tag != NodeType_TAG_Decl || (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != NodeType_TAG_StructDef &&
+                                        Expr_child(stmt, &(USize){(USize)(0)})->data.tag != NodeType_TAG_EnumDef))
             continue;
         Str *sname = &stmt->data.data.Decl.name;
         Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});

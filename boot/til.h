@@ -45,33 +45,33 @@ typedef struct FuncType FuncType;
 typedef struct Param Param;
 typedef struct FunctionDef FunctionDef;
 typedef enum {
-    ExprData_TAG_Body,
-    ExprData_TAG_LiteralStr,
-    ExprData_TAG_LiteralNum,
-    ExprData_TAG_LiteralBool,
-    ExprData_TAG_LiteralNull,
-    ExprData_TAG_Ident,
-    ExprData_TAG_Decl,
-    ExprData_TAG_Assign,
-    ExprData_TAG_FCall,
-    ExprData_TAG_FuncDef,
-    ExprData_TAG_StructDef,
-    ExprData_TAG_EnumDef,
-    ExprData_TAG_FieldAccess,
-    ExprData_TAG_FieldAssign,
-    ExprData_TAG_Return,
-    ExprData_TAG_If,
-    ExprData_TAG_While,
-    ExprData_TAG_ForIn,
-    ExprData_TAG_NamedArg,
-    ExprData_TAG_Break,
-    ExprData_TAG_Continue,
-    ExprData_TAG_MapLit,
-    ExprData_TAG_SetLit,
-    ExprData_TAG_Switch,
-    ExprData_TAG_Case
+    NodeType_TAG_Body,
+    NodeType_TAG_LiteralStr,
+    NodeType_TAG_LiteralNum,
+    NodeType_TAG_LiteralBool,
+    NodeType_TAG_LiteralNull,
+    NodeType_TAG_Ident,
+    NodeType_TAG_Decl,
+    NodeType_TAG_Assign,
+    NodeType_TAG_FCall,
+    NodeType_TAG_FuncDef,
+    NodeType_TAG_StructDef,
+    NodeType_TAG_EnumDef,
+    NodeType_TAG_FieldAccess,
+    NodeType_TAG_FieldAssign,
+    NodeType_TAG_Return,
+    NodeType_TAG_If,
+    NodeType_TAG_While,
+    NodeType_TAG_ForIn,
+    NodeType_TAG_NamedArg,
+    NodeType_TAG_Break,
+    NodeType_TAG_Continue,
+    NodeType_TAG_MapLit,
+    NodeType_TAG_SetLit,
+    NodeType_TAG_Switch,
+    NodeType_TAG_Case
 } ExprData_tag;
-typedef struct ExprData ExprData;
+typedef struct NodeType NodeType;
 typedef struct Expr Expr;
 typedef enum {
     TokenType_TAG_Eof,
@@ -361,7 +361,7 @@ typedef struct FunctionDef {
 } FunctionDef;
 
 
-struct ExprData {
+struct NodeType {
     ExprData_tag tag;
     union {
         Str LiteralStr;
@@ -379,7 +379,7 @@ struct ExprData {
 };
 
 typedef struct Expr {
-    ExprData data;
+    NodeType data;
     TilType til_type;
     Str struct_name;
     Bool is_own_arg;
@@ -529,10 +529,10 @@ Str * FunctionDef_to_str(FunctionDef * self);
 FunctionDef * FunctionDef_clone(FunctionDef * self);
 void FunctionDef_delete(FunctionDef * self, Bool * call_free);
 U64 * FunctionDef_size(void);
-Bool * ExprData_eq(ExprData * self, ExprData * other);
-ExprData * ExprData_clone(ExprData * self);
-void ExprData_delete(ExprData * self, Bool * call_free);
-Str * ExprData_to_str(ExprData * self);
+Bool * ExprData_eq(NodeType * self, NodeType * other);
+NodeType * ExprData_clone(NodeType * self);
+void ExprData_delete(NodeType * self, Bool * call_free);
+Str * ExprData_to_str(NodeType * self);
 U64 * ExprData_size(void);
 void Expr_error(Expr * self, Str * msg);
 void Expr_todo_error(Expr * self, Str * msg);
@@ -540,11 +540,11 @@ void Expr_lang_error(Expr * self, Str * msg);
 void Expr_add_child(Expr * self, Expr * child);
 Expr * Expr_child(Expr * parent, I64 * i);
 I64 * Expr_child_count(Expr * parent);
-Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
+Expr * Expr_new(NodeType * data, U32 line, U32 col, Str * path);
 Expr * Expr_clone(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);
 U64 * Expr_size(void);
-Str * node_name(ExprData * data);
+Str * node_name(NodeType * data);
 Str * func_type_name(FuncType * ft);
 void ast_print(Expr * e, U32 indent);
 Bool * enum_has_payloads(Expr * enum_def);

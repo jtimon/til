@@ -235,15 +235,15 @@ extract_types_from_file := proc(path: Str) returns Vec {
     mut i : USize = 0
     while i.lt(ast.child_count()) {
         ref stmt : Expr = ast.child(i)
-        if is_variant(stmt.data, ExprData.Decl).and(stmt.child_count().gt(0)) {
+        if is_variant(stmt.data, NodeType.Decl).and(stmt.child_count().gt(0)) {
             ref dd : Declaration = get_payload(stmt.data)
             ref rhs : Expr = stmt.child(0)
 
-            if is_variant(rhs.data, ExprData.StructDef).or(is_variant(rhs.data, ExprData.EnumDef)) {
+            if is_variant(rhs.data, NodeType.StructDef).or(is_variant(rhs.data, NodeType.EnumDef)) {
                 body_lines := extract_body_lines(lines, rhs.line)
                 mut rendered_lines := body_lines
                 mut kind := "StructDef"
-                if is_variant(rhs.data, ExprData.EnumDef) {
+                if is_variant(rhs.data, NodeType.EnumDef) {
                     kind = "EnumDef"
                     rendered_lines = split_enum_variants(body_lines)
                 }

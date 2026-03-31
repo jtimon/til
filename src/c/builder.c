@@ -9,8 +9,8 @@
 #define RETURN_IS_SHALLOW(fd) ((fd)->return_own_type.tag == OwnType_TAG_Shallow)
 
 static Expr *codegen_program; // set during codegen for ns_init lookups
-static Map struct_bodies; // Str* name → Expr* body (ExprData_TAG_Body)
-static Map func_defs;     // Str* name → Expr* func_def (ExprData_TAG_FuncDef)
+static Map struct_bodies; // Str* name → Expr* body (NodeType_TAG_Body)
+static Map func_defs;     // Str* name → Expr* func_def (NodeType_TAG_FuncDef)
 static Set script_globals; // names of top-level vars emitted as file-scope globals
 static Bool has_script_globals; // whether script_globals is initialized
 static Bool in_func_def; // true while emitting a function/proc body
@@ -23,8 +23,8 @@ static Bool has_funcsig_names;
 
 static void collect_collection_builtins(Expr *e, Vec *infos) {
     if (!e) return;
-    if (e->data.tag == ExprData_TAG_FCall && Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
-        e->children.count >= 2 && Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralStr) {
+    if (e->data.tag == NodeType_TAG_FCall && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident &&
+        e->children.count >= 2 && Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_LiteralStr) {
         Str *name = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
         I32 is_vec = -1;
         if ((name->count == 5 && memcmp(name->c_str, "array", 5) == 0)) is_vec = 0;
@@ -55,14 +55,14 @@ static Bool is_dyn_call_name(Str *name, Bool *returns) {
 
 static void collect_dyn_methods(Expr *e, Vec *methods) {
     if (!e) return;
-    if (e->data.tag == ExprData_TAG_FCall && Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
-        e->children.count >= 3 && Expr_child(e, &(USize){(USize)(2)})->data.tag == ExprData_TAG_LiteralStr) {
+    if (e->data.tag == NodeType_TAG_FCall && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident &&
+        e->children.count >= 3 && Expr_child(e, &(USize){(USize)(2)})->data.tag == NodeType_TAG_LiteralStr) {
         Bool returns;
         if (is_dyn_call_name(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &returns)) {
             Str *method = &Expr_child(e, &(USize){(USize)(2)})->data.data.Ident;
             // Read arity from 3rd arg (child 3) — a literal number
             I32 nargs = 1;
-            if (e->children.count >= 4 && Expr_child(e, &(USize){(USize)(3)})->data.tag == ExprData_TAG_LiteralNum) {
+            if (e->children.count >= 4 && Expr_child(e, &(USize){(USize)(3)})->data.tag == NodeType_TAG_LiteralNum) {
                 nargs = (I32)atol((char *)Expr_child(e, &(USize){(USize)(3)})->data.data.Ident.c_str);
             }
             for (U32 i = 0; i < methods->count; i++) {
@@ -81,9 +81,9 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
 // Collect unique method names from dyn_has_method calls
 static void collect_dyn_has_methods(Expr *e, Vec *methods) {
     if (!e) return;
-    if (e->data.tag == ExprData_TAG_FCall && Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
+    if (e->data.tag == NodeType_TAG_FCall && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident &&
         (Expr_child(e, &(USize){(USize)(0)})->data.data.Ident.count == 14 && memcmp(Expr_child(e, &(USize){(USize)(0)})->data.data.Ident.c_str, "dyn_has_method", 14) == 0) &&
-        e->children.count >= 3 && Expr_child(e, &(USize){(USize)(2)})->data.tag == ExprData_TAG_LiteralStr) {
+        e->children.count >= 3 && Expr_child(e, &(USize){(USize)(2)})->data.tag == NodeType_TAG_LiteralStr) {
         Str *method = &Expr_child(e, &(USize){(USize)(2)})->data.data.Ident;
         for (U32 i = 0; i < methods->count; i++) {
             Str **existing = Vec_get(methods, &(USize){(USize)(i)});
@@ -163,8 +163,8 @@ static void emit_field(FILE *f, const char *var, const char *field) {
 }
 
 static Bool use_dot_access(Expr *obj) {
-    if (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field) return 1;
-    if (obj->data.tag == ExprData_TAG_Ident &&
+    if (obj->data.tag == NodeType_TAG_FieldAccess && !obj->is_own_field) return 1;
+    if (obj->data.tag == NodeType_TAG_Ident &&
         (is_stack_local((const char *)obj->data.data.Ident.c_str) ||
          is_value_global((const char *)obj->data.data.Ident.c_str))) return 1;
     return 0;
@@ -203,7 +203,7 @@ static void emit_body_scoped(FILE *f, Expr *body, I32 depth) {
 static Str *resolve_callee_name(Expr *fcall, Bool *allocated) {
     *allocated = 0;
     Expr *callee_node = Expr_child(fcall, &(USize){(USize)(0)});
-    if (callee_node->data.tag == ExprData_TAG_FieldAccess) {
+    if (callee_node->data.tag == NodeType_TAG_FieldAccess) {
         Str *sname = &Expr_child(callee_node, &(USize){(USize)(0)})->struct_name;
         Str *mname = &callee_node->data.data.FieldAccess;
         if (sname->count == 0) return NULL;
@@ -211,14 +211,14 @@ static Str *resolve_callee_name(Expr *fcall, Bool *allocated) {
         snprintf(buf, sizeof(buf), "%s_%s", sname->c_str, mname->c_str);
         *allocated = 1;
         return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-    } else if (callee_node->data.tag == ExprData_TAG_Ident) {
+    } else if (callee_node->data.tag == NodeType_TAG_Ident) {
         return &callee_node->data.data.Ident;
     }
     return NULL;
 }
 
 static Expr *fcall_fn_sig(Expr *fcall) {
-    if (!fcall || fcall->data.tag != ExprData_TAG_FCall) return NULL;
+    if (!fcall || fcall->data.tag != NodeType_TAG_FCall) return NULL;
     if (fcall->data.data.FCall.fn_sig) return fcall->data.data.FCall.fn_sig;
     return fcall->fn_sig;
 }
@@ -226,7 +226,7 @@ static Expr *fcall_fn_sig(Expr *fcall) {
 // Check all fcalls in an expression tree and mark idents passed to mut params as unsafe
 static void check_fcall_mut_args(Expr *e) {
     if (!e) return;
-    if (e->data.tag == ExprData_TAG_FCall) {
+    if (e->data.tag == NodeType_TAG_FCall) {
         // Check fn_sig for function pointer calls
         Expr *fdef = fcall_fn_sig(e);
         if (!fdef) {
@@ -242,7 +242,7 @@ static void check_fcall_mut_args(Expr *e) {
                 U32 pi = a - 1;
                 if (pi < fdef->data.data.FuncDef.nparam && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->is_mut) {
                     Expr *arg = Expr_child(e, &(USize){(USize)(a)});
-                    if (arg->data.tag == ExprData_TAG_Ident) {
+                    if (arg->data.tag == NodeType_TAG_Ident) {
                         Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
                     }
                 }
@@ -261,12 +261,12 @@ static void collect_unsafe_to_hoist(Expr *body) {
         // Check all fcalls for mut param args
         check_fcall_mut_args(stmt);
 
-        if (stmt->data.tag == ExprData_TAG_Decl && stmt->data.data.Decl.is_ref) {
+        if (stmt->data.tag == NodeType_TAG_Decl && stmt->data.data.Decl.is_ref) {
             Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-            if (rhs->data.tag == ExprData_TAG_Ident) {
+            if (rhs->data.tag == NodeType_TAG_Ident) {
                 Set_add(&unsafe_to_hoist, Str_clone(&rhs->data.data.Ident));
             }
-            if (rhs->data.tag == ExprData_TAG_FCall) {
+            if (rhs->data.tag == NodeType_TAG_FCall) {
                 Bool allocated = 0;
                 Str *callee = resolve_callee_name(rhs, &allocated);
                 if (callee) {
@@ -274,7 +274,7 @@ static void collect_unsafe_to_hoist(Expr *body) {
                     if (fdef && RETURN_IS_REF(&fdef->data.data.FuncDef)) {
                         for (U32 a = 1; a < rhs->children.count; a++) {
                             Expr *arg = Expr_child(rhs, &(USize){(USize)(a)});
-                            if (arg->data.tag == ExprData_TAG_Ident) {
+                            if (arg->data.tag == NodeType_TAG_Ident) {
                                 Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
                             }
                         }
@@ -283,14 +283,14 @@ static void collect_unsafe_to_hoist(Expr *body) {
                 }
             }
         }
-        if (stmt->data.tag == ExprData_TAG_If) {
+        if (stmt->data.tag == NodeType_TAG_If) {
             for (U32 c = 1; c < stmt->children.count; c++)
                 collect_unsafe_to_hoist(Expr_child(stmt, &(USize){(USize)(c)}));
         }
-        if (stmt->data.tag == ExprData_TAG_While && stmt->children.count > 1) {
+        if (stmt->data.tag == NodeType_TAG_While && stmt->children.count > 1) {
             collect_unsafe_to_hoist(Expr_child(stmt, &(USize){(USize)(1)}));
         }
-        if (stmt->data.tag == ExprData_TAG_Body) {
+        if (stmt->data.tag == NodeType_TAG_Body) {
             collect_unsafe_to_hoist(stmt);
         }
     }
@@ -324,7 +324,7 @@ static const char *callee_return_ctype(Str *callee_name) {
 
 // Get the C value type for an fcall's return value
 static const char *fcall_return_ctype(Expr *fcall) {
-    if (fcall->data.tag != ExprData_TAG_FCall) return NULL;
+    if (fcall->data.tag != NodeType_TAG_FCall) return NULL;
     Bool allocated = 0;
     Str *callee = resolve_callee_name(fcall, &allocated);
     if (!callee) return NULL;
@@ -355,11 +355,11 @@ static Bool callee_returns_dynamic(Str *callee_name) {
 
 // Check if an FCALL node's callee returns shallow
 static Bool fcall_is_shallow_return(Expr *fcall) {
-    if (fcall->data.tag != ExprData_TAG_FCall) return 0;
+    if (fcall->data.tag != NodeType_TAG_FCall) return 0;
     Expr *callee = Expr_child(fcall, &(USize){(USize)(0)});
-    if (callee->data.tag == ExprData_TAG_Ident) {
+    if (callee->data.tag == NodeType_TAG_Ident) {
         return callee_returns_shallow(&callee->data.data.Ident);
-    } else if (callee->data.tag == ExprData_TAG_FieldAccess) {
+    } else if (callee->data.tag == NodeType_TAG_FieldAccess) {
         Str *sname = &Expr_child(callee, &(USize){(USize)(0)})->struct_name;
         Str *mname = &callee->data.data.FieldAccess;
         if (!sname) return 0;
@@ -374,7 +374,7 @@ static Bool fcall_is_shallow_return(Expr *fcall) {
 }
 
 static Bool fcall_returns_dynamic(Expr *fcall) {
-    if (fcall->data.tag != ExprData_TAG_FCall) return 0;
+    if (fcall->data.tag != NodeType_TAG_FCall) return 0;
     Bool allocated = 0;
     Str *callee = resolve_callee_name(fcall, &allocated);
     if (!callee) return 0;
@@ -417,19 +417,19 @@ static const char *func_to_c(Str *name) {
 static void emit_expr(FILE *f, Expr *e, I32 depth) {
     (void)depth;
     switch (e->data.tag) {
-    case ExprData_TAG_LiteralStr:
+    case NodeType_TAG_LiteralStr:
         fprintf(f, "Str_lit(\"%s\", %lluULL)", e->data.data.LiteralStr.c_str, (unsigned long long)e->data.data.LiteralStr.count);
         break;
-    case ExprData_TAG_LiteralNum:
+    case NodeType_TAG_LiteralNum:
         fprintf(f, "%s", e->data.data.LiteralNum.c_str);
         break;
-    case ExprData_TAG_LiteralBool:
+    case NodeType_TAG_LiteralBool:
         fprintf(f, "%d", e->data.data.LiteralBool ? 1 : 0);
         break;
-    case ExprData_TAG_LiteralNull:
+    case NodeType_TAG_LiteralNull:
         fprintf(f, "NULL");
         break;
-    case ExprData_TAG_Ident:
+    case NodeType_TAG_Ident:
         if (e->til_type.tag == TilType_TAG_FuncPtr) {
             // Function name used as value — cast to void* for function pointer storage
             fprintf(f, "(void *)%s", func_to_c(&e->data.data.Ident));
@@ -437,9 +437,9 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "%s", e->data.data.Ident.c_str);
         }
         break;
-    case ExprData_TAG_FCall: {
+    case NodeType_TAG_FCall: {
         // Indirect call through FuncSig-typed struct field: h.on_click(3, 5)
-        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FieldAccess &&
             Expr_child(e, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_FuncPtr && fcall_fn_sig(e)) {
             // Use fn_sig to determine shallow params/return for correct cast
             Expr *sig = fcall_fn_sig(e);
@@ -502,7 +502,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             break;
         }
         // Namespace method call: Struct.method(args)
-        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess) {
+        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FieldAccess) {
             Str *sname = &Expr_child(Expr_child(e, &(USize){(USize)(0)}), &(USize){0})->struct_name;
             Str *mname = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
             char flat_key[256];
@@ -645,7 +645,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         }
         break;
     }
-    case ExprData_TAG_FieldAccess: {
+    case NodeType_TAG_FieldAccess: {
         Expr *obj = Expr_child(e, &(USize){(USize)(0)});
         Str *fname = &e->data.data.FieldAccess;
         if (e->is_ns_field) {
@@ -796,7 +796,7 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
     } else if (e->til_type.tag == TilType_TAG_FuncPtr) {
         // Function pointer: cast to void *
         // ref locals need DEREF (pointer to fn-ptr -> fn-ptr)
-        if (e->data.tag == ExprData_TAG_Ident && is_ref_local((const char *)e->data.data.Ident.c_str)) {
+        if (e->data.tag == NodeType_TAG_Ident && is_ref_local((const char *)e->data.data.Ident.c_str)) {
             fprintf(f, "(void *)DEREF(");
             emit_expr(f, e, depth);
             fprintf(f, ")");
@@ -804,7 +804,7 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "(void *)");
             emit_expr(f, e, depth);
         }
-    } else if (e->data.tag == ExprData_TAG_Ident) {
+    } else if (e->data.tag == NodeType_TAG_Ident) {
         if (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
             is_stack_local((const char *)e->data.data.Ident.c_str) ||
             is_value_global((const char *)e->data.data.Ident.c_str)) {
@@ -814,10 +814,10 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
             emit_expr(f, e, depth);
             fprintf(f, ")");
         }
-    } else if (e->data.tag == ExprData_TAG_LiteralStr) {
+    } else if (e->data.tag == NodeType_TAG_LiteralStr) {
         fprintf(f, "(Str){.c_str=(U8*)\"%s\", .count=%lluULL, .cap=TIL_CAP_LIT}",
                 e->data.data.Ident.c_str, (unsigned long long)e->data.data.Ident.count);
-    } else if (e->data.tag == ExprData_TAG_FieldAccess && e->is_ns_field && e->til_type.tag == TilType_TAG_Enum) {
+    } else if (e->data.tag == NodeType_TAG_FieldAccess && e->is_ns_field && e->til_type.tag == TilType_TAG_Enum) {
         // Auto-called constructor returns pointer; dereference it
         fprintf(f, "(*");
         emit_expr(f, e, depth);
@@ -827,10 +827,10 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
     }
 }
 
-// Emit expression as a pointer — after hoisting, args are ExprData_TAG_Ident (already pointer)
-// or ExprData_TAG_FieldAccess (value needing compound literal wrapping).
+// Emit expression as a pointer — after hoisting, args are NodeType_TAG_Ident (already pointer)
+// or NodeType_TAG_FieldAccess (value needing compound literal wrapping).
 static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
-    if (e->data.tag == ExprData_TAG_Ident &&
+    if (e->data.tag == NodeType_TAG_Ident &&
         (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
          is_stack_local((const char *)e->data.data.Ident.c_str) ||
          is_value_global((const char *)e->data.data.Ident.c_str))) {
@@ -845,8 +845,8 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
         } else {
             fprintf(f, "&%s", e->data.data.Ident.c_str);
         }
-    } else if (e->data.tag == ExprData_TAG_FCall && e->struct_name.count > 0 && e->children.count > 0 &&
-               Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
+    } else if (e->data.tag == NodeType_TAG_FCall && e->struct_name.count > 0 && e->children.count > 0 &&
+               Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident &&
                Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
         // Struct constructor in expression context: hoist to temp via statement-expr
         const char *ctype = c_type_name(e->til_type, &e->struct_name);
@@ -856,9 +856,9 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
         snprintf(tmp, sizeof(tmp), "_sc%d", id);
         emit_ctor_fields(f, tmp, e, depth);
         fprintf(f, " _sc%d; })", id);
-    } else if (e->data.tag == ExprData_TAG_Ident || e->data.tag == ExprData_TAG_FCall || e->data.tag == ExprData_TAG_LiteralStr) {
+    } else if (e->data.tag == NodeType_TAG_Ident || e->data.tag == NodeType_TAG_FCall || e->data.tag == NodeType_TAG_LiteralStr) {
         emit_expr(f, e, depth);
-    } else if (e->data.tag == ExprData_TAG_FieldAccess) {
+    } else if (e->data.tag == NodeType_TAG_FieldAccess) {
         // Own field is already a pointer; enum ns_field constructor returns pointer;
         // Dynamic field is void* (already a pointer); inline field needs address-of
         if (e->is_own_field || (e->is_ns_field && e->til_type.tag == TilType_TAG_Enum) ||
@@ -868,7 +868,7 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "&");
             emit_expr(f, e, depth);
         }
-    } else if (e->data.tag == ExprData_TAG_LiteralNull) {
+    } else if (e->data.tag == NodeType_TAG_LiteralNull) {
         fprintf(f, "NULL");
     } else {
         const char *ctype = c_type_name(e->til_type, &e->struct_name);
@@ -914,7 +914,7 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             emit_field(f, var, fname); fprintf(f, " = ");
             emit_expr(f, arg, depth);
             fprintf(f, ";\n");
-        } else if (is_own && arg->data.tag == ExprData_TAG_FCall && arg->struct_name.count > 0 &&
+        } else if (is_own && arg->data.tag == NodeType_TAG_FCall && arg->struct_name.count > 0 &&
             Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
             // Nested struct constructor for own field: emit as temp, assign pointer
             const char *ct = c_type_name(arg->til_type, &arg->struct_name);
@@ -930,7 +930,7 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             arg->is_own_arg = true;
             emit_as_ptr(f, arg, depth);
             fprintf(f, ";\n");
-        } else if (arg->data.tag == ExprData_TAG_FCall && arg->struct_name.count > 0 &&
+        } else if (arg->data.tag == NodeType_TAG_FCall && arg->struct_name.count > 0 &&
                    Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
             // Inline struct field: nested constructor — build in-place
             const char *ct = c_type_name(arg->til_type, &arg->struct_name);
@@ -941,7 +941,7 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             emit_ctor_fields(f, tmp, arg, depth);
             emit_indent(f, depth);
             emit_field(f, var, fname); fprintf(f, " = *%s; free(%s);\n", tmp, tmp);
-        } else if (arg->data.tag == ExprData_TAG_FCall) {
+        } else if (arg->data.tag == NodeType_TAG_FCall) {
             // Non-ref fields that are really scalar/pointer-like should take the
             // call result directly, not through heap-wrapper unboxing.
             if (field_type.tag == TilType_TAG_FuncPtr ||
@@ -971,22 +971,22 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
 static void emit_stmt(FILE *f, Expr *e, I32 depth) {
     emit_indent(f, depth);
     switch (e->data.tag) {
-    case ExprData_TAG_Decl:
-        if (e->til_type.tag == TilType_TAG_FuncPtr && !e->data.data.Decl.is_ref && Expr_child(e, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) {
+    case NodeType_TAG_Decl:
+        if (e->til_type.tag == TilType_TAG_FuncPtr && !e->data.data.Decl.is_ref && Expr_child(e, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) {
             // Function pointer variable (non-ref): void *f = (void *)func_name;
             fprintf(f, "void *%s = ", e->data.data.Decl.name.c_str);
             emit_expr(f, Expr_child(e, &(USize){(USize)(0)}), depth);
             fprintf(f, ";\n");
             emit_indent(f, depth);
             fprintf(f, "(void)%s;\n", e->data.data.Decl.name.c_str);
-        } else if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+        } else if (Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             fprintf(f, "/* TODO: nested func %s */\n", e->data.data.Decl.name.c_str);
-        } else if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                   Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
+        } else if (Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                   Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
             fprintf(f, "/* %s %s defined above */\n",
-                    Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef ? "enum" : "struct",
+                    Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef ? "enum" : "struct",
                     e->data.data.Decl.name.c_str);
-        } else if (e->til_type.tag == TilType_TAG_None && Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+        } else if (e->til_type.tag == TilType_TAG_None && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident) {
             // Type alias: typer resolves all references to canonical name,
             // so no typedef needed in generated C
             ;
@@ -1019,8 +1019,8 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     Bool can_hoist = !is_global && !e->data.data.Decl.is_own &&
                                      e->til_type.tag != TilType_TAG_FuncPtr &&
                                      e->til_type.tag != TilType_TAG_Dynamic &&
-                                     !(rhs->data.tag == ExprData_TAG_FCall && fcall_returns_dynamic(rhs));
-                    if (rhs->data.tag == ExprData_TAG_FCall && rhs->struct_name.count > 0 &&
+                                     !(rhs->data.tag == NodeType_TAG_FCall && fcall_returns_dynamic(rhs));
+                    if (rhs->data.tag == NodeType_TAG_FCall && rhs->struct_name.count > 0 &&
                         Str_eq(&Expr_child(rhs, &(USize){(USize)(0)})->data.data.Ident, &rhs->struct_name)) {
                     // Struct constructor
                     const char *var = (const char *)e->data.data.Decl.name.c_str;
@@ -1034,14 +1034,14 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                         fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, var, ctype);
                     }
                     emit_ctor_fields(f, var, rhs, depth);
-                    } else if (rhs->data.tag == ExprData_TAG_FCall || rhs->data.tag == ExprData_TAG_LiteralStr ||
-                               (rhs->data.tag == ExprData_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
+                    } else if (rhs->data.tag == NodeType_TAG_FCall || rhs->data.tag == NodeType_TAG_LiteralStr ||
+                               (rhs->data.tag == NodeType_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
                     if (is_global) {
-                        if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
+                        if (rhs->data.tag == NodeType_TAG_FCall && fcall_is_shallow_return(rhs)) {
                             fprintf(f, "%s = ", e->data.data.Decl.name.c_str);
                             emit_expr(f, rhs, depth);
                             fprintf(f, ";\n");
-                        } else if (rhs->data.tag == ExprData_TAG_FCall) {
+                        } else if (rhs->data.tag == NodeType_TAG_FCall) {
                             const char *htype = fcall_return_ctype(rhs);
                             if (!htype) htype = ctype;
                             fprintf(f, "{ %s *_hp = (%s *)", htype, htype);
@@ -1052,7 +1052,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                             emit_deref(f, rhs, depth);
                             fprintf(f, ";\n");
                         }
-                    } else if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
+                    } else if (rhs->data.tag == NodeType_TAG_FCall && fcall_is_shallow_return(rhs)) {
                         if (can_hoist) {
                             // Shallow-return scalar fcall → stack value directly
                             // Use callee's return type to avoid signedness mismatches
@@ -1070,7 +1070,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                             emit_expr(f, rhs, depth);
                             fprintf(f, ";\n");
                         }
-                    } else if (can_hoist && rhs->data.tag == ExprData_TAG_FCall) {
+                    } else if (can_hoist && rhs->data.tag == NodeType_TAG_FCall) {
                         // Non-shallow fcall returning scalar → unbox heap pointer to stack
                         // Use callee's return type to avoid signedness mismatches
                         const char *htype = fcall_return_ctype(rhs);
@@ -1121,7 +1121,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "(void)%s;\n", e->data.data.Decl.name.c_str);
         }
         break;
-    case ExprData_TAG_Assign: {
+    case NodeType_TAG_Assign: {
         Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
         if (e->save_old_delete) {
             const char *ctype = c_type_name(e->til_type, &e->struct_name);
@@ -1151,11 +1151,11 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             break;
         }
         if (is_hoisted) {
-            if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
+            if (rhs->data.tag == NodeType_TAG_FCall && fcall_is_shallow_return(rhs)) {
                 fprintf(f, "%s = ", e->data.data.Assign.c_str);
                 emit_expr(f, rhs, depth);
                 fprintf(f, ";\n");
-            } else if (rhs->data.tag == ExprData_TAG_FCall) {
+            } else if (rhs->data.tag == NodeType_TAG_FCall) {
                 // Non-shallow fcall: unbox heap pointer
                 const char *ctype = c_type_name(e->til_type, &e->struct_name);
                 fprintf(f, "{ %s *_hp = (%s *)", ctype, ctype);
@@ -1167,9 +1167,9 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 fprintf(f, ";\n");
             }
         } else {
-            if (rhs->data.tag == ExprData_TAG_FCall || rhs->data.tag == ExprData_TAG_LiteralStr ||
-                (rhs->data.tag == ExprData_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
-                if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
+            if (rhs->data.tag == NodeType_TAG_FCall || rhs->data.tag == NodeType_TAG_LiteralStr ||
+                (rhs->data.tag == NodeType_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
+                if (rhs->data.tag == NodeType_TAG_FCall && fcall_is_shallow_return(rhs)) {
                     fprintf(f, "*%s = ", e->data.data.Assign.c_str);
                 } else {
                     fprintf(f, "%s = ", e->data.data.Assign.c_str);
@@ -1187,10 +1187,10 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         }
         break;
     }
-    case ExprData_TAG_FieldAssign: {
+    case NodeType_TAG_FieldAssign: {
         Expr *obj = Expr_child(e, &(USize){(USize)(0)});
         Str *fname = &e->data.data.FieldAssign;
-        if (Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_FCall && !e->is_own_field && !e->is_ns_field) {
+        if (Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_FCall && !e->is_own_field && !e->is_ns_field) {
             if (fcall_is_shallow_return(Expr_child(e, &(USize){(USize)(1)}))) {
                 // Shallow-return fcall: value directly assigned to inline field
                 emit_expr(f, obj, depth);
@@ -1223,12 +1223,12 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         }
         break;
     }
-    case ExprData_TAG_FCall:
+    case NodeType_TAG_FCall:
         // Suppress delete for hoisted scalars (no-op, avoids pre-existing type mismatch)
-        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FieldAccess &&
             (Expr_child(e, &(USize){(USize)(0)})->data.data.Ident.count == 6 && memcmp(Expr_child(e, &(USize){(USize)(0)})->data.data.Ident.c_str, "delete", 6) == 0) &&
             e->children.count >= 2 &&
-            Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident &&
+            Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_Ident &&
             is_stack_local((const char *)Expr_child(e, &(USize){(USize)(1)})->data.data.Ident.c_str) &&
             Expr_child(e, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Struct &&
             Expr_child(e, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Enum) {
@@ -1243,7 +1243,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             fprintf(f, ";\n");
         }
         break;
-    case ExprData_TAG_Return:
+    case NodeType_TAG_Return:
         if (e->children.count == 0) {
             if (in_main_func)
                 fprintf(f, "return 0;\n");
@@ -1251,7 +1251,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 fprintf(f, "return;\n");
         } else {
             Expr *rv = Expr_child(e, &(USize){(USize)(0)});
-            if (rv->data.tag == ExprData_TAG_FCall && rv->struct_name.count > 0 &&
+            if (rv->data.tag == NodeType_TAG_FCall && rv->struct_name.count > 0 &&
                 Str_eq(&Expr_child(rv, &(USize){(USize)(0)})->data.data.Ident, &rv->struct_name)) {
                 // Struct constructor return — malloc + field-by-field
                 const char *ctype = c_type_name(rv->til_type, &rv->struct_name);
@@ -1265,7 +1265,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 fprintf(f, ";\n");
             } else if (current_fdef && RETURN_IS_SHALLOW(&current_fdef->data.data.FuncDef)) {
                 // Shallow-return function — return value directly
-                if (rv->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rv)) {
+                if (rv->data.tag == NodeType_TAG_FCall && fcall_is_shallow_return(rv)) {
                     fprintf(f, "return ");
                     emit_expr(f, rv, depth);
                     fprintf(f, ";\n");
@@ -1274,7 +1274,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     emit_deref(f, rv, depth);
                     fprintf(f, ";\n");
                 }
-            } else if (rv->data.tag == ExprData_TAG_FieldAccess && !rv->is_own_field &&
+            } else if (rv->data.tag == NodeType_TAG_FieldAccess && !rv->is_own_field &&
                        !rv->is_ns_field && rv->til_type.tag != TilType_TAG_Dynamic) {
                 // Inline field value — must clone to heap pointer for return
                 const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
@@ -1283,7 +1283,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
                 emit_expr(f, rv, depth);
                 fprintf(f, "; return _r; }\n");
-            } else if (rv->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rv)) {
+            } else if (rv->data.tag == NodeType_TAG_FCall && fcall_is_shallow_return(rv)) {
                 // returns shallow: box value return into heap pointer
                 const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
@@ -1291,7 +1291,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
                 emit_expr(f, rv, depth);
                 fprintf(f, "; return _r; }\n");
-            } else if (rv->data.tag == ExprData_TAG_Ident &&
+            } else if (rv->data.tag == NodeType_TAG_Ident &&
                        is_stack_local((const char *)rv->data.data.Ident.c_str) &&
                        !(current_fdef && RETURN_IS_SHALLOW(&current_fdef->data.data.FuncDef))) {
                 // Hoisted local returned from non-shallow function: box to heap
@@ -1300,7 +1300,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     : c_type_name(rv->til_type, &rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = %s; return _r; }\n",
                         ctype, ctype, rv->data.data.Ident.c_str);
-            } else if (rv->data.tag == ExprData_TAG_Ident &&
+            } else if (rv->data.tag == NodeType_TAG_Ident &&
                        has_script_globals && Set_has(&script_globals, &rv->data.data.Ident) &&
                        !(current_fdef && RETURN_IS_SHALLOW(&current_fdef->data.data.FuncDef))) {
                 // Global returned from non-shallow function: copy to heap
@@ -1309,7 +1309,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     : c_type_name(rv->til_type, &rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = %s; return _r; }\n",
                         ctype, ctype, rv->data.data.Ident.c_str);
-            } else if (rv->data.tag == ExprData_TAG_FieldAccess && rv->is_ns_field &&
+            } else if (rv->data.tag == NodeType_TAG_FieldAccess && rv->is_ns_field &&
                        rv->til_type.tag == TilType_TAG_Enum) {
                 // Bare variant ref return: heap-allocate (compound literal is stack-only)
                 Str *sn = &Expr_child(rv, &(USize){(USize)(0)})->struct_name;
@@ -1322,13 +1322,13 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             }
         }
         break;
-    case ExprData_TAG_Body:
+    case NodeType_TAG_Body:
         fprintf(f, "{\n");
         emit_body_scoped(f, e, depth + 1);
         emit_indent(f, depth);
         fprintf(f, "}\n");
         break;
-    case ExprData_TAG_If:
+    case NodeType_TAG_If:
         fprintf(f, "if (");
         emit_deref(f, Expr_child(e, &(USize){(USize)(0)}), depth);
         fprintf(f, ") {\n");
@@ -1341,7 +1341,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         }
         fprintf(f, "}\n");
         break;
-    case ExprData_TAG_While:
+    case NodeType_TAG_While:
         fprintf(f, "while (");
         emit_deref(f, Expr_child(e, &(USize){(USize)(0)}), depth);
         fprintf(f, ") {\n");
@@ -1349,10 +1349,10 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         emit_indent(f, depth);
         fprintf(f, "}\n");
         break;
-    case ExprData_TAG_Break:
+    case NodeType_TAG_Break:
         fprintf(f, "break;\n");
         break;
-    case ExprData_TAG_Continue:
+    case NodeType_TAG_Continue:
         fprintf(f, "continue;\n");
         break;
     default:
@@ -1373,17 +1373,17 @@ static void emit_body(FILE *f, Expr *body, I32 depth) {
 static void emit_ns_inits(FILE *f, I32 depth) {
     for (U32 i = 0; i < codegen_program->children.count; i++) {
         Expr *stmt = Expr_child(codegen_program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                                        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+        if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                                        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *edef = Expr_child(stmt, &(USize){(USize)(0)});
             Expr *body = Expr_child(edef, &(USize){(USize)(0)});
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (!field->data.data.Decl.is_namespace) continue;
-                if (Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) continue;
+                if (Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) continue;
                 // Skip enum variant literals — handled by constructor functions
-                if (edef->data.tag == ExprData_TAG_EnumDef) continue;
+                if (edef->data.tag == NodeType_TAG_EnumDef) continue;
                 emit_indent(f, depth);
                 fprintf(f, "%s_%s = ", sname->c_str, field->data.data.Decl.name.c_str);
                 emit_deref(f, Expr_child(field, &(USize){(USize)(0)}), depth);
@@ -1423,12 +1423,12 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
         if (has_script_globals) {
             for (U32 i = 0; i < codegen_program->children.count; i++) {
                 Expr *gs = Expr_child(codegen_program, &(USize){(USize)(i)});
-                if (gs->data.tag == ExprData_TAG_Decl) {
+                if (gs->data.tag == NodeType_TAG_Decl) {
                     Expr *rhs = Expr_child(gs, &(USize){(USize)(0)});
-                    if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
-                        rhs->data.tag == ExprData_TAG_EnumDef) continue;
-                    if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
-                } else if (gs->data.tag != ExprData_TAG_FCall) {
+                    if (rhs->data.tag == NodeType_TAG_FuncDef || rhs->data.tag == NodeType_TAG_StructDef ||
+                        rhs->data.tag == NodeType_TAG_EnumDef) continue;
+                    if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == NodeType_TAG_Ident) continue;
+                } else if (gs->data.tag != NodeType_TAG_FCall) {
                     continue;
                 }
                 emit_stmt(f, gs, 1);
@@ -1626,7 +1626,7 @@ static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def) {
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = Expr_child(body, &(USize){(USize)(i)});
         if (!field->data.data.Decl.is_namespace) continue;
-        if (Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) continue;
+        if (Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) continue;
         if ((field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) && (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
             fprintf(f, "%s %s_%s;\n", Expr_child(field, &(USize){(USize)(0)})->struct_name.c_str, name->c_str, field->data.data.Decl.name.c_str);
         } else {
@@ -1641,7 +1641,7 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib,
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = Expr_child(body, &(USize){(USize)(i)});
         if (!field->data.data.Decl.is_namespace) continue;
-        if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+        if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
         Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
         FuncType fft = fdef->data.data.FuncDef.func_type;
         if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
@@ -1761,7 +1761,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = Expr_child(body, &(USize){(USize)(i)});
         if (!field->data.data.Decl.is_namespace) continue;
-        if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+        if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
         Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
         FuncType fft = fdef->data.data.FuncDef.func_type;
         if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
@@ -1816,8 +1816,8 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                                                     Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+        if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                                                     Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             { Str *_k = malloc(sizeof(Str)); *_k = (Str){sname->c_str, sname->count, CAP_VIEW}; void *_v = malloc(sizeof(body)); memcpy(_v, &body, sizeof(body)); Map_set(&struct_bodies, _k, _v); }
@@ -1825,7 +1825,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (!field->data.data.Decl.is_namespace) continue;
-                if (field->children.count == 0 || Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                if (field->children.count == 0 || Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 char flat[256];
                 snprintf(flat, sizeof(flat), "%s_%s", sname->c_str, field->data.data.Decl.name.c_str);
@@ -1837,8 +1837,8 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     Expr *fbody = Expr_child(fdef, &(USize){(USize)(0)});
                     for (U32 k = 0; k < fbody->children.count; k++) {
                         Expr *nested = Expr_child(fbody, &(USize){(USize)(k)});
-                        if (nested->data.tag != ExprData_TAG_Decl) continue;
-                        if (nested->children.count == 0 || Expr_child(nested, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                        if (nested->data.tag != NodeType_TAG_Decl) continue;
+                        if (nested->children.count == 0 || Expr_child(nested, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
                         Expr *nfdef = Expr_child(nested, &(USize){(USize)(0)});
                         Str *nkey = Str_clone(&nested->data.data.Decl.name);
                         { Str *_k2 = malloc(sizeof(Str)); *_k2 = (Str){nkey->c_str, nkey->count, CAP_VIEW}; void *_v2 = malloc(sizeof(nfdef)); memcpy(_v2, &nfdef, sizeof(nfdef)); Map_set(&func_defs, _k2, _v2); }
@@ -1846,7 +1846,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 }
             }
         }
-        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+        if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             Str *fname = &stmt->data.data.Decl.name;
             Expr *fdef = Expr_child(stmt, &(USize){(USize)(0)});
             { Str *_k = malloc(sizeof(Str)); *_k = (Str){fname->c_str, fname->count, CAP_VIEW}; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
@@ -1857,15 +1857,15 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     has_funcsig_names = 1;
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef &&
+        if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef &&
             Expr_child(stmt, &(USize){(USize)(0)})->children.count == 0) {
             Str *n = &stmt->data.data.Decl.name;
             { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
         }
         // FuncSig type aliases: Callback := BinaryOp (Decl where RHS is Ident, til_type=None,
         // and RHS refers to a FuncSig)
-        if (stmt->data.tag == ExprData_TAG_Decl && stmt->til_type.tag == TilType_TAG_None &&
-            Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+        if (stmt->data.tag == NodeType_TAG_Decl && stmt->til_type.tag == TilType_TAG_None &&
+            Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident) {
             Str *rhs_name = &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident;
             if (Set_has(&funcsig_names, rhs_name)) {
                 Str *n = &stmt->data.data.Decl.name;
@@ -1904,9 +1904,9 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             Vec to_emit_mh; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_mh = *_vp; free(_vp); }
             for (U32 i = 0; i < program->children.count; i++) {
                 Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-                if (stmt->data.tag == ExprData_TAG_Decl &&
-                    (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                     Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+                if (stmt->data.tag == NodeType_TAG_Decl &&
+                    (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                     Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
                     { U32 *_p = malloc(sizeof(U32)); *_p = i; Vec_push(&to_emit_mh, _p); }
                 }
             }
@@ -1932,7 +1932,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
 
                     Bool deps_ok = 1;
-                    if (def->data.tag == ExprData_TAG_StructDef) {
+                    if (def->data.tag == NodeType_TAG_StructDef) {
                         Expr *body = Expr_child(def, &(USize){(USize)(0)});
                         for (U32 fi = 0; fi < body->children.count; fi++) {
                             Expr *field = Expr_child(body, &(USize){(USize)(fi)});
@@ -1946,7 +1946,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                                 }
                             }
                         }
-                    } else if (def->data.tag == ExprData_TAG_EnumDef) {
+                    } else if (def->data.tag == NodeType_TAG_EnumDef) {
                         Expr *body = Expr_child(def, &(USize){(USize)(0)});
                         for (U32 fi = 0; fi < body->children.count; fi++) {
                             Expr *v = Expr_child(body, &(USize){(USize)(fi)});
@@ -1964,7 +1964,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
 
                     if (!deps_ok) continue;
 
-                    if (def->data.tag == ExprData_TAG_StructDef) {
+                    if (def->data.tag == NodeType_TAG_StructDef) {
                         emit_struct_typedef(hf, name, def);
                         fprintf(hf, "\n");
                     } else {
@@ -1999,7 +1999,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                         U32 idx = *(U32 *)Vec_get(&to_emit_mh, &(USize){(USize)(ei)});
                         Expr *stmt = Expr_child(program, &(USize){(USize)(idx)});
                         Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-                        if (def->data.tag == ExprData_TAG_StructDef) {
+                        if (def->data.tag == NodeType_TAG_StructDef) {
                             emit_struct_typedef(hf, &stmt->data.data.Decl.name, def);
                             fprintf(hf, "\n");
                         } else {
@@ -2035,15 +2035,15 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         // Emit function declarations to header
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                                             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+            if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                                             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
                 Str *sname = &stmt->data.data.Decl.name;
                 if (is_scalar_method_type(sname)) continue;
                 Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
                 for (U32 j = 0; j < body->children.count; j++) {
                     Expr *field = Expr_child(body, &(USize){(USize)(j)});
                     if (!field->data.data.Decl.is_namespace) continue;
-                    if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                    if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
                     Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                     FuncType fft = fdef->data.data.FuncDef.func_type;
                     if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
@@ -2056,7 +2056,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     emit_param_list(hf, fdef, 1);
                     fprintf(hf, ");\n");
                 }
-            } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
                 Expr *func_def = Expr_child(stmt, &(USize){(USize)(0)});
                 if (func_def->children.count == 0) continue;
                 FuncType fft = func_def->data.data.FuncDef.func_type;
@@ -2078,14 +2078,14 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
             if (stmt->is_core) continue;
-            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
+            if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
                 Str *sname = &stmt->data.data.Decl.name;
                 Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
                 Expr *eq_fdef = NULL;
                 for (U32 j = 0; j < ebody->children.count; j++) {
                     Expr *field = Expr_child(ebody, &(USize){(USize)(j)});
                     if (field->data.data.Decl.is_namespace && (field->data.data.Decl.name.count == 2 && memcmp(field->data.data.Decl.name.c_str, "eq", 2) == 0) &&
-                        Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                        Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
                         eq_fdef = Expr_child(field, &(USize){(USize)(0)});
                         break;
                     }
@@ -2114,7 +2114,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->is_core) continue;
-        if (stmt->data.tag != ExprData_TAG_Decl || Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+        if (stmt->data.tag != NodeType_TAG_Decl || Expr_child(stmt, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
         Expr *fdef = Expr_child(stmt, &(USize){(USize)(0)});
         FuncType fft = fdef->data.data.FuncDef.func_type;
         if (fft.tag != FuncType_TAG_ExtFunc && fft.tag != FuncType_TAG_ExtProc) continue;
@@ -2140,14 +2140,14 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Forward-declare all functions (namespace methods + top-level)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                                         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+        if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                                         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (!field->data.data.Decl.is_namespace) continue;
-                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 FuncType fft = fdef->data.data.FuncDef.func_type;
                 if ((fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) && stmt->is_core) continue;
@@ -2161,7 +2161,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
             }
-        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+        } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             Expr *func_def = Expr_child(stmt, &(USize){(USize)(0)});
             FuncType fft = func_def->data.data.FuncDef.func_type;
             if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
@@ -2181,7 +2181,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Forward-declare enum ext methods (eq, constructors + payload methods)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
+        if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             // Find eq fdef to check return_is_shallow
@@ -2189,7 +2189,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             for (U32 j = 0; j < ebody->children.count; j++) {
                 Expr *field = Expr_child(ebody, &(USize){(USize)(j)});
                 if (field->data.data.Decl.is_namespace && (field->data.data.Decl.name.count == 2 && memcmp(field->data.data.Decl.name.c_str, "eq", 2) == 0) &&
-                    Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                    Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
                     eq_fdef = Expr_child(field, &(USize){(USize)(0)});
                     break;
                 }
@@ -2243,7 +2243,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         Bool dyn_has_shallow = 0;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef &&
+            if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef &&
                 (stmt->data.data.Decl.name.count == 14 && memcmp(stmt->data.data.Decl.name.c_str, "dyn_has_method", 14) == 0)) {
                 dyn_has_shallow = RETURN_IS_SHALLOW(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef);
                 break;
@@ -2320,12 +2320,12 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Emit function bodies — all into main .c (#89: monolithic)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef) {
+        if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef) {
             emit_struct_funcs(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(USize){(USize)(0)}), is_lib, 0);
-        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
+        } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
             emit_enum_def(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(USize){(USize)(0)}));
             fprintf(f, "\n");
-        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+        } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             FuncType fft2 = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
             if (fft2.tag == FuncType_TAG_ExtFunc || fft2.tag == FuncType_TAG_ExtProc) continue;
             if (Expr_child(stmt, &(USize){(USize)(0)})->children.count == 0) continue;
@@ -2350,9 +2350,9 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             // Iterate all struct/type defs in AST
             for (U32 i = 0; i < program->children.count; i++) {
                 Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-                if (stmt->data.tag != ExprData_TAG_Decl) continue;
+                if (stmt->data.tag != NodeType_TAG_Decl) continue;
                 Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-                if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
+                if (def->data.tag != NodeType_TAG_StructDef && def->data.tag != NodeType_TAG_EnumDef) continue;
                 Str *tname = &stmt->data.data.Decl.name;
                 // Check if this type has the method in its namespace
                 Expr *body = Expr_child(def, &(USize){(USize)(0)});
@@ -2362,7 +2362,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     if (field->data.data.Decl.is_namespace &&
                         Str_eq(&field->data.data.Decl.name, method) &&
                         field->children.count > 0 &&
-                        Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                        Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
                         method_fdef = Expr_child(field, &(USize){(USize)(0)});
                         break;
                     }
@@ -2419,15 +2419,15 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         // Wrappers take (void*, ...) and deref shallow params, box shallow returns
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag != ExprData_TAG_Decl) continue;
+            if (stmt->data.tag != NodeType_TAG_Decl) continue;
             Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-            if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
+            if (def->data.tag != NodeType_TAG_StructDef && def->data.tag != NodeType_TAG_EnumDef) continue;
             Str *tname = &stmt->data.data.Decl.name;
             Expr *body = Expr_child(def, &(USize){(USize)(0)});
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (!field->data.data.Decl.is_namespace || field->children.count == 0) continue;
-                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 Str *mname = &field->data.data.Decl.name;
                 U32 np = fdef->data.data.FuncDef.nparam;
@@ -2482,15 +2482,15 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         fprintf(f, "void *dyn_fn(Str *type_name, Str *method) {\n    (void)type_name; (void)method;\n");
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag != ExprData_TAG_Decl) continue;
+            if (stmt->data.tag != NodeType_TAG_Decl) continue;
             Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-            if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
+            if (def->data.tag != NodeType_TAG_StructDef && def->data.tag != NodeType_TAG_EnumDef) continue;
             Str *tname = &stmt->data.data.Decl.name;
             Expr *body = Expr_child(def, &(USize){(USize)(0)});
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (!field->data.data.Decl.is_namespace || field->children.count == 0) continue;
-                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 Str *mname = &field->data.data.Decl.name;
                 Bool any_shallow = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef);
@@ -2516,7 +2516,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         Bool dyn_has_shallow = 0;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef &&
+            if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef &&
                 (stmt->data.data.Decl.name.count == 14 && memcmp(stmt->data.data.Decl.name.c_str, "dyn_has_method", 14) == 0)) {
                 dyn_has_shallow = RETURN_IS_SHALLOW(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef);
                 break;
@@ -2532,9 +2532,9 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             fprintf(f, "%s dyn_has_%s(Str *type_name) {\n    (void)type_name;\n", dyn_has_ret, method->c_str);
             for (U32 i = 0; i < program->children.count; i++) {
                 Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-                if (stmt->data.tag != ExprData_TAG_Decl) continue;
+                if (stmt->data.tag != NodeType_TAG_Decl) continue;
                 Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-                if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
+                if (def->data.tag != NodeType_TAG_StructDef && def->data.tag != NodeType_TAG_EnumDef) continue;
                 Str *tname = &stmt->data.data.Decl.name;
                 Expr *body = Expr_child(def, &(USize){(USize)(0)});
                 Bool found = 0;
@@ -2633,12 +2633,12 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         if (has_script_globals) {
             for (U32 i = 0; i < codegen_program->children.count; i++) {
                 Expr *gs = Expr_child(codegen_program, &(USize){(USize)(i)});
-                if (gs->data.tag == ExprData_TAG_Decl) {
+                if (gs->data.tag == NodeType_TAG_Decl) {
                     Expr *rhs = Expr_child(gs, &(USize){(USize)(0)});
-                    if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
-                        rhs->data.tag == ExprData_TAG_EnumDef) continue;
-                    if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
-                } else if (gs->data.tag != ExprData_TAG_FCall) {
+                    if (rhs->data.tag == NodeType_TAG_FuncDef || rhs->data.tag == NodeType_TAG_StructDef ||
+                        rhs->data.tag == NodeType_TAG_EnumDef) continue;
+                    if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == NodeType_TAG_Ident) continue;
+                } else if (gs->data.tag != NodeType_TAG_FCall) {
                     continue;
                 }
                 emit_stmt(f, gs, 1);
@@ -2647,9 +2647,9 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         I32 test_count = 0;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag != ExprData_TAG_Decl) continue;
+            if (stmt->data.tag != NodeType_TAG_Decl) continue;
             Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-            if (rhs->data.tag != ExprData_TAG_FuncDef) continue;
+            if (rhs->data.tag != NodeType_TAG_FuncDef) continue;
             if (rhs->data.data.FuncDef.func_type.tag != FuncType_TAG_Test) continue;
             Str *tname = &stmt->data.data.Decl.name;
             fprintf(f, "    %s();\n", tname->c_str);
@@ -2672,11 +2672,11 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         emit_ns_inits(f, 1);
         for (U32 i = 0; i < codegen_program->children.count; i++) {
             Expr *gs = Expr_child(codegen_program, &(USize){(USize)(i)});
-            if (gs->data.tag == ExprData_TAG_Decl) {
+            if (gs->data.tag == NodeType_TAG_Decl) {
                 Expr *rhs = Expr_child(gs, &(USize){(USize)(0)});
-                if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
-                    rhs->data.tag == ExprData_TAG_EnumDef) continue;
-            } else if (gs->data.tag != ExprData_TAG_FCall) {
+                if (rhs->data.tag == NodeType_TAG_FuncDef || rhs->data.tag == NodeType_TAG_StructDef ||
+                    rhs->data.tag == NodeType_TAG_EnumDef) continue;
+            } else if (gs->data.tag != NodeType_TAG_FCall) {
                 continue;
             }
             emit_stmt(f, gs, 1);
@@ -2695,10 +2695,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
             // Skip func/proc/struct defs (already emitted above)
-            if (stmt->data.tag == ExprData_TAG_Decl &&
-                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
-                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef))
+            if (stmt->data.tag == NodeType_TAG_Decl &&
+                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef ||
+                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef))
                 continue;
             emit_stmt(f, stmt, 1);
         }
@@ -2723,11 +2723,11 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
 static void emit_header_forward_decls(FILE *f, Expr *program) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef) {
+        if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef) {
             if (is_ext_h_type(&stmt->data.data.Decl.name)) continue;
             fprintf(f, "typedef struct %s %s;\n", stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
         }
-        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
+        if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
             Str *ename = &stmt->data.data.Decl.name;
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             fprintf(f, "typedef enum {\n");
@@ -2753,9 +2753,9 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
         Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl &&
-                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+            if (stmt->data.tag == NodeType_TAG_Decl &&
+                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
                 { U32 *_p = malloc(sizeof(U32)); *_p = i; Vec_push(&to_emit_h, _p); }
             }
         }
@@ -2781,7 +2781,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                 Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
 
                 Bool deps_ok = 1;
-                if (def->data.tag == ExprData_TAG_StructDef) {
+                if (def->data.tag == NodeType_TAG_StructDef) {
                     Expr *body = Expr_child(def, &(USize){(USize)(0)});
                     for (U32 fi = 0; fi < body->children.count; fi++) {
                         Expr *field = Expr_child(body, &(USize){(USize)(fi)});
@@ -2795,7 +2795,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                             }
                         }
                     }
-                } else if (def->data.tag == ExprData_TAG_EnumDef) {
+                } else if (def->data.tag == NodeType_TAG_EnumDef) {
                     Expr *body = Expr_child(def, &(USize){(USize)(0)});
                     for (U32 fi = 0; fi < body->children.count; fi++) {
                         Expr *v = Expr_child(body, &(USize){(USize)(fi)});
@@ -2813,7 +2813,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
 
                 if (!deps_ok) continue;
 
-                if (def->data.tag == ExprData_TAG_StructDef) {
+                if (def->data.tag == NodeType_TAG_StructDef) {
                     emit_struct_typedef(f, name, def);
                     fprintf(f, "\n");
                 } else {
@@ -2848,7 +2848,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                     U32 idx = *(U32 *)Vec_get(&to_emit_h, &(USize){(USize)(ei)});
                     Expr *stmt = Expr_child(program, &(USize){(USize)(idx)});
                     Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-                    if (def->data.tag == ExprData_TAG_StructDef) {
+                    if (def->data.tag == NodeType_TAG_StructDef) {
                         emit_struct_typedef(f, &stmt->data.data.Decl.name, def);
                         fprintf(f, "\n");
                     } else {
@@ -2884,15 +2884,15 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
     // Function forward declarations (namespace methods + top-level)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                                         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+        if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                                         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Str *sname = &stmt->data.data.Decl.name;
             if (is_scalar_method_type(sname)) continue;
             Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (!field->data.data.Decl.is_namespace) continue;
-                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 FuncType fft = fdef->data.data.FuncDef.func_type;
                 if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) {
@@ -2907,7 +2907,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
             }
-        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+        } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             Expr *func_def = Expr_child(stmt, &(USize){(USize)(0)});
             if (func_def->children.count == 0) continue;
             FuncType fft = func_def->data.data.FuncDef.func_type;
@@ -2927,14 +2927,14 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->is_core) continue;
-        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
+        if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             Expr *eq_fdef = NULL;
             for (U32 j = 0; j < ebody->children.count; j++) {
                 Expr *field = Expr_child(ebody, &(USize){(USize)(j)});
                 if (field->data.data.Decl.is_namespace && (field->data.data.Decl.name.count == 2 && memcmp(field->data.data.Decl.name.c_str, "eq", 2) == 0) &&
-                    Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                    Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
                     eq_fdef = Expr_child(field, &(USize){(USize)(0)});
                     break;
                 }
@@ -2958,12 +2958,12 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
 }
 
 static Bool is_exported_top_level_global(Expr *stmt) {
-    if (stmt->data.tag != ExprData_TAG_Decl) return 0;
+    if (stmt->data.tag != NodeType_TAG_Decl) return 0;
     Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-    if (rhs->data.tag == ExprData_TAG_FuncDef ||
-        rhs->data.tag == ExprData_TAG_StructDef ||
-        rhs->data.tag == ExprData_TAG_EnumDef) return 0;
-    if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) return 0;
+    if (rhs->data.tag == NodeType_TAG_FuncDef ||
+        rhs->data.tag == NodeType_TAG_StructDef ||
+        rhs->data.tag == NodeType_TAG_EnumDef) return 0;
+    if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == NodeType_TAG_Ident) return 0;
     if (stmt->data.data.Decl.is_ref) return 0;
     Str *name = &stmt->data.data.Decl.name;
     if (name->count >= 3 && memcmp(name->c_str, "_t_", 3) == 0) return 0;
@@ -3003,7 +3003,7 @@ I32 build_header(Expr *program, Str *h_path) {
         has_funcsig_names = 1;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef &&
+            if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef &&
                 Expr_child(stmt, &(USize){(USize)(0)})->children.count == 0) {
                 Str *n = &stmt->data.data.Decl.name;
                 { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
@@ -3041,9 +3041,9 @@ I32 build_header(Expr *program, Str *h_path) {
         Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl &&
-                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+            if (stmt->data.tag == NodeType_TAG_Decl &&
+                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
                 { U32 *_p = malloc(sizeof(U32)); *_p = i; Vec_push(&to_emit_h, _p); }
             }
         }
@@ -3069,7 +3069,7 @@ I32 build_header(Expr *program, Str *h_path) {
                 Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
 
                 Bool deps_ok = 1;
-                if (def->data.tag == ExprData_TAG_StructDef) {
+                if (def->data.tag == NodeType_TAG_StructDef) {
                     Expr *body = Expr_child(def, &(USize){(USize)(0)});
                     for (U32 fi = 0; fi < body->children.count; fi++) {
                         Expr *field = Expr_child(body, &(USize){(USize)(fi)});
@@ -3083,7 +3083,7 @@ I32 build_header(Expr *program, Str *h_path) {
                             }
                         }
                     }
-                } else if (def->data.tag == ExprData_TAG_EnumDef) {
+                } else if (def->data.tag == NodeType_TAG_EnumDef) {
                     Expr *body = Expr_child(def, &(USize){(USize)(0)});
                     for (U32 fi = 0; fi < body->children.count; fi++) {
                         Expr *v = Expr_child(body, &(USize){(USize)(fi)});
@@ -3101,7 +3101,7 @@ I32 build_header(Expr *program, Str *h_path) {
 
                 if (!deps_ok) continue;
 
-                if (def->data.tag == ExprData_TAG_StructDef) {
+                if (def->data.tag == NodeType_TAG_StructDef) {
                     emit_struct_typedef(f, name, def);
                     fprintf(f, "\n");
                 } else {
@@ -3136,7 +3136,7 @@ I32 build_header(Expr *program, Str *h_path) {
                     U32 idx = *(U32 *)Vec_get(&to_emit_h, &(USize){(USize)(ei)});
                     Expr *stmt = Expr_child(program, &(USize){(USize)(idx)});
                     Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-                    if (def->data.tag == ExprData_TAG_StructDef) {
+                    if (def->data.tag == NodeType_TAG_StructDef) {
                         emit_struct_typedef(f, &stmt->data.data.Decl.name, def);
                         fprintf(f, "\n");
                     } else {
@@ -3172,15 +3172,15 @@ I32 build_header(Expr *program, Str *h_path) {
     // Function forward declarations (namespace methods + top-level)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                                         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+        if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                                         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Str *sname = &stmt->data.data.Decl.name;
             if (is_scalar_method_type(sname)) continue;
             Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (!field->data.data.Decl.is_namespace) continue;
-                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 FuncType fft = fdef->data.data.FuncDef.func_type;
                 if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
@@ -3193,7 +3193,7 @@ I32 build_header(Expr *program, Str *h_path) {
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
             }
-        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+        } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             Expr *func_def = Expr_child(stmt, &(USize){(USize)(0)});
             if (func_def->children.count == 0) continue;  // FuncSig: skip
             FuncType fft = func_def->data.data.FuncDef.func_type;
@@ -3213,7 +3213,7 @@ I32 build_header(Expr *program, Str *h_path) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->is_core) continue;
-        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
+        if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             // Find eq fdef to check return_is_shallow
@@ -3221,7 +3221,7 @@ I32 build_header(Expr *program, Str *h_path) {
             for (U32 j = 0; j < ebody->children.count; j++) {
                 Expr *field = Expr_child(ebody, &(USize){(USize)(j)});
                 if (field->data.data.Decl.is_namespace && (field->data.data.Decl.name.count == 2 && memcmp(field->data.data.Decl.name.c_str, "eq", 2) == 0) &&
-                    Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                    Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
                     eq_fdef = Expr_child(field, &(USize){(USize)(0)});
                     break;
                 }
@@ -3280,11 +3280,11 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->is_core) continue;
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (stmt->data.tag != NodeType_TAG_Decl) continue;
         Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
         Str *name = &stmt->data.data.Decl.name;
 
-        if (rhs->data.tag == ExprData_TAG_StructDef) {
+        if (rhs->data.tag == NodeType_TAG_StructDef) {
             Expr *body = Expr_child(rhs, &(USize){(USize)(0)});
             fprintf(f, "%s := ext_struct {\n", name->c_str);
             // Instance fields
@@ -3307,7 +3307,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (!field->data.data.Decl.is_namespace) continue;
-                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 FuncType fft = fdef->data.data.FuncDef.func_type;
                 if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
@@ -3332,7 +3332,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
             }
             fprintf(f, "}\n\n");
 
-        } else if (rhs->data.tag == ExprData_TAG_EnumDef) {
+        } else if (rhs->data.tag == NodeType_TAG_EnumDef) {
             Expr *body = Expr_child(rhs, &(USize){(USize)(0)});
             fprintf(f, "%s := enum {\n", name->c_str);
             // Variants
@@ -3349,7 +3349,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (!field->data.data.Decl.is_namespace) continue;
-                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 FuncType fft = fdef->data.data.FuncDef.func_type;
                 if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
@@ -3374,7 +3374,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
             }
             fprintf(f, "}\n\n");
 
-        } else if (rhs->data.tag == ExprData_TAG_FuncDef) {
+        } else if (rhs->data.tag == NodeType_TAG_FuncDef) {
             FuncType fft = rhs->data.data.FuncDef.func_type;
             if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
             if (fft.tag == FuncType_TAG_Test) continue;

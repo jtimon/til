@@ -102,14 +102,14 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     U32 nfields = 0;
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = Expr_child(body, &(USize){(USize)(i)});
-        if (f->data.tag == ExprData_TAG_Decl && !f->data.data.Decl.is_namespace) nfields++;
+        if (f->data.tag == NodeType_TAG_Decl && !f->data.data.Decl.is_namespace) nfields++;
     }
     // Build elements array (NULL-terminated)
     ffi_type **elements = malloc(sizeof(ffi_type *) * (nfields + 1));
     U32 idx = 0;
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = Expr_child(body, &(USize){(USize)(i)});
-        if (f->data.tag == ExprData_TAG_Decl && !f->data.data.Decl.is_namespace)
+        if (f->data.tag == NodeType_TAG_Decl && !f->data.data.Decl.is_namespace)
             elements[idx++] = field_ffi_type(f);
     }
     elements[nfields] = NULL;
@@ -133,7 +133,7 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
 // === Misc handlers ===
 
 Bool h_free(Scope *s, Expr *e, Value *r) {
-    if (Expr_child(e, &(USize){(USize)(1)})->data.tag != ExprData_TAG_Ident) {
+    if (Expr_child(e, &(USize){(USize)(1)})->data.tag != NodeType_TAG_Ident) {
         Value val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
         void *ptr = val.tag == Value_TAG_Ptr ? val.data.Ptr : val_to_ptr(&val);
         if (ptr) free(ptr);
@@ -166,14 +166,14 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     Str *method = &_mn;
 
     Expr type_ident = {0};
-    type_ident.data.tag = ExprData_TAG_Ident;
+    type_ident.data.tag = NodeType_TAG_Ident;
     type_ident.data.data.Ident = *type_name;
     type_ident.struct_name = *type_name;
     type_ident.line = e->line;
     type_ident.col = e->col;
 
     Expr field_access = {0};
-    field_access.data.tag = ExprData_TAG_FieldAccess;
+    field_access.data.tag = NodeType_TAG_FieldAccess;
     field_access.data.data.FieldAccess = *method;
     field_access.is_ns_field = 1;
     field_access.line = e->line;
@@ -182,7 +182,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     { Expr *_p = malloc(sizeof(Expr)); *_p = type_ident; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
-    fake_call.data.tag = ExprData_TAG_FCall;
+    fake_call.data.tag = NodeType_TAG_FCall;
     fake_call.line = e->line;
     fake_call.col = e->col;
     fake_call.children = (Vec){.data = malloc(sizeof(Expr)), .cap = 1, .elem_size = sizeof(Expr)};
@@ -194,7 +194,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     }
 
     Value fn_val = eval_expr(s, &field_access);
-    if (fn_val.tag == Value_TAG_Func && ((Expr*)fn_val.data.Func)->data.tag == ExprData_TAG_FuncDef) {
+    if (fn_val.tag == Value_TAG_Func && ((Expr*)fn_val.data.Func)->data.tag == NodeType_TAG_FuncDef) {
         Expr *fdef = (Expr*)fn_val.data.Func;
         U32 nparam = fdef->data.data.FuncDef.nparam;
         U32 nargs = fake_call.children.count - 1;
@@ -229,14 +229,14 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     }
     // Build fake call: Type.size()
     Expr type_ident = {0};
-    type_ident.data.tag = ExprData_TAG_Ident;
+    type_ident.data.tag = NodeType_TAG_Ident;
     type_ident.data.data.Ident = *type_name;
     type_ident.struct_name = *type_name;
     type_ident.line = src->line; type_ident.col = src->col;
     type_ident.path = src->path;
 
     Expr field_access = {0};
-    field_access.data.tag = ExprData_TAG_FieldAccess;
+    field_access.data.tag = NodeType_TAG_FieldAccess;
     field_access.data.data.FieldAccess = (Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT};
     field_access.is_ns_field = 1;
     field_access.line = src->line; field_access.col = src->col;
@@ -245,7 +245,7 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     { Expr *_p = malloc(sizeof(Expr)); *_p = type_ident; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
-    fake_call.data.tag = ExprData_TAG_FCall;
+    fake_call.data.tag = NodeType_TAG_FCall;
     fake_call.line = src->line; fake_call.col = src->col;
     fake_call.path = src->path;
     fake_call.children = (Vec){.data = malloc(sizeof(Expr)), .cap = 1, .elem_size = sizeof(Expr)};
@@ -799,8 +799,8 @@ static void ffi_init_struct_defs(Expr *program) {
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0) continue;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef) continue;
+        if (stmt->data.tag != NodeType_TAG_Decl || stmt->children.count == 0) continue;
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != NodeType_TAG_StructDef) continue;
         Expr *sdef = Expr_child(stmt, &(USize){(USize)(0)});
         { Str *_k = malloc(sizeof(Str)); *_k = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW};
           Expr **_v = malloc(sizeof(Expr *)); *_v = sdef;
@@ -812,10 +812,10 @@ static void ffi_init_scan_program(Expr *program) {
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"FFIEntry", .count = 8, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0) continue;
+        if (stmt->data.tag != NodeType_TAG_Decl || stmt->children.count == 0) continue;
 
         // Top-level ext_func/ext_proc
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             Expr *fdef = Expr_child(stmt, &(USize){(USize)(0)});
             FuncType fft = fdef->data.data.FuncDef.func_type;
             if (fft.tag != FuncType_TAG_ExtFunc && fft.tag != FuncType_TAG_ExtProc) continue;
@@ -826,7 +826,7 @@ static void ffi_init_scan_program(Expr *program) {
         }
 
         // ext_struct namespace methods
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef && Expr_child(stmt, &(USize){(USize)(0)})->is_ext) {
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef && Expr_child(stmt, &(USize){(USize)(0)})->is_ext) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});
             for (U32 j = 0; j < body->children.count; j++) {
@@ -834,7 +834,7 @@ static void ffi_init_scan_program(Expr *program) {
                 if (!field->data.data.Decl.is_namespace) continue;
                 if (field->children.count == 0) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
-                if (fdef->data.tag != ExprData_TAG_FuncDef) continue;
+                if (fdef->data.tag != NodeType_TAG_FuncDef) continue;
                 FuncType fft = fdef->data.data.FuncDef.func_type;
                 if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) {
                     char flat_name[256];
@@ -849,9 +849,9 @@ static void ffi_init_scan_program(Expr *program) {
                     Expr *fbody = Expr_child(fdef, &(USize){(USize)(0)});
                     for (U32 k = 0; k < fbody->children.count; k++) {
                         Expr *inner = Expr_child(fbody, &(USize){(USize)(k)});
-                        if (inner->data.tag != ExprData_TAG_Decl || inner->children.count == 0) continue;
+                        if (inner->data.tag != NodeType_TAG_Decl || inner->children.count == 0) continue;
                         Expr *idef = Expr_child(inner, &(USize){(USize)(0)});
-                        if (idef->data.tag != ExprData_TAG_FuncDef) continue;
+                        if (idef->data.tag != NodeType_TAG_FuncDef) continue;
                         FuncType ift = idef->data.data.FuncDef.func_type;
                         if (ift.tag != FuncType_TAG_ExtFunc && ift.tag != FuncType_TAG_ExtProc) continue;
                         void *fn = ffi_dlsym((const char *)inner->data.data.Decl.name.c_str);

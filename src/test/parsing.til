@@ -13,7 +13,7 @@ parse_src := proc(src: Str) returns Expr {
 
 test_empty := proc() {
     root := parse_src("")
-    assert(__LOC__, is_variant(root.data, ExprData.Body))
+    assert(__LOC__, is_variant(root.data, NodeType.Body))
     assert_eq(__LOC__, root.children.len().to_i64(), 0)
 }
 
@@ -22,7 +22,7 @@ test_declaration := proc() {
     assert_eq(__LOC__, root.children.len().to_i64(), 1)
     ref decl : Expr = root.children.get(0)
     assert_eq_str(__LOC__, node_name(decl.data), "decl")
-    assert(__LOC__, is_variant(decl.data, ExprData.Decl))
+    assert(__LOC__, is_variant(decl.data, NodeType.Decl))
     ref dd : Declaration = get_payload(decl.data)
     assert_eq_str(__LOC__, dd.name, "x")
     assert_eq_str(__LOC__, dd.explicit_type, "")
@@ -34,7 +34,7 @@ test_declaration := proc() {
 test_typed_decl := proc() {
     root := parse_src("x : I64 = 0")
     ref decl : Expr = root.children.get(0)
-    assert(__LOC__, is_variant(decl.data, ExprData.Decl))
+    assert(__LOC__, is_variant(decl.data, NodeType.Decl))
     ref dd : Declaration = get_payload(decl.data)
     assert_eq_str(__LOC__, dd.name, "x")
     assert_eq_str(__LOC__, dd.explicit_type, "I64")
@@ -44,7 +44,7 @@ test_assignment := proc() {
     root := parse_src("x = 1")
     ref assign : Expr = root.children.get(0)
     assert_eq_str(__LOC__, node_name(assign.data), "assign")
-    assert(__LOC__, is_variant(assign.data, ExprData.Assign))
+    assert(__LOC__, is_variant(assign.data, NodeType.Assign))
     ref _as : Str = get_payload(assign.data)
     assert_eq_str(__LOC__, _as, "x")
     assert_eq(__LOC__, assign.children.len().to_i64(), 1)
@@ -93,7 +93,7 @@ test_func_def := proc() {
     assert_eq(__LOC__, decl.children.len().to_i64(), 1)
     ref fdef : Expr = decl.children.get(0)
     assert_eq_str(__LOC__, node_name(fdef.data), "func_def")
-    assert(__LOC__, is_variant(fdef.data, ExprData.FuncDef))
+    assert(__LOC__, is_variant(fdef.data, NodeType.FuncDef))
     ref fd : FunctionDef = get_payload(fdef.data)
     assert_eq_str(__LOC__, func_type_name(fd.func_type), "func")
     assert_eq_str(__LOC__, fd.return_type, "I64")

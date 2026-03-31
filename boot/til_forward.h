@@ -52,33 +52,33 @@ typedef struct FCallData FCallData;
 typedef struct FieldDef FieldDef;
 typedef struct StructDefData StructDefData;
 typedef enum {
-    ExprData_TAG_Body,
-    ExprData_TAG_LiteralStr,
-    ExprData_TAG_LiteralNum,
-    ExprData_TAG_LiteralBool,
-    ExprData_TAG_LiteralNull,
-    ExprData_TAG_Ident,
-    ExprData_TAG_Decl,
-    ExprData_TAG_Assign,
-    ExprData_TAG_FCall,
-    ExprData_TAG_FuncDef,
-    ExprData_TAG_StructDef,
-    ExprData_TAG_EnumDef,
-    ExprData_TAG_FieldAccess,
-    ExprData_TAG_FieldAssign,
-    ExprData_TAG_Return,
-    ExprData_TAG_If,
-    ExprData_TAG_While,
-    ExprData_TAG_ForIn,
-    ExprData_TAG_NamedArg,
-    ExprData_TAG_Break,
-    ExprData_TAG_Continue,
-    ExprData_TAG_MapLit,
-    ExprData_TAG_SetLit,
-    ExprData_TAG_Switch,
-    ExprData_TAG_Case
-} ExprData_tag;
-typedef struct ExprData ExprData;
+    NodeType_TAG_Body,
+    NodeType_TAG_LiteralStr,
+    NodeType_TAG_LiteralNum,
+    NodeType_TAG_LiteralBool,
+    NodeType_TAG_LiteralNull,
+    NodeType_TAG_Ident,
+    NodeType_TAG_Decl,
+    NodeType_TAG_Assign,
+    NodeType_TAG_FCall,
+    NodeType_TAG_FuncDef,
+    NodeType_TAG_StructDef,
+    NodeType_TAG_EnumDef,
+    NodeType_TAG_FieldAccess,
+    NodeType_TAG_FieldAssign,
+    NodeType_TAG_Return,
+    NodeType_TAG_If,
+    NodeType_TAG_While,
+    NodeType_TAG_ForIn,
+    NodeType_TAG_NamedArg,
+    NodeType_TAG_Break,
+    NodeType_TAG_Continue,
+    NodeType_TAG_MapLit,
+    NodeType_TAG_SetLit,
+    NodeType_TAG_Switch,
+    NodeType_TAG_Case
+} NodeType_tag;
+typedef struct NodeType NodeType;
 typedef struct Expr Expr;
 typedef struct Range Range;
 typedef struct Dynamic Dynamic;
@@ -508,8 +508,8 @@ typedef struct FunctionDef {
 } FunctionDef;
 
 
-struct ExprData {
-    ExprData_tag tag;
+struct NodeType {
+    NodeType_tag tag;
     union {
         Str LiteralStr;
         Str LiteralNum;
@@ -528,7 +528,7 @@ struct ExprData {
 };
 
 typedef struct Expr {
-    ExprData data;
+    NodeType data;
     TilType til_type;
     Str struct_name;
     Bool is_own_arg;
@@ -703,12 +703,12 @@ Str * StructDefData_to_str(StructDefData * self);
 StructDefData * StructDefData_clone(StructDefData * self);
 void StructDefData_delete(StructDefData * self, Bool * call_free);
 U32 * StructDefData_size(void);
-Bool * ExprData_is(ExprData * self, ExprData * other);
-Bool * ExprData_eq(ExprData * self, ExprData * other);
-void ExprData_delete(ExprData * self, Bool * call_free);
-Str * ExprData_to_str(ExprData * self);
-ExprData * ExprData_clone(ExprData * self);
-U32 * ExprData_size(void);
+Bool * NodeType_is(NodeType * self, NodeType * other);
+Bool * NodeType_eq(NodeType * self, NodeType * other);
+void NodeType_delete(NodeType * self, Bool * call_free);
+Str * NodeType_to_str(NodeType * self);
+NodeType * NodeType_clone(NodeType * self);
+U32 * NodeType_size(void);
 void Expr_error(Expr * self, Str * msg);
 void Expr_todo_error(Expr * self, Str * msg);
 void Expr_lang_error(Expr * self, Str * msg);
@@ -717,13 +717,13 @@ void Expr_push_child_clone(Expr * self, Expr * child);
 void Expr_swap_children(Expr * self, Vec * new_children);
 Expr * Expr_child(Expr * parent, U32 * i);
 U32 Expr_child_count(Expr * parent);
-Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
+Expr * Expr_new(NodeType * data, U32 line, U32 col, Str * path);
 Expr * Expr_clone(Expr * self);
 Bool Expr_eq(Expr * self, Expr * other);
 Str * Expr_to_str(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);
 U32 * Expr_size(void);
-Str * node_name(ExprData * data);
+Str * node_name(NodeType * data);
 Str * func_type_name(FuncType * ft);
 void ast_print(Expr * e, U32 indent);
 Bool enum_has_payloads(Expr * enum_def);

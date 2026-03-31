@@ -141,7 +141,7 @@
 ** StructDefData: StructDef
 *** mut total_struct_size : I32 = 0
 *** mut fields := Vec.new("FieldDef", FieldDef.size())
-** ExprData: EnumDef
+** NodeType: EnumDef
 *** Body
 *** LiteralStr:Str
 *** LiteralNum:Str
@@ -168,7 +168,7 @@
 *** Switch
 *** Case
 ** Expr: StructDef
-*** mut data := ExprData.Body
+*** mut data := NodeType.Body
 *** mut til_type := TilType.Unknown
 *** mut struct_name := ""
 *** mut is_own_arg := false

@@ -14,7 +14,7 @@ static Expr *value_to_expr(Value val, Expr *src) {
     Expr *e;
     switch (val.tag) {
     case Value_TAG_Int: {
-        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
+        e = Expr_new(&(NodeType){.tag = NodeType_TAG_LiteralNum}, line, col, path);
         char buf[32];
         snprintf(buf, sizeof(buf), "%lld", (long long)val.data.Int);
         e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)buf, .count = (U64)strlen(buf), .cap = CAP_VIEW});
@@ -22,7 +22,7 @@ static Expr *value_to_expr(Value val, Expr *src) {
         return e;
     }
     case Value_TAG_Byte: {
-        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
+        e = Expr_new(&(NodeType){.tag = NodeType_TAG_LiteralNum}, line, col, path);
         char buf[32];
         snprintf(buf, sizeof(buf), "%u", (unsigned)val.data.Byte);
         e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
@@ -32,7 +32,7 @@ static Expr *value_to_expr(Value val, Expr *src) {
     case Value_TAG_Struct: {
         if ((val.data.Struct.struct_name->count == 3 && memcmp(val.data.Struct.struct_name->c_str, "Str", 3) == 0)) {
             Str sv = str_view(val);
-            e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+            e = Expr_new(&(NodeType){.tag = NodeType_TAG_LiteralStr}, line, col, path);
             e->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(const char *)sv.c_str, .count = sv.count, .cap = CAP_VIEW});
             e->til_type = (TilType){TilType_TAG_Struct};
             e->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
@@ -41,7 +41,7 @@ static Expr *value_to_expr(Value val, Expr *src) {
         return NULL; // other struct types not supported in precomp
     }
     case Value_TAG_Boolean: {
-        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
+        e = Expr_new(&(NodeType){.tag = NodeType_TAG_LiteralBool}, line, col, path);
         e->data.data.LiteralBool = val.data.Boolean;
         e->til_type = (TilType){TilType_TAG_Bool};
         return e;
@@ -55,13 +55,13 @@ static Expr *value_to_expr(Value val, Expr *src) {
 
 static Value expr_to_value(Expr *e) {
     switch (e->data.tag) {
-    case ExprData_TAG_LiteralNum:
+    case NodeType_TAG_LiteralNum:
         if (e->til_type.tag == TilType_TAG_U8)
             return val_u8(atoll((const char *)e->data.data.LiteralNum.c_str));
         return val_i64(atoll((const char *)e->data.data.LiteralNum.c_str));
-    case ExprData_TAG_LiteralStr:
+    case NodeType_TAG_LiteralStr:
         return make_str_value((void *)e->data.data.LiteralStr.c_str, e->data.data.LiteralStr.count);
-    case ExprData_TAG_LiteralBool:
+    case NodeType_TAG_LiteralBool:
         return val_bool(e->data.data.LiteralBool);
     default:
         return val_none();
@@ -70,12 +70,12 @@ static Value expr_to_value(Expr *e) {
 
 // Check if an expression is compile-time known and return its value
 static Bool is_known(Expr *e, Value *out) {
-    if (e->data.tag == ExprData_TAG_LiteralNum || e->data.tag == ExprData_TAG_LiteralStr ||
-        e->data.tag == ExprData_TAG_LiteralBool) {
+    if (e->data.tag == NodeType_TAG_LiteralNum || e->data.tag == NodeType_TAG_LiteralStr ||
+        e->data.tag == NodeType_TAG_LiteralBool) {
         *out = expr_to_value(e);
         return 1;
     }
-    if (e->data.tag == ExprData_TAG_Ident) {
+    if (e->data.tag == NodeType_TAG_Ident) {
         if (Map_has(&known, &e->data.data.Ident)) { *out = *(Value *)Map_get(&known, &e->data.data.Ident); return 1; }
     }
     return 0;
@@ -93,8 +93,8 @@ Bool precomp_has_func(Str *name) {
 // Something is available if it's a parameter, in the known map, or in the precomp scope
 // (funcs, structs, enums are pre-registered there).
 static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_scope) {
-    if (e->data.tag == ExprData_TAG_FuncDef) return 0; // don't recurse into nested funcs
-    if (e->data.tag == ExprData_TAG_Ident) {
+    if (e->data.tag == NodeType_TAG_FuncDef) return 0; // don't recurse into nested funcs
+    if (e->data.tag == NodeType_TAG_Ident) {
         Str *name = &e->data.data.Ident;
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++) {
             if (Str_eq(&((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)}))->name, name)) return 0;
@@ -115,7 +115,7 @@ Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     // Check if the function body references unknown globals
     Str *callee_name = &Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident;
     Cell *fn_cell = scope_get(scope, callee_name);
-    if (fn_cell && fn_cell->val.tag == Value_TAG_Func && ((Expr*)fn_cell->val.data.Func)->data.tag == ExprData_TAG_FuncDef) {
+    if (fn_cell && fn_cell->val.tag == Value_TAG_Func && ((Expr*)fn_cell->val.data.Func)->data.tag == NodeType_TAG_FuncDef) {
         Expr *fdef = (Expr*)fn_cell->val.data.Func;
         if (fdef->children.count > 0 && func_uses_unknown_globals(Expr_child(fdef, &(USize){(USize)(0)}), fdef, scope)) {
             return NULL;
@@ -124,7 +124,7 @@ Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
 
     // Build a call with literal args for the interpreter
     U32 nargs = fcall->children.count - 1;
-    Expr *eval_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, fcall->line, fcall->col, &fcall->path);
+    Expr *eval_call = Expr_new(&(NodeType){.tag = NodeType_TAG_FCall}, fcall->line, fcall->col, &fcall->path);
     eval_call->til_type = fcall->til_type;
     eval_call->struct_name = fcall->struct_name;
     Expr_add_child(eval_call, Expr_clone(Expr_child(fcall, &(USize){(USize)(0)}))); // callee ident (clone — borrowed ref)
@@ -184,7 +184,7 @@ void precomp(Expr *program) {
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); funcs = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && stmt->children.count > 0 && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+        if (stmt->data.tag == NodeType_TAG_Decl && stmt->children.count > 0 && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             FuncType ft = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
             if (ft.tag == FuncType_TAG_Macro)
                 { Str *_p = malloc(sizeof(Str)); *_p = (Str){Str_clone(&stmt->data.data.Decl.name)->c_str, stmt->data.data.Decl.name.count, stmt->data.data.Decl.name.count}; Set_add(&macros, _p); }
@@ -192,15 +192,15 @@ void precomp(Expr *program) {
                 { Str *_p = malloc(sizeof(Str)); *_p = (Str){Str_clone(&stmt->data.data.Decl.name)->c_str, stmt->data.data.Decl.name.count, stmt->data.data.Decl.name.count}; Set_add(&funcs, _p); }
         }
         // Register namespace funcs from struct/enum bodies
-        if (stmt->data.tag == ExprData_TAG_Decl && stmt->children.count > 0 &&
-            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+        if (stmt->data.tag == NodeType_TAG_Decl && stmt->children.count > 0 &&
+            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (field->data.data.Decl.is_namespace &&
-                    Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                    Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
                     FuncType ft = Expr_child(field, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
                     if (ft.tag == FuncType_TAG_Func) {
                         Str *qname = Str_concat(Str_concat(sname, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT}), &field->data.data.Decl.name);
@@ -222,10 +222,10 @@ void precomp(Expr *program) {
     Scope *global = scope_new(NULL);
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl &&
-            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
-             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+        if (stmt->data.tag == NodeType_TAG_Decl &&
+            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Value val = {.tag = Value_TAG_Func, .data.Func = (void*)Expr_child(stmt, &(USize){(USize)(0)})};
             scope_set_owned(global, (&stmt->data.data.Decl.name), val);
         }
