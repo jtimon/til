@@ -1122,9 +1122,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     ref cur_mode : Mode = context_mode(ctx)
     if cur_mode.is_pure {
         if is_variant(fdef.func_type, FuncType.Proc) {
-            if expr.is_core.not() {
-                type_error(expr, "proc not allowed in pure mode")
-            }
+            type_error(expr, "proc not allowed in pure mode")
         }
     }
     mut func_scope := TypeScope.new(scope)
@@ -2307,6 +2305,9 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
     body.til_type = TilType.None
     mut i := 0.to_u32()
     while i.lt(body.child_count().to_i64().to_u32()) {
+        if is_null(scope.parent).and(in_func.eq(0)).and(in_type_body.eq(0)) {
+            context_set_mode_from_path(ctx, body.child(i).path)
+        }
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         i.inc()
     }

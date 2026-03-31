@@ -451,11 +451,6 @@ typedef struct Mode {
 } Mode;
 
 
-typedef struct Context {
-    Mode mode_;
-} Context;
-
-
 typedef struct Array {
     U8 *data;
     U32 cap;
@@ -571,6 +566,12 @@ typedef struct Scope {
     Map bindings;
     Scope *parent;
 } Scope;
+
+
+typedef struct Context {
+    Mode mode_;
+    Map path_modes;
+} Context;
 
 
 Array * Array_new(Str * elem_type, U32 * elem_size, U32 * cap);
@@ -825,7 +826,7 @@ void generate_derived_methods(Expr * program, TypeScope * scope);
 void compute_struct_layout(Expr * struct_def, TypeScope * scope);
 void compute_all_struct_layouts(Expr * program, TypeScope * scope);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_type, Str * out_struct_name);
-I32 init_declarations(Expr * program, TypeScope * scope);
+I32 init_declarations(Expr * program, TypeScope * scope, Context * ctx);
 void * Vec_take(Vec * v);
 ScopeFind * ScopeFind_NotFound(void);
 ScopeFind * ScopeFind_Found(TypeBinding * val);
@@ -1103,6 +1104,8 @@ Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool * call_free);
 U32 * Context_size(void);
 Mode * context_mode(Context * ctx);
+void context_register_path_mode(Context * ctx, Str * path, Mode * mode_);
+void context_set_mode_from_path(Context * ctx, Str * path);
 Mode * mode_resolve(Str * name);
 Str get_version(void);
 Vec * tokenize(Str * source, Str * path);
@@ -1120,8 +1123,10 @@ Str * get_bin_dir(void);
 Str * realpath_str(Str * path);
 I32 system_cmd(Str * cmd);
 Str * str_left(Str * s, U32 * n);
+Str * normalize_mode_name(Str * mode_name, Str * default_mode);
+Mode * require_mode(Str * path, Str * mode_name);
 Vec * extract_imports(Expr * body);
-I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * merged, Str * lib_dir);
+I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * merged, Str * lib_dir, Context * ctx, Str * default_mode);
 void usage(void);
 void mark_core(Expr * e);
 void main(Array * args);

@@ -56,6 +56,24 @@ str_left := func(s: Str, n: USize) returns Str {
     return s.substr(0, n).clone()
 }
 
+normalize_mode_name := func(mode_name: Str, default_mode: Str) returns Str {
+    if default_mode.len().gt(0) {
+        return default_mode.clone()
+    }
+    if mode_name.len().eq(0) {
+        return "script"
+    }
+    return mode_name.clone()
+}
+
+require_mode := func(path: Str, mode_name: Str) returns ref Mode {
+    ref mode_ : Mode = mode_resolve(mode_name)
+    if is_null(mode_) {
+        panic(__LOC__, path, ": unknown mode '", mode_name, "'")
+    }
+    return mode_
+}
+
 // --- Translated ctil.c functions ---
 
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
@@ -90,7 +108,8 @@ extract_imports := proc(mut body: Expr) returns Vec {
 // Recursively resolve imports.
 resolve_imports := proc(import_paths: Vec, base_dir: Str,
                         mut resolved_set: Set, mut stack: Vec,
-                        mut merged: Vec, lib_dir: Str) returns I32 {
+                        mut merged: Vec, lib_dir: Str,
+                        mut ctx: Context, default_mode: Str) returns I32 {
     for i in 0..import_paths.len() {
         ref import_path : Str = import_paths.get(i)
         // Try relative to importing file's directory, then lib_dir
@@ -117,9 +136,10 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         tokens := tokenize(source, abs)
         mut sub_mode := ""
         sub_ast := parse(tokens, abs.clone(), sub_mode)
+        sub_mode = normalize_mode_name(sub_mode, default_mode)
+        ref sub_mode_def : Mode = require_mode(abs, sub_mode)
+        context_register_path_mode(ctx, abs, sub_mode_def)
         sub_imports := extract_imports(sub_ast)
-
-        // No mode = script (default), any mode is fine for imports
 
         // Get imported file's directory for recursive resolution
         mut last_slash := abs.len().sub(1)
@@ -130,7 +150,8 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 
         // Recurse for sub-imports
         if sub_imports.len().gt(0) {
-            err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir)
+            err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir,
+                                   ctx, default_mode)
             if err.gt(0) {
                 return err
             }
@@ -223,6 +244,7 @@ main := proc(args: ..Str) {
     // Single resolved set for all imports (core + user), so no file is loaded twice
     resolved := Set.new("Str", Str.size())
     resolve_stack := Vec.new("Expr", Expr.size())
+    ctx := Context()
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
     abs_path := realpath_str(path)
@@ -241,6 +263,8 @@ main := proc(args: ..Str) {
     core_tokens := tokenize(core_source, core_path)
     mut _core_mode := ""
     core_ast := parse(core_tokens, core_path.clone(), _core_mode)
+    ref core_mode : Mode = require_mode(core_path, "lib")
+    context_register_path_mode(ctx, core_path, core_mode)
 
     // Add core.til to resolved set; skip prepending if user file IS core.til
     mut skip_core := false
@@ -258,7 +282,7 @@ main := proc(args: ..Str) {
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
-                               core_import_decls, "")
+                               core_import_decls, "", ctx, "lib")
         if err.gt(0) {
             panic(__LOC__, "failed to resolve core imports")
         }
@@ -270,13 +294,10 @@ main := proc(args: ..Str) {
     mut mode_str := ""
     ast := parse(tokens, path.clone(), mode_str)
     imports := extract_imports(ast)
-    if mode_str.len().eq(0) {
-        mode_str = "script"
-    }
-    ref mut cur_mode : Mode = mode_resolve(mode_str)
-    if is_null(cur_mode) {
-        panic(__LOC__, "unknown mode '".concat(mode_str).concat("'"))
-    }
+    mode_str = normalize_mode_name(mode_str, "")
+    ref mut cur_mode : Mode = require_mode(path, mode_str)
+    context_register_path_mode(ctx, path, cur_mode)
+    ctx.mode_ = cur_mode.clone()
 
     // If mode has auto_import, load its .til declarations
     auto_import := cur_mode.auto_import
@@ -286,7 +307,7 @@ main := proc(args: ..Str) {
     if imports.len().gt(0) {
         lib_dir := bin_dir.concat("/src/lib")
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
-                               import_decls, lib_dir)
+                               import_decls, lib_dir, ctx, "")
         if err.gt(0) {
             panic(__LOC__, "failed to resolve imports")
         }
@@ -316,8 +337,11 @@ main := proc(args: ..Str) {
         mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
         mode_source := readfile(mode_til_path)
         mode_tokens := tokenize(mode_source, mode_til_path)
-        mut _mode_mode := ""
-        mode_ast := parse(mode_tokens, mode_til_path.clone(), _mode_mode)
+        mut mode_mode := ""
+        mode_ast := parse(mode_tokens, mode_til_path.clone(), mode_mode)
+        mode_mode = normalize_mode_name(mode_mode, "")
+        ref mode_mode_def : Mode = require_mode(mode_til_path, mode_mode)
+        context_register_path_mode(ctx, mode_til_path, mode_mode_def)
         for i in 0..Expr.child_count(mode_ast) {
             ref ch : Expr = Expr.child(mode_ast, i)
             merged.push(own Expr.clone(ch))
@@ -373,10 +397,9 @@ main := proc(args: ..Str) {
 
     // Init phase: pre-scan declarations
     scope := TypeScope()
-    init_declarations(ast, scope)
+    init_declarations(ast, scope, ctx)
 
     // Type checking
-    ctx := Context(mode_ = cur_mode.clone())
     type_errors := type_check(ast, scope, ctx)
     if type_errors.gt(0) {
         panic(__LOC__, type_errors.to_str().concat(" type error(s) found"))

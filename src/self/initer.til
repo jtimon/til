@@ -1775,7 +1775,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
     }
 }
 
-init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
+init_declarations := proc(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
     mut errors : I32 = 0
 
     errors = errors.add(register_struct_definitions(program, scope))
