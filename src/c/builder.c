@@ -3002,15 +3002,6 @@ I32 build_header(Expr *program, Str *h_path) {
             }
         }
     }
-    // Emit per-program forward.h alongside the .h file
-    {
-        I64 slash = Str_rfind(h_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        I64 dot = Str_rfind(h_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
-        Str *base = (dot > slash) ? Str_substr(h_path, &(USize){0}, &(USize){(USize)dot}) : h_path;
-        Str *fwd_path = Str_concat(base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
-        build_forward_header(program, fwd_path);
-    }
-
     FILE *f = fopen((const char *)h_path->c_str, "w");
     if (!f) {
         fprintf(stderr, "error: could not open '%s' for writing\n", (const char *)h_path->c_str);
