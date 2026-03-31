@@ -6,6 +6,76 @@ A programming language with ownership semantics, type inference, and compile-tim
 garbage collection. This is the second implementation attempt, written in C. The
 first attempt in Rust lives at [[https://github.com/jtimon/rstil][rstil]].
 
+* Motivation
+
+There are [[https://xkcd.com/927/][too many languages]]. We need a new language that
+covers everyone's use cases.
+
+* Requirements
+
+To replace the other languages, Til has to be:
+
+** Free software
+
+Some use cases require it.
+
+** TODO Self hosted
+
+If there's a better better language option to write its own compiler,
+the language has failed: it's not good enough for the compiler use case.
+
+** TODO Easy to learn read and write
+
+For both humans and LLMs.
+
+** TODO Good enough for everything
+
+It doesn't need to be perfect for anything in particular, but good
+enough to be usable for everything.
+
+** TODO Have a REPL ([[https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop][Read–eval–print loop]])
+
+Some times you just want to calculate or check something real fast,
+not even write a program.
+
+** TODO Embedable (like Elisp/Lua)
+
+Some use cases like dynamic configuration files (think emacs, neovim, etc)
+
+** TODO Faster than C
+
+May be a challange considering Til translates to C for compilation.
+Not an impossible problem, just a hard one, it depends on the benchmark anyway, doesn't it?
+
+** TODO No need for explicit delete calls (like Java or Go, unlike C)
+
+It takes valuable thinking cycles out of programmers.
+
+** TODO No need for a garbage collector (unlike Java and Go)
+
+The runtime overhead and performance unpredictability of a runtime
+garbage collector are simply unnaceptable for some use cases.
+Til's ASAP (as soon as possible) destruction acts like a garbage
+collector but at compile time, adding delete calls where they are
+needed after each variable that need it's last use.
+If you really want to avoid it for some reason, you can always use
+malloc and free directly, and override the automatically generated
+delete and clone methods with your own for any struct.
+
+The ASAP destruction relies on keywords like own (owned pointer) or
+ref (borrowed pointer) in some places.
+
+** TODO No need for reference counters (unlike Python)
+
+For the same reason garbage collection is not acceptable.
+This is more predictable, but sill not completely deterministic. And can be more expensive.
+
+** TODO No need for a borrow checker (unlike Rust)
+
+** TODO ... (like Mojo)
+
+** TODO ... (like Jai)
+
 * Dependencies
 
 - ~make~
