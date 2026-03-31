@@ -294,4 +294,5 @@
 *** mut auto_import := ""
 *** mut is_library := false
 *** mut is_pure := false
+*** mut run_tests := false
 *** mut debug_prints := false

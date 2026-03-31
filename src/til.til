@@ -382,7 +382,7 @@ main := proc(args: ..Str) {
     }
 
     run_tests := command.eq("test")
-        .or(cur_mode.name.eq("test"))
+        .or(cur_mode.run_tests)
 
     precomp(ast)
 

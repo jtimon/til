@@ -446,6 +446,7 @@ typedef struct Mode {
     Str auto_import;
     Bool is_library;
     Bool is_pure;
+    Bool run_tests;
     Bool debug_prints;
 } Mode;
 
