@@ -1095,7 +1095,7 @@ Bool h_clock_ms(Scope * s, Expr * e, Value * r);
 Bool h_get_thread_count(Scope * s, Expr * e, Value * r);
 Bool ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result);
 Bool enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result);
-I32 ffi_init(Expr * program, Str * user_c_path, Str * ext_c_path, Str * link_flags);
+I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags);
 void ffi_cleanup(void);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);

@@ -726,7 +726,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
       Map_set(&ffi_map, _k, _v); }
 }
 
-static I32 ffi_init_user_so(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags, Str **so_path_out) {
+static I32 ffi_init_user_so(Str *fwd_path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Str **so_path_out) {
     *so_path_out = NULL;
     if (!user_c_path) return 0;
 
@@ -740,11 +740,6 @@ static I32 ffi_init_user_so(Expr *program, Str *user_c_path, Str *ext_c_path, St
     snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)getpid());
     *so_path_out = Str_clone(&(Str){.c_str = (U8*)(pid_buf), .count = (U64)strlen((const char*)(pid_buf)), .cap = CAP_VIEW});
     system("mkdir -p tmp");
-    // Generate per-PID forward.h so link_c file can see all types (race-safe)
-    char fwd_buf[64];
-    snprintf(fwd_buf, sizeof(fwd_buf), "tmp/ffi_%d_forward.h", (int)getpid());
-    Str *fwd_path = Str_clone(&(Str){.c_str = (U8*)(fwd_buf), .count = (U64)strlen((const char*)(fwd_buf)), .cap = CAP_VIEW});
-    build_forward_header(program, fwd_path);
     Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
         &(Str){.c_str = (U8*)"cc -Wall -Wextra -shared -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
@@ -849,11 +844,11 @@ static void ffi_init_scan_program(Expr *program) {
     }
 }
 
-I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) {
+I32 ffi_init(Expr *program, Str *fwd_path, Str *user_c_path, Str *ext_c_path, Str *link_flags) {
     if (ffi_loaded) ffi_cleanup();  // re-init (e.g. precomp then interpret)
     Str *so_path = NULL;
 
-    if (ffi_init_user_so(program, user_c_path, ext_c_path, link_flags, &so_path) != 0)
+    if (ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, &so_path) != 0)
         return 1;
 
     ffi_init_link_libs(link_flags);

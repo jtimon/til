@@ -233,7 +233,7 @@ void precomp(Expr *program) {
     interpreter_init_ns(global, program);
 
     // 2b. Init FFI so ext_func calls (e.g. auto-delete) work during folding
-    ffi_init(program, NULL, NULL, NULL);
+    ffi_init(program, NULL, NULL, NULL, NULL);
 
     // 3. Process the program body
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Value", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Value)}); known = *_mp; free(_mp); }
