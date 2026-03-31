@@ -7,7 +7,7 @@ link("rt")
 
 // Raylib struct declarations for audio
 // Wave: { U32 frameCount, U32 sampleRate, U32 sampleSize, U32 channels, void *data }
-Wave := ext_struct {
+Wave := struct {
     mut frameCount : U32 = 0
     mut sampleRate : U32 = 0
     mut sampleSize : U32 = 0
@@ -17,7 +17,7 @@ Wave := ext_struct {
 
 // Sound: { AudioStream stream, U32 frameCount }
 // AudioStream flattened: { void *buffer, void *processor, U32 sampleRate, U32 sampleSize, U32 channels }
-Sound := ext_struct {
+Sound := struct {
     mut stream_buffer := 0
     mut stream_processor := 0
     mut stream_sampleRate : U32 = 0
@@ -27,7 +27,7 @@ Sound := ext_struct {
 }
 
 // Vector2: { float x, float y }
-Vector2 := ext_struct {
+Vector2 := struct {
     mut x : F32 = 0
     mut y : F32 = 0
 }
@@ -35,7 +35,7 @@ Vector2 := ext_struct {
 // Font: { int baseSize, int glyphCount, int glyphPadding,
 //         Texture2D { uint id, int width, height, mipmaps, format },
 //         Rectangle *recs, GlyphInfo *glyphs }
-Font := ext_struct {
+Font := struct {
     mut baseSize : I32 = 0
     mut glyphCount : I32 = 0
     mut glyphPadding : I32 = 0

@@ -274,15 +274,13 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     return def
 }
 
-// parse_struct_def: current token is 'struct' or 'ext_struct'
+// parse_struct_def: current token is 'struct'
 parse_struct_def := proc(mut p: Parser) returns Expr {
     kw_line := peek_line(p)
     kw_col := peek_col(p)
-    is_ext := check(p, TokenType.KwExtStruct)
     advance(p)
 
     mut def := Expr.new(NodeType.StructDef(StructDefData()), kw_line, kw_col, p.path)
-    def.is_ext = is_ext
     expect_token(p, TokenType.LBrace)
 
     mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p), p.path)
@@ -515,7 +513,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
         .or(t.type.eq(TokenType.KwExtFunc)).or(t.type.eq(TokenType.KwExtProc))) {
         return parse_func_def(p)
     }
-    if e_set.not().and(t.type.eq(TokenType.KwStruct).or(t.type.eq(TokenType.KwExtStruct))) {
+    if e_set.not().and(t.type.eq(TokenType.KwStruct)) {
         return parse_struct_def(p)
     }
     if e_set.not().and(t.type.eq(TokenType.KwEnum)) {

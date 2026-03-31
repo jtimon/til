@@ -3286,7 +3286,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
 
         if (rhs->data.tag == NodeType_TAG_StructDef) {
             Expr *body = Expr_child(rhs, &(USize){(USize)(0)});
-            fprintf(f, "%s := ext_struct {\n", name->c_str);
+            fprintf(f, "%s := struct {\n", name->c_str);
             // Instance fields
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});

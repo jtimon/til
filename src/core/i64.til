@@ -1,6 +1,6 @@
 mode lib
 
-I64 : StructDef = ext_struct {
+I64 : StructDef = struct {
 namespace:
     to_str := func(val: I64) returns Str {
         if val.eq(0) {

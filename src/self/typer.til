@@ -209,11 +209,9 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
     if is_variant(sf_sb, ScopeFind.Found) {
         ref sb : TypeBinding = get_payload(sf_sb)
         if sb.is_builtin {
-            if sb.is_ext.not() {
-                type_error(e, "cannot instantiate builtin type '".concat(name).concat("'"))
-                e.til_type = TilType.Unknown
-                return true
-            }
+            type_error(e, "cannot instantiate builtin type '".concat(name).concat("'"))
+            e.til_type = TilType.Unknown
+            return true
         }
     }
     ref body : Expr = sdef.child(0)
@@ -1490,7 +1488,6 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
     ref mut b : TypeBinding = scope.get_binding(sname)
     b.struct_def = stmt.child(0)
     b.is_builtin = is_builtin
-    b.is_ext = stmt.child(0).is_ext
     return true
 }
 

@@ -825,8 +825,7 @@ static void ffi_init_scan_program(Expr *program) {
             ffi_register((&stmt->data.data.Decl.name), fn, fdef);
         }
 
-        // ext_struct namespace methods
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef && Expr_child(stmt, &(USize){(USize)(0)})->is_ext) {
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});
             for (U32 j = 0; j < body->children.count; j++) {

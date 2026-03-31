@@ -119,7 +119,6 @@ typedef enum {
     TokenType_TAG_KwRef,
     TokenType_TAG_KwShallow,
     TokenType_TAG_KwStruct,
-    TokenType_TAG_KwExtStruct,
     TokenType_TAG_KwEnum,
     TokenType_TAG_KwNamespace,
     TokenType_TAG_KwFunc,
@@ -341,7 +340,6 @@ typedef struct TypeBinding {
     Expr *struct_def;
     Expr *func_def;
     Bool is_builtin;
-    Bool is_ext;
     Str struct_name;
 } TypeBinding;
 
@@ -536,7 +534,6 @@ typedef struct Expr {
     Bool is_own_field;
     Bool is_ref_field;
     Bool is_ns_field;
-    Bool is_ext;
     Bool is_core;
     Bool save_old_delete;
     I32 variadic_index;
@@ -1156,7 +1153,6 @@ TokenType *TokenType_KwOwn();
 TokenType *TokenType_KwRef();
 TokenType *TokenType_KwShallow();
 TokenType *TokenType_KwStruct();
-TokenType *TokenType_KwExtStruct();
 TokenType *TokenType_KwEnum();
 TokenType *TokenType_KwNamespace();
 TokenType *TokenType_KwFunc();

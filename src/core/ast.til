@@ -167,7 +167,6 @@ Expr := struct {
     mut is_own_field := false
     mut is_ref_field := false
     mut is_ns_field := false
-    mut is_ext := false
     mut is_core := false
     mut save_old_delete := false
     mut variadic_index : I32 = -1.to_i32()
@@ -225,7 +224,7 @@ Expr := struct {
                         struct_name = self.struct_name.clone(),
                         is_own_arg = self.is_own_arg, is_splat = self.is_splat,
                         is_own_field = self.is_own_field, is_ref_field = self.is_ref_field,
-                        is_ns_field = self.is_ns_field, is_ext = self.is_ext,
+                        is_ns_field = self.is_ns_field,
                         is_core = self.is_core, save_old_delete = self.save_old_delete,
                         fn_sig = self.fn_sig,
                         line = self.line, col = self.col, path = self.path.clone())

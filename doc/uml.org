@@ -36,7 +36,6 @@
 *** KwRef
 *** KwShallow
 *** KwStruct
-*** KwExtStruct
 *** KwEnum
 *** KwNamespace
 *** KwFunc
@@ -176,7 +175,6 @@
 *** mut is_own_field := false
 *** mut is_ref_field := false
 *** mut is_ns_field := false
-*** mut is_ext := false
 *** mut is_core := false
 *** mut save_old_delete := false
 *** mut variadic_index : I32 = -1.to_i32()
@@ -212,7 +210,6 @@
 *** ref mut struct_def : Expr = NULL
 *** ref mut func_def : Expr = NULL
 *** mut is_builtin := false
-*** mut is_ext := false
 *** mut struct_name := ""
 ** ScopeFind: EnumDef
 *** NotFound

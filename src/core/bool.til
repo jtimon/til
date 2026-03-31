@@ -4,7 +4,7 @@ and := ext_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
 or := ext_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
 not := ext_func(shallow a: Bool) returns shallow Bool {}
 
-Bool : StructDef = ext_struct {
+Bool : StructDef = struct {
 namespace:
     to_str := func(b: Bool) returns Str {
         if b { return "true" } else { return "false" }

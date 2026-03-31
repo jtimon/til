@@ -5,8 +5,8 @@ link_c("src/examples/ffi/ext_module.c")
 greet := ext_func(name: Str) returns Str {}
 greet_print := ext_proc(name: Str) {}
 
-// ext_struct with ext methods
-Pair := ext_struct {
+// struct with ext methods
+Pair := struct {
     mut a := 0
     mut b := 0
     namespace:
@@ -41,7 +41,7 @@ test_greet := proc() {
     greet_print("universe")
 }
 
-// --- ext_struct tests ---
+// --- struct tests ---
 
 test_instantiation := proc() {
     p := Pair()

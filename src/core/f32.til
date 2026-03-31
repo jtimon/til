@@ -1,6 +1,6 @@
 mode lib
 
-F32 := ext_struct {
+F32 := struct {
 namespace:
     to_i64 := ext_func(shallow val: F32) returns shallow I64 {}
     to_str := ext_func(shallow val: F32) returns Str {}
