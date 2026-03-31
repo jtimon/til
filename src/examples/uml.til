@@ -13,15 +13,26 @@ ROW_H := 18
 BOX_PAD_X := 14
 BOX_PAD_Y := 14
 BOX_GAP_X := 28
+BOX_GAP_Y := 18
 PAGE_PAD_X := 24
 PAGE_PAD_Y := 24
 HEADER_H := 24
+PANEL_PAD_X := 20
+PANEL_PAD_Y := 18
+PANEL_GAP_X := 34
+PANEL_LABEL_H := 28
+EMPTY_PANEL_W := 120
 
 UmlType := struct {
     mut file := ""
     mut name := ""
     mut kind := ""
     mut lines := Vec.new("Str", Str.size())
+}
+
+UmlPanel := struct {
+    mut file := ""
+    mut types := Vec.new("UmlType", UmlType.size())
 }
 
 file_label := func(path: Str) returns Str {
@@ -267,6 +278,27 @@ collect_types := proc(paths: Vec) returns Vec {
     return out
 }
 
+collect_panels := proc(paths: Vec, types: Vec) returns Vec {
+    mut out := Vec.new("UmlPanel", UmlPanel.size())
+    mut i : USize = 0
+    while i.lt(paths.len()) {
+        ref path : Str = paths.get(i)
+        label := file_label(path)
+        mut panel := UmlPanel(file = label.clone())
+        mut j : USize = 0
+        while j.lt(types.len()) {
+            ref t : UmlType = types.get(j)
+            if t.file.eq(label) {
+                panel.types.push(own t.clone())
+            }
+            j = j.add(1)
+        }
+        out.push(own panel)
+        i = i.add(1)
+    }
+    return out
+}
+
 generate_org := proc(paths: Vec, types: Vec) returns Str {
     mut out := ""
     mut i : USize = 0
@@ -358,17 +390,47 @@ box_h := func(t: UmlType) returns I64 {
     return rows.mul(ROW_H).add(BOX_PAD_Y.mul(2))
 }
 
-generate_svg := proc(types: Vec) returns Str {
+panel_w := func(p: UmlPanel) returns I64 {
+    if p.types.len().eq(0) { return EMPTY_PANEL_W }
+    mut max := 0
+    mut i : USize = 0
+    while i.lt(p.types.len()) {
+        ref t : UmlType = p.types.get(i)
+        w := box_w(t)
+        if w.gt(max) { max = w }
+        i = i.add(1)
+    }
+    return max.add(PANEL_PAD_X.mul(2))
+}
+
+panel_h := func(p: UmlPanel) returns I64 {
+    mut h := PANEL_PAD_Y.add(PANEL_LABEL_H).add(PANEL_PAD_Y)
+    if p.types.len().eq(0) {
+        return h.add(PANEL_PAD_Y)
+    }
+    mut i : USize = 0
+    while i.lt(p.types.len()) {
+        ref t : UmlType = p.types.get(i)
+        if i.gt(0) {
+            h = h.add(BOX_GAP_Y)
+        }
+        h = h.add(box_h(t))
+        i = i.add(1)
+    }
+    return h.add(PANEL_PAD_Y)
+}
+
+generate_svg := proc(panels: Vec) returns Str {
     mut total_w := PAGE_PAD_X
     mut max_h := 0
     mut i : USize = 0
-    while i.lt(types.len()) {
-        ref t : UmlType = types.get(i)
-        w := box_w(t)
-        h := box_h(t)
+    while i.lt(panels.len()) {
+        ref p : UmlPanel = panels.get(i)
+        w := panel_w(p)
+        h := panel_h(p)
         total_w = total_w.add(w)
         if i.gt(0) {
-            total_w = total_w.add(BOX_GAP_X)
+            total_w = total_w.add(PANEL_GAP_X)
         }
         if h.gt(max_h) { max_h = h }
         i = i.add(1)
@@ -386,6 +448,8 @@ generate_svg := proc(types: Vec) returns Str {
     svg = svg.concat("  <defs>").concat(NL)
     svg = svg.concat("    <style>").concat(NL)
     svg = svg.concat("      .bg { fill: #f7f5ef; }").concat(NL)
+    svg = svg.concat("      .panel { fill: none; stroke: #c8c2b7; stroke-width: 2; stroke-dasharray: 10 7; }").concat(NL)
+    svg = svg.concat("      .panel-label { font: 700 18px Georgia, serif; fill: #6b7280; }").concat(NL)
     svg = svg.concat("      .box { fill: #fffdf8; stroke: #334155; stroke-width: 2; }").concat(NL)
     svg = svg.concat("      .title { font: 700 16px 'Courier New', monospace; fill: #111827; }").concat(NL)
     svg = svg.concat("      .line { font: 13px 'Courier New', monospace; fill: #1f2937; }").concat(NL)
@@ -398,24 +462,44 @@ generate_svg := proc(types: Vec) returns Str {
         .concat(" height=").concat(qa(total_h.to_str()))
         .concat("/>").concat(NL)
 
-    mut x := PAGE_PAD_X
+    mut panel_x := PAGE_PAD_X
     i = 0
-    while i.lt(types.len()) {
-        ref t : UmlType = types.get(i)
-        w := box_w(t)
-        h := box_h(t)
-        y := PAGE_PAD_Y
-        svg = svg.concat("  ").concat(svg_rect(x, y, w, h))
-        header := xml_escape(t.name.concat(": ").concat(t.kind))
-        svg = svg.concat("  ").concat(svg_text(x.add(BOX_PAD_X), y.add(BOX_PAD_Y).add(HEADER_H), "title", header))
+    while i.lt(panels.len()) {
+        ref p : UmlPanel = panels.get(i)
+        pw := panel_w(p)
+        ph := panel_h(p)
+        panel_y := PAGE_PAD_Y
+        svg = svg.concat("  <rect x=").concat(qa(panel_x.to_str()))
+            .concat(" y=").concat(qa(panel_y.to_str()))
+            .concat(" width=").concat(qa(pw.to_str()))
+            .concat(" height=").concat(qa(ph.to_str()))
+            .concat(" rx=").concat(qa("14"))
+            .concat(" ry=").concat(qa("14"))
+            .concat(" class=").concat(qa("panel"))
+            .concat("/>").concat(NL)
+        svg = svg.concat("  ").concat(svg_text(panel_x.add(PANEL_PAD_X), panel_y.add(PANEL_PAD_Y).add(20), "panel-label", xml_escape(p.file)))
+
+        mut box_y := panel_y.add(PANEL_PAD_Y).add(PANEL_LABEL_H).add(PANEL_PAD_Y)
         mut j : USize = 0
-        while j.lt(t.lines.len()) {
-            ref line : Str = t.lines.get(j)
-            line_y := y.add(BOX_PAD_Y).add(HEADER_H).add(ROW_H).add(j.to_i64().mul(ROW_H))
-            svg = svg.concat("  ").concat(svg_text(x.add(BOX_PAD_X), line_y, "line", xml_escape(line)))
+        while j.lt(p.types.len()) {
+            ref t : UmlType = p.types.get(j)
+            w := box_w(t)
+            h := box_h(t)
+            box_x := panel_x.add(PANEL_PAD_X)
+            svg = svg.concat("  ").concat(svg_rect(box_x, box_y, w, h))
+            header := xml_escape(t.name.concat(": ").concat(t.kind))
+            svg = svg.concat("  ").concat(svg_text(box_x.add(BOX_PAD_X), box_y.add(BOX_PAD_Y).add(HEADER_H), "title", header))
+            mut k : USize = 0
+            while k.lt(t.lines.len()) {
+                ref line : Str = t.lines.get(k)
+                line_y := box_y.add(BOX_PAD_Y).add(HEADER_H).add(ROW_H).add(k.to_i64().mul(ROW_H))
+                svg = svg.concat("  ").concat(svg_text(box_x.add(BOX_PAD_X), line_y, "line", xml_escape(line)))
+                k = k.add(1)
+            }
+            box_y = box_y.add(h).add(BOX_GAP_Y)
             j = j.add(1)
         }
-        x = x.add(w).add(BOX_GAP_X)
+        panel_x = panel_x.add(pw).add(PANEL_GAP_X)
         i = i.add(1)
     }
 
@@ -426,8 +510,9 @@ generate_svg := proc(types: Vec) returns Str {
 main := proc(args: ..Str) {
     paths := ordered_paths()
     types := collect_types(paths)
+    panels := collect_panels(paths, types)
     writefile("doc/uml.org", generate_org(paths, types))
-    writefile("doc/uml.svg", generate_svg(types))
+    writefile("doc/uml.svg", generate_svg(panels))
     println("Generated: doc/uml.org")
     println("Generated: doc/uml.svg")
 }
