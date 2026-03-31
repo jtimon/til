@@ -1880,15 +1880,6 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         return 1;
     }
 
-    // Emit per-program forward.h alongside the .c file (e.g. gen/c/foo_forward.h)
-    {
-        I64 slash = Str_rfind(c_output_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        I64 dot = Str_rfind(c_output_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
-        Str *base = (dot > slash) ? Str_substr(c_output_path, &(USize){0}, &(USize){(USize)dot}) : c_output_path;
-        Str *fwd_path = Str_concat(base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
-        build_forward_header(program, fwd_path);
-    }
-
     fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n\n");
 
     Bool is_script = !mode || !mode->decls_only;

@@ -74,6 +74,15 @@ require_mode := func(path: Str, mode_name: Str) returns ref Mode {
     return mode_
 }
 
+forward_header_path := func(path: Str) returns Str {
+    slash := path.rfind("/")
+    dot := path.rfind(".")
+    if dot.gt(slash) {
+        return path.substr(0, dot.to_u32()).concat("_forward.h")
+    }
+    return path.concat("_forward.h")
+}
+
 // --- Translated ctil.c functions ---
 
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
@@ -501,7 +510,11 @@ main := proc(args: ..Str) {
             system_cmd("mkdir -p ".concat(cp_dir).concat(" ").concat(bp_dir))
         }
 
-        result = build(ast, cur_mode, run_tests, path, c_path)
+        fwd_path := forward_header_path(c_path)
+        result = build_forward_header(ast, fwd_path)
+        if result.eq(0) {
+            result = build(ast, cur_mode, run_tests, path, c_path)
+        }
 
         // For lib/pure: generate .h header and .til binding
         if result.eq(0).and(do_lib) {
@@ -513,6 +526,7 @@ main := proc(args: ..Str) {
             }
             if result.eq(0).and(command.eq("translate")) {
                 println("Generated: ".concat(c_path))
+                println("Generated: ".concat(fwd_path))
                 println("Generated: ".concat(h_path))
                 println("Generated: ".concat(til_path))
             }
@@ -520,6 +534,7 @@ main := proc(args: ..Str) {
                 result = compile_lib(c_path, name, ext_c_path, user_c, lflags)
                 if result.eq(0) {
                     println("Generated: ".concat(c_path))
+                    println("Generated: ".concat(fwd_path))
                     println("Generated: ".concat(h_path))
                     println("Generated: ".concat(til_path))
                     println("Generated: gen/lib/lib".concat(name).concat(".so"))
@@ -530,6 +545,7 @@ main := proc(args: ..Str) {
 
         if result.eq(0).and(do_lib.not()).and(command.eq("translate")) {
             println("Generated: ".concat(c_path))
+            println("Generated: ".concat(fwd_path))
         }
         if result.eq(0).and(do_lib.not()).and(command.eq("translate").not()) {
             result = compile_c(c_path, bin_path, ext_c_path, user_c, lflags)

@@ -1125,6 +1125,7 @@ I32 system_cmd(Str * cmd);
 Str * str_left(Str * s, U32 * n);
 Str * normalize_mode_name(Str * mode_name, Str * default_mode);
 Mode * require_mode(Str * path, Str * mode_name);
+Str * forward_header_path(Str * path);
 Vec * extract_imports(Expr * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * merged, Str * lib_dir, Context * ctx, Str * default_mode);
 void usage(void);
