@@ -4,7 +4,6 @@ mut hoist_counter : I32 = 0
 mut _va_counter : I32 = 0
 mut _kw_counter : I32 = 0
 mut errors : I32 = 0
-mut current_mode := Mode()
 I64Name := "I64"
 U8Name := "U8"
 I16Name := "I16"
@@ -86,7 +85,7 @@ try_ufcs_rewrite := proc(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
     return true
 }
 
-infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, shallow in_func: I32) returns shallow Bool {
+infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, shallow in_func: I32, m: Mode) returns shallow Bool {
     if is_null(sdef).or(is_variant(obj.til_type, TilType.Struct).not().and(is_variant(obj.til_type, TilType.Enum).not())) { return false }
     ref body : Expr = sdef.child(0)
     for fi in 0..body.child_count() {
@@ -112,7 +111,7 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
         mut ai : U32 = 0
         while ai.lt(nargs) {
             if ai.gte(sig_fdef.nparam) { break }
-            infer_expr(scope, e.child(ai.add(1)), in_func)
+            infer_expr(scope, e.child(ai.add(1)), in_func, m)
             ai = ai.add(1)
         }
         e.fn_sig = sig.clone()
@@ -202,7 +201,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
     }
 }
 
-infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, shallow in_func: I32) returns shallow Bool {
+infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, shallow in_func: I32, m: Mode) returns shallow Bool {
     ref sdef : Expr = scope.get_struct(name)
     if is_null(sdef) { return false }
     sf_sb := scope.find(name)
@@ -282,7 +281,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
     e.children = new_ch
     for i in 1..e.child_count() {
         if is_variant(e.child(i).til_type, TilType.Unknown) {
-            infer_expr(scope, e.child(i), in_func)
+            infer_expr(scope, e.child(i), in_func, m)
         }
     }
     mut fi : U32 = 0
@@ -420,9 +419,9 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
     e.children = new_ch
 }
 
-infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, shallow in_func: I32) {
+infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, shallow in_func: I32, m: Mode) {
     for i in 1..e.child_count() {
-        infer_expr(scope, e.child(i), in_func)
+        infer_expr(scope, e.child(i), in_func, m)
     }
     if is_null(callee_bind) { return }
     if is_null(callee_bind.func_def) { return }
@@ -538,7 +537,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
     }
 }
 
-resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, shallow in_func: I32) {
+resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, shallow in_func: I32, m: Mode) {
     if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")).or(name.eq("dyn_fn")) {
         if e.child_count().gte(3) {
             ref method_arg : Expr = e.child(2)
@@ -652,7 +651,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
         }
     }
     mut debug_exempt := false
-    if current_mode.debug_prints {
+    if m.debug_prints {
         if name.eq("print").or(name.eq("println")) {
             debug_exempt = true
         }
@@ -673,12 +672,12 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     }
 }
 
-infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32) returns shallow Bool {
+infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, m: Mode) returns shallow Bool {
     ref mut fa : Expr = e.child(0)
     ref mut obj : Expr = fa.child(0)
     ref method0 : Str = get_payload(fa.data)
     mut method := method0.clone()
-    infer_expr(scope, obj, in_func)
+    infer_expr(scope, obj, in_func, m)
 
     mut obj_is_type := false
     if is_variant(obj.data, NodeType.Ident) {
@@ -718,7 +717,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             if try_ufcs_rewrite(scope, e, fa, obj, method, type_name) {
                 return false
             }
-            if infer_func_ptr_field_call(scope, e, fa, obj, sdef1, method, in_func) {
+            if infer_func_ptr_field_call(scope, e, fa, obj, sdef1, method, in_func, m) {
                 return true
             }
             if is_null(type_name) {
@@ -755,7 +754,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     ref mut fa3 : Expr = e.child(0)
     ref mut obj3 : Expr = fa3.child(0)
     if is_variant(obj3.til_type, TilType.Unknown) {
-        infer_expr(scope, obj3, in_func)
+        infer_expr(scope, obj3, in_func, m)
     }
     ref mut sdef2 : Expr = NULL
     if obj3.struct_name.len().gt(0) {
@@ -836,7 +835,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         e.children = new_ch
     }
     for i in 1..e.child_count() {
-        infer_expr(scope, e.child(i), in_func)
+        infer_expr(scope, e.child(i), in_func, m)
     }
     for i in 1..e.child_count() {
         ref ns_fdef2 : FunctionDef = get_payload(ns_func2.data)
@@ -950,9 +949,9 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     return true
 }
 
-infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32) {
+infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, m: Mode) {
     if is_variant(e.child(0).data, NodeType.FieldAccess) {
-        if infer_field_access_fcall(scope, e, in_func) { return }
+        if infer_field_access_fcall(scope, e, in_func, m) { return }
     }
     ref mut callee : Expr = e.child(0)
     ref name0 : Str = get_payload(callee.data)
@@ -962,7 +961,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32) {
         callee.data = NodeType.Ident(resolved_name.clone())
         name = resolved_name.clone()
     }
-    if infer_struct_constructor_fcall(scope, e, name, in_func) { return }
+    if infer_struct_constructor_fcall(scope, e, name, in_func, m) { return }
     ref callee_bind : TypeBinding = scope.get_binding(name)
     if is_null(callee_bind).not() {
         if is_null(callee_bind.func_def).not() {
@@ -971,13 +970,13 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32) {
             }
         }
     }
-    infer_and_validate_fcall_args(scope, e, callee_bind, in_func)
+    infer_and_validate_fcall_args(scope, e, callee_bind, in_func, m)
     validate_fcall_own_args(scope, e, callee_bind)
-    resolve_fcall_return_type(scope, e, name, callee_bind, in_func)
+    resolve_fcall_return_type(scope, e, name, callee_bind, in_func, m)
     return
 }
 
-infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
+infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, m: Mode) {
     if is_variant(expr.data, NodeType.LiteralStr)
         .or(is_variant(expr.data, NodeType.LiteralNum))
         .or(is_variant(expr.data, NodeType.LiteralBool))
@@ -986,19 +985,19 @@ infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
     } else if is_variant(expr.data, NodeType.Ident) {
         infer_ident_expr(scope, expr)
     } else if is_variant(expr.data, NodeType.FuncDef) {
-        infer_func_def_expr(scope, expr)
+        infer_func_def_expr(scope, expr, m)
     } else if is_variant(expr.data, NodeType.StructDef).or(is_variant(expr.data, NodeType.EnumDef)) {
-        infer_type_def_expr(scope, expr)
+        infer_type_def_expr(scope, expr, m)
     } else if is_variant(expr.data, NodeType.FCall) {
-        infer_fcall_expr(scope, expr, in_func)
+        infer_fcall_expr(scope, expr, in_func, m)
     } else if is_variant(expr.data, NodeType.FieldAccess) {
-        infer_field_access_expr(scope, expr, in_func)
+        infer_field_access_expr(scope, expr, in_func, m)
     } else if is_variant(expr.data, NodeType.MapLit) {
-        infer_map_lit_expr(scope, expr, in_func)
+        infer_map_lit_expr(scope, expr, in_func, m)
     } else if is_variant(expr.data, NodeType.SetLit) {
-        infer_set_lit_expr(scope, expr, in_func)
+        infer_set_lit_expr(scope, expr, in_func, m)
     } else if is_variant(expr.data, NodeType.NamedArg) {
-        infer_named_arg_expr(scope, expr, in_func)
+        infer_named_arg_expr(scope, expr, in_func, m)
     } else {
         expr.til_type = TilType.Unknown
     }
@@ -1024,32 +1023,32 @@ infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
     }
 }
 
-infer_named_arg_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
+infer_named_arg_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, m: Mode) {
     if expr.child_count().gt(0) {
-        infer_expr(scope, expr.child(0), in_func)
+        infer_expr(scope, expr.child(0), in_func, m)
         ref val : Expr = expr.child(0)
         expr.til_type = val.til_type
         if val.struct_name.len().gt(0) { expr.struct_name = val.struct_name.clone() }
     }
 }
 
-infer_map_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
+infer_map_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, m: Mode) {
     for i in 0..expr.child_count() {
-        infer_expr(scope, expr.child(i), in_func)
+        infer_expr(scope, expr.child(i), in_func, m)
     }
     expr.til_type = TilType.Struct
     expr.struct_name = "Map".clone()
 }
 
-infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
+infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, m: Mode) {
     for i in 0..expr.child_count() {
-        infer_expr(scope, expr.child(i), in_func)
+        infer_expr(scope, expr.child(i), in_func, m)
     }
     expr.til_type = TilType.Struct
     expr.struct_name = "Set".clone()
 }
 
-infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr) {
+infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, m: Mode) {
     expr.til_type = TilType.None
     if is_variant(expr.data, NodeType.EnumDef) {
         ref body : Expr = expr.child(0)
@@ -1064,7 +1063,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr) {
         }
     }
     inner := TypeScope.new(scope)
-    infer_body(inner, expr.child(0), 0, 0, 0, 0, 1)
+    infer_body(inner, expr.child(0), 0, 0, 0, 0, 1, m)
     TypeScope.delete(own inner)
 }
 
@@ -1099,7 +1098,7 @@ check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr) {
     }
 }
 
-infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr) {
+infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, m: Mode) {
     if expr.child_count().eq(0) {
         infer_func_sig_expr(scope, expr)
         return
@@ -1119,7 +1118,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr) {
             type_error(expr, "test functions cannot have parameters")
         }
     }
-    if current_mode.is_pure {
+    if m.is_pure {
         if is_variant(fdef.func_type, FuncType.Proc) {
             if expr.is_core.not() {
                 type_error(expr, "proc not allowed in pure mode")
@@ -1194,7 +1193,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr) {
     if is_func { in_func_val = 1 }
     mut returns_ref_val := 0.to_i32()
     if fdef.return_own_type.eq(OwnType.Ref) { returns_ref_val = 1 }
-    infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0)
+    infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, m)
     if is_macro.and(fdef.return_type.len().eq(0)) {
         type_error(expr, "macro must declare a return type")
     }
@@ -1202,9 +1201,9 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr) {
     TypeScope.delete(own func_scope)
 }
 
-infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32) {
+infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, m: Mode) {
     if stmt.child_count().gt(0) {
-        infer_expr(scope, stmt.child(0), in_func)
+        infer_expr(scope, stmt.child(0), in_func, m)
         stmt.til_type = stmt.child(0).til_type
         if returns_ref.eq(0).and(is_variant(stmt.child(0).data, NodeType.Ident)) {
             sf := scope.find(get_payload(stmt.child(0).data))
@@ -1233,24 +1232,24 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     }
 }
 
-infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32) {
-    infer_expr(scope, stmt.child(0), in_func)
+infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, m: Mode) {
+    infer_expr(scope, stmt.child(0), in_func, m)
     if is_variant(stmt.child(0).til_type, TilType.Bool).not().and(is_variant(stmt.child(0).til_type, TilType.Unknown).not()) {
         type_error(stmt, "if condition must be Bool")
     }
     then_scope := TypeScope.new(scope)
-    infer_body(then_scope, stmt.child(1), in_func, 1, in_loop, returns_ref, 0)
+    infer_body(then_scope, stmt.child(1), in_func, 1, in_loop, returns_ref, 0, m)
     TypeScope.delete(own then_scope)
     if stmt.child_count().gt(2) {
         else_scope := TypeScope.new(scope)
-        infer_body(else_scope, stmt.child(2), in_func, 1, in_loop, returns_ref, 0)
+        infer_body(else_scope, stmt.child(2), in_func, 1, in_loop, returns_ref, 0, m)
         TypeScope.delete(own else_scope)
     }
     stmt.til_type = TilType.None
 }
 
-infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
-    infer_expr(scope, expr.child(0), in_func)
+infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, m: Mode) {
+    infer_expr(scope, expr.child(0), in_func, m)
     ref obj : Expr = expr.child(0)
     if obj.struct_name.len().gt(0) {
         ref sdef : Expr = scope.get_struct(obj.struct_name)
@@ -1313,9 +1312,9 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
     }
 }
 
-infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32) {
-    infer_expr(scope, stmt.child(0), in_func)
-    infer_expr(scope, stmt.child(1), in_func)
+infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, m: Mode) {
+    infer_expr(scope, stmt.child(0), in_func, m)
+    infer_expr(scope, stmt.child(1), in_func, m)
     ref obj : Expr = stmt.child(0)
     ref mut rhs : Expr = stmt.child(1)
     ref fname : Str = get_payload(stmt.data)
@@ -1378,8 +1377,8 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
     }
 }
 
-infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32) {
-    infer_expr(scope, stmt.child(0), in_func)
+infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, m: Mode) {
+    infer_expr(scope, stmt.child(0), in_func, m)
     if is_variant(stmt.child(0).til_type, TilType.Bool).not().and(is_variant(stmt.child(0).til_type, TilType.Unknown).not()) {
         type_error(stmt, "while condition must be Bool, got ".concat(type_to_name(stmt.child(0).til_type, stmt.child(0).struct_name)))
     }
@@ -1429,7 +1428,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         stmt.children.set(0, own true_lit)
     }
     while_scope := TypeScope.new(scope)
-    infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0)
+    infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, m)
     TypeScope.delete(own while_scope)
     stmt.til_type = TilType.None
 }
@@ -1650,9 +1649,9 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
     }
 }
 
-infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_type_body: I32) {
+infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_type_body: I32, m: Mode) {
     if stmt.child_count().eq(0) { return }
-    infer_expr(scope, stmt.child(0), in_func)
+    infer_expr(scope, stmt.child(0), in_func, m)
     if infer_decl_type_def(scope, stmt) { return }
     if infer_decl_func_def(scope, stmt) { return }
     if infer_decl_type_alias_passthrough(scope, stmt) { return }
@@ -1906,13 +1905,13 @@ attach_switch_default_body := proc(mut root_if: Expr, default_body: Expr) {
     root_if.add_child(own default_body.clone())
 }
 
-infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32) {
+infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, m: Mode) {
     ref mut stmt : Expr = body.child(stmt_idx)
     ref mut sw_expr : Expr = stmt.child(0)
     sw_line := stmt.line
     sw_col := stmt.col
     sw_path := stmt.path
-    infer_expr(scope, sw_expr, in_func)
+    infer_expr(scope, sw_expr, in_func, m)
     mut covered_variants := Vec.new("Bool", Bool.size())
     mut n_variants : I32 = 0
     mut has_default_case := false
@@ -2043,7 +2042,7 @@ make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, fo
     return wb
 }
 
-desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32) returns shallow Bool {
+desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, m: Mode) returns shallow Bool {
     ref mut stmt : Expr = body.child(stmt_idx)
     ref mut iter : Expr = stmt.child(0)
     if is_variant(iter.data, NodeType.FCall).not() { return false }
@@ -2060,8 +2059,8 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
 
     ref mut start_expr : Expr = iter.child(1)
     ref mut end_expr : Expr = iter.child(2)
-    infer_expr(scope, start_expr, in_func)
-    infer_expr(scope, end_expr, in_func)
+    infer_expr(scope, start_expr, in_func, m)
+    infer_expr(scope, end_expr, in_func, m)
 
     mut elem_type := stmt.struct_name.clone()
     if elem_type.len().eq(0) {
@@ -2133,11 +2132,11 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
     return true
 }
 
-desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32) returns shallow Bool {
+desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, m: Mode) returns shallow Bool {
     ref mut stmt : Expr = body.child(stmt_idx)
     ref mut iter : Expr = stmt.child(0)
 
-    infer_expr(scope, iter, in_func)
+    infer_expr(scope, iter, in_func, m)
 
     mut type_name := ""
     if is_variant(iter.til_type, TilType.Struct).or(is_variant(iter.til_type, TilType.Enum)) {
@@ -2257,19 +2256,19 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     return true
 }
 
-infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32) {
+infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, m: Mode) {
     ref mut stmt : Expr = body.child(i)
     switch stmt.data {
     case NodeType.Decl:
-        infer_decl_stmt(scope, stmt, in_func, in_type_body)
+        infer_decl_stmt(scope, stmt, in_func, in_type_body, m)
     case NodeType.Assign:
-        infer_assign_stmt(scope, stmt, in_func)
+        infer_assign_stmt(scope, stmt, in_func, m)
     case NodeType.FieldAssign:
-        infer_field_assign_stmt(scope, stmt, in_func)
+        infer_field_assign_stmt(scope, stmt, in_func, m)
     case NodeType.FCall:
-        infer_expr(scope, stmt, in_func)
+        infer_expr(scope, stmt, in_func, m)
     case NodeType.Return:
-        infer_return_stmt(scope, stmt, in_func, returns_ref)
+        infer_return_stmt(scope, stmt, in_func, returns_ref, m)
     case NodeType.Break:
         if in_loop.eq(0) {
             type_error(stmt, "break outside loop")
@@ -2281,20 +2280,20 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
         }
         stmt.til_type = TilType.None
     case NodeType.If:
-        infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref)
+        infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref, m)
     case NodeType.Body:
         block_scope := TypeScope.new(scope)
-        infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0)
+        infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, m)
         TypeScope.delete(own block_scope)
     case NodeType.While:
-        infer_while_stmt(scope, stmt, in_func, returns_ref)
+        infer_while_stmt(scope, stmt, in_func, returns_ref, m)
     case NodeType.Switch:
-        infer_switch_stmt(scope, body, i, in_func)
+        infer_switch_stmt(scope, body, i, in_func, m)
         i = i.sub(1)
     case NodeType.ForIn:
-        if desugar_for_in_range_stmt(scope, body, i, in_func) {
+        if desugar_for_in_range_stmt(scope, body, i, in_func, m) {
             i = i.sub(1)
-        } else if desugar_for_in_collection_stmt(scope, body, i, in_func) {
+        } else if desugar_for_in_collection_stmt(scope, body, i, in_func, m) {
             i = i.sub(1)
         }
     case:
@@ -2302,11 +2301,11 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
     }
 }
 
-infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32) {
+infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, m: Mode) {
     body.til_type = TilType.None
     mut i := 0.to_u32()
     while i.lt(body.child_count().to_i64().to_u32()) {
-        infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body)
+        infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, m)
         i.inc()
     }
     if owns_scope.neq(0) { desugar_set_literals(body, scope) }
@@ -2318,8 +2317,8 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
     insert_free_calls(body, scope, owns_scope)
 }
 
-infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32) {
-    infer_expr(scope, stmt.child(0), in_func)
+infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, m: Mode) {
+    infer_expr(scope, stmt.child(0), in_func, m)
     ref mut rhs : Expr = stmt.child(0)
     stmt.til_type = rhs.til_type
     if rhs.struct_name.len().gt(0) {
@@ -4172,7 +4171,6 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns
 
 type_check := proc(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {
     errors = 0.to_i32()
-    current_mode = m
-    infer_body(scope, program, 0, 1, 0, 0, 0)
+    infer_body(scope, program, 0, 1, 0, 0, 0, m)
     return errors
 }
