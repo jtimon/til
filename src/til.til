@@ -383,8 +383,6 @@ main := proc(args: ..Str) {
 
     run_tests := command.eq("test")
         .or(cur_mode.name.eq("test"))
-        .or(cur_mode.name.eq("pure"))
-        .or(cur_mode.name.eq("pura"))
 
     precomp(ast)
 
