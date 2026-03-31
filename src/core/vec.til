@@ -39,6 +39,27 @@ namespace:
         self.count = self.count.add(1)
     }
 
+    append := func(mut self: Vec, own other: Vec) {
+        if self.elem_size.eq(other.elem_size).not().or(self.elem_type.eq(other.elem_type).not()) {
+            panic(__LOC__, "Vec.append: incompatible vecs")
+        }
+        if other.count.eq(0) {
+            return
+        }
+        needed := self.count.add(other.count)
+        if needed.gt(self.cap) {
+            mut new_cap := self.cap
+            while needed.gt(new_cap) {
+                new_cap = new_cap.mul(2)
+            }
+            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.cap = new_cap
+        }
+        memcpy(ptr_add(self.data, self.count.mul(self.elem_size)), other.data, other.count.mul(self.elem_size))
+        self.count = needed
+        other.count = 0
+    }
+
     get := func(self: Vec, i: USize) returns ref Dynamic {
         if i.gte(self.count) {
             panic(__LOC__, "Vec.get: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")

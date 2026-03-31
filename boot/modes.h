@@ -642,6 +642,7 @@ Str * join(Vec * parts, Str * sep);
 Vec * Vec_new(Str * elem_type, U32 * elem_size);
 U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
+void Vec_append(Vec * self, Vec * other);
 void * Vec_get(Vec * self, U32 * i);
 void * Vec_pop(Vec * self);
 Vec * Vec_take_prefix(Vec * self, U32 * n);

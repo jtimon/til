@@ -168,3 +168,63 @@ test_vec_take_prefix_str := test() {
     assert_eq_str(__LOC__, v0, "bb")
     assert_eq_str(__LOC__, v1, "cc")
 }
+
+test_vec_append := test() {
+    a := Vec.new("I64", I64.size())
+    b := Vec.new("I64", I64.size())
+    a.push(own 1)
+    a.push(own 2)
+    b.push(own 3)
+    b.push(own 4)
+
+    a.append(own b)
+
+    assert_eq(__LOC__, a.len().to_i64(), 4)
+    ref a0 : I64 = a.get(0)
+    ref a1 : I64 = a.get(1)
+    ref a2 : I64 = a.get(2)
+    ref a3 : I64 = a.get(3)
+    assert_eq(__LOC__, a0, 1)
+    assert_eq(__LOC__, a1, 2)
+    assert_eq(__LOC__, a2, 3)
+    assert_eq(__LOC__, a3, 4)
+}
+
+test_vec_append_str := test() {
+    a := Vec.new("Str", Str.size())
+    b := Vec.new("Str", Str.size())
+    a.push(own "aa")
+    b.push(own "bb")
+    b.push(own "cc")
+
+    a.append(own b)
+
+    assert_eq(__LOC__, a.len().to_i64(), 3)
+    ref a0 : Str = a.get(0)
+    ref a1 : Str = a.get(1)
+    ref a2 : Str = a.get(2)
+    assert_eq_str(__LOC__, a0, "aa")
+    assert_eq_str(__LOC__, a1, "bb")
+    assert_eq_str(__LOC__, a2, "cc")
+}
+
+test_vec_take_prefix_append_roundtrip := test() {
+    v := Vec.new("I64", I64.size())
+    v.push(own 5)
+    v.push(own 6)
+    v.push(own 7)
+    v.push(own 8)
+
+    prefix := v.take_prefix(2)
+    prefix.append(own v)
+
+    assert_eq(__LOC__, prefix.len().to_i64(), 4)
+    ref p0 : I64 = prefix.get(0)
+    ref p1 : I64 = prefix.get(1)
+    ref p2 : I64 = prefix.get(2)
+    ref p3 : I64 = prefix.get(3)
+    assert_eq(__LOC__, p0, 5)
+    assert_eq(__LOC__, p1, 6)
+    assert_eq(__LOC__, p2, 7)
+    assert_eq(__LOC__, p3, 8)
+}
