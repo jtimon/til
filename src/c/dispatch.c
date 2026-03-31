@@ -26,6 +26,7 @@ U64 U64_from_i64(I64 v);
 #include <ffi.h>
 
 #define PARAM_IS_SHALLOW(p) ((p)->own_type.tag == OwnType_TAG_Shallow)
+#define RETURN_IS_SHALLOW(fd) ((fd)->return_own_type.tag == OwnType_TAG_Shallow)
 
 // Codegen Str layout (matches ext.h Str: {U8 *data, U64 count, U64 cap})
 // Distinct from compiler-internal Str (str.h: {char *c_str, U64 count, U64 cap})
@@ -717,7 +718,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
         for (U32 k = 0; k < np; k++)
             pshallows[k] = PARAM_IS_SHALLOW(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)})));
     }
-    bool ret_shallow = fdef->data.data.FuncDef.return_is_shallow;
+    bool ret_shallow = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef);
     ffi_cif *cif = malloc(sizeof(ffi_cif));
     FFIEntry entry = {
         .fn = (U8 *)fn,

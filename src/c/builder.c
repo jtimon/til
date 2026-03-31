@@ -5,6 +5,8 @@
 
 #define PARAM_IS_OWN(p) ((p)->own_type.tag == OwnType_TAG_Own)
 #define PARAM_IS_SHALLOW(p) ((p)->own_type.tag == OwnType_TAG_Shallow)
+#define RETURN_IS_REF(fd) ((fd)->return_own_type.tag == OwnType_TAG_Ref)
+#define RETURN_IS_SHALLOW(fd) ((fd)->return_own_type.tag == OwnType_TAG_Shallow)
 
 static Expr *codegen_program; // set during codegen for ns_init lookups
 static Map struct_bodies; // Str* name → Expr* body (ExprData_TAG_Body)
@@ -269,7 +271,7 @@ static void collect_unsafe_to_hoist(Expr *body) {
                 Str *callee = resolve_callee_name(rhs, &allocated);
                 if (callee) {
                     Expr *fdef = find_callee_fdef(callee);
-                    if (fdef && fdef->data.data.FuncDef.return_is_ref) {
+                    if (fdef && RETURN_IS_REF(&fdef->data.data.FuncDef)) {
                         for (U32 a = 1; a < rhs->children.count; a++) {
                             Expr *arg = Expr_child(rhs, &(USize){(USize)(a)});
                             if (arg->data.tag == ExprData_TAG_Ident) {
@@ -334,7 +336,7 @@ static const char *fcall_return_ctype(Expr *fcall) {
 static Bool callee_returns_shallow(Str *callee_name) {
     Expr *fdef = find_callee_fdef(callee_name);
     if (!fdef) return 0;
-    return fdef->data.data.FuncDef.return_is_shallow;
+    return RETURN_IS_SHALLOW(&fdef->data.data.FuncDef);
 }
 
 static Bool callee_returns_dynamic(Str *callee_name) {
@@ -441,7 +443,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             Expr_child(e, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_FuncPtr && fcall_fn_sig(e)) {
             // Use fn_sig to determine shallow params/return for correct cast
             Expr *sig = fcall_fn_sig(e);
-            Bool ret_shallow = sig ? sig->data.data.FuncDef.return_is_shallow : 0;
+            Bool ret_shallow = sig ? RETURN_IS_SHALLOW(&sig->data.data.FuncDef) : 0;
             const char *ret_c = "void *";
             if (e->til_type.tag != TilType_TAG_None && e->til_type.tag != TilType_TAG_Unknown &&
                 e->til_type.tag != TilType_TAG_Dynamic) {
@@ -570,7 +572,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             // Indirect call through function pointer variable
             // Use fn_sig to determine shallow params/return for correct cast
             Expr *sig = fcall_fn_sig(e);
-            Bool ret_shallow = sig ? sig->data.data.FuncDef.return_is_shallow : 0;
+            Bool ret_shallow = sig ? RETURN_IS_SHALLOW(&sig->data.data.FuncDef) : 0;
             const char *ret_c = "void *";
             if (e->til_type.tag != TilType_TAG_None && e->til_type.tag != TilType_TAG_Unknown &&
                 e->til_type.tag != TilType_TAG_Dynamic) {
@@ -1257,11 +1259,11 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 emit_ctor_fields(f, "_r", rv, depth);
                 emit_indent(f, depth);
                 fprintf(f, "return _r; }\n");
-            } else if (current_fdef && current_fdef->data.data.FuncDef.return_is_ref) {
+            } else if (current_fdef && RETURN_IS_REF(&current_fdef->data.data.FuncDef)) {
                 fprintf(f, "return ");
                 emit_as_ptr(f, rv, depth);
                 fprintf(f, ";\n");
-            } else if (current_fdef && current_fdef->data.data.FuncDef.return_is_shallow) {
+            } else if (current_fdef && RETURN_IS_SHALLOW(&current_fdef->data.data.FuncDef)) {
                 // Shallow-return function — return value directly
                 if (rv->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rv)) {
                     fprintf(f, "return ");
@@ -1291,7 +1293,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 fprintf(f, "; return _r; }\n");
             } else if (rv->data.tag == ExprData_TAG_Ident &&
                        is_stack_local((const char *)rv->data.data.Ident.c_str) &&
-                       !(current_fdef && current_fdef->data.data.FuncDef.return_is_shallow)) {
+                       !(current_fdef && RETURN_IS_SHALLOW(&current_fdef->data.data.FuncDef))) {
                 // Hoisted local returned from non-shallow function: box to heap
                 const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
@@ -1300,7 +1302,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                         ctype, ctype, rv->data.data.Ident.c_str);
             } else if (rv->data.tag == ExprData_TAG_Ident &&
                        has_script_globals && Set_has(&script_globals, &rv->data.data.Ident) &&
-                       !(current_fdef && current_fdef->data.data.FuncDef.return_is_shallow)) {
+                       !(current_fdef && RETURN_IS_SHALLOW(&current_fdef->data.data.FuncDef))) {
                 // Global returned from non-shallow function: copy to heap
                 const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
@@ -1530,7 +1532,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
         // Return type
         const char *ret = "void";
         if (func_def->data.data.FuncDef.return_type.count > 0) {
-            ret = func_def->data.data.FuncDef.return_is_shallow
+            ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                 ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                 : type_name_to_c(&func_def->data.data.FuncDef.return_type);
         }
@@ -1654,7 +1656,7 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib,
              (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U32", 3) == 0) ||
              (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0))) {
             const char *ret_ctype = type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
-            if (fdef->data.data.FuncDef.return_is_shallow) {
+            if (RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)) {
                 fprintf(f, "%s %s_size(void) {\n", ret_ctype, name->c_str);
                 fprintf(f, "    return (%s)sizeof(%s);\n", ret_ctype, name->c_str);
             } else {
@@ -1771,7 +1773,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
              (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U32", 3) == 0) ||
              (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0))) {
             const char *ret_ctype = type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
-            if (fdef->data.data.FuncDef.return_is_shallow) {
+            if (RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)) {
                 fprintf(f, "%s %s_size(void) {\n", ret_ctype, name->c_str);
                 fprintf(f, "    return (%s)sizeof(%s);\n", ret_ctype, name->c_str);
             } else {
@@ -2047,7 +2049,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
                     const char *ret = "void";
                     if (fdef->data.data.FuncDef.return_type.count > 0)
-                        ret = fdef->data.data.FuncDef.return_is_shallow
+                        ret = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                             ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                             : type_name_to_c(&fdef->data.data.FuncDef.return_type);
                     fprintf(hf, "%s %s_%s(", ret, sname->c_str, field->data.data.Decl.name.c_str);
@@ -2064,7 +2066,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 if (fis_main) continue;
                 const char *ret = "void";
                 if (func_def->data.data.FuncDef.return_type.count > 0)
-                    ret = func_def->data.data.FuncDef.return_is_shallow
+                    ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                         ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                         : type_name_to_c(&func_def->data.data.FuncDef.return_type);
                 fprintf(hf, "%s %s(", ret, func_to_c(&stmt->data.data.Decl.name));
@@ -2088,7 +2090,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                         break;
                     }
                 }
-                const char *eq_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
+                const char *eq_ret = (eq_fdef && RETURN_IS_SHALLOW(&eq_fdef->data.data.FuncDef)) ? "Bool" : "Bool *";
                 fprintf(hf, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
                 for (U32 j = 0; j < ebody->children.count; j++) {
                     Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
@@ -2118,7 +2120,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         if (fft.tag != FuncType_TAG_ExtFunc && fft.tag != FuncType_TAG_ExtProc) continue;
         if (is_skip_ext_decl(&stmt->data.data.Decl.name)) continue;
         if (fdef->data.data.FuncDef.return_type.count > 0) {
-            const char *rt = fdef->data.data.FuncDef.return_is_shallow
+            const char *rt = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                 ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                 : type_name_to_c(&fdef->data.data.FuncDef.return_type);
             fprintf(f, "%s %s(", rt, func_to_c(&stmt->data.data.Decl.name));
@@ -2151,7 +2153,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 if ((fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) && stmt->is_core) continue;
                 const char *ret = "void";
                 if (fdef->data.data.FuncDef.return_type.count > 0) {
-                    ret = fdef->data.data.FuncDef.return_is_shallow
+                    ret = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                         ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                         : type_name_to_c(&fdef->data.data.FuncDef.return_type);
                 }
@@ -2168,7 +2170,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             if (is_main) continue;
             const char *ret = "void";
             if (func_def->data.data.FuncDef.return_type.count > 0)
-                ret = func_def->data.data.FuncDef.return_is_shallow
+                ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                     ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                     : type_name_to_c(&func_def->data.data.FuncDef.return_type);
             fprintf(f, "%s %s(", ret, func_to_c(name));
@@ -2192,7 +2194,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     break;
                 }
             }
-            const char *eq_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
+            const char *eq_ret = (eq_fdef && RETURN_IS_SHALLOW(&eq_fdef->data.data.FuncDef)) ? "Bool" : "Bool *";
             fprintf(f, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
             for (U32 j = 0; j < ebody->children.count; j++) {
                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
@@ -2243,7 +2245,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
             if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef &&
                 (stmt->data.data.Decl.name.count == 14 && memcmp(stmt->data.data.Decl.name.c_str, "dyn_has_method", 14) == 0)) {
-                dyn_has_shallow = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_is_shallow;
+                dyn_has_shallow = RETURN_IS_SHALLOW(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef);
                 break;
             }
         }
@@ -2379,7 +2381,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     else
                         snprintf(arg2_str, sizeof(arg2_str), "arg2");
                 }
-                Bool ret_shallow = method_fdef->data.data.FuncDef.return_is_shallow;
+                Bool ret_shallow = RETURN_IS_SHALLOW(&method_fdef->data.data.FuncDef);
                 const char *ret_ctype = (info->has_return && ret_shallow && method_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&method_fdef->data.data.FuncDef.return_type) : NULL;
                 if (info->nargs == 2) {
@@ -2429,7 +2431,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 Str *mname = &field->data.data.Decl.name;
                 U32 np = fdef->data.data.FuncDef.nparam;
-                Bool ret_shallow = fdef->data.data.FuncDef.return_is_shallow;
+                Bool ret_shallow = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef);
                 Str *ret_type = &fdef->data.data.FuncDef.return_type;
                 Bool has_return = ret_type->count > 0;
                 Bool any_shallow = ret_shallow;
@@ -2491,7 +2493,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 Str *mname = &field->data.data.Decl.name;
-                Bool any_shallow = fdef->data.data.FuncDef.return_is_shallow;
+                Bool any_shallow = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef);
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (PARAM_IS_SHALLOW(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)}))))
                         any_shallow = 1;
@@ -2516,7 +2518,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
             if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef &&
                 (stmt->data.data.Decl.name.count == 14 && memcmp(stmt->data.data.Decl.name.c_str, "dyn_has_method", 14) == 0)) {
-                dyn_has_shallow = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_is_shallow;
+                dyn_has_shallow = RETURN_IS_SHALLOW(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef);
                 break;
             }
         }
@@ -2898,7 +2900,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                 }
                 const char *ret = "void";
                 if (fdef->data.data.FuncDef.return_type.count > 0)
-                    ret = fdef->data.data.FuncDef.return_is_shallow
+                    ret = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                         ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                         : type_name_to_c(&fdef->data.data.FuncDef.return_type);
                 fprintf(f, "%s %s_%s(", ret, sname->c_str, field->data.data.Decl.name.c_str);
@@ -2912,7 +2914,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
             if ((fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) && stmt->is_core) continue;
             const char *ret = "void";
             if (func_def->data.data.FuncDef.return_type.count > 0)
-                ret = func_def->data.data.FuncDef.return_is_shallow
+                ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                     ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                     : type_name_to_c(&func_def->data.data.FuncDef.return_type);
             fprintf(f, "%s %s(", ret, func_to_c(&stmt->data.data.Decl.name));
@@ -2937,7 +2939,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                     break;
                 }
             }
-            const char *eq_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
+            const char *eq_ret = (eq_fdef && RETURN_IS_SHALLOW(&eq_fdef->data.data.FuncDef)) ? "Bool" : "Bool *";
             fprintf(f, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
             for (U32 j = 0; j < ebody->children.count; j++) {
                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
@@ -3184,7 +3186,7 @@ I32 build_header(Expr *program, Str *h_path) {
                 if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
                 const char *ret = "void";
                 if (fdef->data.data.FuncDef.return_type.count > 0)
-                    ret = fdef->data.data.FuncDef.return_is_shallow
+                    ret = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                         ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                         : type_name_to_c(&fdef->data.data.FuncDef.return_type);
                 fprintf(f, "%s %s_%s(", ret, sname->c_str, field->data.data.Decl.name.c_str);
@@ -3198,7 +3200,7 @@ I32 build_header(Expr *program, Str *h_path) {
             if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
             const char *ret = "void";
             if (func_def->data.data.FuncDef.return_type.count > 0)
-                ret = func_def->data.data.FuncDef.return_is_shallow
+                ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                     ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                     : type_name_to_c(&func_def->data.data.FuncDef.return_type);
             fprintf(f, "%s %s(", ret, func_to_c(&stmt->data.data.Decl.name));
@@ -3224,7 +3226,7 @@ I32 build_header(Expr *program, Str *h_path) {
                     break;
                 }
             }
-            const char *eq_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
+            const char *eq_ret = (eq_fdef && RETURN_IS_SHALLOW(&eq_fdef->data.data.FuncDef)) ? "Bool" : "Bool *";
             fprintf(f, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
             for (U32 j = 0; j < ebody->children.count; j++) {
                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
@@ -3322,8 +3324,8 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 fprintf(f, ")");
                 if (fdef->data.data.FuncDef.return_type.count > 0) {
                     fprintf(f, " returns ");
-                    if (fdef->data.data.FuncDef.return_is_ref) fprintf(f, "ref ");
-                    if (fdef->data.data.FuncDef.return_is_shallow) fprintf(f, "shallow ");
+                    if (RETURN_IS_REF(&fdef->data.data.FuncDef)) fprintf(f, "ref ");
+                    if (RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)) fprintf(f, "shallow ");
                     fprintf(f, "%s", fdef->data.data.FuncDef.return_type.c_str);
                 }
                 fprintf(f, " {}\n");
@@ -3364,8 +3366,8 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 fprintf(f, ")");
                 if (fdef->data.data.FuncDef.return_type.count > 0) {
                     fprintf(f, " returns ");
-                    if (fdef->data.data.FuncDef.return_is_ref) fprintf(f, "ref ");
-                    if (fdef->data.data.FuncDef.return_is_shallow) fprintf(f, "shallow ");
+                    if (RETURN_IS_REF(&fdef->data.data.FuncDef)) fprintf(f, "ref ");
+                    if (RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)) fprintf(f, "shallow ");
                     fprintf(f, "%s", fdef->data.data.FuncDef.return_type.c_str);
                 }
                 fprintf(f, " {}\n");
@@ -3395,8 +3397,8 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
             fprintf(f, ")");
             if (rhs->data.data.FuncDef.return_type.count > 0) {
                 fprintf(f, " returns ");
-                if (rhs->data.data.FuncDef.return_is_ref) fprintf(f, "ref ");
-                if (rhs->data.data.FuncDef.return_is_shallow) fprintf(f, "shallow ");
+                if (RETURN_IS_REF(&rhs->data.data.FuncDef)) fprintf(f, "ref ");
+                if (RETURN_IS_SHALLOW(&rhs->data.data.FuncDef)) fprintf(f, "shallow ");
                 fprintf(f, "%s", rhs->data.data.FuncDef.return_type.c_str);
             }
             fprintf(f, " {}\n\n");

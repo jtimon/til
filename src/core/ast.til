@@ -81,8 +81,7 @@ FunctionDef := struct {
     mut return_type := ""
     mut variadic_index : I32 = -1.to_i32()
     mut kwargs_index : I32 = -1.to_i32()
-    mut return_is_ref := false
-    mut return_is_shallow := false
+    mut return_own_type := OwnType.Own
     namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type.eq(b.return_type) }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }

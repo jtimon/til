@@ -104,8 +104,7 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
     if return_type.len().gt(0) { fd.func_type = FuncType.Func }
     else { fd.func_type = FuncType.Proc }
     fd.return_type = return_type
-    fd.return_is_ref = false
-    fd.return_is_shallow = false
+    fd.return_own_type = OwnType.Own
     fd.variadic_index = -1.to_i32()
     fd.kwargs_index = -1.to_i32()
     for i in 0..ptypes.len() {
@@ -247,13 +246,13 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         advance(p)
         if check(p, TokenType.KwRef) {
             advance(p)
-            fd.return_is_ref = true
+            fd.return_own_type = OwnType.Ref
         } else if check(p, TokenType.KwOwn) {
             panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                 ": no need for 'own' in return type; returns are owned by default")
         } else if check(p, TokenType.KwShallow) {
             advance(p)
-            fd.return_is_shallow = true
+            fd.return_own_type = OwnType.Shallow
         }
         fd.return_type = expect_text(p, TokenType.Ident)
     }

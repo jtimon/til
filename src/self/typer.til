@@ -1088,7 +1088,7 @@ infer_func_sig_expr := proc(scope: TypeScope, mut expr: Expr) {
 
 check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr) {
     ref fdef : FunctionDef = get_payload(expr.data)
-    if fdef.return_is_ref.not() { return }
+    if fdef.return_own_type.eq(OwnType.Ref).not() { return }
     ref body : Expr = expr.child(0)
     for ri in 0..body.child_count() {
         ref stmt : Expr = body.child(ri)
@@ -1195,7 +1195,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr) {
     mut in_func_val := 0.to_i32()
     if is_func { in_func_val = 1 }
     mut returns_ref_val := 0.to_i32()
-    if fdef.return_is_ref { returns_ref_val = 1 }
+    if fdef.return_own_type.eq(OwnType.Ref) { returns_ref_val = 1 }
     infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0)
     if is_macro.and(fdef.return_type.len().eq(0)) {
         type_error(expr, "macro must declare a return type")
@@ -2238,7 +2238,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
 
     mut wbody := Expr.new(ExprData.Body, line, col, path)
 
-    mut elem_decl := Expr.new(ExprData.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), is_ref = get_def.return_is_ref)), line, col, path)
+    mut elem_decl := Expr.new(ExprData.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), is_ref = get_def.return_own_type.eq(OwnType.Ref))), line, col, path)
     mut col_ident_get := Expr.new(ExprData.Ident(col_name.clone()), line, col, path)
     mut idx_ident_get := Expr.new(ExprData.Ident(idx_name.clone()), line, col, path)
     elem_decl.add_child(own make_field_access_call1(col_ident_get, "get", idx_ident_get, line, col, path))
@@ -4106,7 +4106,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
         if is_null(cb).not() {
             if is_null(cb.func_def) { return 0.to_i32() }
             ref _cfd : FunctionDef = get_payload(cb.func_def.data)
-            return _cfd.return_is_ref
+            return _cfd.return_own_type.eq(OwnType.Ref)
         }
         return 0.to_i32()
     }
@@ -4123,7 +4123,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
                 if fd.is_namespace.and(fd.name.eq(_cfa)) {
                     if is_variant(f.child(0).data, ExprData.FuncDef) {
                         ref _ffd : FunctionDef = get_payload(f.child(0).data)
-                        return _ffd.return_is_ref
+                        return _ffd.return_own_type.eq(OwnType.Ref)
                     }
                 }
             }

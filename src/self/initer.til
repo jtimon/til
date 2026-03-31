@@ -1072,8 +1072,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
                             dp.own_type = sp.own_type
                         }
                         fdef.return_type = sigdef.return_type
-                        fdef.return_is_ref = sigdef.return_is_ref
-                        fdef.return_is_shallow = sigdef.return_is_shallow
+                        fdef.return_own_type = sigdef.return_own_type
                         sdecl.explicit_type = ""
                     }
                 }
@@ -1362,7 +1361,7 @@ generate_cmp_derived_methods := proc(program: Expr, scope: TypeScope) {
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
-            func_decl.return_is_shallow = true
+            func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
@@ -1404,7 +1403,7 @@ generate_cmp_derived_methods := proc(program: Expr, scope: TypeScope) {
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
-            func_decl.return_is_shallow = true
+            func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
@@ -1440,7 +1439,7 @@ generate_cmp_derived_methods := proc(program: Expr, scope: TypeScope) {
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
-            func_decl.return_is_shallow = true
+            func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
@@ -1474,7 +1473,7 @@ generate_cmp_derived_methods := proc(program: Expr, scope: TypeScope) {
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
-            func_decl.return_is_shallow = true
+            func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
@@ -1508,7 +1507,7 @@ generate_cmp_derived_methods := proc(program: Expr, scope: TypeScope) {
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
-            func_decl.return_is_shallow = true
+            func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
@@ -1542,7 +1541,7 @@ generate_cmp_derived_methods := proc(program: Expr, scope: TypeScope) {
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
-            func_decl.return_is_shallow = true
+            func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)

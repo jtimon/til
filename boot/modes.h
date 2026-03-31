@@ -504,8 +504,7 @@ typedef struct FunctionDef {
     Str return_type;
     I32 variadic_index;
     I32 kwargs_index;
-    Bool return_is_ref;
-    Bool return_is_shallow;
+    OwnType return_own_type;
 } FunctionDef;
 
 
