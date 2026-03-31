@@ -32,7 +32,7 @@ tokenize := ext_func(source: Str, path: Str) returns Vec {}
 
 
 // Pipeline
-type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
+type_check := ext_func(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {}
 precomp := ext_proc(program: Expr) {}
 scavenge := ext_proc(program: Expr, m: Mode, shallow run_tests: Bool) {}
 interpret := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec) returns shallow I32 {}
@@ -376,7 +376,8 @@ main := proc(args: ..Str) {
     init_declarations(ast, scope)
 
     // Type checking
-    type_errors := type_check(ast, scope, cur_mode)
+    ctx := Context(mode_ = cur_mode.clone())
+    type_errors := type_check(ast, scope, ctx)
     if type_errors.gt(0) {
         panic(__LOC__, type_errors.to_str().concat(" type error(s) found"))
     }

@@ -295,3 +295,5 @@
 *** mut is_pure := false
 *** mut run_tests := false
 *** mut debug_prints := false
+** Context: StructDef
+*** mut mode_ := Mode()

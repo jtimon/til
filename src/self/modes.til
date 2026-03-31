@@ -18,6 +18,14 @@ Mode := struct {
     mut debug_prints := false
 }
 
+Context := struct {
+    mut mode_ := Mode()
+}
+
+context_mode := func(ctx: Context) returns ref Mode {
+    return ctx.mode_
+}
+
 // Core mode registry — user-defined modes (#63) will add to this via -M flag
 core_modes := {
     "script": Mode(decls_only = false),
