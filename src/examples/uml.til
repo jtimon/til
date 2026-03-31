@@ -6,6 +6,23 @@ import("../self/lexer.til")
 import("../self/parser.til")
 
 NL := Str.from_byte(10)
+Q := Str.from_byte(34)
+
+CHAR_W := 8
+ROW_H := 18
+BOX_PAD_X := 14
+BOX_PAD_Y := 14
+BOX_GAP_X := 28
+PAGE_PAD_X := 24
+PAGE_PAD_Y := 24
+HEADER_H := 24
+
+UmlType := struct {
+    mut file := ""
+    mut name := ""
+    mut kind := ""
+    mut lines := Vec.new("Str", Str.size())
+}
 
 file_label := func(path: Str) returns Str {
     mut label := path.clone()
@@ -133,7 +150,12 @@ join_lines := func(lines: Vec) returns Str {
 append_token_text := func(mut out: Str, tok: Token) returns Str {
     if tok.type.eq(TokenType.Eof) { return out }
     if out.len().gt(0) {
-        out = out.concat(" ")
+        no_space_before := tok.type.eq(TokenType.RParen).or(tok.type.eq(TokenType.Colon)).or(tok.type.eq(TokenType.Comma))
+        ref prev : U8 = out.byte_at(out.len().sub(1))
+        no_space_after_prev := prev.eq('(').or(prev.eq(':'))
+        if no_space_before.not().and(no_space_after_prev.not()) {
+            out = out.concat(" ")
+        }
     }
     return out.concat(tok.text)
 }
@@ -192,12 +214,12 @@ parse_file := proc(path: Str) returns Expr {
     return parse(tokens, path.clone(), mode_str)
 }
 
-emit_file := proc(mut out: Str, path: Str) returns Str {
+extract_types_from_file := proc(path: Str) returns Vec {
     source := readfile(path)
     lines := source.split(NL)
     ast := parse_file(path)
-
-    out = out.concat("* ").concat(file_label(path)).concat(NL)
+    mut out := Vec.new("UmlType", UmlType.size())
+    label := file_label(path)
 
     mut i : USize = 0
     while i.lt(ast.child_count()) {
@@ -207,18 +229,19 @@ emit_file := proc(mut out: Str, path: Str) returns Str {
             ref rhs : Expr = stmt.child(0)
 
             if is_variant(rhs.data, ExprData.StructDef).or(is_variant(rhs.data, ExprData.EnumDef)) {
-                out = out.concat("** ").concat(dd.name).concat(NL)
                 body_lines := extract_body_lines(lines, rhs.line)
                 mut rendered_lines := body_lines
+                mut kind := "StructDef"
                 if is_variant(rhs.data, ExprData.EnumDef) {
+                    kind = "EnumDef"
                     rendered_lines = split_enum_variants(body_lines)
                 }
-                mut j : USize = 0
-                while j.lt(rendered_lines.len()) {
-                    ref line : Str = rendered_lines.get(j)
-                    out = out.concat("*** ").concat(line).concat(NL)
-                    j = j.add(1)
-                }
+                out.push(own UmlType(
+                    file = label.clone(),
+                    name = dd.name.clone(),
+                    kind = kind.clone(),
+                    lines = rendered_lines
+                ))
             }
         }
         i = i.add(1)
@@ -227,24 +250,183 @@ emit_file := proc(mut out: Str, path: Str) returns Str {
     return out
 }
 
-generate_org := proc(paths: Vec) returns Str {
-    mut out := ""
+collect_types := proc(paths: Vec) returns Vec {
+    mut out := Vec.new("UmlType", UmlType.size())
     mut i : USize = 0
     while i.lt(paths.len()) {
         ref path : Str = paths.get(i)
-        out = emit_file(out, path)
+        file_types := extract_types_from_file(path)
+        mut j : USize = 0
+        while j.lt(file_types.len()) {
+            ref t : UmlType = file_types.get(j)
+            out.push(own t.clone())
+            j = j.add(1)
+        }
         i = i.add(1)
     }
     return out
 }
 
-main := proc(args: ..Str) {
-    mut out_path := "doc/uml.org"
-    if args.len().gt(0) {
-        ref arg0 : Str = args.get(0)
-        out_path = arg0.clone()
+generate_org := proc(paths: Vec, types: Vec) returns Str {
+    mut out := ""
+    mut i : USize = 0
+    while i.lt(paths.len()) {
+        ref path : Str = paths.get(i)
+        label := file_label(path)
+        out = out.concat("* ").concat(label).concat(NL)
+        mut j : USize = 0
+        while j.lt(types.len()) {
+            ref t : UmlType = types.get(j)
+            if t.file.eq(label) {
+                out = out.concat("** ").concat(t.name).concat(": ").concat(t.kind).concat(NL)
+                mut k : USize = 0
+                while k.lt(t.lines.len()) {
+                    ref line : Str = t.lines.get(k)
+                    out = out.concat("*** ").concat(line).concat(NL)
+                    k = k.add(1)
+                }
+            }
+            j = j.add(1)
+        }
+        i = i.add(1)
     }
+    return out
+}
+
+qa := func(val: Str) returns Str {
+    return Q.concat(val).concat(Q)
+}
+
+svg_rect := func(x: I64, y: I64, w: I64, h: I64) returns Str {
+    return "<rect x=".concat(qa(x.to_str()))
+        .concat(" y=").concat(qa(y.to_str()))
+        .concat(" width=").concat(qa(w.to_str()))
+        .concat(" height=").concat(qa(h.to_str()))
+        .concat(" rx=").concat(qa("10"))
+        .concat(" ry=").concat(qa("10"))
+        .concat(" class=").concat(qa("box"))
+        .concat("/>").concat(NL)
+}
+
+svg_text := func(x: I64, y: I64, klass: Str, body: Str) returns Str {
+    return "<text x=".concat(qa(x.to_str()))
+        .concat(" y=").concat(qa(y.to_str()))
+        .concat(" class=").concat(qa(klass))
+        .concat(">").concat(body).concat("</text>").concat(NL)
+}
+
+xml_escape := func(s: Str) returns Str {
+    mut out := ""
+    mut i : USize = 0
+    while i.lt(s.len()) {
+        ref c : U8 = s.get(i)
+        if c.eq('&') {
+            out = out.concat("&amp;")
+        } else if c.eq('<') {
+            out = out.concat("&lt;")
+        } else if c.eq('>') {
+            out = out.concat("&gt;")
+        } else if c.eq(Q.byte_at(0)) {
+            out = out.concat("&quot;")
+        } else {
+            out = out.concat(Str.from_byte(c))
+        }
+        i = i.add(1)
+    }
+    return out
+}
+
+max_line_chars := func(t: UmlType) returns I64 {
+    mut max := t.name.len().add(2).add(t.kind.len()).to_i64()
+    mut i : USize = 0
+    while i.lt(t.lines.len()) {
+        ref line : Str = t.lines.get(i)
+        n := line.len().to_i64()
+        if n.gt(max) { max = n }
+        i = i.add(1)
+    }
+    return max
+}
+
+box_w := func(t: UmlType) returns I64 {
+    return max_line_chars(t).mul(CHAR_W).add(BOX_PAD_X.mul(2))
+}
+
+box_h := func(t: UmlType) returns I64 {
+    rows := 1.add(t.lines.len().to_i64())
+    return rows.mul(ROW_H).add(BOX_PAD_Y.mul(2))
+}
+
+generate_svg := proc(types: Vec) returns Str {
+    mut total_w := PAGE_PAD_X
+    mut max_h := 0
+    mut i : USize = 0
+    while i.lt(types.len()) {
+        ref t : UmlType = types.get(i)
+        w := box_w(t)
+        h := box_h(t)
+        total_w = total_w.add(w)
+        if i.gt(0) {
+            total_w = total_w.add(BOX_GAP_X)
+        }
+        if h.gt(max_h) { max_h = h }
+        i = i.add(1)
+    }
+    total_w = total_w.add(PAGE_PAD_X)
+    total_h := PAGE_PAD_Y.add(max_h).add(PAGE_PAD_Y)
+
+    mut svg := ""
+    view_box := "0 0 ".concat(total_w.to_str()).concat(" ").concat(total_h.to_str())
+    svg = svg.concat("<svg xmlns=").concat(qa("http://www.w3.org/2000/svg"))
+        .concat(" width=").concat(qa(total_w.to_str()))
+        .concat(" height=").concat(qa(total_h.to_str()))
+        .concat(" viewBox=").concat(qa(view_box))
+        .concat(">").concat(NL)
+    svg = svg.concat("  <defs>").concat(NL)
+    svg = svg.concat("    <style>").concat(NL)
+    svg = svg.concat("      .bg { fill: #f7f5ef; }").concat(NL)
+    svg = svg.concat("      .box { fill: #fffdf8; stroke: #334155; stroke-width: 2; }").concat(NL)
+    svg = svg.concat("      .title { font: 700 16px 'Courier New', monospace; fill: #111827; }").concat(NL)
+    svg = svg.concat("      .line { font: 13px 'Courier New', monospace; fill: #1f2937; }").concat(NL)
+    svg = svg.concat("    </style>").concat(NL)
+    svg = svg.concat("  </defs>").concat(NL)
+    svg = svg.concat("  <rect class=").concat(qa("bg"))
+        .concat(" x=").concat(qa("0"))
+        .concat(" y=").concat(qa("0"))
+        .concat(" width=").concat(qa(total_w.to_str()))
+        .concat(" height=").concat(qa(total_h.to_str()))
+        .concat("/>").concat(NL)
+
+    mut x := PAGE_PAD_X
+    i = 0
+    while i.lt(types.len()) {
+        ref t : UmlType = types.get(i)
+        w := box_w(t)
+        h := box_h(t)
+        y := PAGE_PAD_Y
+        svg = svg.concat("  ").concat(svg_rect(x, y, w, h))
+        header := xml_escape(t.name.concat(": ").concat(t.kind))
+        svg = svg.concat("  ").concat(svg_text(x.add(BOX_PAD_X), y.add(BOX_PAD_Y).add(HEADER_H), "title", header))
+        mut j : USize = 0
+        while j.lt(t.lines.len()) {
+            ref line : Str = t.lines.get(j)
+            line_y := y.add(BOX_PAD_Y).add(HEADER_H).add(ROW_H).add(j.to_i64().mul(ROW_H))
+            svg = svg.concat("  ").concat(svg_text(x.add(BOX_PAD_X), line_y, "line", xml_escape(line)))
+            j = j.add(1)
+        }
+        x = x.add(w).add(BOX_GAP_X)
+        i = i.add(1)
+    }
+
+    svg = svg.concat("</svg>").concat(NL)
+    return svg
+}
+
+main := proc(args: ..Str) {
     paths := ordered_paths()
-    writefile(out_path, generate_org(paths))
-    println("Generated: ", out_path)
+    types := collect_types(paths)
+    writefile("doc/uml.org", generate_org(paths, types))
+    writefile("doc/uml.svg", generate_svg(types))
+    println("Generated: doc/uml.org")
+    println("Generated: doc/uml.svg")
 }

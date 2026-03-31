@@ -1,0 +1,332 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="10052" height="1282" viewBox="0 0 10052 1282">
+  <defs>
+    <style>
+      .bg { fill: #f7f5ef; }
+      .box { fill: #fffdf8; stroke: #334155; stroke-width: 2; }
+      .title { font: 700 16px 'Courier New', monospace; fill: #111827; }
+      .line { font: 13px 'Courier New', monospace; fill: #1f2937; }
+    </style>
+  </defs>
+  <rect class="bg" x="0" y="0" width="10052" height="1282"/>
+  <rect x="24" y="24" width="172" height="1234" rx="10" ry="10" class="box"/>
+  <text x="38" y="62" class="title">TokenType: EnumDef</text>
+  <text x="38" y="80" class="line">Eof</text>
+  <text x="38" y="98" class="line">LParen</text>
+  <text x="38" y="116" class="line">RParen</text>
+  <text x="38" y="134" class="line">LBrace</text>
+  <text x="38" y="152" class="line">RBrace</text>
+  <text x="38" y="170" class="line">LBracket</text>
+  <text x="38" y="188" class="line">RBracket</text>
+  <text x="38" y="206" class="line">Comma</text>
+  <text x="38" y="224" class="line">Colon</text>
+  <text x="38" y="242" class="line">Question</text>
+  <text x="38" y="260" class="line">Bang</text>
+  <text x="38" y="278" class="line">Minus</text>
+  <text x="38" y="296" class="line">Plus</text>
+  <text x="38" y="314" class="line">Star</text>
+  <text x="38" y="332" class="line">Slash</text>
+  <text x="38" y="350" class="line">Dot</text>
+  <text x="38" y="368" class="line">DotDot</text>
+  <text x="38" y="386" class="line">DotDotDot</text>
+  <text x="38" y="404" class="line">Eq</text>
+  <text x="38" y="422" class="line">EqEq</text>
+  <text x="38" y="440" class="line">Neq</text>
+  <text x="38" y="458" class="line">Lt</text>
+  <text x="38" y="476" class="line">LtEq</text>
+  <text x="38" y="494" class="line">Gt</text>
+  <text x="38" y="512" class="line">GtEq</text>
+  <text x="38" y="530" class="line">ColonEq</text>
+  <text x="38" y="548" class="line">Ident</text>
+  <text x="38" y="566" class="line">StringTok</text>
+  <text x="38" y="584" class="line">Number</text>
+  <text x="38" y="602" class="line">Char</text>
+  <text x="38" y="620" class="line">KwMode</text>
+  <text x="38" y="638" class="line">KwMut</text>
+  <text x="38" y="656" class="line">KwOwn</text>
+  <text x="38" y="674" class="line">KwRef</text>
+  <text x="38" y="692" class="line">KwShallow</text>
+  <text x="38" y="710" class="line">KwStruct</text>
+  <text x="38" y="728" class="line">KwExtStruct</text>
+  <text x="38" y="746" class="line">KwEnum</text>
+  <text x="38" y="764" class="line">KwNamespace</text>
+  <text x="38" y="782" class="line">KwFunc</text>
+  <text x="38" y="800" class="line">KwProc</text>
+  <text x="38" y="818" class="line">KwTest</text>
+  <text x="38" y="836" class="line">KwMacro</text>
+  <text x="38" y="854" class="line">KwExtFunc</text>
+  <text x="38" y="872" class="line">KwExtProc</text>
+  <text x="38" y="890" class="line">KwReturns</text>
+  <text x="38" y="908" class="line">KwThrows</text>
+  <text x="38" y="926" class="line">KwIf</text>
+  <text x="38" y="944" class="line">KwElse</text>
+  <text x="38" y="962" class="line">KwWhile</text>
+  <text x="38" y="980" class="line">KwFor</text>
+  <text x="38" y="998" class="line">KwIn</text>
+  <text x="38" y="1016" class="line">KwSwitch</text>
+  <text x="38" y="1034" class="line">KwMatch</text>
+  <text x="38" y="1052" class="line">KwCase</text>
+  <text x="38" y="1070" class="line">KwDefault</text>
+  <text x="38" y="1088" class="line">KwReturn</text>
+  <text x="38" y="1106" class="line">KwThrow</text>
+  <text x="38" y="1124" class="line">KwCatch</text>
+  <text x="38" y="1142" class="line">KwBreak</text>
+  <text x="38" y="1160" class="line">KwContinue</text>
+  <text x="38" y="1178" class="line">KwDefer</text>
+  <text x="38" y="1196" class="line">KwTrue</text>
+  <text x="38" y="1214" class="line">KwFalse</text>
+  <text x="38" y="1232" class="line">KwNull</text>
+  <text x="38" y="1250" class="line">Error</text>
+  <rect x="224" y="24" width="196" height="118" rx="10" ry="10" class="box"/>
+  <text x="238" y="62" class="title">Token: StructDef</text>
+  <text x="238" y="80" class="line">type := TokenType.Eof</text>
+  <text x="238" y="98" class="line">text := &quot;&quot;</text>
+  <text x="238" y="116" class="line">line : U32 = 0</text>
+  <text x="238" y="134" class="line">col : U32 = 0</text>
+  <rect x="448" y="24" width="188" height="46" rx="10" ry="10" class="box"/>
+  <text x="462" y="62" class="title">StructDef: StructDef</text>
+  <rect x="664" y="24" width="172" height="46" rx="10" ry="10" class="box"/>
+  <text x="678" y="62" class="title">EnumDef: StructDef</text>
+  <rect x="864" y="24" width="156" height="352" rx="10" ry="10" class="box"/>
+  <text x="878" y="62" class="title">TilType: EnumDef</text>
+  <text x="878" y="80" class="line">Unknown</text>
+  <text x="878" y="98" class="line">None</text>
+  <text x="878" y="116" class="line">I64</text>
+  <text x="878" y="134" class="line">U8</text>
+  <text x="878" y="152" class="line">I16</text>
+  <text x="878" y="170" class="line">I32</text>
+  <text x="878" y="188" class="line">U32</text>
+  <text x="878" y="206" class="line">U64</text>
+  <text x="878" y="224" class="line">F32</text>
+  <text x="878" y="242" class="line">Bool</text>
+  <text x="878" y="260" class="line">Struct</text>
+  <text x="878" y="278" class="line">StructDef</text>
+  <text x="878" y="296" class="line">Enum</text>
+  <text x="878" y="314" class="line">EnumDef</text>
+  <text x="878" y="332" class="line">FuncDef</text>
+  <text x="878" y="350" class="line">FuncPtr</text>
+  <text x="878" y="368" class="line">Dynamic</text>
+  <rect x="1048" y="24" width="332" height="226" rx="10" ry="10" class="box"/>
+  <text x="1062" y="62" class="title">Declaration: StructDef</text>
+  <text x="1062" y="80" class="line">mut name := &quot;&quot;</text>
+  <text x="1062" y="98" class="line">mut explicit_type := &quot;&quot;</text>
+  <text x="1062" y="116" class="line">mut is_mut := false</text>
+  <text x="1062" y="134" class="line">mut is_namespace := false</text>
+  <text x="1062" y="152" class="line">mut is_ref := false</text>
+  <text x="1062" y="170" class="line">mut is_own := false</text>
+  <text x="1062" y="188" class="line">mut field_offset : I32 = 0</text>
+  <text x="1062" y="206" class="line">mut field_size : I32 = 0</text>
+  <text x="1062" y="224" class="line">ref mut field_struct_def : Expr = NULL</text>
+  <text x="1062" y="242" class="line">ref mut fn_sig : Expr = NULL</text>
+  <rect x="1408" y="24" width="164" height="154" rx="10" ry="10" class="box"/>
+  <text x="1422" y="62" class="title">FuncType: EnumDef</text>
+  <text x="1422" y="80" class="line">Func</text>
+  <text x="1422" y="98" class="line">Proc</text>
+  <text x="1422" y="116" class="line">Test</text>
+  <text x="1422" y="134" class="line">Macro</text>
+  <text x="1422" y="152" class="line">ExtFunc</text>
+  <text x="1422" y="170" class="line">ExtProc</text>
+  <rect x="1600" y="24" width="156" height="100" rx="10" ry="10" class="box"/>
+  <text x="1614" y="62" class="title">OwnType: EnumDef</text>
+  <text x="1614" y="80" class="line">Own</text>
+  <text x="1614" y="98" class="line">Ref</text>
+  <text x="1614" y="116" class="line">Shallow</text>
+  <rect x="1784" y="24" width="244" height="118" rx="10" ry="10" class="box"/>
+  <text x="1798" y="62" class="title">Param: StructDef</text>
+  <text x="1798" y="80" class="line">mut name := &quot;&quot;</text>
+  <text x="1798" y="98" class="line">mut ptype := &quot;&quot;</text>
+  <text x="1798" y="116" class="line">mut is_mut := false</text>
+  <text x="1798" y="134" class="line">mut own_type := OwnType.Ref</text>
+  <rect x="2056" y="24" width="580" height="190" rx="10" ry="10" class="box"/>
+  <text x="2070" y="62" class="title">FunctionDef: StructDef</text>
+  <text x="2070" y="80" class="line">mut func_type := FuncType.Func</text>
+  <text x="2070" y="98" class="line">mut params := Vec.new(&quot;Param&quot;, Param.size())</text>
+  <text x="2070" y="116" class="line">mut nparam : USize = 0</text>
+  <text x="2070" y="134" class="line">mut param_defaults := Map.new(&quot;Str&quot;, Str.size(), &quot;Expr&quot;, Expr.size())</text>
+  <text x="2070" y="152" class="line">mut return_type := &quot;&quot;</text>
+  <text x="2070" y="170" class="line">mut variadic_index : I32 = -1.to_i32()</text>
+  <text x="2070" y="188" class="line">mut kwargs_index : I32 = -1.to_i32()</text>
+  <text x="2070" y="206" class="line">mut return_own_type := OwnType.Own</text>
+  <rect x="2664" y="24" width="332" height="154" rx="10" ry="10" class="box"/>
+  <text x="2678" y="62" class="title">FCallData: StructDef</text>
+  <text x="2678" y="80" class="line">mut is_proc := false</text>
+  <text x="2678" y="98" class="line">mut variadic_index : I32 = -1.to_i32()</text>
+  <text x="2678" y="116" class="line">mut variadic_count : USize = 0</text>
+  <text x="2678" y="134" class="line">mut kwargs_index : I32 = -1.to_i32()</text>
+  <text x="2678" y="152" class="line">mut kwargs_count : USize = 0</text>
+  <text x="2678" y="170" class="line">ref mut fn_sig : Expr = NULL</text>
+  <rect x="3024" y="24" width="308" height="82" rx="10" ry="10" class="box"/>
+  <text x="3038" y="62" class="title">FieldDef: StructDef</text>
+  <text x="3038" y="80" class="line">mut decl := Declaration()</text>
+  <text x="3038" y="98" class="line">ref mut default_value : Expr = NULL</text>
+  <rect x="3360" y="24" width="428" height="82" rx="10" ry="10" class="box"/>
+  <text x="3374" y="62" class="title">StructDefData: StructDef</text>
+  <text x="3374" y="80" class="line">mut total_struct_size : I32 = 0</text>
+  <text x="3374" y="98" class="line">mut fields := Vec.new(&quot;FieldDef&quot;, FieldDef.size())</text>
+  <rect x="3816" y="24" width="212" height="496" rx="10" ry="10" class="box"/>
+  <text x="3830" y="62" class="title">ExprData: EnumDef</text>
+  <text x="3830" y="80" class="line">Body</text>
+  <text x="3830" y="98" class="line">LiteralStr:Str</text>
+  <text x="3830" y="116" class="line">LiteralNum:Str</text>
+  <text x="3830" y="134" class="line">LiteralBool:Bool</text>
+  <text x="3830" y="152" class="line">LiteralNull</text>
+  <text x="3830" y="170" class="line">Ident:Str</text>
+  <text x="3830" y="188" class="line">Decl:Declaration</text>
+  <text x="3830" y="206" class="line">Assign:Str</text>
+  <text x="3830" y="224" class="line">FCall:FCallData</text>
+  <text x="3830" y="242" class="line">FuncDef:FunctionDef</text>
+  <text x="3830" y="260" class="line">StructDef:StructDefData</text>
+  <text x="3830" y="278" class="line">EnumDef</text>
+  <text x="3830" y="296" class="line">FieldAccess:Str</text>
+  <text x="3830" y="314" class="line">FieldAssign:Str</text>
+  <text x="3830" y="332" class="line">Return</text>
+  <text x="3830" y="350" class="line">If</text>
+  <text x="3830" y="368" class="line">While</text>
+  <text x="3830" y="386" class="line">ForIn:Str</text>
+  <text x="3830" y="404" class="line">NamedArg:Str</text>
+  <text x="3830" y="422" class="line">Break</text>
+  <text x="3830" y="440" class="line">Continue</text>
+  <text x="3830" y="458" class="line">MapLit</text>
+  <text x="3830" y="476" class="line">SetLit</text>
+  <text x="3830" y="494" class="line">Switch</text>
+  <text x="3830" y="512" class="line">Case</text>
+  <rect x="4056" y="24" width="476" height="424" rx="10" ry="10" class="box"/>
+  <text x="4070" y="62" class="title">Expr: StructDef</text>
+  <text x="4070" y="80" class="line">mut data := ExprData.Body</text>
+  <text x="4070" y="98" class="line">mut til_type := TilType.Unknown</text>
+  <text x="4070" y="116" class="line">mut struct_name := &quot;&quot;</text>
+  <text x="4070" y="134" class="line">mut is_own_arg := false</text>
+  <text x="4070" y="152" class="line">mut is_splat := false</text>
+  <text x="4070" y="170" class="line">mut is_own_field := false</text>
+  <text x="4070" y="188" class="line">mut is_ref_field := false</text>
+  <text x="4070" y="206" class="line">mut is_ns_field := false</text>
+  <text x="4070" y="224" class="line">mut is_ext := false</text>
+  <text x="4070" y="242" class="line">mut is_core := false</text>
+  <text x="4070" y="260" class="line">mut save_old_delete := false</text>
+  <text x="4070" y="278" class="line">mut variadic_index : I32 = -1.to_i32()</text>
+  <text x="4070" y="296" class="line">mut variadic_count : USize = 0</text>
+  <text x="4070" y="314" class="line">mut kwargs_index : I32 = -1.to_i32()</text>
+  <text x="4070" y="332" class="line">mut kwargs_count : USize = 0</text>
+  <text x="4070" y="350" class="line">ref mut fn_sig : Expr = NULL</text>
+  <text x="4070" y="368" class="line">mut children := Vec(data = malloc(Expr.size()), cap = 1,</text>
+  <text x="4070" y="386" class="line">elem_size = Expr.size())</text>
+  <text x="4070" y="404" class="line">mut line : U32 = 0</text>
+  <text x="4070" y="422" class="line">mut col : U32 = 0</text>
+  <text x="4070" y="440" class="line">mut path := &quot;&quot;</text>
+  <rect x="4560" y="24" width="412" height="118" rx="10" ry="10" class="box"/>
+  <text x="4574" y="62" class="title">Parser: StructDef</text>
+  <text x="4574" y="80" class="line">mut tokens := Vec.new(&quot;Token&quot;, Token.size())</text>
+  <text x="4574" y="98" class="line">mut pos : USize = 0</text>
+  <text x="4574" y="116" class="line">mut path := &quot;&quot;</text>
+  <text x="4574" y="134" class="line">mut fn_sig_decls := Vec.new(&quot;Expr&quot;, Expr.size())</text>
+  <rect x="5000" y="24" width="292" height="352" rx="10" ry="10" class="box"/>
+  <text x="5014" y="62" class="title">TypeBinding: StructDef</text>
+  <text x="5014" y="80" class="line">ref mut name : Str = NULL</text>
+  <text x="5014" y="98" class="line">mut type := TilType.Unknown</text>
+  <text x="5014" y="116" class="line">mut is_proc : I32 = -1.to_i32()</text>
+  <text x="5014" y="134" class="line">mut is_mut := false</text>
+  <text x="5014" y="152" class="line">mut line : U32 = 0</text>
+  <text x="5014" y="170" class="line">mut col : U32 = 0</text>
+  <text x="5014" y="188" class="line">mut is_param := false</text>
+  <text x="5014" y="206" class="line">mut is_own := false</text>
+  <text x="5014" y="224" class="line">mut is_ref := false</text>
+  <text x="5014" y="242" class="line">mut is_alias := false</text>
+  <text x="5014" y="260" class="line">mut is_type_alias := false</text>
+  <text x="5014" y="278" class="line">ref mut alias_target : Str = NULL</text>
+  <text x="5014" y="296" class="line">ref mut struct_def : Expr = NULL</text>
+  <text x="5014" y="314" class="line">ref mut func_def : Expr = NULL</text>
+  <text x="5014" y="332" class="line">mut is_builtin := false</text>
+  <text x="5014" y="350" class="line">mut is_ext := false</text>
+  <text x="5014" y="368" class="line">mut struct_name := &quot;&quot;</text>
+  <rect x="5320" y="24" width="180" height="82" rx="10" ry="10" class="box"/>
+  <text x="5334" y="62" class="title">ScopeFind: EnumDef</text>
+  <text x="5334" y="80" class="line">NotFound</text>
+  <text x="5334" y="98" class="line">Found:TypeBinding }</text>
+  <rect x="5528" y="24" width="644" height="82" rx="10" ry="10" class="box"/>
+  <text x="5542" y="62" class="title">TypeScope: StructDef</text>
+  <text x="5542" y="80" class="line">mut bindings := Map.new(&quot;Str&quot;, Str.size(), &quot;TypeBinding&quot;, TypeBinding.size())</text>
+  <text x="5542" y="98" class="line">ref mut parent : TypeScope = NULL</text>
+  <rect x="6200" y="24" width="316" height="172" rx="10" ry="10" class="box"/>
+  <text x="6214" y="62" class="title">LocalInfo: StructDef</text>
+  <text x="6214" y="80" class="line">ref mut name : Str = NULL</text>
+  <text x="6214" y="98" class="line">mut type := TilType.Unknown</text>
+  <text x="6214" y="116" class="line">ref mut struct_name : Str = NULL</text>
+  <text x="6214" y="134" class="line">mut decl_index : I32 = 0</text>
+  <text x="6214" y="152" class="line">mut last_use : I32 = 0</text>
+  <text x="6214" y="170" class="line">mut own_transfer : I32 = -1.to_i32()</text>
+  <text x="6214" y="188" class="line">mut skip_scope_delete := false</text>
+  <rect x="6544" y="24" width="156" height="82" rx="10" ry="10" class="box"/>
+  <text x="6558" y="62" class="title">CtorArg: EnumDef</text>
+  <text x="6558" y="80" class="line">Unfilled</text>
+  <text x="6558" y="98" class="line">Filled:Expr</text>
+  <rect x="6728" y="24" width="268" height="82" rx="10" ry="10" class="box"/>
+  <text x="6742" y="62" class="title">CollectionInfo: StructDef</text>
+  <text x="6742" y="80" class="line">ref mut type_name : Str = NULL</text>
+  <text x="6742" y="98" class="line">mut is_vec : I32 = 0</text>
+  <rect x="7024" y="24" width="244" height="100" rx="10" ry="10" class="box"/>
+  <text x="7038" y="62" class="title">DynCallInfo: StructDef</text>
+  <text x="7038" y="80" class="line">ref mut method : Str = NULL</text>
+  <text x="7038" y="98" class="line">mut nargs : I32 = 1</text>
+  <text x="7038" y="116" class="line">mut has_return := false</text>
+  <rect x="7296" y="24" width="220" height="100" rx="10" ry="10" class="box"/>
+  <text x="7310" y="62" class="title">ExtStr: StructDef</text>
+  <text x="7310" y="80" class="line">ref mut data : U8 = NULL</text>
+  <text x="7310" y="98" class="line">mut count : U64 = 0</text>
+  <text x="7310" y="116" class="line">mut cap : U64 = 0</text>
+  <rect x="7544" y="24" width="300" height="172" rx="10" ry="10" class="box"/>
+  <text x="7558" y="62" class="title">FFIEntry: StructDef</text>
+  <text x="7558" y="80" class="line">ref mut fn : U8 = NULL</text>
+  <text x="7558" y="98" class="line">ref mut return_type : Str = NULL</text>
+  <text x="7558" y="116" class="line">mut nparam : I32 = 0</text>
+  <text x="7558" y="134" class="line">ref mut param_shallows : U8 = NULL</text>
+  <text x="7558" y="152" class="line">mut return_is_shallow := false</text>
+  <text x="7558" y="170" class="line">ref mut cif : U8 = NULL</text>
+  <text x="7558" y="188" class="line">ref mut arg_types : U8 = NULL</text>
+  <rect x="7872" y="24" width="284" height="118" rx="10" ry="10" class="box"/>
+  <text x="7886" y="62" class="title">StructInstance: StructDef</text>
+  <text x="7886" y="80" class="line">ref mut struct_name : Str = NULL</text>
+  <text x="7886" y="98" class="line">ref mut struct_def : Expr = NULL</text>
+  <text x="7886" y="116" class="line">own mut data : U8 = 0</text>
+  <text x="7886" y="134" class="line">mut borrowed := false</text>
+  <rect x="8184" y="24" width="268" height="118" rx="10" ry="10" class="box"/>
+  <text x="8198" y="62" class="title">EnumInstance: StructDef</text>
+  <text x="8198" y="80" class="line">ref mut enum_name : Str = NULL</text>
+  <text x="8198" y="98" class="line">ref mut enum_def : Expr = NULL</text>
+  <text x="8198" y="116" class="line">ref mut data : U8 = NULL</text>
+  <text x="8198" y="134" class="line">mut data_size : I32 = 0</text>
+  <rect x="8480" y="24" width="196" height="280" rx="10" ry="10" class="box"/>
+  <text x="8494" y="62" class="title">Value: EnumDef</text>
+  <text x="8494" y="80" class="line">None</text>
+  <text x="8494" y="98" class="line">Int:I64</text>
+  <text x="8494" y="116" class="line">Byte:U8</text>
+  <text x="8494" y="134" class="line">Short:I16</text>
+  <text x="8494" y="152" class="line">Int32:I32</text>
+  <text x="8494" y="170" class="line">Uint32:U32</text>
+  <text x="8494" y="188" class="line">Uint64:U64</text>
+  <text x="8494" y="206" class="line">Float:F32</text>
+  <text x="8494" y="224" class="line">Boolean:Bool</text>
+  <text x="8494" y="242" class="line">Func:Dynamic</text>
+  <text x="8494" y="260" class="line">Struct:StructInstance</text>
+  <text x="8494" y="278" class="line">Enum:EnumInstance</text>
+  <text x="8494" y="296" class="line">Ptr:Dynamic</text>
+  <rect x="8704" y="24" width="196" height="64" rx="10" ry="10" class="box"/>
+  <text x="8718" y="62" class="title">Cell: StructDef</text>
+  <text x="8718" y="80" class="line">mut val := Value.None</text>
+  <rect x="8928" y="24" width="236" height="100" rx="10" ry="10" class="box"/>
+  <text x="8942" y="62" class="title">Binding: StructDef</text>
+  <text x="8942" y="80" class="line">ref mut name : Str = NULL</text>
+  <text x="8942" y="98" class="line">ref mut cell : Cell = NULL</text>
+  <text x="8942" y="116" class="line">mut cell_is_local := false</text>
+  <rect x="9192" y="24" width="580" height="82" rx="10" ry="10" class="box"/>
+  <text x="9206" y="62" class="title">Scope: StructDef</text>
+  <text x="9206" y="80" class="line">mut bindings := Map.new(&quot;Str&quot;, Str.size(), &quot;Binding&quot;, Binding.size())</text>
+  <text x="9206" y="98" class="line">ref mut parent : Scope = NULL</text>
+  <rect x="9800" y="24" width="228" height="172" rx="10" ry="10" class="box"/>
+  <text x="9814" y="62" class="title">Mode: StructDef</text>
+  <text x="9814" y="80" class="line">mut name := &quot;&quot;</text>
+  <text x="9814" y="98" class="line">mut needs_main := false</text>
+  <text x="9814" y="116" class="line">mut decls_only := false</text>
+  <text x="9814" y="134" class="line">mut auto_import := &quot;&quot;</text>
+  <text x="9814" y="152" class="line">mut is_library := false</text>
+  <text x="9814" y="170" class="line">mut is_pure := false</text>
+  <text x="9814" y="188" class="line">mut debug_prints := false</text>
+</svg>

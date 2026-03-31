@@ -1,5 +1,5 @@
 * lexer
-** TokenType
+** TokenType: EnumDef
 *** Eof
 *** LParen
 *** RParen
@@ -66,15 +66,15 @@
 *** KwFalse
 *** KwNull
 *** Error
-** Token
+** Token: StructDef
 *** type := TokenType.Eof
 *** text := ""
 *** line : U32 = 0
 *** col : U32 = 0
 * ast
-** StructDef
-** EnumDef
-** TilType
+** StructDef: StructDef
+** EnumDef: StructDef
+** TilType: EnumDef
 *** Unknown
 *** None
 *** I64
@@ -92,7 +92,7 @@
 *** FuncDef
 *** FuncPtr
 *** Dynamic
-** Declaration
+** Declaration: StructDef
 *** mut name := ""
 *** mut explicit_type := ""
 *** mut is_mut := false
@@ -103,23 +103,23 @@
 *** mut field_size : I32 = 0
 *** ref mut field_struct_def : Expr = NULL
 *** ref mut fn_sig : Expr = NULL
-** FuncType
+** FuncType: EnumDef
 *** Func
 *** Proc
 *** Test
 *** Macro
 *** ExtFunc
 *** ExtProc
-** OwnType
+** OwnType: EnumDef
 *** Own
 *** Ref
 *** Shallow
-** Param
+** Param: StructDef
 *** mut name := ""
 *** mut ptype := ""
 *** mut is_mut := false
 *** mut own_type := OwnType.Ref
-** FunctionDef
+** FunctionDef: StructDef
 *** mut func_type := FuncType.Func
 *** mut params := Vec.new("Param", Param.size())
 *** mut nparam : USize = 0
@@ -128,46 +128,46 @@
 *** mut variadic_index : I32 = -1.to_i32()
 *** mut kwargs_index : I32 = -1.to_i32()
 *** mut return_own_type := OwnType.Own
-** FCallData
+** FCallData: StructDef
 *** mut is_proc := false
 *** mut variadic_index : I32 = -1.to_i32()
 *** mut variadic_count : USize = 0
 *** mut kwargs_index : I32 = -1.to_i32()
 *** mut kwargs_count : USize = 0
 *** ref mut fn_sig : Expr = NULL
-** FieldDef
+** FieldDef: StructDef
 *** mut decl := Declaration()
 *** ref mut default_value : Expr = NULL
-** StructDefData
+** StructDefData: StructDef
 *** mut total_struct_size : I32 = 0
 *** mut fields := Vec.new("FieldDef", FieldDef.size())
-** ExprData
+** ExprData: EnumDef
 *** Body
-*** LiteralStr : Str
-*** LiteralNum : Str
-*** LiteralBool : Bool
+*** LiteralStr:Str
+*** LiteralNum:Str
+*** LiteralBool:Bool
 *** LiteralNull
-*** Ident : Str
-*** Decl : Declaration
-*** Assign : Str
-*** FCall : FCallData
-*** FuncDef : FunctionDef
-*** StructDef : StructDefData
+*** Ident:Str
+*** Decl:Declaration
+*** Assign:Str
+*** FCall:FCallData
+*** FuncDef:FunctionDef
+*** StructDef:StructDefData
 *** EnumDef
-*** FieldAccess : Str
-*** FieldAssign : Str
+*** FieldAccess:Str
+*** FieldAssign:Str
 *** Return
 *** If
 *** While
-*** ForIn : Str
-*** NamedArg : Str
+*** ForIn:Str
+*** NamedArg:Str
 *** Break
 *** Continue
 *** MapLit
 *** SetLit
 *** Switch
 *** Case
-** Expr
+** Expr: StructDef
 *** mut data := ExprData.Body
 *** mut til_type := TilType.Unknown
 *** mut struct_name := ""
@@ -190,13 +190,13 @@
 *** mut col : U32 = 0
 *** mut path := ""
 * parser
-** Parser
+** Parser: StructDef
 *** mut tokens := Vec.new("Token", Token.size())
 *** mut pos : USize = 0
 *** mut path := ""
 *** mut fn_sig_decls := Vec.new("Expr", Expr.size())
 * initer
-** TypeBinding
+** TypeBinding: StructDef
 *** ref mut name : Str = NULL
 *** mut type := TilType.Unknown
 *** mut is_proc : I32 = -1.to_i32()
@@ -214,14 +214,14 @@
 *** mut is_builtin := false
 *** mut is_ext := false
 *** mut struct_name := ""
-** ScopeFind
+** ScopeFind: EnumDef
 *** NotFound
-*** Found : TypeBinding }
-** TypeScope
+*** Found:TypeBinding }
+** TypeScope: StructDef
 *** mut bindings := Map.new("Str", Str.size(), "TypeBinding", TypeBinding.size())
 *** ref mut parent : TypeScope = NULL
 * typer
-** LocalInfo
+** LocalInfo: StructDef
 *** ref mut name : Str = NULL
 *** mut type := TilType.Unknown
 *** ref mut struct_name : Str = NULL
@@ -229,25 +229,25 @@
 *** mut last_use : I32 = 0
 *** mut own_transfer : I32 = -1.to_i32()
 *** mut skip_scope_delete := false
-** CtorArg
+** CtorArg: EnumDef
 *** Unfilled
-*** Filled : Expr
+*** Filled:Expr
 * precomp
 * scavenger
 * builder
-** CollectionInfo
+** CollectionInfo: StructDef
 *** ref mut type_name : Str = NULL
 *** mut is_vec : I32 = 0
-** DynCallInfo
+** DynCallInfo: StructDef
 *** ref mut method : Str = NULL
 *** mut nargs : I32 = 1
 *** mut has_return := false
 * dispatch
-** ExtStr
+** ExtStr: StructDef
 *** ref mut data : U8 = NULL
 *** mut count : U64 = 0
 *** mut cap : U64 = 0
-** FFIEntry
+** FFIEntry: StructDef
 *** ref mut fn : U8 = NULL
 *** ref mut return_type : Str = NULL
 *** mut nparam : I32 = 0
@@ -256,41 +256,41 @@
 *** ref mut cif : U8 = NULL
 *** ref mut arg_types : U8 = NULL
 * interpreter
-** StructInstance
+** StructInstance: StructDef
 *** ref mut struct_name : Str = NULL
 *** ref mut struct_def : Expr = NULL
 *** own mut data : U8 = 0
 *** mut borrowed := false
-** EnumInstance
+** EnumInstance: StructDef
 *** ref mut enum_name : Str = NULL
 *** ref mut enum_def : Expr = NULL
 *** ref mut data : U8 = NULL
 *** mut data_size : I32 = 0
-** Value
+** Value: EnumDef
 *** None
-*** Int : I64
-*** Byte : U8
-*** Short : I16
-*** Int32 : I32
-*** Uint32 : U32
-*** Uint64 : U64
-*** Float : F32
-*** Boolean : Bool
-*** Func : Dynamic
-*** Struct : StructInstance
-*** Enum : EnumInstance
-*** Ptr : Dynamic
-** Cell
+*** Int:I64
+*** Byte:U8
+*** Short:I16
+*** Int32:I32
+*** Uint32:U32
+*** Uint64:U64
+*** Float:F32
+*** Boolean:Bool
+*** Func:Dynamic
+*** Struct:StructInstance
+*** Enum:EnumInstance
+*** Ptr:Dynamic
+** Cell: StructDef
 *** mut val := Value.None
-** Binding
+** Binding: StructDef
 *** ref mut name : Str = NULL
 *** ref mut cell : Cell = NULL
 *** mut cell_is_local := false
-** Scope
+** Scope: StructDef
 *** mut bindings := Map.new("Str", Str.size(), "Binding", Binding.size())
 *** ref mut parent : Scope = NULL
 * modes
-** Mode
+** Mode: StructDef
 *** mut name := ""
 *** mut needs_main := false
 *** mut decls_only := false
