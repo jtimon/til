@@ -40,6 +40,12 @@ typedef enum {
     FuncType_TAG_ExtProc
 } FuncType_tag;
 typedef struct FuncType FuncType;
+typedef enum {
+    OwnType_TAG_Own,
+    OwnType_TAG_Ref,
+    OwnType_TAG_Shallow
+} OwnType_tag;
+typedef struct OwnType OwnType;
 typedef struct Param Param;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
@@ -246,12 +252,15 @@ struct FuncType {
     FuncType_tag tag;
 };
 
+struct OwnType {
+    OwnType_tag tag;
+};
+
 typedef struct Param {
     Str name;
     Str ptype;
     Bool is_mut;
-    Bool is_own;
-    Bool is_shallow;
+    OwnType own_type;
 } Param;
 
 
@@ -666,6 +675,12 @@ void FuncType_delete(FuncType * self, Bool * call_free);
 Str * FuncType_to_str(FuncType * self);
 FuncType * FuncType_clone(FuncType * self);
 U32 * FuncType_size(void);
+Bool * OwnType_is(OwnType * self, OwnType * other);
+Bool * OwnType_eq(OwnType * self, OwnType * other);
+void OwnType_delete(OwnType * self, Bool * call_free);
+Str * OwnType_to_str(OwnType * self);
+OwnType * OwnType_clone(OwnType * self);
+U32 * OwnType_size(void);
 Param * Param_clone(Param * self);
 void Param_delete(Param * self, Bool * call_free);
 U32 * Param_size(void);

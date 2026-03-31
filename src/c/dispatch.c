@@ -25,6 +25,8 @@ U64 U64_from_i64(I64 v);
 #include <time.h>
 #include <ffi.h>
 
+#define PARAM_IS_SHALLOW(p) ((p)->own_type.tag == OwnType_TAG_Shallow)
+
 // Codegen Str layout (matches ext.h Str: {U8 *data, U64 count, U64 cap})
 // Distinct from compiler-internal Str (str.h: {char *c_str, U64 count, U64 cap})
 // ExtStr defined in dispatch.til (generated into boot/modes.h)
@@ -703,7 +705,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     bool has_shallow = false;
     for (U32 k = 0; k < np; k++) {
         Param *_pk = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)});
-        if (_pk->is_shallow) {
+        if (PARAM_IS_SHALLOW(_pk)) {
             atypes[k] = shallow_ffi_type(&_pk->ptype);
             has_shallow = true;
         } else {
@@ -713,7 +715,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     if (has_shallow) {
         pshallows = malloc(sizeof(bool) * np);
         for (U32 k = 0; k < np; k++)
-            pshallows[k] = ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)}))->is_shallow;
+            pshallows[k] = PARAM_IS_SHALLOW(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)})));
     }
     bool ret_shallow = fdef->data.data.FuncDef.return_is_shallow;
     ffi_cif *cif = malloc(sizeof(ffi_cif));

@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define PARAM_IS_OWN(p) ((p)->own_type.tag == OwnType_TAG_Own)
+#define PARAM_IS_SHALLOW(p) ((p)->own_type.tag == OwnType_TAG_Shallow)
+
 static Expr *codegen_program; // set during codegen for ns_init lookups
 static Map struct_bodies; // Str* name → Expr* body (ExprData_TAG_Body)
 static Map func_defs;     // Str* name → Expr* func_def (ExprData_TAG_FuncDef)
@@ -296,7 +299,7 @@ static Bool is_shallow_param(const char *name) {
     if (!current_fdef) return 0;
     for (U32 i = 0; i < current_fdef->data.data.FuncDef.nparam; i++) {
         Param *_spi = (Param*)Vec_get(&current_fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
-        if (_spi->is_shallow &&
+        if (PARAM_IS_SHALLOW(_spi) &&
             strcmp((const char *)_spi->name.c_str, name) == 0)
             return 1;
     }
@@ -382,7 +385,7 @@ static Bool callee_param_is_shallow(Str *callee_name, U32 arg_index) {
     Expr *fdef = find_callee_fdef(callee_name);
     if (!fdef) return 0;
     if (arg_index >= fdef->data.data.FuncDef.nparam) return 0;
-    return fdef->data.data.FuncDef.params.count > 0 && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)}))->is_shallow;
+    return fdef->data.data.FuncDef.params.count > 0 && PARAM_IS_SHALLOW(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)})));
 }
 
 static Bool callee_param_is_usize(Str *callee_name, U32 arg_index) {
@@ -397,7 +400,7 @@ static Bool callee_param_is_own(Str *callee_name, U32 arg_index) {
     Expr *fdef = find_callee_fdef(callee_name);
     if (!fdef) return 0;
     if (arg_index >= fdef->data.data.FuncDef.nparam) return 0;
-    return ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)}))->is_own;
+    return PARAM_IS_OWN(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)})));
 }
 
 // Map til function names to C symbol names (handles stdlib collisions)
@@ -460,7 +463,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 Expr *arg = Expr_child(e, &(USize){(USize)(i)});
                 Bool arg_shallow = 0;
                 if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
-                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->is_shallow;
+                    arg_shallow = PARAM_IS_SHALLOW(((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)})));
                 }
                 const char *arg_c = "void *";
                 if (arg->til_type.tag != TilType_TAG_Unknown && arg->til_type.tag != TilType_TAG_Dynamic) {
@@ -486,7 +489,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 if (i > 1) fprintf(f, ", ");
                 Bool arg_shallow = 0;
                 if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
-                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->is_shallow;
+                    arg_shallow = PARAM_IS_SHALLOW(((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)})));
                 }
                 if (arg_shallow)
                     emit_deref(f, Expr_child(e, &(USize){(USize)(i)}), depth);
@@ -589,7 +592,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 Expr *arg = Expr_child(e, &(USize){(USize)(i)});
                 Bool arg_shallow = 0;
                 if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
-                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->is_shallow;
+                    arg_shallow = PARAM_IS_SHALLOW(((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)})));
                 }
                 const char *arg_c = "void *";
                 if (arg->til_type.tag != TilType_TAG_Unknown && arg->til_type.tag != TilType_TAG_Dynamic) {
@@ -616,7 +619,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 if (i > 1) fprintf(f, ", ");
                 Bool arg_shallow2 = 0;
                 if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
-                    arg_shallow2 = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->is_shallow;
+                    arg_shallow2 = PARAM_IS_SHALLOW(((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)})));
                 }
                 if (arg_shallow2)
                     emit_deref(f, Expr_child(e, &(USize){(USize)(i)}), depth);
@@ -770,7 +773,7 @@ static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
                 ptype = type_name_to_c(&_epi->ptype);
             } else {
                 Param *_epi = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
-                if (_epi->is_shallow) {
+                if (PARAM_IS_SHALLOW(_epi)) {
                     ptype = type_name_to_c_value(&_epi->ptype);
                 } else {
                     ptype = type_name_to_c(&_epi->ptype);
@@ -2366,12 +2369,12 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 // Build arg expressions with shallow dereference where needed
                 char arg1[64], arg2_str[64];
                 Vec *ps = &method_fdef->data.data.FuncDef.params;
-                if (ps->count > 0 && ((Param*)Vec_get(ps, &(USize){(USize)(0)}))->is_shallow)
+                if (ps->count > 0 && PARAM_IS_SHALLOW(((Param*)Vec_get(ps, &(USize){(USize)(0)}))))
                     snprintf(arg1, sizeof(arg1), "*(%s *)val", tname->c_str);
                 else
                     snprintf(arg1, sizeof(arg1), "val");
                 if (info->nargs == 2) {
-                    if (ps->count > 1 && method_fdef->data.data.FuncDef.nparam > 1 && ((Param*)Vec_get(ps, &(USize){(USize)(1)}))->is_shallow)
+                    if (ps->count > 1 && method_fdef->data.data.FuncDef.nparam > 1 && PARAM_IS_SHALLOW(((Param*)Vec_get(ps, &(USize){(USize)(1)}))))
                         snprintf(arg2_str, sizeof(arg2_str), "*(%s *)arg2", tname->c_str);
                     else
                         snprintf(arg2_str, sizeof(arg2_str), "arg2");
@@ -2431,7 +2434,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 Bool has_return = ret_type->count > 0;
                 Bool any_shallow = ret_shallow;
                 for (U32 p = 0; p < np; p++) {
-                    if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)}))->is_shallow)
+                    if (PARAM_IS_SHALLOW(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)}))))
                         any_shallow = 1;
                 }
                 if (!any_shallow) continue; // no wrapper needed
@@ -2459,7 +2462,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 for (U32 p = 0; p < np; p++) {
                     if (p > 0) fprintf(f, ", ");
                     Param *param = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)});
-                    if (param->is_shallow) {
+                    if (PARAM_IS_SHALLOW(param)) {
                         const char *pc = type_name_to_c_value(&param->ptype);
                         fprintf(f, "*(%s *)_a%d", pc, p);
                     } else {
@@ -2490,7 +2493,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 Str *mname = &field->data.data.Decl.name;
                 Bool any_shallow = fdef->data.data.FuncDef.return_is_shallow;
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
-                    if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)}))->is_shallow)
+                    if (PARAM_IS_SHALLOW(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)}))))
                         any_shallow = 1;
                 }
                 const char *suffix = any_shallow ? "_dyn" : "";
@@ -3312,7 +3315,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (p > 0) fprintf(f, ", ");
                     Param *_sp = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)});
-                    if (_sp->is_own)
+                    if (PARAM_IS_OWN(_sp))
                         fprintf(f, "own ");
                     fprintf(f, "%s: %s", _sp->name.c_str, _sp->ptype.c_str);
                 }
@@ -3354,7 +3357,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (p > 0) fprintf(f, ", ");
                     Param *_ep = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)});
-                    if (_ep->is_own)
+                    if (PARAM_IS_OWN(_ep))
                         fprintf(f, "own ");
                     fprintf(f, "%s: %s", _ep->name.c_str, _ep->ptype.c_str);
                 }
@@ -3378,7 +3381,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
             for (U32 p = 0; p < rhs->data.data.FuncDef.nparam; p++) {
                 if (p > 0) fprintf(f, ", ");
                 Param *_fp = (Param*)Vec_get(&rhs->data.data.FuncDef.params, &(USize){(USize)(p)});
-                if (_fp->is_own)
+                if (PARAM_IS_OWN(_fp))
                     fprintf(f, "own ");
                 I32 vi = rhs->data.data.FuncDef.variadic_index;
                 I32 kwi = rhs->data.data.FuncDef.kwargs_index;

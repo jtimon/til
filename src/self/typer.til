@@ -167,7 +167,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
             }
         }
         ref pp2 : Param = fdef_data.params.get(pi)
-        pown := pp2.is_own
+        pown := pp2.own_type.eq(OwnType.Own)
         ref arg : Expr = e.child(ci)
         if pown {
             if arg.is_own_arg.not() {
@@ -192,7 +192,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
                 type_error(arg, "cannot pass null to 'own' parameter")
             }
         }
-        if pp2.is_shallow {
+        if pp2.own_type.eq(OwnType.Shallow) {
             if is_variant(arg.data, ExprData.LiteralNull) {
                 type_error(arg, "cannot pass null to 'shallow' parameter")
             }
@@ -905,7 +905,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             for i in 1..e.child_count() {
                 if i.sub(1).gte(np) { break }
                 ref pp : Param = ns_fdef4.params.get(i.sub(1))
-                pown := pp.is_own
+                pown := pp.own_type.eq(OwnType.Own)
                 ref arg : Expr = e.child(i)
                 if pown {
                     if arg.is_own_arg.not() {
@@ -930,7 +930,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                         type_error(arg, "cannot pass null to 'own' parameter")
                     }
                 }
-                if pp.is_shallow {
+                if pp.own_type.eq(OwnType.Shallow) {
                     if is_variant(arg.data, ExprData.LiteralNull) {
                         type_error(arg, "cannot pass null to 'shallow' parameter")
                     }
@@ -1145,8 +1145,8 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr) {
             type_error(expr, "undefined type '".concat(ptn).concat("'"))
         }
         pmut := param.is_mut
-        pown := param.is_own
-        pshallow := param.is_shallow
+        pown := param.own_type.eq(OwnType.Own)
+        pshallow := param.own_type.eq(OwnType.Shallow)
         if pshallow {
             is_scalar := is_variant(pt, TilType.I64)
                 .or(is_variant(pt, TilType.U8))
@@ -1164,12 +1164,12 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr) {
             }
         }
         if i.to_i64().to_i32().eq(fdef.variadic_index) {
-            param.is_own = true
+            param.own_type = OwnType.Own
             func_scope.set(param.name, TilType.Struct, -1.to_i32(), false, expr.line, expr.col, true, true)
             ref mut pb : TypeBinding = func_scope.get_binding(param.name)
             pb.struct_name = "Array"
         } else if i.to_i64().to_i32().eq(fdef.kwargs_index) {
-            param.is_own = true
+            param.own_type = OwnType.Own
             func_scope.set(param.name, TilType.Struct, -1.to_i32(), false, expr.line, expr.col, true, true)
             ref mut pb : TypeBinding = func_scope.get_binding(param.name)
             pb.struct_name = "DynMap"
@@ -3599,7 +3599,7 @@ check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow B
     for i in 0..fd.nparam {
         if i.add(1).gte(fcall.child_count()) { return false }
         ref p : Param = fd.params.get(i)
-        if p.is_own {
+        if p.own_type.eq(OwnType.Own) {
             ref arg : Expr = fcall.child(i.add(1))
             if is_variant(arg.data, ExprData.Ident) {
                 ref _ai : Str = get_payload(arg.data)

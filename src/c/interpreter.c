@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define PARAM_IS_OWN(p) ((p)->own_type.tag == OwnType_TAG_Own)
+
 // Forward declarations (defined in ast.c)
 
 
@@ -678,7 +680,7 @@ Value eval_call(Scope *scope, Expr *e) {
         // Guard: skip call if first 'own' param is val_none, borrowed struct, or Value_TAG_Ptr
         if (func_def->data.data.FuncDef.nparam > 0 &&
             func_def->data.data.FuncDef.params.count > 0 &&
-            ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->is_own &&
+            PARAM_IS_OWN(((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))) &&
             e->children.count > 1 && Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident) {
             Cell *fc = scope_get(scope, &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident);
             if (fc && fc->val.tag == Value_TAG_None) return val_none();
@@ -847,7 +849,7 @@ Value eval_call(Scope *scope, Expr *e) {
     // Guard: skip call if first 'own' param is val_none, borrowed struct, or Value_TAG_Ptr
     if (func_def->data.data.FuncDef.nparam > 0 &&
         func_def->data.data.FuncDef.params.count > 0 &&
-        ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->is_own &&
+        PARAM_IS_OWN(((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))) &&
         e->children.count > 1 && Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident) {
         Cell *fc = scope_get(scope, &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident);
         if (fc && fc->val.tag == Value_TAG_None) return val_none();

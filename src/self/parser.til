@@ -231,7 +231,13 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             panic(__LOC__, "positional param not allowed after variadic")
         }
 
-        fd.params.push(own Param(name = nm, ptype = tp, is_mut = is_mut, is_own = is_own, is_shallow = is_shallow))
+        mut own_type := OwnType.Ref
+        if is_own {
+            own_type = OwnType.Own
+        } else if is_shallow {
+            own_type = OwnType.Shallow
+        }
+        fd.params.push(own Param(name = nm, ptype = tp, is_mut = is_mut, own_type = own_type))
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)

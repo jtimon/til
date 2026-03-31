@@ -60,13 +60,16 @@ FuncType := enum {
     Func, Proc, Test, Macro, ExtFunc, ExtProc,
 }
 
+OwnType := enum {
+    Own, Ref, Shallow,
+}
+
 // --- Param struct ---
 Param := struct {
     mut name := ""
     mut ptype := ""
     mut is_mut := false
-    mut is_own := false
-    mut is_shallow := false
+    mut own_type := OwnType.Ref
 }
 
 // --- FunctionDef struct ---

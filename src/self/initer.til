@@ -521,7 +521,7 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
     fdecl.nparam = 2
-    fdecl.params.push(own Param(name = "self", ptype = ename.clone(), is_own = true))
+    fdecl.params.push(own Param(name = "self", ptype = ename.clone(), own_type = OwnType.Own))
     fdecl.params.push(own Param(name = "call_free", ptype = "Bool"))
     fdecl.param_defaults.set(own "call_free".clone(), own default_true.clone())
     fdecl.variadic_index = -1.to_i32()
@@ -932,7 +932,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
         mut proc_decl := FunctionDef()
         proc_decl.func_type = FuncType.Func
         proc_decl.nparam = 2
-        proc_decl.params.push(own Param(name = "self", ptype = sname.clone(), is_own = true))
+        proc_decl.params.push(own Param(name = "self", ptype = sname.clone(), own_type = OwnType.Own))
         proc_decl.params.push(own Param(name = "call_free", ptype = "Bool"))
         proc_decl.param_defaults.set(own "call_free".clone(), own default_true.clone())
         proc_decl.variadic_index = -1.to_i32()
@@ -1069,8 +1069,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
                             ref sp : Param = sigdef.params.get(j)
                             dp.ptype = sp.ptype
                             dp.is_mut = sp.is_mut
-                            dp.is_own = sp.is_own
-                            dp.is_shallow = sp.is_shallow
+                            dp.own_type = sp.own_type
                         }
                         fdef.return_type = sigdef.return_type
                         fdef.return_is_ref = sigdef.return_is_ref
