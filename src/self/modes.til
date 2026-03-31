@@ -9,7 +9,6 @@ import("builder.til")
 import("dispatch.til")
 
 Mode := struct {
-    mut name := ""
     mut needs_main := false
     mut decls_only := true
     mut auto_import := ""
@@ -17,22 +16,18 @@ Mode := struct {
     mut is_pure := false
     mut run_tests := false
     mut debug_prints := false
-    namespace:
-    eq := func(a: Mode, b: Mode) returns Bool {
-        return a.name.eq(b.name)
-    }
 }
 
 // Core mode registry — user-defined modes (#63) will add to this via -M flag
 core_modes := {
-    "script": Mode(name = "script", decls_only = false),
-    "cli":    Mode(name = "cli", needs_main = true),
-    "gui":    Mode(name = "gui", needs_main = true, auto_import = "gui"),
-    "test":   Mode(name = "test", run_tests = true),
-    "pure":   Mode(name = "pure", is_library = true, is_pure = true),
-    "pura":   Mode(name = "pura", is_library = true, is_pure = true, debug_prints = true),
-    "lib":    Mode(name = "lib", is_library = true),
-    "liba":   Mode(name = "liba", is_library = true, debug_prints = true),
+    "script": Mode(decls_only = false),
+    "cli":    Mode(needs_main = true),
+    "gui":    Mode(needs_main = true, auto_import = "gui"),
+    "test":   Mode(run_tests = true),
+    "pure":   Mode(is_library = true, is_pure = true),
+    "pura":   Mode(is_library = true, is_pure = true, debug_prints = true),
+    "lib":    Mode(is_library = true),
+    "liba":   Mode(is_library = true, debug_prints = true),
 }
 
 mode_resolve := func(name: Str) returns ref Mode {

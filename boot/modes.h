@@ -440,7 +440,6 @@ typedef struct FFIEntry {
 
 
 typedef struct Mode {
-    Str name;
     Bool needs_main;
     Bool decls_only;
     Str auto_import;
@@ -1091,7 +1090,6 @@ Bool ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result);
 Bool enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result);
 I32 ffi_init(Expr * program, Str * user_c_path, Str * ext_c_path, Str * link_flags);
 void ffi_cleanup(void);
-Bool * Mode_eq(Mode * a, Mode * b);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);
 U32 * Mode_size(void);

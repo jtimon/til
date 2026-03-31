@@ -1572,7 +1572,7 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
         Str main_name = {.c_str = (U8 *)"main", .count = 4};
         Cell *main_cell = scope_get(global, &main_name);
         if (!main_cell || main_cell->val.tag != Value_TAG_Func) {
-            fprintf(stderr, "%s: error: mode '%.*s' requires a 'main' proc\n", path->c_str, (int)mode->name.count, (const char *)mode->name.c_str);
+            fprintf(stderr, "%s: error: this mode requires a 'main' proc\n", path->c_str);
             scope_free(global);
             return 1;
         }

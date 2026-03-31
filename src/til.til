@@ -270,12 +270,12 @@ main := proc(args: ..Str) {
     mut mode_str := ""
     ast := parse(tokens, path.clone(), mode_str)
     imports := extract_imports(ast)
-    ref mut cur_mode : Mode = mode_resolve("script")
-    if mode_str.len().gt(0) {
-        cur_mode = mode_resolve(mode_str)
-        if cur_mode.name.len().eq(0) {
-            panic(__LOC__, "unknown mode '".concat(mode_str).concat("'"))
-        }
+    if mode_str.len().eq(0) {
+        mode_str = "script"
+    }
+    ref mut cur_mode : Mode = mode_resolve(mode_str)
+    if is_null(cur_mode) {
+        panic(__LOC__, "unknown mode '".concat(mode_str).concat("'"))
     }
 
     // If mode has auto_import, load its .til declarations
@@ -522,7 +522,7 @@ main := proc(args: ..Str) {
             result = system_cmd(cmd)
         }
     } else if command.eq("ast") {
-        println("mode: ".concat(cur_mode.name))
+        println("mode: ".concat(mode_str))
         ast_print(ast, 0)
     } else {
         println("error: unknown command '".concat(command).concat("'"))

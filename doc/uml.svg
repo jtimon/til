@@ -339,16 +339,15 @@
   <text x="3600" y="896" class="title">Scope: StructDef</text>
   <text x="3600" y="914" class="line">mut bindings := Map.new(&quot;Str&quot;, Str.size(), &quot;Binding&quot;, Binding.size())</text>
   <text x="3600" y="932" class="line">ref mut parent : Scope = NULL</text>
-  <rect x="4220" y="24" width="268" height="272" rx="14" ry="14" class="panel"/>
+  <rect x="4220" y="24" width="268" height="254" rx="14" ry="14" class="panel"/>
   <text x="4240" y="62" class="panel-label">modes</text>
-  <rect x="4240" y="88" width="228" height="190" rx="10" ry="10" class="box"/>
+  <rect x="4240" y="88" width="228" height="172" rx="10" ry="10" class="box"/>
   <text x="4254" y="126" class="title">Mode: StructDef</text>
-  <text x="4254" y="144" class="line">mut name := &quot;&quot;</text>
-  <text x="4254" y="162" class="line">mut needs_main := false</text>
-  <text x="4254" y="180" class="line">mut decls_only := true</text>
-  <text x="4254" y="198" class="line">mut auto_import := &quot;&quot;</text>
-  <text x="4254" y="216" class="line">mut is_library := false</text>
-  <text x="4254" y="234" class="line">mut is_pure := false</text>
-  <text x="4254" y="252" class="line">mut run_tests := false</text>
-  <text x="4254" y="270" class="line">mut debug_prints := false</text>
+  <text x="4254" y="144" class="line">mut needs_main := false</text>
+  <text x="4254" y="162" class="line">mut decls_only := true</text>
+  <text x="4254" y="180" class="line">mut auto_import := &quot;&quot;</text>
+  <text x="4254" y="198" class="line">mut is_library := false</text>
+  <text x="4254" y="216" class="line">mut is_pure := false</text>
+  <text x="4254" y="234" class="line">mut run_tests := false</text>
+  <text x="4254" y="252" class="line">mut debug_prints := false</text>
 </svg>

@@ -288,7 +288,6 @@
 *** ref mut parent : Scope = NULL
 * modes
 ** Mode: StructDef
-*** mut name := ""
 *** mut needs_main := false
 *** mut decls_only := true
 *** mut auto_import := ""
