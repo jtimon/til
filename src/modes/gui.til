@@ -77,6 +77,12 @@ DrawCircle := ext_proc(shallow cx: I32, shallow cy: I32, shallow radius: F32, sh
 GetScreenWidth := ext_func() returns shallow I32 {}
 GetScreenHeight := ext_func() returns shallow I32 {}
 GetFrameTime := ext_func() returns shallow F32 {}
+SetConfigFlags := ext_proc(shallow flags: U32) {}
+IsWindowResized := ext_func() returns shallow Bool {}
+SetWindowMinSize := ext_proc(shallow w: I32, shallow h: I32) {}
+SetWindowMaxSize := ext_proc(shallow w: I32, shallow h: I32) {}
+MaximizeWindow := ext_proc() {}
+ToggleFullscreen := ext_proc() {}
 IsKeyPressed := ext_func(shallow key: I32) returns shallow Bool {}
 IsKeyDown := ext_func(shallow key: I32) returns shallow Bool {}
 IsKeyRepeat := ext_func(shallow key: I32) returns shallow Bool {}
@@ -211,6 +217,17 @@ draw_circle := proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I6
 
 get_screen_width := func() returns I64 { return GetScreenWidth().to_i64() }
 get_screen_height := func() returns I64 { return GetScreenHeight().to_i64() }
+
+// Window config flags
+FLAG_WINDOW_RESIZABLE : U32 = 4
+FLAG_WINDOW_MAXIMIZED : U32 = 1024
+
+set_config_flags := proc(flags: U32) { SetConfigFlags(flags) }
+is_window_resized := func() returns Bool { return IsWindowResized() }
+set_window_min_size := proc(w: I64, h: I64) { SetWindowMinSize(w.to_i32(), h.to_i32()) }
+set_window_max_size := proc(w: I64, h: I64) { SetWindowMaxSize(w.to_i32(), h.to_i32()) }
+maximize_window := proc() { MaximizeWindow() }
+toggle_fullscreen := proc() { ToggleFullscreen() }
 get_frame_time := func() returns I64 {
     return GetFrameTime().mul(1000.to_f32()).to_i64()
 }

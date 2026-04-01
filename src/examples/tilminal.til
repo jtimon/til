@@ -35,8 +35,6 @@ run_shell_command := proc(lines: Vec, cmd: Str) {
 }
 
 main := proc(args: ..Str) {
-    w := 960
-    h := 640
     line_h := 18
     pad_x := 10
     pad_y := 10
@@ -58,7 +56,9 @@ main := proc(args: ..Str) {
 
     mut input := ""
 
-    init_window(w, h, "tilminal")
+    set_config_flags(FLAG_WINDOW_RESIZABLE)
+    init_window(960, 640, "tilminal")
+    set_window_min_size(320, 200)
     set_target_fps(60)
 
     while window_should_close().not() {
@@ -94,6 +94,10 @@ main := proc(args: ..Str) {
 
         begin_drawing()
         clear_background(10, 12, 16, 255)
+
+        // Dynamic window dimensions
+        w := get_screen_width()
+        h := get_screen_height()
 
         // Output region
         out_h := h.sub(input_h).sub(pad_y.mul(2))
