@@ -189,6 +189,7 @@ typedef struct Scope Scope;
 typedef struct CollectionInfo CollectionInfo;
 typedef struct DynCallInfo DynCallInfo;
 typedef struct ExtStr ExtStr;
+typedef struct FFIType FFIType;
 typedef struct FFIEntry FFIEntry;
 typedef struct Mode Mode;
 typedef struct Context Context;
@@ -427,6 +428,14 @@ typedef struct ExtStr {
     U64 count;
     U64 cap;
 } ExtStr;
+
+
+typedef struct FFIType {
+    U32 size;
+    I16 alignment;
+    I16 type;
+    void * *elements;
+} FFIType;
 
 
 typedef struct FFIEntry {
@@ -1072,9 +1081,20 @@ I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_pat
 ExtStr * ExtStr_clone(ExtStr * self);
 void ExtStr_delete(ExtStr * self, Bool * call_free);
 U32 * ExtStr_size(void);
+FFIType * FFIType_clone(FFIType * self);
+void FFIType_delete(FFIType * self, Bool * call_free);
+U32 * FFIType_size(void);
 FFIEntry * FFIEntry_clone(FFIEntry * self);
 void FFIEntry_delete(FFIEntry * self, Bool * call_free);
 U32 * FFIEntry_size(void);
+FFIType * ffi_type_pointer_ref(void);
+FFIType * ffi_type_sint64_ref(void);
+FFIType * ffi_type_uint8_ref(void);
+FFIType * ffi_type_sint16_ref(void);
+FFIType * ffi_type_sint32_ref(void);
+FFIType * ffi_type_uint32_ref(void);
+FFIType * ffi_type_uint64_ref(void);
+FFIType * ffi_type_float_ref(void);
 I64 * value_to_i64(Value * v);
 U64 * value_to_u64(Value * v);
 F32 * value_to_f32(Value * v);
@@ -1251,6 +1271,7 @@ extern Map ffi_struct_defs;
 extern Bool ffi_loaded;
 extern Vec ffi_type_cache;
 extern Bool ffi_type_cache_inited;
+extern I16 FFI_TYPE_STRUCT;
 extern Map core_modes;
 extern Str BASE_VERSION;
 extern Str VERSION;

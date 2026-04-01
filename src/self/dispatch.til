@@ -6,6 +6,13 @@ ExtStr := struct {
     mut cap : U64 = 0
 }
 
+FFIType := struct {
+    mut size : USize = 0
+    mut alignment : I16 = 0
+    mut type : I16 = 0
+    ref mut elements : Dynamic = NULL
+}
+
 FFIEntry := struct {
     ref mut fn : U8 = NULL
     ref mut return_type : Str = NULL
@@ -25,6 +32,17 @@ mut ffi_loaded := false
 
 mut ffi_type_cache := Vec.new("Dynamic", Dynamic.size())
 mut ffi_type_cache_inited := false
+
+FFI_TYPE_STRUCT := 13.to_i16()
+
+ffi_type_pointer_ref := ext_func() returns ref FFIType {}
+ffi_type_sint64_ref := ext_func() returns ref FFIType {}
+ffi_type_uint8_ref := ext_func() returns ref FFIType {}
+ffi_type_sint16_ref := ext_func() returns ref FFIType {}
+ffi_type_sint32_ref := ext_func() returns ref FFIType {}
+ffi_type_uint32_ref := ext_func() returns ref FFIType {}
+ffi_type_uint64_ref := ext_func() returns ref FFIType {}
+ffi_type_float_ref := ext_func() returns ref FFIType {}
 
 value_to_i64 := func(v: Value) returns I64 {
     if is_variant(v, Value.Int) {

@@ -39,6 +39,15 @@ static void *ffi_handle;
 // Forward declaration
 static ffi_type *build_struct_ffi_type(Expr *struct_def);
 
+FFIType *ffi_type_pointer_ref(void) { return (FFIType *)&ffi_type_pointer; }
+FFIType *ffi_type_sint64_ref(void) { return (FFIType *)&ffi_type_sint64; }
+FFIType *ffi_type_uint8_ref(void) { return (FFIType *)&ffi_type_uint8; }
+FFIType *ffi_type_sint16_ref(void) { return (FFIType *)&ffi_type_sint16; }
+FFIType *ffi_type_sint32_ref(void) { return (FFIType *)&ffi_type_sint32; }
+FFIType *ffi_type_uint32_ref(void) { return (FFIType *)&ffi_type_uint32; }
+FFIType *ffi_type_uint64_ref(void) { return (FFIType *)&ffi_type_uint64; }
+FFIType *ffi_type_float_ref(void) { return (FFIType *)&ffi_type_float; }
+
 // Map a til type name to the appropriate ffi_type for shallow params
 static ffi_type *shallow_ffi_type(Str *type_name) {
     if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0))  return &ffi_type_sint64;
