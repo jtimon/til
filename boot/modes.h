@@ -1213,6 +1213,7 @@ extern Str BoolName;
 extern Set macros;
 extern Set funcs;
 extern Map known;
+extern Vec gc_strs;
 extern Map core_modes;
 
 #include "ext.h"

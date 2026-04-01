@@ -13,7 +13,6 @@ static Expr *map_get_expr(Map *m, Str *key) {
 }
 
 // Garbage collector for Str* allocated during scavenging
-static Vec gc_strs;
 
 static Str *gc_str(Str *s) {
     { Str **_p = malloc(sizeof(Str *)); *_p = s; Vec_push(&gc_strs, _p); }

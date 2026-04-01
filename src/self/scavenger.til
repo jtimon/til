@@ -1,5 +1,7 @@
 mode lib
 
+mut gc_strs := Vec.new("Dynamic", Dynamic.size())
+
 qualified_name := func(type_name: Str, method_name: Str) returns Str {
     return type_name.concat(".").concat(method_name)
 }
