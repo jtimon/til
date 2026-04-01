@@ -484,7 +484,7 @@ main := proc(args: ..Str) {
             "src/examples/piano.til",
             "src/examples/popcorn.til",
             "src/examples/snake.til",
-            // "src/examples/tilminal.til", // TODO fix terminal example
+            "src/examples/tilminal.til",
         )
         for gf : Str in gui_files {
             bn := test_basename(gf)

@@ -28,7 +28,7 @@ run_shell_command := proc(lines: Vec, cmd: Str) {
     }
 
     mut out := ""
-    ec := run_cmd(mut out, "sh", "-lc", cmd)
+    ec := run_cmd(out, "sh", "-lc", cmd)
 
     push_output(lines, out)
     push_line(lines, "[exit ".concat(ec.to_str()).concat("]"))
