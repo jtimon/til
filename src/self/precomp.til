@@ -13,6 +13,27 @@ precomp_has_func := func(name: Str) returns shallow Bool {
     return funcs.has(name)
 }
 
+expr_to_value := func(e: Expr) returns shallow Value {
+    switch e.data {
+    case NodeType.LiteralNum(num):
+        switch e.til_type {
+        case TilType.U8:  return val_u8(num.to_u8())
+        case TilType.U32: return val_u32(num.to_i64())
+        case TilType.U64: return val_u64(num.to_i64().to_u64())
+        case TilType.I16: return val_i16(num.to_i64())
+        case TilType.I32: return val_i32(num.to_i64())
+        case TilType.F32: return val_f32(num.to_f32())
+        case: return val_i64(num.to_i64())
+        }
+    case NodeType.LiteralStr(s):
+        return make_str_value(s.c_str, s.count)
+    case NodeType.LiteralBool(b):
+        return val_bool(b)
+    case:
+        return val_none()
+    }
+}
+
 try_eval_call := ext_func(scope: Scope, fcall: Expr, shallow require_known: Bool) returns ref Expr {}
 track_literal := ext_proc(scope: Scope, name: Str, rhs: Expr) {}
 

@@ -48,23 +48,6 @@ static Expr *value_to_expr(Value val, Expr *src) {
     }
 }
 
-// --- Expr → Value conversion (for building args to pass to interpreter) ---
-
-static Value expr_to_value(Expr *e) {
-    switch (e->data.tag) {
-    case NodeType_TAG_LiteralNum:
-        if (e->til_type.tag == TilType_TAG_U8)
-            return val_u8(atoll((const char *)e->data.data.LiteralNum.c_str));
-        return val_i64(atoll((const char *)e->data.data.LiteralNum.c_str));
-    case NodeType_TAG_LiteralStr:
-        return make_str_value((void *)e->data.data.LiteralStr.c_str, e->data.data.LiteralStr.count);
-    case NodeType_TAG_LiteralBool:
-        return val_bool(e->data.data.LiteralBool);
-    default:
-        return val_none();
-    }
-}
-
 // Check if an expression is compile-time known and return its value
 static Bool is_known(Expr *e, Value *out) {
     if (e->data.tag == NodeType_TAG_LiteralNum || e->data.tag == NodeType_TAG_LiteralStr ||
