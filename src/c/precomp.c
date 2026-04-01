@@ -3,19 +3,6 @@
 #include <stdio.h>
 #include "../../boot/modes.h"
 
-// Check if an expression is compile-time known and return its value
-static Bool is_known(Expr *e, Value *out) {
-    if (e->data.tag == NodeType_TAG_LiteralNum || e->data.tag == NodeType_TAG_LiteralStr ||
-        e->data.tag == NodeType_TAG_LiteralBool) {
-        *out = expr_to_value(e);
-        return 1;
-    }
-    if (e->data.tag == NodeType_TAG_Ident) {
-        if (Map_has(&known, &e->data.data.Ident)) { *out = *(Value *)Map_get(&known, &e->data.data.Ident); return 1; }
-    }
-    return 0;
-}
-
 // Check if a func body references identifiers not available at precomp time.
 // Something is available if it's a parameter, in the known map, or in the precomp scope
 // (funcs, structs, enums are pre-registered there).

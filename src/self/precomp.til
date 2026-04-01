@@ -82,6 +82,29 @@ expr_to_value := func(e: Expr) returns shallow Value {
     }
 }
 
+is_known := func(e: Expr, mut out: Value) returns shallow Bool {
+    switch e.data {
+    case NodeType.LiteralNum:
+        out = expr_to_value(e)
+        return true
+    case NodeType.LiteralStr:
+        out = expr_to_value(e)
+        return true
+    case NodeType.LiteralBool:
+        out = expr_to_value(e)
+        return true
+    case NodeType.Ident(id):
+        if known.has(id) {
+            ref v : Value = known.get(id)
+            out = v
+            return true
+        }
+        return false
+    case:
+        return false
+    }
+}
+
 try_eval_call := ext_func(scope: Scope, fcall: Expr, shallow require_known: Bool) returns ref Expr {}
 track_literal := ext_proc(scope: Scope, name: Str, rhs: Expr) {}
 

@@ -984,6 +984,7 @@ Bool precomp_has_macro(Str * name);
 Bool precomp_has_func(Str * name);
 Expr * value_to_expr(Value val, Expr * src);
 Value expr_to_value(Expr * e);
+Bool is_known(Expr * e, Value * out);
 Expr * try_eval_call(Scope * scope, Expr * fcall, Bool require_known);
 void track_literal(Scope * scope, Str * name, Expr * rhs);
 Bool is_macro_call(Expr * e);
