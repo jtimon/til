@@ -3,6 +3,7 @@ mode lib
 // C helpers (precomp.c)
 mut macros := Set.new("Str", Str.size())
 mut funcs := Set.new("Str", Str.size())
+mut known := Map.new("Str", Str.size(), "Value", Value.size())
 
 precomp_has_macro := func(name: Str) returns shallow Bool {
     return macros.has(name)

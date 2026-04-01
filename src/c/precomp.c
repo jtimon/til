@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include "../../boot/modes.h"
 
-static Map known;
-
 // --- Value → Expr conversion ---
 
 static Expr *value_to_expr(Value val, Expr *src) {

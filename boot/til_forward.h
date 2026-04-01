@@ -1236,6 +1236,7 @@ extern Str F32Name;
 extern Str BoolName;
 extern Set macros;
 extern Set funcs;
+extern Map known;
 extern Map core_modes;
 extern Str BASE_VERSION;
 extern Str VERSION;
