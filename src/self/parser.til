@@ -306,7 +306,7 @@ parse_struct_def := proc(mut p: Parser) returns Expr {
             if stmt.child_count().gt(0) {
                 rhs = stmt.child(0)
             }
-            sdd.fields.push(own FieldDef(decl = dd, default_value = rhs))
+            sdd.fields.push(own FieldDef(decl = dd.clone(), default_value = rhs))
         }
         body.add_child(own stmt)
     }

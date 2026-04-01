@@ -40,8 +40,8 @@ Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     U32 nargs = fcall->children.count - 1;
     Expr *eval_call = Expr_new(&(NodeType){.tag = NodeType_TAG_FCall}, fcall->line, fcall->col, &fcall->path);
     eval_call->til_type = fcall->til_type;
-    eval_call->struct_name = fcall->struct_name;
-    Expr_add_child(eval_call, Expr_clone(Expr_child(fcall, &(USize){(USize)(0)}))); // callee ident (clone — borrowed ref)
+    { Str *_s = Str_clone(&fcall->struct_name); eval_call->struct_name = *_s; free(_s); }
+    Expr_add_child(eval_call, Expr_clone(Expr_child(fcall, &(USize){(USize)(0)}))); // callee ident (clone — owned)
 
     for (U32 i = 0; i < nargs; i++) {
         Expr *arg = Expr_child(fcall, &(USize){(USize)(i + 1)});
@@ -50,9 +50,6 @@ Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
             if (require_known) {
                 Expr_error(arg, &(Str){.c_str = (U8*)"macro argument must be known at compile time", .count = 44, .cap = CAP_LIT});
             }
-            // Clean up: detach callee so it's not double-freed
-            memset(Vec_get(&eval_call->children, &(USize){(USize)(0)}), 0, sizeof(Expr));
-            eval_call->children.count = 0;
             Expr_delete(eval_call, &(Bool){1});
             return NULL;
         }
@@ -64,12 +61,8 @@ Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     // Evaluate the call using the interpreter
     Value result = eval_expr(scope, eval_call);
 
-    // Clean up eval_call (detach callee ident first — it's shared with original)
-    memset(Vec_get(&eval_call->children, &(USize){(USize)(0)}), 0, sizeof(Expr));
-    for (U32 i = 1; i < eval_call->children.count; i++)
-        Expr_delete(Expr_child(eval_call, &(USize){(USize)(i)}), &(Bool){0});
-    Vec_delete(&eval_call->children, &(Bool){0});
-    free(eval_call);
+    // Clean up eval_call -- Vec_delete handles recursive child deletion
+    Expr_delete(eval_call, &(Bool){1});
 
     // Convert result to AST
     Expr *lit = value_to_expr(result, fcall);
