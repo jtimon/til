@@ -3,51 +3,6 @@
 #include <stdio.h>
 #include "../../boot/modes.h"
 
-// --- Value → Expr conversion ---
-
-static Expr *value_to_expr(Value val, Expr *src) {
-    I32 line = src->line, col = src->col;
-    Str *path = &src->path;
-    Expr *e;
-    switch (val.tag) {
-    case Value_TAG_Int: {
-        e = Expr_new(&(NodeType){.tag = NodeType_TAG_LiteralNum}, line, col, path);
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%lld", (long long)val.data.Int);
-        e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)buf, .count = (U64)strlen(buf), .cap = CAP_VIEW});
-        e->til_type = (TilType){TilType_TAG_I64};
-        return e;
-    }
-    case Value_TAG_Byte: {
-        e = Expr_new(&(NodeType){.tag = NodeType_TAG_LiteralNum}, line, col, path);
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%u", (unsigned)val.data.Byte);
-        e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-        e->til_type = (TilType){TilType_TAG_U8};
-        return e;
-    }
-    case Value_TAG_Struct: {
-        if ((val.data.Struct.struct_name->count == 3 && memcmp(val.data.Struct.struct_name->c_str, "Str", 3) == 0)) {
-            Str sv = str_view(val);
-            e = Expr_new(&(NodeType){.tag = NodeType_TAG_LiteralStr}, line, col, path);
-            e->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(const char *)sv.c_str, .count = sv.count, .cap = CAP_VIEW});
-            e->til_type = (TilType){TilType_TAG_Struct};
-            e->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-            return e;
-        }
-        return NULL; // other struct types not supported in precomp
-    }
-    case Value_TAG_Boolean: {
-        e = Expr_new(&(NodeType){.tag = NodeType_TAG_LiteralBool}, line, col, path);
-        e->data.data.LiteralBool = val.data.Boolean;
-        e->til_type = (TilType){TilType_TAG_Bool};
-        return e;
-    }
-    default:
-        return NULL;
-    }
-}
-
 // Check if an expression is compile-time known and return its value
 static Bool is_known(Expr *e, Value *out) {
     if (e->data.tag == NodeType_TAG_LiteralNum || e->data.tag == NodeType_TAG_LiteralStr ||

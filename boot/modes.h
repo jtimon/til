@@ -982,6 +982,7 @@ Expr * hoist_to_temp(Expr * val, Vec * hoisted, TypeScope * scope);
 I32 type_check(Expr * program, TypeScope * scope, Context * ctx);
 Bool precomp_has_macro(Str * name);
 Bool precomp_has_func(Str * name);
+Expr * value_to_expr(Value val, Expr * src);
 Value expr_to_value(Expr * e);
 Expr * try_eval_call(Scope * scope, Expr * fcall, Bool require_known);
 void track_literal(Scope * scope, Str * name, Expr * rhs);

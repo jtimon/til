@@ -13,6 +13,54 @@ precomp_has_func := func(name: Str) returns shallow Bool {
     return funcs.has(name)
 }
 
+value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
+    switch val {
+    case Value.Int(x):
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        e.til_type = TilType.I64
+        return e
+    case Value.Byte(x):
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        e.til_type = TilType.U8
+        return e
+    case Value.Short(x):
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        e.til_type = TilType.I16
+        return e
+    case Value.Int32(x):
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        e.til_type = TilType.I32
+        return e
+    case Value.Uint32(x):
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        e.til_type = TilType.U32
+        return e
+    case Value.Uint64(x):
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        e.til_type = TilType.U64
+        return e
+    case Value.Float(x):
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        e.til_type = TilType.F32
+        return e
+    case Value.Struct(si):
+        if si.to_str().eq("Str") {
+            sv := str_view(val)
+            mut e := Expr.new(NodeType.LiteralStr(sv.clone()), src.line, src.col, src.path)
+            e.til_type = TilType.Struct
+            e.struct_name = "Str"
+            return e
+        }
+        return NULL
+    case Value.Boolean(b):
+        mut e := Expr.new(NodeType.LiteralBool(b.clone()), src.line, src.col, src.path)
+        e.til_type = TilType.Bool
+        return e
+    case:
+        return NULL
+    }
+}
+
 expr_to_value := func(e: Expr) returns shallow Value {
     switch e.data {
     case NodeType.LiteralNum(num):
