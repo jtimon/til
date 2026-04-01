@@ -923,6 +923,7 @@ Expr * make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, 
 Bool desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Bool desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
+void reregister_scope_defs(Expr * body, TypeScope * scope);
 void infer_body(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void infer_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 Bool is_numeric_type(TilType * t);

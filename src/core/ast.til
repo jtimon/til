@@ -226,6 +226,10 @@ Expr := struct {
                         is_own_field = self.is_own_field, is_ref_field = self.is_ref_field,
                         is_ns_field = self.is_ns_field,
                         is_core = self.is_core, save_old_delete = self.save_old_delete,
+                        variadic_index = self.variadic_index,
+                        variadic_count = self.variadic_count,
+                        kwargs_index = self.kwargs_index,
+                        kwargs_count = self.kwargs_count,
                         fn_sig = self.fn_sig,
                         line = self.line, col = self.col, path = self.path.clone())
         for i in 0..self.children.len() {
