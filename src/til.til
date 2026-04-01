@@ -35,7 +35,7 @@ tokenize := ext_func(source: Str, path: Str) returns Vec {}
 type_check := ext_func(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {}
 precomp := ext_proc(program: Expr) {}
 scavenge := ext_proc(program: Expr, m: Mode, shallow run_tests: Bool) {}
-interpret := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec) returns shallow I32 {}
+interpret := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32 {}
 build := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
 build_header := ext_func(ast: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(ast: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
@@ -463,8 +463,16 @@ main := proc(args: ..Str) {
         if cur_mode.is_library.and(command.eq("interpret")) {
             panic(__LOC__, "cannot interpret a library — use translate or build")
         }
-        result = interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
-                                user_argv)
+        mut interpret_fwd_path := ""
+        if user_c.len().gt(0) {
+            system_cmd("mkdir -p tmp")
+            interpret_fwd_path = "tmp/ffi_".concat(clock_ms().to_str()).concat("_forward.h")
+            result = build_forward_header(ast, interpret_fwd_path)
+        }
+        if result.eq(0) {
+            result = interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
+                                    user_argv, interpret_fwd_path)
+        }
     } else if command.eq("translate").or(command.eq("build")).or(command.eq("run")) {
         if cur_mode.is_library.and(command.eq("run")) {
             panic(__LOC__, "cannot run a library — use translate or build")

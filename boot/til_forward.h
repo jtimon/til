@@ -1114,7 +1114,7 @@ Vec * tokenize(Str * source, Str * path);
 I32 type_check(Expr * program, TypeScope * scope, Context * ctx);
 void precomp(Expr * program);
 void scavenge(Expr * program, Mode * m, Bool run_tests);
-I32 interpret(Expr * ast, Mode * m, Bool run_tests, Str * path, Str * user_c, Str * ext_c, Str * link_flags, Vec * user_argv);
+I32 interpret(Expr * ast, Mode * m, Bool run_tests, Str * path, Str * user_c, Str * ext_c, Str * link_flags, Vec * user_argv, Str * fwd_path);
 I32 build(Expr * ast, Mode * m, Bool run_tests, Str * path, Str * c_path);
 I32 build_header(Expr * ast, Str * h_path);
 I32 build_til_binding(Expr * ast, Str * til_path, Str * lib_name);

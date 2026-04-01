@@ -1474,18 +1474,10 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     return result;
 }
 
-I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv) {
+I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv, Str *fwd_path) {
     if (user_c_path && user_c_path->count == 0) user_c_path = NULL;
     if (link_flags && link_flags->count == 0) link_flags = NULL;
     U32 user_argc = user_argv ? (U32)user_argv->count : 0;
-    Str *fwd_path = NULL;
-    if (user_c_path) {
-        system("mkdir -p tmp");
-        char fwd_buf[64];
-        snprintf(fwd_buf, sizeof(fwd_buf), "tmp/ffi_%d_forward.h", (int)getpid());
-        fwd_path = Str_clone(&(Str){.c_str = (U8*)(fwd_buf), .count = (U64)strlen((const char*)(fwd_buf)), .cap = CAP_VIEW});
-        build_forward_header(program, fwd_path);
-    }
     // Initialize FFI: load user .c library (if provided) and auto-discover C functions
     I32 ffi_rc = ffi_init(program, fwd_path, user_c_path, ext_c_path, link_flags);
     if (ffi_rc != 0) return ffi_rc;
