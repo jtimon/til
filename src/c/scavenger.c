@@ -6,12 +6,6 @@
 // Forward declaration for til-generated function (scavenger.til)
 Str *qualified_name(Str *type_name, Str *method_name);
 
-// Name-to-Expr map (for top-level decls and namespace methods)
-static Expr *map_get_expr(Map *m, Str *key) {
-    if (!Map_has(m, key)) return NULL;
-    return *(Expr **)Map_get(m, key);
-}
-
 // Garbage collector for Str* allocated during scavenging
 
 static Str *gc_str(Str *s) {
@@ -200,7 +194,10 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
         { Str *_p = malloc(sizeof(Str)); *_p = (Str){name->c_str, name->count, CAP_VIEW}; Set_add(&visited, _p); }
 
         // Top-level declaration?
-        Expr *decl = map_get_expr(&top, name);
+        Expr *decl = NULL;
+        if (Map_has(&top, name)) {
+            decl = *(Expr **)Map_get(&top, name);
+        }
         if (decl) {
             if (Expr_child(decl, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
                 Expr_child(decl, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
@@ -223,7 +220,10 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
         }
 
         // Namespace method?
-        Expr *method = map_get_expr(&methods, name);
+        Expr *method = NULL;
+        if (Map_has(&methods, name)) {
+            method = *(Expr **)Map_get(&methods, name);
+        }
         if (method && Expr_child(method, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             collect_refs(Expr_child(method, &(USize){(USize)(0)}), &worklist);
         }
