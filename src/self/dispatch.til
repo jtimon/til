@@ -16,6 +16,16 @@ FFIEntry := struct {
     ref mut arg_types : U8 = NULL
 }
 
+mut dispatch_map := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
+mut dispatch_inited := false
+
+mut ffi_map := Map.new("Str", Str.size(), "FFIEntry", FFIEntry.size())
+mut ffi_struct_defs := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
+mut ffi_loaded := false
+
+mut ffi_type_cache := Vec.new("Dynamic", Dynamic.size())
+mut ffi_type_cache_inited := false
+
 value_to_i64 := func(v: Value) returns I64 {
     if is_variant(v, Value.Int) {
         ref x : I64 = get_payload(v)

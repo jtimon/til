@@ -34,19 +34,7 @@ U64 U64_from_i64(I64 v);
 
 typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 
-// --- Dispatch state ---
-static Map dispatch_map;
-static Bool dispatch_inited;
-
-// --- FFI state ---
-static Map ffi_map;          // name -> FFIEntry
-static Map ffi_struct_defs;  // Str* name -> Expr* struct_def (for return type lookup)
-static void *ffi_handle;     // dlopen handle
-static Bool ffi_loaded;
-
-// Cache for heap-allocated ffi_type structs (freed in ffi_cleanup)
-static Vec ffi_type_cache; // Vec of ffi_type*
-static Bool ffi_type_cache_inited;
+static void *ffi_handle;
 
 // Forward declaration
 static ffi_type *build_struct_ffi_type(Expr *struct_def);
