@@ -1413,6 +1413,10 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         else_body.add_child(own brk)
         if_node.add_child(own else_body)
 
+        mut true_lit := Expr.new(NodeType.LiteralBool(true), line, col, path)
+        true_lit.til_type = TilType.Bool
+        stmt.children.set(0, own true_lit)
+
         mut new_ch := Vec.new("Expr", Expr.size())
         new_ch.push(own decl)
         new_ch.push(own if_node)
@@ -1420,10 +1424,6 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
             new_ch.push(own body.child(j).clone())
         }
         body.children = new_ch
-
-        mut true_lit := Expr.new(NodeType.LiteralBool(true), line, col, path)
-        true_lit.til_type = TilType.Bool
-        stmt.children.set(0, own true_lit)
     }
     while_scope := TypeScope.new(scope)
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
@@ -2306,10 +2306,11 @@ reregister_scope_defs := proc(body: Expr, scope: TypeScope) {
             ref rdecl : Declaration = get_payload(rstmt.data)
             ref mut rb : TypeBinding = scope.get_binding(rdecl.name)
             if is_null(rb).not() {
-                if is_variant(rstmt.child(0).data, NodeType.StructDef).or(is_variant(rstmt.child(0).data, NodeType.EnumDef)) {
+                if is_null(rb.struct_def).not().and(
+                    is_variant(rstmt.child(0).data, NodeType.StructDef).or(is_variant(rstmt.child(0).data, NodeType.EnumDef))) {
                     rb.struct_def = rstmt.child(0)
                 }
-                if is_variant(rstmt.child(0).data, NodeType.FuncDef) {
+                if is_null(rb.func_def).not().and(is_variant(rstmt.child(0).data, NodeType.FuncDef)) {
                     rb.func_def = rstmt.child(0)
                 }
             }
