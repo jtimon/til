@@ -513,7 +513,40 @@
     - ~#129~ runtime ~Value~ instance payload fields still use ~ref~ where
       they should own
 
-  Next investigation direction:
+  ASAN investigation results (per-test ~bin/til_asan~ runs):
+  - baseline for ~bin/til_asan translate tmp/hello.til~:
+    ~239725 byte(s) leaked in 42911 allocation(s)~
+  - top leak sites by total bytes:
+    - ~28590 bytes~  ~Str_clone -> ExprData_Ident -> ExprData_clone~
+    - ~26191 bytes~  ~Str_clone -> ExprData_FieldAccess -> ExprData_clone~
+    - ~14672 bytes~  ~Map_clone -> FunctionDef_clone -> ExprData_FuncDef~
+    - ~13280 bytes~  ~Str_clone -> Expr_clone -> Expr_clone~
+    - ~11697 bytes~  ~Str_clone -> Declaration_clone -> ExprData_Decl~
+    - ~4864 bytes~ x7 ~Str_lit -> Map_new/Vec_new -> parse_func_def~
+  - all leak sites trace back to AST clone and parse operations
+  - root cause: ~ExprData_delete~ was a no-op -- auto-generated enum
+    ~delete~ did not recurse into payload-owned data (~#126~)
+  - the typer already generates proper cleanup calls for all locals
+    before ~exit()~ (~Expr_delete~, ~Set_delete~, ~Vec_delete~, etc.)
+  - but ~Expr_delete~ calls ~ExprData_delete~ which was a no-op,
+    so payload strings/maps/vecs inside ~ExprData~ variants
+    (~Ident~, ~Decl~, ~FuncDef~, ~FieldAccess~, etc.) were never freed
+  - ~scope_free~ / ~scope_set_owned~ in the interpreter do NOT call
+    ~free_value~ on owned cell values, but fixing this is unsafe
+    until ~#127~ resolves the value aliasing model (attempting it
+    caused a heap-use-after-free in ~write_field~ via ~scope_free~)
+
+  Changes landed:
+  - ~src/self/initer.til~ (on master): ~generate_enum_delete_method~
+    now recurses into payload-owned data for each variant, with
+    ~scope~ parameter to filter ~Dynamic~ / ~FuncPtr~ types -- this
+    is the main fix for ~#126~ and the dominant leak source
+  - ~src/c/interpreter.c~: added ~Value_TAG_Struct~ case to
+    ~free_value()~ so non-borrowed struct ~data~ buffers are freed
+    during interpreter value cleanup (forward-decl added)
+
+  Next steps:
+  - rebuild with enhanced enum delete to measure leak reduction
   - compare the generated raw-~Vec~ struct literals against the old
     empty-type constructor path
   - confirm whether owned cloned empty strings are being skipped by

@@ -9,6 +9,8 @@
 
 // Forward declarations (defined in ast.c)
 
+// Forward declaration (defined below)
+void free_value(Value v);
 
 // --- Return value mechanism ---
 static Bool has_return;
@@ -546,6 +548,11 @@ void free_value(Value v) {
     case Value_TAG_Uint64:  break;
     case Value_TAG_Float:  break;
     case Value_TAG_Boolean: break;
+    case Value_TAG_Struct:
+        if (!v.data.Struct.borrowed && v.data.Struct.data) {
+            free(v.data.Struct.data);
+        }
+        break;
     case Value_TAG_Enum:
         if (v.data.Enum.data) {
             free(v.data.Enum.data);
