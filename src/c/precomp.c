@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include "../../boot/modes.h"
 
-static Set macros, funcs;
 static Map known;
 
 // --- Value → Expr conversion ---
@@ -79,14 +78,6 @@ static Bool is_known(Expr *e, Value *out) {
         if (Map_has(&known, &e->data.data.Ident)) { *out = *(Value *)Map_get(&known, &e->data.data.Ident); return 1; }
     }
     return 0;
-}
-
-Bool precomp_has_macro(Str *name) {
-    return Set_has(&macros, name);
-}
-
-Bool precomp_has_func(Str *name) {
-    return Set_has(&funcs, name);
 }
 
 // Check if a func body references identifiers not available at precomp time.

@@ -1,8 +1,17 @@
 mode lib
 
 // C helpers (precomp.c)
-precomp_has_macro := ext_func(name: Str) returns shallow Bool {}
-precomp_has_func := ext_func(name: Str) returns shallow Bool {}
+mut macros := Set.new("Str", Str.size())
+mut funcs := Set.new("Str", Str.size())
+
+precomp_has_macro := func(name: Str) returns shallow Bool {
+    return macros.has(name)
+}
+
+precomp_has_func := func(name: Str) returns shallow Bool {
+    return funcs.has(name)
+}
+
 try_eval_call := ext_func(scope: Scope, fcall: Expr, shallow require_known: Bool) returns ref Expr {}
 track_literal := ext_proc(scope: Scope, name: Str, rhs: Expr) {}
 
