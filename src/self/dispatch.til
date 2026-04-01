@@ -23,6 +23,10 @@ FFIEntry := struct {
     ref mut arg_types : U8 = NULL
 }
 
+ExprPtrBox := struct {
+    ref mut ptr : Expr = NULL
+}
+
 mut dispatch_map := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut dispatch_inited := false
 
@@ -43,6 +47,24 @@ ffi_type_sint32_ref := ext_func() returns ref FFIType {}
 ffi_type_uint32_ref := ext_func() returns ref FFIType {}
 ffi_type_uint64_ref := ext_func() returns ref FFIType {}
 ffi_type_float_ref := ext_func() returns ref FFIType {}
+
+ffi_init_struct_defs := proc(program: Expr) {
+    ffi_struct_defs = Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not().or(stmt.child_count().eq(0)) {
+            continue
+        }
+        ref sdef : Expr = stmt.child(0)
+        if is_variant(sdef.data, NodeType.StructDef).not() {
+            continue
+        }
+        ref dd : Declaration = get_payload(stmt.data)
+        key := Str(c_str = dd.name.c_str, count = dd.name.count, cap = CAP_VIEW)
+        box := ExprPtrBox(ptr = sdef)
+        ffi_struct_defs.set(own key, own box)
+    }
+}
 
 value_to_i64 := func(v: Value) returns I64 {
     if is_variant(v, Value.Int) {

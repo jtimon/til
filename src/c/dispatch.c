@@ -774,19 +774,6 @@ static void ffi_init_link_libs(Str *link_flags) {
     }
 }
 
-static void ffi_init_struct_defs(Expr *program) {
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != NodeType_TAG_Decl || stmt->children.count == 0) continue;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != NodeType_TAG_StructDef) continue;
-        Expr *sdef = Expr_child(stmt, &(USize){(USize)(0)});
-        { Str *_k = malloc(sizeof(Str)); *_k = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW};
-          Expr **_v = malloc(sizeof(Expr *)); *_v = sdef;
-          Map_set(&ffi_struct_defs, _k, _v); }
-    }
-}
-
 static void ffi_init_scan_program(Expr *program) {
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"FFIEntry", .count = 8, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {

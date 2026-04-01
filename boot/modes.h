@@ -191,6 +191,7 @@ typedef struct DynCallInfo DynCallInfo;
 typedef struct ExtStr ExtStr;
 typedef struct FFIType FFIType;
 typedef struct FFIEntry FFIEntry;
+typedef struct ExprPtrBox ExprPtrBox;
 typedef struct Mode Mode;
 typedef struct Context Context;
 
@@ -447,6 +448,11 @@ typedef struct FFIEntry {
     U8 *cif;
     U8 *arg_types;
 } FFIEntry;
+
+
+typedef struct ExprPtrBox {
+    Expr *ptr;
+} ExprPtrBox;
 
 
 typedef struct Mode {
@@ -1087,6 +1093,9 @@ U32 * FFIType_size(void);
 FFIEntry * FFIEntry_clone(FFIEntry * self);
 void FFIEntry_delete(FFIEntry * self, Bool * call_free);
 U32 * FFIEntry_size(void);
+ExprPtrBox * ExprPtrBox_clone(ExprPtrBox * self);
+void ExprPtrBox_delete(ExprPtrBox * self, Bool * call_free);
+U32 * ExprPtrBox_size(void);
 FFIType * ffi_type_pointer_ref(void);
 FFIType * ffi_type_sint64_ref(void);
 FFIType * ffi_type_uint8_ref(void);
@@ -1095,6 +1104,7 @@ FFIType * ffi_type_sint32_ref(void);
 FFIType * ffi_type_uint32_ref(void);
 FFIType * ffi_type_uint64_ref(void);
 FFIType * ffi_type_float_ref(void);
+void ffi_init_struct_defs(Expr * program);
 I64 * value_to_i64(Value * v);
 U64 * value_to_u64(Value * v);
 F32 * value_to_f32(Value * v);

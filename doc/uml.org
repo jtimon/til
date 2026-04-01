@@ -244,6 +244,11 @@
 *** ref mut data : U8 = NULL
 *** mut count : U64 = 0
 *** mut cap : U64 = 0
+** FFIType: StructDef
+*** mut size : USize = 0
+*** mut alignment : I16 = 0
+*** mut type : I16 = 0
+*** ref mut elements : Dynamic = NULL
 ** FFIEntry: StructDef
 *** ref mut fn : U8 = NULL
 *** ref mut return_type : Str = NULL
@@ -252,6 +257,8 @@
 *** mut return_is_shallow := false
 *** ref mut cif : U8 = NULL
 *** ref mut arg_types : U8 = NULL
+** ExprPtrBox: StructDef
+*** ref mut ptr : Expr = NULL
 * interpreter
 ** StructInstance: StructDef
 *** ref mut struct_name : Str = NULL
