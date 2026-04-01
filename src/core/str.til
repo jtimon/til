@@ -250,6 +250,49 @@ namespace:
         return result
     }
 
+    to_u8 := func(self: Str) returns shallow U8 {
+        return self.to_i64().to_u8()
+    }
+
+    to_i32 := func(self: Str) returns shallow I32 {
+        return self.to_i64().to_i32()
+    }
+
+    to_f32 := func(self: Str) returns shallow F32 {
+        mut start : USize = 0
+        mut neg := false
+        if self.len().gt(0).and(self.get(0).eq(45)) {
+            neg = true
+            start = 1
+        }
+
+        rest := self.substr(start, self.len().sub(start))
+        dot := rest.find(".")
+        if dot.eq(-1) {
+            out := rest.to_i64().to_f32()
+            if neg { return 0.to_f32().sub(out) }
+            return out
+        }
+
+        int_part := rest.substr(0, dot.to_usize())
+        frac_part := rest.substr(dot.to_usize().add(1), rest.len().sub(dot.to_usize().add(1)))
+
+        mut out := 0.to_f32()
+        if int_part.len().gt(0) {
+            out = int_part.to_i64().to_f32()
+        }
+        if frac_part.len().gt(0) {
+            frac := frac_part.to_i64().to_f32()
+            mut scale := 1.to_f32()
+            for i in 0..frac_part.len() {
+                scale = scale.mul(10.to_f32())
+            }
+            out = out.add(frac.div(scale))
+        }
+        if neg { return 0.to_f32().sub(out) }
+        return out
+    }
+
     split := func(self: Str, delim: Str) returns Vec {
         parts := Vec.new("Str", Str.size())
         if delim.len().eq(0) {

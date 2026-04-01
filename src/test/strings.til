@@ -144,6 +144,26 @@ test_to_i64 := test() {
     assert_eq(__LOC__, "-100".to_i64(), -100)
 }
 
+test_to_u8 := test() {
+    assert_eq(__LOC__, "42".to_u8().to_i64(), 42)
+    assert_eq(__LOC__, "0".to_u8().to_i64(), 0)
+    assert_eq(__LOC__, "255".to_u8().to_i64(), 255)
+}
+
+test_to_i32 := test() {
+    assert_eq(__LOC__, "42".to_i32().to_i64(), 42)
+    assert_eq(__LOC__, "0".to_i32().to_i64(), 0)
+    assert_eq(__LOC__, "-7".to_i32().to_i64(), -7)
+    assert_eq(__LOC__, "123456".to_i32().to_i64(), 123456)
+}
+
+test_to_f32 := test() {
+    assert_eq_str(__LOC__, "3.14".to_f32().to_str(), "3.14")
+    assert_eq_str(__LOC__, "-2.5".to_f32().to_str(), "-2.5")
+    assert_eq_str(__LOC__, "7".to_f32().to_str(), "7")
+    assert_eq_str(__LOC__, "0.25".to_f32().to_str(), "0.25")
+}
+
 test_split := test() {
     parts := "a,b,c".split(",")
     assert_eq(__LOC__, parts.len().to_i64(), 3)
