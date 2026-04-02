@@ -468,6 +468,15 @@ h_get_thread_count := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool
     return true
 }
 
+h_cfile_open := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    path_v := eval_expr(s, e.child(1))
+    is_write_v := eval_expr(s, e.child(2))
+    path := str_view(path_v)
+    ref is_write : Bool = get_payload(is_write_v)
+    r = Value.Ptr(cfile_open(path, is_write))
+    return true
+}
+
 ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
 enum_method_dispatch := ext_func(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Value) returns shallow Bool {}
 ffi_init := ext_func(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}

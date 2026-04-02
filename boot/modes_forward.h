@@ -1178,6 +1178,7 @@ Bool h_sleep(Scope * s, Expr * e, Value * r);
 Bool h_file_mtime(Scope * s, Expr * e, Value * r);
 Bool h_clock_ms(Scope * s, Expr * e, Value * r);
 Bool h_get_thread_count(Scope * s, Expr * e, Value * r);
+Bool h_cfile_open(Scope * s, Expr * e, Value * r);
 Bool ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result);
 Bool enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result);
 I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags);

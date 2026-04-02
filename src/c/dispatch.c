@@ -368,16 +368,6 @@ static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
 // === System primitive handlers ===
 
 // File handle I/O handlers
-static Bool h_cfile_open(Scope *s, Expr *e, Value *r) {
-    Value path_v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    Value is_write_v = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    Str _path = str_view(path_v);
-    Bool is_write = is_write_v.data.Boolean;
-    void *handle = cfile_open(&_path, is_write);
-    *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = handle};
-    return 1;
-}
-
 static Bool h_cfile_close(Scope *s, Expr *e, Value *r) {
     Value handle_v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     void *handle = handle_v.tag == Value_TAG_Ptr ? handle_v.data.Ptr : val_to_ptr(&handle_v);
