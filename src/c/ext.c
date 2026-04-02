@@ -369,6 +369,50 @@ void writefile(Str *path, Str *content) {
     fclose(f);
 }
 
+// --- File handle I/O ---
+
+void *cfile_open(Str *path, Bool is_write) {
+    char *p = strndup((char *)path->c_str, path->count);
+    FILE *f = fopen(p, is_write ? "wb" : "rb");
+    if (!f) {
+        fprintf(stderr, "cfile_open: could not open '%s'\n", p);
+        free(p);
+        exit(1);
+    }
+    free(p);
+    return (void *)f;
+}
+
+void cfile_close(void *handle) {
+    if (handle) fclose((FILE *)handle);
+}
+
+void cfile_write_str(void *handle, Str *s) {
+    if (!handle) {
+        fprintf(stderr, "cfile_write_str: file not open\n");
+        exit(1);
+    }
+    fwrite(s->c_str, 1, s->count, (FILE *)handle);
+}
+
+Str *cfile_read_all(void *handle) {
+    if (!handle) {
+        fprintf(stderr, "cfile_read_all: file not open\n");
+        exit(1);
+    }
+    FILE *f = (FILE *)handle;
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *buf = malloc(len);
+    fread(buf, 1, len, f);
+    Str *s = malloc(sizeof(Str));
+    s->c_str = (U8 *)buf;
+    s->count = len;
+    s->cap = len;
+    return s;
+}
+
 Str *realpath_str(Str *path) {
     char *p = strndup((char *)path->c_str, path->count);
     char *abs = realpath(p, NULL);

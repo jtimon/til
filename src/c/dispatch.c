@@ -367,6 +367,44 @@ static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
 
 // === System primitive handlers ===
 
+// File handle I/O handlers
+static Bool h_cfile_open(Scope *s, Expr *e, Value *r) {
+    Value path_v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
+    Value is_write_v = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
+    Str _path = str_view(path_v);
+    Bool is_write = is_write_v.data.Boolean;
+    void *handle = cfile_open(&_path, is_write);
+    *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = handle};
+    return 1;
+}
+
+static Bool h_cfile_close(Scope *s, Expr *e, Value *r) {
+    Value handle_v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
+    void *handle = handle_v.tag == Value_TAG_Ptr ? handle_v.data.Ptr : val_to_ptr(&handle_v);
+    cfile_close(handle);
+    *r = val_none();
+    return 1;
+}
+
+static Bool h_cfile_write_str(Scope *s, Expr *e, Value *r) {
+    Value handle_v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
+    Value str_v = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
+    void *handle = handle_v.tag == Value_TAG_Ptr ? handle_v.data.Ptr : val_to_ptr(&handle_v);
+    Str _s = str_view(str_v);
+    cfile_write_str(handle, &_s);
+    *r = val_none();
+    return 1;
+}
+
+static Bool h_cfile_read_all(Scope *s, Expr *e, Value *r) {
+    Value handle_v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
+    void *handle = handle_v.tag == Value_TAG_Ptr ? handle_v.data.Ptr : val_to_ptr(&handle_v);
+    Str *content = cfile_read_all(handle);
+    *r = make_str_value(content->c_str, content->count);
+    free(content);
+    return 1;
+}
+
 // === Dispatch init ===
 
 static void dispatch_init(void) {
@@ -423,6 +461,12 @@ static void dispatch_init(void) {
     REG("file_mtime", h_file_mtime);
     REG("clock_ms", h_clock_ms);
     REG("get_thread_count", h_get_thread_count);
+
+    // File handle I/O
+    REG("cfile_open", h_cfile_open);
+    REG("cfile_close", h_cfile_close);
+    REG("cfile_write_str", h_cfile_write_str);
+    REG("cfile_read_all", h_cfile_read_all);
 
     #undef REG
     dispatch_inited = 1;

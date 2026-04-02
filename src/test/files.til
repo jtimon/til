@@ -1,0 +1,39 @@
+mode test
+
+test_file_write_and_read := test() {
+    path := "tmp/_test_file_io.txt"
+    f := File.new(path, true)
+    f.write_str("hello ")
+    f.write_str("world")
+    f.close()
+
+    f2 := File.new(path, false)
+    content := f2.read_all()
+    f2.close()
+
+    assert_eq_str(__LOC__, content, "hello world")
+}
+
+test_file_read_all := test() {
+    path := "tmp/_test_file_read.txt"
+    writefile(path, "abc123")
+
+    f := File.new(path, false)
+    content := f.read_all()
+    f.close()
+
+    assert_eq_str(__LOC__, content, "abc123")
+}
+
+test_file_multiple_writes := test() {
+    path := "tmp/_test_file_multi.txt"
+    f := File.new(path, true)
+    for i in 0..5 {
+        f.write_str(i.to_str())
+        f.write_str(" ")
+    }
+    f.close()
+
+    content := readfile(path)
+    assert_eq_str(__LOC__, content, "0 1 2 3 4 ")
+}

@@ -15,3 +15,40 @@ print := proc(parts: ..Str) {
         print_single(s)
     }
 }
+
+// --- File handle I/O ---
+
+cfile_open := ext_func(path: Str, shallow is_write: Bool) returns ref Dynamic {}
+cfile_close := ext_proc(handle: Dynamic) {}
+cfile_write_str := ext_proc(handle: Dynamic, s: Str) {}
+cfile_read_all := ext_func(handle: Dynamic) returns Str {}
+
+File := struct {
+    ref mut handle : U8 = NULL
+    mut is_write := false
+
+namespace:
+    new := func(path: Str, shallow is_write: Bool) returns File {
+        ref h : Dynamic = cfile_open(path, is_write)
+        return File(handle = h, is_write = is_write)
+    }
+
+    write_str := proc(self: File, s: Str) {
+        if self.is_write.not() {
+            panic(__LOC__, "File.write_str: file not opened for writing")
+        }
+        cfile_write_str(self.handle, s)
+    }
+
+    read_all := func(self: File) returns Str {
+        if self.is_write {
+            panic(__LOC__, "File.read_all: file opened for writing")
+        }
+        return cfile_read_all(self.handle)
+    }
+
+    close := proc(mut self: File) {
+        cfile_close(self.handle)
+        self.handle = NULL
+    }
+}

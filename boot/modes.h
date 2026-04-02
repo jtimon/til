@@ -82,6 +82,7 @@ typedef struct NodeType NodeType;
 typedef struct Expr Expr;
 typedef struct Range Range;
 typedef struct Dynamic Dynamic;
+typedef struct File File;
 typedef enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
@@ -306,6 +307,12 @@ typedef struct Range {
 typedef struct Dynamic {
     char _;
 } Dynamic;
+
+
+typedef struct File {
+    U8 *handle;
+    Bool is_write;
+} File;
 
 
 struct TokenType {
@@ -773,6 +780,13 @@ void default_inc(void * v);
 U32 * default_distance(void * a, void * b);
 void println(Array * parts);
 void print(Array * parts);
+File * File_new(Str * path, Bool is_write);
+void File_write_str(File * self, Str * s);
+Str * File_read_all(File * self);
+void File_close(File * self);
+File * File_clone(File * self);
+void File_delete(File * self, Bool * call_free);
+U32 * File_size(void);
 void swap(void * a, void * b, U64 size);
 void move(void * dest, void * src, U64 size);
 I64 * wait_cmd(I64 * pid);

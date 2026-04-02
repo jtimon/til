@@ -384,6 +384,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/asting.til", flags)
     add_mode(tests, "src/test/trailing.til", flags)
     add_mode(tests, "src/test/kwargs.til", flags)
+    add_mode(tests, "src/test/files.til", flags)
 
     // === 2 FFI tests ===
     ffi_exp := "gen/out/expected/ffi.out"

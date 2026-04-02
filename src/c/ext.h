@@ -232,3 +232,9 @@ I64 clock_ms(void);
 I64 get_thread_count(void);
 U64 peak_rss_bytes(void);
 USize c_str_len(U8 *s);
+
+// File handle I/O
+void *cfile_open(Str *path, Bool is_write);
+void cfile_close(void *handle);
+void cfile_write_str(void *handle, Str *s);
+Str *cfile_read_all(void *handle);
