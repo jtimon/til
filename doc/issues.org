@@ -602,6 +602,12 @@
   regular, but none of it is required to fix ~#119~. Struct literals can
   stay special in typer for now.
 
+  Chosen solution: types that have a ~new~ namespace method are not
+  allowed to use the struct literal syntax ~T(...)~ outside their own
+  namespace. Callers must use ~T.new(...)~ or other namespace
+  constructors instead. Inside the namespace, struct literals remain
+  available (needed by ~new~ itself and by ~clone~, ~take_prefix~, etc.).
+
 ** OPEN #97 Negative identifier expressions: -MY_CONST, -x
   Parser only supports negative literals (~-42~), not negative
   identifiers (~-AB_INF~, ~-x~). Workaround: ~0.sub(AB_INF)~.
