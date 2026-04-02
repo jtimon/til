@@ -318,7 +318,7 @@
   <text x="3600" y="262" class="title">EnumInstance: StructDef</text>
   <text x="3600" y="280" class="line">ref mut enum_name : Str = NULL</text>
   <text x="3600" y="298" class="line">ref mut enum_def : Expr = NULL</text>
-  <text x="3600" y="316" class="line">ref mut data : U8 = NULL</text>
+  <text x="3600" y="316" class="line">own mut data : U8 = 0</text>
   <text x="3600" y="334" class="line">mut data_size : I32 = 0</text>
   <rect x="3586" y="360" width="196" height="280" rx="10" ry="10" class="box"/>
   <text x="3600" y="398" class="title">Value: EnumDef</text>

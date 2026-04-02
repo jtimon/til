@@ -267,7 +267,7 @@
 ** EnumInstance: StructDef
 *** ref mut enum_name : Str = NULL
 *** ref mut enum_def : Expr = NULL
-*** ref mut data : U8 = NULL
+*** own mut data : U8 = 0
 *** mut data_size : I32 = 0
 ** Value: EnumDef
 *** None

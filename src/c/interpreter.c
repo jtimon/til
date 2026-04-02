@@ -9,7 +9,6 @@
 
 // Forward declarations (defined in ast.c)
 
-// Value_delete is generated from interpreter.til (declared in boot headers)
 
 // --- Return value mechanism ---
 static Bool has_return;
@@ -536,27 +535,6 @@ Value clone_value(Value v) {
     }
 }
 
-// Free a Value's heap memory
-// Delegates to Value_delete when StructInstance_delete/EnumInstance_delete
-// are non-trivial (after boot/ is regenerated from interpreter.til).
-// Until then, handles Struct/Enum inline to avoid regressing.
-void free_value(Value v) {
-    switch (v.tag) {
-    case Value_TAG_Struct:
-        if (!v.data.Struct.borrowed && v.data.Struct.data) {
-            free(v.data.Struct.data);
-        }
-        break;
-    case Value_TAG_Enum:
-        if (v.data.Enum.data) {
-            free(v.data.Enum.data);
-        }
-        break;
-    default:
-        Value_delete(&v, &(Bool){0});
-        break;
-    }
-}
 
 // Compare two Values for equality
 Bool values_equal(Value a, Value b) {
@@ -1138,13 +1116,11 @@ static void eval_body(Scope *scope, Expr *body) {
             if (stmt->til_type.tag == TilType_TAG_Dynamic && rhs->data.tag == NodeType_TAG_Ident) {
                 // Move semantics: transfer value from source, null source
                 Cell *src = scope_get(scope, &rhs->data.data.Ident);
-                free_value(cell->val);
                 cell->val = src->val;
                 if (src->val.tag != Value_TAG_Func)
                     src->val = val_none();
             } else {
                 Value new_val = eval_expr(scope,rhs);
-                free_value(cell->val);
                 cell->val = new_val;
             }
             break;

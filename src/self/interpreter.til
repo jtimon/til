@@ -14,19 +14,21 @@ StructInstance := struct {
         return self.struct_name.clone()
     }
     clone := func(self: StructInstance) returns StructInstance {
-        # Shallow clone -- C functions handle deep clone
+        # Shallow clone -- C clone_value handles deep clone
         return StructInstance(struct_name = self.struct_name,
                              struct_def = self.struct_def,
                              data = self.data,
                              borrowed = self.borrowed)
     }
-    delete := func(own self: StructInstance, call_free: Bool = true) {}
+    delete := func(own self: StructInstance, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
 }
 
 EnumInstance := struct {
     ref mut enum_name : Str = NULL
     ref mut enum_def : Expr = NULL
-    ref mut data : U8 = NULL
+    own mut data : U8 = 0
     mut data_size : I32 = 0
     namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns shallow Bool {
@@ -42,7 +44,9 @@ EnumInstance := struct {
                            data = self.data,
                            data_size = self.data_size)
     }
-    delete := func(own self: EnumInstance, call_free: Bool = true) {}
+    delete := func(own self: EnumInstance, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
 }
 
 Value := enum {
