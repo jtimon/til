@@ -3348,10 +3348,7 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
             // NodeType.While: skip condition -- hoisting changes loop semantics
         }
 
-        for j in 0..hoisted.len() {
-            ref h : Expr = hoisted.get(j)
-            new_ch.push(own h.clone())
-        }
+        new_ch.append(own hoisted)
         new_ch.push(own stmt)
     }
 
