@@ -215,26 +215,38 @@ count_pieces := func(mut board: Array, side: I64) returns I64 {
     return count
 }
 
-// Pack checkers state into Board: cells[0..63] + side
-// Layout: 64 * 8 bytes for cells + 8 bytes for side = 520 bytes
+// Board I64 accessors
+board_get_i64 := func(b: Board, i: I64) returns ref I64 {
+    ref v : I64 = ptr_add(b.data.data, i.mul(8).to_u64())
+    return v
+}
+
+board_set_i64 := proc(mut b: Board, i: I64, shallow val: I64) {
+    memcpy(ptr_add(b.data.data, i.mul(8).to_u64()), val, 8)
+}
+
+// Pack checkers state into Board (I64-indexed): cells[0..64) + side(64)
 checkers_pack := proc(mut b: Board, mut cells: Array, side: I64) {
-    memcpy(b.data.data, cells.data, 512)
-    memcpy(ptr_add(b.data.data, 512), side, 8)
+    mut i := 0
+    while i.lt(64) {
+        ref v : I64 = cells.get(i.to_u32())
+        board_set_i64(b, i, v)
+        i = i.add(1)
+    }
+    board_set_i64(b, 64, side)
 }
 
 checkers_unpack_side := func(b: Board) returns I64 {
-    ref s : I64 = ptr_add(b.data.data, 512)
-    return s.clone()
+    return board_get_i64(b, 64).clone()
 }
 
 // Heuristic: material count relative to side
 checkers_heuristic : Heuristic = (b) {
     ref cb : Board = b
-    cells := Array(data = cb.data.data, cap = 64, elem_size = 8, elem_type = "I64")
     side := checkers_unpack_side(cb)
     mut score := 0
     for i in 0..64 {
-        ref p : I64 = cells.get(i)
+        ref p : I64 = board_get_i64(cb, i.to_i64())
         if p.eq(1) { score = score.add(1) }
         if p.eq(2) { score = score.add(3) }
         if p.eq(3) { score = score.sub(1) }
@@ -279,7 +291,12 @@ expand_jumps := proc(mut cells: Array, piece_pos: I64, side: I64,
 // Next boards: generate all complete turns (multi-jumps expanded)
 checkers_next_boards : NextBoardsFn = (b) {
     ref cb : Board = b
-    cells := Array(data = cb.data.data, cap = 64, elem_size = 8, elem_type = "I64")
+    mut cells := Array.new("I64", 8, 64)
+    mut ci := 0
+    while ci.lt(64) {
+        cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
+        ci = ci.add(1)
+    }
     side := checkers_unpack_side(cb)
     result := Vec.new("Board", Board.size())
     mut tmp_m := Array.new("I64", 8, 64)
