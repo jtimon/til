@@ -744,24 +744,6 @@ static I32 ffi_init_user_so(Str *fwd_path, Str *user_c_path, Str *ext_c_path, St
     return 0;
 }
 
-static void ffi_init_link_libs(Str *link_flags) {
-    if (!link_flags) return;
-    const char *p = (const char *)link_flags->c_str;
-    while ((p = strstr(p, "-l")) != NULL) {
-        p += 2;
-        char lib[256];
-        int i = 0;
-        while (*p && *p != ' ' && i < 255)
-            lib[i++] = *p++;
-        lib[i] = '\0';
-        if (i > 0) {
-            char soname[280];
-            snprintf(soname, sizeof(soname), "lib%s.so", lib);
-            dlopen(soname, RTLD_NOW | RTLD_GLOBAL);
-        }
-    }
-}
-
 static void ffi_init_scan_program(Expr *program) {
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"FFIEntry", .count = 8, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {

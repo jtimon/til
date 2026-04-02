@@ -70,6 +70,32 @@ ffi_dlsym := func(name: Str) returns ref U8 {
     return ffi_global_symbol(name)
 }
 
+ffi_init_link_libs := proc(link_flags: Str) {
+    if is_null(link_flags) {
+        return
+    }
+    mut i : USize = 0
+    while i.add(1).lt(link_flags.len()) {
+        if link_flags.byte_at(i).eq(45).and(link_flags.byte_at(i.add(1)).eq(108)) {
+            i = i.add(2)
+            start := i
+            while i.lt(link_flags.len()) {
+                if link_flags.byte_at(i).eq(32) {
+                    break
+                }
+                i = i.add(1)
+            }
+            if i.gt(start) {
+                lib := link_flags.substr(start, i.sub(start))
+                soname := format("lib", lib, ".so")
+                ffi_load_global_lib(soname)
+            }
+        } else {
+            i = i.add(1)
+        }
+    }
+}
+
 ffi_init_struct_defs := proc(program: Expr) {
     ffi_struct_defs = Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
     for i in 0..program.child_count() {
