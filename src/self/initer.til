@@ -1803,9 +1803,6 @@ TypeScope := struct {
     mut bindings := Map.new("Str", Str.size(), "TypeBinding", TypeBinding.size())
     ref mut parent : TypeScope = NULL
     namespace:
-    new := func(parent: TypeScope) returns TypeScope {
-        return TypeScope(parent = parent)
-    }
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
         if self.bindings.has(name) {
             ref b : TypeBinding = self.bindings.get(name)

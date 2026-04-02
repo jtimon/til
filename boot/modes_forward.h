@@ -856,7 +856,6 @@ void ScopeFind_delete(ScopeFind * self, Bool * call_free);
 Str * ScopeFind_to_str(ScopeFind * self);
 ScopeFind * ScopeFind_clone(ScopeFind * self);
 U32 * ScopeFind_size(void);
-TypeScope * TypeScope_new(TypeScope * parent);
 TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 TilType * TypeScope_get_type(TypeScope * self, Str * name);

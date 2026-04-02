@@ -1061,7 +1061,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             }
         }
     }
-    inner := TypeScope.new(scope)
+    inner := TypeScope(parent = scope)
     infer_body(inner, expr.child(0), 0, 0, 0, 0, 1, ctx)
     TypeScope.delete(own inner)
 }
@@ -1123,7 +1123,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             type_error(expr, "proc not allowed in pure mode")
         }
     }
-    mut func_scope := TypeScope.new(scope)
+    mut func_scope := TypeScope(parent = scope)
     if fdef.return_type.len().gt(0) {
         return_type_name := fdef.return_type.clone()
         ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
@@ -1235,11 +1235,11 @@ infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, sh
     if is_variant(stmt.child(0).til_type, TilType.Bool).not().and(is_variant(stmt.child(0).til_type, TilType.Unknown).not()) {
         type_error(stmt, "if condition must be Bool")
     }
-    then_scope := TypeScope.new(scope)
+    then_scope := TypeScope(parent = scope)
     infer_body(then_scope, stmt.child(1), in_func, 1, in_loop, returns_ref, 0, ctx)
     TypeScope.delete(own then_scope)
     if stmt.child_count().gt(2) {
-        else_scope := TypeScope.new(scope)
+        else_scope := TypeScope(parent = scope)
         infer_body(else_scope, stmt.child(2), in_func, 1, in_loop, returns_ref, 0, ctx)
         TypeScope.delete(own else_scope)
     }
@@ -1425,7 +1425,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         }
         body.children = new_ch
     }
-    while_scope := TypeScope.new(scope)
+    while_scope := TypeScope(parent = scope)
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
     TypeScope.delete(own while_scope)
     stmt.til_type = TilType.None
@@ -2280,7 +2280,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
     case NodeType.If:
         infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref, ctx)
     case NodeType.Body:
-        block_scope := TypeScope.new(scope)
+        block_scope := TypeScope(parent = scope)
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
         TypeScope.delete(own block_scope)
     case NodeType.While:
