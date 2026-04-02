@@ -9,8 +9,7 @@
 
 // Forward declarations (defined in ast.c)
 
-// Forward declaration (defined below)
-void free_value(Value v);
+// Value_delete is generated from interpreter.til (declared in boot headers)
 
 // --- Return value mechanism ---
 static Bool has_return;
@@ -538,16 +537,11 @@ Value clone_value(Value v) {
 }
 
 // Free a Value's heap memory
+// Delegates to Value_delete when StructInstance_delete/EnumInstance_delete
+// are non-trivial (after boot/ is regenerated from interpreter.til).
+// Until then, handles Struct/Enum inline to avoid regressing.
 void free_value(Value v) {
     switch (v.tag) {
-    case Value_TAG_Int:  break;
-    case Value_TAG_Byte:   break;
-    case Value_TAG_Short:  break;
-    case Value_TAG_Int32:  break;
-    case Value_TAG_Uint32:  break;
-    case Value_TAG_Uint64:  break;
-    case Value_TAG_Float:  break;
-    case Value_TAG_Boolean: break;
     case Value_TAG_Struct:
         if (!v.data.Struct.borrowed && v.data.Struct.data) {
             free(v.data.Struct.data);
@@ -558,11 +552,9 @@ void free_value(Value v) {
             free(v.data.Enum.data);
         }
         break;
-    case Value_TAG_Ptr:
-        break; // borrowed pointer into buffer, nothing to free
-    case Value_TAG_Func:
-        break; // function pointer: borrowed reference to AST, nothing to free
-    default: break;
+    default:
+        Value_delete(&v, &(Bool){0});
+        break;
     }
 }
 
