@@ -1,9 +1,300 @@
 mode lib
 
-mut gc_strs := Vec.new("Dynamic", Dynamic.size())
+mut gc_strs := Vec.new("Str", Str.size())
 
 qualified_name := func(type_name: Str, method_name: Str) returns Str {
     return type_name.concat(".").concat(method_name)
 }
 
-scavenge := ext_proc(program: Expr, m: Mode, shallow run_tests: Bool) {}
+gc_str := func(own s: Str) returns ref Str {
+    gc_strs.push(own s)
+    ref result : Str = gc_strs.get(gc_strs.len().sub(1))
+    return result
+}
+
+gc_free_all := proc() {
+    gc_strs = Vec.new("Str", Str.size())
+}
+
+vec_push_str := proc(mut v: Vec, s: Str) {
+    v.push(own s.clone())
+}
+
+// Raw memcpy into Vec slot without calling element destructor
+children_write := proc(mut v: Vec, shallow dst: I64, shallow src: I64) {
+    d := dst.to_usize()
+    s := src.to_usize()
+    memcpy(ptr_add(v.data, d.mul(v.elem_size)), ptr_add(v.data, s.mul(v.elem_size)), v.elem_size)
+}
+
+// Set Vec.count directly without popping
+children_set_count := proc(mut v: Vec, shallow count: I64) {
+    v.count = count.to_usize()
+}
+
+is_def := func(e: Expr) returns shallow Bool {
+    if is_variant(e.child(0).data, NodeType.FuncDef) { return true }
+    if is_variant(e.child(0).data, NodeType.StructDef) { return true }
+    if is_variant(e.child(0).data, NodeType.EnumDef) { return true }
+    return false
+}
+
+is_struct_or_enum := func(e: Expr) returns shallow Bool {
+    if is_variant(e.child(0).data, NodeType.StructDef) { return true }
+    if is_variant(e.child(0).data, NodeType.EnumDef) { return true }
+    return false
+}
+
+// Push gc'd qualified "Type.method" refs into v
+push_qn := proc(mut v: Vec, type_name: Str, method: Str) {
+    v.push(own qualified_name(type_name, method))
+}
+
+push_builtin_methods := proc(mut v: Vec, builtin_name: Str, m1: Str, m2: Str, m3: Str) {
+    v.push(own qualified_name(builtin_name, m1))
+    v.push(own qualified_name(builtin_name, m2))
+    v.push(own qualified_name(builtin_name, m3))
+}
+
+collect_refs := proc(e: Expr, mut refs: Vec) {
+    if is_null(e) { return }
+
+    if is_variant(e.data, NodeType.Ident) {
+        ref ident : Str = get_payload(e.data)
+        vec_push_str(refs, ident)
+    } else if is_variant(e.data, NodeType.FCall) {
+        // Check for namespace method call: Type.method(args...)
+        if e.child_count().gt(0) {
+            if is_variant(e.child(0).data, NodeType.FieldAccess) {
+                if e.child(0).is_ns_field {
+                    ref fa : Expr = e.child(0)
+                    ref type_name : Str = get_payload(fa.child(0).data)
+                    ref method : Str = get_payload(fa.data)
+                    vec_push_str(refs, type_name)
+                    push_qn(refs, type_name, method)
+                    // Recurse into args (skip callee -- already handled)
+                    for i in 1..e.child_count() {
+                        collect_refs(e.child(i), refs)
+                    }
+                    return
+                }
+            }
+        }
+        // array()/vec() builtins need Array/Vec constructor methods
+        if e.child_count().gte(2) {
+            if is_variant(e.child(0).data, NodeType.Ident) {
+                ref cn : Str = get_payload(e.child(0).data)
+                if cn.eq("array") {
+                    push_builtin_methods(refs, "Array", "new", "set", "delete")
+                } else if cn.eq("vec") {
+                    push_builtin_methods(refs, "Vec", "new", "push", "delete")
+                }
+            }
+        }
+    } else if is_variant(e.data, NodeType.FuncDef) {
+        ref fdef : FunctionDef = get_payload(e.data)
+        for i : U32 in 0..fdef.nparam {
+            ref p : Param = fdef.params.get(i)
+            if p.ptype.len().gt(0) {
+                vec_push_str(refs, p.ptype)
+            }
+        }
+        if fdef.variadic_index.gte(0) {
+            vec_push_str(refs, "Array")
+            push_qn(refs, "Array", "new")
+            push_qn(refs, "Array", "set")
+            push_qn(refs, "Array", "delete")
+        }
+        if fdef.return_type.len().gt(0) {
+            vec_push_str(refs, fdef.return_type)
+        }
+    } else if is_variant(e.data, NodeType.FieldAccess) {
+        if e.is_ns_field {
+            if is_variant(e.child(0).data, NodeType.Ident) {
+                ref type_name : Str = get_payload(e.child(0).data)
+                ref field_name : Str = get_payload(e.data)
+                vec_push_str(refs, type_name)
+                push_qn(refs, type_name, field_name)
+            }
+        }
+    } else if is_variant(e.data, NodeType.FieldAssign) {
+        if e.is_ns_field {
+            if is_variant(e.child(0).data, NodeType.Ident) {
+                ref type_name : Str = get_payload(e.child(0).data)
+                ref field_name : Str = get_payload(e.data)
+                vec_push_str(refs, type_name)
+                push_qn(refs, type_name, field_name)
+            }
+        }
+    } else if is_variant(e.data, NodeType.Decl) {
+        ref decl : Declaration = get_payload(e.data)
+        if decl.explicit_type.len().gt(0) {
+            vec_push_str(refs, decl.explicit_type)
+        }
+    }
+
+    // Recurse into children
+    for i in 0..e.child_count() {
+        collect_refs(e.child(i), refs)
+    }
+}
+
+find_ns_method := func(program: Expr, top: Map, name: Str) returns ref Expr {
+    dot := name.find(".")
+    if dot.lt(0) { return NULL }
+    type_part := name.substr(0, dot.to_u32())
+    if top.has(type_part).not() { return NULL }
+    ref tidx : U32 = top.get(type_part)
+    ref tdecl : Expr = program.child(tidx)
+    if is_variant(tdecl.data, NodeType.Decl).not() { return NULL }
+    if is_struct_or_enum(tdecl).not() { return NULL }
+    dot_u := dot.to_u32()
+    method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
+    ref body : Expr = tdecl.child(0).child(0)
+    for k in 0..body.child_count() {
+        ref field : Expr = body.child(k)
+        ref fd : Declaration = get_payload(field.data)
+        if fd.is_namespace {
+            if fd.name.eq(method_part) {
+                return field
+            }
+        }
+    }
+    return NULL
+}
+
+scavenge := proc(mut program: Expr, m: Mode, shallow run_tests: Bool) {
+    mut is_cli := false
+    if is_null(m).not() {
+        if m.needs_main {
+            if run_tests.not() {
+                is_cli = true
+            }
+        }
+    }
+
+    gc_strs = Vec.new("Str", Str.size())
+
+    // 1. Build top-level declaration map (name -> child index)
+    mut top := Map.new("Str", Str.size(), "U32", U32.size())
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl) {
+            ref decl : Declaration = get_payload(stmt.data)
+            top.set(own decl.name.clone(), own i.clone())
+        }
+    }
+
+    // 2. Seed worklist
+    mut worklist := Vec.new("Str", Str.size())
+    if is_cli {
+        vec_push_str(worklist, "main")
+        for i in 0..program.child_count() {
+            ref stmt : Expr = program.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                if is_def(stmt) { continue }
+            }
+            collect_refs(stmt, worklist)
+        }
+    } else if run_tests {
+        for i in 0..program.child_count() {
+            ref stmt : Expr = program.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                if is_variant(stmt.child(0).data, NodeType.FuncDef) {
+                    ref fdef : FunctionDef = get_payload(stmt.child(0).data)
+                    if fdef.func_type.eq(FuncType.Test) {
+                        ref d : Declaration = get_payload(stmt.data)
+                        vec_push_str(worklist, d.name)
+                    }
+                }
+            }
+        }
+    } else {
+        for i in 0..program.child_count() {
+            ref stmt : Expr = program.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                if is_def(stmt) { continue }
+            }
+            collect_refs(stmt, worklist)
+        }
+    }
+
+    // 3. BFS
+    mut visited := Set.new("Str", Str.size())
+    mut cursor : U32 = 0
+    while cursor.lt(worklist.len()) {
+        name := Str.clone(worklist.get(cursor))
+        cursor = cursor.add(1)
+        if visited.has(name) { continue }
+        visited.add(own name.clone())
+
+        // Top-level declaration?
+        if top.has(name) {
+            ref idx : U32 = top.get(name)
+            ref decl : Expr = program.child(idx)
+            if is_struct_or_enum(decl) {
+                ref body : Expr = decl.child(0).child(0)
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fd : Declaration = get_payload(field.data)
+                    if fd.is_namespace.not() {
+                        collect_refs(field, worklist)
+                    }
+                }
+                // Infrastructure methods (dyn_call)
+                push_qn(worklist, name, "delete")
+                push_qn(worklist, name, "clone")
+                push_qn(worklist, name, "size")
+                push_qn(worklist, name, "cmp")
+            } else {
+                collect_refs(decl.child(0), worklist)
+            }
+        }
+
+        // Namespace method?
+        ref method : Expr = find_ns_method(program, top, name)
+        if is_null(method).not() {
+            if is_variant(method.child(0).data, NodeType.FuncDef) {
+                collect_refs(method.child(0), worklist)
+            }
+        }
+    }
+
+    // 4. Filter top-level declarations
+    mut w : I64 = 0
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl) {
+            if is_def(stmt) {
+                ref d : Declaration = get_payload(stmt.data)
+                if visited.has(d.name).not() { continue }
+            }
+        }
+        children_write(program.children, w, i.to_i64())
+        w = w.add(1)
+    }
+    children_set_count(program.children, w)
+
+    // 5. Filter namespace methods in kept structs
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        if is_struct_or_enum(stmt).not() { continue }
+        ref sdecl : Declaration = get_payload(stmt.data)
+        ref body : Expr = stmt.child(0).child(0)
+        mut bw : I64 = 0
+        for j in 0..body.child_count() {
+            ref field : Expr = body.child(j)
+            ref fd : Declaration = get_payload(field.data)
+            if fd.is_namespace {
+                qn := qualified_name(sdecl.name, fd.name)
+                if visited.has(qn).not() { continue }
+            }
+            children_write(body.children, bw, j.to_i64())
+            bw = bw.add(1)
+        }
+        children_set_count(body.children, bw)
+    }
+
+    gc_free_all()
+}

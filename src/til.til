@@ -18,7 +18,6 @@ import("self/modes.til")
 link_c("src/c/interpreter.c")
 link_c("src/c/builder.c")
 link_c("src/c/precomp.c")
-link_c("src/c/scavenger.c")
 link_c("src/c/dispatch.c")
 link_c("src/c/ext.c")
 
