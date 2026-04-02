@@ -583,41 +583,66 @@ copy_cf := proc(mut dst: Array, mut src: Array) {
     }
 }
 
-// Pack chess state into Board.data
-// Layout: cells[64*8] + side[8] + ep_col[8] + castle_flags[6*8] = 576 bytes
+// Board I64 accessors
+board_get_i64 := func(b: Board, i: I64) returns ref I64 {
+    ref v : I64 = ptr_add(b.data.data, i.mul(8).to_u64())
+    return v
+}
+
+board_set_i64 := proc(mut b: Board, i: I64, shallow val: I64) {
+    memcpy(ptr_add(b.data.data, i.mul(8).to_u64()), val, 8)
+}
+
+// Pack chess state into Board.data (I64-indexed)
+// Layout: cells[0..64) + side(64) + ep_col(65) + castle_flags[66..72)
+CHESS_IDX_SIDE := 64
+CHESS_IDX_EP := 65
+CHESS_IDX_CF := 66
+
 chess_pack := proc(mut b: Board, mut cells: Array, side: I64, ep_col: I64, mut cf: Array) {
-    memcpy(b.data.data, cells.data, 512)
-    memcpy(ptr_add(b.data.data, 512), side, 8)
-    memcpy(ptr_add(b.data.data, 520), ep_col, 8)
-    memcpy(ptr_add(b.data.data, 528), cf.data, 48)
+    mut i := 0
+    while i.lt(64) {
+        ref v : I64 = cells.get(i.to_u32())
+        board_set_i64(b, i, v)
+        i = i.add(1)
+    }
+    board_set_i64(b, CHESS_IDX_SIDE, side)
+    board_set_i64(b, CHESS_IDX_EP, ep_col)
+    i = 0
+    while i.lt(6) {
+        ref v : I64 = cf.get(i.to_u32())
+        board_set_i64(b, CHESS_IDX_CF.add(i), v)
+        i = i.add(1)
+    }
 }
 
 chess_unpack_side := func(b: Board) returns I64 {
-    ref s : I64 = ptr_add(b.data.data, 512)
-    return s.clone()
+    return board_get_i64(b, CHESS_IDX_SIDE).clone()
 }
 
 chess_unpack_ep := func(b: Board) returns I64 {
-    ref e : I64 = ptr_add(b.data.data, 520)
-    return e.clone()
+    return board_get_i64(b, CHESS_IDX_EP).clone()
 }
 
 chess_unpack_cf := func(b: Board) returns Array {
     mut cf := Array.new("I64", 8, 6)
-    memcpy(cf.data, ptr_add(b.data.data, 528), 48)
+    mut i := 0
+    while i.lt(6) {
+        cf.set(i.to_u32(), own board_get_i64(b, CHESS_IDX_CF.add(i)).clone())
+        i = i.add(1)
+    }
     return cf
 }
 
 // Heuristic: material count + checkmate/stalemate detection
 chess_heuristic : Heuristic = (b) {
     ref cb : Board = b
-    cells := Array(data = cb.data.data, cap = 64, elem_size = 8, elem_type = "I64")
     side := chess_unpack_side(cb)
     WEIGHTS := array("I64", 0, 1, 3, 3, 5, 10, 0)
     mut score := 0
     mut i := 0
     while i.lt(64) {
-        ref p : I64 = cells.get(i.to_u32())
+        ref p : I64 = board_get_i64(cb, i)
         if p.gt(0).and(p.lte(6)) {
             ref w : I64 = WEIGHTS.get(p.to_u32())
             score = score.add(w)
@@ -635,7 +660,12 @@ chess_heuristic : Heuristic = (b) {
 // Next boards: generate all legal moves
 chess_next_boards : NextBoardsFn = (b) {
     ref cb : Board = b
-    cells := Array(data = cb.data.data, cap = 64, elem_size = 8, elem_type = "I64")
+    mut cells := Array.new("I64", 8, 64)
+    mut ci := 0
+    while ci.lt(64) {
+        cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
+        ci = ci.add(1)
+    }
     side := chess_unpack_side(cb)
     ep_col := chess_unpack_ep(cb)
     mut cf := chess_unpack_cf(cb)
