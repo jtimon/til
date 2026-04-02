@@ -324,37 +324,54 @@ try_place := proc(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
 }
 
 // Pack go state into Board.data
-// Fixed layout: cells[MAX_CELLS*8] + side[8] + size[8] + has_ko[8] + ko_board[MAX_CELLS*8]
-GO_OFF_SIDE := MAX_CELLS.mul(8)
-GO_OFF_SIZE := MAX_CELLS.mul(8).add(8)
-GO_OFF_HAS_KO := MAX_CELLS.mul(8).add(16)
-GO_OFF_KO := MAX_CELLS.mul(8).add(24)
+// Fixed layout (I64-indexed): cells[0..total) + side + size + has_ko + ko_board[0..total)
+// Board layout (I64-indexed): cells[0..total), metadata at MAX_CELLS+offset
+GO_IDX_SIZE := MAX_CELLS.add(1)
+GO_IDX_HAS_KO := MAX_CELLS.add(2)
+GO_IDX_KO := MAX_CELLS.add(3)
+
+// Board I64 accessors (Board.data is U8 Array, we access as I64 via ptr_add)
+board_get_i64 := func(b: Board, i: I64) returns ref I64 {
+    ref v : I64 = ptr_add(b.data.data, i.mul(8).to_u64())
+    return v
+}
+
+board_set_i64 := proc(mut b: Board, i: I64, shallow val: I64) {
+    memcpy(ptr_add(b.data.data, i.mul(8).to_u64()), val, 8)
+}
 
 go_pack := proc(mut b: Board, mut cells: Array, side: I64, size: I64,
                  mut ko_board: Array, has_ko: Bool) {
     total := size.mul(size)
-    memcpy(b.data.data, cells.data, total.mul(8).to_u64())
-    memcpy(ptr_add(b.data.data, GO_OFF_SIDE.to_u64()), side, 8)
-    memcpy(ptr_add(b.data.data, GO_OFF_SIZE.to_u64()), size, 8)
+    mut i := 0
+    while i.lt(total) {
+        ref v : I64 = cells.get(i.to_u32())
+        board_set_i64(b, i, v)
+        i = i.add(1)
+    }
+    board_set_i64(b, MAX_CELLS, side)
+    board_set_i64(b, GO_IDX_SIZE, size)
     mut has_ko_i := 0
     if has_ko { has_ko_i = 1 }
-    memcpy(ptr_add(b.data.data, GO_OFF_HAS_KO.to_u64()), has_ko_i, 8)
-    memcpy(ptr_add(b.data.data, GO_OFF_KO.to_u64()), ko_board.data, total.mul(8).to_u64())
+    board_set_i64(b, GO_IDX_HAS_KO, has_ko_i)
+    i = 0
+    while i.lt(total) {
+        ref v : I64 = ko_board.get(i.to_u32())
+        board_set_i64(b, GO_IDX_KO.add(i), v)
+        i = i.add(1)
+    }
 }
 
 go_unpack_side := func(b: Board) returns I64 {
-    ref s : I64 = ptr_add(b.data.data, GO_OFF_SIDE.to_u64())
-    return s.clone()
+    return board_get_i64(b, MAX_CELLS).clone()
 }
 
 go_unpack_size := func(b: Board) returns I64 {
-    ref s : I64 = ptr_add(b.data.data, GO_OFF_SIZE.to_u64())
-    return s.clone()
+    return board_get_i64(b, GO_IDX_SIZE).clone()
 }
 
 go_unpack_has_ko := func(b: Board) returns Bool {
-    ref v : I64 = ptr_add(b.data.data, GO_OFF_HAS_KO.to_u64())
-    return v.eq(1)
+    return board_get_i64(b, GO_IDX_HAS_KO).eq(1)
 }
 
 go_heuristic : Heuristic = (b) {
@@ -362,12 +379,11 @@ go_heuristic : Heuristic = (b) {
     size := go_unpack_size(gb)
     total := size.mul(size)
     side := go_unpack_side(gb)
-    cells := Array(data = gb.data.data, cap = total.to_u32(), elem_size = 8, elem_type = "I64")
     opp := 3.sub(side)
     mut score := 0
     mut i := 0
     while i.lt(total) {
-        ref p : I64 = cells.get(i.to_u32())
+        ref p : I64 = board_get_i64(gb, i)
         if p.eq(side) { score = score.add(1) }
         if p.eq(opp) { score = score.sub(1) }
         i = i.add(1)
@@ -381,8 +397,14 @@ go_next_boards : NextBoardsFn = (b) {
     total := size.mul(size)
     side := go_unpack_side(gb)
     has_ko := go_unpack_has_ko(gb)
-    cells := Array(data = gb.data.data, cap = total.to_u32(), elem_size = 8, elem_type = "I64")
-    ko_cells := Array(data = ptr_add(gb.data.data, GO_OFF_KO.to_u64()), cap = total.to_u32(), elem_size = 8, elem_type = "I64")
+    mut cells := Array.new("I64", 8, total.to_u32())
+    mut ko_cells := Array.new("I64", 8, total.to_u32())
+    mut ci := 0
+    while ci.lt(total) {
+        cells.set(ci.to_u32(), own board_get_i64(gb, ci).clone())
+        ko_cells.set(ci.to_u32(), own board_get_i64(gb, GO_IDX_KO.add(ci)).clone())
+        ci = ci.add(1)
+    }
     result := Vec.new("Board", Board.size())
     mut i := 0
     while i.lt(total) {
