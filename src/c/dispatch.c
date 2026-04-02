@@ -755,39 +755,6 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
       Map_set(&ffi_map, _k, _v); }
 }
 
-static I32 ffi_init_user_so(Str *fwd_path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Str **so_path_out) {
-    *so_path_out = NULL;
-    if (!user_c_path) return 0;
-
-    Str *ext_dir;
-    Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
-    {
-        I64 slash = Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
-    }
-    char pid_buf[32];
-    snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)process_id());
-    *so_path_out = Str_clone(&(Str){.c_str = (U8*)(pid_buf), .count = (U64)strlen((const char*)(pid_buf)), .cap = CAP_VIEW});
-    system_cmd(&(Str){.c_str = (U8*)"mkdir -p tmp", .count = 12, .cap = CAP_LIT});
-    Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
-    Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        &(Str){.c_str = (U8*)"cc -Wall -Wextra -shared -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
-        &(Str){.c_str = (U8*)" -include ", .count = 10, .cap = CAP_LIT}), fwd_path),
-        &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), *so_path_out),
-        &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), user_c_path), lf);
-    int rc = system((const char *)cmd->c_str);
-    if (rc != 0) {
-        fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path->c_str);
-        return 1;
-    }
-    if (!ffi_open_user_so(*so_path_out)) {
-        Str *err = ffi_last_error();
-        fprintf(stderr, "error: dlopen failed: %s\n", err->c_str);
-        return 1;
-    }
-    return 0;
-}
-
 static void ffi_init_scan_program(Expr *program) {
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"FFIEntry", .count = 8, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
@@ -845,7 +812,7 @@ static void ffi_init_scan_program(Expr *program) {
 
 I32 ffi_init(Expr *program, Str *fwd_path, Str *user_c_path, Str *ext_c_path, Str *link_flags) {
     if (ffi_loaded) ffi_cleanup();  // re-init (e.g. precomp then interpret)
-    Str *so_path = NULL;
+    Str so_path = {0};
 
     if (ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, &so_path) != 0)
         return 1;
@@ -855,6 +822,6 @@ I32 ffi_init(Expr *program, Str *fwd_path, Str *user_c_path, Str *ext_c_path, St
     ffi_init_scan_program(program);
 
     ffi_loaded = 1;
-    if (so_path) unlink((const char *)so_path->c_str);
+    if (so_path.c_str) unlink((const char *)so_path.c_str);
     return 0;
 }

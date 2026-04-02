@@ -573,6 +573,11 @@ Str *ffi_last_error(void) {
     return Str_clone(&(Str){.c_str = (U8 *)msg, .count = (USize)strlen(msg), .cap = CAP_VIEW});
 }
 
+I32 stderr_print(Str *msg) {
+    fprintf(stderr, "%.*s", (int)msg->count, msg->c_str ? (char *)msg->c_str : "");
+    return 0;
+}
+
 void unlink_path(Str *path) {
     unlink((const char *)path->c_str);
 }
