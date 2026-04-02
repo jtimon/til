@@ -3358,6 +3358,16 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
 }
 
 insert_field_deletes := proc(mut body: Expr) {
+    // Quick check: skip if no FieldAssign statements exist
+    mut has_field_assign := false
+    for i in 0..body.child_count() {
+        ref stmt : Expr = body.child(i)
+        if is_variant(stmt.data, NodeType.FieldAssign) {
+            has_field_assign = true
+        }
+    }
+    if has_field_assign.not() { return }
+
     mut new_ch := Vec.new("Expr", Expr.size())
     mut changed := false
 
