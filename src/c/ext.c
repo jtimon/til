@@ -8,6 +8,7 @@
 #include <sys/resource.h>
 #include <time.h>
 #include <limits.h>
+#include <dlfcn.h>
 
 // Internal helpers for heap-allocating scalar values
 static I64 *new_i64(I64 v) { I64 *r = malloc(sizeof(I64)); *r = v; return r; }
@@ -20,6 +21,8 @@ static U32 *new_u32(U32 v) { U32 *r = malloc(sizeof(U32)); *r = v; return r; }
 __attribute__((unused)) static F32 *new_f32(F32 v) { F32 *r = malloc(sizeof(F32)); *r = v; return r; }
 static U64 *new_u64(U64 v) { U64 *r = malloc(sizeof(U64)); *r = v; return r; }
 static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r; }
+
+static void *ffi_handle;
 
 // I64 clone
 I64 I64_clone(I64 *v) { return *v; }
@@ -491,6 +494,47 @@ I32 til_system(Str *cmd) {
     int status = system((const char *)cmd->c_str);
     if (WIFEXITED(status)) return WEXITSTATUS(status);
     return 1;
+}
+
+Bool ffi_load_global_lib(Str *soname) {
+    return dlopen((const char *)soname->c_str, RTLD_NOW | RTLD_GLOBAL) != NULL;
+}
+
+Bool ffi_open_user_so(Str *path) {
+    ffi_handle = dlopen((const char *)path->c_str, RTLD_NOW);
+    return ffi_handle != NULL;
+}
+
+void ffi_close_user_so(void) {
+    if (ffi_handle) {
+        dlclose(ffi_handle);
+        ffi_handle = NULL;
+    }
+}
+
+U8 *ffi_user_symbol(Str *name) {
+    if (!ffi_handle) return NULL;
+    return dlsym(ffi_handle, (const char *)name->c_str);
+}
+
+U8 *ffi_global_symbol(Str *name) {
+    return dlsym(RTLD_DEFAULT, (const char *)name->c_str);
+}
+
+Str *ffi_last_error(void) {
+    char *msg = dlerror();
+    if (!msg) {
+        return Str_clone(&(Str){.c_str = (U8 *)"", .count = 0, .cap = CAP_LIT});
+    }
+    return Str_clone(&(Str){.c_str = (U8 *)msg, .count = (USize)strlen(msg), .cap = CAP_VIEW});
+}
+
+void unlink_path(Str *path) {
+    unlink((const char *)path->c_str);
+}
+
+I32 process_id(void) {
+    return (I32)getpid();
 }
 
 Str *til_str_left(Str *s, U64 n) {

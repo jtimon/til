@@ -192,6 +192,7 @@ typedef struct ExtStr ExtStr;
 typedef struct FFIType FFIType;
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
+typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct Mode Mode;
 typedef struct Context Context;
 
@@ -453,6 +454,11 @@ typedef struct FFIEntry {
 typedef struct ExprPtrBox {
     Expr *ptr;
 } ExprPtrBox;
+
+
+typedef struct FFITypePtrBox {
+    FFIType *ptr;
+} FFITypePtrBox;
 
 
 typedef struct Mode {
@@ -1107,6 +1113,9 @@ U32 * FFIEntry_size(void);
 ExprPtrBox * ExprPtrBox_clone(ExprPtrBox * self);
 void ExprPtrBox_delete(ExprPtrBox * self, Bool * call_free);
 U32 * ExprPtrBox_size(void);
+FFITypePtrBox * FFITypePtrBox_clone(FFITypePtrBox * self);
+void FFITypePtrBox_delete(FFITypePtrBox * self, Bool * call_free);
+U32 * FFITypePtrBox_size(void);
 FFIType * ffi_type_pointer_ref(void);
 FFIType * ffi_type_sint64_ref(void);
 FFIType * ffi_type_uint8_ref(void);
@@ -1115,6 +1124,15 @@ FFIType * ffi_type_sint32_ref(void);
 FFIType * ffi_type_uint32_ref(void);
 FFIType * ffi_type_uint64_ref(void);
 FFIType * ffi_type_float_ref(void);
+Bool ffi_load_global_lib(Str * soname);
+Bool ffi_open_user_so(Str * path);
+void ffi_close_user_so(void);
+U8 * ffi_user_symbol(Str * name);
+U8 * ffi_global_symbol(Str * name);
+Str * ffi_last_error(void);
+I32 system_cmd(Str * cmd);
+void unlink_path(Str * path);
+I32 process_id(void);
 void ffi_init_struct_defs(Expr * program);
 I64 * value_to_i64(Value * v);
 U64 * value_to_u64(Value * v);

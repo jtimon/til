@@ -281,7 +281,7 @@
   <text x="2884" y="244" class="line">ref mut method : Str = NULL</text>
   <text x="2884" y="262" class="line">mut nargs : I32 = 1</text>
   <text x="2884" y="280" class="line">mut has_return := false</text>
-  <rect x="3192" y="24" width="340" height="590" rx="14" ry="14" class="panel"/>
+  <rect x="3192" y="24" width="340" height="672" rx="14" ry="14" class="panel"/>
   <text x="3212" y="62" class="panel-label">dispatch</text>
   <rect x="3212" y="88" width="220" height="100" rx="10" ry="10" class="box"/>
   <text x="3226" y="126" class="title">ExtStr: StructDef</text>
@@ -306,6 +306,9 @@
   <rect x="3212" y="532" width="228" height="64" rx="10" ry="10" class="box"/>
   <text x="3226" y="570" class="title">ExprPtrBox: StructDef</text>
   <text x="3226" y="588" class="line">ref mut ptr : Expr = NULL</text>
+  <rect x="3212" y="614" width="252" height="64" rx="10" ry="10" class="box"/>
+  <text x="3226" y="652" class="title">FFITypePtrBox: StructDef</text>
+  <text x="3226" y="670" class="line">ref mut ptr : FFIType = NULL</text>
   <rect x="3566" y="24" width="620" height="934" rx="14" ry="14" class="panel"/>
   <text x="3586" y="62" class="panel-label">interpreter</text>
   <rect x="3586" y="88" width="284" height="118" rx="10" ry="10" class="box"/>

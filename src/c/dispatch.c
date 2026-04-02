@@ -34,8 +34,6 @@ U64 U64_from_i64(I64 v);
 
 typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 
-static void *ffi_handle;
-
 // Forward declaration
 static ffi_type *build_struct_ffi_type(Expr *struct_def);
 
@@ -91,7 +89,7 @@ static ffi_type *field_ffi_type(Expr *field) {
 // Build an ffi_type descriptor for a struct (heap-allocated, cached)
 static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     if (!ffi_type_cache_inited) {
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(ffi_type *)}); ffi_type_cache = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"FFITypePtrBox", .count = 13, .cap = CAP_LIT}, &(USize){sizeof(FFITypePtrBox)}); ffi_type_cache = *_vp; free(_vp); }
         ffi_type_cache_inited = 1;
     }
     // Count instance fields
@@ -117,7 +115,7 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     st->type = FFI_TYPE_STRUCT;
     st->elements = elements;
     // Cache for cleanup
-    { ffi_type **_p = malloc(sizeof(ffi_type *)); *_p = st; Vec_push(&ffi_type_cache, _p); }
+    { FFITypePtrBox *_p = malloc(sizeof(FFITypePtrBox)); _p->ptr = (FFIType *)st; Vec_push(&ffi_type_cache, _p); }
     return st;
 }
 
@@ -675,10 +673,10 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
 // Try to dlsym a name, using ffi_handle first (if available), then RTLD_DEFAULT
 static void *ffi_dlsym(const char *name) {
     void *fn = NULL;
-    if (ffi_handle)
-        fn = dlsym(ffi_handle, name);
+    Str s = {.c_str = (U8 *)name, .count = (U64)strlen(name), .cap = CAP_VIEW};
+    fn = ffi_user_symbol(&s);
     if (!fn)
-        fn = dlsym(RTLD_DEFAULT, name);
+        fn = ffi_global_symbol(&s);
     return fn;
 }
 
@@ -734,9 +732,9 @@ static I32 ffi_init_user_so(Str *fwd_path, Str *user_c_path, Str *ext_c_path, St
         ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
     }
     char pid_buf[32];
-    snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)getpid());
+    snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)process_id());
     *so_path_out = Str_clone(&(Str){.c_str = (U8*)(pid_buf), .count = (U64)strlen((const char*)(pid_buf)), .cap = CAP_VIEW});
-    system("mkdir -p tmp");
+    system_cmd(&(Str){.c_str = (U8*)"mkdir -p tmp", .count = 12, .cap = CAP_LIT});
     Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
         &(Str){.c_str = (U8*)"cc -Wall -Wextra -shared -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
@@ -748,9 +746,9 @@ static I32 ffi_init_user_so(Str *fwd_path, Str *user_c_path, Str *ext_c_path, St
         fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path->c_str);
         return 1;
     }
-    ffi_handle = dlopen((const char *)(*so_path_out)->c_str, RTLD_NOW);
-    if (!ffi_handle) {
-        fprintf(stderr, "error: dlopen failed: %s\n", dlerror());
+    if (!ffi_open_user_so(*so_path_out)) {
+        Str *err = ffi_last_error();
+        fprintf(stderr, "error: dlopen failed: %s\n", err->c_str);
         return 1;
     }
     return 0;
@@ -845,10 +843,7 @@ I32 ffi_init(Expr *program, Str *fwd_path, Str *user_c_path, Str *ext_c_path, St
 }
 
 void ffi_cleanup(void) {
-    if (ffi_handle) {
-        dlclose(ffi_handle);
-        ffi_handle = NULL;
-    }
+    ffi_close_user_so();
     if (ffi_loaded) {
         for (U32 i = 0; i < ffi_map.count; i++) {
             FFIEntry *fe = (FFIEntry *)((char *)ffi_map.val_data + (i * ffi_map.val_size));
@@ -862,7 +857,8 @@ void ffi_cleanup(void) {
     }
     if (ffi_type_cache_inited) {
         for (U32 i = 0; i < ffi_type_cache.count; i++) {
-            ffi_type *t = *(ffi_type **)Vec_get(&ffi_type_cache, &(USize){(USize)(i)});
+            FFITypePtrBox *box = Vec_get(&ffi_type_cache, &(USize){(USize)(i)});
+            ffi_type *t = (ffi_type *)box->ptr;
             free(t->elements);
             free(t);
         }

@@ -27,6 +27,10 @@ ExprPtrBox := struct {
     ref mut ptr : Expr = NULL
 }
 
+FFITypePtrBox := struct {
+    ref mut ptr : FFIType = NULL
+}
+
 mut dispatch_map := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut dispatch_inited := false
 
@@ -34,7 +38,7 @@ mut ffi_map := Map.new("Str", Str.size(), "FFIEntry", FFIEntry.size())
 mut ffi_struct_defs := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut ffi_loaded := false
 
-mut ffi_type_cache := Vec.new("Dynamic", Dynamic.size())
+mut ffi_type_cache := Vec.new("FFITypePtrBox", FFITypePtrBox.size())
 mut ffi_type_cache_inited := false
 
 FFI_TYPE_STRUCT := 13.to_i16()
@@ -47,6 +51,16 @@ ffi_type_sint32_ref := ext_func() returns ref FFIType {}
 ffi_type_uint32_ref := ext_func() returns ref FFIType {}
 ffi_type_uint64_ref := ext_func() returns ref FFIType {}
 ffi_type_float_ref := ext_func() returns ref FFIType {}
+
+ffi_load_global_lib := ext_func(soname: Str) returns shallow Bool {}
+ffi_open_user_so := ext_func(path: Str) returns shallow Bool {}
+ffi_close_user_so := ext_proc() {}
+ffi_user_symbol := ext_func(name: Str) returns ref U8 {}
+ffi_global_symbol := ext_func(name: Str) returns ref U8 {}
+ffi_last_error := ext_func() returns Str {}
+system_cmd := ext_func(cmd: Str) returns shallow I32 {}
+unlink_path := ext_proc(path: Str) {}
+process_id := ext_func() returns shallow I32 {}
 
 ffi_init_struct_defs := proc(program: Expr) {
     ffi_struct_defs = Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())

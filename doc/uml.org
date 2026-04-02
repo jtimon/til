@@ -258,6 +258,8 @@
 *** ref mut arg_types : U8 = NULL
 ** ExprPtrBox: StructDef
 *** ref mut ptr : Expr = NULL
+** FFITypePtrBox: StructDef
+*** ref mut ptr : FFIType = NULL
 * interpreter
 ** StructInstance: StructDef
 *** ref mut struct_name : Str = NULL
