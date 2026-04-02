@@ -197,7 +197,15 @@ Expr := struct {
         self.children.push(own child.clone())
     }
     swap_children := proc(mut self: Expr, own new_children: Vec) {
-        self.children = new_children
+        // Swap only data fields (data, count, cap, elem_size = 20 bytes)
+        // to avoid propagating elem_type which triggers deep-delete
+        // when the typer later replaces body.children
+        swap(self.children, new_children, 20)
+        // Clear lifecycle metadata on self.children to prevent
+        // deep-delete of children on subsequent replacements.
+        // elem_type starts at offset 24, followed by elem_clone and
+        // elem_delete (32 bytes total).
+        memset(ptr_add(self.children, 24), 0, 32)
     }
     child := func(parent: Expr, i: USize) returns ref Expr {
         ref c : Expr = parent.children.get(i)

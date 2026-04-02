@@ -373,8 +373,7 @@ main := proc(args: ..Str) {
     // Extract link() and link_c() directives
     mut link_flags := ""
     mut link_c_paths := ""
-    kept := Vec(data = malloc(Expr.size()), cap = 1,
-                elem_size = Expr.size())
+    kept := Vec.new("Expr", Expr.size())
     for i in 0..Expr.child_count(ast) {
         ref stmt : Expr = Expr.child(ast, i)
         mut is_directive := false
