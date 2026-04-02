@@ -588,26 +588,6 @@
   deterministically per translation unit, so the same input
   always produces the same output.
 
-** OPEN #99 Struct literals as auto-generated new method
-  This is a separate follow-up from ~#119~.
-
-  Desired direction:
-  - ~T(...)~ eventually becomes the constructor surface for ~T~
-  - if the user defines ~T.new~, that should override the ordinary
-    field-based struct-literal behavior
-  - otherwise simple structs keep the normal field/default constructor
-    path
-
-  This keeps static field checking while making constructor syntax more
-  regular, but none of it is required to fix ~#119~. Struct literals can
-  stay special in typer for now.
-
-  Chosen solution: types that have a ~new~ namespace method are not
-  allowed to use the struct literal syntax ~T(...)~ outside their own
-  namespace. Callers must use ~T.new(...)~ or other namespace
-  constructors instead. Inside the namespace, struct literals remain
-  available (needed by ~new~ itself and by ~clone~, ~take_prefix~, etc.).
-
 ** OPEN #97 Negative identifier expressions: -MY_CONST, -x
   Parser only supports negative literals (~-42~), not negative
   identifiers (~-AB_INF~, ~-x~). Workaround: ~0.sub(AB_INF)~.

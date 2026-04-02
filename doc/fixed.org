@@ -1,5 +1,19 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #99 Struct literals restricted for types with new()
+  Types that define a ~new~ namespace method cannot use struct literal
+  syntax ~T(...)~ outside their own namespace. The typer enforces this:
+  ~infer_struct_constructor_fcall~ checks if the struct body has a
+  namespace method named "new", and if so, whether the current scope is
+  inside that struct's namespace (tracked via ~_current_type_name~ global
+  set/restored in ~infer_decl_stmt~). Violations are reported as type
+  errors directing the user to ~T.new(...)~.
+
+  Prep commits removed trivial ~new~ methods (TypeScope), replaced raw
+  ~Array(data=...)~ views in game examples with ~board_get_i64~/
+  ~board_set_i64~ accessors, and replaced raw ~Vec(data=...)~ literals
+  with ~Vec.new~.
+
 * FIXED #121 Kwargs heterogeneous storage no longer relies on raw Map values
   The old kwargs lowering built:
 

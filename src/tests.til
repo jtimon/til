@@ -394,7 +394,7 @@ main := proc(args: ..Str) {
                asan_safe_cmd(til_bin.concat(" run src/examples/ffi/ext_module.til"), til_bin))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "type error:", 54,
+    add_count(tests, "typer_errors", "typer", "type error:", 55,
               asan_safe_cmd(til_bin.concat(" interpret src/test/typer_errors.til"), til_bin))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,

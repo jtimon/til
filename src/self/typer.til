@@ -4,6 +4,7 @@ mut hoist_counter : I32 = 0
 mut _va_counter : I32 = 0
 mut _kw_counter : I32 = 0
 mut errors : I32 = 0
+mut _current_type_name := ""
 I64Name := "I64"
 U8Name := "U8"
 I16Name := "I16"
@@ -214,6 +215,28 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
         }
     }
     ref body : Expr = sdef.child(0)
+
+    // #99: if struct has new(), disallow literal outside its namespace
+    if _current_type_name.eq(name).not() {
+        mut _has_new := false
+        for _ni in 0..body.child_count() {
+            ref _nf : Expr = body.child(_ni)
+            if is_variant(_nf.data, NodeType.Decl) {
+                ref _nd : Declaration = get_payload(_nf.data)
+                if _nd.is_namespace.and(_nd.name.eq("new")) {
+                    _has_new = true
+                    break
+                }
+            }
+        }
+        if _has_new {
+            type_error(e, "struct '".concat(name).concat("' has a new() constructor; use ").concat(name).concat(".new(...) instead"))
+            e.til_type = TilType.Struct
+            e.struct_name = name.clone()
+            return true
+        }
+    }
+
     mut nfields : U32 = 0
     for i in 0..body.child_count() {
         ref fld_decl : Declaration = get_payload(body.child(i).data)
@@ -1649,7 +1672,15 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
 
 infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_type_body: I32, ctx: Context) {
     if stmt.child_count().eq(0) { return }
-    infer_expr(scope, stmt.child(0), in_func, ctx)
+    if is_variant(stmt.child(0).data, NodeType.StructDef).or(is_variant(stmt.child(0).data, NodeType.EnumDef)) {
+        ref _td_decl : Declaration = get_payload(stmt.data)
+        _saved_type_name := _current_type_name.clone()
+        _current_type_name = _td_decl.name.clone()
+        infer_expr(scope, stmt.child(0), in_func, ctx)
+        _current_type_name = _saved_type_name
+    } else {
+        infer_expr(scope, stmt.child(0), in_func, ctx)
+    }
     if infer_decl_type_def(scope, stmt) { return }
     if infer_decl_func_def(scope, stmt) { return }
     if infer_decl_type_alias_passthrough(scope, stmt) { return }
