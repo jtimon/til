@@ -426,11 +426,10 @@
   ~self_diff~ was already removed in 5d365ff18. ~compile_lib~ and
   per-library scavenging remain (separate concern).
 
-* REOPENED #79 Type aliases — moved back to issues.org (FuncPtr forward decls don't resolve)
+* REOPENED #79 Type aliases -- moved back to issues.org (FuncPtr forward decls don't resolve)
   (Callback := BinaryOp), alias in function params/returns, alias with
   containers, alias arithmetic/comparison, alias in struct fields,
   alias in struct with methods (simulates #80 container use case).
-
 
 * FIXED #73 Replace #ifndef guards with #pragma once
   All src/c/ headers now use ~#pragma once~ instead of
