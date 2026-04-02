@@ -814,28 +814,3 @@ I32 ffi_init(Expr *program, Str *fwd_path, Str *user_c_path, Str *ext_c_path, St
     if (so_path) unlink((const char *)so_path->c_str);
     return 0;
 }
-
-void ffi_cleanup(void) {
-    ffi_close_user_so();
-    if (ffi_loaded) {
-        for (U32 i = 0; i < ffi_map.count; i++) {
-            FFIEntry *fe = (FFIEntry *)((char *)ffi_map.val_data + (i * ffi_map.val_size));
-            free((void *)fe->param_shallows);
-            free((void *)fe->arg_types);
-            free((void *)fe->cif);
-        }
-        Map_delete(&ffi_map, &(Bool){0});
-        Map_delete(&ffi_struct_defs, &(Bool){0});
-        ffi_loaded = 0;
-    }
-    if (ffi_type_cache_inited) {
-        for (U32 i = 0; i < ffi_type_cache.count; i++) {
-            FFITypePtrBox *box = Vec_get(&ffi_type_cache, &(USize){(USize)(i)});
-            ffi_type *t = (ffi_type *)box->ptr;
-            free(t->elements);
-            free(t);
-        }
-        Vec_delete(&ffi_type_cache, &(Bool){0});
-        ffi_type_cache_inited = 0;
-    }
-}

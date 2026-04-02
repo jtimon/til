@@ -434,4 +434,28 @@ h_get_thread_count := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool
 ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
 enum_method_dispatch := ext_func(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Value) returns shallow Bool {}
 ffi_init := ext_func(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}
-ffi_cleanup := ext_proc() {}
+ffi_cleanup := proc() {
+    ffi_close_user_so()
+    if ffi_loaded {
+        for i in 0..ffi_map.count {
+            ref fe : FFIEntry = ptr_add(ffi_map.val_data, i.mul(ffi_map.val_size))
+            free(own fe.param_shallows)
+            free(own fe.arg_types)
+            free(own fe.cif)
+        }
+        Map.delete(own ffi_map, false)
+        Map.delete(own ffi_struct_defs, false)
+        ffi_loaded = false
+    }
+    if ffi_type_cache_inited {
+        for i in 0..ffi_type_cache.len() {
+            ref box : FFITypePtrBox = ffi_type_cache.get(i)
+            if is_null(box.ptr).not() {
+                free(own box.ptr.elements)
+                free(own box.ptr)
+            }
+        }
+        Vec.delete(own ffi_type_cache, false)
+        ffi_type_cache_inited = false
+    }
+}
