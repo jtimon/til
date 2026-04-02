@@ -115,7 +115,7 @@ void precomp(Expr *program) {
                     if (ft.tag == FuncType_TAG_Func) {
                         Str *prefix = Str_concat(sname, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT});
                         Str *qname = Str_concat(prefix, &field->data.data.Decl.name);
-                        free(prefix);
+                        Str_delete(prefix, &(Bool){1});
                         { Str *_p = malloc(sizeof(Str)); *_p = *qname; free(qname); Set_add(&funcs, _p); }
                     }
                 }
