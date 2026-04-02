@@ -88,6 +88,23 @@ forward_header_path := func(path: Str) returns Str {
 // Matching nodes are removed from the body.
 extract_imports := proc(mut body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
+    // First pass: check if there are any imports
+    mut has_imports := false
+    for i in 0..Expr.child_count(body) {
+        ref stmt : Expr = Expr.child(body, i)
+        if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
+            if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
+                .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
+                ref _c0id : Str = get_payload(Expr.child(stmt, 0).data)
+                if _c0id.eq("import") {
+                    has_imports = true
+                }
+            }
+        }
+    }
+    if has_imports.not() { return paths }
+
+    // Second pass: collect import paths and non-import stmts
     kept := Vec.new("Expr", Expr.size())
     for i in 0..Expr.child_count(body) {
         ref stmt : Expr = Expr.child(body, i)
