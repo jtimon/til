@@ -670,16 +670,6 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
     return 0;
 }
 
-// Try to dlsym a name, using ffi_handle first (if available), then RTLD_DEFAULT
-static void *ffi_dlsym(const char *name) {
-    void *fn = NULL;
-    Str s = {.c_str = (U8 *)name, .count = (U64)strlen(name), .cap = CAP_VIEW};
-    fn = ffi_user_symbol(&s);
-    if (!fn)
-        fn = ffi_global_symbol(&s);
-    return fn;
-}
-
 // Register an ext_func/ext_proc in ffi_map
 static void ffi_register(Str *name, void *fn, Expr *fdef) {
     U32 np = fdef->data.data.FuncDef.nparam;
@@ -784,7 +774,7 @@ static void ffi_init_scan_program(Expr *program) {
             FuncType fft = fdef->data.data.FuncDef.func_type;
             if (fft.tag != FuncType_TAG_ExtFunc && fft.tag != FuncType_TAG_ExtProc) continue;
 
-            void *fn = ffi_dlsym((const char *)stmt->data.data.Decl.name.c_str);
+            void *fn = ffi_dlsym(&stmt->data.data.Decl.name);
             if (!fn) continue;
             ffi_register((&stmt->data.data.Decl.name), fn, fdef);
         }
@@ -802,7 +792,8 @@ static void ffi_init_scan_program(Expr *program) {
                 if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) {
                     char flat_name[256];
                     snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->data.data.Decl.name.c_str);
-                    void *fn = ffi_dlsym(flat_name);
+                    Str flat_name_str = {.c_str = (U8 *)flat_name, .count = (U64)strlen(flat_name), .cap = CAP_VIEW};
+                    void *fn = ffi_dlsym(&flat_name_str);
                     if (fn) {
                         Str *key = Str_clone(&(Str){.c_str = (U8*)(flat_name), .count = (U64)strlen((const char*)(flat_name)), .cap = CAP_VIEW});
                         ffi_register(key, fn, fdef);
@@ -817,7 +808,7 @@ static void ffi_init_scan_program(Expr *program) {
                         if (idef->data.tag != NodeType_TAG_FuncDef) continue;
                         FuncType ift = idef->data.data.FuncDef.func_type;
                         if (ift.tag != FuncType_TAG_ExtFunc && ift.tag != FuncType_TAG_ExtProc) continue;
-                        void *fn = ffi_dlsym((const char *)inner->data.data.Decl.name.c_str);
+                        void *fn = ffi_dlsym(&inner->data.data.Decl.name);
                         if (fn) ffi_register((&inner->data.data.Decl.name), fn, idef);
                     }
                 }

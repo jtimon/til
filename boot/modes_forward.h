@@ -1133,6 +1133,7 @@ Str * ffi_last_error(void);
 I32 system_cmd(Str * cmd);
 void unlink_path(Str * path);
 I32 process_id(void);
+U8 * ffi_dlsym(Str * name);
 void ffi_init_struct_defs(Expr * program);
 I64 * value_to_i64(Value * v);
 U64 * value_to_u64(Value * v);

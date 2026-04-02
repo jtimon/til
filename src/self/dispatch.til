@@ -62,6 +62,14 @@ system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 unlink_path := ext_proc(path: Str) {}
 process_id := ext_func() returns shallow I32 {}
 
+ffi_dlsym := func(name: Str) returns ref U8 {
+    ref fn : U8 = ffi_user_symbol(name)
+    if is_null(fn).not() {
+        return fn
+    }
+    return ffi_global_symbol(name)
+}
+
 ffi_init_struct_defs := proc(program: Expr) {
     ffi_struct_defs = Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
     for i in 0..program.child_count() {
