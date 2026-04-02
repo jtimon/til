@@ -519,6 +519,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                     emit_as_ptr(f, Expr_child(e, &(USize){(USize)(i)}), depth);
             }
             fprintf(f, ")");
+            free(flat_str);
             break;
         }
         Str *name = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
@@ -536,11 +537,19 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             }
             fprintf(f, ")");
         } else if (name->count == 6 && memcmp(name->c_str, "dyn_fn", 6) == 0) {
-            // dyn_fn(type_name, "method") → dyn_fn(type_name, method)
+            // dyn_fn(type_name, "method") → dyn_fn(type_name, &(Str){...})
+            // Use stack-local Str instead of Str_lit() to avoid heap allocation leak
             fprintf(f, "dyn_fn(");
             emit_as_ptr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
             fprintf(f, ", ");
-            emit_as_ptr(f, Expr_child(e, &(USize){(USize)(2)}), depth);
+            Expr *method_arg = Expr_child(e, &(USize){(USize)(2)});
+            if (method_arg->data.tag == NodeType_TAG_LiteralStr) {
+                fprintf(f, "&(Str){.c_str=(U8*)\"%s\", .count=%lluULL, .cap=TIL_CAP_LIT}",
+                        method_arg->data.data.LiteralStr.c_str,
+                        (unsigned long long)method_arg->data.data.LiteralStr.count);
+            } else {
+                emit_as_ptr(f, method_arg, depth);
+            }
             fprintf(f, ")");
         } else if ((name->count == 5 && memcmp(name->c_str, "array", 5) == 0) || (name->count == 3 && memcmp(name->c_str, "vec", 3) == 0)) {
             // array("I64", 1, 2, 3) → array_of_I64(3, v1, v2, v3)

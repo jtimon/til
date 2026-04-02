@@ -93,10 +93,13 @@ void precomp(Expr *program) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag == NodeType_TAG_Decl && stmt->children.count > 0 && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             FuncType ft = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
-            if (ft.tag == FuncType_TAG_Macro)
-                { Str *_p = malloc(sizeof(Str)); *_p = (Str){Str_clone(&stmt->data.data.Decl.name)->c_str, stmt->data.data.Decl.name.count, stmt->data.data.Decl.name.count}; Set_add(&macros, _p); }
-            else if (ft.tag == FuncType_TAG_Func)
-                { Str *_p = malloc(sizeof(Str)); *_p = (Str){Str_clone(&stmt->data.data.Decl.name)->c_str, stmt->data.data.Decl.name.count, stmt->data.data.Decl.name.count}; Set_add(&funcs, _p); }
+            if (ft.tag == FuncType_TAG_Macro) {
+                Str *_c = Str_clone(&stmt->data.data.Decl.name);
+                { Str *_p = malloc(sizeof(Str)); *_p = *_c; free(_c); Set_add(&macros, _p); }
+            } else if (ft.tag == FuncType_TAG_Func) {
+                Str *_c = Str_clone(&stmt->data.data.Decl.name);
+                { Str *_p = malloc(sizeof(Str)); *_p = *_c; free(_c); Set_add(&funcs, _p); }
+            }
         }
         // Register namespace funcs from struct/enum bodies
         if (stmt->data.tag == NodeType_TAG_Decl && stmt->children.count > 0 &&
@@ -110,8 +113,10 @@ void precomp(Expr *program) {
                     Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
                     FuncType ft = Expr_child(field, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
                     if (ft.tag == FuncType_TAG_Func) {
-                        Str *qname = Str_concat(Str_concat(sname, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT}), &field->data.data.Decl.name);
-                        { Str *_p = malloc(sizeof(Str)); *_p = (Str){Str_clone(qname)->c_str, qname->count, qname->count}; Set_add(&funcs, _p); }
+                        Str *prefix = Str_concat(sname, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT});
+                        Str *qname = Str_concat(prefix, &field->data.data.Decl.name);
+                        free(prefix);
+                        { Str *_p = malloc(sizeof(Str)); *_p = *qname; free(qname); Set_add(&funcs, _p); }
                     }
                 }
             }
