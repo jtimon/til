@@ -534,7 +534,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     Value *nsv = Map_get(&ns_fields, qn);
                     if (nsv->tag == Value_TAG_Func && nsv->data.Func == func_def) {
                         // qn is "Type.method" — build flat name "Type_method"
-                        static char fp_flat_buf[256];
+                        char fp_flat_buf[256];
                         memcpy(fp_flat_buf, qn->c_str, qn->count);
                         fp_flat_buf[qn->count] = '\0';
                         for (U64 fi = 0; fi < qn->count; fi++)
@@ -575,7 +575,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     }
                 }
             }
-            static char flat_name_buf[256];
+            char flat_name_buf[256];
             Str *sn = &Expr_child(callee_expr, &(USize){(USize)(0)})->struct_name;
             Str *fn = &callee_expr->data.data.Ident;
             U64 flen = sn->count + 1 + fn->count;
