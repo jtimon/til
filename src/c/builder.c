@@ -492,7 +492,7 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
                     emit_as_ptr(f, Expr_child(e, &(USize){(USize)(i)}), depth);
             }
             EMIT(f, ")");
-            free(flat_str);
+            Str_delete(flat_str, &(Bool){1});
             break;
         }
         Str *name = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;

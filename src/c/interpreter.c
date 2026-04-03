@@ -9,6 +9,23 @@
 
 // Forward declarations (defined in ast.c)
 
+// Free owned heap data inside a Value (does NOT free the Value struct itself).
+// Shallow free only -- frees the top-level data buffer but does not recurse
+// into nested fields (avoids double-free from shared ref pointers).
+void free_value(Value v) {
+    switch (v.tag) {
+    case Value_TAG_Struct:
+        if (!v.data.Struct.borrowed && v.data.Struct.data)
+            free(v.data.Struct.data);
+        break;
+    case Value_TAG_Enum:
+        if (v.data.Enum.data)
+            free(v.data.Enum.data);
+        break;
+    default:
+        break;
+    }
+}
 
 // --- Return value mechanism ---
 static Bool has_return;
@@ -138,6 +155,7 @@ void scope_free(Scope *s) {
 void scope_set_owned(Scope *s, Str *name, Value *val) {
     if (Map_has(&s->bindings, name)) {
         Binding *b = Map_get(&s->bindings, name);
+        free_value(b->cell->val);
         b->cell->val = *val;
         return;
     }
@@ -687,12 +705,14 @@ Value eval_call(Scope *scope, Expr *e) {
         }
         has_return = 0;
         eval_body(call_scope, body);
-        scope_free(call_scope);
+        // Clone return value before freeing scope -- return_value may
+        // alias data in scope cells (eval_expr returns cell->val directly)
         Value result = val_none();
         if (has_return) {
-            result = return_value;
+            Value *_cv = clone_value(&return_value); result = *_cv; free(_cv);
             has_return = 0;
         }
+        scope_free(call_scope);
         return result;
     }
 
@@ -805,13 +825,12 @@ Value eval_call(Scope *scope, Expr *e) {
 
     has_return = 0;
     eval_body(call_scope, body);
-    scope_free(call_scope);
-
     Value result = val_none();
     if (has_return) {
-        result = return_value;
+        Value *_cv = clone_value(&return_value); result = *_cv; free(_cv);
         has_return = 0;
     }
+    scope_free(call_scope);
     return result;
 }
 
