@@ -1334,22 +1334,22 @@ static I32 elem_size_for_type(Str *type_name) {
     return 8;
 }
 
-static void value_to_buf(void *dest, Value v, Str *type_name) {
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0))       { memcpy(dest, &v.data.Int, sizeof(I64)); }
-    else if ((type_name->count == 2 && memcmp(type_name->c_str, "U8", 2) == 0))   { memcpy(dest, &v.data.Byte, sizeof(U8)); }
-    else if ((type_name->count == 3 && memcmp(type_name->c_str, "I16", 3) == 0))  { memcpy(dest, &v.data.Short, sizeof(I16)); }
-    else if ((type_name->count == 3 && memcmp(type_name->c_str, "I32", 3) == 0))  { memcpy(dest, &v.data.Int32, sizeof(I32)); }
-    else if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0))  { memcpy(dest, &v.data.Uint32, sizeof(U32)); }
-    else if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) { memcpy(dest, &v.data.Boolean, sizeof(Bool)); }
-    else if (v.tag == Value_TAG_Struct) {
-        I32 sz = v.data.Struct.struct_def->data.data.StructDef.total_struct_size;
-        if (v.data.Struct.borrowed) {
-            Value cloned = clone_value(v);
+static void value_to_buf(void *dest, Value *v, Str *type_name) {
+    if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0))       { memcpy(dest, &v->data.Int, sizeof(I64)); }
+    else if ((type_name->count == 2 && memcmp(type_name->c_str, "U8", 2) == 0))   { memcpy(dest, &v->data.Byte, sizeof(U8)); }
+    else if ((type_name->count == 3 && memcmp(type_name->c_str, "I16", 3) == 0))  { memcpy(dest, &v->data.Short, sizeof(I16)); }
+    else if ((type_name->count == 3 && memcmp(type_name->c_str, "I32", 3) == 0))  { memcpy(dest, &v->data.Int32, sizeof(I32)); }
+    else if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0))  { memcpy(dest, &v->data.Uint32, sizeof(U32)); }
+    else if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) { memcpy(dest, &v->data.Boolean, sizeof(Bool)); }
+    else if (v->tag == Value_TAG_Struct) {
+        I32 sz = v->data.Struct.struct_def->data.data.StructDef.total_struct_size;
+        if (v->data.Struct.borrowed) {
+            Value cloned = clone_value(*v);
             memcpy(dest, cloned.data.Struct.data, sz);
             free(cloned.data.Struct.data);
         } else {
-            memcpy(dest, v.data.Struct.data, sz);
-            free(v.data.Struct.data);
+            memcpy(dest, v->data.Struct.data, sz);
+            free(v->data.Struct.data);
         }
     }
 }
@@ -1360,7 +1360,7 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     for (U32 i = 0; i < count; i++) {
         Str *s = (Str *)Vec_get(argv, &(USize){(USize)(offset + i)});
         Value v = parse_cli_arg((char *)s->c_str, elem_type);
-        value_to_buf((char *)data + i * esz, v, elem_type);
+        value_to_buf((char *)data + i * esz, &v, elem_type);
     }
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_array_name;
