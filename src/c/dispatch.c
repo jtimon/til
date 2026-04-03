@@ -477,7 +477,7 @@ static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
     if (!Map_has(&ffi_map, name)) return 0;
 
     FFIEntry *fe = Map_get(&ffi_map, name);
-    bool *param_shallows = (bool *)fe->param_shallows;
+    Bool *param_shallows = (Bool *)fe->param_shallows;
     ffi_type **arg_types = (ffi_type **)fe->arg_types;
     ffi_cif *cif = (ffi_cif *)fe->cif;
     U32 nargs = e->children.count - 1;
@@ -708,8 +708,8 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
 static void ffi_register(Str *name, void *fn, Expr *fdef) {
     U32 np = fdef->data.data.FuncDef.nparam;
     ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
-    bool *pshallows = NULL;
-    bool has_shallow = false;
+    Bool *pshallows = NULL;
+    Bool has_shallow = 0;
     for (U32 k = 0; k < np; k++) {
         Param *_pk = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)});
         if (PARAM_IS_SHALLOW(_pk)) {
@@ -720,11 +720,11 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
         }
     }
     if (has_shallow) {
-        pshallows = malloc(sizeof(bool) * np);
+        pshallows = malloc(sizeof(Bool) * np);
         for (U32 k = 0; k < np; k++)
             pshallows[k] = PARAM_IS_SHALLOW(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)})));
     }
-    bool ret_shallow = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef);
+    Bool ret_shallow = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef);
     ffi_cif *cif = malloc(sizeof(ffi_cif));
     FFIEntry entry = {
         .fn = (U8 *)fn,

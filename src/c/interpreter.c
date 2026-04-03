@@ -66,7 +66,7 @@ static void ns_set(Str *sname, Str *fname, Value val) {
 static Value widen_numeric(Value v, Str *ptype) {
     if (!ptype || ptype->count == 0) return v;
     // Extract source value as I64/U64
-    I64 ival = 0; U64 uval = 0; int is_unsigned = 0;
+    I64 ival = 0; U64 uval = 0; Bool is_unsigned = 0;
     switch (v.tag) {
         case Value_TAG_Byte:  uval = v.data.Byte; is_unsigned = 1; break;
         case Value_TAG_Short: ival = v.data.Short; break;
