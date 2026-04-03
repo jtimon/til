@@ -279,17 +279,17 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
     Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
-    write_field(si, find_field_decl(cached_array_def, &fn_data), (Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
-    write_field(si, find_field_decl(cached_array_def, &fn_cap), val_u32(count));
-    write_field(si, find_field_decl(cached_array_def, &fn_esz), val_u32((U32)elem_size));
-    write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value((void *)type_name->c_str, type_name->count));
+    write_field(si, find_field_decl(cached_array_def, &fn_data), &(Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
+    { Value _t = val_u32(count); write_field(si, find_field_decl(cached_array_def, &fn_cap), &_t); }
+    { Value _t = val_u32((U32)elem_size); write_field(si, find_field_decl(cached_array_def, &fn_esz), &_t); }
+    { Value _t = make_str_value((void *)type_name->c_str, type_name->count); write_field(si, find_field_decl(cached_array_def, &fn_et), &_t); }
     // Populate FuncPtr fields (#91)
     Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
     Str fn_ed = {.c_str = (U8 *)"elem_delete", .count = 11};
     Value *clone_fn = ns_get(type_name, &(Str){.c_str = (U8 *)"clone", .count = 5});
     Value *delete_fn = ns_get(type_name, &(Str){.c_str = (U8 *)"delete", .count = 6});
-    if (clone_fn) write_field(si, find_field_decl(cached_array_def, &fn_ec), *clone_fn);
-    if (delete_fn) write_field(si, find_field_decl(cached_array_def, &fn_ed), *delete_fn);
+    if (clone_fn) write_field(si, find_field_decl(cached_array_def, &fn_ec), clone_fn);
+    if (delete_fn) write_field(si, find_field_decl(cached_array_def, &fn_ed), delete_fn);
 
     r->tag = Value_TAG_Struct;
     r->data.Struct = *si; free(si);
@@ -336,18 +336,18 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
     Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
-    write_field(si, find_field_decl(cached_vec_def, &fn_data), (Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
-    write_field(si, find_field_decl(cached_vec_def, &fn_count), val_u32(count));
-    write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_u32(cap));
-    write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_u32((U32)elem_size));
-    write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value((void *)type_name->c_str, type_name->count));
+    write_field(si, find_field_decl(cached_vec_def, &fn_data), &(Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
+    { Value _t = val_u32(count); write_field(si, find_field_decl(cached_vec_def, &fn_count), &_t); }
+    { Value _t = val_u32(cap); write_field(si, find_field_decl(cached_vec_def, &fn_cap), &_t); }
+    { Value _t = val_u32((U32)elem_size); write_field(si, find_field_decl(cached_vec_def, &fn_esz), &_t); }
+    { Value _t = make_str_value((void *)type_name->c_str, type_name->count); write_field(si, find_field_decl(cached_vec_def, &fn_et), &_t); }
     // Populate FuncPtr fields (#91)
     Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
     Str fn_ed = {.c_str = (U8 *)"elem_delete", .count = 11};
     Value *clone_fn = ns_get(type_name, &(Str){.c_str = (U8 *)"clone", .count = 5});
     Value *delete_fn = ns_get(type_name, &(Str){.c_str = (U8 *)"delete", .count = 6});
-    if (clone_fn) write_field(si, find_field_decl(cached_vec_def, &fn_ec), *clone_fn);
-    if (delete_fn) write_field(si, find_field_decl(cached_vec_def, &fn_ed), *delete_fn);
+    if (clone_fn) write_field(si, find_field_decl(cached_vec_def, &fn_ec), clone_fn);
+    if (delete_fn) write_field(si, find_field_decl(cached_vec_def, &fn_ed), delete_fn);
 
     r->tag = Value_TAG_Struct;
     r->data.Struct = *si; free(si);

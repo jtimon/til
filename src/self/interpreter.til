@@ -190,4 +190,4 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Expr {
     }
     return NULL
 }
-write_field := ext_proc(mut inst: StructInstance, fdecl: Expr, shallow val: Value) {}
+write_field := ext_proc(mut inst: StructInstance, fdecl: Expr, val: Value) {}

@@ -1102,7 +1102,7 @@ Value make_str_value(void * data, U64 len);
 Value make_str_value_own(void * data, U64 len);
 Str str_view(Value v);
 Expr * find_field_decl(Expr * struct_def, Str * fname);
-void write_field(StructInstance * inst, Expr * fdecl, Value val);
+void write_field(StructInstance * inst, Expr * fdecl, Value * val);
 CollectionInfo * CollectionInfo_clone(CollectionInfo * self);
 void CollectionInfo_delete(CollectionInfo * self, Bool * call_free);
 U32 * CollectionInfo_size(void);

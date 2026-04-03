@@ -256,56 +256,56 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
 }
 
 // Write a Value into flat buffer at a field decl's offset
-void write_field(StructInstance *inst, Expr *fdecl, Value val) {
+void write_field(StructInstance *inst, Expr *fdecl, Value *val) {
     void *ptr = (char *)inst->data + fdecl->data.data.Decl.field_offset;
     I32 fsz = fdecl->data.data.Decl.field_size;
     if (fdecl->data.data.Decl.is_own) {
-        *(void **)ptr = val.tag == Value_TAG_Struct ? val.data.Struct.data : val.data.Ptr;
+        *(void **)ptr = val->tag == Value_TAG_Struct ? val->data.Struct.data : val->data.Ptr;
         return;
     }
     if (fdecl->data.data.Decl.is_ref) {
         // ref field: store pointer (don't own the data)
-        if (val.tag == Value_TAG_Ptr) *(void **)ptr = val.data.Ptr;
-        else if (val.tag == Value_TAG_Struct) {
-            *(void **)ptr = val.data.Struct.data;
+        if (val->tag == Value_TAG_Ptr) *(void **)ptr = val->data.Ptr;
+        else if (val->tag == Value_TAG_Struct) {
+            *(void **)ptr = val->data.Struct.data;
         }
         else *(void **)ptr = NULL;
         return;
     }
-    switch (val.tag) {
-    case Value_TAG_Int:  *(I64 *)ptr = val.data.Int; break;
-    case Value_TAG_Byte:   *(U8 *)ptr = val.data.Byte; break;
-    case Value_TAG_Short:  *(I16 *)ptr = val.data.Short; break;
-    case Value_TAG_Int32:  *(I32 *)ptr = val.data.Int32; break;
-    case Value_TAG_Uint32:  *(U32 *)ptr = val.data.Uint32; break;
-    case Value_TAG_Uint64:  *(U64 *)ptr = val.data.Uint64; break;
-    case Value_TAG_Float:  *(F32 *)ptr = val.data.Float; break;
-    case Value_TAG_Boolean: *(Bool *)ptr = val.data.Boolean; break;
+    switch (val->tag) {
+    case Value_TAG_Int:  *(I64 *)ptr = val->data.Int; break;
+    case Value_TAG_Byte:   *(U8 *)ptr = val->data.Byte; break;
+    case Value_TAG_Short:  *(I16 *)ptr = val->data.Short; break;
+    case Value_TAG_Int32:  *(I32 *)ptr = val->data.Int32; break;
+    case Value_TAG_Uint32:  *(U32 *)ptr = val->data.Uint32; break;
+    case Value_TAG_Uint64:  *(U64 *)ptr = val->data.Uint64; break;
+    case Value_TAG_Float:  *(F32 *)ptr = val->data.Float; break;
+    case Value_TAG_Boolean: *(Bool *)ptr = val->data.Boolean; break;
     case Value_TAG_Struct:
-        if (val.data.Struct.borrowed) {
-            Value cloned = clone_value(val);
+        if (val->data.Struct.borrowed) {
+            Value cloned = clone_value(*val);
             memcpy(ptr, cloned.data.Struct.data, fsz);
             free(cloned.data.Struct.data);
         } else {
-            memcpy(ptr, val.data.Struct.data, fsz);
-            free(val.data.Struct.data);
+            memcpy(ptr, val->data.Struct.data, fsz);
+            free(val->data.Struct.data);
         }
         break;
     case Value_TAG_Enum: {
         EnumInstance *existing = *(EnumInstance **)ptr;
         if (existing) { free(existing->data); free(existing); }
         EnumInstance *ei = malloc(sizeof(EnumInstance));
-        *ei = val.data.Enum;
+        *ei = val->data.Enum;
         // Deep-copy the flat data buffer
-        I32 total = val.data.Enum.data_size;
+        I32 total = val->data.Enum.data_size;
         if (total < (I32)sizeof(I64)) total = sizeof(I64);
         ei->data = malloc(total);
-        memcpy(ei->data, val.data.Enum.data, total);
+        memcpy(ei->data, val->data.Enum.data, total);
         *(EnumInstance **)ptr = ei;
         break;
     }
-    case Value_TAG_Ptr:  *(void **)ptr = val.data.Ptr; break;
-    case Value_TAG_Func: *(void **)ptr = val.data.Func; break;
+    case Value_TAG_Ptr:  *(void **)ptr = val->data.Ptr; break;
+    case Value_TAG_Func: *(void **)ptr = val->data.Func; break;
     default: break;
     }
 }
@@ -746,7 +746,7 @@ Value eval_call(Scope *scope, Expr *e) {
             } else {
                 val = eval_expr(scope, arg);
             }
-            write_field(inst, field, val);
+            write_field(inst, field, &val);
         }
         Value result;
         result.tag = Value_TAG_Struct;
@@ -1372,17 +1372,17 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
     Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
-    write_field(inst, find_field_decl(cached_array_def, &fn_data), (Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
-    write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_u32((U32)count));
-    write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_u32((U32)esz));
+    write_field(inst, find_field_decl(cached_array_def, &fn_data), &(Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
+    { Value _t = val_u32((U32)count); write_field(inst, find_field_decl(cached_array_def, &fn_cap), &_t); }
+    { Value _t = val_u32((U32)esz); write_field(inst, find_field_decl(cached_array_def, &fn_esz), &_t); }
     // Populate FuncPtr fields (#91)
     Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
     Str fn_ed = {.c_str = (U8 *)"elem_delete", .count = 11};
     Value *clone_fn = ns_get(elem_type, &(Str){.c_str = (U8 *)"clone", .count = 5});
     Value *delete_fn = ns_get(elem_type, &(Str){.c_str = (U8 *)"delete", .count = 6});
-    if (clone_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ec), *clone_fn);
-    if (delete_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ed), *delete_fn);
-    write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value((void *)elem_type->c_str, elem_type->count));
+    if (clone_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ec), clone_fn);
+    if (delete_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ed), delete_fn);
+    { Value _t = make_str_value((void *)elem_type->c_str, elem_type->count); write_field(inst, find_field_decl(cached_array_def, &fn_et), &_t); }
     Value result;
     result.tag = Value_TAG_Struct;
     result.data.Struct = *inst;
