@@ -1,0 +1,145 @@
+* Expr struct field audit
+
+Audit of fields on the Expr struct in src/core/ast.til.
+Every Expr node pays the cost of every field, even when only
+one or two NodeType variants use it.
+
+** Universal fields (legitimate on Expr)
+
+| Field       | Used by          | Notes                          |
+|-------------+------------------+--------------------------------|
+| data        | all              | NodeType tag + payload          |
+| children    | all              | child expressions               |
+| line        | all              | source location                 |
+| col         | all              | source location                 |
+| path        | all              | source file path                |
+| til_type    | most             | set by typer for all typed exprs|
+| struct_name | most typed exprs | type name for Struct/Enum types |
+
+** Duplicated in FCallData (5 fields)
+
+FCallData already carries variadic_index, variadic_count,
+kwargs_index, kwargs_count, fn_sig.  The same five fields are
+also on Expr.
+
+| Field           | Expr-level usage                         | FCallData usage          |
+|-----------------+------------------------------------------+--------------------------|
+| variadic_index  | never set/read except clone/delete       | actively used in typer    |
+| variadic_count  | never set/read except clone/delete       | actively used in typer    |
+| kwargs_index    | never set/read except clone/delete       | actively used in typer    |
+| kwargs_count    | never set/read except clone/delete       | actively used in typer    |
+| fn_sig          | fallback in fcall_fn_sig() for non-FCall | primary for FCall nodes   |
+
+The variadic/kwargs fields on Expr are dead weight -- only FCallData
+versions are functionally used.  fn_sig on Expr serves as a fallback
+for nodes that are not FCall but still need a function signature
+(e.g. FuncPtr idents).
+
+*** Cleanup plan
+- Remove variadic_index, variadic_count, kwargs_index, kwargs_count
+  from Expr.
+- Keep fn_sig on Expr (used for non-FCall nodes).  Or move it to the
+  specific NodeType payloads that need it.
+
+** Field-access booleans copied from Declaration (3 fields)
+
+| Field        | Derived from             | Used by                    |
+|--------------+--------------------------+----------------------------|
+| is_own_field | Declaration.is_own OR .is_ref | FieldAccess, FieldAssign |
+| is_ref_field | Declaration.is_ref       | FieldAssign only           |
+| is_ns_field  | Declaration.is_namespace | FieldAccess, FieldAssign   |
+
+The typer copies these from the field's Declaration onto the Expr.
+The builder and interpreter then read them from the Expr.
+
+These are properties of the field definition, not of the expression.
+The builder already has find_struct_body() and the interpreter already
+has find_field_decl() -- both can look up the Declaration directly.
+
+*** Cleanup plan
+- Remove is_own_field, is_ref_field, is_ns_field from Expr.
+- Stop copying them in the typer.
+- In builder.c: use find_struct_body() + field name to look up the
+  Declaration and read is_own, is_ref, is_namespace directly.
+- In interpreter.c: already uses find_field_decl() for field
+  assignment; extend to field access too.
+
+** FCall-argument flags on Expr (2 fields)
+
+| Field      | Set by              | Read by             | NodeType     |
+|------------+---------------------+---------------------+--------------|
+| is_own_arg | parser + builder.c  | builder.c emit_as_ptr | FCall children |
+| is_splat   | parser              | typer (splat expand)  | FCall children |
+
+These are only meaningful on Expr nodes that are arguments to
+function calls (children of FCall nodes).  Every other Expr carries
+them for nothing.
+
+*** Cleanup plan
+- Could move into a small ArgData struct or into FCallData's
+  per-argument tracking.  Alternatively, since arguments are just
+  child Expr nodes, a parallel Vec of arg metadata in FCallData
+  would work.  Low priority since the cost is just 2 bools.
+
+** Builder-only flags (2 fields)
+
+| Field           | Set by         | Read by    | NodeType        |
+|-----------------+----------------+------------+-----------------|
+| is_core         | typer/initer   | builder.c  | top-level Decl  |
+| save_old_delete | typer/hoister  | builder.c  | Assign          |
+
+is_core marks top-level declarations from core.til (vs user code).
+Used by the builder to skip core decls in forward declarations and
+to separate auto-generated namespace functions from user-written ones.
+
+save_old_delete marks Assign nodes where the old value must be
+deleted before reassignment (owned types).  Only meaningful for
+Assign nodes.
+
+*** Cleanup plan
+- save_old_delete: could become a flag on the Assign payload (which
+  is currently just a Str).  Would need Assign to become a struct
+  payload like AssignData { name: Str, save_old_delete: Bool }.
+- is_core: only used on top-level Decl nodes.  Could become a flag
+  on Declaration.  Low priority.
+
+** Ghost fields in boot/til.h but not in ast.til (2 fields)
+
+| Field            | In ast.til? | In boot/til.h? | Usage          |
+|------------------+-------------+----------------+----------------|
+| is_ext           | no          | yes (Expr)     | never read     |
+| total_struct_size| no          | yes (Expr)     | never read on Expr |
+
+is_ext appears in the C header on Expr but is never read anywhere
+in builder.c, interpreter.c, or boot/til.c.  Dead field.
+
+total_struct_size exists on both Expr and StructDefData.  Only the
+StructDefData version is used.  The Expr-level copy is dead.
+
+*** Cleanup plan
+- Remove is_ext and total_struct_size from the Expr struct.
+  They may be leftover from an earlier refactor.
+
+** Summary: fields to remove from Expr
+
+Priority 1 (pure dead weight or duplication):
+- variadic_index    (duplicated in FCallData, never used on Expr)
+- variadic_count    (duplicated in FCallData, never used on Expr)
+- kwargs_index      (duplicated in FCallData, never used on Expr)
+- kwargs_count      (duplicated in FCallData, never used on Expr)
+- is_ext            (ghost field, never read)
+- total_struct_size (ghost field on Expr, only used on StructDefData)
+
+Priority 2 (misplaced -- should be looked up from Declaration):
+- is_own_field      (copy of Declaration.is_own || .is_ref)
+- is_ref_field      (copy of Declaration.is_ref)
+- is_ns_field       (copy of Declaration.is_namespace)
+
+Priority 3 (node-specific, low cost):
+- save_old_delete   (only Assign nodes)
+- is_own_arg        (only FCall argument children)
+- is_splat          (only FCall argument children)
+- is_core           (only top-level Decl nodes)
+
+Removing priority 1 + 2 saves 9 fields (7 bools + 2 integers)
+from every Expr node in the AST.
