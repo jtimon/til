@@ -1,10 +1,22 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 133
+# NEXT_ISSUE: 134
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #133 FuncSig types not emitted as C function-pointer typedefs
+  A FuncSig type definition like ~DispatchFn := func(Scope, Expr, Value) returns shallow Bool~
+  generates a forward declaration ~Bool DispatchFn(Scope *, Expr *, Value *);~ in the .c file
+  instead of a typedef ~typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);~.
+  The declaration is also not emitted into the .h header, so C code in other
+  translation units cannot use the type.
+  Expected: ~typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);~ in the .h header
+  so that C code can use DispatchFn as a function-pointer type for variables,
+  sizeof, and casts.
+  Blocks self-hosting: dispatch.c has ~typedef Bool (*DispatchFn)(Scope *, Expr *, Value *)~
+  which is used for the dispatch map values and local variables.
+
 ** OPEN #132 ref globals at file scope not emitted as C file-scope globals
   ~ref mut x : Expr = NULL~ at file scope in a ~mode lib~ file generates
   a local variable inside the module init function instead of a file-scope
