@@ -1,0 +1,156 @@
+* C to til translation -- remaining work
+
+** Completed
+
+*** C preparations
+- bool->Bool type fixes in interpreter.c and dispatch.c
+- needs_widen/widen_numeric: Value -> Value* params/return
+- value_to_buf: Value -> Value* param
+- VLA elimination in ext_dispatch_ffi (malloc/free instead of stack VLAs)
+- scope_set_owned: Value -> Value* param (interpreter.c, precomp.c, interpreter.til)
+- write_field: Value -> Value* param (interpreter.c, dispatch.c, interpreter.til)
+- clone_value: Value/Value -> Value*/Value* params/return (interpreter.c, interpreter.til)
+- Remove static from local char buffers in interpreter.c
+
+*** Translations done
+- val_none, val_i64, val_u8, val_i16, val_i32, val_u32, val_u64, val_f32, val_bool
+- val_enum_flat, val_enum_simple
+- find_field_decl
+
+** Remaining C preparations
+
+*** values_equal: Value -> Value* params
+Dead code (no callers found). Can just delete it.
+
+*** char* -> Str* in parse_cli_arg
+- interpreter.c parse_cli_arg: const char *s -> Str *s
+- Single caller in build_argv_array
+
+** Remaining translations -- interpreter.c
+
+*** Blocked by raw memory layout (StructInstance.data byte offsets)
+These functions manipulate StructInstance.data with sizeof-based pointer
+arithmetic (sizeof(U8*), sizeof(USize)) to read/write Str fields.
+Need a til-friendly abstraction or ext_func helpers first.
+- str_view(v) -> Str                  line 407
+- make_str_value(data, len) -> Value  line 373
+- make_str_value_own(data, len)       line 390
+
+*** Blocked by manual allocation patterns (Binding/Cell/Map raw storage)
+These allocate Binding/Cell structs manually and store them in Map via
+raw memcpy. Need til struct constructors + Map.set to work with
+proper ownership.
+- scope_new(parent) -> Scope*         line 170
+- scope_free(s)                       line 177
+- scope_set_owned(s, name, val)       line 187
+- scope_set_borrowed(s, name, val)    line 199
+- scope_get(s, name) -> Cell*         line 210
+
+*** Blocked by shallow Value passthrough
+widen_numeric returns v unchanged for non-numeric types via v.clone().
+The C code did a bitwise copy (*r = *v). clone_value does a deep clone
+which changes ownership semantics for struct/enum Values, causing 5
+test failures (tuples, dyn_maps, structs, asting, kwargs).
+Need: either a shallow_copy primitive in til, or restructure callers
+so widen_numeric is never called with non-numeric Values.
+- needs_widen(v, ptype) -> Bool       line 103
+- widen_numeric(v, ptype) -> Value*   line 66
+
+*** Namespace + small helpers (translatable, not yet attempted)
+- enum_tag(ei) -> I32                 line 76  -- pointer dereference only
+- enum_payload_ptr(ei) -> void*       line 80  -- pointer arithmetic only
+- ns_qname(sname, fname) -> Str      line 89  -- string concat, uses global ns_keys Vec
+- ns_get(sname, fname) -> Value*     line 102 -- ns_qname + Map lookup, uses global ns_fields
+- ns_set(sname, fname, val)          line 108 -- ns_qname + Map_set, uses global ns_fields
+- elem_size_for_type(type_name)      line 1385 -- memcmp + sizeof constants
+- parse_cli_arg(type_name, str_val)  line 1328 -- make_str_value + strtoll etc.
+
+*** Second layer (depend on leaf layer)
+- clone_value(v) -> Value*            line 355 -- val_*, enum_has_payloads, Expr_child, malloc, memcpy, strndup
+- read_field(inst, fdecl) -> Value    line 237 -- enum_has_payloads, val_*, make_str_value
+- write_field(inst, fdecl, val)       line 259 -- clone_value, malloc, memcpy, free
+
+*** Third layer (depend on second layer + dispatch.c)
+- values_equal(a, b) -> Bool          line 481 -- dead code, delete
+- eval_call(s, e) -> Value            line 573 -- eval_expr, ext_function_dispatch, enum_method_dispatch, scope_*, clone_value, widen_numeric
+- eval_expr(s, e) -> Value            line 878 -- eval_call, clone_value, read_field, find_field_decl, make_str_value
+- eval_body(s, body) -> Value         line 1011 -- eval_expr, eval_call, scope_*, write_field, find_field_decl, clone_value
+- interpreter_init_ns(global, prog)   line 1295 -- eval_expr, ns_set, enum_has_payloads
+- interpret(program, ...)             line 1452 -- eval_body, ffi_init, ffi_cleanup, scope_*, interpreter_init_ns, parse_cli_arg, build_argv_array, elem_size_for_type
+
+** Remaining translations -- dispatch.c
+
+*** True leaves (blocked by raw pointer array construction)
+These build NULL-terminated ffi_type** arrays via malloc and write
+pointers at byte offsets. til's type system rejects assigning ref FFIType
+to Dynamic slots.
+Need: a way to store pointers in raw buffers, or an ext_func helper
+like store_ptr_at(buf, offset, ptr).
+- shallow_ffi_type(type_name) -> ffi_type*       line 50
+- field_ffi_type(field) -> ffi_type*              line 69
+- build_struct_ffi_type(struct_def) -> ffi_type*  line 90
+
+*** FFI registration chain (depend on FFI type functions)
+- ffi_register(name, fn, fdef)       line 708 -- needs ffi_prep_cif bridge in ext.c
+- ffi_init_scan_program(program)     line 748 -- ffi_register + ffi_dlsym + AST traversal
+- ffi_init(program, ...) body        line 803 -- ffi_init_scan_program + already-translated til funcs
+
+*** Depend on interpreter.c (translate after eval_expr/eval_call)
+- h_free(s, e, r)                    line 130
+- h_dyn_call(s, e, r)                line 155
+- get_elem_size(s, name, src)        line 204
+- h_array(s, e, r)                   line 244
+- h_vec(s, e, r)                     line 300
+- h_ptr_add(s, e, r)                 line 359
+- h_cfile_close(s, e, r)             line 371
+- h_cfile_write_str(s, e, r)         line 379
+- h_cfile_read_all(s, e, r)          line 389
+- enum_method_dispatch(...)           line 661
+- ext_dispatch_ffi(...)               line 475
+
+*** Blockers
+- dispatch_init()                     line 400 -- BLOCKER A: stores C function pointers via REG macro. til cannot take function addresses.
+- ext_dispatch_builtin(...)           line 467 -- BLOCKER A: calls function pointer retrieved from map.
+- ext_dispatch_ffi(...)               line 475 -- BLOCKER B: union for return buffer, ffi_call/FFI_FN/FFI_DEFAULT_ABI macros. VLAs already fixed.
+- ext_function_dispatch(...)          line 654 -- depends on dispatch_init + ext_dispatch_builtin + ext_dispatch_ffi
+
+** Remaining translations -- builder.c
+
+Self-contained (no interpreter.c/dispatch.c deps). Can translate independently.
+Internal recursion: emit_expr -> emit_stmt -> emit_body -> emit_expr.
+~30 internal leaf functions (no emit_* recursion), then the emit_* group,
+then the public entry points (build, build_header, compile_c, etc.).
+
+** Remaining translations -- precomp.c
+
+160 lines. Translate after interpreter.c core (eval_expr, scope_*) is done.
+- func_uses_unknown_globals (leaf after scope_get translated)
+- try_eval_call (deps: eval_expr, scope_new, scope_free)
+- track_literal (deps: scope_set_owned)
+- precomp (deps: everything above + ffi_init, interpreter_init_ns)
+
+** Known issues
+
+*** Shallow Value passthrough in widen_numeric
+C code does bitwise copy for unchanged Values. til's v.clone() deep-clones,
+which breaks struct/enum ownership. 5 tests fail: tuples, dyn_maps, structs,
+asting, kwargs. Options:
+1. Add a shallow_copy/bitwise_copy primitive to til
+2. Restructure callers so widen_numeric only receives numeric Values
+3. Keep widen_numeric in C permanently
+
+*** Raw pointer array construction in FFI type functions
+build_struct_ffi_type needs to write ffi_type* pointers into a malloc'd
+array at byte offsets. til rejects assigning ref FFIType to Dynamic slots
+(type mismatch). Options:
+1. Add store_ptr_at(buf: Dynamic, offset: U64, ptr: Dynamic) ext_func
+2. Use memcpy(ptr_add(buf, offset), ptr, 8) -- ptr passed by ref gives address
+3. Keep FFI type functions in C permanently
+
+*** StructInstance.data byte offset access
+str_view, make_str_value, make_str_value_own, read_field, write_field all
+manipulate StructInstance.data with hardcoded sizeof offsets. These are
+platform-dependent (sizeof(U8*) = 8 on 64-bit). Options:
+1. Add ext_func helpers: str_data_ptr(inst), str_count(inst), etc.
+2. Use Str struct constructor directly (needs the cached_str_def global)
+3. Keep these functions in C and translate higher-level functions that call them
