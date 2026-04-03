@@ -63,46 +63,47 @@ static void ns_set(Str *sname, Str *fname, Value val) {
 // --- Implicit numeric widening ---
 // Extract raw integer from a numeric Value and re-create as target type.
 // Returns the original value unchanged if no widening applies.
-static Value widen_numeric(Value v, Str *ptype) {
-    if (!ptype || ptype->count == 0) return v;
+static Value *widen_numeric(Value *v, Str *ptype) {
+    if (!ptype || ptype->count == 0) { Value *r = malloc(sizeof(Value)); *r = *v; return r; }
     // Extract source value as I64/U64
     I64 ival = 0; U64 uval = 0; Bool is_unsigned = 0;
-    switch (v.tag) {
-        case Value_TAG_Byte:  uval = v.data.Byte; is_unsigned = 1; break;
-        case Value_TAG_Short: ival = v.data.Short; break;
-        case Value_TAG_Int32: ival = v.data.Int32; break;
-        case Value_TAG_Uint32: uval = v.data.Uint32; is_unsigned = 1; break;
-        default: return v;
+    switch (v->tag) {
+        case Value_TAG_Byte:  uval = v->data.Byte; is_unsigned = 1; break;
+        case Value_TAG_Short: ival = v->data.Short; break;
+        case Value_TAG_Int32: ival = v->data.Int32; break;
+        case Value_TAG_Uint32: uval = v->data.Uint32; is_unsigned = 1; break;
+        default: { Value *r = malloc(sizeof(Value)); *r = *v; return r; }
     }
     if (!is_unsigned) uval = (U64)ival;
     else ival = (I64)uval;
     // Check target type and widen
+    Value *r = malloc(sizeof(Value));
     if (ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0) {
-        return val_i64(is_unsigned ? (I64)uval : ival);
+        *r = val_i64(is_unsigned ? (I64)uval : ival); return r;
     }
     if (ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0) {
-        return val_u64(uval);
+        *r = val_u64(uval); return r;
     }
     if (ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0) {
-        return val_u32((U32)uval);
+        *r = val_u32((U32)uval); return r;
     }
-    if (ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0 && v.tag == Value_TAG_Byte) {
-        return val_u32((I64)uval);
+    if (ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0 && v->tag == Value_TAG_Byte) {
+        *r = val_u32((I64)uval); return r;
     }
     if (ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0) {
-        if (v.tag == Value_TAG_Byte) { return val_i32(ival); }
-        if (v.tag == Value_TAG_Short) { return val_i32(ival); }
+        if (v->tag == Value_TAG_Byte) { *r = val_i32(ival); return r; }
+        if (v->tag == Value_TAG_Short) { *r = val_i32(ival); return r; }
     }
-    if (ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0 && v.tag == Value_TAG_Byte) {
-        return val_i16(ival);
+    if (ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0 && v->tag == Value_TAG_Byte) {
+        *r = val_i16(ival); return r;
     }
-    return v;
+    *r = *v; return r;
 }
 
 // Check if a Value's type doesn't match the target ptype and would need widening
-static Bool needs_widen(Value v, Str *ptype) {
+static Bool needs_widen(Value *v, Str *ptype) {
     if (!ptype || ptype->count == 0) return 0;
-    switch (v.tag) {
+    switch (v->tag) {
         case Value_TAG_Byte:
             return !(ptype->count == 2 && memcmp(ptype->c_str, "U8", 2) == 0);
         case Value_TAG_Short:
@@ -644,11 +645,11 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = val_f32(*(F32 *)arg.data.Ptr);
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
                         arg = val_bool(*(Bool *)arg.data.Ptr);
-                    arg = widen_numeric(arg, ptype);
+                    { Value *_w = widen_numeric(&arg, ptype); arg = *_w; free(_w); }
                     scope_set_owned(call_scope, &_ipi->name, arg);
-                } else if (needs_widen(arg_cell->val, &_ipi->ptype)) {
+                } else if (needs_widen(&arg_cell->val, &_ipi->ptype)) {
                     Value arg = clone_value(arg_cell->val);
-                    arg = widen_numeric(arg, &_ipi->ptype);
+                    { Value *_w = widen_numeric(&arg, &_ipi->ptype); arg = *_w; free(_w); }
                     scope_set_owned(call_scope, &_ipi->name, arg);
                 } else {
                     scope_set_borrowed(call_scope, &_ipi->name, arg_cell);
@@ -681,7 +682,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
                         arg = val_bool(*(Bool *)arg.data.Ptr);
                 }
-                arg = widen_numeric(arg, &_ipi->ptype);
+                { Value *_w = widen_numeric(&arg, &_ipi->ptype); arg = *_w; free(_w); }
                 scope_set_owned(call_scope, &_ipi->name, arg);
             }
         }
@@ -789,16 +790,16 @@ Value eval_call(Scope *scope, Expr *e) {
         Param *_rpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)});
         if (arg_expr->data.tag == NodeType_TAG_Ident) {
             Cell *arg_cell = scope_get(scope, &arg_expr->data.data.Ident);
-            if (needs_widen(arg_cell->val, &_rpi->ptype)) {
+            if (needs_widen(&arg_cell->val, &_rpi->ptype)) {
                 Value arg = clone_value(arg_cell->val);
-                arg = widen_numeric(arg, &_rpi->ptype);
+                { Value *_w = widen_numeric(&arg, &_rpi->ptype); arg = *_w; free(_w); }
                 scope_set_owned(call_scope, &_rpi->name, arg);
             } else {
                 scope_set_borrowed(call_scope, &_rpi->name, arg_cell);
             }
         } else {
             Value arg = eval_expr(scope, arg_expr);
-            arg = widen_numeric(arg, &_rpi->ptype);
+            { Value *_w = widen_numeric(&arg, &_rpi->ptype); arg = *_w; free(_w); }
             scope_set_owned(call_scope, &_rpi->name, arg);
         }
     }
