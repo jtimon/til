@@ -93,8 +93,8 @@ Namespace + type helpers:
 - ns_qname(sname, fname) -> Str     line 89  -- Str_clone, Str_concat
 - ns_get(sname, fname) -> Value*    line 102 -- ns_qname, Map_has, Map_get (uses global ns_map)
 - ns_set(sname, fname, val)         line 108 -- ns_qname, Map_set (uses global ns_map)
-- needs_widen(type_name) -> Bool    line 153 -- memcmp only
-- widen_numeric(val, type_name)     line 116 -- val_* constructors, memcmp
+- needs_widen(type_name) -> Bool    line 153 -- BLOCKED: static->global causes Value clone issues on return
+- widen_numeric(val, type_name)     line 116 -- BLOCKED: same issue as needs_widen
 - elem_size_for_type(type_name)     line 1385 -- memcmp, sizeof
 - parse_cli_arg(type_name, str_val) line 1328 -- make_str_value, strtoll, etc.
 
