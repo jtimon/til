@@ -138,31 +138,18 @@ static const char *til_type_to_c(TilType t);
 
 static Expr *find_callee_fdef(Str *name);
 
-Bool is_stack_local(Str *name) {
-    return Set_has(&stack_locals, name);
-}
+// is_stack_local: moved to builder.til
 
-Bool is_value_global(Str *name) {
-    if (!has_script_globals) return 0;
-    return Set_has(&script_globals, name);
-}
+// is_value_global: moved to builder.til
 
-Bool is_ref_local(Str *name) {
-    return Set_has(&ref_locals, name);
-}
+// is_ref_local: moved to builder.til
 
 static void emit_field(File *f, const char *var, const char *field) {
     Str _var_s = {.c_str = (U8*)var, .count = (U64)strlen(var), .cap = CAP_VIEW};
     EMIT(f, var); EMIT(f, (is_stack_local(&_var_s) || is_value_global(&_var_s)) ? "." : "->"); EMIT(f, field);
 }
 
-Bool use_dot_access(Expr *obj) {
-    if (obj->data.tag == NodeType_TAG_FieldAccess && !obj->is_own_field) return 1;
-    if (obj->data.tag == NodeType_TAG_Ident &&
-        (is_stack_local(&obj->data.data.Ident) ||
-         is_value_global(&obj->data.data.Ident))) return 1;
-    return 0;
-}
+// use_dot_access: moved to builder.til
 
 static const char *get_stack_local_ctype(Str *name) {
     if (Map_has(&stack_local_types, name)) {
@@ -740,17 +727,9 @@ static const char *type_name_to_c_value(Str *name) {
     return buf2;
 }
 
-Bool is_primitive_type(Str *name) {
-    return (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) ||
-           (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
-           (name->count == 5 && memcmp(name->c_str, "USize", 5) == 0) || (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
-}
+// is_primitive_type: moved to builder.til
 
-Bool is_funcsig_type(Str *name) {
-    if (!has_funcsig_names) return 0;
-    Str key = {name->c_str, name->count, CAP_VIEW};
-    return Set_has(&funcsig_names, &key);
-}
+// is_funcsig_type: moved to builder.til
 
 // Emit a function parameter list (with variadic support)
 static void emit_param_list(File *f, Expr *fdef, Bool with_names) {
@@ -1577,26 +1556,14 @@ static void emit_func_def(File *f, Str *name, Expr *func_def, Mode *mode, Bool i
 }
 
 // Types already defined by ext.h/aliases.h — skip emitting typedefs/forward-decls
-Bool is_ext_h_type(Str *name) {
-    return (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) ||
-           (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
-           (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
-}
+// is_ext_h_type: moved to builder.til
 
 // ext_func/ext_proc names that conflict with libc or builder-emitted statics
-Bool is_skip_ext_decl(Str *name) {
-    return (name->count == 4 && memcmp(name->c_str, "exit", 4) == 0) || (name->count == 4 && memcmp(name->c_str, "free", 4) == 0) || (name->count == 6 && memcmp(name->c_str, "malloc", 6) == 0) ||
-           (name->count == 6 && memcmp(name->c_str, "calloc", 6) == 0) || (name->count == 7 && memcmp(name->c_str, "realloc", 7) == 0) || (name->count == 6 && memcmp(name->c_str, "memcpy", 6) == 0) ||
-           (name->count == 7 && memcmp(name->c_str, "memmove", 7) == 0) || (name->count == 12 && memcmp(name->c_str, "print_single", 12) == 0) || (name->count == 11 && memcmp(name->c_str, "print_flush", 11) == 0);
-}
+// is_skip_ext_decl: moved to builder.til
 
 // Scalar types whose methods should be emitted as static in core.c
 // (avoids duplicate symbol conflicts with ext.c)
-Bool is_scalar_method_type(Str *name) {
-    return (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) ||
-           (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
-           (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
-}
+// is_scalar_method_type: moved to builder.til
 
 
 static void emit_struct_typedef(File *f, Str *name, Expr *struct_def) {
@@ -1797,7 +1764,7 @@ static void emit_enum_def(File *f, Str *name, Expr *enum_def) {
 I32 build_forward_header(Expr *program, Str *fwd_path);
 static void emit_header_forward_decls(File *f, Expr *program);
 static void emit_header_global_decls(File *f, Expr *program);
-Bool is_exported_top_level_global(Expr *stmt);
+// is_exported_top_level_global: moved to builder.til
 
 // Derive basename from absolute path: "/abs/path/to/str.til" → "str"
 I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
@@ -2936,18 +2903,7 @@ static void emit_header_defs_and_funcs(File *f, Expr *program) {
     EMIT(f, "\n");
 }
 
-Bool is_exported_top_level_global(Expr *stmt) {
-    if (stmt->data.tag != NodeType_TAG_Decl) return 0;
-    Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-    if (rhs->data.tag == NodeType_TAG_FuncDef ||
-        rhs->data.tag == NodeType_TAG_StructDef ||
-        rhs->data.tag == NodeType_TAG_EnumDef) return 0;
-    if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == NodeType_TAG_Ident) return 0;
-    if (stmt->data.data.Decl.is_ref) return 0;
-    Str *name = &stmt->data.data.Decl.name;
-    if (name->count >= 3 && memcmp(name->c_str, "_t_", 3) == 0) return 0;
-    return 1;
-}
+// is_exported_top_level_global: moved to builder.til
 
 static void emit_header_global_decls(File *f, Expr *program) {
     for (U32 i = 0; i < program->children.count; i++) {
