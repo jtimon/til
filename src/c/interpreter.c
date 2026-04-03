@@ -21,24 +21,7 @@ static Value return_value;
 
 #define ENUM_PAYLOAD_OFFSET ((I32)sizeof(I64))
 
-Value val_enum_flat(Str *enum_name, Expr *enum_def, I32 etag, void *payload_data, I32 payload_size) {
-    Value r;
-    r.tag = Value_TAG_Enum;
-    r.data.Enum.enum_name = enum_name;
-    r.data.Enum.enum_def = enum_def;
-    I32 total = ENUM_PAYLOAD_OFFSET + payload_size;
-    if (total < (I32)sizeof(I64)) total = sizeof(I64);
-    r.data.Enum.data = calloc(1, total);
-    r.data.Enum.data_size = total;
-    *(I32 *)r.data.Enum.data = etag;
-    if (payload_data && payload_size > 0)
-        memcpy(r.data.Enum.data + ENUM_PAYLOAD_OFFSET, payload_data, payload_size);
-    return r;
-}
-
-Value val_enum_simple(Str *enum_name, I32 etag) {
-    return val_enum_flat(enum_name, NULL, etag, NULL, 0);
-}
+// val_enum_flat, val_enum_simple: translated to interpreter.til
 
 static I32 enum_tag(Value v) {
     return *(I32 *)v.data.Enum.data;

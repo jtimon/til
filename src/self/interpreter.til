@@ -138,8 +138,26 @@ val_bool := func(shallow v: Bool) returns shallow Value {
     return Value.Boolean(v)
 }
 
-val_enum_flat := ext_func(enum_name: Str, enum_def: Expr, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32) returns shallow Value {}
-val_enum_simple := ext_func(enum_name: Str, shallow etag: I32) returns shallow Value {}
+ENUM_PAYLOAD_OFFSET := 8.to_i32()
+
+val_enum_flat := func(enum_name: Str, enum_def: Expr, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32) returns shallow Value {
+    mut total := ENUM_PAYLOAD_OFFSET.add(payload_size)
+    if total.lt(8.to_i32()) {
+        total = 8.to_i32()
+    }
+    mut data : U8 = calloc(1, total.to_i64().to_u64())
+    memcpy(data, etag, 4)
+    if is_null(payload_data).not() {
+        if payload_size.gt(0.to_i32()) {
+            memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64()), payload_data, payload_size.to_i64().to_u64())
+        }
+    }
+    return Value.Enum(EnumInstance(enum_name = enum_name, enum_def = enum_def, data = data, data_size = total))
+}
+
+val_enum_simple := func(enum_name: Str, shallow etag: I32) returns shallow Value {
+    return val_enum_flat(enum_name, NULL, etag, NULL, 0.to_i32())
+}
 
 eval_expr := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}

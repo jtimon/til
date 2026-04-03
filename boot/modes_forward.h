@@ -1301,6 +1301,7 @@ extern Set macros;
 extern Set funcs;
 extern Map known;
 extern Vec gc_strs;
+extern I32 ENUM_PAYLOAD_OFFSET;
 extern Map struct_bodies;
 extern Map func_defs;
 extern Set script_globals;

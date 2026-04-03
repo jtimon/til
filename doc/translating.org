@@ -72,8 +72,8 @@ Value constructors (zero deps):
 - val_u64(v)                         DONE (interpreter.til)
 - val_f32(v)                         DONE (interpreter.til)
 - val_bool(v)                        DONE (interpreter.til)
-- val_enum_flat(name, def, tag, data, size)  line 57  -- deps: calloc, memcpy, memset
-- val_enum_simple(name, tag)         line 72  -- deps: val_enum_flat
+- val_enum_flat(name, def, tag, data, size)  DONE (interpreter.til)
+- val_enum_simple(name, tag)         DONE (interpreter.til)
 
 String/view helpers (libc only):
 - str_view(v) -> Str                 line 407 -- no deps
