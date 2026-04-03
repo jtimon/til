@@ -481,8 +481,9 @@ static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
     ffi_type **arg_types = (ffi_type **)fe->arg_types;
     ffi_cif *cif = (ffi_cif *)fe->cif;
     U32 nargs = e->children.count - 1;
-    void *args[nargs > 0 ? nargs : 1];
-    void *arg_ptrs[nargs > 0 ? nargs : 1];
+    U32 alloc_n = nargs > 0 ? nargs : 1;
+    void **args = malloc(sizeof(void *) * alloc_n);
+    void **arg_ptrs = malloc(sizeof(void *) * alloc_n);
     for (U32 i = 0; i < nargs; i++) {
         Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(i + 1)}));
         if (param_shallows && i < (U32)fe->nparam && param_shallows[i]) {
@@ -648,6 +649,8 @@ static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
             *result = val_none();
         }
     }
+    free(args);
+    free(arg_ptrs);
     return 1;
 }
 
