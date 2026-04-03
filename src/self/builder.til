@@ -44,6 +44,103 @@ fcall_fn_sig := func(fcall: Expr) returns ref Expr {
     return fcall.fn_sig
 }
 
+is_stack_local := func(name: Str) returns shallow Bool {
+    return stack_locals.has(name)
+}
+
+is_value_global := func(name: Str) returns shallow Bool {
+    if has_script_globals.not() { return false }
+    return script_globals.has(name)
+}
+
+is_ref_local := func(name: Str) returns shallow Bool {
+    return ref_locals.has(name)
+}
+
+use_dot_access := func(obj: Expr) returns shallow Bool {
+    if is_variant(obj.data, NodeType.FieldAccess) {
+        if obj.is_own_field.not() { return true }
+    }
+    if is_variant(obj.data, NodeType.Ident) {
+        ref ident : Str = get_payload(obj.data)
+        if is_stack_local(ident) { return true }
+        if is_value_global(ident) { return true }
+    }
+    return false
+}
+
+is_primitive_type := func(name: Str) returns shallow Bool {
+    if name.eq("I64") { return true }
+    if name.eq("U8") { return true }
+    if name.eq("I16") { return true }
+    if name.eq("I32") { return true }
+    if name.eq("U32") { return true }
+    if name.eq("U64") { return true }
+    if name.eq("USize") { return true }
+    if name.eq("F32") { return true }
+    if name.eq("Bool") { return true }
+    return false
+}
+
+is_funcsig_type := func(name: Str) returns shallow Bool {
+    if has_funcsig_names.not() { return false }
+    return funcsig_names.has(name)
+}
+
+is_ext_h_type := func(name: Str) returns shallow Bool {
+    if name.eq("U8") { return true }
+    if name.eq("I16") { return true }
+    if name.eq("I32") { return true }
+    if name.eq("F32") { return true }
+    if name.eq("U32") { return true }
+    if name.eq("U64") { return true }
+    if name.eq("I64") { return true }
+    if name.eq("Bool") { return true }
+    return false
+}
+
+is_skip_ext_decl := func(name: Str) returns shallow Bool {
+    if name.eq("exit") { return true }
+    if name.eq("free") { return true }
+    if name.eq("malloc") { return true }
+    if name.eq("calloc") { return true }
+    if name.eq("realloc") { return true }
+    if name.eq("memcpy") { return true }
+    if name.eq("memmove") { return true }
+    if name.eq("print_single") { return true }
+    if name.eq("print_flush") { return true }
+    return false
+}
+
+is_scalar_method_type := func(name: Str) returns shallow Bool {
+    if name.eq("U8") { return true }
+    if name.eq("I16") { return true }
+    if name.eq("I32") { return true }
+    if name.eq("F32") { return true }
+    if name.eq("U32") { return true }
+    if name.eq("U64") { return true }
+    if name.eq("I64") { return true }
+    if name.eq("Bool") { return true }
+    return false
+}
+
+is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
+    if is_variant(stmt.data, NodeType.Decl).not() { return false }
+    ref rhs : Expr = stmt.child(0)
+    if is_variant(rhs.data, NodeType.FuncDef) { return false }
+    if is_variant(rhs.data, NodeType.StructDef) { return false }
+    if is_variant(rhs.data, NodeType.EnumDef) { return false }
+    if is_variant(stmt.til_type, TilType.None) {
+        if is_variant(rhs.data, NodeType.Ident) { return false }
+    }
+    ref decl : Declaration = get_payload(stmt.data)
+    if decl.is_ref { return false }
+    if decl.name.len().gte(3) {
+        if decl.name.substr(0, 3).eq("_t_") { return false }
+    }
+    return true
+}
+
 build := ext_func(program: Expr, m: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 build_header := ext_func(program: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}

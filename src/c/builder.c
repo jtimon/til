@@ -138,48 +138,37 @@ static const char *til_type_to_c(TilType t);
 
 static Expr *find_callee_fdef(Str *name);
 
-static Bool is_stack_local(const char *name) {
-    Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
-    Bool r = Set_has(&stack_locals, s);
-    Str_delete(s, &(Bool){1});
-    return r;
+Bool is_stack_local(Str *name) {
+    return Set_has(&stack_locals, name);
 }
 
-static Bool is_value_global(const char *name) {
+Bool is_value_global(Str *name) {
     if (!has_script_globals) return 0;
-    Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
-    Bool r = Set_has(&script_globals, s);
-    Str_delete(s, &(Bool){1});
-    return r;
+    return Set_has(&script_globals, name);
 }
 
-static Bool is_ref_local(const char *name) {
-    Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
-    Bool r = Set_has(&ref_locals, s);
-    Str_delete(s, &(Bool){1});
-    return r;
+Bool is_ref_local(Str *name) {
+    return Set_has(&ref_locals, name);
 }
 
 static void emit_field(File *f, const char *var, const char *field) {
-    EMIT(f, var); EMIT(f, (is_stack_local(var) || is_value_global(var)) ? "." : "->"); EMIT(f, field);
+    Str _var_s = {.c_str = (U8*)var, .count = (U64)strlen(var), .cap = CAP_VIEW};
+    EMIT(f, var); EMIT(f, (is_stack_local(&_var_s) || is_value_global(&_var_s)) ? "." : "->"); EMIT(f, field);
 }
 
-static Bool use_dot_access(Expr *obj) {
+Bool use_dot_access(Expr *obj) {
     if (obj->data.tag == NodeType_TAG_FieldAccess && !obj->is_own_field) return 1;
     if (obj->data.tag == NodeType_TAG_Ident &&
-        (is_stack_local((const char *)obj->data.data.Ident.c_str) ||
-         is_value_global((const char *)obj->data.data.Ident.c_str))) return 1;
+        (is_stack_local(&obj->data.data.Ident) ||
+         is_value_global(&obj->data.data.Ident))) return 1;
     return 0;
 }
 
-static const char *get_stack_local_ctype(const char *name) {
-    Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
-    if (Map_has(&stack_local_types, s)) {
-        Str **p = Map_get(&stack_local_types, s);
-        Str_delete(s, &(Bool){1});
+static const char *get_stack_local_ctype(Str *name) {
+    if (Map_has(&stack_local_types, name)) {
+        Str **p = Map_get(&stack_local_types, name);
         return (const char *)(*p)->c_str;
     }
-    Str_delete(s, &(Bool){1});
     return NULL;
 }
 
@@ -295,12 +284,11 @@ static void collect_unsafe_to_hoist(Expr *body) {
 }
 
 
-static Bool is_shallow_param(const char *name) {
+static Bool is_shallow_param(Str *name) {
     if (!current_fdef) return 0;
     for (U32 i = 0; i < current_fdef->data.data.FuncDef.nparam; i++) {
         Param *_spi = (Param*)Vec_get(&current_fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
-        if (PARAM_IS_SHALLOW(_spi) &&
-            strcmp((const char *)_spi->name.c_str, name) == 0)
+        if (PARAM_IS_SHALLOW(_spi) && Str_eq(&_spi->name, name))
             return 1;
     }
     return 0;
@@ -619,7 +607,7 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
                 EMIT(f, (const char *)arg_c);
             }
             if (e->children.count == 1) EMIT(f, "void");
-            if (is_ref_local((const char *)name->c_str)) {
+            if (is_ref_local(name)) {
                 EMIT(f, "))(*"); EMIT(f, (const char *)name->c_str); EMIT(f, "))(");
             }
             else {
@@ -752,13 +740,13 @@ static const char *type_name_to_c_value(Str *name) {
     return buf2;
 }
 
-static Bool is_primitive_type(Str *name) {
+Bool is_primitive_type(Str *name) {
     return (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) ||
            (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
            (name->count == 5 && memcmp(name->c_str, "USize", 5) == 0) || (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
 }
 
-static Bool is_funcsig_type(Str *name) {
+Bool is_funcsig_type(Str *name) {
     if (!has_funcsig_names) return 0;
     Str key = {name->c_str, name->count, CAP_VIEW};
     return Set_has(&funcsig_names, &key);
@@ -804,7 +792,7 @@ static void emit_deref(File *f, Expr *e, I32 depth) {
     } else if (e->til_type.tag == TilType_TAG_FuncPtr) {
         // Function pointer: cast to void *
         // ref locals need DEREF (pointer to fn-ptr -> fn-ptr)
-        if (e->data.tag == NodeType_TAG_Ident && is_ref_local((const char *)e->data.data.Ident.c_str)) {
+        if (e->data.tag == NodeType_TAG_Ident && is_ref_local(&e->data.data.Ident)) {
             EMIT(f, "(void *)DEREF(");
             emit_expr(f, e, depth);
             EMIT(f, ")");
@@ -813,9 +801,9 @@ static void emit_deref(File *f, Expr *e, I32 depth) {
             emit_expr(f, e, depth);
         }
     } else if (e->data.tag == NodeType_TAG_Ident) {
-        if (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
-            is_stack_local((const char *)e->data.data.Ident.c_str) ||
-            is_value_global((const char *)e->data.data.Ident.c_str)) {
+        if (is_shallow_param(&e->data.data.Ident) ||
+            is_stack_local(&e->data.data.Ident) ||
+            is_value_global(&e->data.data.Ident)) {
             emit_expr(f, e, depth); // shallow param/local is already a value
         } else {
             EMIT(f, "DEREF(");
@@ -838,13 +826,13 @@ static void emit_deref(File *f, Expr *e, I32 depth) {
 // or NodeType_TAG_FieldAccess (value needing compound literal wrapping).
 static void emit_as_ptr(File *f, Expr *e, I32 depth) {
     if (e->data.tag == NodeType_TAG_Ident &&
-        (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
-         is_stack_local((const char *)e->data.data.Ident.c_str) ||
-         is_value_global((const char *)e->data.data.Ident.c_str))) {
+        (is_shallow_param(&e->data.data.Ident) ||
+         is_stack_local(&e->data.data.Ident) ||
+         is_value_global(&e->data.data.Ident))) {
         // Shallow params and stack locals are stable lvalues.
         if (e->is_own_arg) {
             // Callee will free() this pointer — must malloc a copy
-            const char *ctype = get_stack_local_ctype((const char *)e->data.data.Ident.c_str);
+            const char *ctype = get_stack_local_ctype(&e->data.data.Ident);
             if (!ctype) ctype = c_type_name(e->til_type, &e->struct_name);
             EMIT(f, "({ "); EMIT(f, (const char *)ctype); EMIT(f, " *_oa = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, ")); *_oa = ");
             emit_expr(f, e, depth);
@@ -1133,11 +1121,11 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
         Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
         if (e->save_old_delete) {
             const char *ctype = c_type_name(e->til_type, &e->struct_name);
-            if (is_stack_local((const char *)e->data.data.Assign.c_str)) {
+            if (is_stack_local(&e->data.data.Assign)) {
                 EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_new = ("); EMIT(f, (const char *)ctype); EMIT(f, " *)");
                 emit_expr(f, rhs, depth);
                 EMIT(f, "; "); EMIT(f, (const char *)ctype); EMIT(f, "_delete(&"); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, ", &(Bool){0}); "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = *_new; free(_new); }\n");
-            } else if (is_value_global((const char *)e->data.data.Assign.c_str)) {
+            } else if (is_value_global(&e->data.data.Assign)) {
                 EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_new = ("); EMIT(f, (const char *)ctype); EMIT(f, " *)");
                 emit_expr(f, rhs, depth);
                 EMIT(f, "; "); EMIT(f, (const char *)ctype); EMIT(f, "_delete(&"); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, ", &(Bool){0}); "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = *_new; free(_new); }\n");
@@ -1148,8 +1136,8 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
             }
             break;
         }
-        Bool is_hoisted = is_stack_local((const char *)e->data.data.Assign.c_str) ||
-                          is_value_global((const char *)e->data.data.Assign.c_str);
+        Bool is_hoisted = is_stack_local(&e->data.data.Assign) ||
+                          is_value_global(&e->data.data.Assign);
         if (e->til_type.tag == TilType_TAG_Dynamic) {
             EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = ");
             emit_deref(f, rhs, depth);
@@ -1235,7 +1223,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
             (Expr_child(e, &(USize){(USize)(0)})->data.data.Ident.count == 6 && memcmp(Expr_child(e, &(USize){(USize)(0)})->data.data.Ident.c_str, "delete", 6) == 0) &&
             e->children.count >= 2 &&
             Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_Ident &&
-            is_stack_local((const char *)Expr_child(e, &(USize){(USize)(1)})->data.data.Ident.c_str) &&
+            is_stack_local(&Expr_child(e, &(USize){(USize)(1)})->data.data.Ident) &&
             Expr_child(e, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Struct &&
             Expr_child(e, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Enum) {
             EMIT(f, ";\n");
@@ -1298,7 +1286,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 emit_expr(f, rv, depth);
                 EMIT(f, "; return _r; }\n");
             } else if (rv->data.tag == NodeType_TAG_Ident &&
-                       is_stack_local((const char *)rv->data.data.Ident.c_str) &&
+                       is_stack_local(&rv->data.data.Ident) &&
                        !(current_fdef && RETURN_IS_SHALLOW(&current_fdef->data.data.FuncDef))) {
                 // Hoisted local returned from non-shallow function: box to heap
                 const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
@@ -1589,14 +1577,14 @@ static void emit_func_def(File *f, Str *name, Expr *func_def, Mode *mode, Bool i
 }
 
 // Types already defined by ext.h/aliases.h — skip emitting typedefs/forward-decls
-static Bool is_ext_h_type(Str *name) {
+Bool is_ext_h_type(Str *name) {
     return (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) ||
            (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
            (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
 }
 
 // ext_func/ext_proc names that conflict with libc or builder-emitted statics
-static Bool is_skip_ext_decl(Str *name) {
+Bool is_skip_ext_decl(Str *name) {
     return (name->count == 4 && memcmp(name->c_str, "exit", 4) == 0) || (name->count == 4 && memcmp(name->c_str, "free", 4) == 0) || (name->count == 6 && memcmp(name->c_str, "malloc", 6) == 0) ||
            (name->count == 6 && memcmp(name->c_str, "calloc", 6) == 0) || (name->count == 7 && memcmp(name->c_str, "realloc", 7) == 0) || (name->count == 6 && memcmp(name->c_str, "memcpy", 6) == 0) ||
            (name->count == 7 && memcmp(name->c_str, "memmove", 7) == 0) || (name->count == 12 && memcmp(name->c_str, "print_single", 12) == 0) || (name->count == 11 && memcmp(name->c_str, "print_flush", 11) == 0);
@@ -1604,7 +1592,7 @@ static Bool is_skip_ext_decl(Str *name) {
 
 // Scalar types whose methods should be emitted as static in core.c
 // (avoids duplicate symbol conflicts with ext.c)
-static Bool is_scalar_method_type(Str *name) {
+Bool is_scalar_method_type(Str *name) {
     return (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) ||
            (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
            (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
@@ -1809,7 +1797,7 @@ static void emit_enum_def(File *f, Str *name, Expr *enum_def) {
 I32 build_forward_header(Expr *program, Str *fwd_path);
 static void emit_header_forward_decls(File *f, Expr *program);
 static void emit_header_global_decls(File *f, Expr *program);
-static Bool is_exported_top_level_global(Expr *stmt);
+Bool is_exported_top_level_global(Expr *stmt);
 
 // Derive basename from absolute path: "/abs/path/to/str.til" → "str"
 I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
@@ -2948,7 +2936,7 @@ static void emit_header_defs_and_funcs(File *f, Expr *program) {
     EMIT(f, "\n");
 }
 
-static Bool is_exported_top_level_global(Expr *stmt) {
+Bool is_exported_top_level_global(Expr *stmt) {
     if (stmt->data.tag != NodeType_TAG_Decl) return 0;
     Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
     if (rhs->data.tag == NodeType_TAG_FuncDef ||
