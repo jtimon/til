@@ -110,15 +110,33 @@ Scope := struct {
     ref mut parent : Scope = NULL
 }
 
-val_none := ext_func() returns shallow Value {}
-val_i64 := ext_func(shallow v: I64) returns shallow Value {}
-val_u8 := ext_func(shallow v: I64) returns shallow Value {}
-val_i16 := ext_func(shallow v: I64) returns shallow Value {}
-val_i32 := ext_func(shallow v: I64) returns shallow Value {}
-val_u32 := ext_func(shallow v: I64) returns shallow Value {}
-val_u64 := ext_func(shallow v: U64) returns shallow Value {}
-val_f32 := ext_func(shallow v: F32) returns shallow Value {}
-val_bool := ext_func(shallow v: Bool) returns shallow Value {}
+val_none := func() returns shallow Value {
+    return Value.None
+}
+val_i64 := func(shallow v: I64) returns shallow Value {
+    return Value.Int(v)
+}
+val_u8 := func(shallow v: I64) returns shallow Value {
+    return Value.Byte(v.to_u8())
+}
+val_i16 := func(shallow v: I64) returns shallow Value {
+    return Value.Short(v.to_i16())
+}
+val_i32 := func(shallow v: I64) returns shallow Value {
+    return Value.Int32(v.to_i32())
+}
+val_u32 := func(shallow v: I64) returns shallow Value {
+    return Value.Uint32(v.to_u32())
+}
+val_u64 := func(shallow v: U64) returns shallow Value {
+    return Value.Uint64(v)
+}
+val_f32 := func(shallow v: F32) returns shallow Value {
+    return Value.Float(v)
+}
+val_bool := func(shallow v: Bool) returns shallow Value {
+    return Value.Boolean(v)
+}
 
 val_enum_flat := ext_func(enum_name: Str, enum_def: Expr, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32) returns shallow Value {}
 val_enum_simple := ext_func(enum_name: Str, shallow etag: I32) returns shallow Value {}

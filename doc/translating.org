@@ -63,15 +63,15 @@ Small file (160 lines). Bridges interpreter to AST for compile-time folding.
 *** True leaves (no C deps outside ext.c/libc)
 
 Value constructors (zero deps):
-- val_none()                         line 19
-- val_i64(v)                         line 23
-- val_u8(v)                          line 27
-- val_i16(v)                         line 31
-- val_i32(v)                         line 35
-- val_u32(v)                         line 39
-- val_u64(v)                         line 43
-- val_f32(v)                         line 47
-- val_bool(v)                        line 51
+- val_none()                         DONE (interpreter.til)
+- val_i64(v)                         DONE (interpreter.til)
+- val_u8(v)                          DONE (interpreter.til)
+- val_i16(v)                         DONE (interpreter.til)
+- val_i32(v)                         DONE (interpreter.til)
+- val_u32(v)                         DONE (interpreter.til)
+- val_u64(v)                         DONE (interpreter.til)
+- val_f32(v)                         DONE (interpreter.til)
+- val_bool(v)                        DONE (interpreter.til)
 - val_enum_flat(name, def, tag, data, size)  line 57  -- deps: calloc, memcpy, memset
 - val_enum_simple(name, tag)         line 72  -- deps: val_enum_flat
 

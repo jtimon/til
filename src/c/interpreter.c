@@ -16,41 +16,8 @@ static Bool has_break;
 static Bool has_continue;
 static Value return_value;
 
-Value val_none(void) {
-    return (Value){.tag = Value_TAG_None};
-}
-
-Value val_i64(I64 v) {
-    return (Value){.tag = Value_TAG_Int, .data.Int = v};
-}
-
-Value val_u8(I64 v) {
-    return (Value){.tag = Value_TAG_Byte, .data.Byte = (U8)(v & 0xFF)};
-}
-
-Value val_i16(I64 v) {
-    return (Value){.tag = Value_TAG_Short, .data.Short = (I16)v};
-}
-
-Value val_i32(I64 v) {
-    return (Value){.tag = Value_TAG_Int32, .data.Int32 = (I32)v};
-}
-
-Value val_u32(I64 v) {
-    return (Value){.tag = Value_TAG_Uint32, .data.Uint32 = (U32)(v & 0xFFFFFFFF)};
-}
-
-Value val_u64(U64 v) {
-    return (Value){.tag = Value_TAG_Uint64, .data.Uint64 = v};
-}
-
-Value val_f32(F32 v) {
-    return (Value){.tag = Value_TAG_Float, .data.Float = v};
-}
-
-Value val_bool(Bool v) {
-    return (Value){.tag = Value_TAG_Boolean, .data.Boolean = v};
-}
+// val_none, val_i64, val_u8, val_i16, val_i32, val_u32, val_u64, val_f32, val_bool:
+// translated to interpreter.til
 
 #define ENUM_PAYLOAD_OFFSET ((I32)sizeof(I64))
 
