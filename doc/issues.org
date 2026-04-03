@@ -1,10 +1,19 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 131
+# NEXT_ISSUE: 133
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #132 ref globals at file scope not emitted as C file-scope globals
+  ~ref mut x : Expr = NULL~ at file scope in a ~mode lib~ file generates
+  a local variable inside the module init function instead of a file-scope
+  C global. The variable does not appear in the generated .h header either.
+  Expected: ~Expr *x = NULL;~ at file scope and ~extern Expr *x;~ in header.
+  Blocks self-hosting: builder.c has ~static Expr *codegen_program~ and
+  ~static Expr *current_fdef = NULL~ which need to become til globals
+  visible to remaining C code during incremental translation.
+
 ** OPEN #131 `mode` syntax: keyword vs special identifier/directive
   The language currently treats ~mode~ as a dedicated keyword/token, even
   though it is only meaningful in the file-header position.
