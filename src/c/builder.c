@@ -29,15 +29,9 @@ static void emit_i32(File *f, I32 v) {
     EMIT(f, buf);
 }
 
-static Expr *codegen_program; // set during codegen for ns_init lookups
-static Map struct_bodies; // Str* name → Expr* body (NodeType_TAG_Body)
-static Map func_defs;     // Str* name → Expr* func_def (NodeType_TAG_FuncDef)
-static Set script_globals; // names of top-level vars emitted as file-scope globals
-static Bool has_script_globals; // whether script_globals is initialized
-static Bool in_func_def; // true while emitting a function/proc body
-static Bool in_main_func; // true while emitting main() body (for return 0)
-static Set funcsig_names; // names of FuncSig type definitions (bodyless func/proc)
-static Bool has_funcsig_names;
+static Expr *codegen_program;  // blocked by #132
+static Expr *current_fdef = NULL;  // blocked by #132
+// remaining globals defined in builder.til
 
 // Collect unique array/vec builtin type names from AST
 // CollectionInfo defined in builder.til
@@ -68,11 +62,7 @@ static void collect_collection_builtins(Expr *e, Vec *infos) {
 // Collect unique dyn_call method literals from AST
 // DynCallInfo defined in builder.til
 
-static Bool is_dyn_call_name(Str *name, Bool *returns) {
-    if ((name->count == 8 && memcmp(name->c_str, "dyn_call", 8) == 0))     { *returns = 0; return 1; }
-    if ((name->count == 12 && memcmp(name->c_str, "dyn_call_ret", 12) == 0)) { *returns = 1; return 1; }
-    return 0;
-}
+// is_dyn_call_name: moved to builder.til
 
 static void collect_dyn_methods(Expr *e, Vec *methods) {
     if (!e) return;
@@ -143,19 +133,10 @@ static void emit_body(File *f, Expr *body, I32 depth);
 static void emit_body_scoped(File *f, Expr *body, I32 depth);
 static const char *c_type_name(TilType t, Str *struct_name);
 static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth);
-static I32 _ctor_seq;
 static const char *type_name_to_c_value(Str *name);
 static const char *til_type_to_c(TilType t);
 
-// Track current function being emitted (for shallow param lookup)
-static Expr *current_fdef = NULL;
 static Expr *find_callee_fdef(Str *name);
-
-// Track stack-backed locals emitted as C values instead of heap pointers.
-static Set stack_locals;
-static Map stack_local_types; // name -> C type string (for pointer-sign correctness)
-static Set unsafe_to_hoist;
-static Set ref_locals; // track ref-declared locals (need DEREF in some contexts)
 
 static Bool is_stack_local(const char *name) {
     Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
@@ -238,11 +219,7 @@ static Str *resolve_callee_name(Expr *fcall, Bool *allocated) {
     return NULL;
 }
 
-static Expr *fcall_fn_sig(Expr *fcall) {
-    if (!fcall || fcall->data.tag != NodeType_TAG_FCall) return NULL;
-    if (fcall->data.data.FCall.fn_sig) return fcall->data.data.FCall.fn_sig;
-    return fcall->fn_sig;
-}
+// fcall_fn_sig: moved to builder.til
 
 // Check all fcalls in an expression tree and mark idents passed to mut params as unsafe
 static void check_fcall_mut_args(Expr *e) {
@@ -915,7 +892,6 @@ static void emit_usize_ref(File *f, Expr *e, I32 depth) {
 }
 
 // Emit struct constructor field assignments into 'var' (already malloc'd).
-static I32 _ctor_seq = 0;
 static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
     Expr *sbody = find_struct_body(&ctor->struct_name);
     U32 fi = 0;

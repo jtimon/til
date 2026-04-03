@@ -11,6 +11,39 @@ DynCallInfo := struct {
     mut has_return := false
 }
 
+// --- Globals ---
+
+// codegen_program, current_fdef: blocked by #132 (ref globals at file scope)
+mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
+mut func_defs := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
+mut script_globals := Set.new("Str", Str.size())
+mut has_script_globals := false
+mut in_func_def := false
+mut in_main_func := false
+mut funcsig_names := Set.new("Str", Str.size())
+mut has_funcsig_names := false
+mut _ctor_seq : I32 = 0
+mut stack_locals := Set.new("Str", Str.size())
+mut stack_local_types := Map.new("Str", Str.size(), "Str", Str.size())
+mut unsafe_to_hoist := Set.new("Str", Str.size())
+mut ref_locals := Set.new("Str", Str.size())
+
+// --- Leaf functions ---
+
+is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns shallow Bool {
+    if name.eq("dyn_call") { has_ret = false; return true }
+    if name.eq("dyn_call_ret") { has_ret = true; return true }
+    return false
+}
+
+fcall_fn_sig := func(fcall: Expr) returns ref Expr {
+    if is_null(fcall) { return NULL }
+    if is_variant(fcall.data, NodeType.FCall).not() { return NULL }
+    ref fc : FCallData = get_payload(fcall.data)
+    if is_null(fc.fn_sig).not() { return fc.fn_sig }
+    return fcall.fn_sig
+}
+
 build := ext_func(program: Expr, m: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 build_header := ext_func(program: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
