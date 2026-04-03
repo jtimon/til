@@ -177,10 +177,8 @@ Scope *scope_new(Scope *parent) {
 void scope_free(Scope *s) {
     for (U32 i = 0; i < s->bindings.count; i++) {
         Binding *b = (Binding *)(s->bindings.val_data + i * s->bindings.val_size);
-        if (b->cell_is_local) {
-            free_value(b->cell->val);
+        if (b->cell_is_local)
             free(b->cell);
-        }
     }
     Map_delete(&s->bindings, &(Bool){0});
     free(s);
@@ -189,7 +187,6 @@ void scope_free(Scope *s) {
 void scope_set_owned(Scope *s, Str *name, Value val) {
     if (Map_has(&s->bindings, name)) {
         Binding *b = Map_get(&s->bindings, name);
-        free_value(b->cell->val);
         b->cell->val = val;
         return;
     }
