@@ -283,9 +283,10 @@ void write_field(StructInstance *inst, Expr *fdecl, Value *val) {
     case Value_TAG_Boolean: *(Bool *)ptr = val->data.Boolean; break;
     case Value_TAG_Struct:
         if (val->data.Struct.borrowed) {
-            Value cloned = clone_value(*val);
-            memcpy(ptr, cloned.data.Struct.data, fsz);
-            free(cloned.data.Struct.data);
+            Value *cloned = clone_value(val);
+            memcpy(ptr, cloned->data.Struct.data, fsz);
+            free(cloned->data.Struct.data);
+            free(cloned);
         } else {
             memcpy(ptr, val->data.Struct.data, fsz);
             free(val->data.Struct.data);
@@ -352,30 +353,30 @@ Str str_view(Value v) {
 }
 
 // Deep-clone a Value (for payload enum operations and general use)
-Value clone_value(Value v) {
-    switch (v.tag) {
-    case Value_TAG_Int:  return val_i64(v.data.Int);
-    case Value_TAG_Byte:   return val_u8(v.data.Byte);
-    case Value_TAG_Short:  return val_i16(v.data.Short);
-    case Value_TAG_Int32:  return val_i32(v.data.Int32);
-    case Value_TAG_Uint32:  return val_u32(v.data.Uint32);
-    case Value_TAG_Uint64:  return val_u64(v.data.Uint64);
-    case Value_TAG_Float:  return val_f32(v.data.Float);
-    case Value_TAG_Boolean: return val_bool(v.data.Boolean);
+Value *clone_value(Value *v) {
+    Value *r = malloc(sizeof(Value));
+    switch (v->tag) {
+    case Value_TAG_Int:  *r = val_i64(v->data.Int); return r;
+    case Value_TAG_Byte:   *r = val_u8(v->data.Byte); return r;
+    case Value_TAG_Short:  *r = val_i16(v->data.Short); return r;
+    case Value_TAG_Int32:  *r = val_i32(v->data.Int32); return r;
+    case Value_TAG_Uint32:  *r = val_u32(v->data.Uint32); return r;
+    case Value_TAG_Uint64:  *r = val_u64(v->data.Uint64); return r;
+    case Value_TAG_Float:  *r = val_f32(v->data.Float); return r;
+    case Value_TAG_Boolean: *r = val_bool(v->data.Boolean); return r;
     case Value_TAG_Enum: {
-        EnumInstance *src = &v.data.Enum;
+        EnumInstance *src = &v->data.Enum;
         I32 total = src->data_size;
         U8 *buf = malloc(total);
         memcpy(buf, src->data, total);
-        Value r;
-        r.tag = Value_TAG_Enum;
-        r.data.Enum.enum_name = src->enum_name;
-        r.data.Enum.enum_def = src->enum_def;
-        r.data.Enum.data = buf;
+        r->tag = Value_TAG_Enum;
+        r->data.Enum.enum_name = src->enum_name;
+        r->data.Enum.enum_def = src->enum_def;
+        r->data.Enum.data = buf;
         return r;
     }
     case Value_TAG_Struct: {
-        StructInstance *src = &v.data.Struct;
+        StructInstance *src = &v->data.Struct;
         StructInstance *dst = malloc(sizeof(StructInstance));
         dst->struct_name = src->struct_name; // borrowed
         dst->struct_def = src->struct_def;
@@ -388,11 +389,10 @@ Value clone_value(Value v) {
             Str *s = (Str *)src->data;
             if (s->count > 0 && s->c_str)
                 *(char **)dst->data = strndup((const char *)s->c_str, s->count);
-            Value result;
-            result.tag = Value_TAG_Struct;
-            result.data.Struct = *dst;
+            r->tag = Value_TAG_Struct;
+            r->data.Struct = *dst;
             free(dst);
-            return result;
+            return r;
         }
         // Deep-clone fields that contain heap pointers
         Expr *body = Expr_child(src->struct_def, &(USize){(USize)(0)});
@@ -402,7 +402,6 @@ Value clone_value(Value v) {
             I32 foff = field->data.data.Decl.field_offset;
             Str *ftype = &field->data.data.Decl.explicit_type;
             if (field->data.data.Decl.is_own) {
-                // own fields are heap pointers — deep-clone recursively
                 void *src_ptr = *(void **)((char *)src->data + foff);
                 if (src_ptr && field->data.data.Decl.field_struct_def) {
                     Expr *nested = field->data.data.Decl.field_struct_def;
@@ -412,13 +411,13 @@ Value clone_value(Value v) {
                     tmp_val.data.Struct.struct_def = nested;
                     tmp_val.data.Struct.data = src_ptr;
                     tmp_val.data.Struct.borrowed = 1;
-                    Value cloned = clone_value(tmp_val);
-                    *(void **)((char *)dst->data + foff) = cloned.data.Struct.data;
+                    Value *cloned = clone_value(&tmp_val);
+                    *(void **)((char *)dst->data + foff) = cloned->data.Struct.data;
+                    free(cloned);
                 }
                 continue;
             }
             if (field->data.data.Decl.is_ref) {
-                // ref fields are non-owning pointers — copy pointer as-is
                 continue;
             }
             // Str fields: deep-clone the char* data pointer
@@ -455,24 +454,24 @@ Value clone_value(Value v) {
                 tmp_val.data.Struct.struct_def = nested;
                 tmp_val.data.Struct.data = (U8 *)src->data + foff;
                 tmp_val.data.Struct.borrowed = 1;
-                Value cloned = clone_value(tmp_val);
-                memcpy((char *)dst->data + foff, cloned.data.Struct.data, nested->data.data.StructDef.total_struct_size);
-                free(cloned.data.Struct.data);
+                Value *cloned = clone_value(&tmp_val);
+                memcpy((char *)dst->data + foff, cloned->data.Struct.data, nested->data.data.StructDef.total_struct_size);
+                free(cloned->data.Struct.data);
+                free(cloned);
                 continue;
             }
         }
-        Value result;
-        result.tag = Value_TAG_Struct;
-        result.data.Struct = *dst;
+        r->tag = Value_TAG_Struct;
+        r->data.Struct = *dst;
         free(dst);
-        return result;
+        return r;
     }
     case Value_TAG_Ptr:
-        return (Value){.tag = Value_TAG_Ptr, .data.Ptr = v.data.Ptr};
+        *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = v->data.Ptr}; return r;
     case Value_TAG_Func:
-        return (Value){.tag = Value_TAG_Func, .data.Func = v.data.Func};
-    case Value_TAG_None: return val_none();
-    default:       return val_none();
+        *r = (Value){.tag = Value_TAG_Func, .data.Func = v->data.Func}; return r;
+    case Value_TAG_None: *r = val_none(); return r;
+    default:       *r = val_none(); return r;
     }
 }
 
@@ -648,7 +647,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     { Value *_w = widen_numeric(&arg, ptype); arg = *_w; free(_w); }
                     scope_set_owned(call_scope, &_ipi->name, &arg);
                 } else if (needs_widen(&arg_cell->val, &_ipi->ptype)) {
-                    Value arg = clone_value(arg_cell->val);
+                    Value *_cv = clone_value(&arg_cell->val); Value arg = *_cv; free(_cv);
                     { Value *_w = widen_numeric(&arg, &_ipi->ptype); arg = *_w; free(_w); }
                     scope_set_owned(call_scope, &_ipi->name, &arg);
                 } else {
@@ -791,7 +790,7 @@ Value eval_call(Scope *scope, Expr *e) {
         if (arg_expr->data.tag == NodeType_TAG_Ident) {
             Cell *arg_cell = scope_get(scope, &arg_expr->data.data.Ident);
             if (needs_widen(&arg_cell->val, &_rpi->ptype)) {
-                Value arg = clone_value(arg_cell->val);
+                Value *_cv = clone_value(&arg_cell->val); Value arg = *_cv; free(_cv);
                 { Value *_w = widen_numeric(&arg, &_rpi->ptype); arg = *_w; free(_w); }
                 scope_set_owned(call_scope, &_rpi->name, &arg);
             } else {
@@ -1146,9 +1145,10 @@ static void eval_body(Scope *scope, Expr *body) {
                     case Value_TAG_Boolean: *(Bool *)ptr = val.data.Boolean; break;
                     case Value_TAG_Struct:
                         if (val.data.Struct.borrowed) {
-                            Value cloned = clone_value(val);
-                            memcpy(ptr, cloned.data.Struct.data, fsz);
-                            free(cloned.data.Struct.data);
+                            Value *cloned = clone_value(&val);
+                            memcpy(ptr, cloned->data.Struct.data, fsz);
+                            free(cloned->data.Struct.data);
+                            free(cloned);
                         } else {
                             memcpy(ptr, val.data.Struct.data, fsz);
                             free(val.data.Struct.data);
@@ -1344,9 +1344,10 @@ static void value_to_buf(void *dest, Value *v, Str *type_name) {
     else if (v->tag == Value_TAG_Struct) {
         I32 sz = v->data.Struct.struct_def->data.data.StructDef.total_struct_size;
         if (v->data.Struct.borrowed) {
-            Value cloned = clone_value(*v);
-            memcpy(dest, cloned.data.Struct.data, sz);
-            free(cloned.data.Struct.data);
+            Value *cloned = clone_value(v);
+            memcpy(dest, cloned->data.Struct.data, sz);
+            free(cloned->data.Struct.data);
+            free(cloned);
         } else {
             memcpy(dest, v->data.Struct.data, sz);
             free(v->data.Struct.data);

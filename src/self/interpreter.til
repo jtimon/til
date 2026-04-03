@@ -161,7 +161,7 @@ val_enum_simple := func(enum_name: Str, shallow etag: I32) returns shallow Value
 
 eval_expr := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
-clone_value := ext_func(shallow v: Value) returns shallow Value {}
+clone_value := ext_func(v: Value) returns Value {}
 free_value := ext_proc(shallow v: Value) {}
 
 scope_get := ext_func(s: Scope, name: Str) returns ref Cell {}

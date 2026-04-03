@@ -1090,7 +1090,7 @@ Value val_enum_flat(Str * enum_name, Expr * enum_def, I32 etag, void * payload_d
 Value val_enum_simple(Str * enum_name, I32 etag);
 Value eval_expr(Scope * scope, Expr * e);
 Value eval_call(Scope * scope, Expr * e);
-Value clone_value(Value v);
+Value * clone_value(Value * v);
 void free_value(Value v);
 Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
