@@ -107,7 +107,7 @@ static void collect_dyn_has_methods(Expr *e, Vec *methods) {
     }
 }
 
-static Expr *find_struct_body(Str *name) {
+Expr *find_struct_body(Str *name) {
     if (!Map_has(&struct_bodies, name)) return NULL;
     Expr **p = Map_get(&struct_bodies, name);
     return *p;
@@ -136,7 +136,7 @@ static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth);
 static const char *type_name_to_c_value(Str *name);
 static const char *til_type_to_c(TilType t);
 
-static Expr *find_callee_fdef(Str *name);
+Expr *find_callee_fdef(Str *name);
 
 // is_stack_local: moved to builder.til
 
@@ -282,7 +282,7 @@ static Bool is_shallow_param(Str *name) {
 }
 
 // Check if callee's i-th parameter is shallow (for call site emission)
-static Expr *find_callee_fdef(Str *name) {
+Expr *find_callee_fdef(Str *name) {
     if (!Map_has(&func_defs, name)) return NULL;
     Expr **p = Map_get(&func_defs, name);
     return *p;
@@ -306,77 +306,19 @@ static const char *fcall_return_ctype(Expr *fcall) {
     return r;
 }
 
-static Bool callee_returns_shallow(Str *callee_name) {
-    Expr *fdef = find_callee_fdef(callee_name);
-    if (!fdef) return 0;
-    return RETURN_IS_SHALLOW(&fdef->data.data.FuncDef);
-}
+// callee_returns_shallow: moved to builder.til
 
-static Bool callee_returns_dynamic(Str *callee_name) {
-    if ((callee_name->count == 6 && memcmp(callee_name->c_str, "malloc", 6) == 0) ||
-        (callee_name->count == 6 && memcmp(callee_name->c_str, "calloc", 6) == 0) ||
-        (callee_name->count == 7 && memcmp(callee_name->c_str, "realloc", 7) == 0) ||
-        (callee_name->count == 12 && memcmp(callee_name->c_str, "dyn_call_ret", 12) == 0) ||
-        (callee_name->count == 6 && memcmp(callee_name->c_str, "dyn_fn", 6) == 0)) {
-        return 1;
-    }
-    Expr *fdef = find_callee_fdef(callee_name);
-    if (!fdef) return 0;
-    Str *ret = &fdef->data.data.FuncDef.return_type;
-    return ret->count == 7 && memcmp(ret->c_str, "Dynamic", 7) == 0;
-}
+// callee_returns_dynamic: moved to builder.til
 
-// Check if an FCALL node's callee returns shallow
-static Bool fcall_is_shallow_return(Expr *fcall) {
-    if (fcall->data.tag != NodeType_TAG_FCall) return 0;
-    Expr *callee = Expr_child(fcall, &(USize){(USize)(0)});
-    if (callee->data.tag == NodeType_TAG_Ident) {
-        return callee_returns_shallow(&callee->data.data.Ident);
-    } else if (callee->data.tag == NodeType_TAG_FieldAccess) {
-        Str *sname = &Expr_child(callee, &(USize){(USize)(0)})->struct_name;
-        Str *mname = &callee->data.data.FieldAccess;
-        if (!sname) return 0;
-        char buf[256];
-        snprintf(buf, sizeof(buf), "%s_%s", sname->c_str, mname->c_str);
-        Str *flat = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-        Bool r = callee_returns_shallow(flat);
-        Str_delete(flat, &(Bool){1});
-        return r;
-    }
-    return 0;
-}
+// fcall_is_shallow_return: moved to builder.til
 
-static Bool fcall_returns_dynamic(Expr *fcall) {
-    if (fcall->data.tag != NodeType_TAG_FCall) return 0;
-    Bool allocated = 0;
-    Str *callee = resolve_callee_name(fcall, &allocated);
-    if (!callee) return 0;
-    Bool r = callee_returns_dynamic(callee);
-    if (allocated) Str_delete(callee, &(Bool){1});
-    return r;
-}
+// fcall_returns_dynamic: moved to builder.til
 
-static Bool callee_param_is_shallow(Str *callee_name, U32 arg_index) {
-    Expr *fdef = find_callee_fdef(callee_name);
-    if (!fdef) return 0;
-    if (arg_index >= fdef->data.data.FuncDef.nparam) return 0;
-    return fdef->data.data.FuncDef.params.count > 0 && PARAM_IS_SHALLOW(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)})));
-}
+// callee_param_is_shallow: moved to builder.til
 
-static Bool callee_param_is_usize(Str *callee_name, U32 arg_index) {
-    Expr *fdef = find_callee_fdef(callee_name);
-    if (!fdef) return 0;
-    if (arg_index >= fdef->data.data.FuncDef.nparam) return 0;
-    Param *param = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)});
-    return param->ptype.count == 5 && memcmp(param->ptype.c_str, "USize", 5) == 0;
-}
+// callee_param_is_usize: moved to builder.til
 
-static Bool callee_param_is_own(Str *callee_name, U32 arg_index) {
-    Expr *fdef = find_callee_fdef(callee_name);
-    if (!fdef) return 0;
-    if (arg_index >= fdef->data.data.FuncDef.nparam) return 0;
-    return PARAM_IS_OWN(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)})));
-}
+// callee_param_is_own: moved to builder.til
 
 // Map til function names to C symbol names (handles stdlib collisions)
 static const char *func_to_c(Str *name) {

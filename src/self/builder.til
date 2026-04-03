@@ -141,6 +141,89 @@ is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
     return true
 }
 
+// C functions not yet translated (Map pointer dereference issue)
+find_struct_body := ext_func(name: Str) returns ref Expr {}
+find_callee_fdef := ext_func(name: Str) returns ref Expr {}
+
+callee_returns_shallow := func(callee_name: Str) returns shallow Bool {
+    ref fdef : Expr = find_callee_fdef(callee_name)
+    if is_null(fdef) { return false }
+    ref fd : FunctionDef = get_payload(fdef.data)
+    return is_variant(fd.return_own_type, OwnType.Shallow)
+}
+
+callee_returns_dynamic := func(callee_name: Str) returns shallow Bool {
+    if callee_name.eq("malloc") { return true }
+    if callee_name.eq("calloc") { return true }
+    if callee_name.eq("realloc") { return true }
+    if callee_name.eq("dyn_call_ret") { return true }
+    if callee_name.eq("dyn_fn") { return true }
+    ref fdef : Expr = find_callee_fdef(callee_name)
+    if is_null(fdef) { return false }
+    ref fd : FunctionDef = get_payload(fdef.data)
+    return fd.return_type.eq("Dynamic")
+}
+
+callee_param_is_shallow := func(callee_name: Str, shallow arg_index: U32) returns shallow Bool {
+    ref fdef : Expr = find_callee_fdef(callee_name)
+    if is_null(fdef) { return false }
+    ref fd : FunctionDef = get_payload(fdef.data)
+    if arg_index.gte(fd.nparam) { return false }
+    if fd.params.len().eq(0) { return false }
+    ref p : Param = fd.params.get(arg_index)
+    return is_variant(p.own_type, OwnType.Shallow)
+}
+
+callee_param_is_usize := func(callee_name: Str, shallow arg_index: U32) returns shallow Bool {
+    ref fdef : Expr = find_callee_fdef(callee_name)
+    if is_null(fdef) { return false }
+    ref fd : FunctionDef = get_payload(fdef.data)
+    if arg_index.gte(fd.nparam) { return false }
+    ref p : Param = fd.params.get(arg_index)
+    return p.ptype.eq("USize")
+}
+
+callee_param_is_own := func(callee_name: Str, shallow arg_index: U32) returns shallow Bool {
+    ref fdef : Expr = find_callee_fdef(callee_name)
+    if is_null(fdef) { return false }
+    ref fd : FunctionDef = get_payload(fdef.data)
+    if arg_index.gte(fd.nparam) { return false }
+    ref p : Param = fd.params.get(arg_index)
+    return is_variant(p.own_type, OwnType.Own)
+}
+
+fcall_is_shallow_return := func(fcall: Expr) returns shallow Bool {
+    if is_variant(fcall.data, NodeType.FCall).not() { return false }
+    ref callee : Expr = fcall.child(0)
+    if is_variant(callee.data, NodeType.Ident) {
+        ref ident : Str = get_payload(callee.data)
+        return callee_returns_shallow(ident)
+    } else if is_variant(callee.data, NodeType.FieldAccess) {
+        ref sname : Str = callee.child(0).struct_name
+        ref mname : Str = get_payload(callee.data)
+        if sname.len().eq(0) { return false }
+        flat := sname.concat("_").concat(mname)
+        return callee_returns_shallow(flat)
+    }
+    return false
+}
+
+fcall_returns_dynamic := func(fcall: Expr) returns shallow Bool {
+    if is_variant(fcall.data, NodeType.FCall).not() { return false }
+    ref callee_node : Expr = fcall.child(0)
+    if is_variant(callee_node.data, NodeType.FieldAccess) {
+        ref sname : Str = callee_node.child(0).struct_name
+        ref mname : Str = get_payload(callee_node.data)
+        if sname.len().eq(0) { return false }
+        flat := sname.concat("_").concat(mname)
+        return callee_returns_dynamic(flat)
+    } else if is_variant(callee_node.data, NodeType.Ident) {
+        ref ident : Str = get_payload(callee_node.data)
+        return callee_returns_dynamic(ident)
+    }
+    return false
+}
+
 build := ext_func(program: Expr, m: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 build_header := ext_func(program: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
