@@ -1,0 +1,185 @@
+* C to til translation -- dependency map
+
+Files to translate (not ext.c):
+- src/c/builder.c (3473 lines, src/self/builder.til exists)
+- src/c/precomp.c (160 lines, src/self/precomp.til exists)
+- src/c/interpreter.c (~1600 lines, src/self/interpreter.til has structs + ext_func stubs)
+- src/c/dispatch.c (817 lines, src/self/dispatch.til partially translated)
+
+** Cross-file dependencies
+
+- builder.c -> (nothing) -- self-contained, can translate independently
+- precomp.c -> interpreter.c (scope_new, scope_get, scope_set_owned, scope_free, eval_expr, interpreter_init_ns)
+- precomp.c -> dispatch.c (ffi_init)
+- interpreter.c -> dispatch.c (ext_function_dispatch, enum_method_dispatch from eval_call; ffi_init, ffi_cleanup from interpret)
+- dispatch.c -> interpreter.c (eval_expr, eval_call, scope_get, ns_get, find_field_decl, write_field, make_str_value)
+
+Cycle: eval_call (interpreter.c) -> ext_function_dispatch (dispatch.c) -> h_* handlers (dispatch.c) -> eval_expr (interpreter.c) -> eval_call
+
+** builder.c
+
+Self-contained. Zero deps on interpreter.c, dispatch.c, or precomp.c.
+Uses only ext.c primitives (Str, Vec, Map, Set, File, Expr) + libc + internal recursion.
+
+*** Public functions
+- build(program, mode, run_tests, path, c_output_path) -> I32    line 1815
+- build_header(program, h_path) -> I32                            line 2990
+- build_forward_header(program, fwd_path) -> I32                  line 2979
+- build_til_binding(program, til_path, lib_name) -> I32           line 3247
+- compile_c(c_path, bin_path, ext_c_path, user_c_path, link_flags) -> I32   line 3473
+- compile_lib(c_path, lib_name, ext_c_path, user_c_path, link_flags) -> I32 line 3390
+
+*** Internal recursion
+emit_expr -> emit_stmt -> emit_body -> emit_expr (all internal, no cross-file calls)
+
+*** True leaves (only ext.c/libc/til deps)
+All functions are leaves relative to other C files. Internal leaves (no emit_* recursion):
+is_primitive_type, is_stack_local, is_value_global, is_ref_local, emit_indent,
+emit_field, use_dot_access, get_stack_local_ctype, is_funcsig_type, is_ext_h_type,
+is_skip_ext_decl, is_scalar_method_type, is_exported_top_level_global, emit_u64,
+emit_i32, and ~15 more small utility functions.
+
+** precomp.c
+
+Small file (160 lines). Bridges interpreter to AST for compile-time folding.
+
+*** Functions
+- precomp(program)                                                line 88   -- public, main entry
+- func_uses_unknown_globals(e, func_def, precomp_scope) -> Bool   line 9    -- static
+- try_eval_call(scope, fcall, require_known) -> Expr*             line 28   -- public, called from precomp.til
+- track_literal(scope, name, rhs)                                 line 79   -- public, called from precomp.til
+
+*** Dependencies
+- interpreter.c: scope_new, scope_get, scope_set_owned, scope_free, eval_expr, interpreter_init_ns
+- dispatch.c: ffi_init
+- Translate after interpreter.c core + dispatch.c ffi_init are done
+
+*** True leaves
+- func_uses_unknown_globals (deps: Str_eq, Map_has, scope_get, Vec_get, Expr_child)
+  Note: scope_get is interpreter.c -- true leaf only after scope_get is translated
+
+** interpreter.c
+
+*** True leaves (no C deps outside ext.c/libc)
+
+Value constructors (zero deps):
+- val_none()                         line 19
+- val_i64(v)                         line 23
+- val_u8(v)                          line 27
+- val_i16(v)                         line 31
+- val_i32(v)                         line 35
+- val_u32(v)                         line 39
+- val_u64(v)                         line 43
+- val_f32(v)                         line 47
+- val_bool(v)                        line 51
+- val_enum_flat(name, def, tag, data, size)  line 57  -- deps: calloc, memcpy, memset
+- val_enum_simple(name, tag)         line 72  -- deps: val_enum_flat
+
+String/view helpers (libc only):
+- str_view(v) -> Str                 line 407 -- no deps
+- make_str_value(data, len) -> Value line 373 -- deps: malloc, strndup, free
+- make_str_value_own(data, len)      line 390 -- deps: malloc, free
+
+Scope helpers (Map ops only):
+- scope_new(parent) -> Scope*        line 170 -- deps: malloc, Map_new
+- scope_free(s)                      line 177 -- deps: free, Map_delete
+- scope_set_owned(s, name, val)      line 187 -- deps: Map_has, Map_get, Map_set, malloc
+- scope_set_borrowed(s, name, val)   line 199 -- deps: Map_has, Map_get, Map_set, malloc
+- scope_get(s, name) -> Cell*        line 210 -- deps: Map_has, Map_get, recursive on parent
+
+Namespace + type helpers:
+- enum_tag(ei) -> I32                line 76  -- pointer dereference
+- enum_payload_ptr(ei) -> void*      line 80  -- pointer arithmetic
+- ns_qname(sname, fname) -> Str     line 89  -- Str_clone, Str_concat
+- ns_get(sname, fname) -> Value*    line 102 -- ns_qname, Map_has, Map_get (uses global ns_map)
+- ns_set(sname, fname, val)         line 108 -- ns_qname, Map_set (uses global ns_map)
+- needs_widen(type_name) -> Bool    line 153 -- memcmp only
+- widen_numeric(val, type_name)     line 116 -- val_* constructors, memcmp
+- elem_size_for_type(type_name)     line 1385 -- memcmp, sizeof
+- parse_cli_arg(type_name, str_val) line 1328 -- make_str_value, strtoll, etc.
+
+*** Second layer (depend on leaf layer)
+- clone_value(v) -> Value            line 414 -- deps: val_*, enum_has_payloads (ast.til), Expr_child (ast.til), malloc, memcpy, strndup
+- find_field_decl(struct_def, name)  line 225 -- deps: Expr_child (ast.til)
+- read_field(inst, fdecl) -> Value   line 237 -- deps: enum_has_payloads (ast.til), val_*, make_str_value
+- write_field(inst, fdecl, val)      line 318 -- deps: clone_value, malloc, memcpy, free
+
+*** Third layer (depend on second layer + dispatch.c)
+- values_equal(a, b) -> Bool         line 540 -- deps: clone_value, str_view, read_field
+- eval_call(s, e) -> Value           line 573 -- deps: eval_expr, ext_function_dispatch (dispatch.c), enum_method_dispatch (dispatch.c), scope_*, clone_value, widen_numeric
+- eval_expr(s, e) -> Value           line 878 -- deps: eval_call, clone_value, read_field, find_field_decl, make_str_value
+- eval_body(s, body) -> Value        line 1011 -- deps: eval_expr, eval_call, scope_*, write_field, find_field_decl, clone_value
+- interpreter_init_ns(global, prog)  line 1295 -- deps: eval_expr, ns_set, enum_has_payloads (ast.til)
+- interpret(program, ...)            line 1452 -- deps: eval_body, ffi_init (dispatch.c), ffi_cleanup (dispatch.c), scope_*, interpreter_init_ns, parse_cli_arg, build_argv_array, elem_size_for_type
+
+** dispatch.c
+
+*** Already translated (in dispatch.til)
+ffi_dlsym, ffi_init_link_libs, ffi_init_user_so, ffi_init_struct_defs, ffi_cleanup,
+value_to_i64, value_to_u64, value_to_f32, eval_arg, val_to_ptr,
+h_Bool_and/or/not, h_U8/I16/I32/F32/U32_from_i64, h_print_single, h_print_flush,
+h_readfile, h_writefile, h_spawn_cmd, h_exit, h_cfile_open,
+h_check_cmd_status, h_sleep, h_file_mtime, h_clock_ms, h_get_thread_count,
+h_dyn_has_method, h_dyn_fn
+
+*** True leaves (no C deps outside ext.c/libc)
+
+FFI type functions (mutual recursion group):
+- shallow_ffi_type(type_name) -> ffi_type*       line 50  -- deps: ffi_type_*_ref (ext_func), Map.has/get (til), build_struct_ffi_type
+- field_ffi_type(field) -> ffi_type*              line 69  -- deps: Declaration fields (ast.til), build_struct_ffi_type
+- build_struct_ffi_type(struct_def) -> ffi_type*  line 90  -- deps: Expr.child (ast.til), field_ffi_type, malloc, Vec ops (til)
+
+FFI registration chain:
+- ffi_register(name, fn, fdef)       line 708 -- deps: shallow_ffi_type, Vec.get/Map.set (til), ffi_prep_cif (needs bridge), FuncDef/Param/OwnType (ast.til)
+- ffi_init_scan_program(program)     line 748 -- deps: ffi_register, ffi_dlsym (dispatch.til), Expr.child (ast.til), snprintf -> format()
+- ffi_init(program, ...) body        line 803 -- deps: ffi_init_scan_program, ffi_init_user_so/link_libs/struct_defs/cleanup (dispatch.til)
+
+*** Depend on interpreter.c (NOT leaves)
+
+Handlers calling eval_expr:
+- h_free(s, e, r)              line 130 -- deps: eval_expr, scope_get
+- h_dyn_call(s, e, r)          line 155 -- deps: eval_expr, eval_call
+- get_elem_size(s, name, src)  line 204 -- deps: ns_get, eval_call
+- h_array(s, e, r)             line 244 -- deps: eval_expr, get_elem_size, find_field_decl, write_field, ns_get, make_str_value
+- h_vec(s, e, r)               line 300 -- deps: eval_expr, get_elem_size, find_field_decl, write_field, ns_get, make_str_value
+- h_ptr_add(s, e, r)           line 359 -- deps: eval_expr
+- h_cfile_close(s, e, r)       line 371 -- deps: eval_expr
+- h_cfile_write_str(s, e, r)   line 379 -- deps: eval_expr
+- h_cfile_read_all(s, e, r)    line 389 -- deps: eval_expr, make_str_value
+- enum_method_dispatch(...)     line 661 -- deps: eval_expr, enum_has_payloads (ast.til)
+- ext_dispatch_ffi(...)         line 475 -- deps: eval_expr + BLOCKER (VLAs, union, ffi_call)
+
+Dispatch infrastructure:
+- dispatch_init()               line 400 -- BLOCKER: stores function pointers via REG macro
+- ext_dispatch_builtin(...)     line 467 -- BLOCKER: calls function pointer from map
+- ext_function_dispatch(...)    line 654 -- deps: dispatch_init, ext_dispatch_builtin, ext_dispatch_ffi
+
+** Blockers
+
+*** BLOCKER A: Function pointer dispatch (dispatch_init + ext_dispatch_builtin)
+dispatch_init stores C function pointers in dispatch_map.
+ext_dispatch_builtin retrieves and calls them via cast.
+til cannot take function addresses or call Dynamic as function.
+
+*** BLOCKER B: ext_dispatch_ffi
+VLAs (void *args[nargs]), union for return buffer, ffi_call/FFI_FN/FFI_DEFAULT_ABI macros.
+
+** Translation order
+
+Layer 0 (true leaves):
+- interpreter.c: val_*, str_view, make_str_value*, scope_*, ns_*, widen_*, enum_tag, enum_payload_ptr, elem_size_for_type, parse_cli_arg
+- dispatch.c: shallow_ffi_type, field_ffi_type, build_struct_ffi_type, ffi_register, ffi_init_scan_program, ffi_init body
+
+Layer 1 (depend on layer 0):
+- interpreter.c: clone_value, find_field_decl, read_field, write_field, values_equal
+
+Layer 2 (cycle -- need ext_func stubs for cross-file calls):
+- interpreter.c: eval_expr, eval_call, eval_body, interpreter_init_ns, interpret
+- dispatch.c: h_* handlers, get_elem_size, h_dyn_call, h_array, h_vec, enum_method_dispatch
+
+Layer 3 (blockers):
+- dispatch.c: dispatch_init, ext_dispatch_builtin, ext_dispatch_ffi, ext_function_dispatch
+
+Independent:
+- builder.c: can translate any time (self-contained)
+- precomp.c: translate after interpreter.c layer 2
