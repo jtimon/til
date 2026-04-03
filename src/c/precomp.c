@@ -80,7 +80,7 @@ void track_literal(Scope *scope, Str *name, Expr *rhs) {
     Value v;
     if (is_known(rhs, &v)) {
         { Str *_k = Str_clone(name); void *_v = malloc(sizeof(v)); memcpy(_v, &v, sizeof(v)); Map_set(&known, _k, _v); }
-        scope_set_owned(scope, name, v);
+        scope_set_owned(scope, name, &v);
     }
 }
 
@@ -139,7 +139,7 @@ void precomp(Expr *program) {
              Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
              Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Value val = {.tag = Value_TAG_Func, .data.Func = (void*)Expr_child(stmt, &(USize){(USize)(0)})};
-            scope_set_owned(global, (&stmt->data.data.Decl.name), val);
+            scope_set_owned(global, (&stmt->data.data.Decl.name), &val);
         }
     }
     interpreter_init_ns(global, program);

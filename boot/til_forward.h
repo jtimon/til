@@ -1094,7 +1094,7 @@ Value clone_value(Value v);
 void free_value(Value v);
 Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
-void scope_set_owned(Scope * s, Str * name, Value val);
+void scope_set_owned(Scope * s, Str * name, Value * val);
 void scope_free(Scope * s);
 void interpreter_init_ns(Scope * global, Expr * program);
 Value * ns_get(Str * sname, Str * fname);

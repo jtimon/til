@@ -135,14 +135,14 @@ void scope_free(Scope *s) {
     free(s);
 }
 
-void scope_set_owned(Scope *s, Str *name, Value val) {
+void scope_set_owned(Scope *s, Str *name, Value *val) {
     if (Map_has(&s->bindings, name)) {
         Binding *b = Map_get(&s->bindings, name);
-        b->cell->val = val;
+        b->cell->val = *val;
         return;
     }
     Cell *cell = malloc(sizeof(Cell));
-    cell->val = val;
+    cell->val = *val;
     Binding nb = {name, cell, 1};
     { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(nb)); memcpy(_v, &nb, sizeof(nb)); Map_set(&s->bindings, _k, _v); }
 }
@@ -646,11 +646,11 @@ Value eval_call(Scope *scope, Expr *e) {
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
                         arg = val_bool(*(Bool *)arg.data.Ptr);
                     { Value *_w = widen_numeric(&arg, ptype); arg = *_w; free(_w); }
-                    scope_set_owned(call_scope, &_ipi->name, arg);
+                    scope_set_owned(call_scope, &_ipi->name, &arg);
                 } else if (needs_widen(&arg_cell->val, &_ipi->ptype)) {
                     Value arg = clone_value(arg_cell->val);
                     { Value *_w = widen_numeric(&arg, &_ipi->ptype); arg = *_w; free(_w); }
-                    scope_set_owned(call_scope, &_ipi->name, arg);
+                    scope_set_owned(call_scope, &_ipi->name, &arg);
                 } else {
                     scope_set_borrowed(call_scope, &_ipi->name, arg_cell);
                 }
@@ -683,7 +683,7 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = val_bool(*(Bool *)arg.data.Ptr);
                 }
                 { Value *_w = widen_numeric(&arg, &_ipi->ptype); arg = *_w; free(_w); }
-                scope_set_owned(call_scope, &_ipi->name, arg);
+                scope_set_owned(call_scope, &_ipi->name, &arg);
             }
         }
         has_return = 0;
@@ -793,14 +793,14 @@ Value eval_call(Scope *scope, Expr *e) {
             if (needs_widen(&arg_cell->val, &_rpi->ptype)) {
                 Value arg = clone_value(arg_cell->val);
                 { Value *_w = widen_numeric(&arg, &_rpi->ptype); arg = *_w; free(_w); }
-                scope_set_owned(call_scope, &_rpi->name, arg);
+                scope_set_owned(call_scope, &_rpi->name, &arg);
             } else {
                 scope_set_borrowed(call_scope, &_rpi->name, arg_cell);
             }
         } else {
             Value arg = eval_expr(scope, arg_expr);
             { Value *_w = widen_numeric(&arg, &_rpi->ptype); arg = *_w; free(_w); }
-            scope_set_owned(call_scope, &_rpi->name, arg);
+            scope_set_owned(call_scope, &_rpi->name, &arg);
         }
     }
 
@@ -1041,7 +1041,7 @@ static void eval_body(Scope *scope, Expr *body) {
                         }
                     }
                 }
-                scope_set_owned(scope, (&stmt->data.data.Decl.name), val);
+                scope_set_owned(scope, (&stmt->data.data.Decl.name), &val);
             }
             break;
         }
@@ -1408,7 +1408,7 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
              Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
              Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Value val = {.tag = Value_TAG_Func, .data.Func = (void*)Expr_child(stmt, &(USize){(USize)(0)})};
-            scope_set_owned(global, (&stmt->data.data.Decl.name), val);
+            scope_set_owned(global, (&stmt->data.data.Decl.name), &val);
         }
     }
 
@@ -1424,7 +1424,7 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
             (((Expr*)src->val.data.Func)->data.tag == NodeType_TAG_StructDef ||
              ((Expr*)src->val.data.Func)->data.tag == NodeType_TAG_EnumDef)) {
             Value val = {.tag = Value_TAG_Func, .data.Func = src->val.data.Func};
-            scope_set_owned(global, &stmt->data.data.Decl.name, val);
+            scope_set_owned(global, &stmt->data.data.Decl.name, &val);
         }
     }
 
@@ -1524,13 +1524,13 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
                     U32 va_count = user_argc - fixed;
                     Param *_mpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)});
                     Value arr = build_argv_array(user_argv, argi, va_count, &((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(vi)}))->ptype);
-                    scope_set_owned(main_scope, &_mpi->name, arr);
+                    scope_set_owned(main_scope, &_mpi->name, &arr);
                     argi += va_count;
                 } else {
                     Param *_mpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)});
                     Str *arg_s = (Str *)Vec_get(user_argv, &(USize){(USize)argi});
                     Value v = parse_cli_arg((char *)arg_s->c_str, &_mpi->ptype);
-                    scope_set_owned(main_scope, &_mpi->name, v);
+                    scope_set_owned(main_scope, &_mpi->name, &v);
                     argi++;
                 }
             }
