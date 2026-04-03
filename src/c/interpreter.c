@@ -177,8 +177,10 @@ Scope *scope_new(Scope *parent) {
 void scope_free(Scope *s) {
     for (U32 i = 0; i < s->bindings.count; i++) {
         Binding *b = (Binding *)(s->bindings.val_data + i * s->bindings.val_size);
-        if (b->cell_is_local)
+        if (b->cell_is_local) {
+            free_value(b->cell->val);
             free(b->cell);
+        }
     }
     Map_delete(&s->bindings, &(Bool){0});
     free(s);
@@ -187,6 +189,7 @@ void scope_free(Scope *s) {
 void scope_set_owned(Scope *s, Str *name, Value val) {
     if (Map_has(&s->bindings, name)) {
         Binding *b = Map_get(&s->bindings, name);
+        free_value(b->cell->val);
         b->cell->val = val;
         return;
     }
@@ -408,6 +411,23 @@ Str str_view(Value v) {
     char *data = *(char **)v.data.Struct.data;
     USize len = *(USize *)((char *)v.data.Struct.data + sizeof(U8 *));
     return (Str){.c_str = (U8 *)data, .count = len, .cap = CAP_VIEW};
+}
+
+// Free owned heap data inside a Value (does NOT free the Value itself).
+// Safe to call on any Value -- no-ops for scalars, borrowed structs, etc.
+void free_value(Value v) {
+    switch (v.tag) {
+    case Value_TAG_Struct:
+        if (!v.data.Struct.borrowed && v.data.Struct.data)
+            free(v.data.Struct.data);
+        break;
+    case Value_TAG_Enum:
+        if (v.data.Enum.data)
+            free(v.data.Enum.data);
+        break;
+    default:
+        break;
+    }
 }
 
 // Deep-clone a Value (for payload enum operations and general use)
