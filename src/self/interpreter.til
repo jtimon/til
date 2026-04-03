@@ -175,5 +175,19 @@ make_str_value := ext_func(data: Dynamic, shallow len: U64) returns shallow Valu
 make_str_value_own := ext_func(data: Dynamic, shallow len: U64) returns shallow Value {}
 str_view := ext_func(shallow v: Value) returns shallow Str {}
 
-find_field_decl := ext_func(struct_def: Expr, fname: Str) returns ref Expr {}
+find_field_decl := func(struct_def: Expr, fname: Str) returns ref Expr {
+    ref body : Expr = struct_def.child(0)
+    for i in 0..body.child_count() {
+        ref f : Expr = body.child(i)
+        if f.data.is(NodeType.Decl) {
+            ref dd : Declaration = get_payload(f.data)
+            if dd.is_namespace.not() {
+                if dd.name.eq(fname) {
+                    return f
+                }
+            }
+        }
+    }
+    return NULL
+}
 write_field := ext_proc(mut inst: StructInstance, fdecl: Expr, shallow val: Value) {}

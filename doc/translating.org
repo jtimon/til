@@ -100,7 +100,7 @@ Namespace + type helpers:
 
 *** Second layer (depend on leaf layer)
 - clone_value(v) -> Value            line 414 -- deps: val_*, enum_has_payloads (ast.til), Expr_child (ast.til), malloc, memcpy, strndup
-- find_field_decl(struct_def, name)  line 225 -- deps: Expr_child (ast.til)
+- find_field_decl(struct_def, name)  DONE (interpreter.til)
 - read_field(inst, fdecl) -> Value   line 237 -- deps: enum_has_payloads (ast.til), val_*, make_str_value
 - write_field(inst, fdecl, val)      line 318 -- deps: clone_value, malloc, memcpy, free
 

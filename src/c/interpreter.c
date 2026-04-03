@@ -171,17 +171,7 @@ Str *cached_array_name;
 Expr *cached_vec_def;
 Str *cached_vec_name;
 
-// Find a non-namespace field decl by name in a struct_def
-Expr *find_field_decl(Expr *struct_def, Str *fname) {
-    Expr *body = Expr_child(struct_def, &(USize){(USize)(0)});
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = Expr_child(body, &(USize){(USize)(i)});
-        if (f->data.tag == NodeType_TAG_Decl && !f->data.data.Decl.is_namespace &&
-            Str_eq(&f->data.data.Decl.name, fname))
-            return f;
-    }
-    return NULL;
-}
+// find_field_decl: translated to interpreter.til
 
 // Read a Value from flat buffer at a field decl's offset
 static Value read_field(StructInstance *inst, Expr *fdecl) {
