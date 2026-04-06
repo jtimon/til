@@ -683,10 +683,8 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     if is_variant(fn_type, TilType.FuncPtr).not() {
         if in_func.neq(0) {
             if scope.is_proc(name).eq(1) {
-                if name.eq("panic").not() {
-                    if debug_exempt.not() {
-                        type_error(e, "func cannot call proc '".concat(name).concat("'"))
-                    }
+                if debug_exempt.not() {
+                    type_error(e, "func cannot call proc '".concat(name).concat("'"))
                 }
             }
         }
