@@ -3275,9 +3275,10 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
 
 I32 compile_lib(Str *c_path, Str *lib_name,
                 Str *ext_c_path, Str *user_c_path,
-                Str *link_flags) {
+                Str *link_flags, Str *include_flags) {
     if (user_c_path && user_c_path->count == 0) user_c_path = NULL;
     if (link_flags && link_flags->count == 0) link_flags = NULL;
+    if (include_flags && include_flags->count == 0) include_flags = NULL;
     // Extract directory from ext_c_path for -I flag
     Str *ext_dir;
     Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
@@ -3316,11 +3317,13 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     }
 
     // Compile user .c to object if present
+    Str *ifl = include_flags ? include_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     Str *user_obj = &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     if (user_c_path) {
         user_obj = &(Str){.c_str = (U8*)"gen/lib/user.o", .count = 14, .cap = CAP_LIT};
-        cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+        cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
             &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
+            ifl),
             &(Str){.c_str = (U8*)" -c ", .count = 4, .cap = CAP_LIT}), user_c_path), &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), user_obj);
         result = system((const char *)cmd->c_str);
         if (result != 0) {
@@ -3356,10 +3359,12 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     return 0;
 }
 
-I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str *link_flags) {
+I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str *link_flags, Str *include_flags) {
     // Normalize empty strings to NULL for optional params
     if (user_c_path && user_c_path->count == 0) user_c_path = NULL;
     if (link_flags && link_flags->count == 0) link_flags = NULL;
+    if (include_flags && include_flags->count == 0) include_flags = NULL;
+    Str *ifl = include_flags ? include_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     // Extract directory from ext_c_path for -I flag
     Str *ext_dir;
     Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
@@ -3403,9 +3408,10 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
             Str *fwd_flag = skip_fwd
                 ? &(Str){.c_str = (U8*)" -Isrc/c -Iboot", .count = 15, .cap = CAP_LIT}
                 : Str_concat(&(Str){.c_str = (U8*)" -include ", .count = 10, .cap = CAP_LIT}, fwd_path);
-            Str *obj_cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+            Str *obj_cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
                 &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -I", .count = 27, .cap = CAP_LIT}, ext_dir),
                 fwd_flag),
+                ifl),
                 &(Str){.c_str = (U8*)" -c ", .count = 4, .cap = CAP_LIT}), file),
                 Str_concat(&(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}, user_obj));
 

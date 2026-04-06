@@ -1134,8 +1134,8 @@ I32 build(Expr * program, Mode * m, Bool run_tests, Str * path, Str * c_output_p
 I32 build_header(Expr * program, Str * h_path);
 I32 build_til_binding(Expr * program, Str * til_path, Str * lib_name);
 I32 build_forward_header(Expr * program, Str * fwd_path);
-I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags);
-I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags);
+I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags);
+I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags);
 ExtStr * ExtStr_clone(ExtStr * self);
 void ExtStr_delete(ExtStr * self, Bool * call_free);
 U32 * ExtStr_size(void);
@@ -1223,8 +1223,8 @@ I32 interpret(Expr * ast, Mode * m, Bool run_tests, Str * path, Str * user_c, St
 I32 build(Expr * ast, Mode * m, Bool run_tests, Str * path, Str * c_path);
 I32 build_header(Expr * ast, Str * h_path);
 I32 build_til_binding(Expr * ast, Str * til_path, Str * lib_name);
-I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c, Str * user_c, Str * lflags);
-I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c, Str * user_c, Str * lflags);
+I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c, Str * user_c, Str * lflags, Str * iflags);
+I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c, Str * user_c, Str * lflags, Str * iflags);
 void ast_print(Expr * ast, U32 indent);
 Str * get_bin_dir(void);
 Str * realpath_str(Str * path);

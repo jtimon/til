@@ -38,8 +38,8 @@ interpret := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, us
 build := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
 build_header := ext_func(ast: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(ast: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
-compile_c := ext_func(c_path: Str, bin_path: Str, ext_c: Str, user_c: Str, lflags: Str) returns shallow I32 {}
-compile_lib := ext_func(c_path: Str, lib_name: Str, ext_c: Str, user_c: Str, lflags: Str) returns shallow I32 {}
+compile_c := ext_func(c_path: Str, bin_path: Str, ext_c: Str, user_c: Str, lflags: Str, iflags: Str) returns shallow I32 {}
+compile_lib := ext_func(c_path: Str, lib_name: Str, ext_c: Str, user_c: Str, lflags: Str, iflags: Str) returns shallow I32 {}
 ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
 
 // Utility
@@ -388,6 +388,7 @@ main := proc(args: ..Str) {
 
     // Extract link() and link_c() directives
     mut link_flags := ""
+    mut include_flags := ""
     mut link_c_paths := ""
     kept := Vec.new("Expr", Expr.size())
     for i in 0..Expr.child_count(ast) {
@@ -403,7 +404,22 @@ main := proc(args: ..Str) {
             ref fname : Str = get_payload(Expr.child(stmt, 0).data)
             ref arg : Str = get_payload(Expr.child(stmt, 1).data)
             if fname.eq("link") {
-                link_flags = link_flags.concat(" -l").concat(arg)
+                if arg.find("/").gte(0) {
+                    // Bundled library: path to .a file
+                    link_flags = link_flags.concat(" ").concat(arg)
+                    // Derive include dir: go up from .libs/ to parent, append /include
+                    last_slash := arg.rfind("/")
+                    if last_slash.gte(0) {
+                        parent_dir := arg.substr(0, last_slash.to_usize())
+                        parent_slash := parent_dir.rfind("/")
+                        if parent_slash.gte(0) {
+                            inc_dir := parent_dir.substr(0, parent_slash.to_usize()).concat("/include")
+                            include_flags = include_flags.concat(" -I").concat(inc_dir)
+                        }
+                    }
+                } else {
+                    link_flags = link_flags.concat(" -l").concat(arg)
+                }
             } else if fname.eq("link_c") {
                 if link_c_paths.len().gt(0) {
                     link_c_paths = link_c_paths.concat(" ")
@@ -470,6 +486,11 @@ main := proc(args: ..Str) {
     mut lflags := ""
     if link_flags.len().gt(0) {
         lflags = link_flags
+    }
+
+    mut iflags := ""
+    if include_flags.len().gt(0) {
+        iflags = include_flags
     }
 
     if command.eq("interpret").or(command.eq("test")) {
@@ -552,7 +573,7 @@ main := proc(args: ..Str) {
                 println("Generated: ".concat(til_path))
             }
             if result.eq(0).and(command.eq("build")) {
-                result = compile_lib(c_path, name, ext_c_path, user_c, lflags)
+                result = compile_lib(c_path, name, ext_c_path, user_c, lflags, iflags)
                 if result.eq(0) {
                     println("Generated: ".concat(c_path))
                     println("Generated: ".concat(fwd_path))
@@ -569,7 +590,7 @@ main := proc(args: ..Str) {
             println("Generated: ".concat(fwd_path))
         }
         if result.eq(0).and(do_lib.not()).and(command.eq("translate").not()) {
-            result = compile_c(c_path, bin_path, ext_c_path, user_c, lflags)
+            result = compile_c(c_path, bin_path, ext_c_path, user_c, lflags, iflags)
         }
         if result.eq(0).and(do_lib.not()).and(command.eq("run")) {
             // Build command with user args

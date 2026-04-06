@@ -27,8 +27,9 @@ TINYFD_LIB := lib/tinyfiledialogs/libtinyfd.a
 TINYFD_FLAGS := -Llib/tinyfiledialogs -ltinyfd
 
 LIBFFI_DIR := lib/libffi
-LIBFFI_FLAGS = -I$(firstword $(wildcard $(LIBFFI_DIR)/*/include)) \
-               -L$(firstword $(wildcard $(LIBFFI_DIR)/*/.libs)) -lffi
+LIBFFI_INCDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/include))
+LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
+LIBFFI_FLAGS = -I$(LIBFFI_INCDIR) -L$(LIBFFI_LIBDIR) -lffi
 
 $(RAYLIB_LIB):
 	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP \
@@ -60,10 +61,10 @@ bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) lib/libffi/.built
 bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
 	bin/til_boot translate src/self/modes.til
 	cp gen/til/modes*.c gen/til/modes*.h boot/ 2>/dev/null || true
-	bin/til_boot build -o bin/til src/til.til
+	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til_boot build -o bin/til src/til.til
 	bin/til translate src/self/modes.til
 	cp gen/til/modes*.c gen/til/modes*.h boot/ 2>/dev/null || true
-	bin/til build -o bin/til src/til.til
+	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til build -o bin/til src/til.til
 	cp gen/til/til.c gen/til/til.h gen/til/til_forward.h boot/ 2>/dev/null || true
 	bin/til run src/examples/uml.til
 
