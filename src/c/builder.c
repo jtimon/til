@@ -3287,12 +3287,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
         ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
     }
 
-    // Raylib library path (ext_dir is <root>/src/c)
-    Str *raylib_flags = Str_concat(Str_concat(&(Str){.c_str = (U8*)" -L", .count = 3, .cap = CAP_LIT}, ext_dir), &(Str){.c_str = (U8*)"/../../lib/raylib/src", .count = 21, .cap = CAP_LIT});
-    // tinyfiledialogs library path
-    Str *tinyfd_flags = Str_concat(Str_concat(&(Str){.c_str = (U8*)" -L", .count = 3, .cap = CAP_LIT}, ext_dir), &(Str){.c_str = (U8*)"/../../lib/tinyfiledialogs -ltinyfd", .count = 35, .cap = CAP_LIT});
-    Str *lib_flags = Str_concat(raylib_flags, tinyfd_flags);
-    Str *lf = Str_concat(lib_flags, link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
 
     // Compile library .c to object
     Str *obj_path = Str_concat(Str_concat(&(Str){.c_str = (U8*)"gen/lib/", .count = 8, .cap = CAP_LIT}, lib_name), &(Str){.c_str = (U8*)".o", .count = 2, .cap = CAP_LIT});
@@ -3373,13 +3368,7 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
         ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
     }
 
-    // Raylib library path (ext_dir is <root>/src/c)
-    Str *raylib_flags = Str_concat(Str_concat(&(Str){.c_str = (U8*)" -L", .count = 3, .cap = CAP_LIT}, ext_dir), &(Str){.c_str = (U8*)"/../../lib/raylib/src", .count = 21, .cap = CAP_LIT});
-    // tinyfiledialogs library path
-    Str *tinyfd_flags = Str_concat(Str_concat(&(Str){.c_str = (U8*)" -L", .count = 3, .cap = CAP_LIT}, ext_dir), &(Str){.c_str = (U8*)"/../../lib/tinyfiledialogs -ltinyfd", .count = 35, .cap = CAP_LIT});
-    Str *lib_flags = Str_concat(raylib_flags, tinyfd_flags);
-
-    Str *lf = Str_concat(lib_flags, link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
 
     // If link_c files present, compile each to .o separately with -include forward.h
     Str *user_part = &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};

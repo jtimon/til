@@ -1,5 +1,5 @@
-link("raylib")
-link("tinyfd")
+link("lib/raylib/src/libraylib.a")
+link("lib/tinyfiledialogs/libtinyfd.a")
 link("m")
 link("pthread")
 link("dl")

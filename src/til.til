@@ -22,7 +22,12 @@ link_c("src/c/dispatch.c")
 link_c("src/c/ext.c")
 
 link("dl")
-link("ffi")
+link("lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
+link("lib/raylib/src/libraylib.a")
+link("m")
+link("pthread")
+link("rt")
+link("lib/tinyfiledialogs/libtinyfd.a")
 
 // --- Bridge ext_func/ext_proc declarations ---
 

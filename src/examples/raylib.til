@@ -1,6 +1,6 @@
 mode script
 
-link("raylib")
+link("lib/raylib/src/libraylib.a")
 link("m")
 link("pthread")
 link("dl")
