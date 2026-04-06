@@ -60,14 +60,11 @@ str_left := func(s: Str, n: USize) returns Str {
     return s.substr(0, n).clone()
 }
 
-normalize_mode_name := func(mode_name: Str, default_mode: Str) returns Str {
-    if default_mode.len().gt(0) {
-        return default_mode.clone()
+normalize_mode_name := func(mode_name: Str) returns Str {
+    if mode_name.len().gt(0) {
+        return mode_name.clone()
     }
-    if mode_name.len().eq(0) {
-        return "script"
-    }
-    return mode_name.clone()
+    return "script"
 }
 
 require_mode := func(path: Str, mode_name: Str) returns ref Mode {
@@ -165,7 +162,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         tokens := tokenize(source, abs)
         mut sub_mode := ""
         sub_ast := parse(tokens, abs.clone(), sub_mode)
-        sub_mode = normalize_mode_name(sub_mode, default_mode)
+        sub_mode = normalize_mode_name(sub_mode)
         ref sub_mode_def : Mode = require_mode(abs, sub_mode)
         context_register_path_mode(ctx, abs, sub_mode_def)
         sub_imports := extract_imports(sub_ast)
@@ -323,7 +320,7 @@ main := proc(args: ..Str) {
     mut mode_str := ""
     ast := parse(tokens, path.clone(), mode_str)
     imports := extract_imports(ast)
-    mode_str = normalize_mode_name(mode_str, "")
+    mode_str = normalize_mode_name(mode_str)
     ref mut cur_mode : Mode = require_mode(path, mode_str)
     context_register_path_mode(ctx, path, cur_mode)
     ctx.mode_ = cur_mode.clone()
@@ -368,7 +365,7 @@ main := proc(args: ..Str) {
         mode_tokens := tokenize(mode_source, mode_til_path)
         mut mode_mode := ""
         mode_ast := parse(mode_tokens, mode_til_path.clone(), mode_mode)
-        mode_mode = normalize_mode_name(mode_mode, "")
+        mode_mode = normalize_mode_name(mode_mode)
         ref mode_mode_def : Mode = require_mode(mode_til_path, mode_mode)
         context_register_path_mode(ctx, mode_til_path, mode_mode_def)
         for i in 0..Expr.child_count(mode_ast) {

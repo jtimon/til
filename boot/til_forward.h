@@ -1230,7 +1230,7 @@ Str * get_bin_dir(void);
 Str * realpath_str(Str * path);
 I32 system_cmd(Str * cmd);
 Str * str_left(Str * s, U32 * n);
-Str * normalize_mode_name(Str * mode_name, Str * default_mode);
+Str * normalize_mode_name(Str * mode_name);
 Mode * require_mode(Str * path, Str * mode_name);
 Str * forward_header_path(Str * path);
 Vec * extract_imports(Expr * body);
