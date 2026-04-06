@@ -1,6 +1,8 @@
+mode pura
+
 exit := ext_func(shallow code: I64) {}
 
-panic := proc(loc_str: Str, parts: ..Str) {
+panic := func(loc_str: Str, parts: ..Str) {
     println(loc_str, ": panic: ", format(..parts))
     exit(1)
 }
@@ -9,7 +11,7 @@ TODO := func(loc_str: Str, parts: ..Str) {
     panic(loc_str, "TODO: ", format(..parts))
 }
 
-UNREACHABLE := proc(loc_str: Str) {
+UNREACHABLE := func(loc_str: Str) {
     panic(loc_str, "unreachable")
 }
 
@@ -20,19 +22,19 @@ assert := func(loc_str: Str, cond: Bool) returns Bool {
     return true
 }
 
-expect := proc(loc_str: Str, cond: Bool, parts: ..Str) {
+expect := func(loc_str: Str, cond: Bool, parts: ..Str) {
     if cond.not() {
         panic(loc_str, "assert failed: ", format(..parts))
     }
 }
 
-assert_eq := proc(loc_str: Str, a: I64, b: I64) {
+assert_eq := func(loc_str: Str, a: I64, b: I64) {
     if a.neq(b) {
         panic(loc_str, "assert_eq failed: expected '", a.to_str(), "', found '", b.to_str(), "'")
     }
 }
 
-assert_eq_str := proc(loc_str: Str, a: Str, b: Str) {
+assert_eq_str := func(loc_str: Str, a: Str, b: Str) {
     if a.eq(b).not() {
         panic(loc_str, "assert_eq_str failed: expected '", a, "', found '", b, "'")
     }
