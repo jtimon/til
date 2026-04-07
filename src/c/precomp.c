@@ -3,26 +3,6 @@
 #include <stdio.h>
 #include "../../boot/modes.h"
 
-// Check if a func body references identifiers not available at precomp time.
-// Something is available if it's a parameter, in the known map, or in the precomp scope
-// (funcs, structs, enums are pre-registered there).
-static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_scope) {
-    if (e->data.tag == NodeType_TAG_FuncDef) return 0; // don't recurse into nested funcs
-    if (e->data.tag == NodeType_TAG_Ident) {
-        Str *name = &e->data.data.Ident;
-        for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++) {
-            if (Str_eq(&((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)}))->name, name)) return 0;
-        }
-        if (Map_has(&known, name)) return 0;
-        if (scope_get(precomp_scope, name)) return 0;
-        return 1;
-    }
-    for (U32 i = 0; i < e->children.count; i++) {
-        if (func_uses_unknown_globals(Expr_child(e, &(USize){(USize)(i)}), func_def, precomp_scope)) return 1;
-    }
-    return 0;
-}
-
 // Try to evaluate a call at compile time.
 // require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
 Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
@@ -47,7 +27,7 @@ Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     Expr *eval_call = Expr_new(&(NodeType){.tag = NodeType_TAG_FCall}, fcall->line, fcall->col, &fcall->path);
     eval_call->til_type = fcall->til_type;
     { Str *_s = Str_clone(&fcall->struct_name); eval_call->struct_name = *_s; free(_s); }
-    Expr_add_child(eval_call, Expr_clone(Expr_child(fcall, &(USize){(USize)(0)}))); // callee ident (clone — owned)
+    Expr_add_child(eval_call, Expr_clone(Expr_child(fcall, &(USize){(USize)(0)}))); // callee ident (clone -- owned)
 
     for (U32 i = 0; i < nargs; i++) {
         Expr *arg = Expr_child(fcall, &(USize){(USize)(i + 1)});
@@ -78,16 +58,6 @@ Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
         }
     }
     return lit;
-}
-
-// Track a literal value from a declaration — also add to precomp scope
-// so the interpreter can find it when folding func calls
-void track_literal(Scope *scope, Str *name, Expr *rhs) {
-    Value v;
-    if (is_known(rhs, &v)) {
-        { Str *_k = Str_clone(name); void *_v = malloc(sizeof(v)); memcpy(_v, &v, sizeof(v)); Map_set(&known, _k, _v); }
-        scope_set_owned(scope, name, &v);
-    }
 }
 
 

@@ -93,16 +93,58 @@ like store_ptr_at(buf, offset, ptr).
 
 Self-contained (no interpreter.c/dispatch.c deps). Can translate independently.
 Internal recursion: emit_expr -> emit_stmt -> emit_body -> emit_expr.
-~30 internal leaf functions (no emit_* recursion), then the emit_* group,
-then the public entry points (build, build_header, compile_c, etc.).
+
+*** Leaf functions (no emit_* recursion, ~20 functions)
+String/type mapping:
+- type_name_to_c(name) -> char*       line 626  -- memcmp + Set_has
+- type_name_to_c_value(name) -> char*  line 650  -- memcmp + Set_has
+- til_type_to_c(t) -> char*           line 597  -- pure switch
+- c_type_name(t, sname) -> char*      line 615  -- til_type_to_c + snprintf
+- func_to_c(name) -> char*            line 324  -- memcmp (handles C keyword collisions)
+- get_stack_local_ctype(name) -> char* line 154  -- Map lookup
+- is_shallow_param(name) -> Bool       line 274  -- Vec_get + param check
+- callee_return_ctype(name) -> char*   line 292  -- find_callee_fdef + type_name_to_c_value
+- fcall_return_ctype(fcall) -> char*   line 299  -- resolve_callee_name + callee_return_ctype
+Emit helpers:
+- emit_u64(f, v)                       line 19   -- snprintf + EMIT
+- emit_i32(f, v)                       line 27   -- snprintf + EMIT
+- emit_indent(f, depth)                line 118  -- EMIT loop
+- emit_field(f, var, field)            line 147  -- EMIT with . or ->
+- emit_param_list(f, fdef, names)      line 677  -- type_name_to_c + EMIT
+- emit_til_default(f, t, sname)        line 3113 -- strcmp + EMIT
+AST collectors (self-recursive but no emit_*):
+- resolve_callee_name(fcall) -> Str*   line 181  -- Expr_child + snprintf
+- check_fcall_mut_args(e)              line 201  -- self-recursive, marks mut args
+- collect_collection_builtins(e, v)    line 39   -- self-recursive, collects type names
+- collect_dyn_methods(e, v)            line 67   -- self-recursive, collects method names
+- collect_dyn_has_methods(e, v)        line 93   -- self-recursive
+- collect_unsafe_to_hoist(body)        line 231  -- self-recursive, marks unsafe vars
+
+*** Recursive emit layer
+- emit_expr(f, e, depth)              line 332
+- emit_stmt(f, e, depth)              line 886
+- emit_body(f, body, depth)           line 1276
+- emit_body_scoped(f, body, depth)    line 164
+- emit_deref(f, e, depth)             line 709
+- emit_as_ptr(f, e, depth)            line 748
+- emit_usize_ref(f, e, depth)         line 797
+- emit_ctor_fields(f, var, ctor, d)   line 804
+- emit_ns_inits(f, depth)             line 1285  -- calls emit_deref
+
+*** Higher-level (depend on emit layer)
+- emit_func_def(f, name, fdef, mode, static) line 1308
+- emit_struct_typedef(f, name, sdef)   line 1511
+- emit_struct_funcs(f, name, sdef, lib, filter) line 1548
+- emit_enum_def(f, name, edef)         line 1591
+- emit_header_forward_decls(f, prog)   line 2617
+- emit_header_defs_and_funcs(f, prog)  line 2644
+- emit_header_global_decls(f, prog)    line 2850
 
 ** Remaining translations -- precomp.c
 
-160 lines. Translate after interpreter.c core (eval_expr, scope_*) is done.
-- func_uses_unknown_globals (leaf after scope_get translated)
-- try_eval_call (deps: eval_expr, scope_new, scope_free)
-- track_literal (deps: scope_set_owned)
-- precomp (deps: everything above + ffi_init, interpreter_init_ns)
+- try_eval_call (deps: eval_expr)
+  Cannot translate: returns nullable Expr* which til's owned return can't express
+- precomp (deps: ffi_init, interpreter_init_ns, scope_new, scope_free)
 
 ** Known issues
 

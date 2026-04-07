@@ -105,8 +105,35 @@ is_known := func(e: Expr, mut out: Value) returns shallow Bool {
     }
 }
 
+func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope) returns shallow Bool {
+    if is_variant(e.data, NodeType.FuncDef) { return false }
+    if is_variant(e.data, NodeType.Ident) {
+        ref name : Str = get_payload(e.data)
+        ref fd : FunctionDef = get_payload(func_def.data)
+        for pi in 0..fd.nparam {
+            ref p : Param = fd.params.get(pi)
+            if p.name.eq(name) { return false }
+        }
+        if known.has(name) { return false }
+        if is_null(scope_get(precomp_scope, name)).not() { return false }
+        return true
+    }
+    for ci in 0..e.child_count() {
+        if func_uses_unknown_globals(e.child(ci), func_def, precomp_scope) { return true }
+    }
+    return false
+}
+
 try_eval_call := ext_func(scope: Scope, fcall: Expr, shallow require_known: Bool) returns ref Expr {}
-track_literal := ext_proc(scope: Scope, name: Str, rhs: Expr) {}
+
+track_literal := proc(scope: Scope, name: Str, rhs: Expr) {
+    mut v := val_none()
+    if is_known(rhs, v) {
+        mut vcopy := v
+        known.set(own name.clone(), own vcopy)
+        scope_set_owned(scope, name, v)
+    }
+}
 
 is_macro_call := func(e: Expr) returns shallow Bool {
     if is_variant(e.data, NodeType.FCall).not() { return false }
