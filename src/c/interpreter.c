@@ -378,6 +378,7 @@ Value *clone_value(Value *v) {
         r->data.Enum.enum_name = src->enum_name;
         r->data.Enum.enum_def = src->enum_def;
         r->data.Enum.data = buf;
+        r->data.Enum.data_size = total;
         return r;
     }
     case Value_TAG_Struct: {
