@@ -565,10 +565,6 @@ typedef struct Expr {
     Bool is_ns_field;
     Bool is_core;
     Bool save_old_delete;
-    I32 variadic_index;
-    U32 variadic_count;
-    I32 kwargs_index;
-    U32 kwargs_count;
     Expr *fn_sig;
     Vec children;
     U32 line;
