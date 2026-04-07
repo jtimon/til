@@ -1119,6 +1119,7 @@ Str * func_to_c(Str * name);
 Str * type_name_to_c(Str * name);
 Str * type_name_to_c_value(Str * name);
 void emit_u64(File * f, U64 v);
+void emit_u32(File * f, U32 v);
 void emit_i32(File * f, I32 v);
 void emit_indent(File * f, U32 depth);
 void emit_til_default(File * f, TilType t, Str * struct_name);

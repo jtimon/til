@@ -45,11 +45,12 @@ Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     // Evaluate the call using the interpreter
     Value result = eval_expr(scope, eval_call);
 
-    // Clean up eval_call -- Vec_delete handles recursive child deletion
-    Expr_delete(eval_call, &(Bool){1});
-
-    // Convert result to AST
+    // Convert result to AST BEFORE freeing eval_call, because result
+    // may contain pointers into eval_call's AST (use-after-free bug)
     Expr *lit = value_to_expr(result, fcall);
+
+    // Clean up eval_call
+    Expr_delete(eval_call, &(Bool){1});
     if (!lit) {
         if (require_known) {
             Expr_error(fcall, &(Str){.c_str = (U8*)"macro returned non-primitive type", .count = 33, .cap = CAP_LIT});

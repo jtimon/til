@@ -299,6 +299,10 @@ emit_u64 := proc(f: File, shallow v: U64) {
     f.write_str(v.to_i64().to_str())
 }
 
+emit_u32 := proc(f: File, shallow v: U32) {
+    f.write_str(v.to_i64().to_str())
+}
+
 emit_i32 := proc(f: File, shallow v: I32) {
     f.write_str(v.to_i64().to_str())
 }
