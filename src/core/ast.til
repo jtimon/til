@@ -226,26 +226,6 @@ Expr := struct {
         }
         return out
     }
-    clone := func(self: Expr) returns Expr {
-        mut out := Expr(data = self.data.clone(), til_type = self.til_type,
-                        struct_name = self.struct_name.clone(),
-                        is_own_arg = self.is_own_arg, is_splat = self.is_splat,
-                        is_own_field = self.is_own_field, is_ref_field = self.is_ref_field,
-                        is_ns_field = self.is_ns_field,
-                        is_core = self.is_core, save_old_delete = self.save_old_delete,
-                        variadic_index = self.variadic_index,
-                        variadic_count = self.variadic_count,
-                        kwargs_index = self.kwargs_index,
-                        kwargs_count = self.kwargs_count,
-                        fn_sig = self.fn_sig,
-                        line = self.line, col = self.col, path = self.path.clone())
-        for i in 0..self.children.len() {
-            ref c : Expr = self.children.get(i)
-            cloned := c.clone()
-            out.children.push(own cloned)
-        }
-        return out
-    }
     eq := func(self: Expr, other: Expr) returns shallow Bool {
         TODO(__LOC__, "Expr.eq")
         return false

@@ -91,8 +91,9 @@ test_vec_size := test() {
 
 test_vec_dynamic := test() {
     v := Vec.new("Dynamic", Dynamic.size())
-    p1 : Dynamic = malloc(1)
-    p2 : Dynamic = malloc(1)
+    // Use pointer-sized allocs so FFI Vec.push reads valid memory
+    p1 : Dynamic = malloc(Dynamic.size())
+    p2 : Dynamic = malloc(Dynamic.size())
     v.push(own p1)
     v.push(own p2)
 
