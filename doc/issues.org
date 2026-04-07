@@ -1,10 +1,15 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 134
+# NEXT_ISSUE: 135
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #134 Re-enable precomp constant-folding for compound types
+  precomp skips constant-folding for funcs returning Struct/Enum/Dynamic/Unknown
+  because clone_value crashes on struct Values with stale struct_def pointers.
+  Fix clone_value to handle compound types reliably, then remove the guard
+  in try_eval_call (precomp.c).
 ** OPEN #133 FuncSig types not emitted as C function-pointer typedefs
   A FuncSig type definition like ~DispatchFn := func(Scope, Expr, Value) returns shallow Bool~
   generates a forward declaration ~Bool DispatchFn(Scope *, Expr *, Value *);~ in the .c file
