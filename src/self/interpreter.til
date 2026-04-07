@@ -191,7 +191,17 @@ scope_set_owned := ext_proc(mut s: Scope, name: Str, val: Value) {}
 scope_free := ext_proc(own s: Scope) {}
 interpreter_init_ns := ext_proc(mut global: Scope, program: Expr) {}
 
-ns_get := ext_func(sname: Str, fname: Str) returns ref Value {}
+ns_qname := func(sname: Str, fname: Str) returns Str {
+    return sname.concat(".").concat(fname)
+}
+
+ns_get := func(sname: Str, fname: Str) returns ref Value {
+    qn := ns_qname(sname, fname)
+    if ns_fields.has(qn).not() { return NULL }
+    ref v : Value = ns_fields.get(qn)
+    return v
+}
+
 ns_set := ext_proc(sname: Str, fname: Str, shallow val: Value) {}
 
 make_str_value := ext_func(data: Dynamic, shallow len: U64) returns shallow Value {}

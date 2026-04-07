@@ -39,28 +39,13 @@ void free_value(Value v) {
 // enum_tag, enum_payload_ptr: only used by values_equal (dead code, deleted)
 
 // ns_fields, ns_keys: defined in interpreter.til
-
-static Str *ns_qname(Str *sname, Str *fname) {
-    U64 len = sname->count + 1 + fname->count;
-    char *buf = malloc(len + 1);
-    memcpy(buf, sname->c_str, sname->count);
-    buf[sname->count] = '.';
-    memcpy(buf + sname->count + 1, fname->c_str, fname->count);
-    buf[len] = '\0';
-    Str *s = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-    free(buf);
-    { Str **_p = malloc(sizeof(Str *)); *_p = s; Vec_push(&ns_keys, _p); }
-    return s;
-}
-
-Value *ns_get(Str *sname, Str *fname) {
-    Str *qn = ns_qname(sname, fname);
-    if (!Map_has(&ns_fields, qn)) return NULL;
-    return Map_get(&ns_fields, qn);
-}
+// ns_qname, ns_get: translated to interpreter.til
+Str *ns_qname(Str *sname, Str *fname);
+Value *ns_get(Str *sname, Str *fname);
 
 void ns_set(Str *sname, Str *fname, Value val) {
     Str *qn = ns_qname(sname, fname);
+    // Map key is a view into qn's c_str; qn stays alive (leaked)
     { Str *_k = malloc(sizeof(Str)); *_k = (Str){qn->c_str, qn->count, CAP_VIEW}; void *_v = malloc(sizeof(val)); memcpy(_v, &val, sizeof(val)); Map_set(&ns_fields, _k, _v); }
 }
 

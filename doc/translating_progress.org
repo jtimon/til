@@ -38,18 +38,7 @@ so widen_numeric is never called with non-numeric Values.
 
 *** Leaf helpers (translatable, not yet attempted)
 - clone_value(v) -> Value*            line 355 -- no untranslated deps, but complex (raw StructInstance.data manipulation)
-
-*** Blocked by precomp (func bodies get constant-folded)
-ns_qname, ns_get, ns_set are pure funcs with no untranslated deps,
-but precomp tries to evaluate any func at compile time. Translating
-them from ext_func to func causes precomp to crash (clone_value on
-interpreter-internal Values). Options:
-1. Add a precomp opt-out annotation (e.g. no_precomp)
-2. Keep as ext_func permanently
-3. Translate after precomp itself is translated (can add the guard then)
-- ns_qname(sname, fname) -> Str      line 49  -- string concat
-- ns_get(sname, fname) -> Value*     line 56  -- ns_qname + Map lookup, uses global ns_fields
-- ns_set(sname, fname, val)          line 62  -- ns_qname + Map_set, uses global ns_fields
+- ns_set(sname, fname, val)          line 62  -- ns_qname (done) + Map_set, uses global ns_fields
 
 *** Depend on blocked functions
 - parse_cli_arg(type_name, str_val)  line 1328 -- make_str_value (blocked) + strtoll etc.
