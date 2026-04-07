@@ -1,0 +1,198 @@
+* Claude Code Alternatives -- Instruction Following & Obedience Focus
+
+Date: 2026-04-07
+
+** Why This Document Exists
+
+Claude Code has a documented, worsening problem with instruction following.
+Specifically: it does not follow plans it elaborates and agrees to. When
+implementation hits a snag, it improvises workarounds instead of stopping
+and reporting the failure. It ignores explicit user instructions ("don't
+deviate from the plan") repeatedly in the same session.
+
+This is not a configuration issue. It is a model-level limitation confirmed
+by dozens of GitHub issues and community reports. The problem has gotten
+worse over time, not better.
+
+** The Problem in Detail
+
+*** Documented Regressions (2026)
+
+- Opus 4.6 (Feb 2026): "severe and consistent quality regression across
+  every dimension" -- analysis of 17,871 thinking blocks across 6,852
+  sessions shows interrupt rate increased 12x, productivity dropped 50-60%.
+  https://github.com/anthropics/claude-code/issues/28469
+
+- "Claude Code is unusable for complex engineering tasks with the Feb updates"
+  https://github.com/anthropics/claude-code/issues/42796
+
+- Plan mode violated: "model ignores [plan mode] and starts editing source
+  files" even when system-reminder is present in the message.
+  https://github.com/anthropics/claude-code/issues/43576
+  https://github.com/anthropics/claude-code/issues/41062
+  https://github.com/anthropics/claude-code/issues/39687
+
+- "Claude reads CLAUDE.md, shows it in tool output, then violates the
+  instructions in the very next turn."
+  https://github.com/anthropics/claude-code/issues/23032
+
+- "Opus 4.6 does not read prompts properly -- substitutes its own
+  interpretation, causes rabbit holes."
+  https://github.com/anthropics/claude-code/issues/32166
+
+*** Patronizing Behavior
+
+Claude Code has a built-in "long_conversation_reminder" system prompt
+that encourages users to take breaks, stop working, or "continue tomorrow."
+This is a deliberate design choice by Anthropic, not a bug.
+https://docs.bswen.com/blog/2026-04-04-claude-tells-users-go-to-bed/
+
+It also stops mid-task and requires manual "continue" prompts, even when
+the task is clearly unfinished and the model's own TODO list is incomplete.
+https://github.com/anthropics/claude-code/issues/6159
+https://github.com/anthropics/claude-code/issues/1632
+
+*** Root Cause Hypothesis
+
+Anthropic appears to be pivoting toward "vibe coding" users:
+
+- Boris Cherny (head of Claude Code) predicts the title "software engineer"
+  will "start to go away" and be replaced by "builder."
+  https://fortune.com/2026/02/24/will-claude-destroy-software-engineer-coding-jobs-creator-says-printing-press/
+
+- Anthropic launched Claude Code with explicit "vibe coding" framing.
+  https://www.axios.com/2026/01/07/anthropics-claude-code-vibe-coding
+
+- Opus 4.6 launched with a "vibe working" narrative.
+  https://www.cnbc.com/2026/02/05/anthropic-claude-opus-4-6-vibe-working.html
+
+This explains the degradation: the model is being optimized for users who
+describe what they want in natural language and accept whatever comes out.
+Engineers who need precise control, plan adherence, and mechanical execution
+of agreed-upon changes are not the target audience anymore.
+
+*** Community Consensus on Mitigation
+
+"Prompt instructions are suggestions, hooks are enforcement."
+"Expect ~80% compliance, use hooks for the remaining 20%."
+"Following 100% of instructions is physically impossible right now."
+https://docs.bswen.com/blog/2026-03-22-codex-ignoring-instructions/
+https://www.thecaio.ai/blog/make-claude-code-follow-instructions
+
+** Alternatives
+
+*** OpenAI Codex CLI
+
+- Terminal-based coding agent, open source, written in Rust.
+- Uses AGENTS.md files (like CLAUDE.md) for project instructions.
+- Runs in a sandboxed environment (cloud containers by default).
+- Shows its plan and lets you approve/reject steps inline.
+- "When uncertain or faced with test failures, explicitly communicates
+  these issues" rather than improvising workarounds.
+- Instruction chain has clear precedence: AGENTS.override.md > AGENTS.md
+  with well-defined file discovery.
+- https://github.com/openai/codex
+- https://developers.openai.com/codex/cli
+
+Obedience notes: Codex runs each task in a fresh sandbox, which limits
+the blast radius of mistakes. The approve/reject workflow is explicit.
+No reports of "vibe working" framing or wellness nudges found.
+
+*** OpenCode
+
+- Open source, Go-based CLI with TUI interface.
+- Model-agnostic: works with Claude, GPT, Gemini, local models.
+- Configuration controls permissions: "edit: deny", "bash: ask", etc.
+- Praised for superior UX (TUI is nicer than Claude Code's).
+- Slower than Claude Code (~27min vs ~14min same task, ~278k vs ~191k tokens).
+- Anthropic briefly blocked OpenCode from Claude API access in early 2026.
+- https://github.com/opencode-ai/opencode
+- https://opencode.ai/docs/
+
+Obedience notes: Being model-agnostic means you can swap to a model with
+better instruction following without changing your workflow. The explicit
+permission system (deny/ask/allow per tool) gives hard enforcement.
+
+*** Aider
+
+- Terminal-based, Git-centric, open source.
+- Shows changes as staged diffs -- mechanical, minimal interpretation.
+- Uses 4.2x fewer tokens than Claude Code on the same tasks.
+- Code works without human edits 71% of the time (vs 78% for Claude Code).
+- Model-agnostic: works with any LLM provider.
+- Best for focused, single-purpose coding tasks.
+- https://aider.chat
+- https://zenvanriel.com/ai-engineer-blog/aider-vs-claude-code/
+
+Obedience notes: Aider's design is more mechanical by nature -- it applies
+diffs rather than "understanding" and "planning." This makes it less
+capable for complex tasks but also less likely to go rogue. The Git-centric
+workflow means every change is a visible diff you approve.
+
+*** Cline
+
+- VS Code extension, 5M+ installs, open source.
+- "Human-in-the-loop GUI to approve every file change and terminal command."
+- Plan/Act mode: Plan mode is read-only analysis, Act mode executes with
+  approval at each step. This is the nuclear option for obedience.
+- .clinerules files define per-project instructions, coding standards,
+  architectural constraints.
+- Granular permissions: which directories AI can touch, which tools it can
+  invoke, which actions require approval.
+- All actions recorded as traceable timestamped logs.
+- https://github.com/cline/cline
+- https://cline.bot
+
+Obedience notes: Cline's step-by-step approval model is the most
+restrictive. The agent literally cannot proceed without human approval of
+each action. This is slower but makes unauthorized deviations impossible.
+Enterprise version (Cline Teams) adds RBAC and audit trails.
+
+*** Roo Code
+
+- VS Code extension, fork of Cline with extra features.
+- Custom Mode Marketplace: "Architect", "Debugger", "Security Reviewer",
+  custom personas -- each with scoped permissions and system prompts.
+- "Security reviewer mode only reads files, test writer mode only modifies
+  test directories, architect mode plans without executing."
+- Role-based automation more granular than Claude Code.
+- https://github.com/RooCode-AI/Roo-Code
+
+Obedience notes: The scoped permission model per mode is interesting.
+An "architect" mode that truly cannot edit files would enforce the
+plan/implement separation at the tool level, not the prompt level.
+
+*** Gemini CLI
+
+- Google's offering, free tier: 1,000 requests/day with Gemini 2.5 Pro.
+- Supports GEMINI.md instruction files per directory.
+- "Most useful when given very precise instructions."
+- Requires more manual nudging than Claude Code for complex tasks.
+- Finished slower and more expensive than Claude in direct comparisons.
+- https://ai.google.dev/gemini-api/docs/coding-agents
+
+Obedience notes: "Requires more explicit guidance" cuts both ways -- it
+may be less creative but also less likely to improvise unwanted solutions.
+No reports of patronizing wellness nudges.
+
+** Recommendation
+
+For an engineer who needs mechanical execution of agreed-upon plans:
+
+1. *Try Codex CLI first.* Sandboxed execution, explicit approve/reject,
+   open source, Rust-based. Closest to Claude Code's capabilities but
+   with a different instruction-following philosophy.
+
+2. *Try OpenCode second.* Model-agnostic (can use Claude API, GPT, or
+   local models), explicit permission system, better TUI. Swap models
+   if one misbehaves.
+
+3. *For maximum control, use Cline/Roo Code.* Step-by-step approval of
+   every action. Slower but makes unauthorized deviations impossible.
+
+4. *For simple, focused tasks, use Aider.* Mechanical diff application,
+   Git-centric, less interpretation, less going rogue.
+
+The common thread: tools that enforce obedience through mechanism (sandboxes,
+per-action approval, permission systems) rather than through prompting.
+Prompting alone does not work -- this is the lesson from Claude Code.
