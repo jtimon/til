@@ -169,6 +169,17 @@ val_enum_simple := func(enum_name: Str, shallow etag: I32) returns shallow Value
     return val_enum_flat(enum_name, NULL, etag, NULL, 0.to_i32())
 }
 
+elem_size_for_type := func(type_name: Str) returns shallow I32 {
+    if type_name.eq("I64") { return I64.size().to_i64().to_i32() }
+    if type_name.eq("U8") { return U8.size().to_i64().to_i32() }
+    if type_name.eq("I16") { return I16.size().to_i64().to_i32() }
+    if type_name.eq("I32") { return I32.size().to_i64().to_i32() }
+    if type_name.eq("U32") { return U32.size().to_i64().to_i32() }
+    if type_name.eq("Bool") { return Bool.size().to_i64().to_i32() }
+    if type_name.eq("Str") { return 24.to_i32() }
+    return 8.to_i32()
+}
+
 eval_expr := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 clone_value := ext_func(v: Value) returns Value {}

@@ -2,9 +2,6 @@
 
 ** Remaining C preparations
 
-*** values_equal: Value -> Value* params
-Dead code (no callers found). Can just delete it.
-
 *** char* -> Str* in parse_cli_arg
 - interpreter.c parse_cli_arg: const char *s -> Str *s
 - Single caller in build_argv_array
@@ -39,27 +36,27 @@ so widen_numeric is never called with non-numeric Values.
 - needs_widen(v, ptype) -> Bool       line 103
 - widen_numeric(v, ptype) -> Value*   line 66
 
-*** Namespace + small helpers (translatable, not yet attempted)
-- enum_tag(ei) -> I32                 line 76  -- pointer dereference only
-- enum_payload_ptr(ei) -> void*       line 80  -- pointer arithmetic only
+*** Leaf helpers (translatable, not yet attempted)
 - ns_qname(sname, fname) -> Str      line 89  -- string concat, uses global ns_keys Vec
+- clone_value(v) -> Value*            line 355 -- no untranslated deps, but complex (raw StructInstance.data manipulation)
+
+*** Depend on ns_qname
 - ns_get(sname, fname) -> Value*     line 102 -- ns_qname + Map lookup, uses global ns_fields
 - ns_set(sname, fname, val)          line 108 -- ns_qname + Map_set, uses global ns_fields
-- elem_size_for_type(type_name)      line 1385 -- memcmp + sizeof constants
-- parse_cli_arg(type_name, str_val)  line 1328 -- make_str_value + strtoll etc.
-- clone_value(v) -> Value*            line 355 -- no untranslated deps
+
+*** Depend on blocked functions
+- parse_cli_arg(type_name, str_val)  line 1328 -- make_str_value (blocked) + strtoll etc.
 
 *** Second layer (depend on leaf layer)
 - read_field(inst, fdecl) -> Value    line 237 -- make_str_value
 - write_field(inst, fdecl, val)       line 259 -- clone_value
 
 *** Third layer (depend on second layer + dispatch.c)
-- values_equal(a, b) -> Bool          line 481 -- dead code, delete
 - eval_call(s, e) -> Value            line 573 -- eval_expr, ext_function_dispatch, enum_method_dispatch, scope_*, clone_value, widen_numeric
 - eval_expr(s, e) -> Value            line 878 -- eval_call, clone_value, read_field, make_str_value
 - eval_body(s, body) -> Value         line 1011 -- eval_expr, eval_call, scope_*, write_field, clone_value
 - interpreter_init_ns(global, prog)   line 1295 -- eval_expr, ns_set
-- interpret(program, ...)             line 1452 -- eval_body, ffi_init, ffi_cleanup, scope_*, interpreter_init_ns, parse_cli_arg, build_argv_array, elem_size_for_type
+- interpret(program, ...)             line 1452 -- eval_body, ffi_init, ffi_cleanup, scope_*, interpreter_init_ns, parse_cli_arg, build_argv_array
 
 ** Remaining translations -- dispatch.c
 

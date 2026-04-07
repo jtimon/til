@@ -1088,6 +1088,7 @@ Value val_f32(F32 v);
 Value val_bool(Bool v);
 Value val_enum_flat(Str * enum_name, Expr * enum_def, I32 etag, void * payload_data, I32 payload_size);
 Value val_enum_simple(Str * enum_name, I32 etag);
+I32 elem_size_for_type(Str * type_name);
 Value eval_expr(Scope * scope, Expr * e);
 Value eval_call(Scope * scope, Expr * e);
 Value * clone_value(Value * v);

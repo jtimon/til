@@ -36,13 +36,7 @@ void free_value(Value v) {
 
 // val_enum_flat, val_enum_simple: translated to interpreter.til
 
-static I32 enum_tag(Value v) {
-    return *(I32 *)v.data.Enum.data;
-}
-
-static void *enum_payload_ptr(Value v) {
-    return v.data.Enum.data + ENUM_PAYLOAD_OFFSET;
-}
+// enum_tag, enum_payload_ptr: only used by values_equal (dead code, deleted)
 
 // ns_fields, ns_keys: defined in interpreter.til
 
@@ -487,35 +481,7 @@ Value *clone_value(Value *v) {
 }
 
 
-// Compare two Values for equality
-Bool values_equal(Value a, Value b) {
-    if (a.tag != b.tag) return 0;
-    switch (a.tag) {
-    case Value_TAG_Int:  return a.data.Int == b.data.Int;
-    case Value_TAG_Short:  return a.data.Short == b.data.Short;
-    case Value_TAG_Int32:  return a.data.Int32 == b.data.Int32;
-    case Value_TAG_Uint32:  return a.data.Uint32 == b.data.Uint32;
-    case Value_TAG_Uint64:  return a.data.Uint64 == b.data.Uint64;
-    case Value_TAG_Float:  return a.data.Float == b.data.Float;
-    case Value_TAG_Byte:   return a.data.Byte == b.data.Byte;
-    case Value_TAG_Boolean: return a.data.Boolean == b.data.Boolean;
-    case Value_TAG_Enum: {
-        I32 at = enum_tag(a), bt = enum_tag(b);
-        if (at != bt) return 0;
-        // Compare payload bytes if both have enum_def
-        {
-            I32 psz = a.data.Enum.data_size - ENUM_PAYLOAD_OFFSET;
-            if (psz > 0) return memcmp(enum_payload_ptr(a), enum_payload_ptr(b), psz) == 0;
-        }
-        return 1;
-    }
-    case Value_TAG_Ptr:  return a.data.Ptr == b.data.Ptr;
-    case Value_TAG_Func: return a.data.Func == b.data.Func;
-    case Value_TAG_None:
-        return 1;
-    default:       return 0;
-    }
-}
+// values_equal: dead code, deleted
 
 // --- Eval ---
 
@@ -1335,16 +1301,8 @@ static Value parse_cli_arg(const char *s, Str *type_name) {
     exit(1);
 }
 
-static I32 elem_size_for_type(Str *type_name) {
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0)) return (I32)sizeof(I64);
-    if ((type_name->count == 2 && memcmp(type_name->c_str, "U8", 2) == 0))  return (I32)sizeof(U8);
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I16", 3) == 0)) return (I32)sizeof(I16);
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I32", 3) == 0)) return (I32)sizeof(I32);
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0)) return (I32)sizeof(U32);
-    if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) return (I32)sizeof(Bool);
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "Str", 3) == 0)) return 24; // til Str = {U8*, I64 len, I64 cap}
-    return 8;
-}
+// elem_size_for_type: translated to interpreter.til
+I32 elem_size_for_type(Str *type_name);
 
 static void value_to_buf(void *dest, Value *v, Str *type_name) {
     if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0))       { memcpy(dest, &v->data.Int, sizeof(I64)); }
