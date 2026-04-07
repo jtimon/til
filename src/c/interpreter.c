@@ -27,11 +27,7 @@ void free_value(Value v) {
     }
 }
 
-// --- Return value mechanism ---
-static Bool has_return;
-static Bool has_break;
-static Bool has_continue;
-static Value return_value;
+// has_return, has_break, has_continue, return_value: defined in interpreter.til
 
 // val_none, val_i64, val_u8, val_i16, val_i32, val_u32, val_u64, val_f32, val_bool:
 // translated to interpreter.til
@@ -48,10 +44,7 @@ static void *enum_payload_ptr(Value v) {
     return v.data.Enum.data + ENUM_PAYLOAD_OFFSET;
 }
 
-// --- Namespace fields (static struct fields) ---
-
-static Map ns_fields; // Str* "Type.field" → Value
-static Vec ns_keys;   // owns the qualified-name Str*s
+// ns_fields, ns_keys: defined in interpreter.til
 
 static Str *ns_qname(Str *sname, Str *fname) {
     U64 len = sname->count + 1 + fname->count;

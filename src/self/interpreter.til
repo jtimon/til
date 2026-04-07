@@ -110,6 +110,16 @@ Scope := struct {
     ref mut parent : Scope = NULL
 }
 
+// --- Return value mechanism ---
+mut has_return := false
+mut has_break := false
+mut has_continue := false
+mut return_value := Value.None
+
+// --- Namespace fields (static struct fields) ---
+mut ns_fields := Map.new("Str", Str.size(), "Value", Value.size())
+mut ns_keys := Vec.new("Dynamic", Dynamic.size())
+
 val_none := func() returns shallow Value {
     return Value.None
 }
