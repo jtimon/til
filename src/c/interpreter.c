@@ -27,27 +27,8 @@ void free_value(Value v) {
     }
 }
 
-// has_return, has_break, has_continue, return_value: defined in interpreter.til
-
-// val_none, val_i64, val_u8, val_i16, val_i32, val_u32, val_u64, val_f32, val_bool:
-// translated to interpreter.til
 
 #define ENUM_PAYLOAD_OFFSET ((I32)sizeof(I64))
-
-// val_enum_flat, val_enum_simple: translated to interpreter.til
-
-// enum_tag, enum_payload_ptr: only used by values_equal (dead code, deleted)
-
-// ns_fields, ns_keys: defined in interpreter.til
-// ns_qname, ns_get: translated to interpreter.til
-Str *ns_qname(Str *sname, Str *fname);
-Value *ns_get(Str *sname, Str *fname);
-
-void ns_set(Str *sname, Str *fname, Value val) {
-    Str *qn = ns_qname(sname, fname);
-    // Map key is a view into qn's c_str; qn stays alive (leaked)
-    { Str *_k = malloc(sizeof(Str)); *_k = (Str){qn->c_str, qn->count, CAP_VIEW}; void *_v = malloc(sizeof(val)); memcpy(_v, &val, sizeof(val)); Map_set(&ns_fields, _k, _v); }
-}
 
 // --- Implicit numeric widening ---
 // Extract raw integer from a numeric Value and re-create as target type.
@@ -162,7 +143,7 @@ Str *cached_array_name;
 Expr *cached_vec_def;
 Str *cached_vec_name;
 
-// find_field_decl: translated to interpreter.til
+
 
 // Read a Value from flat buffer at a field decl's offset
 static Value read_field(StructInstance *inst, Expr *fdecl) {
@@ -1286,8 +1267,6 @@ static Value parse_cli_arg(const char *s, Str *type_name) {
     exit(1);
 }
 
-// elem_size_for_type: translated to interpreter.til
-I32 elem_size_for_type(Str *type_name);
 
 static void value_to_buf(void *dest, Value *v, Str *type_name) {
     if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0))       { memcpy(dest, &v->data.Int, sizeof(I64)); }

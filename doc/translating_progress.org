@@ -38,7 +38,6 @@ so widen_numeric is never called with non-numeric Values.
 
 *** Leaf helpers (translatable, not yet attempted)
 - clone_value(v) -> Value*            line 355 -- no untranslated deps, but complex (raw StructInstance.data manipulation)
-- ns_set(sname, fname, val)          line 62  -- ns_qname (done) + Map_set, uses global ns_fields
 
 *** Depend on blocked functions
 - parse_cli_arg(type_name, str_val)  line 1328 -- make_str_value (blocked) + strtoll etc.
@@ -51,7 +50,7 @@ so widen_numeric is never called with non-numeric Values.
 - eval_call(s, e) -> Value            line 573 -- eval_expr, ext_function_dispatch, enum_method_dispatch, scope_*, clone_value, widen_numeric
 - eval_expr(s, e) -> Value            line 878 -- eval_call, clone_value, read_field, make_str_value
 - eval_body(s, body) -> Value         line 1011 -- eval_expr, eval_call, scope_*, write_field, clone_value
-- interpreter_init_ns(global, prog)   line 1295 -- eval_expr, ns_set
+- interpreter_init_ns(global, prog)   line 1295 -- eval_expr
 - interpret(program, ...)             line 1452 -- eval_body, ffi_init, ffi_cleanup, scope_*, interpreter_init_ns, parse_cli_arg, build_argv_array
 
 ** Remaining translations -- dispatch.c
