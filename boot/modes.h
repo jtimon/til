@@ -1095,6 +1095,7 @@ void scope_set_owned(Scope * s, Str * name, Value * val);
 void scope_free(Scope * s);
 void interpreter_init_ns(Scope * global, Expr * program);
 Value * ns_get(Str * sname, Str * fname);
+void ns_set(Str * sname, Str * fname, Value val);
 Value make_str_value(void * data, U64 len);
 Value make_str_value_own(void * data, U64 len);
 Str str_view(Value v);

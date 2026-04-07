@@ -59,7 +59,7 @@ Value *ns_get(Str *sname, Str *fname) {
     return Map_get(&ns_fields, qn);
 }
 
-static void ns_set(Str *sname, Str *fname, Value val) {
+void ns_set(Str *sname, Str *fname, Value val) {
     Str *qn = ns_qname(sname, fname);
     { Str *_k = malloc(sizeof(Str)); *_k = (Str){qn->c_str, qn->count, CAP_VIEW}; void *_v = malloc(sizeof(val)); memcpy(_v, &val, sizeof(val)); Map_set(&ns_fields, _k, _v); }
 }
@@ -505,11 +505,10 @@ Value eval_call(Scope *scope, Expr *e) {
         if (callee_expr->til_type.tag == TilType_TAG_FuncPtr) {
             FuncType fp_fft = func_def->data.data.FuncDef.func_type;
             if (fp_fft.tag == FuncType_TAG_ExtFunc || fp_fft.tag == FuncType_TAG_ExtProc) {
-                // Search ns_keys for the entry whose Value.func matches func_def
-                for (U32 ki = 0; ki < ns_keys.count; ki++) {
-                    Str *qn = *(Str **)Vec_get(&ns_keys, &(USize){(USize)(ki)});
-                    if (!Map_has(&ns_fields, qn)) continue;
-                    Value *nsv = Map_get(&ns_fields, qn);
+                // Search ns_fields for the entry whose Value.func matches func_def
+                for (U32 ki = 0; ki < ns_fields.count; ki++) {
+                    Str *qn = (Str *)((char *)ns_fields.key_data + ki * ns_fields.key_size);
+                    Value *nsv = (Value *)((char *)ns_fields.val_data + ki * ns_fields.val_size);
                     if (nsv->tag == Value_TAG_Func && nsv->data.Func == func_def) {
                         // qn is "Type.method" — build flat name "Type_method"
                         char fp_flat_buf[256];

@@ -190,7 +190,9 @@ scope_new := ext_func(parent: Scope) returns ref Scope {}
 scope_set_owned := ext_proc(mut s: Scope, name: Str, val: Value) {}
 scope_free := ext_proc(own s: Scope) {}
 interpreter_init_ns := ext_proc(mut global: Scope, program: Expr) {}
+
 ns_get := ext_func(sname: Str, fname: Str) returns ref Value {}
+ns_set := ext_proc(sname: Str, fname: Str, shallow val: Value) {}
 
 make_str_value := ext_func(data: Dynamic, shallow len: U64) returns shallow Value {}
 make_str_value_own := ext_func(data: Dynamic, shallow len: U64) returns shallow Value {}
