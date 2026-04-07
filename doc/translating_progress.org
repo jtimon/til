@@ -1,22 +1,5 @@
 * C to til translation -- remaining work
 
-** Completed
-
-*** C preparations
-- bool->Bool type fixes in interpreter.c and dispatch.c
-- needs_widen/widen_numeric: Value -> Value* params/return
-- value_to_buf: Value -> Value* param
-- VLA elimination in ext_dispatch_ffi (malloc/free instead of stack VLAs)
-- scope_set_owned: Value -> Value* param (interpreter.c, precomp.c, interpreter.til)
-- write_field: Value -> Value* param (interpreter.c, dispatch.c, interpreter.til)
-- clone_value: Value/Value -> Value*/Value* params/return (interpreter.c, interpreter.til)
-- Remove static from local char buffers in interpreter.c
-
-*** Translations done
-- val_none, val_i64, val_u8, val_i16, val_i32, val_u32, val_u64, val_f32, val_bool
-- val_enum_flat, val_enum_simple
-- find_field_decl
-
 ** Remaining C preparations
 
 *** values_equal: Value -> Value* params
@@ -64,18 +47,18 @@ so widen_numeric is never called with non-numeric Values.
 - ns_set(sname, fname, val)          line 108 -- ns_qname + Map_set, uses global ns_fields
 - elem_size_for_type(type_name)      line 1385 -- memcmp + sizeof constants
 - parse_cli_arg(type_name, str_val)  line 1328 -- make_str_value + strtoll etc.
+- clone_value(v) -> Value*            line 355 -- no untranslated deps
 
 *** Second layer (depend on leaf layer)
-- clone_value(v) -> Value*            line 355 -- val_*, enum_has_payloads, Expr_child, malloc, memcpy, strndup
-- read_field(inst, fdecl) -> Value    line 237 -- enum_has_payloads, val_*, make_str_value
-- write_field(inst, fdecl, val)       line 259 -- clone_value, malloc, memcpy, free
+- read_field(inst, fdecl) -> Value    line 237 -- make_str_value
+- write_field(inst, fdecl, val)       line 259 -- clone_value
 
 *** Third layer (depend on second layer + dispatch.c)
 - values_equal(a, b) -> Bool          line 481 -- dead code, delete
 - eval_call(s, e) -> Value            line 573 -- eval_expr, ext_function_dispatch, enum_method_dispatch, scope_*, clone_value, widen_numeric
-- eval_expr(s, e) -> Value            line 878 -- eval_call, clone_value, read_field, find_field_decl, make_str_value
-- eval_body(s, body) -> Value         line 1011 -- eval_expr, eval_call, scope_*, write_field, find_field_decl, clone_value
-- interpreter_init_ns(global, prog)   line 1295 -- eval_expr, ns_set, enum_has_payloads
+- eval_expr(s, e) -> Value            line 878 -- eval_call, clone_value, read_field, make_str_value
+- eval_body(s, body) -> Value         line 1011 -- eval_expr, eval_call, scope_*, write_field, clone_value
+- interpreter_init_ns(global, prog)   line 1295 -- eval_expr, ns_set
 - interpret(program, ...)             line 1452 -- eval_body, ffi_init, ffi_cleanup, scope_*, interpreter_init_ns, parse_cli_arg, build_argv_array, elem_size_for_type
 
 ** Remaining translations -- dispatch.c
