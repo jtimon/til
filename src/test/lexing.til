@@ -63,7 +63,7 @@ test_keywords := proc() {
 
 test_more_keywords := proc() {
     tokens := tokenize("mode mut own ref shallow returns throws for in break continue defer NULL", "test")
-    check_tok(tokens, 0, TokenType.KwMode, "mode")
+    check_tok(tokens, 0, TokenType.Ident, "mode")
     check_tok(tokens, 1, TokenType.KwMut, "mut")
     check_tok(tokens, 2, TokenType.KwOwn, "own")
     check_tok(tokens, 3, TokenType.KwRef, "ref")

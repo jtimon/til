@@ -1024,27 +1024,7 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-* [0/19] Post
-** OPEN #131 `mode` syntax: keyword vs special identifier/directive
-  The language currently treats ~mode~ as a dedicated keyword/token, even
-  though it is only meaningful in the file-header position.
-
-  This should be decided explicitly instead of remaining an inherited parser
-  special-case.
-
-  Current question:
-  - should ~mode~ remain a reserved keyword
-  - or should it become a normal identifier that is recognized specially only
-    in the file-header directive position
-
-  Why this matters:
-  - it affects lexer complexity and reserved-word surface
-  - it affects whether ~mode~ can be used as an ordinary identifier elsewhere
-  - it changes how much of the current parser logic needs to stay keyword-based
-
-  This is design-only for now.
-  It is tracked separately from the current ~Context~ / mode-plumbing refactor.
-
+* [0/18] Post
 ** OPEN #123 `bin/til ast` double-free in AST printing path
   Low priority follow-up, separate from the current ~#39~ ~typer.c~
   migration work.

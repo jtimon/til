@@ -1,5 +1,11 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #131 `mode` syntax: keyword vs special identifier/directive
+  Made ~mode~ a normal identifier instead of a reserved keyword.
+  The parser recognizes it only at the file-header position (first
+  non-comment token). After that, ~mode~ is a regular identifier
+  available for variable/field names.
+
 * FIXED #99 Struct literals restricted for types with new()
   Types that define a ~new~ namespace method cannot use struct literal
   syntax ~T(...)~ outside their own namespace. The typer enforces this:

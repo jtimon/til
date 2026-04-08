@@ -114,7 +114,6 @@ typedef enum {
     TokenType_TAG_StringTok,
     TokenType_TAG_Number,
     TokenType_TAG_Char,
-    TokenType_TAG_KwMode,
     TokenType_TAG_KwMut,
     TokenType_TAG_KwOwn,
     TokenType_TAG_KwRef,
@@ -1245,7 +1244,6 @@ TokenType *TokenType_Ident();
 TokenType *TokenType_StringTok();
 TokenType *TokenType_Number();
 TokenType *TokenType_Char();
-TokenType *TokenType_KwMode();
 TokenType *TokenType_KwMut();
 TokenType *TokenType_KwOwn();
 TokenType *TokenType_KwRef();

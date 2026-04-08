@@ -28,7 +28,6 @@ TokenType := enum {
     Ident, StringTok, Number, Char,
 
     // Keywords
-    KwMode,
     KwMut, KwOwn, KwRef, KwShallow,
     KwStruct, KwEnum, KwNamespace,
     KwFunc, KwProc, KwTest, KwMacro, KwExtFunc, KwExtProc,
@@ -108,7 +107,6 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.StringTok: return "string"
     case TokenType.Number: return "number"
     case TokenType.Char: return "char"
-    case TokenType.KwMode: return "mode"
     case TokenType.KwMut: return "mut"
     case TokenType.KwOwn: return "own"
     case TokenType.KwRef: return "ref"
@@ -153,7 +151,6 @@ tok_name := func(type: TokenType) returns Str {
 
 lookup_keyword := func(word: Str) returns TokenType {
     switch word {
-    case "mode": return TokenType.KwMode
     case "mut": return TokenType.KwMut
     case "own": return TokenType.KwOwn
     case "ref": return TokenType.KwRef

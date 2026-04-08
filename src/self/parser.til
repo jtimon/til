@@ -1016,7 +1016,7 @@ parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
     mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone())
 
     // Parse optional mode declaration
-    if check(p, TokenType.KwMode) {
+    if check(p, TokenType.Ident).and(peek(p).text.eq("mode")) {
         advance(p)
         if check(p, TokenType.Ident).or(check(p, TokenType.KwTest)) {
             mode_out = peek(p).text.clone()

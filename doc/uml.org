@@ -30,7 +30,6 @@
 *** StringTok
 *** Number
 *** Char
-*** KwMode
 *** KwMut
 *** KwOwn
 *** KwRef
