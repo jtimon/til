@@ -39,9 +39,17 @@ EnumInstance := struct {
         return self.enum_name.clone()
     }
     clone := func(self: EnumInstance) returns EnumInstance {
+        if is_null(self.data) {
+            return EnumInstance(enum_name = self.enum_name,
+                               enum_def = self.enum_def,
+                               data = NULL,
+                               data_size = self.data_size)
+        }
+        buf : Dynamic = malloc(self.data_size.to_i64().to_usize())
+        memcpy(buf, self.data, self.data_size.to_i64().to_usize())
         return EnumInstance(enum_name = self.enum_name,
                            enum_def = self.enum_def,
-                           data = self.data,
+                           data = buf,
                            data_size = self.data_size)
     }
     delete := func(own self: EnumInstance, call_free: Bool = true) {
@@ -91,6 +99,10 @@ Value := enum {
         return "Value"
     }
     clone := func(self: Value) returns Value {
+        if is_variant(self, Value.Enum) {
+            ref ei : EnumInstance = get_payload(self)
+            return Value.Enum(ei.clone())
+        }
         return clone_value(self)
     }
 }
