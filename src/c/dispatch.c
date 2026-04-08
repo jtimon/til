@@ -749,8 +749,12 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
       Map_set(&ffi_map, _k, _v); }
 }
 
-static void ffi_init_scan_program(Expr *program) {
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"FFIEntry", .count = 8, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
+static Bool ffi_map_inited = 0;
+void ffi_init_scan_program(Expr *program) {
+    if (!ffi_map_inited) {
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"FFIEntry", .count = 8, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
+        ffi_map_inited = 1;
+    }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != NodeType_TAG_Decl || stmt->children.count == 0) continue;
@@ -805,7 +809,7 @@ static void ffi_init_scan_program(Expr *program) {
 }
 
 I32 ffi_init(Expr *program, Str *fwd_path, Str *user_c_path, Str *ext_c_path, Str *link_flags) {
-    if (ffi_loaded) ffi_cleanup();  // re-init (e.g. precomp then interpret)
+    if (ffi_loaded) { ffi_cleanup(); ffi_map_inited = 0; }  // re-init (e.g. precomp then interpret)
     Str so_path = {0};
 
     if (ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, &so_path) != 0)

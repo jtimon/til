@@ -107,6 +107,7 @@ is_skip_ext_decl := func(name: Str) returns shallow Bool {
     if name.eq("realloc") { return true }
     if name.eq("memcpy") { return true }
     if name.eq("memmove") { return true }
+    if name.eq("memset") { return true }
     if name.eq("print_single") { return true }
     if name.eq("print_flush") { return true }
     return false
@@ -258,10 +259,10 @@ func_to_c := func(name: Str) returns Str {
     return name.clone()
 }
 
-build := ext_func(program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
-build_header := ext_func(program: Expr, h_path: Str) returns shallow I32 {}
-build_til_binding := ext_func(program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
-build_forward_header := ext_func(program: Expr, fwd_path: Str) returns shallow I32 {}
+build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
+build_header := ext_func(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {}
+build_til_binding := ext_func(core_program: Expr, program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
+build_forward_header := ext_func(core_program: Expr, program: Expr, fwd_path: Str) returns shallow I32 {}
 compile_c := ext_func(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {}
 compile_lib := ext_func(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {}
 

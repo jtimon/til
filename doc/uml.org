@@ -172,7 +172,6 @@
 *** mut is_splat := false
 *** mut field_own_type := OwnType.Shallow
 *** mut is_ns_field := false
-*** mut is_core := false
 *** mut save_old_delete := false
 *** ref mut fn_sig : Expr = NULL
 *** mut children := Vec.new("Expr", Expr.size())

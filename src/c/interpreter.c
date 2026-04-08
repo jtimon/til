@@ -10,6 +10,9 @@
 #define DECL_IS_REF(d) ((d).own_type.tag == OwnType_TAG_Ref)
 #define DECL_IS_SHALLOW(d) ((d).own_type.tag == OwnType_TAG_Shallow)
 
+// Forward declaration (defined in dispatch.c)
+void ffi_init_scan_program(Expr *program);
+
 // Forward declarations (defined in ast.c)
 
 // Free owned heap data inside a Value (does NOT free the Value struct itself).
@@ -1119,9 +1122,13 @@ static void eval_body(Scope *scope, Expr *body) {
     }
 }
 
+static Bool ns_inited = 0;
 void interpreter_init_ns(Scope *global, Expr *program) {
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Value", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Value)}); ns_fields = *_mp; free(_mp); }
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); ns_keys = *_vp; free(_vp); }
+    if (!ns_inited) {
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Value", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Value)}); ns_fields = *_mp; free(_mp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); ns_keys = *_vp; free(_vp); }
+        ns_inited = 1;
+    }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
@@ -1267,71 +1274,86 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     return result;
 }
 
-I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv, Str *fwd_path) {
+I32 interpret(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv, Str *fwd_path) {
     if (user_c_path && user_c_path->count == 0) user_c_path = NULL;
     if (link_flags && link_flags->count == 0) link_flags = NULL;
     U32 user_argc = user_argv ? (U32)user_argv->count : 0;
     // Initialize FFI: load user .c library (if provided) and auto-discover C functions
     I32 ffi_rc = ffi_init(program, fwd_path, user_c_path, ext_c_path, link_flags);
     if (ffi_rc != 0) return ffi_rc;
+    if (core_program) ffi_init_scan_program(core_program);
 
     Scope *global = scope_new(NULL);
 
     // Pre-register all top-level func/proc/struct definitions for forward references
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == NodeType_TAG_Decl &&
-            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef ||
-             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
-             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
-            Value val = {.tag = Value_TAG_Func, .data.Func = (void*)Expr_child(stmt, &(USize){(USize)(0)})};
-            scope_set_owned(global, (&stmt->data.data.Decl.name), &val);
+    { Expr *_progs_pr[2] = { core_program, program };
+    for (int _ppr = 0; _ppr < 2; _ppr++) {
+        if (!_progs_pr[_ppr]) continue;
+        for (U32 i = 0; i < _progs_pr[_ppr]->children.count; i++) {
+            Expr *stmt = Expr_child(_progs_pr[_ppr], &(USize){(USize)(i)});
+            if (stmt->data.tag == NodeType_TAG_Decl &&
+                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef ||
+                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
+                Value val = {.tag = Value_TAG_Func, .data.Func = (void*)Expr_child(stmt, &(USize){(USize)(0)})};
+                scope_set_owned(global, (&stmt->data.data.Decl.name), &val);
+            }
         }
-    }
+    }}
 
     // Pre-register type aliases (Name := ExistingType where RHS is Ident and is a type)
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != NodeType_TAG_Decl) continue;
-        if (stmt->til_type.tag != TilType_TAG_None) continue; // type defs have None
-        Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-        if (rhs->data.tag != NodeType_TAG_Ident) continue;
-        Cell *src = scope_get(global, &rhs->data.data.Ident);
-        if (src && src->val.tag == Value_TAG_Func &&
-            (((Expr*)src->val.data.Func)->data.tag == NodeType_TAG_StructDef ||
-             ((Expr*)src->val.data.Func)->data.tag == NodeType_TAG_EnumDef)) {
-            Value val = {.tag = Value_TAG_Func, .data.Func = src->val.data.Func};
-            scope_set_owned(global, &stmt->data.data.Decl.name, &val);
+    { Expr *_progs_ta[2] = { core_program, program };
+    for (int _pta = 0; _pta < 2; _pta++) {
+        if (!_progs_ta[_pta]) continue;
+        for (U32 i = 0; i < _progs_ta[_pta]->children.count; i++) {
+            Expr *stmt = Expr_child(_progs_ta[_pta], &(USize){(USize)(i)});
+            if (stmt->data.tag != NodeType_TAG_Decl) continue;
+            if (stmt->til_type.tag != TilType_TAG_None) continue; // type defs have None
+            Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
+            if (rhs->data.tag != NodeType_TAG_Ident) continue;
+            Cell *src = scope_get(global, &rhs->data.data.Ident);
+            if (src && src->val.tag == Value_TAG_Func &&
+                (((Expr*)src->val.data.Func)->data.tag == NodeType_TAG_StructDef ||
+                 ((Expr*)src->val.data.Func)->data.tag == NodeType_TAG_EnumDef)) {
+                Value val = {.tag = Value_TAG_Func, .data.Func = src->val.data.Func};
+                scope_set_owned(global, &stmt->data.data.Decl.name, &val);
+            }
         }
-    }
+    }}
 
     // Initialize namespace fields for all structs
+    if (core_program) interpreter_init_ns(global, core_program);
     interpreter_init_ns(global, program);
 
     // Copy namespace entries for type aliases
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != NodeType_TAG_Decl) continue;
-        if (stmt->til_type.tag != TilType_TAG_None) continue;
-        Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-        if (rhs->data.tag != NodeType_TAG_Ident) continue;
-        Str *alias_name = &stmt->data.data.Decl.name;
-        Str *target_name = &rhs->data.data.Ident;
-        Cell *tc = scope_get(global, target_name);
-        if (!tc || tc->val.tag != Value_TAG_Func) continue;
-        Expr *sdef = ((Expr*)tc->val.data.Func);
-        if (sdef->data.tag != NodeType_TAG_StructDef && sdef->data.tag != NodeType_TAG_EnumDef) continue;
-        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-        for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = Expr_child(body, &(USize){(USize)(j)});
-            if (field->data.data.Decl.is_namespace) {
-                Value *v = ns_get(target_name, &field->data.data.Decl.name);
-                if (v) ns_set(alias_name, &field->data.data.Decl.name, *v);
+    { Expr *_progs_ac[2] = { core_program, program };
+    for (int _pac = 0; _pac < 2; _pac++) {
+        if (!_progs_ac[_pac]) continue;
+        for (U32 i = 0; i < _progs_ac[_pac]->children.count; i++) {
+            Expr *stmt = Expr_child(_progs_ac[_pac], &(USize){(USize)(i)});
+            if (stmt->data.tag != NodeType_TAG_Decl) continue;
+            if (stmt->til_type.tag != TilType_TAG_None) continue;
+            Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
+            if (rhs->data.tag != NodeType_TAG_Ident) continue;
+            Str *alias_name = &stmt->data.data.Decl.name;
+            Str *target_name = &rhs->data.data.Ident;
+            Cell *tc = scope_get(global, target_name);
+            if (!tc || tc->val.tag != Value_TAG_Func) continue;
+            Expr *sdef = ((Expr*)tc->val.data.Func);
+            if (sdef->data.tag != NodeType_TAG_StructDef && sdef->data.tag != NodeType_TAG_EnumDef) continue;
+            Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = Expr_child(body, &(USize){(USize)(j)});
+                if (field->data.data.Decl.is_namespace) {
+                    Value *v = ns_get(target_name, &field->data.data.Decl.name);
+                    if (v) ns_set(alias_name, &field->data.data.Decl.name, *v);
+                }
             }
         }
-    }
+    }}
 
     // Evaluate top-level declarations
+    if (core_program) eval_body(global, core_program);
     eval_body(global, program);
 
     // Run test functions if requested
@@ -1424,5 +1446,6 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
 
     scope_free(global);
     ffi_cleanup();
+    ns_inited = 0;
     return 0;
 }

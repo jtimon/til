@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="4832" height="2672" viewBox="0 0 4832 2672">
+<svg xmlns="http://www.w3.org/2000/svg" width="4832" height="2654" viewBox="0 0 4832 2654">
   <defs>
     <style>
       .bg { fill: #f7f5ef; }
@@ -9,7 +9,7 @@
       .line { font: 13px 'Courier New', monospace; fill: #1f2937; }
     </style>
   </defs>
-  <rect class="bg" x="0" y="0" width="4832" height="2672"/>
+  <rect class="bg" x="0" y="0" width="4832" height="2654"/>
   <rect x="24" y="24" width="236" height="1416" rx="14" ry="14" class="panel"/>
   <text x="44" y="62" class="panel-label">lexer</text>
   <rect x="44" y="88" width="172" height="1198" rx="10" ry="10" class="box"/>
@@ -84,7 +84,7 @@
   <text x="58" y="1378" class="line">text := &quot;&quot;</text>
   <text x="58" y="1396" class="line">line : U32 = 0</text>
   <text x="58" y="1414" class="line">col : U32 = 0</text>
-  <rect x="294" y="24" width="620" height="2624" rx="14" ry="14" class="panel"/>
+  <rect x="294" y="24" width="620" height="2606" rx="14" ry="14" class="panel"/>
   <text x="314" y="62" class="panel-label">ast</text>
   <rect x="314" y="88" width="188" height="46" rx="10" ry="10" class="box"/>
   <text x="328" y="126" class="title">StructDef: StructDef</text>
@@ -192,7 +192,7 @@
   <text x="328" y="2270" class="line">SetLit</text>
   <text x="328" y="2288" class="line">Switch</text>
   <text x="328" y="2306" class="line">Case</text>
-  <rect x="314" y="2332" width="380" height="298" rx="10" ry="10" class="box"/>
+  <rect x="314" y="2332" width="380" height="280" rx="10" ry="10" class="box"/>
   <text x="328" y="2370" class="title">Expr: StructDef</text>
   <text x="328" y="2388" class="line">mut data := NodeType.Body</text>
   <text x="328" y="2406" class="line">mut til_type := TilType.Unknown</text>
@@ -201,13 +201,12 @@
   <text x="328" y="2460" class="line">mut is_splat := false</text>
   <text x="328" y="2478" class="line">mut field_own_type := OwnType.Shallow</text>
   <text x="328" y="2496" class="line">mut is_ns_field := false</text>
-  <text x="328" y="2514" class="line">mut is_core := false</text>
-  <text x="328" y="2532" class="line">mut save_old_delete := false</text>
-  <text x="328" y="2550" class="line">ref mut fn_sig : Expr = NULL</text>
-  <text x="328" y="2568" class="line">mut children := Vec.new(&quot;Expr&quot;, Expr.size())</text>
-  <text x="328" y="2586" class="line">mut line : U32 = 0</text>
-  <text x="328" y="2604" class="line">mut col : U32 = 0</text>
-  <text x="328" y="2622" class="line">mut path := &quot;&quot;</text>
+  <text x="328" y="2514" class="line">mut save_old_delete := false</text>
+  <text x="328" y="2532" class="line">ref mut fn_sig : Expr = NULL</text>
+  <text x="328" y="2550" class="line">mut children := Vec.new(&quot;Expr&quot;, Expr.size())</text>
+  <text x="328" y="2568" class="line">mut line : U32 = 0</text>
+  <text x="328" y="2586" class="line">mut col : U32 = 0</text>
+  <text x="328" y="2604" class="line">mut path := &quot;&quot;</text>
   <rect x="948" y="24" width="452" height="200" rx="14" ry="14" class="panel"/>
   <text x="968" y="62" class="panel-label">parser</text>
   <rect x="968" y="88" width="412" height="118" rx="10" ry="10" class="box"/>

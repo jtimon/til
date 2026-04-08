@@ -210,4 +210,4 @@ process_body := proc(scope: Scope, body: Expr) {
     }
 }
 
-precomp := ext_proc(program: Expr) {}
+precomp := ext_proc(core_program: Expr, program: Expr) {}
