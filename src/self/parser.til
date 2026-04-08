@@ -155,10 +155,9 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     fd.func_type = ft
 
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-        mut is_shallow := false
-        if check(p, TokenType.KwShallow) { advance(p); is_shallow = true }
-        mut is_own := false
-        if check(p, TokenType.KwOwn) { advance(p); is_own = true }
+        mut own_type := OwnType.Ref
+        if check(p, TokenType.KwShallow) { advance(p); own_type = OwnType.Shallow }
+        if check(p, TokenType.KwOwn) { advance(p); own_type = OwnType.Own }
         mut is_mut := false
         if check(p, TokenType.KwMut) { advance(p); is_mut = true }
         if check(p, TokenType.KwRef) {
@@ -179,7 +178,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             expect_token(p, TokenType.Colon)
             if check(p, TokenType.DotDotDot) {
                 advance(p) // consume '...'
-                if is_own.or(is_mut).or(is_shallow) {
+                if own_type.eq(OwnType.Ref).not().or(is_mut) {
                     panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                         ": kwargs parameter cannot be own/mut/shallow")
                 }
@@ -190,14 +189,14 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                     panic(__LOC__, "cannot combine variadic and kwargs in the same function")
                 }
                 fd.kwargs_index = fd.params.len().to_i64().to_i32()
-                is_own = true // kwargs Map is owned by callee
+                own_type = OwnType.Own // kwargs Map is owned by callee
                 nm = pname.clone()
                 tp = "DynMap"
             } else if check(p, TokenType.DotDot) {
                 advance(p)
-                if is_own { panic(__LOC__, "variadic param cannot be 'own'") }
+                if own_type.eq(OwnType.Own) { panic(__LOC__, "variadic param cannot be 'own'") }
                 if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
-                if is_shallow { panic(__LOC__, "variadic param cannot be 'shallow'") }
+                if own_type.eq(OwnType.Shallow) { panic(__LOC__, "variadic param cannot be 'shallow'") }
                 if fd.variadic_index.neq(-1.to_i32()) { panic(__LOC__, "only one variadic param allowed") }
                 if fd.kwargs_index.neq(-1.to_i32()) {
                     panic(__LOC__, "cannot combine variadic and kwargs in the same function")
@@ -230,12 +229,6 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             panic(__LOC__, "positional param not allowed after variadic")
         }
 
-        mut own_type := OwnType.Ref
-        if is_own {
-            own_type = OwnType.Own
-        } else if is_shallow {
-            own_type = OwnType.Shallow
-        }
         fd.params.push(own Param(name = nm, ptype = tp, is_mut = is_mut, own_type = own_type))
         if check(p, TokenType.Comma) { advance(p) }
     }

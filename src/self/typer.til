@@ -3219,7 +3219,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
         }
 
         if is_null(ctor_body).not() {
-            mut is_own := false
+            mut fld_own := OwnType.Shallow
             mut field_type := TilType.None
             while fi.lt(ctor_body.child_count()) {
                 ref field : Expr = ctor_body.child(fi)
@@ -3227,13 +3227,13 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
                 if is_variant(field.data, NodeType.Decl) {
                     ref fd : Declaration = get_payload(field.data)
                     if fd.is_namespace.not() {
-                        is_own = fd.own_type.eq(OwnType.Own)
+                        fld_own = fd.own_type
                         field_type = field.child(0).til_type
                         break
                     }
                 }
             }
-            if is_own.not() {
+            if fld_own.eq(OwnType.Own).not() {
                 if is_variant(field_type, TilType.Struct).or(is_variant(field_type, TilType.Enum)) {
                     continue
                 }

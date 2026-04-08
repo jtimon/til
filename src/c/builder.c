@@ -810,16 +810,14 @@ static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
     Expr *sbody = find_struct_body(&ctor->struct_name);
     U32 fi = 0;
     for (U32 i = 1; i < ctor->children.count; i++) {
-        Bool is_own = 0;
-        Bool is_ref = 0;
+        OwnType_tag fld_own = OwnType_TAG_Shallow;
         TilType field_type = {0};
         const char *fname = NULL;
         if (sbody) {
             for (; fi < sbody->children.count; fi++) {
                 if (!Expr_child(sbody, &(USize){(USize)(fi)})->data.data.Decl.is_namespace) {
                     Expr *fld = Expr_child(sbody, &(USize){(USize)(fi)});
-                    is_own = DECL_IS_OWN(fld->data.data.Decl);
-                    is_ref = DECL_IS_REF(fld->data.data.Decl);
+                    fld_own = fld->data.data.Decl.own_type.tag;
                     field_type = fld->til_type;
                     fname = (const char *)fld->data.data.Decl.name.c_str;
                     fi++;
@@ -829,12 +827,12 @@ static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
         }
         Expr *arg = Expr_child(ctor, &(USize){(USize)(i)});
         emit_indent(f, depth);
-        if (is_ref) {
+        if (fld_own == OwnType_TAG_Ref) {
             // Ref field: store pointer directly (no deref)
             emit_field(f, var, fname); EMIT(f, " = ");
             emit_expr(f, arg, depth);
             EMIT(f, ";\n");
-        } else if (is_own && arg->data.tag == NodeType_TAG_FCall && arg->struct_name.count > 0 &&
+        } else if (fld_own == OwnType_TAG_Own && arg->data.tag == NodeType_TAG_FCall && arg->struct_name.count > 0 &&
             Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
             // Nested struct constructor for own field: emit as temp, assign pointer
             const char *ct = c_type_name(arg->til_type, &arg->struct_name);
@@ -845,7 +843,7 @@ static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
             emit_ctor_fields(f, tmp, arg, depth);
             emit_indent(f, depth);
             emit_field(f, var, fname); EMIT(f, " = "); EMIT(f, (const char *)tmp); EMIT(f, ";\n");
-        } else if (is_own) {
+        } else if (fld_own == OwnType_TAG_Own) {
             emit_field(f, var, fname); EMIT(f, " = ");
             arg->is_own_arg = true;
             emit_as_ptr(f, arg, depth);
