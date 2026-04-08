@@ -1085,7 +1085,6 @@ I32 elem_size_for_type(Str * type_name);
 Value eval_expr(Scope * scope, Expr * e);
 Value eval_call(Scope * scope, Expr * e);
 StructInstance * clone_struct_instance(StructInstance * src);
-Value * clone_value(Value * v);
 void free_value(Value v);
 Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);

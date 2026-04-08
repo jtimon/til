@@ -388,27 +388,6 @@ StructInstance *clone_struct_instance(StructInstance *src) {
     return dst;
 }
 
-// Bootstrap shim: old boot/til.c Value_clone still calls clone_value.
-Value *clone_value(Value *v) {
-    Value *r = malloc(sizeof(Value));
-    switch (v->tag) {
-    case Value_TAG_Struct: {
-        StructInstance *cloned = clone_struct_instance(&v->data.Struct);
-        r->tag = Value_TAG_Struct;
-        r->data.Struct = *cloned;
-        free(cloned);
-        return r;
-    }
-    case Value_TAG_Enum: {
-        EnumInstance *cloned = EnumInstance_clone(&v->data.Enum);
-        r->tag = Value_TAG_Enum;
-        r->data.Enum = *cloned;
-        free(cloned);
-        return r;
-    }
-    default: *r = *v; return r;
-    }
-}
 
 
 // values_equal: dead code, deleted
