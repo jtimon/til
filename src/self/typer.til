@@ -1285,8 +1285,7 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
                 if fld_decl.name.eq(fname) {
                     expr.til_type = field.til_type
                     expr.is_ns_field = fld_decl.is_namespace
-                    expr.is_own_field = fld_decl.own_type.eq(OwnType.Shallow).not()
-                    expr.is_ref_field = fld_decl.own_type.eq(OwnType.Ref)
+                    expr.field_own_type = fld_decl.own_type
                     if is_variant(field.til_type, TilType.Struct).or(is_variant(field.til_type, TilType.Enum)) {
                         ref child0 : Expr = field.child(0)
                         if child0.struct_name.len().gt(0) {
@@ -1348,8 +1347,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                 if fld_decl.name.eq(fname) {
                     found = true
                     stmt.is_ns_field = fld_decl.is_namespace
-                    stmt.is_own_field = fld_decl.own_type.eq(OwnType.Shallow).not()
-                    stmt.is_ref_field = fld_decl.own_type.eq(OwnType.Ref)
+                    stmt.field_own_type = fld_decl.own_type
                     if fld_decl.is_mut.not() {
                         type_error(stmt, "cannot assign to immutable field '".concat(fname).concat("'"))
                     }
@@ -1379,7 +1377,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
         type_error(stmt, "field assignment on non-struct value")
     }
     stmt.til_type = TilType.None
-    if stmt.is_ref_field.not().and(
+    if stmt.field_own_type.eq(OwnType.Ref).not().and(
         is_variant(rhs.data, NodeType.Ident).or(
             is_variant(rhs.data, NodeType.FieldAccess).and(
                 is_variant(rhs.til_type, TilType.Struct).or(
@@ -2720,7 +2718,7 @@ type_to_name := func(t: TilType, struct_name: Str) returns Str {
     }
 }
 
-make_field_delete := func(field_assign: Expr, shallow is_own: Bool) returns Expr {
+make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) returns Expr {
     ref rhs : Expr = field_assign.child(1)
     tname := type_to_name(rhs.til_type, rhs.struct_name)
     if tname.len().eq(0) { return NULL }
@@ -2737,13 +2735,13 @@ make_field_delete := func(field_assign: Expr, shallow is_own: Bool) returns Expr
     call.add_child(own fa)
 
     mut field_acc := Expr.new(NodeType.FieldAccess(get_payload(field_assign.data)), field_assign.line, field_assign.col, field_assign.path)
-    field_acc.is_own_field = is_own
+    field_acc.field_own_type = field_own_type
     field_acc.til_type = rhs.til_type
     if rhs.struct_name.len().gt(0) { field_acc.struct_name = rhs.struct_name.clone() }
     field_acc.add_child(own field_assign.child(0).clone())
     call.add_child(own field_acc)
 
-    mut cf_lit := Expr.new(NodeType.LiteralBool(is_own), field_assign.line, field_assign.col, field_assign.path)
+    mut cf_lit := Expr.new(NodeType.LiteralBool(field_own_type.eq(OwnType.Own)), field_assign.line, field_assign.col, field_assign.path)
     cf_lit.til_type = TilType.Bool
     call.add_child(own cf_lit)
 
@@ -3296,7 +3294,7 @@ hoist_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
 hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     hoist_expr(stmt.child(1), hoisted, scope)
     mut fa_hoist := true
-    if stmt.is_own_field.not() {
+    if stmt.field_own_type.eq(OwnType.Shallow) {
         rhs_type := stmt.child(1).til_type
         if is_variant(rhs_type, TilType.Struct).or(is_variant(rhs_type, TilType.Enum)) {
             fa_hoist = false
@@ -3374,11 +3372,11 @@ insert_field_deletes := proc(mut body: Expr) {
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
         if is_variant(stmt.data, NodeType.FieldAssign) {
-            is_own := stmt.is_own_field
+            fot := stmt.field_own_type
             if field_assign_needs_delete(stmt) {
                 ref rhs : Expr = stmt.child(1)
                 if type_to_name(rhs.til_type, rhs.struct_name).len().gt(0) {
-                    del := make_field_delete(stmt, is_own)
+                    del := make_field_delete(stmt, fot)
                     new_ch.push(own del.clone())
                     changed = true
                 }
@@ -3733,7 +3731,7 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
 expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool {
     if is_variant(e.data, NodeType.FuncDef) { return false }
     if fcall_has_own_arg(e, var_name, scope) { return true }
-    if is_variant(e.data, NodeType.FieldAssign).and(e.is_own_field) {
+    if is_variant(e.data, NodeType.FieldAssign).and(e.field_own_type.eq(OwnType.Shallow).not()) {
         if e.child_count().gt(1) {
             if is_variant(e.child(1).data, NodeType.Ident) {
                 ref _ei : Str = get_payload(e.child(1).data)
@@ -3796,8 +3794,8 @@ expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns shallow Bool 
 }
 
 field_assign_needs_delete := func(stmt: Expr) returns shallow Bool {
-    if stmt.is_ref_field { return false }
-    if stmt.is_own_field { return true }
+    if stmt.field_own_type.eq(OwnType.Ref) { return false }
+    if stmt.field_own_type.eq(OwnType.Shallow).not() { return true }
     ft := stmt.child(1).til_type
     if is_variant(ft, TilType.Struct).or(is_variant(ft, TilType.Enum)) { return true }
     return false

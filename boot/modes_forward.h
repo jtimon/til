@@ -558,8 +558,7 @@ typedef struct Expr {
     Str struct_name;
     Bool is_own_arg;
     Bool is_splat;
-    Bool is_own_field;
-    Bool is_ref_field;
+    OwnType field_own_type;
     Bool is_ns_field;
     Bool is_core;
     Bool save_old_delete;
@@ -959,7 +958,7 @@ Expr * find_variadic_fcall(Expr * e);
 Expr * find_kwargs_fcall(Expr * e);
 Str * type_prefix(TilType * t, Str * sname);
 Str * type_to_name(TilType * t, Str * struct_name);
-Expr * make_field_delete(Expr * field_assign, Bool is_own);
+Expr * make_field_delete(Expr * field_assign, OwnType field_own_type);
 Expr * make_delete_call(Str * var_name, TilType type, Str * struct_name, Bool arg_is_own, Bool call_free, Expr * src);
 Expr * make_clone_call(Str * type_name, TilType type, Expr * arg, Expr * src);
 Expr * make_ns_call(Str * sname, Str * method, TilType ret_type, Str * ret_sname, Expr * src);

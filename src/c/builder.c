@@ -10,6 +10,8 @@
 #define DECL_IS_OWN(d) ((d).own_type.tag == OwnType_TAG_Own)
 #define DECL_IS_REF(d) ((d).own_type.tag == OwnType_TAG_Ref)
 #define DECL_IS_SHALLOW(d) ((d).own_type.tag == OwnType_TAG_Shallow)
+#define FIELD_IS_PTR(e) ((e)->field_own_type.tag != OwnType_TAG_Shallow)
+#define FIELD_IS_SHALLOW(e) ((e)->field_own_type.tag == OwnType_TAG_Shallow)
 
 // Helper macros for File-based emission (replacing fprintf)
 #define EMIT(f, s) File_write_str(f, &(Str){.c_str=(U8*)(s), .count=(U64)strlen((const char*)(s)), .cap=CAP_VIEW})
@@ -780,7 +782,7 @@ static void emit_as_ptr(File *f, Expr *e, I32 depth) {
     } else if (e->data.tag == NodeType_TAG_FieldAccess) {
         // Own field is already a pointer; enum ns_field constructor returns pointer;
         // Dynamic field is void* (already a pointer); inline field needs address-of
-        if (e->is_own_field || (e->is_ns_field && e->til_type.tag == TilType_TAG_Enum) ||
+        if (FIELD_IS_PTR(e) || (e->is_ns_field && e->til_type.tag == TilType_TAG_Enum) ||
             e->til_type.tag == TilType_TAG_Dynamic) {
             emit_expr(f, e, depth);
         } else {
@@ -1108,7 +1110,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
     case NodeType_TAG_FieldAssign: {
         Expr *obj = Expr_child(e, &(USize){(USize)(0)});
         Str *fname = &e->data.data.FieldAssign;
-        if (Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_FCall && !e->is_own_field && !e->is_ns_field) {
+        if (Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_FCall && FIELD_IS_SHALLOW(e) && !e->is_ns_field) {
             if (fcall_is_shallow_return(Expr_child(e, &(USize){(USize)(1)}))) {
                 // Shallow-return fcall: value directly assigned to inline field
                 emit_expr(f, obj, depth);
@@ -1131,7 +1133,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 emit_expr(f, obj, depth);
                 EMIT(f, use_dot_access(obj) ? "." : "->"); EMIT(f, (const char *)fname->c_str); EMIT(f, " = ");
             }
-            if (e->is_own_field) {
+            if (FIELD_IS_PTR(e)) {
                 Expr_child(e, &(USize){(USize)(1)})->is_own_arg = true;
                 emit_as_ptr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
             } else {
@@ -1192,7 +1194,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                     emit_deref(f, rv, depth);
                     EMIT(f, ";\n");
                 }
-            } else if (rv->data.tag == NodeType_TAG_FieldAccess && !rv->is_own_field &&
+            } else if (rv->data.tag == NodeType_TAG_FieldAccess && FIELD_IS_SHALLOW(rv) &&
                        !rv->is_ns_field && rv->til_type.tag != TilType_TAG_Dynamic) {
                 // Inline field value — must clone to heap pointer for return
                 const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)

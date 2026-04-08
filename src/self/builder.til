@@ -59,7 +59,7 @@ is_ref_local := func(name: Str) returns shallow Bool {
 
 use_dot_access := func(obj: Expr) returns shallow Bool {
     if is_variant(obj.data, NodeType.FieldAccess) {
-        if obj.is_own_field.not() { return true }
+        if obj.field_own_type.eq(OwnType.Shallow) { return true }
     }
     if is_variant(obj.data, NodeType.Ident) {
         ref ident : Str = get_payload(obj.data)
