@@ -5,6 +5,34 @@
   ~get_payload()~ ext_func, which is already recognized as
   ref-returning by the typer. The problem no longer exists.
 
+** CANCELLED #122 Mode-sensitive type checks should be per module
+  Resolved by per-module mode tracking infrastructure. See also #116
+  for the remaining parse-time isolation issue.
+
+  The problem was that the typer used a single global ~current_mode~
+  for the whole compilation unit, so imported files were type-checked
+  with the top-level program's mode instead of their own declared mode.
+  This caused false errors like ~func cannot call proc 'println'~ in
+  files using ~mode liba~ (which sets ~debug_prints = true~).
+
+  How it was solved:
+  - 55ffae8 introduced ~src/self/modes.til~ with a ~Context.path_modes~
+    map that stores each file's resolved mode keyed by absolute path.
+    ~context_register_path_mode~ records a file's mode during import
+    resolution in ~src/til.til~, and ~context_set_mode_from_path~
+    switches the active mode at runtime.
+  - The typer (~src/self/typer.til~, ~infer_body~) calls
+    ~context_set_mode_from_path(ctx, body.child(i).path)~ for each
+    top-level statement, switching to the correct per-module mode
+    before type-checking that statement and its descendants.
+  - f0a7aaa ("normalize_mode_name: use file's declared mode, ignore
+    parent default") ensured each file's own ~mode~ declaration takes
+    precedence over any inherited default.
+
+  Mode-sensitive checks (~debug_prints~ exemption at typer.til:676,
+  ~is_pure~ restriction at typer.til:1141) now read the correctly
+  switched mode via ~context_mode(ctx)~.
+
 ** CANCELLED #62 Investigate: ctil-i slower than til-i -- til.til divergence?
   ctil.c was replaced by til.til (#12). The performance comparison
   between ctil-i and til-i is no longer relevant since ctil.c no

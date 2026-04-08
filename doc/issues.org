@@ -284,51 +284,6 @@
   - teach typer/runtime that owned ~Dynamic~ defaults to ~free~
   - or introduce a dedicated raw-buffer type separate from generic ~Dynamic~
   - make the final rule explicit in ~qualifiers.org~ and ~c2til.org~
-
-** OPEN #122 Mode-sensitive type checks should be per module
-  Mode-sensitive typing rules are currently applied with one global
-  ~current_mode~ for the whole compilation unit. That is wrong for
-  imported modules.
-
-  Concrete failure that exposed this:
-  - [src/core/str.til](/home/jt/sync/data_common/code/jt/til/src/core/str.til)
-    was temporarily switched from ~mode lib~ to ~mode liba~ for debug
-  - ~liba~ sets ~debug_prints = true~ in
-    [src/self/modes.til](/home/jt/sync/data_common/code/jt/til/src/self/modes.til)
-  - but typing still rejected ~println(...)~ inside a ~func~ in that file with:
-    ~func cannot call proc 'println'~
-
-  Why this happens:
-  - [src/til.til](/home/jt/sync/data_common/code/jt/til/src/til.til) resolves one
-    top-level ~cur_mode~
-  - [src/c/typer.c](/home/jt/sync/data_common/code/jt/til/src/c/typer.c)
-    stores that once in the global ~current_mode~
-  - mode-sensitive checks like the ~print/println~ debug exemption then
-    consult only that one global value
-  - imported files are therefore type-checked as if they had the top-level
-    program mode, not their own declared ~mode~
-
-  This is not just about debug prints. Any mode-sensitive typing rule is
-  suspect under the current architecture, including at least:
-  - ~func~ calling ~proc~ exemptions in debug modes
-  - pure/pura restrictions
-  - any future rule that depends on per-module mode
-
-  Desired end state:
-  - each parsed module keeps its own resolved mode
-  - typer applies mode-sensitive checks according to the module that owns
-    the AST node being checked
-  - imported ~mode lib~, ~liba~, ~pure~, ~pura~, etc. stop inheriting the
-    caller/top-level mode for typing purposes
-
-  Likely implementation directions:
-  - store resolved module mode on the parsed module/root body and propagate
-    it to descendant nodes
-  - or thread current module mode through typer recursion when descending
-    across merged module boundaries
-  - avoid keeping one process-global ~current_mode~ as the only source of
-    truth for semantic checks
-
 ** OPEN #116 Imported files are parsed in isolation
   Imported files are currently lexed and parsed as standalone units, then
   merged later. They do not see declarations from the importing file during
@@ -366,6 +321,17 @@
   - some circular/meta-type cleanups that look valid after merge but fail
     during isolated parse/bootstrap
   - relying on importer-local predeclarations to shape imported AST types
+
+  Relation to #122 (cancelled):
+  Both #116 and #122 stem from the same root cause -- imported files
+  not sharing context with the importer. #122 was the typing-phase
+  symptom (global ~current_mode~ applied to all files), #116 is the
+  parsing-phase symptom (files can't see each other's declarations).
+  #122 was solved by per-path mode tracking (~context_set_mode_from_path~
+  in 55ffae8, file-declared mode priority in f0a7aaa). #116 remains
+  open because parse-time isolation is a deeper architectural constraint.
+  Any future mode-sensitive typing rule (func/proc exemptions, pure/pura
+  restrictions, etc.) is already handled by the mode infrastructure.
 
   Likely directions:
   - keep such canonical payload types local to the imported file for now
