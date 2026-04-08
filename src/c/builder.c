@@ -136,10 +136,10 @@ static void emit_expr(File *f, Expr *e, I32 depth);
 static void emit_stmt(File *f, Expr *e, I32 depth);
 static void emit_body(File *f, Expr *body, I32 depth);
 static void emit_body_scoped(File *f, Expr *body, I32 depth);
-static const char *c_type_name(TilType t, Str *struct_name);
+static Str *c_type_name(TilType t, Str *struct_name);
 static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth);
-static const char *type_name_to_c_value(Str *name);
-static const char *til_type_to_c(TilType t);
+static Str *type_name_to_c_value(Str *name);
+static Str *til_type_to_c(TilType t);
 
 Expr *find_callee_fdef(Str *name);
 
@@ -156,10 +156,10 @@ static void emit_field(File *f, const char *var, const char *field) {
 
 // use_dot_access: moved to builder.til
 
-static const char *get_stack_local_ctype(Str *name) {
+static Str *get_stack_local_ctype(Str *name) {
     if (Map_has(&stack_local_types, name)) {
         Str **p = Map_get(&stack_local_types, name);
-        return (const char *)(*p)->c_str;
+        return Str_clone(&(Str){.c_str = (*p)->c_str, .count = (*p)->count, .cap = CAP_VIEW});
     }
     return NULL;
 }
@@ -294,19 +294,19 @@ Expr *find_callee_fdef(Str *name) {
 }
 
 // Get the C value type name for a callee's return type (e.g. "U64" for I64_size)
-static const char *callee_return_ctype(Str *callee_name) {
+static Str *callee_return_ctype(Str *callee_name) {
     Expr *fdef = find_callee_fdef(callee_name);
     if (!fdef || fdef->data.data.FuncDef.return_type.count == 0) return NULL;
     return type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
 }
 
 // Get the C value type for an fcall's return value
-static const char *fcall_return_ctype(Expr *fcall) {
+static Str *fcall_return_ctype(Expr *fcall) {
     if (fcall->data.tag != NodeType_TAG_FCall) return NULL;
     Bool allocated = 0;
     Str *callee = resolve_callee_name(fcall, &allocated);
     if (!callee) return NULL;
-    const char *r = callee_return_ctype(callee);
+    Str *r = callee_return_ctype(callee);
     if (allocated) Str_delete(callee, &(Bool){1});
     return r;
 }
@@ -326,10 +326,10 @@ static const char *fcall_return_ctype(Expr *fcall) {
 // callee_param_is_own: moved to builder.til
 
 // Map til function names to C symbol names (handles stdlib collisions)
-static const char *func_to_c(Str *name) {
+static Str *func_to_c(Str *name) {
     // C keyword collision
-    if ((name->count == 6 && memcmp(name->c_str, "double", 6) == 0)) return "double_";
-    return (const char *)name->c_str;
+    if ((name->count == 6 && memcmp(name->c_str, "double", 6) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"double_", .count = 7, .cap = CAP_LIT});
+    return Str_clone(&(Str){.c_str = name->c_str, .count = name->count, .cap = CAP_VIEW});
 }
 
 // --- Expression emission ---
@@ -352,7 +352,7 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
     case NodeType_TAG_Ident:
         if (e->til_type.tag == TilType_TAG_FuncPtr) {
             // Function name used as value — cast to void* for function pointer storage
-            EMIT(f, "(void *)"); EMIT(f, (const char *)func_to_c(&e->data.data.Ident));
+            EMIT(f, "(void *)"); { Str *_fc = func_to_c(&e->data.data.Ident); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); }
         } else {
             EMIT(f, (const char *)e->data.data.Ident.c_str);
         }
@@ -364,22 +364,22 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
             // Use fn_sig to determine shallow params/return for correct cast
             Expr *sig = fcall_fn_sig(e);
             Bool ret_shallow = sig ? RETURN_IS_SHALLOW(&sig->data.data.FuncDef) : 0;
-            const char *ret_c = "void *";
+            Str ret_c = {.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT};
             if (e->til_type.tag != TilType_TAG_None && e->til_type.tag != TilType_TAG_Unknown &&
                 e->til_type.tag != TilType_TAG_Dynamic) {
-                ret_c = til_type_to_c(e->til_type);
+                { Str *_t = til_type_to_c(e->til_type); ret_c = *_t; free(_t); }
                 if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum) && e->struct_name.count > 0) {
                     static char ret_buf2[128];
                     snprintf(ret_buf2, sizeof(ret_buf2), "%s", e->struct_name.c_str);
-                    ret_c = ret_buf2;
+                    ret_c = (Str){.c_str = (U8 *)ret_buf2, .count = strlen(ret_buf2), .cap = CAP_VIEW};
                 }
                 if (!ret_shallow) {
                     static char ret_ptr_buf2[256];
-                    snprintf(ret_ptr_buf2, sizeof(ret_ptr_buf2), "%s *", ret_c);
-                    ret_c = ret_ptr_buf2;
+                    snprintf(ret_ptr_buf2, sizeof(ret_ptr_buf2), "%s *", ret_c.c_str);
+                    ret_c = (Str){.c_str = (U8 *)ret_ptr_buf2, .count = strlen(ret_ptr_buf2), .cap = CAP_VIEW};
                 }
             }
-            EMIT(f, "(("); EMIT(f, (const char *)ret_c); EMIT(f, " (*)(");
+            EMIT(f, "(("); File_write_str(f, &ret_c); EMIT(f, " (*)(");
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) EMIT(f, ", ");
                 Expr *arg = Expr_child(e, &(USize){(USize)(i)});
@@ -387,21 +387,21 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
                 if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
                     arg_shallow = PARAM_IS_SHALLOW(((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)})));
                 }
-                const char *arg_c = "void *";
+                Str arg_c = {.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT};
                 if (arg->til_type.tag != TilType_TAG_Unknown && arg->til_type.tag != TilType_TAG_Dynamic) {
-                    arg_c = til_type_to_c(arg->til_type);
+                    { Str *_t = til_type_to_c(arg->til_type); arg_c = *_t; free(_t); }
                     if ((arg->til_type.tag == TilType_TAG_Struct || arg->til_type.tag == TilType_TAG_Enum) && arg->struct_name.count > 0) {
                         static char arg_buf2[128];
                         snprintf(arg_buf2, sizeof(arg_buf2), "%s", arg->struct_name.c_str);
-                        arg_c = arg_buf2;
+                        arg_c = (Str){.c_str = (U8 *)arg_buf2, .count = strlen(arg_buf2), .cap = CAP_VIEW};
                     }
                     if (!arg_shallow) {
                         static char arg_ptr_buf2[256];
-                        snprintf(arg_ptr_buf2, sizeof(arg_ptr_buf2), "%s *", arg_c);
-                        arg_c = arg_ptr_buf2;
+                        snprintf(arg_ptr_buf2, sizeof(arg_ptr_buf2), "%s *", arg_c.c_str);
+                        arg_c = (Str){.c_str = (U8 *)arg_ptr_buf2, .count = strlen(arg_ptr_buf2), .cap = CAP_VIEW};
                     }
                 }
-                EMIT(f, (const char *)arg_c);
+                File_write_str(f, &arg_c);
             }
             if (e->children.count == 1) EMIT(f, "void");
             EMIT(f, "))(");
@@ -489,9 +489,9 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
             EMIT(f, ")");
         } else if ((e->struct_name).count > 0 && Str_eq(name, &e->struct_name)) {
             // Struct constructor in expression context: hoist to temp via statement-expr
-            const char *ctype = c_type_name(e->til_type, &e->struct_name);
+            Str *ctype = c_type_name(e->til_type, &e->struct_name);
             I32 id = _ctor_seq++;
-            EMIT(f, "({ "); EMIT(f, (const char *)ctype); EMIT(f, " *_sc"); emit_i32(f, id); EMIT(f, " = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, ")); ");
+            EMIT(f, "({ "); File_write_str(f, ctype); EMIT(f, " *_sc"); emit_i32(f, id); EMIT(f, " = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); ");
             char tmp[32];
             snprintf(tmp, sizeof(tmp), "_sc%d", id);
             emit_ctor_fields(f, tmp, e, depth);
@@ -501,22 +501,22 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
             // Use fn_sig to determine shallow params/return for correct cast
             Expr *sig = fcall_fn_sig(e);
             Bool ret_shallow = sig ? RETURN_IS_SHALLOW(&sig->data.data.FuncDef) : 0;
-            const char *ret_c = "void *";
+            Str ret_c = {.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT};
             if (e->til_type.tag != TilType_TAG_None && e->til_type.tag != TilType_TAG_Unknown &&
                 e->til_type.tag != TilType_TAG_Dynamic) {
-                ret_c = til_type_to_c(e->til_type);
+                { Str *_t = til_type_to_c(e->til_type); ret_c = *_t; free(_t); }
                 if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum) && e->struct_name.count > 0) {
                     static char ret_buf[128];
                     snprintf(ret_buf, sizeof(ret_buf), "%s", e->struct_name.c_str);
-                    ret_c = ret_buf;
+                    ret_c = (Str){.c_str = (U8 *)ret_buf, .count = strlen(ret_buf), .cap = CAP_VIEW};
                 }
                 if (!ret_shallow) {
                     static char ret_ptr_buf[256];
-                    snprintf(ret_ptr_buf, sizeof(ret_ptr_buf), "%s *", ret_c);
-                    ret_c = ret_ptr_buf;
+                    snprintf(ret_ptr_buf, sizeof(ret_ptr_buf), "%s *", ret_c.c_str);
+                    ret_c = (Str){.c_str = (U8 *)ret_ptr_buf, .count = strlen(ret_ptr_buf), .cap = CAP_VIEW};
                 }
             }
-            EMIT(f, "(("); EMIT(f, (const char *)ret_c); EMIT(f, " (*)(");
+            EMIT(f, "(("); File_write_str(f, &ret_c); EMIT(f, " (*)(");
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) EMIT(f, ", ");
                 Expr *arg = Expr_child(e, &(USize){(USize)(i)});
@@ -524,21 +524,21 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
                 if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
                     arg_shallow = PARAM_IS_SHALLOW(((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)})));
                 }
-                const char *arg_c = "void *";
+                Str arg_c = {.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT};
                 if (arg->til_type.tag != TilType_TAG_Unknown && arg->til_type.tag != TilType_TAG_Dynamic) {
-                    arg_c = til_type_to_c(arg->til_type);
+                    { Str *_t = til_type_to_c(arg->til_type); arg_c = *_t; free(_t); }
                     if ((arg->til_type.tag == TilType_TAG_Struct || arg->til_type.tag == TilType_TAG_Enum) && arg->struct_name.count > 0) {
                         static char arg_buf[128];
                         snprintf(arg_buf, sizeof(arg_buf), "%s", arg->struct_name.c_str);
-                        arg_c = arg_buf;
+                        arg_c = (Str){.c_str = (U8 *)arg_buf, .count = strlen(arg_buf), .cap = CAP_VIEW};
                     }
                     if (!arg_shallow) {
                         static char arg_ptr_buf[256];
-                        snprintf(arg_ptr_buf, sizeof(arg_ptr_buf), "%s *", arg_c);
-                        arg_c = arg_ptr_buf;
+                        snprintf(arg_ptr_buf, sizeof(arg_ptr_buf), "%s *", arg_c.c_str);
+                        arg_c = (Str){.c_str = (U8 *)arg_ptr_buf, .count = strlen(arg_ptr_buf), .cap = CAP_VIEW};
                     }
                 }
-                EMIT(f, (const char *)arg_c);
+                File_write_str(f, &arg_c);
             }
             if (e->children.count == 1) EMIT(f, "void");
             if (is_ref_local(name)) {
@@ -561,7 +561,7 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
             EMIT(f, ")");
         } else {
             // User-defined function call
-            EMIT(f, (const char *)func_to_c(name)); EMIT(f, "(");
+            { Str *_fc = func_to_c(name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) EMIT(f, ", ");
                 if (callee_param_is_shallow(name, i - 1))
@@ -599,79 +599,79 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
 
 // --- Type to C type string ---
 
-static const char *til_type_to_c(TilType t) {
+static Str *til_type_to_c(TilType t) {
     switch (t.tag) {
-    case TilType_TAG_I64:  return "I64";
-    case TilType_TAG_U8:   return "U8";
-    case TilType_TAG_I16:  return "I16";
-    case TilType_TAG_I32:  return "I32";
-    case TilType_TAG_U32:  return "U32";
-    case TilType_TAG_U64:  return "U64";
-    case TilType_TAG_F32:  return "F32";
-    case TilType_TAG_Bool: return "Bool";
-    case TilType_TAG_None:     return "void";
-    case TilType_TAG_Dynamic:  return "void *";
-    case TilType_TAG_FuncPtr: return "void *"; // function pointer (opaque)
-    default:                return "I64"; // fallback
+    case TilType_TAG_I64:  return Str_clone(&(Str){.c_str = (U8 *)"I64", .count = 3, .cap = CAP_LIT});
+    case TilType_TAG_U8:   return Str_clone(&(Str){.c_str = (U8 *)"U8", .count = 2, .cap = CAP_LIT});
+    case TilType_TAG_I16:  return Str_clone(&(Str){.c_str = (U8 *)"I16", .count = 3, .cap = CAP_LIT});
+    case TilType_TAG_I32:  return Str_clone(&(Str){.c_str = (U8 *)"I32", .count = 3, .cap = CAP_LIT});
+    case TilType_TAG_U32:  return Str_clone(&(Str){.c_str = (U8 *)"U32", .count = 3, .cap = CAP_LIT});
+    case TilType_TAG_U64:  return Str_clone(&(Str){.c_str = (U8 *)"U64", .count = 3, .cap = CAP_LIT});
+    case TilType_TAG_F32:  return Str_clone(&(Str){.c_str = (U8 *)"F32", .count = 3, .cap = CAP_LIT});
+    case TilType_TAG_Bool: return Str_clone(&(Str){.c_str = (U8 *)"Bool", .count = 4, .cap = CAP_LIT});
+    case TilType_TAG_None:     return Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
+    case TilType_TAG_Dynamic:  return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT});
+    case TilType_TAG_FuncPtr: return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT}); // function pointer (opaque)
+    default:                return Str_clone(&(Str){.c_str = (U8 *)"I64", .count = 3, .cap = CAP_LIT}); // fallback
     }
 }
 
 // C type name without pointer — "Point" for structs, "I64" for I64, etc.
-static const char *c_type_name(TilType t, Str *struct_name) {
+static Str *c_type_name(TilType t, Str *struct_name) {
     if ((t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) && struct_name && struct_name->count > 0) {
         static char buf[128];
         snprintf(buf, sizeof(buf), "%s", struct_name->c_str);
-        return buf;
+        return Str_clone(&(Str){.c_str = (U8 *)buf, .count = strlen(buf), .cap = CAP_VIEW});
     }
-    if (t.tag == TilType_TAG_Dynamic) return "void";
+    if (t.tag == TilType_TAG_Dynamic) return Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
     return til_type_to_c(t);
 }
 
 // Convert a type name string to C type string (handles struct types)
-static const char *type_name_to_c(Str *name) {
-    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return "I64 *";
-    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return "U8 *";
-    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return "I16 *";
-    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return "I32 *";
-    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return "U32 *";
-    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return "U64 *";
-    if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return "USize *";
-    if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return "F32 *";
-    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return "Bool *";
-    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0)) return "void *";
-    if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))      return "void *"; // function pointer (opaque)
-    // Named FuncSig type → void * (opaque function pointer)
+static Str *type_name_to_c(Str *name) {
+    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I64 *", .count = 5, .cap = CAP_LIT});
+    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return Str_clone(&(Str){.c_str = (U8 *)"U8 *", .count = 4, .cap = CAP_LIT});
+    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I16 *", .count = 5, .cap = CAP_LIT});
+    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I32 *", .count = 5, .cap = CAP_LIT});
+    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"U32 *", .count = 5, .cap = CAP_LIT});
+    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"U64 *", .count = 5, .cap = CAP_LIT});
+    if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"USize *", .count = 7, .cap = CAP_LIT});
+    if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"F32 *", .count = 5, .cap = CAP_LIT});
+    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"Bool *", .count = 6, .cap = CAP_LIT});
+    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT});
+    if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))      return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT}); // function pointer (opaque)
+    // Named FuncSig type -> void * (opaque function pointer)
     if (has_funcsig_names) {
         Str key = {name->c_str, name->count, CAP_VIEW};
-        if (Set_has(&funcsig_names, &key)) return "void *";
+        if (Set_has(&funcsig_names, &key)) return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT});
     }
-    // User-defined struct type — pointer
+    // User-defined struct type -- pointer
     static char buf[128];
     snprintf(buf, sizeof(buf), "%s *", name->c_str);
-    return buf;
+    return Str_clone(&(Str){.c_str = (U8 *)buf, .count = strlen(buf), .cap = CAP_VIEW});
 }
 
-// Like type_name_to_c but without pointer — for inline union fields
-static const char *type_name_to_c_value(Str *name) {
-    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return "I64";
-    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return "U8";
-    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return "I16";
-    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return "I32";
-    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return "U32";
-    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return "U64";
-    if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return "USize";
-    if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return "F32";
-    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return "Bool";
-    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0)) return "void *";
-    if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))   return "void *"; // function pointer (opaque)
-    // Named FuncSig type → void * (opaque function pointer)
+// Like type_name_to_c but without pointer -- for inline union fields
+static Str *type_name_to_c_value(Str *name) {
+    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I64", .count = 3, .cap = CAP_LIT});
+    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return Str_clone(&(Str){.c_str = (U8 *)"U8", .count = 2, .cap = CAP_LIT});
+    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I16", .count = 3, .cap = CAP_LIT});
+    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I32", .count = 3, .cap = CAP_LIT});
+    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"U32", .count = 3, .cap = CAP_LIT});
+    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"U64", .count = 3, .cap = CAP_LIT});
+    if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"USize", .count = 5, .cap = CAP_LIT});
+    if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"F32", .count = 3, .cap = CAP_LIT});
+    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"Bool", .count = 4, .cap = CAP_LIT});
+    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT});
+    if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))   return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT}); // function pointer (opaque)
+    // Named FuncSig type -> void * (opaque function pointer)
     if (has_funcsig_names) {
         Str key = {name->c_str, name->count, CAP_VIEW};
-        if (Set_has(&funcsig_names, &key)) return "void *";
+        if (Set_has(&funcsig_names, &key)) return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT});
     }
     static char buf2[128];
     snprintf(buf2, sizeof(buf2), "%s", name->c_str);
-    return buf2;
+    return Str_clone(&(Str){.c_str = (U8 *)buf2, .count = strlen(buf2), .cap = CAP_VIEW});
 }
 
 // is_primitive_type: moved to builder.til
@@ -687,10 +687,10 @@ static void emit_param_list(File *f, Expr *fdef, Bool with_names) {
     } else {
         for (U32 i = 0; i < np; i++) {
             if (i > 0) EMIT(f, ", ");
-            const char *ptype;
+            Str *ptype;
             I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
             if ((I32)i == fvi) {
-                ptype = "Array *";
+                ptype = Str_clone(&(Str){.c_str = (U8 *)"Array *", .count = 7, .cap = CAP_LIT});
             } else if ((I32)i == fkwi) {
                 Param *_epi = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
                 ptype = type_name_to_c(&_epi->ptype);
@@ -703,10 +703,10 @@ static void emit_param_list(File *f, Expr *fdef, Bool with_names) {
                 }
             }
             if (with_names) {
-                EMIT(f, (const char *)ptype); EMIT(f, " "); EMIT(f, (const char *)((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name.c_str);
+                File_write_str(f, ptype); EMIT(f, " "); EMIT(f, (const char *)((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name.c_str);
             }
             else
-                EMIT(f, (const char *)ptype);
+                File_write_str(f, ptype);
         }
     }
 }
@@ -758,9 +758,9 @@ static void emit_as_ptr(File *f, Expr *e, I32 depth) {
         // Shallow params and stack locals are stable lvalues.
         if (e->is_own_arg) {
             // Callee will free() this pointer — must malloc a copy
-            const char *ctype = get_stack_local_ctype(&e->data.data.Ident);
+            Str *ctype = get_stack_local_ctype(&e->data.data.Ident);
             if (!ctype) ctype = c_type_name(e->til_type, &e->struct_name);
-            EMIT(f, "({ "); EMIT(f, (const char *)ctype); EMIT(f, " *_oa = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, ")); *_oa = ");
+            EMIT(f, "({ "); File_write_str(f, ctype); EMIT(f, " *_oa = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); *_oa = ");
             emit_expr(f, e, depth);
             EMIT(f, "; _oa; })");
         } else {
@@ -770,9 +770,9 @@ static void emit_as_ptr(File *f, Expr *e, I32 depth) {
                Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident &&
                Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
         // Struct constructor in expression context: hoist to temp via statement-expr
-        const char *ctype = c_type_name(e->til_type, &e->struct_name);
+        Str *ctype = c_type_name(e->til_type, &e->struct_name);
         I32 id = _ctor_seq++;
-        EMIT(f, "({ "); EMIT(f, (const char *)ctype); EMIT(f, " *_sc"); emit_i32(f, id); EMIT(f, " = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, ")); ");
+        EMIT(f, "({ "); File_write_str(f, ctype); EMIT(f, " *_sc"); emit_i32(f, id); EMIT(f, " = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); ");
         char tmp[32];
         snprintf(tmp, sizeof(tmp), "_sc%d", id);
         emit_ctor_fields(f, tmp, e, depth);
@@ -792,8 +792,8 @@ static void emit_as_ptr(File *f, Expr *e, I32 depth) {
     } else if (e->data.tag == NodeType_TAG_LiteralNull) {
         EMIT(f, "NULL");
     } else {
-        const char *ctype = c_type_name(e->til_type, &e->struct_name);
-        EMIT(f, "&("); EMIT(f, (const char *)ctype); EMIT(f, "){");
+        Str *ctype = c_type_name(e->til_type, &e->struct_name);
+        EMIT(f, "&("); File_write_str(f, ctype); EMIT(f, "){");
         emit_expr(f, e, depth);
         EMIT(f, "}");
     }
@@ -835,11 +835,11 @@ static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
         } else if (fld_own == OwnType_TAG_Own && arg->data.tag == NodeType_TAG_FCall && arg->struct_name.count > 0 &&
             Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
             // Nested struct constructor for own field: emit as temp, assign pointer
-            const char *ct = c_type_name(arg->til_type, &arg->struct_name);
+            Str *ct = c_type_name(arg->til_type, &arg->struct_name);
             I32 id = _ctor_seq++;
             char tmp[32];
             snprintf(tmp, sizeof(tmp), "_cs%d", id);
-            EMIT(f, (const char *)ct); EMIT(f, " *"); EMIT(f, (const char *)tmp); EMIT(f, " = malloc(sizeof("); EMIT(f, (const char *)ct); EMIT(f, "));\n");
+            File_write_str(f, ct); EMIT(f, " *"); EMIT(f, (const char *)tmp); EMIT(f, " = malloc(sizeof("); File_write_str(f, ct); EMIT(f, "));\n");
             emit_ctor_fields(f, tmp, arg, depth);
             emit_indent(f, depth);
             emit_field(f, var, fname); EMIT(f, " = "); EMIT(f, (const char *)tmp); EMIT(f, ";\n");
@@ -850,12 +850,12 @@ static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
             EMIT(f, ";\n");
         } else if (arg->data.tag == NodeType_TAG_FCall && arg->struct_name.count > 0 &&
                    Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
-            // Inline struct field: nested constructor — build in-place
-            const char *ct = c_type_name(arg->til_type, &arg->struct_name);
+            // Inline struct field: nested constructor -- build in-place
+            Str *ct = c_type_name(arg->til_type, &arg->struct_name);
             I32 id = _ctor_seq++;
             char tmp[32];
             snprintf(tmp, sizeof(tmp), "_cs%d", id);
-            EMIT(f, (const char *)ct); EMIT(f, " *"); EMIT(f, (const char *)tmp); EMIT(f, " = malloc(sizeof("); EMIT(f, (const char *)ct); EMIT(f, "));\n");
+            File_write_str(f, ct); EMIT(f, " *"); EMIT(f, (const char *)tmp); EMIT(f, " = malloc(sizeof("); File_write_str(f, ct); EMIT(f, "));\n");
             emit_ctor_fields(f, tmp, arg, depth);
             emit_indent(f, depth);
             emit_field(f, var, fname); EMIT(f, " = *"); EMIT(f, (const char *)tmp); EMIT(f, "; free("); EMIT(f, (const char *)tmp); EMIT(f, ");\n");
@@ -871,8 +871,8 @@ static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
                 EMIT(f, ";\n");
             } else {
                 // Heap-returning value field: unbox the returned wrapper.
-                const char *ftype = c_type_name(arg->til_type, &arg->struct_name);
-                EMIT(f, "{ "); EMIT(f, (const char *)ftype); EMIT(f, " *_ca = ");
+                Str *ftype = c_type_name(arg->til_type, &arg->struct_name);
+                EMIT(f, "{ "); File_write_str(f, ftype); EMIT(f, " *_ca = ");
                 emit_expr(f, arg, depth);
                 EMIT(f, "; "); emit_field(f, var, fname); EMIT(f, " = *_ca; free(_ca); }\n");
             }
@@ -912,16 +912,16 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 Str *_sn = &e->struct_name;
                 if (_sn->count == 0) _sn = &Expr_child(e, &(USize){(USize)(0)})->struct_name;
                 if (_sn->count == 0) _sn = &e->data.data.Decl.explicit_type;
-                const char *ctype = c_type_name(e->til_type, _sn);
+                Str *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
-                EMIT(f, (const char *)ctype); EMIT(f, " *"); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
+                File_write_str(f, ctype); EMIT(f, " *"); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
                 emit_as_ptr(f, rhs, depth);
                 EMIT(f, ";\n");
             } else {
                 Str *_sn = &e->struct_name;
                 if (_sn->count == 0) _sn = &Expr_child(e, &(USize){(USize)(0)})->struct_name;
                 if (_sn->count == 0) _sn = &e->data.data.Decl.explicit_type;
-                const char *ctype = c_type_name(e->til_type, _sn);
+                Str *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
                 Bool is_global = has_script_globals && !in_func_def && Set_has(&script_globals, &e->data.data.Decl.name);
                 if (e->til_type.tag == TilType_TAG_Dynamic) {
@@ -929,7 +929,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                         EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
                     }
                     else {
-                        EMIT(f, (const char *)til_type_to_c(e->til_type)); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
+                        { Str *_tc = til_type_to_c(e->til_type); File_write_str(f, _tc); Str_delete(_tc, &(Bool){1}); } EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
                     }
                     emit_deref(f, rhs, depth);
                     EMIT(f, ";\n");
@@ -943,13 +943,13 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                     // Struct constructor
                     const char *var = (const char *)e->data.data.Decl.name.c_str;
                     if (is_global) {
-                        EMIT(f, "memset(&"); EMIT(f, (const char *)var); EMIT(f, ", 0, sizeof("); EMIT(f, (const char *)ctype); EMIT(f, "));\n");
+                        EMIT(f, "memset(&"); EMIT(f, (const char *)var); EMIT(f, ", 0, sizeof("); File_write_str(f, ctype); EMIT(f, "));\n");
                     } else if (can_hoist) {
-                        EMIT(f, (const char *)ctype); EMIT(f, " "); EMIT(f, (const char *)var); EMIT(f, "; memset(&"); EMIT(f, (const char *)var); EMIT(f, ", 0, sizeof("); EMIT(f, (const char *)ctype); EMIT(f, "));\n");
+                        File_write_str(f, ctype); EMIT(f, " "); EMIT(f, (const char *)var); EMIT(f, "; memset(&"); EMIT(f, (const char *)var); EMIT(f, ", 0, sizeof("); File_write_str(f, ctype); EMIT(f, "));\n");
                         Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
-                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(ctype), .count = (U64)strlen((const char*)(ctype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = ctype->c_str, .count = ctype->count, .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
                     } else {
-                        EMIT(f, (const char *)ctype); EMIT(f, " *"); EMIT(f, (const char *)var); EMIT(f, " = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, "));\n");
+                        File_write_str(f, ctype); EMIT(f, " *"); EMIT(f, (const char *)var); EMIT(f, " = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, "));\n");
                     }
                     emit_ctor_fields(f, var, rhs, depth);
                     } else if (rhs->data.tag == NodeType_TAG_FCall || rhs->data.tag == NodeType_TAG_LiteralStr ||
@@ -960,9 +960,9 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                             emit_expr(f, rhs, depth);
                             EMIT(f, ";\n");
                         } else if (rhs->data.tag == NodeType_TAG_FCall) {
-                            const char *htype = fcall_return_ctype(rhs);
+                            Str *htype = fcall_return_ctype(rhs);
                             if (!htype) htype = ctype;
-                            EMIT(f, "{ "); EMIT(f, (const char *)htype); EMIT(f, " *_hp = ("); EMIT(f, (const char *)htype); EMIT(f, " *)");
+                            EMIT(f, "{ "); File_write_str(f, htype); EMIT(f, " *_hp = ("); File_write_str(f, htype); EMIT(f, " *)");
                             emit_expr(f, rhs, depth);
                             EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = *_hp; free(_hp); }\n");
                         } else {
@@ -972,44 +972,44 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                         }
                     } else if (rhs->data.tag == NodeType_TAG_FCall && fcall_is_shallow_return(rhs)) {
                         if (can_hoist) {
-                            // Shallow-return scalar fcall → stack value directly
+                            // Shallow-return scalar fcall -- stack value directly
                             // Use callee's return type to avoid signedness mismatches
-                            const char *htype = fcall_return_ctype(rhs);
+                            Str *htype = fcall_return_ctype(rhs);
                             if (!htype) htype = ctype;
-                            EMIT(f, (const char *)htype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
+                            File_write_str(f, htype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
                             emit_expr(f, rhs, depth);
                             EMIT(f, ";\n");
                             Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
-                            { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(htype), .count = (U64)strlen((const char*)(htype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
+                            { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = htype->c_str, .count = htype->count, .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
                         } else {
                             // returns shallow: C function returns value, box into pointer
                             const char *var = (const char *)e->data.data.Decl.name.c_str;
-                            EMIT(f, (const char *)ctype); EMIT(f, " *"); EMIT(f, (const char *)var); EMIT(f, " = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, ")); *"); EMIT(f, (const char *)var); EMIT(f, " = ");
+                            File_write_str(f, ctype); EMIT(f, " *"); EMIT(f, (const char *)var); EMIT(f, " = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); *"); EMIT(f, (const char *)var); EMIT(f, " = ");
                             emit_expr(f, rhs, depth);
                             EMIT(f, ";\n");
                         }
                     } else if (can_hoist && rhs->data.tag == NodeType_TAG_FCall) {
-                        // Non-shallow fcall returning scalar → unbox heap pointer to stack
+                        // Non-shallow fcall returning scalar -- unbox heap pointer to stack
                         // Use callee's return type to avoid signedness mismatches
-                        const char *htype = fcall_return_ctype(rhs);
+                        Str *htype = fcall_return_ctype(rhs);
                         if (!htype) htype = ctype;
-                        EMIT(f, (const char *)htype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, "; { "); EMIT(f, (const char *)htype); EMIT(f, " *_hp = ("); EMIT(f, (const char *)htype); EMIT(f, " *)");
+                        File_write_str(f, htype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, "; { "); File_write_str(f, htype); EMIT(f, " *_hp = ("); File_write_str(f, htype); EMIT(f, " *)");
                         emit_expr(f, rhs, depth);
                         EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = *_hp; free(_hp); }\n");
                         Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
-                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(htype), .count = (U64)strlen((const char*)(htype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = htype->c_str, .count = htype->count, .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
                     } else if (can_hoist) {
-                        EMIT(f, (const char *)ctype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, "; { "); EMIT(f, (const char *)ctype); EMIT(f, " *_hp = ("); EMIT(f, (const char *)ctype); EMIT(f, " *)");
+                        File_write_str(f, ctype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, "; { "); File_write_str(f, ctype); EMIT(f, " *_hp = ("); File_write_str(f, ctype); EMIT(f, " *)");
                         emit_expr(f, rhs, depth);
                         EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = *_hp; free(_hp); }\n");
                         Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
-                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(ctype), .count = (U64)strlen((const char*)(ctype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = ctype->c_str, .count = ctype->count, .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
                     } else {
                         if (is_global) {
                             EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
                         }
                         else {
-                            EMIT(f, (const char *)ctype); EMIT(f, " *"); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
+                            File_write_str(f, ctype); EMIT(f, " *"); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
                         }
                         emit_expr(f, rhs, depth);
                         EMIT(f, ";\n");
@@ -1020,14 +1020,14 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                         emit_deref(f, rhs, depth);
                         EMIT(f, ";\n");
                     } else if (can_hoist) {
-                        // Scalar literal/ident → stack value
-                        EMIT(f, (const char *)ctype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
+                        // Scalar literal/ident -- stack value
+                        File_write_str(f, ctype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
                         emit_deref(f, rhs, depth);
                         EMIT(f, ";\n");
                         Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
-                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(ctype), .count = (U64)strlen((const char*)(ctype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = ctype->c_str, .count = ctype->count, .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
                     } else {
-                        EMIT(f, (const char *)ctype); EMIT(f, " *"); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, "));\n");
+                        File_write_str(f, ctype); EMIT(f, " *"); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, "));\n");
                         emit_indent(f, depth);
                         EMIT(f, "*"); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
                         emit_deref(f, rhs, depth);
@@ -1044,19 +1044,19 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
     case NodeType_TAG_Assign: {
         Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
         if (e->save_old_delete) {
-            const char *ctype = c_type_name(e->til_type, &e->struct_name);
+            Str *ctype = c_type_name(e->til_type, &e->struct_name);
             if (is_stack_local(&e->data.data.Assign)) {
-                EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_new = ("); EMIT(f, (const char *)ctype); EMIT(f, " *)");
+                EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_new = ("); File_write_str(f, ctype); EMIT(f, " *)");
                 emit_expr(f, rhs, depth);
-                EMIT(f, "; "); EMIT(f, (const char *)ctype); EMIT(f, "_delete(&"); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, ", &(Bool){0}); "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = *_new; free(_new); }\n");
+                EMIT(f, "; "); File_write_str(f, ctype); EMIT(f, "_delete(&"); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, ", &(Bool){0}); "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = *_new; free(_new); }\n");
             } else if (is_value_global(&e->data.data.Assign)) {
-                EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_new = ("); EMIT(f, (const char *)ctype); EMIT(f, " *)");
+                EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_new = ("); File_write_str(f, ctype); EMIT(f, " *)");
                 emit_expr(f, rhs, depth);
-                EMIT(f, "; "); EMIT(f, (const char *)ctype); EMIT(f, "_delete(&"); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, ", &(Bool){0}); "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = *_new; free(_new); }\n");
+                EMIT(f, "; "); File_write_str(f, ctype); EMIT(f, "_delete(&"); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, ", &(Bool){0}); "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = *_new; free(_new); }\n");
             } else {
-                EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_old = "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = ");
+                EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_old = "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = ");
                 emit_expr(f, rhs, depth);
-                EMIT(f, "; "); EMIT(f, (const char *)ctype); EMIT(f, "_delete(_old, &(Bool){1}); }\n");
+                EMIT(f, "; "); File_write_str(f, ctype); EMIT(f, "_delete(_old, &(Bool){1}); }\n");
             }
             break;
         }
@@ -1075,8 +1075,8 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 EMIT(f, ";\n");
             } else if (rhs->data.tag == NodeType_TAG_FCall) {
                 // Non-shallow fcall: unbox heap pointer
-                const char *ctype = c_type_name(e->til_type, &e->struct_name);
-                EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_hp = ("); EMIT(f, (const char *)ctype); EMIT(f, " *)");
+                Str *ctype = c_type_name(e->til_type, &e->struct_name);
+                EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_hp = ("); File_write_str(f, ctype); EMIT(f, " *)");
                 emit_expr(f, rhs, depth);
                 EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = *_hp; free(_hp); }\n");
             } else {
@@ -1117,8 +1117,8 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 EMIT(f, ";\n");
             } else {
                 // Non-shallow fcall for inline compound field: deref + free wrapper
-                const char *ftype = c_type_name(Expr_child(e, &(USize){(USize)(1)})->til_type, &Expr_child(e, &(USize){(USize)(1)})->struct_name);
-                EMIT(f, "{ "); EMIT(f, (const char *)ftype); EMIT(f, " *_fa = ");
+                Str *ftype = c_type_name(Expr_child(e, &(USize){(USize)(1)})->til_type, &Expr_child(e, &(USize){(USize)(1)})->struct_name);
+                EMIT(f, "{ "); File_write_str(f, ftype); EMIT(f, " *_fa = ");
                 emit_expr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
                 EMIT(f, "; ");
                 emit_expr(f, obj, depth);
@@ -1171,9 +1171,9 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
             Expr *rv = Expr_child(e, &(USize){(USize)(0)});
             if (rv->data.tag == NodeType_TAG_FCall && rv->struct_name.count > 0 &&
                 Str_eq(&Expr_child(rv, &(USize){(USize)(0)})->data.data.Ident, &rv->struct_name)) {
-                // Struct constructor return — malloc + field-by-field
-                const char *ctype = c_type_name(rv->til_type, &rv->struct_name);
-                EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_r = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, "));\n");
+                // Struct constructor return -- malloc + field-by-field
+                Str *ctype = c_type_name(rv->til_type, &rv->struct_name);
+                EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, "));\n");
                 emit_ctor_fields(f, "_r", rv, depth);
                 emit_indent(f, depth);
                 EMIT(f, "return _r; }\n");
@@ -1194,37 +1194,37 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 }
             } else if (rv->data.tag == NodeType_TAG_FieldAccess && FIELD_IS_SHALLOW(rv) &&
                        !rv->is_ns_field && rv->til_type.tag != TilType_TAG_Dynamic) {
-                // Inline field value — must clone to heap pointer for return
-                const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
+                // Inline field value -- must clone to heap pointer for return
+                Str *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
                     : c_type_name(rv->til_type, &rv->struct_name);
-                EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_r = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, ")); *_r = ");
+                EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); *_r = ");
                 emit_expr(f, rv, depth);
                 EMIT(f, "; return _r; }\n");
             } else if (rv->data.tag == NodeType_TAG_FCall && fcall_is_shallow_return(rv)) {
                 // returns shallow: box value return into heap pointer
-                const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
+                Str *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
                     : c_type_name(rv->til_type, &rv->struct_name);
-                EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_r = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, ")); *_r = ");
+                EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); *_r = ");
                 emit_expr(f, rv, depth);
                 EMIT(f, "; return _r; }\n");
             } else if (rv->data.tag == NodeType_TAG_Ident &&
                        is_stack_local(&rv->data.data.Ident) &&
                        !(current_fdef && RETURN_IS_SHALLOW(&current_fdef->data.data.FuncDef))) {
                 // Hoisted local returned from non-shallow function: box to heap
-                const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
+                Str *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
                     : c_type_name(rv->til_type, &rv->struct_name);
-                EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_r = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)rv->data.data.Ident.c_str); EMIT(f, "; return _r; }\n");
+                EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)rv->data.data.Ident.c_str); EMIT(f, "; return _r; }\n");
             } else if (rv->data.tag == NodeType_TAG_Ident &&
                        has_script_globals && Set_has(&script_globals, &rv->data.data.Ident) &&
                        !(current_fdef && RETURN_IS_SHALLOW(&current_fdef->data.data.FuncDef))) {
                 // Global returned from non-shallow function: copy to heap
-                const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
+                Str *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
                     : c_type_name(rv->til_type, &rv->struct_name);
-                EMIT(f, "{ "); EMIT(f, (const char *)ctype); EMIT(f, " *_r = malloc(sizeof("); EMIT(f, (const char *)ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)rv->data.data.Ident.c_str); EMIT(f, "; return _r; }\n");
+                EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)rv->data.data.Ident.c_str); EMIT(f, "; return _r; }\n");
             } else if (rv->data.tag == NodeType_TAG_FieldAccess && rv->is_ns_field &&
                        rv->til_type.tag == TilType_TAG_Enum) {
                 // Bare variant ref return: heap-allocate (compound literal is stack-only)
@@ -1454,14 +1454,14 @@ static void emit_func_def(File *f, Str *name, Expr *func_def, Mode *mode, Bool i
         EMIT(f, "}\n");
     } else {
         // Return type
-        const char *ret = "void";
+        Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
         if (func_def->data.data.FuncDef.return_type.count > 0) {
             ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                 ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                 : type_name_to_c(&func_def->data.data.FuncDef.return_type);
         }
         // Signature
-        EMIT(f, is_static ? "static __attribute__((unused)) " : ""); EMIT(f, ret); EMIT(f, " "); EMIT(f, func_to_c(name)); EMIT(f, "(");
+        EMIT(f, is_static ? "static __attribute__((unused)) " : ""); File_write_str(f, ret); EMIT(f, " "); { Str *_fc = func_to_c(name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
         emit_param_list(f, func_def, 1);
         EMIT(f, ") {\n");
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++) {
@@ -1527,15 +1527,15 @@ static void emit_struct_typedef(File *f, Str *name, Expr *struct_def) {
         if (!DECL_IS_SHALLOW(field->data.data.Decl) && (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) && (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
             EMIT(f, "    "); EMIT(f, (const char *)Expr_child(field, &(USize){(USize)(0)})->struct_name.c_str); EMIT(f, " *"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
         } else if (!DECL_IS_SHALLOW(field->data.data.Decl)) {
-            EMIT(f, "    "); EMIT(f, (const char *)til_type_to_c(field->til_type)); EMIT(f, " *"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
+            EMIT(f, "    "); { Str *_tc = til_type_to_c(field->til_type); File_write_str(f, _tc); Str_delete(_tc, &(Bool){1}); } EMIT(f, " *"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
         } else if ((field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) && (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
             EMIT(f, "    "); EMIT(f, (const char *)Expr_child(field, &(USize){(USize)(0)})->struct_name.c_str); EMIT(f, " "); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
         } else {
-            EMIT(f, "    "); EMIT(f, (const char *)til_type_to_c(field->til_type)); EMIT(f, " "); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
+            EMIT(f, "    "); { Str *_tc = til_type_to_c(field->til_type); File_write_str(f, _tc); Str_delete(_tc, &(Bool){1}); } EMIT(f, " "); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
         }
     }
     EMIT(f, "} "); EMIT(f, (const char *)name->c_str); EMIT(f, ";\n\n");
-    // Emit namespace fields as globals (skip func defs — emitted separately)
+    // Emit namespace fields as globals (skip func defs -- emitted separately)
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = Expr_child(body, &(USize){(USize)(i)});
         if (!field->data.data.Decl.is_namespace) continue;
@@ -1543,7 +1543,7 @@ static void emit_struct_typedef(File *f, Str *name, Expr *struct_def) {
         if ((field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) && (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
             EMIT(f, (const char *)Expr_child(field, &(USize){(USize)(0)})->struct_name.c_str); EMIT(f, " "); EMIT(f, (const char *)name->c_str); EMIT(f, "_"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
         } else {
-            EMIT(f, (const char *)til_type_to_c(field->til_type)); EMIT(f, " "); EMIT(f, (const char *)name->c_str); EMIT(f, "_"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
+            { Str *_tc = til_type_to_c(field->til_type); File_write_str(f, _tc); Str_delete(_tc, &(Bool){1}); } EMIT(f, " "); EMIT(f, (const char *)name->c_str); EMIT(f, "_"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
         }
     }
 }
@@ -1568,14 +1568,14 @@ static void emit_struct_funcs(File *f, Str *name, Expr *struct_def, Bool is_lib,
             ((fdef->data.data.FuncDef.return_type.count == 5 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "USize", 5) == 0) ||
              (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U32", 3) == 0) ||
              (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0))) {
-            const char *ret_ctype = type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
+            Str *ret_ctype = type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
             if (RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)) {
-                EMIT(f, (const char *)ret_ctype); EMIT(f, " "); EMIT(f, (const char *)name->c_str); EMIT(f, "_size(void) {\n");
-                EMIT(f, "    return ("); EMIT(f, (const char *)ret_ctype); EMIT(f, ")sizeof("); EMIT(f, (const char *)name->c_str); EMIT(f, ");\n");
+                File_write_str(f, ret_ctype); EMIT(f, " "); EMIT(f, (const char *)name->c_str); EMIT(f, "_size(void) {\n");
+                EMIT(f, "    return ("); File_write_str(f, ret_ctype); EMIT(f, ")sizeof("); EMIT(f, (const char *)name->c_str); EMIT(f, ");\n");
             } else {
-                EMIT(f, (const char *)ret_ctype); EMIT(f, " *"); EMIT(f, (const char *)name->c_str); EMIT(f, "_size(void) {\n");
-                EMIT(f, "    "); EMIT(f, (const char *)ret_ctype); EMIT(f, " *r = malloc(sizeof("); EMIT(f, (const char *)ret_ctype); EMIT(f, "));\n");
-                EMIT(f, "    *r = ("); EMIT(f, (const char *)ret_ctype); EMIT(f, ")sizeof("); EMIT(f, (const char *)name->c_str); EMIT(f, ");\n");
+                File_write_str(f, ret_ctype); EMIT(f, " *"); EMIT(f, (const char *)name->c_str); EMIT(f, "_size(void) {\n");
+                EMIT(f, "    "); File_write_str(f, ret_ctype); EMIT(f, " *r = malloc(sizeof("); File_write_str(f, ret_ctype); EMIT(f, "));\n");
+                EMIT(f, "    *r = ("); File_write_str(f, ret_ctype); EMIT(f, ")sizeof("); EMIT(f, (const char *)name->c_str); EMIT(f, ");\n");
                 EMIT(f, "    return r;\n");
             }
             EMIT(f, "}\n\n");
@@ -1646,8 +1646,8 @@ static void emit_enum_def(File *f, Str *name, Expr *enum_def) {
                 EMIT(f, "}\n");
                 continue;
             }
-            const char *ptype = type_name_to_c(vt);
-            EMIT(f, (const char *)name->c_str); EMIT(f, " *"); EMIT(f, (const char *)name->c_str); EMIT(f, "_"); EMIT(f, (const char *)vn->c_str); EMIT(f, "("); EMIT(f, (const char *)ptype); EMIT(f, " val) {\n");
+            Str *ptype = type_name_to_c(vt);
+            EMIT(f, (const char *)name->c_str); EMIT(f, " *"); EMIT(f, (const char *)name->c_str); EMIT(f, "_"); EMIT(f, (const char *)vn->c_str); EMIT(f, "("); File_write_str(f, ptype); EMIT(f, " val) {\n");
             EMIT(f, "    "); EMIT(f, (const char *)name->c_str); EMIT(f, " *r = malloc(sizeof("); EMIT(f, (const char *)name->c_str); EMIT(f, "));\n");
             EMIT(f, "    r->tag = "); EMIT(f, (const char *)name->c_str); EMIT(f, "_TAG_"); EMIT(f, (const char *)vn->c_str); EMIT(f, ";\n");
             // Store payload inline (by value)
@@ -1659,7 +1659,7 @@ static void emit_enum_def(File *f, Str *name, Expr *enum_def) {
                 EMIT(f, "    r->data."); EMIT(f, (const char *)vn->c_str); EMIT(f, " = val;\n");
             } else {
                 // Struct/enum: clone into inline storage
-                EMIT(f, "    { "); EMIT(f, (const char *)type_name_to_c(vt)); EMIT(f, " _tmp = "); EMIT(f, (const char *)vt->c_str); EMIT(f, "_clone(val); r->data."); EMIT(f, (const char *)vn->c_str); EMIT(f, " = *_tmp; free(_tmp); }\n");
+                EMIT(f, "    { "); { Str *_tnc = type_name_to_c(vt); File_write_str(f, _tnc); Str_delete(_tnc, &(Bool){1}); } EMIT(f, " _tmp = "); EMIT(f, (const char *)vt->c_str); EMIT(f, "_clone(val); r->data."); EMIT(f, (const char *)vn->c_str); EMIT(f, " = *_tmp; free(_tmp); }\n");
             }
             EMIT(f, "    return r;\n");
             EMIT(f, "}\n");
@@ -1684,14 +1684,14 @@ static void emit_enum_def(File *f, Str *name, Expr *enum_def) {
             ((fdef->data.data.FuncDef.return_type.count == 5 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "USize", 5) == 0) ||
              (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U32", 3) == 0) ||
              (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0))) {
-            const char *ret_ctype = type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
+            Str *ret_ctype = type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
             if (RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)) {
-                EMIT(f, (const char *)ret_ctype); EMIT(f, " "); EMIT(f, (const char *)name->c_str); EMIT(f, "_size(void) {\n");
-                EMIT(f, "    return ("); EMIT(f, (const char *)ret_ctype); EMIT(f, ")sizeof("); EMIT(f, (const char *)name->c_str); EMIT(f, ");\n");
+                File_write_str(f, ret_ctype); EMIT(f, " "); EMIT(f, (const char *)name->c_str); EMIT(f, "_size(void) {\n");
+                EMIT(f, "    return ("); File_write_str(f, ret_ctype); EMIT(f, ")sizeof("); EMIT(f, (const char *)name->c_str); EMIT(f, ");\n");
             } else {
-                EMIT(f, (const char *)ret_ctype); EMIT(f, " *"); EMIT(f, (const char *)name->c_str); EMIT(f, "_size(void) {\n");
-                EMIT(f, "    "); EMIT(f, (const char *)ret_ctype); EMIT(f, " *r = malloc(sizeof("); EMIT(f, (const char *)ret_ctype); EMIT(f, "));\n");
-                EMIT(f, "    *r = ("); EMIT(f, (const char *)ret_ctype); EMIT(f, ")sizeof("); EMIT(f, (const char *)name->c_str); EMIT(f, ");\n");
+                File_write_str(f, ret_ctype); EMIT(f, " *"); EMIT(f, (const char *)name->c_str); EMIT(f, "_size(void) {\n");
+                EMIT(f, "    "); File_write_str(f, ret_ctype); EMIT(f, " *r = malloc(sizeof("); File_write_str(f, ret_ctype); EMIT(f, "));\n");
+                EMIT(f, "    *r = ("); File_write_str(f, ret_ctype); EMIT(f, ")sizeof("); EMIT(f, (const char *)name->c_str); EMIT(f, ");\n");
                 EMIT(f, "    return r;\n");
             }
             EMIT(f, "}\n\n");
@@ -1882,7 +1882,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                                 if (v->data.data.Decl.is_namespace) continue;
                                 if (v->data.data.Decl.explicit_type.count > 0) {
-                                    EMIT(hf, "        "); EMIT(hf, (const char *)type_name_to_c_value(&v->data.data.Decl.explicit_type)); EMIT(hf, " "); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, ";\n");
+                                    EMIT(hf, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(hf, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(hf, " "); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, ";\n");
                                 }
                             }
                             EMIT(hf, "    } data;\n");
@@ -1915,7 +1915,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                                     Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                                     if (v->data.data.Decl.is_namespace) continue;
                                     if (v->data.data.Decl.explicit_type.count > 0) {
-                                        EMIT(hf, "        "); EMIT(hf, (const char *)type_name_to_c_value(&v->data.data.Decl.explicit_type)); EMIT(hf, " "); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, ";\n");
+                                        EMIT(hf, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(hf, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(hf, " "); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, ";\n");
                                     }
                                 }
                                 EMIT(hf, "    } data;\n");
@@ -1946,12 +1946,12 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                     FuncType fft = fdef->data.data.FuncDef.func_type;
                     if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
-                    const char *ret = "void";
+                    Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
                     if (fdef->data.data.FuncDef.return_type.count > 0)
                         ret = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                             ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                             : type_name_to_c(&fdef->data.data.FuncDef.return_type);
-                    EMIT(hf, (const char *)ret); EMIT(hf, " "); EMIT(hf, (const char *)sname->c_str); EMIT(hf, "_"); EMIT(hf, (const char *)field->data.data.Decl.name.c_str); EMIT(hf, "(");
+                    File_write_str(hf, ret); EMIT(hf, " "); EMIT(hf, (const char *)sname->c_str); EMIT(hf, "_"); EMIT(hf, (const char *)field->data.data.Decl.name.c_str); EMIT(hf, "(");
                     emit_param_list(hf, fdef, 1);
                     EMIT(hf, ");\n");
                 }
@@ -1963,12 +1963,12 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 Str *fname = &stmt->data.data.Decl.name;
                 Bool fis_main = mode && mode->needs_main && (fname->count == 4 && memcmp(fname->c_str, "main", 4) == 0);
                 if (fis_main) continue;
-                const char *ret = "void";
+                Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
                 if (func_def->data.data.FuncDef.return_type.count > 0)
                     ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                         ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                         : type_name_to_c(&func_def->data.data.FuncDef.return_type);
-                EMIT(hf, (const char *)ret); EMIT(hf, " "); EMIT(hf, (const char *)func_to_c(&stmt->data.data.Decl.name)); EMIT(hf, "(");
+                File_write_str(hf, ret); EMIT(hf, " "); { Str *_fc = func_to_c(&stmt->data.data.Decl.name); File_write_str(hf, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(hf, "(");
                 emit_param_list(hf, func_def, 1);
                 EMIT(hf, ");\n");
             }
@@ -1995,7 +1995,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                     if (v->data.data.Decl.is_namespace) continue;
                     if (v->data.data.Decl.explicit_type.count > 0) {
-                        EMIT(hf, (const char *)sname->c_str); EMIT(hf, " *"); EMIT(hf, (const char *)sname->c_str); EMIT(hf, "_"); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, "("); EMIT(hf, (const char *)type_name_to_c(&v->data.data.Decl.explicit_type)); EMIT(hf, ");\n");
+                        EMIT(hf, (const char *)sname->c_str); EMIT(hf, " *"); EMIT(hf, (const char *)sname->c_str); EMIT(hf, "_"); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, "("); { Str *_tnc = type_name_to_c(&v->data.data.Decl.explicit_type); File_write_str(hf, _tnc); Str_delete(_tnc, &(Bool){1}); }; EMIT(hf, ");\n");
                     } else {
                         EMIT(hf, (const char *)sname->c_str); EMIT(hf, " *"); EMIT(hf, (const char *)sname->c_str); EMIT(hf, "_"); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, "();\n");
                     }
@@ -2017,13 +2017,13 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         if (fft.tag != FuncType_TAG_ExtFunc && fft.tag != FuncType_TAG_ExtProc) continue;
         if (is_skip_ext_decl(&stmt->data.data.Decl.name)) continue;
         if (fdef->data.data.FuncDef.return_type.count > 0) {
-            const char *rt = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
+            Str *rt = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                 ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                 : type_name_to_c(&fdef->data.data.FuncDef.return_type);
-            EMIT(f, (const char *)rt); EMIT(f, " "); EMIT(f, (const char *)func_to_c(&stmt->data.data.Decl.name)); EMIT(f, "(");
+            File_write_str(f, rt); Str_delete(rt, &(Bool){1}); EMIT(f, " "); { Str *_fc = func_to_c(&stmt->data.data.Decl.name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
         }
         else {
-            EMIT(f, "void "); EMIT(f, (const char *)func_to_c(&stmt->data.data.Decl.name)); EMIT(f, "(");
+            EMIT(f, "void "); { Str *_fc = func_to_c(&stmt->data.data.Decl.name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
         }
         emit_param_list(f, fdef, 0);
         EMIT(f, ");\n");
@@ -2049,13 +2049,13 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 FuncType fft = fdef->data.data.FuncDef.func_type;
                 if ((fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) && stmt->is_core) continue;
-                const char *ret = "void";
+                Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
                 if (fdef->data.data.FuncDef.return_type.count > 0) {
                     ret = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                         ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                         : type_name_to_c(&fdef->data.data.FuncDef.return_type);
                 }
-                EMIT(f, (const char *)ret); EMIT(f, " "); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, "(");
+                File_write_str(f, ret); EMIT(f, " "); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, "(");
                 emit_param_list(f, fdef, 1);
                 EMIT(f, ");\n");
             }
@@ -2066,12 +2066,12 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             Str *name = &stmt->data.data.Decl.name;
             Bool is_main = mode && mode->needs_main && (name->count == 4 && memcmp(name->c_str, "main", 4) == 0);
             if (is_main) continue;
-            const char *ret = "void";
+            Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
             if (func_def->data.data.FuncDef.return_type.count > 0)
                 ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                     ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                     : type_name_to_c(&func_def->data.data.FuncDef.return_type);
-            EMIT(f, (const char *)ret); EMIT(f, " "); EMIT(f, (const char *)func_to_c(name)); EMIT(f, "(");
+            File_write_str(f, ret); EMIT(f, " "); { Str *_fc = func_to_c(name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
             emit_param_list(f, func_def, 1);
             EMIT(f, ");\n");
         }
@@ -2099,7 +2099,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 if (v->data.data.Decl.is_namespace) continue;
                 if (v->data.data.Decl.explicit_type.count > 0) {
                     // Payload constructor
-                    EMIT(f, (const char *)sname->c_str); EMIT(f, " *"); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, "("); EMIT(f, (const char *)type_name_to_c(&v->data.data.Decl.explicit_type)); EMIT(f, ");\n");
+                    EMIT(f, (const char *)sname->c_str); EMIT(f, " *"); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, "("); { Str *_tnc = type_name_to_c(&v->data.data.Decl.explicit_type); File_write_str(f, _tnc); Str_delete(_tnc, &(Bool){1}); }; EMIT(f, ");\n");
                 } else {
                     // Zero-arg constructor
                     EMIT(f, (const char *)sname->c_str); EMIT(f, " *"); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, "();\n");
@@ -2207,10 +2207,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
             if (!is_exported_top_level_global(stmt)) continue;
             Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-            const char *ctype = stmt->til_type.tag == TilType_TAG_Dynamic
+            Str *ctype = stmt->til_type.tag == TilType_TAG_Dynamic
                 ? til_type_to_c(stmt->til_type)
                 : c_type_name(stmt->til_type, &rhs->struct_name);
-            EMIT(f, (const char *)ctype); EMIT(f, " "); EMIT(f, (const char *)stmt->data.data.Decl.name.c_str); EMIT(f, ";\n");
+            File_write_str(f, ctype); Str_delete(ctype, &(Bool){1}); EMIT(f, " "); EMIT(f, (const char *)stmt->data.data.Decl.name.c_str); EMIT(f, ";\n");
             { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&script_globals, _p); }
         }
         EMIT(f, "\n");
@@ -2283,11 +2283,11 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                         snprintf(arg2_str, sizeof(arg2_str), "arg2");
                 }
                 Bool ret_shallow = RETURN_IS_SHALLOW(&method_fdef->data.data.FuncDef);
-                const char *ret_ctype = (info->has_return && ret_shallow && method_fdef->data.data.FuncDef.return_type.count > 0)
+                Str *ret_ctype = (info->has_return && ret_shallow && method_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&method_fdef->data.data.FuncDef.return_type) : NULL;
                 if (info->nargs == 2) {
                     if (info->has_return && ret_shallow) {
-                        EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) { "); EMIT(f, (const char *)ret_ctype); EMIT(f, " *_r = malloc(sizeof("); EMIT(f, (const char *)ret_ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, ", "); EMIT(f, (const char *)arg2_str); EMIT(f, "); return _r; }\n");
+                        EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) { "); File_write_str(f, ret_ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ret_ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, ", "); EMIT(f, (const char *)arg2_str); EMIT(f, "); return _r; }\n");
                     }
                     else if (info->has_return) {
                         EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) return (void *)"); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, ", "); EMIT(f, (const char *)arg2_str); EMIT(f, ");\n");
@@ -2297,7 +2297,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     }
                 } else {
                     if (info->has_return && ret_shallow) {
-                        EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) { "); EMIT(f, (const char *)ret_ctype); EMIT(f, " *_r = malloc(sizeof("); EMIT(f, (const char *)ret_ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, "); return _r; }\n");
+                        EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) { "); File_write_str(f, ret_ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ret_ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, "); return _r; }\n");
                     }
                     else if (info->has_return) {
                         EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) return (void *)"); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, ");\n");
@@ -2355,8 +2355,8 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 EMIT(f, ") {\n");
                 // Call real function with deref for shallow params
                 if (has_return && ret_shallow) {
-                    const char *rc = type_name_to_c_value(ret_type);
-                    EMIT(f, "    "); EMIT(f, (const char *)rc); EMIT(f, " *_r = malloc(sizeof("); EMIT(f, (const char *)rc); EMIT(f, ")); *_r = "); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)mname->c_str); EMIT(f, "(");
+                    Str *rc = type_name_to_c_value(ret_type);
+                    EMIT(f, "    "); File_write_str(f, rc); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, rc); EMIT(f, ")); *_r = "); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)mname->c_str); EMIT(f, "(");
                 } else if (has_return) {
                     EMIT(f, "    return (void *)"); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)mname->c_str); EMIT(f, "(");
                 } else {
@@ -2366,8 +2366,8 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     if (p > 0) EMIT(f, ", ");
                     Param *param = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)});
                     if (PARAM_IS_SHALLOW(param)) {
-                        const char *pc = type_name_to_c_value(&param->ptype);
-                        EMIT(f, "*("); EMIT(f, (const char *)pc); EMIT(f, " *)_a"); emit_i32(f, p);
+                        Str *pc = type_name_to_c_value(&param->ptype);
+                        EMIT(f, "*("); File_write_str(f, pc); EMIT(f, " *)_a"); emit_i32(f, p);
                     } else {
                         EMIT(f, "_a"); emit_i32(f, p);
                     }
@@ -2725,7 +2725,7 @@ static void emit_header_defs_and_funcs(File *f, Expr *program) {
                             Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                             if (v->data.data.Decl.is_namespace) continue;
                             if (v->data.data.Decl.explicit_type.count > 0) {
-                                EMIT(f, "        "); EMIT(f, (const char *)type_name_to_c_value(&v->data.data.Decl.explicit_type)); EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
+                                EMIT(f, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(f, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
                             }
                         }
                         EMIT(f, "    } data;\n");
@@ -2758,7 +2758,7 @@ static void emit_header_defs_and_funcs(File *f, Expr *program) {
                                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                                 if (v->data.data.Decl.is_namespace) continue;
                                 if (v->data.data.Decl.explicit_type.count > 0) {
-                                    EMIT(f, "        "); EMIT(f, (const char *)type_name_to_c_value(&v->data.data.Decl.explicit_type)); EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
+                                    EMIT(f, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(f, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
                                 }
                             }
                             EMIT(f, "    } data;\n");
@@ -2791,12 +2791,12 @@ static void emit_header_defs_and_funcs(File *f, Expr *program) {
                 if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) {
                     if (stmt->is_core) continue;
                 }
-                const char *ret = "void";
+                Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
                 if (fdef->data.data.FuncDef.return_type.count > 0)
                     ret = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                         ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                         : type_name_to_c(&fdef->data.data.FuncDef.return_type);
-                EMIT(f, (const char *)ret); EMIT(f, " "); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, "(");
+                File_write_str(f, ret); EMIT(f, " "); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, "(");
                 emit_param_list(f, fdef, 1);
                 EMIT(f, ");\n");
             }
@@ -2805,12 +2805,12 @@ static void emit_header_defs_and_funcs(File *f, Expr *program) {
             if (func_def->children.count == 0) continue;
             FuncType fft = func_def->data.data.FuncDef.func_type;
             if ((fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) && stmt->is_core) continue;
-            const char *ret = "void";
+            Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
             if (func_def->data.data.FuncDef.return_type.count > 0)
                 ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                     ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                     : type_name_to_c(&func_def->data.data.FuncDef.return_type);
-            EMIT(f, (const char *)ret); EMIT(f, " "); EMIT(f, (const char *)func_to_c(&stmt->data.data.Decl.name)); EMIT(f, "(");
+            File_write_str(f, ret); EMIT(f, " "); { Str *_fc = func_to_c(&stmt->data.data.Decl.name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
             emit_param_list(f, func_def, 1);
             EMIT(f, ");\n");
         }
@@ -2838,7 +2838,7 @@ static void emit_header_defs_and_funcs(File *f, Expr *program) {
                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                 if (v->data.data.Decl.is_namespace) continue;
                 if (v->data.data.Decl.explicit_type.count > 0) {
-                    EMIT(f, (const char *)sname->c_str); EMIT(f, " *"); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, "("); EMIT(f, (const char *)type_name_to_c(&v->data.data.Decl.explicit_type)); EMIT(f, ");\n");
+                    EMIT(f, (const char *)sname->c_str); EMIT(f, " *"); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, "("); { Str *_tnc = type_name_to_c(&v->data.data.Decl.explicit_type); File_write_str(f, _tnc); Str_delete(_tnc, &(Bool){1}); }; EMIT(f, ");\n");
                 } else {
                     EMIT(f, (const char *)sname->c_str); EMIT(f, " *"); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, "();\n");
                 }
@@ -2855,10 +2855,10 @@ static void emit_header_global_decls(File *f, Expr *program) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (!is_exported_top_level_global(stmt)) continue;
         Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-        const char *ctype = stmt->til_type.tag == TilType_TAG_Dynamic
+        Str *ctype = stmt->til_type.tag == TilType_TAG_Dynamic
             ? til_type_to_c(stmt->til_type)
             : c_type_name(stmt->til_type, &rhs->struct_name);
-        EMIT(f, "extern "); EMIT(f, (const char *)ctype); EMIT(f, " "); EMIT(f, (const char *)stmt->data.data.Decl.name.c_str); EMIT(f, ";\n");
+        EMIT(f, "extern "); File_write_str(f, ctype); Str_delete(ctype, &(Bool){1}); EMIT(f, " "); EMIT(f, (const char *)stmt->data.data.Decl.name.c_str); EMIT(f, ";\n");
     }
     EMIT(f, "\n");
 }
@@ -2987,7 +2987,7 @@ I32 build_header(Expr *program, Str *h_path) {
                             Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                             if (v->data.data.Decl.is_namespace) continue;
                             if (v->data.data.Decl.explicit_type.count > 0) {
-                                EMIT(f, "        "); EMIT(f, (const char *)type_name_to_c_value(&v->data.data.Decl.explicit_type)); EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
+                                EMIT(f, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(f, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
                             }
                         }
                         EMIT(f, "    } data;\n");
@@ -3020,7 +3020,7 @@ I32 build_header(Expr *program, Str *h_path) {
                                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                                 if (v->data.data.Decl.is_namespace) continue;
                                 if (v->data.data.Decl.explicit_type.count > 0) {
-                                    EMIT(f, "        "); EMIT(f, (const char *)type_name_to_c_value(&v->data.data.Decl.explicit_type)); EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
+                                    EMIT(f, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(f, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
                                 }
                             }
                             EMIT(f, "    } data;\n");
@@ -3099,7 +3099,7 @@ I32 build_header(Expr *program, Str *h_path) {
                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                 if (v->data.data.Decl.is_namespace) continue;
                 if (v->data.data.Decl.explicit_type.count > 0) {
-                    EMIT(f, (const char *)sname->c_str); EMIT(f, " *"); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, "("); EMIT(f, (const char *)type_name_to_c(&v->data.data.Decl.explicit_type)); EMIT(f, ");\n");
+                    EMIT(f, (const char *)sname->c_str); EMIT(f, " *"); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, "("); { Str *_tnc = type_name_to_c(&v->data.data.Decl.explicit_type); File_write_str(f, _tnc); Str_delete(_tnc, &(Bool){1}); }; EMIT(f, ");\n");
                 } else {
                     EMIT(f, (const char *)sname->c_str); EMIT(f, " *"); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, "();\n");
                 }
