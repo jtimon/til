@@ -326,9 +326,35 @@ if t.is_Num() { println(t.get_Num().to_str()) }
 
 Auto-generated: ~.is_Variant()~, ~.get_Variant()~, ~.to_str()~, ~.eq()~.
 
-Note: tagged enums store payloads inline (like C unions — uses
+Note: tagged enums store payloads inline (like C unions -- uses
 ~max(variant sizes)~ plus alignment padding). ~get_Variant()~ returns
 an owned clone of the payload, not a reference into the enum's data.
+
+*** Switch with payload extraction (like Rust match)
+
+Prefer ~switch~ with payload extraction over ~.is_Variant()~ /
+~.get_Variant()~ chains -- it is more concise and checked:
+
+#+begin_src c
+switch (t.type) {
+    case TOK_NUM:  printf("%d", t.num_val); break;
+    case TOK_NAME: printf("%s", t.str_val); break;
+    case TOK_EOF:  printf("eof"); break;
+}
+#+end_src
+
+#+begin_src til
+switch t {
+case Token.Num(value): println(value.to_str())
+case Token.Name(s): println(s)
+case Token.Eof: println("eof")
+}
+#+end_src
+
+Each ~case~ binds the payload to a local variable (~value~, ~s~).
+No ~break~ needed -- cases do not fall through. Match without
+extracting the payload by omitting parentheses: ~case Token.Num:~.
+Use bare ~case:~ for the default arm.
 
 *** Enum with methods
 
@@ -483,9 +509,9 @@ case: ...
 }
 #+end_src
 
-No break needed — each case has implicit break (no fall-through).
-For range matching: ~case 'a'..'z':~. For payload extraction:
-~case Token.Num(value):~.
+No break needed -- each case has implicit break (no fall-through).
+For range matching: ~case 'a'..'z':~. For payload extraction see
+the tagged union section above: ~case Token.Num(value):~.
 
 *** Other
 
