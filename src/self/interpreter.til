@@ -103,6 +103,42 @@ Value := enum {
             ref ei : EnumInstance = get_payload(self)
             return Value.Enum(ei.clone())
         }
+        if is_variant(self, Value.Int) {
+            ref v : I64 = get_payload(self)
+            return Value.Int(v)
+        }
+        if is_variant(self, Value.Byte) {
+            ref v : U8 = get_payload(self)
+            return Value.Byte(v)
+        }
+        if is_variant(self, Value.Short) {
+            ref v : I16 = get_payload(self)
+            return Value.Short(v)
+        }
+        if is_variant(self, Value.Int32) {
+            ref v : I32 = get_payload(self)
+            return Value.Int32(v)
+        }
+        if is_variant(self, Value.Uint32) {
+            ref v : U32 = get_payload(self)
+            return Value.Uint32(v)
+        }
+        if is_variant(self, Value.Uint64) {
+            ref v : U64 = get_payload(self)
+            return Value.Uint64(v)
+        }
+        if is_variant(self, Value.Float) {
+            ref v : F32 = get_payload(self)
+            return Value.Float(v)
+        }
+        if is_variant(self, Value.Boolean) {
+            ref v : Bool = get_payload(self)
+            return Value.Boolean(v)
+        }
+        if is_variant(self, Value.None) {
+            return Value.None
+        }
+        // Func, Ptr: shallow bitwise copy
         return clone_value(self)
     }
 }
