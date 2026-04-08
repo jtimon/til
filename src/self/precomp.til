@@ -164,7 +164,7 @@ process_body := proc(scope: Scope, body: Expr) {
                     .and(stmt.child(0).child_count().gt(0)) {
                     process_body(scope, stmt.child(0).child(0))
                 }
-            } else if dd.is_ref { }
+            } else if dd.own_type.eq(OwnType.Ref) { }
             else if dd.is_mut { }
             else if is_macro_call(stmt.child(0)) {
                 ref lit : Expr = try_eval_call(scope, stmt.child(0), true)

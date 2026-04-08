@@ -27,6 +27,7 @@ U64 U64_from_i64(I64 v);
 
 #define PARAM_IS_SHALLOW(p) ((p)->own_type.tag == OwnType_TAG_Shallow)
 #define RETURN_IS_SHALLOW(fd) ((fd)->return_own_type.tag == OwnType_TAG_Shallow)
+#define DECL_IS_SHALLOW(d) ((d).own_type.tag == OwnType_TAG_Shallow)
 
 // Codegen Str layout (matches ext.h Str: {U8 *data, U64 count, U64 cap})
 // Distinct from compiler-internal Str (str.h: {char *c_str, U64 count, U64 cap})
@@ -67,7 +68,7 @@ static ffi_type *shallow_ffi_type(Str *type_name) {
 
 // Map a field to its ffi_type (for building struct ffi_types)
 static ffi_type *field_ffi_type(Expr *field) {
-    if (field->data.data.Decl.is_own || field->data.data.Decl.is_ref)
+    if (!DECL_IS_SHALLOW(field->data.data.Decl))
         return &ffi_type_pointer;
     Str *ftype = &field->data.data.Decl.explicit_type;
     if (ftype->count == 0) return &ffi_type_sint64; // fallback (I64-sized)

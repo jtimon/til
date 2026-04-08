@@ -134,7 +134,7 @@ is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
         if is_variant(rhs.data, NodeType.Ident) { return false }
     }
     ref decl : Declaration = get_payload(stmt.data)
-    if decl.is_ref { return false }
+    if decl.own_type.eq(OwnType.Ref) { return false }
     if decl.name.len().gte(3) {
         if decl.name.substr(0, 3).eq("_t_") { return false }
     }

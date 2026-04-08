@@ -37,24 +37,6 @@ til_type_name_c := func(t: TilType) returns Str {
     }
 }
 
-// --- Declaration struct ---
-
-Declaration := struct {
-    mut name := ""
-    mut explicit_type := ""
-    mut is_mut := false
-    mut is_namespace := false
-    mut is_ref := false
-    mut is_own := false
-    mut field_offset : I32 = 0
-    mut field_size : I32 = 0
-    ref mut field_struct_def : Expr = NULL
-    ref mut fn_sig : Expr = NULL
-    namespace:
-    eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
-    to_str := func(self: Declaration) returns Str { return self.name }
-}
-
 // --- FuncType enum ---
 FuncType := enum {
     Func, Proc, Test, Macro, ExtFunc, ExtProc,
@@ -62,6 +44,23 @@ FuncType := enum {
 
 OwnType := enum {
     Own, Ref, Shallow,
+}
+
+// --- Declaration struct ---
+
+Declaration := struct {
+    mut name := ""
+    mut explicit_type := ""
+    mut is_mut := false
+    mut is_namespace := false
+    mut own_type := OwnType.Shallow
+    mut field_offset : I32 = 0
+    mut field_size : I32 = 0
+    ref mut field_struct_def : Expr = NULL
+    ref mut fn_sig : Expr = NULL
+    namespace:
+    eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
+    to_str := func(self: Declaration) returns Str { return self.name }
 }
 
 // --- Param struct ---

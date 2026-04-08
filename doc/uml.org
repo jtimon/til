@@ -90,17 +90,6 @@
 *** FuncDef
 *** FuncPtr
 *** Dynamic
-** Declaration: StructDef
-*** mut name := ""
-*** mut explicit_type := ""
-*** mut is_mut := false
-*** mut is_namespace := false
-*** mut is_ref := false
-*** mut is_own := false
-*** mut field_offset : I32 = 0
-*** mut field_size : I32 = 0
-*** ref mut field_struct_def : Expr = NULL
-*** ref mut fn_sig : Expr = NULL
 ** FuncType: EnumDef
 *** Func
 *** Proc
@@ -112,6 +101,16 @@
 *** Own
 *** Ref
 *** Shallow
+** Declaration: StructDef
+*** mut name := ""
+*** mut explicit_type := ""
+*** mut is_mut := false
+*** mut is_namespace := false
+*** mut own_type := OwnType.Shallow
+*** mut field_offset : I32 = 0
+*** mut field_size : I32 = 0
+*** ref mut field_struct_def : Expr = NULL
+*** ref mut fn_sig : Expr = NULL
 ** Param: StructDef
 *** mut name := ""
 *** mut ptype := ""

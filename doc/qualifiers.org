@@ -33,12 +33,14 @@ Compound types: Str, user-defined structs, enums.
 
 ** Struct fields
 
-| til                       | C struct member  | semantics                            |
-|---------------------------+------------------+--------------------------------------|
-| ~field := default~        | ~Type field~     | inline value                         |
-| ~mut field := default~    | ~Type field~     | mutable inline value                 |
-| ~own field := default~    | ~Type *field~    | owned heap pointer                   |
-| ~own mut field := default~ | ~Type *field~   | mutable owned heap pointer           |
+| til                        | C struct member  | semantics                            |
+|----------------------------+------------------+--------------------------------------|
+| ~field := default~         | ~Type field~     | inline value (default)               |
+| ~mut field := default~     | ~Type field~     | mutable inline value                 |
+| ~own field := default~     | ~Type *field~    | owned heap pointer                   |
+| ~own mut field := default~ | ~Type *field~    | mutable owned heap pointer           |
+| ~ref field : Type = NULL~  | ~Type *field~    | borrowed pointer (caller owns data)  |
+| ~ref mut field : Type = NULL~ | ~Type *field~ | mutable borrowed pointer             |
 
 ** Key rules
 
@@ -55,7 +57,7 @@ Compound types: Str, user-defined structs, enums.
   - use ~ref elem : T = buf~ or ~ref elem : T = ptr_add(buf, i)~ for typed access
   - a local owned ~Dynamic~ must either transfer ownership to an ~own~ arg/field
     or be explicitly freed with ~free(own buf)~
-- ~shallow~ is for args/returns only, not locals
+- ~shallow~ is for args/returns only, not locals or fields
 - ~shallow~ params are already values — no ~DEREF~ needed, but need ~&(Type){val}~ to pass to pointer-expecting functions
 - ~returns shallow~ functions return ~Type~ not ~Type *~ — callers must not dereference the result
 - Scalar locals are stack values: ~I64 x = value~, not ~I64 *x = malloc(...)~
@@ -64,3 +66,21 @@ Compound types: Str, user-defined structs, enums.
 - Ordinary non-~ref~, non-~Dynamic~ locals are stack-backed values and are passed
   as ~&x~ to pointer-expecting functions
 - ~Dynamic~ locals stay on the raw-pointer path
+
+** Internal representation
+
+All qualifier contexts (args, returns, locals, fields) use the same
+~OwnType~ enum: ~Own~, ~Ref~, ~Shallow~.
+
+| Context | Default   | Meaning of Shallow       | Meaning of Own          | Meaning of Ref        |
+|---------+-----------+--------------------------+-------------------------+-----------------------|
+| Args    | ~Ref~     | pass by value (stack)    | ownership transfer      | (redundant, = default)|
+| Returns | ~Own~     | value return (stack)     | (redundant, = default)  | borrowed pointer      |
+| Locals  | ~Shallow~ | owned stack value        | (forbidden, = default)  | borrowed pointer      |
+| Fields  | ~Shallow~ | inline value in struct   | owned heap pointer      | borrowed pointer      |
+
+For ~Param~ and ~FunctionDef~, the enum is used directly (~own_type~,
+~return_own_type~).  For ~Declaration~ (locals and fields), the same
+~own_type~ field replaces the former ~is_own~ / ~is_ref~ booleans.
+~Shallow~ is the natural default for declarations: inline for fields,
+stack-owned for locals.

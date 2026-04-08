@@ -151,7 +151,7 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
             if fd.is_namespace { continue }
             field_names.push(own fd.name.clone())
             mut ref_flag : I32 = 0
-            if fd.is_ref {
+            if fd.own_type.eq(OwnType.Ref) {
                 ref_flag = 1
             } else if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
                 ref_flag = 1
@@ -379,7 +379,7 @@ generate_enum_eq_method := proc(body: Expr, ename: Str, shallow line: U32, shall
                 mut gc1 := Expr.new(NodeType.FCall(FCallData()), line, col, path)
                 gc1.add_child(own gp1)
                 gc1.add_child(own self2)
-                mut sd1 := Expr.new(NodeType.Decl(Declaration(name = "_sp", explicit_type = vtype.clone(), is_ref = true)), line, col, path)
+                mut sd1 := Expr.new(NodeType.Decl(Declaration(name = "_sp", explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col, path)
                 sd1.add_child(own gc1)
                 then_body.add_child(own sd1)
 
@@ -388,7 +388,7 @@ generate_enum_eq_method := proc(body: Expr, ename: Str, shallow line: U32, shall
                 mut gc2 := Expr.new(NodeType.FCall(FCallData()), line, col, path)
                 gc2.add_child(own gp2)
                 gc2.add_child(own other2)
-                mut sd2 := Expr.new(NodeType.Decl(Declaration(name = "_op", explicit_type = vtype.clone(), is_ref = true)), line, col, path)
+                mut sd2 := Expr.new(NodeType.Decl(Declaration(name = "_op", explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col, path)
                 sd2.add_child(own gc2)
                 then_body.add_child(own sd2)
 
@@ -562,7 +562,7 @@ generate_enum_to_str_method := proc(body: Expr, ename: Str, shallow line: U32, s
                 mut gc := Expr.new(NodeType.FCall(FCallData()), line, col, path)
                 gc.add_child(own gp)
                 gc.add_child(own self2)
-                mut pd := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), is_ref = true)), line, col, path)
+                mut pd := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col, path)
                 pd.add_child(own gc)
                 then_body.add_child(own pd)
 
@@ -666,7 +666,7 @@ generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32
             gc.add_child(own gp)
             gc.add_child(own self_g)
 
-            mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), is_ref = true)), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), own_type = OwnType.Ref)), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
             decl_expr.add_child(own gc)
             pd = decl_expr
 
@@ -876,12 +876,12 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
             ref field : Expr = body.child(j)
             if is_variant(field.data, NodeType.Decl).not() { continue }
             ref fd : Declaration = get_payload(field.data)
-            if fd.is_namespace.or(fd.is_ref) { continue }
+            if fd.is_namespace.or(fd.own_type.eq(OwnType.Ref)) { continue }
             if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
                 continue
             }
             field_names.push(own fd.name.clone())
-            if fd.is_own {
+            if fd.own_type.eq(OwnType.Own) {
                 field_owns.push(own true)
             } else {
                 field_owns.push(own false)
@@ -1565,7 +1565,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
         mut fsz : I32 = 0
         mut falign : I32 = 0
 
-        if fd.is_own.or(fd.is_ref) {
+        if fd.own_type.eq(OwnType.Shallow).not() {
             fsz = 8
             falign = 8
 

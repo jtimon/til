@@ -7,6 +7,9 @@
 #define PARAM_IS_SHALLOW(p) ((p)->own_type.tag == OwnType_TAG_Shallow)
 #define RETURN_IS_REF(fd) ((fd)->return_own_type.tag == OwnType_TAG_Ref)
 #define RETURN_IS_SHALLOW(fd) ((fd)->return_own_type.tag == OwnType_TAG_Shallow)
+#define DECL_IS_OWN(d) ((d).own_type.tag == OwnType_TAG_Own)
+#define DECL_IS_REF(d) ((d).own_type.tag == OwnType_TAG_Ref)
+#define DECL_IS_SHALLOW(d) ((d).own_type.tag == OwnType_TAG_Shallow)
 
 // Helper macros for File-based emission (replacing fprintf)
 #define EMIT(f, s) File_write_str(f, &(Str){.c_str=(U8*)(s), .count=(U64)strlen((const char*)(s)), .cap=CAP_VIEW})
@@ -235,7 +238,7 @@ static void collect_unsafe_to_hoist(Expr *body) {
         // Check all fcalls for mut param args
         check_fcall_mut_args(stmt);
 
-        if (stmt->data.tag == NodeType_TAG_Decl && stmt->data.data.Decl.is_ref) {
+        if (stmt->data.tag == NodeType_TAG_Decl && DECL_IS_REF(stmt->data.data.Decl)) {
             Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
             if (rhs->data.tag == NodeType_TAG_Ident) {
                 Set_add(&unsafe_to_hoist, Str_clone(&rhs->data.data.Ident));
@@ -813,8 +816,8 @@ static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
             for (; fi < sbody->children.count; fi++) {
                 if (!Expr_child(sbody, &(USize){(USize)(fi)})->data.data.Decl.is_namespace) {
                     Expr *fld = Expr_child(sbody, &(USize){(USize)(fi)});
-                    is_own = fld->data.data.Decl.is_own;
-                    is_ref = fld->data.data.Decl.is_ref;
+                    is_own = DECL_IS_OWN(fld->data.data.Decl);
+                    is_ref = DECL_IS_REF(fld->data.data.Decl);
                     field_type = fld->til_type;
                     fname = (const char *)fld->data.data.Decl.name.c_str;
                     fi++;
@@ -887,7 +890,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
     emit_indent(f, depth);
     switch (e->data.tag) {
     case NodeType_TAG_Decl:
-        if (e->til_type.tag == TilType_TAG_FuncPtr && !e->data.data.Decl.is_ref && Expr_child(e, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) {
+        if (e->til_type.tag == TilType_TAG_FuncPtr && !DECL_IS_REF(e->data.data.Decl) && Expr_child(e, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) {
             // Function pointer variable (non-ref): void *f = (void *)func_name;
             EMIT(f, "void *"); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
             emit_expr(f, Expr_child(e, &(USize){(USize)(0)}), depth);
@@ -904,7 +907,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
             // so no typedef needed in generated C
             ;
         } else {
-            if (e->data.data.Decl.is_ref) {
+            if (DECL_IS_REF(e->data.data.Decl)) {
                 Set_add(&ref_locals, Str_clone(&e->data.data.Decl.name));
                 Str *_sn = &e->struct_name;
                 if (_sn->count == 0) _sn = &Expr_child(e, &(USize){(USize)(0)})->struct_name;
@@ -931,7 +934,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                     emit_deref(f, rhs, depth);
                     EMIT(f, ";\n");
                 } else {
-                    Bool can_hoist = !is_global && !e->data.data.Decl.is_own &&
+                    Bool can_hoist = !is_global && !DECL_IS_OWN(e->data.data.Decl) &&
                                      e->til_type.tag != TilType_TAG_FuncPtr &&
                                      e->til_type.tag != TilType_TAG_Dynamic &&
                                      !(rhs->data.tag == NodeType_TAG_FCall && fcall_returns_dynamic(rhs));
@@ -1521,9 +1524,9 @@ static void emit_struct_typedef(File *f, Str *name, Expr *struct_def) {
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = Expr_child(body, &(USize){(USize)(i)});
         if (field->data.data.Decl.is_namespace) continue;
-        if ((field->data.data.Decl.is_own || field->data.data.Decl.is_ref) && (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) && (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
+        if (!DECL_IS_SHALLOW(field->data.data.Decl) && (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) && (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
             EMIT(f, "    "); EMIT(f, (const char *)Expr_child(field, &(USize){(USize)(0)})->struct_name.c_str); EMIT(f, " *"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
-        } else if (field->data.data.Decl.is_own || field->data.data.Decl.is_ref) {
+        } else if (!DECL_IS_SHALLOW(field->data.data.Decl)) {
             EMIT(f, "    "); EMIT(f, (const char *)til_type_to_c(field->til_type)); EMIT(f, " *"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
         } else if ((field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) && (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
             EMIT(f, "    "); EMIT(f, (const char *)Expr_child(field, &(USize){(USize)(0)})->struct_name.c_str); EMIT(f, " "); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, ";\n");
@@ -1837,7 +1840,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                         for (U32 fi = 0; fi < body->children.count; fi++) {
                             Expr *field = Expr_child(body, &(USize){(USize)(fi)});
                             if (field->data.data.Decl.is_namespace) continue;
-                            if (!field->data.data.Decl.is_own && !field->data.data.Decl.is_ref &&
+                            if (DECL_IS_SHALLOW(field->data.data.Decl) &&
                                 (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
                                 (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
                                 if (!Set_has(&emitted_mh, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
@@ -2680,7 +2683,7 @@ static void emit_header_defs_and_funcs(File *f, Expr *program) {
                     for (U32 fi = 0; fi < body->children.count; fi++) {
                         Expr *field = Expr_child(body, &(USize){(USize)(fi)});
                         if (field->data.data.Decl.is_namespace) continue;
-                        if (!field->data.data.Decl.is_own && !field->data.data.Decl.is_ref &&
+                        if (DECL_IS_SHALLOW(field->data.data.Decl) &&
                             (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
                             (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
                             if (!Set_has(&emitted_h, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
@@ -2942,7 +2945,7 @@ I32 build_header(Expr *program, Str *h_path) {
                     for (U32 fi = 0; fi < body->children.count; fi++) {
                         Expr *field = Expr_child(body, &(USize){(USize)(fi)});
                         if (field->data.data.Decl.is_namespace) continue;
-                        if (!field->data.data.Decl.is_own && !field->data.data.Decl.is_ref &&
+                        if (DECL_IS_SHALLOW(field->data.data.Decl) &&
                             (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
                             (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
                             if (!Set_has(&emitted_h, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
@@ -3156,7 +3159,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 if (field->data.data.Decl.is_namespace) continue;
                 EMIT(f, "    ");
                 if (field->data.data.Decl.is_mut) EMIT(f, "mut ");
-                if (field->data.data.Decl.is_own) EMIT(f, "own ");
+                if (DECL_IS_OWN(field->data.data.Decl)) EMIT(f, "own ");
                 EMIT(f, (const char *)field->data.data.Decl.name.c_str);
                 if (field->data.data.Decl.explicit_type.count > 0) {
                     EMIT(f, " : "); EMIT(f, (const char *)field->data.data.Decl.explicit_type.c_str);

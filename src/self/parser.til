@@ -621,7 +621,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
 }
 
 // parse_statement_ident: identifier is current token
-parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_own: Bool) returns Expr {
+parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_type: OwnType) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
     name := expect_text(p, TokenType.Ident)
@@ -646,13 +646,13 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             }
             expect_token(p, TokenType.RBrace)
             def.add_child(own body)
-            mut dd := Declaration(name = name.clone(), is_mut = is_mut, is_own = is_own)
+            mut dd := Declaration(name = name.clone(), is_mut = is_mut, own_type = own_type)
             mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col, p.path)
             decl.add_child(own def)
             return decl
         }
 
-        mut dd := Declaration(name = name.clone(), is_mut = is_mut, is_own = is_own)
+        mut dd := Declaration(name = name.clone(), is_mut = is_mut, own_type = own_type)
         mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col, p.path)
         decl.add_child(own parse_expression(p))
         return decl
@@ -683,7 +683,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             expect_token(p, TokenType.LBrace)
             sig.add_child(own parse_block(p))
             // Wrap in NODE_DECL
-            mut dd := Declaration(name = name.clone(), is_mut = is_mut, is_own = is_own)
+            mut dd := Declaration(name = name.clone(), is_mut = is_mut, own_type = own_type)
             mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col, p.path)
             decl.add_child(own sig)
             return decl
@@ -745,14 +745,14 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
                 mut fdef := Expr.new(NodeType.FuncDef(ffd), t_line, t_col, p.path)
                 fdef.add_child(own body)
                 // Wrap in NODE_DECL with explicit_type
-                mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), is_mut = is_mut, is_own = is_own)
+                mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), is_mut = is_mut, own_type = own_type)
                 mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col, p.path)
                 decl.add_child(own fdef)
                 return decl
             }
         }
 
-        mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), is_mut = is_mut, is_own = is_own)
+        mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), is_mut = is_mut, own_type = own_type)
         mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col, p.path)
         decl.add_child(own parse_expression(p))
         return decl
@@ -844,7 +844,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
     ref t : Token = peek(p)
 
     if t.type.eq(TokenType.Ident) {
-        return parse_statement_ident(p, false, false)
+        return parse_statement_ident(p, false, OwnType.Shallow)
     }
     if t.type.eq(TokenType.KwRef) {
         advance(p)
@@ -853,7 +853,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
         i_line := peek_line(p)
         i_col := peek_col(p)
         iname := expect_text(p, TokenType.Ident)
-        mut dd := Declaration(name = iname, is_ref = true)
+        mut dd := Declaration(name = iname, own_type = OwnType.Ref)
         if ref_mut { dd.is_mut = true }
         if check(p, TokenType.Colon) {
             advance(p)
@@ -868,7 +868,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
     }
     if t.type.eq(TokenType.KwMut) {
         advance(p)
-        return parse_statement_ident(p, true, false)
+        return parse_statement_ident(p, true, OwnType.Shallow)
     }
     if t.type.eq(TokenType.KwShallow) {
         advance(p)
@@ -966,7 +966,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
                 if p.pos.add(1).lt(p.tokens.len()) {
                     ref nt : Token = p.tokens.get(p.pos.add(1))
                     if nt.type.eq(TokenType.ColonEq).or(nt.type.eq(TokenType.Colon)) {
-                        return parse_statement_ident(p, own_mut, true)
+                        return parse_statement_ident(p, own_mut, OwnType.Own)
                     }
                 }
             }

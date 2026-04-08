@@ -6,6 +6,9 @@
 #include <unistd.h>
 
 #define PARAM_IS_OWN(p) ((p)->own_type.tag == OwnType_TAG_Own)
+#define DECL_IS_OWN(d) ((d).own_type.tag == OwnType_TAG_Own)
+#define DECL_IS_REF(d) ((d).own_type.tag == OwnType_TAG_Ref)
+#define DECL_IS_SHALLOW(d) ((d).own_type.tag == OwnType_TAG_Shallow)
 
 // Forward declarations (defined in ast.c)
 
@@ -148,7 +151,7 @@ Str *cached_vec_name;
 // Read a Value from flat buffer at a field decl's offset
 static Value read_field(StructInstance *inst, Expr *fdecl) {
     void *ptr = (char *)inst->data + fdecl->data.data.Decl.field_offset;
-    if (fdecl->data.data.Decl.is_own) {
+    if (DECL_IS_OWN(fdecl->data.data.Decl)) {
         void *owned = *(void **)ptr;
         // If the own field has a struct def, wrap in StructInstance for field access
         if (fdecl->data.data.Decl.field_struct_def) {
@@ -164,7 +167,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
         }
         return (Value){.tag = Value_TAG_Ptr, .data.Ptr = owned};
     }
-    if (fdecl->data.data.Decl.is_ref) {
+    if (DECL_IS_REF(fdecl->data.data.Decl)) {
         void *ref_ptr = *(void **)ptr;
         if (!ref_ptr) return (Value){.tag = Value_TAG_Ptr, .data.Ptr = NULL};
         if (fdecl->data.data.Decl.field_struct_def) {
@@ -230,11 +233,11 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
 void write_field(StructInstance *inst, Expr *fdecl, Value *val) {
     void *ptr = (char *)inst->data + fdecl->data.data.Decl.field_offset;
     I32 fsz = fdecl->data.data.Decl.field_size;
-    if (fdecl->data.data.Decl.is_own) {
+    if (DECL_IS_OWN(fdecl->data.data.Decl)) {
         *(void **)ptr = val->tag == Value_TAG_Struct ? val->data.Struct.data : val->data.Ptr;
         return;
     }
-    if (fdecl->data.data.Decl.is_ref) {
+    if (DECL_IS_REF(fdecl->data.data.Decl)) {
         // ref field: store pointer (don't own the data)
         if (val->tag == Value_TAG_Ptr) *(void **)ptr = val->data.Ptr;
         else if (val->tag == Value_TAG_Struct) {
@@ -373,7 +376,7 @@ Value *clone_value(Value *v) {
             if (field->data.data.Decl.is_namespace) continue;
             I32 foff = field->data.data.Decl.field_offset;
             Str *ftype = &field->data.data.Decl.explicit_type;
-            if (field->data.data.Decl.is_own) {
+            if (DECL_IS_OWN(field->data.data.Decl)) {
                 void *src_ptr = *(void **)((char *)src->data + foff);
                 if (src_ptr && field->data.data.Decl.field_struct_def) {
                     Expr *nested = field->data.data.Decl.field_struct_def;
@@ -389,7 +392,7 @@ Value *clone_value(Value *v) {
                 }
                 continue;
             }
-            if (field->data.data.Decl.is_ref) {
+            if (DECL_IS_REF(field->data.data.Decl)) {
                 continue;
             }
             // Str fields: deep-clone the char* data pointer
@@ -903,7 +906,7 @@ static void eval_body(Scope *scope, Expr *body) {
             if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == NodeType_TAG_Ident) {
                 break;
             }
-            if (stmt->data.data.Decl.is_ref && rhs->data.tag == NodeType_TAG_Ident) {
+            if (DECL_IS_REF(stmt->data.data.Decl) && rhs->data.tag == NodeType_TAG_Ident) {
                 // Ref decl from ident: borrow the same cell (no move, no free)
                 Cell *src = scope_get(scope, &rhs->data.data.Ident);
                 scope_set_borrowed(scope, (&stmt->data.data.Decl.name), src);
@@ -927,7 +930,7 @@ static void eval_body(Scope *scope, Expr *body) {
                 // Reinterpret Value_TAG_Ptr based on declared type (ref a : I64 = ptr_add(...))
                 // Only for ref decls — own decls keep Value_TAG_Ptr (they own a buffer, not a single element)
                 // Skip narrowing for NULL pointers (null literal)
-                if (val.tag == Value_TAG_Ptr && val.data.Ptr != NULL && (stmt->data.data.Decl.explicit_type).count > 0 && stmt->data.data.Decl.is_ref) {
+                if (val.tag == Value_TAG_Ptr && val.data.Ptr != NULL && (stmt->data.data.Decl.explicit_type).count > 0 && DECL_IS_REF(stmt->data.data.Decl)) {
                     Str *etype = &stmt->data.data.Decl.explicit_type;
                     if ((etype->count == 3 && memcmp(etype->c_str, "I64", 3) == 0))
                         val = val_i64(*(I64 *)val.data.Ptr);
@@ -1052,7 +1055,7 @@ static void eval_body(Scope *scope, Expr *body) {
                         for (I32 d = depth - 1; d >= 0; d--) {
                             Expr *fd = find_field_decl(cur_sdef, &chain[d]->data.data.FieldAccess);
                             if (!fd) { base = NULL; break; }
-                            if (fd->data.data.Decl.is_own || fd->data.data.Decl.is_ref) {
+                            if (!DECL_IS_SHALLOW(fd->data.data.Decl)) {
                                 base = *(void **)((char *)base + fd->data.data.Decl.field_offset);
                             } else {
                                 base = (char *)base + fd->data.data.Decl.field_offset;
@@ -1070,9 +1073,9 @@ static void eval_body(Scope *scope, Expr *body) {
                 void *ptr = (char *)base + fdecl->data.data.Decl.field_offset;
                 // Write value directly at computed address
                 I32 fsz = fdecl->data.data.Decl.field_size;
-                if (fdecl->data.data.Decl.is_own) {
+                if (DECL_IS_OWN(fdecl->data.data.Decl)) {
                     *(void **)ptr = val.tag == Value_TAG_Struct ? val.data.Struct.data : val.data.Ptr;
-                } else if (fdecl->data.data.Decl.is_ref) {
+                } else if (DECL_IS_REF(fdecl->data.data.Decl)) {
                     if (val.tag == Value_TAG_Ptr) *(void **)ptr = val.data.Ptr;
                     else if (val.tag == Value_TAG_Struct) {
                         *(void **)ptr = val.data.Struct.data;

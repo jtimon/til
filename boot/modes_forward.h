@@ -30,7 +30,6 @@ typedef enum {
     TilType_TAG_Dynamic
 } TilType_tag;
 typedef struct TilType TilType;
-typedef struct Declaration Declaration;
 typedef enum {
     FuncType_TAG_Func,
     FuncType_TAG_Proc,
@@ -46,6 +45,7 @@ typedef enum {
     OwnType_TAG_Shallow
 } OwnType_tag;
 typedef struct OwnType OwnType;
+typedef struct Declaration Declaration;
 typedef struct Param Param;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
@@ -237,20 +237,6 @@ struct TilType {
     TilType_tag tag;
 };
 
-typedef struct Declaration {
-    Str name;
-    Str explicit_type;
-    Bool is_mut;
-    Bool is_namespace;
-    Bool is_ref;
-    Bool is_own;
-    I32 field_offset;
-    I32 field_size;
-    Expr *field_struct_def;
-    Expr *fn_sig;
-} Declaration;
-
-
 struct FuncType {
     FuncType_tag tag;
 };
@@ -258,6 +244,19 @@ struct FuncType {
 struct OwnType {
     OwnType_tag tag;
 };
+
+typedef struct Declaration {
+    Str name;
+    Str explicit_type;
+    Bool is_mut;
+    Bool is_namespace;
+    OwnType own_type;
+    I32 field_offset;
+    I32 field_size;
+    Expr *field_struct_def;
+    Expr *fn_sig;
+} Declaration;
+
 
 typedef struct Param {
     Str name;
@@ -695,11 +694,6 @@ Str * TilType_to_str(TilType * self);
 TilType * TilType_clone(TilType * self);
 U32 * TilType_size(void);
 Str * til_type_name_c(TilType * t);
-Bool * Declaration_eq(Declaration * a, Declaration * b);
-Str * Declaration_to_str(Declaration * self);
-Declaration * Declaration_clone(Declaration * self);
-void Declaration_delete(Declaration * self, Bool * call_free);
-U32 * Declaration_size(void);
 Bool * FuncType_is(FuncType * self, FuncType * other);
 Bool * FuncType_eq(FuncType * self, FuncType * other);
 void FuncType_delete(FuncType * self, Bool * call_free);
@@ -712,6 +706,11 @@ void OwnType_delete(OwnType * self, Bool * call_free);
 Str * OwnType_to_str(OwnType * self);
 OwnType * OwnType_clone(OwnType * self);
 U32 * OwnType_size(void);
+Bool * Declaration_eq(Declaration * a, Declaration * b);
+Str * Declaration_to_str(Declaration * self);
+Declaration * Declaration_clone(Declaration * self);
+void Declaration_delete(Declaration * self, Bool * call_free);
+U32 * Declaration_size(void);
 Param * Param_clone(Param * self);
 void Param_delete(Param * self, Bool * call_free);
 U32 * Param_size(void);
@@ -825,7 +824,7 @@ Expr * parse_struct_def(Parser * p);
 Expr * parse_enum_def(Parser * p);
 Expr * parse_call(Parser * p, Str * name, U32 call_line, U32 call_col);
 Expr * parse_expression(Parser * p);
-Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own);
+Expr * parse_statement_ident(Parser * p, Bool is_mut, OwnType own_type);
 Expr * parse_statement(Parser * p);
 Expr * parse(Vec * tokens, Str * path, Str * mode_out);
 Bool TypeBinding_eq(TypeBinding * a, TypeBinding * b);

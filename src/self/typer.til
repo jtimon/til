@@ -315,8 +315,8 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
         if fld_decl.is_namespace { continue }
         ai := fi.add(1).to_i64().to_i32()
         fi = fi.add(1)
-        if fld_decl.is_ref { continue }
-        if fld_decl.is_own.not() {
+        if fld_decl.own_type.eq(OwnType.Ref) { continue }
+        if fld_decl.own_type.eq(OwnType.Own).not() {
             if type_ctor_consumes(fld.til_type).not() { continue }
         }
         ref mut arg2 : Expr = e.child(ai.to_i64().to_u32())
@@ -1076,7 +1076,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             ref v : Expr = body.child(vi)
             if is_variant(v.data, NodeType.Decl) {
                 ref dd : Declaration = get_payload(v.data)
-                if dd.is_namespace.not().and(dd.explicit_type.len().gt(0)).and(dd.is_ref) {
+                if dd.is_namespace.not().and(dd.explicit_type.len().gt(0)).and(dd.own_type.eq(OwnType.Ref)) {
                     type_error(v, "ref payloads in tagged enum variants are not supported")
                 }
             }
@@ -1285,8 +1285,8 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
                 if fld_decl.name.eq(fname) {
                     expr.til_type = field.til_type
                     expr.is_ns_field = fld_decl.is_namespace
-                    expr.is_own_field = fld_decl.is_own.or(fld_decl.is_ref)
-                    expr.is_ref_field = fld_decl.is_ref
+                    expr.is_own_field = fld_decl.own_type.eq(OwnType.Shallow).not()
+                    expr.is_ref_field = fld_decl.own_type.eq(OwnType.Ref)
                     if is_variant(field.til_type, TilType.Struct).or(is_variant(field.til_type, TilType.Enum)) {
                         ref child0 : Expr = field.child(0)
                         if child0.struct_name.len().gt(0) {
@@ -1348,8 +1348,8 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                 if fld_decl.name.eq(fname) {
                     found = true
                     stmt.is_ns_field = fld_decl.is_namespace
-                    stmt.is_own_field = fld_decl.is_own.or(fld_decl.is_ref)
-                    stmt.is_ref_field = fld_decl.is_ref
+                    stmt.is_own_field = fld_decl.own_type.eq(OwnType.Shallow).not()
+                    stmt.is_ref_field = fld_decl.own_type.eq(OwnType.Ref)
                     if fld_decl.is_mut.not() {
                         type_error(stmt, "cannot assign to immutable field '".concat(fname).concat("'"))
                     }
@@ -1560,7 +1560,7 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
             type_error(val, "integer literal ".concat(get_payload(val.data)).concat(" out of range for ").concat(type_to_name(declared, "")))
         }
         val.til_type = declared
-    } else if is_variant(val.data, NodeType.LiteralNull).and(sdecl.is_ref.not()) {
+    } else if is_variant(val.data, NodeType.LiteralNull).and(sdecl.own_type.eq(OwnType.Ref).not()) {
         type_error(stmt, "null can only be assigned to 'ref' declarations")
     } else if can_implicit_usize_coerce(val.til_type, declared, sdecl.explicit_type).not()
         .and(is_variant(val.til_type, declared).not())
@@ -1598,7 +1598,7 @@ infer_decl_untyped_value := proc(mut stmt: Expr) {
 finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_body: I32) {
     ref mut sdecl : Declaration = get_payload(stmt.data)
     ref mut rhs : Expr = stmt.child(0)
-    if in_type_body.eq(0).and(sdecl.is_own) {
+    if in_type_body.eq(0).and(sdecl.own_type.eq(OwnType.Own)) {
         if sdecl.is_mut {
             type_error(stmt, "no need for 'own' on mutable local '".concat(sdecl.name).concat("'; write 'mut ").concat(sdecl.name).concat(" := ...'"))
         } else {
@@ -1634,20 +1634,20 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
             }
         }
     }
-    if sdecl.is_ref {
+    if sdecl.own_type.eq(OwnType.Ref) {
         decl_b.is_ref = true
         if expr_is_ref_decl_source(rhs, scope).not() {
             type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable")
         }
     }
-    if sdecl.is_ref.not().and(is_variant(rhs.data, NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
+    if sdecl.own_type.eq(OwnType.Ref).not().and(is_variant(rhs.data, NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
         type_error(stmt, "cannot own result of ref-returning function; use 'ref' or Type.clone()")
     }
-    if sdecl.is_ref.not().and(sdecl.is_mut.not()).and(is_variant(stmt.til_type, TilType.FuncPtr).not()).and(is_variant(rhs.data, NodeType.Ident)) {
+    if sdecl.own_type.eq(OwnType.Ref).not().and(sdecl.is_mut.not()).and(is_variant(stmt.til_type, TilType.FuncPtr).not()).and(is_variant(rhs.data, NodeType.Ident)) {
         ref rb : TypeBinding = scope.get_binding(get_payload(rhs.data))
         if is_null(rb).not() {
             if rb.is_mut.not().and(rb.is_own.not()).and(rb.is_ref.not().or(rb.is_alias)).and(rb.is_param.not()) {
-                sdecl.is_ref = true
+                sdecl.own_type = OwnType.Ref
                 decl_b.is_ref = true
                 decl_b.is_alias = true
             }
@@ -1658,7 +1658,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
             is_variant(rhs.til_type, TilType.Struct).or(is_variant(rhs.til_type, TilType.Enum))
         )
     ) {
-        if sdecl.is_ref.not() {
+        if sdecl.own_type.eq(OwnType.Ref).not() {
             tname := type_to_name(stmt.til_type, rhs.struct_name)
             if tname.len().gt(0) {
                 mc := make_clone_call(tname, stmt.til_type, rhs, stmt)
@@ -1831,7 +1831,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                     get_call.add_child(own gp_ident)
                     get_call.add_child(own sw_id2)
 
-                    mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), is_ref = true)), sw_line, sw_col, sw_path)
+                    mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), own_type = OwnType.Ref)), sw_line, sw_col, sw_path)
                     bind_decl.add_child(own get_call)
 
                     mut new_ch := Vec.new("Expr", Expr.size())
@@ -2261,7 +2261,9 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
 
     mut wbody := Expr.new(NodeType.Body, line, col, path)
 
-    mut elem_decl := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), is_ref = get_def.return_own_type.eq(OwnType.Ref))), line, col, path)
+    mut _forin_own := OwnType.Shallow
+    if get_def.return_own_type.eq(OwnType.Ref) { _forin_own = OwnType.Ref }
+    mut elem_decl := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), own_type = _forin_own)), line, col, path)
     mut col_ident_get := Expr.new(NodeType.Ident(col_name.clone()), line, col, path)
     mut idx_ident_get := Expr.new(NodeType.Ident(idx_name.clone()), line, col, path)
     elem_decl.add_child(own make_field_access_call1(col_ident_get, "get", idx_ident_get, line, col, path))
@@ -3227,7 +3229,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
                 if is_variant(field.data, NodeType.Decl) {
                     ref fd : Declaration = get_payload(field.data)
                     if fd.is_namespace.not() {
-                        is_own = fd.is_own
+                        is_own = fd.own_type.eq(OwnType.Own)
                         field_type = field.child(0).til_type
                         break
                     }
@@ -3684,8 +3686,8 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
                     ref arg : Expr = fcall.child(arg_idx)
                     if is_variant(arg.data, NodeType.Ident) {
                         ref _an : Str = get_payload(arg.data)
-                        if _an.eq(var_name).and(fld_decl.is_ref.not()) {
-                            if fld_decl.is_own.or(type_ctor_consumes(fld.til_type)) {
+                        if _an.eq(var_name).and(fld_decl.own_type.eq(OwnType.Ref).not()) {
+                            if fld_decl.own_type.eq(OwnType.Own).or(type_ctor_consumes(fld.til_type)) {
                             return true
                             }
                         }
@@ -3806,7 +3808,7 @@ alias_used_in_expr := func(body: Expr, name: Str, expr: Expr) returns shallow Bo
         ref d : Expr = body.child(k)
         if is_variant(d.data, NodeType.Decl) {
             ref dd : Declaration = get_payload(d.data)
-            if dd.is_ref.and(d.child_count().gt(0)) {
+            if dd.own_type.eq(OwnType.Ref).and(d.child_count().gt(0)) {
                 if is_variant(d.child(0).data, NodeType.Ident) {
                     ref _di : Str = get_payload(d.child(0).data)
                     if _di.eq(name) {
@@ -3895,7 +3897,7 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
             ref stmt : Expr = body.child(i)
             if is_variant(stmt.data, NodeType.Decl).not() { continue }
             ref dd : Declaration = get_payload(stmt.data)
-            if dd.is_ref.not() { continue }
+            if dd.own_type.eq(OwnType.Ref).not() { continue }
             ref rhs : Expr = stmt.child(0)
 
             mut ref_last := -1.to_i32()
@@ -4218,7 +4220,7 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns
     ref mut tb : TypeBinding = scope.get_binding(tname)
     tb.struct_name = val.struct_name.clone()
     if val_is_ref {
-        dd.is_ref = true
+        dd.own_type = OwnType.Ref
         if is_null(tb).not() { tb.is_ref = true }
     }
 
