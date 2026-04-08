@@ -216,9 +216,9 @@
   <text x="982" y="162" class="line">mut pos : USize = 0</text>
   <text x="982" y="180" class="line">mut path := &quot;&quot;</text>
   <text x="982" y="198" class="line">mut fn_sig_decls := Vec.new(&quot;Expr&quot;, Expr.size())</text>
-  <rect x="1434" y="24" width="684" height="616" rx="14" ry="14" class="panel"/>
+  <rect x="1434" y="24" width="684" height="598" rx="14" ry="14" class="panel"/>
   <text x="1454" y="62" class="panel-label">initer</text>
-  <rect x="1454" y="88" width="292" height="334" rx="10" ry="10" class="box"/>
+  <rect x="1454" y="88" width="292" height="316" rx="10" ry="10" class="box"/>
   <text x="1468" y="126" class="title">TypeBinding: StructDef</text>
   <text x="1468" y="144" class="line">ref mut name : Str = NULL</text>
   <text x="1468" y="162" class="line">mut type := TilType.Unknown</text>
@@ -227,23 +227,22 @@
   <text x="1468" y="216" class="line">mut line : U32 = 0</text>
   <text x="1468" y="234" class="line">mut col : U32 = 0</text>
   <text x="1468" y="252" class="line">mut is_param := false</text>
-  <text x="1468" y="270" class="line">mut is_own := false</text>
-  <text x="1468" y="288" class="line">mut is_ref := false</text>
-  <text x="1468" y="306" class="line">mut is_alias := false</text>
-  <text x="1468" y="324" class="line">mut is_type_alias := false</text>
-  <text x="1468" y="342" class="line">ref mut alias_target : Str = NULL</text>
-  <text x="1468" y="360" class="line">ref mut struct_def : Expr = NULL</text>
-  <text x="1468" y="378" class="line">ref mut func_def : Expr = NULL</text>
-  <text x="1468" y="396" class="line">mut is_builtin := false</text>
-  <text x="1468" y="414" class="line">mut struct_name := &quot;&quot;</text>
-  <rect x="1454" y="440" width="180" height="82" rx="10" ry="10" class="box"/>
-  <text x="1468" y="478" class="title">ScopeFind: EnumDef</text>
-  <text x="1468" y="496" class="line">NotFound</text>
-  <text x="1468" y="514" class="line">Found:TypeBinding }</text>
-  <rect x="1454" y="540" width="644" height="82" rx="10" ry="10" class="box"/>
-  <text x="1468" y="578" class="title">TypeScope: StructDef</text>
-  <text x="1468" y="596" class="line">mut bindings := Map.new(&quot;Str&quot;, Str.size(), &quot;TypeBinding&quot;, TypeBinding.size())</text>
-  <text x="1468" y="614" class="line">ref mut parent : TypeScope = NULL</text>
+  <text x="1468" y="270" class="line">mut own_type := OwnType.Shallow</text>
+  <text x="1468" y="288" class="line">mut is_alias := false</text>
+  <text x="1468" y="306" class="line">mut is_type_alias := false</text>
+  <text x="1468" y="324" class="line">ref mut alias_target : Str = NULL</text>
+  <text x="1468" y="342" class="line">ref mut struct_def : Expr = NULL</text>
+  <text x="1468" y="360" class="line">ref mut func_def : Expr = NULL</text>
+  <text x="1468" y="378" class="line">mut is_builtin := false</text>
+  <text x="1468" y="396" class="line">mut struct_name := &quot;&quot;</text>
+  <rect x="1454" y="422" width="180" height="82" rx="10" ry="10" class="box"/>
+  <text x="1468" y="460" class="title">ScopeFind: EnumDef</text>
+  <text x="1468" y="478" class="line">NotFound</text>
+  <text x="1468" y="496" class="line">Found:TypeBinding }</text>
+  <rect x="1454" y="522" width="644" height="82" rx="10" ry="10" class="box"/>
+  <text x="1468" y="560" class="title">TypeScope: StructDef</text>
+  <text x="1468" y="578" class="line">mut bindings := Map.new(&quot;Str&quot;, Str.size(), &quot;TypeBinding&quot;, TypeBinding.size())</text>
+  <text x="1468" y="596" class="line">ref mut parent : TypeScope = NULL</text>
   <rect x="2152" y="24" width="356" height="354" rx="14" ry="14" class="panel"/>
   <text x="2172" y="62" class="panel-label">typer</text>
   <rect x="2172" y="88" width="316" height="172" rx="10" ry="10" class="box"/>

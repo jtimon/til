@@ -10,8 +10,7 @@ TypeBinding := struct {
     mut line : U32 = 0
     mut col : U32 = 0
     mut is_param := false
-    mut is_own := false
-    mut is_ref := false
+    mut own_type := OwnType.Shallow
     mut is_alias := false
     mut is_type_alias := false
     ref mut alias_target : Str = NULL
@@ -108,7 +107,7 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
         else if sname.eq("FunctionDef") { is_builtin = false }
         else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
 
-        scope.set(sname, builtin_type, -1.to_i32(), false, stmt.line, stmt.col, false, false)
+        scope.set(sname, builtin_type, -1.to_i32(), false, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(sname)
         b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
@@ -234,7 +233,7 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
         }
     }
 
-    scope.set(ename, TilType.Enum, -1.to_i32(), false, stmt.line, stmt.col, false, false)
+    scope.set(ename, TilType.Enum, -1.to_i32(), false, stmt.line, stmt.col, false, OwnType.Shallow)
     ref mut b : TypeBinding = scope.get_binding(ename)
     b.struct_def = stmt.child(0)
     return 0
@@ -948,7 +947,7 @@ register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
         if is_variant(stmt.child(0).data, NodeType.FuncDef).not() { continue }
         if stmt.child(0).child_count().neq(0) { continue }
         ref sdecl : Declaration = get_payload(stmt.data)
-        scope.set(sdecl.name, TilType.FuncPtr, -1.to_i32(), false, stmt.line, stmt.col, false, false)
+        scope.set(sdecl.name, TilType.FuncPtr, -1.to_i32(), false, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
         fb.func_def = stmt.child(0)
     }
@@ -975,7 +974,7 @@ register_type_aliases := proc(program: Expr, scope: TypeScope) {
         }
         ref sdecl : Declaration = get_payload(stmt.data)
         if is_variant(scope.find(sdecl.name), ScopeFind.Found) { continue }
-        scope.set(sdecl.name, target.type, target.is_proc, false, stmt.line, stmt.col, false, false)
+        scope.set(sdecl.name, target.type, target.is_proc, false, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
         ab.struct_def = target.struct_def
         ab.func_def = target.func_def
@@ -1016,7 +1015,7 @@ register_top_level_values := proc(program: Expr, scope: TypeScope) {
         if t.eq(TilType.Unknown) { continue }
 
         ref sdecl : Declaration = get_payload(stmt.data)
-        scope.set(sdecl.name, t, -1.to_i32(), sdecl.is_mut, stmt.line, stmt.col, false, false)
+        scope.set(sdecl.name, t, -1.to_i32(), sdecl.is_mut, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(sdecl.name)
         if struct_name.len().gt(0) { b.struct_name = struct_name.clone() }
     }
@@ -1032,7 +1031,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
         ref sdecl : Declaration = get_payload(stmt.data)
 
         if def.child_count().eq(0) {
-            scope.set(sdecl.name, TilType.FuncPtr, -1.to_i32(), false, stmt.line, stmt.col, false, false)
+            scope.set(sdecl.name, TilType.FuncPtr, -1.to_i32(), false, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
             continue
@@ -1086,7 +1085,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
             rt = type_from_name_init(fdef.return_type, scope)
         }
 
-        scope.set(sdecl.name, rt, callee_is_proc, false, stmt.line, stmt.col, false, false)
+        scope.set(sdecl.name, rt, callee_is_proc, false, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
         fb.func_def = stmt.child(0)
         if ft.eq(FuncType.ExtFunc).or(ft.eq(FuncType.ExtProc)) {
@@ -1846,7 +1845,7 @@ TypeScope := struct {
     set := proc(mut self: TypeScope, name: Str, type: TilType,
                 shallow is_proc: I32, shallow is_mut: Bool,
                 shallow line: U32, shallow col: U32,
-                shallow is_param: Bool, shallow is_own: Bool) {
+                shallow is_param: Bool, shallow own_type: OwnType) {
         if self.bindings.has(name) {
             ref mut b : TypeBinding = self.bindings.get(name)
             b.type = type
@@ -1855,13 +1854,13 @@ TypeScope := struct {
             b.line = line
             b.col = col
             b.is_param = is_param
-            b.is_own = is_own
+            b.own_type = own_type
             return
         }
         nb := TypeBinding(name = name.clone(), type = type,
                           is_proc = is_proc, is_mut = is_mut,
                           line = line, col = col,
-                          is_param = is_param, is_own = is_own)
+                          is_param = is_param, own_type = own_type)
         self.bindings.set(own name.clone(), own nb)
     }
 }

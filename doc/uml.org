@@ -194,8 +194,7 @@
 *** mut line : U32 = 0
 *** mut col : U32 = 0
 *** mut is_param := false
-*** mut is_own := false
-*** mut is_ref := false
+*** mut own_type := OwnType.Shallow
 *** mut is_alias := false
 *** mut is_type_alias := false
 *** ref mut alias_target : Str = NULL

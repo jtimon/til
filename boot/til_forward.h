@@ -341,8 +341,7 @@ typedef struct TypeBinding {
     U32 line;
     U32 col;
     Bool is_param;
-    Bool is_own;
-    Bool is_ref;
+    OwnType own_type;
     Bool is_alias;
     Bool is_type_alias;
     Str *alias_target;
@@ -875,7 +874,7 @@ TilType * TypeScope_get_type(TypeScope * self, Str * name);
 I32 TypeScope_is_proc(TypeScope * self, Str * name);
 Expr * TypeScope_get_struct(TypeScope * self, Str * name);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
-void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own);
+void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, OwnType own_type);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U32 * TypeScope_size(void);

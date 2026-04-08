@@ -181,7 +181,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
                 sf_ab := scope.find(get_payload(arg.data))
                 if is_variant(sf_ab, ScopeFind.Found) {
                     ref ab : TypeBinding = get_payload(sf_ab)
-                    if ab.is_ref {
+                    if ab.own_type.eq(OwnType.Ref) {
                         type_error(arg, "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy")
                     }
                 }
@@ -938,7 +938,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                         sf_ab := scope.find(get_payload(arg.data))
                         if is_variant(sf_ab, ScopeFind.Found) {
                             ref ab : TypeBinding = get_payload(sf_ab)
-                            if ab.is_ref {
+                            if ab.own_type.eq(OwnType.Ref) {
                                 type_error(arg, "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy")
                             }
                         }
@@ -1181,16 +1181,16 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         }
         if i.to_i64().to_i32().eq(fdef.variadic_index) {
             param.own_type = OwnType.Own
-            func_scope.set(param.name, TilType.Struct, -1.to_i32(), false, expr.line, expr.col, true, true)
+            func_scope.set(param.name, TilType.Struct, -1.to_i32(), false, expr.line, expr.col, true, OwnType.Own)
             ref mut pb : TypeBinding = func_scope.get_binding(param.name)
             pb.struct_name = "Array"
         } else if i.to_i64().to_i32().eq(fdef.kwargs_index) {
             param.own_type = OwnType.Own
-            func_scope.set(param.name, TilType.Struct, -1.to_i32(), false, expr.line, expr.col, true, true)
+            func_scope.set(param.name, TilType.Struct, -1.to_i32(), false, expr.line, expr.col, true, OwnType.Own)
             ref mut pb : TypeBinding = func_scope.get_binding(param.name)
             pb.struct_name = "DynMap"
         } else {
-            func_scope.set(param.name, pt, -1.to_i32(), pmut, expr.line, expr.col, true, pown)
+            func_scope.set(param.name, pt, -1.to_i32(), pmut, expr.line, expr.col, true, param.own_type)
             ref mut pb : TypeBinding = func_scope.get_binding(param.name)
             if is_variant(pt, TilType.Struct).or(is_variant(pt, TilType.Enum)) {
                 pb.struct_name = ptn.clone()
@@ -1228,7 +1228,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
             sf := scope.find(get_payload(stmt.child(0).data))
             if is_variant(sf, ScopeFind.Found) {
                 ref b : TypeBinding = get_payload(sf)
-                if b.is_ref.and(b.is_alias.not()).and(b.is_param.not()) {
+                if b.own_type.eq(OwnType.Ref).and(b.is_alias.not()).and(b.is_param.not()) {
                     type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'")
                 }
             }
@@ -1237,7 +1237,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
             sf := scope.find(get_payload(stmt.child(0).data))
             if is_variant(sf, ScopeFind.Found) {
                 ref b : TypeBinding = get_payload(sf)
-                if b.is_ref.and(b.is_alias).or(b.is_param.and(b.is_own.not())) {
+                if b.own_type.eq(OwnType.Ref).and(b.is_alias).or(b.is_param.and(b.own_type.eq(OwnType.Own).not())) {
                     tname := type_to_name(stmt.til_type, stmt.child(0).struct_name)
                     if tname.len().gt(0) {
                         mc := make_clone_call(tname, stmt.til_type, stmt.child(0), stmt)
@@ -1500,7 +1500,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
     else if sname.eq("EnumDef") { builtin_type = TilType.EnumDef; is_builtin = true }
     else if sname.eq("FunctionDef") { is_builtin = false }
     else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
-    scope.set(sname, builtin_type, -1.to_i32(), false, stmt.line, stmt.col, false, false)
+    scope.set(sname, builtin_type, -1.to_i32(), false, stmt.line, stmt.col, false, OwnType.Shallow)
     ref mut b : TypeBinding = scope.get_binding(sname)
     b.struct_def = stmt.child(0)
     b.is_builtin = is_builtin
@@ -1525,7 +1525,7 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
         rt = type_from_name(fdef.return_type, scope)
     }
     stmt.til_type = rt
-    scope.set(sdecl.name, rt, callee_is_proc, false, stmt.line, stmt.col, false, false)
+    scope.set(sdecl.name, rt, callee_is_proc, false, stmt.line, stmt.col, false, OwnType.Shallow)
     ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
     fb.func_def = stmt.child(0)
     if is_variant(fdef.func_type, FuncType.ExtFunc).or(is_variant(fdef.func_type, FuncType.ExtProc)) {
@@ -1603,7 +1603,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
             type_error(stmt, "no need for 'own' on local '".concat(sdecl.name).concat("'; locals are owned by default"))
         }
     }
-    scope.set(sdecl.name, stmt.til_type, -1.to_i32(), sdecl.is_mut, stmt.line, stmt.col, false, false)
+    scope.set(sdecl.name, stmt.til_type, -1.to_i32(), sdecl.is_mut, stmt.line, stmt.col, false, OwnType.Shallow)
     ref mut decl_b : TypeBinding = scope.get_binding(sdecl.name)
     if is_variant(stmt.til_type, TilType.Struct).or(is_variant(stmt.til_type, TilType.Enum)) {
         if rhs.struct_name.len().gt(0) { decl_b.struct_name = rhs.struct_name.clone() }
@@ -1633,7 +1633,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
         }
     }
     if sdecl.own_type.eq(OwnType.Ref) {
-        decl_b.is_ref = true
+        decl_b.own_type = OwnType.Ref
         if expr_is_ref_decl_source(rhs, scope).not() {
             type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable")
         }
@@ -1644,9 +1644,9 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
     if sdecl.own_type.eq(OwnType.Ref).not().and(sdecl.is_mut.not()).and(is_variant(stmt.til_type, TilType.FuncPtr).not()).and(is_variant(rhs.data, NodeType.Ident)) {
         ref rb : TypeBinding = scope.get_binding(get_payload(rhs.data))
         if is_null(rb).not() {
-            if rb.is_mut.not().and(rb.is_own.not()).and(rb.is_ref.not().or(rb.is_alias)).and(rb.is_param.not()) {
+            if rb.is_mut.not().and(rb.own_type.eq(OwnType.Own).not()).and(rb.own_type.eq(OwnType.Ref).not().or(rb.is_alias)).and(rb.is_param.not()) {
                 sdecl.own_type = OwnType.Ref
-                decl_b.is_ref = true
+                decl_b.own_type = OwnType.Ref
                 decl_b.is_alias = true
             }
         }
@@ -2953,7 +2953,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     decl.til_type = TilType.Struct
     decl.add_child(own new_call)
 
-    scope.set(var_name, TilType.Struct, -1.to_i32(), true, stmt.line, stmt.col, false, false)
+    scope.set(var_name, TilType.Struct, -1.to_i32(), true, stmt.line, stmt.col, false, OwnType.Shallow)
     ref mut vb : TypeBinding = scope.get_binding(var_name)
     vb.struct_name = "Set"
 
@@ -3046,7 +3046,7 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     decl.til_type = TilType.Struct
     decl.add_child(own new_call)
 
-    scope.set(var_name, TilType.Struct, -1.to_i32(), true, stmt.line, stmt.col, false, false)
+    scope.set(var_name, TilType.Struct, -1.to_i32(), true, stmt.line, stmt.col, false, OwnType.Shallow)
     ref mut vb : TypeBinding = scope.get_binding(var_name)
     vb.struct_name = "Map"
 
@@ -3465,7 +3465,7 @@ desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
         _va_counter.inc()
         mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
 
-        scope.set(va_name, TilType.Struct, -1.to_i32(), false, line, col, false, false)
+        scope.set(va_name, TilType.Struct, -1.to_i32(), false, line, col, false, OwnType.Shallow)
         ref vab : TypeBinding = scope.get_binding(va_name)
         vab.struct_name = "Array"
 
@@ -3582,7 +3582,7 @@ desugar_kwargs_calls := proc(mut body: Expr, mut scope: TypeScope) {
 
         kw_decl := build_kwargs_dynmap_decl(fcall, kw_name)
 
-        scope.set(kw_name, TilType.Struct, -1.to_i32(), false, fcall.line, fcall.col, false, false)
+        scope.set(kw_name, TilType.Struct, -1.to_i32(), false, fcall.line, fcall.col, false, OwnType.Shallow)
         ref mut kwb : TypeBinding = scope.get_binding(kw_name)
         kwb.struct_name = "DynMap"
 
@@ -3754,7 +3754,7 @@ expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
         sf := scope.find(id)
         if is_variant(sf, ScopeFind.Found) {
             ref b : TypeBinding = get_payload(sf)
-            if b.is_ref.or(b.is_param) { return true }
+            if b.own_type.eq(OwnType.Ref).or(b.is_param) { return true }
         }
     }
     if is_variant(e.data, NodeType.FieldAccess) {
@@ -3822,7 +3822,7 @@ alias_used_in_expr := func(body: Expr, name: Str, expr: Expr) returns shallow Bo
 collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
     for i in 0..scope.bindings.count {
         ref b : TypeBinding = ptr_add(scope.bindings.val_data, i.mul(scope.bindings.val_size))
-        if b.is_param.and(b.is_own.not()) { continue }
+        if b.is_param.and(b.own_type.eq(OwnType.Own).not()) { continue }
         if is_null(b.struct_def).not() { continue }
         if is_null(b.func_def).not() { continue }
 
@@ -3873,7 +3873,7 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
                 }
             }
         }
-        if b.is_ref { skip_scope_delete = true }
+        if b.own_type.eq(OwnType.Ref) { skip_scope_delete = true }
 
         mut li := LocalInfo()
         li.name = b.name
@@ -4214,12 +4214,12 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns
     }
     ident.is_own_arg = val.is_own_arg
 
-    scope.set(tname, val.til_type, -1.to_i32(), false, val.line, val.col, false, false)
+    scope.set(tname, val.til_type, -1.to_i32(), false, val.line, val.col, false, OwnType.Shallow)
     ref mut tb : TypeBinding = scope.get_binding(tname)
     tb.struct_name = val.struct_name.clone()
     if val_is_ref {
         dd.own_type = OwnType.Ref
-        if is_null(tb).not() { tb.is_ref = true }
+        if is_null(tb).not() { tb.own_type = OwnType.Ref }
     }
 
     hoisted.push(own decl)
