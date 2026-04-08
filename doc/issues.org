@@ -5,11 +5,6 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
-** OPEN #134 Re-enable precomp constant-folding for compound types
-  precomp skips constant-folding for funcs returning Struct/Enum/Dynamic/Unknown
-  because clone_value crashes on struct Values with stale struct_def pointers.
-  Fix clone_value to handle compound types reliably, then remove the guard
-  in try_eval_call (precomp.c).
 ** OPEN #133 FuncSig types not emitted as C function-pointer typedefs
   A FuncSig type definition like ~DispatchFn := func(Scope, Expr, Value) returns shallow Bool~
   generates a forward declaration ~Bool DispatchFn(Scope *, Expr *, Value *);~ in the .c file
@@ -1122,6 +1117,11 @@
   interpreted, til compiled — all must produce identical results.
 
 * [0/20] Post
+** OPEN #134 Re-enable precomp constant-folding for compound types
+  precomp skips constant-folding for funcs returning Struct/Enum/Dynamic/Unknown
+  because clone_value crashes on struct Values with stale struct_def pointers.
+  Fix clone_value to handle compound types reliably, then remove the guard
+  in try_eval_call (precomp.c).
 ** OPEN #123 `bin/til ast` double-free in AST printing path
   Low priority follow-up, separate from the current ~#39~ ~typer.c~
   migration work.
