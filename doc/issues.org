@@ -510,36 +510,6 @@
     - ~#123~ ~bin/til ast~ currently hits a double-free in the
       generated ~ast_print -> print(Array) -> Array_delete~ path
 
-** OPEN #102 Auto-generate eq and to_str for structs
-  Structs only auto-generate ~clone~, ~delete~, ~size~. Enums get
-  ~eq~, ~to_str~, ~clone~, ~delete~. But enum payloads require
-  their type to have ~eq~ and ~to_str~, which forces manual stubs
-  on every struct used as an enum payload.
-
-  Auto-generate for structs (if not already defined):
-  - ~eq~: field-by-field comparison (all non-namespace fields)
-  - ~to_str~: struct name + field values
-
-  This would eliminate the need for manual ~eq~/~to_str~ stubs on
-  TypeBinding, StructInstance, EnumInstance, etc.
-
-** OPEN #101 Deterministic temp variable names in generated C
-  :DEPENDENCY_OF: #77
-  The builder/typer generates temp variable names (e.g. ~_t4253~,
-  ~_rc4617~, ~_wcond4618~) using counters that depend on processing
-  order or memory layout, making the output non-deterministic.
-  Two identical ~til build~ runs on the same source can produce
-  different C files (same logic, different temp names).
-
-  This blocks #77: ~til build src/til.til~ must be idempotent --
-  the self-built binary must produce identical output to the
-  bootstrap binary. Without deterministic names, we can't diff
-  generated C to verify correctness.
-
-  Fix: ensure temp variable counters are reset or seeded
-  deterministically per translation unit, so the same input
-  always produces the same output.
-
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via
   ~dyn_call~, which does a linear scan of if/memcmp chains every time.
@@ -1287,6 +1257,36 @@
 
   Depends conceptually on ~#10~, but the syntax/storage side can be designed
   and implemented before the REPL command itself.
+
+** OPEN #102 Auto-generate eq and to_str for structs
+  Structs only auto-generate ~clone~, ~delete~, ~size~. Enums get
+  ~eq~, ~to_str~, ~clone~, ~delete~. But enum payloads require
+  their type to have ~eq~ and ~to_str~, which forces manual stubs
+  on every struct used as an enum payload.
+
+  Auto-generate for structs (if not already defined):
+  - ~eq~: field-by-field comparison (all non-namespace fields)
+  - ~to_str~: struct name + field values
+
+  This would eliminate the need for manual ~eq~/~to_str~ stubs on
+  TypeBinding, StructInstance, EnumInstance, etc.
+
+** OPEN #101 Deterministic temp variable names in generated C
+  :DEPENDENCY_OF: #77
+  The builder/typer generates temp variable names (e.g. ~_t4253~,
+  ~_rc4617~, ~_wcond4618~) using counters that depend on processing
+  order or memory layout, making the output non-deterministic.
+  Two identical ~til build~ runs on the same source can produce
+  different C files (same logic, different temp names).
+
+  This blocks #77: ~til build src/til.til~ must be idempotent --
+  the self-built binary must produce identical output to the
+  bootstrap binary. Without deterministic names, we can't diff
+  generated C to verify correctness.
+
+  Fix: ensure temp variable counters are reset or seeded
+  deterministically per translation unit, so the same input
+  always produces the same output.
 
 ** OPEN #97 Negative identifier expressions: -MY_CONST, -x
   Parser only supports negative literals (~-42~), not negative
