@@ -1024,12 +1024,7 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-* [0/20] Post
-** OPEN #134 Re-enable precomp constant-folding for compound types
-  precomp skips constant-folding for funcs returning Struct/Enum/Dynamic/Unknown
-  because clone_value crashes on struct Values with stale struct_def pointers.
-  Fix clone_value to handle compound types reliably, then remove the guard
-  in try_eval_call (precomp.c).
+* [0/19] Post
 ** OPEN #131 `mode` syntax: keyword vs special identifier/directive
   The language currently treats ~mode~ as a dedicated keyword/token, even
   though it is only meaningful in the file-header position.

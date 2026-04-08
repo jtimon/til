@@ -1,5 +1,10 @@
 # Cancelled issues -- no longer relevant.
 
+** CANCELLED #134 Re-enable precomp constant-folding for compound types
+  Moot: removing the guard in try_eval_call (precomp.c) no longer crashes.
+  All 88 tests pass without it -- the underlying clone_value issue was
+  fixed by other changes.
+
 ** CANCELLED #103 Typer: allow ref mut on enum get_* methods
   Moot after #105: all ~get_X()~ methods replaced by generic
   ~get_payload()~ ext_func, which is already recognized as

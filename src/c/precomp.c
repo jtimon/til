@@ -11,12 +11,6 @@ Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     Cell *fn_cell = scope_get(scope, callee_name);
     if (fn_cell && fn_cell->val.tag == Value_TAG_Func && ((Expr*)fn_cell->val.data.Func)->data.tag == NodeType_TAG_FuncDef) {
         Expr *fdef = (Expr*)fn_cell->val.data.Func;
-        // Skip functions returning compound types -- clone_value can't handle
-        // struct Values reliably during precomp (struct_def may be stale)
-        if (fcall->til_type.tag == TilType_TAG_Struct || fcall->til_type.tag == TilType_TAG_Enum ||
-            fcall->til_type.tag == TilType_TAG_Dynamic || fcall->til_type.tag == TilType_TAG_Unknown) {
-            if (!require_known) return NULL;
-        }
         if (fdef->children.count > 0 && func_uses_unknown_globals(Expr_child(fdef, &(USize){(USize)(0)}), fdef, scope)) {
             return NULL;
         }
