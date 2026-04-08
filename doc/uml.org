@@ -299,5 +299,5 @@
 *** mut run_tests := false
 *** mut debug_prints := false
 ** Context: StructDef
-*** mut mode_ := Mode()
+*** mut mode := Mode()
 *** mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())

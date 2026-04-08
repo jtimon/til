@@ -358,6 +358,6 @@
   <text x="4254" y="252" class="line">mut debug_prints := false</text>
   <rect x="4240" y="278" width="548" height="82" rx="10" ry="10" class="box"/>
   <text x="4254" y="316" class="title">Context: StructDef</text>
-  <text x="4254" y="334" class="line">mut mode_ := Mode()</text>
+  <text x="4254" y="334" class="line">mut mode := Mode()</text>
   <text x="4254" y="352" class="line">mut path_modes := Map.new(&quot;Str&quot;, Str.size(), &quot;Mode&quot;, Mode.size())</text>
 </svg>

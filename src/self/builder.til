@@ -224,7 +224,7 @@ fcall_returns_dynamic := func(fcall: Expr) returns shallow Bool {
     return false
 }
 
-build := ext_func(program: Expr, m: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
+build := ext_func(program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 build_header := ext_func(program: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
 build_forward_header := ext_func(program: Expr, fwd_path: Str) returns shallow I32 {}

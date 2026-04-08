@@ -19,24 +19,24 @@ Mode := struct {
 }
 
 Context := struct {
-    mut mode_ := Mode()
+    mut mode := Mode()
     mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
 }
 
 context_mode := func(ctx: Context) returns ref Mode {
-    return ctx.mode_
+    return ctx.mode
 }
 
-context_register_path_mode := proc(mut ctx: Context, path: Str, mode_: Mode) {
-    ctx.path_modes.set(own path.clone(), own mode_.clone())
+context_register_path_mode := proc(mut ctx: Context, path: Str, mode: Mode) {
+    ctx.path_modes.set(own path.clone(), own mode.clone())
 }
 
 context_set_mode_from_path := proc(mut ctx: Context, path: Str) {
     if ctx.path_modes.has(path).not() {
         panic(__LOC__, "missing mode for path '", path, "'")
     }
-    ref mode_ : Mode = ctx.path_modes.get(path)
-    ctx.mode_ = mode_.clone()
+    ref path_mode : Mode = ctx.path_modes.get(path)
+    ctx.mode = path_mode.clone()
 }
 
 // Core mode registry — user-defined modes (#63) will add to this via -M flag

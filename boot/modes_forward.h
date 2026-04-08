@@ -592,7 +592,7 @@ typedef struct Scope {
 
 
 typedef struct Context {
-    Mode mode_;
+    Mode mode;
     Map path_modes;
 } Context;
 
@@ -1034,7 +1034,7 @@ void push_qn(Vec * v, Str * type_name, Str * method);
 void push_builtin_methods(Vec * v, Str * builtin_name, Str * m1, Str * m2, Str * m3);
 void collect_refs(Expr * e, Vec * refs);
 Expr * find_ns_method(Expr * program, Map * top, Str * name);
-void scavenge(Expr * program, Mode * m, Bool run_tests);
+void scavenge(Expr * program, Mode * mode, Bool run_tests);
 Bool StructInstance_eq(StructInstance * a, StructInstance * b);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);
@@ -1129,7 +1129,7 @@ Bool callee_param_is_usize(Str * callee_name, U32 arg_index);
 Bool callee_param_is_own(Str * callee_name, U32 arg_index);
 Bool fcall_is_shallow_return(Expr * fcall);
 Bool fcall_returns_dynamic(Expr * fcall);
-I32 build(Expr * program, Mode * m, Bool run_tests, Str * path, Str * c_output_path);
+I32 build(Expr * program, Mode * mode, Bool run_tests, Str * path, Str * c_output_path);
 I32 build_header(Expr * program, Str * h_path);
 I32 build_til_binding(Expr * program, Str * til_path, Str * lib_name);
 I32 build_forward_header(Expr * program, Str * fwd_path);
@@ -1210,7 +1210,7 @@ Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool * call_free);
 U32 * Context_size(void);
 Mode * context_mode(Context * ctx);
-void context_register_path_mode(Context * ctx, Str * path, Mode * mode_);
+void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 Mode * mode_resolve(Str * name);
 Bool * TokenType_eq(TokenType *, TokenType *);

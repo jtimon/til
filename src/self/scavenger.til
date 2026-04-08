@@ -163,10 +163,10 @@ find_ns_method := func(program: Expr, top: Map, name: Str) returns ref Expr {
     return NULL
 }
 
-scavenge := proc(mut program: Expr, m: Mode, shallow run_tests: Bool) {
+scavenge := proc(mut program: Expr, mode: Mode, shallow run_tests: Bool) {
     mut is_cli := false
-    if is_null(m).not() {
-        if m.needs_main {
+    if is_null(mode).not() {
+        if mode.needs_main {
             if run_tests.not() {
                 is_cli = true
             }

@@ -38,9 +38,9 @@ tokenize := ext_func(source: Str, path: Str) returns Vec {}
 // Pipeline
 type_check := ext_func(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {}
 precomp := ext_proc(program: Expr) {}
-scavenge := ext_proc(program: Expr, m: Mode, shallow run_tests: Bool) {}
-interpret := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32 {}
-build := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
+scavenge := ext_proc(program: Expr, mode: Mode, shallow run_tests: Bool) {}
+interpret := ext_func(ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32 {}
+build := ext_func(ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
 build_header := ext_func(ast: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(ast: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
 compile_c := ext_func(c_path: Str, bin_path: Str, ext_c: Str, user_c: Str, lflags: Str, iflags: Str) returns shallow I32 {}
@@ -68,11 +68,11 @@ normalize_mode_name := func(mode_name: Str) returns Str {
 }
 
 require_mode := func(path: Str, mode_name: Str) returns ref Mode {
-    ref mode_ : Mode = mode_resolve(mode_name)
-    if is_null(mode_) {
+    ref resolved : Mode = mode_resolve(mode_name)
+    if is_null(resolved) {
         panic(__LOC__, path, ": unknown mode '", mode_name, "'")
     }
-    return mode_
+    return resolved
 }
 
 forward_header_path := func(path: Str) returns Str {
@@ -323,7 +323,7 @@ main := proc(args: ..Str) {
     mode_str = normalize_mode_name(mode_str)
     ref mut cur_mode : Mode = require_mode(path, mode_str)
     context_register_path_mode(ctx, path, cur_mode)
-    ctx.mode_ = cur_mode.clone()
+    ctx.mode = cur_mode.clone()
 
     // If mode has auto_import, load its .til declarations
     auto_import := cur_mode.auto_import
