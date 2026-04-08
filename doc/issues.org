@@ -545,11 +545,6 @@
   deterministically per translation unit, so the same input
   always produces the same output.
 
-** OPEN #97 Negative identifier expressions: -MY_CONST, -x
-  Parser only supports negative literals (~-42~), not negative
-  identifiers (~-AB_INF~, ~-x~). Workaround: ~0.sub(AB_INF)~.
-  Parser is fully in til now (parser.til), should be easy to fix.
-
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via
   ~dyn_call~, which does a linear scan of if/memcmp chains every time.
@@ -1292,6 +1287,11 @@
 
   Depends conceptually on ~#10~, but the syntax/storage side can be designed
   and implemented before the REPL command itself.
+
+** OPEN #97 Negative identifier expressions: -MY_CONST, -x
+  Parser only supports negative literals (~-42~), not negative
+  identifiers (~-AB_INF~, ~-x~). Workaround: ~0.sub(AB_INF)~.
+  Parser is fully in til now (parser.til), should be easy to fix.
 
 ** OPEN #94 Generic Range: support any type with inc/dec
   :DEPENDENCIES: #91, #100
