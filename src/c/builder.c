@@ -2876,12 +2876,9 @@ static void emit_header_defs_and_funcs(File *f, Expr *core_program, Expr *progra
     }
     }}
 
-    // Enum auto-helper forward declarations (eq, constructors, is_Variant, get_Variant)
-    { Expr *_progs_eah[2] = { core_program, program };
-    for (int _peah = 0; _peah < 2; _peah++) {
-        if (!_progs_eah[_peah]) continue;
-    for (U32 i = 0; i < _progs_eah[_peah]->children.count; i++) {
-        Expr *stmt = Expr_child(_progs_eah[_peah], &(USize){(USize)(i)});
+    // Enum auto-helper forward declarations (user only)
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
@@ -2907,7 +2904,6 @@ static void emit_header_defs_and_funcs(File *f, Expr *core_program, Expr *progra
             }
         }
     }
-    }}
     EMIT(f, "\n");
 }
 
