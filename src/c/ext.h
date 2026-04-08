@@ -231,6 +231,7 @@ I64 file_mtime(Str *path);
 I64 clock_ms(void);
 I64 get_thread_count(void);
 U64 peak_rss_bytes(void);
+U64 current_rss_bytes(I64 pid);
 USize c_str_len(U8 *s);
 
 // File handle I/O

@@ -43,6 +43,27 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     return count
 }
 
+PhaseResult := struct {
+    mut status := -1
+    mut ms := 0
+    mut mem := 0
+}
+
+run_phase := proc(cmd: Str) returns PhaseResult {
+    start := clock_ms()
+    pid := spawn_cmd(cmd)
+    mut mem := 0
+    while true {
+        rss := current_rss_bytes(pid).to_i64()
+        if rss.gt(mem) { mem = rss }
+        status := check_cmd_status(pid)
+        if status.neq(-1) {
+            return PhaseResult(status = status, ms = clock_ms().sub(start), mem = mem)
+        }
+        sleep_ms(10)
+    }
+}
+
 main := proc(args: ..Str) {
     if args.len().lt(1) {
         println("Usage: test_runner <mode|single|count> ...")
@@ -75,19 +96,21 @@ main := proc(args: ..Str) {
 
         mut interp_ms := 0
         mut interp_ok := 0
+        mut interp_mem := 0
         mut compile_ms := 0
         mut compile_ok := 0
+        mut compile_mem := 0
         mut run_ms := 0
         mut run_ok := 0
+        mut run_mem := 0
         mut fail := 0
 
         if en_interp.eq(1) {
-            start := clock_ms()
             cmd := TIL.concat(" interpret '").concat(file).concat("' > ").concat(interp_outfile).concat(" 2>/dev/null")
-            pid := spawn_cmd(cmd)
-            status := wait_cmd(pid)
-            interp_ms = clock_ms().sub(start)
-            if status.eq(0) {
+            phase := run_phase(cmd)
+            interp_ms = phase.ms
+            interp_mem = phase.mem
+            if phase.status.eq(0) {
                 interp_ok = 1
             } else {
                 println("FAIL (interp): ", file)
@@ -97,20 +120,18 @@ main := proc(args: ..Str) {
 
         if en_run.eq(1) {
             // Compile
-            start := clock_ms()
             build_cmd := TIL.concat(" build -o ").concat(bin_path).concat(" '").concat(file).concat("' 2>/dev/null")
-            pid := spawn_cmd(build_cmd)
-            status := wait_cmd(pid)
-            compile_ms = clock_ms().sub(start)
-            if status.eq(0) {
+            phase := run_phase(build_cmd)
+            compile_ms = phase.ms
+            compile_mem = phase.mem
+            if phase.status.eq(0) {
                 compile_ok = 1
                 // Run the compiled binary
-                run_start := clock_ms()
                 run_cmd := bin_path.concat(" > ").concat(run_outfile).concat(" 2>/dev/null")
-                run_pid := spawn_cmd(run_cmd)
-                run_status := wait_cmd(run_pid)
-                run_ms = clock_ms().sub(run_start)
-                if run_status.eq(0) {
+                run_phase_result := run_phase(run_cmd)
+                run_ms = run_phase_result.ms
+                run_mem = run_phase_result.mem
+                if run_phase_result.status.eq(0) {
                     run_ok = 1
                 } else {
                     println("FAIL (run): ", file)
@@ -152,8 +173,11 @@ main := proc(args: ..Str) {
 
         println("RESULT ok=", mode_ok.to_str(), " ms=", total_ms.to_str(),
                 " interp_ms=", interp_ms.to_str(), " interp_ok=", interp_ok.to_str(),
+                " interp_mem=", interp_mem.to_str(),
                 " compile_ms=", compile_ms.to_str(), " compile_ok=", compile_ok.to_str(),
+                " compile_mem=", compile_mem.to_str(),
                 " run_ms=", run_ms.to_str(), " run_ok=", run_ok.to_str(),
+                " run_mem=", run_mem.to_str(),
                 " match=", out_match.to_str())
 
         exit(fail)
@@ -204,9 +228,10 @@ main := proc(args: ..Str) {
         outfile := "gen/out/single/".concat(label).concat(".out")
 
         start := clock_ms()
-        pid := spawn_cmd(cmd.concat(" > ").concat(outfile).concat(" 2>&1"))
-        status := wait_cmd(pid)
-        ms := clock_ms().sub(start)
+        phase := run_phase(cmd.concat(" > ").concat(outfile).concat(" 2>&1"))
+        status := phase.status
+        ms := phase.ms
+        mem := phase.mem
 
         mut ok := 1
         if status.neq(expected_exit) {
@@ -223,7 +248,7 @@ main := proc(args: ..Str) {
             }
         }
 
-        println("RESULT ms=", ms.to_str(), " ok=", ok.to_str())
+        println("RESULT ms=", ms.to_str(), " mem=", mem.to_str(), " ok=", ok.to_str())
         if ok.eq(1) { exit(0) } else { exit(1) }
     }
 
@@ -263,10 +288,10 @@ main := proc(args: ..Str) {
 
         outfile := "gen/out/single/".concat(label).concat(".out")
 
-        start := clock_ms()
-        pid := spawn_cmd(cmd.concat(" > ").concat(outfile).concat(" 2>&1"))
-        status := wait_cmd(pid)
-        ms := clock_ms().sub(start)
+        phase := run_phase(cmd.concat(" > ").concat(outfile).concat(" 2>&1"))
+        status := phase.status
+        ms := phase.ms
+        mem := phase.mem
 
         actual_out := readfile(outfile)
         actual_count := count_matches(actual_out, needle)
@@ -277,7 +302,7 @@ main := proc(args: ..Str) {
             ok = 0
         }
 
-        println("RESULT ms=", ms.to_str(), " ok=", ok.to_str(), " count=", actual_count.to_str())
+        println("RESULT ms=", ms.to_str(), " mem=", mem.to_str(), " ok=", ok.to_str(), " count=", actual_count.to_str())
         if ok.eq(1) { exit(0) } else { exit(1) }
     }
 

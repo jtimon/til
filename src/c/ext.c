@@ -506,6 +506,54 @@ U64 peak_rss_bytes(void) {
 #endif
 }
 
+static U64 proc_rss_bytes(pid_t pid) {
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%lld/statm", (long long)pid);
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    unsigned long long total_pages = 0;
+    unsigned long long resident_pages = 0;
+    int scanned = fscanf(f, "%llu %llu", &total_pages, &resident_pages);
+    fclose(f);
+    if (scanned != 2) return 0;
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size <= 0) page_size = 4096;
+    return (U64)resident_pages * (U64)page_size;
+}
+
+static U64 proc_tree_rss_bytes(pid_t pid) {
+    U64 total = proc_rss_bytes(pid);
+    char path[96];
+    snprintf(path, sizeof(path), "/proc/%lld/task/%lld/children",
+             (long long)pid, (long long)pid);
+    FILE *f = fopen(path, "rb");
+    if (!f) return total;
+    char buf[4096];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    char *p = buf;
+    while (*p) {
+        while (*p == ' ' || *p == '\n' || *p == '\t') p++;
+        if (!*p) break;
+        char *end = p;
+        long long child = strtoll(p, &end, 10);
+        if (end == p) break;
+        if (child > 0) total += proc_tree_rss_bytes((pid_t)child);
+        p = end;
+    }
+    return total;
+}
+
+U64 current_rss_bytes(I64 pid) {
+#if defined(__linux__)
+    return proc_tree_rss_bytes((pid_t)pid);
+#else
+    (void)pid;
+    return 0;
+#endif
+}
+
 // --- Utility functions (for til.til ext_func calls) ---
 
 Str *til_bin_dir(void) {

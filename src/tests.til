@@ -88,16 +88,22 @@ mode_flags := func(en_interp: I64, en_run: I64) returns Str {
 ModeData := struct {
     mut interp_ms := 0
     mut interp_ok := 0
+    mut interp_mem := 0
     mut compile_ms := 0
     mut compile_ok := 0
+    mut compile_mem := 0
     mut run_ms := 0
     mut run_ok := 0
+    mut run_mem := 0
     mut output_match := 1
     namespace:
     eq := func(a: ModeData, b: ModeData) returns Bool {
         return a.interp_ms.eq(b.interp_ms).and(a.interp_ok.eq(b.interp_ok))
+            .and(a.interp_mem.eq(b.interp_mem))
             .and(a.compile_ms.eq(b.compile_ms)).and(a.compile_ok.eq(b.compile_ok))
+            .and(a.compile_mem.eq(b.compile_mem))
             .and(a.run_ms.eq(b.run_ms)).and(a.run_ok.eq(b.run_ok))
+            .and(a.run_mem.eq(b.run_mem))
             .and(a.output_match.eq(b.output_match))
     }
     to_str := func(self: ModeData) returns Str { return "ModeData" }
@@ -117,6 +123,7 @@ Test := struct {
     // common results
     mut ok := 0
     mut ms := 0
+    mut mem := 0
     // mode config flags
     mut has_interp := 0
     mut has_run := 0
@@ -256,15 +263,19 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                     // Parse common fields
                     t.ok = parse_kv(result_line, "ok")
                     t.ms = parse_kv(result_line, "ms")
+                    t.mem = parse_kv(result_line, "mem")
                     // Parse mode-specific fields into payload
                     if is_variant(t.kind, TestKind.Mode) {
                         ref md : ModeData = get_payload(t.kind)
                         md.interp_ms = parse_kv(result_line, "interp_ms")
                         md.interp_ok = parse_kv(result_line, "interp_ok")
+                        md.interp_mem = parse_kv(result_line, "interp_mem")
                         md.compile_ms = parse_kv(result_line, "compile_ms")
                         md.compile_ok = parse_kv(result_line, "compile_ok")
+                        md.compile_mem = parse_kv(result_line, "compile_mem")
                         md.run_ms = parse_kv(result_line, "run_ms")
                         md.run_ok = parse_kv(result_line, "run_ok")
+                        md.run_mem = parse_kv(result_line, "run_mem")
                         md.output_match = parse_kv(result_line, "match")
                         t.kind = TestKind.Mode(md)
                     }
@@ -494,7 +505,7 @@ main := proc(args: ..Str) {
             add_single(tests, "build_".concat(bn), "build", 124, "",
                        asan_safe_cmd(
                            til_bin.concat(" build ").concat(gf)
-                               .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
+                               .concat(" '&&' xvfb-run --auto-servernum timeout ").concat(GUI_TIMEOUT)
                                .concat(" bin/").concat(bn).concat(run_args),
                            til_bin))
         }
@@ -509,6 +520,9 @@ main := proc(args: ..Str) {
     mut total_interp_ms := 0
     mut total_compile_ms := 0
     mut total_run_ms := 0
+    mut total_mem_inte := 0
+    mut total_mem_comp := 0
+    mut total_mem_run := 0
     mut mode_passed : USize = 0
     mut mode_total : USize = 0
     mut pi : USize = 0
@@ -517,10 +531,15 @@ main := proc(args: ..Str) {
         if is_variant(t.kind, TestKind.Mode) {
             mode_total = mode_total.add(1)
             ref md : ModeData = get_payload(t.kind)
-            if t.has_interp.eq(1) { total_interp_ms = total_interp_ms.add(md.interp_ms) }
+            if t.has_interp.eq(1) {
+                total_interp_ms = total_interp_ms.add(md.interp_ms)
+                total_mem_inte = total_mem_inte.add(md.interp_mem)
+            }
             if t.has_run.eq(1) {
                 total_compile_ms = total_compile_ms.add(md.compile_ms)
                 total_run_ms = total_run_ms.add(md.run_ms)
+                total_mem_comp = total_mem_comp.add(md.compile_mem)
+                total_mem_run = total_mem_run.add(md.run_mem)
             }
             if t.ok.eq(1) { mode_passed = mode_passed.add(1) }
         }
@@ -533,6 +552,7 @@ main := proc(args: ..Str) {
     mut typer_ms := 0
     mut cli_ms := 0
     mut build_ms := 0
+    mut build_mem := 0
     mut other_passed : USize = 0
     mut other_total : USize = 0
     pi = 0
@@ -545,6 +565,7 @@ main := proc(args: ..Str) {
             if t.category.eq("typer") { typer_ms = typer_ms.add(t.ms) }
             if t.category.eq("cli") { cli_ms = cli_ms.add(t.ms) }
             if t.category.eq("build") { build_ms = build_ms.add(t.ms) }
+            if t.category.eq("build") { build_mem = build_mem.add(t.mem) }
         }
         pi = pi.add(1)
     }
@@ -552,9 +573,9 @@ main := proc(args: ..Str) {
     // --- Plot test (stays sequential) ---
 
     plot_start := clock_ms()
-    test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_bytes", NL,
-                       "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,0", NL,
-                       "def5678,1890,3900,1510,190,1680,1950,4500,32,32,0", NL)
+    test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total", NL,
+                       "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,500000,900000,300000,1700000", NL,
+                       "def5678,1890,3900,1510,190,1680,1950,4500,32,32,520000,880000,320000,1720000", NL)
     writefile("tmp/_test_plot.csv", test_csv)
     run(PLOT.concat(" tmp/_test_plot.csv tmp/_test_plot.svg 0"))
     plot_svg := readfile("tmp/_test_plot.svg")
@@ -564,8 +585,8 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "<polyline").lt(4) {
-        println("FAIL: plot.til expected 4 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
+    if count_matches(plot_svg, "<polyline").lt(8) {
+        println("FAIL: plot.til expected 8 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
         plot_ok = 0
         fail = 1
     }
@@ -574,8 +595,13 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "interp").eq(0) {
-        println("FAIL: plot.til missing legend label interp")
+    if count_matches(plot_svg, "inte").eq(0) {
+        println("FAIL: plot.til missing legend label inte")
+        plot_ok = 0
+        fail = 1
+    }
+    if count_matches(plot_svg, "mem-total").eq(0) {
+        println("FAIL: plot.til missing legend label mem-total")
         plot_ok = 0
         fail = 1
     }
@@ -632,13 +658,17 @@ main := proc(args: ..Str) {
 
     // doc/totals.csv — all test totals (skip on failure)
     if fail.eq(0) {
+        total_mem_total := total_mem_inte.add(total_mem_comp).add(total_mem_run).add(build_mem)
         totals_line := format(commit, ",",
                               total_interp_ms.to_str(), ",",
                               total_compile_ms.to_str(), ",", total_run_ms.to_str(), ",",
                               ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
                               cli_ms.to_str(), ",", wall_ms.to_str(), ",",
                               total_passed.to_i64().to_str(), ",", total_tests.to_i64().to_str(), ",",
-                              peak_rss_bytes().to_i64().to_str())
+                              total_mem_inte.to_str(), ",",
+                              total_mem_comp.to_str(), ",",
+                              total_mem_run.to_str(), ",",
+                              total_mem_total.to_str())
 
         totals_path := "doc/totals.csv"
         existing := readfile(totals_path)
