@@ -136,10 +136,8 @@ static void emit_expr(File *f, Expr *e, I32 depth);
 static void emit_stmt(File *f, Expr *e, I32 depth);
 static void emit_body(File *f, Expr *body, I32 depth);
 static void emit_body_scoped(File *f, Expr *body, I32 depth);
-static Str *c_type_name(TilType t, Str *struct_name);
 static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth);
 static Str *type_name_to_c_value(Str *name);
-static Str *til_type_to_c(TilType t);
 
 Expr *find_callee_fdef(Str *name);
 
@@ -325,12 +323,6 @@ static Str *fcall_return_ctype(Expr *fcall) {
 
 // callee_param_is_own: moved to builder.til
 
-// Map til function names to C symbol names (handles stdlib collisions)
-static Str *func_to_c(Str *name) {
-    // C keyword collision
-    if ((name->count == 6 && memcmp(name->c_str, "double", 6) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"double_", .count = 7, .cap = CAP_LIT});
-    return Str_clone(&(Str){.c_str = name->c_str, .count = name->count, .cap = CAP_VIEW});
-}
 
 // --- Expression emission ---
 
@@ -599,33 +591,7 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
 
 // --- Type to C type string ---
 
-static Str *til_type_to_c(TilType t) {
-    switch (t.tag) {
-    case TilType_TAG_I64:  return Str_clone(&(Str){.c_str = (U8 *)"I64", .count = 3, .cap = CAP_LIT});
-    case TilType_TAG_U8:   return Str_clone(&(Str){.c_str = (U8 *)"U8", .count = 2, .cap = CAP_LIT});
-    case TilType_TAG_I16:  return Str_clone(&(Str){.c_str = (U8 *)"I16", .count = 3, .cap = CAP_LIT});
-    case TilType_TAG_I32:  return Str_clone(&(Str){.c_str = (U8 *)"I32", .count = 3, .cap = CAP_LIT});
-    case TilType_TAG_U32:  return Str_clone(&(Str){.c_str = (U8 *)"U32", .count = 3, .cap = CAP_LIT});
-    case TilType_TAG_U64:  return Str_clone(&(Str){.c_str = (U8 *)"U64", .count = 3, .cap = CAP_LIT});
-    case TilType_TAG_F32:  return Str_clone(&(Str){.c_str = (U8 *)"F32", .count = 3, .cap = CAP_LIT});
-    case TilType_TAG_Bool: return Str_clone(&(Str){.c_str = (U8 *)"Bool", .count = 4, .cap = CAP_LIT});
-    case TilType_TAG_None:     return Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
-    case TilType_TAG_Dynamic:  return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT});
-    case TilType_TAG_FuncPtr: return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT}); // function pointer (opaque)
-    default:                return Str_clone(&(Str){.c_str = (U8 *)"I64", .count = 3, .cap = CAP_LIT}); // fallback
-    }
-}
 
-// C type name without pointer — "Point" for structs, "I64" for I64, etc.
-static Str *c_type_name(TilType t, Str *struct_name) {
-    if ((t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) && struct_name && struct_name->count > 0) {
-        static char buf[128];
-        snprintf(buf, sizeof(buf), "%s", struct_name->c_str);
-        return Str_clone(&(Str){.c_str = (U8 *)buf, .count = strlen(buf), .cap = CAP_VIEW});
-    }
-    if (t.tag == TilType_TAG_Dynamic) return Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
-    return til_type_to_c(t);
-}
 
 // Convert a type name string to C type string (handles struct types)
 static Str *type_name_to_c(Str *name) {

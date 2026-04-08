@@ -224,6 +224,40 @@ fcall_returns_dynamic := func(fcall: Expr) returns shallow Bool {
     return false
 }
 
+til_type_to_c := func(shallow t: TilType) returns Str {
+    switch t {
+    case TilType.I64:     return "I64"
+    case TilType.U8:      return "U8"
+    case TilType.I16:     return "I16"
+    case TilType.I32:     return "I32"
+    case TilType.U32:     return "U32"
+    case TilType.U64:     return "U64"
+    case TilType.F32:     return "F32"
+    case TilType.Bool:    return "Bool"
+    case TilType.None:    return "void"
+    case TilType.Dynamic: return "void *"
+    case TilType.FuncPtr: return "void *"
+    case:                 return "I64"
+    }
+}
+
+c_type_name := func(shallow t: TilType, struct_name: Str) returns Str {
+    if t.eq(TilType.Struct).or(t.eq(TilType.Enum)) {
+        if is_null(struct_name).not() {
+            if struct_name.len().gt(0) {
+                return struct_name.clone()
+            }
+        }
+    }
+    if t.eq(TilType.Dynamic) { return "void" }
+    return til_type_to_c(t)
+}
+
+func_to_c := func(name: Str) returns Str {
+    if name.eq("double") { return "double_" }
+    return name.clone()
+}
+
 build := ext_func(program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 build_header := ext_func(program: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}

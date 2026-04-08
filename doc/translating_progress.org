@@ -94,17 +94,14 @@ like store_ptr_at(buf, offset, ptr).
 Self-contained (no interpreter.c/dispatch.c deps). Can translate independently.
 Internal recursion: emit_expr -> emit_stmt -> emit_body -> emit_expr.
 
-*** Leaf functions (no emit_* recursion, ~20 functions)
+*** Leaf functions (no emit_* recursion)
 String/type mapping:
-- type_name_to_c(name) -> char*       line 626  -- memcmp + Set_has
-- type_name_to_c_value(name) -> char*  line 650  -- memcmp + Set_has
-- til_type_to_c(t) -> char*           line 597  -- pure switch
-- c_type_name(t, sname) -> char*      line 615  -- til_type_to_c + snprintf
-- func_to_c(name) -> char*            line 324  -- memcmp (handles C keyword collisions)
-- get_stack_local_ctype(name) -> char* line 154  -- Map lookup
+- type_name_to_c(name) -> Str*        line 626  -- memcmp + Set_has
+- type_name_to_c_value(name) -> Str*   line 650  -- memcmp + Set_has
+- get_stack_local_ctype(name) -> Str*  line 154  -- Map lookup
 - is_shallow_param(name) -> Bool       line 274  -- Vec_get + param check
-- callee_return_ctype(name) -> char*   line 292  -- find_callee_fdef + type_name_to_c_value
-- fcall_return_ctype(fcall) -> char*   line 299  -- resolve_callee_name + callee_return_ctype
+- callee_return_ctype(name) -> Str*    line 292  -- find_callee_fdef + type_name_to_c_value
+- fcall_return_ctype(fcall) -> Str*    line 299  -- resolve_callee_name + callee_return_ctype
 Emit helpers:
 - emit_u64(f, v)                       line 19   -- snprintf + EMIT
 - emit_i32(f, v)                       line 27   -- snprintf + EMIT
