@@ -618,48 +618,6 @@
   Implementation: typer tracks which bindings are read. After
   type-checking a scope, any unread non-~_~ binding is an error.
 
-** OPEN #68 Negative literal support
-  Two phases:
-
-*** DONE Phase 2: Negative literal syntax
-    Support ~-111~ as syntax for negative numbers. Parser produces it.
-    Implementation: desugar ~-N~ to ~0.sub(N)~ in parser.til (lines 417-436).
-    Commit: 20b4ee7.
-
-*** TODO Phase 1: Type-directed literal coercion
-    ~a : I32 = 0.sub(1)~ should work without explicit ~.to_i32()~.
-    The typer sees the target type is I32, so literal ~0~ and ~.sub()~
-    resolve to I32 operations. No manual conversion needed.
-    Related to #67 (fixed: implicit numeric widening in for-in ranges).
-
-    Currently ~a : I32 = -1~ fails because ~-1~ desugars to ~0.sub(1)~,
-    ~0~ defaults to I64, so ~.sub()~ resolves to ~I64.sub()~ returning I64,
-    which mismatches I32. Workaround: ~a : I32 = 0.sub(1).to_i32()~.
-
-**** Implementation options
-     Two places need changes in typer.c:
-
-     1. ~infer_expr~ LiteralNum case (line ~92): currently overwrites any
-        type that isn't U8 with I64. Must preserve pre-coerced numeric types.
-
-     2. Decl handler (line ~2598): must pre-coerce literals before
-        ~infer_expr~ on the RHS.
-
-***** Option A: Targeted pattern match (simple cases only)
-      Before ~infer_expr~ on RHS, detect ~FCall > FieldAccess > LiteralNum~
-      pattern and pre-coerce the receiver literal. Handles ~a : I32 = -1~
-      and ~a : I32 = 0.sub(1)~ but NOT chained calls like ~a : I32 = -34.add(-35)~
-      because the outermost receiver is an FCall, not a LiteralNum.
-
-***** Option B: Recursive pre-coercion (general)
-      Walk the entire RHS expression tree, pre-coercing all LiteralNum nodes
-      to the declared type. Handles chained method calls and nested negatives
-      like ~a : I32 = -34.add(-35)~. Broader but more invasive.
-
-  Remaining memory work after the stack-local rework belongs under ~#109~:
-  leak reduction, error-path cleanup, and any ownership mismatches that only
-  show up under ASAN.
-
 ** WIP #39 Self-hosting: replace C modules with til (bottom-up)
   :DEPENDENCIES: #71 #74
   The centralized issue for tracking self-hosting progress.
@@ -1499,6 +1457,48 @@
   Once #39 is complete (no more link_c), the workaround naturally
   goes away — the scavenger works normally on pure til programs,
   and imported ~mode lib~ modules already skip scavenging.
+
+** OPEN #68 Negative literal support
+  Two phases:
+
+*** DONE Phase 2: Negative literal syntax
+    Support ~-111~ as syntax for negative numbers. Parser produces it.
+    Implementation: desugar ~-N~ to ~0.sub(N)~ in parser.til (lines 417-436).
+    Commit: 20b4ee7.
+
+*** TODO Phase 1: Type-directed literal coercion
+    ~a : I32 = 0.sub(1)~ should work without explicit ~.to_i32()~.
+    The typer sees the target type is I32, so literal ~0~ and ~.sub()~
+    resolve to I32 operations. No manual conversion needed.
+    Related to #67 (fixed: implicit numeric widening in for-in ranges).
+
+    Currently ~a : I32 = -1~ fails because ~-1~ desugars to ~0.sub(1)~,
+    ~0~ defaults to I64, so ~.sub()~ resolves to ~I64.sub()~ returning I64,
+    which mismatches I32. Workaround: ~a : I32 = 0.sub(1).to_i32()~.
+
+**** Implementation options
+     Two places need changes in typer.c:
+
+     1. ~infer_expr~ LiteralNum case (line ~92): currently overwrites any
+        type that isn't U8 with I64. Must preserve pre-coerced numeric types.
+
+     2. Decl handler (line ~2598): must pre-coerce literals before
+        ~infer_expr~ on the RHS.
+
+***** Option A: Targeted pattern match (simple cases only)
+      Before ~infer_expr~ on RHS, detect ~FCall > FieldAccess > LiteralNum~
+      pattern and pre-coerce the receiver literal. Handles ~a : I32 = -1~
+      and ~a : I32 = 0.sub(1)~ but NOT chained calls like ~a : I32 = -34.add(-35)~
+      because the outermost receiver is an FCall, not a LiteralNum.
+
+***** Option B: Recursive pre-coercion (general)
+      Walk the entire RHS expression tree, pre-coercing all LiteralNum nodes
+      to the declared type. Handles chained method calls and nested negatives
+      like ~a : I32 = -34.add(-35)~. Broader but more invasive.
+
+  Remaining memory work after the stack-local rework belongs under ~#109~:
+  leak reduction, error-path cleanup, and any ownership mismatches that only
+  show up under ASAN.
 
 ** OPEN #66 Better imports: qualified namespaces
   :RELATED: #65
