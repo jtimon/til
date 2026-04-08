@@ -329,41 +329,6 @@
   - avoid keeping one process-global ~current_mode~ as the only source of
     truth for semantic checks
 
-** OPEN #117 Bool and/or do not short-circuit
-  ~and~ and ~or~ currently behave like ordinary Bool calls rather than
-  C-style short-circuit operators.
-
-  Current consequence:
-  - translations that are mechanically correct in C can become wrong in til
-    if they rely on ~&&~ / ~||~ evaluation order
-  - example from the ~initer.c~ translation:
-    - C: ~if (!target->struct_def && !target->is_builtin &&
-      (!target->func_def || target->func_def->children.count != 0))~
-    - naive til translation using ~.and(...)~ / ~.or(...)~ dereferenced
-      ~target.func_def~ even when it was null
-
-  This matters for ~c2til~ directly:
-  - mechanical C-to-til translation is harder and more error-prone than it
-    should be
-  - translators must currently rewrite many conditions into nested ~if~s
-    just to preserve C semantics
-
-  Desired end state:
-  - a Bool-level surface that preserves short-circuit semantics where the
-    source expects them
-  - or, at minimum, a clearly documented distinction and a dedicated
-    short-circuiting form for translated code
-
-  Possible directions:
-  - make ~and~ / ~or~ short-circuit in the language
-  - or introduce explicit short-circuiting operators/forms distinct from the
-    current Bool methods
-  - update ~c2til.org~ once the final rule is chosen
-
-  For now:
-  - keep translating such conditions carefully with nested ~if~ statements
-    when preserving C behavior matters
-
 ** OPEN #116 Imported files are parsed in isolation
   Imported files are currently lexed and parsed as standalone units, then
   merged later. They do not see declarations from the importing file during
@@ -1223,6 +1188,41 @@
     ~print(...)~ / ~println(...)~ from ~ast_print~
   - confirm whether the same printed array is being deleted both by the
     callee and again by the caller
+
+** OPEN #117 Bool and/or do not short-circuit
+  ~and~ and ~or~ currently behave like ordinary Bool calls rather than
+  C-style short-circuit operators.
+
+  Current consequence:
+  - translations that are mechanically correct in C can become wrong in til
+    if they rely on ~&&~ / ~||~ evaluation order
+  - example from the ~initer.c~ translation:
+    - C: ~if (!target->struct_def && !target->is_builtin &&
+      (!target->func_def || target->func_def->children.count != 0))~
+    - naive til translation using ~.and(...)~ / ~.or(...)~ dereferenced
+      ~target.func_def~ even when it was null
+
+  This matters for ~c2til~ directly:
+  - mechanical C-to-til translation is harder and more error-prone than it
+    should be
+  - translators must currently rewrite many conditions into nested ~if~s
+    just to preserve C semantics
+
+  Desired end state:
+  - a Bool-level surface that preserves short-circuit semantics where the
+    source expects them
+  - or, at minimum, a clearly documented distinction and a dedicated
+    short-circuiting form for translated code
+
+  Possible directions:
+  - make ~and~ / ~or~ short-circuit in the language
+  - or introduce explicit short-circuiting operators/forms distinct from the
+    current Bool methods
+  - update ~c2til.org~ once the final rule is chosen
+
+  For now:
+  - keep translating such conditions carefully with nested ~if~ statements
+    when preserving C behavior matters
 
 ** OPEN #115 Remove or simplify ~ext_struct~
   Revisit whether ~ext_struct~ should exist as a separate concept at all.
