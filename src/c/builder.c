@@ -18,9 +18,7 @@
 
 
 
-static Expr *codegen_core_program;  // blocked by #132
-static Expr *codegen_program;  // blocked by #132
-// remaining globals defined in builder.til
+
 
 // Collect unique array/vec builtin type names from AST
 // CollectionInfo defined in builder.til
@@ -47,20 +45,6 @@ Expr *find_callee_fdef(Str *name) {
 // --- Emitter helpers ---
 
 
-// Emit expression dereferenced to a value: (*x) for IDENT, plain for literals/builtins
-static void emit_deref(File *f, Expr *e, I32 depth);
-// Emit expression as a pointer: wraps values in &(type){val}
-static void emit_as_ptr(File *f, Expr *e, I32 depth);
-static void emit_usize_ref(File *f, Expr *e, I32 depth);
-
-// --- Forward declarations ---
-
-static void emit_expr(File *f, Expr *e, I32 depth);
-static void emit_stmt(File *f, Expr *e, I32 depth);
-static void emit_body(File *f, Expr *body, I32 depth);
-static void emit_body_scoped(File *f, Expr *body, I32 depth);
-static void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth);
-
 
 // is_stack_local: moved to builder.til
 
@@ -74,17 +58,6 @@ static void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth);
 
 // Block-scoped emit_body: clone stack_locals/ref_locals before
 // entering a block, restore after. Inner declarations stay local to the block.
-static void emit_body_scoped(File *f, Expr *body, I32 depth) {
-    Set saved_sl = stack_locals;
-    Set saved_rl = ref_locals;
-    { Set *_c = Set_clone(&stack_locals); stack_locals = *_c; free(_c); }
-    { Set *_c = Set_clone(&ref_locals); ref_locals = *_c; free(_c); }
-    emit_body(f, body, depth);
-    Set_delete(&stack_locals, &(Bool){0});
-    Set_delete(&ref_locals, &(Bool){0});
-    stack_locals = saved_sl;
-    ref_locals = saved_rl;
-}
 
 // Scan function body to find variables whose address might escape via ref.
 // A variable is unsafe to hoist if:
@@ -120,7 +93,7 @@ static void emit_body_scoped(File *f, Expr *body, I32 depth) {
 
 // --- Expression emission ---
 
-static void emit_expr(File *f, Expr *e, I32 depth) {
+void emit_expr(File *f, Expr *e, I32 depth) {
     (void)depth;
     switch (e->data.tag) {
     case NodeType_TAG_LiteralStr:
@@ -385,104 +358,9 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
 }
 
 
-static void emit_deref(File *f, Expr *e, I32 depth) {
-    if (e->til_type.tag == TilType_TAG_Dynamic) {
-        // Dynamic (void *) IS the value — no dereference needed
-        emit_expr(f, e, depth);
-    } else if (e->til_type.tag == TilType_TAG_FuncPtr) {
-        // Function pointer: cast to void *
-        // ref locals need DEREF (pointer to fn-ptr -> fn-ptr)
-        if (e->data.tag == NodeType_TAG_Ident && is_ref_local(&e->data.data.Ident)) {
-            EMIT(f, "(void *)DEREF(");
-            emit_expr(f, e, depth);
-            EMIT(f, ")");
-        } else {
-            EMIT(f, "(void *)");
-            emit_expr(f, e, depth);
-        }
-    } else if (e->data.tag == NodeType_TAG_Ident) {
-        if (is_shallow_param(&e->data.data.Ident) ||
-            is_stack_local(&e->data.data.Ident) ||
-            is_value_global(&e->data.data.Ident)) {
-            emit_expr(f, e, depth); // shallow param/local is already a value
-        } else {
-            EMIT(f, "DEREF(");
-            emit_expr(f, e, depth);
-            EMIT(f, ")");
-        }
-    } else if (e->data.tag == NodeType_TAG_LiteralStr) {
-        EMIT(f, "(Str){.c_str=(U8*)\""); EMIT(f, (const char *)e->data.data.Ident.c_str); EMIT(f, "\", .count="); emit_u64(f, e->data.data.Ident.count); EMIT(f, "ULL, .cap=TIL_CAP_LIT}");
-    } else if (e->data.tag == NodeType_TAG_FieldAccess && builder_fa_is_ns(e) && e->til_type.tag == TilType_TAG_Enum) {
-        // Auto-called constructor returns pointer; dereference it
-        EMIT(f, "(*");
-        emit_expr(f, e, depth);
-        EMIT(f, ")");
-    } else {
-        emit_expr(f, e, depth);
-    }
-}
-
-// Emit expression as a pointer — after hoisting, args are NodeType_TAG_Ident (already pointer)
-// or NodeType_TAG_FieldAccess (value needing compound literal wrapping).
-static void emit_as_ptr(File *f, Expr *e, I32 depth) {
-    if (e->data.tag == NodeType_TAG_Ident &&
-        (is_shallow_param(&e->data.data.Ident) ||
-         is_stack_local(&e->data.data.Ident) ||
-         is_value_global(&e->data.data.Ident))) {
-        // Shallow params and stack locals are stable lvalues.
-        if (e->is_own_arg) {
-            // Callee will free() this pointer — must malloc a copy
-            Str *ctype = get_stack_local_ctype(&e->data.data.Ident);
-            if (!ctype) ctype = c_type_name(e->til_type, &e->struct_name);
-            EMIT(f, "({ "); File_write_str(f, ctype); EMIT(f, " *_oa = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); *_oa = ");
-            emit_expr(f, e, depth);
-            EMIT(f, "; _oa; })");
-        } else {
-            EMIT(f, "&"); EMIT(f, (const char *)e->data.data.Ident.c_str);
-        }
-    } else if (e->data.tag == NodeType_TAG_FCall && e->struct_name.count > 0 && e->children.count > 0 &&
-               Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident &&
-               Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
-        // Struct constructor in expression context: hoist to temp via statement-expr
-        Str *ctype = c_type_name(e->til_type, &e->struct_name);
-        I32 id = _ctor_seq++;
-        EMIT(f, "({ "); File_write_str(f, ctype); EMIT(f, " *_sc"); emit_i32(f, id); EMIT(f, " = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); ");
-        char tmp[32];
-        snprintf(tmp, sizeof(tmp), "_sc%d", id);
-        emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, e, depth);
-        EMIT(f, " _sc"); emit_i32(f, id); EMIT(f, "; })");
-        Str_delete(ctype, &(Bool){1});
-    } else if (e->data.tag == NodeType_TAG_Ident || e->data.tag == NodeType_TAG_FCall || e->data.tag == NodeType_TAG_LiteralStr) {
-        emit_expr(f, e, depth);
-    } else if (e->data.tag == NodeType_TAG_FieldAccess) {
-        // Own field is already a pointer; enum ns_field constructor returns pointer;
-        // Dynamic field is void* (already a pointer); inline field needs address-of
-        if (FIELD_IS_PTR(e) || (builder_fa_is_ns(e) && e->til_type.tag == TilType_TAG_Enum) ||
-            e->til_type.tag == TilType_TAG_Dynamic) {
-            emit_expr(f, e, depth);
-        } else {
-            EMIT(f, "&");
-            emit_expr(f, e, depth);
-        }
-    } else if (e->data.tag == NodeType_TAG_LiteralNull) {
-        EMIT(f, "NULL");
-    } else {
-        Str *ctype = c_type_name(e->til_type, &e->struct_name);
-        EMIT(f, "&("); File_write_str(f, ctype); EMIT(f, "){");
-        emit_expr(f, e, depth);
-        EMIT(f, "}");
-        Str_delete(ctype, &(Bool){1});
-    }
-}
-
-static void emit_usize_ref(File *f, Expr *e, I32 depth) {
-    EMIT(f, "USIZE_REF(");
-    emit_deref(f, e, depth);
-    EMIT(f, ")");
-}
 
 // Emit struct constructor field assignments into 'var' (already malloc'd).
-static void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth) {
+void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth) {
     Expr *sbody = find_struct_body(&ctor->struct_name);
     U32 fi = 0;
     for (U32 i = 1; i < ctor->children.count; i++) {
@@ -565,7 +443,7 @@ static void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth) {
 
 // --- Statement emission ---
 
-static void emit_stmt(File *f, Expr *e, I32 depth) {
+void emit_stmt(File *f, Expr *e, I32 depth) {
     emit_indent(f, depth);
     switch (e->data.tag) {
     case NodeType_TAG_Decl:
@@ -966,7 +844,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
     }
 }
 
-static void emit_body(File *f, Expr *body, I32 depth) {
+void emit_body(File *f, Expr *body, I32 depth) {
     for (U32 i = 0; i < body->children.count; i++) {
         emit_stmt(f, Expr_child(body, &(USize){(USize)(i)}), depth);
     }

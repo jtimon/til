@@ -13,6 +13,8 @@ DynCallInfo := struct {
 
 // --- Globals ---
 
+ref mut codegen_core_program : Expr = NULL
+ref mut codegen_program : Expr = NULL
 ref mut current_fdef : Expr = NULL
 mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut func_defs := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
@@ -656,6 +658,146 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
     for ci in 0..e.child_count() {
         collect_dyn_has_methods(e.child(ci), methods)
     }
+}
+
+// Emit layer -- ext_proc for functions still in C
+emit_expr := ext_proc(f: File, e: Expr, shallow depth: I32) {}
+emit_stmt := ext_proc(f: File, e: Expr, shallow depth: I32) {}
+emit_body := ext_proc(f: File, body: Expr, shallow depth: I32) {}
+emit_ctor_fields := ext_proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {}
+
+emit_body_scoped := proc(f: File, body: Expr, shallow depth: I32) {
+    saved_sl := stack_locals.clone()
+    saved_rl := ref_locals.clone()
+    emit_body(f, body, depth)
+    own stack_locals.delete()
+    own ref_locals.delete()
+    stack_locals = saved_sl
+    ref_locals = saved_rl
+}
+
+emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
+    if e.til_type.eq(TilType.Dynamic) {
+        emit_expr(f, e, depth)
+    } else if e.til_type.eq(TilType.FuncPtr) {
+        if is_variant(e.data, NodeType.Ident) {
+            ref ident : Str = get_payload(e.data)
+            if is_ref_local(ident) {
+                f.write_str("(void *)DEREF(")
+                emit_expr(f, e, depth)
+                f.write_str(")")
+            } else {
+                f.write_str("(void *)")
+                emit_expr(f, e, depth)
+            }
+        } else {
+            f.write_str("(void *)")
+            emit_expr(f, e, depth)
+        }
+    } else if is_variant(e.data, NodeType.Ident) {
+        ref ident : Str = get_payload(e.data)
+        if is_shallow_param(ident).or(is_stack_local(ident)).or(is_value_global(ident)) {
+            emit_expr(f, e, depth)
+        } else {
+            f.write_str("DEREF(")
+            emit_expr(f, e, depth)
+            f.write_str(")")
+        }
+    } else if is_variant(e.data, NodeType.LiteralStr) {
+        ref s : Str = get_payload(e.data)
+        f.write_str("(Str){.c_str=(U8*)\"")
+        f.write_str(s)
+        f.write_str("\", .count=")
+        emit_u64(f, s.len().to_i64().to_u64())
+        f.write_str("ULL, .cap=TIL_CAP_LIT}")
+    } else if is_variant(e.data, NodeType.FieldAccess) {
+        if builder_fa_is_ns(e).and(e.til_type.eq(TilType.Enum)) {
+            f.write_str("(*")
+            emit_expr(f, e, depth)
+            f.write_str(")")
+        } else {
+            emit_expr(f, e, depth)
+        }
+    } else {
+        emit_expr(f, e, depth)
+    }
+}
+
+emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32) {
+    if is_variant(e.data, NodeType.Ident) {
+        ref ident : Str = get_payload(e.data)
+        if is_shallow_param(ident).or(is_stack_local(ident)).or(is_value_global(ident)) {
+            if e.is_own_arg {
+                ref mut ctype : Str = get_stack_local_ctype(ident)
+                if is_null(ctype) { ctype = c_type_name(e.til_type, e.struct_name) }
+                f.write_str("({ ")
+                f.write_str(ctype)
+                f.write_str(" *_oa = malloc(sizeof(")
+                f.write_str(ctype)
+                f.write_str(")); *_oa = ")
+                emit_expr(f, e, depth)
+                f.write_str("; _oa; })")
+            } else {
+                f.write_str("&")
+                f.write_str(ident)
+            }
+        } else if is_variant(e.data, NodeType.Ident) {
+            emit_expr(f, e, depth)
+        }
+    } else if is_variant(e.data, NodeType.FCall) {
+        if e.struct_name.len().gt(0).and(e.child_count().gt(0)) {
+            if is_variant(e.child(0).data, NodeType.Ident) {
+                ref callee_ident : Str = get_payload(e.child(0).data)
+                if callee_ident.eq(e.struct_name) {
+                    ctype := c_type_name(e.til_type, e.struct_name)
+                    _ctor_seq = _ctor_seq.add(1.to_i32())
+                    id := _ctor_seq
+                    f.write_str("({ ")
+                    f.write_str(ctype)
+                    f.write_str(" *_sc")
+                    emit_i32(f, id)
+                    f.write_str(" = malloc(sizeof(")
+                    f.write_str(ctype)
+                    f.write_str(")); ")
+                    tmp := "_sc".concat(id.to_i64().to_str())
+                    emit_ctor_fields(f, tmp, e, depth)
+                    f.write_str(" _sc")
+                    emit_i32(f, id)
+                    f.write_str("; })")
+                    return
+                }
+            }
+        }
+        emit_expr(f, e, depth)
+    } else if is_variant(e.data, NodeType.LiteralStr) {
+        emit_expr(f, e, depth)
+    } else if is_variant(e.data, NodeType.FieldAccess) {
+        if e.field_own_type.eq(OwnType.Shallow).not() {
+            emit_expr(f, e, depth)
+        } else if builder_fa_is_ns(e).and(e.til_type.eq(TilType.Enum)) {
+            emit_expr(f, e, depth)
+        } else if e.til_type.eq(TilType.Dynamic) {
+            emit_expr(f, e, depth)
+        } else {
+            f.write_str("&")
+            emit_expr(f, e, depth)
+        }
+    } else if is_variant(e.data, NodeType.LiteralNull) {
+        f.write_str("NULL")
+    } else {
+        ctype := c_type_name(e.til_type, e.struct_name)
+        f.write_str("&(")
+        f.write_str(ctype)
+        f.write_str("){")
+        emit_expr(f, e, depth)
+        f.write_str("}")
+    }
+}
+
+emit_usize_ref := proc(f: File, e: Expr, shallow depth: I32) {
+    f.write_str("USIZE_REF(")
+    emit_deref(f, e, depth)
+    f.write_str(")")
 }
 
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
