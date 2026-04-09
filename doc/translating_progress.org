@@ -92,18 +92,12 @@ Self-contained (no interpreter.c/dispatch.c deps). Can translate independently.
 Internal recursion: emit_expr -> emit_stmt -> emit_body -> emit_expr.
 
 *** Remaining leaf functions (blocked)
-Blocked by double pointer dereference (Vec/Map stores Str*):
-- get_stack_local_ctype(name) -> Str*  -- Map<Str, Str*> double deref
-- collect_dyn_has_methods(e, v)        -- Vec<Str*> double deref
+Blocked by Map<Str, Expr*> pointer indirection (Map.get returns slot
+address, but slot contains Expr*, til can't dereference the slot):
+- find_struct_body(name) -> Expr*
+- find_callee_fdef(name) -> Expr*
 Blocked by current_fdef global (#132):
 - is_shallow_param(name) -> Bool
-Blocked by resolve_callee_name (Bool* out-param pattern):
-- resolve_callee_name(fcall) -> Str*
-- fcall_return_ctype(fcall) -> Str*
-- check_fcall_mut_args(e)
-- collect_unsafe_to_hoist(body)
-Blocked by const char* API:
-- emit_field(f, var, field)
 
 *** Recursive emit layer
 - emit_expr(f, e, depth)              line 332

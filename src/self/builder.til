@@ -461,7 +461,34 @@ get_stack_local_ctype := func(name: Str) returns ref Str {
 
 resolve_callee_name := ext_func(fcall: Expr) returns Str {}
 
-fcall_return_ctype := ext_func(fcall: Expr) returns Str {}
+resolve_callee_name := func(fcall: Expr) returns Str {
+    ref callee_node : Expr = fcall.child(0)
+    if is_variant(callee_node.data, NodeType.FieldAccess) {
+        ref sname : Str = callee_node.child(0).struct_name
+        ref mname : Str = get_payload(callee_node.data)
+        if sname.len().eq(0) { return "" }
+        return sname.concat("_").concat(mname)
+    } else if is_variant(callee_node.data, NodeType.Ident) {
+        ref ident : Str = get_payload(callee_node.data)
+        return ident.clone()
+    }
+    return ""
+}
+
+callee_return_ctype := func(callee_name: Str) returns Str {
+    ref fdef : Expr = find_callee_fdef(callee_name)
+    if is_null(fdef) { return "" }
+    ref fd : FunctionDef = get_payload(fdef.data)
+    if fd.return_type.len().eq(0) { return "" }
+    return type_name_to_c_value(fd.return_type)
+}
+
+fcall_return_ctype := func(fcall: Expr) returns Str {
+    if is_variant(fcall.data, NodeType.FCall).not() { return "" }
+    callee := resolve_callee_name(fcall)
+    if callee.len().eq(0) { return "" }
+    return callee_return_ctype(callee)
+}
 
 check_fcall_mut_args := proc(e: Expr) {
     if is_null(e) { return }
@@ -469,7 +496,7 @@ check_fcall_mut_args := proc(e: Expr) {
         ref mut fdef : Expr = fcall_fn_sig(e)
         if is_null(fdef) {
             callee := resolve_callee_name(e)
-            if is_null(callee).not() {
+            if callee.len().gt(0) {
                 fdef = find_callee_fdef(callee)
             }
         }
@@ -511,7 +538,7 @@ collect_unsafe_to_hoist := proc(body: Expr) {
                 }
                 if is_variant(rhs.data, NodeType.FCall) {
                     callee := resolve_callee_name(rhs)
-                    if is_null(callee).not() {
+                    if callee.len().gt(0) {
                         ref fdef : Expr = find_callee_fdef(callee)
                         if is_null(fdef).not() {
                             ref fd : FunctionDef = get_payload(fdef.data)

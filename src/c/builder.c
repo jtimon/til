@@ -32,8 +32,6 @@ static Expr *current_fdef = NULL;  // blocked by #132
 
 // is_dyn_call_name: moved to builder.til
 
-
-
 Expr *find_struct_body(Str *name) {
     if (!Map_has(&struct_bodies, name)) return NULL;
     Expr **p = Map_get(&struct_bodies, name);
@@ -55,7 +53,6 @@ static Bool builder_fa_is_ns(Expr *e) {
         ? &e->data.data.FieldAccess : &e->data.data.FieldAssign;
     Expr *body = find_struct_body(sname);
     if (!body) return 0;
-    // Search for a namespace field with this name
     Bool has_ns = 0, has_inst = 0;
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = Expr_child(body, &(USize){(USize)(i)});
@@ -66,16 +63,18 @@ static Bool builder_fa_is_ns(Expr *e) {
     }
     if (has_ns && !has_inst) return 1;
     if (!has_ns) return 0;
-    // Both exist (e.g. FFIType has 'size' field + auto 'size()' method).
-    // Instance access if the object is a variable; namespace if it's a type name.
     Expr *obj = Expr_child(e, &(USize){(USize)(0)});
     if (obj->data.tag != NodeType_TAG_Ident) return 0;
     if (Str_eq(&obj->data.data.Ident, sname)) return 1;
-    // Type alias: ident differs from canonical name but is still a
-    // type reference (PascalCase convention).
     if (obj->data.data.Ident.count > 0 && obj->data.data.Ident.c_str[0] >= 'A' && obj->data.data.Ident.c_str[0] <= 'Z')
         return 1;
     return 0;
+}
+
+Expr *find_callee_fdef(Str *name) {
+    if (!Map_has(&func_defs, name)) return NULL;
+    Expr **p = Map_get(&func_defs, name);
+    return *p;
 }
 
 // --- Emitter helpers ---
@@ -95,7 +94,6 @@ static void emit_body(File *f, Expr *body, I32 depth);
 static void emit_body_scoped(File *f, Expr *body, I32 depth);
 static void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth);
 
-Expr *find_callee_fdef(Str *name);
 
 // is_stack_local: moved to builder.til
 
@@ -143,42 +141,7 @@ static Bool is_shallow_param(Str *name) {
 }
 
 // Check if callee's i-th parameter is shallow (for call site emission)
-Expr *find_callee_fdef(Str *name) {
-    if (!Map_has(&func_defs, name)) return NULL;
-    Expr **p = Map_get(&func_defs, name);
-    return *p;
-}
 
-Str *resolve_callee_name(Expr *fcall) {
-    Expr *callee_node = Expr_child(fcall, &(USize){(USize)(0)});
-    if (callee_node->data.tag == NodeType_TAG_FieldAccess) {
-        Str *sname = &Expr_child(callee_node, &(USize){(USize)(0)})->struct_name;
-        Str *mname = &callee_node->data.data.FieldAccess;
-        if (sname->count == 0) return NULL;
-        Str *r = Str_concat(sname, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT});
-        Str *result = Str_concat(r, mname);
-        Str_delete(r, &(Bool){1});
-        return result;
-    } else if (callee_node->data.tag == NodeType_TAG_Ident) {
-        return Str_clone(&callee_node->data.data.Ident);
-    }
-    return NULL;
-}
-
-Str *callee_return_ctype(Str *callee_name) {
-    Expr *fdef = find_callee_fdef(callee_name);
-    if (!fdef || fdef->data.data.FuncDef.return_type.count == 0) return NULL;
-    return type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
-}
-
-Str *fcall_return_ctype(Expr *fcall) {
-    if (fcall->data.tag != NodeType_TAG_FCall) return NULL;
-    Str *callee = resolve_callee_name(fcall);
-    if (!callee) return NULL;
-    Str *r = callee_return_ctype(callee);
-    Str_delete(callee, &(Bool){1});
-    return r;
-}
 
 // Get the C value type for an fcall's return value
 
@@ -716,7 +679,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                             EMIT(f, ";\n");
                         } else if (rhs->data.tag == NodeType_TAG_FCall) {
                             Str *htype = fcall_return_ctype(rhs);
-                            if (!htype) htype = ctype;
+                            if (!htype->count) { Str_delete(htype, &(Bool){1}); htype = ctype; }
                             EMIT(f, "{ "); File_write_str(f, htype); EMIT(f, " *_hp = ("); File_write_str(f, htype); EMIT(f, " *)");
                             emit_expr(f, rhs, depth);
                             EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = *_hp; free(_hp); }\n");
@@ -730,7 +693,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                             // Shallow-return scalar fcall -- stack value directly
                             // Use callee's return type to avoid signedness mismatches
                             Str *htype = fcall_return_ctype(rhs);
-                            if (!htype) htype = ctype;
+                            if (!htype->count) { Str_delete(htype, &(Bool){1}); htype = ctype; }
                             File_write_str(f, htype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
                             emit_expr(f, rhs, depth);
                             EMIT(f, ";\n");
@@ -747,7 +710,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                         // Non-shallow fcall returning scalar -- unbox heap pointer to stack
                         // Use callee's return type to avoid signedness mismatches
                         Str *htype = fcall_return_ctype(rhs);
-                        if (!htype) htype = ctype;
+                        if (!htype->count) { Str_delete(htype, &(Bool){1}); htype = ctype; }
                         File_write_str(f, htype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, "; { "); File_write_str(f, htype); EMIT(f, " *_hp = ("); File_write_str(f, htype); EMIT(f, " *)");
                         emit_expr(f, rhs, depth);
                         EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = *_hp; free(_hp); }\n");

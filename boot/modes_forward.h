@@ -1128,6 +1128,8 @@ void collect_collection_builtins(Expr * e, Vec * infos);
 void emit_field(File * f, Str * var, Str * field);
 Str * get_stack_local_ctype(Str * name);
 Str * resolve_callee_name(Expr * fcall);
+Str * resolve_callee_name(Expr * fcall);
+Str * callee_return_ctype(Str * callee_name);
 Str * fcall_return_ctype(Expr * fcall);
 void check_fcall_mut_args(Expr * e);
 void collect_unsafe_to_hoist(Expr * body);
