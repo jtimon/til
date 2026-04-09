@@ -41,10 +41,10 @@ static void collect_dyn_has_methods(Expr *e, Vec *methods) {
         e->children.count >= 3 && Expr_child(e, &(USize){(USize)(2)})->data.tag == NodeType_TAG_LiteralStr) {
         Str *method = &Expr_child(e, &(USize){(USize)(2)})->data.data.Ident;
         for (U32 i = 0; i < methods->count; i++) {
-            Str **existing = Vec_get(methods, &(USize){(USize)(i)});
-            if (Str_eq(*existing, method)) return;
+            Str *existing = Vec_get(methods, &(USize){(USize)(i)});
+            if (Str_eq(existing, method)) return;
         }
-        { Str **_p = malloc(sizeof(Str *)); *_p = method; Vec_push(methods, _p); }
+        Vec_push(methods, Str_clone(method));
     }
     for (U32 i = 0; i < e->children.count; i++) {
         collect_dyn_has_methods(Expr_child(e, &(USize){(USize)(i)}), methods);
@@ -72,7 +72,7 @@ static void emit_expr(File *f, Expr *e, I32 depth);
 static void emit_stmt(File *f, Expr *e, I32 depth);
 static void emit_body(File *f, Expr *body, I32 depth);
 static void emit_body_scoped(File *f, Expr *body, I32 depth);
-static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth);
+static void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth);
 
 Expr *find_callee_fdef(Str *name);
 
@@ -82,17 +82,16 @@ Expr *find_callee_fdef(Str *name);
 
 // is_ref_local: moved to builder.til
 
-static void emit_field(File *f, const char *var, const char *field) {
-    Str _var_s = {.c_str = (U8*)var, .count = (U64)strlen(var), .cap = CAP_VIEW};
-    EMIT(f, var); EMIT(f, (is_stack_local(&_var_s) || is_value_global(&_var_s)) ? "." : "->"); EMIT(f, field);
+static void emit_field(File *f, Str *var, Str *field) {
+    File_write_str(f, var); EMIT(f, (is_stack_local(var) || is_value_global(var)) ? "." : "->"); File_write_str(f, field);
 }
 
 // use_dot_access: moved to builder.til
 
 static Str *get_stack_local_ctype(Str *name) {
     if (Map_has(&stack_local_types, name)) {
-        Str **p = Map_get(&stack_local_types, name);
-        return Str_clone(&(Str){.c_str = (*p)->c_str, .count = (*p)->count, .cap = CAP_VIEW});
+        Str *p = Map_get(&stack_local_types, name);
+        return Str_clone(p);
     }
     return NULL;
 }
@@ -116,19 +115,18 @@ static void emit_body_scoped(File *f, Expr *body, I32 depth) {
 // - It appears in a ref declaration RHS: "ref y : T = x"
 // - It's passed as arg to a ref-returning function
 // Resolve the callee name from an fcall's first child
-static Str *resolve_callee_name(Expr *fcall, Bool *allocated) {
-    *allocated = 0;
+static Str *resolve_callee_name(Expr *fcall) {
     Expr *callee_node = Expr_child(fcall, &(USize){(USize)(0)});
     if (callee_node->data.tag == NodeType_TAG_FieldAccess) {
         Str *sname = &Expr_child(callee_node, &(USize){(USize)(0)})->struct_name;
         Str *mname = &callee_node->data.data.FieldAccess;
         if (sname->count == 0) return NULL;
-        char buf[256];
-        snprintf(buf, sizeof(buf), "%s_%s", sname->c_str, mname->c_str);
-        *allocated = 1;
-        return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
+        Str *r = Str_concat(sname, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT});
+        Str *result = Str_concat(r, mname);
+        Str_delete(r, &(Bool){1});
+        return result;
     } else if (callee_node->data.tag == NodeType_TAG_Ident) {
-        return &callee_node->data.data.Ident;
+        return Str_clone(&callee_node->data.data.Ident);
     }
     return NULL;
 }
@@ -142,11 +140,10 @@ static void check_fcall_mut_args(Expr *e) {
         // Check fn_sig for function pointer calls
         Expr *fdef = fcall_fn_sig(e);
         if (!fdef) {
-            Bool allocated = 0;
-            Str *callee = resolve_callee_name(e, &allocated);
+            Str *callee = resolve_callee_name(e);
             if (callee) {
                 fdef = find_callee_fdef(callee);
-                if (allocated) Str_delete(callee, &(Bool){1});
+                Str_delete(callee, &(Bool){1});
             }
         }
         if (fdef && fdef->data.data.FuncDef.params.count > 0) {
@@ -179,8 +176,7 @@ static void collect_unsafe_to_hoist(Expr *body) {
                 Set_add(&unsafe_to_hoist, Str_clone(&rhs->data.data.Ident));
             }
             if (rhs->data.tag == NodeType_TAG_FCall) {
-                Bool allocated = 0;
-                Str *callee = resolve_callee_name(rhs, &allocated);
+                Str *callee = resolve_callee_name(rhs);
                 if (callee) {
                     Expr *fdef = find_callee_fdef(callee);
                     if (fdef && RETURN_IS_REF(&fdef->data.data.FuncDef)) {
@@ -191,7 +187,7 @@ static void collect_unsafe_to_hoist(Expr *body) {
                             }
                         }
                     }
-                    if (allocated) Str_delete(callee, &(Bool){1});
+                    Str_delete(callee, &(Bool){1});
                 }
             }
         }
@@ -230,11 +226,10 @@ Expr *find_callee_fdef(Str *name) {
 // Get the C value type for an fcall's return value
 static Str *fcall_return_ctype(Expr *fcall) {
     if (fcall->data.tag != NodeType_TAG_FCall) return NULL;
-    Bool allocated = 0;
-    Str *callee = resolve_callee_name(fcall, &allocated);
+    Str *callee = resolve_callee_name(fcall);
     if (!callee) return NULL;
     Str *r = callee_return_ctype(callee);
-    if (allocated) Str_delete(callee, &(Bool){1});
+    Str_delete(callee, &(Bool){1});
     return r;
 }
 
@@ -415,7 +410,7 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
             EMIT(f, "({ "); File_write_str(f, ctype); EMIT(f, " *_sc"); emit_i32(f, id); EMIT(f, " = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); ");
             char tmp[32];
             snprintf(tmp, sizeof(tmp), "_sc%d", id);
-            emit_ctor_fields(f, tmp, e, depth);
+            emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, e, depth);
             EMIT(f, " _sc"); emit_i32(f, id); EMIT(f, "; })");
         } else if (Expr_child(e, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_FuncPtr) {
             // Indirect call through function pointer variable
@@ -583,7 +578,7 @@ static void emit_as_ptr(File *f, Expr *e, I32 depth) {
         EMIT(f, "({ "); File_write_str(f, ctype); EMIT(f, " *_sc"); emit_i32(f, id); EMIT(f, " = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); ");
         char tmp[32];
         snprintf(tmp, sizeof(tmp), "_sc%d", id);
-        emit_ctor_fields(f, tmp, e, depth);
+        emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, e, depth);
         EMIT(f, " _sc"); emit_i32(f, id); EMIT(f, "; })");
     } else if (e->data.tag == NodeType_TAG_Ident || e->data.tag == NodeType_TAG_FCall || e->data.tag == NodeType_TAG_LiteralStr) {
         emit_expr(f, e, depth);
@@ -614,20 +609,20 @@ static void emit_usize_ref(File *f, Expr *e, I32 depth) {
 }
 
 // Emit struct constructor field assignments into 'var' (already malloc'd).
-static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
+static void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth) {
     Expr *sbody = find_struct_body(&ctor->struct_name);
     U32 fi = 0;
     for (U32 i = 1; i < ctor->children.count; i++) {
         OwnType_tag fld_own = OwnType_TAG_Shallow;
         TilType field_type = {0};
-        const char *fname = NULL;
+        Str *fname = NULL;
         if (sbody) {
             for (; fi < sbody->children.count; fi++) {
                 if (!Expr_child(sbody, &(USize){(USize)(fi)})->data.data.Decl.is_namespace) {
                     Expr *fld = Expr_child(sbody, &(USize){(USize)(fi)});
                     fld_own = fld->data.data.Decl.own_type.tag;
                     field_type = fld->til_type;
-                    fname = (const char *)fld->data.data.Decl.name.c_str;
+                    fname = &fld->data.data.Decl.name;
                     fi++;
                     break;
                 }
@@ -648,7 +643,7 @@ static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
             char tmp[32];
             snprintf(tmp, sizeof(tmp), "_cs%d", id);
             File_write_str(f, ct); EMIT(f, " *"); EMIT(f, (const char *)tmp); EMIT(f, " = malloc(sizeof("); File_write_str(f, ct); EMIT(f, "));\n");
-            emit_ctor_fields(f, tmp, arg, depth);
+            emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, arg, depth);
             emit_indent(f, depth);
             emit_field(f, var, fname); EMIT(f, " = "); EMIT(f, (const char *)tmp); EMIT(f, ";\n");
         } else if (fld_own == OwnType_TAG_Own) {
@@ -664,7 +659,7 @@ static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth) {
             char tmp[32];
             snprintf(tmp, sizeof(tmp), "_cs%d", id);
             File_write_str(f, ct); EMIT(f, " *"); EMIT(f, (const char *)tmp); EMIT(f, " = malloc(sizeof("); File_write_str(f, ct); EMIT(f, "));\n");
-            emit_ctor_fields(f, tmp, arg, depth);
+            emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, arg, depth);
             emit_indent(f, depth);
             emit_field(f, var, fname); EMIT(f, " = *"); EMIT(f, (const char *)tmp); EMIT(f, "; free("); EMIT(f, (const char *)tmp); EMIT(f, ");\n");
         } else if (arg->data.tag == NodeType_TAG_FCall) {
@@ -755,11 +750,11 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                     } else if (can_hoist) {
                         File_write_str(f, ctype); EMIT(f, " "); EMIT(f, (const char *)var); EMIT(f, "; memset(&"); EMIT(f, (const char *)var); EMIT(f, ", 0, sizeof("); File_write_str(f, ctype); EMIT(f, "));\n");
                         Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
-                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = ctype->c_str, .count = ctype->count, .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(ctype); Map_set(&stack_local_types, _k, _v); }
                     } else {
                         File_write_str(f, ctype); EMIT(f, " *"); EMIT(f, (const char *)var); EMIT(f, " = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, "));\n");
                     }
-                    emit_ctor_fields(f, var, rhs, depth);
+                    emit_ctor_fields(f, &(Str){.c_str=(U8*)var, .count=strlen(var), .cap=CAP_VIEW}, rhs, depth);
                     } else if (rhs->data.tag == NodeType_TAG_FCall || rhs->data.tag == NodeType_TAG_LiteralStr ||
                                (rhs->data.tag == NodeType_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
                     if (is_global) {
@@ -788,7 +783,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                             emit_expr(f, rhs, depth);
                             EMIT(f, ";\n");
                             Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
-                            { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = htype->c_str, .count = htype->count, .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
+                            { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(htype); Map_set(&stack_local_types, _k, _v); }
                         } else {
                             // returns shallow: C function returns value, box into pointer
                             const char *var = (const char *)e->data.data.Decl.name.c_str;
@@ -805,13 +800,13 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                         emit_expr(f, rhs, depth);
                         EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = *_hp; free(_hp); }\n");
                         Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
-                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = htype->c_str, .count = htype->count, .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(htype); Map_set(&stack_local_types, _k, _v); }
                     } else if (can_hoist) {
                         File_write_str(f, ctype); EMIT(f, " "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, "; { "); File_write_str(f, ctype); EMIT(f, " *_hp = ("); File_write_str(f, ctype); EMIT(f, " *)");
                         emit_expr(f, rhs, depth);
                         EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = *_hp; free(_hp); }\n");
                         Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
-                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = ctype->c_str, .count = ctype->count, .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(ctype); Map_set(&stack_local_types, _k, _v); }
                     } else {
                         if (is_global) {
                             EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
@@ -833,7 +828,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                         emit_deref(f, rhs, depth);
                         EMIT(f, ";\n");
                         Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
-                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = ctype->c_str, .count = ctype->count, .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(ctype); Map_set(&stack_local_types, _k, _v); }
                     } else {
                         File_write_str(f, ctype); EMIT(f, " *"); EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, "));\n");
                         emit_indent(f, depth);
@@ -982,7 +977,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 // Struct constructor return -- malloc + field-by-field
                 Str *ctype = c_type_name(rv->til_type, &rv->struct_name);
                 EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, "));\n");
-                emit_ctor_fields(f, "_r", rv, depth);
+                emit_ctor_fields(f, &(Str){.c_str=(U8*)"_r", .count=2, .cap=CAP_LIT}, rv, depth);
                 emit_indent(f, depth);
                 EMIT(f, "return _r; }\n");
             } else if (current_fdef && RETURN_IS_REF(&current_fdef->data.data.FuncDef)) {
@@ -1250,7 +1245,7 @@ static void emit_func_def(File *f, Str *name, Expr *func_def, Mode *mode, Bool i
             Set saved_unsafe = unsafe_to_hoist;
             Set saved_refs = ref_locals;
             { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_locals = *_sp; free(_sp); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); stack_local_types = *_mp; free(_mp); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_local_types = *_mp; free(_mp); }
             { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
             { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
             collect_unsafe_to_hoist(body);
@@ -1297,7 +1292,7 @@ static void emit_func_def(File *f, Str *name, Expr *func_def, Mode *mode, Bool i
         Set saved_unsafe = unsafe_to_hoist;
         Set saved_refs = ref_locals;
         { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_locals = *_sp; free(_sp); }
-        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); stack_local_types = *_mp; free(_mp); }
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_local_types = *_mp; free(_mp); }
         { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
         { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
         collect_unsafe_to_hoist(body);
@@ -1653,7 +1648,7 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
     // Initialize stack_locals, ref_locals, and unsafe_to_hoist sets
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_locals = *_sp; free(_sp); }
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); stack_local_types = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_local_types = *_mp; free(_mp); }
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
     { Expr *_progs_reg[2] = { core_program, program };
@@ -1992,12 +1987,12 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         }}
         const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
         Vec has_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); has_methods = *_vp; free(_vp); }
         if (core_program) collect_dyn_has_methods(core_program, &has_methods);
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
-            Str **method = Vec_get(&has_methods, &(USize){(USize)(m)});
-            EMIT(f, (const char *)dyn_has_ret); EMIT(f, " dyn_has_"); EMIT(f, (const char *)(*method)->c_str); EMIT(f, "(Str *type_name);\n");
+            Str *method = Vec_get(&has_methods, &(USize){(USize)(m)});
+            EMIT(f, (const char *)dyn_has_ret); EMIT(f, " dyn_has_"); EMIT(f, (const char *)method->c_str); EMIT(f, "(Str *type_name);\n");
         }
         if (has_methods.count) EMIT(f, "\n");
         Vec_delete(&has_methods, &(Bool){0});
@@ -2290,12 +2285,11 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         }}
         const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
         Vec has_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); has_methods = *_vp; free(_vp); }
         if (core_program) collect_dyn_has_methods(core_program, &has_methods);
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
-            Str **method_ptr = Vec_get(&has_methods, &(USize){(USize)(m)});
-            Str *method = *method_ptr;
+            Str *method = Vec_get(&has_methods, &(USize){(USize)(m)});
             EMIT(f, (const char *)dyn_has_ret); EMIT(f, " dyn_has_"); EMIT(f, (const char *)method->c_str); EMIT(f, "(Str *type_name) {\n    (void)type_name;\n");
             { Expr *_progs_di[2] = { core_program, program };
             for (int _pdi = 0; _pdi < 2; _pdi++) {
