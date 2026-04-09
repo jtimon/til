@@ -91,28 +91,19 @@ like store_ptr_at(buf, offset, ptr).
 Self-contained (no interpreter.c/dispatch.c deps). Can translate independently.
 Internal recursion: emit_expr -> emit_stmt -> emit_body -> emit_expr.
 
-*** Leaf functions (no emit_* recursion)
-String/type mapping:
-- type_name_to_c(name) -> Str*        line 626  -- memcmp + Set_has
-- type_name_to_c_value(name) -> Str*   line 650  -- memcmp + Set_has
-- get_stack_local_ctype(name) -> Str*  line 154  -- Map lookup
-- is_shallow_param(name) -> Bool       line 274  -- Vec_get + param check
-- callee_return_ctype(name) -> Str*    line 292  -- find_callee_fdef + type_name_to_c_value
-- fcall_return_ctype(fcall) -> Str*    line 299  -- resolve_callee_name + callee_return_ctype
-Emit helpers:
-- emit_u64(f, v)                       line 19   -- snprintf + EMIT
-- emit_i32(f, v)                       line 27   -- snprintf + EMIT
-- emit_indent(f, depth)                line 118  -- EMIT loop
-- emit_field(f, var, field)            line 147  -- EMIT with . or ->
-- emit_param_list(f, fdef, names)      line 677  -- type_name_to_c + EMIT
-- emit_til_default(f, t, sname)        line 3113 -- strcmp + EMIT
-AST collectors (self-recursive but no emit_*):
-- resolve_callee_name(fcall) -> Str*   line 181  -- Expr_child + snprintf
-- check_fcall_mut_args(e)              line 201  -- self-recursive, marks mut args
-- collect_collection_builtins(e, v)    line 39   -- self-recursive, collects type names
-- collect_dyn_methods(e, v)            line 67   -- self-recursive, collects method names
-- collect_dyn_has_methods(e, v)        line 93   -- self-recursive
-- collect_unsafe_to_hoist(body)        line 231  -- self-recursive, marks unsafe vars
+*** Remaining leaf functions (blocked)
+Blocked by double pointer dereference (Vec/Map stores Str*):
+- get_stack_local_ctype(name) -> Str*  -- Map<Str, Str*> double deref
+- collect_dyn_has_methods(e, v)        -- Vec<Str*> double deref
+Blocked by current_fdef global (#132):
+- is_shallow_param(name) -> Bool
+Blocked by resolve_callee_name (Bool* out-param pattern):
+- resolve_callee_name(fcall) -> Str*
+- fcall_return_ctype(fcall) -> Str*
+- check_fcall_mut_args(e)
+- collect_unsafe_to_hoist(body)
+Blocked by const char* API:
+- emit_field(f, var, field)
 
 *** Recursive emit layer
 - emit_expr(f, e, depth)              line 332

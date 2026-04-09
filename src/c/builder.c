@@ -17,22 +17,6 @@
 #define EMIT(f, s) File_write_str(f, &(Str){.c_str=(U8*)(s), .count=(U64)strlen((const char*)(s)), .cap=CAP_VIEW})
 
 
-__attribute__((unused)) static void emit_i64(File *f, I64 v) {
-    char buf[32]; snprintf(buf, sizeof(buf), "%lld", (long long)v);
-    EMIT(f, buf);
-}
-static void emit_u64(File *f, U64 v) {
-    char buf[32]; snprintf(buf, sizeof(buf), "%llu", (unsigned long long)v);
-    EMIT(f, buf);
-}
-__attribute__((unused)) static void emit_u32(File *f, U32 v) {
-    char buf[16]; snprintf(buf, sizeof(buf), "%u", v);
-    EMIT(f, buf);
-}
-static void emit_i32(File *f, I32 v) {
-    char buf[16]; snprintf(buf, sizeof(buf), "%d", v);
-    EMIT(f, buf);
-}
 
 static Expr *codegen_core_program;  // blocked by #132
 static Expr *codegen_program;  // blocked by #132
@@ -42,58 +26,12 @@ static Expr *current_fdef = NULL;  // blocked by #132
 // Collect unique array/vec builtin type names from AST
 // CollectionInfo defined in builder.til
 
-static void collect_collection_builtins(Expr *e, Vec *infos) {
-    if (!e) return;
-    if (e->data.tag == NodeType_TAG_FCall && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident &&
-        e->children.count >= 2 && Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_LiteralStr) {
-        Str *name = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
-        I32 is_vec = -1;
-        if ((name->count == 5 && memcmp(name->c_str, "array", 5) == 0)) is_vec = 0;
-        else if ((name->count == 3 && memcmp(name->c_str, "vec", 3) == 0)) is_vec = 1;
-        if (is_vec >= 0) {
-            Str *type_name = &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident;
-            for (U32 i = 0; i < infos->count; i++) {
-                CollectionInfo *existing = Vec_get(infos, &(USize){(USize)(i)});
-                if (Str_eq(existing->type_name, type_name) && existing->is_vec == is_vec) return;
-            }
-            CollectionInfo info = {type_name, is_vec};
-            { CollectionInfo *_p = malloc(sizeof(CollectionInfo)); *_p = info; Vec_push(infos, _p); }
-        }
-    }
-    for (U32 i = 0; i < e->children.count; i++) {
-        collect_collection_builtins(Expr_child(e, &(USize){(USize)(i)}), infos);
-    }
-}
 
 // Collect unique dyn_call method literals from AST
 // DynCallInfo defined in builder.til
 
 // is_dyn_call_name: moved to builder.til
 
-static void collect_dyn_methods(Expr *e, Vec *methods) {
-    if (!e) return;
-    if (e->data.tag == NodeType_TAG_FCall && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident &&
-        e->children.count >= 3 && Expr_child(e, &(USize){(USize)(2)})->data.tag == NodeType_TAG_LiteralStr) {
-        Bool returns;
-        if (is_dyn_call_name(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &returns)) {
-            Str *method = &Expr_child(e, &(USize){(USize)(2)})->data.data.Ident;
-            // Read arity from 3rd arg (child 3) — a literal number
-            I32 nargs = 1;
-            if (e->children.count >= 4 && Expr_child(e, &(USize){(USize)(3)})->data.tag == NodeType_TAG_LiteralNum) {
-                nargs = (I32)atol((char *)Expr_child(e, &(USize){(USize)(3)})->data.data.Ident.c_str);
-            }
-            for (U32 i = 0; i < methods->count; i++) {
-                DynCallInfo *existing = Vec_get(methods, &(USize){(USize)(i)});
-                if (Str_eq(existing->method, method)) return;
-            }
-            DynCallInfo info = {.method = method, .nargs = nargs, .has_return = returns};
-            { DynCallInfo *_p = malloc(sizeof(DynCallInfo)); *_p = info; Vec_push(methods, _p); }
-        }
-    }
-    for (U32 i = 0; i < e->children.count; i++) {
-        collect_dyn_methods(Expr_child(e, &(USize){(USize)(i)}), methods);
-    }
-}
 
 // Collect unique method names from dyn_has_method calls
 static void collect_dyn_has_methods(Expr *e, Vec *methods) {
@@ -121,9 +59,6 @@ Expr *find_struct_body(Str *name) {
 
 // --- Emitter helpers ---
 
-static void emit_indent(File *f, U32 depth) {
-    for (U32 i = 0; i < depth; i++) EMIT(f, "    ");
-}
 
 // Emit expression dereferenced to a value: (*x) for IDENT, plain for literals/builtins
 static void emit_deref(File *f, Expr *e, I32 depth);
@@ -138,7 +73,6 @@ static void emit_stmt(File *f, Expr *e, I32 depth);
 static void emit_body(File *f, Expr *body, I32 depth);
 static void emit_body_scoped(File *f, Expr *body, I32 depth);
 static void emit_ctor_fields(File *f, const char *var, Expr *ctor, I32 depth);
-static Str *type_name_to_c_value(Str *name);
 
 Expr *find_callee_fdef(Str *name);
 
@@ -292,12 +226,6 @@ Expr *find_callee_fdef(Str *name) {
     return *p;
 }
 
-// Get the C value type name for a callee's return type (e.g. "U64" for I64_size)
-static Str *callee_return_ctype(Str *callee_name) {
-    Expr *fdef = find_callee_fdef(callee_name);
-    if (!fdef || fdef->data.data.FuncDef.return_type.count == 0) return NULL;
-    return type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
-}
 
 // Get the C value type for an fcall's return value
 static Str *fcall_return_ctype(Expr *fcall) {
@@ -590,93 +518,6 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
     }
 }
 
-// --- Type to C type string ---
-
-
-
-// Convert a type name string to C type string (handles struct types)
-static Str *type_name_to_c(Str *name) {
-    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I64 *", .count = 5, .cap = CAP_LIT});
-    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return Str_clone(&(Str){.c_str = (U8 *)"U8 *", .count = 4, .cap = CAP_LIT});
-    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I16 *", .count = 5, .cap = CAP_LIT});
-    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I32 *", .count = 5, .cap = CAP_LIT});
-    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"U32 *", .count = 5, .cap = CAP_LIT});
-    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"U64 *", .count = 5, .cap = CAP_LIT});
-    if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"USize *", .count = 7, .cap = CAP_LIT});
-    if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"F32 *", .count = 5, .cap = CAP_LIT});
-    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"Bool *", .count = 6, .cap = CAP_LIT});
-    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT});
-    if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))      return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT}); // function pointer (opaque)
-    // Named FuncSig type -> void * (opaque function pointer)
-    if (has_funcsig_names) {
-        Str key = {name->c_str, name->count, CAP_VIEW};
-        if (Set_has(&funcsig_names, &key)) return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT});
-    }
-    // User-defined struct type -- pointer
-    static char buf[128];
-    snprintf(buf, sizeof(buf), "%s *", name->c_str);
-    return Str_clone(&(Str){.c_str = (U8 *)buf, .count = strlen(buf), .cap = CAP_VIEW});
-}
-
-// Like type_name_to_c but without pointer -- for inline union fields
-static Str *type_name_to_c_value(Str *name) {
-    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I64", .count = 3, .cap = CAP_LIT});
-    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return Str_clone(&(Str){.c_str = (U8 *)"U8", .count = 2, .cap = CAP_LIT});
-    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I16", .count = 3, .cap = CAP_LIT});
-    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"I32", .count = 3, .cap = CAP_LIT});
-    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"U32", .count = 3, .cap = CAP_LIT});
-    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"U64", .count = 3, .cap = CAP_LIT});
-    if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"USize", .count = 5, .cap = CAP_LIT});
-    if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return Str_clone(&(Str){.c_str = (U8 *)"F32", .count = 3, .cap = CAP_LIT});
-    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"Bool", .count = 4, .cap = CAP_LIT});
-    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0)) return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT});
-    if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))   return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT}); // function pointer (opaque)
-    // Named FuncSig type -> void * (opaque function pointer)
-    if (has_funcsig_names) {
-        Str key = {name->c_str, name->count, CAP_VIEW};
-        if (Set_has(&funcsig_names, &key)) return Str_clone(&(Str){.c_str = (U8 *)"void *", .count = 6, .cap = CAP_LIT});
-    }
-    static char buf2[128];
-    snprintf(buf2, sizeof(buf2), "%s", name->c_str);
-    return Str_clone(&(Str){.c_str = (U8 *)buf2, .count = strlen(buf2), .cap = CAP_VIEW});
-}
-
-// is_primitive_type: moved to builder.til
-
-// is_funcsig_type: moved to builder.til
-
-// Emit a function parameter list (with variadic support)
-static void emit_param_list(File *f, Expr *fdef, Bool with_names) {
-    U32 np = fdef->data.data.FuncDef.nparam;
-    I32 fvi = fdef->data.data.FuncDef.variadic_index;
-    if (np == 0) {
-        EMIT(f, "void");
-    } else {
-        for (U32 i = 0; i < np; i++) {
-            if (i > 0) EMIT(f, ", ");
-            Str *ptype;
-            I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
-            if ((I32)i == fvi) {
-                ptype = Str_clone(&(Str){.c_str = (U8 *)"Array *", .count = 7, .cap = CAP_LIT});
-            } else if ((I32)i == fkwi) {
-                Param *_epi = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
-                ptype = type_name_to_c(&_epi->ptype);
-            } else {
-                Param *_epi = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
-                if (PARAM_IS_SHALLOW(_epi)) {
-                    ptype = type_name_to_c_value(&_epi->ptype);
-                } else {
-                    ptype = type_name_to_c(&_epi->ptype);
-                }
-            }
-            if (with_names) {
-                File_write_str(f, ptype); EMIT(f, " "); EMIT(f, (const char *)((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name.c_str);
-            }
-            else
-                File_write_str(f, ptype);
-        }
-    }
-}
 
 static void emit_deref(File *f, Expr *e, I32 depth) {
     if (e->til_type.tag == TilType_TAG_Dynamic) {
@@ -3175,25 +3016,6 @@ I32 build_header(Expr *core_program, Expr *program, Str *h_path) {
 #endif
 
 // Emit a til type default value for binding generation
-static void emit_til_default(File *f, TilType t, Str *struct_name) {
-    switch (t.tag) {
-    case TilType_TAG_I64: case TilType_TAG_I16: case TilType_TAG_I32:
-    case TilType_TAG_U32: case TilType_TAG_U64: case TilType_TAG_F32: EMIT(f, "0"); break;
-    case TilType_TAG_U8:   EMIT(f, "0"); break;
-    case TilType_TAG_Bool: EMIT(f, "false"); break;
-    case TilType_TAG_Struct:
-    case TilType_TAG_Enum:
-        if (struct_name && strcmp((const char *)struct_name->c_str, "Str") == 0)
-            EMIT(f, "\"\"");
-        else if (struct_name) {
-            EMIT(f, (const char *)struct_name->c_str); EMIT(f, "()");
-        }
-        else
-            EMIT(f, "0");
-        break;
-    default: EMIT(f, "0"); break;
-    }
-}
 
 I32 build_til_binding(Expr *core_program, Expr *program, Str *til_path, Str *lib_name) {
     (void)core_program;

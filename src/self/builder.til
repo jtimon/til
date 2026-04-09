@@ -259,6 +259,194 @@ func_to_c := func(name: Str) returns Str {
     return name.clone()
 }
 
+type_name_to_c := func(name: Str) returns Str {
+    if name.eq("I64") { return "I64 *" }
+    if name.eq("U8") { return "U8 *" }
+    if name.eq("I16") { return "I16 *" }
+    if name.eq("I32") { return "I32 *" }
+    if name.eq("U32") { return "U32 *" }
+    if name.eq("U64") { return "U64 *" }
+    if name.eq("USize") { return "USize *" }
+    if name.eq("F32") { return "F32 *" }
+    if name.eq("Bool") { return "Bool *" }
+    if name.eq("Dynamic") { return "void *" }
+    if name.eq("Fn") { return "void *" }
+    if has_funcsig_names {
+        if funcsig_names.has(name) { return "void *" }
+    }
+    return name.concat(" *")
+}
+
+type_name_to_c_value := func(name: Str) returns Str {
+    if name.eq("I64") { return "I64" }
+    if name.eq("U8") { return "U8" }
+    if name.eq("I16") { return "I16" }
+    if name.eq("I32") { return "I32" }
+    if name.eq("U32") { return "U32" }
+    if name.eq("U64") { return "U64" }
+    if name.eq("USize") { return "USize" }
+    if name.eq("F32") { return "F32" }
+    if name.eq("Bool") { return "Bool" }
+    if name.eq("Dynamic") { return "void *" }
+    if name.eq("Fn") { return "void *" }
+    if has_funcsig_names {
+        if funcsig_names.has(name) { return "void *" }
+    }
+    return name.clone()
+}
+
+emit_u64 := proc(f: File, shallow v: U64) {
+    f.write_str(v.to_i64().to_str())
+}
+
+emit_i32 := proc(f: File, shallow v: I32) {
+    f.write_str(v.to_i64().to_str())
+}
+
+emit_indent := proc(f: File, shallow depth: U32) {
+    for _i in 0..depth {
+        f.write_str("    ")
+    }
+}
+
+emit_til_default := proc(f: File, shallow t: TilType, struct_name: Str) {
+    if t.eq(TilType.I64).or(t.eq(TilType.I16)).or(t.eq(TilType.I32))
+        .or(t.eq(TilType.U32)).or(t.eq(TilType.U64)).or(t.eq(TilType.F32))
+        .or(t.eq(TilType.U8)) {
+        f.write_str("0")
+    } else if t.eq(TilType.Bool) {
+        f.write_str("false")
+    } else if t.eq(TilType.Struct).or(t.eq(TilType.Enum)) {
+        if is_null(struct_name).not() {
+            if struct_name.eq("Str") {
+                f.write_str("\"\"")
+            } else {
+                f.write_str(struct_name)
+                f.write_str("()")
+            }
+        } else {
+            f.write_str("0")
+        }
+    } else {
+        f.write_str("0")
+    }
+}
+
+callee_return_ctype := func(callee_name: Str) returns Str {
+    ref fdef : Expr = find_callee_fdef(callee_name)
+    if is_null(fdef) { return NULL }
+    ref fd : FunctionDef = get_payload(fdef.data)
+    if fd.return_type.len().eq(0) { return NULL }
+    return type_name_to_c_value(fd.return_type)
+}
+
+emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool) {
+    ref fd : FunctionDef = get_payload(fdef.data)
+    if fd.nparam.eq(0) {
+        f.write_str("void")
+    } else {
+        for i in 0..fd.nparam {
+            if i.gt(0) { f.write_str(", ") }
+            mut ptype := ""
+            ii := i.to_i64().to_i32()
+            if ii.eq(fd.variadic_index) {
+                ptype = "Array *"
+            } else if ii.eq(fd.kwargs_index) {
+                ref p : Param = fd.params.get(i)
+                ptype = type_name_to_c(p.ptype)
+            } else {
+                ref p : Param = fd.params.get(i)
+                if is_variant(p.own_type, OwnType.Shallow) {
+                    ptype = type_name_to_c_value(p.ptype)
+                } else {
+                    ptype = type_name_to_c(p.ptype)
+                }
+            }
+            if with_names {
+                ref p : Param = fd.params.get(i)
+                f.write_str(ptype)
+                f.write_str(" ")
+                f.write_str(p.name)
+            } else {
+                f.write_str(ptype)
+            }
+        }
+    }
+}
+
+collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
+    if is_null(e) { return }
+    if is_variant(e.data, NodeType.FCall) {
+        if e.child_count().gt(0) {
+            if is_variant(e.child(0).data, NodeType.Ident) {
+                if e.child_count().gte(3) {
+                    if is_variant(e.child(2).data, NodeType.LiteralStr) {
+                        ref callee_name : Str = get_payload(e.child(0).data)
+                        mut has_ret := false
+                        if is_dyn_call_name(callee_name, has_ret) {
+                            ref method : Str = get_payload(e.child(2).data)
+                            mut nargs := 1.to_i32()
+                            if e.child_count().gte(4) {
+                                if is_variant(e.child(3).data, NodeType.LiteralNum) {
+                                    ref num_str : Str = get_payload(e.child(3).data)
+                                    nargs = num_str.to_i64().to_i32()
+                                }
+                            }
+                            mut found := false
+                            for mi in 0..methods.len() {
+                                ref existing : DynCallInfo = methods.get(mi)
+                                if existing.method.eq(method) { found = true }
+                            }
+                            if found.not() {
+                                info := DynCallInfo(method = method, nargs = nargs, has_return = has_ret)
+                                methods.push(own info)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for ci in 0..e.child_count() {
+        collect_dyn_methods(e.child(ci), methods)
+    }
+}
+
+collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
+    if is_null(e) { return }
+    if is_variant(e.data, NodeType.FCall) {
+        if e.child_count().gt(0) {
+            if is_variant(e.child(0).data, NodeType.Ident) {
+                if e.child_count().gte(2) {
+                    if is_variant(e.child(1).data, NodeType.LiteralStr) {
+                        ref name : Str = get_payload(e.child(0).data)
+                        mut is_vec := -1.to_i32()
+                        if name.eq("array") { is_vec = 0.to_i32() }
+                        else if name.eq("vec") { is_vec = 1.to_i32() }
+                        if is_vec.gte(0.to_i32()) {
+                            ref type_name : Str = get_payload(e.child(1).data)
+                            mut found := false
+                            for ci_i in 0..infos.len() {
+                                ref existing : CollectionInfo = infos.get(ci_i)
+                                if existing.type_name.eq(type_name) {
+                                    if existing.is_vec.eq(is_vec) { found = true }
+                                }
+                            }
+                            if found.not() {
+                                info := CollectionInfo(type_name = type_name, is_vec = is_vec)
+                                infos.push(own info)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for ci in 0..e.child_count() {
+        collect_collection_builtins(e.child(ci), infos)
+    }
+}
+
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 build_header := ext_func(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(core_program: Expr, program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
