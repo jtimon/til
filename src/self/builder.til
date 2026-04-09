@@ -660,9 +660,246 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
     }
 }
 
-// Emit layer -- ext_proc for functions still in C
-emit_expr := ext_proc(f: File, e: Expr, shallow depth: I32) {}
+// Emit layer
 emit_stmt := ext_proc(f: File, e: Expr, shallow depth: I32) {}
+
+emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr, shallow depth: I32) {
+    ref sfd : FunctionDef = get_payload(sig.data)
+    ret_shallow := is_variant(sfd.return_own_type, OwnType.Shallow)
+    mut ret_c := "void *"
+    if e.til_type.eq(TilType.None).not().and(e.til_type.eq(TilType.Unknown).not())
+        .and(e.til_type.eq(TilType.Dynamic).not()) {
+        ret_c = til_type_to_c(e.til_type)
+        if e.til_type.eq(TilType.Struct).or(e.til_type.eq(TilType.Enum)) {
+            if e.struct_name.len().gt(0) { ret_c = e.struct_name.clone() }
+        }
+        if ret_shallow.not() { ret_c = ret_c.concat(" *") }
+    }
+    f.write_str("((")
+    f.write_str(ret_c)
+    f.write_str(" (*)(")
+    for i in 1..e.child_count() {
+        if i.gt(1) { f.write_str(", ") }
+        ref arg : Expr = e.child(i)
+        mut arg_shallow := false
+        if i.sub(1).lt(sfd.nparam) {
+            ref p : Param = sfd.params.get(i.sub(1))
+            arg_shallow = is_variant(p.own_type, OwnType.Shallow)
+        }
+        mut arg_c := "void *"
+        if arg.til_type.eq(TilType.Unknown).not().and(arg.til_type.eq(TilType.Dynamic).not()) {
+            arg_c = til_type_to_c(arg.til_type)
+            if arg.til_type.eq(TilType.Struct).or(arg.til_type.eq(TilType.Enum)) {
+                if arg.struct_name.len().gt(0) { arg_c = arg.struct_name.clone() }
+            }
+            if arg_shallow.not() { arg_c = arg_c.concat(" *") }
+        }
+        f.write_str(arg_c)
+    }
+    if e.child_count().eq(1) { f.write_str("void") }
+}
+
+emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, shallow depth: I32) {
+    ref sfd : FunctionDef = get_payload(sig.data)
+    for i in 1..e.child_count() {
+        if i.gt(1) { f.write_str(", ") }
+        mut arg_shallow := false
+        if i.sub(1).lt(sfd.nparam) {
+            ref p : Param = sfd.params.get(i.sub(1))
+            arg_shallow = is_variant(p.own_type, OwnType.Shallow)
+        }
+        if arg_shallow { emit_deref(f, e.child(i), depth) }
+        else { emit_as_ptr(f, e.child(i), depth) }
+    }
+}
+
+emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
+    if is_variant(e.data, NodeType.LiteralStr) {
+        ref s : Str = get_payload(e.data)
+        f.write_str("Str_lit(\"")
+        f.write_str(s)
+        f.write_str("\", ")
+        emit_u64(f, s.len().to_i64().to_u64())
+        f.write_str("ULL)")
+    } else if is_variant(e.data, NodeType.LiteralNum) {
+        ref num : Str = get_payload(e.data)
+        f.write_str(num)
+    } else if is_variant(e.data, NodeType.LiteralBool) {
+        ref b : Bool = get_payload(e.data)
+        if b { emit_i32(f, 1.to_i32()) } else { emit_i32(f, 0.to_i32()) }
+    } else if is_variant(e.data, NodeType.LiteralNull) {
+        f.write_str("NULL")
+    } else if is_variant(e.data, NodeType.Ident) {
+        ref ident : Str = get_payload(e.data)
+        if e.til_type.eq(TilType.FuncPtr) {
+            f.write_str("(void *)")
+            fc := func_to_c(ident)
+            f.write_str(fc)
+        } else {
+            f.write_str(ident)
+        }
+    } else if is_variant(e.data, NodeType.FCall) {
+        ref callee : Expr = e.child(0)
+        // Indirect call through FuncSig-typed struct field
+        if is_variant(callee.data, NodeType.FieldAccess) {
+            if callee.til_type.eq(TilType.FuncPtr) {
+                ref sig : Expr = fcall_fn_sig(e)
+                if is_null(sig).not() {
+                    emit_fcall_funcptr_cast(f, e, sig, depth)
+                    f.write_str("))(")
+                    emit_expr(f, callee, depth)
+                    f.write_str("))(")
+                    emit_fcall_funcptr_args(f, e, sig, depth)
+                    f.write_str(")")
+                    return
+                }
+            }
+            // Namespace method call
+            ref sname : Str = callee.child(0).struct_name
+            ref mname : Str = get_payload(callee.data)
+            flat := sname.concat("_").concat(mname)
+            f.write_str(sname)
+            f.write_str("_")
+            f.write_str(mname)
+            f.write_str("(")
+            for i in 1..e.child_count() {
+                if i.gt(1) { f.write_str(", ") }
+                if callee_param_is_shallow(flat, i.sub(1)) {
+                    emit_deref(f, e.child(i), depth)
+                } else if callee_param_is_usize(flat, i.sub(1)).and(callee_param_is_own(flat, i.sub(1)).not()) {
+                    emit_usize_ref(f, e.child(i), depth)
+                } else {
+                    emit_as_ptr(f, e.child(i), depth)
+                }
+            }
+            f.write_str(")")
+            return
+        }
+        ref name : Str = get_payload(callee.data)
+        if name.eq("dyn_call").or(name.eq("dyn_call_ret")) {
+            ref method : Str = get_payload(e.child(2).data)
+            ref nargs_str : Str = get_payload(e.child(3).data)
+            nargs := nargs_str.to_i64().to_i32()
+            f.write_str("dyn_call_")
+            f.write_str(method)
+            f.write_str("(")
+            emit_as_ptr(f, e.child(1), depth)
+            for ai : I32 in 0..nargs {
+                f.write_str(", ")
+                emit_as_ptr(f, e.child(ai.to_i64().add(4).to_u32()), depth)
+            }
+            f.write_str(")")
+        } else if name.eq("dyn_fn") {
+            f.write_str("dyn_fn(")
+            emit_as_ptr(f, e.child(1), depth)
+            f.write_str(", ")
+            ref method_arg : Expr = e.child(2)
+            if is_variant(method_arg.data, NodeType.LiteralStr) {
+                ref ms : Str = get_payload(method_arg.data)
+                f.write_str("&(Str){.c_str=(U8*)\"")
+                f.write_str(ms)
+                f.write_str("\", .count=")
+                emit_u64(f, ms.len().to_i64().to_u64())
+                f.write_str("ULL, .cap=TIL_CAP_LIT}")
+            } else {
+                emit_as_ptr(f, method_arg, depth)
+            }
+            f.write_str(")")
+        } else if name.eq("array").or(name.eq("vec")) {
+            ref elem_type : Str = get_payload(e.child(1).data)
+            count := e.child_count().sub(2).to_i64().to_i32()
+            if name.eq("array") { f.write_str("array") } else { f.write_str("vec") }
+            f.write_str("_of_")
+            f.write_str(elem_type)
+            f.write_str("(")
+            emit_i32(f, count)
+            for i in 2..e.child_count() {
+                f.write_str(", ")
+                emit_as_ptr(f, e.child(i), depth)
+            }
+            f.write_str(")")
+        } else if name.eq("dyn_has_method") {
+            ref method : Str = get_payload(e.child(2).data)
+            f.write_str("dyn_has_")
+            f.write_str(method)
+            f.write_str("(")
+            emit_as_ptr(f, e.child(1), depth)
+            f.write_str(")")
+        } else if e.struct_name.len().gt(0).and(name.eq(e.struct_name)) {
+            // Struct constructor
+            ctype := c_type_name(e.til_type, e.struct_name)
+            _ctor_seq = _ctor_seq.add(1.to_i32())
+            id := _ctor_seq
+            f.write_str("({ ")
+            f.write_str(ctype)
+            f.write_str(" *_sc")
+            emit_i32(f, id)
+            f.write_str(" = malloc(sizeof(")
+            f.write_str(ctype)
+            f.write_str(")); ")
+            tmp := "_sc".concat(id.to_i64().to_str())
+            emit_ctor_fields(f, tmp, e, depth)
+            f.write_str(" _sc")
+            emit_i32(f, id)
+            f.write_str("; })")
+        } else if callee.til_type.eq(TilType.FuncPtr) {
+            // Indirect call through function pointer variable
+            ref sig : Expr = fcall_fn_sig(e)
+            emit_fcall_funcptr_cast(f, e, sig, depth)
+            if is_ref_local(name) {
+                f.write_str("))(*")
+                f.write_str(name)
+                f.write_str("))(")
+            } else {
+                f.write_str("))")
+                f.write_str(name)
+                f.write_str(")(")
+            }
+            emit_fcall_funcptr_args(f, e, sig, depth)
+            f.write_str(")")
+        } else {
+            // User-defined function call
+            fc := func_to_c(name)
+            f.write_str(fc)
+            f.write_str("(")
+            for i in 1..e.child_count() {
+                if i.gt(1) { f.write_str(", ") }
+                if callee_param_is_shallow(name, i.sub(1)) {
+                    emit_deref(f, e.child(i), depth)
+                } else if callee_param_is_usize(name, i.sub(1)).and(callee_param_is_own(name, i.sub(1)).not()) {
+                    emit_usize_ref(f, e.child(i), depth)
+                } else {
+                    emit_as_ptr(f, e.child(i), depth)
+                }
+            }
+            f.write_str(")")
+        }
+    } else if is_variant(e.data, NodeType.FieldAccess) {
+        ref obj : Expr = e.child(0)
+        ref fname : Str = get_payload(e.data)
+        if builder_fa_is_ns(e) {
+            if e.til_type.eq(TilType.Enum) {
+                f.write_str("&(")
+                f.write_str(obj.struct_name)
+                f.write_str("){.tag = ")
+                f.write_str(obj.struct_name)
+                f.write_str("_TAG_")
+                f.write_str(fname)
+                f.write_str("}")
+            } else {
+                f.write_str(obj.struct_name)
+                f.write_str("_")
+                f.write_str(fname)
+            }
+        } else {
+            emit_expr(f, obj, depth)
+            if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
+            f.write_str(fname)
+        }
+    } else {
+        f.write_str("/* TODO: unknown expr type */")
+    }
+}
 
 emit_body := proc(f: File, body: Expr, shallow depth: I32) {
     for i in 0..body.child_count() {
