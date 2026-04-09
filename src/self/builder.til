@@ -786,7 +786,88 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
         emit_indent(f, depth); f.write_str("(void)"); f.write_str(dd.name); f.write_str(";\n")
     }
 }
-emit_stmt_return := ext_proc(f: File, e: Expr, shallow depth: I32) {}
+emit_return_ctype := func(rv: Expr) returns Str {
+    if is_null(current_fdef).not() {
+        ref fd : FunctionDef = get_payload(current_fdef.data)
+        if fd.return_type.len().gt(0) { return type_name_to_c_value(fd.return_type) }
+    }
+    return c_type_name(rv.til_type, rv.struct_name)
+}
+
+emit_return_box := proc(f: File, rv: Expr, shallow depth: I32) {
+    ctype := emit_return_ctype(rv)
+    f.write_str("{ "); f.write_str(ctype); f.write_str(" *_r = malloc(sizeof("); f.write_str(ctype); f.write_str(")); *_r = ")
+    emit_expr(f, rv, depth)
+    f.write_str("; return _r; }\n")
+}
+
+emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
+    if e.child_count().eq(0) {
+        if in_main_func { f.write_str("return 0;\n") }
+        else { f.write_str("return;\n") }
+    } else {
+        ref rv : Expr = e.child(0)
+        // Struct constructor return
+        if is_variant(rv.data, NodeType.FCall).and(rv.struct_name.len().gt(0)).and(rv.child_count().gt(0)) {
+            if is_variant(rv.child(0).data, NodeType.Ident) {
+                ref ci : Str = get_payload(rv.child(0).data)
+                if ci.eq(rv.struct_name) {
+                    ctype := c_type_name(rv.til_type, rv.struct_name)
+                    f.write_str("{ "); f.write_str(ctype); f.write_str(" *_r = malloc(sizeof("); f.write_str(ctype); f.write_str("));\n")
+                    emit_ctor_fields(f, "_r", rv, depth)
+                    emit_indent(f, depth); f.write_str("return _r; }\n")
+                    return
+                }
+            }
+        }
+        // Ref return
+        if is_null(current_fdef).not() {
+            ref fd : FunctionDef = get_payload(current_fdef.data)
+            if is_variant(fd.return_own_type, OwnType.Ref) {
+                f.write_str("return "); emit_as_ptr(f, rv, depth); f.write_str(";\n"); return
+            }
+            if is_variant(fd.return_own_type, OwnType.Shallow) {
+                f.write_str("return ")
+                if is_variant(rv.data, NodeType.FCall).and(fcall_is_shallow_return(rv)) { emit_expr(f, rv, depth) }
+                else { emit_deref(f, rv, depth) }
+                f.write_str(";\n"); return
+            }
+        }
+        // Inline field value: box for return
+        if is_variant(rv.data, NodeType.FieldAccess).and(rv.field_own_type.eq(OwnType.Shallow))
+            .and(builder_fa_is_ns(rv).not()).and(rv.til_type.eq(TilType.Dynamic).not()) {
+            emit_return_box(f, rv, depth)
+        // Shallow fcall: box for return
+        } else if is_variant(rv.data, NodeType.FCall).and(fcall_is_shallow_return(rv)) {
+            emit_return_box(f, rv, depth)
+        // Hoisted local: box for return
+        } else if is_variant(rv.data, NodeType.Ident) {
+            ref rv_name : Str = get_payload(rv.data)
+            mut is_shallow_ret := false
+            if is_null(current_fdef).not() {
+                ref fd : FunctionDef = get_payload(current_fdef.data)
+                is_shallow_ret = is_variant(fd.return_own_type, OwnType.Shallow)
+            }
+            if is_stack_local(rv_name).or(is_value_global(rv_name)) {
+                if is_shallow_ret.not() {
+                    ctype := emit_return_ctype(rv)
+                    f.write_str("{ "); f.write_str(ctype); f.write_str(" *_r = malloc(sizeof("); f.write_str(ctype); f.write_str(")); *_r = "); f.write_str(rv_name); f.write_str("; return _r; }\n")
+                } else {
+                    f.write_str("return "); emit_expr(f, rv, depth); f.write_str(";\n")
+                }
+            } else {
+                f.write_str("return "); emit_expr(f, rv, depth); f.write_str(";\n")
+            }
+        // Bare enum variant ref: heap-allocate
+        } else if is_variant(rv.data, NodeType.FieldAccess).and(builder_fa_is_ns(rv)).and(rv.til_type.eq(TilType.Enum)) {
+            ref sn : Str = rv.child(0).struct_name
+            ref vname : Str = get_payload(rv.data)
+            f.write_str("{ "); f.write_str(sn); f.write_str(" *_r = malloc(sizeof("); f.write_str(sn); f.write_str(")); _r->tag = "); f.write_str(sn); f.write_str("_TAG_"); f.write_str(vname); f.write_str("; return _r; }\n")
+        } else {
+            f.write_str("return "); emit_expr(f, rv, depth); f.write_str(";\n")
+        }
+    }
+}
 
 emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
     emit_indent(f, depth)

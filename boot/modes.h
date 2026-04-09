@@ -1139,6 +1139,8 @@ void check_fcall_mut_args(Expr * e);
 void collect_unsafe_to_hoist(Expr * body);
 void collect_dyn_has_methods(Expr * e, Vec * methods);
 void emit_stmt_decl(File * f, Expr * e, I32 depth);
+Str * emit_return_ctype(Expr * rv);
+void emit_return_box(File * f, Expr * rv, I32 depth);
 void emit_stmt_return(File * f, Expr * e, I32 depth);
 void emit_stmt(File * f, Expr * e, I32 depth);
 void emit_fcall_funcptr_cast(File * f, Expr * e, Expr * sig, I32 depth);
