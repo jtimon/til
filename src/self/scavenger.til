@@ -2,6 +2,22 @@ mode lib
 
 mut gc_strs := Vec.new("Str", Str.size())
 
+// Check if a FieldAccess is a namespace access (type-level, not instance).
+// The typer marks type-name idents with StructDef/EnumDef til_type.
+scav_fa_is_ns := func(e: Expr) returns shallow Bool {
+    if e.child_count().eq(0) { return false }
+    ref obj : Expr = e.child(0)
+    if is_variant(obj.data, NodeType.Ident) {
+        if is_variant(obj.til_type, TilType.StructDef).or(is_variant(obj.til_type, TilType.EnumDef)) {
+            return true
+        }
+        // Also check: if ident name matches struct_name, it's a type reference
+        ref id : Str = get_payload(obj.data)
+        if obj.struct_name.len().gt(0).and(obj.struct_name.eq(id)) { return true }
+    }
+    return false
+}
+
 qualified_name := func(type_name: Str, method_name: Str) returns Str {
     return type_name.concat(".").concat(method_name)
 }
@@ -66,7 +82,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         // Check for namespace method call: Type.method(args...)
         if e.child_count().gt(0) {
             if is_variant(e.child(0).data, NodeType.FieldAccess) {
-                if e.child(0).is_ns_field {
+                if scav_fa_is_ns(e.child(0)) {
                     ref fa : Expr = e.child(0)
                     ref type_name : Str = get_payload(fa.child(0).data)
                     ref method : Str = get_payload(fa.data)
@@ -109,7 +125,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
             vec_push_str(refs, fdef.return_type)
         }
     } else if is_variant(e.data, NodeType.FieldAccess) {
-        if e.is_ns_field {
+        if scav_fa_is_ns(e) {
             if is_variant(e.child(0).data, NodeType.Ident) {
                 ref type_name : Str = get_payload(e.child(0).data)
                 ref field_name : Str = get_payload(e.data)
@@ -118,7 +134,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
             }
         }
     } else if is_variant(e.data, NodeType.FieldAssign) {
-        if e.is_ns_field {
+        if scav_fa_is_ns(e) {
             if is_variant(e.child(0).data, NodeType.Ident) {
                 ref type_name : Str = get_payload(e.child(0).data)
                 ref field_name : Str = get_payload(e.data)

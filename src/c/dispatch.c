@@ -171,7 +171,6 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     Expr field_access = {0};
     field_access.data.tag = NodeType_TAG_FieldAccess;
     field_access.data.data.FieldAccess = *method;
-    field_access.is_ns_field = 1;
     field_access.line = e->line;
     field_access.col = e->col;
     field_access.children = (Vec){.data = malloc(sizeof(Expr)), .cap = 1, .elem_size = sizeof(Expr)};
@@ -221,7 +220,6 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     Expr field_access = {0};
     field_access.data.tag = NodeType_TAG_FieldAccess;
     field_access.data.data.FieldAccess = (Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT};
-    field_access.is_ns_field = 1;
     field_access.line = src->line; field_access.col = src->col;
     field_access.path = src->path;
     field_access.children = (Vec){.data = malloc(sizeof(Expr)), .cap = 1, .elem_size = sizeof(Expr)};

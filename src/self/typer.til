@@ -1,5 +1,36 @@
 mode lib
 
+// Check if a FieldAccess/FieldAssign Expr accesses a namespace field.
+fa_is_ns := func(e: Expr, scope: TypeScope) returns shallow Bool {
+    if e.child_count().eq(0) { return false }
+    if is_variant(e.data, NodeType.FieldAccess).not().and(is_variant(e.data, NodeType.FieldAssign).not()) { return false }
+    ref obj : Expr = e.child(0)
+    mut sn := obj.struct_name
+    if sn.len().eq(0) {
+        if is_variant(obj.data, NodeType.Ident) {
+            ref id : Str = get_payload(obj.data)
+            sn = id
+        } else { return false }
+    }
+    ref sdef : Expr = scope.get_struct(sn)
+    if is_null(sdef) { return false }
+    ref body : Expr = sdef.child(0)
+    mut fname := ""
+    if is_variant(e.data, NodeType.FieldAccess) {
+        ref fa : Str = get_payload(e.data)
+        fname = fa
+    } else {
+        ref fa : Str = get_payload(e.data)
+        fname = fa
+    }
+    for i in 0..body.child_count() {
+        ref field : Expr = body.child(i)
+        ref dd : Declaration = get_payload(field.data)
+        if dd.name.eq(fname).and(dd.is_namespace) { return true }
+    }
+    return false
+}
+
 mut hoist_counter : I32 = 0
 mut _va_counter : I32 = 0
 mut _kw_counter : I32 = 0
@@ -788,7 +819,6 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         e.til_type = TilType.Unknown
         return true
     }
-    fa3.is_ns_field = true
     {
         ref ns_fdef : FunctionDef = get_payload(ns_func2.data)
         np := ns_fdef.nparam
@@ -1284,7 +1314,6 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
                 }
                 if fld_decl.name.eq(fname) {
                     expr.til_type = field.til_type
-                    expr.is_ns_field = fld_decl.is_namespace
                     expr.field_own_type = fld_decl.own_type
                     if is_variant(field.til_type, TilType.Struct).or(is_variant(field.til_type, TilType.Enum)) {
                         ref child0 : Expr = field.child(0)
@@ -1346,7 +1375,6 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                 ref fld_decl : Declaration = get_payload(field.data)
                 if fld_decl.name.eq(fname) {
                     found = true
-                    stmt.is_ns_field = fld_decl.is_namespace
                     stmt.field_own_type = fld_decl.own_type
                     if fld_decl.is_mut.not() {
                         type_error(stmt, "cannot assign to immutable field '".concat(fname).concat("'"))
@@ -2730,7 +2758,6 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     type_id.struct_name = tname.clone()
 
     mut fa := Expr.new(NodeType.FieldAccess("delete"), field_assign.line, field_assign.col, field_assign.path)
-    fa.is_ns_field = true
     fa.add_child(own type_id)
     call.add_child(own fa)
 
@@ -2759,7 +2786,6 @@ make_delete_call := func(var_name: Str, shallow type: TilType, struct_name: Str,
     type_id.struct_name = tname.clone()
 
     mut fa := Expr.new(NodeType.FieldAccess("delete"), src.line, src.col, src.path)
-    fa.is_ns_field = true
     fa.add_child(own type_id)
     call.add_child(own fa)
 
@@ -2787,7 +2813,6 @@ make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: E
     type_id.struct_name = type_name.clone()
 
     mut fa := Expr.new(NodeType.FieldAccess("clone"), src.line, src.col, src.path)
-    fa.is_ns_field = true
     fa.add_child(own type_id)
     call.add_child(own fa)
 
@@ -2804,7 +2829,6 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, ret_sna
     type_id.struct_name = sname.clone()
 
     mut fa := Expr.new(NodeType.FieldAccess(method.clone()), src.line, src.col, src.path)
-    fa.is_ns_field = true
     fa.add_child(own type_id)
     call.add_child(own fa)
     return call
@@ -3500,7 +3524,7 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
             }
         }
     } else if is_variant(callee.data, NodeType.FieldAccess) {
-        if callee.is_ns_field {
+        if fa_is_ns(callee, scope) {
             ref type_node : Expr = callee.child(0)
             if is_variant(type_node.data, NodeType.Ident) {
                 ref type_name : Str = get_payload(type_node.data)
@@ -3705,7 +3729,7 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
         return false
     }
     // Namespace method call
-    if is_variant(fcall.child(0).data, NodeType.FieldAccess).and(fcall.child(0).is_ns_field) {
+    if is_variant(fcall.child(0).data, NodeType.FieldAccess).and(fa_is_ns(fcall.child(0), scope)) {
         ref method : Str = get_payload(fcall.child(0).data)
         ref type_node : Expr = fcall.child(0).child(0)
         if is_variant(type_node.data, NodeType.Ident).not() { return false }
@@ -3758,7 +3782,7 @@ expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
         }
     }
     if is_variant(e.data, NodeType.FieldAccess) {
-        if e.is_ns_field { return false }
+        if fa_is_ns(e, scope) { return false }
         return expr_is_borrow_source(e.child(0), scope)
     }
     return false
@@ -3777,7 +3801,7 @@ expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns shallow Boo
         return true
     }
     if is_variant(e.data, NodeType.FieldAccess) {
-        if e.is_ns_field { return false }
+        if fa_is_ns(e, scope) { return false }
         return expr_is_stable_field_base(e.child(0), scope)
     }
     return false
@@ -3787,7 +3811,7 @@ expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns shallow Bool 
     if is_null(e) { return false }
     if expr_is_borrow_source(e, scope) { return true }
     if is_variant(e.data, NodeType.FieldAccess) {
-        if e.is_ns_field { return false }
+        if fa_is_ns(e, scope) { return false }
         return expr_is_stable_field_base(e.child(0), scope)
     }
     return false
@@ -4163,7 +4187,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
         }
         return 0.to_i32()
     }
-    if is_variant(callee.data, NodeType.FieldAccess).and(callee.is_ns_field) {
+    if is_variant(callee.data, NodeType.FieldAccess).and(fa_is_ns(callee, scope)) {
         ref _cti : Str = get_payload(callee.child(0).data)
         ref sdef : Expr = scope.get_struct(_cti)
         if is_null(sdef) { return 0.to_i32() }

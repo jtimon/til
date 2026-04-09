@@ -395,7 +395,6 @@ typedef struct Expr {
     Bool is_own_arg;
     Bool is_splat;
     OwnType field_own_type;
-    Bool is_ns_field;
     Bool save_old_delete;
     Expr *fn_sig;
     Vec children;
@@ -878,6 +877,7 @@ void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bo
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U32 * TypeScope_size(void);
+Bool fa_is_ns(Expr * e, TypeScope * scope);
 LocalInfo * LocalInfo_clone(LocalInfo * self);
 void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U32 * LocalInfo_size(void);

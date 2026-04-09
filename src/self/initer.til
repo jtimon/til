@@ -471,7 +471,6 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
             mut type_id := Expr.new(NodeType.Ident(vtype.clone()), line, col, path)
             type_id.struct_name = vtype.clone()
             mut del_acc := Expr.new(NodeType.FieldAccess("delete"), line, col, path)
-            del_acc.is_ns_field = true
             del_acc.add_child(own type_id)
             mut del_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
             del_call.add_child(own del_acc)
@@ -1736,7 +1735,16 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         if b.struct_name.len().gt(0) { out_struct_name = b.struct_name }
         return out_type.eq(TilType.Unknown).not()
     case NodeType.FieldAccess:
-        if rhs.is_ns_field.and(rhs.til_type.eq(TilType.Enum)) {
+        mut _init_ns1 := false
+        if rhs.child_count().gt(0) {
+            ref _io1 : Expr = rhs.child(0)
+            if is_variant(_io1.data, NodeType.Ident) {
+                if is_variant(_io1.til_type, TilType.StructDef).or(is_variant(_io1.til_type, TilType.EnumDef)) {
+                    _init_ns1 = true
+                }
+            }
+        }
+        if _init_ns1.and(rhs.til_type.eq(TilType.Enum)) {
             out_type = TilType.Enum
             if rhs.child_count().gt(0) {
                 out_struct_name = rhs.child(0).struct_name
@@ -1754,7 +1762,16 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
                 return true
             }
         }
-        if is_variant(callee.data, NodeType.FieldAccess).and(callee.is_ns_field)
+        mut _init_ns2 := false
+        if is_variant(callee.data, NodeType.FieldAccess).and(callee.child_count().gt(0)) {
+            ref _io2 : Expr = callee.child(0)
+            if is_variant(_io2.data, NodeType.Ident) {
+                if is_variant(_io2.til_type, TilType.StructDef).or(is_variant(_io2.til_type, TilType.EnumDef)) {
+                    _init_ns2 = true
+                }
+            }
+        }
+        if is_variant(callee.data, NodeType.FieldAccess).and(_init_ns2)
             .and(rhs.struct_name.len().gt(0)).and(rhs.til_type.eq(TilType.Enum)) {
             out_type = TilType.Enum
             out_struct_name = rhs.struct_name

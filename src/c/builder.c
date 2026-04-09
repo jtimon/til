@@ -40,6 +40,44 @@ Expr *find_struct_body(Str *name) {
     return *p;
 }
 
+// Resolve the struct/enum name for the object of a FieldAccess/FieldAssign.
+static Str *fa_struct_name(Expr *e) {
+    Expr *obj = Expr_child(e, &(USize){(USize)(0)});
+    if (obj->struct_name.count > 0) return &obj->struct_name;
+    if (obj->data.tag == NodeType_TAG_Ident) return &obj->data.data.Ident;
+    return &obj->struct_name;
+}
+
+// Check if a FieldAccess/FieldAssign accesses a namespace field.
+static Bool builder_fa_is_ns(Expr *e) {
+    Str *sname = fa_struct_name(e);
+    Str *fname = (e->data.tag == NodeType_TAG_FieldAccess)
+        ? &e->data.data.FieldAccess : &e->data.data.FieldAssign;
+    Expr *body = find_struct_body(sname);
+    if (!body) return 0;
+    // Search for a namespace field with this name
+    Bool has_ns = 0, has_inst = 0;
+    for (U32 i = 0; i < body->children.count; i++) {
+        Expr *f = Expr_child(body, &(USize){(USize)(i)});
+        if (Str_eq(&f->data.data.Decl.name, fname)) {
+            if (f->data.data.Decl.is_namespace) has_ns = 1;
+            else has_inst = 1;
+        }
+    }
+    if (has_ns && !has_inst) return 1;
+    if (!has_ns) return 0;
+    // Both exist (e.g. FFIType has 'size' field + auto 'size()' method).
+    // Instance access if the object is a variable; namespace if it's a type name.
+    Expr *obj = Expr_child(e, &(USize){(USize)(0)});
+    if (obj->data.tag != NodeType_TAG_Ident) return 0;
+    if (Str_eq(&obj->data.data.Ident, sname)) return 1;
+    // Type alias: ident differs from canonical name but is still a
+    // type reference (PascalCase convention).
+    if (obj->data.data.Ident.count > 0 && obj->data.data.Ident.c_str[0] >= 'A' && obj->data.data.Ident.c_str[0] <= 'Z')
+        return 1;
+    return 0;
+}
+
 // --- Emitter helpers ---
 
 
@@ -405,7 +443,7 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
     case NodeType_TAG_FieldAccess: {
         Expr *obj = Expr_child(e, &(USize){(USize)(0)});
         Str *fname = &e->data.data.FieldAccess;
-        if (e->is_ns_field) {
+        if (builder_fa_is_ns(e)) {
             if (e->til_type.tag == TilType_TAG_Enum) {
                 // Bare variant ref: emit tag-only compound literal (no malloc)
                 EMIT(f, "&("); EMIT(f, (const char *)obj->struct_name.c_str); EMIT(f, "){.tag = "); EMIT(f, (const char *)obj->struct_name.c_str); EMIT(f, "_TAG_"); EMIT(f, (const char *)fname->c_str); EMIT(f, "}");
@@ -452,7 +490,7 @@ static void emit_deref(File *f, Expr *e, I32 depth) {
         }
     } else if (e->data.tag == NodeType_TAG_LiteralStr) {
         EMIT(f, "(Str){.c_str=(U8*)\""); EMIT(f, (const char *)e->data.data.Ident.c_str); EMIT(f, "\", .count="); emit_u64(f, e->data.data.Ident.count); EMIT(f, "ULL, .cap=TIL_CAP_LIT}");
-    } else if (e->data.tag == NodeType_TAG_FieldAccess && e->is_ns_field && e->til_type.tag == TilType_TAG_Enum) {
+    } else if (e->data.tag == NodeType_TAG_FieldAccess && builder_fa_is_ns(e) && e->til_type.tag == TilType_TAG_Enum) {
         // Auto-called constructor returns pointer; dereference it
         EMIT(f, "(*");
         emit_expr(f, e, depth);
@@ -496,7 +534,7 @@ static void emit_as_ptr(File *f, Expr *e, I32 depth) {
     } else if (e->data.tag == NodeType_TAG_FieldAccess) {
         // Own field is already a pointer; enum ns_field constructor returns pointer;
         // Dynamic field is void* (already a pointer); inline field needs address-of
-        if (FIELD_IS_PTR(e) || (e->is_ns_field && e->til_type.tag == TilType_TAG_Enum) ||
+        if (FIELD_IS_PTR(e) || (builder_fa_is_ns(e) && e->til_type.tag == TilType_TAG_Enum) ||
             e->til_type.tag == TilType_TAG_Dynamic) {
             emit_expr(f, e, depth);
         } else {
@@ -667,7 +705,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                     }
                     emit_ctor_fields(f, &(Str){.c_str=(U8*)var, .count=strlen(var), .cap=CAP_VIEW}, rhs, depth);
                     } else if (rhs->data.tag == NodeType_TAG_FCall || rhs->data.tag == NodeType_TAG_LiteralStr ||
-                               (rhs->data.tag == NodeType_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
+                               (rhs->data.tag == NodeType_TAG_FieldAccess && builder_fa_is_ns(rhs) && rhs->til_type.tag == TilType_TAG_Enum)) {
                     if (is_global) {
                         if (rhs->data.tag == NodeType_TAG_FCall && fcall_is_shallow_return(rhs)) {
                             EMIT(f, (const char *)e->data.data.Decl.name.c_str); EMIT(f, " = ");
@@ -800,7 +838,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
             }
         } else {
             if (rhs->data.tag == NodeType_TAG_FCall || rhs->data.tag == NodeType_TAG_LiteralStr ||
-                (rhs->data.tag == NodeType_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
+                (rhs->data.tag == NodeType_TAG_FieldAccess && builder_fa_is_ns(rhs) && rhs->til_type.tag == TilType_TAG_Enum)) {
                 if (rhs->data.tag == NodeType_TAG_FCall && fcall_is_shallow_return(rhs)) {
                     EMIT(f, "*"); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = ");
                 } else {
@@ -822,7 +860,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
     case NodeType_TAG_FieldAssign: {
         Expr *obj = Expr_child(e, &(USize){(USize)(0)});
         Str *fname = &e->data.data.FieldAssign;
-        if (Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_FCall && FIELD_IS_SHALLOW(e) && !e->is_ns_field) {
+        if (Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_FCall && FIELD_IS_SHALLOW(e) && !builder_fa_is_ns(e)) {
             if (fcall_is_shallow_return(Expr_child(e, &(USize){(USize)(1)}))) {
                 // Shallow-return fcall: value directly assigned to inline field
                 emit_expr(f, obj, depth);
@@ -839,7 +877,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 EMIT(f, use_dot_access(obj) ? "." : "->"); EMIT(f, (const char *)fname->c_str); EMIT(f, " = *_fa; free(_fa); }\n");
             }
         } else {
-            if (e->is_ns_field) {
+            if (builder_fa_is_ns(e)) {
                 EMIT(f, (const char *)obj->struct_name.c_str); EMIT(f, "_"); EMIT(f, (const char *)fname->c_str); EMIT(f, " = ");
             } else {
                 emit_expr(f, obj, depth);
@@ -907,7 +945,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                     EMIT(f, ";\n");
                 }
             } else if (rv->data.tag == NodeType_TAG_FieldAccess && FIELD_IS_SHALLOW(rv) &&
-                       !rv->is_ns_field && rv->til_type.tag != TilType_TAG_Dynamic) {
+                       !builder_fa_is_ns(rv) && rv->til_type.tag != TilType_TAG_Dynamic) {
                 // Inline field value -- must clone to heap pointer for return
                 Str *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
@@ -939,7 +977,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                     ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
                     : c_type_name(rv->til_type, &rv->struct_name);
                 EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)rv->data.data.Ident.c_str); EMIT(f, "; return _r; }\n");
-            } else if (rv->data.tag == NodeType_TAG_FieldAccess && rv->is_ns_field &&
+            } else if (rv->data.tag == NodeType_TAG_FieldAccess && builder_fa_is_ns(rv) &&
                        rv->til_type.tag == TilType_TAG_Enum) {
                 // Bare variant ref return: heap-allocate (compound literal is stack-only)
                 Str *sn = &Expr_child(rv, &(USize){(USize)(0)})->struct_name;
