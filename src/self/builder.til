@@ -13,7 +13,7 @@ DynCallInfo := struct {
 
 // --- Globals ---
 
-// codegen_program, current_fdef: blocked by #132 (ref globals at file scope)
+ref mut current_fdef : Expr = NULL
 mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut func_defs := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut script_globals := Set.new("Str", Str.size())
@@ -149,9 +149,59 @@ is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
     return true
 }
 
-// C functions not yet translated (Map pointer dereference issue)
 find_struct_body := ext_func(name: Str) returns ref Expr {}
 find_callee_fdef := ext_func(name: Str) returns ref Expr {}
+
+fa_struct_name := func(e: Expr) returns ref Str {
+    ref obj : Expr = e.child(0)
+    if obj.struct_name.len().gt(0) { return obj.struct_name }
+    if is_variant(obj.data, NodeType.Ident) {
+        ref ident : Str = get_payload(obj.data)
+        return ident
+    }
+    return obj.struct_name
+}
+
+builder_fa_is_ns := func(e: Expr) returns shallow Bool {
+    ref sname : Str = fa_struct_name(e)
+    ref fname : Str = get_payload(e.data)
+    ref body : Expr = find_struct_body(sname)
+    if is_null(body) { return false }
+    mut has_ns := false
+    mut has_inst := false
+    for fi in 0..body.child_count() {
+        ref f : Expr = body.child(fi)
+        ref dd : Declaration = get_payload(f.data)
+        if dd.name.eq(fname) {
+            if dd.is_namespace { has_ns = true }
+            else { has_inst = true }
+        }
+    }
+    if has_ns.and(has_inst.not()) { return true }
+    if has_ns.not() { return false }
+    ref obj : Expr = e.child(0)
+    if is_variant(obj.data, NodeType.Ident).not() { return false }
+    ref ident : Str = get_payload(obj.data)
+    if ident.eq(sname) { return true }
+    if ident.len().gt(0) {
+        if ident.get(0).gte('A').and(ident.get(0).lte('Z')) {
+            return true
+        }
+    }
+    return false
+}
+
+is_shallow_param := func(name: Str) returns shallow Bool {
+    if is_null(current_fdef) { return false }
+    ref fd : FunctionDef = get_payload(current_fdef.data)
+    for pi in 0..fd.nparam {
+        ref p : Param = fd.params.get(pi)
+        if is_variant(p.own_type, OwnType.Shallow) {
+            if p.name.eq(name) { return true }
+        }
+    }
+    return false
+}
 
 callee_returns_shallow := func(callee_name: Str) returns shallow Bool {
     ref fdef : Expr = find_callee_fdef(callee_name)

@@ -20,7 +20,6 @@
 
 static Expr *codegen_core_program;  // blocked by #132
 static Expr *codegen_program;  // blocked by #132
-static Expr *current_fdef = NULL;  // blocked by #132
 // remaining globals defined in builder.til
 
 // Collect unique array/vec builtin type names from AST
@@ -38,38 +37,6 @@ Expr *find_struct_body(Str *name) {
     return *p;
 }
 
-// Resolve the struct/enum name for the object of a FieldAccess/FieldAssign.
-static Str *fa_struct_name(Expr *e) {
-    Expr *obj = Expr_child(e, &(USize){(USize)(0)});
-    if (obj->struct_name.count > 0) return &obj->struct_name;
-    if (obj->data.tag == NodeType_TAG_Ident) return &obj->data.data.Ident;
-    return &obj->struct_name;
-}
-
-// Check if a FieldAccess/FieldAssign accesses a namespace field.
-static Bool builder_fa_is_ns(Expr *e) {
-    Str *sname = fa_struct_name(e);
-    Str *fname = (e->data.tag == NodeType_TAG_FieldAccess)
-        ? &e->data.data.FieldAccess : &e->data.data.FieldAssign;
-    Expr *body = find_struct_body(sname);
-    if (!body) return 0;
-    Bool has_ns = 0, has_inst = 0;
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = Expr_child(body, &(USize){(USize)(i)});
-        if (Str_eq(&f->data.data.Decl.name, fname)) {
-            if (f->data.data.Decl.is_namespace) has_ns = 1;
-            else has_inst = 1;
-        }
-    }
-    if (has_ns && !has_inst) return 1;
-    if (!has_ns) return 0;
-    Expr *obj = Expr_child(e, &(USize){(USize)(0)});
-    if (obj->data.tag != NodeType_TAG_Ident) return 0;
-    if (Str_eq(&obj->data.data.Ident, sname)) return 1;
-    if (obj->data.data.Ident.count > 0 && obj->data.data.Ident.c_str[0] >= 'A' && obj->data.data.Ident.c_str[0] <= 'Z')
-        return 1;
-    return 0;
-}
 
 Expr *find_callee_fdef(Str *name) {
     if (!Map_has(&func_defs, name)) return NULL;
@@ -130,15 +97,6 @@ static void emit_body_scoped(File *f, Expr *body, I32 depth) {
 
 
 
-static Bool is_shallow_param(Str *name) {
-    if (!current_fdef) return 0;
-    for (U32 i = 0; i < current_fdef->data.data.FuncDef.nparam; i++) {
-        Param *_spi = (Param*)Vec_get(&current_fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
-        if (PARAM_IS_SHALLOW(_spi) && Str_eq(&_spi->name, name))
-            return 1;
-    }
-    return 0;
-}
 
 // Check if callee's i-th parameter is shallow (for call site emission)
 
