@@ -155,6 +155,7 @@ find_struct_body := ext_func(name: Str) returns ref Expr {}
 find_callee_fdef := ext_func(name: Str) returns ref Expr {}
 
 fa_struct_name := func(e: Expr) returns ref Str {
+    if e.child_count().eq(0) { return e.struct_name }
     ref obj : Expr = e.child(0)
     if obj.struct_name.len().gt(0) { return obj.struct_name }
     if is_variant(obj.data, NodeType.Ident) {
@@ -661,7 +662,128 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
 }
 
 // Emit layer
-emit_stmt := ext_proc(f: File, e: Expr, shallow depth: I32) {}
+emit_stmt_decl := ext_proc(f: File, e: Expr, shallow depth: I32) {}
+emit_stmt_return := ext_proc(f: File, e: Expr, shallow depth: I32) {}
+
+emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
+    emit_indent(f, depth)
+    if is_variant(e.data, NodeType.Decl) {
+        emit_stmt_decl(f, e, depth)
+    } else if is_variant(e.data, NodeType.Assign) {
+        ref aname : Str = get_payload(e.data)
+        ref rhs : Expr = e.child(0)
+        if e.save_old_delete {
+            ctype := c_type_name(e.til_type, e.struct_name)
+            if is_stack_local(aname).or(is_value_global(aname)) {
+                f.write_str("{ "); f.write_str(ctype); f.write_str(" *_new = ("); f.write_str(ctype); f.write_str(" *)")
+                emit_expr(f, rhs, depth)
+                f.write_str("; "); f.write_str(ctype); f.write_str("_delete(&"); f.write_str(aname); f.write_str(", &(Bool){0}); "); f.write_str(aname); f.write_str(" = *_new; free(_new); }\n")
+            } else {
+                f.write_str("{ "); f.write_str(ctype); f.write_str(" *_old = "); f.write_str(aname); f.write_str("; "); f.write_str(aname); f.write_str(" = ")
+                emit_expr(f, rhs, depth)
+                f.write_str("; "); f.write_str(ctype); f.write_str("_delete(_old, &(Bool){1}); }\n")
+            }
+            return
+        }
+        is_hoisted := is_stack_local(aname).or(is_value_global(aname))
+        if e.til_type.eq(TilType.Dynamic) {
+            f.write_str(aname); f.write_str(" = "); emit_deref(f, rhs, depth); f.write_str(";\n"); return
+        }
+        if is_hoisted {
+            if is_variant(rhs.data, NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
+                f.write_str(aname); f.write_str(" = "); emit_expr(f, rhs, depth); f.write_str(";\n")
+            } else if is_variant(rhs.data, NodeType.FCall) {
+                ctype := c_type_name(e.til_type, e.struct_name)
+                f.write_str("{ "); f.write_str(ctype); f.write_str(" *_hp = ("); f.write_str(ctype); f.write_str(" *)")
+                emit_expr(f, rhs, depth)
+                f.write_str("; "); f.write_str(aname); f.write_str(" = *_hp; free(_hp); }\n")
+            } else {
+                f.write_str(aname); f.write_str(" = "); emit_deref(f, rhs, depth); f.write_str(";\n")
+            }
+        } else {
+            if is_variant(rhs.data, NodeType.FCall).or(is_variant(rhs.data, NodeType.LiteralStr))
+                .or(is_variant(rhs.data, NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(rhs.til_type.eq(TilType.Enum))) {
+                if is_variant(rhs.data, NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
+                    f.write_str("*"); f.write_str(aname); f.write_str(" = ")
+                } else {
+                    f.write_str(aname); f.write_str(" = ")
+                }
+                emit_expr(f, rhs, depth)
+            } else if e.til_type.eq(TilType.FuncPtr) {
+                f.write_str(aname); f.write_str(" = "); emit_expr(f, rhs, depth)
+            } else {
+                f.write_str("*"); f.write_str(aname); f.write_str(" = "); emit_deref(f, rhs, depth)
+            }
+            f.write_str(";\n")
+        }
+    } else if is_variant(e.data, NodeType.FieldAssign) {
+        ref obj : Expr = e.child(0)
+        ref fname : Str = get_payload(e.data)
+        ref rhs_fa : Expr = e.child(1)
+        if is_variant(rhs_fa.data, NodeType.FCall).and(e.field_own_type.eq(OwnType.Shallow)).and(builder_fa_is_ns(e).not()) {
+            if fcall_is_shallow_return(rhs_fa) {
+                emit_expr(f, obj, depth)
+                if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
+                f.write_str(fname); f.write_str(" = "); emit_expr(f, rhs_fa, depth); f.write_str(";\n")
+            } else {
+                ftype := c_type_name(rhs_fa.til_type, rhs_fa.struct_name)
+                f.write_str("{ "); f.write_str(ftype); f.write_str(" *_fa = "); emit_expr(f, rhs_fa, depth); f.write_str("; ")
+                emit_expr(f, obj, depth)
+                if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
+                f.write_str(fname); f.write_str(" = *_fa; free(_fa); }\n")
+            }
+        } else {
+            if builder_fa_is_ns(e) {
+                f.write_str(obj.struct_name); f.write_str("_"); f.write_str(fname); f.write_str(" = ")
+            } else {
+                emit_expr(f, obj, depth)
+                if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
+                f.write_str(fname); f.write_str(" = ")
+            }
+            if e.field_own_type.eq(OwnType.Shallow).not() {
+                mut own_rhs := rhs_fa
+                own_rhs.is_own_arg = true
+                emit_as_ptr(f, own_rhs, depth)
+            } else {
+                emit_deref(f, rhs_fa, depth)
+            }
+            f.write_str(";\n")
+        }
+    } else if is_variant(e.data, NodeType.FCall) {
+        if e.child_count().gt(0).and(is_variant(e.child(0).data, NodeType.FieldAccess)) {
+            ref del_name : Str = get_payload(e.child(0).data)
+            if del_name.eq("delete").and(e.child_count().gte(2)) {
+                if is_variant(e.child(1).data, NodeType.Ident) {
+                    ref del_arg : Str = get_payload(e.child(1).data)
+                    if is_stack_local(del_arg).and(e.child(1).til_type.eq(TilType.Struct).not()).and(e.child(1).til_type.eq(TilType.Enum).not()) {
+                        f.write_str(";\n"); return
+                    }
+                }
+            }
+        }
+        if e.struct_name.len().gt(0).and(e.child_count().gt(0)) {
+            if is_variant(e.child(0).data, NodeType.Ident) {
+                ref cname : Str = get_payload(e.child(0).data)
+                if cname.eq(e.struct_name) { f.write_str("/* discarded struct constructor */;\n"); return }
+            }
+        }
+        emit_expr(f, e, depth); f.write_str(";\n")
+    } else if is_variant(e.data, NodeType.Return) {
+        emit_stmt_return(f, e, depth)
+    } else if is_variant(e.data, NodeType.Body) {
+        f.write_str("{\n"); emit_body_scoped(f, e, depth.add(1.to_i32())); emit_indent(f, depth); f.write_str("}\n")
+    } else if is_variant(e.data, NodeType.If) {
+        f.write_str("if ("); emit_deref(f, e.child(0), depth); f.write_str(") {\n")
+        emit_body_scoped(f, e.child(1), depth.add(1.to_i32())); emit_indent(f, depth)
+        if e.child_count().gt(2) { f.write_str("} else {\n"); emit_body_scoped(f, e.child(2), depth.add(1.to_i32())); emit_indent(f, depth) }
+        f.write_str("}\n")
+    } else if is_variant(e.data, NodeType.While) {
+        f.write_str("while ("); emit_deref(f, e.child(0), depth); f.write_str(") {\n")
+        emit_body_scoped(f, e.child(1), depth.add(1.to_i32())); emit_indent(f, depth); f.write_str("}\n")
+    } else if is_variant(e.data, NodeType.Break) { f.write_str("break;\n")
+    } else if is_variant(e.data, NodeType.Continue) { f.write_str("continue;\n")
+    } else { f.write_str("/* TODO: unknown stmt type */\n") }
+}
 
 emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr, shallow depth: I32) {
     ref sfd : FunctionDef = get_payload(sig.data)
