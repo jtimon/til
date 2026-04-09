@@ -5,7 +5,7 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns shallow Bool {
     if e.child_count().eq(0) { return false }
     if is_variant(e.data, NodeType.FieldAccess).not().and(is_variant(e.data, NodeType.FieldAssign).not()) { return false }
     ref obj : Expr = e.child(0)
-    mut sn := obj.struct_name
+    ref mut sn : Str = obj.struct_name
     if sn.len().eq(0) {
         if is_variant(obj.data, NodeType.Ident) {
             ref id : Str = get_payload(obj.data)
@@ -15,14 +15,7 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns shallow Bool {
     ref sdef : Expr = scope.get_struct(sn)
     if is_null(sdef) { return false }
     ref body : Expr = sdef.child(0)
-    mut fname := ""
-    if is_variant(e.data, NodeType.FieldAccess) {
-        ref fa : Str = get_payload(e.data)
-        fname = fa
-    } else {
-        ref fa : Str = get_payload(e.data)
-        fname = fa
-    }
+    ref fname : Str = get_payload(e.data)
     for i in 0..body.child_count() {
         ref field : Expr = body.child(i)
         ref dd : Declaration = get_payload(field.data)
