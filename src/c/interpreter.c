@@ -104,8 +104,13 @@ Scope *scope_new(Scope *parent) {
 void scope_free(Scope *s) {
     for (U32 i = 0; i < s->bindings.count; i++) {
         Binding *b = (Binding *)(s->bindings.val_data + i * s->bindings.val_size);
-        if (b->cell_is_local)
+        if (b->cell_is_local) {
+            // Free Enum data (no aliasing risk -- enum data is always owned).
+            // Struct data may be aliased via borrowed refs, so skip for now (#127).
+            if (b->cell->val.tag == Value_TAG_Enum && b->cell->val.data.Enum.data)
+                free(b->cell->val.data.Enum.data);
             free(b->cell);
+        }
     }
     Map_delete(&s->bindings, &(Bool){0});
     free(s);
@@ -1070,6 +1075,9 @@ static void eval_body(Scope *scope, Expr *body) {
         case NodeType_TAG_Body: {
             Scope *block_scope = scope_new(scope);
             eval_body(block_scope, stmt);
+            if (has_return) {
+                Value *_cv = Value_clone(&return_value); return_value = *_cv; free(_cv);
+            }
             scope_free(block_scope);
             break;
         }
@@ -1078,10 +1086,16 @@ static void eval_body(Scope *scope, Expr *body) {
             if (cond.data.Boolean) {
                 Scope *then_scope = scope_new(scope);
                 eval_body(then_scope, Expr_child(stmt, &(USize){(USize)(1)}));
+                if (has_return) {
+                    Value *_cv = Value_clone(&return_value); return_value = *_cv; free(_cv);
+                }
                 scope_free(then_scope);
             } else if (stmt->children.count > 2) {
                 Scope *else_scope = scope_new(scope);
                 eval_body(else_scope, Expr_child(stmt, &(USize){(USize)(2)}));
+                if (has_return) {
+                    Value *_cv = Value_clone(&return_value); return_value = *_cv; free(_cv);
+                }
                 scope_free(else_scope);
             }
             break;
@@ -1093,6 +1107,9 @@ static void eval_body(Scope *scope, Expr *body) {
                 if (!cond.data.Boolean) break;
                 Scope *while_scope = scope_new(scope);
                 eval_body(while_scope, Expr_child(stmt, &(USize){(USize)(1)}));
+                if (has_return) {
+                    Value *_cv = Value_clone(&return_value); return_value = *_cv; free(_cv);
+                }
                 scope_free(while_scope);
                 if (has_break) { has_break = 0; break; }
                 if (has_continue) { has_continue = 0; }
@@ -1369,6 +1386,9 @@ I32 interpret(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str
             test_count++;
             Scope *test_scope = scope_new(global);
             eval_body(test_scope, Expr_child(rhs, &(USize){(USize)(0)}));
+            if (has_return) {
+                Value *_cv = Value_clone(&return_value); return_value = *_cv; free(_cv);
+            }
             scope_free(test_scope);
             pass_count++;
             fprintf(stderr, "  pass: %s\n", tname->c_str);
