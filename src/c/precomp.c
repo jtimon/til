@@ -3,8 +3,9 @@
 #include <stdio.h>
 #include "../../boot/modes.h"
 
-// Forward declaration (defined in dispatch.c)
+// Forward declarations (defined in dispatch.c / dispatch.til)
 void ffi_init_scan_program(Expr *program);
+void ffi_init_struct_defs(Expr *program);
 
 // Try to evaluate a call at compile time.
 // require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
@@ -128,7 +129,10 @@ void precomp(Expr *core_program, Expr *program) {
 
     // 2b. Init FFI so ext_func calls (e.g. auto-delete) work during folding
     ffi_init(program, NULL, NULL, NULL, NULL);
-    if (core_program) ffi_init_scan_program(core_program);
+    if (core_program) {
+        ffi_init_struct_defs(core_program);
+        ffi_init_scan_program(core_program);
+    }
 
     // 3. Process the program body (user only)
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Value", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Value)}); known = *_mp; free(_mp); }

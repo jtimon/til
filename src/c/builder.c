@@ -1525,6 +1525,121 @@ static void emit_header_forward_decls(File *f, Expr *core_program, Expr *program
 static void emit_header_global_decls(File *f, Expr *core_program, Expr *program);
 // is_exported_top_level_global: moved to builder.til
 
+// Topo-sort and emit struct/enum definitions from a single program.
+// emitted set carries over between calls to handle cross-program deps.
+static void topo_emit_struct_enum_defs(File *f, Expr *prog, Set *emitted) {
+    Vec to_emit; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit = *_vp; free(_vp); }
+    for (U32 i = 0; i < prog->children.count; i++) {
+        Expr *stmt = Expr_child(prog, &(USize){(USize)(i)});
+        if (stmt->data.tag == NodeType_TAG_Decl &&
+            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
+            { U32 *_p = malloc(sizeof(U32)); *_p = i; Vec_push(&to_emit, _p); }
+        }
+    }
+    U32 remaining = to_emit.count;
+    Bool *done = calloc(to_emit.count, sizeof(Bool));
+    while (remaining > 0) {
+        Bool progress = 0;
+        for (U32 ei = 0; ei < to_emit.count; ei++) {
+            if (done[ei]) continue;
+            U32 idx = *(U32 *)Vec_get(&to_emit, &(USize){(USize)(ei)});
+            Expr *stmt = Expr_child(prog, &(USize){(USize)(idx)});
+            Str *name = &stmt->data.data.Decl.name;
+            Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
+            Bool deps_ok = 1;
+            if (def->data.tag == NodeType_TAG_StructDef) {
+                Expr *body = Expr_child(def, &(USize){(USize)(0)});
+                for (U32 fi = 0; fi < body->children.count; fi++) {
+                    Expr *field = Expr_child(body, &(USize){(USize)(fi)});
+                    if (field->data.data.Decl.is_namespace) continue;
+                    if (DECL_IS_SHALLOW(field->data.data.Decl) &&
+                        (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
+                        (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
+                        if (!Set_has(emitted, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
+                            deps_ok = 0; break;
+                        }
+                    }
+                }
+            } else if (def->data.tag == NodeType_TAG_EnumDef) {
+                Expr *body = Expr_child(def, &(USize){(USize)(0)});
+                for (U32 fi = 0; fi < body->children.count; fi++) {
+                    Expr *v = Expr_child(body, &(USize){(USize)(fi)});
+                    if (v->data.data.Decl.is_namespace) continue;
+                    if ((v->data.data.Decl.explicit_type).count > 0 &&
+                        !is_primitive_type(&v->data.data.Decl.explicit_type) &&
+                        !is_funcsig_type(&v->data.data.Decl.explicit_type)) {
+                        if (!Set_has(emitted, &v->data.data.Decl.explicit_type)) {
+                            deps_ok = 0; break;
+                        }
+                    }
+                }
+            }
+            if (!deps_ok) continue;
+            if (def->data.tag == NodeType_TAG_StructDef) {
+                emit_struct_typedef(f, name, def);
+                EMIT(f, "\n");
+            } else {
+                Str *ename = name;
+                Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
+                Bool hp = enum_has_payloads(def);
+                EMIT(f, "struct "); EMIT(f, (const char *)ename->c_str); EMIT(f, " {\n");
+                EMIT(f, "    "); EMIT(f, (const char *)ename->c_str); EMIT(f, "_tag tag;\n");
+                if (hp) {
+                    EMIT(f, "    union {\n");
+                    for (U32 j = 0; j < ebody->children.count; j++) {
+                        Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
+                        if (v->data.data.Decl.is_namespace) continue;
+                        if (v->data.data.Decl.explicit_type.count > 0) {
+                            EMIT(f, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(f, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
+                        }
+                    }
+                    EMIT(f, "    } data;\n");
+                }
+                EMIT(f, "};\n\n");
+            }
+            { Str *_p = Str_clone(name); Set_add(emitted, _p); }
+            done[ei] = 1;
+            remaining--;
+            progress = 1;
+        }
+        if (!progress) {
+            // Emit remaining in order (circular deps)
+            for (U32 ei = 0; ei < to_emit.count; ei++) {
+                if (done[ei]) continue;
+                U32 idx = *(U32 *)Vec_get(&to_emit, &(USize){(USize)(ei)});
+                Expr *stmt = Expr_child(prog, &(USize){(USize)(idx)});
+                Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
+                if (def->data.tag == NodeType_TAG_StructDef) {
+                    emit_struct_typedef(f, &stmt->data.data.Decl.name, def);
+                    EMIT(f, "\n");
+                } else {
+                    Str *ename = &stmt->data.data.Decl.name;
+                    Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
+                    Bool hp = enum_has_payloads(def);
+                    EMIT(f, "struct "); EMIT(f, (const char *)ename->c_str); EMIT(f, " {\n");
+                    EMIT(f, "    "); EMIT(f, (const char *)ename->c_str); EMIT(f, "_tag tag;\n");
+                    if (hp) {
+                        EMIT(f, "    union {\n");
+                        for (U32 j = 0; j < ebody->children.count; j++) {
+                            Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
+                            if (v->data.data.Decl.is_namespace) continue;
+                            if (v->data.data.Decl.explicit_type.count > 0) {
+                                EMIT(f, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(f, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
+                            }
+                        }
+                        EMIT(f, "    } data;\n");
+                    }
+                    EMIT(f, "};\n\n");
+                }
+            }
+            break;
+        }
+    }
+    free(done);
+    Vec_delete(&to_emit, &(Bool){0});
+}
+
 // Derive basename from absolute path: "/abs/path/to/str.til" -> "str"
 I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     codegen_core_program = core_program;
@@ -1627,23 +1742,6 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
 
         // Topo-sort struct/enum defs into header
         {
-            // Collect indices from both programs, storing (prog_idx << 24 | child_idx) pairs
-            Vec to_emit_mh; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_mh = *_vp; free(_vp); }
-            Expr *_progs_ts[2] = { core_program, program };
-            Vec _prog_refs_mh; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); _prog_refs_mh = *_vp; free(_vp); }
-            for (int _pts = 0; _pts < 2; _pts++) {
-                if (!_progs_ts[_pts]) continue;
-                for (U32 i = 0; i < _progs_ts[_pts]->children.count; i++) {
-                    Expr *stmt = Expr_child(_progs_ts[_pts], &(USize){(USize)(i)});
-                    if (stmt->data.tag == NodeType_TAG_Decl &&
-                        (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
-                         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
-                        U32 idx = to_emit_mh.count;
-                        { U32 *_p = malloc(sizeof(U32)); *_p = idx; Vec_push(&to_emit_mh, _p); }
-                        { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&_prog_refs_mh, _p); }
-                    }
-                }
-            }
             Set emitted_mh; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); emitted_mh = *_sp; free(_sp); }
             { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U8", .count = 2, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
             { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I16", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
@@ -1653,111 +1751,8 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
             { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
             { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"F32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
             { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
-
-            U32 remaining_mh = _prog_refs_mh.count;
-            Bool *done_mh = calloc(_prog_refs_mh.count, sizeof(Bool));
-            while (remaining_mh > 0) {
-                Bool progress_mh = 0;
-                for (U32 ei = 0; ei < _prog_refs_mh.count; ei++) {
-                    if (done_mh[ei]) continue;
-                    Expr *stmt = *(Expr **)Vec_get(&_prog_refs_mh, &(USize){(USize)(ei)});
-                    Str *name = &stmt->data.data.Decl.name;
-                    Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-
-                    Bool deps_ok = 1;
-                    if (def->data.tag == NodeType_TAG_StructDef) {
-                        Expr *body = Expr_child(def, &(USize){(USize)(0)});
-                        for (U32 fi = 0; fi < body->children.count; fi++) {
-                            Expr *field = Expr_child(body, &(USize){(USize)(fi)});
-                            if (field->data.data.Decl.is_namespace) continue;
-                            if (DECL_IS_SHALLOW(field->data.data.Decl) &&
-                                (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
-                                (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
-                                if (!Set_has(&emitted_mh, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
-                                    deps_ok = 0;
-                                    break;
-                                }
-                            }
-                        }
-                    } else if (def->data.tag == NodeType_TAG_EnumDef) {
-                        Expr *body = Expr_child(def, &(USize){(USize)(0)});
-                        for (U32 fi = 0; fi < body->children.count; fi++) {
-                            Expr *v = Expr_child(body, &(USize){(USize)(fi)});
-                            if (v->data.data.Decl.is_namespace) continue;
-                            if ((v->data.data.Decl.explicit_type).count > 0 &&
-                                !is_primitive_type(&v->data.data.Decl.explicit_type) &&
-                                !is_funcsig_type(&v->data.data.Decl.explicit_type)) {
-                                if (!Set_has(&emitted_mh, &v->data.data.Decl.explicit_type)) {
-                                    deps_ok = 0;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (!deps_ok) continue;
-
-                    if (def->data.tag == NodeType_TAG_StructDef) {
-                        emit_struct_typedef(hf, name, def);
-                        EMIT(hf, "\n");
-                    } else {
-                        Str *ename = name;
-                        Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
-                        Bool hp = enum_has_payloads(def);
-                        EMIT(hf, "struct "); EMIT(hf, (const char *)ename->c_str); EMIT(hf, " {\n");
-                        EMIT(hf, "    "); EMIT(hf, (const char *)ename->c_str); EMIT(hf, "_tag tag;\n");
-                        if (hp) {
-                            EMIT(hf, "    union {\n");
-                            for (U32 j = 0; j < ebody->children.count; j++) {
-                                Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
-                                if (v->data.data.Decl.is_namespace) continue;
-                                if (v->data.data.Decl.explicit_type.count > 0) {
-                                    EMIT(hf, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(hf, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(hf, " "); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, ";\n");
-                                }
-                            }
-                            EMIT(hf, "    } data;\n");
-                        }
-                        EMIT(hf, "};\n\n");
-                    }
-                    { Str *_p = Str_clone(name); Set_add(&emitted_mh, _p); }
-                    done_mh[ei] = 1;
-                    remaining_mh--;
-                    progress_mh = 1;
-                }
-                if (!progress_mh) {
-                    for (U32 ei = 0; ei < _prog_refs_mh.count; ei++) {
-                        if (done_mh[ei]) continue;
-                        Expr *stmt = *(Expr **)Vec_get(&_prog_refs_mh, &(USize){(USize)(ei)});
-                        Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-                        if (def->data.tag == NodeType_TAG_StructDef) {
-                            emit_struct_typedef(hf, &stmt->data.data.Decl.name, def);
-                            EMIT(hf, "\n");
-                        } else {
-                            Str *ename = &stmt->data.data.Decl.name;
-                            Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
-                            Bool hp = enum_has_payloads(def);
-                            EMIT(hf, "struct "); EMIT(hf, (const char *)ename->c_str); EMIT(hf, " {\n");
-                            EMIT(hf, "    "); EMIT(hf, (const char *)ename->c_str); EMIT(hf, "_tag tag;\n");
-                            if (hp) {
-                                EMIT(hf, "    union {\n");
-                                for (U32 j = 0; j < ebody->children.count; j++) {
-                                    Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
-                                    if (v->data.data.Decl.is_namespace) continue;
-                                    if (v->data.data.Decl.explicit_type.count > 0) {
-                                        EMIT(hf, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(hf, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(hf, " "); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, ";\n");
-                                    }
-                                }
-                                EMIT(hf, "    } data;\n");
-                            }
-                            EMIT(hf, "};\n\n");
-                        }
-                    }
-                    break;
-                }
-            }
-            free(done_mh);
-            Vec_delete(&to_emit_mh, &(Bool){0});
-            Vec_delete(&_prog_refs_mh, &(Bool){0});
+            if (core_program) topo_emit_struct_enum_defs(hf, core_program, &emitted_mh);
+            topo_emit_struct_enum_defs(hf, program, &emitted_mh);
             Set_delete(&emitted_mh, &(Bool){0});
         }
 
@@ -2538,22 +2533,6 @@ static void emit_header_forward_decls(File *f, Expr *core_program, Expr *program
 static void emit_header_defs_and_funcs(File *f, Expr *core_program, Expr *program) {
     // Struct definitions with fields in dependency order (topo sorted)
     {
-        Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
-        Vec _prog_refs_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); _prog_refs_h = *_vp; free(_vp); }
-        { Expr *_progs_ht[2] = { core_program, program };
-        for (int _pht = 0; _pht < 2; _pht++) {
-            if (!_progs_ht[_pht]) continue;
-            for (U32 i = 0; i < _progs_ht[_pht]->children.count; i++) {
-                Expr *stmt = Expr_child(_progs_ht[_pht], &(USize){(USize)(i)});
-                if (stmt->data.tag == NodeType_TAG_Decl &&
-                    (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
-                     Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
-                    U32 idx = _prog_refs_h.count;
-                    { U32 *_p = malloc(sizeof(U32)); *_p = idx; Vec_push(&to_emit_h, _p); }
-                    { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&_prog_refs_h, _p); }
-                }
-            }
-        }}
         Set emitted_h; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); emitted_h = *_sp; free(_sp); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U8", .count = 2, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I16", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
@@ -2563,112 +2542,8 @@ static void emit_header_defs_and_funcs(File *f, Expr *core_program, Expr *progra
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"F32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
-
-        U32 remaining_h = _prog_refs_h.count;
-        Bool *done_h = calloc(_prog_refs_h.count, sizeof(Bool));
-        while (remaining_h > 0) {
-            Bool progress_h = 0;
-            for (U32 ei = 0; ei < _prog_refs_h.count; ei++) {
-                if (done_h[ei]) continue;
-                Expr *stmt = *(Expr **)Vec_get(&_prog_refs_h, &(USize){(USize)(ei)});
-                Str *name = &stmt->data.data.Decl.name;
-                Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-
-                Bool deps_ok = 1;
-                if (def->data.tag == NodeType_TAG_StructDef) {
-                    Expr *body = Expr_child(def, &(USize){(USize)(0)});
-                    for (U32 fi = 0; fi < body->children.count; fi++) {
-                        Expr *field = Expr_child(body, &(USize){(USize)(fi)});
-                        if (field->data.data.Decl.is_namespace) continue;
-                        if (DECL_IS_SHALLOW(field->data.data.Decl) &&
-                            (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
-                            (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
-                            if (!Set_has(&emitted_h, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
-                                deps_ok = 0;
-                                break;
-                            }
-                        }
-                    }
-                } else if (def->data.tag == NodeType_TAG_EnumDef) {
-                    Expr *body = Expr_child(def, &(USize){(USize)(0)});
-                    for (U32 fi = 0; fi < body->children.count; fi++) {
-                        Expr *v = Expr_child(body, &(USize){(USize)(fi)});
-                        if (v->data.data.Decl.is_namespace) continue;
-                        if ((v->data.data.Decl.explicit_type).count > 0 &&
-                            !is_primitive_type(&v->data.data.Decl.explicit_type) &&
-                            !is_funcsig_type(&v->data.data.Decl.explicit_type)) {
-                            if (!Set_has(&emitted_h, &v->data.data.Decl.explicit_type)) {
-                                deps_ok = 0;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (!deps_ok) continue;
-
-                if (def->data.tag == NodeType_TAG_StructDef) {
-                    emit_struct_typedef(f, name, def);
-                    EMIT(f, "\n");
-                } else {
-                    Str *ename = name;
-                    Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
-                    Bool hp = enum_has_payloads(def);
-                    EMIT(f, "struct "); EMIT(f, (const char *)ename->c_str); EMIT(f, " {\n");
-                    EMIT(f, "    "); EMIT(f, (const char *)ename->c_str); EMIT(f, "_tag tag;\n");
-                    if (hp) {
-                        EMIT(f, "    union {\n");
-                        for (U32 j = 0; j < ebody->children.count; j++) {
-                            Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
-                            if (v->data.data.Decl.is_namespace) continue;
-                            if (v->data.data.Decl.explicit_type.count > 0) {
-                                EMIT(f, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(f, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
-                            }
-                        }
-                        EMIT(f, "    } data;\n");
-                    }
-                    EMIT(f, "};\n\n");
-                }
-                { Str *_p = Str_clone(name); Set_add(&emitted_h, _p); }
-                done_h[ei] = 1;
-                remaining_h--;
-                progress_h = 1;
-            }
-            if (!progress_h) {
-                for (U32 ei = 0; ei < to_emit_h.count; ei++) {
-                    if (done_h[ei]) continue;
-                    U32 idx = *(U32 *)Vec_get(&to_emit_h, &(USize){(USize)(ei)});
-                    Expr *stmt = Expr_child(program, &(USize){(USize)(idx)});
-                    Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-                    if (def->data.tag == NodeType_TAG_StructDef) {
-                        emit_struct_typedef(f, &stmt->data.data.Decl.name, def);
-                        EMIT(f, "\n");
-                    } else {
-                        Str *ename = &stmt->data.data.Decl.name;
-                        Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
-                        Bool hp = enum_has_payloads(def);
-                        EMIT(f, "struct "); EMIT(f, (const char *)ename->c_str); EMIT(f, " {\n");
-                        EMIT(f, "    "); EMIT(f, (const char *)ename->c_str); EMIT(f, "_tag tag;\n");
-                        if (hp) {
-                            EMIT(f, "    union {\n");
-                            for (U32 j = 0; j < ebody->children.count; j++) {
-                                Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
-                                if (v->data.data.Decl.is_namespace) continue;
-                                if (v->data.data.Decl.explicit_type.count > 0) {
-                                    EMIT(f, "        "); { Str *_tnv = type_name_to_c_value(&v->data.data.Decl.explicit_type); File_write_str(f, _tnv); Str_delete(_tnv, &(Bool){1}); }; EMIT(f, " "); EMIT(f, (const char *)v->data.data.Decl.name.c_str); EMIT(f, ";\n");
-                                }
-                            }
-                            EMIT(f, "    } data;\n");
-                        }
-                        EMIT(f, "};\n\n");
-                    }
-                }
-                break;
-            }
-        }
-        free(done_h);
-        Vec_delete(&to_emit_h, &(Bool){0});
-        Vec_delete(&_prog_refs_h, &(Bool){0});
+        if (core_program) topo_emit_struct_enum_defs(f, core_program, &emitted_h);
+        topo_emit_struct_enum_defs(f, program, &emitted_h);
         Set_delete(&emitted_h, &(Bool){0});
     }
 

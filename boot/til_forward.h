@@ -313,169 +313,6 @@ typedef struct File {
 } File;
 
 
-struct TokenType {
-    TokenType_tag tag;
-};
-
-typedef struct Token {
-    TokenType type;
-    Str text;
-    U32 line;
-    U32 col;
-} Token;
-
-
-typedef struct Parser {
-    Vec tokens;
-    U32 pos;
-    Str path;
-    Vec fn_sig_decls;
-} Parser;
-
-
-typedef struct TypeBinding {
-    Str *name;
-    TilType type;
-    I32 is_proc;
-    Bool is_mut;
-    U32 line;
-    U32 col;
-    Bool is_param;
-    OwnType own_type;
-    Bool is_alias;
-    Bool is_type_alias;
-    Str *alias_target;
-    Expr *struct_def;
-    Expr *func_def;
-    Bool is_builtin;
-    Str struct_name;
-} TypeBinding;
-
-
-struct ScopeFind {
-    ScopeFind_tag tag;
-    union {
-        TypeBinding Found;
-    } data;
-};
-
-typedef struct LocalInfo {
-    Str *name;
-    TilType type;
-    Str *struct_name;
-    I32 decl_index;
-    I32 last_use;
-    I32 own_transfer;
-    Bool skip_scope_delete;
-} LocalInfo;
-
-
-typedef struct StructInstance {
-    Str *struct_name;
-    Expr *struct_def;
-    U8 *data;
-    Bool borrowed;
-} StructInstance;
-
-
-typedef struct EnumInstance {
-    Str *enum_name;
-    Expr *enum_def;
-    U8 *data;
-    I32 data_size;
-} EnumInstance;
-
-
-struct Value {
-    Value_tag tag;
-    union {
-        I64 Int;
-        U8 Byte;
-        I16 Short;
-        I32 Int32;
-        U32 Uint32;
-        U64 Uint64;
-        F32 Float;
-        Bool Boolean;
-        void * Func;
-        StructInstance Struct;
-        EnumInstance Enum;
-        void * Ptr;
-    } data;
-};
-
-typedef struct Cell {
-    Value val;
-} Cell;
-
-
-typedef struct Binding {
-    Str *name;
-    Cell *cell;
-    Bool cell_is_local;
-} Binding;
-
-
-typedef struct CollectionInfo {
-    Str *type_name;
-    I32 is_vec;
-} CollectionInfo;
-
-
-typedef struct DynCallInfo {
-    Str *method;
-    I32 nargs;
-    Bool has_return;
-} DynCallInfo;
-
-
-typedef struct ExtStr {
-    U8 *data;
-    U64 count;
-    U64 cap;
-} ExtStr;
-
-
-typedef struct FFIType {
-    U32 size;
-    I16 alignment;
-    I16 type;
-    void * *elements;
-} FFIType;
-
-
-typedef struct FFIEntry {
-    U8 *fn;
-    Str *return_type;
-    I32 nparam;
-    U8 *param_shallows;
-    Bool return_is_shallow;
-    U8 *cif;
-    U8 *arg_types;
-} FFIEntry;
-
-
-typedef struct ExprPtrBox {
-    Expr *ptr;
-} ExprPtrBox;
-
-
-typedef struct FFITypePtrBox {
-    FFIType *ptr;
-} FFITypePtrBox;
-
-
-typedef struct Mode {
-    Bool needs_main;
-    Bool decls_only;
-    Str auto_import;
-    Bool is_library;
-    Bool is_pure;
-    Bool run_tests;
-    Bool debug_prints;
-} Mode;
-
-
 typedef struct Array {
     U8 *data;
     U32 cap;
@@ -568,10 +405,67 @@ typedef struct Expr {
 } Expr;
 
 
+struct TokenType {
+    TokenType_tag tag;
+};
+
+typedef struct Token {
+    TokenType type;
+    Str text;
+    U32 line;
+    U32 col;
+} Token;
+
+
+typedef struct Parser {
+    Vec tokens;
+    U32 pos;
+    Str path;
+    Vec fn_sig_decls;
+} Parser;
+
+
+typedef struct TypeBinding {
+    Str *name;
+    TilType type;
+    I32 is_proc;
+    Bool is_mut;
+    U32 line;
+    U32 col;
+    Bool is_param;
+    OwnType own_type;
+    Bool is_alias;
+    Bool is_type_alias;
+    Str *alias_target;
+    Expr *struct_def;
+    Expr *func_def;
+    Bool is_builtin;
+    Str struct_name;
+} TypeBinding;
+
+
+struct ScopeFind {
+    ScopeFind_tag tag;
+    union {
+        TypeBinding Found;
+    } data;
+};
+
 typedef struct TypeScope {
     Map bindings;
     TypeScope *parent;
 } TypeScope;
+
+
+typedef struct LocalInfo {
+    Str *name;
+    TilType type;
+    Str *struct_name;
+    I32 decl_index;
+    I32 last_use;
+    I32 own_transfer;
+    Bool skip_scope_delete;
+} LocalInfo;
 
 
 struct CtorArg {
@@ -581,10 +475,116 @@ struct CtorArg {
     } data;
 };
 
+typedef struct StructInstance {
+    Str *struct_name;
+    Expr *struct_def;
+    U8 *data;
+    Bool borrowed;
+} StructInstance;
+
+
+typedef struct EnumInstance {
+    Str *enum_name;
+    Expr *enum_def;
+    U8 *data;
+    I32 data_size;
+} EnumInstance;
+
+
+struct Value {
+    Value_tag tag;
+    union {
+        I64 Int;
+        U8 Byte;
+        I16 Short;
+        I32 Int32;
+        U32 Uint32;
+        U64 Uint64;
+        F32 Float;
+        Bool Boolean;
+        void * Func;
+        StructInstance Struct;
+        EnumInstance Enum;
+        void * Ptr;
+    } data;
+};
+
+typedef struct Cell {
+    Value val;
+} Cell;
+
+
+typedef struct Binding {
+    Str *name;
+    Cell *cell;
+    Bool cell_is_local;
+} Binding;
+
+
 typedef struct Scope {
     Map bindings;
     Scope *parent;
 } Scope;
+
+
+typedef struct CollectionInfo {
+    Str *type_name;
+    I32 is_vec;
+} CollectionInfo;
+
+
+typedef struct DynCallInfo {
+    Str *method;
+    I32 nargs;
+    Bool has_return;
+} DynCallInfo;
+
+
+typedef struct ExtStr {
+    U8 *data;
+    U64 count;
+    U64 cap;
+} ExtStr;
+
+
+typedef struct FFIType {
+    U32 size;
+    I16 alignment;
+    I16 type;
+    void * *elements;
+} FFIType;
+
+
+typedef struct FFIEntry {
+    U8 *fn;
+    Str *return_type;
+    I32 nparam;
+    U8 *param_shallows;
+    Bool return_is_shallow;
+    U8 *cif;
+    U8 *arg_types;
+} FFIEntry;
+
+
+typedef struct ExprPtrBox {
+    Expr *ptr;
+} ExprPtrBox;
+
+
+typedef struct FFITypePtrBox {
+    FFIType *ptr;
+} FFITypePtrBox;
+
+
+typedef struct Mode {
+    Bool needs_main;
+    Bool decls_only;
+    Str auto_import;
+    Bool is_library;
+    Bool is_pure;
+    Bool run_tests;
+    Bool debug_prints;
+} Mode;
 
 
 typedef struct Context {
