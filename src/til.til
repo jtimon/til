@@ -38,7 +38,7 @@ tokenize := ext_func(source: Str, path: Str) returns Vec {}
 // Pipeline
 type_check := ext_func(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {}
 precomp := ext_proc(core_program: Expr, program: Expr) {}
-scavenge := ext_proc(program: Expr, mode: Mode, shallow run_tests: Bool) {}
+scavenge := ext_proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool) {}
 interpret := ext_func(core_ast: Expr, ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32 {}
 build := ext_func(core_ast: Expr, ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
 build_forward_header := ext_func(core_ast: Expr, ast: Expr, fwd_path: Str) returns shallow I32 {}
@@ -454,7 +454,7 @@ main := proc(args: ..Str) {
     // with link_c (scavenger can't track C-level dependencies)
     skip_scavenge := cur_mode.is_library
     if skip_scavenge.not().and(link_c_paths.len().eq(0)) {
-        scavenge(ast, cur_mode, run_tests)
+        scavenge(core_ast, ast, cur_mode, run_tests)
     }
 
     mut result : I32 = 0

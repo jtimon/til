@@ -1030,7 +1030,7 @@ void push_qn(Vec * v, Str * type_name, Str * method);
 void push_builtin_methods(Vec * v, Str * builtin_name, Str * m1, Str * m2, Str * m3);
 void collect_refs(Expr * e, Vec * refs);
 Expr * find_ns_method(Expr * program, Map * top, Str * name);
-void scavenge(Expr * program, Mode * mode, Bool run_tests);
+void scavenge(Expr * core_program, Expr * program, Mode * mode, Bool run_tests);
 Bool StructInstance_eq(StructInstance * a, StructInstance * b);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);

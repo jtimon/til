@@ -163,7 +163,7 @@ find_ns_method := func(program: Expr, top: Map, name: Str) returns ref Expr {
     return NULL
 }
 
-scavenge := proc(mut program: Expr, mode: Mode, shallow run_tests: Bool) {
+scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow run_tests: Bool) {
     mut is_cli := false
     if is_null(mode).not() {
         if mode.needs_main {
@@ -175,7 +175,17 @@ scavenge := proc(mut program: Expr, mode: Mode, shallow run_tests: Bool) {
 
     gc_strs = Vec.new("Str", Str.size())
 
-    // 1. Build top-level declaration map (name -> child index)
+    // 1. Build top-level declaration maps (name -> child index)
+    mut core_top := Map.new("Str", Str.size(), "U32", U32.size())
+    if is_null(core_program).not() {
+        for i in 0..core_program.child_count() {
+            ref stmt : Expr = core_program.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                ref decl : Declaration = get_payload(stmt.data)
+                core_top.set(own decl.name.clone(), own i.clone())
+            }
+        }
+    }
     mut top := Map.new("Str", Str.size(), "U32", U32.size())
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
@@ -228,7 +238,7 @@ scavenge := proc(mut program: Expr, mode: Mode, shallow run_tests: Bool) {
         if visited.has(name) { continue }
         visited.add(own name.clone())
 
-        // Top-level declaration?
+        // Top-level declaration? (check both user and core)
         if top.has(name) {
             ref idx : U32 = top.get(name)
             ref decl : Expr = program.child(idx)
@@ -241,7 +251,25 @@ scavenge := proc(mut program: Expr, mode: Mode, shallow run_tests: Bool) {
                         collect_refs(field, worklist)
                     }
                 }
-                // Infrastructure methods (dyn_call)
+                push_qn(worklist, name, "delete")
+                push_qn(worklist, name, "clone")
+                push_qn(worklist, name, "size")
+                push_qn(worklist, name, "cmp")
+            } else {
+                collect_refs(decl.child(0), worklist)
+            }
+        } else if core_top.has(name) {
+            ref idx : U32 = core_top.get(name)
+            ref decl : Expr = core_program.child(idx)
+            if is_struct_or_enum(decl) {
+                ref body : Expr = decl.child(0).child(0)
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fd : Declaration = get_payload(field.data)
+                    if fd.is_namespace.not() {
+                        collect_refs(field, worklist)
+                    }
+                }
                 push_qn(worklist, name, "delete")
                 push_qn(worklist, name, "clone")
                 push_qn(worklist, name, "size")
@@ -251,16 +279,39 @@ scavenge := proc(mut program: Expr, mode: Mode, shallow run_tests: Bool) {
             }
         }
 
-        // Namespace method?
+        // Namespace method? (check both user and core)
         ref method : Expr = find_ns_method(program, top, name)
         if is_null(method).not() {
             if is_variant(method.child(0).data, NodeType.FuncDef) {
                 collect_refs(method.child(0), worklist)
             }
         }
+        if is_null(core_program).not() {
+            ref core_method : Expr = find_ns_method(core_program, core_top, name)
+            if is_null(core_method).not() {
+                if is_variant(core_method.child(0).data, NodeType.FuncDef) {
+                    collect_refs(core_method.child(0), worklist)
+                }
+            }
+        }
     }
 
-    // 4. Filter top-level declarations
+    // 4. Filter top-level declarations (both core and user)
+    if is_null(core_program).not() {
+        mut cw : I64 = 0
+        for i in 0..core_program.child_count() {
+            ref stmt : Expr = core_program.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                if is_def(stmt) {
+                    ref d : Declaration = get_payload(stmt.data)
+                    if visited.has(d.name).not() { continue }
+                }
+            }
+            children_write(core_program.children, cw, i.to_i64())
+            cw = cw.add(1)
+        }
+        children_set_count(core_program.children, cw)
+    }
     mut w : I64 = 0
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
@@ -275,7 +326,28 @@ scavenge := proc(mut program: Expr, mode: Mode, shallow run_tests: Bool) {
     }
     children_set_count(program.children, w)
 
-    // 5. Filter namespace methods in kept structs
+    // 5. Filter namespace methods in kept structs (both core and user)
+    if is_null(core_program).not() {
+        for i in 0..core_program.child_count() {
+            ref stmt : Expr = core_program.child(i)
+            if is_variant(stmt.data, NodeType.Decl).not() { continue }
+            if is_struct_or_enum(stmt).not() { continue }
+            ref sdecl : Declaration = get_payload(stmt.data)
+            ref body : Expr = stmt.child(0).child(0)
+            mut bw : I64 = 0
+            for j in 0..body.child_count() {
+                ref field : Expr = body.child(j)
+                ref fd : Declaration = get_payload(field.data)
+                if fd.is_namespace {
+                    qn := qualified_name(sdecl.name, fd.name)
+                    if visited.has(qn).not() { continue }
+                }
+                children_write(body.children, bw, j.to_i64())
+                bw = bw.add(1)
+            }
+            children_set_count(body.children, bw)
+        }
+    }
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
         if is_variant(stmt.data, NodeType.Decl).not() { continue }
