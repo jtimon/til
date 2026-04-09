@@ -1,5 +1,36 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #129 Runtime Value instance payload fields now own their data
+  Both ~StructInstance.data~ and ~EnumInstance.data~ in
+  ~src/self/interpreter.til~ are now declared as ~own mut data : U8 = 0~
+  (owned storage) instead of the old ~ref mut data : U8 = NULL~ (borrowed).
+  This makes the runtime instance wrappers explicitly own their payload
+  buffers. Related runtime lifecycle cleanup continues under #127 and #109.
+
+* FIXED #126 Auto-generated enum delete now recurses into payload-owned data
+  ~generate_enum_delete_method~ in ~src/self/initer.til~ now:
+  - iterates all variants and checks which is active via ~is_variant()~
+  - calls ~PayloadType.delete(get_payload(self), false)~ for owning variants
+  - filters out ~Dynamic~ and ~FuncPtr~ types (not directly owning)
+  This was the dominant leak source identified in #109 ASAN investigation.
+  The clone side (#128) is still open -- auto-generated clone does not
+  deep-clone managed payloads.
+
+* FIXED #111 TypeScope / ScopeFind ASAN use-after-free
+  The original deterministic ASAN use-after-free in the self-hosted
+  type-scope lookup path is fixed. Root cause: generated switch lowering
+  took a payload pointer from a ~ScopeFind.Found(b)~ wrapper, then freed
+  the wrapper before using ~b.struct_def~. Fix: added borrowed
+  ~TypeScope.get_binding()~ helper and switched hot lookup paths to use it.
+  ~make test_asan~ now gets well into ~bin/tests~ instead of crashing early.
+  Remaining memory pressure (leak volume, not crashes) tracked under #109.
+
+* FIXED #110 Stack allocation and memory leak roadmap
+  Meta-issue organizing #111 and #109. With #111 fixed (original UAF gone)
+  and #109 as the active leak-reduction tracker, this roadmap is absorbed.
+  The remaining goal (switch ~make test~ to always use ~bin/til_asan~) is
+  now noted in #109.
+
 * FIXED #131 `mode` syntax: keyword vs special identifier/directive
   Made ~mode~ a normal identifier instead of a reserved keyword.
   The parser recognizes it only at the file-header position (first
