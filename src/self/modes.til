@@ -3,7 +3,6 @@ mode lib
 import("initer.til")
 import("typer.til")
 import("precomp.til")
-import("scavenger.til")
 import("interpreter.til")
 import("builder.til")
 import("dispatch.til")
