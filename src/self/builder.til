@@ -362,8 +362,8 @@ emit_i32 := proc(f: File, shallow v: I32) {
     f.write_str(v.to_i64().to_str())
 }
 
-emit_indent := proc(f: File, shallow depth: U32) {
-    for _i in 0..depth {
+emit_indent := proc(f: File, shallow depth: I32) {
+    for _i : I32 in 0..depth {
         f.write_str("    ")
     }
 }
@@ -664,7 +664,207 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
 emit_expr := ext_proc(f: File, e: Expr, shallow depth: I32) {}
 emit_stmt := ext_proc(f: File, e: Expr, shallow depth: I32) {}
 emit_body := ext_proc(f: File, body: Expr, shallow depth: I32) {}
-emit_ctor_fields := ext_proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {}
+emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
+    ref sbody : Expr = find_struct_body(ctor.struct_name)
+    mut fi : U32 = 0
+    for i in 1..ctor.child_count() {
+        mut fld_own := OwnType.Shallow
+        mut field_type := TilType.Unknown
+        ref mut fname : Str = NULL
+        if is_null(sbody).not() {
+            while fi.lt(sbody.child_count()) {
+                ref fld : Expr = sbody.child(fi)
+                ref dd : Declaration = get_payload(fld.data)
+                if dd.is_namespace.not() {
+                    fld_own = dd.own_type
+                    field_type = fld.til_type
+                    fname = dd.name
+                    fi = fi.add(1)
+                    break
+                }
+                fi = fi.add(1)
+            }
+        }
+        ref arg : Expr = ctor.child(i)
+        emit_indent(f, depth)
+        if fld_own.eq(OwnType.Ref) {
+            emit_field(f, var, fname)
+            f.write_str(" = ")
+            emit_expr(f, arg, depth)
+            f.write_str(";\n")
+        } else if fld_own.eq(OwnType.Own) {
+            if is_variant(arg.data, NodeType.FCall) {
+                if arg.struct_name.len().gt(0) {
+                    if is_variant(arg.child(0).data, NodeType.Ident) {
+                        ref callee_ident : Str = get_payload(arg.child(0).data)
+                        if callee_ident.eq(arg.struct_name) {
+                            ct := c_type_name(arg.til_type, arg.struct_name)
+                            _ctor_seq = _ctor_seq.add(1.to_i32())
+                            id := _ctor_seq
+                            tmp := "_cs".concat(id.to_i64().to_str())
+                            f.write_str(ct)
+                            f.write_str(" *")
+                            f.write_str(tmp)
+                            f.write_str(" = malloc(sizeof(")
+                            f.write_str(ct)
+                            f.write_str("));\n")
+                            emit_ctor_fields(f, tmp, arg, depth)
+                            emit_indent(f, depth)
+                            emit_field(f, var, fname)
+                            f.write_str(" = ")
+                            f.write_str(tmp)
+                            f.write_str(";\n")
+                        } else {
+                            emit_field(f, var, fname)
+                            f.write_str(" = ")
+                            mut own_arg := arg
+                            own_arg.is_own_arg = true
+                            emit_as_ptr(f, own_arg, depth)
+                            f.write_str(";\n")
+                        }
+                    } else {
+                        emit_field(f, var, fname)
+                        f.write_str(" = ")
+                        mut own_arg := arg
+                        own_arg.is_own_arg = true
+                        emit_as_ptr(f, own_arg, depth)
+                        f.write_str(";\n")
+                    }
+                } else {
+                    emit_field(f, var, fname)
+                    f.write_str(" = ")
+                    mut own_arg := arg
+                    own_arg.is_own_arg = true
+                    emit_as_ptr(f, own_arg, depth)
+                    f.write_str(";\n")
+                }
+            } else {
+                emit_field(f, var, fname)
+                f.write_str(" = ")
+                mut own_arg := arg
+                own_arg.is_own_arg = true
+                emit_as_ptr(f, own_arg, depth)
+                f.write_str(";\n")
+            }
+        } else if is_variant(arg.data, NodeType.FCall) {
+            if arg.struct_name.len().gt(0) {
+                if is_variant(arg.child(0).data, NodeType.Ident) {
+                    ref callee_ident : Str = get_payload(arg.child(0).data)
+                    if callee_ident.eq(arg.struct_name) {
+                        ct := c_type_name(arg.til_type, arg.struct_name)
+                        _ctor_seq = _ctor_seq.add(1.to_i32())
+                        id := _ctor_seq
+                        tmp := "_cs".concat(id.to_i64().to_str())
+                        f.write_str(ct)
+                        f.write_str(" *")
+                        f.write_str(tmp)
+                        f.write_str(" = malloc(sizeof(")
+                        f.write_str(ct)
+                        f.write_str("));\n")
+                        emit_ctor_fields(f, tmp, arg, depth)
+                        emit_indent(f, depth)
+                        emit_field(f, var, fname)
+                        f.write_str(" = *")
+                        f.write_str(tmp)
+                        f.write_str("; free(")
+                        f.write_str(tmp)
+                        f.write_str(");\n")
+                    } else {
+                        if field_type.eq(TilType.FuncPtr).or(field_type.eq(TilType.Dynamic))
+                            .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
+                            emit_field(f, var, fname)
+                            f.write_str(" = ")
+                            emit_expr(f, arg, depth)
+                            f.write_str(";\n")
+                        } else {
+                            ftype := c_type_name(arg.til_type, arg.struct_name)
+                            f.write_str("{ ")
+                            f.write_str(ftype)
+                            f.write_str(" *_ca = ")
+                            emit_expr(f, arg, depth)
+                            f.write_str("; ")
+                            emit_field(f, var, fname)
+                            f.write_str(" = *_ca; free(_ca); }\n")
+                        }
+                    }
+                } else {
+                    if field_type.eq(TilType.FuncPtr).or(field_type.eq(TilType.Dynamic))
+                        .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
+                        emit_field(f, var, fname)
+                        f.write_str(" = ")
+                        emit_expr(f, arg, depth)
+                        f.write_str(";\n")
+                    } else {
+                        ftype := c_type_name(arg.til_type, arg.struct_name)
+                        f.write_str("{ ")
+                        f.write_str(ftype)
+                        f.write_str(" *_ca = ")
+                        emit_expr(f, arg, depth)
+                        f.write_str("; ")
+                        emit_field(f, var, fname)
+                        f.write_str(" = *_ca; free(_ca); }\n")
+                    }
+                }
+            } else {
+                if field_type.eq(TilType.FuncPtr).or(field_type.eq(TilType.Dynamic))
+                    .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
+                    emit_field(f, var, fname)
+                    f.write_str(" = ")
+                    emit_expr(f, arg, depth)
+                    f.write_str(";\n")
+                } else {
+                    ftype := c_type_name(arg.til_type, arg.struct_name)
+                    f.write_str("{ ")
+                    f.write_str(ftype)
+                    f.write_str(" *_ca = ")
+                    emit_expr(f, arg, depth)
+                    f.write_str("; ")
+                    emit_field(f, var, fname)
+                    f.write_str(" = *_ca; free(_ca); }\n")
+                }
+            }
+        } else {
+            emit_field(f, var, fname)
+            f.write_str(" = ")
+            emit_deref(f, arg, depth)
+            f.write_str(";\n")
+        }
+    }
+}
+
+emit_ns_inits := proc(f: File, shallow depth: I32) {
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = codegen_core_program }
+        else { prog = codegen_program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                ref rhs : Expr = stmt.child(0)
+                if is_variant(rhs.data, NodeType.StructDef).or(is_variant(rhs.data, NodeType.EnumDef)) {
+                    ref sname : Str = get_payload(stmt.data)
+                    ref edef : Expr = stmt.child(0)
+                    ref body : Expr = edef.child(0)
+                    for j in 0..body.child_count() {
+                        ref field : Expr = body.child(j)
+                        ref dd : Declaration = get_payload(field.data)
+                        if dd.is_namespace.not() { continue }
+                        if is_variant(field.child(0).data, NodeType.FuncDef) { continue }
+                        if is_variant(edef.data, NodeType.EnumDef) { continue }
+                        emit_indent(f, depth)
+                        f.write_str(sname)
+                        f.write_str("_")
+                        f.write_str(dd.name)
+                        f.write_str(" = ")
+                        emit_deref(f, field.child(0), depth)
+                        f.write_str(";\n")
+                    }
+                }
+            }
+        }
+    }
+}
 
 emit_body_scoped := proc(f: File, body: Expr, shallow depth: I32) {
     saved_sl := stack_locals.clone()

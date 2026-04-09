@@ -359,87 +359,6 @@ void emit_expr(File *f, Expr *e, I32 depth) {
 
 
 
-// Emit struct constructor field assignments into 'var' (already malloc'd).
-void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth) {
-    Expr *sbody = find_struct_body(&ctor->struct_name);
-    U32 fi = 0;
-    for (U32 i = 1; i < ctor->children.count; i++) {
-        OwnType_tag fld_own = OwnType_TAG_Shallow;
-        TilType field_type = {0};
-        Str *fname = NULL;
-        if (sbody) {
-            for (; fi < sbody->children.count; fi++) {
-                if (!Expr_child(sbody, &(USize){(USize)(fi)})->data.data.Decl.is_namespace) {
-                    Expr *fld = Expr_child(sbody, &(USize){(USize)(fi)});
-                    fld_own = fld->data.data.Decl.own_type.tag;
-                    field_type = fld->til_type;
-                    fname = &fld->data.data.Decl.name;
-                    fi++;
-                    break;
-                }
-            }
-        }
-        Expr *arg = Expr_child(ctor, &(USize){(USize)(i)});
-        emit_indent(f, depth);
-        if (fld_own == OwnType_TAG_Ref) {
-            // Ref field: store pointer directly (no deref)
-            emit_field(f, var, fname); EMIT(f, " = ");
-            emit_expr(f, arg, depth);
-            EMIT(f, ";\n");
-        } else if (fld_own == OwnType_TAG_Own && arg->data.tag == NodeType_TAG_FCall && arg->struct_name.count > 0 &&
-            Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
-            // Nested struct constructor for own field: emit as temp, assign pointer
-            Str *ct = c_type_name(arg->til_type, &arg->struct_name);
-            I32 id = _ctor_seq++;
-            char tmp[32];
-            snprintf(tmp, sizeof(tmp), "_cs%d", id);
-            File_write_str(f, ct); EMIT(f, " *"); EMIT(f, (const char *)tmp); EMIT(f, " = malloc(sizeof("); File_write_str(f, ct); EMIT(f, "));\n");
-            emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, arg, depth);
-            emit_indent(f, depth);
-            emit_field(f, var, fname); EMIT(f, " = "); EMIT(f, (const char *)tmp); EMIT(f, ";\n");
-            Str_delete(ct, &(Bool){1});
-        } else if (fld_own == OwnType_TAG_Own) {
-            emit_field(f, var, fname); EMIT(f, " = ");
-            arg->is_own_arg = true;
-            emit_as_ptr(f, arg, depth);
-            EMIT(f, ";\n");
-        } else if (arg->data.tag == NodeType_TAG_FCall && arg->struct_name.count > 0 &&
-                   Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
-            // Inline struct field: nested constructor -- build in-place
-            Str *ct = c_type_name(arg->til_type, &arg->struct_name);
-            I32 id = _ctor_seq++;
-            char tmp[32];
-            snprintf(tmp, sizeof(tmp), "_cs%d", id);
-            File_write_str(f, ct); EMIT(f, " *"); EMIT(f, (const char *)tmp); EMIT(f, " = malloc(sizeof("); File_write_str(f, ct); EMIT(f, "));\n");
-            emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, arg, depth);
-            emit_indent(f, depth);
-            emit_field(f, var, fname); EMIT(f, " = *"); EMIT(f, (const char *)tmp); EMIT(f, "; free("); EMIT(f, (const char *)tmp); EMIT(f, ");\n");
-            Str_delete(ct, &(Bool){1});
-        } else if (arg->data.tag == NodeType_TAG_FCall) {
-            // Non-ref fields that are really scalar/pointer-like should take the
-            // call result directly, not through heap-wrapper unboxing.
-            if (field_type.tag == TilType_TAG_FuncPtr ||
-                field_type.tag == TilType_TAG_Dynamic ||
-                fcall_is_shallow_return(arg) ||
-                fcall_returns_dynamic(arg)) {
-                emit_field(f, var, fname); EMIT(f, " = ");
-                emit_expr(f, arg, depth);
-                EMIT(f, ";\n");
-            } else {
-                // Heap-returning value field: unbox the returned wrapper.
-                Str *ftype = c_type_name(arg->til_type, &arg->struct_name);
-                EMIT(f, "{ "); File_write_str(f, ftype); EMIT(f, " *_ca = ");
-                emit_expr(f, arg, depth);
-                EMIT(f, "; "); emit_field(f, var, fname); EMIT(f, " = *_ca; free(_ca); }\n");
-                Str_delete(ftype, &(Bool){1});
-            }
-        } else {
-            emit_field(f, var, fname); EMIT(f, " = ");
-            emit_deref(f, arg, depth);
-            EMIT(f, ";\n");
-        }
-    }
-}
 
 // --- Statement emission ---
 
@@ -853,32 +772,6 @@ void emit_body(File *f, Expr *body, I32 depth) {
 // --- Top-level emission ---
 
 // Emit namespace field initializations for all structs in the program
-static void emit_ns_inits(File *f, I32 depth) {
-    { Expr *_progs_ni[2] = { codegen_core_program, codegen_program };
-    for (int _pni = 0; _pni < 2; _pni++) {
-        if (!_progs_ni[_pni]) continue;
-        for (U32 i = 0; i < _progs_ni[_pni]->children.count; i++) {
-            Expr *stmt = Expr_child(_progs_ni[_pni], &(USize){(USize)(i)});
-            if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
-                                            Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
-                Str *sname = &stmt->data.data.Decl.name;
-                Expr *edef = Expr_child(stmt, &(USize){(USize)(0)});
-                Expr *body = Expr_child(edef, &(USize){(USize)(0)});
-                for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *field = Expr_child(body, &(USize){(USize)(j)});
-                    if (!field->data.data.Decl.is_namespace) continue;
-                    if (Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) continue;
-                    // Skip enum variant literals — handled by constructor functions
-                    if (edef->data.tag == NodeType_TAG_EnumDef) continue;
-                    emit_indent(f, depth);
-                    EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, " = ");
-                    emit_deref(f, Expr_child(field, &(USize){(USize)(0)}), depth);
-                    EMIT(f, ";\n");
-                }
-            }
-        }
-    }}
-}
 
 static void emit_func_def(File *f, Str *name, Expr *func_def, Mode *mode, Bool is_static) {
     (void)func_def->data.data.FuncDef.func_type;
