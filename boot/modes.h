@@ -743,6 +743,7 @@ void Expr_lang_error(Expr * self, Str * msg);
 void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
 void Expr_swap_children(Expr * self, Vec * new_children);
+void Expr_take_children(Expr * self, Expr * other);
 Expr * Expr_child(Expr * parent, U32 * i);
 U32 Expr_child_count(Expr * parent);
 Expr * Expr_new(NodeType * data, U32 line, U32 col, Str * path);

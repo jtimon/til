@@ -312,8 +312,8 @@ main := proc(args: ..Str) {
     source := readfile(path)
     tokens := tokenize(source, path)
     mut mode_str := ""
-    ast := parse(tokens, path.clone(), mode_str)
-    imports := extract_imports(ast)
+    user_ast := parse(tokens, path.clone(), mode_str)
+    imports := extract_imports(user_ast)
     mode_str = normalize_mode_name(mode_str)
     ref mut cur_mode : Mode = require_mode(path, mode_str)
     context_register_path_mode(ctx, path, cur_mode)
@@ -333,24 +333,15 @@ main := proc(args: ..Str) {
         }
     }
 
-    // Build core_program: core_ast + core_import_decls
+    // Build core_program: append core_import_decls to core_ast
     if skip_core.not() {
-        core_merged := Vec.new("Expr", Expr.size())
-        for i in 0..Expr.child_count(core_ast) {
-            ref ch : Expr = Expr.child(core_ast, i)
-            core_merged.push(own Expr.clone(ch))
-        }
-        for ci in 0..core_import_decls.len() {
-            ref ch : Expr = core_import_decls.get(ci)
-            core_merged.push(own Expr.clone(ch))
-        }
-        core_ast.swap_children(own core_merged)
+        mut core_imports_expr := Expr.new(NodeType.Body, 0, 0, "")
+        core_imports_expr.children = core_import_decls
+        core_ast.take_children(own core_imports_expr)
     }
 
-    // Build user program: mode + user_imports + user
-    user_merged := Vec.new("Expr", Expr.size())
-
-    // Mode auto-import declarations
+    // Build user program: mode imports, then user imports, then parsed user code
+    mut ast := Expr.new(NodeType.Body, 0, 0, "")
     if auto_import.len().gt(0) {
         mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
         mode_source := readfile(mode_til_path)
@@ -360,25 +351,10 @@ main := proc(args: ..Str) {
         mode_mode = normalize_mode_name(mode_mode)
         ref mode_mode_def : Mode = require_mode(mode_til_path, mode_mode)
         context_register_path_mode(ctx, mode_til_path, mode_mode_def)
-        for i in 0..Expr.child_count(mode_ast) {
-            ref ch : Expr = Expr.child(mode_ast, i)
-            user_merged.push(own Expr.clone(ch))
-        }
+        ast.take_children(own mode_ast)
     }
-
-    // User import declarations
-    for di in 0..import_decls.len() {
-        ref ch : Expr = import_decls.get(di)
-        user_merged.push(own Expr.clone(ch))
-    }
-
-    // User declarations
-    for i in 0..Expr.child_count(ast) {
-        ref ch : Expr = Expr.child(ast, i)
-        user_merged.push(own Expr.clone(ch))
-    }
-
-    ast.swap_children(own user_merged)
+    ast.children.append(own import_decls)
+    ast.take_children(own user_ast)
 
     // Extract link() and link_c() directives
     mut link_flags := ""

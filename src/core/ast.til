@@ -200,6 +200,24 @@ Expr := struct {
         // elem_delete (32 bytes total).
         memset(ptr_add(self.children, 24), 0, 32)
     }
+    take_children := proc(mut self: Expr, own other: Expr) {
+        // Append other's children into self via raw memcpy (no cloning).
+        // Zeroes other's count so it no longer owns the moved items.
+        if other.children.count.eq(0) { return }
+        needed := self.children.count.add(other.children.count)
+        if needed.gt(self.children.cap) {
+            mut new_cap := self.children.cap
+            while needed.gt(new_cap) {
+                new_cap = new_cap.mul(2)
+            }
+            self.children.data = realloc(own self.children.data, new_cap.mul(self.children.elem_size))
+            self.children.cap = new_cap
+        }
+        memcpy(ptr_add(self.children.data, self.children.count.mul(self.children.elem_size)),
+               other.children.data, other.children.count.mul(other.children.elem_size))
+        self.children.count = needed
+        other.children.count = 0
+    }
     child := func(parent: Expr, i: USize) returns ref Expr {
         ref c : Expr = parent.children.get(i)
         return c
