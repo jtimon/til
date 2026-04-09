@@ -1,5 +1,16 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #132 ref globals at file scope not emitted as C file-scope globals
+  ~is_exported_top_level_global~ in builder.til excluded ~OwnType.Ref~
+  declarations, so ref file-scope decls were never emitted as C globals.
+  Fix: removed the Ref exclusion, added a ~ref_globals~ set (parallel to
+  ~script_globals~) to track which globals are pointer-typed. File-scope
+  emission now generates ~Type *name;~ for refs (and ~extern Type *name;~
+  in headers). ~emit_stmt~ checks ~ref_globals~ so the init function
+  assigns to the existing file-scope pointer instead of redeclaring a
+  local. ~is_ref_local~ also checks ~ref_globals~ so function bodies
+  correctly dereference ref globals.
+
 * FIXED #129 Runtime Value instance payload fields now own their data
   Both ~StructInstance.data~ and ~EnumInstance.data~ in
   ~src/self/interpreter.til~ are now declared as ~own mut data : U8 = 0~

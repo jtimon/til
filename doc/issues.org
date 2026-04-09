@@ -17,14 +17,6 @@
   Blocks self-hosting: dispatch.c has ~typedef Bool (*DispatchFn)(Scope *, Expr *, Value *)~
   which is used for the dispatch map values and local variables.
 
-** OPEN #132 ref globals at file scope not emitted as C file-scope globals
-  ~ref mut x : Expr = NULL~ at file scope in a ~mode lib~ file generates
-  a local variable inside the module init function instead of a file-scope
-  C global. The variable does not appear in the generated .h header either.
-  Expected: ~Expr *x = NULL;~ at file scope and ~extern Expr *x;~ in header.
-  Blocks self-hosting: builder.c has ~static Expr *codegen_program~ and
-  ~static Expr *current_fdef = NULL~ which need to become til globals
-  visible to remaining C code during incremental translation.
 
 ** OPEN #130 AST / ~Expr~ representation cleanup
   The current AST shape is confusing and duplicates state in ways that make

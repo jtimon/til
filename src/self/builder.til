@@ -18,6 +18,8 @@ mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut func_defs := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut script_globals := Set.new("Str", Str.size())
 mut has_script_globals := false
+mut ref_globals := Set.new("Str", Str.size())
+mut has_ref_globals := false
 mut in_func_def := false
 mut in_main_func := false
 mut funcsig_names := Set.new("Str", Str.size())
@@ -53,8 +55,14 @@ is_value_global := func(name: Str) returns shallow Bool {
     return script_globals.has(name)
 }
 
+is_ref_global := func(name: Str) returns shallow Bool {
+    if has_ref_globals.not() { return false }
+    return ref_globals.has(name)
+}
+
 is_ref_local := func(name: Str) returns shallow Bool {
-    return ref_locals.has(name)
+    if ref_locals.has(name) { return true }
+    return is_ref_global(name)
 }
 
 use_dot_access := func(obj: Expr) returns shallow Bool {
@@ -135,7 +143,6 @@ is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
         if is_variant(rhs.data, NodeType.Ident) { return false }
     }
     ref decl : Declaration = get_payload(stmt.data)
-    if decl.own_type.eq(OwnType.Ref) { return false }
     if decl.name.len().gte(3) {
         if decl.name.substr(0, 3).eq("_t_") { return false }
     }
