@@ -361,6 +361,7 @@ static void emit_expr(File *f, Expr *e, I32 depth) {
             snprintf(tmp, sizeof(tmp), "_sc%d", id);
             emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, e, depth);
             EMIT(f, " _sc"); emit_i32(f, id); EMIT(f, "; })");
+            Str_delete(ctype, &(Bool){1});
         } else if (Expr_child(e, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_FuncPtr) {
             // Indirect call through function pointer variable
             // Use fn_sig to determine shallow params/return for correct cast
@@ -529,6 +530,7 @@ static void emit_as_ptr(File *f, Expr *e, I32 depth) {
         snprintf(tmp, sizeof(tmp), "_sc%d", id);
         emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, e, depth);
         EMIT(f, " _sc"); emit_i32(f, id); EMIT(f, "; })");
+        Str_delete(ctype, &(Bool){1});
     } else if (e->data.tag == NodeType_TAG_Ident || e->data.tag == NodeType_TAG_FCall || e->data.tag == NodeType_TAG_LiteralStr) {
         emit_expr(f, e, depth);
     } else if (e->data.tag == NodeType_TAG_FieldAccess) {
@@ -548,6 +550,7 @@ static void emit_as_ptr(File *f, Expr *e, I32 depth) {
         EMIT(f, "&("); File_write_str(f, ctype); EMIT(f, "){");
         emit_expr(f, e, depth);
         EMIT(f, "}");
+        Str_delete(ctype, &(Bool){1});
     }
 }
 
@@ -810,6 +813,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 emit_expr(f, rhs, depth);
                 EMIT(f, "; "); File_write_str(f, ctype); EMIT(f, "_delete(_old, &(Bool){1}); }\n");
             }
+            Str_delete(ctype, &(Bool){1});
             break;
         }
         Bool is_hoisted = is_stack_local(&e->data.data.Assign) ||
@@ -831,6 +835,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 EMIT(f, "{ "); File_write_str(f, ctype); EMIT(f, " *_hp = ("); File_write_str(f, ctype); EMIT(f, " *)");
                 emit_expr(f, rhs, depth);
                 EMIT(f, "; "); EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = *_hp; free(_hp); }\n");
+                Str_delete(ctype, &(Bool){1});
             } else {
                 EMIT(f, (const char *)e->data.data.Assign.c_str); EMIT(f, " = ");
                 emit_deref(f, rhs, depth);
@@ -929,6 +934,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 emit_ctor_fields(f, &(Str){.c_str=(U8*)"_r", .count=2, .cap=CAP_LIT}, rv, depth);
                 emit_indent(f, depth);
                 EMIT(f, "return _r; }\n");
+                Str_delete(ctype, &(Bool){1});
             } else if (current_fdef && RETURN_IS_REF(&current_fdef->data.data.FuncDef)) {
                 EMIT(f, "return ");
                 emit_as_ptr(f, rv, depth);
