@@ -33,23 +33,6 @@ static Expr *current_fdef = NULL;  // blocked by #132
 // is_dyn_call_name: moved to builder.til
 
 
-// Collect unique method names from dyn_has_method calls
-static void collect_dyn_has_methods(Expr *e, Vec *methods) {
-    if (!e) return;
-    if (e->data.tag == NodeType_TAG_FCall && Expr_child(e, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident &&
-        (Expr_child(e, &(USize){(USize)(0)})->data.data.Ident.count == 14 && memcmp(Expr_child(e, &(USize){(USize)(0)})->data.data.Ident.c_str, "dyn_has_method", 14) == 0) &&
-        e->children.count >= 3 && Expr_child(e, &(USize){(USize)(2)})->data.tag == NodeType_TAG_LiteralStr) {
-        Str *method = &Expr_child(e, &(USize){(USize)(2)})->data.data.Ident;
-        for (U32 i = 0; i < methods->count; i++) {
-            Str *existing = Vec_get(methods, &(USize){(USize)(i)});
-            if (Str_eq(existing, method)) return;
-        }
-        Vec_push(methods, Str_clone(method));
-    }
-    for (U32 i = 0; i < e->children.count; i++) {
-        collect_dyn_has_methods(Expr_child(e, &(USize){(USize)(i)}), methods);
-    }
-}
 
 Expr *find_struct_body(Str *name) {
     if (!Map_has(&struct_bodies, name)) return NULL;
@@ -82,19 +65,9 @@ Expr *find_callee_fdef(Str *name);
 
 // is_ref_local: moved to builder.til
 
-static void emit_field(File *f, Str *var, Str *field) {
-    File_write_str(f, var); EMIT(f, (is_stack_local(var) || is_value_global(var)) ? "." : "->"); File_write_str(f, field);
-}
 
 // use_dot_access: moved to builder.til
 
-static Str *get_stack_local_ctype(Str *name) {
-    if (Map_has(&stack_local_types, name)) {
-        Str *p = Map_get(&stack_local_types, name);
-        return Str_clone(p);
-    }
-    return NULL;
-}
 
 // Block-scoped emit_body: clone stack_locals/ref_locals before
 // entering a block, restore after. Inner declarations stay local to the block.
@@ -115,94 +88,10 @@ static void emit_body_scoped(File *f, Expr *body, I32 depth) {
 // - It appears in a ref declaration RHS: "ref y : T = x"
 // - It's passed as arg to a ref-returning function
 // Resolve the callee name from an fcall's first child
-static Str *resolve_callee_name(Expr *fcall) {
-    Expr *callee_node = Expr_child(fcall, &(USize){(USize)(0)});
-    if (callee_node->data.tag == NodeType_TAG_FieldAccess) {
-        Str *sname = &Expr_child(callee_node, &(USize){(USize)(0)})->struct_name;
-        Str *mname = &callee_node->data.data.FieldAccess;
-        if (sname->count == 0) return NULL;
-        Str *r = Str_concat(sname, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT});
-        Str *result = Str_concat(r, mname);
-        Str_delete(r, &(Bool){1});
-        return result;
-    } else if (callee_node->data.tag == NodeType_TAG_Ident) {
-        return Str_clone(&callee_node->data.data.Ident);
-    }
-    return NULL;
-}
 
 // fcall_fn_sig: moved to builder.til
 
-// Check all fcalls in an expression tree and mark idents passed to mut params as unsafe
-static void check_fcall_mut_args(Expr *e) {
-    if (!e) return;
-    if (e->data.tag == NodeType_TAG_FCall) {
-        // Check fn_sig for function pointer calls
-        Expr *fdef = fcall_fn_sig(e);
-        if (!fdef) {
-            Str *callee = resolve_callee_name(e);
-            if (callee) {
-                fdef = find_callee_fdef(callee);
-                Str_delete(callee, &(Bool){1});
-            }
-        }
-        if (fdef && fdef->data.data.FuncDef.params.count > 0) {
-            for (U32 a = 1; a < e->children.count; a++) {
-                U32 pi = a - 1;
-                if (pi < fdef->data.data.FuncDef.nparam && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->is_mut) {
-                    Expr *arg = Expr_child(e, &(USize){(USize)(a)});
-                    if (arg->data.tag == NodeType_TAG_Ident) {
-                        Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
-                    }
-                }
-            }
-        }
-    }
-    for (U32 i = 0; i < e->children.count; i++) {
-        check_fcall_mut_args(Expr_child(e, &(USize){(USize)(i)}));
-    }
-}
 
-static void collect_unsafe_to_hoist(Expr *body) {
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-
-        // Check all fcalls for mut param args
-        check_fcall_mut_args(stmt);
-
-        if (stmt->data.tag == NodeType_TAG_Decl && DECL_IS_REF(stmt->data.data.Decl)) {
-            Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-            if (rhs->data.tag == NodeType_TAG_Ident) {
-                Set_add(&unsafe_to_hoist, Str_clone(&rhs->data.data.Ident));
-            }
-            if (rhs->data.tag == NodeType_TAG_FCall) {
-                Str *callee = resolve_callee_name(rhs);
-                if (callee) {
-                    Expr *fdef = find_callee_fdef(callee);
-                    if (fdef && RETURN_IS_REF(&fdef->data.data.FuncDef)) {
-                        for (U32 a = 1; a < rhs->children.count; a++) {
-                            Expr *arg = Expr_child(rhs, &(USize){(USize)(a)});
-                            if (arg->data.tag == NodeType_TAG_Ident) {
-                                Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
-                            }
-                        }
-                    }
-                    Str_delete(callee, &(Bool){1});
-                }
-            }
-        }
-        if (stmt->data.tag == NodeType_TAG_If) {
-            for (U32 c = 1; c < stmt->children.count; c++)
-                collect_unsafe_to_hoist(Expr_child(stmt, &(USize){(USize)(c)}));
-        }
-        if (stmt->data.tag == NodeType_TAG_While && stmt->children.count > 1) {
-            collect_unsafe_to_hoist(Expr_child(stmt, &(USize){(USize)(1)}));
-        }
-        if (stmt->data.tag == NodeType_TAG_Body) {
-            collect_unsafe_to_hoist(stmt);
-        }
-    }
-}
 
 
 static Bool is_shallow_param(Str *name) {
@@ -222,9 +111,29 @@ Expr *find_callee_fdef(Str *name) {
     return *p;
 }
 
+Str *resolve_callee_name(Expr *fcall) {
+    Expr *callee_node = Expr_child(fcall, &(USize){(USize)(0)});
+    if (callee_node->data.tag == NodeType_TAG_FieldAccess) {
+        Str *sname = &Expr_child(callee_node, &(USize){(USize)(0)})->struct_name;
+        Str *mname = &callee_node->data.data.FieldAccess;
+        if (sname->count == 0) return NULL;
+        Str *r = Str_concat(sname, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT});
+        Str *result = Str_concat(r, mname);
+        Str_delete(r, &(Bool){1});
+        return result;
+    } else if (callee_node->data.tag == NodeType_TAG_Ident) {
+        return Str_clone(&callee_node->data.data.Ident);
+    }
+    return NULL;
+}
 
-// Get the C value type for an fcall's return value
-static Str *fcall_return_ctype(Expr *fcall) {
+Str *callee_return_ctype(Str *callee_name) {
+    Expr *fdef = find_callee_fdef(callee_name);
+    if (!fdef || fdef->data.data.FuncDef.return_type.count == 0) return NULL;
+    return type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
+}
+
+Str *fcall_return_ctype(Expr *fcall) {
     if (fcall->data.tag != NodeType_TAG_FCall) return NULL;
     Str *callee = resolve_callee_name(fcall);
     if (!callee) return NULL;
@@ -232,6 +141,8 @@ static Str *fcall_return_ctype(Expr *fcall) {
     Str_delete(callee, &(Bool){1});
     return r;
 }
+
+// Get the C value type for an fcall's return value
 
 // callee_returns_shallow: moved to builder.til
 

@@ -332,13 +332,7 @@ emit_til_default := proc(f: File, shallow t: TilType, struct_name: Str) {
     }
 }
 
-callee_return_ctype := func(callee_name: Str) returns Str {
-    ref fdef : Expr = find_callee_fdef(callee_name)
-    if is_null(fdef) { return NULL }
-    ref fd : FunctionDef = get_payload(fdef.data)
-    if fd.return_type.len().eq(0) { return NULL }
-    return type_name_to_c_value(fd.return_type)
-}
+callee_return_ctype := ext_func(callee_name: Str) returns Str {}
 
 emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool) {
     ref fd : FunctionDef = get_payload(fdef.data)
@@ -444,6 +438,139 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
     }
     for ci in 0..e.child_count() {
         collect_collection_builtins(e.child(ci), infos)
+    }
+}
+
+emit_field := proc(f: File, var: Str, field: Str) {
+    f.write_str(var)
+    if is_stack_local(var).or(is_value_global(var)) {
+        f.write_str(".")
+    } else {
+        f.write_str("->")
+    }
+    f.write_str(field)
+}
+
+get_stack_local_ctype := func(name: Str) returns ref Str {
+    if stack_local_types.has(name) {
+        ref p : Str = stack_local_types.get(name)
+        return p
+    }
+    return NULL
+}
+
+resolve_callee_name := ext_func(fcall: Expr) returns Str {}
+
+fcall_return_ctype := ext_func(fcall: Expr) returns Str {}
+
+check_fcall_mut_args := proc(e: Expr) {
+    if is_null(e) { return }
+    if is_variant(e.data, NodeType.FCall) {
+        ref mut fdef : Expr = fcall_fn_sig(e)
+        if is_null(fdef) {
+            callee := resolve_callee_name(e)
+            if is_null(callee).not() {
+                fdef = find_callee_fdef(callee)
+            }
+        }
+        if is_null(fdef).not() {
+            ref fd : FunctionDef = get_payload(fdef.data)
+            if fd.params.len().gt(0) {
+                for a in 1..e.child_count() {
+                    pi := a.sub(1)
+                    if pi.lt(fd.nparam) {
+                        ref p : Param = fd.params.get(pi)
+                        if p.is_mut {
+                            ref arg : Expr = e.child(a)
+                            if is_variant(arg.data, NodeType.Ident) {
+                                ref arg_name : Str = get_payload(arg.data)
+                                unsafe_to_hoist.add(own arg_name.clone())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for ci in 0..e.child_count() {
+        check_fcall_mut_args(e.child(ci))
+    }
+}
+
+collect_unsafe_to_hoist := proc(body: Expr) {
+    for si in 0..body.child_count() {
+        ref stmt : Expr = body.child(si)
+        check_fcall_mut_args(stmt)
+        if is_variant(stmt.data, NodeType.Decl) {
+            ref dd : Declaration = get_payload(stmt.data)
+            if is_variant(dd.own_type, OwnType.Ref) {
+                ref rhs : Expr = stmt.child(0)
+                if is_variant(rhs.data, NodeType.Ident) {
+                    ref rhs_name : Str = get_payload(rhs.data)
+                    unsafe_to_hoist.add(own rhs_name.clone())
+                }
+                if is_variant(rhs.data, NodeType.FCall) {
+                    callee := resolve_callee_name(rhs)
+                    if is_null(callee).not() {
+                        ref fdef : Expr = find_callee_fdef(callee)
+                        if is_null(fdef).not() {
+                            ref fd : FunctionDef = get_payload(fdef.data)
+                            if is_variant(fd.return_own_type, OwnType.Ref) {
+                                for a in 1..rhs.child_count() {
+                                    ref arg : Expr = rhs.child(a)
+                                    if is_variant(arg.data, NodeType.Ident) {
+                                        ref arg_name : Str = get_payload(arg.data)
+                                        unsafe_to_hoist.add(own arg_name.clone())
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if is_variant(stmt.data, NodeType.If) {
+            for c in 1..stmt.child_count() {
+                collect_unsafe_to_hoist(stmt.child(c))
+            }
+        }
+        if is_variant(stmt.data, NodeType.While) {
+            if stmt.child_count().gt(1) {
+                collect_unsafe_to_hoist(stmt.child(1))
+            }
+        }
+        if is_variant(stmt.data, NodeType.Body) {
+            collect_unsafe_to_hoist(stmt)
+        }
+    }
+}
+
+collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
+    if is_null(e) { return }
+    if is_variant(e.data, NodeType.FCall) {
+        if e.child_count().gt(0) {
+            if is_variant(e.child(0).data, NodeType.Ident) {
+                ref cname : Str = get_payload(e.child(0).data)
+                if cname.eq("dyn_has_method") {
+                    if e.child_count().gte(3) {
+                        if is_variant(e.child(2).data, NodeType.LiteralStr) {
+                            ref method : Str = get_payload(e.child(2).data)
+                            mut found := false
+                            for mi in 0..methods.len() {
+                                ref existing : Str = methods.get(mi)
+                                if existing.eq(method) { found = true }
+                            }
+                            if found.not() {
+                                methods.push(own method.clone())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for ci in 0..e.child_count() {
+        collect_dyn_has_methods(e.child(ci), methods)
     }
 }
 
