@@ -35,9 +35,6 @@ U64 U64_from_i64(I64 v);
 
 typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 
-// Forward declaration
-static ffi_type *build_struct_ffi_type(Expr *struct_def);
-
 FFIType *ffi_type_pointer_ref(void) { return (FFIType *)&ffi_type_pointer; }
 FFIType *ffi_type_sint64_ref(void) { return (FFIType *)&ffi_type_sint64; }
 FFIType *ffi_type_uint8_ref(void) { return (FFIType *)&ffi_type_uint8; }
@@ -46,79 +43,6 @@ FFIType *ffi_type_sint32_ref(void) { return (FFIType *)&ffi_type_sint32; }
 FFIType *ffi_type_uint32_ref(void) { return (FFIType *)&ffi_type_uint32; }
 FFIType *ffi_type_uint64_ref(void) { return (FFIType *)&ffi_type_uint64; }
 FFIType *ffi_type_float_ref(void) { return (FFIType *)&ffi_type_float; }
-
-// Map a til type name to the appropriate ffi_type for shallow params
-static ffi_type *shallow_ffi_type(Str *type_name) {
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0))  return &ffi_type_sint64;
-    if ((type_name->count == 2 && memcmp(type_name->c_str, "U8", 2) == 0))   return &ffi_type_uint8;
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I16", 3) == 0))  return &ffi_type_sint16;
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I32", 3) == 0))  return &ffi_type_sint32;
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0))  return &ffi_type_uint32;
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "U64", 3) == 0))  return &ffi_type_uint64;
-    if ((type_name->count == 5 && memcmp(type_name->c_str, "USize", 5) == 0)) return &ffi_type_uint32;
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "F32", 3) == 0))  return &ffi_type_float;
-    if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) return &ffi_type_uint8;
-    // Struct type: look up def and build ffi_type
-    if (Map_has(&ffi_struct_defs, type_name)) {
-        Expr **sdef = Map_get(&ffi_struct_defs, type_name);
-        return build_struct_ffi_type(*sdef);
-    }
-    return &ffi_type_pointer; // fallback
-}
-
-// Map a field to its ffi_type (for building struct ffi_types)
-static ffi_type *field_ffi_type(Expr *field) {
-    if (!DECL_IS_SHALLOW(field->data.data.Decl))
-        return &ffi_type_pointer;
-    Str *ftype = &field->data.data.Decl.explicit_type;
-    if (ftype->count == 0) return &ffi_type_sint64; // fallback (I64-sized)
-    if ((ftype->count == 3 && memcmp(ftype->c_str, "I64", 3) == 0))  return &ffi_type_sint64;
-    if ((ftype->count == 2 && memcmp(ftype->c_str, "U8", 2) == 0))   return &ffi_type_uint8;
-    if ((ftype->count == 3 && memcmp(ftype->c_str, "I16", 3) == 0))  return &ffi_type_sint16;
-    if ((ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0))  return &ffi_type_sint32;
-    if ((ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0))  return &ffi_type_uint32;
-    if ((ftype->count == 3 && memcmp(ftype->c_str, "U64", 3) == 0))  return &ffi_type_uint64;
-    if ((ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return &ffi_type_uint32;
-    if ((ftype->count == 3 && memcmp(ftype->c_str, "F32", 3) == 0))  return &ffi_type_float;
-    if ((ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return &ffi_type_uint8;
-    // Inline struct field
-    if (field->data.data.Decl.field_struct_def)
-        return build_struct_ffi_type(field->data.data.Decl.field_struct_def);
-    return &ffi_type_sint64; // fallback
-}
-
-// Build an ffi_type descriptor for a struct (heap-allocated, cached)
-static ffi_type *build_struct_ffi_type(Expr *struct_def) {
-    if (!ffi_type_cache_inited) {
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"FFITypePtrBox", .count = 13, .cap = CAP_LIT}, &(USize){sizeof(FFITypePtrBox)}); ffi_type_cache = *_vp; free(_vp); }
-        ffi_type_cache_inited = 1;
-    }
-    // Count instance fields
-    Expr *body = Expr_child(struct_def, &(USize){(USize)(0)});
-    U32 nfields = 0;
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = Expr_child(body, &(USize){(USize)(i)});
-        if (f->data.tag == NodeType_TAG_Decl && !f->data.data.Decl.is_namespace) nfields++;
-    }
-    // Build elements array (NULL-terminated)
-    ffi_type **elements = malloc(sizeof(ffi_type *) * (nfields + 1));
-    U32 idx = 0;
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = Expr_child(body, &(USize){(USize)(i)});
-        if (f->data.tag == NodeType_TAG_Decl && !f->data.data.Decl.is_namespace)
-            elements[idx++] = field_ffi_type(f);
-    }
-    elements[nfields] = NULL;
-    // Build the ffi_type
-    ffi_type *st = malloc(sizeof(ffi_type));
-    st->size = 0;
-    st->alignment = 0;
-    st->type = FFI_TYPE_STRUCT;
-    st->elements = elements;
-    // Cache for cleanup
-    { FFITypePtrBox *_p = malloc(sizeof(FFITypePtrBox)); _p->ptr = (FFIType *)st; Vec_push(&ffi_type_cache, _p); }
-    return st;
-}
 
 // === Handler macros ===
 
@@ -715,7 +639,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     for (U32 k = 0; k < np; k++) {
         Param *_pk = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)});
         if (PARAM_IS_SHALLOW(_pk)) {
-            atypes[k] = shallow_ffi_type(&_pk->ptype);
+            atypes[k] = (ffi_type *)shallow_ffi_type(&_pk->ptype);
             has_shallow = true;
         } else {
             atypes[k] = &ffi_type_pointer;
@@ -739,7 +663,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     };
     ffi_type *rtype = &ffi_type_void;
     if (entry.return_type) {
-        rtype = ret_shallow ? shallow_ffi_type(entry.return_type) : &ffi_type_pointer;
+        rtype = ret_shallow ? (ffi_type *)shallow_ffi_type(entry.return_type) : &ffi_type_pointer;
     }
     ffi_prep_cif(cif, FFI_DEFAULT_ABI, np, rtype, atypes);
     { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW};

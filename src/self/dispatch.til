@@ -477,6 +477,83 @@ h_cfile_open := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
+shallow_ffi_type := func(type_name: Str) returns ref FFIType {
+    if type_name.eq("I64")   { return ffi_type_sint64_ref() }
+    if type_name.eq("U8")    { return ffi_type_uint8_ref() }
+    if type_name.eq("I16")   { return ffi_type_sint16_ref() }
+    if type_name.eq("I32")   { return ffi_type_sint32_ref() }
+    if type_name.eq("U32")   { return ffi_type_uint32_ref() }
+    if type_name.eq("U64")   { return ffi_type_uint64_ref() }
+    if type_name.eq("USize") { return ffi_type_uint32_ref() }
+    if type_name.eq("F32")   { return ffi_type_float_ref() }
+    if type_name.eq("Bool")  { return ffi_type_uint8_ref() }
+    if ffi_struct_defs.has(type_name) {
+        ref box : ExprPtrBox = ffi_struct_defs.get(type_name)
+        return build_struct_ffi_type(box.ptr)
+    }
+    return ffi_type_pointer_ref()
+}
+
+field_ffi_type := func(field: Expr) returns ref FFIType {
+    ref dd : Declaration = get_payload(field.data)
+    if dd.own_type.eq(OwnType.Shallow).not() { return ffi_type_pointer_ref() }
+    if dd.explicit_type.len().eq(0) { return ffi_type_sint64_ref() }
+    if dd.explicit_type.eq("I64")   { return ffi_type_sint64_ref() }
+    if dd.explicit_type.eq("U8")    { return ffi_type_uint8_ref() }
+    if dd.explicit_type.eq("I16")   { return ffi_type_sint16_ref() }
+    if dd.explicit_type.eq("I32")   { return ffi_type_sint32_ref() }
+    if dd.explicit_type.eq("U32")   { return ffi_type_uint32_ref() }
+    if dd.explicit_type.eq("U64")   { return ffi_type_uint64_ref() }
+    if dd.explicit_type.eq("USize") { return ffi_type_uint32_ref() }
+    if dd.explicit_type.eq("F32")   { return ffi_type_float_ref() }
+    if dd.explicit_type.eq("Bool")  { return ffi_type_uint8_ref() }
+    if is_null(dd.field_struct_def).not() {
+        return build_struct_ffi_type(dd.field_struct_def)
+    }
+    return ffi_type_sint64_ref()
+}
+
+build_struct_ffi_type := func(struct_def: Expr) returns ref FFIType {
+    if ffi_type_cache_inited.not() {
+        ffi_type_cache = Vec.new("FFITypePtrBox", FFITypePtrBox.size())
+        ffi_type_cache_inited = true
+    }
+    ref body : Expr = struct_def.child(0)
+    mut nfields : U32 = 0
+    for i in 0..body.child_count() {
+        ref f : Expr = body.child(i)
+        if is_variant(f.data, NodeType.Decl) {
+            ref fd : Declaration = get_payload(f.data)
+            if fd.is_namespace.not() {
+                nfields = nfields.add(1)
+            }
+        }
+    }
+    elements : Dynamic = malloc(nfields.add(1).to_u64().mul(Dynamic.size().to_u64()))
+    mut idx : U32 = 0
+    for i in 0..body.child_count() {
+        ref f : Expr = body.child(i)
+        if is_variant(f.data, NodeType.Decl) {
+            ref fd : Declaration = get_payload(f.data)
+            if fd.is_namespace.not() {
+                ref ft : FFIType = field_ffi_type(f)
+                memcpy(ptr_add(elements, idx.to_u64().mul(Dynamic.size().to_u64())), ft, Dynamic.size().to_u64())
+                idx = idx.add(1)
+            }
+        }
+    }
+    memset(ptr_add(elements, nfields.to_u64().mul(Dynamic.size().to_u64())), 0, Dynamic.size().to_u64())
+    st : Dynamic = malloc(FFIType.size().to_u64())
+    ref mut stp : FFIType = ptr_add(st, 0)
+    stp.size = 0
+    stp.alignment = 0.to_i16()
+    stp.type = FFI_TYPE_STRUCT
+    stp.elements = elements
+    box := FFITypePtrBox(ptr = stp)
+    ffi_type_cache.push(own box)
+    return stp
+}
+
 ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
 enum_method_dispatch := ext_func(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Value) returns shallow Bool {}
 ffi_init := ext_func(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}
