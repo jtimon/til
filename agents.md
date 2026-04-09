@@ -77,8 +77,8 @@ Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
 - Always include ALL modified files in commits.
 - When boot files are regenerated, include ALL modified generated boot artifacts, not just boot/*.c.
   This includes boot/*.c, boot/*.h, boot/*_forward.h, and any other changed files under boot/.
-- Local agents: include doc/totals.csv and img/totals.svg in commits
-- Remote agents (GitHub Actions, Codex, etc.): do NOT include doc/totals.csv or img/totals.svg
+- Remote agents (GitHub Actions, Codex, etc.): include doc/totals.csv and img/totals.svg in commits
+- Local agents: do NOT include doc/totals.csv or img/totals.svg
 - Use `make test` before every commit (skip when only documentation changed)
 - Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
