@@ -1,10 +1,29 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 135
+# NEXT_ISSUE: 138
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #137 Eliminate clone-and-swap in link directive extraction
+   til.til's link/link_c extraction loop clones every kept child into a
+   new Vec and swaps. The same pattern exists in resolve_imports. Both
+   could use in-place compaction (children_write/children_set_count) like
+   the scavenger does, avoiding all clones.
+
+** OPEN #136 Remove clone-and-assign in typer desugar passes
+   The typer's desugar passes (insert_free_calls, desugar_variadic_calls,
+   etc.) rebuild body.children via body.children = new_ch. The generated C
+   does Vec_delete + Vec_clone + Vec_delete for each pass. Could use
+   in-place compaction or take_children to avoid deep cloning all children
+   on every desugar pass.
+
+** OPEN #135 Avoid heap allocation in Expr.new
+   Expr.new returns a heap-allocated Expr that is immediately copied to
+   the stack and freed: Expr x = *_hp; free(_hp). Every Expr creation
+   pays for a malloc+free round trip. Could be constructed directly on the
+   stack if the codegen supported returning structs by value.
+
 ** OPEN #133 FuncSig types not emitted as C function-pointer typedefs
   A FuncSig type definition like ~DispatchFn := func(Scope, Expr, Value) returns shallow Bool~
   generates a forward declaration ~Bool DispatchFn(Scope *, Expr *, Value *);~ in the .c file
