@@ -663,7 +663,12 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
 // Emit layer -- ext_proc for functions still in C
 emit_expr := ext_proc(f: File, e: Expr, shallow depth: I32) {}
 emit_stmt := ext_proc(f: File, e: Expr, shallow depth: I32) {}
-emit_body := ext_proc(f: File, body: Expr, shallow depth: I32) {}
+
+emit_body := proc(f: File, body: Expr, shallow depth: I32) {
+    for i in 0..body.child_count() {
+        emit_stmt(f, body.child(i), depth)
+    }
+}
 emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
     ref sbody : Expr = find_struct_body(ctor.struct_name)
     mut fi : U32 = 0

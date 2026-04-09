@@ -763,11 +763,6 @@ void emit_stmt(File *f, Expr *e, I32 depth) {
     }
 }
 
-void emit_body(File *f, Expr *body, I32 depth) {
-    for (U32 i = 0; i < body->children.count; i++) {
-        emit_stmt(f, Expr_child(body, &(USize){(USize)(i)}), depth);
-    }
-}
 
 // --- Top-level emission ---
 
