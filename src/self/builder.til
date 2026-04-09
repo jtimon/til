@@ -57,17 +57,7 @@ is_ref_local := func(name: Str) returns shallow Bool {
     return ref_locals.has(name)
 }
 
-use_dot_access := func(obj: Expr) returns shallow Bool {
-    if is_variant(obj.data, NodeType.FieldAccess) {
-        if obj.field_own_type.eq(OwnType.Shallow) { return true }
-    }
-    if is_variant(obj.data, NodeType.Ident) {
-        ref ident : Str = get_payload(obj.data)
-        if is_stack_local(ident) { return true }
-        if is_value_global(ident) { return true }
-    }
-    return false
-}
+use_dot_access := ext_func(obj: Expr) returns shallow Bool {}
 
 is_primitive_type := func(name: Str) returns shallow Bool {
     if name.eq("I64") { return true }

@@ -10,8 +10,7 @@
 #define DECL_IS_OWN(d) ((d).own_type.tag == OwnType_TAG_Own)
 #define DECL_IS_REF(d) ((d).own_type.tag == OwnType_TAG_Ref)
 #define DECL_IS_SHALLOW(d) ((d).own_type.tag == OwnType_TAG_Shallow)
-#define FIELD_IS_PTR(e) ((e)->field_own_type.tag != OwnType_TAG_Shallow)
-#define FIELD_IS_SHALLOW(e) ((e)->field_own_type.tag == OwnType_TAG_Shallow)
+// field_own_type macros removed: use builder_fa_is_ptr() instead
 
 // Helper macros for File-based emission (replacing fprintf)
 #define EMIT(f, s) File_write_str(f, &(Str){.c_str=(U8*)(s), .count=(U64)strlen((const char*)(s)), .cap=CAP_VIEW})
@@ -46,6 +45,21 @@ static Str *fa_struct_name(Expr *e) {
     if (obj->struct_name.count > 0) return &obj->struct_name;
     if (obj->data.tag == NodeType_TAG_Ident) return &obj->data.data.Ident;
     return &obj->struct_name;
+}
+
+// Check if a FieldAccess/FieldAssign accesses an own/ref (pointer) field.
+static Bool builder_fa_is_ptr(Expr *e) {
+    Str *sname = fa_struct_name(e);
+    Str *fname = (e->data.tag == NodeType_TAG_FieldAccess)
+        ? &e->data.data.FieldAccess : &e->data.data.FieldAssign;
+    Expr *body = find_struct_body(sname);
+    if (!body) return 0;
+    for (U32 i = 0; i < body->children.count; i++) {
+        Expr *f = Expr_child(body, &(USize){(USize)(i)});
+        if (!f->data.data.Decl.is_namespace && Str_eq(&f->data.data.Decl.name, fname))
+            return !DECL_IS_SHALLOW(f->data.data.Decl);
+    }
+    return 0;
 }
 
 // Check if a FieldAccess/FieldAssign accesses a namespace field.
@@ -104,7 +118,16 @@ Expr *find_callee_fdef(Str *name);
 // is_ref_local: moved to builder.til
 
 
-// use_dot_access: moved to builder.til
+Bool use_dot_access(Expr *obj) {
+    if (obj->data.tag == NodeType_TAG_FieldAccess) {
+        if (!builder_fa_is_ptr(obj)) return 1;
+    }
+    if (obj->data.tag == NodeType_TAG_Ident) {
+        if (is_stack_local(&obj->data.data.Ident)) return 1;
+        if (is_value_global(&obj->data.data.Ident)) return 1;
+    }
+    return 0;
+}
 
 
 // Block-scoped emit_body: clone stack_locals/ref_locals before
@@ -536,7 +559,7 @@ static void emit_as_ptr(File *f, Expr *e, I32 depth) {
     } else if (e->data.tag == NodeType_TAG_FieldAccess) {
         // Own field is already a pointer; enum ns_field constructor returns pointer;
         // Dynamic field is void* (already a pointer); inline field needs address-of
-        if (FIELD_IS_PTR(e) || (builder_fa_is_ns(e) && e->til_type.tag == TilType_TAG_Enum) ||
+        if (builder_fa_is_ptr(e) || (builder_fa_is_ns(e) && e->til_type.tag == TilType_TAG_Enum) ||
             e->til_type.tag == TilType_TAG_Dynamic) {
             emit_expr(f, e, depth);
         } else {
@@ -865,7 +888,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
     case NodeType_TAG_FieldAssign: {
         Expr *obj = Expr_child(e, &(USize){(USize)(0)});
         Str *fname = &e->data.data.FieldAssign;
-        if (Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_FCall && FIELD_IS_SHALLOW(e) && !builder_fa_is_ns(e)) {
+        if (Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_FCall && !builder_fa_is_ptr(e) && !builder_fa_is_ns(e)) {
             if (fcall_is_shallow_return(Expr_child(e, &(USize){(USize)(1)}))) {
                 // Shallow-return fcall: value directly assigned to inline field
                 emit_expr(f, obj, depth);
@@ -888,7 +911,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 emit_expr(f, obj, depth);
                 EMIT(f, use_dot_access(obj) ? "." : "->"); EMIT(f, (const char *)fname->c_str); EMIT(f, " = ");
             }
-            if (FIELD_IS_PTR(e)) {
+            if (builder_fa_is_ptr(e)) {
                 Expr_child(e, &(USize){(USize)(1)})->is_own_arg = true;
                 emit_as_ptr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
             } else {
@@ -950,7 +973,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                     emit_deref(f, rv, depth);
                     EMIT(f, ";\n");
                 }
-            } else if (rv->data.tag == NodeType_TAG_FieldAccess && FIELD_IS_SHALLOW(rv) &&
+            } else if (rv->data.tag == NodeType_TAG_FieldAccess && !builder_fa_is_ptr(rv) &&
                        !builder_fa_is_ns(rv) && rv->til_type.tag != TilType_TAG_Dynamic) {
                 // Inline field value -- must clone to heap pointer for return
                 Str *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)

@@ -1,5 +1,36 @@
 mode lib
 
+// Look up the OwnType for the instance field of a FieldAccess/FieldAssign.
+fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
+    if e.child_count().eq(0) { return OwnType.Shallow }
+    if is_variant(e.data, NodeType.FieldAccess).not().and(is_variant(e.data, NodeType.FieldAssign).not()) { return OwnType.Shallow }
+    ref obj : Expr = e.child(0)
+    mut sn := obj.struct_name
+    if sn.len().eq(0) {
+        if is_variant(obj.data, NodeType.Ident) {
+            ref id : Str = get_payload(obj.data)
+            sn = id
+        } else { return OwnType.Shallow }
+    }
+    ref sdef : Expr = scope.get_struct(sn)
+    if is_null(sdef) { return OwnType.Shallow }
+    ref body : Expr = sdef.child(0)
+    mut fname := ""
+    if is_variant(e.data, NodeType.FieldAccess) {
+        ref fa : Str = get_payload(e.data)
+        fname = fa
+    } else {
+        ref fa : Str = get_payload(e.data)
+        fname = fa
+    }
+    for i in 0..body.child_count() {
+        ref field : Expr = body.child(i)
+        ref dd : Declaration = get_payload(field.data)
+        if dd.name.eq(fname).and(dd.is_namespace.not()) { return dd.own_type }
+    }
+    return OwnType.Shallow
+}
+
 // Check if a FieldAccess/FieldAssign Expr accesses a namespace field.
 fa_is_ns := func(e: Expr, scope: TypeScope) returns shallow Bool {
     if e.child_count().eq(0) { return false }
@@ -1314,7 +1345,6 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
                 }
                 if fld_decl.name.eq(fname) {
                     expr.til_type = field.til_type
-                    expr.field_own_type = fld_decl.own_type
                     if is_variant(field.til_type, TilType.Struct).or(is_variant(field.til_type, TilType.Enum)) {
                         ref child0 : Expr = field.child(0)
                         if child0.struct_name.len().gt(0) {
@@ -1375,7 +1405,6 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                 ref fld_decl : Declaration = get_payload(field.data)
                 if fld_decl.name.eq(fname) {
                     found = true
-                    stmt.field_own_type = fld_decl.own_type
                     if fld_decl.is_mut.not() {
                         type_error(stmt, "cannot assign to immutable field '".concat(fname).concat("'"))
                     }
@@ -1405,7 +1434,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
         type_error(stmt, "field assignment on non-struct value")
     }
     stmt.til_type = TilType.None
-    if stmt.field_own_type.eq(OwnType.Ref).not().and(
+    if fa_own_type(stmt, scope).eq(OwnType.Ref).not().and(
         is_variant(rhs.data, NodeType.Ident).or(
             is_variant(rhs.data, NodeType.FieldAccess).and(
                 is_variant(rhs.til_type, TilType.Struct).or(
@@ -2390,7 +2419,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
     if owns_scope.neq(0) { desugar_variadic_calls(body, scope) }
     if owns_scope.neq(0) { desugar_kwargs_calls(body, scope) }
     if owns_scope.neq(0) { hoist_fcall_args(body, scope) }
-    insert_field_deletes(body)
+    insert_field_deletes(body, scope)
     insert_free_calls(body, scope, owns_scope)
 }
 
@@ -2762,7 +2791,6 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     call.add_child(own fa)
 
     mut field_acc := Expr.new(NodeType.FieldAccess(get_payload(field_assign.data)), field_assign.line, field_assign.col, field_assign.path)
-    field_acc.field_own_type = field_own_type
     field_acc.til_type = rhs.til_type
     if rhs.struct_name.len().gt(0) { field_acc.struct_name = rhs.struct_name.clone() }
     field_acc.add_child(own field_assign.child(0).clone())
@@ -3318,7 +3346,7 @@ hoist_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
 hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     hoist_expr(stmt.child(1), hoisted, scope)
     mut fa_hoist := true
-    if stmt.field_own_type.eq(OwnType.Shallow) {
+    if fa_own_type(stmt, scope).eq(OwnType.Shallow) {
         rhs_type := stmt.child(1).til_type
         if is_variant(rhs_type, TilType.Struct).or(is_variant(rhs_type, TilType.Enum)) {
             fa_hoist = false
@@ -3379,7 +3407,7 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
     }
 }
 
-insert_field_deletes := proc(mut body: Expr) {
+insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
     // Quick check: skip if no FieldAssign statements exist
     mut has_field_assign := false
     for i in 0..body.child_count() {
@@ -3396,8 +3424,8 @@ insert_field_deletes := proc(mut body: Expr) {
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
         if is_variant(stmt.data, NodeType.FieldAssign) {
-            fot := stmt.field_own_type
-            if field_assign_needs_delete(stmt) {
+            fot := fa_own_type(stmt, scope)
+            if field_assign_needs_delete(stmt, scope) {
                 ref rhs : Expr = stmt.child(1)
                 if type_to_name(rhs.til_type, rhs.struct_name).len().gt(0) {
                     del := make_field_delete(stmt, fot)
@@ -3755,7 +3783,7 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
 expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool {
     if is_variant(e.data, NodeType.FuncDef) { return false }
     if fcall_has_own_arg(e, var_name, scope) { return true }
-    if is_variant(e.data, NodeType.FieldAssign).and(e.field_own_type.eq(OwnType.Shallow).not()) {
+    if is_variant(e.data, NodeType.FieldAssign).and(fa_own_type(e, scope).eq(OwnType.Shallow).not()) {
         if e.child_count().gt(1) {
             if is_variant(e.child(1).data, NodeType.Ident) {
                 ref _ei : Str = get_payload(e.child(1).data)
@@ -3817,9 +3845,9 @@ expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns shallow Bool 
     return false
 }
 
-field_assign_needs_delete := func(stmt: Expr) returns shallow Bool {
-    if stmt.field_own_type.eq(OwnType.Ref) { return false }
-    if stmt.field_own_type.eq(OwnType.Shallow).not() { return true }
+field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns shallow Bool {
+    if fa_own_type(stmt, scope).eq(OwnType.Ref) { return false }
+    if fa_own_type(stmt, scope).eq(OwnType.Shallow).not() { return true }
     ft := stmt.child(1).til_type
     if is_variant(ft, TilType.Struct).or(is_variant(ft, TilType.Enum)) { return true }
     return false
