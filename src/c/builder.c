@@ -519,6 +519,7 @@ static void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth) {
             emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, arg, depth);
             emit_indent(f, depth);
             emit_field(f, var, fname); EMIT(f, " = "); EMIT(f, (const char *)tmp); EMIT(f, ";\n");
+            Str_delete(ct, &(Bool){1});
         } else if (fld_own == OwnType_TAG_Own) {
             emit_field(f, var, fname); EMIT(f, " = ");
             arg->is_own_arg = true;
@@ -535,6 +536,7 @@ static void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth) {
             emit_ctor_fields(f, &(Str){.c_str=(U8*)tmp, .count=strlen(tmp), .cap=CAP_VIEW}, arg, depth);
             emit_indent(f, depth);
             emit_field(f, var, fname); EMIT(f, " = *"); EMIT(f, (const char *)tmp); EMIT(f, "; free("); EMIT(f, (const char *)tmp); EMIT(f, ");\n");
+            Str_delete(ct, &(Bool){1});
         } else if (arg->data.tag == NodeType_TAG_FCall) {
             // Non-ref fields that are really scalar/pointer-like should take the
             // call result directly, not through heap-wrapper unboxing.
@@ -551,6 +553,7 @@ static void emit_ctor_fields(File *f, Str *var, Expr *ctor, I32 depth) {
                 EMIT(f, "{ "); File_write_str(f, ftype); EMIT(f, " *_ca = ");
                 emit_expr(f, arg, depth);
                 EMIT(f, "; "); emit_field(f, var, fname); EMIT(f, " = *_ca; free(_ca); }\n");
+                Str_delete(ftype, &(Bool){1});
             }
         } else {
             emit_field(f, var, fname); EMIT(f, " = ");
@@ -808,6 +811,7 @@ static void emit_stmt(File *f, Expr *e, I32 depth) {
                 EMIT(f, "; ");
                 emit_expr(f, obj, depth);
                 EMIT(f, use_dot_access(obj) ? "." : "->"); EMIT(f, (const char *)fname->c_str); EMIT(f, " = *_fa; free(_fa); }\n");
+                Str_delete(ftype, &(Bool){1});
             }
         } else {
             if (builder_fa_is_ns(e)) {
