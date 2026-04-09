@@ -1220,12 +1220,14 @@ static void emit_func_def(File *f, Str *name, Expr *func_def, Mode *mode, Bool i
         EMIT(f, "}\n");
     } else {
         // Return type
-        Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
+        Str *ret = NULL;
         if (func_def->data.data.FuncDef.return_type.count > 0) {
             ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                 ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                 : type_name_to_c(&func_def->data.data.FuncDef.return_type);
         }
+        Str void_str = {.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT};
+        if (!ret) ret = &void_str;
         // Signature
         EMIT(f, is_static ? "static __attribute__((unused)) " : ""); File_write_str(f, ret); EMIT(f, " "); { Str *_fc = func_to_c(name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
         emit_param_list(f, func_def, 1);
@@ -1263,6 +1265,7 @@ static void emit_func_def(File *f, Str *name, Expr *func_def, Mode *mode, Bool i
         current_fdef = NULL;
         in_func_def = 0;
         EMIT(f, "}\n");
+        if (ret != &void_str) Str_delete(ret, &(Bool){1});
     }
 }
 
@@ -1625,7 +1628,8 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
                     char flat[256];
                     snprintf(flat, sizeof(flat), "%s_%s", sname->c_str, field->data.data.Decl.name.c_str);
                     Str *key = Str_clone(&(Str){.c_str = (U8*)(flat), .count = (U64)strlen((const char*)(flat)), .cap = CAP_VIEW});
-                    { Str *_k = malloc(sizeof(Str)); *_k = (Str){key->c_str, key->count, CAP_VIEW}; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
+                    { Str *_k = malloc(sizeof(Str)); *_k = *key; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
+                    free(key);
                     // Also register nested ext_funcs inside this namespace method
                     // (names are already flattened by precomp, e.g. "U8_from_i64_ext")
                     if (fdef->children.count > 0) {
@@ -1830,7 +1834,8 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
                     Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                     FuncType fft = fdef->data.data.FuncDef.func_type;
                     if ((fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) && _is_core_pass) continue;
-                    Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
+                    Str void_s = {.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT};
+                    Str *ret = &void_s;
                     if (fdef->data.data.FuncDef.return_type.count > 0) {
                         ret = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                             ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
@@ -1839,6 +1844,7 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
                     File_write_str(f, ret); EMIT(f, " "); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, "(");
                     emit_param_list(f, fdef, 1);
                     EMIT(f, ");\n");
+                    if (ret != &void_s) Str_delete(ret, &(Bool){1});
                 }
             } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
                 Expr *func_def = Expr_child(stmt, &(USize){(USize)(0)});
@@ -1847,7 +1853,8 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
                 Str *name = &stmt->data.data.Decl.name;
                 Bool is_main = mode && mode->needs_main && (name->count == 4 && memcmp(name->c_str, "main", 4) == 0);
                 if (is_main) continue;
-                Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
+                Str void_s2 = {.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT};
+                Str *ret = &void_s2;
                 if (func_def->data.data.FuncDef.return_type.count > 0)
                     ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                         ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
@@ -1855,6 +1862,7 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
                 File_write_str(f, ret); EMIT(f, " "); { Str *_fc = func_to_c(name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
                 emit_param_list(f, func_def, 1);
                 EMIT(f, ");\n");
+                if (ret != &void_s2) Str_delete(ret, &(Bool){1});
             }
         }
     }}
@@ -2515,7 +2523,8 @@ static void emit_header_defs_and_funcs(File *f, Expr *core_program, Expr *progra
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 FuncType fft = fdef->data.data.FuncDef.func_type;
                 if ((fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) && _is_core_pass_ffd) continue;
-                Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
+                Str void_h = {.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT};
+                Str *ret = &void_h;
                 if (fdef->data.data.FuncDef.return_type.count > 0)
                     ret = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
                         ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
@@ -2523,13 +2532,15 @@ static void emit_header_defs_and_funcs(File *f, Expr *core_program, Expr *progra
                 File_write_str(f, ret); EMIT(f, " "); EMIT(f, (const char *)sname->c_str); EMIT(f, "_"); EMIT(f, (const char *)field->data.data.Decl.name.c_str); EMIT(f, "(");
                 emit_param_list(f, fdef, 1);
                 EMIT(f, ");\n");
+                if (ret != &void_h) Str_delete(ret, &(Bool){1});
             }
         } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
             Expr *func_def = Expr_child(stmt, &(USize){(USize)(0)});
             if (func_def->children.count == 0) continue;
             FuncType fft = func_def->data.data.FuncDef.func_type;
             if ((fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) && _is_core_pass_ffd) continue;
-            Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
+            Str void_h2 = {.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT};
+            Str *ret = &void_h2;
             if (func_def->data.data.FuncDef.return_type.count > 0)
                 ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
                     ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
@@ -2537,6 +2548,7 @@ static void emit_header_defs_and_funcs(File *f, Expr *core_program, Expr *progra
             File_write_str(f, ret); EMIT(f, " "); { Str *_fc = func_to_c(&stmt->data.data.Decl.name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
             emit_param_list(f, func_def, 1);
             EMIT(f, ");\n");
+            if (ret != &void_h2) Str_delete(ret, &(Bool){1});
         }
     }
     }}
