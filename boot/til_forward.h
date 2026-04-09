@@ -267,7 +267,6 @@ typedef struct Param {
 
 
 typedef struct FCallData {
-    Bool is_proc;
     I32 variadic_index;
     U32 variadic_count;
     I32 kwargs_index;

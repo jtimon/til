@@ -126,7 +126,6 @@
 *** mut kwargs_index : I32 = -1.to_i32()
 *** mut return_own_type := OwnType.Own
 ** FCallData: StructDef
-*** mut is_proc := false
 *** mut variadic_index : I32 = -1.to_i32()
 *** mut variadic_count : USize = 0
 *** mut kwargs_index : I32 = -1.to_i32()

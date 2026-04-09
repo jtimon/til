@@ -88,7 +88,6 @@ FunctionDef := struct {
 
 // --- FCall payload struct ---
 FCallData := struct {
-    mut is_proc := false
     mut variadic_index : I32 = -1.to_i32()
     mut variadic_count : USize = 0
     mut kwargs_index : I32 = -1.to_i32()
@@ -96,8 +95,7 @@ FCallData := struct {
     ref mut fn_sig : Expr = NULL
     namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
-        return a.is_proc.eq(b.is_proc)
-            .and(a.variadic_index.eq(b.variadic_index))
+        return a.variadic_index.eq(b.variadic_index)
             .and(a.variadic_count.eq(b.variadic_count))
             .and(a.kwargs_index.eq(b.kwargs_index))
             .and(a.kwargs_count.eq(b.kwargs_count))
