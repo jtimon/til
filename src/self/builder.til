@@ -16,6 +16,7 @@ DynCallInfo := struct {
 ref mut codegen_core_program : Expr = NULL
 ref mut codegen_program : Expr = NULL
 ref mut current_fdef : Expr = NULL
+reset_current_fdef := ext_proc() {}
 mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut func_defs := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut script_globals := Set.new("Str", Str.size())
@@ -1566,6 +1567,252 @@ emit_usize_ref := proc(f: File, e: Expr, shallow depth: I32) {
     f.write_str("USIZE_REF(")
     emit_deref(f, e, depth)
     f.write_str(")")
+}
+
+emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
+    if ptype.eq("Str") {
+        f.write_str("    Str *"); f.write_str(pname); f.write_str(" = Str_clone(&(Str){.c_str = (U8 *)argv["); emit_i32(f, argi); f.write_str("], .count = strlen(argv["); emit_i32(f, argi); f.write_str("]), .cap = TIL_CAP_LIT});\n")
+    } else if ptype.eq("I64") {
+        f.write_str("    I64 *"); f.write_str(pname); f.write_str(" = cli_parse_i64(argv["); emit_i32(f, argi); f.write_str("]);\n")
+    } else if ptype.eq("U8") {
+        f.write_str("    U8 *"); f.write_str(pname); f.write_str(" = cli_parse_u8(argv["); emit_i32(f, argi); f.write_str("]);\n")
+    } else if ptype.eq("I16") {
+        f.write_str("    I16 *"); f.write_str(pname); f.write_str(" = cli_parse_i16(argv["); emit_i32(f, argi); f.write_str("]);\n")
+    } else if ptype.eq("I32") {
+        f.write_str("    I32 *"); f.write_str(pname); f.write_str(" = cli_parse_i32(argv["); emit_i32(f, argi); f.write_str("]);\n")
+    } else if ptype.eq("U32") {
+        f.write_str("    U32 *"); f.write_str(pname); f.write_str(" = cli_parse_u32(argv["); emit_i32(f, argi); f.write_str("]);\n")
+    } else if ptype.eq("U64") {
+        f.write_str("    U64 *"); f.write_str(pname); f.write_str(" = cli_parse_u64(argv["); emit_i32(f, argi); f.write_str("]);\n")
+    } else if ptype.eq("USize") {
+        f.write_str("    USize *"); f.write_str(pname); f.write_str(" = (USize *)cli_parse_u64(argv["); emit_i32(f, argi); f.write_str("]);\n")
+    } else if ptype.eq("Bool") {
+        f.write_str("    Bool *"); f.write_str(pname); f.write_str(" = cli_parse_bool(argv["); emit_i32(f, argi); f.write_str("]);\n")
+    } else {
+        f.write_str("    // unsupported CLI arg type: "); f.write_str(ptype); f.write_str("\n")
+        f.write_str("    fprintf(stderr, \"error: unsupported CLI argument type '"); f.write_str(ptype); f.write_str("'\\n\"); return 1;\n")
+    }
+}
+
+emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is_static: Bool) {
+    ref fd : FunctionDef = get_payload(func_def.data)
+    ref body : Expr = func_def.child(0)
+    mut is_main := false
+    if is_null(mode).not() {
+        if mode.needs_main { is_main = name.eq("main") }
+    }
+
+    if is_main {
+        nparam := fd.nparam
+        vi := fd.variadic_index
+        if nparam.eq(0) {
+            f.write_str("int main(int argc, char **argv) {\n")
+            f.write_str("    (void)argv;\n")
+            f.write_str("    if (argc > 1) { fprintf(stderr, \"error: main expects no arguments, got %d\\n\", argc - 1); return 1; }\n")
+        } else {
+            f.write_str("int main(int argc, char **argv) {\n")
+            mut fixed := nparam.to_i64().to_i32()
+            if vi.gte(0.to_i32()) { fixed = fixed.sub(1.to_i32()) }
+            if vi.gte(0.to_i32()) {
+                f.write_str("    if (argc - 1 < "); emit_i32(f, fixed); f.write_str(") { fprintf(stderr, \"error: main expects at least "); emit_i32(f, fixed); f.write_str(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
+            } else {
+                f.write_str("    if (argc - 1 != "); emit_i32(f, nparam.to_i64().to_i32()); f.write_str(") { fprintf(stderr, \"error: main expects "); emit_i32(f, nparam.to_i64().to_i32()); f.write_str(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
+            }
+        }
+        emit_ns_inits(f, 1.to_i32())
+        if has_script_globals {
+            for prog_idx in 0..2 {
+                ref mut prog : Expr = NULL
+                if prog_idx.eq(0) { prog = codegen_core_program } else { prog = codegen_program }
+                if is_null(prog) { continue }
+                for i in 0..prog.child_count() {
+                    ref gs : Expr = prog.child(i)
+                    if is_variant(gs.data, NodeType.Decl) {
+                        ref rhs : Expr = gs.child(0)
+                        if is_variant(rhs.data, NodeType.FuncDef).or(is_variant(rhs.data, NodeType.StructDef)).or(is_variant(rhs.data, NodeType.EnumDef)) { continue }
+                        if gs.til_type.eq(TilType.None).and(is_variant(rhs.data, NodeType.Ident)) { continue }
+                    } else if is_variant(gs.data, NodeType.FCall).not() { continue }
+                    emit_stmt(f, gs, 1.to_i32())
+                }
+            }
+        }
+        if nparam.gt(0) {
+            mut argi := 1.to_i32()
+            for i in 0..nparam {
+                ref p : Param = fd.params.get(i)
+                ii := i.to_i64().to_i32()
+                if ii.eq(vi) {
+                    // Variadic array
+                    f.write_str("    int _va_argc = argc - "); emit_i32(f, argi); f.write_str(";\n")
+                    f.write_str("    USize _va_esz = sizeof("); f.write_str(p.ptype); f.write_str(");\n")
+                    f.write_str("    USize _va_cap = _va_argc;\n")
+                    f.write_str("    Array *"); f.write_str(p.name); f.write_str(" = Array_new(&(Str){.c_str = (U8 *)\""); f.write_str(p.ptype); f.write_str("\", .count = "); emit_u64(f, p.ptype.len().to_i64().to_u64()); f.write_str("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_esz}, &(USize){_va_cap});\n")
+                    f.write_str("    for (int _i = 0; _i < _va_argc; _i++) {\n")
+                    f.write_str("        USize _idx = _i;\n")
+                    if p.ptype.eq("Str") {
+                        f.write_str("        Str *_val = Str_clone(&(Str){.c_str = (U8 *)argv["); emit_i32(f, argi); f.write_str(" + _i], .count = strlen(argv["); emit_i32(f, argi); f.write_str(" + _i]), .cap = TIL_CAP_LIT});\n")
+                    } else if p.ptype.eq("I64") {
+                        f.write_str("        I64 *_val = cli_parse_i64(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                    } else if p.ptype.eq("U8") {
+                        f.write_str("        U8 *_val = cli_parse_u8(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                    } else if p.ptype.eq("I16") {
+                        f.write_str("        I16 *_val = cli_parse_i16(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                    } else if p.ptype.eq("I32") {
+                        f.write_str("        I32 *_val = cli_parse_i32(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                    } else if p.ptype.eq("U32") {
+                        f.write_str("        U32 *_val = cli_parse_u32(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                    } else if p.ptype.eq("U64") {
+                        f.write_str("        U64 *_val = cli_parse_u64(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                    } else if p.ptype.eq("USize") {
+                        f.write_str("        USize *_val = (USize *)cli_parse_u64(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                    } else if p.ptype.eq("Bool") {
+                        f.write_str("        Bool *_val = cli_parse_bool(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                    }
+                    f.write_str("        Array_set("); f.write_str(p.name); f.write_str(", &(USize){_idx}, _val);\n")
+                    f.write_str("    }\n")
+                } else {
+                    emit_cli_parse_arg(f, p.name, p.ptype, argi)
+                    argi = argi.add(1.to_i32())
+                }
+            }
+        }
+        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals
+        stack_locals = Set.new("Str", Str.size()); stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
+        unsafe_to_hoist = Set.new("Str", Str.size()); ref_locals = Set.new("Str", Str.size())
+        collect_unsafe_to_hoist(body)
+        in_main_func = true
+        emit_body(f, body, 1.to_i32())
+        in_main_func = false
+        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
+        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
+        f.write_str("    return 0;\n")
+        f.write_str("}\n")
+    } else {
+        // Return type
+        mut ret := ""
+        if fd.return_type.len().gt(0) {
+            if is_variant(fd.return_own_type, OwnType.Shallow) { ret = type_name_to_c_value(fd.return_type) }
+            else { ret = type_name_to_c(fd.return_type) }
+        }
+        if ret.len().eq(0) { ret = "void" }
+        // Signature
+        if is_static { f.write_str("static __attribute__((unused)) ") }
+        f.write_str(ret); f.write_str(" "); fc := func_to_c(name); f.write_str(fc); f.write_str("(")
+        emit_param_list(f, func_def, true)
+        f.write_str(") {\n")
+        for i in 0..fd.nparam {
+            ref p : Param = fd.params.get(i)
+            f.write_str("    (void)"); f.write_str(p.name); f.write_str(";\n")
+        }
+        // NULL guard for delete methods
+        if name.len().gt(7) {
+            if name.substr(name.len().sub(7), 7).eq("_delete") {
+                if fd.nparam.gt(0) {
+                    ref p0 : Param = fd.params.get(0)
+                    if p0.name.eq("self") { f.write_str("    if (!self) return;\n") }
+                }
+            }
+        }
+        in_func_def = true
+        current_fdef = func_def
+        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals
+        stack_locals = Set.new("Str", Str.size()); stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
+        unsafe_to_hoist = Set.new("Str", Str.size()); ref_locals = Set.new("Str", Str.size())
+        collect_unsafe_to_hoist(body)
+        emit_body(f, body, 1.to_i32())
+        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
+        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
+        reset_current_fdef()
+        in_func_def = false
+        f.write_str("}\n")
+    }
+}
+
+emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
+    ref body : Expr = struct_def.child(0)
+    if is_ext_h_type(name) { return }
+    mut has_instance_fields := false
+    for i in 0..body.child_count() {
+        ref fld : Expr = body.child(i)
+        ref dd : Declaration = get_payload(fld.data)
+        if dd.is_namespace.not() { has_instance_fields = true }
+    }
+    f.write_str("typedef struct "); f.write_str(name); f.write_str(" {\n")
+    if has_instance_fields.not() { f.write_str("    char _;\n") }
+    for i in 0..body.child_count() {
+        ref field : Expr = body.child(i)
+        ref dd : Declaration = get_payload(field.data)
+        if dd.is_namespace { continue }
+        if dd.own_type.eq(OwnType.Shallow).not() {
+            if field.til_type.eq(TilType.Struct).or(field.til_type.eq(TilType.Enum)) {
+                if field.child(0).struct_name.len().gt(0) {
+                    f.write_str("    "); f.write_str(field.child(0).struct_name); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                } else {
+                    tc := til_type_to_c(field.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                }
+            } else {
+                tc := til_type_to_c(field.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+            }
+        } else if field.til_type.eq(TilType.Struct).or(field.til_type.eq(TilType.Enum)) {
+            if field.child(0).struct_name.len().gt(0) {
+                f.write_str("    "); f.write_str(field.child(0).struct_name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+            } else {
+                tc := til_type_to_c(field.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+            }
+        } else {
+            tc := til_type_to_c(field.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+        }
+    }
+    f.write_str("} "); f.write_str(name); f.write_str(";\n\n")
+    // Namespace fields as globals
+    for i in 0..body.child_count() {
+        ref field : Expr = body.child(i)
+        ref dd : Declaration = get_payload(field.data)
+        if dd.is_namespace.not() { continue }
+        if is_variant(field.child(0).data, NodeType.FuncDef) { continue }
+        if field.til_type.eq(TilType.Struct).or(field.til_type.eq(TilType.Enum)) {
+            if field.child(0).struct_name.len().gt(0) {
+                f.write_str(field.child(0).struct_name); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
+            } else {
+                tc := til_type_to_c(field.til_type); f.write_str(tc); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
+            }
+        } else {
+            tc := til_type_to_c(field.til_type); f.write_str(tc); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
+        }
+    }
+}
+
+emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, shallow is_lib: Bool) {
+    ref body : Expr = struct_def.child(0)
+    for i in 0..body.child_count() {
+        ref field : Expr = body.child(i)
+        ref dd : Declaration = get_payload(field.data)
+        if dd.is_namespace.not() { continue }
+        if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+        ref fdef : Expr = field.child(0)
+        ref fd : FunctionDef = get_payload(fdef.data)
+        if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+        // Emit size() as sizeof
+        if dd.name.eq("size").and(fd.nparam.eq(0)).and(fd.return_type.len().gt(0)) {
+            if fd.return_type.eq("USize").or(fd.return_type.eq("U32")).or(fd.return_type.eq("U64")) {
+                ret_ctype := type_name_to_c_value(fd.return_type)
+                if is_variant(fd.return_own_type, OwnType.Shallow) {
+                    f.write_str(ret_ctype); f.write_str(" "); f.write_str(name); f.write_str("_size(void) {\n")
+                    f.write_str("    return ("); f.write_str(ret_ctype); f.write_str(")sizeof("); f.write_str(name); f.write_str(");\n")
+                } else {
+                    f.write_str(ret_ctype); f.write_str(" *"); f.write_str(name); f.write_str("_size(void) {\n")
+                    f.write_str("    "); f.write_str(ret_ctype); f.write_str(" *r = malloc(sizeof("); f.write_str(ret_ctype); f.write_str("));\n")
+                    f.write_str("    *r = ("); f.write_str(ret_ctype); f.write_str(")sizeof("); f.write_str(name); f.write_str(");\n")
+                    f.write_str("    return r;\n")
+                }
+                f.write_str("}\n\n")
+                continue
+            }
+        }
+        full_name := name.concat("_").concat(dd.name)
+        emit_func_def(f, full_name, fdef, NULL, false)
+        f.write_str("\n")
+    }
 }
 
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
