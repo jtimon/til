@@ -1815,6 +1815,95 @@ emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, shallow is_lib: 
     }
 }
 
+emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
+    ref body : Expr = enum_def.child(0)
+    hp := enum_has_payloads(enum_def)
+    if hp.not() {
+        // Simple enum
+        mut vnames := Vec.new("Str", Str.size())
+        for i in 0..body.child_count() {
+            ref v : Expr = body.child(i)
+            ref dd : Declaration = get_payload(v.data)
+            if dd.is_namespace { continue }
+            vnames.push(own dd.name.clone())
+        }
+        for i in 0..vnames.len() {
+            ref vn : Str = vnames.get(i)
+            f.write_str(name); f.write_str(" *"); f.write_str(name); f.write_str("_"); f.write_str(vn); f.write_str("() {\n")
+            f.write_str("    "); f.write_str(name); f.write_str(" *r = malloc(sizeof("); f.write_str(name); f.write_str("));\n")
+            f.write_str("    *r = ("); f.write_str(name); f.write_str("){ .tag = "); f.write_str(name); f.write_str("_TAG_"); f.write_str(vn); f.write_str(" };\n")
+            f.write_str("    return r;\n"); f.write_str("}\n")
+        }
+        own vnames.delete()
+    } else {
+        // Payload enum
+        mut vnames := Vec.new("Str", Str.size())
+        mut vtypes := Vec.new("Str", Str.size())
+        for i in 0..body.child_count() {
+            ref v : Expr = body.child(i)
+            ref dd : Declaration = get_payload(v.data)
+            if dd.is_namespace { continue }
+            vnames.push(own dd.name.clone())
+            vtypes.push(own dd.explicit_type.clone())
+        }
+        for i in 0..vnames.len() {
+            ref vn : Str = vnames.get(i)
+            ref vt : Str = vtypes.get(i)
+            if vt.len().eq(0) {
+                f.write_str(name); f.write_str(" *"); f.write_str(name); f.write_str("_"); f.write_str(vn); f.write_str("() {\n")
+                f.write_str("    "); f.write_str(name); f.write_str(" *r = malloc(sizeof("); f.write_str(name); f.write_str("));\n")
+                f.write_str("    r->tag = "); f.write_str(name); f.write_str("_TAG_"); f.write_str(vn); f.write_str(";\n")
+                f.write_str("    return r;\n"); f.write_str("}\n")
+                continue
+            }
+            ptype := type_name_to_c(vt)
+            f.write_str(name); f.write_str(" *"); f.write_str(name); f.write_str("_"); f.write_str(vn); f.write_str("("); f.write_str(ptype); f.write_str(" val) {\n")
+            f.write_str("    "); f.write_str(name); f.write_str(" *r = malloc(sizeof("); f.write_str(name); f.write_str("));\n")
+            f.write_str("    r->tag = "); f.write_str(name); f.write_str("_TAG_"); f.write_str(vn); f.write_str(";\n")
+            if is_primitive_type(vt) {
+                f.write_str("    r->data."); f.write_str(vn); f.write_str(" = *val;\n")
+            } else if is_funcsig_type(vt).or(vt.eq("Dynamic")) {
+                f.write_str("    r->data."); f.write_str(vn); f.write_str(" = val;\n")
+            } else {
+                tnc := type_name_to_c(vt)
+                f.write_str("    { "); f.write_str(tnc); f.write_str(" _tmp = "); f.write_str(vt); f.write_str("_clone(val); r->data."); f.write_str(vn); f.write_str(" = *_tmp; free(_tmp); }\n")
+            }
+            f.write_str("    return r;\n"); f.write_str("}\n")
+        }
+        own vnames.delete()
+        own vtypes.delete()
+    }
+    // Namespace methods
+    for i in 0..body.child_count() {
+        ref field : Expr = body.child(i)
+        ref dd : Declaration = get_payload(field.data)
+        if dd.is_namespace.not() { continue }
+        if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+        ref fdef : Expr = field.child(0)
+        ref fd : FunctionDef = get_payload(fdef.data)
+        if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+        if dd.name.eq("size").and(fd.nparam.eq(0)).and(fd.return_type.len().gt(0)) {
+            if fd.return_type.eq("USize").or(fd.return_type.eq("U32")).or(fd.return_type.eq("U64")) {
+                ret_ctype := type_name_to_c_value(fd.return_type)
+                if is_variant(fd.return_own_type, OwnType.Shallow) {
+                    f.write_str(ret_ctype); f.write_str(" "); f.write_str(name); f.write_str("_size(void) {\n")
+                    f.write_str("    return ("); f.write_str(ret_ctype); f.write_str(")sizeof("); f.write_str(name); f.write_str(");\n")
+                } else {
+                    f.write_str(ret_ctype); f.write_str(" *"); f.write_str(name); f.write_str("_size(void) {\n")
+                    f.write_str("    "); f.write_str(ret_ctype); f.write_str(" *r = malloc(sizeof("); f.write_str(ret_ctype); f.write_str("));\n")
+                    f.write_str("    *r = ("); f.write_str(ret_ctype); f.write_str(")sizeof("); f.write_str(name); f.write_str(");\n")
+                    f.write_str("    return r;\n")
+                }
+                f.write_str("}\n\n")
+                continue
+            }
+        }
+        full_name := name.concat("_").concat(dd.name)
+        emit_func_def(f, full_name, fdef, NULL, false)
+        f.write_str("\n")
+    }
+}
+
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 build_header := ext_func(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(core_program: Expr, program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
