@@ -1159,6 +1159,8 @@ void emit_func_def(File * f, Str * name, Expr * func_def, Mode * mode, Bool is_s
 void emit_struct_typedef(File * f, Str * name, Expr * struct_def);
 void emit_struct_funcs(File * f, Str * name, Expr * struct_def, Bool is_lib);
 void emit_enum_def(File * f, Str * name, Expr * enum_def);
+void emit_enum_struct_body(File * f, Str * ename, Expr * enum_def);
+void topo_emit_struct_enum_defs(File * f, Expr * prog, Set * emitted);
 I32 build(Expr * core_program, Expr * program, Mode * mode, Bool run_tests, Str * path, Str * c_output_path);
 I32 build_header(Expr * core_program, Expr * program, Str * h_path);
 I32 build_til_binding(Expr * core_program, Expr * program, Str * til_path, Str * lib_name);

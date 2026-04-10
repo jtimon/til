@@ -1904,6 +1904,118 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
     }
 }
 
+emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr) {
+    ref ebody : Expr = enum_def.child(0)
+    hp := enum_has_payloads(enum_def)
+    f.write_str("struct "); f.write_str(ename); f.write_str(" {\n")
+    f.write_str("    "); f.write_str(ename); f.write_str("_tag tag;\n")
+    if hp {
+        f.write_str("    union {\n")
+        for j in 0..ebody.child_count() {
+            ref v : Expr = ebody.child(j)
+            ref dd : Declaration = get_payload(v.data)
+            if dd.is_namespace { continue }
+            if dd.explicit_type.len().gt(0) {
+                tnv := type_name_to_c_value(dd.explicit_type)
+                f.write_str("        "); f.write_str(tnv); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+            }
+        }
+        f.write_str("    } data;\n")
+    }
+    f.write_str("};\n\n")
+}
+
+topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
+    mut indices := Vec.new("U32", U32.size())
+    for i in 0..prog.child_count() {
+        ref stmt : Expr = prog.child(i)
+        if is_variant(stmt.data, NodeType.Decl) {
+            if stmt.child_count().gt(0) {
+                if is_variant(stmt.child(0).data, NodeType.StructDef).or(is_variant(stmt.child(0).data, NodeType.EnumDef)) {
+                    mut idx := i
+                    indices.push(own idx)
+                }
+            }
+        }
+    }
+    mut remaining := indices.len()
+    mut done := Array.new("Bool", Bool.size(), indices.len())
+    for di in 0..indices.len() {
+        mut f_val := false
+        done.set(di, own f_val)
+    }
+    while remaining.gt(0) {
+        mut progress := false
+        for ei in 0..indices.len() {
+            ref d : Bool = done.get(ei)
+            if d { continue }
+            ref idx : U32 = indices.get(ei)
+            ref stmt : Expr = prog.child(idx)
+            ref sname : Str = get_payload(stmt.data)
+            ref def : Expr = stmt.child(0)
+            mut deps_ok := true
+            if is_variant(def.data, NodeType.StructDef) {
+                ref sbody : Expr = def.child(0)
+                for fi in 0..sbody.child_count() {
+                    ref field : Expr = sbody.child(fi)
+                    ref dd : Declaration = get_payload(field.data)
+                    if dd.is_namespace { continue }
+                    if dd.own_type.eq(OwnType.Shallow) {
+                        if field.til_type.eq(TilType.Struct).or(field.til_type.eq(TilType.Enum)) {
+                            if field.child(0).struct_name.len().gt(0) {
+                                if emitted.has(field.child(0).struct_name).not() { deps_ok = false }
+                            }
+                        }
+                    }
+                }
+            } else if is_variant(def.data, NodeType.EnumDef) {
+                ref ebody : Expr = def.child(0)
+                for fi in 0..ebody.child_count() {
+                    ref v : Expr = ebody.child(fi)
+                    ref dd : Declaration = get_payload(v.data)
+                    if dd.is_namespace { continue }
+                    if dd.explicit_type.len().gt(0) {
+                        if is_primitive_type(dd.explicit_type).not().and(is_funcsig_type(dd.explicit_type).not()) {
+                            if emitted.has(dd.explicit_type).not() { deps_ok = false }
+                        }
+                    }
+                }
+            }
+            if deps_ok.not() { continue }
+            if is_variant(def.data, NodeType.StructDef) {
+                emit_struct_typedef(f, sname, def)
+                f.write_str("\n")
+            } else {
+                emit_enum_struct_body(f, sname, def)
+            }
+            emitted.add(own sname.clone())
+            mut t_val := true
+            done.set(ei, own t_val)
+            remaining = remaining.sub(1)
+            progress = true
+        }
+        if progress.not() {
+            for ei in 0..indices.len() {
+                ref d : Bool = done.get(ei)
+                if d { continue }
+                ref idx : U32 = indices.get(ei)
+                ref stmt : Expr = prog.child(idx)
+                ref sname : Str = get_payload(stmt.data)
+                ref def : Expr = stmt.child(0)
+                if is_variant(def.data, NodeType.StructDef) {
+                    emit_struct_typedef(f, sname, def)
+                    f.write_str("\n")
+                } else {
+                    emit_enum_struct_body(f, sname, def)
+                }
+            }
+            break
+        }
+    }
+    own done.delete()
+    own indices.delete()
+}
+
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 build_header := ext_func(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(core_program: Expr, program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
