@@ -2221,6 +2221,116 @@ build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns sha
     return 0.to_i32()
 }
 
+emit_binding_ns_methods := proc(f: File, body: Expr) {
+    mut has_ns := false
+    for j in 0..body.child_count() {
+        ref field : Expr = body.child(j)
+        ref fdd : Declaration = get_payload(field.data)
+        if fdd.is_namespace.not() { continue }
+        if field.child_count().eq(0) { continue }
+        if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+        ref fdef : Expr = field.child(0)
+        ref fd : FunctionDef = get_payload(fdef.data)
+        if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+        if has_ns.not() { f.write_str("    namespace:\n"); has_ns = true }
+        mut kw := "ext_func"
+        if is_variant(fd.func_type, FuncType.Proc).or(is_variant(fd.func_type, FuncType.Test)) { kw = "ext_proc" }
+        f.write_str("    "); f.write_str(fdd.name); f.write_str(" := "); f.write_str(kw); f.write_str("(")
+        for p in 0..fd.nparam {
+            if p.gt(0) { f.write_str(", ") }
+            ref param : Param = fd.params.get(p)
+            if is_variant(param.own_type, OwnType.Own) { f.write_str("own ") }
+            f.write_str(param.name); f.write_str(": "); f.write_str(param.ptype)
+        }
+        f.write_str(")")
+        if fd.return_type.len().gt(0) {
+            f.write_str(" returns ")
+            if is_variant(fd.return_own_type, OwnType.Ref) { f.write_str("ref ") }
+            if is_variant(fd.return_own_type, OwnType.Shallow) { f.write_str("shallow ") }
+            f.write_str(fd.return_type)
+        }
+        f.write_str(" {}\n")
+    }
+}
+
+build_til_binding := proc(core_program: Expr, program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {
+    f := File.new(til_path, true)
+    f.write_str("// Auto-generated FFI binding for "); f.write_str(lib_name); f.write_str("\n")
+    f.write_str("link(\""); f.write_str(lib_name); f.write_str("\")\n\n")
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        if stmt.child_count().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+        if is_variant(rhs.data, NodeType.StructDef) {
+            ref body : Expr = rhs.child(0)
+            f.write_str(dd.name); f.write_str(" := struct {\n")
+            for j in 0..body.child_count() {
+                ref field : Expr = body.child(j)
+                ref fdd : Declaration = get_payload(field.data)
+                if fdd.is_namespace { continue }
+                f.write_str("    ")
+                if fdd.is_mut { f.write_str("mut ") }
+                if is_variant(fdd.own_type, OwnType.Own) { f.write_str("own ") }
+                f.write_str(fdd.name)
+                if fdd.explicit_type.len().gt(0) { f.write_str(" : "); f.write_str(fdd.explicit_type) }
+                f.write_str(" := ")
+                if field.child_count().gt(0) { emit_til_default(f, field.til_type, field.child(0).struct_name) }
+                else { f.write_str("0") }
+                f.write_str("\n")
+            }
+            emit_binding_ns_methods(f, body)
+            f.write_str("}\n\n")
+        } else if is_variant(rhs.data, NodeType.EnumDef) {
+            ref body : Expr = rhs.child(0)
+            f.write_str(dd.name); f.write_str(" := enum {\n")
+            for j in 0..body.child_count() {
+                ref v : Expr = body.child(j)
+                ref vdd : Declaration = get_payload(v.data)
+                if vdd.is_namespace { continue }
+                f.write_str("    "); f.write_str(vdd.name)
+                if vdd.explicit_type.len().gt(0) { f.write_str(": "); f.write_str(vdd.explicit_type) }
+                f.write_str(",\n")
+            }
+            emit_binding_ns_methods(f, body)
+            f.write_str("}\n\n")
+        } else if is_variant(rhs.data, NodeType.FuncDef) {
+            ref fd : FunctionDef = get_payload(rhs.data)
+            if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+            if is_variant(fd.func_type, FuncType.Test) { continue }
+            mut kw := "ext_func"
+            if is_variant(fd.func_type, FuncType.Proc) { kw = "ext_proc" }
+            f.write_str(dd.name); f.write_str(" := "); f.write_str(kw); f.write_str("(")
+            for p in 0..fd.nparam {
+                if p.gt(0) { f.write_str(", ") }
+                ref param : Param = fd.params.get(p)
+                if is_variant(param.own_type, OwnType.Own) { f.write_str("own ") }
+                pi := p.to_i64().to_i32()
+                if pi.eq(fd.variadic_index) { f.write_str("..") }
+                if pi.eq(fd.kwargs_index) {
+                    f.write_str(param.name); f.write_str(": ...")
+                } else {
+                    f.write_str(param.name); f.write_str(": "); f.write_str(param.ptype)
+                }
+            }
+            f.write_str(")")
+            if fd.return_type.len().gt(0) {
+                f.write_str(" returns ")
+                if is_variant(fd.return_own_type, OwnType.Ref) { f.write_str("ref ") }
+                if is_variant(fd.return_own_type, OwnType.Shallow) { f.write_str("shallow ") }
+                f.write_str(fd.return_type)
+            }
+            f.write_str(" {}\n\n")
+        }
+    }
+    f.close()
+    return 0.to_i32()
+}
+
+compile_lib := ext_proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {}
+compile_c := ext_proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {}
+
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 build_header := ext_func(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(core_program: Expr, program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
