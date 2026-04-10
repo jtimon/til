@@ -1419,6 +1419,7 @@ emit_ns_inits := proc(f: File, shallow depth: I32) {
                         ref field : Expr = body.child(j)
                         ref dd : Declaration = get_payload(field.data)
                         if dd.is_namespace.not() { continue }
+                        if field.child_count().eq(0) { continue }
                         if is_variant(field.child(0).data, NodeType.FuncDef) { continue }
                         if is_variant(edef.data, NodeType.EnumDef) { continue }
                         emit_indent(f, depth)
@@ -1769,7 +1770,8 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
         ref field : Expr = body.child(i)
         ref dd : Declaration = get_payload(field.data)
         if dd.is_namespace.not() { continue }
-        if is_variant(field.child(0).data, NodeType.FuncDef) { continue }
+        if field.child_count().eq(0) { continue }
+                        if is_variant(field.child(0).data, NodeType.FuncDef) { continue }
         if field.til_type.eq(TilType.Struct).or(field.til_type.eq(TilType.Enum)) {
             if field.child(0).struct_name.len().gt(0) {
                 f.write_str(field.child(0).struct_name); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
@@ -1788,6 +1790,7 @@ emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, shallow is_lib: 
         ref field : Expr = body.child(i)
         ref dd : Declaration = get_payload(field.data)
         if dd.is_namespace.not() { continue }
+        if field.child_count().eq(0) { continue }
         if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
         ref fdef : Expr = field.child(0)
         ref fd : FunctionDef = get_payload(fdef.data)
@@ -1878,6 +1881,7 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
         ref field : Expr = body.child(i)
         ref dd : Declaration = get_payload(field.data)
         if dd.is_namespace.not() { continue }
+        if field.child_count().eq(0) { continue }
         if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
         ref fdef : Expr = field.child(0)
         ref fd : FunctionDef = get_payload(fdef.data)
@@ -2014,6 +2018,207 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
     }
     own done.delete()
     own indices.delete()
+}
+
+emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr) {
+    ref fd : FunctionDef = get_payload(fdef.data)
+    mut ret := "void"
+    if fd.return_type.len().gt(0) {
+        if is_variant(fd.return_own_type, OwnType.Shallow) { ret = type_name_to_c_value(fd.return_type) }
+        else { ret = type_name_to_c(fd.return_type) }
+    }
+    f.write_str(ret); f.write_str(" "); f.write_str(name); f.write_str("(")
+    emit_param_list(f, fdef, true)
+    f.write_str(");\n")
+}
+
+emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                ref dd : Declaration = get_payload(stmt.data)
+                if stmt.child_count().eq(0) { continue }
+                ref rhs : Expr = stmt.child(0)
+                if is_variant(rhs.data, NodeType.StructDef) {
+                    if is_ext_h_type(dd.name) { continue }
+                    f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                }
+                if is_variant(rhs.data, NodeType.EnumDef) {
+                    ref ebody : Expr = rhs.child(0)
+                    f.write_str("typedef enum {\n")
+                    mut tag := 0.to_i32()
+                    for j in 0..ebody.child_count() {
+                        ref v : Expr = ebody.child(j)
+                        ref vdd : Declaration = get_payload(v.data)
+                        if vdd.is_namespace { continue }
+                        if tag.gt(0.to_i32()) { f.write_str(",\n") }
+                        f.write_str("    "); f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(vdd.name)
+                        tag = tag.add(1.to_i32())
+                    }
+                    f.write_str("\n} "); f.write_str(dd.name); f.write_str("_tag;\n")
+                    f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                }
+            }
+        }
+    }
+    f.write_str("\n")
+}
+
+emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
+    mut emitted_h := Set.new("Str", Str.size())
+    emitted_h.add(own "U8".clone()); emitted_h.add(own "I16".clone()); emitted_h.add(own "I32".clone())
+    emitted_h.add(own "U32".clone()); emitted_h.add(own "U64".clone()); emitted_h.add(own "I64".clone())
+    emitted_h.add(own "F32".clone()); emitted_h.add(own "Bool".clone())
+    if is_null(core_program).not() { topo_emit_struct_enum_defs(f, core_program, emitted_h) }
+    topo_emit_struct_enum_defs(f, program, emitted_h)
+    own emitted_h.delete()
+
+    // Function forward declarations
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        is_core_pass := prog_idx.eq(0).and(is_null(core_program).not())
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl).not() { continue }
+            ref dd : Declaration = get_payload(stmt.data)
+            if stmt.child_count().eq(0) { continue }
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(rhs.data, NodeType.StructDef).or(is_variant(rhs.data, NodeType.EnumDef)) {
+                if is_scalar_method_type(dd.name) { continue }
+                ref body : Expr = rhs.child(0)
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fdd : Declaration = get_payload(field.data)
+                    if fdd.is_namespace.not() { continue }
+                    if field.child_count().eq(0) { continue }
+                    if field.child_count().eq(0) { continue }
+        if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+                    ref fdef : Expr = field.child(0)
+                    ref fd : FunctionDef = get_payload(fdef.data)
+                    if is_core_pass.and(is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc))) { continue }
+                    full_name := dd.name.concat("_").concat(fdd.name)
+                    emit_func_forward_decl(f, full_name, fdef)
+                }
+            } else if is_variant(rhs.data, NodeType.FuncDef) {
+                if rhs.child_count().eq(0) { continue }
+                ref fd : FunctionDef = get_payload(rhs.data)
+                if is_core_pass.and(is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc))) { continue }
+                fc := func_to_c(dd.name)
+                emit_func_forward_decl(f, fc, rhs)
+            }
+        }
+    }
+
+    // Enum auto-helper forward declarations
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        if stmt.child_count().eq(0) { continue }
+        if is_variant(stmt.child(0).data, NodeType.EnumDef).not() { continue }
+        ref ebody : Expr = stmt.child(0).child(0)
+        // Find eq fdef
+        ref mut eq_fdef : Expr = NULL
+        for j in 0..ebody.child_count() {
+            ref field : Expr = ebody.child(j)
+            ref fdd : Declaration = get_payload(field.data)
+            if fdd.is_namespace {
+                if fdd.name.eq("eq") {
+                    if field.child_count().gt(0) {
+                        if is_variant(field.child(0).data, NodeType.FuncDef) {
+                            eq_fdef = field.child(0)
+                        }
+                    }
+                }
+            }
+        }
+        mut eq_ret := "Bool *"
+        if is_null(eq_fdef).not() {
+            ref eqfd : FunctionDef = get_payload(eq_fdef.data)
+            if is_variant(eqfd.return_own_type, OwnType.Shallow) { eq_ret = "Bool" }
+        }
+        f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+        for j in 0..ebody.child_count() {
+            ref v : Expr = ebody.child(j)
+            ref vdd : Declaration = get_payload(v.data)
+            if vdd.is_namespace { continue }
+            if vdd.explicit_type.len().gt(0) {
+                tnc := type_name_to_c(vdd.explicit_type)
+                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+            } else {
+                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("();\n")
+            }
+        }
+    }
+    f.write_str("\n")
+}
+
+emit_header_global_decls := proc(f: File, core_program: Expr, program: Expr) {
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_exported_top_level_global(stmt).not() { continue }
+            ref rhs : Expr = stmt.child(0)
+            ref dd : Declaration = get_payload(stmt.data)
+            mut ctype := ""
+            if stmt.til_type.eq(TilType.Dynamic) { ctype = til_type_to_c(stmt.til_type) }
+            else { ctype = c_type_name(stmt.til_type, rhs.struct_name) }
+            if dd.own_type.eq(OwnType.Ref) {
+                f.write_str("extern "); f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+            } else {
+                f.write_str("extern "); f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+            }
+        }
+    }
+    f.write_str("\n")
+}
+
+build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str) returns shallow I32 {
+    f := File.new(fwd_path, true)
+    f.write_str("#pragma once\n#include \"ext.h\"\n\n")
+    emit_header_forward_decls(f, core_program, program)
+    emit_header_defs_and_funcs(f, core_program, program)
+    emit_header_global_decls(f, core_program, program)
+    f.close()
+    return 0.to_i32()
+}
+
+build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {
+    if has_funcsig_names.not() {
+        own funcsig_names.delete()
+        funcsig_names = Set.new("Str", Str.size())
+        has_funcsig_names = true
+        for i in 0..program.child_count() {
+            ref stmt : Expr = program.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                if stmt.child_count().gt(0) {
+                    if is_variant(stmt.child(0).data, NodeType.FuncDef) {
+                        if stmt.child(0).child_count().eq(0) {
+                            ref dd : Declaration = get_payload(stmt.data)
+                            funcsig_names.add(own dd.name.clone())
+                        }
+                    }
+                }
+            }
+        }
+    }
+    f := File.new(h_path, true)
+    f.write_str("#pragma once\n#include \"ext.h\"\n\n")
+    emit_header_forward_decls(f, core_program, program)
+    emit_header_defs_and_funcs(f, core_program, program)
+    emit_header_global_decls(f, core_program, program)
+    f.write_str("#include \"ext.h\"\n\n")
+    f.close()
+    return 0.to_i32()
 }
 
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
