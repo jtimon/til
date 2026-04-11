@@ -101,7 +101,6 @@ Self-contained (no interpreter.c/dispatch.c deps). Can translate independently.
 
 *** Remaining in C
 - build_register_lookups (extracted helper, ~50 lines)
-- emit_global_inits (extracted helper, ~15 lines)
 - build() (~760 lines, main code generation orchestrator)
 
 ** Remaining translations -- precomp.c

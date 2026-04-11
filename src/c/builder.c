@@ -97,8 +97,6 @@
 
 // Populate struct_bodies/func_defs maps and init auxiliary sets
 void build_register_lookups(Expr *, Expr *);
-// Emit top-level global initializers (shared by test/lib/script main)
-void emit_global_inits(File *);
 
 I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     codegen_core_program = core_program;
@@ -912,25 +910,7 @@ void build_register_lookups(Expr *core_program, Expr *program) {
 
 
 
-void emit_global_inits(File *f) {
-    if (!has_script_globals) return;
-    { Expr *_progs_gi[2] = { codegen_core_program, codegen_program };
-    for (int _pgi = 0; _pgi < 2; _pgi++) {
-        if (!_progs_gi[_pgi]) continue;
-        for (U32 i = 0; i < _progs_gi[_pgi]->children.count; i++) {
-            Expr *gs = Expr_child(_progs_gi[_pgi], &(USize){(USize)(i)});
-            if (gs->data.tag == NodeType_TAG_Decl) {
-                Expr *rhs = Expr_child(gs, &(USize){(USize)(0)});
-                if (rhs->data.tag == NodeType_TAG_FuncDef || rhs->data.tag == NodeType_TAG_StructDef ||
-                    rhs->data.tag == NodeType_TAG_EnumDef) continue;
-                if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == NodeType_TAG_Ident) continue;
-            } else if (gs->data.tag != NodeType_TAG_FCall) {
-                continue;
-            }
-            emit_stmt(f, gs, 1);
-        }
-    }}
-}
+
 
 // --- Header emission helpers (shared by build_header and build_forward_header) ---
 
