@@ -403,6 +403,16 @@ For mechanical C translation, do not rewrite ~&&~ / ~||~ blindly to
 or otherwise depend on C evaluation order. Use nested ~if~ statements
 instead. See issue ~#117~.
 
+Common pitfall: ~e.child_count().gt(0).and(e.child(0).data.eq(...))~
+will panic on empty children because ~.and()~ evaluates both sides.
+Use nested ~if~ instead:
+
+#+begin_src til
+if e.child_count().gt(0) {
+    if is_variant(e.child(0).data, NodeType.FuncDef) { ... }
+}
+#+end_src
+
 Bitwise ~and~, ~or~ and boolean ~and~, ~or~ still use the same method
 names on different types (I64 vs Bool).
 
@@ -606,6 +616,25 @@ m := Map.new("Str", Str.size(), "I64", I64.size())
 m.set(own key, own val)
 ref val : I64 = m.get(key)
 m.has(key)
+#+end_src
+
+Compound values (structs, enums) work the same way -- store full structs,
+not pointers.  C code that stores ~Expr *~ in a ~Map<Str, sizeof(Expr *)>~
+should be translated to ~Map<Str, Expr>~ with ~Expr.size()~:
+
+#+begin_src c
+// C: store pointer, retrieve with double deref
+Map m = Map_new(sizeof(Str), sizeof(Expr *));
+void *_v = malloc(sizeof(body)); memcpy(_v, &body, sizeof(body));
+Map_set(&m, &key, _v);
+Expr *result = *(Expr **)Map_get(&m, &key);
+#+end_src
+
+#+begin_src til
+// til: store struct directly, retrieve with ref
+m := Map.new("Str", Str.size(), "Expr", Expr.size())
+m.set(own key, own body)
+ref result : Expr = m.get(key)
 #+end_src
 
 *** Set
