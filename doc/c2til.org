@@ -529,6 +529,31 @@ the tagged union section above: ~case Token.Num(value):~.
 
 No ~goto~, ~do-while~, or ternary ~?:~ in til.
 
+*** Two-program iteration
+
+Builder.c iterates over ~{core_program, program}~ in many places.
+Translate with ~for prog_idx in 0..2~ and ~ref mut prog~:
+
+#+begin_src c
+Expr *_progs[2] = { core_program, program };
+for (int _p = 0; _p < 2; _p++) {
+    if (!_progs[_p]) continue;
+    for (U32 i = 0; i < _progs[_p]->children.count; i++) { ... }
+}
+#+end_src
+
+#+begin_src til
+for prog_idx in 0..2 {
+    ref mut prog : Expr = NULL
+    if prog_idx.eq(0) { prog = core_program } else { prog = program }
+    if is_null(prog) { continue }
+    for i in 0..prog.child_count() { ... }
+}
+#+end_src
+
+This pattern is used throughout ~builder.til~ (e.g.
+~emit_header_forward_decls~, ~build_register_funcsig_names~).
+
 ** Strings
 
 | C                              | til                                          |
@@ -618,24 +643,30 @@ ref val : I64 = m.get(key)
 m.has(key)
 #+end_src
 
-Compound values (structs, enums) work the same way -- store full structs,
-not pointers.  C code that stores ~Expr *~ in a ~Map<Str, sizeof(Expr *)>~
-should be translated to ~Map<Str, Expr>~ with ~Expr.size()~:
+When C stores pointers in a map (e.g. ~Expr *~ as cache), wrap
+the pointer in a box struct with a ~ref~ field. No new ext_funcs
+needed -- just a one-field struct:
 
 #+begin_src c
-// C: store pointer, retrieve with double deref
-Map m = Map_new(sizeof(Str), sizeof(Expr *));
+// C: pointer cache
 void *_v = malloc(sizeof(body)); memcpy(_v, &body, sizeof(body));
 Map_set(&m, &key, _v);
 Expr *result = *(Expr **)Map_get(&m, &key);
 #+end_src
 
 #+begin_src til
-// til: store struct directly, retrieve with ref
-m := Map.new("Str", Str.size(), "Expr", Expr.size())
-m.set(own key, own body)
-ref result : Expr = m.get(key)
+// til: box struct wraps the pointer
+ExprPtrBox := struct { ref mut ptr : Expr = NULL }
+
+m := Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
+box := ExprPtrBox(ptr = body)
+m.set(own key, own box)
+ref result_box : ExprPtrBox = m.get(key)
+// result_box.ptr is the Expr*
 #+end_src
+
+Working example in ~src/self/dispatch.til~: ~ExprPtrBox~ for
+~ffi_struct_defs~, ~FFITypePtrBox~ for ~ffi_type_cache~.
 
 *** Set
 
