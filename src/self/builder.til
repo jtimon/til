@@ -2467,5 +2467,99 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     return 0.to_i32()
 }
 
+// Store a pointer value in a Dynamic-valued Map
+map_set_ptr := proc(mut m: Map, own key: Str, val: Dynamic) {
+    v : Dynamic = malloc(Dynamic.size())
+    write_ptr(v, val)
+    m.set(own key, own v)
+}
+
+register_lookups_prog := proc(prog: Expr) {
+    for i in 0..prog.child_count() {
+        ref stmt : Expr = prog.child(i)
+        if is_variant(stmt.data, NodeType.Decl) {
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(rhs.data, NodeType.StructDef).or(is_variant(rhs.data, NodeType.EnumDef)) {
+                ref dd : Declaration = get_payload(stmt.data)
+                ref body : Expr = rhs.child(0)
+                map_set_ptr(struct_bodies, own dd.name.clone(), body)
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fd : Declaration = get_payload(field.data)
+                    if fd.is_namespace.not() { continue }
+                    if field.child_count().eq(0) { continue }
+                    if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+                    ref fdef : Expr = field.child(0)
+                    key := dd.name.concat("_").concat(fd.name)
+                    map_set_ptr(func_defs, own key, fdef)
+                    if fdef.child_count().gt(0) {
+                        ref fbody : Expr = fdef.child(0)
+                        for k in 0..fbody.child_count() {
+                            ref nested : Expr = fbody.child(k)
+                            if is_variant(nested.data, NodeType.Decl).not() { continue }
+                            if nested.child_count().eq(0) { continue }
+                            if is_variant(nested.child(0).data, NodeType.FuncDef).not() { continue }
+                            ref nfdef : Expr = nested.child(0)
+                            ref nd : Declaration = get_payload(nested.data)
+                            map_set_ptr(func_defs, own nd.name.clone(), nfdef)
+                        }
+                    }
+                }
+            }
+            if is_variant(rhs.data, NodeType.FuncDef) {
+                ref dd2 : Declaration = get_payload(stmt.data)
+                map_set_ptr(func_defs, own dd2.name.clone(), rhs)
+            }
+        }
+    }
+}
+
+register_funcsig_prog := proc(prog: Expr) {
+    for i in 0..prog.child_count() {
+        ref stmt : Expr = prog.child(i)
+        if is_variant(stmt.data, NodeType.Decl) {
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(rhs.data, NodeType.FuncDef) {
+                if rhs.child_count().eq(0) {
+                    ref dd : Declaration = get_payload(stmt.data)
+                    funcsig_names.add(own dd.name.clone())
+                }
+            }
+            if stmt.til_type.eq(TilType.None) {
+                if is_variant(rhs.data, NodeType.Ident) {
+                    ref rhs_name : Str = get_payload(rhs.data)
+                    if funcsig_names.has(rhs_name) {
+                        ref dd : Declaration = get_payload(stmt.data)
+                        funcsig_names.add(own dd.name.clone())
+                    }
+                }
+            }
+        }
+    }
+}
+
+emit_global_inits_prog := proc(f: File, prog: Expr) {
+    for i in 0..prog.child_count() {
+        ref gs : Expr = prog.child(i)
+        if is_variant(gs.data, NodeType.Decl) {
+            ref rhs : Expr = gs.child(0)
+            if is_variant(rhs.data, NodeType.FuncDef).or(is_variant(rhs.data, NodeType.StructDef))
+                .or(is_variant(rhs.data, NodeType.EnumDef)) { continue }
+            if gs.til_type.eq(TilType.None) {
+                if is_variant(rhs.data, NodeType.Ident) { continue }
+            }
+        } else {
+            if is_variant(gs.data, NodeType.FCall).not() { continue }
+        }
+        emit_stmt(f, gs, 1)
+    }
+}
+
+emit_global_inits := proc(f: File) {
+    if has_script_globals.not() { return }
+    if is_null(codegen_core_program).not() { emit_global_inits_prog(f, codegen_core_program) }
+    if is_null(codegen_program).not() { emit_global_inits_prog(f, codegen_program) }
+}
+
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 

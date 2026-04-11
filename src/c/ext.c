@@ -273,6 +273,7 @@ void *ptr_add(void *buf, U64 offset) {
     return (char *)buf + offset;
 }
 void *read_ptr(void *slot) { return *(void **)slot; }
+void write_ptr(void *dest, void *val) { *(void **)dest = val; }
 Bool is_null(void *p) { return p == NULL; }
 Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }
 Bool is_variant(void *self, void *other) { return *(I32*)self == *(I32*)other; }

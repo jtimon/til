@@ -5,6 +5,7 @@ calloc := ext_func(shallow nmemb: U64, shallow size: U64) returns Dynamic {}
 realloc := ext_func(own buf: Dynamic, shallow count: U64) returns Dynamic {}
 ptr_add := ext_func(buf: Dynamic, shallow offset: U64) returns ref Dynamic {}
 read_ptr := ext_func(slot: Dynamic) returns ref Dynamic {}
+write_ptr := ext_proc(dest: Dynamic, val: Dynamic) {}
 memcpy := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
 memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
 memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: U64) {}
