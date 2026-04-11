@@ -2559,5 +2559,36 @@ emit_global_inits := proc(f: File) {
     if is_null(codegen_program).not() { emit_global_inits_prog(f, codegen_program) }
 }
 
+build_register_funcsig_names := proc(core_program: Expr, program: Expr) {
+    funcsig_names = Set.new("Str", Str.size())
+    has_funcsig_names = true
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                ref rhs : Expr = stmt.child(0)
+                if is_variant(rhs.data, NodeType.FuncDef) {
+                    if rhs.child_count().eq(0) {
+                        ref dd : Declaration = get_payload(stmt.data)
+                        funcsig_names.add(own dd.name.clone())
+                    }
+                }
+                if stmt.til_type.eq(TilType.None) {
+                    if is_variant(rhs.data, NodeType.Ident) {
+                        ref rhs_name : Str = get_payload(rhs.data)
+                        if funcsig_names.has(rhs_name) {
+                            ref dd : Declaration = get_payload(stmt.data)
+                            funcsig_names.add(own dd.name.clone())
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 

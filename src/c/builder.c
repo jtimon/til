@@ -97,8 +97,6 @@
 
 // Populate struct_bodies/func_defs maps and init auxiliary sets
 void build_register_lookups(Expr *, Expr *);
-// Populate funcsig_names set from AST
-void build_register_funcsig_names(Expr *, Expr *);
 // Emit top-level global initializers (shared by test/lib/script main)
 void emit_global_inits(File *);
 
@@ -912,30 +910,7 @@ void build_register_lookups(Expr *core_program, Expr *program) {
     }}
 }
 
-void build_register_funcsig_names(Expr *core_program, Expr *program) {
-    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
-    has_funcsig_names = 1;
-    { Expr *_progs_fs[2] = { core_program, program };
-    for (int _pfs = 0; _pfs < 2; _pfs++) {
-        if (!_progs_fs[_pfs]) continue;
-        for (U32 i = 0; i < _progs_fs[_pfs]->children.count; i++) {
-            Expr *stmt = Expr_child(_progs_fs[_pfs], &(USize){(USize)(i)});
-            if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef &&
-                Expr_child(stmt, &(USize){(USize)(0)})->children.count == 0) {
-                Str *n = &stmt->data.data.Decl.name;
-                { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
-            }
-            if (stmt->data.tag == NodeType_TAG_Decl && stmt->til_type.tag == TilType_TAG_None &&
-                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_Ident) {
-                Str *rhs_name = &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident;
-                if (Set_has(&funcsig_names, rhs_name)) {
-                    Str *n = &stmt->data.data.Decl.name;
-                    { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
-                }
-            }
-        }
-    }}
-}
+
 
 void emit_global_inits(File *f) {
     if (!has_script_globals) return;
