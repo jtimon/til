@@ -20,7 +20,7 @@
 
 
 
-void reset_current_fdef(void) { current_fdef = NULL; }
+// reset_current_fdef: moved to builder.til
 
 // Collect unique array/vec builtin type names from AST
 // CollectionInfo defined in builder.til

@@ -16,7 +16,6 @@ DynCallInfo := struct {
 ref mut codegen_core_program : Expr = NULL
 ref mut codegen_program : Expr = NULL
 ref mut current_fdef : Expr = NULL
-reset_current_fdef := ext_proc() {}
 mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut func_defs := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 mut script_globals := Set.new("Str", Str.size())
@@ -1730,7 +1729,6 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         emit_body(f, body, 1.to_i32())
         own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
         stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
-        reset_current_fdef()
         in_func_def = false
         f.write_str("}\n")
     }

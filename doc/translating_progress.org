@@ -89,35 +89,20 @@ like store_ptr_at(buf, offset, ptr).
 ** Remaining translations -- builder.c
 
 Self-contained (no interpreter.c/dispatch.c deps). Can translate independently.
-Internal recursion: emit_expr -> emit_stmt -> emit_body -> emit_expr.
 
-*** Remaining leaf functions (blocked)
-Blocked by Map<Str, Expr*> pointer indirection (Map.get returns slot
-address, but slot contains Expr*, til can't dereference the slot):
-- find_struct_body(name) -> Expr*
-- find_callee_fdef(name) -> Expr*
-Blocked by current_fdef global (#132):
-- is_shallow_param(name) -> Bool
+*** Done (translated to builder.til)
+- reset_current_fdef (removed, was unnecessary)
+- find_struct_body, find_callee_fdef (using read_ptr)
+- compile_c, compile_lib
+- All leaf functions, emit layer, struct/enum emitters, header emitters
+- build_forward_header, build_header, build_til_binding
+- Helper procs: map_set_ptr, register_lookups_prog, register_funcsig_prog,
+  emit_global_inits_prog, emit_global_inits
 
-*** Recursive emit layer
-- emit_expr(f, e, depth)              line 332
-- emit_stmt(f, e, depth)              line 886
-- emit_body(f, body, depth)           line 1276
-- emit_body_scoped(f, body, depth)    line 164
-- emit_deref(f, e, depth)             line 709
-- emit_as_ptr(f, e, depth)            line 748
-- emit_usize_ref(f, e, depth)         line 797
-- emit_ctor_fields(f, var, ctor, d)   line 804
-- emit_ns_inits(f, depth)             line 1285  -- calls emit_deref
-
-*** Higher-level (depend on emit layer)
-- emit_func_def(f, name, fdef, mode, static) line 1308
-- emit_struct_typedef(f, name, sdef)   line 1511
-- emit_struct_funcs(f, name, sdef, lib, filter) line 1548
-- emit_enum_def(f, name, edef)         line 1591
-- emit_header_forward_decls(f, prog)   line 2617
-- emit_header_defs_and_funcs(f, prog)  line 2644
-- emit_header_global_decls(f, prog)    line 2850
+*** Remaining in C
+- build_register_lookups (extracted helper, ~50 lines)
+- build_register_funcsig_names (extracted helper, ~25 lines)
+- build() (~760 lines, main code generation orchestrator)
 
 ** Remaining translations -- precomp.c
 

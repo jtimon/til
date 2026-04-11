@@ -1091,7 +1091,6 @@ U32 * CollectionInfo_size(void);
 DynCallInfo * DynCallInfo_clone(DynCallInfo * self);
 void DynCallInfo_delete(DynCallInfo * self, Bool * call_free);
 U32 * DynCallInfo_size(void);
-void reset_current_fdef(void);
 Bool is_dyn_call_name(Str * name, Bool * has_ret);
 Expr * fcall_fn_sig(Expr * fcall);
 Bool is_stack_local(Str * name);
