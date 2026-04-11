@@ -42,11 +42,6 @@ precomp := ext_proc(core_program: Expr, program: Expr) {}
 scavenge := ext_proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool) {}
 interpret := ext_func(core_ast: Expr, ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32 {}
 build := ext_func(core_ast: Expr, ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
-build_forward_header := ext_func(core_ast: Expr, ast: Expr, fwd_path: Str) returns shallow I32 {}
-build_header := ext_func(core_ast: Expr, ast: Expr, h_path: Str) returns shallow I32 {}
-build_til_binding := ext_func(core_ast: Expr, ast: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
-compile_c := ext_func(c_path: Str, bin_path: Str, ext_c: Str, user_c: Str, lflags: Str, iflags: Str) returns shallow I32 {}
-compile_lib := ext_func(c_path: Str, lib_name: Str, ext_c: Str, user_c: Str, lflags: Str, iflags: Str) returns shallow I32 {}
 ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
 
 // Utility

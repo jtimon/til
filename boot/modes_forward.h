@@ -1172,11 +1172,6 @@ I32 build_til_binding(Expr * core_program, Expr * program, Str * til_path, Str *
 I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags);
 I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags);
 I32 build(Expr * core_program, Expr * program, Mode * mode, Bool run_tests, Str * path, Str * c_output_path);
-I32 build_header(Expr * core_program, Expr * program, Str * h_path);
-I32 build_til_binding(Expr * core_program, Expr * program, Str * til_path, Str * lib_name);
-I32 build_forward_header(Expr * core_program, Expr * program, Str * fwd_path);
-I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags);
-I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags);
 ExtStr * ExtStr_clone(ExtStr * self);
 void ExtStr_delete(ExtStr * self, Bool * call_free);
 U32 * ExtStr_size(void);

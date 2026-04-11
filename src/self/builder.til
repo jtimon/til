@@ -2335,13 +2335,137 @@ build_til_binding := proc(core_program: Expr, program: Expr, til_path: Str, lib_
     return 0.to_i32()
 }
 
-compile_lib := ext_proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {}
-compile_c := ext_proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {}
+compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {
+    mut uc := user_c_path
+    mut lf := link_flags
+    mut ifl := include_flags
+    if uc.len().eq(0) { uc = "" }
+    if lf.len().eq(0) { lf = "" }
+    if ifl.len().eq(0) { ifl = "" }
+
+    // Extract directory from ext_c_path for -I flag
+    mut ext_dir := "."
+    slash := ext_c_path.rfind("/")
+    if slash.gte(0) { ext_dir = ext_c_path.substr(0, slash.to_usize()).clone() }
+
+    // Compile library .c to object
+    obj_path := "gen/lib/".concat(lib_name).concat(".o")
+    mut cmd := "cc -Wall -Wextra -Werror -fPIC -I".concat(ext_dir)
+        .concat(" -c ").concat(c_path).concat(" -o ").concat(obj_path)
+    mut result := system_cmd(cmd)
+    if result.neq(0) {
+        println("error: library compilation failed")
+        return 1.to_i32()
+    }
+
+    // Compile ext.c to object
+    ext_obj := "gen/lib/ext.o"
+    cmd = "cc -Wall -Wextra -Werror -fPIC -I".concat(ext_dir)
+        .concat(" -c ").concat(ext_c_path).concat(" -o ").concat(ext_obj)
+    result = system_cmd(cmd)
+    if result.neq(0) {
+        println("error: ext.c compilation failed")
+        return 1.to_i32()
+    }
+
+    // Compile user .c to object if present
+    mut user_obj := ""
+    if uc.len().gt(0) {
+        user_obj = "gen/lib/user.o"
+        cmd = "cc -Wall -Wextra -Werror -fPIC -I".concat(ext_dir).concat(ifl)
+            .concat(" -c ").concat(uc).concat(" -o ").concat(user_obj)
+        result = system_cmd(cmd)
+        if result.neq(0) {
+            println("error: user .c compilation failed")
+            return 1.to_i32()
+        }
+    }
+
+    // Create shared library
+    so_path := "gen/lib/lib".concat(lib_name).concat(".so")
+    cmd = "cc -shared -Wl,--allow-multiple-definition -o ".concat(so_path)
+        .concat(" ").concat(obj_path).concat(" ").concat(ext_obj)
+        .concat(" ").concat(user_obj).concat(lf)
+    result = system_cmd(cmd)
+    if result.neq(0) {
+        println("error: shared library creation failed")
+        return 1.to_i32()
+    }
+
+    // Create static library
+    a_path := "gen/lib/lib".concat(lib_name).concat(".a")
+    cmd = "ar rcs ".concat(a_path)
+        .concat(" ").concat(obj_path).concat(" ").concat(ext_obj)
+        .concat(" ").concat(user_obj)
+    result = system_cmd(cmd)
+    if result.neq(0) {
+        println("error: static library creation failed")
+        return 1.to_i32()
+    }
+
+    return 0.to_i32()
+}
+
+compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {
+    mut uc := user_c_path
+    mut lf := link_flags
+    mut ifl := include_flags
+    if uc.len().eq(0) { uc = "" }
+    if lf.len().eq(0) { lf = "" }
+    if ifl.len().eq(0) { ifl = "" }
+
+    // Extract directory from ext_c_path for -I flag
+    mut ext_dir := "."
+    slash := ext_c_path.rfind("/")
+    if slash.gte(0) { ext_dir = ext_c_path.substr(0, slash.to_usize()).clone() }
+
+    // If link_c files present, compile each to .o separately with -include forward.h
+    mut user_part := ""
+    if uc.len().gt(0) {
+        c_slash := c_path.rfind("/")
+        mut c_dir := "."
+        if c_slash.gte(0) { c_dir = c_path.substr(0, c_slash.to_usize()).clone() }
+        c_dot := c_path.rfind(".")
+        mut c_base := c_path
+        if c_dot.gt(c_slash) { c_base = c_path.substr(0, c_dot.to_usize()) }
+        fwd_path := c_base.concat("_forward.h")
+
+        // Split space-separated link_c files and compile each individually
+        files := uc.split(" ")
+        mut all_objs := ""
+        for fi in 0..files.len() {
+            ref file : Str = files.get(fi)
+            if file.len().eq(0) { continue }
+            user_obj := c_dir.concat("/user_").concat(fi.to_i64().to_str()).concat(".o")
+
+            // Skip -include forward.h for src/c/ files
+            mut fwd_flag := " -include ".concat(fwd_path)
+            if file.starts_with("src/c/") { fwd_flag = " -Isrc/c -Iboot" }
+            obj_cmd := "cc -Wall -Wextra -Werror -I".concat(ext_dir)
+                .concat(fwd_flag).concat(ifl).concat(" -c ").concat(file)
+                .concat(" -o ").concat(user_obj)
+
+            obj_result := system_cmd(obj_cmd)
+            if obj_result.neq(0) {
+                println("error: link_c compilation failed for ".concat(file))
+                return 1.to_i32()
+            }
+            all_objs = all_objs.concat(" ").concat(user_obj)
+        }
+        user_part = all_objs
+    }
+
+    cmd := "cc -Wall -Wextra -Werror -g -rdynamic -Wl,--allow-multiple-definition -I".concat(ext_dir)
+        .concat(" -o ").concat(bin_path).concat(" ").concat(c_path)
+        .concat(" ").concat(ext_c_path).concat(user_part).concat(lf)
+
+    result := system_cmd(cmd)
+    if result.neq(0) {
+        println("error: C compilation failed")
+        return 1.to_i32()
+    }
+    return 0.to_i32()
+}
 
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
-build_header := ext_func(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {}
-build_til_binding := ext_func(core_program: Expr, program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
-build_forward_header := ext_func(core_program: Expr, program: Expr, fwd_path: Str) returns shallow I32 {}
-compile_c := ext_func(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {}
-compile_lib := ext_func(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {}
 
