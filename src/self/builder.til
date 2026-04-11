@@ -152,8 +152,15 @@ is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
     return true
 }
 
-find_struct_body := ext_func(name: Str) returns ref Expr {}
-find_callee_fdef := ext_func(name: Str) returns ref Expr {}
+find_struct_body := func(name: Str) returns ref Expr {
+    if struct_bodies.has(name).not() { return NULL }
+    return read_ptr(struct_bodies.get(name))
+}
+
+find_callee_fdef := func(name: Str) returns ref Expr {
+    if func_defs.has(name).not() { return NULL }
+    return read_ptr(func_defs.get(name))
+}
 
 fa_struct_name := func(e: Expr) returns ref Str {
     if e.child_count().eq(0) { return e.struct_name }

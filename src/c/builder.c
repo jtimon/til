@@ -31,18 +31,9 @@ void reset_current_fdef(void) { current_fdef = NULL; }
 
 // is_dyn_call_name: moved to builder.til
 
-Expr *find_struct_body(Str *name) {
-    if (!Map_has(&struct_bodies, name)) return NULL;
-    Expr **p = Map_get(&struct_bodies, name);
-    return *p;
-}
+// find_struct_body: moved to builder.til
 
-
-Expr *find_callee_fdef(Str *name) {
-    if (!Map_has(&func_defs, name)) return NULL;
-    Expr **p = Map_get(&func_defs, name);
-    return *p;
-}
+// find_callee_fdef: moved to builder.til
 
 // --- Emitter helpers ---
 
