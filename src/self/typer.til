@@ -1583,7 +1583,8 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
         type_error(stmt, "null can only be assigned to 'ref' declarations")
     } else if can_implicit_usize_coerce(val.til_type, declared, sdecl.explicit_type).not()
         .and(is_variant(val.til_type, declared).not())
-        .and(is_variant(val.til_type, TilType.Dynamic).not()) {
+        .and(is_variant(val.til_type, TilType.Dynamic).not())
+        .and(is_variant(declared, TilType.Dynamic).not()) {
         type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared, ""))
             .concat(" but value is ").concat(type_to_name(val.til_type, "")))
     } else if is_variant(declared, TilType.Struct).or(is_variant(declared, TilType.Enum)) {
@@ -3772,6 +3773,8 @@ expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
         if is_variant(sf, ScopeFind.Found) {
             ref b : TypeBinding = get_payload(sf)
             if b.own_type.eq(OwnType.Ref).or(b.is_param) { return true }
+            // Owned compound locals are pointers in C -- valid borrow source
+            if is_variant(b.type, TilType.Struct).or(is_variant(b.type, TilType.Enum)) { return true }
         }
     }
     if is_variant(e.data, NodeType.FieldAccess) {

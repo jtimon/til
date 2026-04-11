@@ -38,6 +38,20 @@ test_ref_from_param := test() {
     assert_eq(__LOC__, r, 42)
 }
 
+# --- ref from owned compound local ---
+
+RefPoint := struct {
+    mut x := 0
+    mut y := 0
+}
+
+test_ref_from_owned_compound := test() {
+    p := RefPoint(x = 42, y = 99)
+    ref r : RefPoint = p
+    assert_eq(__LOC__, r.x, 42)
+    assert_eq(__LOC__, r.y, 99)
+}
+
 # --- ref from field access ---
 
 RefBox := struct {
@@ -58,4 +72,14 @@ test_ref_decl_from_field := test() {
     b := RefBox(n = 11)
     ref n : I64 = b.n
     assert_eq(__LOC__, n, 11)
+}
+
+# --- ref Dynamic from owned compound ---
+
+test_ref_dynamic_from_struct := test() {
+    p := RefPoint(x = 10, y = 20)
+    ref d : Dynamic = p
+    ref p2 : RefPoint = d
+    assert_eq(__LOC__, p2.x, 10)
+    assert_eq(__LOC__, p2.y, 20)
 }
