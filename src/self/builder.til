@@ -2604,6 +2604,33 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
+emit_function_bodies := proc(f: File, core_program: Expr, program: Expr, mode: Mode, shallow is_lib: Bool) {
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                ref dd : Declaration = get_payload(stmt.data)
+                ref rhs : Expr = stmt.child(0)
+                if is_variant(rhs.data, NodeType.StructDef) {
+                    emit_struct_funcs(f, dd.name, rhs, is_lib)
+                } else if is_variant(rhs.data, NodeType.EnumDef) {
+                    emit_enum_def(f, dd.name, rhs)
+                    f.write_str("\n")
+                } else if is_variant(rhs.data, NodeType.FuncDef) {
+                    ref fd : FunctionDef = get_payload(rhs.data)
+                    if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+                    if rhs.child_count().eq(0) { continue }
+                    emit_func_def(f, dd.name, rhs, mode, false)
+                    f.write_str("\n")
+                }
+            }
+        }
+    }
+}
+
 emit_ext_func_declarations := proc(f: File, program: Expr) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)

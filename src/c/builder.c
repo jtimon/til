@@ -97,7 +97,6 @@
 void emit_monolithic_header(File *, Expr *, Expr *, Mode *);
 void emit_all_forward_declarations(File *, Expr *, Expr *, Mode *);
 void emit_global_declarations(File *, Expr *, Expr *);
-void emit_function_bodies(File *, Expr *, Expr *, Mode *, Bool);
 void emit_dyn_call_bodies(File *, Expr *, Expr *);
 void emit_dyn_fn_wrappers(File *, Expr *, Expr *);
 void emit_dyn_has_bodies(File *, Expr *, Expr *);
@@ -491,27 +490,6 @@ void emit_global_declarations(File *f, Expr *core_program, Expr *program) {
     }
 }
 
-void emit_function_bodies(File *f, Expr *core_program, Expr *program, Mode *mode, Bool is_lib) {
-    { Expr *_progs_fb[2] = { core_program, program };
-    for (int _pfb = 0; _pfb < 2; _pfb++) {
-        if (!_progs_fb[_pfb]) continue;
-        for (U32 i = 0; i < _progs_fb[_pfb]->children.count; i++) {
-            Expr *stmt = Expr_child(_progs_fb[_pfb], &(USize){(USize)(i)});
-            if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef) {
-                emit_struct_funcs(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(USize){(USize)(0)}), is_lib);
-            } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
-                emit_enum_def(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(USize){(USize)(0)}));
-                EMIT(f, "\n");
-            } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
-                FuncType fft2 = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
-                if (fft2.tag == FuncType_TAG_ExtFunc || fft2.tag == FuncType_TAG_ExtProc) continue;
-                if (Expr_child(stmt, &(USize){(USize)(0)})->children.count == 0) continue;
-                emit_func_def(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(USize){(USize)(0)}), mode, 0);
-                EMIT(f, "\n");
-            }
-        }
-    }}
-}
 
 void emit_dyn_call_bodies(File *f, Expr *core_program, Expr *program) {
     {
