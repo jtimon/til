@@ -2604,6 +2604,35 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
+emit_global_declarations := proc(f: File, core_program: Expr, program: Expr) {
+    script_globals = Set.new("Str", Str.size())
+    has_script_globals = true
+    ref_globals = Set.new("Str", Str.size())
+    has_ref_globals = true
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_exported_top_level_global(stmt).not() { continue }
+            ref rhs : Expr = stmt.child(0)
+            mut ctype := ""
+            if stmt.til_type.eq(TilType.Dynamic) { ctype = til_type_to_c(stmt.til_type) }
+            else { ctype = c_type_name(stmt.til_type, rhs.struct_name) }
+            ref dd : Declaration = get_payload(stmt.data)
+            if dd.own_type.eq(OwnType.Ref) {
+                f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                ref_globals.add(own dd.name.clone())
+            } else {
+                f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                script_globals.add(own dd.name.clone())
+            }
+        }
+    }
+    f.write_str("\n")
+}
+
 emit_test_main := proc(f: File, program: Expr) {
     f.write_str("int main(void) {\n")
     emit_ns_inits(f, 1)

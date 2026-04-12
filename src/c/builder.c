@@ -96,7 +96,6 @@
 // Forward declarations for extracted build() sections
 void emit_monolithic_header(File *, Expr *, Expr *, Mode *);
 void emit_all_forward_declarations(File *, Expr *, Expr *, Mode *);
-void emit_global_declarations(File *, Expr *, Expr *);
 void emit_dyn_call_bodies(File *, Expr *, Expr *);
 void emit_dyn_fn_wrappers(File *, Expr *, Expr *);
 void emit_dyn_has_bodies(File *, Expr *, Expr *);
@@ -459,34 +458,6 @@ void emit_all_forward_declarations(File *f, Expr *core_program, Expr *program, M
     }
 }
 
-void emit_global_declarations(File *f, Expr *core_program, Expr *program) {
-    {
-        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); script_globals = *_sp; free(_sp); }
-        has_script_globals = 1;
-        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_globals = *_sp; free(_sp); }
-        has_ref_globals = 1;
-        { Expr *_progs_gl[2] = { core_program, program };
-        for (int _pgl = 0; _pgl < 2; _pgl++) {
-            if (!_progs_gl[_pgl]) continue;
-            for (U32 i = 0; i < _progs_gl[_pgl]->children.count; i++) {
-                Expr *stmt = Expr_child(_progs_gl[_pgl], &(USize){(USize)(i)});
-                if (!is_exported_top_level_global(stmt)) continue;
-                Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-                Str *ctype = stmt->til_type.tag == TilType_TAG_Dynamic
-                    ? til_type_to_c(stmt->til_type)
-                    : c_type_name(stmt->til_type, &rhs->struct_name);
-                if (DECL_IS_REF(stmt->data.data.Decl)) {
-                    File_write_str(f, ctype); Str_delete(ctype, &(Bool){1}); EMIT(f, " *"); EMIT(f, (const char *)stmt->data.data.Decl.name.c_str); EMIT(f, ";\n");
-                    { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&ref_globals, _p); }
-                } else {
-                    File_write_str(f, ctype); Str_delete(ctype, &(Bool){1}); EMIT(f, " "); EMIT(f, (const char *)stmt->data.data.Decl.name.c_str); EMIT(f, ";\n");
-                    { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&script_globals, _p); }
-                }
-            }
-        }}
-        EMIT(f, "\n");
-    }
-}
 
 
 void emit_dyn_call_bodies(File *f, Expr *core_program, Expr *program) {
