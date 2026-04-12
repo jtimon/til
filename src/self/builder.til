@@ -2604,6 +2604,57 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
+emit_collection_helpers := proc(f: File, core_program: Expr, program: Expr) {
+    mut coll_infos := Vec.new("CollectionInfo", CollectionInfo.size())
+    if is_null(core_program).not() { collect_collection_builtins(core_program, coll_infos) }
+    collect_collection_builtins(program, coll_infos)
+    for i in 0..coll_infos.len() {
+        ref ci : CollectionInfo = coll_infos.get(i)
+        et := ci.type_name
+        et_len := et.len().to_i64().to_u64()
+        if ci.is_vec.neq(0) {
+            f.write_str("Vec *vec_of_"); f.write_str(et); f.write_str("(int count, ...) {\n")
+            f.write_str("    USize _esz = sizeof("); f.write_str(et); f.write_str(");\n")
+            f.write_str("    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\""); f.write_str(et); f.write_str("\", .count = "); emit_u64(f, et_len); f.write_str("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
+            f.write_str("    va_list ap; va_start(ap, count);\n")
+            f.write_str("    for (int _i = 0; _i < count; _i++) {\n")
+            cn := et.concat("_clone")
+            is_shallow := callee_returns_shallow(cn)
+            if is_shallow {
+                f.write_str("        "); f.write_str(et); f.write_str(" *_val = malloc(sizeof("); f.write_str(et); f.write_str(")); *_val = "); f.write_str(et); f.write_str("_clone(va_arg(ap, "); f.write_str(et); f.write_str(" *));\n")
+            } else {
+                f.write_str("        "); f.write_str(et); f.write_str(" *_val = "); f.write_str(et); f.write_str("_clone(va_arg(ap, "); f.write_str(et); f.write_str(" *));\n")
+            }
+            f.write_str("        Vec_push(_v, _val);\n")
+            f.write_str("    }\n")
+            f.write_str("    va_end(ap);\n")
+            f.write_str("    return _v;\n")
+            f.write_str("}\n\n")
+        } else {
+            f.write_str("Array *array_of_"); f.write_str(et); f.write_str("(int count, ...) {\n")
+            f.write_str("    USize _esz = sizeof("); f.write_str(et); f.write_str(");\n")
+            f.write_str("    USize _cap = count;\n")
+            f.write_str("    Array *_a = Array_new(&(Str){.c_str = (U8 *)\""); f.write_str(et); f.write_str("\", .count = "); emit_u64(f, et_len); f.write_str("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz}, &(USize){_cap});\n")
+            f.write_str("    va_list ap; va_start(ap, count);\n")
+            f.write_str("    for (int _i = 0; _i < count; _i++) {\n")
+            f.write_str("        USize _idx = _i;\n")
+            cn := et.concat("_clone")
+            is_shallow := callee_returns_shallow(cn)
+            if is_shallow {
+                f.write_str("        "); f.write_str(et); f.write_str(" *_val = malloc(sizeof("); f.write_str(et); f.write_str(")); *_val = "); f.write_str(et); f.write_str("_clone(va_arg(ap, "); f.write_str(et); f.write_str(" *));\n")
+            } else {
+                f.write_str("        "); f.write_str(et); f.write_str(" *_val = "); f.write_str(et); f.write_str("_clone(va_arg(ap, "); f.write_str(et); f.write_str(" *));\n")
+            }
+            f.write_str("        Array_set(_a, &(USize){_idx}, _val);\n")
+            f.write_str("    }\n")
+            f.write_str("    va_end(ap);\n")
+            f.write_str("    return _a;\n")
+            f.write_str("}\n\n")
+        }
+    }
+    own coll_infos.delete()
+}
+
 emit_global_declarations := proc(f: File, core_program: Expr, program: Expr) {
     script_globals = Set.new("Str", Str.size())
     has_script_globals = true

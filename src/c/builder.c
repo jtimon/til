@@ -99,7 +99,6 @@ void emit_all_forward_declarations(File *, Expr *, Expr *, Mode *);
 void emit_dyn_call_bodies(File *, Expr *, Expr *);
 void emit_dyn_fn_wrappers(File *, Expr *, Expr *);
 void emit_dyn_has_bodies(File *, Expr *, Expr *);
-void emit_collection_helpers(File *, Expr *, Expr *);
 
 I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     codegen_core_program = core_program;
@@ -712,69 +711,6 @@ void emit_dyn_has_bodies(File *f, Expr *core_program, Expr *program) {
     }
 }
 
-void emit_collection_helpers(File *f, Expr *core_program, Expr *program) {
-    {
-        Vec coll_infos;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"CollectionInfo", .count = 14, .cap = CAP_LIT}, &(USize){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
-        if (core_program) collect_collection_builtins(core_program, &coll_infos);
-        collect_collection_builtins(program, &coll_infos);
-        for (U32 i = 0; i < coll_infos.count; i++) {
-            CollectionInfo *ci = Vec_get(&coll_infos, &(USize){(USize)(i)});
-            const char *et = (const char *)ci->type_name->c_str;
-            U64 et_len = ci->type_name->count;
-            if (ci->is_vec) {
-                EMIT(f, "Vec *vec_of_"); EMIT(f, (const char *)et); EMIT(f, "(int count, ...) {\n");
-                EMIT(f, "    USize _esz = sizeof("); EMIT(f, (const char *)et); EMIT(f, ");\n");
-                EMIT(f, "    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\""); EMIT(f, (const char *)et); EMIT(f, "\", .count = "); emit_u64(f, et_len); EMIT(f, "ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n");
-                EMIT(f, "    va_list ap; va_start(ap, count);\n");
-                EMIT(f, "    for (int _i = 0; _i < count; _i++) {\n");
-                {
-                    char clone_name[256];
-                    snprintf(clone_name, sizeof(clone_name), "%s_clone", et);
-                    Str *cn = Str_clone(&(Str){.c_str = (U8*)(clone_name), .count = (U64)strlen((const char*)(clone_name)), .cap = CAP_VIEW});
-                    Bool shallow = callee_returns_shallow(cn);
-                    Str_delete(cn, &(Bool){1});
-                    if (shallow) {
-                        EMIT(f, "        "); EMIT(f, (const char *)et); EMIT(f, " *_val = malloc(sizeof("); EMIT(f, (const char *)et); EMIT(f, ")); *_val = "); EMIT(f, (const char *)et); EMIT(f, "_clone(va_arg(ap, "); EMIT(f, (const char *)et); EMIT(f, " *));\n");
-                    } else {
-                        EMIT(f, "        "); EMIT(f, (const char *)et); EMIT(f, " *_val = "); EMIT(f, (const char *)et); EMIT(f, "_clone(va_arg(ap, "); EMIT(f, (const char *)et); EMIT(f, " *));\n");
-                    }
-                }
-                EMIT(f, "        Vec_push(_v, _val);\n");
-                EMIT(f, "    }\n");
-                EMIT(f, "    va_end(ap);\n");
-                EMIT(f, "    return _v;\n");
-                EMIT(f, "}\n\n");
-            } else {
-                EMIT(f, "Array *array_of_"); EMIT(f, (const char *)et); EMIT(f, "(int count, ...) {\n");
-                EMIT(f, "    USize _esz = sizeof("); EMIT(f, (const char *)et); EMIT(f, ");\n");
-                EMIT(f, "    USize _cap = count;\n");
-                EMIT(f, "    Array *_a = Array_new(&(Str){.c_str = (U8 *)\""); EMIT(f, (const char *)et); EMIT(f, "\", .count = "); emit_u64(f, et_len); EMIT(f, "ULL, .cap = TIL_CAP_LIT}, &(USize){_esz}, &(USize){_cap});\n");
-                EMIT(f, "    va_list ap; va_start(ap, count);\n");
-                EMIT(f, "    for (int _i = 0; _i < count; _i++) {\n");
-                EMIT(f, "        USize _idx = _i;\n");
-                {
-                    char clone_name[256];
-                    snprintf(clone_name, sizeof(clone_name), "%s_clone", et);
-                    Str *cn = Str_clone(&(Str){.c_str = (U8*)(clone_name), .count = (U64)strlen((const char*)(clone_name)), .cap = CAP_VIEW});
-                    Bool shallow = callee_returns_shallow(cn);
-                    Str_delete(cn, &(Bool){1});
-                    if (shallow) {
-                        EMIT(f, "        "); EMIT(f, (const char *)et); EMIT(f, " *_val = malloc(sizeof("); EMIT(f, (const char *)et); EMIT(f, ")); *_val = "); EMIT(f, (const char *)et); EMIT(f, "_clone(va_arg(ap, "); EMIT(f, (const char *)et); EMIT(f, " *));\n");
-                    } else {
-                        EMIT(f, "        "); EMIT(f, (const char *)et); EMIT(f, " *_val = "); EMIT(f, (const char *)et); EMIT(f, "_clone(va_arg(ap, "); EMIT(f, (const char *)et); EMIT(f, " *));\n");
-                    }
-                }
-                EMIT(f, "        Array_set(_a, &(USize){_idx}, _val);\n");
-                EMIT(f, "    }\n");
-                EMIT(f, "    va_end(ap);\n");
-                EMIT(f, "    return _a;\n");
-                EMIT(f, "}\n\n");
-            }
-        }
-        Vec_delete(&coll_infos, &(Bool){0});
-    }
-}
 
 
 
