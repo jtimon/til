@@ -101,8 +101,6 @@ void emit_dyn_call_bodies(File *, Expr *, Expr *);
 void emit_dyn_fn_wrappers(File *, Expr *, Expr *);
 void emit_dyn_has_bodies(File *, Expr *, Expr *);
 void emit_collection_helpers(File *, Expr *, Expr *);
-void emit_test_main(File *, Expr *);
-void emit_script_main(File *, Expr *);
 
 I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     codegen_core_program = core_program;
@@ -807,54 +805,6 @@ void emit_collection_helpers(File *f, Expr *core_program, Expr *program) {
     }
 }
 
-void emit_test_main(File *f, Expr *program) {
-        EMIT(f, "int main(void) {\n");
-        emit_ns_inits(f, 1);
-        emit_global_inits(f);
-        I32 test_count = 0;
-        for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag != NodeType_TAG_Decl) continue;
-            Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-            if (rhs->data.tag != NodeType_TAG_FuncDef) continue;
-            if (rhs->data.data.FuncDef.func_type.tag != FuncType_TAG_Test) continue;
-            Str *tname = &stmt->data.data.Decl.name;
-            EMIT(f, "    "); EMIT(f, (const char *)tname->c_str); EMIT(f, "();\n");
-            EMIT(f, "    fprintf(stderr, \"  pass: %s\\n\", \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\");\n");
-            test_count++;
-        }
-        if (test_count == 0) {
-            EMIT(f, "    fprintf(stderr, \"no tests found\\n\");\n");
-        } else {
-            EMIT(f, "    fprintf(stderr, \""); emit_i32(f, test_count); EMIT(f, "/"); emit_i32(f, test_count); EMIT(f, " tests passed\\n\");\n");
-        }
-        EMIT(f, "    return 0;\n");
-        EMIT(f, "}\n");
-}
-
-
-void emit_script_main(File *f, Expr *program) {
-    EMIT(f, "int main(void) {\n");
-        emit_ns_inits(f, 1);
-        // Collect unsafe-to-hoist for script-level statements
-        Set_delete(&unsafe_to_hoist, &(Bool){0});
-        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
-        collect_unsafe_to_hoist(program);
-        for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            // Skip func/proc/struct defs (already emitted above)
-            if (stmt->data.tag == NodeType_TAG_Decl &&
-                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef ||
-                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
-                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef))
-                continue;
-            emit_stmt(f, stmt, 1);
-        }
-        EMIT(f, "    return 0;\n");
-        EMIT(f, "}\n");
-        Set_delete(&script_globals, &(Bool){0});
-        has_script_globals = 0;
-}
 
 
 

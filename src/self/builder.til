@@ -2604,6 +2604,51 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
+emit_test_main := proc(f: File, program: Expr) {
+    f.write_str("int main(void) {\n")
+    emit_ns_inits(f, 1)
+    emit_global_inits(f)
+    mut test_count : I32 = 0
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        ref rhs : Expr = stmt.child(0)
+        if is_variant(rhs.data, NodeType.FuncDef).not() { continue }
+        ref fd : FunctionDef = get_payload(rhs.data)
+        if is_variant(fd.func_type, FuncType.Test).not() { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        f.write_str("    "); f.write_str(dd.name); f.write_str("();\n")
+        f.write_str("    fprintf(stderr, \"  pass: %s\\n\", \""); f.write_str(dd.name); f.write_str("\");\n")
+        test_count = test_count.add(1.to_i32())
+    }
+    if test_count.eq(0.to_i32()) {
+        f.write_str("    fprintf(stderr, \"no tests found\\n\");\n")
+    } else {
+        f.write_str("    fprintf(stderr, \""); emit_i32(f, test_count); f.write_str("/"); emit_i32(f, test_count); f.write_str(" tests passed\\n\");\n")
+    }
+    f.write_str("    return 0;\n")
+    f.write_str("}\n")
+}
+
+emit_script_main := proc(f: File, program: Expr) {
+    f.write_str("int main(void) {\n")
+    emit_ns_inits(f, 1)
+    unsafe_to_hoist = Set.new("Str", Str.size())
+    collect_unsafe_to_hoist(program)
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl) {
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(rhs.data, NodeType.FuncDef).or(is_variant(rhs.data, NodeType.StructDef)).or(is_variant(rhs.data, NodeType.EnumDef)) { continue }
+        }
+        emit_stmt(f, stmt, 1)
+    }
+    f.write_str("    return 0;\n")
+    f.write_str("}\n")
+    own script_globals.delete()
+    has_script_globals = false
+}
+
 emit_function_bodies := proc(f: File, core_program: Expr, program: Expr, mode: Mode, shallow is_lib: Bool) {
     for prog_idx in 0..2 {
         ref mut prog : Expr = NULL

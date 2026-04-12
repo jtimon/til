@@ -1176,6 +1176,8 @@ void emit_global_inits(File * f);
 void build_register_funcsig_names(Expr * core_program, Expr * program);
 void register_lookups_prog(Expr * prog);
 void build_register_lookups(Expr * core_program, Expr * program);
+void emit_test_main(File * f, Expr * program);
+void emit_script_main(File * f, Expr * program);
 void emit_function_bodies(File * f, Expr * core_program, Expr * program, Mode * mode, Bool is_lib);
 void emit_ext_func_declarations(File * f, Expr * program);
 void emit_lib_init(File * f);
