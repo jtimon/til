@@ -653,7 +653,8 @@ generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32
         ctor_acc.add_child(own ename_id)
 
         mut ctor_expr := Expr.new(NodeType.LiteralNull, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-        ref mut pd : Expr = NULL
+        mut pd := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+        mut has_pd := false
         ref vtype : Str = variant_types.get(j)
         if vtype.len().gt(0) {
             pn := format("_clone_payload_", vname, "_", j.to_str())
@@ -667,6 +668,7 @@ generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32
             mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), own_type = OwnType.Ref)), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
             decl_expr.add_child(own gc)
             pd = decl_expr
+            has_pd = true
 
             mut ctor_call := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
             ctor_call.add_child(own ctor_acc)
@@ -709,7 +711,7 @@ generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32
             }
 
             mut then_body := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-            if is_null(pd).not() {
+            if has_pd {
                 then_body.add_child(own pd.clone())
             }
             then_body.add_child(own ret)
@@ -719,7 +721,7 @@ generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32
             if_node.add_child(own then_body)
             func_body.add_child(own if_node)
         } else {
-            if is_null(pd).not() {
+            if has_pd {
                 func_body.add_child(own pd.clone())
             }
             func_body.add_child(own ret)
