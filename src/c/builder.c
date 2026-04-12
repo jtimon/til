@@ -95,7 +95,6 @@
 
 // Forward declarations for extracted build() sections
 void emit_monolithic_header(File *, Expr *, Expr *, Mode *);
-void emit_ext_func_declarations(File *, Expr *);
 void emit_all_forward_declarations(File *, Expr *, Expr *, Mode *);
 void emit_global_declarations(File *, Expr *, Expr *);
 void emit_function_bodies(File *, Expr *, Expr *, Mode *, Bool);
@@ -300,28 +299,6 @@ void emit_monolithic_header(File *f, Expr *core_program, Expr *program, Mode *mo
     }
 }
 
-void emit_ext_func_declarations(File *f, Expr *program) {
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != NodeType_TAG_Decl || Expr_child(stmt, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
-        Expr *fdef = Expr_child(stmt, &(USize){(USize)(0)});
-        FuncType fft = fdef->data.data.FuncDef.func_type;
-        if (fft.tag != FuncType_TAG_ExtFunc && fft.tag != FuncType_TAG_ExtProc) continue;
-        if (is_skip_ext_decl(&stmt->data.data.Decl.name)) continue;
-        if (fdef->data.data.FuncDef.return_type.count > 0) {
-            Str *rt = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
-                ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
-                : type_name_to_c(&fdef->data.data.FuncDef.return_type);
-            File_write_str(f, rt); Str_delete(rt, &(Bool){1}); EMIT(f, " "); { Str *_fc = func_to_c(&stmt->data.data.Decl.name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
-        }
-        else {
-            EMIT(f, "void "); { Str *_fc = func_to_c(&stmt->data.data.Decl.name); File_write_str(f, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(f, "(");
-        }
-        emit_param_list(f, fdef, 0);
-        EMIT(f, ");\n");
-    }
-    EMIT(f, "\n");
-}
 
 void emit_all_forward_declarations(File *f, Expr *core_program, Expr *program, Mode *mode) {
     { Expr *_progs_fwd[2] = { core_program, program };

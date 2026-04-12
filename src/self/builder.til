@@ -2604,6 +2604,31 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
+emit_ext_func_declarations := proc(f: File, program: Expr) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        if stmt.child_count().eq(0) { continue }
+        if is_variant(stmt.child(0).data, NodeType.FuncDef).not() { continue }
+        ref fdef : Expr = stmt.child(0)
+        ref fd : FunctionDef = get_payload(fdef.data)
+        if is_variant(fd.func_type, FuncType.ExtFunc).not().and(is_variant(fd.func_type, FuncType.ExtProc).not()) { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        if is_skip_ext_decl(dd.name) { continue }
+        if fd.return_type.len().gt(0) {
+            mut rt := ""
+            if is_variant(fd.return_own_type, OwnType.Shallow) { rt = type_name_to_c_value(fd.return_type) }
+            else { rt = type_name_to_c(fd.return_type) }
+            f.write_str(rt); f.write_str(" "); fc := func_to_c(dd.name); f.write_str(fc); f.write_str("(")
+        } else {
+            f.write_str("void "); fc := func_to_c(dd.name); f.write_str(fc); f.write_str("(")
+        }
+        emit_param_list(f, fdef, false)
+        f.write_str(");\n")
+    }
+    f.write_str("\n")
+}
+
 emit_lib_init := proc(f: File) {
     f.write_str("__attribute__((constructor))\nstatic void _til_lib_init(void) {\n")
     emit_ns_inits(f, 1)

@@ -1176,6 +1176,7 @@ void emit_global_inits(File * f);
 void build_register_funcsig_names(Expr * core_program, Expr * program);
 void register_lookups_prog(Expr * prog);
 void build_register_lookups(Expr * core_program, Expr * program);
+void emit_ext_func_declarations(File * f, Expr * program);
 void emit_lib_init(File * f);
 I32 build(Expr * core_program, Expr * program, Mode * mode, Bool run_tests, Str * path, Str * c_output_path);
 ExtStr * ExtStr_clone(ExtStr * self);
