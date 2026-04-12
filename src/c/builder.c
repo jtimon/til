@@ -31,10 +31,6 @@
 
 // is_dyn_call_name: moved to builder.til
 
-// find_struct_body: moved to builder.til
-
-// find_callee_fdef: moved to builder.til
-
 // --- Emitter helpers ---
 
 
@@ -96,7 +92,6 @@
 // Derive basename from absolute path: "/abs/path/to/str.til" -> "str"
 
 // Populate struct_bodies/func_defs maps and init auxiliary sets
-void build_register_lookups(Expr *, Expr *);
 
 I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     codegen_core_program = core_program;
@@ -857,56 +852,6 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
     return 0;
 }
 
-// --- Extracted build() helpers ---
-
-void build_register_lookups(Expr *core_program, Expr *program) {
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
-    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_locals = *_sp; free(_sp); }
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_local_types = *_mp; free(_mp); }
-    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
-    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
-    { Expr *_progs_reg[2] = { core_program, program };
-    for (int _preg = 0; _preg < 2; _preg++) {
-        if (!_progs_reg[_preg]) continue;
-        for (U32 i = 0; i < _progs_reg[_preg]->children.count; i++) {
-            Expr *stmt = Expr_child(_progs_reg[_preg], &(USize){(USize)(i)});
-            if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
-                                                         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
-                Str *sname = &stmt->data.data.Decl.name;
-                Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
-                { Str *_k = malloc(sizeof(Str)); *_k = (Str){sname->c_str, sname->count, CAP_VIEW}; void *_v = malloc(sizeof(body)); memcpy(_v, &body, sizeof(body)); Map_set(&struct_bodies, _k, _v); }
-                for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *field = Expr_child(body, &(USize){(USize)(j)});
-                    if (!field->data.data.Decl.is_namespace) continue;
-                    if (field->children.count == 0 || Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
-                    Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
-                    char flat[256];
-                    snprintf(flat, sizeof(flat), "%s_%s", sname->c_str, field->data.data.Decl.name.c_str);
-                    Str *key = Str_clone(&(Str){.c_str = (U8*)(flat), .count = (U64)strlen((const char*)(flat)), .cap = CAP_VIEW});
-                    { Str *_k = malloc(sizeof(Str)); *_k = *key; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
-                    free(key);
-                    if (fdef->children.count > 0) {
-                        Expr *fbody = Expr_child(fdef, &(USize){(USize)(0)});
-                        for (U32 k = 0; k < fbody->children.count; k++) {
-                            Expr *nested = Expr_child(fbody, &(USize){(USize)(k)});
-                            if (nested->data.tag != NodeType_TAG_Decl) continue;
-                            if (nested->children.count == 0 || Expr_child(nested, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
-                            Expr *nfdef = Expr_child(nested, &(USize){(USize)(0)});
-                            Str *nkey = Str_clone(&nested->data.data.Decl.name);
-                            { Str *_k2 = malloc(sizeof(Str)); *_k2 = (Str){nkey->c_str, nkey->count, CAP_VIEW}; void *_v2 = malloc(sizeof(nfdef)); memcpy(_v2, &nfdef, sizeof(nfdef)); Map_set(&func_defs, _k2, _v2); }
-                        }
-                    }
-                }
-            }
-            if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
-                Str *fname = &stmt->data.data.Decl.name;
-                Expr *fdef = Expr_child(stmt, &(USize){(USize)(0)});
-                { Str *_k = malloc(sizeof(Str)); *_k = (Str){fname->c_str, fname->count, CAP_VIEW}; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
-            }
-        }
-    }}
-}
 
 
 

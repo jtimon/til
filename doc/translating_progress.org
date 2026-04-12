@@ -92,15 +92,12 @@ Self-contained (no interpreter.c/dispatch.c deps). Can translate independently.
 
 *** Done (translated to builder.til)
 - reset_current_fdef (removed, was unnecessary)
-- find_struct_body, find_callee_fdef (using read_ptr)
 - compile_c, compile_lib
+- build_register_funcsig_names, emit_global_inits
 - All leaf functions, emit layer, struct/enum emitters, header emitters
 - build_forward_header, build_header, build_til_binding
-- Helper procs: map_set_ptr, register_lookups_prog, register_funcsig_prog,
-  emit_global_inits_prog, emit_global_inits
 
 *** Remaining in C
-- build_register_lookups (extracted helper, ~50 lines)
 - build() (~760 lines, main code generation orchestrator)
 
 ** Remaining translations -- precomp.c

@@ -1,10 +1,31 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 135
+# NEXT_ISSUE: 137
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/13] Pre
+* [0/16] Pre
+** OPEN #136 Precomp doesn't fold namespace method calls
+  ~Dynamic.size()~ is defined in ~dyn.til~ as ~func() returns USize { return 8 }~
+  but is not folded by precomp. ~is_func_call~ in ~precomp.til~ (line 150)
+  rejects FieldAccess callees. ~try_eval_call~ in ~precomp.c~ (line 14)
+  assumes the callee is an Ident. Namespace method calls use FieldAccess.
+  The builder's ~emit_struct_funcs~ overrides all ~size()~ methods with
+  ~sizeof(name)~, which emits ~sizeof(Dynamic)~ = 1 because Dynamic is
+  emitted as ~struct { char _; }~. This masks the folding gap for all
+  types except Dynamic.
+  Fix: 1) remove the special case excluding namespaced functions in precomp
+  2) remove the hardcoded sizeof stuff in builder
+  Workarounds in builder.til until fixed:
+  - ~I64.size()~ instead of ~Dynamic.size()~ for pointer-sized map values
+  - ~ref mut prog~ assignment leaks (clones instead of pointer copy)
+  - Unnecessary helper procs (~register_lookups_prog~, ~register_funcsig_prog~,
+    ~emit_global_inits_prog~) that should be inlined once clone leak is fixed
+** OPEN #135 ref mut assignment clones instead of pointer copy
+  Assignment to a ~ref mut~ local generates ~Type_clone(rhs)~ via the
+  typer's ~infer_assign_stmt~. The generated C is ~prog = Expr_clone(x)~
+  instead of ~prog = x~. This leaks memory on each assignment.
+  The til source is correct; the bug is in the compiler output.
 ** OPEN #133 FuncSig types not emitted as C function-pointer typedefs
   A FuncSig type definition like ~DispatchFn := func(Scope, Expr, Value) returns shallow Bool~
   generates a forward declaration ~Bool DispatchFn(Scope *, Expr *, Value *);~ in the .c file
@@ -283,6 +304,7 @@
   compiler allocations and remaining ownership/error-path issues.
   The stack-local work from ~#50~ is already landed, which should make
   the remaining leak buckets smaller and easier to isolate.
+  See also ~#135~ (ref mut assignment clones instead of pointer copy).
 
   End goal (from #110, now absorbed here): switch ~make test~ to always
   use ~bin/til_asan~ once leaks are under control.

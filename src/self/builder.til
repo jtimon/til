@@ -16,8 +16,8 @@ DynCallInfo := struct {
 ref mut codegen_core_program : Expr = NULL
 ref mut codegen_program : Expr = NULL
 ref mut current_fdef : Expr = NULL
-mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
-mut func_defs := Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
+mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", I64.size())
+mut func_defs := Map.new("Str", Str.size(), "Dynamic", I64.size())
 mut script_globals := Set.new("Str", Str.size())
 mut has_script_globals := false
 mut ref_globals := Set.new("Str", Str.size())
@@ -2588,6 +2588,67 @@ build_register_funcsig_names := proc(core_program: Expr, program: Expr) {
             }
         }
     }
+}
+
+register_lookups_prog := proc(prog: Expr) {
+    for i in 0..prog.child_count() {
+        ref stmt : Expr = prog.child(i)
+        if is_variant(stmt.data, NodeType.Decl) {
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(rhs.data, NodeType.StructDef).or(is_variant(rhs.data, NodeType.EnumDef)) {
+                ref dd : Declaration = get_payload(stmt.data)
+                ref body : Expr = rhs.child(0)
+                v : Dynamic = malloc(I64.size())
+                write_ptr(v, body)
+                struct_bodies.set(own dd.name.clone(), own v)
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fd : Declaration = get_payload(field.data)
+                    if fd.is_namespace.not() { continue }
+                    if field.child_count().eq(0) { continue }
+                    if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+                    ref fdef : Expr = field.child(0)
+                    key := dd.name.concat("_").concat(fd.name)
+                    fv : Dynamic = malloc(I64.size())
+                    write_ptr(fv, fdef)
+                    func_defs.set(own key, own fv)
+                    if fdef.child_count().gt(0) {
+                        ref fbody : Expr = fdef.child(0)
+                        for k in 0..fbody.child_count() {
+                            ref nested : Expr = fbody.child(k)
+                            if is_variant(nested.data, NodeType.Decl).not() { continue }
+                            if nested.child_count().eq(0) { continue }
+                            if is_variant(nested.child(0).data, NodeType.FuncDef).not() { continue }
+                            ref nfdef : Expr = nested.child(0)
+                            ref nd : Declaration = get_payload(nested.data)
+                            nv : Dynamic = malloc(I64.size())
+                            write_ptr(nv, nfdef)
+                            func_defs.set(own nd.name.clone(), own nv)
+                        }
+                    }
+                }
+            }
+            if is_variant(rhs.data, NodeType.FuncDef) {
+                ref dd2 : Declaration = get_payload(stmt.data)
+                fv2 : Dynamic = malloc(I64.size())
+                write_ptr(fv2, rhs)
+                func_defs.set(own dd2.name.clone(), own fv2)
+            }
+        }
+    }
+}
+
+// #135: can't use for prog_idx in 0..2 with ref mut prog here because
+// the clone bug makes stored pointers point to cloned nodes
+build_register_lookups := proc(core_program: Expr, program: Expr) {
+    struct_bodies = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    stack_locals = Set.new("Str", Str.size())
+    stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
+    unsafe_to_hoist = Set.new("Str", Str.size())
+    ref_locals = Set.new("Str", Str.size())
+    if is_null(core_program).not() { register_lookups_prog(core_program) }
+    register_lookups_prog(program)
 }
 
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
