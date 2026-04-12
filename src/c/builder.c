@@ -104,7 +104,6 @@ void emit_dyn_fn_wrappers(File *, Expr *, Expr *);
 void emit_dyn_has_bodies(File *, Expr *, Expr *);
 void emit_collection_helpers(File *, Expr *, Expr *);
 void emit_test_main(File *, Expr *);
-void emit_lib_init(File *);
 void emit_script_main(File *, Expr *);
 
 I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
@@ -878,12 +877,6 @@ void emit_test_main(File *f, Expr *program) {
         EMIT(f, "}\n");
 }
 
-void emit_lib_init(File *f) {
-    EMIT(f, "__attribute__((constructor))\nstatic void _til_lib_init(void) {\n");
-    emit_ns_inits(f, 1);
-    emit_global_inits(f);
-    EMIT(f, "}\n\n");
-}
 
 void emit_script_main(File *f, Expr *program) {
     EMIT(f, "int main(void) {\n");

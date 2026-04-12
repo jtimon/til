@@ -2604,5 +2604,12 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
+emit_lib_init := proc(f: File) {
+    f.write_str("__attribute__((constructor))\nstatic void _til_lib_init(void) {\n")
+    emit_ns_inits(f, 1)
+    emit_global_inits(f)
+    f.write_str("}\n\n")
+}
+
 build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
 
