@@ -96,7 +96,6 @@
 // Forward declarations for extracted build() sections
 void emit_monolithic_header(File *, Expr *, Expr *, Mode *);
 void emit_all_forward_declarations(File *, Expr *, Expr *, Mode *);
-void emit_dyn_call_bodies(File *, Expr *, Expr *);
 void emit_dyn_fn_wrappers(File *, Expr *, Expr *);
 
 I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
@@ -458,92 +457,6 @@ void emit_all_forward_declarations(File *f, Expr *core_program, Expr *program, M
 
 
 
-void emit_dyn_call_bodies(File *f, Expr *core_program, Expr *program) {
-    {
-        Vec dyn_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"DynCallInfo", .count = 11, .cap = CAP_LIT}, &(USize){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
-        if (core_program) collect_dyn_methods(core_program, &dyn_methods);
-        collect_dyn_methods(program, &dyn_methods);
-        for (U32 m = 0; m < dyn_methods.count; m++) {
-            DynCallInfo *info = Vec_get(&dyn_methods, &(USize){(USize)(m)});
-            Str *method = info->method;
-            const char *ret_type = info->has_return ? "void *" : "void ";
-            if (info->nargs == 1) {
-                EMIT(f, (const char *)ret_type); EMIT(f, "dyn_call_"); EMIT(f, (const char *)method->c_str); EMIT(f, "(Str *type_name, void *val) {\n");
-            }
-            else {
-                EMIT(f, (const char *)ret_type); EMIT(f, "dyn_call_"); EMIT(f, (const char *)method->c_str); EMIT(f, "(Str *type_name, void *val, void *arg2) {\n");
-            }
-            // Iterate all struct/type defs in AST
-            { Expr *_progs_dc[2] = { core_program, program };
-            for (int _pdc = 0; _pdc < 2; _pdc++) {
-                if (!_progs_dc[_pdc]) continue;
-            for (U32 i = 0; i < _progs_dc[_pdc]->children.count; i++) {
-                Expr *stmt = Expr_child(_progs_dc[_pdc], &(USize){(USize)(i)});
-                if (stmt->data.tag != NodeType_TAG_Decl) continue;
-                Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-                if (def->data.tag != NodeType_TAG_StructDef && def->data.tag != NodeType_TAG_EnumDef) continue;
-                Str *tname = &stmt->data.data.Decl.name;
-                // Check if this type has the method in its namespace
-                Expr *body = Expr_child(def, &(USize){(USize)(0)});
-                Expr *method_fdef = NULL;
-                for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *field = Expr_child(body, &(USize){(USize)(j)});
-                    if (field->data.data.Decl.is_namespace &&
-                        Str_eq(&field->data.data.Decl.name, method) &&
-                        field->children.count > 0 &&
-                        Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
-                        method_fdef = Expr_child(field, &(USize){(USize)(0)});
-                        break;
-                    }
-                }
-                if (!method_fdef) continue;
-                // Build arg expressions with shallow dereference where needed
-                char arg1[64], arg2_str[64];
-                Vec *ps = &method_fdef->data.data.FuncDef.params;
-                if (ps->count > 0 && PARAM_IS_SHALLOW(((Param*)Vec_get(ps, &(USize){(USize)(0)}))))
-                    snprintf(arg1, sizeof(arg1), "*(%s *)val", tname->c_str);
-                else
-                    snprintf(arg1, sizeof(arg1), "val");
-                if (info->nargs == 2) {
-                    if (ps->count > 1 && method_fdef->data.data.FuncDef.nparam > 1 && PARAM_IS_SHALLOW(((Param*)Vec_get(ps, &(USize){(USize)(1)}))))
-                        snprintf(arg2_str, sizeof(arg2_str), "*(%s *)arg2", tname->c_str);
-                    else
-                        snprintf(arg2_str, sizeof(arg2_str), "arg2");
-                }
-                Bool ret_shallow = RETURN_IS_SHALLOW(&method_fdef->data.data.FuncDef);
-                Str *ret_ctype = (info->has_return && ret_shallow && method_fdef->data.data.FuncDef.return_type.count > 0)
-                    ? type_name_to_c_value(&method_fdef->data.data.FuncDef.return_type) : NULL;
-                if (info->nargs == 2) {
-                    if (info->has_return && ret_shallow) {
-                        EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) { "); File_write_str(f, ret_ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ret_ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, ", "); EMIT(f, (const char *)arg2_str); EMIT(f, "); return _r; }\n");
-                    }
-                    else if (info->has_return) {
-                        EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) return (void *)"); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, ", "); EMIT(f, (const char *)arg2_str); EMIT(f, ");\n");
-                    }
-                    else {
-                        EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) { "); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, ", "); EMIT(f, (const char *)arg2_str); EMIT(f, "); return; }\n");
-                    }
-                } else {
-                    if (info->has_return && ret_shallow) {
-                        EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) { "); File_write_str(f, ret_ctype); EMIT(f, " *_r = malloc(sizeof("); File_write_str(f, ret_ctype); EMIT(f, ")); *_r = "); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, "); return _r; }\n");
-                    }
-                    else if (info->has_return) {
-                        EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) return (void *)"); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, ");\n");
-                    }
-                    else {
-                        EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) { "); EMIT(f, (const char *)tname->c_str); EMIT(f, "_"); EMIT(f, (const char *)method->c_str); EMIT(f, "("); EMIT(f, (const char *)arg1); EMIT(f, "); return; }\n");
-                    }
-                }
-            }
-            }}
-            EMIT(f, "    fprintf(stderr, \"dyn_call: unknown type for "); EMIT(f, (const char *)method->c_str); EMIT(f, "\\n\");\n");
-            EMIT(f, "    exit(1);\n");
-            EMIT(f, "}\n\n");
-        }
-        Vec_delete(&dyn_methods, &(Bool){0});
-    }
-}
 
 void emit_dyn_fn_wrappers(File *f, Expr *core_program, Expr *program) {
     {

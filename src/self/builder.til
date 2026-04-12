@@ -2620,6 +2620,100 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
+emit_dyn_call_bodies := proc(f: File, core_program: Expr, program: Expr) {
+    mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
+    if is_null(core_program).not() { collect_dyn_methods(core_program, dyn_methods) }
+    collect_dyn_methods(program, dyn_methods)
+    for m in 0..dyn_methods.len() {
+        ref info : DynCallInfo = dyn_methods.get(m)
+        ref method : Str = info.method
+        mut ret_type := "void "
+        if info.has_return { ret_type = "void *" }
+        if info.nargs.eq(1) {
+            f.write_str(ret_type); f.write_str("dyn_call_"); f.write_str(method); f.write_str("(Str *type_name, void *val) {\n")
+        } else {
+            f.write_str(ret_type); f.write_str("dyn_call_"); f.write_str(method); f.write_str("(Str *type_name, void *val, void *arg2) {\n")
+        }
+        for prog_idx in 0..2 {
+            ref mut prog : Expr = NULL
+            if prog_idx.eq(0) { prog = core_program } else { prog = program }
+            if is_null(prog) { continue }
+            for i in 0..prog.child_count() {
+                ref stmt : Expr = prog.child(i)
+                if is_variant(stmt.data, NodeType.Decl).not() { continue }
+                ref def : Expr = stmt.child(0)
+                if is_variant(def.data, NodeType.StructDef).not().and(is_variant(def.data, NodeType.EnumDef).not()) { continue }
+                ref dd : Declaration = get_payload(stmt.data)
+                ref body : Expr = def.child(0)
+                ref mut method_fdef : Expr = NULL
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fdd : Declaration = get_payload(field.data)
+                    if fdd.is_namespace {
+                        if fdd.name.eq(method) {
+                            if field.child_count().gt(0) {
+                                if is_variant(field.child(0).data, NodeType.FuncDef) {
+                                    method_fdef = field.child(0)
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+                if is_null(method_fdef) { continue }
+                ref mfd : FunctionDef = get_payload(method_fdef.data)
+                mut arg1 := "val"
+                if mfd.params.len().gt(0) {
+                    ref p0 : Param = mfd.params.get(0)
+                    if is_variant(p0.own_type, OwnType.Shallow) { arg1 = "*(".concat(dd.name).concat(" *)val") }
+                }
+                mut arg2_s := "arg2"
+                if info.nargs.eq(2) {
+                    if mfd.params.len().gt(1) {
+                        if mfd.nparam.gt(1) {
+                            ref p1 : Param = mfd.params.get(1)
+                            if is_variant(p1.own_type, OwnType.Shallow) { arg2_s = "*(".concat(dd.name).concat(" *)arg2") }
+                        }
+                    }
+                }
+                ret_sh := is_variant(mfd.return_own_type, OwnType.Shallow)
+                mut ret_ct := ""
+                if info.has_return {
+                    if ret_sh {
+                        if mfd.return_type.len().gt(0) { ret_ct = type_name_to_c_value(mfd.return_type) }
+                    }
+                }
+                tlen := dd.name.len().to_i64().to_u64()
+                if info.nargs.eq(2) {
+                    if info.has_return {
+                        if ret_sh {
+                            f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(ret_ct); f.write_str(" *_r = malloc(sizeof("); f.write_str(ret_ct); f.write_str(")); *_r = "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(", "); f.write_str(arg2_s); f.write_str("); return _r; }\n")
+                        } else {
+                            f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) return (void *)"); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(", "); f.write_str(arg2_s); f.write_str(");\n")
+                        }
+                    } else {
+                        f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(", "); f.write_str(arg2_s); f.write_str("); return; }\n")
+                    }
+                } else {
+                    if info.has_return {
+                        if ret_sh {
+                            f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(ret_ct); f.write_str(" *_r = malloc(sizeof("); f.write_str(ret_ct); f.write_str(")); *_r = "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str("); return _r; }\n")
+                        } else {
+                            f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) return (void *)"); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(");\n")
+                        }
+                    } else {
+                        f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str("); return; }\n")
+                    }
+                }
+            }
+        }
+        f.write_str("    fprintf(stderr, \"dyn_call: unknown type for "); f.write_str(method); f.write_str("\\n\");\n")
+        f.write_str("    exit(1);\n")
+        f.write_str("}\n\n")
+    }
+    own dyn_methods.delete()
+}
+
 emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
     // Find dyn_has_method to check return_is_shallow
     mut dyn_has_shallow := false
