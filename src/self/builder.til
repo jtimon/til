@@ -2604,6 +2604,72 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
+emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
+    // Find dyn_has_method to check return_is_shallow
+    mut dyn_has_shallow := false
+    for prog_idx in 0..2 {
+        if dyn_has_shallow { break }
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                if stmt.child_count().gt(0) {
+                    if is_variant(stmt.child(0).data, NodeType.FuncDef) {
+                        ref dd : Declaration = get_payload(stmt.data)
+                        if dd.name.eq("dyn_has_method") {
+                            ref fd : FunctionDef = get_payload(stmt.child(0).data)
+                            dyn_has_shallow = is_variant(fd.return_own_type, OwnType.Shallow)
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+    mut dyn_has_ret := "Bool *"
+    if dyn_has_shallow { dyn_has_ret = "Bool" }
+    mut has_methods := Vec.new("Str", Str.size())
+    if is_null(core_program).not() { collect_dyn_has_methods(core_program, has_methods) }
+    collect_dyn_has_methods(program, has_methods)
+    for m in 0..has_methods.len() {
+        ref method : Str = has_methods.get(m)
+        f.write_str(dyn_has_ret); f.write_str(" dyn_has_"); f.write_str(method); f.write_str("(Str *type_name) {\n    (void)type_name;\n")
+        for prog_idx in 0..2 {
+            ref mut prog : Expr = NULL
+            if prog_idx.eq(0) { prog = core_program } else { prog = program }
+            if is_null(prog) { continue }
+            for i in 0..prog.child_count() {
+                ref stmt : Expr = prog.child(i)
+                if is_variant(stmt.data, NodeType.Decl).not() { continue }
+                ref rhs : Expr = stmt.child(0)
+                if is_variant(rhs.data, NodeType.StructDef).not().and(is_variant(rhs.data, NodeType.EnumDef).not()) { continue }
+                ref dd : Declaration = get_payload(stmt.data)
+                ref body : Expr = rhs.child(0)
+                mut found := false
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fdd : Declaration = get_payload(field.data)
+                    if fdd.is_namespace {
+                        if fdd.name.eq(method) { found = true; break }
+                    }
+                }
+                if found.not() { continue }
+                if dyn_has_shallow {
+                    f.write_str("    if (type_name->count == "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL) == 0) return 1;\n")
+                } else {
+                    f.write_str("    if (type_name->count == "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
+                }
+            }
+        }
+        if dyn_has_shallow { f.write_str("    return 0;\n") }
+        else { f.write_str("    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n") }
+        f.write_str("}\n\n")
+    }
+    own has_methods.delete()
+}
+
 emit_collection_helpers := proc(f: File, core_program: Expr, program: Expr) {
     mut coll_infos := Vec.new("CollectionInfo", CollectionInfo.size())
     if is_null(core_program).not() { collect_collection_builtins(core_program, coll_infos) }

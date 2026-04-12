@@ -98,7 +98,6 @@ void emit_monolithic_header(File *, Expr *, Expr *, Mode *);
 void emit_all_forward_declarations(File *, Expr *, Expr *, Mode *);
 void emit_dyn_call_bodies(File *, Expr *, Expr *);
 void emit_dyn_fn_wrappers(File *, Expr *, Expr *);
-void emit_dyn_has_bodies(File *, Expr *, Expr *);
 
 I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     codegen_core_program = core_program;
@@ -649,67 +648,6 @@ void emit_dyn_fn_wrappers(File *f, Expr *core_program, Expr *program) {
     }
 }
 
-void emit_dyn_has_bodies(File *f, Expr *core_program, Expr *program) {
-    {
-        // Find dyn_has_method to check return_is_shallow
-        Bool dyn_has_shallow = 0;
-        { Expr *_progs_dhi[2] = { core_program, program };
-        for (int _pdhi = 0; _pdhi < 2 && !dyn_has_shallow; _pdhi++) {
-            if (!_progs_dhi[_pdhi]) continue;
-            for (U32 i = 0; i < _progs_dhi[_pdhi]->children.count; i++) {
-                Expr *stmt = Expr_child(_progs_dhi[_pdhi], &(USize){(USize)(i)});
-                if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef &&
-                    (stmt->data.data.Decl.name.count == 14 && memcmp(stmt->data.data.Decl.name.c_str, "dyn_has_method", 14) == 0)) {
-                    dyn_has_shallow = RETURN_IS_SHALLOW(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef);
-                    break;
-                }
-            }
-        }}
-        const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
-        Vec has_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); has_methods = *_vp; free(_vp); }
-        if (core_program) collect_dyn_has_methods(core_program, &has_methods);
-        collect_dyn_has_methods(program, &has_methods);
-        for (U32 m = 0; m < has_methods.count; m++) {
-            Str *method = Vec_get(&has_methods, &(USize){(USize)(m)});
-            EMIT(f, (const char *)dyn_has_ret); EMIT(f, " dyn_has_"); EMIT(f, (const char *)method->c_str); EMIT(f, "(Str *type_name) {\n    (void)type_name;\n");
-            { Expr *_progs_di[2] = { core_program, program };
-            for (int _pdi = 0; _pdi < 2; _pdi++) {
-                if (!_progs_di[_pdi]) continue;
-            for (U32 i = 0; i < _progs_di[_pdi]->children.count; i++) {
-                Expr *stmt = Expr_child(_progs_di[_pdi], &(USize){(USize)(i)});
-                if (stmt->data.tag != NodeType_TAG_Decl) continue;
-                Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-                if (def->data.tag != NodeType_TAG_StructDef && def->data.tag != NodeType_TAG_EnumDef) continue;
-                Str *tname = &stmt->data.data.Decl.name;
-                Expr *body = Expr_child(def, &(USize){(USize)(0)});
-                Bool found = 0;
-                for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *field = Expr_child(body, &(USize){(USize)(j)});
-                    if (field->data.data.Decl.is_namespace &&
-                        Str_eq(&field->data.data.Decl.name, method)) {
-                        found = 1;
-                        break;
-                    }
-                }
-                if (!found) continue;
-                if (dyn_has_shallow) {
-                    EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) return 1;\n");
-                }
-                else {
-                    EMIT(f, "    if (type_name->count == "); emit_u64(f, tname->count); EMIT(f, "ULL && memcmp(type_name->c_str, \""); EMIT(f, (const char *)tname->c_str); EMIT(f, "\", "); emit_u64(f, tname->count); EMIT(f, "ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n");
-                }
-            }
-            }}
-            if (dyn_has_shallow)
-                EMIT(f, "    return 0;\n");
-            else
-                EMIT(f, "    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n");
-            EMIT(f, "}\n\n");
-        }
-        Vec_delete(&has_methods, &(Bool){0});
-    }
-}
 
 
 
