@@ -21,11 +21,6 @@
   - ~ref mut prog~ assignment leaks (clones instead of pointer copy)
   - Unnecessary helper procs (~register_lookups_prog~, ~register_funcsig_prog~,
     ~emit_global_inits_prog~) that should be inlined once clone leak is fixed
-** OPEN #135 ref mut assignment clones instead of pointer copy
-  Assignment to a ~ref mut~ local generates ~Type_clone(rhs)~ via the
-  typer's ~infer_assign_stmt~. The generated C is ~prog = Expr_clone(x)~
-  instead of ~prog = x~. This leaks memory on each assignment.
-  The til source is correct; the bug is in the compiler output.
 ** OPEN #133 FuncSig types not emitted as C function-pointer typedefs
   A FuncSig type definition like ~DispatchFn := func(Scope, Expr, Value) returns shallow Bool~
   generates a forward declaration ~Bool DispatchFn(Scope *, Expr *, Value *);~ in the .c file

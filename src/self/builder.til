@@ -689,7 +689,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
         if dd.own_type.eq(OwnType.Ref) {
             is_rg := is_ref_global(dd.name).and(in_func_def.not())
             if is_rg.not() { ref_locals.add(own dd.name.clone()) }
-            ref mut _sn : Str = e.struct_name
+            mut _sn := e.struct_name
             if _sn.len().eq(0) { _sn = rhs.struct_name }
             if _sn.len().eq(0) { _sn = dd.explicit_type }
             ctype := c_type_name(e.til_type, _sn)
@@ -697,7 +697,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
             else { f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(" = ") }
             emit_as_ptr(f, rhs, depth); f.write_str(";\n")
         } else {
-            ref mut _sn : Str = e.struct_name
+            mut _sn := e.struct_name
             if _sn.len().eq(0) { _sn = rhs.struct_name }
             if _sn.len().eq(0) { _sn = dd.explicit_type }
             ctype := c_type_name(e.til_type, _sn)
@@ -883,6 +883,20 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
     } else if is_variant(e.data, NodeType.Assign) {
         ref aname : Str = get_payload(e.data)
         ref rhs : Expr = e.child(0)
+        if is_ref_local(aname) {
+            mut do_rebind := false
+            if is_variant(rhs.data, NodeType.FieldAccess) {
+                do_rebind = true
+            } else if is_variant(rhs.data, NodeType.Ident) {
+                ref rhs_ident : Str = get_payload(rhs.data)
+                if is_stack_local(rhs_ident).not() { do_rebind = true }
+            }
+            if do_rebind {
+                f.write_str(aname); f.write_str(" = ")
+                emit_as_ptr(f, rhs, depth)
+                f.write_str(";\n"); return
+            }
+        }
         if e.save_old_delete {
             ctype := c_type_name(e.til_type, e.struct_name)
             if is_stack_local(aname).or(is_value_global(aname)) {
@@ -1245,7 +1259,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
     for i in 1..ctor.child_count() {
         mut fld_own := OwnType.Shallow
         mut field_type := TilType.Unknown
-        ref mut fname : Str = NULL
+        mut fname := ""
         if is_null(sbody).not() {
             while fi.lt(sbody.child_count()) {
                 ref fld : Expr = sbody.child(fi)
@@ -2129,7 +2143,8 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
         if is_variant(stmt.child(0).data, NodeType.EnumDef).not() { continue }
         ref ebody : Expr = stmt.child(0).child(0)
         // Find eq fdef
-        ref mut eq_fdef : Expr = NULL
+        mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+        mut has_eq_fdef := false
         for j in 0..ebody.child_count() {
             ref field : Expr = ebody.child(j)
             ref fdd : Declaration = get_payload(field.data)
@@ -2137,14 +2152,15 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
                 if fdd.name.eq("eq") {
                     if field.child_count().gt(0) {
                         if is_variant(field.child(0).data, NodeType.FuncDef) {
-                            eq_fdef = field.child(0)
+                            eq_fdef = field.child(0).clone()
+                            has_eq_fdef = true
                         }
                     }
                 }
             }
         }
         mut eq_ret := "Bool *"
-        if is_null(eq_fdef).not() {
+        if has_eq_fdef {
             ref eqfd : FunctionDef = get_payload(eq_fdef.data)
             if is_variant(eqfd.return_own_type, OwnType.Shallow) { eq_ret = "Bool" }
         }

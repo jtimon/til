@@ -83,7 +83,7 @@ try_ufcs_rewrite := proc(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
                 ref top_param : Param = top_fdef.params.get(0)
                 ref first_param : Str = top_param.ptype
                 if first_param.len().gt(0) {
-                    if is_null(type_name).not() {
+                    if type_name.len().gt(0) {
                         if first_param.eq(type_name) {
                             ufcs_match = 1
                         }
@@ -738,7 +738,8 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
 
     mut ufcs_desugared := false
     if obj_is_type.not() {
-        ref mut type_name : Str = NULL
+        mut type_name := ""
+        mut has_type_name := false
         if is_variant(obj.til_type, TilType.I64)
             .or(is_variant(obj.til_type, TilType.U8))
             .or(is_variant(obj.til_type, TilType.I16))
@@ -748,14 +749,16 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             .or(is_variant(obj.til_type, TilType.F32))
             .or(is_variant(obj.til_type, TilType.Bool)) {
             type_name = til_type_name_c(obj.til_type)
+            has_type_name = true
         } else if is_variant(obj.til_type, TilType.Struct).or(is_variant(obj.til_type, TilType.Enum)) {
             if obj.struct_name.len().gt(0) {
                 type_name = obj.struct_name
+                has_type_name = true
             }
         }
 
         ref mut sdef1 : Expr = NULL
-        if is_null(type_name).not() {
+        if has_type_name {
             sdef1 = scope.get_struct(type_name)
         }
         ref ns_func1 : Expr = find_namespace_func(sdef1, method)
@@ -766,7 +769,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             if infer_func_ptr_field_call(scope, e, fa, obj, sdef1, method, in_func, ctx) {
                 return true
             }
-            if is_null(type_name) {
+            if has_type_name.not() {
                 if is_variant(obj.til_type, TilType.Dynamic) {
                     type_error(e, format(
                         "cannot call method '", method, "' on Dynamic value; ",
@@ -1990,13 +1993,16 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     decl.add_child(own sw_expr.clone())
     block.add_child(own decl)
 
-    ref mut first_if : Expr = NULL
-    ref mut default_body : Expr = NULL
+    mut first_if := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+    mut has_first_if := false
+    mut default_body := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+    mut has_default_body := false
 
     for ci in 1..stmt.child_count() {
         ref case_node : Expr = stmt.child(ci)
         if case_node.child_count().eq(1) {
-            default_body = case_node.child(0)
+            default_body = case_node.child(0).clone()
+            has_default_body = true
             has_default_case = true
             continue
         }
@@ -2012,17 +2018,19 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         if_node.add_child(own condition)
         if_node.add_child(own case_body.clone())
 
-        if is_null(first_if) {
+        if has_first_if.not() {
             first_if = if_node
+            has_first_if = true
         } else {
             append_switch_else_if(first_if, if_node)
         }
     }
 
-    if is_null(default_body).not().and(is_null(first_if).not()) {
+    if has_default_body.and(has_first_if) {
         attach_switch_default_body(first_if, default_body)
-    } else if is_null(default_body).not().and(is_null(first_if)) {
-        first_if = default_body
+    } else if has_default_body.and(has_first_if.not()) {
+        first_if = default_body.clone()
+        has_first_if = true
     }
 
     if has_switch_enum_def.and(covered_variants.len().gt(0)).and(has_default_case.not()) {
@@ -2047,7 +2055,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         if missing { type_error(stmt, msg) }
     }
 
-    if is_null(first_if).not() { block.add_child(own first_if.clone()) }
+    if has_first_if { block.add_child(own first_if.clone()) }
     replace_switch_stmt_with_block(body, stmt_idx, block)
 }
 
@@ -2111,7 +2119,7 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
 
     mut elem_type := stmt.struct_name.clone()
     if elem_type.len().eq(0) {
-        ref mut type_src : Expr = start_expr
+        mut type_src := start_expr
         if is_variant(start_expr.data, NodeType.LiteralNum).and(is_variant(end_expr.data, NodeType.LiteralNum).not()) {
             type_src = end_expr
         } else if is_variant(end_expr.data, NodeType.LiteralNum).and(is_variant(start_expr.data, NodeType.LiteralNum).not()) {
@@ -2419,15 +2427,23 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     } else if is_variant(rhs.til_type, existing).not().and(is_variant(rhs.til_type, TilType.Unknown).not()) {
         type_error(stmt, "'".concat(aname).concat("' assignment type mismatch"))
     }
-    if is_variant(rhs.data, NodeType.Ident).or(
-        is_variant(rhs.data, NodeType.FieldAccess).and(
-            is_variant(rhs.til_type, TilType.Struct).or(is_variant(rhs.til_type, TilType.Enum))
-        )
-    ) {
-        tname := type_to_name(rhs.til_type, rhs.struct_name)
-        if tname.len().gt(0) {
-            mc := make_clone_call(tname, rhs.til_type, rhs, stmt)
-            stmt.children.set(0, own mc)
+    sf_assign := scope.find(aname)
+    mut is_ref_target := false
+    if is_variant(sf_assign, ScopeFind.Found) {
+        ref ab : TypeBinding = get_payload(sf_assign)
+        if ab.own_type.eq(OwnType.Ref).and(ab.is_param.not()) { is_ref_target = true }
+    }
+    if is_ref_target.not() {
+        if is_variant(rhs.data, NodeType.Ident).or(
+            is_variant(rhs.data, NodeType.FieldAccess).and(
+                is_variant(rhs.til_type, TilType.Struct).or(is_variant(rhs.til_type, TilType.Enum))
+            )
+        ) {
+            tname := type_to_name(rhs.til_type, rhs.struct_name)
+            if tname.len().gt(0) {
+                mc := make_clone_call(tname, rhs.til_type, rhs, stmt)
+                stmt.children.set(0, own mc)
+            }
         }
     }
 }
