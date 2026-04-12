@@ -93,6 +93,20 @@
 
 // Populate struct_bodies/func_defs maps and init auxiliary sets
 
+// Forward declarations for extracted build() sections
+void emit_monolithic_header(File *, Expr *, Expr *, Mode *);
+void emit_ext_func_declarations(File *, Expr *);
+void emit_all_forward_declarations(File *, Expr *, Expr *, Mode *);
+void emit_global_declarations(File *, Expr *, Expr *);
+void emit_function_bodies(File *, Expr *, Expr *, Mode *, Bool);
+void emit_dyn_call_bodies(File *, Expr *, Expr *);
+void emit_dyn_fn_wrappers(File *, Expr *, Expr *);
+void emit_dyn_has_bodies(File *, Expr *, Expr *);
+void emit_collection_helpers(File *, Expr *, Expr *);
+void emit_test_main(File *, Expr *);
+void emit_lib_init(File *);
+void emit_script_main(File *, Expr *);
+
 I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     codegen_core_program = core_program;
     codegen_program = program;
@@ -111,8 +125,82 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
 
     Bool is_script = !mode || !mode->decls_only;
 
-    // === Monolithic .h emission (#89: reverted per-module splitting from #74) ===
-    // Single .h file with forward decls, struct/enum defs, and function declarations.
+    emit_monolithic_header(f, core_program, program, mode);
+    EMIT(f, "#include \"ext.h\"\n\n");
+
+    emit_ext_func_declarations(f, program);
+
+    // Forward-declare helper functions (implementations after struct defs)
+    EMIT(f, "Str *Str_lit(const char *s, unsigned long long len);\n");
+    EMIT(f, "void print_single(Str *s);\n");
+    EMIT(f, "void print_flush();\n\n");
+
+    emit_all_forward_declarations(f, core_program, program, mode);
+
+    // Struct/enum definitions emitted in monolithic .h file above
+
+    // Runtime NULL check for shallow deref
+    EMIT(f, "#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n");
+
+    // String helper functions (after all struct typedefs so Str is complete)
+    EMIT(f, "#define TIL_CAP_LIT ((USize)-1)\n");
+    EMIT(f, "Str *Str_lit(const char *s, unsigned long long len) {\n");
+    EMIT(f, "    (void)len;\n");
+    EMIT(f, "    Str *r = malloc(sizeof(Str));\n");
+    EMIT(f, "    r->c_str = (U8 *)s;\n");
+    EMIT(f, "    r->count = (USize)strlen(s);\n");
+    EMIT(f, "    r->cap = TIL_CAP_LIT;\n");
+    EMIT(f, "    return r;\n");
+    EMIT(f, "}\n");
+    EMIT(f, "void print_single(Str *s) {\n");
+    EMIT(f, "    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n");
+    EMIT(f, "}\n");
+    EMIT(f, "void print_flush() {\n");
+    EMIT(f, "    putchar('\\n');\n");
+    EMIT(f, "}\n\n");
+
+    emit_global_declarations(f, core_program, program);
+    emit_function_bodies(f, core_program, program, mode, is_lib);
+
+    // Emit dyn_call dispatch function bodies
+    emit_dyn_call_bodies(f, core_program, program);
+
+    // Emit dyn_fn wrappers + dispatch
+    emit_dyn_fn_wrappers(f, core_program, program);
+
+    // Emit dyn_has_method dispatch function bodies
+    emit_dyn_has_bodies(f, core_program, program);
+
+    // Emit array/vec builtin helper function bodies
+    emit_collection_helpers(f, core_program, program);
+
+    if (run_tests) emit_test_main(f, program);
+    if (!run_tests && !is_script && is_lib && has_script_globals) emit_lib_init(f);
+    if (!run_tests && is_script && !(mode && mode->needs_main)) emit_script_main(f, program);
+
+    File_close(f);
+    Map_delete(&struct_bodies, &(Bool){0});
+    Map_delete(&func_defs, &(Bool){0});
+    Set_delete(&stack_locals, &(Bool){0});
+    Map_delete(&stack_local_types, &(Bool){0});
+    Set_delete(&unsafe_to_hoist, &(Bool){0});
+    return 0;
+}
+
+
+
+
+
+
+// --- Header emission helpers (shared by build_header and build_forward_header) ---
+
+// Emit struct/enum forward declarations
+// compile_lib: moved to builder.til
+
+
+// --- Extracted build() sections ---
+
+void emit_monolithic_header(File *f, Expr *core_program, Expr *program, Mode *mode) {
     {
         File *hf = f;  // emit directly into main .c
         EMIT(hf, "#include \"ext.h\"\n\n");
@@ -211,9 +299,9 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
 
         // hf == f, no separate file to close
     }
-    EMIT(f, "#include \"ext.h\"\n\n");
+}
 
-    // Forward-declare user-defined ext_func/ext_proc (user program only, skip libc conflicts)
+void emit_ext_func_declarations(File *f, Expr *program) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != NodeType_TAG_Decl || Expr_child(stmt, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
@@ -234,13 +322,9 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         EMIT(f, ");\n");
     }
     EMIT(f, "\n");
+}
 
-    // Forward-declare helper functions (implementations after struct defs)
-    EMIT(f, "Str *Str_lit(const char *s, unsigned long long len);\n");
-    EMIT(f, "void print_single(Str *s);\n");
-    EMIT(f, "void print_flush();\n\n");
-
-    // Forward-declare all functions (namespace methods + top-level)
+void emit_all_forward_declarations(File *f, Expr *core_program, Expr *program, Mode *mode) {
     { Expr *_progs_fwd[2] = { core_program, program };
     for (int _pfwd = 0; _pfwd < 2; _pfwd++) {
         if (!_progs_fwd[_pfwd]) continue;
@@ -400,31 +484,9 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         if (coll_infos.count) EMIT(f, "\n");
         Vec_delete(&coll_infos, &(Bool){0});
     }
+}
 
-    // Struct/enum definitions emitted in monolithic .h file above
-
-    // Runtime NULL check for shallow deref
-    EMIT(f, "#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n");
-
-    // String helper functions (after all struct typedefs so Str is complete)
-    EMIT(f, "#define TIL_CAP_LIT ((USize)-1)\n");
-    EMIT(f, "Str *Str_lit(const char *s, unsigned long long len) {\n");
-    EMIT(f, "    (void)len;\n");
-    EMIT(f, "    Str *r = malloc(sizeof(Str));\n");
-    EMIT(f, "    r->c_str = (U8 *)s;\n");
-    EMIT(f, "    r->count = (USize)strlen(s);\n");
-    EMIT(f, "    r->cap = TIL_CAP_LIT;\n");
-    EMIT(f, "    return r;\n");
-    EMIT(f, "}\n");
-    EMIT(f, "void print_single(Str *s) {\n");
-    EMIT(f, "    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n");
-    EMIT(f, "}\n");
-    EMIT(f, "void print_flush() {\n");
-    EMIT(f, "    putchar('\\n');\n");
-    EMIT(f, "}\n\n");
-
-    // Emit top-level variable declarations as file-scope globals
-    // so they're accessible from functions/procs defined at the same level
+void emit_global_declarations(File *f, Expr *core_program, Expr *program) {
     {
         { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); script_globals = *_sp; free(_sp); }
         has_script_globals = 1;
@@ -451,8 +513,9 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         }}
         EMIT(f, "\n");
     }
+}
 
-    // Emit function bodies -- all into main .c (#89: monolithic)
+void emit_function_bodies(File *f, Expr *core_program, Expr *program, Mode *mode, Bool is_lib) {
     { Expr *_progs_fb[2] = { core_program, program };
     for (int _pfb = 0; _pfb < 2; _pfb++) {
         if (!_progs_fb[_pfb]) continue;
@@ -472,8 +535,9 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
             }
         }
     }}
+}
 
-    // Emit dyn_call dispatch function bodies
+void emit_dyn_call_bodies(File *f, Expr *core_program, Expr *program) {
     {
         Vec dyn_methods;
         { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"DynCallInfo", .count = 11, .cap = CAP_LIT}, &(USize){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
@@ -558,8 +622,9 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         }
         Vec_delete(&dyn_methods, &(Bool){0});
     }
+}
 
-    // Emit dyn_fn wrappers + dispatch
+void emit_dyn_fn_wrappers(File *f, Expr *core_program, Expr *program) {
     {
         // First emit wrapper functions that normalize calling convention
         // Wrappers take (void*, ...) and deref shallow params, box shallow returns
@@ -660,8 +725,9 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         EMIT(f, "    exit(1);\n");
         EMIT(f, "}\n\n");
     }
+}
 
-    // Emit dyn_has_method dispatch function bodies
+void emit_dyn_has_bodies(File *f, Expr *core_program, Expr *program) {
     {
         // Find dyn_has_method to check return_is_shallow
         Bool dyn_has_shallow = 0;
@@ -721,8 +787,9 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         }
         Vec_delete(&has_methods, &(Bool){0});
     }
+}
 
-    // Emit array/vec builtin helper function bodies
+void emit_collection_helpers(File *f, Expr *core_program, Expr *program) {
     {
         Vec coll_infos;
         { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"CollectionInfo", .count = 14, .cap = CAP_LIT}, &(USize){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
@@ -784,9 +851,9 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         }
         Vec_delete(&coll_infos, &(Bool){0});
     }
+}
 
-    // Test runner: emit main() that calls all test functions
-    if (run_tests) {
+void emit_test_main(File *f, Expr *program) {
         EMIT(f, "int main(void) {\n");
         emit_ns_inits(f, 1);
         emit_global_inits(f);
@@ -809,19 +876,17 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         }
         EMIT(f, "    return 0;\n");
         EMIT(f, "}\n");
-    }
+}
 
-    // Lib mode: emit constructor to initialize top-level globals
-    if (!run_tests && !is_script && is_lib && has_script_globals) {
-        EMIT(f, "__attribute__((constructor))\nstatic void _til_lib_init(void) {\n");
-        emit_ns_inits(f, 1);
-        emit_global_inits(f);
-        EMIT(f, "}\n\n");
-    }
+void emit_lib_init(File *f) {
+    EMIT(f, "__attribute__((constructor))\nstatic void _til_lib_init(void) {\n");
+    emit_ns_inits(f, 1);
+    emit_global_inits(f);
+    EMIT(f, "}\n\n");
+}
 
-    // Script mode: wrap top-level statements in main()
-    if (!run_tests && is_script && !(mode && mode->needs_main)) {
-        EMIT(f, "int main(void) {\n");
+void emit_script_main(File *f, Expr *program) {
+    EMIT(f, "int main(void) {\n");
         emit_ns_inits(f, 1);
         // Collect unsafe-to-hoist for script-level statements
         Set_delete(&unsafe_to_hoist, &(Bool){0});
@@ -841,15 +906,6 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
         EMIT(f, "}\n");
         Set_delete(&script_globals, &(Bool){0});
         has_script_globals = 0;
-    }
-
-    File_close(f);
-    Map_delete(&struct_bodies, &(Bool){0});
-    Map_delete(&func_defs, &(Bool){0});
-    Set_delete(&stack_locals, &(Bool){0});
-    Map_delete(&stack_local_types, &(Bool){0});
-    Set_delete(&unsafe_to_hoist, &(Bool){0});
-    return 0;
 }
 
 
