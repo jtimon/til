@@ -169,6 +169,14 @@ mut has_break := false
 mut has_continue := false
 mut return_value := Value.None
 
+// --- Cached struct defs for C-side construction ---
+ref mut cached_str_def : Expr = NULL
+ref mut cached_str_name : Str = NULL
+ref mut cached_array_def : Expr = NULL
+ref mut cached_array_name : Str = NULL
+ref mut cached_vec_def : Expr = NULL
+ref mut cached_vec_name : Str = NULL
+
 // --- Namespace fields (static struct fields) ---
 mut ns_fields := Map.new("Str", Str.size(), "Value", Value.size())
 mut ns_keys := Vec.new("Dynamic", Dynamic.size())

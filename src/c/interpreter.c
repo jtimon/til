@@ -72,13 +72,7 @@ static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
 
 // ext_function_dispatch is in dispatch.c
 
-// --- Cached struct defs for C-side construction ---
-Expr *cached_str_def;
-Str *cached_str_name;
-Expr *cached_array_def;
-Str *cached_array_name;
-Expr *cached_vec_def;
-Str *cached_vec_name;
+// cached_str_def, cached_str_name, etc.: moved to interpreter.til
 
 
 
