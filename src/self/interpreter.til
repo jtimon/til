@@ -365,7 +365,23 @@ scope_new := func(parent: Scope) returns ref Scope {
     return result
 }
 scope_set_owned := ext_proc(mut s: Scope, name: Str, val: Value) {}
-scope_free := ext_proc(own s: Scope) {}
+scope_free := proc(own s: Scope) {
+    for i in 0..s.bindings.count {
+        ref b : Binding = ptr_add(s.bindings.val_data, i.to_u64().mul(s.bindings.val_size.to_u64()))
+        if b.cell_is_local {
+            if is_variant(b.cell.val, Value.Enum) {
+                ref ei : EnumInstance = get_payload(b.cell.val)
+                if is_null(ei.data).not() { free(own ei.data) }
+            }
+            free(own b.cell)
+        }
+    }
+    // Delete Map contents but not the Map struct (it's inline in Scope)
+    own s.bindings.delete(false)
+    // Zero out bindings so Scope destructor doesn't double-free
+    memset(s.bindings, 0, Map.size().to_u64())
+    free(own s)
+}
 interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow Bool {
     ref obj_expr : Expr = e.child(0)
     ref tc : Cell = scope_get(scope, sname)

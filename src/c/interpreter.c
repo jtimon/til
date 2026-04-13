@@ -30,20 +30,7 @@ void ffi_init_scan_program(Expr *program);
 
 // scope_new: moved to interpreter.til
 
-void scope_free(Scope *s) {
-    for (U32 i = 0; i < s->bindings.count; i++) {
-        Binding *b = (Binding *)(s->bindings.val_data + i * s->bindings.val_size);
-        if (b->cell_is_local) {
-            // Free Enum data (no aliasing risk -- enum data is always owned).
-            // Struct data may be aliased via borrowed refs, so skip for now (#127).
-            if (b->cell->val.tag == Value_TAG_Enum && b->cell->val.data.Enum.data)
-                free(b->cell->val.data.Enum.data);
-            free(b->cell);
-        }
-    }
-    Map_delete(&s->bindings, &(Bool){0});
-    free(s);
-}
+// scope_free: moved to interpreter.til
 
 void scope_set_owned(Scope *s, Str *name, Value *val) {
     if (Map_has(&s->bindings, name)) {
