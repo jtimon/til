@@ -1,85 +1,49 @@
 * C to til translation -- remaining work
 
-** builder.c -- FULLY TRANSLATED AND REMOVED
+** interpreter.c
 
-** Remaining translations -- interpreter.c (8 functions in C)
+*** Leaves
+- clone_struct_instance (~60 lines, recursive)
+- parse_cli_arg (~55 lines, uses C strtol/strcmp)
+- value_to_buf (~20 lines)
+- build_argv_array (~35 lines) -- deps: parse_cli_arg, value_to_buf
 
-*** Done (translated to interpreter.til)
-- free_value, needs_widen, widen_numeric, shallow_copy_value, make_struct_value
-- scope_get, scope_new, scope_free, scope_set_owned, scope_set_borrowed
-- interp_fa_is_ns, str_view, read_field, write_field
-- make_str_value, make_str_value_own
-- val_none, val_i64, val_u8, val_i16, val_i32, val_u32, val_u64, val_f32, val_bool
-- val_enum_flat, val_enum_simple
-- clone_struct_instance, ns_get, ns_set, ns_qname, find_field_decl, enum_has_payloads
-- cached_str/array/vec_def/name globals
+*** Not leaves
+- eval_call (~305 lines) -- deps: eval_expr, eval_body, ext_function_dispatch (dispatch.c), enum_method_dispatch (dispatch.c)
+- eval_expr (~133 lines) -- deps: eval_call
+- eval_body (~298 lines) -- deps: eval_expr, eval_call
+- interpreter_init_ns (~35 lines) -- deps: eval_expr
+- interpret (~175 lines) -- deps: eval_body, interpreter_init_ns, parse_cli_arg, build_argv_array, ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)
 
-*** Leaves (no deps on other untranslated C functions)
-- parse_cli_arg(s, type_name)         line 929 -- strtoll, make_str_value (done)
-- value_to_buf(dest, v, type_name)    line 987 -- raw memcpy of Value fields to buffer
-- build_argv_array(argv, ...)         line 1008 -- parse_cli_arg, make_str_value (done)
+** dispatch.c
 
-*** Core interpreter loop (mutually recursive -- must translate together)
-- eval_call(s, e) -> Value            line 157 (~305 lines)
-- eval_expr(s, e) -> Value            line 462 (~133 lines)
-- eval_body(s, body)                  line 595 (~298 lines)
-All deps done: scope_*, widen_numeric, read_field, write_field,
-make_str_value, interp_fa_is_ns. Remaining deps in dispatch.c:
-ext_function_dispatch, enum_method_dispatch (still in C).
+*** Leaves
+(none)
 
-*** Top-level (depend on eval_* core)
-- interpreter_init_ns(global, prog)   line 893 -- eval_expr
-- interpret(program, ...)             line 1044 -- eval_body, ffi_init, scope_*,
-  parse_cli_arg, build_argv_array
+*** Not leaves
+- h_free -- deps: eval_expr (interpreter.c)
+- h_dyn_call -- deps: eval_expr (interpreter.c), eval_call (interpreter.c)
+- get_elem_size -- deps: eval_expr (interpreter.c)
+- h_array -- deps: eval_expr (interpreter.c)
+- h_vec -- deps: eval_expr (interpreter.c)
+- h_ptr_add -- deps: eval_expr (interpreter.c)
+- h_cfile_close -- deps: eval_expr (interpreter.c)
+- h_cfile_write_str -- deps: eval_expr (interpreter.c)
+- h_cfile_read_all -- deps: eval_expr (interpreter.c)
+- dispatch_init -- deps: C function pointers
+- ext_dispatch_builtin -- deps: dispatch_init
+- ext_dispatch_ffi -- deps: ffi_call C macros
+- ext_function_dispatch -- deps: dispatch_init, ext_dispatch_builtin, ext_dispatch_ffi
+- enum_method_dispatch -- deps: eval_expr (interpreter.c), eval_body (interpreter.c)
+- ffi_register -- deps: ffi_prep_cif (C)
+- ffi_init_scan_program -- deps: ffi_register
+- ffi_init -- deps: ffi_init_scan_program
 
-** Remaining translations -- dispatch.c (15 functions in C)
+** precomp.c
 
-*** Done (translated to dispatch.til)
-- ffi_type_pointer_ref .. ffi_type_float_ref (8 ref accessors)
-- ffi_dlsym, ffi_init_link_libs, ffi_init_user_so, ffi_init_struct_defs
-- ffi_cleanup, ffi_close_user_so, ffi_open_user_so, ffi_load_global_lib
-- value_to_i64, value_to_u64, value_to_f32, eval_arg, val_to_ptr
-- h_Bool_and/or/not, h_U8/I16/I32/F32/U32_from_i64
-- h_print_single, h_print_flush, h_exit
-- h_readfile, h_writefile, h_spawn_cmd
-- h_dyn_has_method, h_dyn_fn, h_check_cmd_status
-- h_sleep, h_file_mtime, h_clock_ms, h_get_thread_count, h_cfile_open
-- shallow_ffi_type, field_ffi_type, build_struct_ffi_type
+*** Leaves
+(none)
 
-*** Depend on eval_expr/eval_call (translate after interpreter core)
-- h_free(s, e, r)                    line 55
-- h_dyn_call(s, e, r)                line 80
-- get_elem_size(s, name, src)        line 128
-- h_array(s, e, r)                   line 167
-- h_vec(s, e, r)                     line 223
-- h_ptr_add(s, e, r)                 line 282
-- h_cfile_close(s, e, r)             line 294
-- h_cfile_write_str(s, e, r)         line 302
-- h_cfile_read_all(s, e, r)          line 312
-- enum_method_dispatch(...)           line 587
-
-*** Function pointer dispatch (keep in C or rewrite as if/else chain)
-- dispatch_init()                     line 323
-- ext_dispatch_builtin(...)           line 390
-- ext_dispatch_ffi(...)               line 398
-- ext_function_dispatch(...)          line 580
-
-*** FFI registration chain
-- ffi_register(name, fn, fdef)       line 634
-- ffi_init_scan_program(program)     line 675
-- ffi_init(program, ...)             line 733
-
-** Remaining translations -- precomp.c (2 functions)
-
-- try_eval_call                       line 12  -- depends on eval_expr
-- precomp                             line 62  -- depends on ffi_init, interpreter_init_ns
-
-** Translation order
-
-Next targets:
-1. parse_cli_arg, value_to_buf, build_argv_array (leaves)
-2. eval_call/eval_expr/eval_body (big unit, all deps done except dispatch.c)
-3. interpreter_init_ns, interpret (depend on eval_*)
-4. dispatch.c handlers (depend on eval_*)
-5. ffi_register chain
-6. precomp.c
+*** Not leaves
+- try_eval_call -- deps: eval_expr (interpreter.c)
+- precomp -- deps: ffi_init (dispatch.c), interpreter_init_ns (interpreter.c), ffi_init_scan_program (dispatch.c)
