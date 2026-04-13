@@ -355,16 +355,30 @@
     Struct value freeing in scope_free is still unsafe due to aliasing
     -- see ~#127~
 
-  Current state (after #135 fix, strings.til translate):
-  - ~329450 byte(s) leaked in 63013 allocation(s)~
-  - previous baseline: ~417586 byte(s) leaked in 81258 allocation(s)~
-  - #135 fix reduced leaks by ~21% bytes, 22% allocations~
-  - top leak sites (by count of ASAN entries):
-    - ~4495~ ~Str_clone~ (boot/til.c:4599) -- scope/type string clones
-    - ~226~ ~Str_clone~ (boot/til.c:4617) -- scope binding name clones
-    - ~145~ ~til_type_name_c / c_type_name~ -- type name string allocs
-    - ~30~ ~fcall_return_ctype~ -- return type string allocs
-    - ~8~ ~Set_new / Map_new~ -- container construction
+  Current state (strings.til translate):
+  - ~320656 byte(s) leaked in 67504 allocation(s)~
+  - previous: ~339165 bytes / 65528 allocs~ (before TypeBinding.name fix)
+  - original baseline: ~417586 byte(s) leaked in 81258 allocation(s)~
+  - total reduction: ~23% bytes from original baseline~
+  - root cause of ~TypeScope_set~ leaks: ~TypeBinding.name~ was declared
+    ~ref mut~ (borrowed) but assigned cloned (owned) strings, so
+    ~TypeBinding_delete~ never freed the name. Fixed by changing to ~mut~.
+  - remaining leak sources (by ASAN #2 caller):
+    - ~965~ ~Vec_clone~ -- AST deep clones
+    - ~845~ ~Expr_clone~ -- AST node clones
+    - ~817~ ~NodeType_Ident~ -- AST construction
+    - ~641~ ~Vec_new~ -- Vec elem_type string clones
+    - ~212~ ~TypeScope_set~ -- scope binding string clones (reduced)
+    - ~168~ ~infer_field_access_fcall~ -- typer string ops
+    - ~164~ ~hoist_to_temp~ -- hoist pass creating temp expressions
+  - most remaining leaks are structural: AST nodes and scope bindings
+    created during compilation that are not fully freed at exit
+
+  ~make test_asan~ results (after self-hosting): 70/88 pass.
+  Failures are all CLI/variadic/build tests where LSAN aborts on
+  interpreter runtime leaks (not compiler bugs).
+  Per-test ASAN (~bin/til_asan translate strings.til~):
+  ~420202 byte(s) leaked in 90757 allocation(s)~.
 
   Changes landed:
   - ~src/self/initer.til~ (on master): ~generate_enum_delete_method~

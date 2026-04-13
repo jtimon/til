@@ -424,7 +424,7 @@ typedef struct Parser {
 
 
 typedef struct TypeBinding {
-    Str *name;
+    Str name;
     TilType type;
     I32 is_proc;
     Bool is_mut;

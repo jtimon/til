@@ -3,7 +3,7 @@ mode lib
 import("parser.til")
 
 TypeBinding := struct {
-    ref mut name : Str = NULL
+    mut name := ""
     mut type := TilType.Unknown
     mut is_proc : I32 = -1.to_i32()
     mut is_mut := false
