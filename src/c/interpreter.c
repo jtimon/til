@@ -253,12 +253,7 @@ Value make_str_value_own(void *data, U64 len) {
     return result;
 }
 
-// Extract a C Str view from a Str StructInstance (stack-local, don't free)
-Str str_view(Value v) {
-    char *data = *(char **)v.data.Struct.data;
-    USize len = *(USize *)((char *)v.data.Struct.data + sizeof(U8 *));
-    return (Str){.c_str = (U8 *)data, .count = len, .cap = CAP_VIEW};
-}
+// str_view: moved to interpreter.til
 
 // Deep-clone a StructInstance: walks struct_def fields for Str, own, enum, inline structs.
 // Called from StructInstance.clone in til (ext_func).

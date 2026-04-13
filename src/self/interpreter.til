@@ -418,7 +418,15 @@ ns_set := proc(sname: Str, fname: Str, shallow val: Value) {
 
 make_str_value := ext_func(data: Dynamic, shallow len: U64) returns shallow Value {}
 make_str_value_own := ext_func(data: Dynamic, shallow len: U64) returns shallow Value {}
-str_view := ext_func(shallow v: Value) returns shallow Str {}
+str_view := func(shallow v: Value) returns shallow Str {
+    ref si : StructInstance = get_payload(v)
+    // Str layout in si.data: c_str (8b), count (8b), cap (8b)
+    // Copy it out, then override cap with CAP_VIEW
+    mut result := ""
+    memcpy(result, si.data, Str.size())
+    result.cap = CAP_VIEW
+    return result
+}
 
 find_field_decl := func(struct_def: Expr, fname: Str) returns ref Expr {
     ref body : Expr = struct_def.child(0)
