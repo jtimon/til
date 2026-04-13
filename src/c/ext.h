@@ -100,6 +100,7 @@ I64 I16_to_i64(I16 a);
 I16 I64_to_i16(I64 a);
 I32 I64_to_i32(I64 a);
 U32 I64_to_u32(I64 a);
+U32 I32_to_u32(I32 a);
 U64 I64_to_u64(I64 a);
 F32 I64_to_f32(I64 a);
 I16 I16_from_i64_ext(I64 *a);

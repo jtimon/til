@@ -213,7 +213,6 @@ void write_field(StructInstance *inst, Expr *fdecl, Value *val) {
     }
 }
 
-// Build a Str StructInstance from C string data (copies data via strndup)
 Value make_str_value(void *data, U64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
@@ -230,7 +229,6 @@ Value make_str_value(void *data, U64 len) {
     return result;
 }
 
-// Build a Str StructInstance taking ownership of buffer (no copy)
 Value make_str_value_own(void *data, U64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;

@@ -3,6 +3,7 @@ mode lib
 I32 := struct {
 namespace:
     to_i64 := ext_func(shallow val: I32) returns shallow I64 {}
+    to_u32 := ext_func(shallow val: I32) returns shallow U32 {}
     to_str := func(val: I32) returns Str {
         return val.to_i64().to_str()
     }
