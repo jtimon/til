@@ -1,43 +1,39 @@
 * C to til translation -- remaining work
 
-** builder.c -- FULLY TRANSLATED
+** builder.c -- FULLY TRANSLATED AND REMOVED
 
-builder.c has been completely translated to builder.til and removed.
-The import was moved from modes.til to til.til (optimization: modes.til
-translates faster without builder code).
-
-** Remaining translations -- interpreter.c (20 functions)
+** Remaining translations -- interpreter.c (15 functions in C)
 
 *** Done (translated to interpreter.til)
-- free_value (shallow free of Value heap data)
-- needs_widen (check if Value needs numeric widening)
-- scope_get (walk scope chain looking up name)
+- free_value, needs_widen, widen_numeric (with shallow_copy_value via memcpy)
+- scope_get, interp_fa_is_ns
+- str_view (memcpy from StructInstance.data + CAP_VIEW)
 - val_none, val_i64, val_u8, val_i16, val_i32, val_u32, val_u64, val_f32, val_bool
 - val_enum_flat, val_enum_simple
 - clone_struct_instance, ns_get, ns_set, ns_qname, find_field_decl, enum_has_payloads
+- cached_str/array/vec_def/name globals (moved from C to til)
+- shallow_copy_value helper (memcpy-based bitwise Value copy)
 
-*** Leaves -- can translate independently
-- interp_fa_is_ns(scope, e)    line 24  -- calls scope_get (done), pure AST traversal
-- widen_numeric(v, ptype)      line 71  -- calls val_* (done), bitwise copy *r = *v for passthrough
+*** Leaves (no deps on other untranslated C functions)
+- make_str_value(data, len)           line 223 -- builds Str StructInstance, uses write_ptr + ptr_add
+- make_str_value_own(data, len)       line 240 -- same pattern, no strndup
+  Translation attempted, write_ptr works but result had garbage c_str.
+  Bug: StructInstance constructor in til may not preserve data field correctly.
+  Needs debugging.
+- scope_new(parent)                   line 112 -- malloc + Map_new + field init
+  Failed: til rejects ref-cast from malloc'd Dynamic. Needs investigation.
+- scope_free(s)                       line 119 -- iterates bindings, frees cells, Map_delete
+  Failed: double free from destructor overlap. Needs careful ownership handling.
+- scope_set_owned(s, name, val)       line 134 -- Map_has/get + malloc Cell + Map_set
+  Failed: segfault from Binding constructor + memcpy. Needs investigation.
+- scope_set_borrowed(s, name, cell)   line 147 -- malloc Binding + Map_set (same pattern)
+- read_field(inst, fdecl)             line 167 -- reads Value from StructInstance.data at offset
+  Leaf: only calls val_* (done) and enum_has_payloads (done). Large (80 lines).
+- write_field(inst, fdecl, val)       line 248 -- writes Value into StructInstance.data at offset
+  Leaf: calls Value_clone (done). Large (53 lines).
 
-*** Blocked by raw memory layout (StructInstance.data byte offsets)
-These manipulate StructInstance.data with sizeof-based pointer arithmetic.
-Need ext_func helpers or keep in C.
-- str_view(v) -> Str                  line 338
-- make_str_value(data, len) -> Value  line 304
-- make_str_value_own(data, len)       line 321
-
-*** Blocked by manual allocation patterns (malloc + raw memcpy into Map)
-til cannot malloc a struct and ref-cast it, or memcpy structs into Map slots.
-- scope_new(parent) -> Scope*         line 112
-- scope_free(s)                       line 119
-- scope_set_owned(s, name, val)       line 134
-- scope_set_borrowed(s, name, val)    line 147
-
-*** Depend on blocked str functions
-- read_field(inst, fdecl) -> Value    line 167 -- uses val_* (done), enum_has_payloads (done)
-- write_field(inst, fdecl, val)       line 248 -- uses Value_clone (done), raw memcpy
-- parse_cli_arg(type_name, str_val)   line 1186 -- make_str_value + C stdlib strtoll etc.
+*** Depend on make_str_value
+- parse_cli_arg(type_name, str_val)   line 1186 -- make_str_value + strtoll etc.
 - value_to_buf(dest, v, type_name)    line 1244 -- raw memcpy of Value fields to buffer
 - build_argv_array(argv, ...)         line 1265 -- parse_cli_arg
 
@@ -45,14 +41,16 @@ til cannot malloc a struct and ref-cast it, or memcpy structs into Map slots.
 - eval_call(s, e) -> Value            line 414 (~305 lines)
 - eval_expr(s, e) -> Value            line 719 (~133 lines)
 - eval_body(s, body)                  line 852 (~298 lines)
-These depend on: scope_*, widen_numeric, read_field, write_field,
-ext_function_dispatch, enum_method_dispatch, make_str_value
+Depend on: scope_set_owned, scope_set_borrowed, widen_numeric (done),
+read_field, write_field, ext_function_dispatch, enum_method_dispatch,
+make_str_value, interp_fa_is_ns (done)
 
 *** Top-level (depend on eval_* core)
 - interpreter_init_ns(global, prog)   line 1150 -- eval_expr
-- interpret(program, ...)             line 1301 -- eval_body, ffi_init, scope_*, parse_cli_arg
+- interpret(program, ...)             line 1301 -- eval_body, ffi_init, scope_*,
+  parse_cli_arg, build_argv_array
 
-** Remaining translations -- dispatch.c (12 functions)
+** Remaining translations -- dispatch.c (15 functions in C)
 
 *** Done (translated to dispatch.til)
 - ffi_type_pointer_ref .. ffi_type_float_ref (8 ref accessors)
@@ -78,53 +76,30 @@ ext_function_dispatch, enum_method_dispatch, make_str_value
 - h_cfile_read_all(s, e, r)          line 312
 - enum_method_dispatch(...)           line 587
 
-*** Blockers
-- dispatch_init()                     line 323 -- BLOCKER A: stores C function pointers via REG macro
-- ext_dispatch_builtin(...)           line 390 -- BLOCKER A: calls function pointer from map
-- ext_dispatch_ffi(...)               line 398 -- BLOCKER B: ffi_call/FFI_FN/FFI_DEFAULT_ABI macros
-- ext_function_dispatch(...)          line 580 -- depends on dispatch_init + ext_dispatch_builtin + ext_dispatch_ffi
+*** Function pointer dispatch (keep in C or rewrite as if/else chain)
+- dispatch_init()                     line 323 -- stores C function pointers via REG macro
+- ext_dispatch_builtin(...)           line 390 -- calls function pointer from map
+- ext_dispatch_ffi(...)               line 398 -- ffi_call/FFI_FN/FFI_DEFAULT_ABI macros
+- ext_function_dispatch(...)          line 580 -- depends on above three
 
-*** FFI registration (depend on ffi_type functions -- now done)
-- ffi_register(name, fn, fdef)       line 634 -- needs ffi_prep_cif bridge in ext.c
+*** FFI registration chain
+- ffi_register(name, fn, fdef)       line 634 -- ffi_prep_cif call
 - ffi_init_scan_program(program)     line 675 -- ffi_register + ffi_dlsym + AST traversal
-- ffi_init(program, ...)             line 733 -- ffi_init_scan_program + already-translated til funcs
+- ffi_init(program, ...)             line 733 -- ffi_init_scan_program + til funcs
 
 ** Remaining translations -- precomp.c (2 functions)
 
-- try_eval_call(scope, fcall, require_known)  line 12
-  Depends on eval_expr. Returns nullable Expr* (til can't express nullable owned return).
-- precomp(core_program, program)              line 62
-  Depends on ffi_init, interpreter_init_ns, scope_new, scope_free.
+- try_eval_call                       line 12  -- depends on eval_expr
+- precomp                             line 62  -- depends on ffi_init, interpreter_init_ns,
+  scope_new, scope_free
 
-** Known issues
+** Translation order
 
-*** Shallow Value passthrough in widen_numeric
-C code does bitwise copy (*r = *v) for unchanged Values. til's Value.clone()
-deep-clones, which changes ownership semantics for struct/enum Values.
-Options:
-1. Add a shallow_copy/bitwise_copy primitive to til
-2. Restructure callers so widen_numeric only receives numeric Values
-3. Keep widen_numeric in C permanently
+Best next targets (leaves, no untranslated C deps):
+1. read_field -- large but leaf, only calls val_* and enum_has_payloads (all done)
+2. write_field -- leaf, calls Value_clone (done)
+3. make_str_value / make_str_value_own -- debug the c_str pointer bug
+4. scope_new/free/set_owned/set_borrowed -- debug the allocation patterns
 
-*** Manual struct allocation (scope_new, scope_set_*)
-til cannot malloc(sizeof(Scope)) and ref-cast the result, or build
-Binding structs and memcpy them into Map slots. Need:
-1. Add a way to construct structs into malloc'd buffers
-2. Add Map helpers that accept struct constructors directly
-3. Keep scope functions in C permanently
-
-*** StructInstance.data byte offset access
-str_view, make_str_value, make_str_value_own, read_field, write_field all
-manipulate StructInstance.data with hardcoded sizeof offsets. These are
-platform-dependent (sizeof(U8*) = 8 on 64-bit). Options:
-1. Add ext_func helpers: str_data_ptr(inst), str_count(inst), etc.
-2. Use Str struct constructor directly (needs the cached_str_def global)
-3. Keep these functions in C and translate higher-level functions that call them
-
-*** Function pointer dispatch (dispatch_init, ext_dispatch_builtin)
-dispatch_init stores C function pointers via REG macro. til cannot take
-the address of a function. ext_dispatch_builtin retrieves and calls
-function pointers from a Map. Options:
-1. Generate a giant if/else chain in til (like dyn_call dispatch in builder)
-2. Keep dispatch_init and ext_dispatch_builtin in C permanently
-3. Add function-pointer-as-Dynamic support to til
+After those, the interpreter core (eval_call/eval_expr/eval_body) can be
+translated as a unit, which unblocks everything else.
