@@ -389,7 +389,8 @@ Value eval_call(Scope *scope, Expr *e) {
     return result;
 }
 
-Value eval_expr(Scope *scope, Expr *e) {
+/* eval_expr: moved to interpreter.til
+#if 0
     switch (e->data.tag) {
     case NodeType_TAG_LiteralStr: {
         // Process C escape sequences (\n, \t, \\, \", \0)
@@ -520,7 +521,8 @@ Value eval_expr(Scope *scope, Expr *e) {
         Expr_lang_error(e, &(Str){.c_str = (U8*)buf, .count = (U64)strlen(buf), .cap = CAP_VIEW});
         exit(1);
     }
-}
+#endif
+*/
 
 static void eval_body(Scope *scope, Expr *body) {
     for (U32 i = 0; i < body->children.count; i++) {

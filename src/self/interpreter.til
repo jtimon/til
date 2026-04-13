@@ -255,7 +255,152 @@ parse_cli_arg := func(s: Str, type_name: Str) returns shallow Value {
     return val_none()
 }
 
-eval_expr := ext_func(scope: Scope, e: Expr) returns shallow Value {}
+eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
+    if is_variant(e.data, NodeType.LiteralStr) {
+        ref raw : Str = get_payload(e.data)
+        buf : Dynamic = malloc(raw.count.to_u64().add(1))
+        mut j : U64 = 0
+        mut i : U64 = 0
+        while i.lt(raw.count.to_u64()) {
+            ref ch : U8 = raw.byte_at(i.to_i64().to_usize())
+            if ch.eq(92) {
+                if i.add(1).lt(raw.count.to_u64()) {
+                    ref next : U8 = raw.byte_at(i.add(1).to_i64().to_usize())
+                    if next.eq(110) { memset(ptr_add(buf, j), 10.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(116) { memset(ptr_add(buf, j), 9.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(92) { memset(ptr_add(buf, j), 92.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(34) { memset(ptr_add(buf, j), 34.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(48) { memset(ptr_add(buf, j), 0.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
+                }
+            }
+            memcpy(ptr_add(buf, j), ptr_add(raw.c_str, i.to_i64().to_usize().to_u64()), 1)
+            j = j.add(1)
+            i = i.add(1)
+        }
+        memset(ptr_add(buf, j), 0.to_i32(), 1)
+        v := make_str_value(buf, j)
+        free(own buf)
+        return v
+    }
+    if is_variant(e.data, NodeType.LiteralNum) {
+        ref num_str : Str = get_payload(e.data)
+        if is_variant(e.til_type, TilType.U8) { return val_u8(num_str.to_i64()) }
+        if is_variant(e.til_type, TilType.U32) { return val_u32(num_str.to_i64()) }
+        if is_variant(e.til_type, TilType.U64) { return val_u64(num_str.to_i64().to_u64()) }
+        if is_variant(e.til_type, TilType.I16) { return val_i16(num_str.to_i64()) }
+        if is_variant(e.til_type, TilType.I32) { return val_i32(num_str.to_i64()) }
+        if is_variant(e.til_type, TilType.F32) { return val_f32(num_str.to_f32()) }
+        return val_i64(num_str.to_i64())
+    }
+    if is_variant(e.data, NodeType.LiteralBool) {
+        ref b : Bool = get_payload(e.data)
+        return val_bool(b)
+    }
+    if is_variant(e.data, NodeType.LiteralNull) {
+        return Value.Ptr(NULL)
+    }
+    if is_variant(e.data, NodeType.Ident) {
+        ref ident : Str = get_payload(e.data)
+        ref cell : Cell = scope_get(scope, ident)
+        if is_null(cell) {
+            e.error("undefined variable '".concat(ident).concat("'"))
+            exit(1.to_i32())
+        }
+        return shallow_copy_value(cell.val)
+    }
+    if is_variant(e.data, NodeType.FCall) {
+        return eval_call(scope, e)
+    }
+    if is_variant(e.data, NodeType.FuncDef) {
+        return Value.Func(e)
+    }
+    if is_variant(e.data, NodeType.StructDef) {
+        return Value.Func(e)
+    }
+    if is_variant(e.data, NodeType.EnumDef) {
+        return Value.Func(e)
+    }
+    if is_variant(e.data, NodeType.FieldAccess) {
+        mut obj := eval_expr(scope, e.child(0))
+        ref fname : Str = get_payload(e.data)
+        if interp_fa_is_ns(scope, e) {
+            mut sname := ""
+            if is_variant(obj, Value.Struct) {
+                ref si : StructInstance = get_payload(obj)
+                sname = si.struct_name
+            } else {
+                ref ident : Str = get_payload(e.child(0).data)
+                sname = ident
+            }
+            ref nsv : Value = ns_get(sname, fname)
+            if is_null(nsv).not() {
+                if is_variant(nsv, Value.Int) { ref iv : I64 = get_payload(nsv); return val_i64(iv) }
+                if is_variant(nsv, Value.Int32) { ref iv : I32 = get_payload(nsv); return val_i32(iv.to_i64()) }
+                if is_variant(nsv, Value.Func) {
+                    if is_variant(e.til_type, TilType.Enum) {
+                        ref fptr : Dynamic = get_payload(nsv)
+                        ref fdef : Expr = read_ptr(fptr)
+                        if is_variant(fdef.data, NodeType.FuncDef) {
+                            ref fd : FunctionDef = get_payload(fdef.data)
+                            if is_variant(fd.func_type, FuncType.ExtFunc) {
+                                ref tc : Cell = scope_get(scope, sname)
+                                if is_null(tc).not() {
+                                    if is_variant(tc.val, Value.Func) {
+                                        ref eptr : Dynamic = get_payload(tc.val)
+                                        ref edef : Expr = read_ptr(eptr)
+                                        if is_variant(edef.data, NodeType.EnumDef) {
+                                            tag := enum_variant_tag(edef, fname)
+                                            if tag.to_i64().gte(0) {
+                                                if enum_has_payloads(edef) {
+                                                    return val_enum_flat(sname, edef, tag, NULL, 0.to_i32())
+                                                } else {
+                                                    return val_i32(tag.to_i64())
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                return shallow_copy_value(nsv)
+            }
+            e.error("no namespace field '".concat(fname).concat("'"))
+            exit(1.to_i32())
+        }
+        if is_variant(obj, Value.Ptr) {
+            ref obj_expr : Expr = e.child(0)
+            if obj_expr.struct_name.len().gt(0) {
+                ref tc : Cell = scope_get(scope, obj_expr.struct_name)
+                if is_null(tc).not() {
+                    if is_variant(tc.val, Value.Func) {
+                        ref tptr : Dynamic = get_payload(tc.val)
+                        ref tdef : Expr = read_ptr(tptr)
+                        if is_variant(tdef.data, NodeType.StructDef) {
+                            ref pv : Dynamic = get_payload(obj)
+                            obj = make_struct_value(obj_expr.struct_name, tdef, read_ptr(pv), true)
+                        }
+                    }
+                }
+            }
+        }
+        if is_variant(obj, Value.Struct).not() {
+            e.error("field access on non-struct")
+            exit(1.to_i32())
+        }
+        ref si : StructInstance = get_payload(obj)
+        ref fdecl : Expr = find_field_decl(si.struct_def, fname)
+        if is_null(fdecl) {
+            e.error("no field '".concat(fname).concat("'"))
+            exit(1.to_i32())
+        }
+        return read_field(si, fdecl)
+    }
+    e.lang_error("cannot evaluate node as expression")
+    exit(1.to_i32())
+    return val_none()
+}
 eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 clone_struct_instance := ext_func(src: StructInstance) returns StructInstance {}
 free_value := proc(shallow v: Value) {
