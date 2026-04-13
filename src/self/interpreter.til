@@ -451,4 +451,75 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Expr {
     }
     return NULL
 }
+
+ENUM_PAYLOAD_OFFSET : I32 = 8
+
+read_field := ext_func(inst: StructInstance, fdecl: Expr) returns shallow Value {}
+read_field_til := func(inst: StructInstance, fdecl: Expr) returns shallow Value {
+    ref dd : Declaration = get_payload(fdecl.data)
+    ref ftype : Str = dd.explicit_type
+    ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
+    if is_variant(dd.own_type, OwnType.Own) {
+        if is_null(dd.field_struct_def).not() {
+            ref owned : Dynamic = read_ptr(ptr)
+            si := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = owned, borrowed = true)
+            return Value.Struct(si)
+        }
+        ref owned2 : Dynamic = read_ptr(ptr)
+        return Value.Ptr(owned2)
+    }
+    if is_variant(dd.own_type, OwnType.Ref) {
+        if is_null(read_ptr(ptr)) { return Value.Ptr(NULL) }
+        if is_null(dd.field_struct_def).not() {
+            ref rp : Dynamic = read_ptr(ptr)
+            si := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = rp, borrowed = true)
+            return Value.Struct(si)
+        }
+        ref rp2 : Dynamic = read_ptr(ptr)
+        return Value.Ptr(rp2)
+    }
+    if ftype.eq("I64") { ref v : I64 = ptr; return val_i64(v) }
+    if ftype.eq("U8") { ref v : U8 = ptr; return val_u8(v.to_i64()) }
+    if ftype.eq("I16") { ref v : I16 = ptr; return val_i16(v.to_i64()) }
+    if ftype.eq("I32") { ref v : I32 = ptr; return val_i32(v.to_i64()) }
+    if ftype.eq("U32") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
+    if ftype.eq("U64") { ref v : U64 = ptr; return val_u64(v) }
+    if ftype.eq("USize") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
+    if ftype.eq("F32") { ref v : F32 = ptr; return val_f32(v) }
+    if ftype.eq("Bool") { ref v : Bool = ptr; return val_bool(v) }
+    // Enum field
+    if is_null(dd.field_struct_def).not() {
+        if is_variant(dd.field_struct_def.data, NodeType.EnumDef) {
+            ref edef : Expr = dd.field_struct_def
+            if enum_has_payloads(edef) {
+                ref ei : EnumInstance = read_ptr(ptr)
+                if is_null(ei) { return val_enum_simple(ftype, 0.to_i32()) }
+                ref etag_ref : Dynamic = ei.data
+                ref etag : I32 = etag_ref
+                psz := ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
+                mut psz_final := psz
+                if psz.to_i64().lt(0) { psz_final = 0.to_i32() }
+                return val_enum_flat(ei.enum_name, edef, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64()), psz_final)
+            }
+            ref itag : I32 = ptr
+            return val_i32(itag.to_i64())
+        }
+    }
+    // Inline struct
+    if is_null(dd.field_struct_def).not() {
+        si := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = ptr, borrowed = true)
+        return Value.Struct(si)
+    }
+    // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
+    ref ptr2 : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
+    if ftype.len().gt(0) {
+        ref stored : Dynamic = read_ptr(ptr2)
+        if is_null(stored).not() { return Value.Func(stored) }
+    }
+    // Fallback
+    ref ptr3 : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
+    ref fi : I64 = ptr3
+    return val_i64(fi)
+}
+
 write_field := ext_proc(mut inst: StructInstance, fdecl: Expr, val: Value) {}

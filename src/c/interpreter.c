@@ -76,12 +76,10 @@ static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
 
 
 
-// Read a Value from flat buffer at a field decl's offset
-static Value read_field(StructInstance *inst, Expr *fdecl) {
+Value read_field(StructInstance *inst, Expr *fdecl) {
     void *ptr = (char *)inst->data + fdecl->data.data.Decl.field_offset;
     if (DECL_IS_OWN(fdecl->data.data.Decl)) {
         void *owned = *(void **)ptr;
-        // If the own field has a struct def, wrap in StructInstance for field access
         if (fdecl->data.data.Decl.field_struct_def) {
             Expr *nested = fdecl->data.data.Decl.field_struct_def;
             Str *ftype = &fdecl->data.data.Decl.explicit_type;
@@ -89,7 +87,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
             result.tag = Value_TAG_Struct;
             result.data.Struct.struct_name = ftype;
             result.data.Struct.struct_def = nested;
-            result.data.Struct.data = owned; // borrowed — points into the owning struct's heap alloc
+            result.data.Struct.data = owned;
             result.data.Struct.borrowed = 1;
             return result;
         }
@@ -121,14 +119,12 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     if (ftype && (ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return val_u32(*(USize *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "F32", 3) == 0))  return val_f32(*(F32 *)ptr);
     if (ftype && (ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return val_bool(*(Bool *)ptr);
-    // Enum field: payload enums stored as EnumInstance *, simple enums as I32
     if (fdecl->data.data.Decl.field_struct_def &&
         fdecl->data.data.Decl.field_struct_def->data.tag == NodeType_TAG_EnumDef) {
         Expr *edef = fdecl->data.data.Decl.field_struct_def;
         if (enum_has_payloads(edef)) {
             EnumInstance *ei = *(EnumInstance **)ptr;
             if (!ei) return val_enum_simple(ftype, 0);
-            // Clone: allocate new flat buffer, copy data
             I32 etag = *(I32 *)ei->data;
             I32 psz = ei->data_size - ENUM_PAYLOAD_OFFSET;
             if (psz < 0) psz = 0;
@@ -137,23 +133,20 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
         }
         return val_i32(*(I32 *)ptr);
     }
-    // Inline struct: borrow if parent is borrowed, copy otherwise
     if (fdecl->data.data.Decl.field_struct_def) {
         Expr *nested = fdecl->data.data.Decl.field_struct_def;
         Value result;
         result.tag = Value_TAG_Struct;
-        result.data.Struct.struct_name = ftype; // borrowed — set by initer for inferred struct types
+        result.data.Struct.struct_name = ftype;
         result.data.Struct.struct_def = nested;
-        result.data.Struct.data = ptr;       // always point into parent buffer
-        result.data.Struct.borrowed = 1;     // always borrowed — field lives in parent
+        result.data.Struct.data = ptr;
+        result.data.Struct.borrowed = 1;
         return result;
     }
-    // FuncSig-typed field: stored as Expr * pointer (func ptr)
     if (ftype) {
         void *stored = *(void **)ptr;
         if (stored) return (Value){.tag = Value_TAG_Func, .data.Func = stored};
     }
-    // Fallback: treat as I64
     return val_i64(*(I64 *)ptr);
 }
 
