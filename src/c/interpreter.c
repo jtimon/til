@@ -28,12 +28,7 @@ void ffi_init_scan_program(Expr *program);
 
 // --- Scope / environment ---
 
-Scope *scope_new(Scope *parent) {
-    Scope *s = malloc(sizeof(Scope));
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Binding", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Binding)}); s->bindings = *_mp; free(_mp); }
-    s->parent = parent;
-    return s;
-}
+// scope_new: moved to interpreter.til
 
 void scope_free(Scope *s) {
     for (U32 i = 0; i < s->bindings.count; i++) {

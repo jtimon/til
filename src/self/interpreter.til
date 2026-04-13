@@ -354,7 +354,16 @@ scope_get := func(s: Scope, name: Str) returns ref Cell {
     }
     return NULL
 }
-scope_new := ext_func(parent: Scope) returns ref Scope {}
+scope_new := func(parent: Scope) returns ref Scope {
+    s : Dynamic = malloc(Scope.size().to_u64())
+    memset(s, 0, Scope.size().to_u64())
+    mut bindings := Map.new("Str", Str.size(), "Binding", Binding.size())
+    memcpy(s, bindings, Map.size().to_u64())
+    memset(bindings, 0, Map.size().to_u64())
+    write_ptr(ptr_add(s, Map.size().to_u64()), parent)
+    ref result : Scope = ptr_add(s, 0)
+    return result
+}
 scope_set_owned := ext_proc(mut s: Scope, name: Str, val: Value) {}
 scope_free := ext_proc(own s: Scope) {}
 interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow Bool {
