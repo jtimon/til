@@ -10,50 +10,9 @@
 #define DECL_IS_REF(d) ((d).own_type.tag == OwnType_TAG_Ref)
 #define DECL_IS_SHALLOW(d) ((d).own_type.tag == OwnType_TAG_Shallow)
 
-// Forward declaration (defined in dispatch.c)
 void ffi_init_scan_program(Expr *program);
 
-// Forward declarations (defined in ast.c)
-
-// free_value: moved to interpreter.til
-
-
 #define ENUM_PAYLOAD_OFFSET ((I32)sizeof(I64))
-
-// interp_fa_is_ns: moved to interpreter.til
-
-// widen_numeric: moved to interpreter.til
-
-// needs_widen: moved to interpreter.til
-
-// --- Scope / environment ---
-
-// scope_new: moved to interpreter.til
-
-// scope_free: moved to interpreter.til
-
-// scope_set_owned: moved to interpreter.til
-
-static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
-    Binding b = {name, cell, 0};
-    { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(b)); memcpy(_v, &b, sizeof(b)); Map_set(&s->bindings, _k, _v); }
-}
-
-// scope_get: moved to interpreter.til
-
-// ext_function_dispatch is in dispatch.c
-
-// cached_str_def, cached_str_name, etc.: moved to interpreter.til
-
-
-
-// read_field: moved to interpreter.til
-
-// write_field: moved to interpreter.til
-
-// make_str_value, make_str_value_own: moved to interpreter.til
-
-// str_view: moved to interpreter.til
 
 // Deep-clone a StructInstance: walks struct_def fields for Str, own, enum, inline structs.
 // Called from StructInstance.clone in til (ext_func).

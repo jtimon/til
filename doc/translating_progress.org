@@ -2,52 +2,34 @@
 
 ** builder.c -- FULLY TRANSLATED AND REMOVED
 
-** Remaining translations -- interpreter.c (15 functions in C)
+** Remaining translations -- interpreter.c (8 functions in C)
 
 *** Done (translated to interpreter.til)
-- free_value, needs_widen, widen_numeric (with shallow_copy_value via memcpy)
-- scope_get, interp_fa_is_ns
-- str_view (memcpy from StructInstance.data + CAP_VIEW)
+- free_value, needs_widen, widen_numeric, shallow_copy_value, make_struct_value
+- scope_get, scope_new, scope_free, scope_set_owned, scope_set_borrowed
+- interp_fa_is_ns, str_view, read_field, write_field
+- make_str_value, make_str_value_own
 - val_none, val_i64, val_u8, val_i16, val_i32, val_u32, val_u64, val_f32, val_bool
 - val_enum_flat, val_enum_simple
 - clone_struct_instance, ns_get, ns_set, ns_qname, find_field_decl, enum_has_payloads
-- cached_str/array/vec_def/name globals (moved from C to til)
-- shallow_copy_value helper (memcpy-based bitwise Value copy)
+- cached_str/array/vec_def/name globals
 
 *** Leaves (no deps on other untranslated C functions)
-- make_str_value(data, len)           line 223 -- builds Str StructInstance, uses write_ptr + ptr_add
-- make_str_value_own(data, len)       line 240 -- same pattern, no strndup
-  Translation attempted, write_ptr works but result had garbage c_str.
-  Bug: StructInstance constructor in til may not preserve data field correctly.
-  Needs debugging.
-- scope_new(parent)                   line 112 -- malloc + Map_new + field init
-  Failed: til rejects ref-cast from malloc'd Dynamic. Needs investigation.
-- scope_free(s)                       line 119 -- iterates bindings, frees cells, Map_delete
-  Failed: double free from destructor overlap. Needs careful ownership handling.
-- scope_set_owned(s, name, val)       line 134 -- Map_has/get + malloc Cell + Map_set
-  Failed: segfault from Binding constructor + memcpy. Needs investigation.
-- scope_set_borrowed(s, name, cell)   line 147 -- malloc Binding + Map_set (same pattern)
-- read_field(inst, fdecl)             line 167 -- reads Value from StructInstance.data at offset
-  Leaf: only calls val_* (done) and enum_has_payloads (done). Large (80 lines).
-- write_field(inst, fdecl, val)       line 248 -- writes Value into StructInstance.data at offset
-  Leaf: calls Value_clone (done). Large (53 lines).
-
-*** Depend on make_str_value
-- parse_cli_arg(type_name, str_val)   line 1186 -- make_str_value + strtoll etc.
-- value_to_buf(dest, v, type_name)    line 1244 -- raw memcpy of Value fields to buffer
-- build_argv_array(argv, ...)         line 1265 -- parse_cli_arg
+- parse_cli_arg(s, type_name)         line 929 -- strtoll, make_str_value (done)
+- value_to_buf(dest, v, type_name)    line 987 -- raw memcpy of Value fields to buffer
+- build_argv_array(argv, ...)         line 1008 -- parse_cli_arg, make_str_value (done)
 
 *** Core interpreter loop (mutually recursive -- must translate together)
-- eval_call(s, e) -> Value            line 414 (~305 lines)
-- eval_expr(s, e) -> Value            line 719 (~133 lines)
-- eval_body(s, body)                  line 852 (~298 lines)
-Depend on: scope_set_owned, scope_set_borrowed, widen_numeric (done),
-read_field, write_field, ext_function_dispatch, enum_method_dispatch,
-make_str_value, interp_fa_is_ns (done)
+- eval_call(s, e) -> Value            line 157 (~305 lines)
+- eval_expr(s, e) -> Value            line 462 (~133 lines)
+- eval_body(s, body)                  line 595 (~298 lines)
+All deps done: scope_*, widen_numeric, read_field, write_field,
+make_str_value, interp_fa_is_ns. Remaining deps in dispatch.c:
+ext_function_dispatch, enum_method_dispatch (still in C).
 
 *** Top-level (depend on eval_* core)
-- interpreter_init_ns(global, prog)   line 1150 -- eval_expr
-- interpret(program, ...)             line 1301 -- eval_body, ffi_init, scope_*,
+- interpreter_init_ns(global, prog)   line 893 -- eval_expr
+- interpret(program, ...)             line 1044 -- eval_body, ffi_init, scope_*,
   parse_cli_arg, build_argv_array
 
 ** Remaining translations -- dispatch.c (15 functions in C)
@@ -77,29 +59,27 @@ make_str_value, interp_fa_is_ns (done)
 - enum_method_dispatch(...)           line 587
 
 *** Function pointer dispatch (keep in C or rewrite as if/else chain)
-- dispatch_init()                     line 323 -- stores C function pointers via REG macro
-- ext_dispatch_builtin(...)           line 390 -- calls function pointer from map
-- ext_dispatch_ffi(...)               line 398 -- ffi_call/FFI_FN/FFI_DEFAULT_ABI macros
-- ext_function_dispatch(...)          line 580 -- depends on above three
+- dispatch_init()                     line 323
+- ext_dispatch_builtin(...)           line 390
+- ext_dispatch_ffi(...)               line 398
+- ext_function_dispatch(...)          line 580
 
 *** FFI registration chain
-- ffi_register(name, fn, fdef)       line 634 -- ffi_prep_cif call
-- ffi_init_scan_program(program)     line 675 -- ffi_register + ffi_dlsym + AST traversal
-- ffi_init(program, ...)             line 733 -- ffi_init_scan_program + til funcs
+- ffi_register(name, fn, fdef)       line 634
+- ffi_init_scan_program(program)     line 675
+- ffi_init(program, ...)             line 733
 
 ** Remaining translations -- precomp.c (2 functions)
 
 - try_eval_call                       line 12  -- depends on eval_expr
-- precomp                             line 62  -- depends on ffi_init, interpreter_init_ns,
-  scope_new, scope_free
+- precomp                             line 62  -- depends on ffi_init, interpreter_init_ns
 
 ** Translation order
 
-Best next targets (leaves, no untranslated C deps):
-1. read_field -- large but leaf, only calls val_* and enum_has_payloads (all done)
-2. write_field -- leaf, calls Value_clone (done)
-3. make_str_value / make_str_value_own -- debug the c_str pointer bug
-4. scope_new/free/set_owned/set_borrowed -- debug the allocation patterns
-
-After those, the interpreter core (eval_call/eval_expr/eval_body) can be
-translated as a unit, which unblocks everything else.
+Next targets:
+1. parse_cli_arg, value_to_buf, build_argv_array (leaves)
+2. eval_call/eval_expr/eval_body (big unit, all deps done except dispatch.c)
+3. interpreter_init_ns, interpret (depend on eval_*)
+4. dispatch.c handlers (depend on eval_*)
+5. ffi_register chain
+6. precomp.c
