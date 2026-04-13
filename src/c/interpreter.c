@@ -149,15 +149,7 @@ static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
     { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(b)); memcpy(_v, &b, sizeof(b)); Map_set(&s->bindings, _k, _v); }
 }
 
-Cell *scope_get(Scope *s, Str *name) {
-    for (Scope *cur = s; cur; cur = cur->parent) {
-        if (Map_has(&cur->bindings, name)) {
-            Binding *b = Map_get(&cur->bindings, name);
-            return b->cell;
-        }
-    }
-    return NULL;
-}
+// scope_get: moved to interpreter.til
 
 // ext_function_dispatch is in dispatch.c
 

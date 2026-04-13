@@ -267,7 +267,18 @@ needs_widen := func(val: Value, ptype: Str) returns shallow Bool {
     return false
 }
 
-scope_get := ext_func(s: Scope, name: Str) returns ref Cell {}
+scope_get := func(s: Scope, name: Str) returns ref Cell {
+    ref mut cur : Scope = s
+    while true {
+        if is_null(cur) { return NULL }
+        if cur.bindings.has(name) {
+            ref b : Binding = cur.bindings.get(name)
+            return b.cell
+        }
+        cur = cur.parent
+    }
+    return NULL
+}
 scope_new := ext_func(parent: Scope) returns ref Scope {}
 scope_set_owned := ext_proc(mut s: Scope, name: Str, val: Value) {}
 scope_free := ext_proc(own s: Scope) {}
