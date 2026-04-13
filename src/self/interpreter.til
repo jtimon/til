@@ -281,6 +281,23 @@ shallow_copy_value := func(v: Value) returns shallow Value {
     return r
 }
 
+make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, shallow borrowed: Bool) returns shallow Value {
+    // Build Value.Struct in place without triggering clone/destructor
+    // Value layout: tag (I32, 4b) + padding (4b) + StructInstance payload
+    mut r := Value.None
+    // Set tag to Value_TAG_Struct
+    mut tag : I32 = 10.to_i32()
+    memcpy(r, tag, 4)
+    // StructInstance at offset 8: struct_name (8b) + struct_def (8b) + data (8b) + borrowed (1b)
+    ref payload : Dynamic = get_payload(r)
+    write_ptr(payload, sname)
+    write_ptr(ptr_add(payload, 8), sdef)
+    write_ptr(ptr_add(payload, 16), data)
+    ref mut bflag : Bool = ptr_add(payload, 24)
+    bflag = borrowed
+    return shallow_copy_value(r)
+}
+
 widen_numeric := func(v: Value, ptype: Str) returns Value {
     if is_null(ptype) { return shallow_copy_value(v) }
     if ptype.len().eq(0) { return shallow_copy_value(v) }
@@ -424,8 +441,26 @@ ns_set := proc(sname: Str, fname: Str, shallow val: Value) {
     ns_fields.set(own qn, own vcopy)
 }
 
-make_str_value := ext_func(data: Dynamic, shallow len: U64) returns shallow Value {}
-make_str_value_own := ext_func(data: Dynamic, shallow len: U64) returns shallow Value {}
+make_str_value := func(data: Dynamic, shallow len: U64) returns shallow Value {
+    inst_data : Dynamic = malloc(Str.size())
+    copy : Dynamic = malloc(len.add(1))
+    memcpy(copy, data, len)
+    memset(ptr_add(copy, len), 0, 1)
+    write_ptr(inst_data, copy)
+    ref mut count_slot : U32 = ptr_add(inst_data, 8)
+    count_slot = len.to_i64().to_i32().to_u32()
+    memcpy(ptr_add(inst_data, 12), CAP_LIT, U32.size().to_u64())
+    return make_struct_value(cached_str_name, cached_str_def, inst_data, false)
+}
+
+make_str_value_own := func(data: Dynamic, shallow len: U64) returns shallow Value {
+    inst_data : Dynamic = malloc(Str.size())
+    write_ptr(inst_data, data)
+    ref mut count_slot : U32 = ptr_add(inst_data, 8)
+    count_slot = len.to_i64().to_i32().to_u32()
+    memcpy(ptr_add(inst_data, 12), count_slot, U32.size().to_u64())
+    return make_struct_value(cached_str_name, cached_str_def, inst_data, false)
+}
 str_view := func(shallow v: Value) returns shallow Str {
     ref si : StructInstance = get_payload(v)
     // Str layout in si.data: c_str (8b), count (8b), cap (8b)
@@ -454,16 +489,14 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Expr {
 
 ENUM_PAYLOAD_OFFSET : I32 = 8
 
-read_field := ext_func(inst: StructInstance, fdecl: Expr) returns shallow Value {}
-read_field_til := func(inst: StructInstance, fdecl: Expr) returns shallow Value {
+read_field := func(inst: StructInstance, fdecl: Expr) returns shallow Value {
     ref dd : Declaration = get_payload(fdecl.data)
     ref ftype : Str = dd.explicit_type
     ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
     if is_variant(dd.own_type, OwnType.Own) {
         if is_null(dd.field_struct_def).not() {
             ref owned : Dynamic = read_ptr(ptr)
-            si := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = owned, borrowed = true)
-            return Value.Struct(si)
+            return make_struct_value(ftype, dd.field_struct_def, owned, true)
         }
         ref owned2 : Dynamic = read_ptr(ptr)
         return Value.Ptr(owned2)
@@ -472,8 +505,7 @@ read_field_til := func(inst: StructInstance, fdecl: Expr) returns shallow Value 
         if is_null(read_ptr(ptr)) { return Value.Ptr(NULL) }
         if is_null(dd.field_struct_def).not() {
             ref rp : Dynamic = read_ptr(ptr)
-            si := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = rp, borrowed = true)
-            return Value.Struct(si)
+            return make_struct_value(ftype, dd.field_struct_def, rp, true)
         }
         ref rp2 : Dynamic = read_ptr(ptr)
         return Value.Ptr(rp2)
@@ -507,8 +539,7 @@ read_field_til := func(inst: StructInstance, fdecl: Expr) returns shallow Value 
     }
     // Inline struct
     if is_null(dd.field_struct_def).not() {
-        si := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = ptr, borrowed = true)
-        return Value.Struct(si)
+        return make_struct_value(ftype, dd.field_struct_def, ptr, true)
     }
     // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
     ref ptr2 : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())

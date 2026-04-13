@@ -76,113 +76,11 @@ static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
 
 
 
-Value read_field(StructInstance *inst, Expr *fdecl) {
-    void *ptr = (char *)inst->data + fdecl->data.data.Decl.field_offset;
-    if (DECL_IS_OWN(fdecl->data.data.Decl)) {
-        void *owned = *(void **)ptr;
-        if (fdecl->data.data.Decl.field_struct_def) {
-            Expr *nested = fdecl->data.data.Decl.field_struct_def;
-            Str *ftype = &fdecl->data.data.Decl.explicit_type;
-            Value result;
-            result.tag = Value_TAG_Struct;
-            result.data.Struct.struct_name = ftype;
-            result.data.Struct.struct_def = nested;
-            result.data.Struct.data = owned;
-            result.data.Struct.borrowed = 1;
-            return result;
-        }
-        return (Value){.tag = Value_TAG_Ptr, .data.Ptr = owned};
-    }
-    if (DECL_IS_REF(fdecl->data.data.Decl)) {
-        void *ref_ptr = *(void **)ptr;
-        if (!ref_ptr) return (Value){.tag = Value_TAG_Ptr, .data.Ptr = NULL};
-        if (fdecl->data.data.Decl.field_struct_def) {
-            Expr *nested = fdecl->data.data.Decl.field_struct_def;
-            Str *ftype = &fdecl->data.data.Decl.explicit_type;
-            Value result;
-            result.tag = Value_TAG_Struct;
-            result.data.Struct.struct_name = ftype;
-            result.data.Struct.struct_def = nested;
-            result.data.Struct.data = ref_ptr;
-            result.data.Struct.borrowed = 1;
-            return result;
-        }
-        return (Value){.tag = Value_TAG_Ptr, .data.Ptr = ref_ptr};
-    }
-    Str *ftype = &fdecl->data.data.Decl.explicit_type;
-    if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "I64", 3) == 0))  return val_i64(*(I64 *)ptr);
-    if (ftype && (ftype->count == 2 && memcmp(ftype->c_str, "U8", 2) == 0))   return val_u8(*(U8 *)ptr);
-    if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "I16", 3) == 0))  return val_i16(*(I16 *)ptr);
-    if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0))  return val_i32(*(I32 *)ptr);
-    if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0))  return val_u32(*(U32 *)ptr);
-    if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "U64", 3) == 0))  return val_u64(*(U64 *)ptr);
-    if (ftype && (ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return val_u32(*(USize *)ptr);
-    if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "F32", 3) == 0))  return val_f32(*(F32 *)ptr);
-    if (ftype && (ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return val_bool(*(Bool *)ptr);
-    if (fdecl->data.data.Decl.field_struct_def &&
-        fdecl->data.data.Decl.field_struct_def->data.tag == NodeType_TAG_EnumDef) {
-        Expr *edef = fdecl->data.data.Decl.field_struct_def;
-        if (enum_has_payloads(edef)) {
-            EnumInstance *ei = *(EnumInstance **)ptr;
-            if (!ei) return val_enum_simple(ftype, 0);
-            I32 etag = *(I32 *)ei->data;
-            I32 psz = ei->data_size - ENUM_PAYLOAD_OFFSET;
-            if (psz < 0) psz = 0;
-            return val_enum_flat(ei->enum_name, edef, etag,
-                                 ei->data + ENUM_PAYLOAD_OFFSET, psz);
-        }
-        return val_i32(*(I32 *)ptr);
-    }
-    if (fdecl->data.data.Decl.field_struct_def) {
-        Expr *nested = fdecl->data.data.Decl.field_struct_def;
-        Value result;
-        result.tag = Value_TAG_Struct;
-        result.data.Struct.struct_name = ftype;
-        result.data.Struct.struct_def = nested;
-        result.data.Struct.data = ptr;
-        result.data.Struct.borrowed = 1;
-        return result;
-    }
-    if (ftype) {
-        void *stored = *(void **)ptr;
-        if (stored) return (Value){.tag = Value_TAG_Func, .data.Func = stored};
-    }
-    return val_i64(*(I64 *)ptr);
-}
+// read_field: moved to interpreter.til
 
 // write_field: moved to interpreter.til
 
-Value make_str_value(void *data, U64 len) {
-    StructInstance *inst = malloc(sizeof(StructInstance));
-    inst->struct_name = cached_str_name;
-    inst->struct_def = cached_str_def;
-    inst->data = malloc(sizeof(Str));
-    inst->borrowed = 0;
-    *(char **)inst->data = strndup(data, len);
-    *(USize *)((char *)inst->data + sizeof(U8 *)) = (USize)len;
-    *(USize *)((char *)inst->data + sizeof(U8 *) + sizeof(USize)) = CAP_LIT;
-    Value result;
-    result.tag = Value_TAG_Struct;
-    result.data.Struct = *inst;
-    free(inst);
-    return result;
-}
-
-Value make_str_value_own(void *data, U64 len) {
-    StructInstance *inst = malloc(sizeof(StructInstance));
-    inst->struct_name = cached_str_name;
-    inst->struct_def = cached_str_def;
-    inst->borrowed = 0;
-    inst->data = malloc(sizeof(Str));
-    *(char **)inst->data = data;
-    *(USize *)((char *)inst->data + sizeof(U8 *)) = (USize)len;
-    *(USize *)((char *)inst->data + sizeof(U8 *) + sizeof(USize)) = (USize)len;
-    Value result;
-    result.tag = Value_TAG_Struct;
-    result.data.Struct = *inst;
-    free(inst);
-    return result;
-}
+// make_str_value, make_str_value_own: moved to interpreter.til
 
 // str_view: moved to interpreter.til
 
