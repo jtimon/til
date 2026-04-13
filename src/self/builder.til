@@ -2620,6 +2620,277 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
+emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr, mode: Mode) {
+    // Forward-declare struct/enum namespace methods and top-level functions
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        is_core_pass := prog_idx.eq(0).and(is_null(core_program).not())
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl).not() { continue }
+            ref dd : Declaration = get_payload(stmt.data)
+            if stmt.child_count().eq(0) { continue }
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(rhs.data, NodeType.StructDef).or(is_variant(rhs.data, NodeType.EnumDef)) {
+                ref body : Expr = rhs.child(0)
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fdd : Declaration = get_payload(field.data)
+                    if fdd.is_namespace.not() { continue }
+                    if field.child_count().eq(0) { continue }
+                    if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+                    ref fdef : Expr = field.child(0)
+                    ref fd : FunctionDef = get_payload(fdef.data)
+                    if is_core_pass {
+                        if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+                    }
+                    full_name := dd.name.concat("_").concat(fdd.name)
+                    emit_func_forward_decl(f, full_name, fdef)
+                }
+            } else if is_variant(rhs.data, NodeType.FuncDef) {
+                ref fd : FunctionDef = get_payload(rhs.data)
+                if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+                if is_null(mode).not() {
+                    if mode.needs_main {
+                        if dd.name.eq("main") { continue }
+                    }
+                }
+                fc := func_to_c(dd.name)
+                emit_func_forward_decl(f, fc, rhs)
+            }
+        }
+    }
+    // Forward-declare enum ext methods (eq, constructors)
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl).not() { continue }
+            if stmt.child_count().eq(0) { continue }
+            if is_variant(stmt.child(0).data, NodeType.EnumDef).not() { continue }
+            ref dd : Declaration = get_payload(stmt.data)
+            ref ebody : Expr = stmt.child(0).child(0)
+            // Find eq fdef
+            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+            mut has_eq_fdef := false
+            for j in 0..ebody.child_count() {
+                ref field : Expr = ebody.child(j)
+                ref fdd : Declaration = get_payload(field.data)
+                if fdd.is_namespace {
+                    if fdd.name.eq("eq") {
+                        if field.child_count().gt(0) {
+                            if is_variant(field.child(0).data, NodeType.FuncDef) {
+                                eq_fdef = field.child(0).clone()
+                                has_eq_fdef = true
+                            }
+                        }
+                    }
+                }
+            }
+            mut eq_ret := "Bool *"
+            if has_eq_fdef {
+                ref eqfd : FunctionDef = get_payload(eq_fdef.data)
+                if is_variant(eqfd.return_own_type, OwnType.Shallow) { eq_ret = "Bool" }
+            }
+            f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+            for j in 0..ebody.child_count() {
+                ref v : Expr = ebody.child(j)
+                ref vdd : Declaration = get_payload(v.data)
+                if vdd.is_namespace { continue }
+                if vdd.explicit_type.len().gt(0) {
+                    tnc := type_name_to_c(vdd.explicit_type)
+                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+                } else {
+                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("();\n")
+                }
+            }
+        }
+    }
+    f.write_str("\n")
+
+    // Forward declarations for dyn_call dispatch functions
+    mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
+    if is_null(core_program).not() { collect_dyn_methods(core_program, dyn_methods) }
+    collect_dyn_methods(program, dyn_methods)
+    for m in 0..dyn_methods.len() {
+        ref info : DynCallInfo = dyn_methods.get(m)
+        if info.has_return {
+            if info.nargs.eq(1) {
+                f.write_str("void *dyn_call_"); f.write_str(info.method); f.write_str("(Str *type_name, void *val);\n")
+            } else {
+                f.write_str("void *dyn_call_"); f.write_str(info.method); f.write_str("(Str *type_name, void *val, void *arg2);\n")
+            }
+        } else {
+            if info.nargs.eq(1) {
+                f.write_str("void dyn_call_"); f.write_str(info.method); f.write_str("(Str *type_name, void *val);\n")
+            } else {
+                f.write_str("void dyn_call_"); f.write_str(info.method); f.write_str("(Str *type_name, void *val, void *arg2);\n")
+            }
+        }
+    }
+    f.write_str("void *dyn_fn(Str *type_name, Str *method);\n")
+    f.write_str("\n")
+    own dyn_methods.delete()
+
+    // Forward declarations for dyn_has_method dispatch functions
+    mut dyn_has_shallow := false
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        if dyn_has_shallow { break }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl).not() { continue }
+            if stmt.child_count().eq(0) { continue }
+            if is_variant(stmt.child(0).data, NodeType.FuncDef).not() { continue }
+            ref sdd : Declaration = get_payload(stmt.data)
+            if sdd.name.eq("dyn_has_method") {
+                ref fd : FunctionDef = get_payload(stmt.child(0).data)
+                dyn_has_shallow = is_variant(fd.return_own_type, OwnType.Shallow)
+                break
+            }
+        }
+    }
+    mut dyn_has_ret := "Bool *"
+    if dyn_has_shallow { dyn_has_ret = "Bool" }
+    mut has_methods := Vec.new("Str", Str.size())
+    if is_null(core_program).not() { collect_dyn_has_methods(core_program, has_methods) }
+    collect_dyn_has_methods(program, has_methods)
+    for m in 0..has_methods.len() {
+        ref method : Str = has_methods.get(m)
+        f.write_str(dyn_has_ret); f.write_str(" dyn_has_"); f.write_str(method); f.write_str("(Str *type_name);\n")
+    }
+    if has_methods.len().gt(0) { f.write_str("\n") }
+    own has_methods.delete()
+
+    // Forward declarations for array/vec builtin helpers
+    mut coll_infos := Vec.new("CollectionInfo", CollectionInfo.size())
+    if is_null(core_program).not() { collect_collection_builtins(core_program, coll_infos) }
+    collect_collection_builtins(program, coll_infos)
+    for i in 0..coll_infos.len() {
+        ref ci : CollectionInfo = coll_infos.get(i)
+        mut prefix := "array"
+        mut ret := "Array"
+        if ci.is_vec.neq(0) { prefix = "vec"; ret = "Vec" }
+        f.write_str(ret); f.write_str(" *"); f.write_str(prefix); f.write_str("_of_"); f.write_str(ci.type_name); f.write_str("(int count, ...);\n")
+    }
+    if coll_infos.len().gt(0) { f.write_str("\n") }
+    own coll_infos.delete()
+}
+
+emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
+    // Emit wrapper functions that normalize calling convention
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl).not() { continue }
+            ref def : Expr = stmt.child(0)
+            if is_variant(def.data, NodeType.StructDef).not().and(is_variant(def.data, NodeType.EnumDef).not()) { continue }
+            ref dd : Declaration = get_payload(stmt.data)
+            ref body : Expr = def.child(0)
+            for j in 0..body.child_count() {
+                ref field : Expr = body.child(j)
+                ref fdd : Declaration = get_payload(field.data)
+                if fdd.is_namespace.not() { continue }
+                if field.child_count().eq(0) { continue }
+                if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+                ref fdef : Expr = field.child(0)
+                ref fd : FunctionDef = get_payload(fdef.data)
+                np := fd.nparam
+                ret_shallow := is_variant(fd.return_own_type, OwnType.Shallow)
+                has_return := fd.return_type.len().gt(0)
+                mut any_shallow := ret_shallow
+                for p in 0..np {
+                    ref pp : Param = fd.params.get(p)
+                    if is_variant(pp.own_type, OwnType.Shallow) { any_shallow = true }
+                }
+                if any_shallow.not() { continue }
+                if has_return {
+                    f.write_str("void *"); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str("_dyn(")
+                } else {
+                    f.write_str("void "); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str("_dyn(")
+                }
+                for p in 0..np {
+                    if p.gt(0) { f.write_str(", ") }
+                    f.write_str("void *_a"); emit_i32(f, p.to_i64().to_i32())
+                }
+                if np.eq(0) { f.write_str("void") }
+                f.write_str(") {\n")
+                if has_return {
+                    if ret_shallow {
+                        rc := type_name_to_c_value(fd.return_type)
+                        f.write_str("    "); f.write_str(rc); f.write_str(" *_r = malloc(sizeof("); f.write_str(rc); f.write_str(")); *_r = "); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str("(")
+                    } else {
+                        f.write_str("    return (void *)"); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str("(")
+                    }
+                } else {
+                    f.write_str("    "); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str("(")
+                }
+                for p in 0..np {
+                    if p.gt(0) { f.write_str(", ") }
+                    ref pp : Param = fd.params.get(p)
+                    if is_variant(pp.own_type, OwnType.Shallow) {
+                        pc := type_name_to_c_value(pp.ptype)
+                        f.write_str("*("); f.write_str(pc); f.write_str(" *)_a"); emit_i32(f, p.to_i64().to_i32())
+                    } else {
+                        f.write_str("_a"); emit_i32(f, p.to_i64().to_i32())
+                    }
+                }
+                f.write_str(");")
+                if has_return {
+                    if ret_shallow { f.write_str(" return _r;") }
+                }
+                f.write_str("\n}\n")
+            }
+        }
+    }
+    // Emit dyn_fn dispatch
+    f.write_str("void *dyn_fn(Str *type_name, Str *method) {\n    (void)type_name; (void)method;\n")
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl).not() { continue }
+            ref def : Expr = stmt.child(0)
+            if is_variant(def.data, NodeType.StructDef).not().and(is_variant(def.data, NodeType.EnumDef).not()) { continue }
+            ref dd : Declaration = get_payload(stmt.data)
+            ref body : Expr = def.child(0)
+            for j in 0..body.child_count() {
+                ref field : Expr = body.child(j)
+                ref fdd : Declaration = get_payload(field.data)
+                if fdd.is_namespace.not() { continue }
+                if field.child_count().eq(0) { continue }
+                if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+                ref fdef : Expr = field.child(0)
+                ref fd : FunctionDef = get_payload(fdef.data)
+                mut any_shallow := is_variant(fd.return_own_type, OwnType.Shallow)
+                for p in 0..fd.nparam {
+                    ref pp : Param = fd.params.get(p)
+                    if is_variant(pp.own_type, OwnType.Shallow) { any_shallow = true }
+                }
+                mut suffix := ""
+                if any_shallow { suffix = "_dyn" }
+                tlen := dd.name.len().to_i64().to_u64()
+                mlen := fdd.name.len().to_i64().to_u64()
+                f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0 && method->count == "); emit_u64(f, mlen); f.write_str("ULL && memcmp(method->c_str, \""); f.write_str(fdd.name); f.write_str("\", "); emit_u64(f, mlen); f.write_str("ULL) == 0) return (void*)"); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str(suffix); f.write_str(";\n")
+            }
+        }
+    }
+    f.write_str("    fprintf(stderr, \"dyn_fn: unknown %s.%s\\n\", (char*)type_name->c_str, (char*)method->c_str);\n")
+    f.write_str("    exit(1);\n")
+    f.write_str("}\n\n")
+}
+
 emit_dyn_call_bodies := proc(f: File, core_program: Expr, program: Expr) {
     mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
     if is_null(core_program).not() { collect_dyn_methods(core_program, dyn_methods) }
