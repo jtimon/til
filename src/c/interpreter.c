@@ -856,62 +856,7 @@ void interpreter_init_ns(Scope *global, Expr *program) {
     }
 }
 
-static Value parse_cli_arg(const char *s, Str *type_name) {
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "Str", 3) == 0)) return make_str_value((void *)s, strlen(s));
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0)) {
-        char *end;
-        I64 v = strtoll(s, &end, 10);
-        if (*end != '\0') {
-            fprintf(stderr, "error: cannot parse '%s' as I64\n", s);
-            exit(1);
-        }
-        return val_i64(v);
-    }
-    if ((type_name->count == 2 && memcmp(type_name->c_str, "U8", 2) == 0)) {
-        char *end;
-        long v = strtol(s, &end, 10);
-        if (*end != '\0' || v < 0 || v > 255) {
-            fprintf(stderr, "error: cannot parse '%s' as U8\n", s);
-            exit(1);
-        }
-        return val_u8(v);
-    }
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I16", 3) == 0)) {
-        char *end;
-        long v = strtol(s, &end, 10);
-        if (*end != '\0' || v < -32768 || v > 32767) {
-            fprintf(stderr, "error: cannot parse '%s' as I16\n", s);
-            exit(1);
-        }
-        return val_i16(v);
-    }
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I32", 3) == 0)) {
-        char *end;
-        long v = strtol(s, &end, 10);
-        if (*end != '\0' || v < -2147483648L || v > 2147483647L) {
-            fprintf(stderr, "error: cannot parse '%s' as I32\n", s);
-            exit(1);
-        }
-        return val_i32(v);
-    }
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0)) {
-        char *end;
-        unsigned long v = strtoul(s, &end, 10);
-        if (*end != '\0' || v > 0xFFFFFFFF) {
-            fprintf(stderr, "error: cannot parse '%s' as U32\n", s);
-            exit(1);
-        }
-        return val_u32(v);
-    }
-    if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) {
-        if (strcmp(s, "true") == 0) return val_bool(1);
-        if (strcmp(s, "false") == 0) return val_bool(0);
-        fprintf(stderr, "error: cannot parse '%s' as Bool (expected true/false)\n", s);
-        exit(1);
-    }
-    fprintf(stderr, "error: unsupported CLI argument type '%s'\n", type_name->c_str);
-    exit(1);
-}
+// parse_cli_arg: moved to interpreter.til
 
 
 static void value_to_buf(void *dest, Value *v, Str *type_name) {
@@ -940,7 +885,7 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     void *data = calloc(count > 0 ? count : 1, esz);
     for (U32 i = 0; i < count; i++) {
         Str *s = (Str *)Vec_get(argv, &(USize){(USize)(offset + i)});
-        Value v = parse_cli_arg((char *)s->c_str, elem_type);
+        Value v = parse_cli_arg(s, elem_type);
         value_to_buf((char *)data + i * esz, &v, elem_type);
     }
     StructInstance *inst = malloc(sizeof(StructInstance));
@@ -1128,7 +1073,7 @@ I32 interpret(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str
                 } else {
                     Param *_mpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)});
                     Str *arg_s = (Str *)Vec_get(user_argv, &(USize){(USize)argi});
-                    Value v = parse_cli_arg((char *)arg_s->c_str, &_mpi->ptype);
+                    Value v = parse_cli_arg(arg_s, &_mpi->ptype);
                     scope_set_owned(main_scope, &_mpi->name, &v);
                     argi++;
                 }

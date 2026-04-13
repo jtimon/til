@@ -1053,6 +1053,7 @@ Value val_bool(Bool v);
 Value val_enum_flat(Str * enum_name, Expr * enum_def, I32 etag, void * payload_data, I32 payload_size);
 Value val_enum_simple(Str * enum_name, I32 etag);
 I32 elem_size_for_type(Str * type_name);
+Value parse_cli_arg(Str * s, Str * type_name);
 Value eval_expr(Scope * scope, Expr * e);
 Value eval_call(Scope * scope, Expr * e);
 StructInstance * clone_struct_instance(StructInstance * src);

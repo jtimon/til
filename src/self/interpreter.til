@@ -241,6 +241,20 @@ elem_size_for_type := func(type_name: Str) returns shallow I32 {
     return 8.to_i32()
 }
 
+parse_cli_arg := func(s: Str, type_name: Str) returns shallow Value {
+    if type_name.eq("Str") { return make_str_value(s.c_str, s.count.to_u64()) }
+    if type_name.eq("I64") { return val_i64(s.to_i64()) }
+    if type_name.eq("U8") { return val_u8(s.to_i64()) }
+    if type_name.eq("I16") { return val_i16(s.to_i64()) }
+    if type_name.eq("I32") { return val_i32(s.to_i64()) }
+    if type_name.eq("U32") { return val_u32(s.to_i64()) }
+    if type_name.eq("Bool") {
+        if s.eq("true") { return val_bool(true) }
+        if s.eq("false") { return val_bool(false) }
+    }
+    return val_none()
+}
+
 eval_expr := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 clone_struct_instance := ext_func(src: StructInstance) returns StructInstance {}

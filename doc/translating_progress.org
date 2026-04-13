@@ -4,16 +4,15 @@
 
 *** Leaves
 - clone_struct_instance (59 lines, recursive)
-- parse_cli_arg (56 lines, uses C strtol/strcmp)
 - value_to_buf (20 lines)
-- build_argv_array (35 lines) -- deps: parse_cli_arg, value_to_buf
+- build_argv_array (35 lines) -- deps: value_to_buf
 
 *** Not leaves
 - eval_call (304 lines) -- deps: eval_expr, eval_body, ext_function_dispatch (dispatch.c), enum_method_dispatch (dispatch.c)
 - eval_expr (132 lines) -- deps: eval_call
 - eval_body (306 lines) -- deps: eval_expr, eval_call
 - interpreter_init_ns (35 lines) -- deps: eval_expr
-- interpret (178 lines) -- deps: eval_body, interpreter_init_ns, parse_cli_arg, build_argv_array, ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)
+- interpret (178 lines) -- deps: eval_body, interpreter_init_ns, build_argv_array, ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)
 
 ** dispatch.c
 
