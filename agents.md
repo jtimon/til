@@ -41,6 +41,14 @@ HEAD via git. See doc/self.org for the build workflow.
 Read `doc/self.org` for the bootstrap model and `make help` for targets.
 Use the `/build` skill for the full workflow.
 
+## ASAN (remote sessions)
+
+Remote sessions may hit `AddressSanitizer failed to allocate shadow memory`
+due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
+
+    ulimit -d unlimited && bin/til_asan translate src/test/strings.til > tmp/asan.log 2>&1
+    grep "SUMMARY" tmp/asan.log
+
 - NEVER edit boot/ files. Fix .til or src/c/ sources instead.
 - Use `tmp/` dir for ad-hoc test files.
 

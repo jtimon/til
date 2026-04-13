@@ -348,6 +348,17 @@
     Struct value freeing in scope_free is still unsafe due to aliasing
     -- see ~#127~
 
+  Current state (after #135 fix, strings.til translate):
+  - ~329450 byte(s) leaked in 63013 allocation(s)~
+  - previous baseline: ~417586 byte(s) leaked in 81258 allocation(s)~
+  - #135 fix reduced leaks by ~21% bytes, 22% allocations~
+  - top leak sites (by count of ASAN entries):
+    - ~4495~ ~Str_clone~ (boot/til.c:4599) -- scope/type string clones
+    - ~226~ ~Str_clone~ (boot/til.c:4617) -- scope binding name clones
+    - ~145~ ~til_type_name_c / c_type_name~ -- type name string allocs
+    - ~30~ ~fcall_return_ctype~ -- return type string allocs
+    - ~8~ ~Set_new / Map_new~ -- container construction
+
   Changes landed:
   - ~src/self/initer.til~ (on master): ~generate_enum_delete_method~
     now recurses into payload-owned data for each variant, with
@@ -363,14 +374,16 @@
     are now ~own mut data : U8 = 0~ (owned, not borrowed)
 
   Next steps:
-  - rebuild with enhanced enum delete to measure leak reduction
-  - compare the generated raw-~Vec~ struct literals against the old
-    empty-type constructor path
-  - confirm whether owned cloned empty strings are being skipped by
-    cleanup
-  - then either:
-    - stop cloning empty defaults in those raw-storage literals
-    - or make cleanup free owned-empty strings too
+  - top remaining leak source: ~Str_clone~ (4721 of 5000 leak entries),
+    mostly from typer scope registration and builder ~c_type_name~ /
+    ~til_type_name_c~ / ~fcall_return_ctype~ allocations
+  - ~c_type_name~ / ~til_type_name_c~: return heap-allocated Str that
+    callers never free (63+36+15+9+8+7+7 = 145 leak entries)
+  - ~fcall_return_ctype~: same pattern (30 leak entries)
+  - ~TypeScope_set -> Str_clone~: scope bindings clone names/types that
+    outlive the scope without cleanup (226 leak entries)
+  - fixing these requires either returning stack strings from type-name
+    helpers or adding proper cleanup at call sites
   - related low-priority ownership bug to revisit later:
     - ~#123~ ~bin/til ast~ currently hits a double-free in the
       generated ~ast_print -> print(Array) -> Array_delete~ path
