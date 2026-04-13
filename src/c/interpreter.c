@@ -21,7 +21,7 @@ void ffi_init_scan_program(Expr *program);
 #define ENUM_PAYLOAD_OFFSET ((I32)sizeof(I64))
 
 // Check if a FieldAccess/FieldAssign accesses a namespace field.
-static Bool interp_fa_is_ns(Scope *scope, Expr *e) {
+Bool interp_fa_is_ns(Scope *scope, Expr *e) {
     Expr *obj_expr = Expr_child(e, &(USize){(USize)(0)});
     Str *sname = &obj_expr->struct_name;
     if (!sname->count && obj_expr->data.tag == NodeType_TAG_Ident)

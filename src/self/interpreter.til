@@ -282,6 +282,8 @@ scope_get := func(s: Scope, name: Str) returns ref Cell {
 scope_new := ext_func(parent: Scope) returns ref Scope {}
 scope_set_owned := ext_proc(mut s: Scope, name: Str, val: Value) {}
 scope_free := ext_proc(own s: Scope) {}
+interp_fa_is_ns := ext_func(scope: Scope, e: Expr) returns shallow Bool {}
+
 interpreter_init_ns := ext_proc(mut global: Scope, program: Expr) {}
 
 ns_qname := func(sname: Str, fname: Str) returns Str {
