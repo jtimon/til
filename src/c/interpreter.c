@@ -32,18 +32,7 @@ void ffi_init_scan_program(Expr *program);
 
 // scope_free: moved to interpreter.til
 
-void scope_set_owned(Scope *s, Str *name, Value *val) {
-    if (Map_has(&s->bindings, name)) {
-        Binding *b = Map_get(&s->bindings, name);
-        free_value(b->cell->val);
-        b->cell->val = *val;
-        return;
-    }
-    Cell *cell = malloc(sizeof(Cell));
-    cell->val = *val;
-    Binding nb = {name, cell, 1};
-    { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(nb)); memcpy(_v, &nb, sizeof(nb)); Map_set(&s->bindings, _k, _v); }
-}
+// scope_set_owned: moved to interpreter.til
 
 static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
     Binding b = {name, cell, 0};

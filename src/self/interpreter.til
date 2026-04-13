@@ -364,7 +364,28 @@ scope_new := func(parent: Scope) returns ref Scope {
     ref result : Scope = ptr_add(s, 0)
     return result
 }
-scope_set_owned := ext_proc(mut s: Scope, name: Str, val: Value) {}
+scope_set_owned := proc(mut s: Scope, name: Str, val: Value) {
+    if s.bindings.has(name) {
+        ref b : Binding = s.bindings.get(name)
+        free_value(b.cell.val)
+        memcpy(b.cell.val, val, Value.size())
+        return
+    }
+    cell : Dynamic = malloc(Cell.size().to_u64())
+    memcpy(cell, val, Value.size())
+    // Build Str view key: copy name then set cap to CAP_VIEW
+    k : Dynamic = malloc(Str.size().to_u64())
+    memcpy(k, name, Str.size().to_u64())
+    memcpy(ptr_add(k, 12), CAP_VIEW, U32.size().to_u64())
+    // Build Binding: {name_ptr, cell_ptr, cell_is_local=1}
+    v : Dynamic = malloc(Binding.size().to_u64())
+    memset(v, 0, Binding.size().to_u64())
+    write_ptr(v, name)
+    write_ptr(ptr_add(v, 8), cell)
+    mut local_flag := true
+    memcpy(ptr_add(v, 16), local_flag, Bool.size().to_u64())
+    s.bindings.set(own k, own v)
+}
 scope_free := proc(own s: Scope) {
     for i in 0..s.bindings.count {
         ref b : Binding = ptr_add(s.bindings.val_data, i.to_u64().mul(s.bindings.val_size.to_u64()))
