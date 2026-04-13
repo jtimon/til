@@ -834,7 +834,6 @@ void interpreter_init_ns(Scope *global, Expr *program) {
                                         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *sdef = Expr_child(stmt, &(USize){(USize)(0)});
-            // Cache struct defs for C-side construction
             if (sdef->data.tag == NodeType_TAG_StructDef) {
                 if ((sname->count == 3 && memcmp(sname->c_str, "Str", 3) == 0))   { cached_str_def = sdef; cached_str_name = sname; }
                 if ((sname->count == 5 && memcmp(sname->c_str, "Array", 5) == 0)) { cached_array_def = sdef; cached_array_name = sname; }
@@ -845,7 +844,6 @@ void interpreter_init_ns(Scope *global, Expr *program) {
                 Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (field->data.data.Decl.is_namespace) {
                     Value fval = eval_expr(global, Expr_child(field, &(USize){(USize)(0)}));
-                    // Simple enum variant tags: convert I64 literal to I32 (matching C enum)
                     if (sdef->data.tag == NodeType_TAG_EnumDef && !enum_has_payloads(sdef) &&
                         fval.tag == Value_TAG_Int) {
                         I32 tag = (I32)fval.data.Int;
