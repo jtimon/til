@@ -332,7 +332,70 @@ scope_get := func(s: Scope, name: Str) returns ref Cell {
 scope_new := ext_func(parent: Scope) returns ref Scope {}
 scope_set_owned := ext_proc(mut s: Scope, name: Str, val: Value) {}
 scope_free := ext_proc(own s: Scope) {}
-interp_fa_is_ns := ext_func(scope: Scope, e: Expr) returns shallow Bool {}
+interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow Bool {
+    ref obj_expr : Expr = e.child(0)
+    ref tc : Cell = scope_get(scope, sname)
+    if is_null(tc) { return false }
+    if is_variant(tc.val, Value.Func).not() { return false }
+    ref fptr : Dynamic = get_payload(tc.val)
+    ref sdef : Expr = read_ptr(fptr)
+    if is_variant(sdef.data, NodeType.StructDef).not() {
+        if is_variant(sdef.data, NodeType.EnumDef).not() { return false }
+    }
+    ref mut fname : Str = get_payload(e.data)
+    ref body : Expr = sdef.child(0)
+    mut has_ns := false
+    mut has_inst := false
+    for i in 0..body.child_count() {
+        ref f : Expr = body.child(i)
+        ref dd : Declaration = get_payload(f.data)
+        if dd.name.eq(fname) {
+            if dd.is_namespace { has_ns = true }
+            else { has_inst = true }
+        }
+    }
+    if has_ns {
+        if has_inst.not() { return true }
+    }
+    if has_ns.not() {
+        if has_inst.not() {
+            if is_variant(obj_expr.data, NodeType.Ident) {
+                ref ident : Str = get_payload(obj_expr.data)
+                if ident.eq(sname) { return true }
+                if ident.len().gt(0) {
+                    if ident.byte_at(0).gte(65) {
+                        if ident.byte_at(0).lte(90) { return true }
+                    }
+                }
+            }
+            return false
+        }
+    }
+    if has_ns {
+        if has_inst {
+            if is_variant(obj_expr.data, NodeType.Ident).not() { return false }
+            ref ident : Str = get_payload(obj_expr.data)
+            if ident.eq(sname) { return true }
+            if ident.len().gt(0) {
+                if ident.byte_at(0).gte(65) {
+                    if ident.byte_at(0).lte(90) { return true }
+                }
+            }
+        }
+    }
+    return false
+}
+
+interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
+    ref obj_expr : Expr = e.child(0)
+    ref sname : Str = obj_expr.struct_name
+    if sname.len().gt(0) { return interp_fa_is_ns_inner(scope, e, sname) }
+    if is_variant(obj_expr.data, NodeType.Ident) {
+        ref ident : Str = get_payload(obj_expr.data)
+        return interp_fa_is_ns_inner(scope, e, ident)
+    }
+    return false
+}
 
 interpreter_init_ns := ext_proc(mut global: Scope, program: Expr) {}
 

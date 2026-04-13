@@ -20,50 +20,7 @@ void ffi_init_scan_program(Expr *program);
 
 #define ENUM_PAYLOAD_OFFSET ((I32)sizeof(I64))
 
-// Check if a FieldAccess/FieldAssign accesses a namespace field.
-Bool interp_fa_is_ns(Scope *scope, Expr *e) {
-    Expr *obj_expr = Expr_child(e, &(USize){(USize)(0)});
-    Str *sname = &obj_expr->struct_name;
-    if (!sname->count && obj_expr->data.tag == NodeType_TAG_Ident)
-        sname = &obj_expr->data.data.Ident;
-    Cell *tc = scope_get(scope, sname);
-    if (!tc || tc->val.tag != Value_TAG_Func) return 0;
-    Expr *sdef = (Expr*)tc->val.data.Func;
-    if (sdef->data.tag != NodeType_TAG_StructDef && sdef->data.tag != NodeType_TAG_EnumDef) return 0;
-    Str *fname = (e->data.tag == NodeType_TAG_FieldAccess)
-        ? &e->data.data.FieldAccess : &e->data.data.FieldAssign;
-    // Search body for namespace and instance fields with this name
-    Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-    Bool has_ns = 0, has_inst = 0;
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = Expr_child(body, &(USize){(USize)(i)});
-        if (Str_eq(&f->data.data.Decl.name, fname)) {
-            if (f->data.data.Decl.is_namespace) has_ns = 1;
-            else has_inst = 1;
-        }
-    }
-    if (has_ns && !has_inst) return 1;
-    if (!has_ns && !has_inst) {
-        // No field found; namespace if object is a type name
-        if (obj_expr->data.tag == NodeType_TAG_Ident &&
-            (Str_eq(&obj_expr->data.data.Ident, sname) ||
-             (obj_expr->data.data.Ident.count > 0 &&
-              obj_expr->data.data.Ident.c_str[0] >= 'A' &&
-              obj_expr->data.data.Ident.c_str[0] <= 'Z')))
-            return 1;
-        return 0;
-    }
-    if (has_ns && has_inst) {
-        // Both exist: namespace if object is a type name
-        if (obj_expr->data.tag != NodeType_TAG_Ident) return 0;
-        if (Str_eq(&obj_expr->data.data.Ident, sname)) return 1;
-        if (obj_expr->data.data.Ident.count > 0 &&
-            obj_expr->data.data.Ident.c_str[0] >= 'A' &&
-            obj_expr->data.data.Ident.c_str[0] <= 'Z')
-            return 1;
-    }
-    return 0;
-}
+// interp_fa_is_ns: moved to interpreter.til
 
 // widen_numeric: moved to interpreter.til
 
