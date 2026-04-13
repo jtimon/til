@@ -150,7 +150,6 @@ Value read_field(StructInstance *inst, Expr *fdecl) {
     return val_i64(*(I64 *)ptr);
 }
 
-// Write a Value into flat buffer at a field decl's offset
 void write_field(StructInstance *inst, Expr *fdecl, Value *val) {
     void *ptr = (char *)inst->data + fdecl->data.data.Decl.field_offset;
     I32 fsz = fdecl->data.data.Decl.field_size;
@@ -159,11 +158,8 @@ void write_field(StructInstance *inst, Expr *fdecl, Value *val) {
         return;
     }
     if (DECL_IS_REF(fdecl->data.data.Decl)) {
-        // ref field: store pointer (don't own the data)
         if (val->tag == Value_TAG_Ptr) *(void **)ptr = val->data.Ptr;
-        else if (val->tag == Value_TAG_Struct) {
-            *(void **)ptr = val->data.Struct.data;
-        }
+        else if (val->tag == Value_TAG_Struct) *(void **)ptr = val->data.Struct.data;
         else *(void **)ptr = NULL;
         return;
     }
@@ -192,7 +188,6 @@ void write_field(StructInstance *inst, Expr *fdecl, Value *val) {
         if (existing) { free(existing->data); free(existing); }
         EnumInstance *ei = malloc(sizeof(EnumInstance));
         *ei = val->data.Enum;
-        // Deep-copy the flat data buffer
         I32 total = val->data.Enum.data_size;
         if (total < (I32)sizeof(I64)) total = sizeof(I64);
         ei->data = malloc(total);
