@@ -3332,5 +3332,88 @@ emit_lib_init := proc(f: File) {
     f.write_str("}\n\n")
 }
 
-build := ext_func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
+build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {
+    codegen_core_program = core_program
+    codegen_program = program
+    mut is_lib := false
+    if is_null(mode).not() { is_lib = mode.is_library }
+
+    build_register_lookups(core_program, program)
+    build_register_funcsig_names(core_program, program)
+    f := File.new(c_output_path, true)
+    if is_null(f) { return 1.to_i32() }
+
+    f.write_str("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n\n")
+
+    mut is_script := true
+    if is_null(mode).not() {
+        if mode.decls_only { is_script = false }
+    }
+
+    emit_monolithic_header(f, core_program, program, mode)
+    f.write_str("#include \"ext.h\"\n\n")
+
+    emit_ext_func_declarations(f, program)
+
+    f.write_str("Str *Str_lit(const char *s, unsigned long long len);\n")
+    f.write_str("void print_single(Str *s);\n")
+    f.write_str("void print_flush();\n\n")
+
+    emit_all_forward_declarations(f, core_program, program, mode)
+
+    f.write_str("#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n")
+
+    f.write_str("#define TIL_CAP_LIT ((USize)-1)\n")
+    f.write_str("Str *Str_lit(const char *s, unsigned long long len) {\n")
+    f.write_str("    (void)len;\n")
+    f.write_str("    Str *r = malloc(sizeof(Str));\n")
+    f.write_str("    r->c_str = (U8 *)s;\n")
+    f.write_str("    r->count = (USize)strlen(s);\n")
+    f.write_str("    r->cap = TIL_CAP_LIT;\n")
+    f.write_str("    return r;\n")
+    f.write_str("}\n")
+    f.write_str("void print_single(Str *s) {\n")
+    f.write_str("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
+    f.write_str("}\n")
+    f.write_str("void print_flush() {\n")
+    f.write_str("    putchar('\\n');\n")
+    f.write_str("}\n\n")
+
+    emit_global_declarations(f, core_program, program)
+    emit_function_bodies(f, core_program, program, mode, is_lib)
+
+    emit_dyn_call_bodies(f, core_program, program)
+    emit_dyn_fn_wrappers(f, core_program, program)
+    emit_dyn_has_bodies(f, core_program, program)
+    emit_collection_helpers(f, core_program, program)
+
+    if run_tests { emit_test_main(f, program) }
+    if run_tests.not() {
+        if is_script.not() {
+            if is_lib {
+                if has_script_globals { emit_lib_init(f) }
+            }
+        }
+    }
+    if run_tests.not() {
+        if is_script {
+            mut needs_main := false
+            if is_null(mode).not() { needs_main = mode.needs_main }
+            if needs_main.not() { emit_script_main(f, program) }
+        }
+    }
+
+    f.close()
+    own struct_bodies.delete()
+    struct_bodies = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    own func_defs.delete()
+    func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    own stack_locals.delete()
+    stack_locals = Set.new("Str", Str.size())
+    own stack_local_types.delete()
+    stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
+    own unsafe_to_hoist.delete()
+    unsafe_to_hoist = Set.new("Str", Str.size())
+    return 0.to_i32()
+}
 
