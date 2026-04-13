@@ -1057,6 +1057,7 @@ Value eval_expr(Scope * scope, Expr * e);
 Value eval_call(Scope * scope, Expr * e);
 StructInstance * clone_struct_instance(StructInstance * src);
 void free_value(Value v);
+Bool needs_widen(Value * val, Str * ptype);
 Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
 void scope_set_owned(Scope * s, Str * name, Value * val);

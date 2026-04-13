@@ -15,23 +15,7 @@ void ffi_init_scan_program(Expr *program);
 
 // Forward declarations (defined in ast.c)
 
-// Free owned heap data inside a Value (does NOT free the Value struct itself).
-// Shallow free only -- frees the top-level data buffer but does not recurse
-// into nested fields (avoids double-free from shared ref pointers).
-void free_value(Value v) {
-    switch (v.tag) {
-    case Value_TAG_Struct:
-        if (!v.data.Struct.borrowed && v.data.Struct.data)
-            free(v.data.Struct.data);
-        break;
-    case Value_TAG_Enum:
-        if (v.data.Enum.data)
-            free(v.data.Enum.data);
-        break;
-    default:
-        break;
-    }
-}
+// free_value: moved to interpreter.til
 
 
 #define ENUM_PAYLOAD_OFFSET ((I32)sizeof(I64))
@@ -121,21 +105,7 @@ static Value *widen_numeric(Value *v, Str *ptype) {
     *r = *v; return r;
 }
 
-// Check if a Value's type doesn't match the target ptype and would need widening
-static Bool needs_widen(Value *v, Str *ptype) {
-    if (!ptype || ptype->count == 0) return 0;
-    switch (v->tag) {
-        case Value_TAG_Byte:
-            return !(ptype->count == 2 && memcmp(ptype->c_str, "U8", 2) == 0);
-        case Value_TAG_Short:
-            return !(ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0);
-        case Value_TAG_Int32:
-            return !(ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0);
-        case Value_TAG_Uint32:
-            return !(ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0);
-        default: return 0;
-    }
-}
+// needs_widen: moved to interpreter.til
 
 // --- Scope / environment ---
 

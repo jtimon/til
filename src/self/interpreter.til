@@ -236,7 +236,36 @@ elem_size_for_type := func(type_name: Str) returns shallow I32 {
 eval_expr := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 clone_struct_instance := ext_func(src: StructInstance) returns StructInstance {}
-free_value := ext_proc(shallow v: Value) {}
+free_value := proc(shallow v: Value) {
+    if is_variant(v, Value.Struct) {
+        ref si : StructInstance = get_payload(v)
+        if si.borrowed.not() {
+            if is_null(si.data).not() { free(own si.data) }
+        }
+    }
+    if is_variant(v, Value.Enum) {
+        ref ei : EnumInstance = get_payload(v)
+        if is_null(ei.data).not() { free(own ei.data) }
+    }
+}
+
+needs_widen := func(val: Value, ptype: Str) returns shallow Bool {
+    if is_null(ptype) { return false }
+    if ptype.len().eq(0) { return false }
+    if is_variant(val, Value.Byte) {
+        return ptype.eq("U8").not()
+    }
+    if is_variant(val, Value.Short) {
+        return ptype.eq("I16").not()
+    }
+    if is_variant(val, Value.Int32) {
+        return ptype.eq("I32").not()
+    }
+    if is_variant(val, Value.Uint32) {
+        return ptype.eq("U32").not()
+    }
+    return false
+}
 
 scope_get := ext_func(s: Scope, name: Str) returns ref Cell {}
 scope_new := ext_func(parent: Scope) returns ref Scope {}
