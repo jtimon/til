@@ -150,56 +150,7 @@ Value read_field(StructInstance *inst, Expr *fdecl) {
     return val_i64(*(I64 *)ptr);
 }
 
-void write_field(StructInstance *inst, Expr *fdecl, Value *val) {
-    void *ptr = (char *)inst->data + fdecl->data.data.Decl.field_offset;
-    I32 fsz = fdecl->data.data.Decl.field_size;
-    if (DECL_IS_OWN(fdecl->data.data.Decl)) {
-        *(void **)ptr = val->tag == Value_TAG_Struct ? val->data.Struct.data : val->data.Ptr;
-        return;
-    }
-    if (DECL_IS_REF(fdecl->data.data.Decl)) {
-        if (val->tag == Value_TAG_Ptr) *(void **)ptr = val->data.Ptr;
-        else if (val->tag == Value_TAG_Struct) *(void **)ptr = val->data.Struct.data;
-        else *(void **)ptr = NULL;
-        return;
-    }
-    switch (val->tag) {
-    case Value_TAG_Int:  *(I64 *)ptr = val->data.Int; break;
-    case Value_TAG_Byte:   *(U8 *)ptr = val->data.Byte; break;
-    case Value_TAG_Short:  *(I16 *)ptr = val->data.Short; break;
-    case Value_TAG_Int32:  *(I32 *)ptr = val->data.Int32; break;
-    case Value_TAG_Uint32:  *(U32 *)ptr = val->data.Uint32; break;
-    case Value_TAG_Uint64:  *(U64 *)ptr = val->data.Uint64; break;
-    case Value_TAG_Float:  *(F32 *)ptr = val->data.Float; break;
-    case Value_TAG_Boolean: *(Bool *)ptr = val->data.Boolean; break;
-    case Value_TAG_Struct:
-        if (val->data.Struct.borrowed) {
-            Value *cloned = Value_clone(val);
-            memcpy(ptr, cloned->data.Struct.data, fsz);
-            free(cloned->data.Struct.data);
-            free(cloned);
-        } else {
-            memcpy(ptr, val->data.Struct.data, fsz);
-            free(val->data.Struct.data);
-        }
-        break;
-    case Value_TAG_Enum: {
-        EnumInstance *existing = *(EnumInstance **)ptr;
-        if (existing) { free(existing->data); free(existing); }
-        EnumInstance *ei = malloc(sizeof(EnumInstance));
-        *ei = val->data.Enum;
-        I32 total = val->data.Enum.data_size;
-        if (total < (I32)sizeof(I64)) total = sizeof(I64);
-        ei->data = malloc(total);
-        memcpy(ei->data, val->data.Enum.data, total);
-        *(EnumInstance **)ptr = ei;
-        break;
-    }
-    case Value_TAG_Ptr:  *(void **)ptr = val->data.Ptr; break;
-    case Value_TAG_Func: *(void **)ptr = val->data.Func; break;
-    default: break;
-    }
-}
+// write_field: moved to interpreter.til
 
 Value make_str_value(void *data, U64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));

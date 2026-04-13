@@ -522,4 +522,67 @@ read_field_til := func(inst: StructInstance, fdecl: Expr) returns shallow Value 
     return val_i64(fi)
 }
 
-write_field := ext_proc(mut inst: StructInstance, fdecl: Expr, val: Value) {}
+write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
+    ref dd : Declaration = get_payload(fdecl.data)
+    ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
+    fsz := dd.field_size
+    if is_variant(dd.own_type, OwnType.Own) {
+        if is_variant(val, Value.Struct) {
+            ref si : StructInstance = get_payload(val)
+            write_ptr(ptr, si.data)
+        } else {
+            ref pv : Dynamic = get_payload(val)
+            write_ptr(ptr, read_ptr(pv))
+        }
+        return
+    }
+    if is_variant(dd.own_type, OwnType.Ref) {
+        if is_variant(val, Value.Ptr) {
+            ref pv : Dynamic = get_payload(val)
+            write_ptr(ptr, read_ptr(pv))
+        } else if is_variant(val, Value.Struct) {
+            ref si : StructInstance = get_payload(val)
+            write_ptr(ptr, si.data)
+        } else {
+            write_ptr(ptr, NULL)
+        }
+        return
+    }
+    if is_variant(val, Value.Int) { ref v : I64 = get_payload(val); memcpy(ptr, v, I64.size().to_u64()); return }
+    if is_variant(val, Value.Byte) { ref v : U8 = get_payload(val); memcpy(ptr, v, U8.size().to_u64()); return }
+    if is_variant(val, Value.Short) { ref v : I16 = get_payload(val); memcpy(ptr, v, I16.size().to_u64()); return }
+    if is_variant(val, Value.Int32) { ref v : I32 = get_payload(val); memcpy(ptr, v, I32.size().to_u64()); return }
+    if is_variant(val, Value.Uint32) { ref v : U32 = get_payload(val); memcpy(ptr, v, U32.size().to_u64()); return }
+    if is_variant(val, Value.Uint64) { ref v : U64 = get_payload(val); memcpy(ptr, v, U64.size().to_u64()); return }
+    if is_variant(val, Value.Float) { ref v : F32 = get_payload(val); memcpy(ptr, v, F32.size().to_u64()); return }
+    if is_variant(val, Value.Boolean) { ref v : Bool = get_payload(val); memcpy(ptr, v, Bool.size().to_u64()); return }
+    if is_variant(val, Value.Struct) {
+        ref si : StructInstance = get_payload(val)
+        if si.borrowed {
+            mut cloned := val.clone()
+            ref mut csi : StructInstance = get_payload(cloned)
+            memcpy(ptr, csi.data, fsz.to_i64().to_u64())
+            free(own csi.data)
+            csi.data = NULL
+        } else {
+            memcpy(ptr, si.data, fsz.to_i64().to_u64())
+        }
+        return
+    }
+    if is_variant(val, Value.Enum) {
+        ref ei : EnumInstance = get_payload(val)
+        mut total := ei.data_size
+        if total.to_i64().lt(8) { total = 8.to_i32() }
+        heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
+        memcpy(heap_ei, ei, EnumInstance.size().to_u64())
+        // Deep-copy the data buffer
+        new_data : Dynamic = malloc(total.to_i64().to_u64())
+        memcpy(new_data, ei.data, total.to_i64().to_u64())
+        // Write data pointer into the heap EnumInstance
+        write_ptr(ptr_add(heap_ei, 16), new_data)
+        write_ptr(ptr, heap_ei)
+        return
+    }
+    if is_variant(val, Value.Ptr) { ref pv : Dynamic = get_payload(val); write_ptr(ptr, read_ptr(pv)); return }
+    if is_variant(val, Value.Func) { ref fv : Dynamic = get_payload(val); write_ptr(ptr, read_ptr(fv)); return }
+}
