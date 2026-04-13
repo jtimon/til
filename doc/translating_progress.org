@@ -86,19 +86,11 @@ like store_ptr_at(buf, offset, ptr).
 - ext_dispatch_ffi(...)               line 475 -- BLOCKER B: union for return buffer, ffi_call/FFI_FN/FFI_DEFAULT_ABI macros. VLAs already fixed.
 - ext_function_dispatch(...)          line 654 -- depends on dispatch_init + ext_dispatch_builtin + ext_dispatch_ffi
 
-** Remaining translations -- builder.c
+** builder.c -- FULLY TRANSLATED
 
-Self-contained (no interpreter.c/dispatch.c deps). Can translate independently.
-
-*** Done (translated to builder.til)
-- reset_current_fdef (removed, was unnecessary)
-- compile_c, compile_lib
-- build_register_funcsig_names, emit_global_inits
-- All leaf functions, emit layer, struct/enum emitters, header emitters
-- build_forward_header, build_header, build_til_binding
-
-*** Remaining in C
-- build() (~760 lines, main code generation orchestrator)
+builder.c has been completely translated to builder.til and removed.
+The import was moved from modes.til to til.til (optimization: modes.til
+translates faster without builder code).
 
 ** Remaining translations -- precomp.c
 
