@@ -2620,6 +2620,103 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
+emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode: Mode) {
+    f.write_str("#include \"ext.h\"\n\n")
+    emit_header_forward_decls(f, core_program, program)
+
+    // Topo-sort struct/enum defs
+    mut emitted_mh := Set.new("Str", Str.size())
+    emitted_mh.add(own "U8".clone()); emitted_mh.add(own "I16".clone()); emitted_mh.add(own "I32".clone())
+    emitted_mh.add(own "U32".clone()); emitted_mh.add(own "U64".clone()); emitted_mh.add(own "I64".clone())
+    emitted_mh.add(own "F32".clone()); emitted_mh.add(own "Bool".clone())
+    if is_null(core_program).not() { topo_emit_struct_enum_defs(f, core_program, emitted_mh) }
+    topo_emit_struct_enum_defs(f, program, emitted_mh)
+    own emitted_mh.delete()
+
+    // Emit function declarations
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl).not() { continue }
+            ref dd : Declaration = get_payload(stmt.data)
+            if stmt.child_count().eq(0) { continue }
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(rhs.data, NodeType.StructDef).or(is_variant(rhs.data, NodeType.EnumDef)) {
+                if is_scalar_method_type(dd.name) { continue }
+                ref body : Expr = rhs.child(0)
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fdd : Declaration = get_payload(field.data)
+                    if fdd.is_namespace.not() { continue }
+                    if field.child_count().eq(0) { continue }
+                    if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+                    ref fdef : Expr = field.child(0)
+                    ref fd : FunctionDef = get_payload(fdef.data)
+                    if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+                    full_name := dd.name.concat("_").concat(fdd.name)
+                    emit_func_forward_decl(f, full_name, fdef)
+                }
+            } else if is_variant(rhs.data, NodeType.FuncDef) {
+                if rhs.child_count().eq(0) { continue }
+                ref fd : FunctionDef = get_payload(rhs.data)
+                if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+                if is_null(mode).not() {
+                    if mode.needs_main {
+                        if dd.name.eq("main") { continue }
+                    }
+                }
+                fc := func_to_c(dd.name)
+                emit_func_forward_decl(f, fc, rhs)
+            }
+        }
+    }
+    // Enum auto-helper declarations (user program only)
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        if stmt.child_count().eq(0) { continue }
+        if is_variant(stmt.child(0).data, NodeType.EnumDef).not() { continue }
+        ref ebody : Expr = stmt.child(0).child(0)
+        mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+        mut has_eq_fdef := false
+        for j in 0..ebody.child_count() {
+            ref field : Expr = ebody.child(j)
+            ref fdd : Declaration = get_payload(field.data)
+            if fdd.is_namespace {
+                if fdd.name.eq("eq") {
+                    if field.child_count().gt(0) {
+                        if is_variant(field.child(0).data, NodeType.FuncDef) {
+                            eq_fdef = field.child(0).clone()
+                            has_eq_fdef = true
+                        }
+                    }
+                }
+            }
+        }
+        mut eq_ret := "Bool *"
+        if has_eq_fdef {
+            ref eqfd : FunctionDef = get_payload(eq_fdef.data)
+            if is_variant(eqfd.return_own_type, OwnType.Shallow) { eq_ret = "Bool" }
+        }
+        f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+        for j in 0..ebody.child_count() {
+            ref v : Expr = ebody.child(j)
+            ref vdd : Declaration = get_payload(v.data)
+            if vdd.is_namespace { continue }
+            if vdd.explicit_type.len().gt(0) {
+                tnc := type_name_to_c(vdd.explicit_type)
+                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+            } else {
+                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("();\n")
+            }
+        }
+    }
+}
+
 emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr, mode: Mode) {
     // Forward-declare struct/enum namespace methods and top-level functions
     for prog_idx in 0..2 {

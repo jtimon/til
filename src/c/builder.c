@@ -94,7 +94,6 @@
 // Populate struct_bodies/func_defs maps and init auxiliary sets
 
 // Forward declarations for extracted build() sections
-void emit_monolithic_header(File *, Expr *, Expr *, Mode *);
 
 I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     codegen_core_program = core_program;
@@ -187,109 +186,7 @@ I32 build(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *pa
 // compile_lib: moved to builder.til
 
 
-// --- Extracted build() sections ---
-
-void emit_monolithic_header(File *f, Expr *core_program, Expr *program, Mode *mode) {
-    {
-        File *hf = f;  // emit directly into main .c
-        EMIT(hf, "#include \"ext.h\"\n\n");
-        emit_header_forward_decls(hf, core_program, program);
-
-        // Topo-sort struct/enum defs into header
-        {
-            Set emitted_mh; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); emitted_mh = *_sp; free(_sp); }
-            { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U8", .count = 2, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
-            { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I16", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
-            { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
-            { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
-            { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U64", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
-            { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
-            { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"F32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
-            { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
-            if (core_program) topo_emit_struct_enum_defs(hf, core_program, &emitted_mh);
-            topo_emit_struct_enum_defs(hf, program, &emitted_mh);
-            Set_delete(&emitted_mh, &(Bool){0});
-        }
-
-        // Emit function declarations to header
-        { Expr *_progs_hd[2] = { core_program, program };
-        for (int _phd = 0; _phd < 2; _phd++) {
-            if (!_progs_hd[_phd]) continue;
-        for (U32 i = 0; i < _progs_hd[_phd]->children.count; i++) {
-            Expr *stmt = Expr_child(_progs_hd[_phd], &(USize){(USize)(i)});
-            if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
-                                             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
-                Str *sname = &stmt->data.data.Decl.name;
-                if (is_scalar_method_type(sname)) continue;
-                Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
-                for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *field = Expr_child(body, &(USize){(USize)(j)});
-                    if (!field->data.data.Decl.is_namespace) continue;
-                    if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
-                    Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
-                    FuncType fft = fdef->data.data.FuncDef.func_type;
-                    if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
-                    Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
-                    if (fdef->data.data.FuncDef.return_type.count > 0)
-                        ret = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef)
-                            ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
-                            : type_name_to_c(&fdef->data.data.FuncDef.return_type);
-                    File_write_str(hf, ret); EMIT(hf, " "); EMIT(hf, (const char *)sname->c_str); EMIT(hf, "_"); EMIT(hf, (const char *)field->data.data.Decl.name.c_str); EMIT(hf, "(");
-                    emit_param_list(hf, fdef, 1);
-                    EMIT(hf, ");\n");
-                }
-            } else if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
-                Expr *func_def = Expr_child(stmt, &(USize){(USize)(0)});
-                if (func_def->children.count == 0) continue;
-                FuncType fft = func_def->data.data.FuncDef.func_type;
-                if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
-                Str *fname = &stmt->data.data.Decl.name;
-                Bool fis_main = mode && mode->needs_main && (fname->count == 4 && memcmp(fname->c_str, "main", 4) == 0);
-                if (fis_main) continue;
-                Str *ret = Str_clone(&(Str){.c_str = (U8 *)"void", .count = 4, .cap = CAP_LIT});
-                if (func_def->data.data.FuncDef.return_type.count > 0)
-                    ret = RETURN_IS_SHALLOW(&func_def->data.data.FuncDef)
-                        ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
-                        : type_name_to_c(&func_def->data.data.FuncDef.return_type);
-                File_write_str(hf, ret); EMIT(hf, " "); { Str *_fc = func_to_c(&stmt->data.data.Decl.name); File_write_str(hf, _fc); Str_delete(_fc, &(Bool){1}); } EMIT(hf, "(");
-                emit_param_list(hf, func_def, 1);
-                EMIT(hf, ");\n");
-            }
-        }
-        }}
-        // Enum auto-helper declarations (user program only)
-        for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag == NodeType_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef) {
-                Str *sname = &stmt->data.data.Decl.name;
-                Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
-                Expr *eq_fdef = NULL;
-                for (U32 j = 0; j < ebody->children.count; j++) {
-                    Expr *field = Expr_child(ebody, &(USize){(USize)(j)});
-                    if (field->data.data.Decl.is_namespace && (field->data.data.Decl.name.count == 2 && memcmp(field->data.data.Decl.name.c_str, "eq", 2) == 0) &&
-                        Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
-                        eq_fdef = Expr_child(field, &(USize){(USize)(0)});
-                        break;
-                    }
-                }
-                const char *eq_ret = (eq_fdef && RETURN_IS_SHALLOW(&eq_fdef->data.data.FuncDef)) ? "Bool" : "Bool *";
-                EMIT(hf, (const char *)eq_ret); EMIT(hf, " "); EMIT(hf, (const char *)sname->c_str); EMIT(hf, "_eq("); EMIT(hf, (const char *)sname->c_str); EMIT(hf, " *, "); EMIT(hf, (const char *)sname->c_str); EMIT(hf, " *);\n");
-                for (U32 j = 0; j < ebody->children.count; j++) {
-                    Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
-                    if (v->data.data.Decl.is_namespace) continue;
-                    if (v->data.data.Decl.explicit_type.count > 0) {
-                        EMIT(hf, (const char *)sname->c_str); EMIT(hf, " *"); EMIT(hf, (const char *)sname->c_str); EMIT(hf, "_"); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, "("); { Str *_tnc = type_name_to_c(&v->data.data.Decl.explicit_type); File_write_str(hf, _tnc); Str_delete(_tnc, &(Bool){1}); }; EMIT(hf, ");\n");
-                    } else {
-                        EMIT(hf, (const char *)sname->c_str); EMIT(hf, " *"); EMIT(hf, (const char *)sname->c_str); EMIT(hf, "_"); EMIT(hf, (const char *)v->data.data.Decl.name.c_str); EMIT(hf, "();\n");
-                    }
-                }
-            }
-        }
-
-        // hf == f, no separate file to close
-    }
-}
-
+// emit_monolithic_header: moved to builder.til
 
 // emit_all_forward_declarations: moved to builder.til
 
