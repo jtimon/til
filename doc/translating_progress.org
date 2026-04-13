@@ -3,17 +3,17 @@
 ** interpreter.c
 
 *** Leaves
-- clone_struct_instance (~60 lines, recursive)
-- parse_cli_arg (~55 lines, uses C strtol/strcmp)
-- value_to_buf (~20 lines)
-- build_argv_array (~35 lines) -- deps: parse_cli_arg, value_to_buf
+- clone_struct_instance (59 lines, recursive)
+- parse_cli_arg (56 lines, uses C strtol/strcmp)
+- value_to_buf (20 lines)
+- build_argv_array (35 lines) -- deps: parse_cli_arg, value_to_buf
 
 *** Not leaves
-- eval_call (~305 lines) -- deps: eval_expr, eval_body, ext_function_dispatch (dispatch.c), enum_method_dispatch (dispatch.c)
-- eval_expr (~133 lines) -- deps: eval_call
-- eval_body (~298 lines) -- deps: eval_expr, eval_call
-- interpreter_init_ns (~35 lines) -- deps: eval_expr
-- interpret (~175 lines) -- deps: eval_body, interpreter_init_ns, parse_cli_arg, build_argv_array, ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)
+- eval_call (304 lines) -- deps: eval_expr, eval_body, ext_function_dispatch (dispatch.c), enum_method_dispatch (dispatch.c)
+- eval_expr (132 lines) -- deps: eval_call
+- eval_body (306 lines) -- deps: eval_expr, eval_call
+- interpreter_init_ns (35 lines) -- deps: eval_expr
+- interpret (178 lines) -- deps: eval_body, interpreter_init_ns, parse_cli_arg, build_argv_array, ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)
 
 ** dispatch.c
 
@@ -21,23 +21,23 @@
 (none)
 
 *** Not leaves
-- h_free -- deps: eval_expr (interpreter.c)
-- h_dyn_call -- deps: eval_expr (interpreter.c), eval_call (interpreter.c)
-- get_elem_size -- deps: eval_expr (interpreter.c)
-- h_array -- deps: eval_expr (interpreter.c)
-- h_vec -- deps: eval_expr (interpreter.c)
-- h_ptr_add -- deps: eval_expr (interpreter.c)
-- h_cfile_close -- deps: eval_expr (interpreter.c)
-- h_cfile_write_str -- deps: eval_expr (interpreter.c)
-- h_cfile_read_all -- deps: eval_expr (interpreter.c)
-- dispatch_init -- deps: C function pointers
-- ext_dispatch_builtin -- deps: dispatch_init
-- ext_dispatch_ffi -- deps: ffi_call C macros
-- ext_function_dispatch -- deps: dispatch_init, ext_dispatch_builtin, ext_dispatch_ffi
-- enum_method_dispatch -- deps: eval_expr (interpreter.c), eval_body (interpreter.c)
-- ffi_register -- deps: ffi_prep_cif (C)
-- ffi_init_scan_program -- deps: ffi_register
-- ffi_init -- deps: ffi_init_scan_program
+- h_free (21 lines) -- deps: eval_expr (interpreter.c)
+- h_dyn_call (42 lines) -- deps: eval_expr (interpreter.c), eval_call (interpreter.c)
+- get_elem_size (37 lines) -- deps: eval_expr (interpreter.c)
+- h_array (54 lines) -- deps: eval_expr (interpreter.c)
+- h_vec (56 lines) -- deps: eval_expr (interpreter.c)
+- h_ptr_add (7 lines) -- deps: eval_expr (interpreter.c)
+- h_cfile_close (7 lines) -- deps: eval_expr (interpreter.c)
+- h_cfile_write_str (9 lines) -- deps: eval_expr (interpreter.c)
+- h_cfile_read_all (8 lines) -- deps: eval_expr (interpreter.c)
+- dispatch_init (64 lines) -- deps: C function pointers
+- ext_dispatch_builtin (7 lines) -- deps: dispatch_init
+- ext_dispatch_ffi (181 lines) -- deps: ffi_call C macros
+- ext_function_dispatch (6 lines) -- deps: dispatch_init, ext_dispatch_builtin, ext_dispatch_ffi
+- enum_method_dispatch (45 lines) -- deps: eval_expr (interpreter.c), eval_body (interpreter.c)
+- ffi_register (39 lines) -- deps: ffi_prep_cif (C)
+- ffi_init_scan_program (57 lines) -- deps: ffi_register
+- ffi_init (15 lines) -- deps: ffi_init_scan_program
 
 ** precomp.c
 
@@ -45,5 +45,5 @@
 (none)
 
 *** Not leaves
-- try_eval_call -- deps: eval_expr (interpreter.c)
-- precomp -- deps: ffi_init (dispatch.c), interpreter_init_ns (interpreter.c), ffi_init_scan_program (dispatch.c)
+- try_eval_call (48 lines) -- deps: eval_expr (interpreter.c)
+- precomp (85 lines) -- deps: ffi_init (dispatch.c), interpreter_init_ns (interpreter.c), ffi_init_scan_program (dispatch.c)
