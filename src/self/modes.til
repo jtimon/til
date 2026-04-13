@@ -4,7 +4,6 @@ import("initer.til")
 import("typer.til")
 import("precomp.til")
 import("interpreter.til")
-import("builder.til")
 import("dispatch.til")
 
 Mode := struct {

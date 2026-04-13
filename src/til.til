@@ -13,11 +13,11 @@ VERSION := get_version()
 
 // Import self-hosted modules (gives real types: Expr, Mode, TypeScope, etc.)
 import("self/modes.til")
+import("self/builder.til")
 import("self/scavenger.til")
 
 // Link C modules (not yet self-hosted)
 link_c("src/c/interpreter.c")
-link_c("src/c/builder.c")
 link_c("src/c/precomp.c")
 link_c("src/c/dispatch.c")
 link_c("src/c/ext.c")
