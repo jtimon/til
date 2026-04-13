@@ -267,6 +267,56 @@ needs_widen := func(val: Value, ptype: Str) returns shallow Bool {
     return false
 }
 
+shallow_copy_value := func(v: Value) returns shallow Value {
+    mut r := Value.None
+    memcpy(r, v, Value.size())
+    return r
+}
+
+widen_numeric := func(v: Value, ptype: Str) returns Value {
+    if is_null(ptype) { return shallow_copy_value(v) }
+    if ptype.len().eq(0) { return shallow_copy_value(v) }
+    mut ival : I64 = 0
+    mut uval : U64 = 0
+    mut is_unsigned := false
+    if is_variant(v, Value.Byte) {
+        ref bv : U8 = get_payload(v)
+        uval = bv.to_u64()
+        is_unsigned = true
+    } else if is_variant(v, Value.Short) {
+        ref sv : I16 = get_payload(v)
+        ival = sv.to_i64()
+    } else if is_variant(v, Value.Int32) {
+        ref iv : I32 = get_payload(v)
+        ival = iv.to_i64()
+    } else if is_variant(v, Value.Uint32) {
+        ref uv : U32 = get_payload(v)
+        uval = uv.to_u64()
+        is_unsigned = true
+    } else {
+        return shallow_copy_value(v)
+    }
+    if is_unsigned.not() { uval = ival.to_u64() }
+    else { ival = uval.to_i64() }
+    if ptype.eq("I64") {
+        if is_unsigned { return val_i64(uval.to_i64()) }
+        return val_i64(ival)
+    }
+    if ptype.eq("U64") { return val_u64(uval) }
+    if ptype.eq("USize") { return val_u32(uval.to_i64()) }
+    if ptype.eq("U32") {
+        if is_variant(v, Value.Byte) { return val_u32(uval.to_i64()) }
+    }
+    if ptype.eq("I32") {
+        if is_variant(v, Value.Byte) { return val_i32(ival) }
+        if is_variant(v, Value.Short) { return val_i32(ival) }
+    }
+    if ptype.eq("I16") {
+        if is_variant(v, Value.Byte) { return val_i16(ival) }
+    }
+    return shallow_copy_value(v)
+}
+
 scope_get := func(s: Scope, name: Str) returns ref Cell {
     ref mut cur : Scope = s
     while true {

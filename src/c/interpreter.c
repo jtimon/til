@@ -65,45 +65,7 @@ Bool interp_fa_is_ns(Scope *scope, Expr *e) {
     return 0;
 }
 
-// --- Implicit numeric widening ---
-// Extract raw integer from a numeric Value and re-create as target type.
-// Returns the original value unchanged if no widening applies.
-static Value *widen_numeric(Value *v, Str *ptype) {
-    if (!ptype || ptype->count == 0) { Value *r = malloc(sizeof(Value)); *r = *v; return r; }
-    // Extract source value as I64/U64
-    I64 ival = 0; U64 uval = 0; Bool is_unsigned = 0;
-    switch (v->tag) {
-        case Value_TAG_Byte:  uval = v->data.Byte; is_unsigned = 1; break;
-        case Value_TAG_Short: ival = v->data.Short; break;
-        case Value_TAG_Int32: ival = v->data.Int32; break;
-        case Value_TAG_Uint32: uval = v->data.Uint32; is_unsigned = 1; break;
-        default: { Value *r = malloc(sizeof(Value)); *r = *v; return r; }
-    }
-    if (!is_unsigned) uval = (U64)ival;
-    else ival = (I64)uval;
-    // Check target type and widen
-    Value *r = malloc(sizeof(Value));
-    if (ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0) {
-        *r = val_i64(is_unsigned ? (I64)uval : ival); return r;
-    }
-    if (ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0) {
-        *r = val_u64(uval); return r;
-    }
-    if (ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0) {
-        *r = val_u32((U32)uval); return r;
-    }
-    if (ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0 && v->tag == Value_TAG_Byte) {
-        *r = val_u32((I64)uval); return r;
-    }
-    if (ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0) {
-        if (v->tag == Value_TAG_Byte) { *r = val_i32(ival); return r; }
-        if (v->tag == Value_TAG_Short) { *r = val_i32(ival); return r; }
-    }
-    if (ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0 && v->tag == Value_TAG_Byte) {
-        *r = val_i16(ival); return r;
-    }
-    *r = *v; return r;
-}
+// widen_numeric: moved to interpreter.til
 
 // needs_widen: moved to interpreter.til
 
