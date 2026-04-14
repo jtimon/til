@@ -16,65 +16,6 @@ void ffi_init_scan_program(Expr *program);
 
 // Deep-clone a StructInstance: walks struct_def fields for Str, own, enum, inline structs.
 // Called from StructInstance.clone in til (ext_func).
-StructInstance *clone_struct_instance(StructInstance *src) {
-    StructInstance *dst = malloc(sizeof(StructInstance));
-    dst->struct_name = src->struct_name;
-    dst->struct_def = src->struct_def;
-    dst->borrowed = 0;
-    I32 sz = src->struct_def->data.data.StructDef.total_struct_size;
-    dst->data = malloc(sz);
-    memcpy(dst->data, src->data, sz);
-    if ((src->struct_name->count == 3 && memcmp(src->struct_name->c_str, "Str", 3) == 0)) {
-        Str *s = (Str *)src->data;
-        if (s->count > 0 && s->c_str)
-            *(char **)dst->data = strndup((const char *)s->c_str, s->count);
-        return dst;
-    }
-    Expr *body = Expr_child(src->struct_def, &(USize){(USize)(0)});
-    for (U32 fi = 0; fi < body->children.count; fi++) {
-        Expr *field = Expr_child(body, &(USize){(USize)(fi)});
-        if (field->data.data.Decl.is_namespace) continue;
-        I32 foff = field->data.data.Decl.field_offset;
-        Str *ftype = &field->data.data.Decl.explicit_type;
-        if (DECL_IS_OWN(field->data.data.Decl)) {
-            void *src_ptr = *(void **)((char *)src->data + foff);
-            if (src_ptr && field->data.data.Decl.field_struct_def) {
-                StructInstance tmp = {ftype, field->data.data.Decl.field_struct_def, src_ptr, 1};
-                StructInstance *cloned = clone_struct_instance(&tmp);
-                *(void **)((char *)dst->data + foff) = cloned->data;
-                free(cloned);
-            }
-            continue;
-        }
-        if (DECL_IS_REF(field->data.data.Decl)) continue;
-        if (ftype && ftype->count == 3 && memcmp(ftype->c_str, "Str", 3) == 0) {
-            Str *s = (Str *)((char *)src->data + foff);
-            if (s->count > 0 && s->c_str)
-                *(char **)((char *)dst->data + foff) = strndup((const char *)s->c_str, s->count);
-            continue;
-        }
-        if (field->data.data.Decl.field_struct_def &&
-            field->data.data.Decl.field_struct_def->data.tag == NodeType_TAG_EnumDef &&
-            enum_has_payloads(field->data.data.Decl.field_struct_def)) {
-            EnumInstance *ei = *(EnumInstance **)((char *)src->data + foff);
-            if (ei) {
-                EnumInstance *clone = EnumInstance_clone(ei);
-                *(EnumInstance **)((char *)dst->data + foff) = clone;
-            }
-            continue;
-        }
-        if (field->data.data.Decl.field_struct_def &&
-            field->data.data.Decl.field_struct_def->data.tag != NodeType_TAG_EnumDef) {
-            Expr *nested = field->data.data.Decl.field_struct_def;
-            StructInstance tmp = {ftype, nested, (U8 *)src->data + foff, 1};
-            StructInstance *cloned = clone_struct_instance(&tmp);
-            memcpy((char *)dst->data + foff, cloned->data, nested->data.data.StructDef.total_struct_size);
-            free(cloned->data); free(cloned);
-            continue;
-        }
-    }
-    return dst;
-}
 
 
 

@@ -1061,7 +1061,6 @@ void * resolve_field_assign_base(Scope * scope, Expr * obj_expr);
 Expr * resolve_field_assign_sdef(Scope * scope, Expr * obj_expr);
 void eval_body(Scope * scope, Expr * body);
 Value eval_call(Scope * scope, Expr * e);
-StructInstance * clone_struct_instance(StructInstance * src);
 void free_value(Value v);
 Bool needs_widen(Value * val, Str * ptype);
 Value shallow_copy_value(Value * v);

@@ -14,7 +14,87 @@ StructInstance := struct {
         return self.struct_name.clone()
     }
     clone := func(self: StructInstance) returns StructInstance {
-        return clone_struct_instance(self)
+        ref src_sdef : Expr = self.struct_def
+        ref sdef_data : StructDefData = get_payload(src_sdef.data)
+        sz := sdef_data.total_struct_size
+        dst_data : Dynamic = malloc(sz.to_i64().to_u64())
+        memcpy(dst_data, self.data, sz.to_i64().to_u64())
+        if self.struct_name.eq("Str") {
+            ref s : Str = ptr_add(self.data, 0)
+            if s.count.to_i64().gt(0) {
+                if is_null(s.c_str).not() {
+                    mut cloned_str := s.clone()
+                    // Only replace c_str pointer, keep original count and cap
+                    write_ptr(dst_data, cloned_str.c_str)
+                    // Prevent cloned_str destructor from freeing the new c_str
+                    memset(cloned_str, 0, Str.size().to_u64())
+                }
+            }
+        } else {
+            ref body : Expr = self.struct_def.child(0)
+            for fi in 0..body.child_count() {
+                ref field : Expr = body.child(fi)
+                ref dd : Declaration = get_payload(field.data)
+                if dd.is_namespace { continue }
+                foff := dd.field_offset
+                ref ftype : Str = dd.explicit_type
+                if is_variant(dd.own_type, OwnType.Own) {
+                    ref src_ptr : Dynamic = read_ptr(ptr_add(self.data, foff.to_i64().to_u64()))
+                    if is_null(src_ptr).not() {
+                        if is_null(dd.field_struct_def).not() {
+                            mut tmp := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = ptr_add(src_ptr, 0), borrowed = true)
+                            mut cloned := tmp.clone()
+                            tmp.data = NULL
+                            write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), cloned.data)
+                            cloned.data = NULL
+                        }
+                    }
+                    continue
+                }
+                if is_variant(dd.own_type, OwnType.Ref) { continue }
+                if ftype.eq("Str") {
+                    ref s : Str = ptr_add(self.data, foff.to_i64().to_u64())
+                    if s.count.to_i64().gt(0) {
+                        if is_null(s.c_str).not() {
+                            mut cloned_str := s.clone()
+                            write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), cloned_str.c_str)
+                            memset(cloned_str, 0, Str.size().to_u64())
+                        }
+                    }
+                    continue
+                }
+                if is_null(dd.field_struct_def).not() {
+                    if is_variant(dd.field_struct_def.data, NodeType.EnumDef) {
+                        if enum_has_payloads(dd.field_struct_def) {
+                            ref ei_ref : Dynamic = read_ptr(ptr_add(self.data, foff.to_i64().to_u64()))
+                            if is_null(ei_ref).not() {
+                                ref ei : EnumInstance = ei_ref
+                                mut cloned_ei := ei.clone()
+                                // Store heap pointer -- malloc+memcpy, null local to prevent destructor
+                                heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
+                                memcpy(heap_ei, cloned_ei, EnumInstance.size().to_u64())
+                                memset(cloned_ei, 0, EnumInstance.size().to_u64())
+                                write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), heap_ei)
+                            }
+                            continue
+                        }
+                    }
+                }
+                if is_null(dd.field_struct_def).not() {
+                    if is_variant(dd.field_struct_def.data, NodeType.EnumDef).not() {
+                        ref nested : Expr = dd.field_struct_def
+                        ref nested_sdef : StructDefData = get_payload(nested.data)
+                        mut tmp := StructInstance(struct_name = ftype, struct_def = nested, data = ptr_add(self.data, foff.to_i64().to_u64()), borrowed = true)
+                        mut cloned := tmp.clone()
+                        tmp.data = NULL
+                        memcpy(ptr_add(dst_data, foff.to_i64().to_u64()), cloned.data, nested_sdef.total_struct_size.to_i64().to_u64())
+                        free(own cloned.data)
+                        cloned.data = NULL
+                    }
+                }
+            }
+        }
+        return StructInstance(struct_name = self.struct_name, struct_def = self.struct_def, data = dst_data, borrowed = false)
     }
     delete := func(own self: StructInstance, call_free: Bool = true) {
         if call_free { free(own self) }
@@ -701,7 +781,7 @@ eval_body := proc(scope: Scope, body: Expr) {
 }
 
 eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
-clone_struct_instance := ext_func(src: StructInstance) returns StructInstance {}
+
 free_value := proc(shallow v: Value) {
     if is_variant(v, Value.Struct) {
         ref si : StructInstance = get_payload(v)
