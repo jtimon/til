@@ -1,5 +1,17 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #137 FuncSig calls ignore returns shallow -- always use heap wrapper
+  ~fcall_is_shallow_return~ in builder.til only checked named function
+  definitions (Ident and FieldAccess callees) via ~callee_returns_shallow~,
+  which looks up function defs by name. For FuncSig-typed variables (indirect
+  calls through function pointers), ~find_callee_fdef~ returned NULL because
+  the callee is a variable, not a function name, so it always returned false.
+  Fix: after the existing Ident/FieldAccess checks, fall through to check
+  the FuncSig attached to the call (~fcall_fn_sig~) and inspect its
+  ~return_own_type~ for ~OwnType.Shallow~, matching the logic already used
+  by ~emit_fcall_funcptr_cast~. Added tests in fn_ptr.til for FuncSig
+  with ~returns shallow Bool~.
+
 * FIXED #135 ref mut assignment clones instead of pointer copy
   Converted two ~ref mut~ "nullable pointer" variables to ~mut~ with
   explicit boolean flags, eliminating unnecessary clone calls:

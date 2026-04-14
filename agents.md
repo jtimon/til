@@ -27,14 +27,11 @@ ALWAYS read a file before writing or editing it. No exceptions. If you haven't r
 
 ## Testing
 
-Always run `make test` and verify all tests pass before committing.
-Use `systemd-run --user --scope -p MemoryMax=64G make test` to limit memory
-usage during tests (prevents OOM from memory leaks killing the system).
-
-Prefer `make test` over `make clean && make test`. `make` detects
-changed deps and rebuilds automatically. `make clean` is rarely needed.
-`make clean && make test` always works because til_boot rebuilds from
-HEAD via git. See doc/self.org for the build workflow.
+Always run `make clean && make test` and verify all tests pass before committing.
+Local sessions only: use `systemd-run --user --scope -p MemoryMax=64G make clean && make test`
+to limit memory usage (prevents OOM from memory leaks killing the system).
+Remote sessions: just use `make clean && make test` directly (systemd-run is not available).
+See doc/self.org for the build workflow.
 
 ## Build & Run
 

@@ -251,3 +251,22 @@ test_enum_funcsig_idle := test() {
     expect(__LOC__, a.is(Action.Idle), "Idle is_Idle")
     expect(__LOC__, a.is(Action.Click).not(), "Idle not Click")
 }
+
+// --- FuncSig with returns shallow ---
+
+BoolFn := func(I64) returns shallow Bool
+
+is_positive := func(n: I64) returns shallow Bool { return n.gt(0) }
+
+call_bool_fn := func(f: BoolFn, x: I64) returns shallow Bool { return f(x) }
+
+test_funcsig_shallow_return := test() {
+    expect(__LOC__, call_bool_fn(is_positive, 5), "5 is positive")
+    expect(__LOC__, call_bool_fn(is_positive, -3).not(), "-3 is not positive")
+}
+
+test_funcsig_shallow_return_direct := test() {
+    f : BoolFn = is_positive
+    expect(__LOC__, f(10), "10 is positive")
+    expect(__LOC__, f(-1).not(), "-1 is not positive")
+}

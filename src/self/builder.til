@@ -265,13 +265,18 @@ fcall_is_shallow_return := func(fcall: Expr) returns shallow Bool {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, NodeType.Ident) {
         ref ident : Str = get_payload(callee.data)
-        return callee_returns_shallow(ident)
+        if callee_returns_shallow(ident) { return true }
     } else if is_variant(callee.data, NodeType.FieldAccess) {
         ref sname : Str = callee.child(0).struct_name
         ref mname : Str = get_payload(callee.data)
         if sname.len().eq(0) { return false }
         flat := sname.concat("_").concat(mname)
-        return callee_returns_shallow(flat)
+        if callee_returns_shallow(flat) { return true }
+    }
+    ref sig : Expr = fcall_fn_sig(fcall)
+    if is_null(sig).not() {
+        ref sfd : FunctionDef = get_payload(sig.data)
+        return is_variant(sfd.return_own_type, OwnType.Shallow)
     }
     return false
 }
