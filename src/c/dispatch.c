@@ -309,14 +309,6 @@ static Bool h_cfile_write_str(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
-static Bool h_cfile_read_all(Scope *s, Expr *e, Value *r) {
-    Value handle_v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    void *handle = handle_v.tag == Value_TAG_Ptr ? handle_v.data.Ptr : val_to_ptr(&handle_v);
-    Str *content = cfile_read_all(handle);
-    *r = make_str_value(content->c_str, content->count);
-    free(content);
-    return 1;
-}
 
 // === Dispatch init ===
 

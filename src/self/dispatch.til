@@ -554,6 +554,14 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref FFIType {
     return stp
 }
 
+h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    handle_v := eval_expr(s, e.child(1))
+    ref hp : Dynamic = val_to_ptr(handle_v)
+    content := cfile_read_all(read_ptr(hp))
+    r = make_str_value(content.c_str, content.count.to_u64())
+    return true
+}
+
 ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
 enum_method_dispatch := ext_func(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Value) returns shallow Bool {}
 ffi_init := ext_func(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}

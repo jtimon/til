@@ -1166,6 +1166,7 @@ Bool h_cfile_open(Scope * s, Expr * e, Value * r);
 FFIType * shallow_ffi_type(Str * type_name);
 FFIType * field_ffi_type(Expr * field);
 FFIType * build_struct_ffi_type(Expr * struct_def);
+Bool h_cfile_read_all(Scope * s, Expr * e, Value * r);
 Bool ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result);
 Bool enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result);
 I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags);
