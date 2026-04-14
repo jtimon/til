@@ -401,6 +401,53 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
     exit(1.to_i32())
     return val_none()
 }
+
+// Reinterpret a Value.Ptr to the appropriate scalar/struct/enum Value
+// based on a type name. Used by eval_call (param binding) and eval_body (ref decl).
+reinterpret_ptr_value := proc(val: Value, type_name: Str, scope: Scope) returns Value {
+    if is_variant(val, Value.Ptr).not() { return shallow_copy_value(val) }
+    ref pv : Dynamic = get_payload(val)
+    ref p : Dynamic = read_ptr(pv)
+    if is_null(p) { return shallow_copy_value(val) }
+    if type_name.len().eq(0) { return shallow_copy_value(val) }
+    if type_name.eq("I64") { ref v : I64 = p; return val_i64(v) }
+    if type_name.eq("U8") { ref v : U8 = p; return val_u8(v.to_i64()) }
+    if type_name.eq("I16") { ref v : I16 = p; return val_i16(v.to_i64()) }
+    if type_name.eq("I32") { ref v : I32 = p; return val_i32(v.to_i64()) }
+    if type_name.eq("U32") { ref v : U32 = p; return val_u32(v.to_i64()) }
+    if type_name.eq("U64") { ref v : U64 = p; return val_u64(v) }
+    if type_name.eq("USize") { ref v : U32 = p; return val_u32(v.to_i64()) }
+    if type_name.eq("F32") { ref v : F32 = p; return val_f32(v) }
+    if type_name.eq("Bool") { ref v : Bool = p; return val_bool(v) }
+    if type_name.eq("Str") {
+        ref sp : Str = p
+        return make_str_value_own(sp.c_str, sp.count.to_u64())
+    }
+    ref tc : Cell = scope_get(scope, type_name)
+    if is_null(tc).not() {
+        if is_variant(tc.val, Value.Func) {
+            ref fptr : Dynamic = get_payload(tc.val)
+            ref tdef : Expr = read_ptr(fptr)
+            if is_variant(tdef.data, NodeType.FuncDef) {
+                if tdef.child_count().eq(0) {
+                    // FuncSig: dereference to get function pointer
+                    ref fp : Dynamic = read_ptr(p)
+                    return Value.Func(fp)
+                }
+            }
+            if is_variant(tdef.data, NodeType.EnumDef) {
+                ecopy : Dynamic = malloc(8)
+                memcpy(ecopy, p, 8)
+                return val_enum_flat(type_name, tdef, 0.to_i32(), ecopy, 8.to_i32())
+            }
+            if is_variant(tdef.data, NodeType.StructDef) {
+                return make_struct_value(type_name, tdef, p, true)
+            }
+        }
+    }
+    return shallow_copy_value(val)
+}
+
 eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 clone_struct_instance := ext_func(src: StructInstance) returns StructInstance {}
 free_value := proc(shallow v: Value) {

@@ -191,33 +191,9 @@ Value eval_call(Scope *scope, Expr *e) {
             Expr *arg_expr = Expr_child(e, &(USize){(USize)(i + 1)});
             if (arg_expr->data.tag == NodeType_TAG_Ident) {
                 Cell *arg_cell = scope_get(scope, &arg_expr->data.data.Ident);
-                // Reinterpret Value_TAG_Ptr based on param type
                 if (arg_cell->val.tag == Value_TAG_Ptr && _ipi->ptype.count > 0) {
-                    Str *ptype = &_ipi->ptype;
-                    Value arg = arg_cell->val;
-                    if ((ptype->count == 3 && memcmp(ptype->c_str, "Str", 3) == 0)) {
-                        Str *sp = (Str *)arg.data.Ptr;
-                        arg = make_str_value_own((char *)sp->c_str, sp->count);
-                    }
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0))
-                        arg = val_i64(*(I64 *)arg.data.Ptr);
-                    else if ((ptype->count == 2 && memcmp(ptype->c_str, "U8", 2) == 0))
-                        arg = val_u8(*(U8 *)arg.data.Ptr);
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0))
-                        arg = val_i16(*(I16 *)arg.data.Ptr);
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0))
-                        arg = val_i32(*(I32 *)arg.data.Ptr);
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0))
-                        arg = val_u32(*(U32 *)arg.data.Ptr);
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
-                        arg = val_u64(*(U64 *)arg.data.Ptr);
-                    else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
-                        arg = val_u32(*(USize *)arg.data.Ptr);
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "F32", 3) == 0))
-                        arg = val_f32(*(F32 *)arg.data.Ptr);
-                    else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
-                        arg = val_bool(*(Bool *)arg.data.Ptr);
-                    { Value *_w = widen_numeric(&arg, ptype); arg = *_w; free(_w); }
+                    Value arg; { Value *_r = reinterpret_ptr_value(&arg_cell->val, &_ipi->ptype, scope); arg = *_r; free(_r); }
+                    { Value *_w = widen_numeric(&arg, &_ipi->ptype); arg = *_w; free(_w); }
                     scope_set_owned(call_scope, &_ipi->name, &arg);
                 } else if (needs_widen(&arg_cell->val, &_ipi->ptype)) {
                     Value *_cv = Value_clone(&arg_cell->val); Value arg = *_cv; free(_cv);
@@ -228,31 +204,8 @@ Value eval_call(Scope *scope, Expr *e) {
                 }
             } else {
                 Value arg = eval_expr(scope,arg_expr);
-                // Reinterpret Value_TAG_Ptr based on param type (same as ref decl)
                 if (arg.tag == Value_TAG_Ptr && _ipi->ptype.count > 0) {
-                    Str *ptype = &_ipi->ptype;
-                    if ((ptype->count == 3 && memcmp(ptype->c_str, "Str", 3) == 0)) {
-                        Str *sp = (Str *)arg.data.Ptr;
-                        arg = make_str_value_own((char *)sp->c_str, sp->count);
-                    }
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0))
-                        arg = val_i64(*(I64 *)arg.data.Ptr);
-                    else if ((ptype->count == 2 && memcmp(ptype->c_str, "U8", 2) == 0))
-                        arg = val_u8(*(U8 *)arg.data.Ptr);
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0))
-                        arg = val_i16(*(I16 *)arg.data.Ptr);
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0))
-                        arg = val_i32(*(I32 *)arg.data.Ptr);
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0))
-                        arg = val_u32(*(U32 *)arg.data.Ptr);
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
-                        arg = val_u64(*(U64 *)arg.data.Ptr);
-                    else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
-                        arg = val_u32(*(USize *)arg.data.Ptr);
-                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "F32", 3) == 0))
-                        arg = val_f32(*(F32 *)arg.data.Ptr);
-                    else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
-                        arg = val_bool(*(Bool *)arg.data.Ptr);
+                    { Value *_r = reinterpret_ptr_value(&arg, &_ipi->ptype, scope); arg = *_r; free(_r); }
                 }
                 { Value *_w = widen_numeric(&arg, &_ipi->ptype); arg = *_w; free(_w); }
                 scope_set_owned(call_scope, &_ipi->name, &arg);
@@ -560,61 +513,7 @@ static void eval_body(Scope *scope, Expr *body) {
                 // Only for ref decls — own decls keep Value_TAG_Ptr (they own a buffer, not a single element)
                 // Skip narrowing for NULL pointers (null literal)
                 if (val.tag == Value_TAG_Ptr && val.data.Ptr != NULL && (stmt->data.data.Decl.explicit_type).count > 0 && DECL_IS_REF(stmt->data.data.Decl)) {
-                    Str *etype = &stmt->data.data.Decl.explicit_type;
-                    if ((etype->count == 3 && memcmp(etype->c_str, "I64", 3) == 0))
-                        val = val_i64(*(I64 *)val.data.Ptr);
-                    else if ((etype->count == 2 && memcmp(etype->c_str, "U8", 2) == 0))
-                        val = val_u8(*(U8 *)val.data.Ptr);
-                    else if ((etype->count == 3 && memcmp(etype->c_str, "I16", 3) == 0))
-                        val = val_i16(*(I16 *)val.data.Ptr);
-                    else if ((etype->count == 3 && memcmp(etype->c_str, "I32", 3) == 0))
-                        val = val_i32(*(I32 *)val.data.Ptr);
-                    else if ((etype->count == 3 && memcmp(etype->c_str, "U32", 3) == 0))
-                        val = val_u32(*(U32 *)val.data.Ptr);
-                    else if ((etype->count == 3 && memcmp(etype->c_str, "U64", 3) == 0))
-                        val = val_u64(*(U64 *)val.data.Ptr);
-                    else if ((etype->count == 5 && memcmp(etype->c_str, "USize", 5) == 0))
-                        val = val_u32(*(USize *)val.data.Ptr);
-                    else if ((etype->count == 3 && memcmp(etype->c_str, "F32", 3) == 0))
-                        val = val_f32(*(F32 *)val.data.Ptr);
-                    else if ((etype->count == 4 && memcmp(etype->c_str, "Bool", 4) == 0))
-                        val = val_bool(*(Bool *)val.data.Ptr);
-                    else if ((etype->count == 3 && memcmp(etype->c_str, "Str", 3) == 0)) {
-                        Str *sp = (Str *)val.data.Ptr;
-                        val = make_str_value_own((char *)sp->c_str, sp->count);
-                    }
-                    else {
-                        // Check for FuncSig type: dereference to get function pointer
-                        Cell *tc = scope_get(scope, etype);
-                        if (tc && tc->val.tag == Value_TAG_Func &&
-                            ((Expr*)tc->val.data.Func)->data.tag == NodeType_TAG_FuncDef &&
-                            ((Expr*)tc->val.data.Func)->children.count == 0) {
-                            // FuncSig: payload is a function pointer (void *)
-                            void *fp = *(void **)val.data.Ptr;
-                            val = (Value){.tag = Value_TAG_Func, .data.Func = fp};
-                        }
-                        // EnumDef: wrap in EnumInstance
-                        else if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == NodeType_TAG_EnumDef) {
-                            Expr *edef = (Expr*)tc->val.data.Func;
-                            I32 esz = (I32)sizeof(I64);
-                            U8 *ecopy = malloc(esz);
-                            memcpy(ecopy, val.data.Ptr, esz);
-                            val.tag = Value_TAG_Enum;
-                            val.data.Enum.enum_name = etype;
-                            val.data.Enum.enum_def = edef;
-                            val.data.Enum.data = ecopy;
-                            val.data.Enum.data_size = esz;
-                        }
-                        // User-defined struct: wrap ptr in borrowed StructInstance
-                        else if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == NodeType_TAG_StructDef) {
-                            void *saved_ptr = val.data.Ptr;
-                            val.tag = Value_TAG_Struct;
-                            val.data.Struct.struct_name = etype;
-                            val.data.Struct.struct_def = ((Expr*)tc->val.data.Func);
-                            val.data.Struct.data = saved_ptr;
-                            val.data.Struct.borrowed = stmt->data.data.Decl.is_mut ? 1 : 0;
-                        }
-                    }
+                    { Value *_r = reinterpret_ptr_value(&val, &stmt->data.data.Decl.explicit_type, scope); val = *_r; free(_r); }
                 }
                 scope_set_owned(scope, (&stmt->data.data.Decl.name), &val);
             }
