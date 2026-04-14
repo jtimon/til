@@ -52,27 +52,6 @@ FFIType *ffi_type_float_ref(void) { return (FFIType *)&ffi_type_float; }
 
 // === Misc handlers ===
 
-Bool h_free(Scope *s, Expr *e, Value *r) {
-    if (Expr_child(e, &(USize){(USize)(1)})->data.tag != NodeType_TAG_Ident) {
-        Value val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-        void *ptr = val.tag == Value_TAG_Ptr ? val.data.Ptr : val_to_ptr(&val);
-        if (ptr) free(ptr);
-        *r = val_none();
-        return 1;
-    }
-    Cell *cell = scope_get(s, &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident);
-    if (cell->val.tag == Value_TAG_Struct) {
-        if (!cell->val.data.Struct.borrowed)
-            free(cell->val.data.Struct.data);
-    } else if (cell->val.tag == Value_TAG_Enum) {
-        free(cell->val.data.Enum.data);
-    } else if (cell->val.tag == Value_TAG_Ptr) {
-        free(cell->val.data.Ptr);
-    }
-    cell->val = val_none();
-    *r = val_none();
-    return 1;
-}
 
 // === Dynamic dispatch handler ===
 
@@ -279,35 +258,12 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
 
 // === Pointer primitive handlers ===
 
-static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
-    Value buf = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    Value offset = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    void *base = buf.tag == Value_TAG_Ptr ? buf.data.Ptr : val_to_ptr(&buf);
-    { U64 *_hp = value_to_u64(&offset); *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = (char *)base + *_hp}; free(_hp); }
-    return 1;
-}
 
 
 // === System primitive handlers ===
 
 // File handle I/O handlers
-static Bool h_cfile_close(Scope *s, Expr *e, Value *r) {
-    Value handle_v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    void *handle = handle_v.tag == Value_TAG_Ptr ? handle_v.data.Ptr : val_to_ptr(&handle_v);
-    cfile_close(handle);
-    *r = val_none();
-    return 1;
-}
 
-static Bool h_cfile_write_str(Scope *s, Expr *e, Value *r) {
-    Value handle_v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    Value str_v = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    void *handle = handle_v.tag == Value_TAG_Ptr ? handle_v.data.Ptr : val_to_ptr(&handle_v);
-    Str _s = str_view(str_v);
-    cfile_write_str(handle, &_s);
-    *r = val_none();
-    return 1;
-}
 
 
 // === Dispatch init ===

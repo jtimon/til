@@ -554,6 +554,48 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref FFIType {
     return stp
 }
 
+h_free := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    if is_variant(e.child(1).data, NodeType.Ident).not() {
+        val := eval_expr(s, e.child(1))
+        free_value(val)
+        r = val_none()
+        return true
+    }
+    ref ident : Str = get_payload(e.child(1).data)
+    ref cell : Cell = scope_get(s, ident)
+    free_value(cell.val)
+    memcpy(cell.val, val_none(), Value.size())
+    r = val_none()
+    return true
+}
+
+h_cfile_close := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    handle_v := eval_expr(s, e.child(1))
+    ref hp : Dynamic = val_to_ptr(handle_v)
+    cfile_close(read_ptr(hp))
+    r = val_none()
+    return true
+}
+
+h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    handle_v := eval_expr(s, e.child(1))
+    str_v := eval_expr(s, e.child(2))
+    ref hp : Dynamic = val_to_ptr(handle_v)
+    sv := str_view(str_v)
+    cfile_write_str(read_ptr(hp), sv)
+    r = val_none()
+    return true
+}
+
+h_ptr_add := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    buf := eval_expr(s, e.child(1))
+    offset := eval_expr(s, e.child(2))
+    ref base : Dynamic = val_to_ptr(buf)
+    off := value_to_u64(offset)
+    r = Value.Ptr(ptr_add(read_ptr(base), off))
+    return true
+}
+
 h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     handle_v := eval_expr(s, e.child(1))
     ref hp : Dynamic = val_to_ptr(handle_v)
