@@ -470,6 +470,236 @@ guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shal
     return false
 }
 
+resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns ref Dynamic {
+    if is_variant(obj_expr.data, NodeType.Ident) {
+        ref ident : Str = get_payload(obj_expr.data)
+        ref cell : Cell = scope_get(scope, ident)
+        if is_null(cell) { return NULL }
+        if is_variant(cell.val, Value.Struct) {
+            ref si : StructInstance = get_payload(cell.val)
+            return si.data
+        }
+        return NULL
+    }
+    return NULL
+}
+
+resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr {
+    if is_variant(obj_expr.data, NodeType.Ident) {
+        ref ident : Str = get_payload(obj_expr.data)
+        ref cell : Cell = scope_get(scope, ident)
+        if is_null(cell) { return NULL }
+        if is_variant(cell.val, Value.Struct) {
+            ref si : StructInstance = get_payload(cell.val)
+            return si.struct_def
+        }
+        return NULL
+    }
+    return NULL
+}
+
+eval_body := proc(scope: Scope, body: Expr) {
+    for i in 0..body.child_count() {
+        if has_return { return }
+        if has_break { return }
+        if has_continue { return }
+        ref stmt : Expr = body.child(i)
+        if is_variant(stmt.data, NodeType.Decl) {
+            ref dd : Declaration = get_payload(stmt.data)
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(stmt.til_type, TilType.None) {
+                if is_variant(rhs.data, NodeType.Ident) { continue }
+            }
+            if is_variant(dd.own_type, OwnType.Ref) {
+                if is_variant(rhs.data, NodeType.Ident) {
+                    ref rhs_ident : Str = get_payload(rhs.data)
+                    ref src : Cell = scope_get(scope, rhs_ident)
+                    scope_set_borrowed(scope, dd.name, src)
+                    continue
+                }
+            }
+            mut val := val_none()
+            if is_variant(rhs.data, NodeType.Ident) {
+                ref rhs_ident : Str = get_payload(rhs.data)
+                ref src : Cell = scope_get(scope, rhs_ident)
+                if is_null(src) {
+                    rhs.error("undefined variable '".concat(rhs_ident).concat("'"))
+                    exit(1.to_i32())
+                }
+                val = shallow_copy_value(src.val)
+                if is_variant(val, Value.Func).not() {
+                    memcpy(src.val, val_none(), Value.size())
+                }
+            } else {
+                val = eval_expr(scope, rhs)
+            }
+            if is_variant(dd.own_type, OwnType.Ref) {
+                if dd.explicit_type.len().gt(0) {
+                    val = reinterpret_ptr_value(val, dd.explicit_type, scope)
+                }
+            }
+            scope_set_owned(scope, dd.name, val)
+        } else if is_variant(stmt.data, NodeType.Assign) {
+            ref rhs : Expr = stmt.child(0)
+            ref assign_name : Str = get_payload(stmt.data)
+            ref cell : Cell = scope_get(scope, assign_name)
+            if is_null(cell) {
+                stmt.error("undefined variable '".concat(assign_name).concat("'"))
+                exit(1.to_i32())
+            }
+            if is_variant(stmt.til_type, TilType.Dynamic) {
+                if is_variant(rhs.data, NodeType.Ident) {
+                    ref rhs_ident : Str = get_payload(rhs.data)
+                    ref src : Cell = scope_get(scope, rhs_ident)
+                    memcpy(cell.val, src.val, Value.size())
+                    if is_variant(src.val, Value.Func).not() {
+                        memcpy(src.val, val_none(), Value.size())
+                    }
+                    continue
+                }
+            }
+            new_val := eval_expr(scope, rhs)
+            memcpy(cell.val, new_val, Value.size())
+        } else if is_variant(stmt.data, NodeType.FieldAssign) {
+            ref val_expr : Expr = stmt.child(1)
+            mut val := val_none()
+            ref mut move_src : Cell = NULL
+            if is_variant(val_expr.til_type, TilType.Dynamic) {
+                if is_variant(val_expr.data, NodeType.Ident) {
+                    ref vi : Str = get_payload(val_expr.data)
+                    move_src = scope_get(scope, vi)
+                    val = shallow_copy_value(move_src.val)
+                }
+            }
+            if is_null(move_src) { val = eval_expr(scope, val_expr) }
+            ref fname : Str = get_payload(stmt.data)
+            if interp_fa_is_ns(scope, stmt) {
+                obj := eval_expr(scope, stmt.child(0))
+                mut sname := ""
+                if is_variant(obj, Value.Struct) {
+                    ref si : StructInstance = get_payload(obj)
+                    sname = si.struct_name
+                } else {
+                    ref oi : Str = get_payload(stmt.child(0).data)
+                    sname = oi
+                }
+                ns_set(sname, fname, val)
+                if is_null(move_src).not() { memcpy(move_src.val, val_none(), Value.size()) }
+            } else {
+                ref mut base : Dynamic = resolve_field_assign_base(scope, stmt.child(0))
+                ref mut cur_sdef : Expr = resolve_field_assign_sdef(scope, stmt.child(0))
+                // Chain walking for nested field access (e.g. a.b.c = val)
+                if is_variant(stmt.child(0).data, NodeType.FieldAccess) {
+                    ref obj_expr : Expr = stmt.child(0)
+                    // Walk to root ident
+                    ref mut cur : Expr = obj_expr
+                    mut depth : I32 = 0
+                    while is_variant(cur.data, NodeType.FieldAccess) {
+                        depth = depth.add(1.to_i32())
+                        cur = cur.child(0)
+                    }
+                    ref root_ident : Str = get_payload(cur.data)
+                    ref cell : Cell = scope_get(scope, root_ident)
+                    if is_null(cell).not() {
+                        if is_variant(cell.val, Value.Struct) {
+                            ref si : StructInstance = get_payload(cell.val)
+                            base = ptr_add(si.data, 0)
+                            cur_sdef = si.struct_def
+                            // Re-walk the chain applying offsets
+                            ref mut walk : Expr = obj_expr
+                            mut d := depth.sub(1.to_i32())
+                            // For simplicity, handle depth=1 (most common: a.field = val)
+                            if depth.eq(1.to_i32()) {
+                                ref fa_name : Str = get_payload(obj_expr.data)
+                                ref fd : Expr = find_field_decl(cur_sdef, fa_name)
+                                if is_null(fd).not() {
+                                    ref fdd : Declaration = get_payload(fd.data)
+                                    if is_variant(fdd.own_type, OwnType.Shallow).not() {
+                                        base = read_ptr(ptr_add(base, fdd.field_offset.to_i64().to_u64()))
+                                    } else {
+                                        base = ptr_add(base, fdd.field_offset.to_i64().to_u64())
+                                    }
+                                    cur_sdef = fdd.field_struct_def
+                                }
+                            }
+                        }
+                    }
+                }
+                if is_null(base) {
+                    stmt.error("field assign on non-struct")
+                    exit(1.to_i32())
+                }
+                if is_null(cur_sdef) {
+                    stmt.error("field assign on non-struct")
+                    exit(1.to_i32())
+                }
+                ref fdecl : Expr = find_field_decl(cur_sdef, fname)
+                mut tmp_inst := StructInstance(struct_name = NULL, struct_def = cur_sdef, data = base, borrowed = true)
+                write_field(tmp_inst, fdecl, val)
+                tmp_inst.data = NULL
+                if is_null(move_src).not() {
+                    if is_variant(move_src.val, Value.Func).not() {
+                        memcpy(move_src.val, val_none(), Value.size())
+                    }
+                }
+            }
+        } else if is_variant(stmt.data, NodeType.FCall) {
+            eval_call(scope, stmt)
+        } else if is_variant(stmt.data, NodeType.Body) {
+            block_scope := scope_new(scope)
+            eval_body(block_scope, stmt)
+            if has_return {
+                return_value = return_value.clone()
+            }
+            scope_free(own block_scope)
+        } else if is_variant(stmt.data, NodeType.If) {
+            cond := eval_expr(scope, stmt.child(0))
+            ref cv : Bool = get_payload(cond)
+            if cv {
+                then_scope := scope_new(scope)
+                eval_body(then_scope, stmt.child(1))
+                if has_return { return_value = return_value.clone() }
+                scope_free(own then_scope)
+            } else if stmt.child_count().gt(2) {
+                else_scope := scope_new(scope)
+                eval_body(else_scope, stmt.child(2))
+                if has_return { return_value = return_value.clone() }
+                scope_free(own else_scope)
+            }
+        } else if is_variant(stmt.data, NodeType.While) {
+            while true {
+                if has_return { break }
+                cond := eval_expr(scope, stmt.child(0))
+                ref cv : Bool = get_payload(cond)
+                if cv.not() { break }
+                while_scope := scope_new(scope)
+                eval_body(while_scope, stmt.child(1))
+                if has_return { return_value = return_value.clone() }
+                scope_free(own while_scope)
+                if has_break { has_break = false; break }
+                if has_continue { has_continue = false }
+            }
+        } else if is_variant(stmt.data, NodeType.Break) {
+            has_break = true
+            return
+        } else if is_variant(stmt.data, NodeType.Continue) {
+            has_continue = true
+            return
+        } else if is_variant(stmt.data, NodeType.Return) {
+            if stmt.child_count().gt(0) {
+                return_value = eval_expr(scope, stmt.child(0))
+            } else {
+                return_value = val_none()
+            }
+            has_return = true
+            return
+        } else {
+            stmt.lang_error("unexpected statement type")
+            exit(1.to_i32())
+        }
+    }
+}
+
 eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 clone_struct_instance := ext_func(src: StructInstance) returns StructInstance {}
 free_value := proc(shallow v: Value) {
@@ -582,14 +812,15 @@ scope_get := func(s: Scope, name: Str) returns ref Cell {
     }
     return NULL
 }
-scope_new := func(parent: Scope) returns ref Scope {
+scope_new := func(parent: Scope) returns Scope {
     s : Dynamic = malloc(Scope.size().to_u64())
     memset(s, 0, Scope.size().to_u64())
     mut bindings := Map.new("Str", Str.size(), "Binding", Binding.size())
     memcpy(s, bindings, Map.size().to_u64())
     memset(bindings, 0, Map.size().to_u64())
     write_ptr(ptr_add(s, Map.size().to_u64()), parent)
-    ref result : Scope = ptr_add(s, 0)
+    mut result := Scope()
+    memcpy(result, s, Scope.size().to_u64())
     return result
 }
 scope_set_owned := proc(mut s: Scope, name: Str, val: Value) {
