@@ -13,8 +13,6 @@
 
 *** Leaves
 - enum_method_dispatch (45 lines)
-- dispatch_init (64 lines)
-- ext_dispatch_builtin (7 lines)
 - ext_dispatch_ffi (181 lines)
 - ffi_register (39 lines)
 
@@ -23,7 +21,7 @@
 - get_elem_size (37 lines) -- deps: eval_call (interpreter.c)
 - h_array (54 lines) -- deps: get_elem_size
 - h_vec (56 lines) -- deps: get_elem_size
-- ext_function_dispatch (6 lines) -- deps: ext_dispatch_builtin, ext_dispatch_ffi
+- ext_function_dispatch (6 lines) -- deps: ext_dispatch_ffi
 - ffi_init_scan_program (57 lines) -- deps: ffi_register
 - ffi_init (15 lines) -- deps: ffi_init_scan_program
 

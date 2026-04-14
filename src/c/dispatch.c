@@ -56,7 +56,7 @@ FFIType *ffi_type_float_ref(void) { return (FFIType *)&ffi_type_float; }
 // === Dynamic dispatch handler ===
 
 // Shared helper for all dyn_call variants
-static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
+Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
@@ -143,7 +143,7 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
 }
 
 // array("I64", 1, 2, 3)
-static Bool h_array(Scope *s, Expr *e, Value *r) {
+Bool h_array(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
@@ -199,7 +199,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
 }
 
 // vec("I64", 1, 2, 3)
-static Bool h_vec(Scope *s, Expr *e, Value *r) {
+Bool h_vec(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
@@ -268,80 +268,9 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
 
 // === Dispatch init ===
 
-static void dispatch_init(void) {
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(DispatchFn)}); dispatch_map = *_mp; free(_mp); }
-
-    #define REG(n, fn) do { Str *k = Str_clone(&(Str){.c_str = (U8*)(n), .count = (U64)strlen((const char*)(n)), .cap = CAP_VIEW}); DispatchFn f = fn; \
-        Str *_k = malloc(sizeof(Str)); *_k = (Str){k->c_str, k->count, CAP_VIEW}; \
-        DispatchFn *_v = malloc(sizeof(DispatchFn)); *_v = f; \
-        Map_set(&dispatch_map, _k, _v); } while(0)
-
-    // Print
-    REG("print_single", h_print_single);
-    REG("print_flush", h_print_flush);
-
-    // Bool standalone
-    REG("and", h_Bool_and); REG("or", h_Bool_or);
-    REG("not", h_Bool_not);
-
-    // from_i64 (local ext_func inside func body — not scanned by ffi_init)
-    REG("U8_from_i64", h_U8_from_i64);
-    REG("U8_from_i64_ext", h_U8_from_i64);
-    REG("I16_from_i64", h_I16_from_i64);
-    REG("I16_from_i64_ext", h_I16_from_i64);
-    REG("I32_from_i64", h_I32_from_i64);
-    REG("I32_from_i64_ext", h_I32_from_i64);
-    REG("F32_from_i64", h_F32_from_i64);
-    REG("F32_from_i64_ext", h_F32_from_i64);
-    REG("U32_from_i64", h_U32_from_i64);
-    REG("U32_from_i64_ext", h_U32_from_i64);
-
-    // Misc
-    REG("exit", h_exit);
-    REG("free", h_free);
-
-    // Pointer primitives
-    REG("ptr_add", h_ptr_add);
-
-    // Collection builtins
-    REG("array", h_array);
-    REG("vec", h_vec);
-
-    // Dynamic dispatch
-    REG("dyn_call", h_dyn_call);
-    REG("dyn_call_ret", h_dyn_call);
-    REG("dyn_has_method", h_dyn_has_method);
-    REG("dyn_fn", h_dyn_fn);
-
-    // System primitives
-    REG("readfile", h_readfile);
-    REG("writefile", h_writefile);
-    REG("spawn_cmd", h_spawn_cmd);
-    REG("check_cmd_status", h_check_cmd_status);
-    REG("sleep", h_sleep);
-    REG("file_mtime", h_file_mtime);
-    REG("clock_ms", h_clock_ms);
-    REG("get_thread_count", h_get_thread_count);
-
-    // File handle I/O
-    REG("cfile_open", h_cfile_open);
-    REG("cfile_close", h_cfile_close);
-    REG("cfile_write_str", h_cfile_write_str);
-    REG("cfile_read_all", h_cfile_read_all);
-
-    #undef REG
-    dispatch_inited = 1;
-}
 
 // === Main dispatch ===
 
-static Bool ext_dispatch_builtin(Str *name, Scope *scope, Expr *e, Value *result) {
-    if (Map_has(&dispatch_map, name)) {
-        DispatchFn *fn = Map_get(&dispatch_map, name);
-        return (*fn)(scope, e, result);
-    }
-    return 0;
-}
 
 static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
     if (!ffi_loaded) return 0;

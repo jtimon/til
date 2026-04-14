@@ -604,6 +604,67 @@ h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
+DispatchFn := proc(Scope, Expr, mut Value) returns shallow Bool
+
+reg_dispatch := proc(name: Str, handler: DispatchFn) {
+    v : Dynamic = malloc(8)
+    write_ptr(v, handler)
+    dispatch_map.set(own name.clone(), own v)
+}
+
+dispatch_init := proc() {
+    dispatch_map = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    reg_dispatch("print_single", h_print_single)
+    reg_dispatch("print_flush", h_print_flush)
+    reg_dispatch("and", h_Bool_and)
+    reg_dispatch("or", h_Bool_or)
+    reg_dispatch("not", h_Bool_not)
+    reg_dispatch("U8_from_i64", h_U8_from_i64)
+    reg_dispatch("U8_from_i64_ext", h_U8_from_i64)
+    reg_dispatch("I16_from_i64", h_I16_from_i64)
+    reg_dispatch("I16_from_i64_ext", h_I16_from_i64)
+    reg_dispatch("I32_from_i64", h_I32_from_i64)
+    reg_dispatch("I32_from_i64_ext", h_I32_from_i64)
+    reg_dispatch("F32_from_i64", h_F32_from_i64)
+    reg_dispatch("F32_from_i64_ext", h_F32_from_i64)
+    reg_dispatch("U32_from_i64", h_U32_from_i64)
+    reg_dispatch("U32_from_i64_ext", h_U32_from_i64)
+    reg_dispatch("exit", h_exit)
+    reg_dispatch("free", h_free)
+    reg_dispatch("ptr_add", h_ptr_add)
+    reg_dispatch("array", h_array)
+    reg_dispatch("vec", h_vec)
+    reg_dispatch("dyn_call", h_dyn_call)
+    reg_dispatch("dyn_call_ret", h_dyn_call)
+    reg_dispatch("dyn_has_method", h_dyn_has_method)
+    reg_dispatch("dyn_fn", h_dyn_fn)
+    reg_dispatch("readfile", h_readfile)
+    reg_dispatch("writefile", h_writefile)
+    reg_dispatch("spawn_cmd", h_spawn_cmd)
+    reg_dispatch("check_cmd_status", h_check_cmd_status)
+    reg_dispatch("sleep", h_sleep)
+    reg_dispatch("file_mtime", h_file_mtime)
+    reg_dispatch("clock_ms", h_clock_ms)
+    reg_dispatch("get_thread_count", h_get_thread_count)
+    reg_dispatch("cfile_open", h_cfile_open)
+    reg_dispatch("cfile_close", h_cfile_close)
+    reg_dispatch("cfile_write_str", h_cfile_write_str)
+    reg_dispatch("cfile_read_all", h_cfile_read_all)
+    dispatch_inited = true
+}
+
+ext_dispatch_builtin := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
+    if dispatch_map.has(name) {
+        ref fp : DispatchFn = ptr_add(dispatch_map.get(name), 0)
+        return fp(scope, e, result)
+    }
+    return false
+}
+
+h_array := ext_func(s: Scope, e: Expr, result: Value) returns shallow Bool {}
+h_vec := ext_func(s: Scope, e: Expr, result: Value) returns shallow Bool {}
+h_dyn_call := ext_func(s: Scope, e: Expr, result: Value) returns shallow Bool {}
+
 ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
 enum_method_dispatch := ext_func(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Value) returns shallow Bool {}
 ffi_init := ext_func(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}
