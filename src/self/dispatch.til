@@ -665,8 +665,95 @@ h_array := ext_func(s: Scope, e: Expr, result: Value) returns shallow Bool {}
 h_vec := ext_func(s: Scope, e: Expr, result: Value) returns shallow Bool {}
 h_dyn_call := ext_func(s: Scope, e: Expr, result: Value) returns shallow Bool {}
 
+enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value) returns shallow Bool {
+    if enum_has_payloads(enum_def) {
+        ctor_tag := enum_variant_tag(enum_def, method)
+        if ctor_tag.to_i64().gte(0) {
+            ref vbody : Expr = enum_def.child(0)
+            mut has_payload := false
+            mut vidx : I32 = 0
+            for vi in 0..vbody.child_count() {
+                ref vf : Expr = vbody.child(vi)
+                ref vdd : Declaration = get_payload(vf.data)
+                if vdd.is_namespace.not() {
+                    if vidx.eq(ctor_tag) {
+                        if vdd.explicit_type.len().gt(0) { has_payload = true }
+                    }
+                    vidx = vidx.add(1.to_i32())
+                }
+            }
+            if has_payload {
+                payload := eval_expr(scope, e.child(1))
+                ref mut pdata : Dynamic = NULL
+                mut psz : I32 = 0
+                if is_variant(payload, Value.Int) {
+                    pdata = ptr_add(get_payload(payload), 0)
+                    psz = 8.to_i32()
+                }
+                else if is_variant(payload, Value.Byte) {
+                    pdata = ptr_add(get_payload(payload), 0)
+                    psz = 1.to_i32()
+                }
+                else if is_variant(payload, Value.Short) {
+                    pdata = ptr_add(get_payload(payload), 0)
+                    psz = 2.to_i32()
+                }
+                else if is_variant(payload, Value.Int32) {
+                    pdata = ptr_add(get_payload(payload), 0)
+                    psz = 4.to_i32()
+                }
+                else if is_variant(payload, Value.Uint32) {
+                    pdata = ptr_add(get_payload(payload), 0)
+                    psz = 4.to_i32()
+                }
+                else if is_variant(payload, Value.Uint64) {
+                    pdata = ptr_add(get_payload(payload), 0)
+                    psz = 8.to_i32()
+                }
+                else if is_variant(payload, Value.Float) {
+                    pdata = ptr_add(get_payload(payload), 0)
+                    psz = 4.to_i32()
+                }
+                else if is_variant(payload, Value.Boolean) {
+                    pdata = ptr_add(get_payload(payload), 0)
+                    psz = 1.to_i32()
+                }
+                else if is_variant(payload, Value.Struct) {
+                    ref si : StructInstance = get_payload(payload)
+                    if is_null(si.struct_def).not() {
+                        ref sd : StructDefData = get_payload(si.struct_def.data)
+                        psz = sd.total_struct_size
+                    }
+                    pdata = ptr_add(si.data, 0)
+                }
+                else if is_variant(payload, Value.Enum) {
+                    ref ei : EnumInstance = get_payload(payload)
+                    psz = ei.data_size
+                    pdata = ptr_add(ei.data, 0)
+                }
+                else if is_variant(payload, Value.Ptr) {
+                    pdata = ptr_add(get_payload(payload), 0)
+                    psz = 8.to_i32()
+                }
+                else if is_variant(payload, Value.Func) {
+                    pdata = ptr_add(get_payload(payload), 0)
+                    psz = 8.to_i32()
+                }
+                mut tmp := val_enum_flat(enum_name, enum_def, ctor_tag, pdata, psz)
+                memcpy(result, tmp, Value.size())
+                memset(tmp, 0, Value.size())
+            } else {
+                mut tmp := val_enum_flat(enum_name, enum_def, ctor_tag, NULL, 0.to_i32())
+                memcpy(result, tmp, Value.size())
+                memset(tmp, 0, Value.size())
+            }
+            return true
+        }
+    }
+    return false
+}
+
 ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
-enum_method_dispatch := ext_func(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Value) returns shallow Bool {}
 ffi_init := ext_func(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}
 ffi_cleanup := proc() {
     ffi_close_user_so()

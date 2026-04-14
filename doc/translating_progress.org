@@ -9,7 +9,6 @@
 ** dispatch.c
 
 *** Leaves
-- enum_method_dispatch (45 lines)
 - ext_dispatch_ffi (181 lines)
 - ffi_register (39 lines)
 

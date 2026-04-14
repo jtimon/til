@@ -461,51 +461,6 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
     return ext_dispatch_ffi(name, scope, e, result);
 }
 
-Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
-                         Str *enum_name, Expr *e,
-                         Value *result) {
-    Bool hp = enum_has_payloads(enum_def);
-
-    if (hp) {
-        // Payload enum: constructor, get_Variant
-        I32 ctor_tag = *enum_variant_tag(enum_def, method);
-        if (ctor_tag >= 0) {
-            Str *vtype = enum_variant_type(enum_def, ctor_tag);
-            if (vtype->count > 0) {
-                // Payload constructor: eval arg, write into flat buffer
-                Value payload = eval_expr(scope, Expr_child(e, &(USize){(USize)(1)}));
-                void *pdata = NULL;
-                I32 psz = 0;
-                switch (payload.tag) {
-                case Value_TAG_Int:    pdata = &payload.data.Int; psz = sizeof(I64); break;
-                case Value_TAG_Byte:   pdata = &payload.data.Byte; psz = sizeof(U8); break;
-                case Value_TAG_Short:  pdata = &payload.data.Short; psz = sizeof(I16); break;
-                case Value_TAG_Int32:  pdata = &payload.data.Int32; psz = sizeof(I32); break;
-                case Value_TAG_Uint32: pdata = &payload.data.Uint32; psz = sizeof(U32); break;
-                case Value_TAG_Uint64: pdata = &payload.data.Uint64; psz = sizeof(U64); break;
-                case Value_TAG_Float:  pdata = &payload.data.Float; psz = sizeof(F32); break;
-                case Value_TAG_Boolean: pdata = &payload.data.Boolean; psz = sizeof(Bool); break;
-                case Value_TAG_Struct: pdata = payload.data.Struct.data;
-                    psz = payload.data.Struct.struct_def ? payload.data.Struct.struct_def->data.data.StructDef.total_struct_size : 0;
-                    break;
-                case Value_TAG_Enum:   pdata = payload.data.Enum.data;
-                    psz = payload.data.Enum.data_size;
-                    break;
-                case Value_TAG_Ptr:    pdata = &payload.data.Ptr; psz = sizeof(void *); break;
-                case Value_TAG_Func:   pdata = &payload.data.Func; psz = sizeof(void *); break;
-                default: break;
-                }
-                *result = val_enum_flat(enum_name, enum_def, ctor_tag, pdata, psz);
-            } else {
-                // No-payload variant of a payload enum (e.g. Token.Eof)
-                *result = val_enum_flat(enum_name, enum_def, ctor_tag, NULL, 0);
-            }
-            return 1;
-        }
-    }
-
-    return 0;
-}
 
 // Register an ext_func/ext_proc in ffi_map
 static void ffi_register(Str *name, void *fn, Expr *fdef) {
