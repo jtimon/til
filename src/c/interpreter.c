@@ -168,22 +168,7 @@ Value eval_call(Scope *scope, Expr *e) {
         }
         Expr *body = Expr_child(func_def, &(USize){(USize)(0)});
 
-        // Guard: skip call if first 'own' param is val_none, borrowed struct, or Value_TAG_Ptr
-        if (func_def->data.data.FuncDef.nparam > 0 &&
-            func_def->data.data.FuncDef.params.count > 0 &&
-            PARAM_IS_OWN(((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))) &&
-            e->children.count > 1 && Expr_child(e, &(USize){(USize)(1)})->data.tag == NodeType_TAG_Ident) {
-            Cell *fc = scope_get(scope, &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident);
-            if (fc && fc->val.tag == Value_TAG_None) return val_none();
-            if (fc && fc->val.tag == Value_TAG_Struct && fc->val.data.Struct.borrowed) {
-                fc->val = val_none();
-                return val_none();
-            }
-            if (fc && fc->val.tag == Value_TAG_Ptr) {
-                fc->val = val_none();
-                return val_none();
-            }
-        }
+        if (guard_own_param_skip(scope, e, func_def)) return val_none();
 
         Scope *call_scope = scope_new(scope);
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++) {

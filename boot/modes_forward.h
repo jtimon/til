@@ -1056,6 +1056,7 @@ I32 elem_size_for_type(Str * type_name);
 Value parse_cli_arg(Str * s, Str * type_name);
 Value eval_expr(Scope * scope, Expr * e);
 Value * reinterpret_ptr_value(Value * val, Str * type_name, Scope * scope);
+Bool guard_own_param_skip(Scope * scope, Expr * e, Expr * func_def);
 Value eval_call(Scope * scope, Expr * e);
 StructInstance * clone_struct_instance(StructInstance * src);
 void free_value(Value v);

@@ -448,6 +448,28 @@ reinterpret_ptr_value := proc(val: Value, type_name: Str, scope: Scope) returns 
     return shallow_copy_value(val)
 }
 
+// Check if call should be skipped because first own param is None/borrowed/Ptr.
+// Returns true if call should be skipped (caller returns val_none).
+guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shallow Bool {
+    ref fd : FunctionDef = get_payload(func_def.data)
+    if fd.nparam.eq(0) { return false }
+    if fd.params.len().eq(0) { return false }
+    ref p0 : Param = fd.params.get(0)
+    if is_variant(p0.own_type, OwnType.Own).not() { return false }
+    if e.child_count().lte(1) { return false }
+    if is_variant(e.child(1).data, NodeType.Ident).not() { return false }
+    ref arg_ident : Str = get_payload(e.child(1).data)
+    ref fc : Cell = scope_get(scope, arg_ident)
+    if is_null(fc) { return false }
+    if is_variant(fc.val, Value.None) { return true }
+    if is_variant(fc.val, Value.Struct) {
+        ref si : StructInstance = get_payload(fc.val)
+        if si.borrowed { memcpy(fc.val, val_none(), Value.size()); return true }
+    }
+    if is_variant(fc.val, Value.Ptr) { memcpy(fc.val, val_none(), Value.size()); return true }
+    return false
+}
+
 eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
 clone_struct_instance := ext_func(src: StructInstance) returns StructInstance {}
 free_value := proc(shallow v: Value) {
