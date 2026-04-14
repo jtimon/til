@@ -124,7 +124,74 @@ func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope)
     return false
 }
 
-try_eval_call := ext_func(scope: Scope, fcall: Expr, shallow require_known: Bool) returns ref Expr {}
+try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) returns ref Expr {
+    // Check if the function body references unknown globals
+    ref callee_ident : Str = get_payload(fcall.child(0).data)
+    ref fn_cell : Cell = scope_get(scope, callee_ident)
+    if is_null(fn_cell).not() {
+        if is_variant(fn_cell.val, Value.Func) {
+            ref fptr : Dynamic = get_payload(fn_cell.val)
+            ref fdef : Expr = read_ptr(fptr)
+            if is_variant(fdef.data, NodeType.FuncDef) {
+                if fdef.child_count().gt(0) {
+                    if func_uses_unknown_globals(fdef.child(0), fdef, scope) {
+                        return NULL
+                    }
+                }
+            }
+        }
+    }
+
+    // Build a call with literal args for the interpreter
+    nargs := fcall.child_count().sub(1)
+    mut ec := Expr.new(NodeType.FCall, fcall.line, fcall.col, fcall.path)
+    ec.til_type = fcall.til_type
+    ec.struct_name = fcall.struct_name.clone()
+    ec.add_child(own fcall.child(0).clone())
+
+    for i in 0..nargs {
+        ref arg : Expr = fcall.child(i.add(1))
+        mut arg_val := val_none()
+        if is_known(arg, arg_val).not() {
+            if require_known {
+                arg.error("macro argument must be known at compile time")
+            }
+            return NULL
+        }
+        ec.add_child(own value_to_expr(arg_val, arg))
+    }
+
+    // Evaluate the call using the interpreter
+    result := eval_expr(scope, ec)
+
+    // Check if result is convertible to AST (value_to_expr returns NULL otherwise)
+    mut can_convert := is_variant(result, Value.Int)
+        .or(is_variant(result, Value.Byte))
+        .or(is_variant(result, Value.Short))
+        .or(is_variant(result, Value.Int32))
+        .or(is_variant(result, Value.Uint32))
+        .or(is_variant(result, Value.Uint64))
+        .or(is_variant(result, Value.Float))
+        .or(is_variant(result, Value.Boolean))
+    if can_convert.not().and(is_variant(result, Value.Struct)) {
+        ref si : StructInstance = get_payload(result)
+        if si.to_str().eq("Str") { can_convert = true }
+    }
+    if can_convert.not() {
+        if require_known {
+            fcall.error("macro returned non-primitive type")
+        }
+        return NULL
+    }
+
+    // Convert result to AST -- guaranteed non-NULL, safe to bind owned
+    mut lit_local := value_to_expr(result, fcall)
+    heap : Dynamic = malloc(Expr.size().to_u64())
+    memcpy(heap, lit_local, Expr.size())
+    memset(lit_local, 0, Expr.size())
+    ref heap_lit : Expr = ptr_add(heap, 0)
+    return heap_lit
+}
 
 track_literal := proc(scope: Scope, name: Str, rhs: Expr) {
     mut v := val_none()

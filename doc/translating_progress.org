@@ -3,7 +3,7 @@
 ** interpreter.c
 
 *** Not leaves
-- eval_call (257 lines) -- deps: enum_method_dispatch (dispatch.c), ext_function_dispatch (dispatch.c)
+- eval_call (257 lines) -- deps: ext_function_dispatch (dispatch.c)
 - interpret (178 lines) -- deps: eval_call, ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)
 
 ** dispatch.c
@@ -22,9 +22,6 @@
 - ffi_init (15 lines) -- deps: ffi_init_scan_program
 
 ** precomp.c
-
-*** Leaves
-- try_eval_call (48 lines)
 
 *** Not leaves
 - precomp (85 lines) -- deps: ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)

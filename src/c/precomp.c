@@ -7,56 +7,7 @@
 void ffi_init_scan_program(Expr *program);
 void ffi_init_struct_defs(Expr *program);
 
-// Try to evaluate a call at compile time.
-// require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
-Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
-    // Check if the function body references unknown globals
-    Str *callee_name = &Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident;
-    Cell *fn_cell = scope_get(scope, callee_name);
-    if (fn_cell && fn_cell->val.tag == Value_TAG_Func && ((Expr*)fn_cell->val.data.Func)->data.tag == NodeType_TAG_FuncDef) {
-        Expr *fdef = (Expr*)fn_cell->val.data.Func;
-        if (fdef->children.count > 0 && func_uses_unknown_globals(Expr_child(fdef, &(USize){(USize)(0)}), fdef, scope)) {
-            return NULL;
-        }
-    }
 
-    // Build a call with literal args for the interpreter
-    U32 nargs = fcall->children.count - 1;
-    Expr *eval_call = Expr_new(&(NodeType){.tag = NodeType_TAG_FCall}, fcall->line, fcall->col, &fcall->path);
-    eval_call->til_type = fcall->til_type;
-    { Str *_s = Str_clone(&fcall->struct_name); eval_call->struct_name = *_s; free(_s); }
-    Expr_add_child(eval_call, Expr_clone(Expr_child(fcall, &(USize){(USize)(0)}))); // callee ident (clone -- owned)
-
-    for (U32 i = 0; i < nargs; i++) {
-        Expr *arg = Expr_child(fcall, &(USize){(USize)(i + 1)});
-        Value arg_val;
-        if (!is_known(arg, &arg_val)) {
-            if (require_known) {
-                Expr_error(arg, &(Str){.c_str = (U8*)"macro argument must be known at compile time", .count = 44, .cap = CAP_LIT});
-            }
-            Expr_delete(eval_call, &(Bool){1});
-            return NULL;
-        }
-        // Create a literal expression from the value
-        Expr *lit = value_to_expr(arg_val, arg);
-        Expr_add_child(eval_call, lit);
-    }
-
-    // Evaluate the call using the interpreter
-    Value result = eval_expr(scope, eval_call);
-
-    // Clean up eval_call -- Vec_delete handles recursive child deletion
-    Expr_delete(eval_call, &(Bool){1});
-
-    // Convert result to AST
-    Expr *lit = value_to_expr(result, fcall);
-    if (!lit) {
-        if (require_known) {
-            Expr_error(fcall, &(Str){.c_str = (U8*)"macro returned non-primitive type", .count = 33, .cap = CAP_LIT});
-        }
-    }
-    return lit;
-}
 
 
 void precomp(Expr *core_program, Expr *program) {
