@@ -1,10 +1,38 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 137
+# NEXT_ISSUE: 138
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/16] Pre
+** OPEN #137 FuncSig calls ignore returns shallow -- always use heap wrapper
+  Calling a function through a FuncSig (function pointer) always generates
+  the owned-return heap-pointer pattern, even when the FuncSig declares
+  returns shallow. Direct calls respect shallow correctly.
+
+  Example:
+  #+begin_src til
+  BoolFn := func(I64) returns shallow Bool
+  is_positive := func(n: I64) returns shallow Bool { return n.gt(0) }
+  call_bool_fn := func(f: BoolFn, x: I64) returns shallow Bool { return f(x) }
+  #+end_src
+
+  Generated C for ~f(x)~ inside ~call_bool_fn~:
+  #+begin_src c
+  // WRONG: treats return as heap pointer
+  Bool _t; { Bool *_hp = (Bool *)((Bool (*)(I64 *))f)(x); _t = *_hp; free(_hp); }
+  // CORRECT would be:
+  Bool _t = ((Bool (*)(I64 *))f)(x);
+  #+end_src
+
+  The function signature itself is generated correctly (~Bool call_bool_fn(...)~),
+  and call sites to ~call_bool_fn~ are correct (~Bool _t = call_bool_fn(...)~).
+  Only the indirect call through the function pointer inside the body is wrong.
+
+  Blocks self-hosting: dispatch_init/ext_dispatch_builtin use function pointers
+  to call handlers that return shallow Bool.
+  Related: #133 (FuncSig typedef generation)
+
 ** OPEN #136 Precomp doesn't fold namespace method calls
   ~Dynamic.size()~ is defined in ~dyn.til~ as ~func() returns USize { return 8 }~
   but is not folded by precomp. ~is_func_call~ in ~precomp.til~ (line 150)
