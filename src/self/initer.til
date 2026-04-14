@@ -312,6 +312,7 @@ generate_enum_is_method := proc(body: Expr, ename: Str, shallow line: U32, shall
     func_decl.params.push(own self_param)
     func_decl.params.push(own other_param)
     func_decl.return_type = "Bool"
+    func_decl.return_own_type = OwnType.Shallow
     func_decl.variadic_index = -1.to_i32()
     func_decl.kwargs_index = -1.to_i32()
 
@@ -435,6 +436,7 @@ generate_enum_eq_method := proc(body: Expr, ename: Str, shallow line: U32, shall
     fdecl.params.push(own Param(name = "self", ptype = ename.clone()))
     fdecl.params.push(own Param(name = "other", ptype = ename.clone()))
     fdecl.return_type = "Bool"
+    fdecl.return_own_type = OwnType.Shallow
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
 
@@ -1132,6 +1134,7 @@ generate_struct_size_methods := proc(program: Expr) {
         func_decl.func_type = FuncType.Func
         func_decl.nparam = 0
         func_decl.return_type = "USize"
+        func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1.to_i32()
         func_decl.kwargs_index = -1.to_i32()
 
@@ -1183,6 +1186,7 @@ generate_enum_size_methods := proc(program: Expr) {
         func_decl.func_type = FuncType.Func
         func_decl.nparam = 0
         func_decl.return_type = "USize"
+        func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1.to_i32()
         func_decl.kwargs_index = -1.to_i32()
 
