@@ -8,38 +8,34 @@
 - build_argv_array (35 lines) -- deps: value_to_buf
 
 *** Not leaves
-- eval_call (304 lines) -- deps: eval_body, ext_function_dispatch (dispatch.c), enum_method_dispatch (dispatch.c)
-- eval_body (306 lines) -- deps: eval_call
-- interpreter_init_ns (35 lines) -- deps: (leaf now, eval_expr done)
-- interpret (178 lines) -- deps: eval_body, interpreter_init_ns, build_argv_array, ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)
+- eval_call (257 lines) -- deps: eval_body (done), ext_function_dispatch (dispatch.c), enum_method_dispatch (dispatch.c)
+- interpret (178 lines) -- deps: eval_call, build_argv_array, ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)
 
 ** dispatch.c
 
-*** Leaves (eval_expr done, these are now unblocked)
+*** Leaves (eval_expr and eval_body done)
 - h_free (21 lines)
-- get_elem_size (37 lines)
-- h_array (54 lines)
-- h_vec (56 lines)
+- h_dyn_call (42 lines) -- deps: eval_call (interpreter.c)
+- get_elem_size (37 lines) -- deps: eval_call (interpreter.c)
+- h_array (54 lines) -- deps: eval_call (interpreter.c)
+- h_vec (56 lines) -- deps: eval_call (interpreter.c)
 - h_ptr_add (7 lines)
 - h_cfile_close (7 lines)
 - h_cfile_write_str (9 lines)
 - h_cfile_read_all (8 lines)
+- enum_method_dispatch (45 lines)
 
 *** Not leaves
-- h_dyn_call (42 lines) -- deps: eval_call (interpreter.c)
 - dispatch_init (64 lines) -- deps: C function pointers
 - ext_dispatch_builtin (7 lines) -- deps: dispatch_init
 - ext_dispatch_ffi (181 lines) -- deps: ffi_call C macros
 - ext_function_dispatch (6 lines) -- deps: dispatch_init, ext_dispatch_builtin, ext_dispatch_ffi
-- enum_method_dispatch (45 lines) -- deps: eval_body (interpreter.c)
-- ffi_register (39 lines) -- deps: ffi_prep_cif (C)
+- ffi_register (39 lines) -- deps: ffi_prep_cif (libffi name clash issue)
 - ffi_init_scan_program (57 lines) -- deps: ffi_register
 - ffi_init (15 lines) -- deps: ffi_init_scan_program
 
 ** precomp.c
 
-*** Leaves (eval_expr done, try_eval_call is now unblocked)
-- try_eval_call (48 lines)
-
 *** Not leaves
-- precomp (85 lines) -- deps: ffi_init (dispatch.c), interpreter_init_ns (interpreter.c), ffi_init_scan_program (dispatch.c)
+- try_eval_call (48 lines) -- deps: nullable return issue
+- precomp (85 lines) -- deps: ffi_init (dispatch.c)
