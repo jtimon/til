@@ -468,41 +468,6 @@ Value eval_call(Scope *scope, Expr *e) {
 
 
 
-static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) {
-    I32 esz = elem_size_for_type(elem_type);
-    void *data = calloc(count > 0 ? count : 1, esz);
-    for (U32 i = 0; i < count; i++) {
-        Str *s = (Str *)Vec_get(argv, &(USize){(USize)(offset + i)});
-        Value v = parse_cli_arg(s, elem_type);
-        value_to_buf((char *)data + i * esz, &v, elem_type);
-    }
-    StructInstance *inst = malloc(sizeof(StructInstance));
-    inst->struct_name = cached_array_name;
-    inst->struct_def = cached_array_def;
-    inst->borrowed = 0;
-    inst->data = calloc(1, cached_array_def->data.data.StructDef.total_struct_size);
-    // Write fields: data, cap, elem_size, elem_type
-    Str fn_data = {.c_str = (U8 *)"data", .count = 4};
-    Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
-    Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
-    Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
-    write_field(inst, find_field_decl(cached_array_def, &fn_data), &(Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
-    { Value _t = val_u32((U32)count); write_field(inst, find_field_decl(cached_array_def, &fn_cap), &_t); }
-    { Value _t = val_u32((U32)esz); write_field(inst, find_field_decl(cached_array_def, &fn_esz), &_t); }
-    // Populate FuncPtr fields (#91)
-    Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
-    Str fn_ed = {.c_str = (U8 *)"elem_delete", .count = 11};
-    Value *clone_fn = ns_get(elem_type, &(Str){.c_str = (U8 *)"clone", .count = 5});
-    Value *delete_fn = ns_get(elem_type, &(Str){.c_str = (U8 *)"delete", .count = 6});
-    if (clone_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ec), clone_fn);
-    if (delete_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ed), delete_fn);
-    { Value _t = make_str_value((void *)elem_type->c_str, elem_type->count); write_field(inst, find_field_decl(cached_array_def, &fn_et), &_t); }
-    Value result;
-    result.tag = Value_TAG_Struct;
-    result.data.Struct = *inst;
-    free(inst);
-    return result;
-}
 
 I32 interpret(Expr *core_program, Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv, Str *fwd_path) {
     if (user_c_path && user_c_path->count == 0) user_c_path = NULL;

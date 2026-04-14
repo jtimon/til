@@ -962,6 +962,31 @@ value_to_buf := proc(dest: Dynamic, val: Value, type_name: Str) {
     }
 }
 
+build_argv_array := proc(argv: Vec, shallow offset: U32, shallow count: U32, elem_type: Str) returns shallow Value {
+    esz := elem_size_for_type(elem_type)
+    mut alloc_count := count
+    if alloc_count.eq(0) { alloc_count = 1 }
+    data : Dynamic = calloc(alloc_count.to_u64(), esz.to_i64().to_u64())
+    for i in 0..count {
+        ref s : Str = argv.get(offset.add(i))
+        v := parse_cli_arg(s, elem_type)
+        value_to_buf(ptr_add(data, i.to_u64().mul(esz.to_i64().to_u64())), v, elem_type)
+    }
+    ref asd : StructDefData = get_payload(cached_array_def.data)
+    inst_data : Dynamic = calloc(1, asd.total_struct_size.to_i64().to_u64())
+    mut tmp := StructInstance(struct_name = cached_array_name, struct_def = cached_array_def, data = ptr_add(inst_data, 0), borrowed = true)
+    write_field(tmp, find_field_decl(cached_array_def, "data"), Value.Ptr(data))
+    write_field(tmp, find_field_decl(cached_array_def, "cap"), val_u32(count.to_i64()))
+    write_field(tmp, find_field_decl(cached_array_def, "elem_size"), val_u32(esz.to_i64()))
+    write_field(tmp, find_field_decl(cached_array_def, "elem_type"), make_str_value(elem_type.c_str, elem_type.count.to_u64()))
+    ref clone_fn : Value = ns_get(elem_type, "clone")
+    if is_null(clone_fn).not() { write_field(tmp, find_field_decl(cached_array_def, "elem_clone"), shallow_copy_value(clone_fn)) }
+    ref delete_fn : Value = ns_get(elem_type, "delete")
+    if is_null(delete_fn).not() { write_field(tmp, find_field_decl(cached_array_def, "elem_delete"), shallow_copy_value(delete_fn)) }
+    tmp.data = NULL
+    return make_struct_value(cached_array_name, cached_array_def, ptr_add(inst_data, 0), false)
+}
+
 mut ns_inited := false
 interpreter_init_ns := proc(mut global: Scope, program: Expr) {
     if ns_inited.not() {
