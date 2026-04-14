@@ -463,40 +463,6 @@ Value eval_call(Scope *scope, Expr *e) {
 */
 
 
-static Bool ns_inited = 0;
-void interpreter_init_ns(Scope *global, Expr *program) {
-    if (!ns_inited) {
-        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Value", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Value)}); ns_fields = *_mp; free(_mp); }
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); ns_keys = *_vp; free(_vp); }
-        ns_inited = 1;
-    }
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == NodeType_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef ||
-                                        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_EnumDef)) {
-            Str *sname = &stmt->data.data.Decl.name;
-            Expr *sdef = Expr_child(stmt, &(USize){(USize)(0)});
-            if (sdef->data.tag == NodeType_TAG_StructDef) {
-                if ((sname->count == 3 && memcmp(sname->c_str, "Str", 3) == 0))   { cached_str_def = sdef; cached_str_name = sname; }
-                if ((sname->count == 5 && memcmp(sname->c_str, "Array", 5) == 0)) { cached_array_def = sdef; cached_array_name = sname; }
-                if ((sname->count == 3 && memcmp(sname->c_str, "Vec", 3) == 0))   { cached_vec_def = sdef; cached_vec_name = sname; }
-            }
-            Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-            for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = Expr_child(body, &(USize){(USize)(j)});
-                if (field->data.data.Decl.is_namespace) {
-                    Value fval = eval_expr(global, Expr_child(field, &(USize){(USize)(0)}));
-                    if (sdef->data.tag == NodeType_TAG_EnumDef && !enum_has_payloads(sdef) &&
-                        fval.tag == Value_TAG_Int) {
-                        I32 tag = (I32)fval.data.Int;
-                        fval = val_i32(tag);
-                    }
-                    ns_set(sname, (&field->data.data.Decl.name), fval);
-                }
-            }
-        }
-    }
-}
 
 // parse_cli_arg: moved to interpreter.til
 

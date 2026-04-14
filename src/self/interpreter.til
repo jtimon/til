@@ -939,7 +939,46 @@ interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
     return false
 }
 
-interpreter_init_ns := ext_proc(mut global: Scope, program: Expr) {}
+mut ns_inited := false
+interpreter_init_ns := proc(mut global: Scope, program: Expr) {
+    if ns_inited.not() {
+        ns_fields = Map.new("Str", Str.size(), "Value", Value.size())
+        ns_keys = Vec.new("Dynamic", Dynamic.size())
+        ns_inited = true
+    }
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        if stmt.child_count().eq(0) { continue }
+        ref sdef : Expr = stmt.child(0)
+        if is_variant(sdef.data, NodeType.StructDef).not() {
+            if is_variant(sdef.data, NodeType.EnumDef).not() { continue }
+        }
+        if is_variant(sdef.data, NodeType.StructDef) {
+            if dd.name.eq("Str") { cached_str_def = sdef; cached_str_name = dd.name }
+            if dd.name.eq("Array") { cached_array_def = sdef; cached_array_name = dd.name }
+            if dd.name.eq("Vec") { cached_vec_def = sdef; cached_vec_name = dd.name }
+        }
+        ref body : Expr = sdef.child(0)
+        for j in 0..body.child_count() {
+            ref field : Expr = body.child(j)
+            ref fdd : Declaration = get_payload(field.data)
+            if fdd.is_namespace {
+                mut fval := eval_expr(global, field.child(0))
+                if is_variant(sdef.data, NodeType.EnumDef) {
+                    if enum_has_payloads(sdef).not() {
+                        if is_variant(fval, Value.Int) {
+                            ref iv : I64 = get_payload(fval)
+                            fval = val_i32(iv)
+                        }
+                    }
+                }
+                ns_set(dd.name, fdd.name, fval)
+            }
+        }
+    }
+}
 
 ns_qname := func(sname: Str, fname: Str) returns Str {
     return sname.concat(".").concat(fname)

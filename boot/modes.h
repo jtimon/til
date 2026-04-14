@@ -1282,6 +1282,7 @@ extern Str *cached_vec_name;
 extern Map ns_fields;
 extern Vec ns_keys;
 extern I32 ENUM_PAYLOAD_OFFSET;
+extern Bool ns_inited;
 extern I32 ENUM_PAYLOAD_OFFSET;
 extern Map dispatch_map;
 extern Bool dispatch_inited;
