@@ -4,10 +4,9 @@
 
 *** Leaves
 - clone_struct_instance (59 lines, recursive)
-- value_to_buf (20 lines)
+- build_argv_array (35 lines)
 
 *** Not leaves
-- build_argv_array (35 lines) -- deps: value_to_buf
 - eval_call (257 lines) -- deps: ext_function_dispatch (dispatch.c), enum_method_dispatch (dispatch.c)
 - interpret (178 lines) -- deps: eval_call, build_argv_array, ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)
 

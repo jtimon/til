@@ -939,6 +939,29 @@ interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
     return false
 }
 
+value_to_buf := proc(dest: Dynamic, val: Value, type_name: Str) {
+    if type_name.eq("I64") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 8); return }
+    if type_name.eq("U8") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 1); return }
+    if type_name.eq("I16") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 2); return }
+    if type_name.eq("I32") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 4); return }
+    if type_name.eq("U32") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 4); return }
+    if type_name.eq("Bool") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 1); return }
+    if is_variant(val, Value.Struct) {
+        ref si : StructInstance = get_payload(val)
+        ref sd : StructDefData = get_payload(si.struct_def.data)
+        sz := sd.total_struct_size
+        if si.borrowed {
+            mut cloned := val.clone()
+            ref csi : StructInstance = get_payload(cloned)
+            memcpy(dest, csi.data, sz.to_i64().to_u64())
+            free(own csi.data)
+            csi.data = NULL
+        } else {
+            memcpy(dest, si.data, sz.to_i64().to_u64())
+        }
+    }
+}
+
 mut ns_inited := false
 interpreter_init_ns := proc(mut global: Scope, program: Expr) {
     if ns_inited.not() {
