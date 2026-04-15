@@ -780,7 +780,257 @@ eval_body := proc(scope: Scope, body: Expr) {
     }
 }
 
-eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
+eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
+    ref callee_expr : Expr = e.child(0)
+
+    // Namespace method call: Struct.method(args)
+    if is_variant(callee_expr.data, NodeType.FieldAccess) {
+        fn_val := eval_expr(scope, callee_expr)
+        if is_variant(fn_val, Value.Func).not() {
+            e.error("namespace field is not a function")
+            exit(1)
+        }
+        ref fn_ptr : Dynamic = get_payload(fn_val)
+        ref func_def : Expr = read_ptr(fn_ptr)
+
+        // FuncPtr field: stored function may be ext_func from another type
+        if callee_expr.til_type.eq(TilType.FuncPtr) {
+            ref fp_fdef : FunctionDef = get_payload(func_def.data)
+            if is_variant(fp_fdef.func_type, FuncType.ExtFunc).or(is_variant(fp_fdef.func_type, FuncType.ExtProc)) {
+                for ki in 0..ns_fields.count {
+                    ref qn : Str = ptr_add(ns_fields.key_data, ki.mul(ns_fields.key_size))
+                    ref nsv : Value = ptr_add(ns_fields.val_data, ki.mul(ns_fields.val_size))
+                    if is_variant(nsv, Value.Func) {
+                        ref nsv_fptr : Dynamic = get_payload(nsv)
+                        ref nsv_fdef : Expr = read_ptr(nsv_fptr)
+                        if ptr_eq(nsv_fdef, func_def) {
+                            fp_flat := qn.replace(".", "_")
+                            orig_callee := callee_expr.clone()
+                            mut flat_ident := callee_expr.clone()
+                            flat_ident.data = NodeType.Ident(fp_flat.clone())
+                            memcpy(e.children.get(0), flat_ident, Expr.size())
+                            memset(flat_ident, 0, Expr.size())
+                            result := eval_call(scope, e)
+                            memcpy(e.children.get(0), orig_callee, Expr.size())
+                            memset(orig_callee, 0, Expr.size())
+                            return result
+                        }
+                    }
+                }
+            }
+        }
+        // Direct ext_func namespace method -- dispatch by flat name
+        ref fdef_ns : FunctionDef = get_payload(func_def.data)
+        if is_variant(fdef_ns.func_type, FuncType.ExtFunc).or(is_variant(fdef_ns.func_type, FuncType.ExtProc)) {
+            ref parent_sname : Str = callee_expr.child(0).struct_name
+            ref tc : Cell = scope_get(scope, parent_sname)
+            if is_null(tc).not() {
+                if is_variant(tc.val, Value.Func) {
+                    ref tc_fptr : Dynamic = get_payload(tc.val)
+                    ref tc_edef : Expr = read_ptr(tc_fptr)
+                    if is_variant(tc_edef.data, NodeType.EnumDef) {
+                        ref callee_ident : Str = get_payload(callee_expr.data)
+                        mut eresult := val_none()
+                        if enum_method_dispatch(callee_ident, scope, tc_edef, parent_sname, e, eresult) {
+                            for oi in 1..e.child_count() {
+                                ref oa : Expr = e.child(oi)
+                                if is_variant(oa.data, NodeType.Ident).and(oa.is_own_arg) {
+                                    ref oa_ident : Str = get_payload(oa.data)
+                                    ref oc : Cell = scope_get(scope, oa_ident)
+                                    if is_null(oc).not() { oc.val = val_none() }
+                                }
+                            }
+                            return eresult
+                        }
+                    }
+                }
+            }
+            ref sn : Str = callee_expr.child(0).struct_name
+            ref fn_name : Str = get_payload(callee_expr.data)
+            flat_str := sn.concat("_").concat(fn_name)
+            orig_callee_val := callee_expr.clone()
+            mut flat_ident2 := callee_expr.clone()
+            flat_ident2.data = NodeType.Ident(flat_str.clone())
+            memcpy(e.children.get(0), flat_ident2, Expr.size())
+            memset(flat_ident2, 0, Expr.size())
+            result := eval_call(scope, e)
+            memcpy(e.children.get(0), orig_callee_val, Expr.size())
+            memset(orig_callee_val, 0, Expr.size())
+            return result
+        }
+
+        // Regular function body call
+        ref body_ns : Expr = func_def.child(0)
+        if guard_own_param_skip(scope, e, func_def) { return val_none() }
+        call_scope := scope_new(scope)
+        ref fdef_params : FunctionDef = get_payload(func_def.data)
+        for pi in 0..fdef_params.nparam {
+            ref param : Param = fdef_params.params.get(pi)
+            ref arg_expr : Expr = e.child(pi.add(1))
+            if is_variant(arg_expr.data, NodeType.Ident) {
+                ref arg_ident : Str = get_payload(arg_expr.data)
+                ref arg_cell : Cell = scope_get(scope, arg_ident)
+                if is_variant(arg_cell.val, Value.Ptr).and(param.ptype.len().gt(0)) {
+                    mut arg := reinterpret_ptr_value(arg_cell.val, param.ptype, scope)
+                    arg = widen_numeric(arg, param.ptype)
+                    scope_set_owned(call_scope, param.name, arg)
+                } else if needs_widen(arg_cell.val, param.ptype) {
+                    mut arg := arg_cell.val.clone()
+                    arg = widen_numeric(arg, param.ptype)
+                    scope_set_owned(call_scope, param.name, arg)
+                } else {
+                    scope_set_borrowed(call_scope, param.name, arg_cell)
+                }
+            } else {
+                mut arg := eval_expr(scope, arg_expr)
+                if is_variant(arg, Value.Ptr).and(param.ptype.len().gt(0)) {
+                    arg = reinterpret_ptr_value(arg, param.ptype, scope)
+                }
+                arg = widen_numeric(arg, param.ptype)
+                scope_set_owned(call_scope, param.name, arg)
+            }
+        }
+        has_return = false
+        eval_body(call_scope, body_ns)
+        mut result := val_none()
+        if has_return {
+            result = return_value.clone()
+            has_return = false
+        }
+        scope_free(own call_scope)
+        return result
+    }
+
+    // Direct ident call
+    ref name : Str = get_payload(callee_expr.data)
+
+    // Ext function dispatch
+    mut ext_result := val_none()
+    if ext_function_dispatch(name, scope, e, ext_result) {
+        for oi in 1..e.child_count() {
+            ref oa : Expr = e.child(oi)
+            if is_variant(oa.data, NodeType.Ident).and(oa.is_own_arg) {
+                ref oa_ident : Str = get_payload(oa.data)
+                ref oc : Cell = scope_get(scope, oa_ident)
+                if is_null(oc).not() { oc.val = val_none() }
+            }
+        }
+        return ext_result
+    }
+
+    // User-defined function or struct instantiation
+    ref fn_cell : Cell = scope_get(scope, name)
+    if is_null(fn_cell) {
+        e.error(name.concat(" is undefined"))
+        exit(1)
+    }
+
+    // Struct instantiation
+    if is_variant(fn_cell.val, Value.Func) {
+        ref si_fptr : Dynamic = get_payload(fn_cell.val)
+        ref si_edef : Expr = read_ptr(si_fptr)
+        if is_variant(si_edef.data, NodeType.StructDef) {
+            ref sdef_body : Expr = si_edef.child(0)
+            ref sdd : StructDefData = get_payload(si_edef.data)
+            inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
+            ref mut inst_sname : Str = name
+            if e.struct_name.len().gt(0) { inst_sname = e.struct_name }
+            mut inst := make_struct_value(inst_sname, si_edef, inst_data, false)
+            ref si_inst : StructInstance = get_payload(inst)
+            mut arg_idx : U32 = 1
+            for fi in 0..sdef_body.child_count() {
+                ref field : Expr = sdef_body.child(fi)
+                ref fdd : Declaration = get_payload(field.data)
+                if fdd.is_namespace { }
+                else {
+                    ref arg : Expr = e.child(arg_idx)
+                    arg_idx = arg_idx.add(1)
+                    mut val := val_none()
+                    if is_variant(arg.data, NodeType.Ident) {
+                        ref arg_ident : Str = get_payload(arg.data)
+                        ref src : Cell = scope_get(scope, arg_ident)
+                        val = shallow_copy_value(src.val)
+                        if arg.is_own_arg.and(is_variant(val, Value.Func).not()) {
+                            src.val = val_none()
+                        }
+                    } else {
+                        val = eval_expr(scope, arg)
+                    }
+                    write_field(si_inst, field, val)
+                }
+            }
+            return inst
+        }
+    }
+
+    if is_variant(fn_cell.val, Value.Func).not() {
+        e.error(name.concat(" is not a function"))
+        exit(1)
+    }
+
+    ref fc_fptr : Dynamic = get_payload(fn_cell.val)
+    ref func_def2 : Expr = read_ptr(fc_fptr)
+    ref body2 : Expr = func_def2.child(0)
+
+    // Guard: skip call if first 'own' param is val_none, borrowed struct, or Ptr
+    ref fdef2 : FunctionDef = get_payload(func_def2.data)
+    if fdef2.nparam.gt(0).and(fdef2.params.len().gt(0)).and(e.child_count().gt(1)) {
+        ref first_param : Param = fdef2.params.get(0)
+        if first_param.own_type.eq(OwnType.Own) {
+            ref first_arg : Expr = e.child(1)
+            if is_variant(first_arg.data, NodeType.Ident) {
+                ref fa_ident : Str = get_payload(first_arg.data)
+                ref fc : Cell = scope_get(scope, fa_ident)
+                if is_null(fc).not() {
+                    if is_variant(fc.val, Value.None) { return val_none() }
+                    if is_variant(fc.val, Value.Struct) {
+                        ref fsi : StructInstance = get_payload(fc.val)
+                        if fsi.borrowed {
+                            fc.val = val_none()
+                            return val_none()
+                        }
+                    }
+                    if is_variant(fc.val, Value.Ptr) {
+                        fc.val = val_none()
+                        return val_none()
+                    }
+                }
+            }
+        }
+    }
+
+    call_scope2 := scope_new(scope)
+    nparam2 := fdef2.nparam
+    for pi in 0..nparam2 {
+        ref arg_expr : Expr = e.child(pi.add(1))
+        ref param : Param = fdef2.params.get(pi)
+        if is_variant(arg_expr.data, NodeType.Ident) {
+            ref arg_ident : Str = get_payload(arg_expr.data)
+            ref arg_cell : Cell = scope_get(scope, arg_ident)
+            if needs_widen(arg_cell.val, param.ptype) {
+                mut arg := arg_cell.val.clone()
+                arg = widen_numeric(arg, param.ptype)
+                scope_set_owned(call_scope2, param.name, arg)
+            } else {
+                scope_set_borrowed(call_scope2, param.name, arg_cell)
+            }
+        } else {
+            mut arg := eval_expr(scope, arg_expr)
+            arg = widen_numeric(arg, param.ptype)
+            scope_set_owned(call_scope2, param.name, arg)
+        }
+    }
+
+    has_return = false
+    eval_body(call_scope2, body2)
+    mut result := val_none()
+    if has_return {
+        result = return_value.clone()
+        has_return = false
+    }
+    scope_free(own call_scope2)
+    return result
+}
 
 free_value := proc(shallow v: Value) {
     if is_variant(v, Value.Struct) {

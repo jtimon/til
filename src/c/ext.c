@@ -276,6 +276,7 @@ void *ptr_add(void *buf, U64 offset) {
 void *read_ptr(void *slot) { return *(void **)slot; }
 void write_ptr(void *dest, void *val) { *(void **)dest = val; }
 Bool is_null(void *p) { return p == NULL; }
+Bool ptr_eq(void *a, void *b) { return a == b; }
 Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }
 Bool is_variant(void *self, void *other) { return *(I32*)self == *(I32*)other; }
 void *get_payload(void *self) { return (U8*)self + sizeof(I64); }
