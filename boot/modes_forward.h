@@ -1167,6 +1167,7 @@ Bool h_vec(Scope * s, Expr * e, Value * r);
 Bool enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result);
 Bool ext_dispatch_ffi(Str * name, Scope * scope, Expr * e, Value * result);
 Bool ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result);
+void ffi_init_scan_program(Expr * program);
 I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags);
 void ffi_cleanup(void);
 Mode * Mode_clone(Mode * self);
@@ -1306,5 +1307,6 @@ extern Bool ffi_loaded;
 extern Vec ffi_type_cache;
 extern Bool ffi_type_cache_inited;
 extern I16 FFI_TYPE_STRUCT;
+extern Bool ffi_map_inited;
 extern Map core_modes;
 

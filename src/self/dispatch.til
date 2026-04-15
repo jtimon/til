@@ -924,7 +924,26 @@ ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     if ext_dispatch_builtin(name, scope, e, result) { return true }
     return ext_dispatch_ffi(name, scope, e, result)
 }
-ffi_init := ext_func(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}
+ffi_init_scan_program := ext_proc(program: Expr) {}
+
+mut ffi_map_inited := false
+
+ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {
+    if ffi_loaded {
+        ffi_cleanup()
+        ffi_map_inited = false
+    }
+    mut so_path := ""
+    if ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, so_path).eq(0).not() {
+        return 1.to_i32()
+    }
+    ffi_init_link_libs(link_flags)
+    ffi_init_struct_defs(program)
+    ffi_init_scan_program(program)
+    ffi_loaded = true
+    if so_path.len().gt(0) { unlink_path(so_path) }
+    return 0.to_i32()
+}
 ffi_cleanup := proc() {
     ffi_close_user_so()
     if ffi_loaded {
