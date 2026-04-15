@@ -753,7 +753,13 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
     return false
 }
 
-ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
+ext_dispatch_ffi := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
+
+ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
+    if dispatch_inited.not() { dispatch_init() }
+    if ext_dispatch_builtin(name, scope, e, result) { return true }
+    return ext_dispatch_ffi(name, scope, e, result)
+}
 ffi_init := ext_func(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}
 ffi_cleanup := proc() {
     ffi_close_user_so()

@@ -2,8 +2,8 @@
 
 ** interpreter.c
 
-*** Not leaves
-- eval_call (257 lines) -- deps: ext_function_dispatch (dispatch.c)
+*** Leaves
+- eval_call (257 lines)
 - interpret (178 lines) -- deps: eval_call, ffi_init (dispatch.c), ffi_init_scan_program (dispatch.c)
 
 ** dispatch.c
@@ -17,7 +17,6 @@
 - get_elem_size (37 lines) -- deps: eval_call (interpreter.c)
 - h_array (54 lines) -- deps: get_elem_size
 - h_vec (56 lines) -- deps: get_elem_size
-- ext_function_dispatch (6 lines) -- deps: ext_dispatch_ffi
 - ffi_init_scan_program (57 lines) -- deps: ffi_register
 - ffi_init (15 lines) -- deps: ffi_init_scan_program
 

@@ -272,7 +272,7 @@ Bool h_vec(Scope *s, Expr *e, Value *r) {
 // === Main dispatch ===
 
 
-static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
+Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
     if (!ffi_loaded) return 0;
     if (!Map_has(&ffi_map, name)) return 0;
 
@@ -452,13 +452,6 @@ static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
     free(args);
     free(arg_ptrs);
     return 1;
-}
-
-Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
-    if (!dispatch_inited) dispatch_init();
-
-    if (ext_dispatch_builtin(name, scope, e, result)) return 1;
-    return ext_dispatch_ffi(name, scope, e, result);
 }
 
 

@@ -1164,6 +1164,7 @@ Bool h_array(Scope * s, Expr * e, Value * result);
 Bool h_vec(Scope * s, Expr * e, Value * result);
 Bool h_dyn_call(Scope * s, Expr * e, Value * result);
 Bool enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result);
+Bool ext_dispatch_ffi(Str * name, Scope * scope, Expr * e, Value * result);
 Bool ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result);
 I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags);
 void ffi_cleanup(void);
