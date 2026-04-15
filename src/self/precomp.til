@@ -277,4 +277,97 @@ process_body := proc(scope: Scope, body: Expr) {
     }
 }
 
-precomp := ext_proc(core_program: Expr, program: Expr) {}
+precomp_scan_names := proc(prog: Expr) {
+    for i in 0..prog.child_count() {
+        ref stmt : Expr = prog.child(i)
+        if is_variant(stmt.data, NodeType.Decl).and(stmt.child_count().gt(0)) {
+            if is_variant(stmt.child(0).data, NodeType.FuncDef) {
+                ref fd : FunctionDef = get_payload(stmt.child(0).data)
+                ref dd : Declaration = get_payload(stmt.data)
+                if is_variant(fd.func_type, FuncType.Macro) {
+                    macros.add(own dd.name.clone())
+                } else if is_variant(fd.func_type, FuncType.Func) {
+                    funcs.add(own dd.name.clone())
+                }
+            }
+            if is_variant(stmt.child(0).data, NodeType.StructDef)
+                .or(is_variant(stmt.child(0).data, NodeType.EnumDef)) {
+                ref sdd : Declaration = get_payload(stmt.data)
+                ref body : Expr = stmt.child(0).child(0)
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fdd : Declaration = get_payload(field.data)
+                    if fdd.is_namespace {
+                        if field.child_count().gt(0) {
+                            if is_variant(field.child(0).data, NodeType.FuncDef) {
+                                ref ffd : FunctionDef = get_payload(field.child(0).data)
+                                if is_variant(ffd.func_type, FuncType.Func) {
+                                    qname := sdd.name.concat("_").concat(fdd.name)
+                                    funcs.add(own qname)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+precomp_register_defs := proc(mut global: Scope, prog: Expr) {
+    for i in 0..prog.child_count() {
+        ref stmt : Expr = prog.child(i)
+        if is_variant(stmt.data, NodeType.Decl).and(stmt.child_count().gt(0)) {
+            if is_variant(stmt.child(0).data, NodeType.FuncDef)
+                .or(is_variant(stmt.child(0).data, NodeType.StructDef))
+                .or(is_variant(stmt.child(0).data, NodeType.EnumDef)) {
+                ref dd : Declaration = get_payload(stmt.data)
+                mut val := val_none()
+                // Build Value.Func manually: tag=9 (Func), data=pointer to child(0)
+                memcpy(val, 9.to_i32(), 4)
+                write_ptr(ptr_add(val, 8), stmt.child(0))
+                scope_set_owned(global, dd.name, val)
+                memset(val, 0, Value.size())
+            }
+        }
+    }
+}
+
+precomp := proc(core_program: Expr, program: Expr) {
+    // 1. Collect macro and pure func names
+    macros = Set.new("Str", Str.size())
+    funcs = Set.new("Str", Str.size())
+    if is_null(core_program).not() { precomp_scan_names(core_program) }
+    precomp_scan_names(program)
+
+    // Nothing to fold?
+    if macros.count.eq(0).and(funcs.count.eq(0)) {
+        Set.delete(own macros, false)
+        Set.delete(own funcs, false)
+        return
+    }
+
+    // 2. Set up interpreter scope
+    global := scope_new(NULL)
+    if is_null(core_program).not() { precomp_register_defs(global, core_program) }
+    precomp_register_defs(global, program)
+    if is_null(core_program).not() { interpreter_init_ns(global, core_program) }
+    interpreter_init_ns(global, program)
+
+    // 2b. Init FFI
+    ffi_init(program, NULL, NULL, NULL, NULL)
+    if is_null(core_program).not() {
+        ffi_init_struct_defs(core_program)
+        ffi_init_scan_program(core_program)
+    }
+
+    // 3. Process the program body (user only)
+    known = Map.new("Str", Str.size(), "Value", Value.size())
+    process_body(global, program)
+
+    // Cleanup
+    Map.delete(own known, false)
+    scope_free(own global)
+    Set.delete(own macros, false)
+    Set.delete(own funcs, false)
+}

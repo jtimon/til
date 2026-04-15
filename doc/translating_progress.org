@@ -13,5 +13,4 @@
 
 ** precomp.c
 
-*** Not leaves
-- precomp (85 lines)
+(empty -- precomp translated)

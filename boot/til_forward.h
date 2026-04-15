@@ -1017,6 +1017,8 @@ void track_literal(Scope * scope, Str * name, Expr * rhs);
 Bool is_macro_call(Expr * e);
 Bool is_func_call(Expr * e);
 void process_body(Scope * scope, Expr * body);
+void precomp_scan_names(Expr * prog);
+void precomp_register_defs(Scope * global, Expr * prog);
 void precomp(Expr * core_program, Expr * program);
 Bool StructInstance_eq(StructInstance * a, StructInstance * b);
 Str * StructInstance_to_str(StructInstance * self);
