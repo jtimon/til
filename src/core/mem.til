@@ -9,6 +9,7 @@ write_ptr := ext_func(dest: Dynamic, val: Dynamic) {}
 memcpy := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
 memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
 memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: U64) {}
+ptr_eq := ext_func(a: Dynamic, b: Dynamic) returns shallow Bool {}
 
 swap := func(a: Dynamic, b: Dynamic, shallow size: U64) {
     tmp : Dynamic = malloc(size)
