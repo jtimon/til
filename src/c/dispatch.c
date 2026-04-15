@@ -257,7 +257,7 @@ Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
 
 
 // Register an ext_func/ext_proc in ffi_map
-static void ffi_register(Str *name, void *fn, Expr *fdef) {
+void ffi_register(Str *name, void *fn, Expr *fdef) {
     U32 np = fdef->data.data.FuncDef.nparam;
     ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
     Bool *pshallows = NULL;
@@ -297,62 +297,6 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
       Map_set(&ffi_map, _k, _v); }
 }
 
-void ffi_init_scan_program(Expr *program) {
-    if (!ffi_map_inited) {
-        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"FFIEntry", .count = 8, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
-        ffi_map_inited = 1;
-    }
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != NodeType_TAG_Decl || stmt->children.count == 0) continue;
-
-        // Top-level ext_func/ext_proc
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
-            Expr *fdef = Expr_child(stmt, &(USize){(USize)(0)});
-            FuncType fft = fdef->data.data.FuncDef.func_type;
-            if (fft.tag != FuncType_TAG_ExtFunc && fft.tag != FuncType_TAG_ExtProc) continue;
-
-            void *fn = ffi_dlsym(&stmt->data.data.Decl.name);
-            if (!fn) continue;
-            ffi_register((&stmt->data.data.Decl.name), fn, fdef);
-        }
-
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == NodeType_TAG_StructDef) {
-            Str *sname = &stmt->data.data.Decl.name;
-            Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});
-            for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = Expr_child(body, &(USize){(USize)(j)});
-                if (!field->data.data.Decl.is_namespace) continue;
-                if (field->children.count == 0) continue;
-                Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
-                if (fdef->data.tag != NodeType_TAG_FuncDef) continue;
-                FuncType fft = fdef->data.data.FuncDef.func_type;
-                if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) {
-                    char flat_name[256];
-                    snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->data.data.Decl.name.c_str);
-                    Str flat_name_str = {.c_str = (U8 *)flat_name, .count = (U64)strlen(flat_name), .cap = CAP_VIEW};
-                    void *fn = ffi_dlsym(&flat_name_str);
-                    if (fn) {
-                        Str *key = Str_clone(&(Str){.c_str = (U8*)(flat_name), .count = (U64)strlen((const char*)(flat_name)), .cap = CAP_VIEW});
-                        ffi_register(key, fn, fdef);
-                    }
-                } else if (fft.tag == FuncType_TAG_Func || fft.tag == FuncType_TAG_Proc) {
-                    // Scan function body for nested ext_func/ext_proc declarations
-                    Expr *fbody = Expr_child(fdef, &(USize){(USize)(0)});
-                    for (U32 k = 0; k < fbody->children.count; k++) {
-                        Expr *inner = Expr_child(fbody, &(USize){(USize)(k)});
-                        if (inner->data.tag != NodeType_TAG_Decl || inner->children.count == 0) continue;
-                        Expr *idef = Expr_child(inner, &(USize){(USize)(0)});
-                        if (idef->data.tag != NodeType_TAG_FuncDef) continue;
-                        FuncType ift = idef->data.data.FuncDef.func_type;
-                        if (ift.tag != FuncType_TAG_ExtFunc && ift.tag != FuncType_TAG_ExtProc) continue;
-                        void *fn = ffi_dlsym(&inner->data.data.Decl.name);
-                        if (fn) ffi_register((&inner->data.data.Decl.name), fn, idef);
-                    }
-                }
-            }
-        }
-    }
-}
+// ffi_init_scan_program: moved to dispatch.til
 
 // ffi_init: moved to dispatch.til
