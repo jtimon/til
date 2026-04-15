@@ -3,16 +3,15 @@
 ** interpreter.c
 
 *** Not leaves
-- interpret (178 lines) -- deps: ffi_init_scan_program (dispatch.c)
+- interpret (178 lines)
 
 ** dispatch.c
 
 *** Leaves
 - ext_dispatch_ffi (181 lines)
 - ffi_register (39 lines)
-- ffi_init_scan_program (57 lines) -- deps: ffi_register
 
 ** precomp.c
 
 *** Not leaves
-- precomp (85 lines) -- deps: ffi_init_scan_program (dispatch.c)
+- precomp (85 lines)

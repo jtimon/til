@@ -924,7 +924,79 @@ ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     if ext_dispatch_builtin(name, scope, e, result) { return true }
     return ext_dispatch_ffi(name, scope, e, result)
 }
-ffi_init_scan_program := ext_proc(program: Expr) {}
+ffi_register := ext_proc(name: Str, fn: Dynamic, fdef: Expr) {}
+
+ffi_init_scan_program := proc(program: Expr) {
+    if ffi_map_inited.not() {
+        ffi_map = Map.new("Str", Str.size(), "FFIEntry", FFIEntry.size())
+        ffi_map_inited = true
+    }
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { }
+        else if stmt.child_count().eq(0) { }
+        else {
+            // Top-level ext_func/ext_proc
+            if is_variant(stmt.child(0).data, NodeType.FuncDef) {
+                ref fdef : Expr = stmt.child(0)
+                ref fd : FunctionDef = get_payload(fdef.data)
+                if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) {
+                    ref dname : Declaration = get_payload(stmt.data)
+                    ref fn_ptr : U8 = ffi_dlsym(dname.name)
+                    if is_null(fn_ptr).not() {
+                        ffi_register(dname.name, fn_ptr, fdef)
+                    }
+                }
+            }
+            // Struct namespace ext_func/ext_proc
+            if is_variant(stmt.child(0).data, NodeType.StructDef) {
+                ref sdd : Declaration = get_payload(stmt.data)
+                ref body : Expr = stmt.child(0).child(0)
+                for j in 0..body.child_count() {
+                    ref field : Expr = body.child(j)
+                    ref fdd : Declaration = get_payload(field.data)
+                    if fdd.is_namespace.not() { }
+                    else if field.child_count().eq(0) { }
+                    else {
+                        ref fdef : Expr = field.child(0)
+                        if is_variant(fdef.data, NodeType.FuncDef) {
+                            ref fd : FunctionDef = get_payload(fdef.data)
+                            if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) {
+                                flat_name := sdd.name.concat("_").concat(fdd.name)
+                                ref fn_ptr : U8 = ffi_dlsym(flat_name)
+                                if is_null(fn_ptr).not() {
+                                    ffi_register(flat_name, fn_ptr, fdef)
+                                    // ffi_register stores a CAP_VIEW of name->c_str;
+                                    // zero flat_name to prevent destructor from freeing c_str
+                                    memset(flat_name, 0, Str.size())
+                                }
+                            } else if is_variant(fd.func_type, FuncType.Func).or(is_variant(fd.func_type, FuncType.Proc)) {
+                                // Scan function body for nested ext_func/ext_proc
+                                ref fbody : Expr = fdef.child(0)
+                                for k in 0..fbody.child_count() {
+                                    ref inner : Expr = fbody.child(k)
+                                    if is_variant(inner.data, NodeType.Decl).and(inner.child_count().gt(0)) {
+                                        ref idef : Expr = inner.child(0)
+                                        if is_variant(idef.data, NodeType.FuncDef) {
+                                            ref ifd : FunctionDef = get_payload(idef.data)
+                                            if is_variant(ifd.func_type, FuncType.ExtFunc).or(is_variant(ifd.func_type, FuncType.ExtProc)) {
+                                                ref iname : Declaration = get_payload(inner.data)
+                                                ref ifn : U8 = ffi_dlsym(iname.name)
+                                                if is_null(ifn).not() {
+                                                    ffi_register(iname.name, ifn, idef)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 mut ffi_map_inited := false
 
