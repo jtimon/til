@@ -661,9 +661,173 @@ ext_dispatch_builtin := proc(name: Str, scope: Scope, e: Expr, mut result: Value
     return false
 }
 
-h_array := ext_func(s: Scope, e: Expr, result: Value) returns shallow Bool {}
-h_vec := ext_func(s: Scope, e: Expr, result: Value) returns shallow Bool {}
-h_dyn_call := ext_func(s: Scope, e: Expr, result: Value) returns shallow Bool {}
+h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name_val := eval_expr(s, e.child(1))
+    type_name := str_view(type_name_val)
+    method_val := eval_expr(s, e.child(2))
+    method := str_view(method_val)
+
+    // Build fake AST: Type.method(args...)
+    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), e.line, e.col, e.path)
+    type_ident.struct_name = type_name.clone()
+
+    mut field_access := Expr.new(NodeType.FieldAccess(method.clone()), e.line, e.col, e.path)
+    field_access.add_child(own type_ident)
+
+    mut fake_call := Expr.new(NodeType.FCall, e.line, e.col, e.path)
+    fake_call.add_child(own field_access)
+
+    // child 3 is arity literal, actual args start at child 4
+    ref arity_expr : Expr = e.child(3)
+    ref arity_str : Str = get_payload(arity_expr.data)
+    nargs := arity_str.to_i64().to_u32()
+    for ai in 0..nargs {
+        fake_call.push_child_clone(e.child(ai.add(4)))
+    }
+
+    r = eval_call(s, fake_call)
+    return true
+}
+
+get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
+    ref size_fn : Value = ns_get(type_name, "size")
+    if is_null(size_fn) {
+        src.error(type_name.concat(" has no size() method"))
+        exit(1)
+    }
+    // Build fake call: Type.size()
+    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col, src.path)
+    type_ident.struct_name = type_name.clone()
+
+    mut field_access := Expr.new(NodeType.FieldAccess("size"), src.line, src.col, src.path)
+    field_access.add_child(own type_ident)
+
+    mut fake_call := Expr.new(NodeType.FCall, src.line, src.col, src.path)
+    fake_call.add_child(own field_access)
+
+    result := eval_call(s, fake_call)
+    return value_to_u64(result).to_i64().to_i32()
+}
+
+h_array := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name_val := eval_expr(s, e.child(1))
+    type_name := str_view(type_name_val)
+    count := e.child_count().sub(2)
+    elem_size := get_elem_size(s, type_name, e)
+
+    // Allocate array data
+    data : Dynamic = malloc(count.to_u64().mul(elem_size.to_i64().to_u64()))
+    memset(data, 0, count.to_u64().mul(elem_size.to_i64().to_u64()))
+
+    // Evaluate each element and copy into data buffer
+    for i in 0..count {
+        elem := eval_expr(s, e.child(i.add(2)))
+        ref mut src_ptr : Dynamic = val_to_ptr(elem)
+        if is_variant(elem, Value.Ptr) {
+            ref pp : Dynamic = get_payload(elem)
+            src_ptr = read_ptr(pp)
+        }
+        if is_null(src_ptr).not() {
+            if is_variant(elem, Value.Struct) {
+                ref esi : StructInstance = get_payload(elem)
+                if esi.to_str().eq("Str") {
+                    // Deep-copy Str: copy flat bytes then strndup the data pointer
+                    memcpy(ptr_add(data, i.to_u64().mul(elem_size.to_i64().to_u64())), src_ptr, elem_size.to_i64().to_u64())
+                    ref dst_slot : Dynamic = ptr_add(data, i.to_u64().mul(elem_size.to_i64().to_u64()))
+                    ref old_ptr : Dynamic = read_ptr(dst_slot)
+                    ref slen_slot : Dynamic = ptr_add(dst_slot, 8)
+                    ref slen : U32 = slen_slot
+                    new_ptr : Dynamic = malloc(slen.to_u64().add(1))
+                    memcpy(new_ptr, old_ptr, slen.to_u64())
+                    memset(ptr_add(new_ptr, slen.to_u64()), 0, 1)
+                    write_ptr(dst_slot, new_ptr)
+                } else {
+                    memcpy(ptr_add(data, i.to_u64().mul(elem_size.to_i64().to_u64())), src_ptr, elem_size.to_i64().to_u64())
+                }
+            } else {
+                memcpy(ptr_add(data, i.to_u64().mul(elem_size.to_i64().to_u64())), src_ptr, elem_size.to_i64().to_u64())
+            }
+        }
+    }
+
+    // Build Array struct
+    ref sdd : StructDefData = get_payload(cached_array_def.data)
+    inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
+    mut inst := make_struct_value(cached_array_name, cached_array_def, inst_data, false)
+    ref si : StructInstance = get_payload(inst)
+    write_field(si, find_field_decl(cached_array_def, "data"), Value.Ptr(data))
+    write_field(si, find_field_decl(cached_array_def, "cap"), val_u32(count.to_i64()))
+    write_field(si, find_field_decl(cached_array_def, "elem_size"), val_u32(elem_size.to_i64()))
+    write_field(si, find_field_decl(cached_array_def, "elem_type"), make_str_value(type_name.c_str, type_name.count.to_u64()))
+    ref clone_fn : Value = ns_get(type_name, "clone")
+    if is_null(clone_fn).not() { write_field(si, find_field_decl(cached_array_def, "elem_clone"), shallow_copy_value(clone_fn)) }
+    ref delete_fn : Value = ns_get(type_name, "delete")
+    if is_null(delete_fn).not() { write_field(si, find_field_decl(cached_array_def, "elem_delete"), shallow_copy_value(delete_fn)) }
+
+    r = inst
+    return true
+}
+
+h_vec := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name_val := eval_expr(s, e.child(1))
+    type_name := str_view(type_name_val)
+    count := e.child_count().sub(2)
+    elem_size := get_elem_size(s, type_name, e)
+
+    // Allocate vec data with exact capacity
+    mut cap := count
+    if cap.eq(0) { cap = 1 }
+    data : Dynamic = malloc(cap.to_u64().mul(elem_size.to_i64().to_u64()))
+    memset(data, 0, cap.to_u64().mul(elem_size.to_i64().to_u64()))
+
+    // Evaluate each element and copy into data buffer
+    for i in 0..count {
+        elem := eval_expr(s, e.child(i.add(2)))
+        ref mut src_ptr : Dynamic = val_to_ptr(elem)
+        if is_variant(elem, Value.Ptr) {
+            ref pp : Dynamic = get_payload(elem)
+            src_ptr = read_ptr(pp)
+        }
+        if is_null(src_ptr).not() {
+            if is_variant(elem, Value.Struct) {
+                ref esi : StructInstance = get_payload(elem)
+                if esi.to_str().eq("Str") {
+                    memcpy(ptr_add(data, i.to_u64().mul(elem_size.to_i64().to_u64())), src_ptr, elem_size.to_i64().to_u64())
+                    ref dst_slot : Dynamic = ptr_add(data, i.to_u64().mul(elem_size.to_i64().to_u64()))
+                    ref old_ptr : Dynamic = read_ptr(dst_slot)
+                    ref slen_slot : Dynamic = ptr_add(dst_slot, 8)
+                    ref slen : U32 = slen_slot
+                    new_ptr : Dynamic = malloc(slen.to_u64().add(1))
+                    memcpy(new_ptr, old_ptr, slen.to_u64())
+                    memset(ptr_add(new_ptr, slen.to_u64()), 0, 1)
+                    write_ptr(dst_slot, new_ptr)
+                } else {
+                    memcpy(ptr_add(data, i.to_u64().mul(elem_size.to_i64().to_u64())), src_ptr, elem_size.to_i64().to_u64())
+                }
+            } else {
+                memcpy(ptr_add(data, i.to_u64().mul(elem_size.to_i64().to_u64())), src_ptr, elem_size.to_i64().to_u64())
+            }
+        }
+    }
+
+    // Build Vec struct
+    ref vdd : StructDefData = get_payload(cached_vec_def.data)
+    inst_data : Dynamic = calloc(1, vdd.total_struct_size.to_i64().to_usize())
+    mut inst := make_struct_value(cached_vec_name, cached_vec_def, inst_data, false)
+    ref si : StructInstance = get_payload(inst)
+    write_field(si, find_field_decl(cached_vec_def, "data"), Value.Ptr(data))
+    write_field(si, find_field_decl(cached_vec_def, "count"), val_u32(count.to_i64()))
+    write_field(si, find_field_decl(cached_vec_def, "cap"), val_u32(cap.to_i64()))
+    write_field(si, find_field_decl(cached_vec_def, "elem_size"), val_u32(elem_size.to_i64()))
+    write_field(si, find_field_decl(cached_vec_def, "elem_type"), make_str_value(type_name.c_str, type_name.count.to_u64()))
+    ref clone_fn : Value = ns_get(type_name, "clone")
+    if is_null(clone_fn).not() { write_field(si, find_field_decl(cached_vec_def, "elem_clone"), shallow_copy_value(clone_fn)) }
+    ref delete_fn : Value = ns_get(type_name, "delete")
+    if is_null(delete_fn).not() { write_field(si, find_field_decl(cached_vec_def, "elem_delete"), shallow_copy_value(delete_fn)) }
+
+    r = inst
+    return true
+}
 
 enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value) returns shallow Bool {
     if enum_has_payloads(enum_def) {
