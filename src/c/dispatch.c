@@ -297,7 +297,6 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
       Map_set(&ffi_map, _k, _v); }
 }
 
-static Bool ffi_map_inited = 0;
 void ffi_init_scan_program(Expr *program) {
     if (!ffi_map_inited) {
         { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"FFIEntry", .count = 8, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
@@ -356,18 +355,4 @@ void ffi_init_scan_program(Expr *program) {
     }
 }
 
-I32 ffi_init(Expr *program, Str *fwd_path, Str *user_c_path, Str *ext_c_path, Str *link_flags) {
-    if (ffi_loaded) { ffi_cleanup(); ffi_map_inited = 0; }  // re-init (e.g. precomp then interpret)
-    Str so_path = {0};
-
-    if (ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, &so_path) != 0)
-        return 1;
-
-    ffi_init_link_libs(link_flags);
-    ffi_init_struct_defs(program);
-    ffi_init_scan_program(program);
-
-    ffi_loaded = 1;
-    if (so_path.c_str) unlink((const char *)so_path.c_str);
-    return 0;
-}
+// ffi_init: moved to dispatch.til
