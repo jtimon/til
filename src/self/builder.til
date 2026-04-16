@@ -694,7 +694,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
         if dd.own_type.eq(OwnType.Ref) {
             is_rg := is_ref_global(dd.name).and(in_func_def.not())
             if is_rg.not() { ref_locals.add(own dd.name.clone()) }
-            mut _sn := e.struct_name
+            ref mut _sn : Str = e.struct_name
             if _sn.len().eq(0) { _sn = rhs.struct_name }
             if _sn.len().eq(0) { _sn = dd.explicit_type }
             ctype := c_type_name(e.til_type, _sn)
@@ -702,7 +702,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
             else { f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(" = ") }
             emit_as_ptr(f, rhs, depth); f.write_str(";\n")
         } else {
-            mut _sn := e.struct_name
+            ref mut _sn : Str = e.struct_name
             if _sn.len().eq(0) { _sn = rhs.struct_name }
             if _sn.len().eq(0) { _sn = dd.explicit_type }
             ctype := c_type_name(e.til_type, _sn)
