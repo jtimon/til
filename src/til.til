@@ -16,8 +16,9 @@ import("self/modes.til")
 import("self/builder.til")
 import("self/scavenger.til")
 
-// Link C modules (not yet self-hosted)
-link_c("src/c/dispatch.c")
+// Link C modules
+link_c("src/c/pre_141.c")  // libffi thin wrappers (see #141)
+link_c("src/c/dispatch.c")  // ext_dispatch_ffi, ffi_register (to be translated next)
 link_c("src/c/ext.c")
 
 link("dl")

@@ -51,6 +51,11 @@ ffi_type_sint32_ref := ext_func() returns ref FFIType {}
 ffi_type_uint32_ref := ext_func() returns ref FFIType {}
 ffi_type_uint64_ref := ext_func() returns ref FFIType {}
 ffi_type_float_ref := ext_func() returns ref FFIType {}
+ffi_type_void_ref := ext_func() returns ref Dynamic {}
+ffi_alloc_cif := ext_func() returns Dynamic {}
+ffi_prep_cif_wrap := ext_proc(cif: Dynamic, shallow nargs: U32, rtype: Dynamic, atypes: Dynamic) {}
+ffi_call_wrap := ext_proc(cif: Dynamic, fn: Dynamic, ret: Dynamic, args: Dynamic) {}
+ffi_cif_rtype_is_struct := ext_func(cif: Dynamic) returns shallow Bool {}
 
 ffi_load_global_lib := ext_func(soname: Str) returns shallow Bool {}
 ffi_open_user_so := ext_func(path: Str) returns shallow Bool {}
