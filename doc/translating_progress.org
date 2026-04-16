@@ -1,5 +1,0 @@
-* C to til translation -- complete
-
-All interpreter, precomp, and dispatch functions translated to til.
-Only ext.c (primitives) and pre_141.c (libffi thin wrappers) remain as C.
-See #141 for the libffi typedef workaround.
