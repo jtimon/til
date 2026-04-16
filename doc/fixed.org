@@ -1,5 +1,10 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #39 Self-hosting: replace C modules with til (bottom-up)
+  All C interpreter/precomp/dispatch modules translated to til.
+  interpreter.c, precomp.c, dispatch.c removed.
+  Only ext.c (primitives) and pre_141.c (libffi thin wrappers) remain.
+
 * FIXED #137 FuncSig calls ignore returns shallow -- always use heap wrapper
   ~fcall_is_shallow_return~ in builder.til only checked named function
   definitions (Ident and FieldAccess callees) via ~callee_returns_shallow~,

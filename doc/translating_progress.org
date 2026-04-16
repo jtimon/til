@@ -1,6 +1,5 @@
-* C to til translation -- remaining work
+* C to til translation -- complete
 
-** dispatch.c (libffi-dependent, staying in C)
-
-- ext_dispatch_ffi (181 lines)
-- ffi_register (39 lines)
+All interpreter, precomp, and dispatch functions translated to til.
+Only ext.c (primitives) and pre_141.c (libffi thin wrappers) remain as C.
+See #141 for the libffi typedef workaround.
