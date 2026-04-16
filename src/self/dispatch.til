@@ -928,7 +928,65 @@ ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     if ext_dispatch_builtin(name, scope, e, result) { return true }
     return ext_dispatch_ffi(name, scope, e, result)
 }
-ffi_register := ext_proc(name: Str, fn: Dynamic, fdef: Expr) {}
+ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
+    ref fd : FunctionDef = get_payload(fdef.data)
+    np := fd.nparam
+    mut alloc_np := np
+    if alloc_np.eq(0) { alloc_np = 1 }
+    // Build ffi_type* array (each element is a pointer = 8 bytes)
+    atypes : Dynamic = malloc(alloc_np.to_u64().mul(8))
+    ref mut pshallows : Dynamic = NULL
+    mut has_shallow := false
+    for k in 0..np {
+        ref pk : Param = fd.params.get(k)
+        if pk.own_type.eq(OwnType.Shallow) {
+            write_ptr(ptr_add(atypes, k.to_u64().mul(8)), shallow_ffi_type(pk.ptype))
+            has_shallow = true
+        } else {
+            write_ptr(ptr_add(atypes, k.to_u64().mul(8)), ffi_type_pointer_ref())
+        }
+    }
+    if has_shallow {
+        pshallows = malloc(np.to_u64())
+        for k in 0..np {
+            ref pk : Param = fd.params.get(k)
+            ref mut slot : Bool = ptr_add(pshallows, k.to_u64())
+            slot = pk.own_type.eq(OwnType.Shallow)
+        }
+    }
+    ret_shallow := fd.return_own_type.eq(OwnType.Shallow)
+    cif : Dynamic = ffi_alloc_cif()
+
+    // Build FFIEntry
+    mut entry := FFIEntry()
+    entry.fn = fn
+    if fd.return_type.len().gt(0) { entry.return_type = fd.return_type }
+    entry.nparam = np.to_i64().to_i32()
+    entry.param_shallows = pshallows
+    entry.return_is_shallow = ret_shallow
+    entry.cif = cif
+    entry.arg_types = atypes
+
+    // Resolve return ffi_type
+    ref mut rtype : Dynamic = ffi_type_void_ref()
+    if is_null(entry.return_type).not() {
+        if ret_shallow {
+            rtype = ptr_add(shallow_ffi_type(entry.return_type), 0)
+        } else {
+            rtype = ptr_add(ffi_type_pointer_ref(), 0)
+        }
+    }
+    ffi_prep_cif_wrap(entry.cif, np, rtype, entry.arg_types)
+
+    // Store in ffi_map (CAP_VIEW key to avoid freeing AST string)
+    key : Dynamic = malloc(Str.size().to_u64())
+    memcpy(key, name, Str.size().to_u64())
+    memcpy(ptr_add(key, 12), CAP_VIEW, U32.size().to_u64())
+    val : Dynamic = malloc(FFIEntry.size().to_u64())
+    memcpy(val, entry, FFIEntry.size().to_u64())
+    memset(entry, 0, FFIEntry.size())
+    ffi_map.set(own key, own val)
+}
 
 ffi_init_scan_program := proc(program: Expr) {
     if ffi_map_inited.not() {

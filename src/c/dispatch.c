@@ -256,46 +256,7 @@ Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
 }
 
 
-// Register an ext_func/ext_proc in ffi_map
-void ffi_register(Str *name, void *fn, Expr *fdef) {
-    U32 np = fdef->data.data.FuncDef.nparam;
-    ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
-    Bool *pshallows = NULL;
-    Bool has_shallow = 0;
-    for (U32 k = 0; k < np; k++) {
-        Param *_pk = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)});
-        if (PARAM_IS_SHALLOW(_pk)) {
-            atypes[k] = (ffi_type *)shallow_ffi_type(&_pk->ptype);
-            has_shallow = true;
-        } else {
-            atypes[k] = &ffi_type_pointer;
-        }
-    }
-    if (has_shallow) {
-        pshallows = malloc(sizeof(Bool) * np);
-        for (U32 k = 0; k < np; k++)
-            pshallows[k] = PARAM_IS_SHALLOW(((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)})));
-    }
-    Bool ret_shallow = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef);
-    ffi_cif *cif = malloc(sizeof(ffi_cif));
-    FFIEntry entry = {
-        .fn = (U8 *)fn,
-        .return_type = (fdef->data.data.FuncDef.return_type).count > 0 ? (&fdef->data.data.FuncDef.return_type) : NULL,
-        .nparam = np,
-        .param_shallows = (U8 *)pshallows,
-        .return_is_shallow = ret_shallow,
-        .cif = (U8 *)cif,
-        .arg_types = (U8 *)atypes,
-    };
-    ffi_type *rtype = &ffi_type_void;
-    if (entry.return_type) {
-        rtype = ret_shallow ? (ffi_type *)shallow_ffi_type(entry.return_type) : &ffi_type_pointer;
-    }
-    ffi_prep_cif(cif, FFI_DEFAULT_ABI, np, rtype, atypes);
-    { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW};
-      FFIEntry *_v = malloc(sizeof(FFIEntry)); *_v = entry;
-      Map_set(&ffi_map, _k, _v); }
-}
+// ffi_register: moved to dispatch.til
 
 // ffi_init_scan_program: moved to dispatch.til
 
