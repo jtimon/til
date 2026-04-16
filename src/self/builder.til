@@ -69,7 +69,7 @@ is_ref_local := func(name: Str) returns shallow Bool {
 
 use_dot_access := func(obj: Expr) returns shallow Bool {
     if is_variant(obj.data, NodeType.FieldAccess) {
-        if obj.field_own_type.eq(OwnType.Shallow) { return true }
+        if builder_fa_is_ptr(obj).not() { return true }
     }
     if is_variant(obj.data, NodeType.Ident) {
         ref ident : Str = get_payload(obj.data)
@@ -170,6 +170,22 @@ fa_struct_name := func(e: Expr) returns ref Str {
         return ident
     }
     return obj.struct_name
+}
+
+// Check if a FieldAccess/FieldAssign accesses an own/ref (pointer) field.
+builder_fa_is_ptr := func(e: Expr) returns shallow Bool {
+    ref sname : Str = fa_struct_name(e)
+    ref fname : Str = get_payload(e.data)
+    ref body : Expr = find_struct_body(sname)
+    if is_null(body) { return false }
+    for fi in 0..body.child_count() {
+        ref f : Expr = body.child(fi)
+        ref dd : Declaration = get_payload(f.data)
+        if dd.is_namespace.not().and(dd.name.eq(fname)) {
+            return dd.own_type.eq(OwnType.Shallow).not()
+        }
+    }
+    return false
 }
 
 builder_fa_is_ns := func(e: Expr) returns shallow Bool {
@@ -846,7 +862,7 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
             }
         }
         // Inline field value: box for return
-        if is_variant(rv.data, NodeType.FieldAccess).and(rv.field_own_type.eq(OwnType.Shallow))
+        if is_variant(rv.data, NodeType.FieldAccess).and(builder_fa_is_ptr(rv).not())
             .and(builder_fa_is_ns(rv).not()).and(rv.til_type.eq(TilType.Dynamic).not()) {
             emit_return_box(f, rv, depth)
         // Shallow fcall: box for return
@@ -950,7 +966,7 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
         ref obj : Expr = e.child(0)
         ref fname : Str = get_payload(e.data)
         ref rhs_fa : Expr = e.child(1)
-        if is_variant(rhs_fa.data, NodeType.FCall).and(e.field_own_type.eq(OwnType.Shallow)).and(builder_fa_is_ns(e).not()) {
+        if is_variant(rhs_fa.data, NodeType.FCall).and(builder_fa_is_ptr(e).not()).and(builder_fa_is_ns(e).not()) {
             if fcall_is_shallow_return(rhs_fa) {
                 emit_expr(f, obj, depth)
                 if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
@@ -970,7 +986,7 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                 if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
                 f.write_str(fname); f.write_str(" = ")
             }
-            if e.field_own_type.eq(OwnType.Shallow).not() {
+            if builder_fa_is_ptr(e) {
                 mut own_rhs := rhs_fa
                 own_rhs.is_own_arg = true
                 emit_as_ptr(f, own_rhs, depth)
@@ -1567,7 +1583,7 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32) {
     } else if is_variant(e.data, NodeType.LiteralStr) {
         emit_expr(f, e, depth)
     } else if is_variant(e.data, NodeType.FieldAccess) {
-        if e.field_own_type.eq(OwnType.Shallow).not() {
+        if builder_fa_is_ptr(e) {
             emit_expr(f, e, depth)
         } else if builder_fa_is_ns(e).and(e.til_type.eq(TilType.Enum)) {
             emit_expr(f, e, depth)
