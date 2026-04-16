@@ -217,7 +217,7 @@
   <text x="1454" y="62" class="panel-label">initer</text>
   <rect x="1454" y="88" width="292" height="316" rx="10" ry="10" class="box"/>
   <text x="1468" y="126" class="title">TypeBinding: StructDef</text>
-  <text x="1468" y="144" class="line">ref mut name : Str = NULL</text>
+  <text x="1468" y="144" class="line">mut name := &quot;&quot;</text>
   <text x="1468" y="162" class="line">mut type := TilType.Unknown</text>
   <text x="1468" y="180" class="line">mut is_proc : I32 = -1.to_i32()</text>
   <text x="1468" y="198" class="line">mut is_mut := false</text>

@@ -184,7 +184,7 @@
 *** mut fn_sig_decls := Vec.new("Expr", Expr.size())
 * initer
 ** TypeBinding: StructDef
-*** ref mut name : Str = NULL
+*** mut name := ""
 *** mut type := TilType.Unknown
 *** mut is_proc : I32 = -1.to_i32()
 *** mut is_mut := false

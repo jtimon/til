@@ -375,10 +375,18 @@
     created during compilation that are not fully freed at exit
 
   ~make test_asan~ results (after self-hosting): 70/88 pass.
-  Failures are all CLI/variadic/build tests where LSAN aborts on
-  interpreter runtime leaks (not compiler bugs).
+  Failures are CLI/variadic/build tests where LSAN aborts on
+  interpreter runtime leaks. One heap-buffer-overflow in ~write_field~
+  (interpreter) caught by ASAN during ~interpret~ mode.
   Per-test ASAN (~bin/til_asan translate strings.til~):
-  ~420202 byte(s) leaked in 90757 allocation(s)~.
+  ~420073 byte(s) leaked in 90736 allocation(s)~.
+  - 77K direct, 342K indirect (fixing direct cascades to indirect)
+  - top direct: ~StructInstance_clone~ / ~Value_clone~ from macro
+    evaluation during ~translate~ (e.g. ~get_version~, ~mode~ directives)
+  - ASAP deletes DO fire for main locals (~ast~, ~core_ast~, ~tokens~)
+    but ~Expr_delete~ recursion doesn't reach all cloned nodes
+  - ~TypeScope~ not deleted by ASAP (missing from scope exit cleanup
+    despite being a local struct -- needs ASAP investigation)
 
   Changes landed:
   - ~src/self/initer.til~ (on master): ~generate_enum_delete_method~
