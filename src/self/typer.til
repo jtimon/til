@@ -722,7 +722,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     ref mut fa : Expr = e.child(0)
     ref mut obj : Expr = fa.child(0)
     ref method0 : Str = get_payload(fa.data)
-    mut method := method0.clone()
+    ref mut method : Str = method0
     infer_expr(scope, obj, in_func, ctx)
 
     mut obj_is_type := false
@@ -796,8 +796,8 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         }
         e.children = new_children
         ref mut fa2 : Expr = e.child(0)
-        ref method2 : Str = get_payload(fa2.data)
-        method = method2.clone()
+        ref _m2 : Str = get_payload(fa2.data)
+        method = _m2
     }
 
     ref mut fa3 : Expr = e.child(0)
