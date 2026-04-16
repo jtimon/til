@@ -99,9 +99,8 @@ ffi_init_link_libs := proc(link_flags: Str) {
 
 ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns shallow I32 {
     so_path_out = Str(c_str = NULL, count = 0, cap = 0)
-    if is_null(user_c_path) {
-        return 0
-    }
+    if is_null(user_c_path) { return 0 }
+    if user_c_path.len().eq(0) { return 0 }
 
     dot_str := "."
     slash := ext_c_path.rfind("/")

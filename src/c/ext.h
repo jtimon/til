@@ -237,6 +237,7 @@ U64 peak_rss_bytes(void);
 U64 current_rss_bytes(I64 pid);
 USize c_str_len(U8 *s);
 Bool ptr_eq(void *a, void *b);
+void eprint_single(Str *s);
 
 // File handle I/O
 void *cfile_open(Str *path, Bool is_write);

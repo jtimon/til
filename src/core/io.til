@@ -1,4 +1,5 @@
 print_single := ext_proc(s: Str) {}
+eprint_single := ext_proc(s: Str) {}
 print_flush := ext_proc() {}
 readfile := ext_func(path: Str) returns Str {}
 writefile := ext_proc(path: Str, content: Str) {}

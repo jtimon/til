@@ -1550,3 +1550,224 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
     if is_variant(val, Value.Ptr) { ref pv : Dynamic = get_payload(val); write_ptr(ptr, read_ptr(pv)); return }
     if is_variant(val, Value.Func) { ref fv : Dynamic = get_payload(val); write_ptr(ptr, read_ptr(fv)); return }
 }
+
+interpret_register_defs := proc(mut global: Scope, prog: Expr) {
+    for i in 0..prog.child_count() {
+        ref stmt : Expr = prog.child(i)
+        if is_variant(stmt.data, NodeType.Decl).and(stmt.child_count().gt(0)) {
+            if is_variant(stmt.child(0).data, NodeType.FuncDef)
+                .or(is_variant(stmt.child(0).data, NodeType.StructDef))
+                .or(is_variant(stmt.child(0).data, NodeType.EnumDef)) {
+                ref dd : Declaration = get_payload(stmt.data)
+                mut val := val_none()
+                memcpy(val, 9.to_i32(), 4)
+                write_ptr(ptr_add(val, 8), stmt.child(0))
+                scope_set_owned(global, dd.name, val)
+                memset(val, 0, Value.size())
+            }
+        }
+    }
+}
+
+interpret_register_aliases := proc(mut global: Scope, prog: Expr) {
+    for i in 0..prog.child_count() {
+        ref stmt : Expr = prog.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { }
+        else if is_variant(stmt.til_type, TilType.None).not() { }
+        else if stmt.child_count().eq(0) { }
+        else {
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(rhs.data, NodeType.Ident) {
+                ref rhs_ident : Str = get_payload(rhs.data)
+                ref src : Cell = scope_get(global, rhs_ident)
+                if is_null(src).not() {
+                    if is_variant(src.val, Value.Func) {
+                        ref fptr : Dynamic = get_payload(src.val)
+                        ref sdef : Expr = read_ptr(fptr)
+                        if is_variant(sdef.data, NodeType.StructDef).or(is_variant(sdef.data, NodeType.EnumDef)) {
+                            ref dd : Declaration = get_payload(stmt.data)
+                            mut val := val_none()
+                            memcpy(val, 9.to_i32(), 4)
+                            write_ptr(ptr_add(val, 8), sdef)
+                            scope_set_owned(global, dd.name, val)
+                            memset(val, 0, Value.size())
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+interpret_copy_alias_ns := proc(prog: Expr, global: Scope) {
+    for i in 0..prog.child_count() {
+        ref stmt : Expr = prog.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { }
+        else if is_variant(stmt.til_type, TilType.None).not() { }
+        else if stmt.child_count().eq(0) { }
+        else {
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(rhs.data, NodeType.Ident) {
+                ref dd : Declaration = get_payload(stmt.data)
+                ref rhs_ident : Str = get_payload(rhs.data)
+                ref tc : Cell = scope_get(global, rhs_ident)
+                if is_null(tc).not().and(is_variant(tc.val, Value.Func)) {
+                    ref fptr : Dynamic = get_payload(tc.val)
+                    ref sdef : Expr = read_ptr(fptr)
+                    if is_variant(sdef.data, NodeType.StructDef).or(is_variant(sdef.data, NodeType.EnumDef)) {
+                        ref body : Expr = sdef.child(0)
+                        for j in 0..body.child_count() {
+                            ref field : Expr = body.child(j)
+                            ref fdd : Declaration = get_payload(field.data)
+                            if fdd.is_namespace {
+                                ref v : Value = ns_get(rhs_ident, fdd.name)
+                                if is_null(v).not() { ns_set(dd.name, fdd.name, v) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32 {
+    mut user_argc : U32 = 0
+    if is_null(user_argv).not() { user_argc = user_argv.len() }
+
+    ffi_rc := ffi_init(program, fwd_path, user_c, ext_c, link_flags)
+    if ffi_rc.to_i64().eq(0).not() { return ffi_rc }
+    if is_null(core_program).not() { ffi_init_scan_program(core_program) }
+
+    global := scope_new(NULL)
+
+    // Pre-register func/struct/enum definitions
+    if is_null(core_program).not() { interpret_register_defs(global, core_program) }
+    interpret_register_defs(global, program)
+
+    // Pre-register type aliases
+    if is_null(core_program).not() { interpret_register_aliases(global, core_program) }
+    interpret_register_aliases(global, program)
+
+    // Initialize namespace fields
+    if is_null(core_program).not() { interpreter_init_ns(global, core_program) }
+    interpreter_init_ns(global, program)
+
+    // Copy namespace entries for type aliases
+    if is_null(core_program).not() { interpret_copy_alias_ns(core_program, global) }
+    interpret_copy_alias_ns(program, global)
+
+    // Evaluate top-level declarations
+    if is_null(core_program).not() { eval_body(global, core_program) }
+    eval_body(global, program)
+
+    // Run tests
+    if run_tests {
+        mut test_count : I32 = 0
+        mut pass_count : I32 = 0
+        for i in 0..program.child_count() {
+            ref stmt : Expr = program.child(i)
+            if is_variant(stmt.data, NodeType.Decl).not() { }
+            else if stmt.child_count().eq(0) { }
+            else if is_variant(stmt.child(0).data, NodeType.FuncDef).not() { }
+            else {
+                ref fd : FunctionDef = get_payload(stmt.child(0).data)
+                if is_variant(fd.func_type, FuncType.Test) {
+                    ref dd : Declaration = get_payload(stmt.data)
+                    test_count = test_count.add(1)
+                    test_scope := scope_new(global)
+                    eval_body(test_scope, stmt.child(0).child(0))
+                    if has_return {
+                        return_value = return_value.clone()
+                    }
+                    scope_free(own test_scope)
+                    pass_count = pass_count.add(1)
+                    eprint_single("  pass: ")
+                    eprint_single(dd.name)
+                    eprint_single("\n")
+                }
+            }
+        }
+        if test_count.eq(0) {
+            eprint_single("no tests found\n")
+        } else {
+            eprint_single(pass_count.to_str())
+            eprint_single("/")
+            eprint_single(test_count.to_str())
+            eprint_single(" tests passed\n")
+        }
+        ffi_cleanup()
+        if pass_count.eq(test_count).not() { exit(1) }
+        // Fall through to final cleanup
+    }
+
+    // In needs_main mode, call main()
+    if is_null(mode).not() { if mode.needs_main {
+        ref main_cell : Cell = scope_get(global, "main")
+        if is_null(main_cell).or(is_variant(main_cell.val, Value.Func).not()) {
+            eprint_single(path)
+            eprint_single(": error: this mode requires a 'main' proc\n")
+            exit(1)
+        }
+        ref fptr : Dynamic = get_payload(main_cell.val)
+        ref func_def : Expr = read_ptr(fptr)
+        ref fd : FunctionDef = get_payload(func_def.data)
+        nparam := fd.nparam
+        vi := fd.variadic_index
+        ref body : Expr = func_def.child(0)
+        main_scope := scope_new(global)
+
+        if nparam.gt(0) {
+            mut fixed := nparam
+            if vi.to_i64().gte(0) { fixed = nparam.sub(1) }
+            if vi.to_i64().gte(0) {
+                if user_argc.lt(fixed) {
+                    eprint_single("error: main expects at least ")
+                    eprint_single(fixed.to_str())
+                    eprint_single(" argument(s), got ")
+                    eprint_single(user_argc.to_str())
+                    eprint_single("\n")
+                    exit(1)
+                }
+            } else {
+                if user_argc.eq(nparam).not() {
+                    eprint_single("error: main expects ")
+                    eprint_single(nparam.to_str())
+                    eprint_single(" argument(s), got ")
+                    eprint_single(user_argc.to_str())
+                    eprint_single("\n")
+                    exit(1)
+                }
+            }
+            mut argi : I32 = 0
+            for pi in 0..nparam {
+                ref param : Param = fd.params.get(pi)
+                if pi.to_i64().eq(vi.to_i64()) {
+                    va_count := user_argc.sub(fixed)
+                    ref va_param : Param = fd.params.get(vi.to_i64().to_usize())
+                    arr := build_argv_array(user_argv, argi.to_i64().to_u32(), va_count, va_param.ptype)
+                    scope_set_owned(main_scope, param.name, arr)
+                    argi = argi.add(va_count.to_i64().to_i32())
+                } else {
+                    ref arg_s : Str = user_argv.get(argi.to_i64().to_usize())
+                    v := parse_cli_arg(arg_s, param.ptype)
+                    scope_set_owned(main_scope, param.name, v)
+                    argi = argi.add(1)
+                }
+            }
+        } else if user_argc.gt(0) {
+            eprint_single("error: main expects no arguments, got ")
+            eprint_single(user_argc.to_str())
+            eprint_single("\n")
+            exit(1)
+        }
+
+        eval_body(main_scope, body)
+        scope_free(own main_scope)
+    } }
+
+    scope_free(own global)
+    ffi_cleanup()
+    ns_inited = false
+    return 0.to_i32()
+}

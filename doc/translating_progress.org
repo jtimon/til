@@ -1,12 +1,6 @@
 * C to til translation -- remaining work
 
-** interpreter.c
+** dispatch.c (libffi-dependent, staying in C)
 
-*** Leaves
-- interpret (178 lines)
-
-** dispatch.c
-
-*** Leaves
 - ext_dispatch_ffi (181 lines)
 - ffi_register (39 lines)

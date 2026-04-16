@@ -17,7 +17,6 @@ import("self/builder.til")
 import("self/scavenger.til")
 
 // Link C modules (not yet self-hosted)
-link_c("src/c/interpreter.c")
 link_c("src/c/dispatch.c")
 link_c("src/c/ext.c")
 
@@ -39,7 +38,7 @@ tokenize := ext_func(source: Str, path: Str) returns Vec {}
 type_check := ext_func(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {}
 precomp := ext_proc(core_program: Expr, program: Expr) {}
 scavenge := ext_proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool) {}
-interpret := ext_func(core_ast: Expr, ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32 {}
+// interpret: defined in interpreter.til
 build := ext_func(core_ast: Expr, ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
 ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
 
