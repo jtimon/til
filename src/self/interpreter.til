@@ -1512,14 +1512,14 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
         }
         return
     }
-    if is_variant(val, Value.Int) { ref v : I64 = get_payload(val); memcpy(ptr, v, I64.size().to_u64()); return }
-    if is_variant(val, Value.Byte) { ref v : U8 = get_payload(val); memcpy(ptr, v, U8.size().to_u64()); return }
-    if is_variant(val, Value.Short) { ref v : I16 = get_payload(val); memcpy(ptr, v, I16.size().to_u64()); return }
-    if is_variant(val, Value.Int32) { ref v : I32 = get_payload(val); memcpy(ptr, v, I32.size().to_u64()); return }
-    if is_variant(val, Value.Uint32) { ref v : U32 = get_payload(val); memcpy(ptr, v, U32.size().to_u64()); return }
-    if is_variant(val, Value.Uint64) { ref v : U64 = get_payload(val); memcpy(ptr, v, U64.size().to_u64()); return }
-    if is_variant(val, Value.Float) { ref v : F32 = get_payload(val); memcpy(ptr, v, F32.size().to_u64()); return }
-    if is_variant(val, Value.Boolean) { ref v : Bool = get_payload(val); memcpy(ptr, v, Bool.size().to_u64()); return }
+    if is_variant(val, Value.Int) { ref v : I64 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if is_variant(val, Value.Byte) { ref v : U8 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if is_variant(val, Value.Short) { ref v : I16 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if is_variant(val, Value.Int32) { ref v : I32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if is_variant(val, Value.Uint32) { ref v : U32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if is_variant(val, Value.Uint64) { ref v : U64 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if is_variant(val, Value.Float) { ref v : F32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if is_variant(val, Value.Boolean) { ref v : Bool = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
     if is_variant(val, Value.Struct) {
         ref si : StructInstance = get_payload(val)
         if si.borrowed {
