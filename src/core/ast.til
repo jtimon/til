@@ -124,6 +124,14 @@ StructDefData := struct {
 
 // --- NodeType payload enum (25 variants) ---
 
+AssignData := struct {
+    mut name := ""
+    mut save_old_delete := false
+    namespace:
+    eq := func(a: AssignData, b: AssignData) returns Bool { return a.name.eq(b.name) }
+    to_str := func(self: AssignData) returns Str { return self.name }
+}
+
 NodeType := enum {
     Body,
     LiteralStr: Str,
@@ -132,7 +140,7 @@ NodeType := enum {
     LiteralNull,
     Ident: Str,
     Decl: Declaration,
-    Assign: Str,
+    Assign: AssignData,
     FCall: FCallData,
     FuncDef: FunctionDef,
     StructDef: StructDefData,
@@ -160,7 +168,6 @@ Expr := struct {
     mut struct_name := ""
     mut is_own_arg := false
     mut is_splat := false
-    mut save_old_delete := false
     ref mut fn_sig : Expr = NULL
     mut children := Vec.new("Expr", Expr.size())
     mut line : U32 = 0
@@ -304,7 +311,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     case NodeType.Decl(decl):
         if decl.is_mut { print(" mut") }
         print(" ", decl.name)
-    case NodeType.Assign(s):     print(" ", s)
+    case NodeType.Assign(a):     print(" ", a.name)
     case NodeType.NamedArg(s):   print(" ", s)
     case NodeType.FuncDef(fdef): print(" ", func_type_name(fdef.func_type))
     case: // nothing

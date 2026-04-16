@@ -2308,7 +2308,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     elem_decl.add_child(own make_field_access_call1(col_ident_get, "get", idx_ident_get, line, col, path))
     wbody.add_child(own elem_decl)
 
-    mut idx_assign := Expr.new(NodeType.Assign(idx_name.clone()), line, col, path)
+    mut idx_assign := Expr.new(NodeType.Assign(AssignData(name = idx_name.clone())), line, col, path)
     mut idx_ident_inc := Expr.new(NodeType.Ident(idx_name.clone()), line, col, path)
     mut one := Expr.new(NodeType.LiteralNum("1"), line, col, path)
     idx_assign.add_child(own make_field_access_call1(idx_ident_inc, "add", one, line, col, path))
@@ -4117,14 +4117,15 @@ insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: 
 
 insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: U32, mut new_ch: Vec) {
     if is_variant(stmt.data, NodeType.Assign).not() { return }
-    ref vname : Str = get_payload(stmt.data)
+    ref mut ad : AssignData = get_payload(stmt.data)
+    vname := ad.name
     for j in 0..n_locals {
         ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
         if local.name.eq(vname).not() { continue }
         if is_variant(local.type, TilType.Struct).or(is_variant(local.type, TilType.Enum)) {
             ref rhs : Expr = stmt.child(0)
             if expr_uses_var(rhs, vname) {
-                stmt.save_old_delete = true
+                ad.save_old_delete = true
                 if is_null(local.struct_name).not() {
                     if local.struct_name.len().gt(0) {
                         stmt.struct_name = local.struct_name.clone()

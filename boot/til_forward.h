@@ -52,6 +52,7 @@ typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
 typedef struct FieldDef FieldDef;
 typedef struct StructDefData StructDefData;
+typedef struct AssignData AssignData;
 typedef enum {
     NodeType_TAG_Body,
     NodeType_TAG_LiteralStr,
@@ -287,6 +288,12 @@ typedef struct StructDefData {
 } StructDefData;
 
 
+typedef struct AssignData {
+    Str name;
+    Bool save_old_delete;
+} AssignData;
+
+
 
 
 
@@ -376,7 +383,7 @@ struct NodeType {
         Bool LiteralBool;
         Str Ident;
         Declaration Decl;
-        Str Assign;
+        AssignData Assign;
         FCallData FCall;
         FunctionDef FuncDef;
         StructDefData StructDef;
@@ -393,7 +400,6 @@ typedef struct Expr {
     Str struct_name;
     Bool is_own_arg;
     Bool is_splat;
-    Bool save_old_delete;
     Expr *fn_sig;
     Vec children;
     U32 line;
@@ -728,6 +734,11 @@ Str * StructDefData_to_str(StructDefData * self);
 StructDefData * StructDefData_clone(StructDefData * self);
 void StructDefData_delete(StructDefData * self, Bool * call_free);
 U32 StructDefData_size(void);
+Bool * AssignData_eq(AssignData * a, AssignData * b);
+Str * AssignData_to_str(AssignData * self);
+AssignData * AssignData_clone(AssignData * self);
+void AssignData_delete(AssignData * self, Bool * call_free);
+U32 AssignData_size(void);
 Bool NodeType_is(NodeType * self, NodeType * other);
 Bool NodeType_eq(NodeType * self, NodeType * other);
 void NodeType_delete(NodeType * self, Bool * call_free);

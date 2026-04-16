@@ -1255,7 +1255,7 @@ generate_unity_derived_methods := proc(program: Expr, scope: TypeScope) {
             op_call.add_child(own op_acc)
             op_call.add_child(own unity_call)
 
-            mut assign := Expr.new(NodeType.Assign("self"), stmt.line, stmt.col, stmt.path)
+            mut assign := Expr.new(NodeType.Assign(AssignData(name = "self")), stmt.line, stmt.col, stmt.path)
             assign.add_child(own op_call)
 
             mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)

@@ -815,7 +815,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
     // Assignment: name = value
     if check(p, TokenType.Eq) {
         advance(p)
-        mut assign := Expr.new(NodeType.Assign(name.clone()), t_line, t_col, p.path)
+        mut assign := Expr.new(NodeType.Assign(AssignData(name = name.clone())), t_line, t_col, p.path)
         assign.add_child(own parse_expression(p))
         return assign
     }
