@@ -583,5 +583,5 @@ main := proc(args: ..Str) {
         result = 1
     }
 
-    exit(result.to_i64())
+    if result.neq(0) { exit(result.to_i64()) }
 }
