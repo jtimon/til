@@ -164,8 +164,6 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
             ai = ai.add(1)
         }
         e.fn_sig = sig.clone()
-        ref mut fcall_data : FCallData = get_payload(e.data)
-        fcall_data.fn_sig = sig.clone()
         if sig_fdef.return_type.len().gt(0) {
             e.til_type = type_from_name(sig_fdef.return_type, scope)
             if is_variant(e.til_type, TilType.Struct).or(is_variant(e.til_type, TilType.Enum)) {
@@ -636,8 +634,6 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                 callee0.til_type = TilType.FuncPtr
                 if is_null(callee_bind.func_def).not() {
                     e.fn_sig = callee_bind.func_def.clone()
-                    ref mut fcall_data0 : FCallData = get_payload(e.data)
-                    fcall_data0.fn_sig = callee_bind.func_def.clone()
                 }
                 if is_null(callee_bind.func_def).not() {
                     ref cb_fdef : FunctionDef = get_payload(callee_bind.func_def.data)
@@ -712,8 +708,6 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                         if is_null(rsb.func_def).not() {
                             if rsb.func_def.child_count().eq(0) {
                                 e.fn_sig = rsb.func_def.clone()
-                                ref mut fcall_data1 : FCallData = get_payload(e.data)
-                                fcall_data1.fn_sig = rsb.func_def.clone()
                             }
                         }
                     }

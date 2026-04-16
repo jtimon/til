@@ -92,7 +92,6 @@ FCallData := struct {
     mut variadic_count : USize = 0
     mut kwargs_index : I32 = -1.to_i32()
     mut kwargs_count : USize = 0
-    ref mut fn_sig : Expr = NULL
     namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
         return a.variadic_index.eq(b.variadic_index)
@@ -229,7 +228,6 @@ Expr := struct {
             fcall_data.variadic_count = 0
             fcall_data.kwargs_index = -1.to_i32()
             fcall_data.kwargs_count = 0
-            fcall_data.fn_sig = NULL
         }
         return out
     }

@@ -96,6 +96,25 @@
   - fewer use-after-free / stale-payload bugs during AST rewrites
   - easier future cleanup of clone/delete semantics around AST nodes
 
+  Done so far:
+  - DONE Declaration: ~is_ref~ + ~is_own~ bools -> ~own_type: OwnType~ enum
+  - DONE Expr: ~is_own_field~ + ~is_ref_field~ bools -> ~field_own_type: OwnType~
+  - DONE TypeBinding: ~is_own~ + ~is_ref~ bools -> ~own_type: OwnType~
+  - DONE Parser/typer/builder locals: all ~is_own~/~is_ref~/~is_shallow~ bools
+    replaced with ~OwnType~ variables
+  - DONE ~FCallData.is_proc~: removed (always false, never read)
+  - DONE ~TypeBinding.is_proc: I32~ -> ~func_type: FuncType~ with ~FuncType.None~
+  - DONE ~FCallData.fn_sig~: removed (duplicated ~Expr.fn_sig~, always set in pairs)
+  - DONE Expr: ~is_ns_field~ removed (look up ~Declaration.is_namespace~ instead)
+
+  Remaining opportunities:
+  - ~Expr.save_old_delete~: check if still needed or can be derived
+  - ~StructDefData.total_struct_size~: duplicates per-field offset/size data
+  - ~Declaration.fn_sig~ + ~Expr.fn_sig~ both store func signatures; could
+    the Decl-level one be derived at use sites?
+  - FCallData variadic/kwargs indices duplicate FunctionDef's fields (only
+    the counts are call-site-specific)
+
 ** OPEN #128 Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
   The delete side of this issue is fixed (#126, now in fixed.org):
   ~generate_enum_delete_method~ recurses into payload-owned data.
