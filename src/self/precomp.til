@@ -1,6 +1,6 @@
 mode lib
 
-// C helpers (precomp.c)
+// Precomp: constant folding for macros and pure functions
 mut macros := Set.new("Str", Str.size())
 mut funcs := Set.new("Str", Str.size())
 mut known := Map.new("Str", Str.size(), "Value", Value.size())

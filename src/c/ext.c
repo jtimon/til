@@ -337,7 +337,6 @@ Bool *cli_parse_bool(const char *s) {
 
 // --- System primitives ---
 // These use the codegen Str layout: { U8 *c_str, U64 count, U64 cap }.
-// For the interpreter, dispatch.c has its own handlers using the compiler Str directly.
 
 Str *readfile(Str *path) {
     char *p = strndup((char *)path->c_str, path->count);

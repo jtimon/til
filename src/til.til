@@ -36,7 +36,7 @@ tokenize := ext_func(source: Str, path: Str) returns Vec {}
 
 // Pipeline
 type_check := ext_func(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {}
-precomp := ext_proc(core_program: Expr, program: Expr) {}
+// precomp: defined in precomp.til
 scavenge := ext_proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool) {}
 // interpret: defined in interpreter.til
 build := ext_func(core_ast: Expr, ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}

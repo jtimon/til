@@ -15,7 +15,7 @@
 ** OPEN #136 Precomp doesn't fold namespace method calls
   ~Dynamic.size()~ is defined in ~dyn.til~ as ~func() returns USize { return 8 }~
   but is not folded by precomp. ~is_func_call~ in ~precomp.til~ (line 150)
-  rejects FieldAccess callees. ~try_eval_call~ in ~precomp.c~ (line 14)
+  rejects FieldAccess callees. ~try_eval_call~ in ~precomp.til~
   assumes the callee is an Ident. Namespace method calls use FieldAccess.
   The builder's ~emit_struct_funcs~ overrides all ~size()~ methods with
   ~sizeof(name)~, which emits ~sizeof(Dynamic)~ = 1 because Dynamic is

@@ -1328,7 +1328,6 @@ void scavenge(Expr * core_program, Expr * program, Mode * mode, Bool run_tests);
 Str get_version(void);
 Vec * tokenize(Str * source, Str * path);
 I32 type_check(Expr * program, TypeScope * scope, Context * ctx);
-void precomp(Expr * core_program, Expr * program);
 void scavenge(Expr * core_program, Expr * program, Mode * mode, Bool run_tests);
 I32 build(Expr * core_ast, Expr * ast, Mode * mode, Bool run_tests, Str * path, Str * c_path);
 void ast_print(Expr * ast, U32 indent);
