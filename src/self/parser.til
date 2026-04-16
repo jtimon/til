@@ -398,7 +398,10 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
         }
         mut arg := parse_expression(p)
         arg.is_own_arg = is_own_arg
-        arg.is_splat = is_splat
+        if is_splat {
+            ref mut fcd : FCallData = get_payload(call.data)
+            fcd.is_splat = true
+        }
         call.add_child(own arg)
         if check(p, TokenType.Comma) { advance(p) }
     }

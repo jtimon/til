@@ -92,6 +92,7 @@ FCallData := struct {
     mut variadic_count : USize = 0
     mut kwargs_index : I32 = -1.to_i32()
     mut kwargs_count : USize = 0
+    mut is_splat := false
     namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
         return a.variadic_index.eq(b.variadic_index)
@@ -167,7 +168,6 @@ Expr := struct {
     mut til_type := TilType.Unknown
     mut struct_name := ""
     mut is_own_arg := false
-    mut is_splat := false
     ref mut fn_sig : Expr = NULL
     mut children := Vec.new("Expr", Expr.size())
     mut line : U32 = 0

@@ -3579,11 +3579,11 @@ desugar_pure_splat_variadic_call := proc(mut fcall: Expr, mut new_ch: Vec, stmt:
     vi := fcd.variadic_index
     vc := fcd.variadic_count
     if vc.eq(1).not() { return false }
-    if fcall.child(vi.to_i64().to_usize()).is_splat.not() { return false }
+    if fcd.is_splat.not() { return false }
 
     ref splat_in : Expr = fcall.child(vi.to_i64().to_usize())
     mut splat := splat_in.clone()
-    splat.is_splat = false
+    fcd.is_splat = false
     if is_variant(splat_in.data, NodeType.Ident) {
         splat = make_clone_call("Array", TilType.Struct, splat_in, splat_in)
     }

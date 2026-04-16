@@ -273,6 +273,7 @@ typedef struct FCallData {
     U32 variadic_count;
     I32 kwargs_index;
     U32 kwargs_count;
+    Bool is_splat;
 } FCallData;
 
 
@@ -399,7 +400,6 @@ typedef struct Expr {
     TilType til_type;
     Str struct_name;
     Bool is_own_arg;
-    Bool is_splat;
     Expr *fn_sig;
     Vec children;
     U32 line;
