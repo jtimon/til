@@ -921,7 +921,199 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
     return false
 }
 
-ext_dispatch_ffi := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
+ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
+    if ffi_loaded.not() { return false }
+    if ffi_map.has(name).not() { return false }
+
+    ref fe : FFIEntry = ffi_map.get(name)
+    nargs := e.child_count().sub(1)
+    mut alloc_n := nargs
+    if alloc_n.eq(0) { alloc_n = 1 }
+    // args[i] = void* for each arg, arg_ptrs[i] = &args[i]
+    args : Dynamic = malloc(alloc_n.to_u64().mul(8))
+    arg_ptrs : Dynamic = malloc(alloc_n.to_u64().mul(8))
+
+    for i in 0..nargs {
+        v := eval_expr(scope, e.child(i.add(1)))
+        ref mut arg_slot : Dynamic = ptr_add(args, i.to_u64().mul(8))
+        mut is_shallow := is_null(fe.param_shallows).not()
+            .and(i.lt(fe.nparam.to_i64().to_usize()))
+        if is_shallow {
+            ref ps : Bool = ptr_add(fe.param_shallows, i.to_u64())
+            is_shallow = ps
+        }
+        if is_shallow {
+            // Shallow: store dereferenced value directly
+            if is_variant(v, Value.Struct) {
+                ref si : StructInstance = get_payload(v)
+                write_ptr(ptr_add(arg_ptrs, i.to_u64().mul(8)), si.data)
+            } else {
+                ref at : Dynamic = ptr_add(fe.arg_types, i.to_u64().mul(8))
+                ref atype : Dynamic = read_ptr(at)
+                if ptr_eq(atype, ffi_type_sint64_ref()) {
+                    mut tmp : I64 = 0
+                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I64 = read_ptr(pv); tmp = iv }
+                    else { tmp = value_to_i64(v) }
+                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 8)
+                } else if ptr_eq(atype, ffi_type_uint8_ref()) {
+                    mut tmp : U8 = 0
+                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U8 = read_ptr(pv); tmp = iv }
+                    else { tmp = value_to_u64(v).to_i64().to_u8() }
+                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 1)
+                } else if ptr_eq(atype, ffi_type_sint16_ref()) {
+                    mut tmp : I16 = 0
+                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I16 = read_ptr(pv); tmp = iv }
+                    else { tmp = value_to_i64(v).to_i16() }
+                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 2)
+                } else if ptr_eq(atype, ffi_type_sint32_ref()) {
+                    mut tmp : I32 = 0
+                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I32 = read_ptr(pv); tmp = iv }
+                    else { tmp = value_to_i64(v).to_i32() }
+                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 4)
+                } else if ptr_eq(atype, ffi_type_uint32_ref()) {
+                    mut tmp : U32 = 0
+                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U32 = read_ptr(pv); tmp = iv }
+                    else { tmp = value_to_u64(v).to_i64().to_u32() }
+                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 4)
+                } else if ptr_eq(atype, ffi_type_uint64_ref()) {
+                    mut tmp : U64 = 0
+                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U64 = read_ptr(pv); tmp = iv }
+                    else { tmp = value_to_u64(v) }
+                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 8)
+                } else if ptr_eq(atype, ffi_type_float_ref()) {
+                    mut tmp : F32 = 0.to_f32()
+                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : F32 = read_ptr(pv); tmp = iv }
+                    else { tmp = value_to_f32(v) }
+                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 4)
+                } else {
+                    // Default: Ptr value
+                    if is_variant(v, Value.Ptr) {
+                        ref pv : Dynamic = get_payload(v)
+                        write_ptr(ptr_add(args, i.to_u64().mul(8)), read_ptr(pv))
+                    } else {
+                        write_ptr(ptr_add(args, i.to_u64().mul(8)), NULL)
+                    }
+                }
+                write_ptr(ptr_add(arg_ptrs, i.to_u64().mul(8)), ptr_add(args, i.to_u64().mul(8)))
+            }
+        } else {
+            // Deep: pass heap-allocated pointer (FFI callee may free it)
+            ref mut dp : Dynamic = NULL
+            if is_variant(v, Value.Int) {
+                dp = malloc(8)
+                memcpy(dp, get_payload(v), 8)
+            } else if is_variant(v, Value.Byte) {
+                dp = malloc(1)
+                memcpy(dp, get_payload(v), 1)
+            } else if is_variant(v, Value.Short) {
+                dp = malloc(2)
+                memcpy(dp, get_payload(v), 2)
+            } else if is_variant(v, Value.Int32) {
+                dp = malloc(4)
+                memcpy(dp, get_payload(v), 4)
+            } else if is_variant(v, Value.Uint32) {
+                dp = malloc(4)
+                memcpy(dp, get_payload(v), 4)
+            } else if is_variant(v, Value.Uint64) {
+                dp = malloc(8)
+                memcpy(dp, get_payload(v), 8)
+            } else if is_variant(v, Value.Float) {
+                dp = malloc(4)
+                memcpy(dp, get_payload(v), 4)
+            } else if is_variant(v, Value.Boolean) {
+                dp = malloc(1)
+                memcpy(dp, get_payload(v), 1)
+            } else if is_variant(v, Value.Ptr) {
+                ref pv : Dynamic = get_payload(v)
+                write_ptr(ptr_add(args, i.to_u64().mul(8)), read_ptr(pv))
+            } else if is_variant(v, Value.Struct) {
+                ref si : StructInstance = get_payload(v)
+                write_ptr(ptr_add(args, i.to_u64().mul(8)), si.data)
+            } else if is_variant(v, Value.Enum) {
+                ref ei : EnumInstance = get_payload(v)
+                write_ptr(ptr_add(args, i.to_u64().mul(8)), ei.data)
+            } else {
+                write_ptr(ptr_add(args, i.to_u64().mul(8)), NULL)
+            }
+            if is_null(dp).not() {
+                write_ptr(ptr_add(args, i.to_u64().mul(8)), dp)
+            }
+            write_ptr(ptr_add(arg_ptrs, i.to_u64().mul(8)), ptr_add(args, i.to_u64().mul(8)))
+        }
+    }
+
+    // Check if return is a shallow struct
+    ref mut ret_sdef : Expr = NULL
+    if fe.return_is_shallow.and(is_null(fe.return_type).not()) {
+        if ffi_cif_rtype_is_struct(fe.cif) {
+            if ffi_struct_defs.has(fe.return_type) {
+                ref sdef_ptr : Dynamic = ffi_struct_defs.get(fe.return_type)
+                ref rs : Expr = read_ptr(sdef_ptr)
+                ret_sdef = rs
+            }
+        }
+    }
+
+    // raw: 16-byte buffer for return value
+    raw : Dynamic = calloc(1, 16)
+    ref mut ret_buf : Dynamic = NULL
+    if is_null(ret_sdef).not() {
+        ref sdd : StructDefData = get_payload(ret_sdef.data)
+        ret_buf = malloc(sdd.total_struct_size.to_i64().to_usize())
+        ffi_call_wrap(fe.cif, fe.fn, ret_buf, arg_ptrs)
+    } else {
+        ffi_call_wrap(fe.cif, fe.fn, raw, arg_ptrs)
+    }
+
+    // Decode return value
+    if is_null(fe.return_type) {
+        result = val_none()
+    } else if is_null(ret_sdef).not() {
+        result = make_struct_value(fe.return_type, ret_sdef, ret_buf, false)
+    } else if fe.return_is_shallow {
+        ref rtype : Str = fe.return_type
+        if rtype.eq("I64") { ref rv : I64 = ptr_add(raw, 0); result = val_i64(rv) }
+        else if rtype.eq("U8") { ref rv : U8 = ptr_add(raw, 0); result = val_u8(rv.to_i64()) }
+        else if rtype.eq("I16") { ref rv : I16 = ptr_add(raw, 0); result = val_i16(rv.to_i64()) }
+        else if rtype.eq("I32") { ref rv : I32 = ptr_add(raw, 0); result = val_i32(rv.to_i64()) }
+        else if rtype.eq("U32") { ref rv : U32 = ptr_add(raw, 0); result = val_u32(rv.to_i64()) }
+        else if rtype.eq("U64") { ref rv : U64 = ptr_add(raw, 0); result = val_u64(rv) }
+        else if rtype.eq("USize") { ref rv : U32 = ptr_add(raw, 0); result = val_u32(rv.to_i64()) }
+        else if rtype.eq("F32") { ref rv : F32 = ptr_add(raw, 0); result = val_f32(rv) }
+        else if rtype.eq("Bool") { ref rv : Bool = ptr_add(raw, 0); result = val_bool(rv) }
+        else { result = val_none() }
+    } else {
+        ref rtype : Str = fe.return_type
+        ref raw_ptr : Dynamic = read_ptr(raw)
+        if rtype.eq("Str") {
+            ref sp : ExtStr = raw_ptr
+            result = make_str_value_own(sp.data, sp.count)
+        } else if rtype.eq("I64") { ref rv : I64 = raw_ptr; result = val_i64(rv) }
+        else if rtype.eq("U8") { ref rv : U8 = raw_ptr; result = val_u8(rv.to_i64()) }
+        else if rtype.eq("I16") { ref rv : I16 = raw_ptr; result = val_i16(rv.to_i64()) }
+        else if rtype.eq("I32") { ref rv : I32 = raw_ptr; result = val_i32(rv.to_i64()) }
+        else if rtype.eq("U32") { ref rv : U32 = raw_ptr; result = val_u32(rv.to_i64()) }
+        else if rtype.eq("U64") { ref rv : U64 = raw_ptr; result = val_u64(rv) }
+        else if rtype.eq("USize") { ref rv : U32 = raw_ptr; result = val_u32(rv.to_i64()) }
+        else if rtype.eq("F32") { ref rv : F32 = raw_ptr; result = val_f32(rv) }
+        else if rtype.eq("Bool") { ref rv : Bool = raw_ptr; result = val_bool(rv) }
+        else if rtype.eq("Dynamic") { result = Value.Ptr(raw_ptr) }
+        else {
+            // Struct return
+            if ffi_struct_defs.has(fe.return_type) {
+                ref sdef_ptr : Dynamic = ffi_struct_defs.get(fe.return_type)
+                ref sdef : Expr = read_ptr(sdef_ptr)
+                result = make_struct_value(fe.return_type, sdef, raw_ptr, false)
+            } else {
+                result = val_none()
+            }
+        }
+    }
+    free(own args)
+    free(own arg_ptrs)
+    free(own raw)
+    return true
+}
 
 ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
     if dispatch_inited.not() { dispatch_init() }
