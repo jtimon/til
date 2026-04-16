@@ -39,7 +39,7 @@ til_type_name_c := func(t: TilType) returns Str {
 
 // --- FuncType enum ---
 FuncType := enum {
-    Func, Proc, Test, Macro, ExtFunc, ExtProc,
+    None, Func, Proc, Test, Macro, ExtFunc, ExtProc,
 }
 
 OwnType := enum {

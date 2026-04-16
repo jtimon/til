@@ -31,6 +31,7 @@ typedef enum {
 } TilType_tag;
 typedef struct TilType TilType;
 typedef enum {
+    FuncType_TAG_None,
     FuncType_TAG_Func,
     FuncType_TAG_Proc,
     FuncType_TAG_Test,
@@ -426,7 +427,7 @@ typedef struct Parser {
 typedef struct TypeBinding {
     Str name;
     TilType type;
-    I32 is_proc;
+    FuncType func_type;
     Bool is_mut;
     U32 line;
     U32 col;
@@ -869,10 +870,10 @@ U32 ScopeFind_size(void);
 TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 TilType * TypeScope_get_type(TypeScope * self, Str * name);
-I32 TypeScope_is_proc(TypeScope * self, Str * name);
+FuncType TypeScope_get_func_type(TypeScope * self, Str * name);
 Expr * TypeScope_get_struct(TypeScope * self, Str * name);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
-void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, OwnType own_type);
+void TypeScope_set(TypeScope * self, Str * name, TilType * type, FuncType func_type, Bool is_mut, U32 line, U32 col, Bool is_param, OwnType own_type);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U32 TypeScope_size(void);

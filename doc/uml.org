@@ -91,6 +91,7 @@
 *** FuncPtr
 *** Dynamic
 ** FuncType: EnumDef
+*** None
 *** Func
 *** Proc
 *** Test
@@ -186,7 +187,7 @@
 ** TypeBinding: StructDef
 *** mut name := ""
 *** mut type := TilType.Unknown
-*** mut is_proc : I32 = -1.to_i32()
+*** mut func_type := FuncType.None
 *** mut is_mut := false
 *** mut line : U32 = 0
 *** mut col : U32 = 0
