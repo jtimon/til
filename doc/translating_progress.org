@@ -2,7 +2,7 @@
 
 ** interpreter.c
 
-*** Not leaves
+*** Leaves
 - interpret (178 lines)
 
 ** dispatch.c
@@ -10,7 +10,3 @@
 *** Leaves
 - ext_dispatch_ffi (181 lines)
 - ffi_register (39 lines)
-
-** precomp.c
-
-(empty -- precomp translated)
