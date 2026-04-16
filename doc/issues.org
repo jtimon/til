@@ -1,10 +1,19 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 142
+# NEXT_ISSUE: 143
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/15] Pre
+** OPEN #142 write_field heap-buffer-overflow on struct constructor (interpreter)
+  ASAN catches heap-buffer-overflow in ~write_field~ during interpreter
+  evaluation of struct constructors. The ~Declaration~ pointer passed to
+  ~write_field~ is dangling (corrupted ~name.c_str = 0x9~, ~field_size = 0~,
+  ~field_offset = 0~). This is a use-after-free -- the field declaration's
+  AST node was freed while the interpreter still holds a reference to it.
+  Triggered by ~test_mut_param_concat~ in ~src/test/strings.til~ (the
+  ~greet(s)~ call). Causes all ~_i~ (interpreter) tests to fail under ASAN.
+  Related to ~#127~ (runtime ownership cleanup).
 ** OPEN #141 libffi thin wrappers in pre_141.c
   ext_dispatch_ffi and ffi_register are now in til. The libffi-specific
   parts (ffi_prep_cif, ffi_call, ffi_type accessors) are thin C wrappers
