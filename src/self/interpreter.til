@@ -1149,7 +1149,9 @@ scope_new := func(parent: Scope) returns Scope {
     memset(bindings, 0, Map.size().to_u64())
     write_ptr(ptr_add(s, Map.size().to_u64()), parent)
     mut result := Scope()
+    own result.bindings.delete(false)
     memcpy(result, s, Scope.size().to_u64())
+    free(own s)
     return result
 }
 scope_set_owned := proc(mut s: Scope, name: Str, val: Value) {

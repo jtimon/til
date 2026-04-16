@@ -131,12 +131,16 @@
 *** mut variadic_count : USize = 0
 *** mut kwargs_index : I32 = -1.to_i32()
 *** mut kwargs_count : USize = 0
+*** mut is_splat := false
 ** FieldDef: StructDef
 *** mut decl := Declaration()
 *** ref mut default_value : Expr = NULL
 ** StructDefData: StructDef
 *** mut total_struct_size : I32 = 0
 *** mut fields := Vec.new("FieldDef", FieldDef.size())
+** AssignData: StructDef
+*** mut name := ""
+*** mut save_old_delete := false
 ** NodeType: EnumDef
 *** Body
 *** LiteralStr:Str
@@ -145,7 +149,7 @@
 *** LiteralNull
 *** Ident:Str
 *** Decl:Declaration
-*** Assign:Str
+*** Assign:AssignData
 *** FCall:FCallData
 *** FuncDef:FunctionDef
 *** StructDef:StructDefData
@@ -168,8 +172,6 @@
 *** mut til_type := TilType.Unknown
 *** mut struct_name := ""
 *** mut is_own_arg := false
-*** mut is_splat := false
-*** mut save_old_delete := false
 *** ref mut fn_sig : Expr = NULL
 *** mut children := Vec.new("Expr", Expr.size())
 *** mut line : U32 = 0
