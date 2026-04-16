@@ -1,10 +1,31 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 143
+# NEXT_ISSUE: 146
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/15] Pre
+** OPEN #145 Eliminate clone-and-swap in link directive extraction
+   til.til's link/link_c extraction loop clones every kept child into a
+   new Vec and swaps. The same pattern exists in extract_imports. Both
+   could use in-place compaction (children_write/children_set_count) like
+   the scavenger does, avoiding all clones. Needs care with lifecycle of
+   removed items -- naive compaction crashes because removed Exprs are
+   not properly cleaned up before the Vec is freed.
+
+** OPEN #144 Remove clone-and-assign in typer desugar passes
+   The typer's desugar passes (insert_free_calls, desugar_variadic_calls,
+   etc.) rebuild body.children via body.children = new_ch. The generated C
+   does Vec_delete + Vec_clone + Vec_delete for each pass (10 occurrences).
+   Could use in-place compaction or take_children to avoid deep cloning
+   all children on every desugar pass.
+
+** OPEN #143 Avoid heap allocation in Expr.new
+   Expr.new returns a heap-allocated Expr that is immediately copied to
+   the stack and freed: Expr x = *_hp; free(_hp). Every Expr creation
+   pays for a malloc+free round trip. Could be constructed directly on the
+   stack if the codegen supported returning structs by value.
+
 ** OPEN #142 write_field heap-buffer-overflow on struct constructor (interpreter)
   ASAN catches heap-buffer-overflow in ~write_field~ during interpreter
   evaluation of struct constructors. The ~Declaration~ pointer passed to
