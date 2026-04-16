@@ -1,3 +1,5 @@
+mode lib
+
 link("lib/raylib/src/libraylib.a")
 link("lib/tinyfiledialogs/libtinyfd.a")
 link("m")
