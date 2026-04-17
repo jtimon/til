@@ -456,8 +456,16 @@
   in branch limitation).
   ~swap_children~ avoids the clone but causes UAF because
   ~TypeBinding.func_def~/~struct_def~ hold borrowed pointers into old
-  children. The proper fix requires move semantics for field assignment
-  (consume the RHS instead of cloning it).
+  children. The existing ~swap_children~ intentionally zeros lifecycle
+  metadata (elem_type/elem_clone/elem_delete) on the new children to
+  prevent deep-delete on subsequent replacements -- but this also
+  prevents deep-delete at program exit, causing the bulk of leaks.
+
+  Blocker: ~TypeBinding.func_def~ and ~TypeBinding.struct_def~ are
+  ~ref mut~ (borrowed pointers) into AST nodes. When old children are
+  deep-deleted, these pointers dangle. Fixing requires either:
+  a) making TypeBinding store names and look up defs on demand
+  b) or implementing move semantics for Vec field assignment
 
   Changes landed:
   - ~src/self/initer.til~ (on master): ~generate_enum_delete_method~
