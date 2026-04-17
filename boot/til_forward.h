@@ -190,7 +190,7 @@ typedef struct Cell Cell;
 typedef struct Binding Binding;
 typedef struct Scope Scope;
 typedef struct ExtStr ExtStr;
-typedef struct FFIType FFIType;
+typedef struct _ffi_type ffi_type;
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
@@ -539,12 +539,22 @@ typedef struct ExtStr {
 } ExtStr;
 
 
-typedef struct FFIType {
+typedef struct _ffi_type {
     U32 size;
     I16 alignment;
     I16 type;
     void * *elements;
-} FFIType;
+} ffi_type;
+
+
+typedef struct {
+    I32 abi;
+    U32 nargs;
+    void * *arg_types;
+    void * *rtype;
+    U32 bytes;
+    U32 flags;
+} ffi_cif;
 
 
 typedef struct FFIEntry {
@@ -553,8 +563,8 @@ typedef struct FFIEntry {
     I32 nparam;
     U8 *param_shallows;
     Bool return_is_shallow;
-    U8 *cif;
-    U8 *arg_types;
+    ffi_cif *cif;
+    void * *arg_types;
 } FFIEntry;
 
 
@@ -564,7 +574,7 @@ typedef struct ExprPtrBox {
 
 
 typedef struct FFITypePtrBox {
-    FFIType *ptr;
+    ffi_type *ptr;
 } FFITypePtrBox;
 
 
@@ -1122,9 +1132,12 @@ I32 interpret(Expr * core_program, Expr * program, Mode * mode, Bool run_tests, 
 ExtStr * ExtStr_clone(ExtStr * self);
 void ExtStr_delete(ExtStr * self, Bool * call_free);
 U32 ExtStr_size(void);
-FFIType * FFIType_clone(FFIType * self);
-void FFIType_delete(FFIType * self, Bool * call_free);
-U32 FFIType_size(void);
+ffi_type * ffi_type_clone(ffi_type * self);
+void ffi_type_delete(ffi_type * self, Bool * call_free);
+U32 ffi_type_size(void);
+ffi_cif * ffi_cif_clone(ffi_cif * self);
+void ffi_cif_delete(ffi_cif * self, Bool * call_free);
+U32 ffi_cif_size(void);
 FFIEntry * FFIEntry_clone(FFIEntry * self);
 void FFIEntry_delete(FFIEntry * self, Bool * call_free);
 U32 FFIEntry_size(void);
@@ -1134,14 +1147,14 @@ U32 ExprPtrBox_size(void);
 FFITypePtrBox * FFITypePtrBox_clone(FFITypePtrBox * self);
 void FFITypePtrBox_delete(FFITypePtrBox * self, Bool * call_free);
 U32 FFITypePtrBox_size(void);
-FFIType * ffi_type_pointer_ref(void);
-FFIType * ffi_type_sint64_ref(void);
-FFIType * ffi_type_uint8_ref(void);
-FFIType * ffi_type_sint16_ref(void);
-FFIType * ffi_type_sint32_ref(void);
-FFIType * ffi_type_uint32_ref(void);
-FFIType * ffi_type_uint64_ref(void);
-FFIType * ffi_type_float_ref(void);
+ffi_type * ffi_type_pointer_ref(void);
+ffi_type * ffi_type_sint64_ref(void);
+ffi_type * ffi_type_uint8_ref(void);
+ffi_type * ffi_type_sint16_ref(void);
+ffi_type * ffi_type_sint32_ref(void);
+ffi_type * ffi_type_uint32_ref(void);
+ffi_type * ffi_type_uint64_ref(void);
+ffi_type * ffi_type_float_ref(void);
 void * ffi_type_void_ref(void);
 void * ffi_alloc_cif(void);
 void ffi_prep_cif_wrap(void * cif, U32 nargs, void * rtype, void * atypes);
@@ -1188,9 +1201,9 @@ Bool h_file_mtime(Scope * s, Expr * e, Value * r);
 Bool h_clock_ms(Scope * s, Expr * e, Value * r);
 Bool h_get_thread_count(Scope * s, Expr * e, Value * r);
 Bool h_cfile_open(Scope * s, Expr * e, Value * r);
-FFIType * shallow_ffi_type(Str * type_name);
-FFIType * field_ffi_type(Expr * field);
-FFIType * build_struct_ffi_type(Expr * struct_def);
+ffi_type * shallow_ffi_type(Str * type_name);
+ffi_type * field_ffi_type(Expr * field);
+ffi_type * build_struct_ffi_type(Expr * struct_def);
 Bool h_free(Scope * s, Expr * e, Value * r);
 Bool h_cfile_close(Scope * s, Expr * e, Value * r);
 Bool h_cfile_write_str(Scope * s, Expr * e, Value * r);
@@ -1476,6 +1489,8 @@ extern Vec ns_keys;
 extern I32 ENUM_PAYLOAD_OFFSET;
 extern Bool ns_inited;
 extern I32 ENUM_PAYLOAD_OFFSET;
+extern I32 FFI_DEFAULT_ABI;
+extern I16 FFI_TYPE_STRUCT;
 extern Map dispatch_map;
 extern Bool dispatch_inited;
 extern Map ffi_map;
@@ -1483,7 +1498,6 @@ extern Map ffi_struct_defs;
 extern Bool ffi_loaded;
 extern Vec ffi_type_cache;
 extern Bool ffi_type_cache_inited;
-extern I16 FFI_TYPE_STRUCT;
 extern Bool ffi_map_inited;
 extern Map core_modes;
 extern Expr *codegen_core_program;
