@@ -1070,13 +1070,9 @@ shallow_copy_value := func(v: Value) returns shallow Value {
 }
 
 make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, shallow borrowed: Bool) returns shallow Value {
-    // Build Value.Struct in place without triggering clone/destructor
-    // Value layout: tag (I32, 4b) + padding (4b) + StructInstance payload
     mut r := Value.None
-    // Set tag to Value_TAG_Struct
     mut tag : I32 = 10.to_i32()
     memcpy(r, tag, 4)
-    // StructInstance at offset 8: struct_name (8b) + struct_def (8b) + data (8b) + borrowed (1b)
     ref payload : Dynamic = get_payload(r)
     write_ptr(payload, sname)
     write_ptr(ptr_add(payload, 8), sdef)
@@ -1142,17 +1138,7 @@ scope_get := func(s: Scope, name: Str) returns ref Cell {
     return NULL
 }
 scope_new := func(parent: Scope) returns Scope {
-    s : Dynamic = malloc(Scope.size().to_u64())
-    memset(s, 0, Scope.size().to_u64())
-    mut bindings := Map.new("Str", Str.size(), "Binding", Binding.size())
-    memcpy(s, bindings, Map.size().to_u64())
-    memset(bindings, 0, Map.size().to_u64())
-    write_ptr(ptr_add(s, Map.size().to_u64()), parent)
-    mut result := Scope()
-    own result.bindings.delete(false)
-    memcpy(result, s, Scope.size().to_u64())
-    free(own s)
-    return result
+    return Scope(parent = parent)
 }
 scope_set_owned := proc(mut s: Scope, name: Str, val: Value) {
     if s.bindings.has(name) {
