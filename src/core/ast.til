@@ -116,6 +116,7 @@ FieldDef := struct {
 StructDefData := struct {
     mut total_struct_size : I32 = 0
     mut fields := Vec.new("FieldDef", FieldDef.size())
+    mut c_tag := ""
     namespace:
     eq := func(a: StructDefData, b: StructDefData) returns Bool {
         return a.total_struct_size.eq(b.total_struct_size)

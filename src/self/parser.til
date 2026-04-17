@@ -267,13 +267,21 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     return def
 }
 
-// parse_struct_def: current token is 'struct'
-parse_struct_def := proc(mut p: Parser) returns Expr {
+// parse_struct_def: current token is 'struct' (or '{' for ext_struct)
+// c_tag: "" = normal struct (advance past 'struct' keyword)
+//        "@anon" = ext_struct anonymous (no struct tag)
+//        other = ext_struct with custom tag
+parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     kw_line := peek_line(p)
     kw_col := peek_col(p)
-    advance(p)
+    is_ext := c_tag.len().gt(0)
+    if is_ext.not() { advance(p) }
 
     mut def := Expr.new(NodeType.StructDef(StructDefData()), kw_line, kw_col, p.path)
+    if is_ext {
+        ref mut sdd : StructDefData = get_payload(def.data)
+        sdd.c_tag = c_tag.clone()
+    }
     expect_token(p, TokenType.LBrace)
 
     mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p), p.path)
@@ -510,7 +518,19 @@ parse_expression := proc(mut p: Parser) returns Expr {
         return parse_func_def(p)
     }
     if e_set.not().and(t.type.eq(TokenType.KwStruct)) {
-        return parse_struct_def(p)
+        return parse_struct_def(p, "")
+    }
+    if e_set.not().and(t.type.eq(TokenType.KwExtStruct)) {
+        advance(p)
+        mut tag := "@anon"
+        if check(p, TokenType.LParen) {
+            advance(p)
+            ref tag_tok : Token = expect_token(p, TokenType.StringTok)
+            tag = tag_tok.text.clone()
+            if tag.len().eq(0) { tag = "@anon" }
+            expect_token(p, TokenType.RParen)
+        }
+        return parse_struct_def(p, tag)
     }
     if e_set.not().and(t.type.eq(TokenType.KwEnum)) {
         return parse_enum_def(p)

@@ -343,3 +343,27 @@ test_nested_struct_alias := test() {
     assert_eq(__LOC__, l.start.x, 1)
     assert_eq(__LOC__, l.end.x, 3)
 }
+
+// --- ext_struct tests ---
+
+// Anonymous ext_struct (like libffi's ffi_cif)
+AnonPair := ext_struct("") {
+    mut a : I32 = 0
+    mut b : I32 = 0
+}
+
+test_ext_struct_anon := test() {
+    p := AnonPair(a = 3.to_i32(), b = 7.to_i32())
+    assert_eq(__LOC__, p.a.to_i64(), 3)
+    assert_eq(__LOC__, p.b.to_i64(), 7)
+}
+
+// Custom tag ext_struct (like libffi's _ffi_type -> ffi_type)
+TaggedThing := ext_struct("_tagged_thing") {
+    mut val : I64 = 0
+}
+
+test_ext_struct_custom_tag := test() {
+    t := TaggedThing(val = 42)
+    assert_eq(__LOC__, t.val, 42)
+}

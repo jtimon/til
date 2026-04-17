@@ -129,6 +129,7 @@ typedef enum {
     TokenType_TAG_KwMacro,
     TokenType_TAG_KwExtFunc,
     TokenType_TAG_KwExtProc,
+    TokenType_TAG_KwExtStruct,
     TokenType_TAG_KwReturns,
     TokenType_TAG_KwThrows,
     TokenType_TAG_KwIf,
@@ -286,6 +287,7 @@ typedef struct FieldDef {
 typedef struct StructDefData {
     I32 total_struct_size;
     Vec fields;
+    Str c_tag;
 } StructDefData;
 
 
@@ -826,7 +828,7 @@ U32 peek_col(Parser * p);
 Str * parse_fn_signature(Parser * p, U32 line, U32 col);
 Expr * parse_block(Parser * p);
 Expr * parse_func_def(Parser * p);
-Expr * parse_struct_def(Parser * p);
+Expr * parse_struct_def(Parser * p, Str * c_tag);
 Expr * parse_enum_def(Parser * p);
 Expr * parse_call(Parser * p, Str * name, U32 call_line, U32 call_col);
 Expr * parse_expression(Parser * p);
@@ -1398,6 +1400,7 @@ TokenType *TokenType_KwTest();
 TokenType *TokenType_KwMacro();
 TokenType *TokenType_KwExtFunc();
 TokenType *TokenType_KwExtProc();
+TokenType *TokenType_KwExtStruct();
 TokenType *TokenType_KwReturns();
 TokenType *TokenType_KwThrows();
 TokenType *TokenType_KwIf();

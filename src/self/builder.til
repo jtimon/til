@@ -1777,7 +1777,14 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
         ref dd : Declaration = get_payload(fld.data)
         if dd.is_namespace.not() { has_instance_fields = true }
     }
-    f.write_str("typedef struct "); f.write_str(name); f.write_str(" {\n")
+    ref sdd : StructDefData = get_payload(struct_def.data)
+    if sdd.c_tag.eq("@anon") {
+        f.write_str("typedef struct {\n")
+    } else if sdd.c_tag.len().gt(0) {
+        f.write_str("typedef struct "); f.write_str(sdd.c_tag); f.write_str(" {\n")
+    } else {
+        f.write_str("typedef struct "); f.write_str(name); f.write_str(" {\n")
+    }
     if has_instance_fields.not() { f.write_str("    char _;\n") }
     for i in 0..body.child_count() {
         ref field : Expr = body.child(i)
@@ -2084,7 +2091,14 @@ emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
                 ref rhs : Expr = stmt.child(0)
                 if is_variant(rhs.data, NodeType.StructDef) {
                     if is_ext_h_type(dd.name) { continue }
-                    f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    ref fwd_sdd : StructDefData = get_payload(rhs.data)
+                    if fwd_sdd.c_tag.eq("@anon") {
+                        // anonymous ext_struct: no forward decl possible
+                    } else if fwd_sdd.c_tag.len().gt(0) {
+                        f.write_str("typedef struct "); f.write_str(fwd_sdd.c_tag); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    } else {
+                        f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    }
                 }
                 if is_variant(rhs.data, NodeType.EnumDef) {
                     ref ebody : Expr = rhs.child(0)
