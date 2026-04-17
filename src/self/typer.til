@@ -3391,9 +3391,7 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
         new_ch.push(own stmt)
     }
 
-    if new_ch.len().neq(body.child_count()) {
-        body.children = new_ch
-    }
+    body.children = new_ch
 }
 
 insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
@@ -4005,6 +4003,21 @@ check_use_after_own_transfer := proc(body: Expr, locals: Dynamic, shallow n_loca
 }
 
 insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, shallow return_only: Bool) {
+    // Quick check: any returns/breaks/continues or nested if/while?
+    mut needs_scan := false
+    for i in 0..body.child_count() {
+        ref s : Expr = body.child(i)
+        if is_variant(s.data, NodeType.Return).or(is_variant(s.data, NodeType.If)).or(is_variant(s.data, NodeType.While)) {
+            needs_scan = true
+            break
+        }
+        if return_only.not().and(is_variant(s.data, NodeType.Break).or(is_variant(s.data, NodeType.Continue))) {
+            needs_scan = true
+            break
+        }
+    }
+    if needs_scan.not() { return }
+
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
