@@ -5,13 +5,14 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/14] Pre
-** OPEN #145 Eliminate clone-and-swap in link directive extraction
-   til.til's link/link_c extraction loop clones every kept child into a
-   new Vec and swaps. The same pattern exists in extract_imports. Both
-   could use in-place compaction (children_write/children_set_count) like
-   the scavenger does, avoiding all clones. Needs care with lifecycle of
-   removed items -- naive compaction crashes because removed Exprs are
-   not properly cleaned up before the Vec is freed.
+** OPEN #145 Eliminate cloning in link directive extraction
+   til.til's link/link_c extraction loop and extract_imports already use
+   ~swap_children~ to replace the child list, but both still clone every
+   kept child into the new Vec before swapping. Could use in-place
+   compaction (children_write/children_set_count) like the scavenger does,
+   avoiding all clones. Needs care with lifecycle of removed items --
+   naive compaction crashes because removed Exprs are not properly
+   cleaned up before the Vec is freed.
 
 ** OPEN #144 Remove clone-and-assign in typer desugar passes
    The typer's desugar passes (insert_free_calls, desugar_variadic_calls,
@@ -20,11 +21,14 @@
    Could use in-place compaction or take_children to avoid deep cloning
    all children on every desugar pass.
 
-** OPEN #143 Avoid heap allocation in Expr.new
-   Expr.new returns a heap-allocated Expr that is immediately copied to
-   the stack and freed: Expr x = *_hp; free(_hp). Every Expr creation
-   pays for a malloc+free round trip. Could be constructed directly on the
-   stack if the codegen supported returning structs by value.
+** OPEN #143 Avoid unnecessary heap round-trips for Expr construction
+   ~Expr.new~ itself constructs on the stack, but the generated C for
+   callers that store the result does a heap round-trip: the return value
+   is heap-allocated, copied to the stack, then freed (~Expr x = *_hp;
+   free(_hp)~). Similarly, ~try_eval_call~ in precomp.til allocates
+   folded constants on the heap via ~malloc~ + ~memcpy~ just to return
+   them. Could be avoided if the codegen supported returning structs by
+   value without the heap detour.
 
 ** OPEN #136 Precomp doesn't fold namespace method calls
   ~Dynamic.size()~ is defined in ~dyn.til~ as ~func() returns USize { return 8 }~
@@ -168,14 +172,13 @@
     runtime value model does not distinguish borrowed pointer views from
     owned dynamic pointers cleanly
 
-  Partial fixes landed (9d8a011):
+  Partial fixes landed (9d8a011 and subsequent):
   - ~scope_free~ now frees Enum payload data for owned cells
   - return values are cloned before ~scope_free~ to prevent dangling
   - Struct data in scope_free is still NOT freed (aliasing risk)
+  - ~scope_set_owned~ now calls ~free_value~ on old value before overwriting
 
   Remaining pressure points:
-  - ~scope_set_owned~ overwrites owned bindings without deleting the old
-    value first
   - current ~Value.Ptr~ is produced by:
     - ~null~
     - ref field reads
