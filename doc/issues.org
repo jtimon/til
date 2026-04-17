@@ -443,19 +443,21 @@
   - most remaining leaks are structural: AST nodes and scope bindings
     created during compilation that are not fully freed at exit
 
-  ~make test_asan~ results (after self-hosting): 70/88 pass.
-  Failures are CLI/variadic/build tests where LSAN aborts on
-  interpreter runtime leaks. One heap-buffer-overflow in ~write_field~
-  (interpreter) caught by ASAN during ~interpret~ mode.
+  ~make test_asan~ results: 68/88 pass (18 LSAN aborts + misc.til + flaky).
   Per-test ASAN (~bin/til_asan translate strings.til~):
-  ~420073 byte(s) leaked in 90736 allocation(s)~.
-  - 77K direct, 342K indirect (fixing direct cascades to indirect)
-  - top direct: ~StructInstance_clone~ / ~Value_clone~ from macro
-    evaluation during ~translate~ (e.g. ~get_version~, ~mode~ directives)
-  - ASAP deletes DO fire for main locals (~ast~, ~core_ast~, ~tokens~)
-    but ~Expr_delete~ recursion doesn't reach all cloned nodes
-  - ~TypeScope~ not deleted by ASAP (missing from scope exit cleanup
-    despite being a local struct -- needs ASAP investigation)
+  ~385K bytes leaked in 81K allocations~ (80K direct, 305K indirect).
+  ASAP deletes DO fire for main locals (ast, core_ast, tokens, scope, ctx).
+
+  Root cause of remaining leaks: ~body.children = new_ch~ in typer passes
+  generates ~Vec_clone(&new_ch)~ because the typer inserts clone for
+  struct field assignments. The deep-clone copies all child Exprs. The
+  original ~new_ch~ (with its owned Exprs) is never freed -- it goes
+  out of scope but ASAP doesn't generate delete for it (same last_use
+  in branch limitation).
+  ~swap_children~ avoids the clone but causes UAF because
+  ~TypeBinding.func_def~/~struct_def~ hold borrowed pointers into old
+  children. The proper fix requires move semantics for field assignment
+  (consume the RHS instead of cloning it).
 
   Changes landed:
   - ~src/self/initer.til~ (on master): ~generate_enum_delete_method~
