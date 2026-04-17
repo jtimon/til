@@ -1,5 +1,13 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #141 ext_struct: support C typedef styles for FFI interop
+  Added ext_struct keyword with optional C tag argument. Supports
+  anonymous (ext_struct("")), custom tag (ext_struct("_ffi_type")),
+  and default (same as regular struct). Translated all libffi wrappers
+  from pre_141.c to til using ext_struct for ffi_type/ffi_cif.
+  Removed pre_141.c entirely. ffi_type_*_ref resolved via
+  ffi_global_symbol at runtime.
+
 * FIXED #142 write_field heap-buffer-overflow using val type size instead of field size
   The interpreter's ~write_field~ used the Value type's size (e.g.
   ~U64.size() = 8~) when writing to a struct field. But the field's

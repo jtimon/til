@@ -26,49 +26,6 @@
    pays for a malloc+free round trip. Could be constructed directly on the
    stack if the codegen supported returning structs by value.
 
-** OPEN #141 ext_struct: support C typedef styles for FFI interop
-  C libraries use different typedef styles for their structs:
-  - Raylib: ~typedef struct Vector2 { ... } Vector2;~ (tag == name)
-  - libffi: ~typedef struct _ffi_type { ... } ffi_type;~ (tag differs)
-  - libffi: ~typedef struct { ... } ffi_cif;~ (anonymous, no tag)
-
-  til currently emits only the first style. When interfacing with C
-  libraries that use other styles, til can't define matching types.
-  This blocks translating pre_141.c (libffi wrappers) to til.
-
-  Solution: ~ext_struct~ with an optional C tag argument:
-  #+BEGIN_SRC til
-  // Default: tag == name (same as regular struct, matches raylib)
-  Vector2 := struct { mut x : F32 = 0; mut y : F32 = 0 }
-
-  // Custom tag (matches libffi's _ffi_type -> ffi_type)
-  ffi_type := ext_struct("_ffi_type") {
-      mut size : USize = 0
-      mut alignment : I16 = 0
-      mut type : I16 = 0
-      ref mut elements : Dynamic = NULL
-  }
-
-  // Anonymous (matches libffi's ffi_cif)
-  ffi_cif := ext_struct("") {
-      mut abi : I32 = 0
-      ...
-  }
-
-  // Opaque (no fields, hardcoded size like I64)
-  pthread_t := ext_struct("") {}
-  #+END_SRC
-
-  Plan:
-  1. Implement ext_struct in parser, typer, initer, builder (with tests)
-  2. Translate FFIType/FFIEntry/etc. to ext_struct in dispatch.til
-  3. Declare ffi_prep_cif, ffi_call as ext_func in dispatch.til
-  4. Translate ffi_type_*_ref functions to til (use ffi_global_symbol)
-  5. Translate ffi_alloc_cif to til
-  6. Translate ffi_prep_cif_wrap to til (call ffi_prep_cif directly)
-  7. Translate ffi_call_wrap to til (inline FFI_FN cast)
-  8. Translate ffi_cif_rtype_is_struct to til (access cif.rtype.type)
-  9. Remove pre_141.c and its link_c from til.til
 ** OPEN #136 Precomp doesn't fold namespace method calls
   ~Dynamic.size()~ is defined in ~dyn.til~ as ~func() returns USize { return 8 }~
   but is not folded by precomp. ~is_func_call~ in ~precomp.til~ (line 150)

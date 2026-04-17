@@ -53,19 +53,27 @@ mut ffi_loaded := false
 mut ffi_type_cache := Vec.new("FFITypePtrBox", FFITypePtrBox.size())
 mut ffi_type_cache_inited := false
 
-ffi_type_pointer_ref := ext_func() returns ref ffi_type {}
-ffi_type_sint64_ref := ext_func() returns ref ffi_type {}
-ffi_type_uint8_ref := ext_func() returns ref ffi_type {}
-ffi_type_sint16_ref := ext_func() returns ref ffi_type {}
-ffi_type_sint32_ref := ext_func() returns ref ffi_type {}
-ffi_type_uint32_ref := ext_func() returns ref ffi_type {}
-ffi_type_uint64_ref := ext_func() returns ref ffi_type {}
-ffi_type_float_ref := ext_func() returns ref ffi_type {}
-ffi_type_void_ref := ext_func() returns ref Dynamic {}
-ffi_alloc_cif := ext_func() returns Dynamic {}
-ffi_prep_cif_wrap := ext_proc(cif: Dynamic, shallow nargs: U32, rtype: Dynamic, atypes: Dynamic) {}
-ffi_call_wrap := ext_proc(cif: Dynamic, fn: Dynamic, ret: Dynamic, args: Dynamic) {}
-ffi_cif_rtype_is_struct := ext_func(cif: Dynamic) returns shallow Bool {}
+ffi_type_pointer_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_pointer"), 0) }
+ffi_type_sint64_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_sint64"), 0) }
+ffi_type_uint8_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_uint8"), 0) }
+ffi_type_sint16_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_sint16"), 0) }
+ffi_type_sint32_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_sint32"), 0) }
+ffi_type_uint32_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_uint32"), 0) }
+ffi_type_uint64_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_uint64"), 0) }
+ffi_type_float_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_float"), 0) }
+ffi_type_void_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_void"), 0) }
+
+// Declare ffi_prep_cif and ffi_call directly from libffi
+ffi_prep_cif := ext_func(cif: ffi_cif, shallow abi: I32, shallow nargs: U32, rtype: ffi_type, atypes: Dynamic) returns shallow I32 {}
+ffi_call := ext_proc(cif: ffi_cif, fn: Dynamic, rvalue: Dynamic, avalue: Dynamic) {}
+
+ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().to_u64()) }
+
+ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns shallow Bool {
+    if is_null(cif.rtype) { return false }
+    ref rt : ffi_type = ptr_add(cif.rtype, 0)
+    return rt.type.eq(FFI_TYPE_STRUCT)
+}
 
 ffi_load_global_lib := ext_func(soname: Str) returns shallow Bool {}
 ffi_open_user_so := ext_func(path: Str) returns shallow Bool {}
@@ -1070,9 +1078,9 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     if is_null(ret_sdef).not() {
         ref sdd : StructDefData = get_payload(ret_sdef.data)
         ret_buf = malloc(sdd.total_struct_size.to_i64().to_usize())
-        ffi_call_wrap(fe.cif, fe.fn, ret_buf, arg_ptrs)
+        ffi_call(fe.cif, fe.fn, ret_buf, arg_ptrs)
     } else {
-        ffi_call_wrap(fe.cif, fe.fn, raw, arg_ptrs)
+        ffi_call(fe.cif, fe.fn, raw, arg_ptrs)
     }
 
     // Decode return value
@@ -1178,7 +1186,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
             rtype = ptr_add(ffi_type_pointer_ref(), 0)
         }
     }
-    ffi_prep_cif_wrap(entry.cif, np, rtype, entry.arg_types)
+    ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np, rtype, entry.arg_types)
 
     // Store in ffi_map (CAP_VIEW key to avoid freeing AST string)
     key : Dynamic = malloc(Str.size().to_u64())
