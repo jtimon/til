@@ -142,6 +142,42 @@
   - FCallData variadic/kwargs indices duplicate FunctionDef's fields (only
     the counts are call-site-specific)
 
+  Ideas from rstil comparison (rstil's Expr is just 4 fields: node_type,
+  params, line, col -- all payload lives in NodeType variants):
+
+  Expr-level bloat:
+  - ~Expr.til_type~ and ~Expr.struct_name~: type-checker outputs, not
+    parser outputs. rstil has neither on Expr. Could live in a side table
+    or TypeBinding instead of bloating every node.
+  - ~Expr.is_own_arg~: rstil uses a separate ~OwnArg~ NodeType tag that
+    wraps the child expression, instead of a bool on every Expr. til
+    already removed ~is_ns_field~ the same way (look up instead of store).
+  - ~Expr.path~: rstil stores ~source_path~ only on FuncDef, not per-Expr.
+    All Exprs in one file share the same path -- could be passed as
+    context during traversal instead of stored on every node.
+  - ~Expr.fn_sig~: rstil puts the signature inside ~FuncDef.sig~, not on
+    Expr. Already noted above but rstil confirms: signature belongs in
+    the definition payload, not scattered across Expr and Declaration.
+
+  Payload struct bloat:
+  - ~Declaration.field_offset~ / ~field_size~ / ~field_struct_def~: struct
+    layout computation results. rstil's Declaration has none of them --
+    layout is computed during evaluation. Moving these to a separate
+    struct-layout table makes Declaration a pure AST node.
+  - ~FCallData~: rstil's equivalent (~FCallInfo~) is just ~{does_throw,
+    is_bang}~ -- two bools. til's ~variadic_index~ / ~variadic_count~ /
+    ~kwargs_index~ / ~kwargs_count~ / ~is_splat~ are all resolution
+    artifacts. Could shrink FCallData to throw/bang flags if variadic
+    resolution moves to a later phase.
+  - ~AssignData.save_old_delete~: rstil's Assignment is just a name
+    string. Confirms save_old_delete is a codegen artifact (already noted
+    above).
+  - ~FunctionDef~ sig/def split: rstil cleanly separates ~FuncSig~
+    (type-level: arg types, return types, throw types) from ~FuncDef~
+    (instance-level: arg names, body). til's ~FunctionDef~ mixes both.
+    Splitting could simplify function type checking and make func
+    signatures first-class without carrying bodies around.
+
 ** OPEN #128 Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
   The delete side of this issue is fixed (#126, now in fixed.org):
   ~generate_enum_delete_method~ recurses into payload-owned data.
