@@ -90,14 +90,19 @@
   - DONE ~TypeBinding.is_proc: I32~ -> ~func_type: FuncType~ with ~FuncType.None~
   - DONE ~FCallData.fn_sig~: removed (duplicated ~Expr.fn_sig~, always set in pairs)
   - DONE Expr: ~is_ns_field~ removed (look up ~Declaration.is_namespace~ instead)
+  - DONE Expr: ~field_own_type~ removed (look up ~Declaration.own_type~ instead)
+  - DONE Expr: ~save_old_delete~ moved to ~AssignData~ payload
+  - DONE Expr: ~is_splat~ moved to ~FCallData.is_splat~
+  - DONE Expr: ~is_own_arg~ moved to ~FCallData.own_args~ U64 bitmask
+  - DONE Expr: ~is_core~ removed (core and user ASTs kept separate)
+  - DONE Expr: ~variadic_index/count~, ~kwargs_index/count~ removed
+    (duplicated in ~FCallData~, never used on Expr)
+  - DONE Ghost fields ~is_ext~, ~total_struct_size~ removed from Expr
 
   Remaining opportunities:
-  - ~Expr.save_old_delete~: check if still needed or can be derived
   - ~StructDefData.total_struct_size~: duplicates per-field offset/size data
   - ~Declaration.fn_sig~ + ~Expr.fn_sig~ both store func signatures; could
     the Decl-level one be derived at use sites?
-  - FCallData variadic/kwargs indices duplicate FunctionDef's fields (only
-    the counts are call-site-specific)
 
   Ideas from rstil comparison (rstil's Expr is just 4 fields: node_type,
   params, line, col -- all payload lives in NodeType variants):
@@ -106,9 +111,9 @@
   - ~Expr.til_type~ and ~Expr.struct_name~: type-checker outputs, not
     parser outputs. rstil has neither on Expr. Could live in a side table
     or TypeBinding instead of bloating every node.
-  - ~Expr.is_own_arg~: rstil uses a separate ~OwnArg~ NodeType tag that
-    wraps the child expression, instead of a bool on every Expr. til
-    already removed ~is_ns_field~ the same way (look up instead of store).
+  - ~Expr.is_own_arg~: DONE -- moved to ~FCallData.own_args~ U64 bitmask.
+    rstil uses a separate ~OwnArg~ NodeType tag that wraps the child
+    expression; til uses a bitmask instead.
   - ~Expr.path~: rstil stores ~source_path~ only on FuncDef, not per-Expr.
     All Exprs in one file share the same path -- could be passed as
     context during traversal instead of stored on every node.

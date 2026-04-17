@@ -714,7 +714,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
             ctype := c_type_name(e.til_type, _sn)
             if is_rg { f.write_str(dd.name); f.write_str(" = ") }
             else { f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(" = ") }
-            emit_as_ptr(f, rhs, depth); f.write_str(";\n")
+            emit_as_ptr(f, rhs, depth, false); f.write_str(";\n")
         } else {
             ref mut _sn : Str = e.struct_name
             if _sn.len().eq(0) { _sn = rhs.struct_name }
@@ -850,7 +850,7 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
         if is_null(current_fdef).not() {
             ref fd : FunctionDef = get_payload(current_fdef.data)
             if is_variant(fd.return_own_type, OwnType.Ref) {
-                f.write_str("return "); emit_as_ptr(f, rv, depth); f.write_str(";\n"); return
+                f.write_str("return "); emit_as_ptr(f, rv, depth, false); f.write_str(";\n"); return
             }
             if is_variant(fd.return_own_type, OwnType.Shallow) {
                 f.write_str("return ")
@@ -913,7 +913,7 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
             }
             if do_rebind {
                 f.write_str(aname); f.write_str(" = ")
-                emit_as_ptr(f, rhs, depth)
+                emit_as_ptr(f, rhs, depth, false)
                 f.write_str(";\n"); return
             }
         }
@@ -986,9 +986,7 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                 f.write_str(fname); f.write_str(" = ")
             }
             if builder_fa_is_ptr(e) {
-                mut own_rhs := rhs_fa
-                own_rhs.is_own_arg = true
-                emit_as_ptr(f, own_rhs, depth)
+                emit_as_ptr(f, rhs_fa, depth, true)
             } else {
                 emit_deref(f, rhs_fa, depth)
             }
@@ -1076,7 +1074,7 @@ emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, shallow depth: I32)
             arg_shallow = is_variant(p.own_type, OwnType.Shallow)
         }
         if arg_shallow { emit_deref(f, e.child(i), depth) }
-        else { emit_as_ptr(f, e.child(i), depth) }
+        else { emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i)) }
     }
 }
 
@@ -1136,7 +1134,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 } else if callee_param_is_usize(flat, i.sub(1)).and(callee_param_is_own(flat, i.sub(1)).not()) {
                     emit_usize_ref(f, e.child(i), depth)
                 } else {
-                    emit_as_ptr(f, e.child(i), depth)
+                    emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i))
                 }
             }
             f.write_str(")")
@@ -1150,15 +1148,15 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             f.write_str("dyn_call_")
             f.write_str(method)
             f.write_str("(")
-            emit_as_ptr(f, e.child(1), depth)
+            emit_as_ptr(f, e.child(1), depth, false)
             for ai : I32 in 0..nargs {
                 f.write_str(", ")
-                emit_as_ptr(f, e.child(ai.to_i64().add(4).to_u32()), depth)
+                emit_as_ptr(f, e.child(ai.to_i64().add(4).to_u32()), depth, false)
             }
             f.write_str(")")
         } else if name.eq("dyn_fn") {
             f.write_str("dyn_fn(")
-            emit_as_ptr(f, e.child(1), depth)
+            emit_as_ptr(f, e.child(1), depth, false)
             f.write_str(", ")
             ref method_arg : Expr = e.child(2)
             if is_variant(method_arg.data, NodeType.LiteralStr) {
@@ -1169,7 +1167,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 emit_u64(f, ms.len().to_i64().to_u64())
                 f.write_str("ULL, .cap=TIL_CAP_LIT}")
             } else {
-                emit_as_ptr(f, method_arg, depth)
+                emit_as_ptr(f, method_arg, depth, false)
             }
             f.write_str(")")
         } else if name.eq("array").or(name.eq("vec")) {
@@ -1182,7 +1180,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             emit_i32(f, count)
             for i in 2..e.child_count() {
                 f.write_str(", ")
-                emit_as_ptr(f, e.child(i), depth)
+                emit_as_ptr(f, e.child(i), depth, false)
             }
             f.write_str(")")
         } else if name.eq("dyn_has_method") {
@@ -1190,7 +1188,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             f.write_str("dyn_has_")
             f.write_str(method)
             f.write_str("(")
-            emit_as_ptr(f, e.child(1), depth)
+            emit_as_ptr(f, e.child(1), depth, false)
             f.write_str(")")
         } else if e.struct_name.len().gt(0).and(name.eq(e.struct_name)) {
             // Struct constructor
@@ -1236,7 +1234,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 } else if callee_param_is_usize(name, i.sub(1)).and(callee_param_is_own(name, i.sub(1)).not()) {
                     emit_usize_ref(f, e.child(i), depth)
                 } else {
-                    emit_as_ptr(f, e.child(i), depth)
+                    emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i))
                 }
             }
             f.write_str(")")
@@ -1326,33 +1324,25 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                         } else {
                             emit_field(f, var, fname)
                             f.write_str(" = ")
-                            mut own_arg := arg
-                            own_arg.is_own_arg = true
-                            emit_as_ptr(f, own_arg, depth)
+                            emit_as_ptr(f, arg, depth, true)
                             f.write_str(";\n")
                         }
                     } else {
                         emit_field(f, var, fname)
                         f.write_str(" = ")
-                        mut own_arg := arg
-                        own_arg.is_own_arg = true
-                        emit_as_ptr(f, own_arg, depth)
+                        emit_as_ptr(f, arg, depth, true)
                         f.write_str(";\n")
                     }
                 } else {
                     emit_field(f, var, fname)
                     f.write_str(" = ")
-                    mut own_arg := arg
-                    own_arg.is_own_arg = true
-                    emit_as_ptr(f, own_arg, depth)
+                    emit_as_ptr(f, arg, depth, true)
                     f.write_str(";\n")
                 }
             } else {
                 emit_field(f, var, fname)
                 f.write_str(" = ")
-                mut own_arg := arg
-                own_arg.is_own_arg = true
-                emit_as_ptr(f, own_arg, depth)
+                emit_as_ptr(f, arg, depth, true)
                 f.write_str(";\n")
             }
         } else if is_variant(arg.data, NodeType.FCall) {
@@ -1533,11 +1523,11 @@ emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
     }
 }
 
-emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32) {
+emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) {
     if is_variant(e.data, NodeType.Ident) {
         ref ident : Str = get_payload(e.data)
         if is_shallow_param(ident).or(is_stack_local(ident)).or(is_value_global(ident)) {
-            if e.is_own_arg {
+            if is_own {
                 ref mut ctype : Str = get_stack_local_ctype(ident)
                 if is_null(ctype) { ctype = c_type_name(e.til_type, e.struct_name) }
                 f.write_str("({ ")

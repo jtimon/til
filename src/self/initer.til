@@ -484,7 +484,7 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
             gc.add_child(own self2)
             gc.til_type = type_from_name_init(vtype, scope)
             gc.struct_name = vtype.clone()
-            gc.is_own_arg = true
+            set_own_arg(del_call, del_call.child_count())
             del_call.add_child(own gc)
 
             mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col, path)
@@ -504,7 +504,7 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
     mut free_id := Expr.new(NodeType.Ident("free"), line, col, path)
     free_call.add_child(own free_id)
     mut self_arg := Expr.new(NodeType.Ident("self"), line, col, path)
-    self_arg.is_own_arg = true
+    set_own_arg(free_call, free_call.child_count())
     free_call.add_child(own self_arg)
     then_body.add_child(own free_call)
     mut if_node := Expr.new(NodeType.If, line, col, path)
@@ -896,12 +896,12 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
             ref fown : Bool = field_owns.get(j)
             mut self_id := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col, stmt.path)
             mut field_acc := Expr.new(NodeType.FieldAccess(fname.clone()), stmt.line, stmt.col, stmt.path)
-            field_acc.is_own_arg = true
             field_acc.add_child(own self_id)
 
             mut del_acc := Expr.new(NodeType.FieldAccess("delete"), stmt.line, stmt.col, stmt.path)
             del_acc.add_child(own field_acc)
             mut del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            set_own_arg(del_call, 0) // signal UFCS own for self arg
             del_call.add_child(own del_acc)
 
             mut cf_lit := Expr.new(NodeType.LiteralBool(fown), stmt.line, stmt.col, stmt.path)
@@ -915,7 +915,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
         mut free_id := Expr.new(NodeType.Ident("free"), stmt.line, stmt.col, stmt.path)
         free_call.add_child(own free_id)
         mut self_arg := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col, stmt.path)
-        self_arg.is_own_arg = true
+        set_own_arg(free_call, free_call.child_count())
         free_call.add_child(own self_arg)
         then_body.add_child(own free_call)
         mut if_node := Expr.new(NodeType.If, stmt.line, stmt.col, stmt.path)

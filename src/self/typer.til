@@ -216,10 +216,10 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
         pown := pp2.own_type.eq(OwnType.Own)
         ref arg : Expr = e.child(ci)
         if pown {
-            if arg.is_own_arg.not() {
+            if get_own_arg(e, ci).not() {
                 type_error(arg, "argument for 'own' parameter '".concat(pp2.name).concat("' must be marked 'own'"))
             }
-        } else if arg.is_own_arg {
+        } else if get_own_arg(e, ci) {
             type_error(arg, "'own' on argument but parameter '".concat(pp2.name).concat("' is not 'own'"))
         }
         if pown {
@@ -365,8 +365,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
         if fld_decl.own_type.eq(OwnType.Own).not() {
             if type_ctor_consumes(fld.til_type).not() { continue }
         }
-        ref mut arg2 : Expr = e.child(ai.to_i64().to_u32())
-        arg2.is_own_arg = true
+        set_own_arg(e, ai.to_i64().to_usize())
     }
     e.til_type = TilType.Struct
     e.struct_name = resolve_type_alias(scope, name).clone()
@@ -807,6 +806,26 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         mut instance := obj.clone()
         mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), obj.line, obj.col, obj.path)
         fa.children.set(0, own type_ident)
+        // Shift own_args bitmask: bits at position >=1 move to position+1
+        // (UFCS inserts self at position 1)
+        {
+            ref mut ufcs_fcd : FCallData = get_payload(e.data)
+            old_own := ufcs_fcd.own_args
+            mut new_own : U64 = 0
+            mut bit : U64 = 1
+            for _bi in 0..e.child_count() {
+                if old_own.and(bit).gt(0) {
+                    if _bi.eq(0) {
+                        new_own = new_own.or(bit)
+                    } else {
+                        // Shift this bit left by 1 position
+                        new_own = new_own.or(bit.mul(2))
+                    }
+                }
+                bit = bit.mul(2)
+            }
+            ufcs_fcd.own_args = new_own
+        }
         mut new_children := Vec.new("Expr", Expr.size())
         new_children.push(own e.child(0).clone())
         new_children.push(own instance)
@@ -955,11 +974,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         }
     }
     if ufcs_desugared {
-        if e.child(0).is_own_arg {
-            if e.child_count().gt(1) {
-                ref mut arg2 : Expr = e.child(1)
-                arg2.is_own_arg = true
-            }
+        // If bit 0 (callee) was set by the parser's 'own expr' handler,
+        // propagate it to bit 1 (the UFCS self arg) and clear bit 0.
+        if get_own_arg(e, 0) {
+            ref mut ufcs_fcd2 : FCallData = get_payload(e.data)
+            ufcs_fcd2.own_args = ufcs_fcd2.own_args.sub(1)
+            set_own_arg(e, 1)
         }
     }
     {
@@ -972,10 +992,10 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                 pown := pp.own_type.eq(OwnType.Own)
                 ref arg : Expr = e.child(i)
                 if pown {
-                    if arg.is_own_arg.not() {
+                    if get_own_arg(e, i).not() {
                         type_error(arg, format("argument for 'own' parameter '", pp.name, "' must be marked 'own'"))
                     }
-                } else if arg.is_own_arg {
+                } else if get_own_arg(e, i) {
                     type_error(arg, format("'own' on argument but parameter '", pp.name, "' is not 'own'"))
                 }
                 if pown {
@@ -1645,9 +1665,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
         if rhs.struct_name.len().gt(0) { decl_b.struct_name = rhs.struct_name.clone() }
     }
     if is_variant(stmt.til_type, TilType.FuncPtr) {
-        if is_null(sdecl.fn_sig).not() {
-            decl_b.func_def = sdecl.fn_sig
-        } else if is_variant(rhs.data, NodeType.Ident) {
+        if is_variant(rhs.data, NodeType.Ident) {
             ref src : TypeBinding = scope.get_binding(get_payload(rhs.data))
             if is_null(src).not() {
                 if is_null(src.func_def).not() { decl_b.func_def = src.func_def }
@@ -2795,7 +2813,7 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     return call
 }
 
-make_delete_call := func(var_name: Str, shallow type: TilType, struct_name: Str, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
+make_delete_call := proc(var_name: Str, shallow type: TilType, struct_name: Str, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
     tname := type_to_name(type, struct_name)
     if tname.len().eq(0) { return NULL }
 
@@ -2812,7 +2830,7 @@ make_delete_call := func(var_name: Str, shallow type: TilType, struct_name: Str,
     mut arg := Expr.new(NodeType.Ident(var_name.clone()), src.line, src.col, src.path)
     arg.til_type = type
     if struct_name.len().gt(0) { arg.struct_name = struct_name.clone() }
-    arg.is_own_arg = arg_is_own
+    if arg_is_own { set_own_arg(call, call.child_count()) }
     call.add_child(own arg)
 
     mut cf_lit := Expr.new(NodeType.LiteralBool(call_free), src.line, src.col, src.path)
@@ -2864,7 +2882,7 @@ build_kwargs_dynmap_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     return kw_decl
 }
 
-build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr) returns Expr {
+build_kwargs_dynmap_set := proc(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr) returns Expr {
     ref key_name : Str = get_payload(named_arg.data)
     ref val : Expr = named_arg.child(0)
     mut set_call := make_ns_call("DynMap", "set", TilType.None, "", fcall)
@@ -2877,14 +2895,14 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     mut key_lit := Expr.new(NodeType.LiteralStr(key_name.clone()), fcall.line, fcall.col, fcall.path)
     key_lit.til_type = TilType.Struct
     key_lit.struct_name = "Str"
-    key_lit.is_own_arg = true
+    set_own_arg(set_call, set_call.child_count())
     set_call.add_child(own key_lit)
 
     tname := type_to_name(val.til_type, val.struct_name)
     mut type_lit := Expr.new(NodeType.LiteralStr(tname.clone()), fcall.line, fcall.col, fcall.path)
     type_lit.til_type = TilType.Struct
     type_lit.struct_name = "Str"
-    type_lit.is_own_arg = true
+    set_own_arg(set_call, set_call.child_count())
     set_call.add_child(own type_lit)
 
     mut size_call := make_ns_call(tname, "size", usize_type(scope), "", fcall)
@@ -2896,7 +2914,7 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
             out_val = make_clone_call(tname, val.til_type, val, val)
         }
     }
-    out_val.is_own_arg = true
+    set_own_arg(set_call, set_call.child_count())
     set_call.add_child(own out_val)
     return set_call
 }
@@ -2925,7 +2943,7 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
     return va_decl
 }
 
-build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr {
+build_variadic_array_set := proc(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr {
     mut set_call := make_ns_call("Array", "set", TilType.None, "", fcall)
 
     mut self_id := Expr.new(NodeType.Ident(va_name.clone()), fcall.line, fcall.col, fcall.path)
@@ -2946,7 +2964,7 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
             val = make_clone_call(tname, val_in.til_type, val_in, val_in)
         }
     }
-    val.is_own_arg = true
+    set_own_arg(set_call, set_call.child_count())
     set_call.add_child(own val)
     return set_call
 }
@@ -3010,7 +3028,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         self_id.struct_name = "Set"
         add_call.add_child(own self_id)
         mut val := set_lit.child(j).clone()
-        val.is_own_arg = true
+        set_own_arg(add_call, add_call.child_count())
         add_call.add_child(own val)
         new_ch.push(own add_call)
     }
@@ -3103,10 +3121,10 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         self_id.struct_name = "Map"
         set_call.add_child(own self_id)
         mut key := map_lit.child(j.mul(2)).clone()
-        key.is_own_arg = true
+        set_own_arg(set_call, set_call.child_count())
         set_call.add_child(own key)
         mut mval := map_lit.child(j.mul(2).add(1)).clone()
-        mval.is_own_arg = true
+        set_own_arg(set_call, set_call.child_count())
         set_call.add_child(own mval)
         new_ch.push(own set_call)
     }
@@ -3429,21 +3447,25 @@ insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
 }
 
 rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
-    ref fcall_data : FCallData = get_payload(fcall.data)
+    ref mut fcall_data : FCallData = get_payload(fcall.data)
     vi := fcall_data.variadic_index
     vc := fcall_data.variadic_count
+    old_own := fcall_data.own_args
     line := fcall.line
     col := fcall.col
     path := fcall.path
     mut fcall_new_ch := Vec.new("Expr", Expr.size())
     mut va_inserted := false
+    mut new_own : U64 = 0
     for j in 0..fcall.child_count() {
         if j.to_i64().to_i32().gte(vi).and(j.to_i64().to_i32().lt(vi.add(vc.to_i64().to_i32()))) {
             if va_inserted.not() {
                 mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col, path)
                 va_id.til_type = TilType.Struct
                 va_id.struct_name = "Array"
-                va_id.is_own_arg = true
+                mut bit : U64 = 1
+                for _b in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+                new_own = new_own.or(bit)
                 fcall_new_ch.push(own va_id)
                 va_inserted = true
             }
@@ -3453,9 +3475,19 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
             mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col, path)
             va_id.til_type = TilType.Struct
             va_id.struct_name = "Array"
-            va_id.is_own_arg = true
+            mut bit : U64 = 1
+            for _b in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+            new_own = new_own.or(bit)
             fcall_new_ch.push(own va_id)
             va_inserted = true
+        }
+        // Transfer own bit from old position j to new position
+        mut old_bit : U64 = 1
+        for _b in 0..j { old_bit = old_bit.mul(2) }
+        if old_own.and(old_bit).gt(0) {
+            mut nb : U64 = 1
+            for _b in 0..fcall_new_ch.len() { nb = nb.mul(2) }
+            new_own = new_own.or(nb)
         }
         fcall_new_ch.push(own fcall.child(j).clone())
     }
@@ -3463,10 +3495,13 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
         mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col, path)
         va_id.til_type = TilType.Struct
         va_id.struct_name = "Array"
-        va_id.is_own_arg = true
+        mut bit : U64 = 1
+        for _b in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+        new_own = new_own.or(bit)
         fcall_new_ch.push(own va_id)
     }
     fcall.children = fcall_new_ch
+    fcall_data.own_args = new_own
     fcall_data.variadic_index = -1.to_i32()
     fcall_data.variadic_count = 0.to_u32()
 }
@@ -3584,8 +3619,6 @@ desugar_pure_splat_variadic_call := proc(mut fcall: Expr, mut new_ch: Vec, stmt:
     if is_variant(splat_in.data, NodeType.Ident) {
         splat = make_clone_call("Array", TilType.Struct, splat_in, splat_in)
     }
-    splat.is_own_arg = true
-
     mut fcall_new_ch := Vec.new("Expr", Expr.size())
     for j in 0..fcall.child_count() {
         ji := j.to_i64().to_i32()
@@ -3596,6 +3629,7 @@ desugar_pure_splat_variadic_call := proc(mut fcall: Expr, mut new_ch: Vec, stmt:
         }
     }
     fcall.children = fcall_new_ch
+    set_own_arg(fcall, vi.to_i64().to_usize())
     fcd.variadic_index = -1.to_i32()
     fcd.variadic_count = 0
     new_ch.push(own stmt.clone())
@@ -3650,8 +3684,10 @@ rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
     ref mut fcd : FCallData = get_payload(fcall.data)
     ki := fcd.kwargs_index
     kc := fcd.kwargs_count
+    old_own := fcd.own_args
     mut fcall_new_ch := Vec.new("Expr", Expr.size())
     mut kw_inserted := false
+    mut new_own : U64 = 0
 
     for j in 0..fcall.child_count() {
         ji := j.to_i64().to_i32()
@@ -3660,7 +3696,9 @@ rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
                 mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
                 kw_id.til_type = TilType.Struct
                 kw_id.struct_name = "DynMap"
-                kw_id.is_own_arg = true
+                mut bit : U64 = 1
+                for _b in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+                new_own = new_own.or(bit)
                 fcall_new_ch.push(own kw_id)
                 kw_inserted = true
             }
@@ -3670,9 +3708,19 @@ rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
             mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
             kw_id.til_type = TilType.Struct
             kw_id.struct_name = "DynMap"
-            kw_id.is_own_arg = true
+            mut bit : U64 = 1
+            for _b in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+            new_own = new_own.or(bit)
             fcall_new_ch.push(own kw_id)
             kw_inserted = true
+        }
+        // Transfer own bit from old position j to new position
+        mut old_bit : U64 = 1
+        for _b in 0..j { old_bit = old_bit.mul(2) }
+        if old_own.and(old_bit).gt(0) {
+            mut nb : U64 = 1
+            for _b in 0..fcall_new_ch.len() { nb = nb.mul(2) }
+            new_own = new_own.or(nb)
         }
         fcall_new_ch.push(own fcall.child(j).clone())
     }
@@ -3680,11 +3728,14 @@ rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
         mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
         kw_id.til_type = TilType.Struct
         kw_id.struct_name = "DynMap"
-        kw_id.is_own_arg = true
+        mut bit : U64 = 1
+        for _b in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+        new_own = new_own.or(bit)
         fcall_new_ch.push(own kw_id)
     }
 
     fcall.children = fcall_new_ch
+    fcd.own_args = new_own
     fcd.kwargs_index = -1.to_i32()
     fcd.kwargs_count = 0
 }
@@ -4274,8 +4325,6 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns
     if val.struct_name.len().gt(0) {
         ident.struct_name = val.struct_name.clone()
     }
-    ident.is_own_arg = val.is_own_arg
-
     scope.set(tname, val.til_type, FuncType.None, false, val.line, val.col, false, OwnType.Shallow)
     ref mut tb : TypeBinding = scope.get_binding(tname)
     tb.struct_name = val.struct_name.clone()

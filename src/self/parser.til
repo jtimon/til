@@ -405,7 +405,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
             is_own_arg = true
         }
         mut arg := parse_expression(p)
-        arg.is_own_arg = is_own_arg
+        if is_own_arg { set_own_arg(call, call.child_count()) }
         if is_splat {
             ref mut fcd : FCallData = get_payload(call.data)
             fcd.is_splat = true
@@ -604,7 +604,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
                 mut is_own_arg := false
                 if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
                 mut marg := parse_expression(p)
-                marg.is_own_arg = is_own_arg
+                if is_own_arg { set_own_arg(mcall, mcall.child_count()) }
                 mcall.add_child(own marg)
                 if check(p, TokenType.Comma) { advance(p) }
             }
@@ -820,7 +820,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 mut is_own_arg := false
                 if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
                 mut marg := parse_expression(p)
-                marg.is_own_arg = is_own_arg
+                if is_own_arg { set_own_arg(mcall, mcall.child_count()) }
                 mcall.add_child(own marg)
                 if check(p, TokenType.Comma) { advance(p) }
             }
@@ -992,23 +992,14 @@ parse_statement := proc(mut p: Parser) returns Expr {
             }
         }
         // own expression (call-site ownership marker)
+        // For UFCS method calls like 'own x.delete()', set bit 0 (callee)
+        // as a signal. UFCS desugaring converts this to own on self (bit 1).
         mut expr := parse_expression(p)
-        // Walk down to the primary (leftmost leaf) to set is_own_arg
-        mut primary_idx := -1
-        // Find the deepest child[0] that is FCALL or FIELD_ACCESS
-        mut cur := expr
-        while cur.children.len().gt(0).and(
-            is_variant(cur.data, NodeType.FCall).or(is_variant(cur.data, NodeType.FieldAccess))) {
-            ref ch : Expr = cur.children.get(0)
-            cur = ch
-        }
-        cur.is_own_arg = true
-        // Also mark the FCall/FieldAccess chain so the typer can propagate
-        // through UFCS desugaring (#88)
-        if is_variant(expr.data, NodeType.FCall).and(expr.children.len().gt(0)) {
-            ref callee : Expr = expr.children.get(0)
-            if is_variant(callee.data, NodeType.FieldAccess) {
-                callee.is_own_arg = true
+        if is_variant(expr.data, NodeType.FCall) {
+            if expr.child_count().gt(0) {
+                if is_variant(expr.child(0).data, NodeType.FieldAccess) {
+                    set_own_arg(expr, 0)
+                }
             }
         }
         return expr

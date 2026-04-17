@@ -112,7 +112,6 @@
 *** mut field_offset : I32 = 0
 *** mut field_size : I32 = 0
 *** ref mut field_struct_def : Expr = NULL
-*** ref mut fn_sig : Expr = NULL
 ** Param: StructDef
 *** mut name := ""
 *** mut ptype := ""
@@ -133,6 +132,7 @@
 *** mut kwargs_index : I32 = -1.to_i32()
 *** mut kwargs_count : USize = 0
 *** mut is_splat := false
+*** mut own_args : U64 = 0
 ** FieldDef: StructDef
 *** mut decl := Declaration()
 *** ref mut default_value : Expr = NULL
@@ -173,7 +173,6 @@
 *** mut data := NodeType.Body
 *** mut til_type := TilType.Unknown
 *** mut struct_name := ""
-*** mut is_own_arg := false
 *** ref mut fn_sig : Expr = NULL
 *** mut children := Vec.new("Expr", Expr.size())
 *** mut line : U32 = 0

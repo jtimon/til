@@ -834,7 +834,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                         if enum_method_dispatch(callee_ident, scope, tc_edef, parent_sname, e, eresult) {
                             for oi in 1..e.child_count() {
                                 ref oa : Expr = e.child(oi)
-                                if is_variant(oa.data, NodeType.Ident).and(oa.is_own_arg) {
+                                if is_variant(oa.data, NodeType.Ident).and(get_own_arg(e, oi)) {
                                     ref oa_ident : Str = get_payload(oa.data)
                                     ref oc : Cell = scope_get(scope, oa_ident)
                                     if is_null(oc).not() { oc.val = val_none() }
@@ -909,7 +909,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     if ext_function_dispatch(name, scope, e, ext_result) {
         for oi in 1..e.child_count() {
             ref oa : Expr = e.child(oi)
-            if is_variant(oa.data, NodeType.Ident).and(oa.is_own_arg) {
+            if is_variant(oa.data, NodeType.Ident).and(get_own_arg(e, oi)) {
                 ref oa_ident : Str = get_payload(oa.data)
                 ref oc : Cell = scope_get(scope, oa_ident)
                 if is_null(oc).not() { oc.val = val_none() }
@@ -950,7 +950,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                         ref arg_ident : Str = get_payload(arg.data)
                         ref src : Cell = scope_get(scope, arg_ident)
                         val = shallow_copy_value(src.val)
-                        if arg.is_own_arg.and(is_variant(val, Value.Func).not()) {
+                        if get_own_arg(e, arg_idx).and(is_variant(val, Value.Func).not()) {
                             src.val = val_none()
                         }
                     } else {

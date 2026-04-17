@@ -257,7 +257,6 @@ typedef struct Declaration {
     I32 field_offset;
     I32 field_size;
     Expr *field_struct_def;
-    Expr *fn_sig;
 } Declaration;
 
 
@@ -275,6 +274,7 @@ typedef struct FCallData {
     I32 kwargs_index;
     U32 kwargs_count;
     Bool is_splat;
+    U64 own_args;
 } FCallData;
 
 
@@ -401,7 +401,6 @@ typedef struct Expr {
     NodeType data;
     TilType til_type;
     Str struct_name;
-    Bool is_own_arg;
     Expr *fn_sig;
     Vec children;
     U32 line;
@@ -736,6 +735,8 @@ Str * FCallData_to_str(FCallData * self);
 FCallData * FCallData_clone(FCallData * self);
 void FCallData_delete(FCallData * self, Bool * call_free);
 U32 FCallData_size(void);
+void set_own_arg(Expr * fcall, U32 arg_index);
+Bool get_own_arg(Expr * fcall, U32 arg_index);
 Bool * FieldDef_eq(FieldDef * a, FieldDef * b);
 Str * FieldDef_to_str(FieldDef * self);
 FieldDef * FieldDef_clone(FieldDef * self);
@@ -1300,7 +1301,7 @@ void emit_ctor_fields(File * f, Str * var, Expr * ctor, I32 depth);
 void emit_ns_inits(File * f, I32 depth);
 void emit_body_scoped(File * f, Expr * body, I32 depth);
 void emit_deref(File * f, Expr * e, I32 depth);
-void emit_as_ptr(File * f, Expr * e, I32 depth);
+void emit_as_ptr(File * f, Expr * e, I32 depth, Bool is_own);
 void emit_usize_ref(File * f, Expr * e, I32 depth);
 void emit_cli_parse_arg(File * f, Str * pname, Str * ptype, I32 argi);
 void emit_func_def(File * f, Str * name, Expr * func_def, Mode * mode, Bool is_static);

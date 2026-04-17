@@ -57,7 +57,6 @@ Declaration := struct {
     mut field_offset : I32 = 0
     mut field_size : I32 = 0
     ref mut field_struct_def : Expr = NULL
-    ref mut fn_sig : Expr = NULL
     namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: Declaration) returns Str { return self.name }
@@ -93,6 +92,7 @@ FCallData := struct {
     mut kwargs_index : I32 = -1.to_i32()
     mut kwargs_count : USize = 0
     mut is_splat := false
+    mut own_args : U64 = 0
     namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
         return a.variadic_index.eq(b.variadic_index)
@@ -101,6 +101,20 @@ FCallData := struct {
             .and(a.kwargs_count.eq(b.kwargs_count))
     }
     to_str := func(self: FCallData) returns Str { return "FCall" }
+}
+
+set_own_arg := proc(mut fcall: Expr, shallow arg_index: USize) {
+    ref mut fcd : FCallData = get_payload(fcall.data)
+    mut bit : U64 = 1
+    for _i in 0..arg_index { bit = bit.mul(2) }
+    fcd.own_args = fcd.own_args.or(bit)
+}
+
+get_own_arg := func(fcall: Expr, shallow arg_index: USize) returns shallow Bool {
+    ref fcd : FCallData = get_payload(fcall.data)
+    mut bit : U64 = 1
+    for _i in 0..arg_index { bit = bit.mul(2) }
+    return fcd.own_args.and(bit).gt(0)
 }
 
 FieldDef := struct {
@@ -168,7 +182,6 @@ Expr := struct {
     mut data := NodeType.Body
     mut til_type := TilType.Unknown
     mut struct_name := ""
-    mut is_own_arg := false
     ref mut fn_sig : Expr = NULL
     mut children := Vec.new("Expr", Expr.size())
     mut line : U32 = 0
