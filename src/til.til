@@ -38,7 +38,7 @@ type_check := ext_func(program: Expr, scope: TypeScope, ctx: Context) returns sh
 // precomp: defined in precomp.til
 scavenge := ext_proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool) {}
 // interpret: defined in interpreter.til
-build := ext_func(core_ast: Expr, ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
+build := ext_func(core_ast: Expr, ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_path: Str, ctx: Context) returns shallow I32 {}
 ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
 
 // Utility
@@ -471,7 +471,7 @@ main := proc(args: ..Str) {
         if user_c.len().gt(0) {
             system_cmd("mkdir -p tmp")
             interpret_fwd_path = "tmp/ffi_".concat(clock_ms().to_str()).concat("_forward.h")
-            result = build_forward_header(core_ast, ast, interpret_fwd_path)
+            result = build_forward_header(core_ast, ast, interpret_fwd_path, ctx)
         }
         if result.eq(0) {
             result = interpret(core_ast, ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
@@ -523,9 +523,9 @@ main := proc(args: ..Str) {
         }
 
         fwd_path := forward_header_path(c_path)
-        result = build_forward_header(core_ast, ast, fwd_path)
+        result = build_forward_header(core_ast, ast, fwd_path, ctx)
         if result.eq(0) {
-            result = build(core_ast, ast, cur_mode, run_tests, path, c_path)
+            result = build(core_ast, ast, cur_mode, run_tests, path, c_path, ctx)
         }
 
         // For lib/pure: generate .h header, .til binding, and .py binding
@@ -533,12 +533,12 @@ main := proc(args: ..Str) {
             h_path := "gen/til/".concat(name).concat(".h")
             til_path := "gen/til/".concat(name).concat(".til")
             py_path := "gen/til/".concat(name).concat(".py")
-            result = build_header(core_ast, ast, h_path)
+            result = build_header(core_ast, ast, h_path, ctx)
             if result.eq(0) {
-                result = build_til_binding(core_ast, ast, til_path, name)
+                result = build_til_binding(core_ast, ast, til_path, name, ctx)
             }
             if result.eq(0) {
-                result = build_python_binding(core_ast, ast, py_path, name)
+                result = build_python_binding(core_ast, ast, py_path, name, ctx)
             }
             if result.eq(0).and(command.eq("translate")) {
                 println("Generated: ".concat(c_path))
