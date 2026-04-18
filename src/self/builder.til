@@ -2417,6 +2417,310 @@ build_til_binding := proc(core_program: Expr, program: Expr, til_path: Str, lib_
     return 0.to_i32()
 }
 
+type_name_to_ctypes := func(name: Str) returns Str {
+    if name.eq("I64") { return "ctypes.c_longlong" }
+    if name.eq("U8") { return "ctypes.c_ubyte" }
+    if name.eq("I16") { return "ctypes.c_short" }
+    if name.eq("I32") { return "ctypes.c_int" }
+    if name.eq("U32") { return "ctypes.c_uint" }
+    if name.eq("U64") { return "ctypes.c_ulonglong" }
+    if name.eq("F32") { return "ctypes.c_float" }
+    if name.eq("Bool") { return "ctypes.c_bool" }
+    if name.eq("Str") { return "Str" }
+    if name.eq("Dynamic") { return "ctypes.c_void_p" }
+    return name.clone()
+}
+
+type_name_to_ctypes_param := func(name: Str, shallow is_shallow: Bool) returns Str {
+    base := type_name_to_ctypes(name)
+    if is_shallow { return base }
+    return "ctypes.POINTER(".concat(base).concat(")")
+}
+
+type_name_to_ctypes_return := func(name: Str, shallow is_shallow: Bool) returns Str {
+    base := type_name_to_ctypes(name)
+    if is_shallow { return base }
+    return "ctypes.POINTER(".concat(base).concat(")")
+}
+
+build_python_binding := proc(core_program: Expr, program: Expr, py_path: Str, lib_name: Str) returns shallow I32 {
+    f := File.new(py_path, true)
+    f.write_str("# Auto-generated Python binding for "); f.write_str(lib_name); f.write_str("\n")
+    f.write_str("import ctypes\n")
+    f.write_str("import os\n\n")
+    f.write_str("_dir = os.path.dirname(os.path.abspath(__file__))\n")
+    f.write_str("_lib = ctypes.CDLL(os.path.join(_dir, '..', 'lib', 'lib")
+    f.write_str(lib_name); f.write_str(".so'))\n\n")
+
+    f.write_str("\nclass Str(ctypes.Structure):\n")
+    f.write_str("    _fields_ = [\n")
+    f.write_str("        ('c_str', ctypes.POINTER(ctypes.c_ubyte)),\n")
+    f.write_str("        ('count', ctypes.c_uint),\n")
+    f.write_str("        ('cap', ctypes.c_uint),\n")
+    f.write_str("    ]\n\n")
+    f.write_str("\nclass Array(ctypes.Structure):\n")
+    f.write_str("    _fields_ = [\n")
+    f.write_str("        ('data', ctypes.POINTER(ctypes.c_ubyte)),\n")
+    f.write_str("        ('cap', ctypes.c_uint),\n")
+    f.write_str("        ('elem_size', ctypes.c_uint),\n")
+    f.write_str("        ('elem_type', Str),\n")
+    f.write_str("        ('elem_clone', ctypes.c_void_p),\n")
+    f.write_str("        ('elem_delete', ctypes.c_void_p),\n")
+    f.write_str("    ]\n\n")
+
+    // Forward-declare all struct/enum classes
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        if stmt.child_count().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+        if is_variant(rhs.data, NodeType.StructDef) {
+            f.write_str("\nclass "); f.write_str(dd.name); f.write_str("(ctypes.Structure):\n")
+            f.write_str("    pass\n")
+        } else if is_variant(rhs.data, NodeType.EnumDef) {
+            f.write_str("\nclass "); f.write_str(dd.name); f.write_str("(ctypes.Structure):\n")
+            f.write_str("    pass\n")
+        }
+    }
+    f.write_str("\n")
+
+    // Emit struct field definitions and enum definitions
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        if stmt.child_count().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+
+        if is_variant(rhs.data, NodeType.StructDef) {
+            ref body : Expr = rhs.child(0)
+            f.write_str("\n"); f.write_str(dd.name); f.write_str("._fields_ = [\n")
+            for j in 0..body.child_count() {
+                ref field : Expr = body.child(j)
+                ref fdd : Declaration = get_payload(field.data)
+                if fdd.is_namespace { continue }
+                mut ct := ""
+                if fdd.explicit_type.len().gt(0) {
+                    ct = type_name_to_ctypes_param(fdd.explicit_type, false)
+                } else {
+                    switch field.til_type {
+                    case TilType.I64:  ct = "ctypes.POINTER(ctypes.c_longlong)"
+                    case TilType.U8:   ct = "ctypes.POINTER(ctypes.c_ubyte)"
+                    case TilType.I16:  ct = "ctypes.POINTER(ctypes.c_short)"
+                    case TilType.I32:  ct = "ctypes.POINTER(ctypes.c_int)"
+                    case TilType.U32:  ct = "ctypes.POINTER(ctypes.c_uint)"
+                    case TilType.U64:  ct = "ctypes.POINTER(ctypes.c_ulonglong)"
+                    case TilType.F32:  ct = "ctypes.POINTER(ctypes.c_float)"
+                    case TilType.Bool: ct = "ctypes.POINTER(ctypes.c_bool)"
+                    case:              ct = "ctypes.c_void_p"
+                    }
+                }
+                f.write_str("    ('"); f.write_str(fdd.name); f.write_str("', ")
+                f.write_str(ct); f.write_str("),\n")
+            }
+            f.write_str("]\n")
+
+        } else if is_variant(rhs.data, NodeType.EnumDef) {
+            ref body : Expr = rhs.child(0)
+            hp := enum_has_payloads(rhs)
+
+            // Emit tag constants
+            mut tag := 0
+            for j in 0..body.child_count() {
+                ref v : Expr = body.child(j)
+                ref vdd : Declaration = get_payload(v.data)
+                if vdd.is_namespace { continue }
+                f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(vdd.name)
+                f.write_str(" = "); f.write_str(tag.to_str()); f.write_str("\n")
+                tag = tag.add(1)
+            }
+
+            // Emit union if has payloads
+            if hp {
+                f.write_str("\nclass "); f.write_str(dd.name); f.write_str("_data(ctypes.Union):\n")
+                f.write_str("    _fields_ = [\n")
+                for j in 0..body.child_count() {
+                    ref v : Expr = body.child(j)
+                    ref vdd : Declaration = get_payload(v.data)
+                    if vdd.is_namespace { continue }
+                    if vdd.explicit_type.len().gt(0) {
+                        f.write_str("        ('"); f.write_str(vdd.name); f.write_str("', ")
+                        f.write_str(type_name_to_ctypes_param(vdd.explicit_type, false))
+                        f.write_str("),\n")
+                    }
+                }
+                f.write_str("    ]\n")
+            }
+
+            // Emit enum struct _fields_
+            f.write_str("\n"); f.write_str(dd.name); f.write_str("._fields_ = [\n")
+            f.write_str("    ('tag', ctypes.c_int),\n")
+            if hp {
+                f.write_str("    ('data', "); f.write_str(dd.name); f.write_str("_data),\n")
+            }
+            f.write_str("]\n")
+        }
+    }
+    f.write_str("\n")
+
+    // Emit function bindings
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        if stmt.child_count().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+
+        if is_variant(rhs.data, NodeType.StructDef).or(is_variant(rhs.data, NodeType.EnumDef)) {
+            // Emit namespace method bindings
+            ref body : Expr = rhs.child(0)
+            for j in 0..body.child_count() {
+                ref field : Expr = body.child(j)
+                ref fdd : Declaration = get_payload(field.data)
+                if fdd.is_namespace.not() { continue }
+                if field.child_count().eq(0) { continue }
+                ref mdef : Expr = field.child(0)
+                if is_variant(mdef.data, NodeType.FuncDef).not() { continue }
+                ref fd : FunctionDef = get_payload(mdef.data)
+                if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+
+                // argtypes
+                f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name)
+                f.write_str(".argtypes = [")
+                for p in 0..fd.nparam {
+                    if p.gt(0) { f.write_str(", ") }
+                    ref param : Param = fd.params.get(p)
+                    ps := is_variant(param.own_type, OwnType.Shallow)
+                    f.write_str(type_name_to_ctypes_param(param.ptype, ps))
+                }
+                f.write_str("]\n")
+
+                // restype
+                if fd.return_type.len().gt(0) {
+                    rs := is_variant(fd.return_own_type, OwnType.Shallow)
+                    f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name)
+                    f.write_str(".restype = ")
+                    f.write_str(type_name_to_ctypes_return(fd.return_type, rs)); f.write_str("\n")
+                } else {
+                    f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name)
+                    f.write_str(".restype = None\n")
+                }
+                f.write_str("\n")
+            }
+
+        } else if is_variant(rhs.data, NodeType.FuncDef) {
+            ref fd : FunctionDef = get_payload(rhs.data)
+            if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
+            if is_variant(fd.func_type, FuncType.Test) { continue }
+
+            c_name := func_to_c(dd.name)
+
+            // argtypes
+            f.write_str("_lib."); f.write_str(c_name); f.write_str(".argtypes = [")
+            for p in 0..fd.nparam {
+                if p.gt(0) { f.write_str(", ") }
+                ref param : Param = fd.params.get(p)
+                pi := p.to_i64().to_i32()
+                if pi.eq(fd.variadic_index) {
+                    f.write_str("ctypes.POINTER(Array)")
+                } else {
+                    ps := is_variant(param.own_type, OwnType.Shallow)
+                    f.write_str(type_name_to_ctypes_param(param.ptype, ps))
+                }
+            }
+            f.write_str("]\n")
+
+            // restype
+            if fd.return_type.len().gt(0) {
+                rs := is_variant(fd.return_own_type, OwnType.Shallow)
+                f.write_str("_lib."); f.write_str(c_name); f.write_str(".restype = ")
+                f.write_str(type_name_to_ctypes_return(fd.return_type, rs)); f.write_str("\n")
+            } else {
+                f.write_str("_lib."); f.write_str(c_name); f.write_str(".restype = None\n")
+            }
+            f.write_str("\n")
+        }
+    }
+
+    // Emit enum auto-helper bindings (eq, constructors, is_Variant, get_Variant)
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        if stmt.child_count().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+        if is_variant(rhs.data, NodeType.EnumDef).not() { continue }
+        sname := dd.name
+        hp := enum_has_payloads(rhs)
+        ref ebody : Expr = rhs.child(0)
+
+        // Find eq fdef to check return shallow
+        mut eq_shallow := false
+        for j in 0..ebody.child_count() {
+            ref field : Expr = ebody.child(j)
+            ref efdd : Declaration = get_payload(field.data)
+            if efdd.is_namespace.and(efdd.name.eq("eq")) {
+                if field.child_count().gt(0) {
+                    ref eq_def : Expr = field.child(0)
+                    if is_variant(eq_def.data, NodeType.FuncDef) {
+                        ref eqfd : FunctionDef = get_payload(eq_def.data)
+                        eq_shallow = is_variant(eqfd.return_own_type, OwnType.Shallow)
+                    }
+                }
+                break
+            }
+        }
+        mut eq_ret := "ctypes.POINTER(ctypes.c_bool)"
+        if eq_shallow { eq_ret = "ctypes.c_bool" }
+
+        // eq
+        f.write_str("_lib."); f.write_str(sname); f.write_str("_eq.argtypes = [ctypes.POINTER(")
+        f.write_str(sname); f.write_str("), ctypes.POINTER("); f.write_str(sname); f.write_str(")]\n")
+        f.write_str("_lib."); f.write_str(sname); f.write_str("_eq.restype = ")
+        f.write_str(eq_ret); f.write_str("\n\n")
+
+        // Per-variant helpers
+        for j in 0..ebody.child_count() {
+            ref v : Expr = ebody.child(j)
+            ref vdd : Declaration = get_payload(v.data)
+            if vdd.is_namespace { continue }
+
+            if hp {
+                // is_Variant
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_is_"); f.write_str(vdd.name)
+                f.write_str(".argtypes = [ctypes.POINTER("); f.write_str(sname); f.write_str(")]\n")
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_is_"); f.write_str(vdd.name)
+                f.write_str(".restype = "); f.write_str(eq_ret); f.write_str("\n\n")
+            }
+
+            if vdd.explicit_type.len().gt(0) {
+                // Constructor: takes payload, returns POINTER(Enum)
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(vdd.name)
+                f.write_str(".argtypes = [")
+                f.write_str(type_name_to_ctypes_param(vdd.explicit_type, false)); f.write_str("]\n")
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(vdd.name)
+                f.write_str(".restype = ctypes.POINTER("); f.write_str(sname); f.write_str(")\n\n")
+                // get_Variant
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_get_"); f.write_str(vdd.name)
+                f.write_str(".argtypes = [ctypes.POINTER("); f.write_str(sname); f.write_str(")]\n")
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_get_"); f.write_str(vdd.name)
+                f.write_str(".restype = ")
+                f.write_str(type_name_to_ctypes_param(vdd.explicit_type, false)); f.write_str("\n\n")
+            } else {
+                // Constructor: no args, returns POINTER(Enum)
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(vdd.name)
+                f.write_str(".argtypes = []\n")
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(vdd.name)
+                f.write_str(".restype = ctypes.POINTER("); f.write_str(sname); f.write_str(")\n\n")
+            }
+        }
+    }
+
+    f.close()
+    return 0.to_i32()
+}
+
 compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {
     mut uc := user_c_path
     mut lf := link_flags
