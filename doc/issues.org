@@ -1,10 +1,44 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 146
+# NEXT_ISSUE: 147
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/14] Pre
+* [0/15] Pre
+** OPEN #146 Unify typer desugar/insert passes into a single walk
+   ~infer_body~ in typer.til (lines 2489-2495) runs 7 separate passes in
+   sequence over every body, each rebuilding ~body.children~ with a full
+   deep clone of kept children:
+   - ~desugar_set_literals~
+   - ~desugar_map_literals~
+   - ~desugar_variadic_calls~
+   - ~desugar_kwargs_calls~
+   - ~hoist_fcall_args~
+   - ~insert_field_deletes~
+   - ~insert_free_calls~
+
+   Plus ~insert_exit_deletes~ runs from other call sites.
+
+   Consequences:
+   - every body pays 7x (or more) the cost of a single rebuild
+   - each pass clones every kept child into its own ~new_ch~ (see ~#144~)
+   - the clones cascade through nested bodies recursively
+   - most of the remaining ASAN leaks (~#109~) trace back to these
+     rebuilds
+
+   Desired direction:
+   - merge the desugar/insert passes into one walk per body
+   - at each statement, apply all relevant transformations before moving on
+   - would also interact with ~#144~: a single-pass rebuild lets
+     ~take_children~ / move-based reconstruction work without fighting
+     seven separate consumers of the same vector
+
+   Related:
+   - ~#144~ clone-and-assign in each pass -- one pass would reduce but
+     not eliminate the cost
+   - ~#109~ the leaks around ~body.children = new_ch~ are dominated by
+     the number of times each body is rebuilt
+
 ** OPEN #145 Eliminate cloning in link directive extraction
    til.til's link/link_c extraction loop and extract_imports already use
    ~swap_children~ to replace the child list, but both still clone every
