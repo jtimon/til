@@ -510,20 +510,44 @@
   - ~#129~ resolved: both ~StructInstance.data~ and ~EnumInstance.data~
     are now ~own mut data : U8 = 0~ (owned, not borrowed)
 
-  Next steps:
-  - top remaining leak source: ~Str_clone~ (4721 of 5000 leak entries),
-    mostly from typer scope registration and builder ~c_type_name~ /
-    ~til_type_name_c~ / ~fcall_return_ctype~ allocations
-  - ~c_type_name~ / ~til_type_name_c~: return heap-allocated Str that
-    callers never free (63+36+15+9+8+7+7 = 145 leak entries)
-  - ~fcall_return_ctype~: same pattern (30 leak entries)
-  - ~TypeScope_set -> Str_clone~: scope bindings clone names/types that
-    outlive the scope without cleanup (226 leak entries)
-  - fixing these requires either returning stack strings from type-name
-    helpers or adding proper cleanup at call sites
-  - related low-priority ownership bug to revisit later:
-    - ~#123~ ~bin/til ast~ currently hits a double-free in the
-      generated ~ast_print -> print(Array) -> Array_delete~ path
+  Next steps -- two root causes cover nearly all remaining leaks:
+
+  1. ~FCallData.fn_sig~ is ~ref mut~ (borrowed) but assigned clones
+     (lines 168, 638, 713 in typer.til). The auto-generated
+     ~FCallData.delete~ skips it, so the cloned Expr trees leak.
+     Fix: change ~fn_sig~ from ~ref mut : Expr = NULL~ to an owned
+     field. All 4 assignment sites should clone (line 153 already
+     borrows -- change to clone too). Then the auto-generated
+     ~FCallData.clone~ and ~FCallData.delete~ handle it. No manual
+     code, no NULL checks. If it can be NULL it is a ref (borrowed);
+     if it is owned it should not use ref.
+
+  2. ~own~ parameter codegen creates a heap copy
+     (~malloc + memcpy + pass pointer~) but the caller's stack
+     original is abandoned without cleanup. Fix: ~own~ arguments
+     should be passed by reference (like ~ref~/~mut~), then the
+     callee (the new owner) is responsible for the delete -- same as
+     if it were a local variable. The typer already inserts ASAP
+     deletes for locals; treating ~own~ params the same way would
+     fix all ~own~-pattern leaks systematically:
+     - ~Vec_append(own hoisted)~ Vec struct leaks
+     - any other ~own~ parameter pattern leaks
+     This is a compiler codegen fix in the typer, not a til source fix.
+
+  Per-phase Expr tracking (~bin/til_asan translate~ on empty main):
+
+  | phase            | creates     | deletes     | net      |
+  |------------------+-------------+-------------+----------|
+  | parse            | +30,857     | -19,678     | +11,179  |
+  | init_declarations| +1,062,659  | -1,020,153  | +42,506  |
+  | type_check       | +12         | -12         | 0        |
+  | precomp+scavenge | 0           | -36,687     | -36,687  |
+  | build+cleanup    | 0           | -34         | -34      |
+  | total            |             |             | 16,964   |
+
+  type_check is perfectly balanced (desugaring clone/delete works).
+  The 17K leaked Exprs = 11K parsed core nodes + 42K init-generated
+  minus 37K scavenger cleanup minus 34 final cleanup.
 
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via
