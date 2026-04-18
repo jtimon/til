@@ -525,6 +525,28 @@ static U64 proc_rss_bytes(pid_t pid) {
     return (U64)resident_pages * (U64)page_size;
 }
 
+// A "child" in /proc/<pid>/task/<pid>/children can be either a real child
+// process or (on some kernels, e.g. 4.4) a thread of another process. Threads
+// share memory with their process leader, so summing their RSS double-counts.
+// Return 1 iff tid is the thread-group leader of its own process.
+static int is_process_leader(pid_t tid) {
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%lld/status", (long long)tid);
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    char line[128];
+    int leader = 0;
+    while (fgets(line, sizeof(line), f)) {
+        long long tgid;
+        if (sscanf(line, "Tgid: %lld", &tgid) == 1) {
+            leader = (tgid == (long long)tid);
+            break;
+        }
+    }
+    fclose(f);
+    return leader;
+}
+
 static U64 proc_tree_rss_bytes(pid_t pid) {
     U64 total = proc_rss_bytes(pid);
     char path[96];
@@ -543,7 +565,9 @@ static U64 proc_tree_rss_bytes(pid_t pid) {
         char *end = p;
         long long child = strtoll(p, &end, 10);
         if (end == p) break;
-        if (child > 0) total += proc_tree_rss_bytes((pid_t)child);
+        if (child > 0 && is_process_leader((pid_t)child)) {
+            total += proc_tree_rss_bytes((pid_t)child);
+        }
         p = end;
     }
     return total;
