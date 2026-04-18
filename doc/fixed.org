@@ -1,5 +1,24 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #145 Cloning in link directive extraction
+  Resolved indirectly. til.til's ~extract_imports~ (til.til:85) and the
+  link/link_c extraction loop (til.til:327) are now read-only -- they
+  only read directive paths without modifying the AST. The directives
+  themselves are stripped by the typer: ~is_compile_directive~
+  (typer.til:2352) identifies link/link_c/import FCalls, and the
+  desugar passes skip them via ~continue~ so they're naturally dropped
+  from ~new_ch~ when ~body.children = new_ch~ runs. The original
+  clone-and-swap pattern in til.til no longer exists; the cost of
+  cloning kept children moved to the typer and is tracked under #144
+  and #146.
+
+* FIXED #97 Negative identifier expressions: -MY_CONST, -x
+  Unary minus was generalized as part of #22's operator work
+  (commit a8d2429). Parser now desugars ~-expr~ to ~expr.neg()~ for any
+  expression, so ~-x~, ~-MY_CONST~, ~-(a + b)~, and ~-(-5)~ all parse
+  and type-check correctly. The literal case ~-N~ still desugars to
+  ~0.sub(N)~ as before. Workaround ~0.sub(AB_INF)~ is no longer needed.
+
 * FIXED #133 FuncSig types not emitted as C function-pointer typedefs
   Named FuncSig types (e.g. ~DispatchFn := func(Scope, Expr, Value) returns shallow Bool~)
   now emit ~typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);~ in the

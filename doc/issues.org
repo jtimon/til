@@ -4,7 +4,7 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/15] Pre
+* [0/14] Pre
 ** OPEN #146 Unify typer desugar/insert passes into a single walk
    ~infer_body~ in typer.til (lines 2489-2495) runs 7 separate passes in
    sequence over every body, each rebuilding ~body.children~ with a full
@@ -39,21 +39,17 @@
    - ~#109~ the leaks around ~body.children = new_ch~ are dominated by
      the number of times each body is rebuilt
 
-** OPEN #145 Eliminate cloning in link directive extraction
-   til.til's link/link_c extraction loop and extract_imports already use
-   ~swap_children~ to replace the child list, but both still clone every
-   kept child into the new Vec before swapping. Could use in-place
-   compaction (children_write/children_set_count) like the scavenger does,
-   avoiding all clones. Needs care with lifecycle of removed items --
-   naive compaction crashes because removed Exprs are not properly
-   cleaned up before the Vec is freed.
-
 ** OPEN #144 Remove clone-and-assign in typer desugar passes
    The typer's desugar passes (insert_free_calls, desugar_variadic_calls,
    etc.) rebuild body.children via body.children = new_ch. The generated C
    does Vec_delete + Vec_clone + Vec_delete for each pass (10 occurrences).
-   Could use in-place compaction or take_children to avoid deep cloning
-   all children on every desugar pass.
+   Could use take_children (now safe to use -- source data pointer is
+   nulled after move, fix in f0150ec) to avoid deep cloning all children
+   on every desugar pass. A previous attempt used ~swap_children~ but
+   that was removed in f0150ec because it zeroed lifecycle metadata to
+   avoid UAF, which in turn prevented deep-delete at program exit and
+   caused bigger leaks. See #146 for the broader plan of unifying the
+   passes so the cost of rebuilding is paid once per body instead of 7x.
 
 ** OPEN #143 Avoid unnecessary heap round-trips for Expr construction
    ~Expr.new~ itself constructs on the stack, but the generated C for
@@ -126,8 +122,6 @@
 
   Remaining opportunities:
   - ~StructDefData.total_struct_size~: duplicates per-field offset/size data
-  - ~Declaration.fn_sig~ + ~Expr.fn_sig~ both store func signatures; could
-    the Decl-level one be derived at use sites?
 
   Ideas from rstil comparison (rstil's Expr is just 4 fields: node_type,
   params, line, col -- all payload lives in NodeType variants):
@@ -483,18 +477,25 @@
   original ~new_ch~ (with its owned Exprs) is never freed -- it goes
   out of scope but ASAP doesn't generate delete for it (same last_use
   in branch limitation).
-  ~swap_children~ avoids the clone but causes UAF because
-  ~TypeBinding.func_def~/~struct_def~ hold borrowed pointers into old
-  children. The existing ~swap_children~ intentionally zeros lifecycle
-  metadata (elem_type/elem_clone/elem_delete) on the new children to
-  prevent deep-delete on subsequent replacements -- but this also
-  prevents deep-delete at program exit, causing the bulk of leaks.
 
-  Blocker: ~TypeBinding.func_def~ and ~TypeBinding.struct_def~ are
-  ~ref mut~ (borrowed pointers) into AST nodes. When old children are
-  deep-deleted, these pointers dangle. Fixing requires either:
+  History: a ~swap_children~ primitive was added to avoid the clone,
+  but it had to zero lifecycle metadata (elem_type/elem_clone/
+  elem_delete) on the new children to prevent UAF from
+  ~TypeBinding.func_def~/~struct_def~ borrowed pointers into old
+  children. That side-effect also prevented deep-delete at program
+  exit, causing bigger leaks, so ~swap_children~ was removed in
+  f0150ec. The typer now calls ~reregister_scope_defs~ after each
+  replacement to update scope bindings, and ~take_children~ was fixed
+  to null its source pointer after move.
+
+  Blocker for moving past clone-and-assign: ~TypeBinding.func_def~ and
+  ~TypeBinding.struct_def~ are ~ref mut~ (borrowed pointers) into AST
+  nodes. When old children are deep-deleted, these pointers dangle.
+  Fixing requires either:
   a) making TypeBinding store names and look up defs on demand
   b) or implementing move semantics for Vec field assignment
+
+  Related: #144 (clone-and-assign per pass), #146 (7 passes per body).
 
   Changes landed:
   - ~src/self/initer.til~ (on master): ~generate_enum_delete_method~
@@ -682,7 +683,7 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-* [0/36] Post
+* [0/34] Post
 ** OPEN #123 `bin/til ast` double-free in AST printing path
   Low priority follow-up, separate from the current ~#39~ ~typer.c~
   migration work.
@@ -878,11 +879,6 @@
   Fix: ensure temp variable counters are reset or seeded
   deterministically per translation unit, so the same input
   always produces the same output.
-
-** OPEN #97 Negative identifier expressions: -MY_CONST, -x
-  Parser only supports negative literals (~-42~), not negative
-  identifiers (~-AB_INF~, ~-x~). Workaround: ~0.sub(AB_INF)~.
-  Parser is fully in til now (parser.til), should be easy to fix.
 
 ** OPEN #94 Generic Range: support any type with inc/dec
   :DEPENDENCIES: #91, #100
@@ -2009,72 +2005,6 @@
 *** TODO Richer audio (sustain, chords, drone note under scale)
 *** TODO Chord progressions
 *** TODO Key signatures on staff
-
-** FIXED #22 Operator syntax: desugar operators to method calls
-  :DEPENDENCIES: #12
-  Syntactic sugar so a + b desugars to a.add(b), a < b to a.lt(b), etc.
-  Purely a parser transform — no changes needed in typer, interpreter, or
-  codegen. The parser rewrites operator expressions into method call AST
-  nodes before anything downstream sees them.
-
-  Operator → method mapping:
-  - Comparison: < → lt, <= → lte, > → gt, >= → gte, == → eq, != → neq
-  - Arithmetic: + → add, - → sub, * → mul, / → div, % → mod
-
-  Precedence (low to high):
-  - == != < <= > >=
-  - + -
-  - * / %
-
-  Parenthesized expressions (a + b) * c override precedence. The parser
-  must disambiguate grouping parens from function call parens: ( after an
-  identifier/field-access is a call, otherwise it's grouping.
-
-  Parsing approach: Pratt parsing (precedence climbing) or one function
-  per precedence level (mutually recursive descent). Both work; Pratt is
-  more compact and easier to extend.
-
-  The cmp/initer synergy makes this especially nice for comparisons:
-  implement cmp once, the initer auto-generates eq, neq, lt, gt, lte, gte,
-  and operator desugaring gives you <, <=, >, >=, ==, != for free. If you
-  override eq with a faster implementation, neq (and !=) automatically
-  benefits since neq is generated as a.eq(b).not().
-
-*** DONE Phase 1: Comparison operators
-   < <= > >= == !=
-   All same precedence, binary, no chaining ambiguity.
-   Desugars: a < b → a.lt(b), a != b → a.neq(b), etc.
-
-*** DONE Phase 2: Arithmetic operators
-   + - * / %
-   Introduces real precedence: * / % bind tighter than + -.
-   Desugars: a + b * c → a.add(b.mul(c)).
-   Requires grouping parentheses support.
-
-   Also: ~++~ / ~--~ as unary sugar for inc/dec (methods added in #34 Phase 2).
-   ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
-   ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
-
-*** Implementation
-   Restructured parser.til with recursive descent precedence climbing:
-   - parse_primary: literals, identifiers, calls, field access, grouping parens
-   - parse_multiplicative: * / % (highest binary precedence)
-   - parse_additive: + - (medium precedence)
-   - parse_comparison: == != < <= > >= (lowest binary precedence)
-   - parse_expression: comparison + range (..) handling
-
-   Added Percent token to lexer for % (modulo) operator.
-   Added grouping parentheses (expr) in expression context.
-   Added LParen and Minus as valid statement starts.
-   Negative literals (-N from #68) interact correctly: unary -N in
-   parse_primary has priority over binary - in parse_additive.
-
-   All operators desugar to method calls via make_binop_call helper.
-   No changes needed downstream — typer, interpreter, builder all work
-   transparently since they only see FCall + FieldAccess nodes.
-
-   Tests: 5 new test functions in operators.til covering arithmetic,
-   comparison, precedence, variables, and mixed operator/method usage.
 
 ** OPEN #10 REPL: interactive read-eval-print loop
   Add a `bin/ctil repl` command (or just `bin/ctil` with no args) that starts
