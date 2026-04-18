@@ -109,7 +109,7 @@
     replaced with ~OwnType~ variables
   - DONE ~FCallData.is_proc~: removed (always false, never read)
   - DONE ~TypeBinding.is_proc: I32~ -> ~func_type: FuncType~ with ~FuncType.None~
-  - DONE ~FCallData.fn_sig~: removed (duplicated ~Expr.fn_sig~, always set in pairs)
+  - DONE ~Expr.fn_sig~ moved to ~FCallData.fn_sig~ (single source of truth)
   - DONE Expr: ~is_ns_field~ removed (look up ~Declaration.is_namespace~ instead)
   - DONE Expr: ~field_own_type~ removed (look up ~Declaration.own_type~ instead)
   - DONE Expr: ~save_old_delete~ moved to ~AssignData~ payload
