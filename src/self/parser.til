@@ -445,14 +445,13 @@ parse_primary := proc(mut p: Parser) returns Expr {
         e = Expr.new(NodeType.LiteralNum(t.text.clone()), t_line, t_col, p.path)
         e_set = true
     }
-    // Negative number: -N desugars to 0.sub(N)
+    // Unary minus: -N (literal) desugars to 0.sub(N), -expr desugars to expr.neg()
     if e_set.not().and(t.type.eq(TokenType.Minus)) {
         if p.pos.add(1).lt(p.tokens.len()) {
             ref next_tok : Token = p.tokens.get(p.pos.add(1))
             if next_tok.type.eq(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
-                // Build: 0.sub(N)
                 mut zero := Expr.new(NodeType.LiteralNum("0".clone()), t_line, t_col, p.path)
                 mut sub_access := Expr.new(NodeType.FieldAccess("sub".clone()), t_line, t_col, p.path)
                 sub_access.add_child(own zero)
@@ -461,6 +460,15 @@ parse_primary := proc(mut p: Parser) returns Expr {
                 mut num_arg := Expr.new(NodeType.LiteralNum(num_tok.text.clone()), t_line, t_col, p.path)
                 sub_call.add_child(own num_arg)
                 e = sub_call
+                e_set = true
+            } else {
+                advance(p) // consume '-'
+                mut operand := parse_primary(p)
+                mut neg_access := Expr.new(NodeType.FieldAccess("neg".clone()), t_line, t_col, p.path)
+                neg_access.add_child(own operand)
+                mut neg_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col, p.path)
+                neg_call.add_child(own neg_access)
+                e = neg_call
                 e_set = true
             }
         }
@@ -688,9 +696,48 @@ parse_comparison := proc(mut p: Parser) returns Expr {
     return e
 }
 
-// parse_expression: top-level expression (comparison + range)
-parse_expression := proc(mut p: Parser) returns Expr {
+// parse_bitand: & (below comparison)
+parse_bitand := proc(mut p: Parser) returns Expr {
     mut e := parse_comparison(p)
+    while check(p, TokenType.Ampersand) {
+        op_line := peek_line(p)
+        op_col := peek_col(p)
+        advance(p)
+        mut rhs := parse_comparison(p)
+        e = make_binop_call(e, "and", op_line, op_col, p.path, rhs)
+    }
+    return e
+}
+
+// parse_bitxor: ^ (below bitand)
+parse_bitxor := proc(mut p: Parser) returns Expr {
+    mut e := parse_bitand(p)
+    while check(p, TokenType.Caret) {
+        op_line := peek_line(p)
+        op_col := peek_col(p)
+        advance(p)
+        mut rhs := parse_bitand(p)
+        e = make_binop_call(e, "xor", op_line, op_col, p.path, rhs)
+    }
+    return e
+}
+
+// parse_bitor: | (below bitxor)
+parse_bitor := proc(mut p: Parser) returns Expr {
+    mut e := parse_bitxor(p)
+    while check(p, TokenType.Pipe) {
+        op_line := peek_line(p)
+        op_col := peek_col(p)
+        advance(p)
+        mut rhs := parse_bitxor(p)
+        e = make_binop_call(e, "or", op_line, op_col, p.path, rhs)
+    }
+    return e
+}
+
+// parse_expression: top-level expression (bitor + range)
+parse_expression := proc(mut p: Parser) returns Expr {
+    mut e := parse_bitor(p)
     // Range expression: e..rhs → Range.new(e, rhs)
     if check(p, TokenType.DotDot) {
         dt_line := peek_line(p)

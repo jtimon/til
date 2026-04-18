@@ -16,6 +16,9 @@
 *** Star
 *** Slash
 *** Percent
+*** Ampersand
+*** Pipe
+*** Caret
 *** Dot
 *** DotDot
 *** DotDotDot

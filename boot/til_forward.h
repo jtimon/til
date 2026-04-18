@@ -102,6 +102,9 @@ typedef enum {
     TokenType_TAG_Star,
     TokenType_TAG_Slash,
     TokenType_TAG_Percent,
+    TokenType_TAG_Ampersand,
+    TokenType_TAG_Pipe,
+    TokenType_TAG_Caret,
     TokenType_TAG_Dot,
     TokenType_TAG_DotDot,
     TokenType_TAG_DotDotDot,
@@ -855,6 +858,9 @@ Expr * parse_primary(Parser * p);
 Expr * parse_multiplicative(Parser * p);
 Expr * parse_additive(Parser * p);
 Expr * parse_comparison(Parser * p);
+Expr * parse_bitand(Parser * p);
+Expr * parse_bitxor(Parser * p);
+Expr * parse_bitor(Parser * p);
 Expr * parse_expression(Parser * p);
 Expr * parse_statement_ident(Parser * p, Bool is_mut, OwnType own_type);
 Expr * parse_statement(Parser * p);
@@ -1406,6 +1412,9 @@ TokenType *TokenType_Plus();
 TokenType *TokenType_Star();
 TokenType *TokenType_Slash();
 TokenType *TokenType_Percent();
+TokenType *TokenType_Ampersand();
+TokenType *TokenType_Pipe();
+TokenType *TokenType_Caret();
 TokenType *TokenType_Dot();
 TokenType *TokenType_DotDot();
 TokenType *TokenType_DotDotDot();

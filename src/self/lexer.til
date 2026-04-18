@@ -13,6 +13,7 @@ TokenType := enum {
     Comma, Colon,
     Question, Bang,
     Minus, Plus, Star, Slash, Percent,
+    Ampersand, Pipe, Caret,
 
     // One or two character
     Dot, DotDot, DotDotDot,
@@ -93,6 +94,9 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.Star: return "*"
     case TokenType.Slash: return "/"
     case TokenType.Percent: return "%"
+    case TokenType.Ampersand: return "&"
+    case TokenType.Pipe: return "|"
+    case TokenType.Caret: return "^"
     case TokenType.Dot: return "."
     case TokenType.DotDot: return ".."
     case TokenType.DotDotDot: return "..."
@@ -406,6 +410,9 @@ tokenize := proc(src: Str, path: Str) returns Vec {
         case '*': single = TokenType.Star
         case '/': single = TokenType.Slash
         case '%': single = TokenType.Percent
+        case '&': single = TokenType.Ampersand
+        case '|': single = TokenType.Pipe
+        case '^': single = TokenType.Caret
         case '=': single = TokenType.Eq
         case '<': single = TokenType.Lt
         case '>': single = TokenType.Gt
