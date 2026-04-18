@@ -205,7 +205,7 @@ Expr := struct {
     push_child_clone := proc(mut self: Expr, child: Expr) {
         self.children.push(own child.clone())
     }
-    take_children := proc(mut self: Expr, own other: Expr) {
+    take_children := proc(mut self: Expr, mut other: Expr) {
         // Append other's children into self via raw memcpy (no cloning).
         // Zeroes other's count so it no longer owns the moved items.
         if other.children.count.eq(0) { return }

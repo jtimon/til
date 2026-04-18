@@ -305,7 +305,7 @@ main := proc(args: ..Str) {
     if skip_core.not() {
         mut core_imports_expr := Expr.new(NodeType.Body, 0, 0, "")
         core_imports_expr.children = core_import_decls
-        core_ast.take_children(own core_imports_expr)
+        core_ast.take_children(core_imports_expr)
     }
 
     // Build user program: mode imports, then user imports, then parsed user code
@@ -319,10 +319,10 @@ main := proc(args: ..Str) {
         mode_mode = normalize_mode_name(mode_mode)
         ref mode_mode_def : Mode = require_mode(mode_til_path, mode_mode)
         context_register_path_mode(ctx, mode_til_path, mode_mode_def)
-        ast.take_children(own mode_ast)
+        ast.take_children(mode_ast)
     }
     ast.children.append(own import_decls)
-    ast.take_children(own user_ast)
+    ast.take_children(user_ast)
 
     // Extract link() and link_c() info (directives stripped by typer)
     mut link_flags := ""
