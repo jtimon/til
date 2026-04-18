@@ -101,6 +101,7 @@ typedef enum {
     TokenType_TAG_Plus,
     TokenType_TAG_Star,
     TokenType_TAG_Slash,
+    TokenType_TAG_Percent,
     TokenType_TAG_Dot,
     TokenType_TAG_DotDot,
     TokenType_TAG_DotDotDot,
@@ -842,6 +843,11 @@ Expr * parse_func_def(Parser * p);
 Expr * parse_struct_def(Parser * p, Str * c_tag);
 Expr * parse_enum_def(Parser * p);
 Expr * parse_call(Parser * p, Str * name, U32 call_line, U32 call_col);
+Expr * make_binop_call(Expr * lhs, Str * method, U32 op_line, U32 op_col, Str * path, Expr * rhs);
+Expr * parse_primary(Parser * p);
+Expr * parse_multiplicative(Parser * p);
+Expr * parse_additive(Parser * p);
+Expr * parse_comparison(Parser * p);
 Expr * parse_expression(Parser * p);
 Expr * parse_statement_ident(Parser * p, Bool is_mut, OwnType own_type);
 Expr * parse_statement(Parser * p);
@@ -1386,6 +1392,7 @@ TokenType *TokenType_Minus();
 TokenType *TokenType_Plus();
 TokenType *TokenType_Star();
 TokenType *TokenType_Slash();
+TokenType *TokenType_Percent();
 TokenType *TokenType_Dot();
 TokenType *TokenType_DotDot();
 TokenType *TokenType_DotDotDot();

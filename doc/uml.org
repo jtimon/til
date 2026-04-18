@@ -15,6 +15,7 @@
 *** Plus
 *** Star
 *** Slash
+*** Percent
 *** Dot
 *** DotDot
 *** DotDotDot
