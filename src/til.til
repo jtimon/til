@@ -82,10 +82,8 @@ forward_header_path := func(path: Str) returns Str {
 
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
 // Matching nodes are removed from the body.
-extract_imports := proc(mut body: Expr) returns Vec {
+extract_imports := func(body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
-    // First pass: check if there are any imports
-    mut has_imports := false
     for i in 0..Expr.child_count(body) {
         ref stmt : Expr = Expr.child(body, i)
         if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
@@ -93,35 +91,12 @@ extract_imports := proc(mut body: Expr) returns Vec {
                 .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
                 ref _c0id : Str = get_payload(Expr.child(stmt, 0).data)
                 if _c0id.eq("import") {
-                    has_imports = true
+                    ref path : Str = get_payload(Expr.child(stmt, 1).data)
+                    paths.push(own path.clone())
                 }
             }
         }
     }
-    if has_imports.not() { return paths }
-
-    // Second pass: collect import paths and non-import stmts
-    kept := Vec.new("Expr", Expr.size())
-    for i in 0..Expr.child_count(body) {
-        ref stmt : Expr = Expr.child(body, i)
-        mut is_import := false
-        if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
-            if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
-                .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
-                ref _c0id : Str = get_payload(Expr.child(stmt, 0).data)
-                if _c0id.eq("import") {
-                    is_import = true
-                }
-            }
-        }
-        if is_import {
-            ref path : Str = get_payload(Expr.child(stmt, 1).data)
-            paths.push(own path.clone())
-        } else {
-            kept.push(own Expr.clone(stmt))
-        }
-    }
-    body.swap_children(own kept)
     return paths
 }
 
@@ -349,53 +324,41 @@ main := proc(args: ..Str) {
     ast.children.append(own import_decls)
     ast.take_children(own user_ast)
 
-    // Extract link() and link_c() directives
+    // Extract link() and link_c() info (directives stripped by typer)
     mut link_flags := ""
     mut include_flags := ""
     mut link_c_paths := ""
-    kept := Vec.new("Expr", Expr.size())
     for i in 0..Expr.child_count(ast) {
         ref stmt : Expr = Expr.child(ast, i)
-        mut is_directive := false
         if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
             if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
                 .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
-                is_directive = true
-            }
-        }
-        if is_directive {
-            ref fname : Str = get_payload(Expr.child(stmt, 0).data)
-            ref arg : Str = get_payload(Expr.child(stmt, 1).data)
-            if fname.eq("link") {
-                if arg.find("/").gte(0) {
-                    // Bundled library: path to .a file
-                    link_flags = link_flags.concat(" ").concat(arg)
-                    // Derive include dir: go up from .libs/ to parent, append /include
-                    last_slash := arg.rfind("/")
-                    if last_slash.gte(0) {
-                        parent_dir := arg.substr(0, last_slash.to_usize())
-                        parent_slash := parent_dir.rfind("/")
-                        if parent_slash.gte(0) {
-                            inc_dir := parent_dir.substr(0, parent_slash.to_usize()).concat("/include")
-                            include_flags = include_flags.concat(" -I").concat(inc_dir)
+                ref fname : Str = get_payload(Expr.child(stmt, 0).data)
+                ref arg : Str = get_payload(Expr.child(stmt, 1).data)
+                if fname.eq("link") {
+                    if arg.find("/").gte(0) {
+                        link_flags = link_flags.concat(" ").concat(arg)
+                        last_slash := arg.rfind("/")
+                        if last_slash.gte(0) {
+                            parent_dir := arg.substr(0, last_slash.to_usize())
+                            parent_slash := parent_dir.rfind("/")
+                            if parent_slash.gte(0) {
+                                inc_dir := parent_dir.substr(0, parent_slash.to_usize()).concat("/include")
+                                include_flags = include_flags.concat(" -I").concat(inc_dir)
+                            }
                         }
+                    } else {
+                        link_flags = link_flags.concat(" -l").concat(arg)
                     }
-                } else {
-                    link_flags = link_flags.concat(" -l").concat(arg)
+                } else if fname.eq("link_c") {
+                    if link_c_paths.len().gt(0) {
+                        link_c_paths = link_c_paths.concat(" ")
+                    }
+                    link_c_paths = link_c_paths.concat(arg)
                 }
-            } else if fname.eq("link_c") {
-                if link_c_paths.len().gt(0) {
-                    link_c_paths = link_c_paths.concat(" ")
-                }
-                link_c_paths = link_c_paths.concat(arg)
-            } else {
-                kept.push(own Expr.clone(stmt))
             }
-        } else {
-            kept.push(own Expr.clone(stmt))
         }
     }
-    ast.swap_children(own kept)
 
     // Init phase: pre-scan declarations (core first, then user)
     ctx.scope = TypeScope()

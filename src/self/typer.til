@@ -2349,8 +2349,17 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     return true
 }
 
+is_compile_directive := func(e: Expr) returns shallow Bool {
+    if is_variant(e.data, NodeType.FCall).not() { return false }
+    if e.child_count().lt(1) { return false }
+    if is_variant(e.child(0).data, NodeType.Ident).not() { return false }
+    ref name : Str = get_payload(e.child(0).data)
+    return name.eq("link").or(name.eq("link_c")).or(name.eq("import"))
+}
+
 infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
     ref mut stmt : Expr = body.child(i)
+    if is_compile_directive(stmt) { stmt.til_type = TilType.None; return }
     switch stmt.data {
     case NodeType.Decl:
         infer_decl_stmt(scope, stmt, in_func, in_type_body, ctx)
@@ -2403,10 +2412,64 @@ reregister_scope_defs := proc(body: Expr, scope: TypeScope) {
             if is_null(rb).not() {
                 if is_null(rb.struct_def).not().and(
                     is_variant(rstmt.child(0).data, NodeType.StructDef).or(is_variant(rstmt.child(0).data, NodeType.EnumDef))) {
+                    ref old_sd : Expr = rb.struct_def
                     rb.struct_def = rstmt.child(0)
+                    for bi in 0..scope.bindings.count {
+                        ref mut b : TypeBinding = ptr_add(scope.bindings.val_data, bi.mul(scope.bindings.val_size))
+                        if ptr_eq(b, rb).not().and(ptr_eq(b.struct_def, old_sd)) {
+                            b.struct_def = rstmt.child(0)
+                        }
+                    }
                 }
                 if is_null(rb.func_def).not().and(is_variant(rstmt.child(0).data, NodeType.FuncDef)) {
+                    ref old_fd : Expr = rb.func_def
                     rb.func_def = rstmt.child(0)
+                    for bi in 0..scope.bindings.count {
+                        ref mut b : TypeBinding = ptr_add(scope.bindings.val_data, bi.mul(scope.bindings.val_size))
+                        if ptr_eq(b, rb).not().and(ptr_eq(b.func_def, old_fd)) {
+                            b.func_def = rstmt.child(0)
+                        }
+                    }
+                }
+                if is_null(rb.alias_target).not().and(is_variant(rstmt.child(0).data, NodeType.Ident)) {
+                    ref old_at : Str = rb.alias_target
+                    rb.alias_target = get_payload(rstmt.child(0).data)
+                    for bi in 0..scope.bindings.count {
+                        ref mut b : TypeBinding = ptr_add(scope.bindings.val_data, bi.mul(scope.bindings.val_size))
+                        if ptr_eq(b, rb).not().and(ptr_eq(b.alias_target, old_at)) {
+                            b.alias_target = get_payload(rstmt.child(0).data)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    reregister_field_struct_defs(body, scope)
+}
+
+reregister_field_struct_defs := proc(body: Expr, scope: TypeScope) {
+    for ri in 0..body.child_count() {
+        ref rstmt : Expr = body.child(ri)
+        if is_variant(rstmt.data, NodeType.Decl).and(rstmt.child_count().gt(0)) {
+            ref sdef : Expr = rstmt.child(0)
+            if is_variant(sdef.data, NodeType.StructDef).or(is_variant(sdef.data, NodeType.EnumDef)) {
+                if sdef.child_count().gt(0) {
+                    ref sbody : Expr = sdef.child(0)
+                    for fi in 0..sbody.child_count() {
+                        ref field : Expr = sbody.child(fi)
+                        if is_variant(field.data, NodeType.Decl) {
+                            ref mut fd : Declaration = get_payload(field.data)
+                            if is_null(fd.field_struct_def).not() {
+                                ref ftype_name : Str = fd.explicit_type
+                                if ftype_name.len().gt(0) {
+                                    ref new_fsd : Expr = scope.get_struct(ftype_name)
+                                    if is_null(new_fsd).not() {
+                                        fd.field_struct_def = new_fsd
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -3161,6 +3224,7 @@ desugar_set_literals := proc(mut body: Expr, mut scope: TypeScope) {
         }
     }
     body.children = new_ch
+    reregister_scope_defs(body, scope)
 }
 
 desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
@@ -3186,6 +3250,7 @@ desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
         }
     }
     body.children = new_ch
+    reregister_scope_defs(body, scope)
 }
 
 hoist_param_swap_assign := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
@@ -3391,6 +3456,7 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..body.child_count() {
         ref stmt_in_body : Expr = body.child(i)
+        if is_compile_directive(stmt_in_body) { continue }
         mut stmt := stmt_in_body.clone()
         mut hoisted := Vec.new("Expr", Expr.size())
 
@@ -3417,6 +3483,7 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
     }
 
     body.children = new_ch
+    reregister_scope_defs(body, scope)
 }
 
 insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
@@ -3438,6 +3505,7 @@ insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
+        if is_compile_directive(stmt) { continue }
         if is_variant(stmt.data, NodeType.FieldAssign) {
             fot := fa_own_type(stmt, scope)
             if field_assign_needs_delete(stmt, scope) {
@@ -3451,6 +3519,7 @@ insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
         new_ch.push(own stmt.clone())
     }
     body.children = new_ch
+    reregister_scope_defs(body, scope)
 }
 
 rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
@@ -3565,6 +3634,7 @@ desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
         new_ch.push(own stmt.clone())
     }
     body.children = new_ch
+    reregister_scope_defs(body, scope)
 }
 
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
@@ -3685,6 +3755,7 @@ desugar_kwargs_calls := proc(mut body: Expr, mut scope: TypeScope) {
         new_ch.push(own stmt.clone())
     }
     body.children = new_ch
+    reregister_scope_defs(body, scope)
 }
 
 rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
@@ -3958,6 +4029,7 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
         }
         for j in scan_from..body.child_count() {
             ref stmt : Expr = body.child(j)
+            if is_compile_directive(stmt) { continue }
             if expr_uses_var(stmt, b.name) {
                 last_use = j.to_i64().to_i32()
             }
@@ -3971,6 +4043,7 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
         mut skip_scope_delete := is_program_scope.and(decl_idx.gte(0))
         if skip_scope_delete.not() {
             for j in scan_from..body.child_count() {
+                if is_compile_directive(body.child(j)) { continue }
                 if expr_used_in_nested_func(body.child(j), b.name) {
                     skip_scope_delete = true
                     break
@@ -4079,6 +4152,7 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
+        if is_compile_directive(stmt) { continue }
         if is_variant(stmt.data, NodeType.If) {
             for c in 1..stmt.child_count() {
                 insert_exit_deletes(stmt.child(c), live, n_live, return_only)
@@ -4231,6 +4305,7 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
+        if is_compile_directive(stmt) { continue }
         insert_exit_deletes_into_stmt(stmt, body, locals, n_locals, i.to_i64().to_u32(), new_ch)
         insert_nested_exit_deletes(stmt, locals, n_locals, i.to_i64().to_u32())
         insert_assign_delete(stmt, locals, n_locals, new_ch)
@@ -4239,6 +4314,7 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     }
 
     body.children = new_ch
+    reregister_scope_defs(body, scope)
     free(own locals)
 }
 

@@ -777,7 +777,6 @@ void Expr_todo_error(Expr * self, Str * msg);
 void Expr_lang_error(Expr * self, Str * msg);
 void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
-void Expr_swap_children(Expr * self, Vec * new_children);
 void Expr_take_children(Expr * self, Expr * other);
 Expr * Expr_child(Expr * parent, U32 * i);
 U32 Expr_child_count(Expr * parent);
@@ -978,8 +977,10 @@ Expr * make_field_access_call1(Expr * base, Str * field, Expr * arg, U32 line, U
 Expr * make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * path, Str * elem_type);
 Bool desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Bool desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
+Bool is_compile_directive(Expr * e);
 void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void reregister_scope_defs(Expr * body, TypeScope * scope);
+void reregister_field_struct_defs(Expr * body, TypeScope * scope);
 void infer_body(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void infer_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 Bool is_numeric_type(TilType * t);
