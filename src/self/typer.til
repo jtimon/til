@@ -3442,14 +3442,13 @@ hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Type
     }
 }
 
-hoist_stmt_fcall := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) returns Expr {
+hoist_stmt_fcall := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     hoist_expr(stmt, hoisted, scope)
     if is_variant(stmt.til_type, TilType.None).not() {
         hoist_to_temp(stmt, hoisted, scope)
         popped : Expr = hoisted.pop()
         stmt = popped
     }
-    return stmt
 }
 
 hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
@@ -3464,7 +3463,7 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
         case NodeType.Decl:
             hoist_decl_rhs(stmt, hoisted, scope)
         case NodeType.FCall:
-            stmt = hoist_stmt_fcall(stmt, hoisted, scope)
+            hoist_stmt_fcall(stmt, hoisted, scope)
         case NodeType.Return:
             hoist_return_expr(stmt, hoisted, scope)
         case NodeType.Assign:

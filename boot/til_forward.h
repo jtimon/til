@@ -1022,7 +1022,7 @@ void hoist_if_cond(Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_return_expr(Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_assign_rhs(Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_field_assign_rhs(Expr * stmt, Vec * hoisted, TypeScope * scope);
-Expr * hoist_stmt_fcall(Expr * stmt, Vec * hoisted, TypeScope * scope);
+void hoist_stmt_fcall(Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_fcall_args(Expr * body, TypeScope * scope);
 void insert_field_deletes(Expr * body, TypeScope * scope);
 void rewrite_variadic_fcall_args(Expr * fcall, Str * va_name);
