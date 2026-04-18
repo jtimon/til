@@ -200,6 +200,13 @@ typedef struct Context Context;
 typedef struct CollectionInfo CollectionInfo;
 typedef struct DynCallInfo DynCallInfo;
 
+typedef void * (*CloneFn)(void *);
+typedef void (*DeleteFn)(void *, Bool *);
+typedef I64 * (*CmpFn)(void *, void *);
+typedef void (*IncFn)(void *);
+typedef U32 * (*DistanceFn)(void *, void *);
+typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
+
 typedef struct Str {
     U8 *c_str;
     U32 count;
@@ -1216,7 +1223,7 @@ Bool h_cfile_close(Scope * s, Expr * e, Value * r);
 Bool h_cfile_write_str(Scope * s, Expr * e, Value * r);
 Bool h_ptr_add(Scope * s, Expr * e, Value * r);
 Bool h_cfile_read_all(Scope * s, Expr * e, Value * r);
-void reg_dispatch(Str * name, DispatchFn * handler);
+void reg_dispatch(Str * name, DispatchFn handler);
 void dispatch_init(void);
 Bool ext_dispatch_builtin(Str * name, Scope * scope, Expr * e, Value * result);
 Bool h_dyn_call(Scope * s, Expr * e, Value * r);
@@ -1317,6 +1324,8 @@ void emit_enum_def(File * f, Str * name, Expr * enum_def);
 void emit_enum_struct_body(File * f, Str * ename, Expr * enum_def);
 void topo_emit_struct_enum_defs(File * f, Expr * prog, Set * emitted);
 void emit_func_forward_decl(File * f, Str * name, Expr * fdef);
+void emit_funcsig_typedef(File * f, Str * name, Expr * fdef);
+void emit_funcsig_typedefs(File * f, Expr * core_program, Expr * program);
 void emit_header_forward_decls(File * f, Expr * core_program, Expr * program);
 void emit_header_defs_and_funcs(File * f, Expr * core_program, Expr * program);
 void emit_header_global_decls(File * f, Expr * core_program, Expr * program);

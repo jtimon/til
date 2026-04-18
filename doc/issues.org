@@ -42,19 +42,6 @@
   - ~ref mut prog~ assignment leaks (clones instead of pointer copy)
   - Unnecessary helper procs (~register_lookups_prog~, ~register_funcsig_prog~,
     ~emit_global_inits_prog~) that should be inlined once clone leak is fixed
-** OPEN #133 FuncSig types not emitted as C function-pointer typedefs
-  A FuncSig type definition like ~DispatchFn := func(Scope, Expr, Value) returns shallow Bool~
-  generates a forward declaration ~Bool DispatchFn(Scope *, Expr *, Value *);~ in the .c file
-  instead of a typedef ~typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);~.
-  The declaration is also not emitted into the .h header, so C code in other
-  translation units cannot use the type.
-  Expected: ~typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);~ in the .h header
-  so that C code can use DispatchFn as a function-pointer type for variables,
-  sizeof, and casts.
-  Blocks self-hosting: dispatch.c has ~typedef Bool (*DispatchFn)(Scope *, Expr *, Value *)~
-  which is used for the dispatch map values and local variables.
-
-
 ** OPEN #130 AST / ~Expr~ representation cleanup
   The current AST shape is confusing and duplicates state in ways that make
   parser and ownership bugs harder to reason about.

@@ -643,7 +643,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                             e.struct_name = cb_fdef.return_type.clone()
                         }
                     } else {
-                        e.til_type = TilType.Dynamic
+                        e.til_type = TilType.None
                     }
                 } else {
                     e.til_type = TilType.Dynamic

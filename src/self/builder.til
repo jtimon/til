@@ -336,6 +336,13 @@ c_type_name := func(shallow t: TilType, struct_name: Str) returns Str {
             }
         }
     }
+    if t.eq(TilType.FuncPtr) {
+        if is_null(struct_name).not() {
+            if struct_name.len().gt(0) {
+                if is_funcsig_type(struct_name) { return struct_name.clone() }
+            }
+        }
+    }
     if t.eq(TilType.Dynamic) { return "void" }
     return til_type_to_c(t)
 }
@@ -358,7 +365,7 @@ type_name_to_c := func(name: Str) returns Str {
     if name.eq("Dynamic") { return "void *" }
     if name.eq("Fn") { return "void *" }
     if has_funcsig_names {
-        if funcsig_names.has(name) { return "void *" }
+        if funcsig_names.has(name) { return name.clone() }
     }
     return name.concat(" *")
 }
@@ -376,7 +383,7 @@ type_name_to_c_value := func(name: Str) returns Str {
     if name.eq("Dynamic") { return "void *" }
     if name.eq("Fn") { return "void *" }
     if has_funcsig_names {
-        if funcsig_names.has(name) { return "void *" }
+        if funcsig_names.has(name) { return name.clone() }
     }
     return name.clone()
 }
@@ -693,7 +700,16 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
     if e.child_count().eq(0) { return }
     ref rhs : Expr = e.child(0)
     if e.til_type.eq(TilType.FuncPtr).and(dd.own_type.eq(OwnType.Ref).not()).and(is_variant(rhs.data, NodeType.FuncDef).not()) {
-        f.write_str("void *"); f.write_str(dd.name); f.write_str(" = ")
+        mut ct := "void *"
+        mut is_typedef := false
+        if dd.explicit_type.len().gt(0) {
+            if is_funcsig_type(dd.explicit_type) {
+                ct = dd.explicit_type.clone()
+                is_typedef = true
+            }
+        }
+        if is_typedef { f.write_str(ct); f.write_str(" "); f.write_str(dd.name); f.write_str(" = ") }
+        else { f.write_str(ct); f.write_str(dd.name); f.write_str(" = ") }
         emit_expr(f, rhs, depth); f.write_str(";\n")
         emit_indent(f, depth); f.write_str("(void)"); f.write_str(dd.name); f.write_str(";\n")
     } else if is_variant(rhs.data, NodeType.FuncDef) {
@@ -1032,7 +1048,9 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr, shallow depth: I32)
     ref sfd : FunctionDef = get_payload(sig.data)
     ret_shallow := is_variant(sfd.return_own_type, OwnType.Shallow)
     mut ret_c := "void *"
-    if e.til_type.eq(TilType.None).not().and(e.til_type.eq(TilType.Unknown).not())
+    if sfd.return_type.len().eq(0) {
+        ret_c = "void"
+    } else if e.til_type.eq(TilType.None).not().and(e.til_type.eq(TilType.Unknown).not())
         .and(e.til_type.eq(TilType.Dynamic).not()) {
         ret_c = til_type_to_c(e.til_type)
         if e.til_type.eq(TilType.Struct).or(e.til_type.eq(TilType.Enum)) {
@@ -1111,7 +1129,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 ref sig : Expr = fcall_fn_sig(e)
                 if is_null(sig).not() {
                     emit_fcall_funcptr_cast(f, e, sig, depth)
-                    f.write_str("))(")
+                    f.write_str("))(void *)(")
                     emit_expr(f, callee, depth)
                     f.write_str("))(")
                     emit_fcall_funcptr_args(f, e, sig, depth)
@@ -1212,11 +1230,11 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             ref sig : Expr = fcall_fn_sig(e)
             emit_fcall_funcptr_cast(f, e, sig, depth)
             if is_ref_local(name) {
-                f.write_str("))(*")
+                f.write_str("))(void *)(*")
                 f.write_str(name)
                 f.write_str("))(")
             } else {
-                f.write_str("))")
+                f.write_str("))(void *)")
                 f.write_str(name)
                 f.write_str(")(")
             }
@@ -2068,6 +2086,46 @@ emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr) {
     f.write_str(");\n")
 }
 
+emit_funcsig_typedef := proc(f: File, name: Str, fdef: Expr) {
+    ref fd : FunctionDef = get_payload(fdef.data)
+    mut ret := "void"
+    if fd.return_type.len().gt(0) {
+        if is_variant(fd.return_own_type, OwnType.Shallow) { ret = type_name_to_c_value(fd.return_type) }
+        else { ret = type_name_to_c(fd.return_type) }
+    }
+    f.write_str("typedef "); f.write_str(ret); f.write_str(" (*"); f.write_str(name); f.write_str(")(")
+    emit_param_list(f, fdef, false)
+    f.write_str(");\n")
+}
+
+emit_funcsig_typedefs := proc(f: File, core_program: Expr, program: Expr) {
+    for prog_idx in 0..2 {
+        ref mut prog : Expr = NULL
+        if prog_idx.eq(0) { prog = core_program } else { prog = program }
+        if is_null(prog) { continue }
+        for i in 0..prog.child_count() {
+            ref stmt : Expr = prog.child(i)
+            if is_variant(stmt.data, NodeType.Decl).not() { continue }
+            if stmt.child_count().eq(0) { continue }
+            ref dd : Declaration = get_payload(stmt.data)
+            ref rhs : Expr = stmt.child(0)
+            if is_variant(rhs.data, NodeType.FuncDef) {
+                if rhs.child_count().eq(0) {
+                    emit_funcsig_typedef(f, dd.name, rhs)
+                }
+            } else if is_variant(rhs.data, NodeType.Ident) {
+                if stmt.til_type.eq(TilType.None) {
+                    ref rhs_name : Str = get_payload(rhs.data)
+                    if is_funcsig_type(rhs_name) {
+                        f.write_str("typedef "); f.write_str(rhs_name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    }
+                }
+            }
+        }
+    }
+    f.write_str("\n")
+}
+
 emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
     for prog_idx in 0..2 {
         ref mut prog : Expr = NULL
@@ -2228,9 +2286,11 @@ emit_header_global_decls := proc(f: File, core_program: Expr, program: Expr) {
 }
 
 build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str) returns shallow I32 {
+    build_register_funcsig_names(core_program, program)
     f := File.new(fwd_path, true)
     f.write_str("#pragma once\n#include \"ext.h\"\n\n")
     emit_header_forward_decls(f, core_program, program)
+    emit_funcsig_typedefs(f, core_program, program)
     emit_header_defs_and_funcs(f, core_program, program)
     emit_header_global_decls(f, core_program, program)
     f.close()
@@ -2238,27 +2298,11 @@ build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str) r
 }
 
 build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {
-    if has_funcsig_names.not() {
-        own funcsig_names.delete()
-        funcsig_names = Set.new("Str", Str.size())
-        has_funcsig_names = true
-        for i in 0..program.child_count() {
-            ref stmt : Expr = program.child(i)
-            if is_variant(stmt.data, NodeType.Decl) {
-                if stmt.child_count().gt(0) {
-                    if is_variant(stmt.child(0).data, NodeType.FuncDef) {
-                        if stmt.child(0).child_count().eq(0) {
-                            ref dd : Declaration = get_payload(stmt.data)
-                            funcsig_names.add(own dd.name.clone())
-                        }
-                    }
-                }
-            }
-        }
-    }
+    build_register_funcsig_names(core_program, program)
     f := File.new(h_path, true)
     f.write_str("#pragma once\n#include \"ext.h\"\n\n")
     emit_header_forward_decls(f, core_program, program)
+    emit_funcsig_typedefs(f, core_program, program)
     emit_header_defs_and_funcs(f, core_program, program)
     emit_header_global_decls(f, core_program, program)
     f.write_str("#include \"ext.h\"\n\n")
@@ -2647,6 +2691,7 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
 emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode: Mode) {
     f.write_str("#include \"ext.h\"\n\n")
     emit_header_forward_decls(f, core_program, program)
+    emit_funcsig_typedefs(f, core_program, program)
 
     // Topo-sort struct/enum defs
     mut emitted_mh := Set.new("Str", Str.size())
@@ -2771,6 +2816,7 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
                     emit_func_forward_decl(f, full_name, fdef)
                 }
             } else if is_variant(rhs.data, NodeType.FuncDef) {
+                if rhs.child_count().eq(0) { continue }
                 ref fd : FunctionDef = get_payload(rhs.data)
                 if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) { continue }
                 if is_null(mode).not() {

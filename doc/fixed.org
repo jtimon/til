@@ -1,5 +1,19 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #133 FuncSig types not emitted as C function-pointer typedefs
+  Named FuncSig types (e.g. ~DispatchFn := func(Scope, Expr, Value) returns shallow Bool~)
+  now emit ~typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);~ in the
+  generated .h header. The previous broken forward declaration
+  ~Bool DispatchFn(Scope *, Expr *, Value *);~ in the .c file is gone.
+  Type aliases of FuncSig types (e.g. ~Callback := BinaryOp~) emit
+  ~typedef BinaryOp Callback;~.
+  ~type_name_to_c~ now returns the typedef name for FuncSig types instead
+  of ~void *~, so parameters, struct fields, and local variables get their
+  proper function-pointer type. Calls through funcptr values route through
+  a ~(void *)~ intermediate cast to avoid GCC's incompatible function-type
+  warning. Proc calls through funcptr values are now typed None (not Dynamic)
+  so they're no longer hoisted into bogus ~void *~ temps.
+
 * FIXED #141 ext_struct: support C typedef styles for FFI interop
   Added ext_struct keyword with optional C tag argument. Supports
   anonymous (ext_struct("")), custom tag (ext_struct("_ffi_type")),
