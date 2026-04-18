@@ -43,9 +43,33 @@ children_write := proc(mut v: Vec, shallow dst: I64, shallow src: I64) {
     memcpy(ptr_add(v.data, d.mul(v.elem_size)), ptr_add(v.data, s.mul(v.elem_size)), v.elem_size)
 }
 
-// Set Vec.count directly without popping
-children_set_count := proc(mut v: Vec, shallow count: I64) {
-    v.count = count.to_usize()
+// Compact+delete: mark dropped indices in a bool buffer, delete them,
+// then compact kept elements forward.
+children_filter := proc(mut v: Vec, marks: Dynamic, shallow n: USize) {
+    // Delete marked elements and zero their bytes
+    mut i : USize = 0
+    while i.lt(n) {
+        ref mark : Bool = ptr_add(marks, i)
+        if mark {
+            v.elem_delete(ptr_add(v.data, i.mul(v.elem_size)), false)
+            memset(ptr_add(v.data, i.mul(v.elem_size)), 0, v.elem_size)
+        }
+        i = i.add(1)
+    }
+    // Compact: move kept elements forward
+    mut w : USize = 0
+    mut r : USize = 0
+    while r.lt(n) {
+        ref mark : Bool = ptr_add(marks, r)
+        if mark.not() {
+            if w.neq(r) {
+                memcpy(ptr_add(v.data, w.mul(v.elem_size)), ptr_add(v.data, r.mul(v.elem_size)), v.elem_size)
+            }
+            w = w.add(1)
+        }
+        r = r.add(1)
+    }
+    v.count = w
 }
 
 is_def := func(e: Expr) returns shallow Bool {
@@ -314,33 +338,41 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
 
     // 4. Filter top-level declarations (both core and user)
     if is_null(core_program).not() {
-        mut cw : I64 = 0
-        for i in 0..core_program.child_count() {
+        cn := core_program.child_count()
+        cm : Dynamic = malloc(cn)
+        memset(cm, 0, cn)
+        for i in 0..cn {
             ref stmt : Expr = core_program.child(i)
             if is_variant(stmt.data, NodeType.Decl) {
                 if is_def(stmt) {
                     ref d : Declaration = get_payload(stmt.data)
-                    if visited.has(d.name).not() { continue }
+                    if visited.has(d.name).not() {
+                        memset(ptr_add(cm, i), 1, 1)
+                    }
                 }
             }
-            children_write(core_program.children, cw, i.to_i64())
-            cw = cw.add(1)
         }
-        children_set_count(core_program.children, cw)
+        children_filter(core_program.children, cm, cn)
+        free(own cm)
     }
-    mut w : I64 = 0
-    for i in 0..program.child_count() {
-        ref stmt : Expr = program.child(i)
-        if is_variant(stmt.data, NodeType.Decl) {
-            if is_def(stmt) {
-                ref d : Declaration = get_payload(stmt.data)
-                if visited.has(d.name).not() { continue }
+    {
+        pn := program.child_count()
+        pm : Dynamic = malloc(pn)
+        memset(pm, 0, pn)
+        for i in 0..pn {
+            ref stmt : Expr = program.child(i)
+            if is_variant(stmt.data, NodeType.Decl) {
+                if is_def(stmt) {
+                    ref d : Declaration = get_payload(stmt.data)
+                    if visited.has(d.name).not() {
+                        memset(ptr_add(pm, i), 1, 1)
+                    }
+                }
             }
         }
-        children_write(program.children, w, i.to_i64())
-        w = w.add(1)
+        children_filter(program.children, pm, pn)
+        free(own pm)
     }
-    children_set_count(program.children, w)
 
     // 5. Filter namespace methods in kept structs (both core and user)
     if is_null(core_program).not() {
@@ -350,18 +382,21 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             if is_struct_or_enum(stmt).not() { continue }
             ref sdecl : Declaration = get_payload(stmt.data)
             ref body : Expr = stmt.child(0).child(0)
-            mut bw : I64 = 0
-            for j in 0..body.child_count() {
+            bn := body.child_count()
+            bm : Dynamic = malloc(bn)
+            memset(bm, 0, bn)
+            for j in 0..bn {
                 ref field : Expr = body.child(j)
                 ref fd : Declaration = get_payload(field.data)
                 if fd.is_namespace {
                     qn := qualified_name(sdecl.name, fd.name)
-                    if visited.has(qn).not() { continue }
+                    if visited.has(qn).not() {
+                        memset(ptr_add(bm, j), 1, 1)
+                    }
                 }
-                children_write(body.children, bw, j.to_i64())
-                bw = bw.add(1)
             }
-            children_set_count(body.children, bw)
+            children_filter(body.children, bm, bn)
+            free(own bm)
         }
     }
     for i in 0..program.child_count() {
@@ -370,18 +405,21 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         if is_struct_or_enum(stmt).not() { continue }
         ref sdecl : Declaration = get_payload(stmt.data)
         ref body : Expr = stmt.child(0).child(0)
-        mut bw : I64 = 0
-        for j in 0..body.child_count() {
+        bn := body.child_count()
+        bm : Dynamic = malloc(bn)
+        memset(bm, 0, bn)
+        for j in 0..bn {
             ref field : Expr = body.child(j)
             ref fd : Declaration = get_payload(field.data)
             if fd.is_namespace {
                 qn := qualified_name(sdecl.name, fd.name)
-                if visited.has(qn).not() { continue }
+                if visited.has(qn).not() {
+                    memset(ptr_add(bm, j), 1, 1)
+                }
             }
-            children_write(body.children, bw, j.to_i64())
-            bw = bw.add(1)
         }
-        children_set_count(body.children, bw)
+        children_filter(body.children, bm, bn)
+        free(own bm)
     }
 
     gc_free_all()

@@ -1374,7 +1374,7 @@ Str * gc_str(Str * s);
 void gc_free_all(void);
 void vec_push_str(Vec * v, Str * s);
 void children_write(Vec * v, I64 dst, I64 src);
-void children_set_count(Vec * v, I64 count);
+void children_filter(Vec * v, void * marks, U32 n);
 Bool is_def(Expr * e);
 Bool is_struct_or_enum(Expr * e);
 void push_qn(Vec * v, Str * type_name, Str * method);
