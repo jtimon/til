@@ -149,7 +149,8 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
         ref ftb : TypeBinding = get_payload(sf_ftb)
         if is_null(ftb.func_def).or(ftb.func_def.child_count().neq(0)) { continue }
         fa.til_type = TilType.FuncPtr
-        fa.fn_sig = ftb.func_def
+        ref mut _fcd1 : FCallData = get_payload(e.data)
+        _fcd1.fn_sig = ftb.func_def
         ref sig : Expr = ftb.func_def
         mut nargs : U32 = e.child_count()
         nargs = nargs.sub(1)
@@ -163,7 +164,8 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
             infer_expr(scope, e.child(ai.add(1)), in_func, ctx)
             ai = ai.add(1)
         }
-        e.fn_sig = sig.clone()
+        ref mut _fcd2 : FCallData = get_payload(e.data)
+        _fcd2.fn_sig = sig.clone()
         if sig_fdef.return_type.len().gt(0) {
             e.til_type = type_from_name(sig_fdef.return_type, scope)
             if is_variant(e.til_type, TilType.Struct).or(is_variant(e.til_type, TilType.Enum)) {
@@ -632,7 +634,8 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                 ref callee0 : Expr = e.child(0)
                 callee0.til_type = TilType.FuncPtr
                 if is_null(callee_bind.func_def).not() {
-                    e.fn_sig = callee_bind.func_def.clone()
+                    ref mut _fcd3 : FCallData = get_payload(e.data)
+                    _fcd3.fn_sig = callee_bind.func_def.clone()
                 }
                 if is_null(callee_bind.func_def).not() {
                     ref cb_fdef : FunctionDef = get_payload(callee_bind.func_def.data)
@@ -706,7 +709,8 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                         ref rsb : TypeBinding = get_payload(sf_rsb)
                         if is_null(rsb.func_def).not() {
                             if rsb.func_def.child_count().eq(0) {
-                                e.fn_sig = rsb.func_def.clone()
+                                ref mut _fcd4 : FCallData = get_payload(e.data)
+                                _fcd4.fn_sig = rsb.func_def.clone()
                             }
                         }
                     }
@@ -1670,8 +1674,11 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
             if is_null(src).not() {
                 if is_null(src.func_def).not() { decl_b.func_def = src.func_def }
             }
-        } else if is_null(rhs.fn_sig).not() {
-            decl_b.func_def = rhs.fn_sig
+        } else if is_variant(rhs.data, NodeType.FCall) {
+            ref _rfc : FCallData = get_payload(rhs.data)
+            if is_null(_rfc.fn_sig).not() {
+                decl_b.func_def = _rfc.fn_sig
+            }
         }
         if is_null(decl_b.func_def) {
             if sdecl.explicit_type.len().gt(0) {

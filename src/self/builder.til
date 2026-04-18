@@ -43,7 +43,8 @@ is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns shallow Bool {
 fcall_fn_sig := func(fcall: Expr) returns ref Expr {
     if is_null(fcall) { return NULL }
     if is_variant(fcall.data, NodeType.FCall).not() { return NULL }
-    return fcall.fn_sig
+    ref fcd : FCallData = get_payload(fcall.data)
+    return fcd.fn_sig
 }
 
 is_stack_local := func(name: Str) returns shallow Bool {

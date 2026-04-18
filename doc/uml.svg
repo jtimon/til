@@ -154,7 +154,7 @@
   <text x="328" y="1384" class="line">mut variadic_index : I32 = -1.to_i32()</text>
   <text x="328" y="1402" class="line">mut kwargs_index : I32 = -1.to_i32()</text>
   <text x="328" y="1420" class="line">mut return_own_type := OwnType.Own</text>
-  <rect x="314" y="1446" width="332" height="154" rx="10" ry="10" class="box"/>
+  <rect x="314" y="1446" width="332" height="172" rx="10" ry="10" class="box"/>
   <text x="328" y="1484" class="title">FCallData: StructDef</text>
   <text x="328" y="1502" class="line">mut variadic_index : I32 = -1.to_i32()</text>
   <text x="328" y="1520" class="line">mut variadic_count : USize = 0</text>
@@ -162,52 +162,52 @@
   <text x="328" y="1556" class="line">mut kwargs_count : USize = 0</text>
   <text x="328" y="1574" class="line">mut is_splat := false</text>
   <text x="328" y="1592" class="line">mut own_args : U64 = 0</text>
-  <rect x="314" y="1618" width="308" height="82" rx="10" ry="10" class="box"/>
-  <text x="328" y="1656" class="title">FieldDef: StructDef</text>
-  <text x="328" y="1674" class="line">mut decl := Declaration()</text>
-  <text x="328" y="1692" class="line">ref mut default_value : Expr = NULL</text>
-  <rect x="314" y="1718" width="428" height="100" rx="10" ry="10" class="box"/>
-  <text x="328" y="1756" class="title">StructDefData: StructDef</text>
-  <text x="328" y="1774" class="line">mut total_struct_size : I32 = 0</text>
-  <text x="328" y="1792" class="line">mut fields := Vec.new(&quot;FieldDef&quot;, FieldDef.size())</text>
-  <text x="328" y="1810" class="line">mut c_tag := &quot;&quot;</text>
-  <rect x="314" y="1836" width="252" height="82" rx="10" ry="10" class="box"/>
-  <text x="328" y="1874" class="title">AssignData: StructDef</text>
-  <text x="328" y="1892" class="line">mut name := &quot;&quot;</text>
-  <text x="328" y="1910" class="line">mut save_old_delete := false</text>
-  <rect x="314" y="1936" width="212" height="496" rx="10" ry="10" class="box"/>
-  <text x="328" y="1974" class="title">NodeType: EnumDef</text>
-  <text x="328" y="1992" class="line">Body</text>
-  <text x="328" y="2010" class="line">LiteralStr:Str</text>
-  <text x="328" y="2028" class="line">LiteralNum:Str</text>
-  <text x="328" y="2046" class="line">LiteralBool:Bool</text>
-  <text x="328" y="2064" class="line">LiteralNull</text>
-  <text x="328" y="2082" class="line">Ident:Str</text>
-  <text x="328" y="2100" class="line">Decl:Declaration</text>
-  <text x="328" y="2118" class="line">Assign:AssignData</text>
-  <text x="328" y="2136" class="line">FCall:FCallData</text>
-  <text x="328" y="2154" class="line">FuncDef:FunctionDef</text>
-  <text x="328" y="2172" class="line">StructDef:StructDefData</text>
-  <text x="328" y="2190" class="line">EnumDef</text>
-  <text x="328" y="2208" class="line">FieldAccess:Str</text>
-  <text x="328" y="2226" class="line">FieldAssign:Str</text>
-  <text x="328" y="2244" class="line">Return</text>
-  <text x="328" y="2262" class="line">If</text>
-  <text x="328" y="2280" class="line">While</text>
-  <text x="328" y="2298" class="line">ForIn:Str</text>
-  <text x="328" y="2316" class="line">NamedArg:Str</text>
-  <text x="328" y="2334" class="line">Break</text>
-  <text x="328" y="2352" class="line">Continue</text>
-  <text x="328" y="2370" class="line">MapLit</text>
-  <text x="328" y="2388" class="line">SetLit</text>
-  <text x="328" y="2406" class="line">Switch</text>
-  <text x="328" y="2424" class="line">Case</text>
-  <rect x="314" y="2450" width="380" height="190" rx="10" ry="10" class="box"/>
-  <text x="328" y="2488" class="title">Expr: StructDef</text>
-  <text x="328" y="2506" class="line">mut data := NodeType.Body</text>
-  <text x="328" y="2524" class="line">mut til_type := TilType.Unknown</text>
-  <text x="328" y="2542" class="line">mut struct_name := &quot;&quot;</text>
-  <text x="328" y="2560" class="line">ref mut fn_sig : Expr = NULL</text>
+  <text x="328" y="1610" class="line">ref mut fn_sig : Expr = NULL</text>
+  <rect x="314" y="1636" width="308" height="82" rx="10" ry="10" class="box"/>
+  <text x="328" y="1674" class="title">FieldDef: StructDef</text>
+  <text x="328" y="1692" class="line">mut decl := Declaration()</text>
+  <text x="328" y="1710" class="line">ref mut default_value : Expr = NULL</text>
+  <rect x="314" y="1736" width="428" height="100" rx="10" ry="10" class="box"/>
+  <text x="328" y="1774" class="title">StructDefData: StructDef</text>
+  <text x="328" y="1792" class="line">mut total_struct_size : I32 = 0</text>
+  <text x="328" y="1810" class="line">mut fields := Vec.new(&quot;FieldDef&quot;, FieldDef.size())</text>
+  <text x="328" y="1828" class="line">mut c_tag := &quot;&quot;</text>
+  <rect x="314" y="1854" width="252" height="82" rx="10" ry="10" class="box"/>
+  <text x="328" y="1892" class="title">AssignData: StructDef</text>
+  <text x="328" y="1910" class="line">mut name := &quot;&quot;</text>
+  <text x="328" y="1928" class="line">mut save_old_delete := false</text>
+  <rect x="314" y="1954" width="212" height="496" rx="10" ry="10" class="box"/>
+  <text x="328" y="1992" class="title">NodeType: EnumDef</text>
+  <text x="328" y="2010" class="line">Body</text>
+  <text x="328" y="2028" class="line">LiteralStr:Str</text>
+  <text x="328" y="2046" class="line">LiteralNum:Str</text>
+  <text x="328" y="2064" class="line">LiteralBool:Bool</text>
+  <text x="328" y="2082" class="line">LiteralNull</text>
+  <text x="328" y="2100" class="line">Ident:Str</text>
+  <text x="328" y="2118" class="line">Decl:Declaration</text>
+  <text x="328" y="2136" class="line">Assign:AssignData</text>
+  <text x="328" y="2154" class="line">FCall:FCallData</text>
+  <text x="328" y="2172" class="line">FuncDef:FunctionDef</text>
+  <text x="328" y="2190" class="line">StructDef:StructDefData</text>
+  <text x="328" y="2208" class="line">EnumDef</text>
+  <text x="328" y="2226" class="line">FieldAccess:Str</text>
+  <text x="328" y="2244" class="line">FieldAssign:Str</text>
+  <text x="328" y="2262" class="line">Return</text>
+  <text x="328" y="2280" class="line">If</text>
+  <text x="328" y="2298" class="line">While</text>
+  <text x="328" y="2316" class="line">ForIn:Str</text>
+  <text x="328" y="2334" class="line">NamedArg:Str</text>
+  <text x="328" y="2352" class="line">Break</text>
+  <text x="328" y="2370" class="line">Continue</text>
+  <text x="328" y="2388" class="line">MapLit</text>
+  <text x="328" y="2406" class="line">SetLit</text>
+  <text x="328" y="2424" class="line">Switch</text>
+  <text x="328" y="2442" class="line">Case</text>
+  <rect x="314" y="2468" width="380" height="172" rx="10" ry="10" class="box"/>
+  <text x="328" y="2506" class="title">Expr: StructDef</text>
+  <text x="328" y="2524" class="line">mut data := NodeType.Body</text>
+  <text x="328" y="2542" class="line">mut til_type := TilType.Unknown</text>
+  <text x="328" y="2560" class="line">mut struct_name := &quot;&quot;</text>
   <text x="328" y="2578" class="line">mut children := Vec.new(&quot;Expr&quot;, Expr.size())</text>
   <text x="328" y="2596" class="line">mut line : U32 = 0</text>
   <text x="328" y="2614" class="line">mut col : U32 = 0</text>
