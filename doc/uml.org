@@ -310,3 +310,4 @@
 ** Context: StructDef
 *** mut mode := Mode()
 *** mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
+*** mut scope := TypeScope()

@@ -398,18 +398,18 @@ main := proc(args: ..Str) {
     ast.swap_children(own kept)
 
     // Init phase: pre-scan declarations (core first, then user)
-    scope := TypeScope()
+    ctx.scope = TypeScope()
     if skip_core.not() {
-        init_declarations(core_ast, scope, ctx)
+        init_declarations(core_ast, ctx.scope, ctx)
     }
-    init_declarations(ast, scope, ctx)
+    init_declarations(ast, ctx.scope, ctx)
 
     // Type checking (core first, then user)
     mut type_errors : I32 = 0
     if skip_core.not() {
-        type_errors = type_check(core_ast, scope, ctx)
+        type_errors = type_check(core_ast, ctx.scope, ctx)
     }
-    type_errors = type_errors.add(type_check(ast, scope, ctx))
+    type_errors = type_errors.add(type_check(ast, ctx.scope, ctx))
     if type_errors.gt(0) {
         panic(__LOC__, type_errors.to_str().concat(" type error(s) found"))
     }

@@ -604,6 +604,7 @@ typedef struct Mode {
 typedef struct Context {
     Mode mode;
     Map path_modes;
+    TypeScope scope;
 } Context;
 
 
