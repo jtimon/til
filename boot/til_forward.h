@@ -115,6 +115,8 @@ typedef enum {
     TokenType_TAG_LtEq,
     TokenType_TAG_Gt,
     TokenType_TAG_GtEq,
+    TokenType_TAG_PlusPlus,
+    TokenType_TAG_MinusMinus,
     TokenType_TAG_ColonEq,
     TokenType_TAG_Ident,
     TokenType_TAG_StringTok,
@@ -1425,6 +1427,8 @@ TokenType *TokenType_Lt();
 TokenType *TokenType_LtEq();
 TokenType *TokenType_Gt();
 TokenType *TokenType_GtEq();
+TokenType *TokenType_PlusPlus();
+TokenType *TokenType_MinusMinus();
 TokenType *TokenType_ColonEq();
 TokenType *TokenType_Ident();
 TokenType *TokenType_StringTok();

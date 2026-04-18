@@ -10,9 +10,9 @@
     </style>
   </defs>
   <rect class="bg" x="0" y="0" width="4832" height="2682"/>
-  <rect x="24" y="24" width="236" height="1506" rx="14" ry="14" class="panel"/>
+  <rect x="24" y="24" width="236" height="1542" rx="14" ry="14" class="panel"/>
   <text x="44" y="62" class="panel-label">lexer</text>
-  <rect x="44" y="88" width="172" height="1288" rx="10" ry="10" class="box"/>
+  <rect x="44" y="88" width="172" height="1324" rx="10" ry="10" class="box"/>
   <text x="58" y="126" class="title">TokenType: EnumDef</text>
   <text x="58" y="144" class="line">Eof</text>
   <text x="58" y="162" class="line">LParen</text>
@@ -43,52 +43,54 @@
   <text x="58" y="612" class="line">LtEq</text>
   <text x="58" y="630" class="line">Gt</text>
   <text x="58" y="648" class="line">GtEq</text>
-  <text x="58" y="666" class="line">ColonEq</text>
-  <text x="58" y="684" class="line">Ident</text>
-  <text x="58" y="702" class="line">StringTok</text>
-  <text x="58" y="720" class="line">Number</text>
-  <text x="58" y="738" class="line">Char</text>
-  <text x="58" y="756" class="line">KwMut</text>
-  <text x="58" y="774" class="line">KwOwn</text>
-  <text x="58" y="792" class="line">KwRef</text>
-  <text x="58" y="810" class="line">KwShallow</text>
-  <text x="58" y="828" class="line">KwStruct</text>
-  <text x="58" y="846" class="line">KwEnum</text>
-  <text x="58" y="864" class="line">KwNamespace</text>
-  <text x="58" y="882" class="line">KwFunc</text>
-  <text x="58" y="900" class="line">KwProc</text>
-  <text x="58" y="918" class="line">KwTest</text>
-  <text x="58" y="936" class="line">KwMacro</text>
-  <text x="58" y="954" class="line">KwExtFunc</text>
-  <text x="58" y="972" class="line">KwExtProc</text>
-  <text x="58" y="990" class="line">KwExtStruct</text>
-  <text x="58" y="1008" class="line">KwReturns</text>
-  <text x="58" y="1026" class="line">KwThrows</text>
-  <text x="58" y="1044" class="line">KwIf</text>
-  <text x="58" y="1062" class="line">KwElse</text>
-  <text x="58" y="1080" class="line">KwWhile</text>
-  <text x="58" y="1098" class="line">KwFor</text>
-  <text x="58" y="1116" class="line">KwIn</text>
-  <text x="58" y="1134" class="line">KwSwitch</text>
-  <text x="58" y="1152" class="line">KwMatch</text>
-  <text x="58" y="1170" class="line">KwCase</text>
-  <text x="58" y="1188" class="line">KwDefault</text>
-  <text x="58" y="1206" class="line">KwReturn</text>
-  <text x="58" y="1224" class="line">KwThrow</text>
-  <text x="58" y="1242" class="line">KwCatch</text>
-  <text x="58" y="1260" class="line">KwBreak</text>
-  <text x="58" y="1278" class="line">KwContinue</text>
-  <text x="58" y="1296" class="line">KwDefer</text>
-  <text x="58" y="1314" class="line">KwTrue</text>
-  <text x="58" y="1332" class="line">KwFalse</text>
-  <text x="58" y="1350" class="line">KwNull</text>
-  <text x="58" y="1368" class="line">Error</text>
-  <rect x="44" y="1394" width="196" height="118" rx="10" ry="10" class="box"/>
-  <text x="58" y="1432" class="title">Token: StructDef</text>
-  <text x="58" y="1450" class="line">type := TokenType.Eof</text>
-  <text x="58" y="1468" class="line">text := &quot;&quot;</text>
-  <text x="58" y="1486" class="line">line : U32 = 0</text>
-  <text x="58" y="1504" class="line">col : U32 = 0</text>
+  <text x="58" y="666" class="line">PlusPlus</text>
+  <text x="58" y="684" class="line">MinusMinus</text>
+  <text x="58" y="702" class="line">ColonEq</text>
+  <text x="58" y="720" class="line">Ident</text>
+  <text x="58" y="738" class="line">StringTok</text>
+  <text x="58" y="756" class="line">Number</text>
+  <text x="58" y="774" class="line">Char</text>
+  <text x="58" y="792" class="line">KwMut</text>
+  <text x="58" y="810" class="line">KwOwn</text>
+  <text x="58" y="828" class="line">KwRef</text>
+  <text x="58" y="846" class="line">KwShallow</text>
+  <text x="58" y="864" class="line">KwStruct</text>
+  <text x="58" y="882" class="line">KwEnum</text>
+  <text x="58" y="900" class="line">KwNamespace</text>
+  <text x="58" y="918" class="line">KwFunc</text>
+  <text x="58" y="936" class="line">KwProc</text>
+  <text x="58" y="954" class="line">KwTest</text>
+  <text x="58" y="972" class="line">KwMacro</text>
+  <text x="58" y="990" class="line">KwExtFunc</text>
+  <text x="58" y="1008" class="line">KwExtProc</text>
+  <text x="58" y="1026" class="line">KwExtStruct</text>
+  <text x="58" y="1044" class="line">KwReturns</text>
+  <text x="58" y="1062" class="line">KwThrows</text>
+  <text x="58" y="1080" class="line">KwIf</text>
+  <text x="58" y="1098" class="line">KwElse</text>
+  <text x="58" y="1116" class="line">KwWhile</text>
+  <text x="58" y="1134" class="line">KwFor</text>
+  <text x="58" y="1152" class="line">KwIn</text>
+  <text x="58" y="1170" class="line">KwSwitch</text>
+  <text x="58" y="1188" class="line">KwMatch</text>
+  <text x="58" y="1206" class="line">KwCase</text>
+  <text x="58" y="1224" class="line">KwDefault</text>
+  <text x="58" y="1242" class="line">KwReturn</text>
+  <text x="58" y="1260" class="line">KwThrow</text>
+  <text x="58" y="1278" class="line">KwCatch</text>
+  <text x="58" y="1296" class="line">KwBreak</text>
+  <text x="58" y="1314" class="line">KwContinue</text>
+  <text x="58" y="1332" class="line">KwDefer</text>
+  <text x="58" y="1350" class="line">KwTrue</text>
+  <text x="58" y="1368" class="line">KwFalse</text>
+  <text x="58" y="1386" class="line">KwNull</text>
+  <text x="58" y="1404" class="line">Error</text>
+  <rect x="44" y="1430" width="196" height="118" rx="10" ry="10" class="box"/>
+  <text x="58" y="1468" class="title">Token: StructDef</text>
+  <text x="58" y="1486" class="line">type := TokenType.Eof</text>
+  <text x="58" y="1504" class="line">text := &quot;&quot;</text>
+  <text x="58" y="1522" class="line">line : U32 = 0</text>
+  <text x="58" y="1540" class="line">col : U32 = 0</text>
   <rect x="294" y="24" width="620" height="2634" rx="14" ry="14" class="panel"/>
   <text x="314" y="62" class="panel-label">ast</text>
   <rect x="314" y="88" width="188" height="46" rx="10" ry="10" class="box"/>

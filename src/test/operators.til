@@ -207,3 +207,32 @@ test_op_unary_minus := test() {
     b := 10
     assert_eq(__LOC__, -b.add(3), -13)
 }
+
+test_op_increment_decrement := test() {
+    mut i := 0
+    i++
+    assert_eq(__LOC__, i, 1)
+    i++
+    i++
+    assert_eq(__LOC__, i, 3)
+
+    i--
+    assert_eq(__LOC__, i, 2)
+    i--
+    i--
+    assert_eq(__LOC__, i, 0)
+
+    // Works on other integer types
+    mut x : I32 = 10.to_i32()
+    x++
+    assert_eq(__LOC__, x.to_i64(), 11)
+    x--
+    assert_eq(__LOC__, x.to_i64(), 10)
+
+    // Works after field access chains
+    mut counter := 0
+    counter++
+    counter++
+    counter++
+    assert_eq(__LOC__, counter, 3)
+}

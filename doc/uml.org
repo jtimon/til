@@ -29,6 +29,8 @@
 *** LtEq
 *** Gt
 *** GtEq
+*** PlusPlus
+*** MinusMinus
 *** ColonEq
 *** Ident
 *** StringTok

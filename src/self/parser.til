@@ -641,6 +641,27 @@ parse_primary := proc(mut p: Parser) returns Expr {
             e = access
         }
     }
+    // Postfix ++ / --: expr++ desugars to expr.inc(), expr-- to expr.dec()
+    if check(p, TokenType.PlusPlus) {
+        pp_line := peek_line(p)
+        pp_col := peek_col(p)
+        advance(p)
+        mut inc_access := Expr.new(NodeType.FieldAccess("inc".clone()), pp_line, pp_col, p.path)
+        inc_access.add_child(own e.clone())
+        mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col, p.path)
+        inc_call.add_child(own inc_access)
+        e = inc_call
+    }
+    if check(p, TokenType.MinusMinus) {
+        mm_line := peek_line(p)
+        mm_col := peek_col(p)
+        advance(p)
+        mut dec_access := Expr.new(NodeType.FieldAccess("dec".clone()), mm_line, mm_col, p.path)
+        dec_access.add_child(own e.clone())
+        mut dec_call := Expr.new(NodeType.FCall(FCallData()), mm_line, mm_col, p.path)
+        dec_call.add_child(own dec_access)
+        e = dec_call
+    }
     return e
 }
 
@@ -947,6 +968,22 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             expect_token(p, TokenType.RParen)
             return mcall
         }
+        // Postfix increment/decrement on field: obj.field++ or obj.field--
+        if check(p, TokenType.PlusPlus).or(check(p, TokenType.MinusMinus)) {
+            is_inc2 := check(p, TokenType.PlusPlus)
+            pp2_line := peek_line(p)
+            pp2_col := peek_col(p)
+            advance(p)
+            mut method2 := "dec"
+            if is_inc2 { method2 = "inc" }
+            mut facc := Expr.new(NodeType.FieldAccess(last_field), last_line, last_col, p.path)
+            facc.add_child(own obj.clone())
+            mut inc_acc := Expr.new(NodeType.FieldAccess(method2.clone()), pp2_line, pp2_col, p.path)
+            inc_acc.add_child(own facc)
+            mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp2_line, pp2_col, p.path)
+            inc_call.add_child(own inc_acc)
+            return inc_call
+        }
         // Field assignment: name.field = value
         expect_token(p, TokenType.Eq)
         mut fa := Expr.new(NodeType.FieldAssign(last_field), t_line, t_col, p.path)
@@ -966,6 +1003,22 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
     // Function call: name(...)
     if check(p, TokenType.LParen) {
         return parse_call(p, name, t_line, t_col)
+    }
+
+    // Postfix increment/decrement: name++ or name--
+    if check(p, TokenType.PlusPlus).or(check(p, TokenType.MinusMinus)) {
+        is_inc := check(p, TokenType.PlusPlus)
+        pp_line := peek_line(p)
+        pp_col := peek_col(p)
+        advance(p)
+        mut method := "dec"
+        if is_inc { method = "inc" }
+        mut ident := Expr.new(NodeType.Ident(name.clone()), t_line, t_col, p.path)
+        mut acc := Expr.new(NodeType.FieldAccess(method.clone()), pp_line, pp_col, p.path)
+        acc.add_child(own ident)
+        mut call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col, p.path)
+        call.add_child(own acc)
+        return call
     }
 
     panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),

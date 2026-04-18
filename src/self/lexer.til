@@ -21,6 +21,7 @@ TokenType := enum {
     Neq,
     Lt, LtEq,
     Gt, GtEq,
+    PlusPlus, MinusMinus,
 
     // Assignment
     ColonEq,
@@ -107,6 +108,8 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.LtEq: return "<="
     case TokenType.Gt: return ">"
     case TokenType.GtEq: return ">="
+    case TokenType.PlusPlus: return "++"
+    case TokenType.MinusMinus: return "--"
     case TokenType.ColonEq: return ":="
     case TokenType.Ident: return "identifier"
     case TokenType.StringTok: return "string"
@@ -368,6 +371,8 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             else if c.eq('!').and(c2.eq('=')) { two = TokenType.Neq }
             else if c.eq('<').and(c2.eq('=')) { two = TokenType.LtEq }
             else if c.eq('>').and(c2.eq('=')) { two = TokenType.GtEq }
+            else if c.eq('+').and(c2.eq('+')) { two = TokenType.PlusPlus }
+            else if c.eq('-').and(c2.eq('-')) { two = TokenType.MinusMinus }
             else if c.eq('.').and(c2.eq('.')) {
                 // Check for ... (three dots) vs .. (two dots)
                 if pos.add(2).lt(src_len) {
