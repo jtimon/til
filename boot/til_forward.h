@@ -247,6 +247,7 @@ typedef struct Declaration {
     I32 field_offset;
     I32 field_size;
     Expr *field_struct_def;
+    Expr *default_value;
 } Declaration;
 
 
@@ -271,7 +272,6 @@ typedef struct FCallData {
 
 typedef struct FieldDef {
     Declaration decl;
-    Expr *default_value;
 } FieldDef;
 
 

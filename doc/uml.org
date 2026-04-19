@@ -118,6 +118,7 @@
 *** mut field_offset : I32 = 0
 *** mut field_size : I32 = 0
 *** ref mut field_struct_def : Expr = NULL
+*** ref mut default_value : Expr = NULL
 ** Param: StructDef
 *** mut name := ""
 *** mut ptype := ""
@@ -142,7 +143,6 @@
 *** ref mut fn_sig : Expr = NULL
 ** FieldDef: StructDef
 *** mut decl := Declaration()
-*** ref mut default_value : Expr = NULL
 ** StructDefData: StructDef
 *** mut total_struct_size : I32 = 0
 *** mut fields := Vec.new("FieldDef", FieldDef.size())

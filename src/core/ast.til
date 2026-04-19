@@ -57,6 +57,7 @@ Declaration := struct {
     mut field_offset : I32 = 0
     mut field_size : I32 = 0
     ref mut field_struct_def : Expr = NULL
+    ref mut default_value : Expr = NULL
     namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: Declaration) returns Str { return self.name }
@@ -120,7 +121,6 @@ get_own_arg := func(fcall: Expr, shallow arg_index: USize) returns shallow Bool 
 
 FieldDef := struct {
     mut decl := Declaration()
-    ref mut default_value : Expr = NULL
     namespace:
     eq := func(a: FieldDef, b: FieldDef) returns Bool {
         return a.decl.eq(b.decl)
