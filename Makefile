@@ -18,7 +18,7 @@ all: bin/til
 
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
-LD_FLAGS := -Wl,--allow-multiple-definition -rdynamic -ldl
+LD_FLAGS := -rdynamic -ldl
 
 RAYLIB_LIB := lib/raylib/src/libraylib.a
 RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lm -lpthread -lrt

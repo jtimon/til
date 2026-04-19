@@ -34,10 +34,9 @@
       shadow of a core function; without it the scavenger correctly
       reaches ~ast_print~ from ~core_top~.
 
-  The Makefile's ~LD_FLAGS~ still carries the flag because ~bin/til_boot~
-  is built from HEAD's ~boot/til.c~ + HEAD's ~src/c/ext.c~, and HEAD
-  (pre-commit) still has the duplicates. After this commit, a follow-up
-  can drop ~--allow-multiple-definition~ from ~LD_FLAGS~ entirely.
+  Follow-up commit drops ~--allow-multiple-definition~ from the
+  Makefile's ~LD_FLAGS~ as well, now that HEAD carries the clean
+  ~src/c/ext.c~ and the regenerated ~boot/til.c~.
 
 * FIXED #65 Standalone namespaces
   Implemented as parser-level sugar at ~parser.til:790~: the form
