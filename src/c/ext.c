@@ -417,6 +417,12 @@ Str *cfile_read_all(void *handle) {
     return s;
 }
 
+Str *get_cwd_str(void) {
+    char buf[PATH_MAX];
+    if (!getcwd(buf, sizeof(buf))) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen(buf), .cap = CAP_VIEW});
+}
+
 Str *realpath_str(Str *path) {
     char *p = strndup((char *)path->c_str, path->count);
     char *abs = realpath(p, NULL);
