@@ -15,6 +15,7 @@ DynCallInfo := struct {
 
 ref mut codegen_core_program : Expr = NULL
 ref mut codegen_program : Expr = NULL
+ref mut builder_scope : TypeScope = NULL
 ref mut current_fdef : Expr = NULL
 mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", I64.size())
 mut func_defs := Map.new("Str", Str.size(), "Dynamic", I64.size())
@@ -2287,6 +2288,7 @@ emit_header_global_decls := proc(f: File, core_program: Expr, program: Expr) {
 }
 
 build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str, ctx: Context) returns shallow I32 {
+    builder_scope = ctx.scope
     build_register_funcsig_names(core_program, program)
     f := File.new(fwd_path, true)
     f.write_str("#pragma once\n#include \"ext.h\"\n\n")
@@ -2299,6 +2301,7 @@ build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str, c
 }
 
 build_header := proc(core_program: Expr, program: Expr, h_path: Str, ctx: Context) returns shallow I32 {
+    builder_scope = ctx.scope
     build_register_funcsig_names(core_program, program)
     f := File.new(h_path, true)
     f.write_str("#pragma once\n#include \"ext.h\"\n\n")
@@ -2344,6 +2347,7 @@ emit_binding_ns_methods := proc(f: File, body: Expr) {
 }
 
 build_til_binding := proc(core_program: Expr, program: Expr, til_path: Str, lib_name: Str, ctx: Context) returns shallow I32 {
+    builder_scope = ctx.scope
     f := File.new(til_path, true)
     f.write_str("// Auto-generated FFI binding for "); f.write_str(lib_name); f.write_str("\n")
     f.write_str("link(\""); f.write_str(lib_name); f.write_str("\")\n\n")
@@ -2445,6 +2449,7 @@ type_name_to_ctypes_return := func(name: Str, shallow is_shallow: Bool) returns 
 }
 
 build_python_binding := proc(core_program: Expr, program: Expr, py_path: Str, lib_name: Str, ctx: Context) returns shallow I32 {
+    builder_scope = ctx.scope
     f := File.new(py_path, true)
     f.write_str("# Auto-generated Python binding for "); f.write_str(lib_name); f.write_str("\n")
     f.write_str("import ctypes\n")
@@ -3710,6 +3715,7 @@ emit_lib_init := proc(f: File) {
 build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str, ctx: Context) returns shallow I32 {
     codegen_core_program = core_program
     codegen_program = program
+    builder_scope = ctx.scope
     mut is_lib := false
     if is_null(mode).not() { is_lib = mode.is_library }
 

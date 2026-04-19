@@ -1881,3 +1881,87 @@ TypeScope := struct {
         self.bindings.set(own name.clone(), own nb)
     }
 }
+
+// Resolve the struct/enum type name associated with an expression, using the
+// scope built during typing. Replaces the former Expr.struct_name field.
+expr_sname := func(e: Expr, scope: TypeScope) returns Str {
+    if is_null(e) { return "" }
+    switch e.data {
+    case NodeType.LiteralStr:
+        return "Str"
+    case NodeType.MapLit:
+        return "Map"
+    case NodeType.SetLit:
+        return "Set"
+    case NodeType.Ident(id):
+        if is_null(scope) { return "" }
+        ref b : TypeBinding = scope.get_binding(id)
+        if is_null(b) { return "" }
+        if b.struct_name.len().gt(0) { return b.struct_name.clone() }
+        if is_null(b.struct_def).not() { return id.clone() }
+        return ""
+    case NodeType.FCall:
+        ref fcd : FCallData = get_payload(e.data)
+        if is_null(fcd.fn_sig).not() {
+            ref fdef : FunctionDef = get_payload(fcd.fn_sig.data)
+            if fdef.return_type.len().gt(0) { return fdef.return_type.clone() }
+        }
+        if e.child_count().gt(0) {
+            ref callee : Expr = e.child(0)
+            if is_variant(callee.data, NodeType.Ident) {
+                ref cname : Str = get_payload(callee.data)
+                if is_null(scope).not() {
+                    ref sdef : Expr = scope.get_struct(cname)
+                    if is_null(sdef).not() { return cname.clone() }
+                }
+            }
+            if is_variant(callee.data, NodeType.FieldAccess).and(callee.child_count().gt(0)) {
+                ref obj : Expr = callee.child(0)
+                obj_sname := expr_sname(obj, scope)
+                if obj_sname.len().gt(0).and(is_null(scope).not()) {
+                    ref sdef : Expr = scope.get_struct(obj_sname)
+                    if is_null(sdef).not() {
+                        ref body : Expr = sdef.child(0)
+                        ref mname : Str = get_payload(callee.data)
+                        for fi in 0..body.child_count() {
+                            ref field : Expr = body.child(fi)
+                            if is_variant(field.data, NodeType.Decl).not() { continue }
+                            ref dd : Declaration = get_payload(field.data)
+                            if dd.is_namespace.not() { continue }
+                            if dd.name.eq(mname).not() { continue }
+                            if is_variant(field.child(0).data, NodeType.FuncDef).not() { continue }
+                            ref ffd : FunctionDef = get_payload(field.child(0).data)
+                            if ffd.return_type.len().gt(0) { return ffd.return_type.clone() }
+                        }
+                    }
+                }
+            }
+        }
+        return ""
+    case NodeType.FieldAccess:
+        if e.child_count().eq(0) { return "" }
+        ref obj : Expr = e.child(0)
+        obj_sname := expr_sname(obj, scope)
+        if obj_sname.len().eq(0).or(is_null(scope)) { return "" }
+        ref sdef : Expr = scope.get_struct(obj_sname)
+        if is_null(sdef) { return "" }
+        ref body : Expr = sdef.child(0)
+        ref fname : Str = get_payload(e.data)
+        for fi in 0..body.child_count() {
+            ref field : Expr = body.child(fi)
+            if is_variant(field.data, NodeType.Decl).not() { continue }
+            ref dd : Declaration = get_payload(field.data)
+            if dd.name.eq(fname).not() { continue }
+            if dd.explicit_type.len().gt(0) { return dd.explicit_type.clone() }
+            if field.child_count().gt(0) {
+                ref rhs : Expr = field.child(0)
+                rhs_sname := expr_sname(rhs, scope)
+                if rhs_sname.len().gt(0) { return rhs_sname }
+            }
+            return ""
+        }
+        return ""
+    case:
+        return ""
+    }
+}

@@ -920,6 +920,7 @@ void TypeScope_set(TypeScope * self, Str * name, TilType * type, FuncType func_t
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U32 TypeScope_size(void);
+Str * expr_sname(Expr * e, TypeScope * scope);
 Bool fa_is_ns(Expr * e, TypeScope * scope);
 OwnType fa_own_type(Expr * e, TypeScope * scope);
 LocalInfo * LocalInfo_clone(LocalInfo * self);
@@ -1538,6 +1539,7 @@ extern Bool ffi_map_inited;
 extern Map core_modes;
 extern Expr *codegen_core_program;
 extern Expr *codegen_program;
+extern TypeScope *builder_scope;
 extern Expr *current_fdef;
 extern Map struct_bodies;
 extern Map func_defs;
