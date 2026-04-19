@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 148
+# NEXT_ISSUE: 149
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -860,7 +860,41 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-* [0/33] Post
+* [0/34] Post
+** OPEN #148 SIGSEGV on unqualified namespace member access (should be type error)
+  Accessing a namespace member without qualifying it segfaults instead of
+  producing a type error. Affects both standalone namespaces (added in ~#65~)
+  and ~namespace:~ sections inside structs.
+
+  Repro:
+
+  #+begin_src til
+  mode script
+
+  MyNamespace := namespace {
+      mut urmom := 69
+      get := func() returns I64 { return urmom }
+  }
+
+  println(MyNamespace.get().to_str())
+  #+end_src
+
+  Running ~bin/til interpret~ on the above terminates with SIGSEGV (exit 139).
+  The workaround is to qualify the member access: ~return MyNamespace.urmom~.
+
+  The typer should reject unqualified references to namespace members as
+  "undefined identifier" during type checking rather than letting them
+  reach interpret/codegen and crash.
+
+  Notes:
+  - Same crash reproduces with ~namespace:~ sections inside struct defs,
+    e.g. a ~bump := proc() { instances = instances.add(1) }~ inside
+    ~Counter := struct { namespace: mut instances := 0 ... }~.
+  - Without ~println~ involved, the failure manifests as a runtime panic
+    (~Vec.get: index 0 out of bounds (len 0)~) instead of a SIGSEGV, which
+    confirms the root cause is the typer letting the unresolved ident through
+    rather than anything print-specific.
+
 ** OPEN #123 `bin/til ast` double-free in AST printing path
   Low priority follow-up, separate from the current ~#39~ ~typer.c~
   migration work.
