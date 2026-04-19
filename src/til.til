@@ -11,10 +11,12 @@ get_version := macro() returns shallow Str {
 
 VERSION := get_version()
 
-// Import self-hosted modules (gives real types: Expr, Mode, TypeScope, etc.)
+// Import self-hosted modules
 import("self/modes.til")
+import("self/loader.til")
 import("self/builder.til")
-import("self/scavenger.til")
+import("self/interpreter.til")
+import("self/dispatch.til")
 
 // Link C modules
 link_c("src/c/ext.c")
@@ -27,157 +29,12 @@ link("pthread")
 link("rt")
 link("lib/tinyfiledialogs/libtinyfd.a")
 
-// --- Bridge ext_func/ext_proc declarations ---
+// --- External C bridges ---
 
-// Tokenize/Parse
-tokenize := ext_func(source: Str, path: Str) returns Vec {}
-
-
-// Pipeline
-type_check := ext_func(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {}
-// precomp: defined in precomp.til
-scavenge := ext_proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool) {}
-// interpret: defined in interpreter.til
-build := ext_func(core_ast: Expr, ast: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_path: Str, ctx: Context) returns shallow I32 {}
-ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
-
-// Utility
 get_bin_dir := ext_func() returns Str {}
 get_cwd_str := ext_func() returns Str {}
-realpath_str := ext_func(path: Str) returns Str {}
 
-system_cmd := ext_func(cmd: Str) returns shallow I32 {}
-
-// Owned copy of first n bytes of s (substr returns a view, this returns a clone)
-str_left := func(s: Str, n: USize) returns Str {
-    if n.eq(0) { return "" }
-    if n.gte(s.len()) { return s.clone() }
-    return s.substr(0, n).clone()
-}
-
-normalize_mode_name := func(mode_name: Str) returns Str {
-    if mode_name.len().gt(0) {
-        return mode_name.clone()
-    }
-    return "script"
-}
-
-// Strip CWD prefix so embedded file:line:col strings are repo-relative,
-// not absolute. Prepend "./" so emacs recognizes the path as relative.
-display_path := func(p: Str, cwd: Str) returns Str {
-    prefix := cwd.concat("/")
-    rel := p.strip_prefix(prefix)
-    if rel.starts_with("/") {
-        return rel.clone()
-    }
-    if rel.starts_with("./") {
-        return rel.clone()
-    }
-    return "./".concat(rel)
-}
-
-require_mode := func(path: Str, mode_name: Str) returns ref Mode {
-    ref resolved : Mode = mode_resolve(mode_name)
-    if is_null(resolved) {
-        panic(__LOC__, path, ": unknown mode '", mode_name, "'")
-    }
-    return resolved
-}
-
-forward_header_path := func(path: Str) returns Str {
-    slash := path.rfind("/")
-    dot := path.rfind(".")
-    if dot.gt(slash) {
-        return path.substr(0, dot.to_u32()).concat("_forward.h")
-    }
-    return path.concat("_forward.h")
-}
-
-// --- Translated ctil.c functions ---
-
-// Extract import("path") calls from AST body, returning paths as Vec of Str*.
-// Matching nodes are removed from the body.
-extract_imports := func(body: Expr) returns Vec {
-    mut paths := Vec.new("Str", Str.size())
-    for i in 0..Expr.child_count(body) {
-        ref stmt : Expr = Expr.child(body, i)
-        if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
-            if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
-                .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
-                ref _c0id : Str = get_payload(Expr.child(stmt, 0).data)
-                if _c0id.eq("import") {
-                    ref path : Str = get_payload(Expr.child(stmt, 1).data)
-                    paths.push(own path.clone())
-                }
-            }
-        }
-    }
-    return paths
-}
-
-// Recursively resolve imports.
-resolve_imports := proc(import_paths: Vec, base_dir: Str,
-                        mut resolved_set: Set, mut stack: Vec,
-                        mut merged: Vec, lib_dir: Str,
-                        mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
-    for i in 0..import_paths.len() {
-        ref import_path : Str = import_paths.get(i)
-        // Try relative to importing file's directory, then lib_dir
-        mut try_path := base_dir.concat("/").concat(import_path)
-        mut abs := realpath_str(try_path)
-        if abs.eq("").and(lib_dir.len().gt(0)) {
-            try_path = lib_dir.concat("/").concat(import_path)
-            abs = realpath_str(try_path)
-        }
-        if abs.eq("") {
-            println("error: could not find import '".concat(import_path).concat("' (from ").concat(base_dir).concat("/)"))
-            return 1
-        }
-
-        // Dedup (also handles circular imports — files are added to
-        // resolved_set when they start processing)
-        if Set.has(resolved_set, abs) {
-            continue
-        }
-        Set.add(resolved_set, own abs.clone())
-
-        // Load, lex, parse the imported file. Use display_path for the
-        // path strings that get embedded in the AST / generated C, so the
-        // boot/ files don't carry absolute paths.
-        disp := display_path(abs, cwd)
-        source := readfile(abs)
-        tokens := tokenize(source, disp)
-        mut sub_mode := ""
-        sub_ast := parse(tokens, disp.clone(), sub_mode)
-        sub_mode = normalize_mode_name(sub_mode)
-        ref sub_mode_def : Mode = require_mode(disp, sub_mode)
-        context_register_path_mode(ctx, disp, sub_mode_def)
-        sub_imports := extract_imports(sub_ast)
-
-        // Get imported file's directory for recursive resolution
-        mut last_slash := abs.len().sub(1)
-        while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
-            last_slash = last_slash.sub(1)
-        }
-        sub_dir := str_left(abs, last_slash)
-
-        // Recurse for sub-imports
-        if sub_imports.len().gt(0) {
-            err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir,
-                                   ctx, default_mode, cwd)
-            if err.gt(0) {
-                return err
-            }
-        }
-
-        // Append imported file's declarations
-        for k in 0..Expr.child_count(sub_ast) {
-            ref ch : Expr = Expr.child(sub_ast, k)
-            merged.push(own Expr.clone(ch))
-        }
-    }
-    return 0
-}
+// --- CLI ---
 
 usage := proc() {
     println("Usage: til <command> <path>")
@@ -191,236 +48,66 @@ usage := proc() {
     println("  help       Print this message")
 }
 
-// --- Main ---
+CliArgs := struct {
+    mut command := ""
+    mut path := ""
+    mut custom_bin := ""
+    mut custom_c := ""
+    mut path_idx : USize = 1
+    mut early_return := false
+}
 
-main := proc(args: ..Str) {
+parse_args := proc(args: Array) returns CliArgs {
+    mut cli := CliArgs()
     if args.len().eq(0) {
         usage()
         panic(__LOC__, "no arguments")
     }
 
     ref cmd_ref : Str = args.get(0)
-    mut command := cmd_ref.clone()
-    mut path : Str = ""
-    mut custom_bin : Str = ""
-    mut custom_c : Str = ""
-    mut path_idx : USize = 1
+    cli.command = cmd_ref.clone()
 
     if args.len().eq(1) {
-        if command.eq("--version").or(command.eq("-v")) {
+        if cli.command.eq("--version").or(cli.command.eq("-v")) {
             println(VERSION)
-            return
+            cli.early_return = true
+            return cli
         }
-        if command.eq("help").or(command.eq("--help")) {
+        if cli.command.eq("help").or(cli.command.eq("--help")) {
             usage()
-            return
+            cli.early_return = true
+            return cli
         }
-        path = command
-        command = "interpret"
-    } else {
-        // Scan for -o/-c flags before source file
-        while path_idx.lt(args.len()) {
-            ref flag : Str = args.get(path_idx)
-            if flag.eq("-o").and(path_idx.add(1).lt(args.len())) {
-                ref oval : Str = args.get(path_idx.add(1))
-                custom_bin = oval.clone()
-                path_idx = path_idx.add(2)
-            } else if flag.eq("-c").and(path_idx.add(1).lt(args.len())) {
-                ref cval : Str = args.get(path_idx.add(1))
-                custom_c = cval.clone()
-                path_idx = path_idx.add(2)
-            } else {
-                break
-            }
-        }
-        ref p : Str = args.get(path_idx)
-        path = p.clone()
+        cli.path = cli.command
+        cli.command = "interpret"
+        return cli
     }
 
-    if command.eq("help").or(command.eq("--help")) {
-        usage()
-        return
-    }
-
-    // Resolve paths relative to binary location
-    bin_dir := get_bin_dir()
-    cwd := get_cwd_str()
-    core_path := bin_dir.concat("/src/core/core.til")
-    core_disp := display_path(core_path, cwd)
-    ext_c_path := bin_dir.concat("/src/c/ext.c")
-
-    // Single resolved set for all imports (core + user), so no file is loaded twice
-    resolved := Set.new("Str", Str.size())
-    resolve_stack := Vec.new("Expr", Expr.size())
-    ctx := Context()
-
-    // Add user file to resolved set early (so core imports skip it if it overlaps)
-    abs_path := realpath_str(path)
-    mut user_dir := "."
-    if abs_path.len().gt(0) {
-        mut last_slash := abs_path.len().sub(1)
-        while last_slash.gt(0).and(abs_path.get(last_slash).neq('/')) {
-            last_slash = last_slash.sub(1)
-        }
-        user_dir = str_left(abs_path, last_slash)
-        Set.add(resolved, own abs_path.clone())
-    }
-
-    // Load core.til
-    core_source := readfile(core_path)
-    core_tokens := tokenize(core_source, core_disp)
-    mut _core_mode := ""
-    core_ast := parse(core_tokens, core_disp.clone(), _core_mode)
-    ref core_mode : Mode = require_mode(core_disp, "lib")
-    context_register_path_mode(ctx, core_disp, core_mode)
-
-    // Add core.til to resolved set; skip prepending if user file IS core.til
-    mut skip_core := false
-    core_abs := realpath_str(core_path)
-    if core_abs.len().gt(0) {
-        if Set.has(resolved, core_abs) {
-            skip_core = true
-        }
-        Set.add(resolved, own core_abs.clone())
-    }
-
-    // Resolve core imports
-    core_import_decls := Vec.new("Expr", Expr.size())
-    core_imports := extract_imports(core_ast)
-    if core_imports.len().gt(0).and(skip_core.not()) {
-        core_dir := bin_dir.concat("/src/core")
-        err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
-                               core_import_decls, "", ctx, "lib", cwd)
-        if err.gt(0) {
-            panic(__LOC__, "failed to resolve core imports")
+    // Scan for -o/-c flags before source file
+    while cli.path_idx.lt(args.len()) {
+        ref flag : Str = args.get(cli.path_idx)
+        if flag.eq("-o").and(cli.path_idx.add(1).lt(args.len())) {
+            ref oval : Str = args.get(cli.path_idx.add(1))
+            cli.custom_bin = oval.clone()
+            cli.path_idx = cli.path_idx.add(2)
+        } else if flag.eq("-c").and(cli.path_idx.add(1).lt(args.len())) {
+            ref cval : Str = args.get(cli.path_idx.add(1))
+            cli.custom_c = cval.clone()
+            cli.path_idx = cli.path_idx.add(2)
+        } else {
+            break
         }
     }
+    ref p : Str = args.get(cli.path_idx)
+    cli.path = p.clone()
+    return cli
+}
 
-    // Load user file
-    source := readfile(path)
-    tokens := tokenize(source, path)
-    mut mode_str := ""
-    user_ast := parse(tokens, path.clone(), mode_str)
-    imports := extract_imports(user_ast)
-    mode_str = normalize_mode_name(mode_str)
-    ref mut cur_mode : Mode = require_mode(path, mode_str)
-    context_register_path_mode(ctx, path, cur_mode)
-    ctx.mode = cur_mode.clone()
-
-    // If mode has auto_import, load its .til declarations
-    auto_import := cur_mode.auto_import
-
-    // Resolve user imports (using same resolved set — skips files already loaded by core)
-    import_decls := Vec.new("Expr", Expr.size())
-    if imports.len().gt(0) {
-        lib_dir := bin_dir.concat("/src/lib")
-        err := resolve_imports(imports, user_dir, resolved, resolve_stack,
-                               import_decls, lib_dir, ctx, "", cwd)
-        if err.gt(0) {
-            panic(__LOC__, "failed to resolve imports")
-        }
-    }
-
-    // Build core_program: append core_import_decls to core_ast
-    if skip_core.not() {
-        mut core_imports_expr := Expr.new(NodeType.Body, 0, 0, "")
-        core_imports_expr.children = core_import_decls
-        core_ast.take_children(core_imports_expr)
-    }
-
-    // Build user program: mode imports, then user imports, then parsed user code
-    mut ast := Expr.new(NodeType.Body, 0, 0, "")
-    if auto_import.len().gt(0) {
-        mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
-        mode_disp := display_path(mode_til_path, cwd)
-        mode_source := readfile(mode_til_path)
-        mode_tokens := tokenize(mode_source, mode_disp)
-        mut mode_mode := ""
-        mode_ast := parse(mode_tokens, mode_disp.clone(), mode_mode)
-        mode_mode = normalize_mode_name(mode_mode)
-        ref mode_mode_def : Mode = require_mode(mode_disp, mode_mode)
-        context_register_path_mode(ctx, mode_disp, mode_mode_def)
-        ast.take_children(mode_ast)
-    }
-    ast.children.append(own import_decls)
-    ast.take_children(user_ast)
-
-    // Extract link() and link_c() info (directives stripped by typer)
-    mut link_flags := ""
-    mut include_flags := ""
-    mut link_c_paths := ""
-    for i in 0..Expr.child_count(ast) {
-        ref stmt : Expr = Expr.child(ast, i)
-        if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
-            if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
-                .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
-                ref fname : Str = get_payload(Expr.child(stmt, 0).data)
-                ref arg : Str = get_payload(Expr.child(stmt, 1).data)
-                if fname.eq("link") {
-                    if arg.find("/").gte(0) {
-                        link_flags = link_flags.concat(" ").concat(arg)
-                        last_slash := arg.rfind("/")
-                        if last_slash.gte(0) {
-                            parent_dir := arg.substr(0, last_slash.to_usize())
-                            parent_slash := parent_dir.rfind("/")
-                            if parent_slash.gte(0) {
-                                inc_dir := parent_dir.substr(0, parent_slash.to_usize()).concat("/include")
-                                include_flags = include_flags.concat(" -I").concat(inc_dir)
-                            }
-                        }
-                    } else {
-                        link_flags = link_flags.concat(" -l").concat(arg)
-                    }
-                } else if fname.eq("link_c") {
-                    if link_c_paths.len().gt(0) {
-                        link_c_paths = link_c_paths.concat(" ")
-                    }
-                    link_c_paths = link_c_paths.concat(arg)
-                }
-            }
-        }
-    }
-
-    // Init phase: pre-scan declarations (core first, then user)
-    ctx.scope = TypeScope()
-    if skip_core.not() {
-        init_declarations(core_ast, ctx.scope, ctx)
-    }
-    init_declarations(ast, ctx.scope, ctx)
-
-    // Type checking (core first, then user)
-    mut type_errors : I32 = 0
-    if skip_core.not() {
-        type_errors = type_check(core_ast, ctx.scope, ctx)
-    }
-    type_errors = type_errors.add(type_check(ast, ctx.scope, ctx))
-    if type_errors.gt(0) {
-        panic(__LOC__, type_errors.to_str().concat(" type error(s) found"))
-    }
-
-    run_tests := command.eq("test")
-        .or(cur_mode.run_tests)
-
-    precomp(core_ast, ast)
-
-    // Skip scavenging for lib/pure modes, and for programs
-    // with link_c (scavenger can't track C-level dependencies)
-    skip_scavenge := cur_mode.is_library
-    if skip_scavenge.not().and(link_c_paths.len().eq(0)) {
-        scavenge(core_ast, ast, cur_mode, run_tests)
-    }
-
-    mut result : I32 = 0
-
-    // Use link_c() paths as user .c files
-    mut user_c := ""
-    if link_c_paths.len().gt(0) {
-        user_c = link_c_paths
-    }
-
-    // Append -l flags from CLI args (args[2..])
+// Split trailing args (after the source path) into -l flags (appended to
+// lp.link_flags) and user argv (returned).
+collect_user_argv := proc(mut lp: LoadedProgram, args: Array, shallow start_idx: USize) returns Vec {
     mut user_argv := Vec.new("Str", Str.size())
-    mut ai : USize = path_idx.add(1)
+    mut ai := start_idx
     while ai.lt(args.len()) {
         ref arg : Str = args.get(ai)
         if arg.starts_with("-l") {
@@ -430,144 +117,51 @@ main := proc(args: ..Str) {
                 ref next_arg : Str = args.get(ai)
                 lib = next_arg.clone()
             }
-            link_flags = link_flags.concat(" -l").concat(lib)
+            loaded_add_lflag(lp, lib)
         } else {
             user_argv.push(own arg.clone())
         }
         ai = ai.add(1)
     }
+    return user_argv
+}
 
-    mut lflags := ""
-    if link_flags.len().gt(0) {
-        lflags = link_flags
+// --- Main ---
+
+main := proc(args: ..Str) {
+    cli := parse_args(args)
+    if cli.early_return { return }
+
+    if cli.command.eq("help").or(cli.command.eq("--help")) {
+        usage()
+        return
     }
 
-    mut iflags := ""
-    if include_flags.len().gt(0) {
-        iflags = include_flags
-    }
+    bin_dir := get_bin_dir()
+    cwd := get_cwd_str()
+    ext_c_path := bin_dir.concat("/src/c/ext.c")
 
-    if command.eq("interpret").or(command.eq("test")) {
-        if cur_mode.is_library.and(command.eq("interpret")) {
-            panic(__LOC__, "cannot interpret a library — use translate or build")
-        }
-        mut interpret_fwd_path := ""
-        if user_c.len().gt(0) {
-            system_cmd("mkdir -p tmp")
-            interpret_fwd_path = "tmp/ffi_".concat(clock_ms().to_str()).concat("_forward.h")
-            result = build_forward_header(core_ast, ast, interpret_fwd_path, ctx)
-        }
-        if result.eq(0) {
-            result = interpret(core_ast, ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
-                                    user_argv, interpret_fwd_path)
-        }
-    } else if command.eq("translate").or(command.eq("build")).or(command.eq("run")) {
-        if cur_mode.is_library.and(command.eq("run")) {
-            panic(__LOC__, "cannot run a library — use translate or build")
-        }
+    mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path)
+    user_argv := collect_user_argv(lp, args, cli.path_idx.add(1))
 
-        // Derive output paths from input
-        last_slash := path.rfind("/")
-        mut basename := path
-        if last_slash.gte(0) {
-            last_slash_u : USize = last_slash.to_u32()
-            basename = path.substr(last_slash_u.add(1), path.len().sub(last_slash_u).sub(1))
-        }
+    prepare_program(lp, cli.command.eq("test"))
 
-        // Strip .til extension
-        mut name_len := basename.len()
-        if basename.ends_with(".til") {
-            name_len = name_len.sub(4)
+    mut result : I32 = 0
+    if cli.command.eq("interpret").or(cli.command.eq("test")) {
+        if lp.cur_mode.is_library.and(cli.command.eq("interpret")) {
+            panic(__LOC__, "cannot interpret a library -- use translate or build")
         }
-        name := basename.substr(0, name_len)
-
-        mut c_path := "gen/til/".concat(name).concat(".c")
-        if custom_c.len().gt(0) { c_path = custom_c }
-        mut bin_path := "bin/".concat(name)
-        if custom_bin.len().gt(0) { bin_path = custom_bin }
-
-        do_lib := cur_mode.is_library.and(command.eq("run").not())
-
-        if do_lib {
-            system_cmd("mkdir -p gen/til gen/lib")
-        } else {
-            cp_slash := c_path.rfind("/")
-            bp_slash := bin_path.rfind("/")
-            mut cp_dir := "gen/til"
-            if cp_slash.gt(0) {
-                cp_slash_u : USize = cp_slash.to_u32()
-                cp_dir = c_path.substr(0, cp_slash_u)
-            }
-            mut bp_dir := "bin"
-            if bp_slash.gt(0) {
-                bp_slash_u : USize = bp_slash.to_u32()
-                bp_dir = bin_path.substr(0, bp_slash_u)
-            }
-            system_cmd("mkdir -p ".concat(cp_dir).concat(" ").concat(bp_dir))
-        }
-
-        fwd_path := forward_header_path(c_path)
-        result = build_forward_header(core_ast, ast, fwd_path, ctx)
-        if result.eq(0) {
-            result = build(core_ast, ast, cur_mode, run_tests, path, c_path, ctx)
-        }
-
-        // For lib/pure: generate .h header, .til binding, and .py binding
-        if result.eq(0).and(do_lib) {
-            h_path := "gen/til/".concat(name).concat(".h")
-            til_path := "gen/til/".concat(name).concat(".til")
-            py_path := "gen/til/".concat(name).concat(".py")
-            result = build_header(core_ast, ast, h_path, ctx)
-            if result.eq(0) {
-                result = build_til_binding(core_ast, ast, til_path, name, ctx)
-            }
-            if result.eq(0) {
-                result = build_python_binding(core_ast, ast, py_path, name, ctx)
-            }
-            if result.eq(0).and(command.eq("translate")) {
-                println("Generated: ".concat(c_path))
-                println("Generated: ".concat(fwd_path))
-                println("Generated: ".concat(h_path))
-                println("Generated: ".concat(til_path))
-                println("Generated: ".concat(py_path))
-            }
-            if result.eq(0).and(command.eq("build")) {
-                result = compile_lib(c_path, name, ext_c_path, user_c, lflags, iflags)
-                if result.eq(0) {
-                    println("Generated: ".concat(c_path))
-                    println("Generated: ".concat(fwd_path))
-                    println("Generated: ".concat(h_path))
-                    println("Generated: ".concat(til_path))
-                    println("Generated: ".concat(py_path))
-                    println("Generated: gen/lib/lib".concat(name).concat(".so"))
-                    println("Generated: gen/lib/lib".concat(name).concat(".a"))
-                }
-            }
-        }
-
-        if result.eq(0).and(do_lib.not()).and(command.eq("translate")) {
-            println("Generated: ".concat(c_path))
-            println("Generated: ".concat(fwd_path))
-        }
-        if result.eq(0).and(do_lib.not()).and(command.eq("translate").not()) {
-            result = compile_c(c_path, bin_path, ext_c_path, user_c, lflags, iflags)
-        }
-        if result.eq(0).and(do_lib.not()).and(command.eq("run")) {
-            // Build command with user args
-            mut cmd := bin_path
-            mut ui : USize = 0
-            while ui.lt(user_argv.len()) {
-                ref uarg : Str = user_argv.get(ui)
-                cmd = cmd.concat(" '").concat(uarg).concat("'")
-                ui = ui.add(1)
-            }
-            result = system_cmd(cmd)
-        }
-    } else if command.eq("ast") {
-        println("mode: ".concat(mode_str))
-        ast_print(ast, 0)
+        result = cmd_interpret(lp, user_argv)
+    } else if cli.command.eq("translate") {
+        result = cmd_translate(lp, cli.custom_c)
+    } else if cli.command.eq("build") {
+        result = cmd_build(lp, cli.custom_bin, cli.custom_c)
+    } else if cli.command.eq("run") {
+        result = cmd_run(lp, cli.custom_bin, cli.custom_c, user_argv)
+    } else if cli.command.eq("ast") {
+        cmd_ast(lp)
     } else {
-        println("error: unknown command '".concat(command).concat("'"))
+        println("error: unknown command '".concat(cli.command).concat("'"))
         usage()
         result = 1
     }

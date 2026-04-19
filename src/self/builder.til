@@ -1,5 +1,9 @@
 mode lib
 
+import("loader.til")
+
+system_cmd := ext_func(cmd: Str) returns shallow I32 {}
+
 CollectionInfo := struct {
     ref mut type_name : Str = NULL
     mut is_vec : I32 = 0
@@ -3792,3 +3796,140 @@ build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: 
     return 0.to_i32()
 }
 
+BuildPaths := struct {
+    mut name := ""
+    mut c_path := ""
+    mut bin_path := ""
+    mut fwd_path := ""
+    mut h_path := ""
+    mut til_path := ""
+    mut py_path := ""
+    mut do_lib := false
+}
+
+derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str) returns BuildPaths {
+    mut paths := BuildPaths()
+
+    last_slash := lp.path.rfind("/")
+    mut basename := lp.path
+    if last_slash.gte(0) {
+        last_slash_u : USize = last_slash.to_u32()
+        basename = lp.path.substr(last_slash_u.add(1), lp.path.len().sub(last_slash_u).sub(1))
+    }
+    mut name_len := basename.len()
+    if basename.ends_with(".til") {
+        name_len = name_len.sub(4)
+    }
+    name := basename.substr(0, name_len)
+    paths.name = name.clone()
+
+    mut c_path := "gen/til/".concat(name).concat(".c")
+    if custom_c.len().gt(0) { c_path = custom_c.clone() }
+    mut bin_path := "bin/".concat(name)
+    if custom_bin.len().gt(0) { bin_path = custom_bin.clone() }
+
+    paths.c_path = c_path
+    paths.bin_path = bin_path
+    paths.fwd_path = forward_header_path(c_path)
+    paths.h_path = "gen/til/".concat(name).concat(".h")
+    paths.til_path = "gen/til/".concat(name).concat(".til")
+    paths.py_path = "gen/til/".concat(name).concat(".py")
+    paths.do_lib = lp.cur_mode.is_library
+    return paths
+}
+
+make_build_dirs := proc(paths: BuildPaths) {
+    if paths.do_lib {
+        system_cmd("mkdir -p gen/til gen/lib")
+    } else {
+        cp_slash := paths.c_path.rfind("/")
+        bp_slash := paths.bin_path.rfind("/")
+        mut cp_dir := "gen/til"
+        if cp_slash.gt(0) {
+            cp_slash_u : USize = cp_slash.to_u32()
+            cp_dir = paths.c_path.substr(0, cp_slash_u)
+        }
+        mut bp_dir := "bin"
+        if bp_slash.gt(0) {
+            bp_slash_u : USize = bp_slash.to_u32()
+            bp_dir = paths.bin_path.substr(0, bp_slash_u)
+        }
+        system_cmd("mkdir -p ".concat(cp_dir).concat(" ").concat(bp_dir))
+    }
+}
+
+translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow I32 {
+    mut result := build_forward_header(lp.core_ast, lp.ast, paths.fwd_path, lp.ctx)
+    if result.eq(0) {
+        result = build(lp.core_ast, lp.ast, lp.cur_mode, lp.run_tests, lp.path, paths.c_path, lp.ctx)
+    }
+    if result.eq(0).and(paths.do_lib) {
+        result = build_header(lp.core_ast, lp.ast, paths.h_path, lp.ctx)
+        if result.eq(0) {
+            result = build_til_binding(lp.core_ast, lp.ast, paths.til_path, paths.name, lp.ctx)
+        }
+        if result.eq(0) {
+            result = build_python_binding(lp.core_ast, lp.ast, paths.py_path, paths.name, lp.ctx)
+        }
+    }
+    return result
+}
+
+print_translate_success := proc(paths: BuildPaths) {
+    println("Generated: ".concat(paths.c_path))
+    println("Generated: ".concat(paths.fwd_path))
+    if paths.do_lib {
+        println("Generated: ".concat(paths.h_path))
+        println("Generated: ".concat(paths.til_path))
+        println("Generated: ".concat(paths.py_path))
+    }
+}
+
+compile_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow I32 {
+    if paths.do_lib {
+        return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags)
+    }
+    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags)
+}
+
+cmd_translate := proc(lp: LoadedProgram, custom_c: Str) returns shallow I32 {
+    paths := derive_build_paths(lp, "", custom_c)
+    make_build_dirs(paths)
+    result := translate_ast(lp, paths)
+    if result.eq(0) { print_translate_success(paths) }
+    return result
+}
+
+cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str) returns shallow I32 {
+    paths := derive_build_paths(lp, custom_bin, custom_c)
+    make_build_dirs(paths)
+    mut result := translate_ast(lp, paths)
+    if result.eq(0) { result = compile_ast(lp, paths) }
+    if result.eq(0).and(paths.do_lib) {
+        print_translate_success(paths)
+        println("Generated: gen/lib/lib".concat(paths.name).concat(".so"))
+        println("Generated: gen/lib/lib".concat(paths.name).concat(".a"))
+    }
+    return result
+}
+
+cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec) returns shallow I32 {
+    if lp.cur_mode.is_library {
+        panic(__LOC__, "cannot run a library -- use translate or build")
+    }
+    paths := derive_build_paths(lp, custom_bin, custom_c)
+    make_build_dirs(paths)
+    mut result := translate_ast(lp, paths)
+    if result.eq(0) { result = compile_ast(lp, paths) }
+    if result.eq(0) {
+        mut cmd := paths.bin_path
+        mut ui : USize = 0
+        while ui.lt(user_argv.len()) {
+            ref uarg : Str = user_argv.get(ui)
+            cmd = cmd.concat(" '").concat(uarg).concat("'")
+            ui = ui.add(1)
+        }
+        result = system_cmd(cmd)
+    }
+    return result
+}

@@ -1,0 +1,365 @@
+mode lib
+
+import("parser.til")
+import("modes.til")
+import("initer.til")
+import("typer.til")
+import("precomp.til")
+import("scavenger.til")
+
+// --- External C bridges used by the loader ---
+
+// Defined in src/core/ast.til (core is loaded at runtime, not via our imports)
+ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
+
+realpath_str := ext_func(path: Str) returns Str {}
+
+// --- Leaf helpers ---
+
+// Owned copy of first n bytes of s (substr returns a view, this returns a clone)
+str_left := func(s: Str, n: USize) returns Str {
+    if n.eq(0) { return "" }
+    if n.gte(s.len()) { return s.clone() }
+    return s.substr(0, n).clone()
+}
+
+normalize_mode_name := func(mode_name: Str) returns Str {
+    if mode_name.len().gt(0) {
+        return mode_name.clone()
+    }
+    return "script"
+}
+
+// Strip CWD prefix so embedded file:line:col strings are repo-relative,
+// not absolute. Prepend "./" so emacs recognizes the path as relative.
+display_path := func(p: Str, cwd: Str) returns Str {
+    prefix := cwd.concat("/")
+    rel := p.strip_prefix(prefix)
+    if rel.starts_with("/") {
+        return rel.clone()
+    }
+    if rel.starts_with("./") {
+        return rel.clone()
+    }
+    return "./".concat(rel)
+}
+
+require_mode := func(path: Str, mode_name: Str) returns ref Mode {
+    ref resolved : Mode = mode_resolve(mode_name)
+    if is_null(resolved) {
+        panic(__LOC__, path, ": unknown mode '", mode_name, "'")
+    }
+    return resolved
+}
+
+forward_header_path := func(path: Str) returns Str {
+    slash := path.rfind("/")
+    dot := path.rfind(".")
+    if dot.gt(slash) {
+        return path.substr(0, dot.to_u32()).concat("_forward.h")
+    }
+    return path.concat("_forward.h")
+}
+
+// Directory part of an absolute path (no trailing slash).
+dir_of := func(abs: Str) returns Str {
+    if abs.len().eq(0) { return "." }
+    mut last_slash := abs.len().sub(1)
+    while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
+        last_slash = last_slash.sub(1)
+    }
+    return str_left(abs, last_slash)
+}
+
+// --- Import resolution ---
+
+// Extract import("path") calls from AST body, returning paths as Vec of Str*.
+// Matching nodes are removed from the body.
+extract_imports := func(body: Expr) returns Vec {
+    mut paths := Vec.new("Str", Str.size())
+    for i in 0..Expr.child_count(body) {
+        ref stmt : Expr = Expr.child(body, i)
+        if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
+            if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
+                .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
+                ref _c0id : Str = get_payload(Expr.child(stmt, 0).data)
+                if _c0id.eq("import") {
+                    ref path : Str = get_payload(Expr.child(stmt, 1).data)
+                    paths.push(own path.clone())
+                }
+            }
+        }
+    }
+    return paths
+}
+
+// Recursively resolve imports.
+resolve_imports := proc(import_paths: Vec, base_dir: Str,
+                        mut resolved_set: Set, mut stack: Vec,
+                        mut merged: Vec, lib_dir: Str,
+                        mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
+    for i in 0..import_paths.len() {
+        ref import_path : Str = import_paths.get(i)
+        // Try relative to importing file's directory, then lib_dir
+        mut try_path := base_dir.concat("/").concat(import_path)
+        mut abs := realpath_str(try_path)
+        if abs.eq("").and(lib_dir.len().gt(0)) {
+            try_path = lib_dir.concat("/").concat(import_path)
+            abs = realpath_str(try_path)
+        }
+        if abs.eq("") {
+            println("error: could not find import '".concat(import_path).concat("' (from ").concat(base_dir).concat("/)"))
+            return 1
+        }
+
+        // Dedup (also handles circular imports -- files are added to
+        // resolved_set when they start processing)
+        if Set.has(resolved_set, abs) {
+            continue
+        }
+        Set.add(resolved_set, own abs.clone())
+
+        // Load, lex, parse the imported file. Use display_path for the
+        // path strings that get embedded in the AST / generated C, so the
+        // boot/ files don't carry absolute paths.
+        disp := display_path(abs, cwd)
+        source := readfile(abs)
+        tokens := tokenize(source, disp)
+        mut sub_mode := ""
+        sub_ast := parse(tokens, disp.clone(), sub_mode)
+        sub_mode = normalize_mode_name(sub_mode)
+        ref sub_mode_def : Mode = require_mode(disp, sub_mode)
+        context_register_path_mode(ctx, disp, sub_mode_def)
+        sub_imports := extract_imports(sub_ast)
+
+        // Get imported file's directory for recursive resolution
+        sub_dir := dir_of(abs)
+
+        // Recurse for sub-imports
+        if sub_imports.len().gt(0) {
+            err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir,
+                                   ctx, default_mode, cwd)
+            if err.gt(0) {
+                return err
+            }
+        }
+
+        // Append imported file's declarations
+        for k in 0..Expr.child_count(sub_ast) {
+            ref ch : Expr = Expr.child(sub_ast, k)
+            merged.push(own Expr.clone(ch))
+        }
+    }
+    return 0
+}
+
+// --- LoadedProgram ---
+
+LoadedProgram := struct {
+    ref mut core_ast : Expr = NULL
+    ref mut ast : Expr = NULL
+    mut cur_mode := Mode()
+    mut ctx := Context()
+    mut skip_core := false
+    mut mode_str := ""
+    mut path := ""
+    mut ext_c_path := ""
+    mut link_flags := ""
+    mut include_flags := ""
+    mut link_c_paths := ""
+    mut run_tests := false
+}
+
+// Scan program AST for link()/link_c() directives; fill link_flags,
+// include_flags, link_c_paths on the given LoadedProgram.
+extract_link_info := proc(mut lp: LoadedProgram) {
+    ref ast : Expr = lp.ast
+    for i in 0..Expr.child_count(ast) {
+        ref stmt : Expr = Expr.child(ast, i)
+        if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
+            if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
+                .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
+                ref fname : Str = get_payload(Expr.child(stmt, 0).data)
+                ref arg : Str = get_payload(Expr.child(stmt, 1).data)
+                if fname.eq("link") {
+                    if arg.find("/").gte(0) {
+                        lp.link_flags = lp.link_flags.concat(" ").concat(arg)
+                        last_slash := arg.rfind("/")
+                        if last_slash.gte(0) {
+                            parent_dir := arg.substr(0, last_slash.to_usize())
+                            parent_slash := parent_dir.rfind("/")
+                            if parent_slash.gte(0) {
+                                inc_dir := parent_dir.substr(0, parent_slash.to_usize()).concat("/include")
+                                lp.include_flags = lp.include_flags.concat(" -I").concat(inc_dir)
+                            }
+                        }
+                    } else {
+                        lp.link_flags = lp.link_flags.concat(" -l").concat(arg)
+                    }
+                } else if fname.eq("link_c") {
+                    if lp.link_c_paths.len().gt(0) {
+                        lp.link_c_paths = lp.link_c_paths.concat(" ")
+                    }
+                    lp.link_c_paths = lp.link_c_paths.concat(arg)
+                }
+            }
+        }
+    }
+}
+
+// Load core.til + user file + imports + mode auto_import. Returns a
+// LoadedProgram with the merged ASTs and link info populated.
+load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns LoadedProgram {
+    mut lp := LoadedProgram()
+    lp.path = path.clone()
+    lp.ext_c_path = ext_c_path.clone()
+
+    core_path := bin_dir.concat("/src/core/core.til")
+    core_disp := display_path(core_path, cwd)
+
+    // Single resolved set for all imports (core + user), so no file is loaded twice
+    resolved := Set.new("Str", Str.size())
+    resolve_stack := Vec.new("Expr", Expr.size())
+    ctx := Context()
+
+    // Add user file to resolved set early (so core imports skip it if it overlaps)
+    abs_path := realpath_str(path)
+    mut user_dir := "."
+    if abs_path.len().gt(0) {
+        user_dir = dir_of(abs_path)
+        Set.add(resolved, own abs_path.clone())
+    }
+
+    // Load core.til
+    core_source := readfile(core_path)
+    core_tokens := tokenize(core_source, core_disp)
+    mut _core_mode := ""
+    core_ast := parse(core_tokens, core_disp.clone(), _core_mode)
+    ref core_mode : Mode = require_mode(core_disp, "lib")
+    context_register_path_mode(ctx, core_disp, core_mode)
+
+    // Add core.til to resolved set; skip prepending if user file IS core.til
+    mut skip_core := false
+    core_abs := realpath_str(core_path)
+    if core_abs.len().gt(0) {
+        if Set.has(resolved, core_abs) {
+            skip_core = true
+        }
+        Set.add(resolved, own core_abs.clone())
+    }
+
+    // Resolve core imports
+    core_import_decls := Vec.new("Expr", Expr.size())
+    core_imports := extract_imports(core_ast)
+    if core_imports.len().gt(0).and(skip_core.not()) {
+        core_dir := bin_dir.concat("/src/core")
+        err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
+                               core_import_decls, "", ctx, "lib", cwd)
+        if err.gt(0) {
+            panic(__LOC__, "failed to resolve core imports")
+        }
+    }
+
+    // Load user file
+    source := readfile(path)
+    tokens := tokenize(source, path)
+    mut mode_str := ""
+    user_ast := parse(tokens, path.clone(), mode_str)
+    imports := extract_imports(user_ast)
+    mode_str = normalize_mode_name(mode_str)
+    ref mut cur_mode : Mode = require_mode(path, mode_str)
+    context_register_path_mode(ctx, path, cur_mode)
+    ctx.mode = cur_mode.clone()
+
+    // If mode has auto_import, load its .til declarations
+    auto_import := cur_mode.auto_import
+
+    // Resolve user imports (using same resolved set -- skips files already loaded by core)
+    import_decls := Vec.new("Expr", Expr.size())
+    if imports.len().gt(0) {
+        lib_dir := bin_dir.concat("/src/lib")
+        err := resolve_imports(imports, user_dir, resolved, resolve_stack,
+                               import_decls, lib_dir, ctx, "", cwd)
+        if err.gt(0) {
+            panic(__LOC__, "failed to resolve imports")
+        }
+    }
+
+    // Build core_program: append core_import_decls to core_ast
+    if skip_core.not() {
+        mut core_imports_expr := Expr.new(NodeType.Body, 0, 0, "")
+        core_imports_expr.children = core_import_decls
+        core_ast.take_children(core_imports_expr)
+    }
+
+    // Build user program: mode imports, then user imports, then parsed user code
+    mut ast := Expr.new(NodeType.Body, 0, 0, "")
+    if auto_import.len().gt(0) {
+        mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
+        mode_disp := display_path(mode_til_path, cwd)
+        mode_source := readfile(mode_til_path)
+        mode_tokens := tokenize(mode_source, mode_disp)
+        mut mode_mode := ""
+        mode_ast := parse(mode_tokens, mode_disp.clone(), mode_mode)
+        mode_mode = normalize_mode_name(mode_mode)
+        ref mode_mode_def : Mode = require_mode(mode_disp, mode_mode)
+        context_register_path_mode(ctx, mode_disp, mode_mode_def)
+        ast.take_children(mode_ast)
+    }
+    ast.children.append(own import_decls)
+    ast.take_children(user_ast)
+
+    lp.core_ast = core_ast
+    lp.ast = ast
+    lp.cur_mode = cur_mode.clone()
+    lp.ctx = ctx
+    lp.skip_core = skip_core
+    lp.mode_str = mode_str
+
+    extract_link_info(lp)
+    return lp
+}
+
+// Append -l flag to the link_flags carried on lp.
+loaded_add_lflag := proc(mut lp: LoadedProgram, lib: Str) {
+    lp.link_flags = lp.link_flags.concat(" -l").concat(lib)
+}
+
+// Run init/typecheck/precomp/scavenge on the loaded program. Sets
+// lp.run_tests and panics on type errors.
+prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
+    lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
+
+    // Init phase: pre-scan declarations (core first, then user)
+    lp.ctx.scope = TypeScope()
+    if lp.skip_core.not() {
+        init_declarations(lp.core_ast, lp.ctx.scope, lp.ctx)
+    }
+    init_declarations(lp.ast, lp.ctx.scope, lp.ctx)
+
+    // Type checking (core first, then user)
+    mut type_errors : I32 = 0
+    if lp.skip_core.not() {
+        type_errors = type_check(lp.core_ast, lp.ctx.scope, lp.ctx)
+    }
+    type_errors = type_errors.add(type_check(lp.ast, lp.ctx.scope, lp.ctx))
+    if type_errors.gt(0) {
+        panic(__LOC__, type_errors.to_str().concat(" type error(s) found"))
+    }
+
+    precomp(lp.core_ast, lp.ast)
+
+    // Skip scavenging for lib/pure modes, and for programs with link_c
+    // (scavenger can't track C-level dependencies)
+    skip_scavenge := lp.cur_mode.is_library
+    if skip_scavenge.not().and(lp.link_c_paths.len().eq(0)) {
+        scavenge(lp.core_ast, lp.ast, lp.cur_mode, lp.run_tests)
+    }
+}
+
+// --- Commands ---
+
+cmd_ast := proc(lp: LoadedProgram) {
+    println("mode: ".concat(lp.mode_str))
+    ast_print(lp.ast, 0)
+}

@@ -235,6 +235,15 @@
 *** ref mut method : Str = NULL
 *** mut nargs : I32 = 1
 *** mut has_return := false
+** BuildPaths: StructDef
+*** mut name := ""
+*** mut c_path := ""
+*** mut bin_path := ""
+*** mut fwd_path := ""
+*** mut h_path := ""
+*** mut til_path := ""
+*** mut py_path := ""
+*** mut do_lib := false
 * dispatch
 ** ExtStr: StructDef
 *** ref mut data : U8 = NULL

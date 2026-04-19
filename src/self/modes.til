@@ -1,10 +1,6 @@
 mode lib
 
 import("initer.til")
-import("typer.til")
-import("precomp.til")
-import("interpreter.til")
-import("dispatch.til")
 
 Mode := struct {
     mut needs_main := false
