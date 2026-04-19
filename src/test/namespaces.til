@@ -31,6 +31,16 @@ Math := namespace {
     }
 }
 
+MyNamespace := namespace {
+    mut urmom := 69
+    get := func() returns I64 {
+        return MyNamespace.urmom
+    }
+    set := proc(val: I64) {
+        MyNamespace.urmom = val
+    }
+}
+
 test_enum_namespace := test() {
     expect(__LOC__, Direction.Up.is_vertical(), "enum namespace method")
     expect(__LOC__, Direction.Left.is_vertical().not(), "enum namespace false")
@@ -48,4 +58,10 @@ test_named_namespace_sugar := test() {
     assert_eq(__LOC__, Math.answer, 42)
     assert_eq(__LOC__, Math.add(2, 3), 5)
     assert_eq(__LOC__, Math.twice(9), 18)
+}
+
+test_namespace_mut_state := test() {
+    assert_eq(__LOC__, MyNamespace.get(), 69)
+    MyNamespace.set(420)
+    assert_eq(__LOC__, MyNamespace.get(), 420)
 }

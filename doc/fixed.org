@@ -1,5 +1,18 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #65 Standalone namespaces
+  Implemented as parser-level sugar at ~parser.til:790~: the form
+  ~Name := namespace { ... }~ desugars to a struct with no fields
+  whose body is a namespace section (every inner declaration gets
+  ~is_namespace = true~). No new AST nodes, no new typer work, no
+  new codegen -- reuses the existing struct namespace machinery.
+  Member access is qualified, same as struct namespaces
+  (e.g. ~MyNamespace.urmom~ from inside the namespace's own methods).
+  Tests in ~src/test/namespaces.til~: ~test_named_namespace_sugar~
+  (pure funcs + const) and ~test_namespace_mut_state~ (mut state
+  read by a func and written by a proc, matching the canonical
+  issue example).
+
 * FIXED #145 Cloning in link directive extraction
   Resolved indirectly. til.til's ~extract_imports~ (til.til:85) and the
   link/link_c extraction loop (til.til:327) are now read-only -- they
