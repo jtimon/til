@@ -3,13 +3,9 @@
 
 typedef struct Array Array;
 typedef struct Map Map;
-typedef struct DynMap DynMap;
 typedef struct Set Set;
 typedef struct Str Str;
 typedef struct Vec Vec;
-typedef struct Tuple Tuple;
-typedef struct StructDef StructDef;
-typedef struct EnumDef EnumDef;
 typedef enum {
     TilType_TAG_Unknown,
     TilType_TAG_None,
@@ -82,7 +78,6 @@ typedef enum {
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
-typedef struct Range Range;
 typedef struct Dynamic Dynamic;
 typedef struct File File;
 typedef enum {
@@ -211,8 +206,6 @@ typedef struct CliArgs CliArgs;
 typedef void * (*CloneFn)(void *);
 typedef void (*DeleteFn)(void *, Bool *);
 typedef I64 * (*CmpFn)(void *, void *);
-typedef void (*IncFn)(void *);
-typedef U32 * (*DistanceFn)(void *, void *);
 typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 
 typedef struct Str {
@@ -231,25 +224,6 @@ typedef struct Vec {
     void * elem_clone;
     void * elem_delete;
 } Vec;
-
-
-typedef struct Tuple {
-    U8 *data;
-    U32 total_size;
-    U32 cap;
-    Vec type_names;
-    Vec type_sizes;
-} Tuple;
-
-
-typedef struct StructDef {
-    char _;
-} StructDef;
-
-
-typedef struct EnumDef {
-    char _;
-} EnumDef;
 
 
 struct TilType {
@@ -321,12 +295,6 @@ typedef struct AssignData {
 
 
 
-typedef struct Range {
-    U64 start;
-    U64 end;
-} Range;
-
-
 
 typedef struct Dynamic {
     char _;
@@ -364,11 +332,6 @@ typedef struct Map {
     void * val_clone;
     void * val_delete;
 } Map;
-
-
-typedef struct DynMap {
-    Map items;
-} DynMap;
 
 
 typedef struct Set {
@@ -670,25 +633,13 @@ void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
 U32 Array_size(void);
 Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size);
-U32 * Map_len(Map * self);
 Bool Map_has(Map * self, void * key);
 void * Map_get(Map * self, void * key);
 void Map_set(Map * self, void * key, void * val);
 void Map_delete(Map * self, Bool * call_free);
 Map * Map_clone(Map * self);
 U32 Map_size(void);
-DynMap * DynMap_new(void);
-U32 * DynMap_len(DynMap * self);
-Bool DynMap_has(DynMap * self, Str * key);
-void DynMap_set(DynMap * self, Str * key, Str * elem_type, U32 * elem_size, void * val);
-void * DynMap_get(DynMap * self, Str * key);
-Str * DynMap_type_at(DynMap * self, Str * key);
-U32 * DynMap_size_at(DynMap * self, Str * key);
-DynMap * DynMap_clone(DynMap * self);
-void DynMap_delete(DynMap * self, Bool * call_free);
-U32 DynMap_size(void);
 Set * Set_new(Str * elem_type, U32 * elem_size);
-U32 * Set_len(Set * self);
 Bool Set_has(Set * self, void * val);
 void Set_add(Set * self, void * val);
 void Set_delete(Set * self, Bool * call_free);
@@ -704,76 +655,45 @@ Str * Str_with_capacity(U32 * n);
 void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 void Str_delete(Str * self, Bool * call_free);
-Str * Str_to_str(Str * val);
 Str * Str_substr(Str * s, U32 * start, U32 * n);
-Bool Str_contains(Str * a, Str * b);
 Bool Str_starts_with(Str * a, Str * b);
 Bool Str_ends_with(Str * a, Str * b);
 Bool Str_is_empty(Str * self);
 I64 Str_find(Str * self, Str * needle);
 I64 Str_rfind(Str * self, Str * needle);
 Str * Str_replace(Str * self, Str * from, Str * to);
-Str * Str_get_char(Str * self, U32 * i);
 Str * Str_strip_prefix(Str * self, Str * prefix);
-Str * Str_strip_suffix(Str * self, Str * suffix);
 Str * Str_from_byte(U8 * byte);
 I64 Str_to_i64(Str * self);
 U8 Str_to_u8(Str * self);
-I32 Str_to_i32(Str * self);
 F32 Str_to_f32(Str * self);
 Vec * Str_split(Str * self, Str * delim);
 U32 Str_size(void);
 Bool Str_eq(Str * a, Str * b);
-Bool Str_lt(Str * a, Str * b);
-Bool Str_gt(Str * a, Str * b);
-Bool Str_neq(Str * a, Str * b);
-Bool Str_lte(Str * a, Str * b);
-Bool Str_gte(Str * a, Str * b);
-Str * join(Vec * parts, Str * sep);
 Vec * Vec_new(Str * elem_type, U32 * elem_size);
 U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void Vec_append(Vec * self, Vec * other);
 void * Vec_get(Vec * self, U32 * i);
 void * Vec_pop(Vec * self);
-Vec * Vec_take_prefix(Vec * self, U32 * n);
 void Vec_set(Vec * self, U32 * i, void * val);
 void Vec_delete(Vec * self, Bool * call_free);
 Vec * Vec_clone(Vec * self);
 U32 Vec_size(void);
-Tuple * Tuple_new(void);
-U32 * Tuple_len(Tuple * self);
-void Tuple_push(Tuple * self, Str * elem_type, U32 * elem_size, void * val);
-void * Tuple_get(Tuple * self, U32 * i);
-Str * Tuple_type_at(Tuple * self, U32 * i);
-U32 * Tuple_size_at(Tuple * self, U32 * i);
-void Tuple_delete(Tuple * self, Bool * call_free);
-Tuple * Tuple_clone(Tuple * self);
-U32 Tuple_size(void);
-EnumDef * EnumDef_clone(EnumDef * self);
-void EnumDef_delete(EnumDef * self, Bool * call_free);
-U32 EnumDef_size(void);
-Bool TilType_is(TilType * self, TilType * other);
 Bool TilType_eq(TilType * self, TilType * other);
 void TilType_delete(TilType * self, Bool * call_free);
-Str * TilType_to_str(TilType * self);
 TilType * TilType_clone(TilType * self);
 U32 TilType_size(void);
 Str * til_type_name_c(TilType * t);
-Bool FuncType_is(FuncType * self, FuncType * other);
 Bool FuncType_eq(FuncType * self, FuncType * other);
 void FuncType_delete(FuncType * self, Bool * call_free);
-Str * FuncType_to_str(FuncType * self);
 FuncType * FuncType_clone(FuncType * self);
 U32 FuncType_size(void);
-Bool OwnType_is(OwnType * self, OwnType * other);
 Bool OwnType_eq(OwnType * self, OwnType * other);
 void OwnType_delete(OwnType * self, Bool * call_free);
-Str * OwnType_to_str(OwnType * self);
 OwnType * OwnType_clone(OwnType * self);
 U32 OwnType_size(void);
 Bool * Declaration_eq(Declaration * a, Declaration * b);
-Str * Declaration_to_str(Declaration * self);
 Declaration * Declaration_clone(Declaration * self);
 void Declaration_delete(Declaration * self, Bool * call_free);
 U32 Declaration_size(void);
@@ -781,40 +701,32 @@ Param * Param_clone(Param * self);
 void Param_delete(Param * self, Bool * call_free);
 U32 Param_size(void);
 Bool * FunctionDef_eq(FunctionDef * a, FunctionDef * b);
-Str * FunctionDef_to_str(FunctionDef * self);
 FunctionDef * FunctionDef_clone(FunctionDef * self);
 void FunctionDef_delete(FunctionDef * self, Bool * call_free);
 U32 FunctionDef_size(void);
 Bool * FCallData_eq(FCallData * a, FCallData * b);
-Str * FCallData_to_str(FCallData * self);
 FCallData * FCallData_clone(FCallData * self);
 void FCallData_delete(FCallData * self, Bool * call_free);
 U32 FCallData_size(void);
 void set_own_arg(Expr * fcall, U32 arg_index);
 Bool get_own_arg(Expr * fcall, U32 arg_index);
-Bool * FieldDef_eq(FieldDef * a, FieldDef * b);
-Str * FieldDef_to_str(FieldDef * self);
 FieldDef * FieldDef_clone(FieldDef * self);
 void FieldDef_delete(FieldDef * self, Bool * call_free);
 U32 FieldDef_size(void);
 Bool * StructDefData_eq(StructDefData * a, StructDefData * b);
-Str * StructDefData_to_str(StructDefData * self);
 StructDefData * StructDefData_clone(StructDefData * self);
 void StructDefData_delete(StructDefData * self, Bool * call_free);
 U32 StructDefData_size(void);
 Bool * AssignData_eq(AssignData * a, AssignData * b);
-Str * AssignData_to_str(AssignData * self);
 AssignData * AssignData_clone(AssignData * self);
 void AssignData_delete(AssignData * self, Bool * call_free);
 U32 AssignData_size(void);
 Bool NodeType_is(NodeType * self, NodeType * other);
 Bool NodeType_eq(NodeType * self, NodeType * other);
 void NodeType_delete(NodeType * self, Bool * call_free);
-Str * NodeType_to_str(NodeType * self);
 NodeType * NodeType_clone(NodeType * self);
 U32 NodeType_size(void);
 void Expr_error(Expr * self, Str * msg);
-void Expr_todo_error(Expr * self, Str * msg);
 void Expr_lang_error(Expr * self, Str * msg);
 void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
@@ -822,8 +734,6 @@ void Expr_take_children(Expr * self, Expr * other);
 Expr * Expr_child(Expr * parent, U32 * i);
 U32 Expr_child_count(Expr * parent);
 Expr * Expr_new(NodeType * data, U32 line, U32 col, Str * path);
-Bool Expr_eq(Expr * self, Expr * other);
-Str * Expr_to_str(Expr * self);
 Expr * Expr_clone(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);
 U32 Expr_size(void);
@@ -832,43 +742,24 @@ Str * func_type_name(FuncType * ft);
 void ast_print(Expr * e, U32 indent);
 Bool enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
-Str * enum_variant_type(Expr * enum_def, I32 tag);
-Range * Range_new(U64 start, U64 end);
-U64 * Range_len(Range * self);
-U64 * Range_get(Range * self, U64 i);
-Range * Range_clone(Range * val);
-void Range_delete(Range * self, Bool * call_free);
-U32 Range_size(void);
 U32 * Dynamic_size(void);
 void * default_clone(void * v);
 void default_delete(void * v, Bool * cf);
 I64 * default_cmp(void * a, void * b);
-void default_inc(void * v);
-U32 * default_distance(void * a, void * b);
 void println(Array * parts);
 void print(Array * parts);
 File * File_new(Str * path, Bool is_write);
 void File_write_str(File * self, Str * s);
-Str * File_read_all(File * self);
 void File_close(File * self);
 File * File_clone(File * self);
 void File_delete(File * self, Bool * call_free);
 U32 File_size(void);
 void swap(void * a, void * b, U64 size);
-void move(void * dest, void * src, U64 size);
 I64 * wait_cmd(I64 * pid);
 I64 * run_cmd(Str * output, Array * args);
 void panic(Str * loc_str, Array * parts);
-void TODO(Str * loc_str, Array * parts);
-void UNREACHABLE(Str * loc_str);
-Bool * assert(Str * loc_str, Bool * cond);
-void expect(Str * loc_str, Bool * cond, Array * parts);
-void assert_eq(Str * loc_str, I64 * a, I64 * b);
-void assert_eq_str(Str * loc_str, Str * a, Str * b);
-Bool TokenType_is(TokenType * self, TokenType * other);
 Bool TokenType_eq(TokenType * self, TokenType * other);
 void TokenType_delete(TokenType * self, Bool * call_free);
-Str * TokenType_to_str(TokenType * self);
 TokenType * TokenType_clone(TokenType * self);
 U32 TokenType_size(void);
 Token * Token_clone(Token * self);
@@ -908,8 +799,6 @@ Expr * parse_expression(Parser * p);
 Expr * parse_statement_ident(Parser * p, Bool is_mut, OwnType own_type);
 Expr * parse_statement(Parser * p);
 Expr * parse(Vec * tokens, Str * path, Str * mode_out);
-Bool TypeBinding_eq(TypeBinding * a, TypeBinding * b);
-Str * TypeBinding_to_str(TypeBinding * self);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U32 TypeBinding_size(void);
@@ -945,10 +834,7 @@ I32 init_declarations(Expr * program, TypeScope * scope, Context * ctx);
 void * Vec_take(Vec * v);
 ScopeFind * ScopeFind_NotFound(void);
 ScopeFind * ScopeFind_Found(TypeBinding * val);
-Bool ScopeFind_is(ScopeFind * self, ScopeFind * other);
-Bool ScopeFind_eq(ScopeFind * self, ScopeFind * other);
 void ScopeFind_delete(ScopeFind * self, Bool * call_free);
-Str * ScopeFind_to_str(ScopeFind * self);
 ScopeFind * ScopeFind_clone(ScopeFind * self);
 U32 ScopeFind_size(void);
 TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
@@ -978,10 +864,7 @@ void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U32 LocalInfo_size(void);
 CtorArg * CtorArg_Unfilled(void);
 CtorArg * CtorArg_Filled(Expr * val);
-Bool CtorArg_is(CtorArg * self, CtorArg * other);
-Bool CtorArg_eq(CtorArg * self, CtorArg * other);
 void CtorArg_delete(CtorArg * self, Bool * call_free);
-Str * CtorArg_to_str(CtorArg * self);
 CtorArg * CtorArg_clone(CtorArg * self);
 U32 CtorArg_size(void);
 void type_error(Expr * e, Str * msg);
@@ -1120,10 +1003,8 @@ void precomp_register_defs(Scope * global, Expr * prog);
 void precomp(Expr * core_program, Expr * program);
 Bool scav_fa_is_ns(Expr * e);
 Str * qualified_name(Str * type_name, Str * method_name);
-Str * gc_str(Str * s);
 void gc_free_all(void);
 void vec_push_str(Vec * v, Str * s);
-void children_write(Vec * v, I64 dst, I64 src);
 void children_filter(Vec * v, void * marks, U32 n);
 Bool is_def(Expr * e);
 Bool is_struct_or_enum(Expr * e);
@@ -1132,7 +1013,6 @@ void push_builtin_methods(Vec * v, Str * builtin_name, Str * m1, Str * m2, Str *
 void collect_refs(Expr * e, Vec * refs);
 Expr * find_ns_method(Expr * program, Map * top, Str * name);
 void scavenge(Expr * core_program, Expr * program, Mode * mode, Bool run_tests);
-void ast_print(Expr * ast, U32 indent);
 Str * realpath_str(Str * path);
 Str * str_left(Str * s, U32 * n);
 Str * normalize_mode_name(Str * mode_name);
@@ -1243,7 +1123,6 @@ Str * type_name_to_ctypes_return(Str * name, Bool is_shallow);
 I32 build_python_binding(Expr * core_program, Expr * program, Str * py_path, Str * lib_name, Context * ctx);
 I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags);
 I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags);
-void register_funcsig_prog(Expr * prog);
 void emit_global_inits_prog(File * f, Expr * prog);
 void emit_global_inits(File * f);
 void build_register_funcsig_names(Expr * core_program, Expr * program);
@@ -1274,18 +1153,13 @@ I32 cmd_translate(LoadedProgram * lp, Str * custom_c);
 I32 cmd_build(LoadedProgram * lp, Str * custom_bin, Str * custom_c);
 I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv);
 I32 system_cmd(Str * cmd);
-Bool StructInstance_eq(StructInstance * a, StructInstance * b);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);
 void StructInstance_delete(StructInstance * self, Bool * call_free);
 U32 StructInstance_size(void);
-Bool EnumInstance_eq(EnumInstance * a, EnumInstance * b);
-Str * EnumInstance_to_str(EnumInstance * self);
 EnumInstance * EnumInstance_clone(EnumInstance * self);
 void EnumInstance_delete(EnumInstance * self, Bool * call_free);
 U32 EnumInstance_size(void);
-Bool * Value_eq(Value * a, Value * b);
-Str * Value_to_str(Value * self);
 Value * Value_clone(Value * self);
 Value * Value_None(void);
 Value * Value_Int(I64 * val);
@@ -1300,7 +1174,6 @@ Value * Value_Func(void * val);
 Value * Value_Struct(StructInstance * val);
 Value * Value_Enum(EnumInstance * val);
 Value * Value_Ptr(void * val);
-Bool Value_is(Value * self, Value * other);
 void Value_delete(Value * self, Bool * call_free);
 U32 Value_size(void);
 Cell * Cell_clone(Cell * self);
@@ -1537,10 +1410,10 @@ TokenType *TokenType_KwTrue();
 TokenType *TokenType_KwFalse();
 TokenType *TokenType_KwNull();
 TokenType *TokenType_Error();
-Bool ScopeFind_eq(ScopeFind *, ScopeFind *);
+Bool * ScopeFind_eq(ScopeFind *, ScopeFind *);
 ScopeFind *ScopeFind_NotFound();
 ScopeFind *ScopeFind_Found(TypeBinding *);
-Bool CtorArg_eq(CtorArg *, CtorArg *);
+Bool * CtorArg_eq(CtorArg *, CtorArg *);
 CtorArg *CtorArg_Unfilled();
 CtorArg *CtorArg_Filled(Expr *);
 Bool * Value_eq(Value *, Value *);

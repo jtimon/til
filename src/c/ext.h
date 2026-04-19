@@ -193,7 +193,6 @@ I64 U64_cmp(U64 a, U64 b);
 // U64 conversions
 I64 U64_to_i64(U64 a);
 U64 U64_from_i64_ext(I64 *a);
-Str *U64_to_str(U64 v);
 Str *U64_to_str_ext(U64 v);
 
 // U64 clone

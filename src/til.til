@@ -18,9 +18,6 @@ import("self/builder.til")
 import("self/interpreter.til")
 import("self/dispatch.til")
 
-// Link C modules
-link_c("src/c/ext.c")
-
 link("dl")
 link("lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
 link("lib/raylib/src/libraylib.a")

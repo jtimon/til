@@ -9,9 +9,6 @@ import("scavenger.til")
 
 // --- External C bridges used by the loader ---
 
-// Defined in src/core/ast.til (core is loaded at runtime, not via our imports)
-ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
-
 realpath_str := ext_func(path: Str) returns Str {}
 
 // --- Leaf helpers ---

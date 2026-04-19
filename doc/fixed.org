@@ -1,5 +1,44 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #43 Remove --allow-multiple-definition linker workaround
+  The ~-Wl,--allow-multiple-definition~ flag is gone from both
+  ~compile_c~ and ~compile_lib~ in ~src/self/builder.til~. Programs
+  now link cleanly; any real duplicate-symbol conflict surfaces as a
+  linker error instead of being silently masked.
+
+  Root cause and fixes applied:
+  - ~src/til.til~ used ~link_c("src/c/ext.c")~, but every compile
+    already links ~ext.c~ via ~ext_c_path~ in ~compile_c~. The
+    explicit ~link_c~ was redundant and caused ~ext.c~ to be compiled
+    twice into the same binary (duplicate symbols). Removed.
+  - ~src/c/ext.c~ defined three plain C functions (~F32_from_i64~,
+    ~U64_from_i64~, ~U64_to_str~) whose names collide with the C
+    functions the builder generates for the matching core ~U64~/~F32~
+    namespace methods. The plain versions were dead or only reachable
+    via an internal wrapper. Removed the plain definitions and inlined
+    ~U64_to_str~'s body into ~U64_to_str_ext~. ~src/c/ext.h~ updated
+    accordingly.
+  - With ~link_c~ gone from ~til.til~, the scavenger now runs on
+    ~til.til~ itself (previously skipped, per ~loader.til:354~). Two
+    adjustments were needed:
+    - ~src/self/scavenger.til~: the BFS used ~if top.has(name) ...
+      else if core_top.has(name) ...~, so an ~ext_func~/~ext_proc~
+      shim in a user file would shadow the real core definition and
+      the scavenger would never walk the core body, dropping the
+      referenced ~lte~/~gte~/~inc~/~dec~/... methods and helpers.
+      Changed the ~else if~ to a second independent ~if~ so both
+      user and core bodies are walked.
+    - ~src/self/loader.til~: removed the ~ast_print := ext_proc(...){}~
+      shim that duplicated the core definition in ~src/core/ast.til~.
+      The shim pre-dated the scavenger fix and was the only user-side
+      shadow of a core function; without it the scavenger correctly
+      reaches ~ast_print~ from ~core_top~.
+
+  The Makefile's ~LD_FLAGS~ still carries the flag because ~bin/til_boot~
+  is built from HEAD's ~boot/til.c~ + HEAD's ~src/c/ext.c~, and HEAD
+  (pre-commit) still has the duplicates. After this commit, a follow-up
+  can drop ~--allow-multiple-definition~ from ~LD_FLAGS~ entirely.
+
 * FIXED #65 Standalone namespaces
   Implemented as parser-level sugar at ~parser.til:790~: the form
   ~Name := namespace { ... }~ desugars to a struct with no fields

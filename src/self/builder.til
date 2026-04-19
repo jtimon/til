@@ -2774,7 +2774,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
 
     // Create shared library
     so_path := "gen/lib/lib".concat(lib_name).concat(".so")
-    cmd = "cc -shared -Wl,--allow-multiple-definition -o ".concat(so_path)
+    cmd = "cc -shared -o ".concat(so_path)
         .concat(" ").concat(obj_path).concat(" ").concat(ext_obj)
         .concat(" ").concat(user_obj).concat(lf)
     result = system_cmd(cmd)
@@ -2846,7 +2846,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
         user_part = all_objs
     }
 
-    cmd := "cc -Wall -Wextra -Werror -g -rdynamic -Wl,--allow-multiple-definition -I".concat(ext_dir)
+    cmd := "cc -Wall -Wextra -Werror -g -rdynamic -I".concat(ext_dir)
         .concat(" -o ").concat(bin_path).concat(" ").concat(c_path)
         .concat(" ").concat(ext_c_path).concat(user_part).concat(lf)
 

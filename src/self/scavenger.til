@@ -278,7 +278,11 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         if visited.has(name) { continue }
         visited.add(own name.clone())
 
-        // Top-level declaration? (check both user and core)
+        // Top-level declaration? Process both user and core: a user file may
+        // declare ~ext_proc name(){}~ as a forward shim for a core definition,
+        // and the scavenger must still walk the core body so that everything
+        // that body references (methods, helpers, generated ~lte~/~gte~, ...)
+        // gets added to the worklist.
         if top.has(name) {
             ref idx : U32 = top.get(name)
             ref decl : Expr = program.child(idx)
@@ -298,7 +302,8 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             } else {
                 collect_refs(decl.child(0), worklist)
             }
-        } else if core_top.has(name) {
+        }
+        if core_top.has(name) {
             ref idx : U32 = core_top.get(name)
             ref decl : Expr = core_program.child(idx)
             if is_struct_or_enum(decl) {

@@ -177,7 +177,6 @@ I64 F32_cmp(F32 a, F32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 // F32 conversions
 I64 F32_to_i64(F32 a) { return (I64)a; }
-F32 F32_from_i64(I64 v) { return (F32)v; }
 F32 F32_from_i64_ext(I64 *a) { return (F32)*a; }
 
 // F32 to_str
@@ -237,11 +236,10 @@ I64 U64_cmp(U64 a, U64 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 // U64 conversions
 I64 U64_to_i64(U64 a) { return (I64)a; }
-U64 U64_from_i64(I64 v) { return (U64)v; }
 U64 U64_from_i64_ext(I64 *a) { return (U64)*a; }
 
 // U64 to_str
-Str *U64_to_str(U64 v) {
+Str *U64_to_str_ext(U64 v) {
     char buf[32];
     snprintf(buf, 32, "%llu", v);
     USize len = (USize)strlen(buf);
@@ -252,8 +250,6 @@ Str *U64_to_str(U64 v) {
     s->cap = len;
     return s;
 }
-
-Str *U64_to_str_ext(U64 v) { return U64_to_str(v); }
 
 
 // U64 clone
