@@ -1,10 +1,82 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 149
+# NEXT_ISSUE: 150
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/15] Pre
+* [0/16] Pre
+** OPEN #149 Add ns_decls container for namespace-section Decls
+   Struct and enum definitions carry a ~namespace:~ section whose members
+   are parsed as siblings of the instance fields in the same ~body.children~
+   Vec, distinguished only by the ~Declaration.is_namespace~ flag.
+   ~7 consumer modules read this flag across ~80 sites (builder, typer,
+   dispatch, initer, interpreter, scavenger, precomp), each filtering
+   body children with ~if dd.is_namespace { ... }~ or its negation.
+
+   This issue adds a dedicated ~ns_decls : Vec<Declaration>~ field next
+   to the existing (dead-code) ~fields~ Vec on ~StructDefData~, routes
+   namespace Decls there during parsing, and migrates readers off the
+   flag. Done in two phases; phase 2 is blocked on prep work.
+
+*** Phase 1 -- structs (this issue)
+
+    1. Add ~StructDefData.ns_decls : Vec<Declaration>~. Parser
+       ~parse_struct_def~ (src/self/parser.til:308-333) keeps pushing
+       the full Decl Expr into ~body.children~ with ~is_namespace=true~
+       (dual-write), AND pushes a cloned ~Declaration~ into
+       ~sdd.ns_decls~ with ~default_value~ pointing to the FuncDef
+       child (same pattern step 1 of ~#147~ used for instance fields).
+       No readers migrated yet -- pure additive commit.
+
+    2. Migrate reader sites one module at a time (one commit per
+       module, ~make test~ green at each step). Readers change from
+       ~for i in 0..body.child_count() { ... if dd.is_namespace { ... } }~
+       to ~for i in 0..sdd.ns_decls.len() { ref dd = sdd.ns_decls.get(i) ... }~,
+       then separately from ~if dd.is_namespace.not() { ... process instance field }~
+       to the same loop with the flag check removed. Modules in
+       approximate dependency order:
+       - ~src/self/initer.til~ (~19 reads)
+       - ~src/self/typer.til~ (~19 reads)
+       - ~src/self/builder.til~ (~26 reads)
+       - ~src/self/dispatch.til~ (~8 reads)
+       - ~src/self/interpreter.til~ (~7 reads)
+       - ~src/self/scavenger.til~ (~7 reads)
+       - ~src/self/precomp.til~ (~1 read)
+
+    3. Parser stops pushing namespace Decls into ~body.children~.
+       Drop ~Declaration.is_namespace~ reads/writes on the struct
+       side (enum parser still sets it -- see phase 2).
+
+*** Phase 2 -- enums (blocked on EnumDef prep)
+
+    ~NodeType.EnumDef~ is a bare variant (src/core/ast.til:175) with
+    no payload struct, so there is no place to hang ~ns_decls~ on.
+    Phase 2 requires:
+
+    - Introduce ~EnumDefData~ payload struct (parallel to
+      ~StructDefData~) and change the variant to ~EnumDef:
+      EnumDefData~. Every ~is_variant(x, NodeType.EnumDef)~ and
+      constructor site is touched.
+    - Then apply the same three-step dual-write / migrate / cut-over
+      pattern as phase 1 for enum namespace Decls.
+
+    Kept as a phase within this issue for context; a separate issue
+    may be spun off once the ~EnumDefData~ prep is scoped.
+
+*** Notes
+
+    - ~Vec<Declaration>~ chosen over ~Vec<Expr>~: readers that today
+      do ~field.child(0)~ to reach the FuncDef switch to reading
+      ~dd.default_value~ instead. Declaration already grew a
+      ~default_value : Expr~ ref in ~#147~ step 1, which fits.
+    - Instance-field handling (~StructDefData.fields~) is out of
+      scope. That Vec is still write-only dead code; a separate
+      cleanup should either populate it for real or drop it.
+    - ~is_namespace~ flag stays on ~Declaration~ throughout phase 1
+      until step 3. ~#147~ step 6 ("Remove
+      ~Declaration.is_namespace~") becomes trivial once both
+      phases land.
+
 ** OPEN #147 AST/Context redesign: lessons from rstil
    rstil (the previous Rust implementation, at ~../rstil~) was slower and
    leakier than current til, but several of its architectural choices around
