@@ -127,16 +127,14 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
 
         ref sdef : Expr = stmt.child(0)
         ref mut body : Expr = sdef.child(0)
+        ref sdd : StructDefData = get_payload(sdef.data)
 
         mut has_clone := false
-        for j in 0..body.child_count() {
-            ref field : Expr = body.child(j)
-            if is_variant(field.data, NodeType.Decl) {
-                ref fd : Declaration = get_payload(field.data)
-                if fd.is_namespace.and(fd.name.eq("clone")) {
-                    has_clone = true
-                    break
-                }
+        for j in 0..sdd.ns_decls.len() {
+            ref fd : Declaration = sdd.ns_decls.get(j)
+            if fd.name.eq("clone") {
+                has_clone = true
+                break
             }
         }
         if has_clone { continue }
@@ -857,16 +855,14 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 
         ref sdef : Expr = stmt.child(0)
         ref mut body : Expr = sdef.child(0)
+        ref sdd : StructDefData = get_payload(sdef.data)
 
         mut has_delete := false
-        for j in 0..body.child_count() {
-            ref field : Expr = body.child(j)
-            if is_variant(field.data, NodeType.Decl) {
-                ref fd : Declaration = get_payload(field.data)
-                if fd.is_namespace.and(fd.name.eq("delete")) {
-                    has_delete = true
-                    break
-                }
+        for j in 0..sdd.ns_decls.len() {
+            ref fd : Declaration = sdd.ns_decls.get(j)
+            if fd.name.eq("delete") {
+                has_delete = true
+                break
             }
         }
         if has_delete { continue }
@@ -1102,19 +1098,17 @@ generate_struct_size_methods := proc(program: Expr) {
         if sname.eq("StructDef") { continue }
         if sname.eq("Dynamic") { continue }
         ref mut body : Expr = def.child(0)
+        ref struct_meta : StructDefData = get_payload(def.data)
         mut has_size := false
-        for j in 0..body.child_count() {
-            ref field : Expr = body.child(j)
-            if is_variant(field.data, NodeType.Decl).not() { continue }
-            ref fd : Declaration = get_payload(field.data)
-            if fd.is_namespace.and(fd.name.eq("size")) {
+        for j in 0..struct_meta.ns_decls.len() {
+            ref fd : Declaration = struct_meta.ns_decls.get(j)
+            if fd.name.eq("size") {
                 has_size = true
                 break
             }
         }
         if has_size { continue }
 
-        ref struct_meta : StructDefData = get_payload(def.data)
         sz_text := struct_meta.total_struct_size.to_str()
 
         mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
