@@ -386,7 +386,6 @@ struct NodeType {
 typedef struct Expr {
     NodeType data;
     TilType til_type;
-    Str struct_name;
     Vec children;
     U32 line;
     U32 col;
@@ -691,6 +690,7 @@ void TilType_delete(TilType * self, Bool * call_free);
 TilType * TilType_clone(TilType * self);
 U32 TilType_size(void);
 Str * til_type_name_c(TilType * t);
+Str * til_type_name(TilType * t);
 Bool FuncType_eq(FuncType * self, FuncType * other);
 void FuncType_delete(FuncType * self, Bool * call_free);
 FuncType * FuncType_clone(FuncType * self);

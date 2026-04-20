@@ -13,7 +13,7 @@ scav_fa_is_ns := func(e: Expr) returns shallow Bool {
         }
         // Also check: if ident name matches struct_name, it's a type reference
         ref id : Str = get_payload(obj.data)
-        if obj.struct_name.len().gt(0).and(obj.struct_name.eq(id)) { return true }
+        if til_type_name(obj.til_type).len().gt(0).and(til_type_name(obj.til_type).eq(id)) { return true }
     }
     return false
 }

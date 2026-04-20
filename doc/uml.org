@@ -180,7 +180,6 @@
 ** Expr: StructDef
 *** mut data := NodeType.Body
 *** mut til_type := TilType.Unknown
-*** mut struct_name := ""
 *** mut children := Vec.new("Expr", Expr.size())
 *** mut line : U32 = 0
 *** mut col : U32 = 0

@@ -1141,7 +1141,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
         mut node := Expr.new(NodeType.ForIn(iname), i_line, i_col, p.path)
         if check(p, TokenType.Colon) {
             advance(p)
-            node.struct_name = expect_text(p, TokenType.Ident)
+            node.til_type = TilType.Custom(expect_text(p, TokenType.Ident))
         }
         expect_token(p, TokenType.KwIn)
         node.add_child(own parse_expression(p))

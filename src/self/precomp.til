@@ -48,7 +48,6 @@ value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
             sv := str_view(val)
             mut e := Expr.new(NodeType.LiteralStr(sv.clone()), src.line, src.col, src.path)
             e.til_type = TilType.Struct("Str".clone())
-            e.struct_name = "Str"
             return e
         }
         return NULL
@@ -146,7 +145,6 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
     nargs := fcall.child_count().sub(1)
     mut ec := Expr.new(NodeType.FCall, fcall.line, fcall.col, fcall.path)
     ec.til_type = fcall.til_type
-    ec.struct_name = fcall.struct_name.clone()
     ec.add_child(own fcall.child(0).clone())
 
     for i in 0..nargs {

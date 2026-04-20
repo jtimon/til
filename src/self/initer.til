@@ -471,7 +471,7 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
             mut then_body := Expr.new(NodeType.Body, line, col, path)
 
             mut type_id := Expr.new(NodeType.Ident(vtype.clone()), line, col, path)
-            type_id.struct_name = vtype.clone()
+            type_id.til_type = TilType.Custom(vtype.clone())
             mut del_acc := Expr.new(NodeType.FieldAccess("delete"), line, col, path)
             del_acc.add_child(own type_id)
             mut del_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
@@ -483,7 +483,6 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
             gc.add_child(own gp)
             gc.add_child(own self2)
             gc.til_type = type_from_name_init(vtype, scope)
-            gc.struct_name = vtype.clone()
             set_own_arg(del_call, del_call.child_count())
             del_call.add_child(own gc)
 
@@ -1600,7 +1599,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                     if is_variant(def_val.data, NodeType.LiteralNum) { ftype = "I64" }
                     else if is_variant(def_val.data, NodeType.LiteralStr) { ftype = "Str" }
                     else if is_variant(def_val.data, NodeType.LiteralBool) { ftype = "Bool" }
-                    else if def_val.struct_name.len().gt(0) { ftype = def_val.struct_name }
+                    else if til_type_name(def_val.til_type).len().gt(0) { ftype = til_type_name(def_val.til_type) }
                     else if is_variant(def_val.data, NodeType.FCall) {
                         if def_val.child_count().gt(0) {
                             ref callee : Expr = def_val.child(0)
@@ -1747,7 +1746,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         if _init_ns1.and(is_variant(rhs.til_type, TilType.Enum)) {
             mut _enum_name := ""
             if rhs.child_count().gt(0) {
-                _enum_name = rhs.child(0).struct_name.clone()
+                _enum_name = til_type_name(rhs.child(0).til_type)
             }
             out_type = TilType.Enum(_enum_name.clone())
             out_struct_name = _enum_name
@@ -1756,11 +1755,11 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         return false
     case NodeType.FCall:
         ref callee : Expr = rhs.child(0)
-        if rhs.struct_name.len().gt(0).and(is_variant(callee.data, NodeType.Ident)) {
+        if til_type_name(rhs.til_type).len().gt(0).and(is_variant(callee.data, NodeType.Ident)) {
             ref cn : Str = get_payload(callee.data)
-            if cn.eq(rhs.struct_name) {
-                out_type = TilType.Struct(rhs.struct_name.clone())
-                out_struct_name = rhs.struct_name
+            if cn.eq(til_type_name(rhs.til_type)) {
+                out_type = TilType.Struct(til_type_name(rhs.til_type))
+                out_struct_name = til_type_name(rhs.til_type)
                 return true
             }
         }
@@ -1774,9 +1773,9 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
             }
         }
         if is_variant(callee.data, NodeType.FieldAccess).and(_init_ns2)
-            .and(rhs.struct_name.len().gt(0)).and(is_variant(rhs.til_type, TilType.Enum)) {
-            out_type = TilType.Enum(rhs.struct_name.clone())
-            out_struct_name = rhs.struct_name
+            .and(til_type_name(rhs.til_type).len().gt(0)).and(is_variant(rhs.til_type, TilType.Enum)) {
+            out_type = TilType.Enum(til_type_name(rhs.til_type))
+            out_struct_name = til_type_name(rhs.til_type)
             return true
         }
         if is_variant(callee.data, NodeType.Ident) {

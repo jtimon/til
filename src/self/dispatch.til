@@ -303,7 +303,7 @@ eval_arg := proc(s: Scope, e: Expr) returns Value {
         ref x : Bool = p
         return val_bool(x)
     case TilType.Struct:
-        if e.struct_name.eq("Str") {
+        if til_type_name(e.til_type).eq("Str") {
             ref sp : ExtStr = p
             return make_str_value_own(sp.data, sp.count)
         }
@@ -691,7 +691,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
     // Build fake AST: Type.method(args...)
     mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), e.line, e.col, e.path)
-    type_ident.struct_name = type_name.clone()
+    type_ident.til_type = TilType.Struct(type_name.clone())
 
     mut field_access := Expr.new(NodeType.FieldAccess(method.clone()), e.line, e.col, e.path)
     field_access.add_child(own type_ident)
@@ -719,7 +719,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
     }
     // Build fake call: Type.size()
     mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col, src.path)
-    type_ident.struct_name = type_name.clone()
+    type_ident.til_type = TilType.Struct(type_name.clone())
 
     mut field_access := Expr.new(NodeType.FieldAccess("size"), src.line, src.col, src.path)
     field_access.add_child(own type_ident)

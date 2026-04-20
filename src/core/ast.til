@@ -39,6 +39,24 @@ til_type_name_c := func(t: TilType) returns Str {
     }
 }
 
+// Extract the struct/enum/custom name carried in a TilType's payload.
+// Returns empty Str for any other variant.
+til_type_name := func(t: TilType) returns Str {
+    if is_variant(t, TilType.Struct) {
+        ref s : Str = get_payload(t)
+        return s.clone()
+    }
+    if is_variant(t, TilType.Enum) {
+        ref s : Str = get_payload(t)
+        return s.clone()
+    }
+    if is_variant(t, TilType.Custom) {
+        ref s : Str = get_payload(t)
+        return s.clone()
+    }
+    return ""
+}
+
 // --- FuncType enum ---
 FuncType := enum {
     None, Func, Proc, Test, Macro, ExtFunc, ExtProc,
@@ -184,7 +202,6 @@ NodeType := enum {
 Expr := struct {
     mut data := NodeType.Body
     mut til_type := TilType.Unknown
-    mut struct_name := ""
     mut children := Vec.new("Expr", Expr.size())
     mut line : U32 = 0
     mut col : U32 = 0
