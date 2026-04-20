@@ -145,6 +145,7 @@
 ** StructDefData: StructDef
 *** mut total_struct_size : I32 = 0
 *** mut fields := Vec.new("Declaration", Declaration.size())
+*** mut ns_decls := Vec.new("Declaration", Declaration.size())
 *** mut c_tag := ""
 ** AssignData: StructDef
 *** mut name := ""

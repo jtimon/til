@@ -314,10 +314,16 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
         }
         mut stmt := parse_statement(p)
         if in_namespace.and(is_variant(stmt.data, NodeType.Decl)) {
-            if is_variant(stmt.data, NodeType.Decl) {
-                ref mut dd : Declaration = get_payload(stmt.data)
-                dd.is_namespace = true
+            ref mut dd : Declaration = get_payload(stmt.data)
+            dd.is_namespace = true
+            ref mut sdd : StructDefData = get_payload(def.data)
+            ref mut rhs : Expr = NULL
+            if stmt.child_count().gt(0) {
+                rhs = stmt.child(0)
             }
+            mut cloned_dd := dd.clone()
+            cloned_dd.default_value = rhs
+            sdd.ns_decls.push(own cloned_dd)
         }
         if in_namespace.not().and(is_variant(stmt.data, NodeType.Decl)) {
             ref dd : Declaration = get_payload(stmt.data)

@@ -295,6 +295,7 @@ typedef struct FCallData {
 typedef struct StructDefData {
     I32 total_struct_size;
     Vec fields;
+    Vec ns_decls;
     Str c_tag;
 } StructDefData;
 
