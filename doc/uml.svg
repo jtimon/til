@@ -109,9 +109,9 @@
   <text x="328" y="398" class="line">U64</text>
   <text x="328" y="416" class="line">F32</text>
   <text x="328" y="434" class="line">Bool</text>
-  <text x="328" y="452" class="line">Struct</text>
+  <text x="328" y="452" class="line">Struct:Str</text>
   <text x="328" y="470" class="line">StructDef</text>
-  <text x="328" y="488" class="line">Enum</text>
+  <text x="328" y="488" class="line">Enum:Str</text>
   <text x="328" y="506" class="line">EnumDef</text>
   <text x="328" y="524" class="line">FuncDef</text>
   <text x="328" y="542" class="line">FuncPtr</text>

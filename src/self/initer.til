@@ -40,7 +40,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
     if name.eq("U32")  { return TilType.U32 }
     if name.eq("U64")  { return TilType.U64 }
     if name.eq("USize") { return TilType.U32 }
-    if name.eq("Str")  { return TilType.Struct }
+    if name.eq("Str")  { return TilType.Struct("Str".clone()) }
     if name.eq("Bool") { return TilType.Bool }
     if name.eq("StructDef") { return TilType.StructDef }
     if name.eq("Dynamic")   { return TilType.Dynamic }
@@ -59,9 +59,9 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
         ref sdef : Expr = scope.get_struct(name)
         if is_null(sdef).not() {
             if is_variant(sdef.data, NodeType.EnumDef) {
-                return TilType.Enum
+                return TilType.Enum(name.clone())
             }
-            return TilType.Struct
+            return TilType.Struct(name.clone())
         }
     }
     return TilType.Unknown
@@ -92,7 +92,7 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
             }
         }
 
-        mut builtin_type := TilType.Struct
+        mut builtin_type := TilType.Struct(sname.clone())
         mut is_builtin := false
         if sname.eq("I64") { builtin_type = TilType.I64; is_builtin = true }
         else if sname.eq("U8") { builtin_type = TilType.U8; is_builtin = true }
@@ -233,7 +233,7 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
         }
     }
 
-    scope.set(ename, TilType.Enum, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set(ename, TilType.Enum(ename.clone()), FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
     ref mut b : TypeBinding = scope.get_binding(ename)
     b.struct_def = stmt.child(0)
     return 0
@@ -1707,10 +1707,10 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         ref dd : Declaration = get_payload(stmt.data)
         if dd.explicit_type.len().gt(0) {
             out_type = type_from_name_init(dd.explicit_type, scope)
-            if out_type.eq(TilType.Struct).or(out_type.eq(TilType.Enum)) {
+            if is_variant(out_type, TilType.Struct).or(is_variant(out_type, TilType.Enum)) {
                 out_struct_name = dd.explicit_type
             }
-            return out_type.eq(TilType.Unknown).not()
+            return is_variant(out_type, TilType.Unknown).not()
         }
     }
 
@@ -1722,7 +1722,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         out_type = TilType.Bool
         return true
     case NodeType.LiteralStr:
-        out_type = TilType.Struct
+        out_type = TilType.Struct("Str".clone())
         out_struct_name = "Str"
         return true
     case NodeType.LiteralNull:
@@ -1733,7 +1733,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         if is_null(b) { return false }
         out_type = b.type
         if b.struct_name.len().gt(0) { out_struct_name = b.struct_name }
-        return out_type.eq(TilType.Unknown).not()
+        return is_variant(out_type, TilType.Unknown).not()
     case NodeType.FieldAccess:
         mut _init_ns1 := false
         if rhs.child_count().gt(0) {
@@ -1744,11 +1744,13 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
                 }
             }
         }
-        if _init_ns1.and(rhs.til_type.eq(TilType.Enum)) {
-            out_type = TilType.Enum
+        if _init_ns1.and(is_variant(rhs.til_type, TilType.Enum)) {
+            mut _enum_name := ""
             if rhs.child_count().gt(0) {
-                out_struct_name = rhs.child(0).struct_name
+                _enum_name = rhs.child(0).struct_name.clone()
             }
+            out_type = TilType.Enum(_enum_name.clone())
+            out_struct_name = _enum_name
             return true
         }
         return false
@@ -1757,7 +1759,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         if rhs.struct_name.len().gt(0).and(is_variant(callee.data, NodeType.Ident)) {
             ref cn : Str = get_payload(callee.data)
             if cn.eq(rhs.struct_name) {
-                out_type = TilType.Struct
+                out_type = TilType.Struct(rhs.struct_name.clone())
                 out_struct_name = rhs.struct_name
                 return true
             }
@@ -1772,8 +1774,8 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
             }
         }
         if is_variant(callee.data, NodeType.FieldAccess).and(_init_ns2)
-            .and(rhs.struct_name.len().gt(0)).and(rhs.til_type.eq(TilType.Enum)) {
-            out_type = TilType.Enum
+            .and(rhs.struct_name.len().gt(0)).and(is_variant(rhs.til_type, TilType.Enum)) {
+            out_type = TilType.Enum(rhs.struct_name.clone())
             out_struct_name = rhs.struct_name
             return true
         }
@@ -1783,7 +1785,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
             if is_null(fb) { return false }
             out_type = fb.type
             if fb.struct_name.len().gt(0) { out_struct_name = fb.struct_name }
-            return out_type.eq(TilType.Unknown).not()
+            return is_variant(out_type, TilType.Unknown).not()
         }
         return false
     case:
@@ -1840,7 +1842,7 @@ TypeScope := struct {
     }
     get_type := func(self: TypeScope, name: Str) returns TilType {
         ref b : TypeBinding = self.get_binding(name)
-        if is_null(b).not() { return b.type }
+        if is_null(b).not() { return b.type.clone() }
         return TilType.Unknown
     }
     get_func_type := func(self: TypeScope, name: Str) returns shallow FuncType {
@@ -1874,7 +1876,7 @@ TypeScope := struct {
             b.own_type = own_type
             return
         }
-        nb := TypeBinding(name = name.clone(), type = type,
+        nb := TypeBinding(name = name.clone(), type = type.clone(),
                           func_type = func_type, is_mut = is_mut,
                           line = line, col = col,
                           is_param = is_param, own_type = own_type)

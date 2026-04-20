@@ -334,7 +334,7 @@ til_type_to_c := func(shallow t: TilType) returns Str {
 }
 
 c_type_name := func(shallow t: TilType, struct_name: Str) returns Str {
-    if t.eq(TilType.Struct).or(t.eq(TilType.Enum)) {
+    if is_variant(t, TilType.Struct).or(is_variant(t, TilType.Enum)) {
         if is_null(struct_name).not() {
             if struct_name.len().gt(0) {
                 return struct_name.clone()
@@ -414,7 +414,7 @@ emit_til_default := proc(f: File, shallow t: TilType, struct_name: Str) {
         f.write_str("0")
     } else if t.eq(TilType.Bool) {
         f.write_str("false")
-    } else if t.eq(TilType.Struct).or(t.eq(TilType.Enum)) {
+    } else if is_variant(t, TilType.Struct).or(is_variant(t, TilType.Enum)) {
         if is_null(struct_name).not() {
             if struct_name.eq("Str") {
                 f.write_str("\"\"")
@@ -770,7 +770,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                     }
                     emit_ctor_fields(f, dd.name, rhs, depth)
                 } else if is_variant(rhs.data, NodeType.FCall).or(is_variant(rhs.data, NodeType.LiteralStr))
-                    .or(is_variant(rhs.data, NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(rhs.til_type.eq(TilType.Enum))) {
+                    .or(is_variant(rhs.data, NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(is_variant(rhs.til_type, TilType.Enum))) {
                     if is_global {
                         if is_variant(rhs.data, NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
                             f.write_str(dd.name); f.write_str(" = "); emit_expr(f, rhs, depth); f.write_str(";\n")
@@ -906,7 +906,7 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
                 f.write_str("return "); emit_expr(f, rv, depth); f.write_str(";\n")
             }
         // Bare enum variant ref: heap-allocate
-        } else if is_variant(rv.data, NodeType.FieldAccess).and(builder_fa_is_ns(rv)).and(rv.til_type.eq(TilType.Enum)) {
+        } else if is_variant(rv.data, NodeType.FieldAccess).and(builder_fa_is_ns(rv)).and(is_variant(rv.til_type, TilType.Enum)) {
             ref sn : Str = rv.child(0).struct_name
             ref vname : Str = get_payload(rv.data)
             f.write_str("{ "); f.write_str(sn); f.write_str(" *_r = malloc(sizeof("); f.write_str(sn); f.write_str(")); _r->tag = "); f.write_str(sn); f.write_str("_TAG_"); f.write_str(vname); f.write_str("; return _r; }\n")
@@ -968,7 +968,7 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
             }
         } else {
             if is_variant(rhs.data, NodeType.FCall).or(is_variant(rhs.data, NodeType.LiteralStr))
-                .or(is_variant(rhs.data, NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(rhs.til_type.eq(TilType.Enum))) {
+                .or(is_variant(rhs.data, NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(is_variant(rhs.til_type, TilType.Enum))) {
                 if is_variant(rhs.data, NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
                     f.write_str("*"); f.write_str(aname); f.write_str(" = ")
                 } else {
@@ -1019,7 +1019,7 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
             if del_name.eq("delete").and(e.child_count().gte(2)) {
                 if is_variant(e.child(1).data, NodeType.Ident) {
                     ref del_arg : Str = get_payload(e.child(1).data)
-                    if is_stack_local(del_arg).and(e.child(1).til_type.eq(TilType.Struct).not()).and(e.child(1).til_type.eq(TilType.Enum).not()) {
+                    if is_stack_local(del_arg).and(is_variant(e.child(1).til_type, TilType.Struct).not()).and(is_variant(e.child(1).til_type, TilType.Enum).not()) {
                         f.write_str(";\n"); return
                     }
                 }
@@ -1058,7 +1058,7 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr, shallow depth: I32)
     } else if e.til_type.eq(TilType.None).not().and(e.til_type.eq(TilType.Unknown).not())
         .and(e.til_type.eq(TilType.Dynamic).not()) {
         ret_c = til_type_to_c(e.til_type)
-        if e.til_type.eq(TilType.Struct).or(e.til_type.eq(TilType.Enum)) {
+        if is_variant(e.til_type, TilType.Struct).or(is_variant(e.til_type, TilType.Enum)) {
             if e.struct_name.len().gt(0) { ret_c = e.struct_name.clone() }
         }
         if ret_shallow.not() { ret_c = ret_c.concat(" *") }
@@ -1077,7 +1077,7 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr, shallow depth: I32)
         mut arg_c := "void *"
         if arg.til_type.eq(TilType.Unknown).not().and(arg.til_type.eq(TilType.Dynamic).not()) {
             arg_c = til_type_to_c(arg.til_type)
-            if arg.til_type.eq(TilType.Struct).or(arg.til_type.eq(TilType.Enum)) {
+            if is_variant(arg.til_type, TilType.Struct).or(is_variant(arg.til_type, TilType.Enum)) {
                 if arg.struct_name.len().gt(0) { arg_c = arg.struct_name.clone() }
             }
             if arg_shallow.not() { arg_c = arg_c.concat(" *") }
@@ -1266,7 +1266,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
         ref obj : Expr = e.child(0)
         ref fname : Str = get_payload(e.data)
         if builder_fa_is_ns(e) {
-            if e.til_type.eq(TilType.Enum) {
+            if is_variant(e.til_type, TilType.Enum) {
                 f.write_str("&(")
                 f.write_str(obj.struct_name)
                 f.write_str("){.tag = ")
@@ -1534,7 +1534,7 @@ emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
         emit_u64(f, s.len().to_i64().to_u64())
         f.write_str("ULL, .cap=TIL_CAP_LIT}")
     } else if is_variant(e.data, NodeType.FieldAccess) {
-        if builder_fa_is_ns(e).and(e.til_type.eq(TilType.Enum)) {
+        if builder_fa_is_ns(e).and(is_variant(e.til_type, TilType.Enum)) {
             f.write_str("(*")
             emit_expr(f, e, depth)
             f.write_str(")")
@@ -1597,7 +1597,7 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
     } else if is_variant(e.data, NodeType.FieldAccess) {
         if builder_fa_is_ptr(e) {
             emit_expr(f, e, depth)
-        } else if builder_fa_is_ns(e).and(e.til_type.eq(TilType.Enum)) {
+        } else if builder_fa_is_ns(e).and(is_variant(e.til_type, TilType.Enum)) {
             emit_expr(f, e, depth)
         } else if e.til_type.eq(TilType.Dynamic) {
             emit_expr(f, e, depth)
@@ -1804,7 +1804,7 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
         ref dd : Declaration = get_payload(field.data)
         if dd.is_namespace { continue }
         if dd.own_type.eq(OwnType.Shallow).not() {
-            if field.til_type.eq(TilType.Struct).or(field.til_type.eq(TilType.Enum)) {
+            if is_variant(field.til_type, TilType.Struct).or(is_variant(field.til_type, TilType.Enum)) {
                 if field.child(0).struct_name.len().gt(0) {
                     f.write_str("    "); f.write_str(field.child(0).struct_name); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
                 } else {
@@ -1813,7 +1813,7 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
             } else {
                 tc := til_type_to_c(field.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
             }
-        } else if field.til_type.eq(TilType.Struct).or(field.til_type.eq(TilType.Enum)) {
+        } else if is_variant(field.til_type, TilType.Struct).or(is_variant(field.til_type, TilType.Enum)) {
             if field.child(0).struct_name.len().gt(0) {
                 f.write_str("    "); f.write_str(field.child(0).struct_name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
             } else {
@@ -1831,7 +1831,7 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
         if dd.is_namespace.not() { continue }
         if field.child_count().eq(0) { continue }
                         if is_variant(field.child(0).data, NodeType.FuncDef) { continue }
-        if field.til_type.eq(TilType.Struct).or(field.til_type.eq(TilType.Enum)) {
+        if is_variant(field.til_type, TilType.Struct).or(is_variant(field.til_type, TilType.Enum)) {
             if field.child(0).struct_name.len().gt(0) {
                 f.write_str(field.child(0).struct_name); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
             } else {
@@ -2024,7 +2024,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
                     ref dd : Declaration = get_payload(field.data)
                     if dd.is_namespace { continue }
                     if dd.own_type.eq(OwnType.Shallow) {
-                        if field.til_type.eq(TilType.Struct).or(field.til_type.eq(TilType.Enum)) {
+                        if is_variant(field.til_type, TilType.Struct).or(is_variant(field.til_type, TilType.Enum)) {
                             if field.child(0).struct_name.len().gt(0) {
                                 if emitted.has(field.child(0).struct_name).not() { deps_ok = false }
                             }

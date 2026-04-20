@@ -228,6 +228,10 @@ typedef struct Vec {
 
 struct TilType {
     TilType_tag tag;
+    union {
+        Str Struct;
+        Str Enum;
+    } data;
 };
 
 struct FuncType {

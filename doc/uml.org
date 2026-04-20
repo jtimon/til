@@ -90,9 +90,9 @@
 *** U64
 *** F32
 *** Bool
-*** Struct
+*** Struct:Str
 *** StructDef
-*** Enum
+*** Enum:Str
 *** EnumDef
 *** FuncDef
 *** FuncPtr

@@ -47,7 +47,7 @@ value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
         if si.to_str().eq("Str") {
             sv := str_view(val)
             mut e := Expr.new(NodeType.LiteralStr(sv.clone()), src.line, src.col, src.path)
-            e.til_type = TilType.Struct
+            e.til_type = TilType.Struct("Str".clone())
             e.struct_name = "Str"
             return e
         }
