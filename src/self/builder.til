@@ -1768,15 +1768,6 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
             ref p : Param = fd.params.get(i)
             f.write_str("    (void)"); f.write_str(p.name); f.write_str(";\n")
         }
-        // NULL guard for delete methods
-        if name.len().gt(7) {
-            if name.substr(name.len().sub(7), 7).eq("_delete") {
-                if fd.nparam.gt(0) {
-                    ref p0 : Param = fd.params.get(0)
-                    if p0.name.eq("self") { f.write_str("    if (!self) return;\n") }
-                }
-            }
-        }
         in_func_def = true
         current_fdef = func_def
         saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals
