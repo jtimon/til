@@ -1,0 +1,20 @@
+mode test
+
+// Reproducer for #150: enum-valued Map literal crashes at runtime in
+// compiled mode (works in the interpreter). Not yet wired into
+// src/tests.til -- once #150 is fixed, add it there to run in the
+// suite.
+
+E := enum { A, B, C }
+
+M := {
+    "a": E.A,
+    "b": E.B
+}
+
+test_enum_map_literal_lookup := test() {
+    ref va : E = M.get("a")
+    assert(__LOC__, va.eq(E.A))
+    ref vb : E = M.get("b")
+    assert(__LOC__, vb.eq(E.B))
+}

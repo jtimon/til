@@ -1,0 +1,207 @@
+mode lib
+
+// Target and Lang definitions for cross-compilation support.
+// Mirrors rstil's src/rs/target.rs.
+
+// ---------- Lang enum - codegen backend languages
+
+Lang := enum {
+    C,
+    HolyC,
+    TIL
+}
+
+lang_from_str := func(s: Str) returns Lang {
+    switch s {
+    case "c":     return Lang.C
+    case "C":     return Lang.C
+    case "holyc": return Lang.HolyC
+    case "HolyC": return Lang.HolyC
+    case "til":   return Lang.TIL
+    case "TIL":   return Lang.TIL
+    }
+    panic(__LOC__, "Unknown lang '", s, "'. Supported langs: c, holyc, til")
+    return Lang.C
+}
+
+lang_to_str := func(lang: Lang) returns Str {
+    switch lang {
+    case Lang.C:     return "c"
+    case Lang.HolyC: return "holyc"
+    case Lang.TIL:   return "til"
+    }
+    return ""
+}
+
+lang_file_extension := func(lang: Lang) returns Str {
+    switch lang {
+    case Lang.C:     return "c"
+    case Lang.HolyC: return "hc"
+    case Lang.TIL:   return "til"
+    }
+    return ""
+}
+
+// ---------- Target enum - supported platforms
+
+Target := enum {
+    LinuxX64,
+    LinuxArm64,
+    LinuxRiscv64,
+    WindowsX64,
+    MacosX64,
+    MacosArm64,
+    Wasm32,
+    TempleosX86
+}
+
+target_from_str := func(s: Str) returns Target {
+    switch s {
+    case "linux-x64":       return Target.LinuxX64
+    case "linux-x86_64":    return Target.LinuxX64
+    case "linux-amd64":     return Target.LinuxX64
+    case "linux-arm64":     return Target.LinuxArm64
+    case "linux-aarch64":   return Target.LinuxArm64
+    case "linux-riscv64":   return Target.LinuxRiscv64
+    case "linux-riscv":     return Target.LinuxRiscv64
+    case "riscv64":         return Target.LinuxRiscv64
+    case "windows-x64":     return Target.WindowsX64
+    case "windows-x86_64":  return Target.WindowsX64
+    case "win64":           return Target.WindowsX64
+    case "macos-x64":       return Target.MacosX64
+    case "macos-x86_64":    return Target.MacosX64
+    case "darwin-x64":      return Target.MacosX64
+    case "macos-arm64":     return Target.MacosArm64
+    case "macos-aarch64":   return Target.MacosArm64
+    case "darwin-arm64":    return Target.MacosArm64
+    case "wasm32":          return Target.Wasm32
+    case "wasm":            return Target.Wasm32
+    case "webassembly":     return Target.Wasm32
+    case "templeos-x86":    return Target.TempleosX86
+    case "templeos":        return Target.TempleosX86
+    }
+    panic(__LOC__, "Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, windows-x64, macos-x64, macos-arm64, wasm32, templeos-x86")
+    return Target.LinuxX64
+}
+
+target_to_str := func(target: Target) returns Str {
+    switch target {
+    case Target.LinuxX64:     return "linux-x64"
+    case Target.LinuxArm64:   return "linux-arm64"
+    case Target.LinuxRiscv64: return "linux-riscv64"
+    case Target.WindowsX64:   return "windows-x64"
+    case Target.MacosX64:     return "macos-x64"
+    case Target.MacosArm64:   return "macos-arm64"
+    case Target.Wasm32:       return "wasm32"
+    case Target.TempleosX86:  return "templeos-x86"
+    }
+    return ""
+}
+
+// ---------- Target/Lang compatibility
+
+default_lang_for_target := func(target: Target) returns Lang {
+    switch target {
+    case Target.TempleosX86: return Lang.HolyC
+    case: return Lang.C
+    }
+}
+
+is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
+    // TIL is always supported (for debugging)
+    if lang.eq(Lang.TIL) { return true }
+    return default_lang_for_target(target).eq(lang)
+}
+
+validate_lang_for_target := func(lang: Lang, target: Target) {
+    if is_lang_supported_for_target(lang, target).not() {
+        panic(__LOC__, "Lang '", lang_to_str(lang), "' is not supported for target '", target_to_str(target), "'")
+    }
+}
+
+// ---------- Toolchain commands
+
+is_clang := func(cmd: Str) returns Bool {
+    return cmd.contains("clang")
+}
+
+toolchain_command := func(target: Target, lang: Lang) returns Str {
+    validate_lang_for_target(lang, target)
+    switch target {
+    case Target.LinuxX64:     return "gcc"
+    case Target.LinuxArm64:   return "aarch64-linux-gnu-gcc"
+    case Target.LinuxRiscv64: return "riscv64-linux-gnu-gcc"
+    case Target.WindowsX64:   return "x86_64-w64-mingw32-gcc"
+    case Target.MacosX64:     return "clang"
+    case Target.MacosArm64:   return "clang"
+    case Target.Wasm32:       return "clang"
+    case Target.TempleosX86:  return "holyc"
+    }
+    return ""
+}
+
+target_prefix_args := func(target: Target) returns Str {
+    switch target {
+    case Target.MacosArm64: return " -target arm64-apple-macos11"
+    case Target.MacosX64:   return " -target x86_64-apple-macos10.12"
+    case Target.Wasm32:     return " --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-all"
+    case: return ""
+    }
+}
+
+common_warning_flags := func() returns Str {
+    return vec("Str", "-Wall", "-Wextra").join(" ")
+}
+
+clang_warning_flags := func() returns Str {
+    return vec("Str",
+        "-Wno-sometimes-uninitialized",
+        "-Wno-self-assign",
+        "-Wno-uninitialized",
+        "-Wno-unused-function"
+    ).join(" ")
+}
+
+toolchain_extra_args := func(target: Target, compiler: Str) returns Str {
+    if target.eq(Target.TempleosX86) {
+        panic(__LOC__, "HolyC doesn't support these flags")
+    }
+    prefix := target_prefix_args(target)
+    mut out := prefix
+    out = out.concat(" ").concat(common_warning_flags())
+    if is_clang(compiler).or(prefix.len().gt(0)) {
+        out = out.concat(" ").concat(clang_warning_flags())
+    }
+    return out
+}
+
+executable_extension := func(target: Target) returns Str {
+    switch target {
+    case Target.WindowsX64: return ".exe"
+    case Target.Wasm32:     return ".wasm"
+    case: return ""
+    }
+}
+
+// ---------- Detect current platform
+
+detect_current_target := proc() returns Target {
+    mut uname_s := ""
+    _rc_s := run_cmd(uname_s, "uname", "-s")
+    mut uname_m := ""
+    _rc_m := run_cmd(uname_m, "uname", "-m")
+
+    os := uname_s.replace(Str.from_byte(10), "")
+    arch := uname_m.replace(Str.from_byte(10), "")
+
+    if os.eq("Darwin") {
+        if arch.eq("arm64") { return Target.MacosArm64 }
+        return Target.MacosX64
+    }
+    if os.eq("Linux") {
+        if arch.eq("aarch64") { return Target.LinuxArm64 }
+        if arch.eq("riscv64") { return Target.LinuxRiscv64 }
+        return Target.LinuxX64
+    }
+    return Target.LinuxX64
+}

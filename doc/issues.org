@@ -1,10 +1,45 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 150
+# NEXT_ISSUE: 151
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/16] Pre
+** OPEN #150 Enum-valued Map literal crashes in compiled mode (works interpreted)
+
+   Reproducer at ~src/test/bug150.til~ (not registered in
+   ~src/tests.til~ -- add it there once the bug is fixed).
+
+   #+begin_src til
+   mode test
+   E := enum { A, B, C }
+   M := { "a": E.A, "b": E.B }
+   test_enum_map_literal_lookup := test() {
+       ref va : E = M.get("a")
+       assert(__LOC__, va.eq(E.A))
+       ref vb : E = M.get("b")
+       assert(__LOC__, vb.eq(E.B))
+   }
+   #+end_src
+
+   - ~bin/til interpret src/test/bug150.til~ runs clean
+   - ~bin/til build -o bin/bug150 src/test/bug150.til~ compiles clean,
+     ~bin/bug150~ aborts with ~free(): invalid pointer~ after the test
+     body succeeds, during program teardown when the map's ~E~ values
+     get deleted.
+
+   Same shape works for struct-valued maps
+   (e.g. ~{"a": S(x=1)}~ where ~S := struct { mut x := 0 }~) and for
+   the existing ~core_modes~ map in ~src/self/modes.til~. Only
+   user-defined enum values in a module-level Map literal misbehave,
+   so the bug looks localized to the map-literal value path when the
+   value type is an enum.
+
+   Blocks collapsing the ~target_from_str~ / ~lang_from_str~ alias
+   switches in ~src/self/targets.til~ into the intended Map lookup
+   (currently 22 ~case~ arms per switch because til's ~switch~ has
+   no ~|~ alternatives like rstil's ~src/rs/target.rs~).
+
 ** OPEN #149 Add ns_decls container for namespace-section Decls
    Struct and enum definitions carry a ~namespace:~ section whose members
    are parsed as siblings of the instance fields in the same ~body.children~

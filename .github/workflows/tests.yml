@@ -11,7 +11,7 @@ jobs:
     name: linux-x64
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
       - name: Create test tmp directory
@@ -28,7 +28,7 @@ jobs:
     name: linux-arm64
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-aarch64-linux-gnu
       - name: Create test tmp directory
@@ -44,7 +44,7 @@ jobs:
     name: linux-riscv64
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-riscv64-linux-gnu
       - name: Create test tmp directory
