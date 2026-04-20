@@ -53,15 +53,15 @@ mut ffi_loaded := false
 mut ffi_type_cache := Vec.new("FFITypePtrBox", FFITypePtrBox.size())
 mut ffi_type_cache_inited := false
 
-ffi_type_pointer_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_pointer"), 0) }
-ffi_type_sint64_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_sint64"), 0) }
-ffi_type_uint8_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_uint8"), 0) }
-ffi_type_sint16_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_sint16"), 0) }
-ffi_type_sint32_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_sint32"), 0) }
-ffi_type_uint32_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_uint32"), 0) }
-ffi_type_uint64_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_uint64"), 0) }
-ffi_type_float_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_float"), 0) }
-ffi_type_void_ref := func() returns ref ffi_type { return ptr_add(ffi_global_symbol("ffi_type_void"), 0) }
+ffi_type_pointer_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_pointer")) }
+ffi_type_sint64_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint64")) }
+ffi_type_uint8_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_uint8")) }
+ffi_type_sint16_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint16")) }
+ffi_type_sint32_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint32")) }
+ffi_type_uint32_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_uint32")) }
+ffi_type_uint64_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_uint64")) }
+ffi_type_float_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_float")) }
+ffi_type_void_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_void")) }
 
 // Declare ffi_prep_cif and ffi_call directly from libffi
 ffi_prep_cif := ext_func(cif: ffi_cif, shallow abi: I32, shallow nargs: U32, rtype: ffi_type, atypes: Dynamic) returns shallow I32 {}
@@ -71,7 +71,7 @@ ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().to_u64())
 
 ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns shallow Bool {
     if is_null(cif.rtype) { return false }
-    ref rt : ffi_type = ptr_add(cif.rtype, 0)
+    ref rt : ffi_type = to_ptr(cif.rtype)
     return rt.type.eq(FFI_TYPE_STRUCT)
 }
 
@@ -566,7 +566,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
     }
     memset(ptr_add(elements, nfields.to_u64().mul(Dynamic.size().to_u64())), 0, Dynamic.size().to_u64())
     st : Dynamic = malloc(ffi_type.size().to_u64())
-    ref mut stp : ffi_type = ptr_add(st, 0)
+    ref mut stp : ffi_type = to_ptr(st)
     stp.size = 0
     stp.alignment = 0.to_i16()
     stp.type = FFI_TYPE_STRUCT
@@ -677,7 +677,7 @@ dispatch_init := proc() {
 
 ext_dispatch_builtin := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
     if dispatch_map.has(name) {
-        ref fp : DispatchFn = ptr_add(dispatch_map.get(name), 0)
+        ref fp : DispatchFn = to_ptr(dispatch_map.get(name))
         return fp(scope, e, result)
     }
     return false
@@ -873,35 +873,35 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 ref mut pdata : Dynamic = NULL
                 mut psz : I32 = 0
                 if is_variant(payload, Value.Int) {
-                    pdata = ptr_add(get_payload(payload), 0)
+                    pdata = to_ptr(get_payload(payload))
                     psz = 8.to_i32()
                 }
                 else if is_variant(payload, Value.Byte) {
-                    pdata = ptr_add(get_payload(payload), 0)
+                    pdata = to_ptr(get_payload(payload))
                     psz = 1.to_i32()
                 }
                 else if is_variant(payload, Value.Short) {
-                    pdata = ptr_add(get_payload(payload), 0)
+                    pdata = to_ptr(get_payload(payload))
                     psz = 2.to_i32()
                 }
                 else if is_variant(payload, Value.Int32) {
-                    pdata = ptr_add(get_payload(payload), 0)
+                    pdata = to_ptr(get_payload(payload))
                     psz = 4.to_i32()
                 }
                 else if is_variant(payload, Value.Uint32) {
-                    pdata = ptr_add(get_payload(payload), 0)
+                    pdata = to_ptr(get_payload(payload))
                     psz = 4.to_i32()
                 }
                 else if is_variant(payload, Value.Uint64) {
-                    pdata = ptr_add(get_payload(payload), 0)
+                    pdata = to_ptr(get_payload(payload))
                     psz = 8.to_i32()
                 }
                 else if is_variant(payload, Value.Float) {
-                    pdata = ptr_add(get_payload(payload), 0)
+                    pdata = to_ptr(get_payload(payload))
                     psz = 4.to_i32()
                 }
                 else if is_variant(payload, Value.Boolean) {
-                    pdata = ptr_add(get_payload(payload), 0)
+                    pdata = to_ptr(get_payload(payload))
                     psz = 1.to_i32()
                 }
                 else if is_variant(payload, Value.Struct) {
@@ -910,19 +910,19 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                         ref sd : StructDefData = get_payload(si.struct_def.data)
                         psz = sd.total_struct_size
                     }
-                    pdata = ptr_add(si.data, 0)
+                    pdata = to_ptr(si.data)
                 }
                 else if is_variant(payload, Value.Enum) {
                     ref ei : EnumInstance = get_payload(payload)
                     psz = ei.data_size
-                    pdata = ptr_add(ei.data, 0)
+                    pdata = to_ptr(ei.data)
                 }
                 else if is_variant(payload, Value.Ptr) {
-                    pdata = ptr_add(get_payload(payload), 0)
+                    pdata = to_ptr(get_payload(payload))
                     psz = 8.to_i32()
                 }
                 else if is_variant(payload, Value.Func) {
-                    pdata = ptr_add(get_payload(payload), 0)
+                    pdata = to_ptr(get_payload(payload))
                     psz = 8.to_i32()
                 }
                 mut tmp := val_enum_flat(enum_name, enum_def, ctor_tag, pdata, psz)
@@ -1090,15 +1090,15 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
         result = make_struct_value(fe.return_type, ret_sdef, ret_buf, false)
     } else if fe.return_is_shallow {
         ref rtype : Str = fe.return_type
-        if rtype.eq("I64") { ref rv : I64 = ptr_add(raw, 0); result = val_i64(rv) }
-        else if rtype.eq("U8") { ref rv : U8 = ptr_add(raw, 0); result = val_u8(rv.to_i64()) }
-        else if rtype.eq("I16") { ref rv : I16 = ptr_add(raw, 0); result = val_i16(rv.to_i64()) }
-        else if rtype.eq("I32") { ref rv : I32 = ptr_add(raw, 0); result = val_i32(rv.to_i64()) }
-        else if rtype.eq("U32") { ref rv : U32 = ptr_add(raw, 0); result = val_u32(rv.to_i64()) }
-        else if rtype.eq("U64") { ref rv : U64 = ptr_add(raw, 0); result = val_u64(rv) }
-        else if rtype.eq("USize") { ref rv : U32 = ptr_add(raw, 0); result = val_u32(rv.to_i64()) }
-        else if rtype.eq("F32") { ref rv : F32 = ptr_add(raw, 0); result = val_f32(rv) }
-        else if rtype.eq("Bool") { ref rv : Bool = ptr_add(raw, 0); result = val_bool(rv) }
+        if rtype.eq("I64") { ref rv : I64 = to_ptr(raw); result = val_i64(rv) }
+        else if rtype.eq("U8") { ref rv : U8 = to_ptr(raw); result = val_u8(rv.to_i64()) }
+        else if rtype.eq("I16") { ref rv : I16 = to_ptr(raw); result = val_i16(rv.to_i64()) }
+        else if rtype.eq("I32") { ref rv : I32 = to_ptr(raw); result = val_i32(rv.to_i64()) }
+        else if rtype.eq("U32") { ref rv : U32 = to_ptr(raw); result = val_u32(rv.to_i64()) }
+        else if rtype.eq("U64") { ref rv : U64 = to_ptr(raw); result = val_u64(rv) }
+        else if rtype.eq("USize") { ref rv : U32 = to_ptr(raw); result = val_u32(rv.to_i64()) }
+        else if rtype.eq("F32") { ref rv : F32 = to_ptr(raw); result = val_f32(rv) }
+        else if rtype.eq("Bool") { ref rv : Bool = to_ptr(raw); result = val_bool(rv) }
         else { result = val_none() }
     } else {
         ref rtype : Str = fe.return_type
@@ -1181,9 +1181,9 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
     ref mut rtype : Dynamic = ffi_type_void_ref()
     if is_null(entry.return_type).not() {
         if ret_shallow {
-            rtype = ptr_add(shallow_ffi_type(entry.return_type), 0)
+            rtype = to_ptr(shallow_ffi_type(entry.return_type))
         } else {
-            rtype = ptr_add(ffi_type_pointer_ref(), 0)
+            rtype = to_ptr(ffi_type_pointer_ref())
         }
     }
     ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np, rtype, entry.arg_types)

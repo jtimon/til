@@ -209,6 +209,7 @@ Bool Bool_clone(Bool *v);
 
 // Pointer primitives (custom, not in libc)
 void *ptr_add(void *buf, U64 offset);
+void *to_ptr(void *a);
 void *read_ptr(void *slot);
 void write_ptr(void *dest, void *val);
 Bool is_null(void *p);

@@ -187,7 +187,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
     heap : Dynamic = malloc(Expr.size().to_u64())
     memcpy(heap, lit_local, Expr.size())
     memset(lit_local, 0, Expr.size())
-    ref heap_lit : Expr = ptr_add(heap, 0)
+    ref heap_lit : Expr = to_ptr(heap)
     return heap_lit
 }
 

@@ -269,6 +269,7 @@ Bool Bool_clone(Bool *v) { return *v; }
 void *ptr_add(void *buf, U64 offset) {
     return (char *)buf + offset;
 }
+void *to_ptr(void *a) { return a; }
 void *read_ptr(void *slot) { return *(void **)slot; }
 void write_ptr(void *dest, void *val) { *(void **)dest = val; }
 Bool is_null(void *p) { return p == NULL; }

@@ -74,7 +74,7 @@ namespace:
             }
         }
         panic(__LOC__, "Map.get: key not found")
-        return ptr_add(self.val_data, 0)
+        return to_ptr(self.val_data)
     }
 
     set := func(mut self: Map, own key: Dynamic, own val: Dynamic) {
