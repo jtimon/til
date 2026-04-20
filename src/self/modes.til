@@ -16,6 +16,7 @@ Context := struct {
     mut mode := Mode()
     mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
     mut scope := TypeScope()
+    mut is_repl := false
 }
 
 context_mode := func(ctx: Context) returns ref Mode {

@@ -395,6 +395,38 @@ void cfile_write_str(void *handle, Str *s) {
     fwrite(s->c_str, 1, s->count, (FILE *)handle);
 }
 
+// Read a single line from stdin into *line (without trailing newline).
+// Returns true on success, false on EOF. Flushes stdout first so prompts appear.
+Bool in_read_line(Str *line) {
+    fflush(stdout);
+    size_t cap = 256;
+    size_t len = 0;
+    char *buf = malloc(cap);
+    int c;
+    while ((c = fgetc(stdin)) != EOF && c != '\n') {
+        if (len + 1 >= cap) {
+            cap *= 2;
+            buf = realloc(buf, cap);
+        }
+        buf[len++] = (char)c;
+    }
+    if (c == EOF && len == 0) {
+        free(buf);
+        line->c_str = NULL;
+        line->count = 0;
+        line->cap = 0;
+        return 0;
+    }
+    buf[len] = '\0';
+    if (line->c_str && line->cap != CAP_LIT && line->cap != CAP_VIEW) {
+        free(line->c_str);
+    }
+    line->c_str = (U8 *)buf;
+    line->count = (U32)len;
+    line->cap = (U32)len;
+    return 1;
+}
+
 Str *cfile_read_all(void *handle) {
     if (!handle) {
         fprintf(stderr, "cfile_read_all: file not open\n");

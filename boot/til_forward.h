@@ -454,6 +454,7 @@ typedef struct Context {
     Mode mode;
     Map path_modes;
     TypeScope scope;
+    Bool is_repl;
 } Context;
 
 
@@ -1330,6 +1331,9 @@ void ffi_cleanup(void);
 Str get_version(void);
 Str * get_bin_dir(void);
 Str * get_cwd_str(void);
+Str * repl_read_line(Str * mode_name);
+void run_repl_session(Str * mode_name_in, Str * next_mode_out);
+void run_repl(Str * initial_mode);
 void usage(void);
 CliArgs * CliArgs_clone(CliArgs * self);
 void CliArgs_delete(CliArgs * self, Bool * call_free);

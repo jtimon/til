@@ -243,3 +243,6 @@ void *cfile_open(Str *path, Bool is_write);
 void cfile_close(void *handle);
 void cfile_write_str(void *handle, Str *s);
 Str *cfile_read_all(void *handle);
+
+// Line input
+Bool in_read_line(Str *line);

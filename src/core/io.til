@@ -3,6 +3,7 @@ eprint_single := ext_proc(s: Str) {}
 print_flush := ext_proc() {}
 readfile := ext_func(path: Str) returns Str {}
 writefile := ext_proc(path: Str, content: Str) {}
+in_read_line := ext_proc(mut line: Str) returns shallow Bool {}
 
 println := proc(parts: ..Str) {
     for s : Str in parts {

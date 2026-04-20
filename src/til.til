@@ -33,10 +33,134 @@ get_cwd_str := ext_func() returns Str {}
 
 // --- CLI ---
 
+// Read one line of REPL input. Returns the line (without trailing newline) on
+// success, or empty string on EOF.
+repl_read_line := proc(mode_name: Str) returns Str {
+    print_single("til[")
+    print_single(mode_name)
+    print_single("]> ")
+    mut line := ""
+    ok := in_read_line(line)
+    if ok.not() { return "" }
+    return line
+}
+
+// Run one REPL session in a given mode. On EOF, leaves next_mode_out empty.
+// If a `mode X` statement is entered, sets next_mode_out = X so the caller
+// can restart the session in the new mode.
+//
+// Strategy: keep the REPL's accumulated source as a Str. Each time the user
+// types a block, append it to the buffer and re-run the whole program via
+// the standard pipeline (tokenize -> parse -> init_declarations -> type_check
+// -> precomp -> interpret). This means side effects (println, etc.) from
+// earlier inputs replay on every iteration, but declarative state (variable
+// definitions) is recomputed correctly. It's the simplest approach that
+// stays fully consistent with the rest of the compiler.
+run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
+    mut mode_str := mode_name_in.clone()
+    if mode_str.len().eq(0) { mode_str = "script" }
+
+    // Accumulated user source across REPL inputs for this session.
+    mut accum := ""
+    // Full output produced by the last successful run. Used to compute the
+    // delta so we only show new output each turn.
+    mut prev_out := ""
+
+    // Keep block Strs alive so parsed AST views don't dangle.
+    source_keep := Vec.new("Str", Str.size())
+
+    while true {
+        block := repl_read_line(mode_str)
+        if block.len().eq(0) {
+            println("")
+            break
+        }
+
+        // Peek at the line to detect a `mode X` directive. If the user
+        // entered one, return so the outer driver can restart the session
+        // in the new mode (discarding prior declarations).
+        source_keep.push(own block.clone())
+        ref kept : Str = source_keep.get(source_keep.len().sub(1))
+        peek_tokens := tokenize(kept, "<repl>")
+        mut peek_mode_out := ""
+        peek_ast := parse(peek_tokens, "<repl>", peek_mode_out)
+        _discard := Expr.child_count(peek_ast)
+        if peek_mode_out.len().gt(0) {
+            next_mode_out = peek_mode_out.clone()
+            return
+        }
+
+        // Append block to accumulated source.
+        mut combined := ""
+        combined = combined.concat("mode ").concat(mode_str).concat("\n")
+        combined = combined.concat(accum)
+        if accum.len().gt(0) { combined = combined.concat("\n") }
+        combined = combined.concat(block)
+
+        // Write to a temp file and run via til_interpret_source.
+        tmp_path := "tmp/repl_".concat(process_id().to_str()).concat(".til")
+        system_cmd("mkdir -p tmp")
+        writefile(tmp_path, combined)
+
+        // Build command: run til on the temp file, capturing output to a log.
+        out_path := "tmp/repl_".concat(process_id().to_str()).concat(".out")
+        bin_dir := get_bin_dir()
+        til_bin := bin_dir.concat("/bin/til")
+        cmd := til_bin.concat(" interpret ").concat(tmp_path).concat(" > ").concat(out_path).concat(" 2>&1")
+        rc := system_cmd(cmd)
+
+        // Read full output and print only the delta vs the previous run's
+        // output. Since the combined program is re-run from scratch each
+        // turn, prior side effects (println output, etc.) replay; we hide
+        // them by comparing against prev_out.
+        full_out := readfile(out_path)
+        mut new_chunk := ""
+        if prev_out.len().lt(full_out.len()) {
+            // Simple prefix check: if full_out starts with prev_out, show the
+            // suffix. Otherwise show the whole thing (defensive fallback).
+            prefix_match := full_out.starts_with(prev_out)
+            if prefix_match {
+                start_idx : USize = prev_out.len()
+                new_chunk = full_out.substr(start_idx, full_out.len().sub(start_idx))
+            } else {
+                new_chunk = full_out.clone()
+            }
+        } else if prev_out.len().eq(full_out.len()).not() {
+            // Output shrank (e.g. previous run segfaulted, this run errored
+            // earlier); just show current output.
+            new_chunk = full_out.clone()
+        }
+        if new_chunk.len().gt(0) { print_single(new_chunk) }
+
+        // Always commit the block to accumulated source and save full_out
+        // for next turn's delta. Even if this run errored, the declaration
+        // may matter for future inputs (e.g. `a := 1` is a known
+        // unused-var bug on its own but valid once referenced later).
+        if accum.len().gt(0) { accum = accum.concat("\n") }
+        accum = accum.concat(block)
+        prev_out = full_out.clone()
+    }
+}
+
+// Outer REPL driver: restarts the session when a `mode X` statement is entered.
+run_repl := proc(initial_mode: Str) {
+    println("til ".concat(VERSION).concat(" REPL -- Ctrl-D to exit"))
+    mut next_mode := initial_mode.clone()
+    if next_mode.len().eq(0) { next_mode = "script" }
+    while next_mode.len().gt(0) {
+        cur := next_mode.clone()
+        next_mode = ""
+        run_repl_session(cur, next_mode)
+    }
+}
+
 usage := proc() {
-    println("Usage: til <command> <path>")
+    println("Usage: til [<command>] [<path>]")
+    println("")
+    println("With no arguments, starts the interactive REPL (mode script).")
     println("")
     println("Commands:")
+    println("  repl       Start the interactive REPL")
     println("  interpret  Read and interpret a .til file")
     println("  translate  Generate C source (no compilation)")
     println("  build      Compile a .til file to a binary")
@@ -57,8 +181,9 @@ CliArgs := struct {
 parse_args := proc(args: Array) returns CliArgs {
     mut cli := CliArgs()
     if args.len().eq(0) {
-        usage()
-        panic(__LOC__, "no arguments")
+        run_repl("script")
+        cli.early_return = true
+        return cli
     }
 
     ref cmd_ref : Str = args.get(0)
@@ -75,8 +200,20 @@ parse_args := proc(args: Array) returns CliArgs {
             cli.early_return = true
             return cli
         }
+        if cli.command.eq("repl") {
+            run_repl("script")
+            cli.early_return = true
+            return cli
+        }
         cli.path = cli.command
         cli.command = "interpret"
+        return cli
+    }
+
+    if cli.command.eq("repl") {
+        ref mode_arg : Str = args.get(1)
+        run_repl(mode_arg.clone())
+        cli.early_return = true
         return cli
     }
 
