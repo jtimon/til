@@ -96,7 +96,7 @@
 
    Ordered smallest to largest:
 
-   1. Move ~FieldDef.default_value~ into ~Declaration.default_value~,
+   1. [DONE] Move ~FieldDef.default_value~ into ~Declaration.default_value~,
       delete ~FieldDef~. ~StructDefData.fields: Vec<FieldDef>~ becomes
       ~Vec<Declaration>~. Pure refactor affecting parser + initer +
       codegen.
