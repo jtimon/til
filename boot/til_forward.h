@@ -47,7 +47,6 @@ typedef struct Declaration Declaration;
 typedef struct Param Param;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
-typedef struct FieldDef FieldDef;
 typedef struct StructDefData StructDefData;
 typedef struct AssignData AssignData;
 typedef enum {
@@ -274,11 +273,6 @@ typedef struct FCallData {
     U64 own_args;
     Expr *fn_sig;
 } FCallData;
-
-
-typedef struct FieldDef {
-    Declaration decl;
-} FieldDef;
 
 
 typedef struct StructDefData {
@@ -717,9 +711,6 @@ void FCallData_delete(FCallData * self, Bool * call_free);
 U32 FCallData_size(void);
 void set_own_arg(Expr * fcall, U32 arg_index);
 Bool get_own_arg(Expr * fcall, U32 arg_index);
-FieldDef * FieldDef_clone(FieldDef * self);
-void FieldDef_delete(FieldDef * self, Bool * call_free);
-U32 FieldDef_size(void);
 Bool * StructDefData_eq(StructDefData * a, StructDefData * b);
 StructDefData * StructDefData_clone(StructDefData * self);
 void StructDefData_delete(StructDefData * self, Bool * call_free);

@@ -139,18 +139,9 @@ get_own_arg := func(fcall: Expr, shallow arg_index: USize) returns shallow Bool 
     return fcd.own_args.and(bit).gt(0)
 }
 
-FieldDef := struct {
-    mut decl := Declaration()
-    namespace:
-    eq := func(a: FieldDef, b: FieldDef) returns Bool {
-        return a.decl.eq(b.decl)
-    }
-    to_str := func(self: FieldDef) returns Str { return self.decl.to_str() }
-}
-
 StructDefData := struct {
     mut total_struct_size : I32 = 0
-    mut fields := Vec.new("FieldDef", FieldDef.size())
+    mut fields := Vec.new("Declaration", Declaration.size())
     mut c_tag := ""
     namespace:
     eq := func(a: StructDefData, b: StructDefData) returns Bool {

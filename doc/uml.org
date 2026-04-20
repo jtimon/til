@@ -142,11 +142,9 @@
 *** mut is_splat := false
 *** mut own_args : U64 = 0
 *** ref mut fn_sig : Expr = NULL
-** FieldDef: StructDef
-*** mut decl := Declaration()
 ** StructDefData: StructDef
 *** mut total_struct_size : I32 = 0
-*** mut fields := Vec.new("FieldDef", FieldDef.size())
+*** mut fields := Vec.new("Declaration", Declaration.size())
 *** mut c_tag := ""
 ** AssignData: StructDef
 *** mut name := ""
