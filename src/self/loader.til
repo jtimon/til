@@ -297,7 +297,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         mode_source := readfile(mode_til_path)
         mode_tokens := tokenize(mode_source, mode_disp)
         mut mode_mode := ""
-        mode_ast := parse(mode_tokens, mode_disp.clone(), mode_mode)
+        mode_ast := parse(mode_tokens, mode_disp, mode_mode)
         mode_mode = normalize_mode_name(mode_mode)
         ref mode_mode_def : Mode = require_mode(mode_disp, mode_mode)
         context_register_path_mode(ctx, mode_disp, mode_mode_def)
