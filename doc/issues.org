@@ -209,13 +209,35 @@
    The typer's desugar passes (insert_free_calls, desugar_variadic_calls,
    etc.) rebuild body.children via body.children = new_ch. The generated C
    does Vec_delete + Vec_clone + Vec_delete for each pass (10 occurrences).
-   Could use take_children (now safe to use -- source data pointer is
-   nulled after move, fix in f0150ec) to avoid deep cloning all children
-   on every desugar pass. A previous attempt used ~swap_children~ but
-   that was removed in f0150ec because it zeroed lifecycle metadata to
-   avoid UAF, which in turn prevented deep-delete at program exit and
-   caused bigger leaks. See #146 for the broader plan of unifying the
-   passes so the cost of rebuilding is paid once per body instead of 7x.
+
+   Done so far (Option A, partial fix):
+   - Added ~Vec.move_from(mut self, own other)~ in ~src/core/vec.til~:
+     deletes self's existing elements, reallocs self.data if needed, then
+     memcpy's other's buffer contents in. Nulls other.count so the
+     ~own~-triggered auto-delete on ~other~ frees only the empty buffer.
+   - Replaced all 10 ~body.children = new_ch~ sites in ~src/self/typer.til~
+     (also the ~case_body.children~ site) with ~body.children.move_from(own
+     new_ch)~. This removes the Vec_clone entirely -- each desugar pass
+     now does one memcpy of pointer-sized elements instead of calling
+     ~Expr.clone()~ per kept child during the final assignment.
+
+   Remaining (Option C, follow-up):
+   - The per-item ~new_ch.push(own stmt.clone())~ in each desugar pass
+     still deep-clones every kept statement. Eliminating this requires
+     detaching ~body.children~ up front, iterating the detached vec, and
+     moving kept items (no clone) into ~new_ch~. More invasive since each
+     pass currently uses ~ref~ access to ~body.child(i)~ and mutates
+     items in place; the transform would need to run over the detached
+     vec instead.
+
+   Original note: could use take_children (now safe to use -- source
+   data pointer is nulled after move, fix in f0150ec) to avoid deep
+   cloning all children on every desugar pass. A previous attempt used
+   ~swap_children~ but that was removed in f0150ec because it zeroed
+   lifecycle metadata to avoid UAF, which in turn prevented deep-delete
+   at program exit and caused bigger leaks. See #146 for the broader
+   plan of unifying the passes so the cost of rebuilding is paid once
+   per body instead of 7x.
 
 ** OPEN #143 Avoid unnecessary heap round-trips for Expr construction
    ~Expr.new~ itself constructs on the stack, but the generated C for
