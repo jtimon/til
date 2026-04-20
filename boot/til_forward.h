@@ -172,6 +172,23 @@ typedef enum {
 } CtorArg_tag;
 typedef struct CtorArg CtorArg;
 typedef struct LoadedProgram LoadedProgram;
+typedef enum {
+    Lang_TAG_C,
+    Lang_TAG_HolyC,
+    Lang_TAG_TIL
+} Lang_tag;
+typedef struct Lang Lang;
+typedef enum {
+    Target_TAG_LinuxX64,
+    Target_TAG_LinuxArm64,
+    Target_TAG_LinuxRiscv64,
+    Target_TAG_WindowsX64,
+    Target_TAG_MacosX64,
+    Target_TAG_MacosArm64,
+    Target_TAG_Wasm32,
+    Target_TAG_TempleosX86
+} Target_tag;
+typedef struct Target Target;
 typedef struct CollectionInfo CollectionInfo;
 typedef struct DynCallInfo DynCallInfo;
 typedef struct BuildPaths BuildPaths;
@@ -492,6 +509,14 @@ typedef struct LoadedProgram {
 } LoadedProgram;
 
 
+struct Lang {
+    Lang_tag tag;
+};
+
+struct Target {
+    Target_tag tag;
+};
+
 typedef struct CollectionInfo {
     Str *type_name;
     I32 is_vec;
@@ -620,6 +645,8 @@ typedef struct CliArgs {
     Str path;
     Str custom_bin;
     Str custom_c;
+    Str target_str;
+    Str cc;
     U32 path_idx;
     Bool early_return;
 } CliArgs;
@@ -656,6 +683,7 @@ void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 void Str_delete(Str * self, Bool * call_free);
 Str * Str_substr(Str * s, U32 * start, U32 * n);
+Bool Str_contains(Str * a, Str * b);
 Bool Str_starts_with(Str * a, Str * b);
 Bool Str_ends_with(Str * a, Str * b);
 Bool Str_is_empty(Str * self);
@@ -1030,6 +1058,23 @@ LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_p
 void loaded_add_lflag(LoadedProgram * lp, Str * lib);
 void prepare_program(LoadedProgram * lp, Bool run_tests);
 void cmd_ast(LoadedProgram * lp);
+Bool Lang_eq(Lang * self, Lang * other);
+void Lang_delete(Lang * self, Bool * call_free);
+Lang * Lang_clone(Lang * self);
+U32 Lang_size(void);
+Str * lang_to_str(Lang * lang);
+Bool Target_eq(Target * self, Target * other);
+void Target_delete(Target * self, Bool * call_free);
+Target * Target_clone(Target * self);
+U32 Target_size(void);
+Target * target_from_str(Str * s);
+Str * target_to_str(Target * target);
+Bool * is_clang(Str * cmd);
+Str * toolchain_command(Target * target, Lang * lang);
+Str * toolchain_extra_args(Target * target, Str * compiler);
+Str * common_warning_flags(void);
+Str * clang_warning_flags(void);
+Target * detect_current_target(void);
 I32 system_cmd(Str * cmd);
 CollectionInfo * CollectionInfo_clone(CollectionInfo * self);
 void CollectionInfo_delete(CollectionInfo * self, Bool * call_free);
@@ -1121,8 +1166,8 @@ Str * type_name_to_ctypes(Str * name);
 Str * type_name_to_ctypes_param(Str * name, Bool is_shallow);
 Str * type_name_to_ctypes_return(Str * name, Bool is_shallow);
 I32 build_python_binding(Expr * core_program, Expr * program, Str * py_path, Str * lib_name, Context * ctx);
-I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags);
-I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags);
+I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override);
+I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override);
 void emit_global_inits_prog(File * f, Expr * prog);
 void emit_global_inits(File * f);
 void build_register_funcsig_names(Expr * core_program, Expr * program);
@@ -1148,10 +1193,10 @@ BuildPaths * derive_build_paths(LoadedProgram * lp, Str * custom_bin, Str * cust
 void make_build_dirs(BuildPaths * paths);
 I32 translate_ast(LoadedProgram * lp, BuildPaths * paths);
 void print_translate_success(BuildPaths * paths);
-I32 compile_ast(LoadedProgram * lp, BuildPaths * paths);
+I32 compile_ast(LoadedProgram * lp, BuildPaths * paths, Target * target, Str * cc_override);
 I32 cmd_translate(LoadedProgram * lp, Str * custom_c);
-I32 cmd_build(LoadedProgram * lp, Str * custom_bin, Str * custom_c);
-I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv);
+I32 cmd_build(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override);
+I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv, Target * target, Str * cc_override);
 I32 system_cmd(Str * cmd);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);
@@ -1419,6 +1464,19 @@ ScopeFind *ScopeFind_Found(TypeBinding *);
 Bool * CtorArg_eq(CtorArg *, CtorArg *);
 CtorArg *CtorArg_Unfilled();
 CtorArg *CtorArg_Filled(Expr *);
+Bool Lang_eq(Lang *, Lang *);
+Lang *Lang_C();
+Lang *Lang_HolyC();
+Lang *Lang_TIL();
+Bool Target_eq(Target *, Target *);
+Target *Target_LinuxX64();
+Target *Target_LinuxArm64();
+Target *Target_LinuxRiscv64();
+Target *Target_WindowsX64();
+Target *Target_MacosX64();
+Target *Target_MacosArm64();
+Target *Target_Wasm32();
+Target *Target_TempleosX86();
 Bool * Value_eq(Value *, Value *);
 Value *Value_None();
 Value *Value_Int(I64 *);

@@ -87,6 +87,34 @@ Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
 - Use `make test` before every commit (skip when only documentation changed)
 - Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
-- NEVER look for excuses to reduce scope, skip changes, or defer work. If the user says to change something, CHANGE IT. Don't analyze whether it's "needed" or "used" — just do it.
+- NEVER look for excuses to reduce scope, skip changes, or defer work. If the user says to change something, CHANGE IT. Don't analyze whether it's "needed" or "used" -- just do it.
 - When told "in the whole codebase", that means every file, every path, every occurrence. No exceptions.
 - When the user asks you a question, stop whatever you're doing and answer his questions. They're not rhetorical questions and even if they are, or socratic method, you answer them the best you can and completely honestly.
+
+## Rebasing (remote sessions)
+
+When rebasing a feature branch on top of origin/master, do NOT abort on
+conflicts in automatically generated files (boot/*, doc/totals.csv,
+img/totals.svg). Those files are regenerated from source, so it's safe
+to accept whatever master has for them. The full procedure is:
+
+1. `git fetch origin master`
+2. `git rebase origin/master`
+3. On conflicts in generated files, accept master's version:
+   `git checkout --ours boot/til.c boot/til_forward.h doc/totals.csv img/totals.svg`
+   then `git add` those files and `git rebase --continue`.
+   Do NOT --ours source files (src/**, .github/**, Makefile, CLAUDE.md, etc);
+   resolve those manually.
+4. After the rebase finishes: `git reset --soft HEAD~1` to un-commit but
+   keep all your changes staged.
+5. Revert totals files to master's version so `make test` regenerates
+   them cleanly on top of the new codebase:
+   `git checkout HEAD -- doc/totals.csv img/totals.svg`
+6. `make clean && make test`
+7. `git add -A && git commit ...` with all regenerated files included
+   (boot/*, doc/totals.csv, img/totals.svg).
+8. `git push -u origin <branch>` (force-push only if the user explicitly
+   authorized it; otherwise ask first).
+
+NEVER `git rebase --abort` on conflicts in generated files alone. Only
+abort if a source-file conflict is genuinely unresolvable.

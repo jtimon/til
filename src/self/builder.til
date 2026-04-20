@@ -1,6 +1,7 @@
 mode lib
 
 import("loader.til")
+import("target.til")
 
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 
@@ -2731,13 +2732,17 @@ build_python_binding := proc(core_program: Expr, program: Expr, py_path: Str, li
     return 0.to_i32()
 }
 
-compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {
+compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str) returns shallow I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
     if uc.len().eq(0) { uc = "" }
     if lf.len().eq(0) { lf = "" }
     if ifl.len().eq(0) { ifl = "" }
+
+    mut compiler := cc_override
+    if compiler.len().eq(0) { compiler = toolchain_command(target, Lang.C) }
+    extra := toolchain_extra_args(target, compiler)
 
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
@@ -2746,7 +2751,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
 
     // Compile library .c to object
     obj_path := "gen/lib/".concat(lib_name).concat(".o")
-    mut cmd := "cc -Wall -Wextra -Werror -fPIC -I".concat(ext_dir)
+    mut cmd := compiler.concat(extra).concat(" -Werror -fPIC -I").concat(ext_dir)
         .concat(" -c ").concat(c_path).concat(" -o ").concat(obj_path)
     mut result := system_cmd(cmd)
     if result.neq(0) {
@@ -2756,7 +2761,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
 
     // Compile ext.c to object
     ext_obj := "gen/lib/ext.o"
-    cmd = "cc -Wall -Wextra -Werror -fPIC -I".concat(ext_dir)
+    cmd = compiler.concat(extra).concat(" -Werror -fPIC -I").concat(ext_dir)
         .concat(" -c ").concat(ext_c_path).concat(" -o ").concat(ext_obj)
     result = system_cmd(cmd)
     if result.neq(0) {
@@ -2768,7 +2773,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     mut user_obj := ""
     if uc.len().gt(0) {
         user_obj = "gen/lib/user.o"
-        cmd = "cc -Wall -Wextra -Werror -fPIC -I".concat(ext_dir).concat(ifl)
+        cmd = compiler.concat(extra).concat(" -Werror -fPIC -I").concat(ext_dir).concat(ifl)
             .concat(" -c ").concat(uc).concat(" -o ").concat(user_obj)
         result = system_cmd(cmd)
         if result.neq(0) {
@@ -2779,7 +2784,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
 
     // Create shared library
     so_path := "gen/lib/lib".concat(lib_name).concat(".so")
-    cmd = "cc -shared -o ".concat(so_path)
+    cmd = compiler.concat(" -shared -o ").concat(so_path)
         .concat(" ").concat(obj_path).concat(" ").concat(ext_obj)
         .concat(" ").concat(user_obj).concat(lf)
     result = system_cmd(cmd)
@@ -2802,13 +2807,17 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     return 0.to_i32()
 }
 
-compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str) returns shallow I32 {
+compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str) returns shallow I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
     if uc.len().eq(0) { uc = "" }
     if lf.len().eq(0) { lf = "" }
     if ifl.len().eq(0) { ifl = "" }
+
+    mut compiler := cc_override
+    if compiler.len().eq(0) { compiler = toolchain_command(target, Lang.C) }
+    extra := toolchain_extra_args(target, compiler)
 
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
@@ -2837,7 +2846,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
             // Skip -include forward.h for src/c/ files
             mut fwd_flag := " -include ".concat(fwd_path)
             if file.starts_with("src/c/") { fwd_flag = " -Isrc/c -Iboot" }
-            obj_cmd := "cc -Wall -Wextra -Werror -I".concat(ext_dir)
+            obj_cmd := compiler.concat(extra).concat(" -Werror -I").concat(ext_dir)
                 .concat(fwd_flag).concat(ifl).concat(" -c ").concat(file)
                 .concat(" -o ").concat(user_obj)
 
@@ -2851,7 +2860,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
         user_part = all_objs
     }
 
-    cmd := "cc -Wall -Wextra -Werror -g -rdynamic -I".concat(ext_dir)
+    cmd := compiler.concat(extra).concat(" -Werror -g -rdynamic -I").concat(ext_dir)
         .concat(" -o ").concat(bin_path).concat(" ").concat(c_path)
         .concat(" ").concat(ext_c_path).concat(user_part).concat(lf)
 
@@ -3890,11 +3899,11 @@ print_translate_success := proc(paths: BuildPaths) {
     }
 }
 
-compile_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow I32 {
+compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str) returns shallow I32 {
     if paths.do_lib {
-        return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags)
+        return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override)
     }
-    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags)
+    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override)
 }
 
 cmd_translate := proc(lp: LoadedProgram, custom_c: Str) returns shallow I32 {
@@ -3905,11 +3914,11 @@ cmd_translate := proc(lp: LoadedProgram, custom_c: Str) returns shallow I32 {
     return result
 }
 
-cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str) returns shallow I32 {
+cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str) returns shallow I32 {
     paths := derive_build_paths(lp, custom_bin, custom_c)
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
-    if result.eq(0) { result = compile_ast(lp, paths) }
+    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override) }
     if result.eq(0).and(paths.do_lib) {
         print_translate_success(paths)
         println("Generated: gen/lib/lib".concat(paths.name).concat(".so"))
@@ -3918,14 +3927,14 @@ cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str) returns sha
     return result
 }
 
-cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec) returns shallow I32 {
+cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str) returns shallow I32 {
     if lp.cur_mode.is_library {
         panic(__LOC__, "cannot run a library -- use translate or build")
     }
     paths := derive_build_paths(lp, custom_bin, custom_c)
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
-    if result.eq(0) { result = compile_ast(lp, paths) }
+    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override) }
     if result.eq(0) {
         mut cmd := paths.bin_path
         mut ui : USize = 0

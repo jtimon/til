@@ -18,3 +18,40 @@ jobs:
         run: mkdir -p tmp
       - name: Build and run tests
         run: make test
+      - name: Test target build
+        run: |
+          ./bin/til build --target=linux-x64 -o bin/hello_script_x64 src/examples/hello_script.til
+          file bin/hello_script_x64 | grep -q "x86-64"
+          ./bin/hello_script_x64
+
+  linux-arm64:
+    name: linux-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-aarch64-linux-gnu
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build bin/til (native)
+        run: make
+      - name: Cross-compile for linux-arm64
+        run: |
+          ./bin/til build --target=linux-arm64 -o bin/hello_script_arm64 src/examples/hello_script.til
+          file bin/hello_script_arm64 | grep -q "aarch64"
+
+  linux-riscv64:
+    name: linux-riscv64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-riscv64-linux-gnu
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build bin/til (native)
+        run: make
+      - name: Cross-compile for linux-riscv64
+        run: |
+          ./bin/til build --target=linux-riscv64 -o bin/hello_script_riscv64 src/examples/hello_script.til
+          file bin/hello_script_riscv64 | grep -q "RISC-V"
