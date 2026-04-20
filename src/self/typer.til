@@ -1497,7 +1497,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         for j in 0..body.child_count() {
             new_ch.push(own body.child(j).clone())
         }
-        body.children = new_ch
+        body.children.move_from(own new_ch)
     }
     while_scope := TypeScope(parent = scope)
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
@@ -1910,7 +1910,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                     for bi in 0..case_body.child_count() {
                         new_ch.push(own case_body.child(bi).clone())
                     }
-                    case_body.children = new_ch
+                    case_body.children.move_from(own new_ch)
                     has_condition = true
                                     }
                                 }
@@ -3233,7 +3233,7 @@ desugar_set_literals := proc(mut body: Expr, mut scope: TypeScope) {
             new_ch.push(own stmt.clone())
         }
     }
-    body.children = new_ch
+    body.children.move_from(own new_ch)
     reregister_scope_defs(body, scope)
 }
 
@@ -3259,7 +3259,7 @@ desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
             new_ch.push(own stmt.clone())
         }
     }
-    body.children = new_ch
+    body.children.move_from(own new_ch)
     reregister_scope_defs(body, scope)
 }
 
@@ -3498,7 +3498,7 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
         new_ch.push(own stmt)
     }
 
-    body.children = new_ch
+    body.children.move_from(own new_ch)
     reregister_scope_defs(body, scope)
 }
 
@@ -3534,7 +3534,7 @@ insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
         }
         new_ch.push(own stmt.clone())
     }
-    body.children = new_ch
+    body.children.move_from(own new_ch)
     reregister_scope_defs(body, scope)
 }
 
@@ -3646,7 +3646,7 @@ desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
         rewrite_variadic_fcall_args(fcall, va_name)
         new_ch.push(own stmt.clone())
     }
-    body.children = new_ch
+    body.children.move_from(own new_ch)
     reregister_scope_defs(body, scope)
 }
 
@@ -3767,7 +3767,7 @@ desugar_kwargs_calls := proc(mut body: Expr, mut scope: TypeScope) {
         rewrite_kwargs_fcall_args(fcall, kw_name)
         new_ch.push(own stmt.clone())
     }
-    body.children = new_ch
+    body.children.move_from(own new_ch)
     reregister_scope_defs(body, scope)
 }
 
@@ -4190,7 +4190,7 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
         new_ch.push(own stmt.clone())
     }
     if new_ch.len().neq(body.child_count()) {
-        body.children = new_ch
+        body.children.move_from(own new_ch)
     }
 }
 
@@ -4328,7 +4328,7 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
         insert_post_stmt_deletes(stmt, locals, n_locals, i.to_i64().to_u32(), new_ch)
     }
 
-    body.children = new_ch
+    body.children.move_from(own new_ch)
     reregister_scope_defs(body, scope)
     free(own locals)
 }
