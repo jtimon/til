@@ -67,7 +67,7 @@ due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
 
 - The last commit ALWAYS works. til_boot is built from it via git.
 - `make clean && make test` always works.
-- `make revert_boot` restores boot/ from HEAD if corrupted.
+- `git checkout HEAD boot/` restores boot/ from HEAD if corrupted.
 - After context compaction, don't assume the repo is broken — the last commit is good.
 
 ## ASCII Only

@@ -12,7 +12,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all clean test test_asan test_nogui revert_boot help
+.PHONY: all clean test test_asan test_nogui help
 
 all: bin/til
 
@@ -104,10 +104,6 @@ test_nogui: bin/til bin/test_runner bin/plot bin/tests
 
 # --- Utilities ---
 
-revert_boot:
-	git checkout HEAD boot/
-	git clean -fd boot/
-
 help:
 	echo "make          Build bin/til + regenerate boot/"
 	echo "make test     Build + run tests"
@@ -118,7 +114,7 @@ help:
 	echo "boot/         Generated C. Committed for til_boot."
 	echo ""
 	echo "Workflow: make test, then commit (including boot/)."
-	echo "Recovery: make revert_boot && make test"
+	echo "Recovery: git checkout HEAD boot/ && make test"
 
 clean:
 	rm -rf bin/* gen/*

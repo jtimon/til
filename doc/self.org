@@ -37,4 +37,4 @@
   - ~make bin/til_asan~ ASAN build for memory debugging.
   - ~make bin/til_debug~ debug build for gdb.
   - ~make clean && make test~ always works.
-  - ~make revert_boot~ for recovery.
+  - ~git checkout HEAD boot/~ for recovery.
