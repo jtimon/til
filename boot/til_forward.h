@@ -23,7 +23,8 @@ typedef enum {
     TilType_TAG_EnumDef,
     TilType_TAG_FuncDef,
     TilType_TAG_FuncPtr,
-    TilType_TAG_Dynamic
+    TilType_TAG_Dynamic,
+    TilType_TAG_Custom
 } TilType_tag;
 typedef struct TilType TilType;
 typedef enum {
@@ -231,6 +232,7 @@ struct TilType {
     union {
         Str Struct;
         Str Enum;
+        Str Custom;
     } data;
 };
 
@@ -785,7 +787,7 @@ Token * expect_token(Parser * p, TokenType * type);
 Str * expect_text(Parser * p, TokenType * type);
 U32 peek_line(Parser * p);
 U32 peek_col(Parser * p);
-TilType * til_type_from_primitive_name(Str * name);
+TilType * til_type_from_explicit_type(Str * name);
 Str * parse_fn_signature(Parser * p, U32 line, U32 col);
 Expr * parse_block(Parser * p);
 Expr * parse_func_def(Parser * p);

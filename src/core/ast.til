@@ -12,6 +12,7 @@ TilType := enum {
     Struct: Str, StructDef,
     Enum: Str, EnumDef,
     FuncDef, FuncPtr, Dynamic,
+    Custom: Str,
 }
 
 til_type_name_c := func(t: TilType) returns Str {
@@ -33,6 +34,7 @@ til_type_name_c := func(t: TilType) returns Str {
     case TilType.FuncDef:   return "FunctionDef"
     case TilType.FuncPtr:   return "Fn"
     case TilType.Dynamic:   return "Dynamic"
+    case TilType.Custom(name): return name.clone()
     case: return "?"
     }
 }

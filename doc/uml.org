@@ -97,6 +97,7 @@
 *** FuncDef
 *** FuncPtr
 *** Dynamic
+*** Custom:Str
 ** FuncType: EnumDef
 *** None
 *** Func

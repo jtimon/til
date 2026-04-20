@@ -1611,6 +1611,9 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
     mut declared := stmt.til_type
     if is_variant(declared, TilType.Unknown) {
         declared = type_from_name(sdecl.explicit_type, scope)
+    } else if is_variant(declared, TilType.Custom) {
+        ref cname : Str = get_payload(declared)
+        declared = type_from_name(cname, scope)
     }
     ref mut val : Expr = stmt.child(0)
     if is_variant(declared, TilType.Unknown) {
