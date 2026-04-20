@@ -17,7 +17,6 @@ TypeBinding := struct {
     ref mut struct_def : Expr = NULL
     ref mut func_def : Expr = NULL
     mut is_builtin := false
-    mut struct_name := ""
     namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns shallow Bool {
         return a.name.eq(b.name)
@@ -983,9 +982,6 @@ register_type_aliases := proc(program: Expr, scope: TypeScope) {
         } else {
             ab.alias_target = target.alias_target
         }
-        if target.struct_name.len().gt(0) {
-            ab.struct_name = target.struct_name.clone()
-        }
     }
 }
 
@@ -1014,8 +1010,6 @@ register_top_level_values := proc(program: Expr, scope: TypeScope) {
 
         ref sdecl : Declaration = get_payload(stmt.data)
         scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, stmt.line, stmt.col, false, OwnType.Shallow)
-        ref mut b : TypeBinding = scope.get_binding(sdecl.name)
-        if struct_name.len().gt(0) { b.struct_name = struct_name.clone() }
     }
 }
 
@@ -1725,7 +1719,8 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         ref b : TypeBinding = scope.get_binding(id)
         if is_null(b) { return false }
         out_type = b.type
-        if b.struct_name.len().gt(0) { out_struct_name = b.struct_name }
+        b_sname := til_type_name(b.type)
+        if b_sname.len().gt(0) { out_struct_name = b_sname }
         return is_variant(out_type, TilType.Unknown).not()
     case NodeType.FieldAccess:
         mut _init_ns1 := false
@@ -1777,7 +1772,8 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
             ref fb : TypeBinding = scope.get_binding(fn_name)
             if is_null(fb) { return false }
             out_type = fb.type
-            if fb.struct_name.len().gt(0) { out_struct_name = fb.struct_name }
+            fb_sname := til_type_name(fb.type)
+            if fb_sname.len().gt(0) { out_struct_name = fb_sname }
             return is_variant(out_type, TilType.Unknown).not()
         }
         return false

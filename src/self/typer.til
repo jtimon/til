@@ -1085,15 +1085,6 @@ infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
     expr.til_type = type
     ref ib : TypeBinding = scope.get_binding(id_name)
     if is_null(ib).not() {
-        if is_variant(type, TilType.Struct).or(is_variant(type, TilType.Enum)) {
-            if ib.struct_name.len().gt(0).and(til_type_name(expr.til_type).len().eq(0)) {
-                if is_variant(type, TilType.Struct) {
-                    expr.til_type = TilType.Struct(ib.struct_name.clone())
-                } else {
-                    expr.til_type = TilType.Enum(ib.struct_name.clone())
-                }
-            }
-        }
         if is_null(ib.func_def).not() {
             expr.til_type = TilType.FuncPtr
         }
@@ -1244,19 +1235,12 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         if i.to_i64().to_i32().eq(fdef.variadic_index) {
             param.own_type = OwnType.Own
             func_scope.set(param.name, TilType.Struct("Array".clone()), FuncType.None, false, expr.line, expr.col, true, OwnType.Own)
-            ref mut pb : TypeBinding = func_scope.get_binding(param.name)
-            pb.struct_name = "Array"
         } else if i.to_i64().to_i32().eq(fdef.kwargs_index) {
             param.own_type = OwnType.Own
             func_scope.set(param.name, TilType.Struct("DynMap".clone()), FuncType.None, false, expr.line, expr.col, true, OwnType.Own)
-            ref mut pb : TypeBinding = func_scope.get_binding(param.name)
-            pb.struct_name = "DynMap"
         } else {
             func_scope.set(param.name, pt, FuncType.None, pmut, expr.line, expr.col, true, param.own_type)
             ref mut pb : TypeBinding = func_scope.get_binding(param.name)
-            if is_variant(pt, TilType.Struct).or(is_variant(pt, TilType.Enum)) {
-                pb.struct_name = ptn.clone()
-            }
             if is_variant(pt, TilType.FuncPtr) {
                 sf_fsb := scope.find(ptn)
                 if is_variant(sf_fsb, ScopeFind.Found) {
@@ -1676,10 +1660,6 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
     }
     scope.set(sdecl.name, stmt.til_type, FuncType.None, sdecl.is_mut, stmt.line, stmt.col, false, OwnType.Shallow)
     ref mut decl_b : TypeBinding = scope.get_binding(sdecl.name)
-    if is_variant(stmt.til_type, TilType.Struct).or(is_variant(stmt.til_type, TilType.Enum)) {
-        rhs_sname := til_type_name(rhs.til_type)
-        if rhs_sname.len().gt(0) { decl_b.struct_name = rhs_sname.clone() }
-    }
     if is_variant(stmt.til_type, TilType.FuncPtr) {
         if is_variant(rhs.data, NodeType.Ident) {
             ref src : TypeBinding = scope.get_binding(get_payload(rhs.data))
@@ -3100,8 +3080,6 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     decl.add_child(own new_call)
 
     scope.set(var_name, TilType.Struct("Set".clone()), FuncType.None, true, stmt.line, stmt.col, false, OwnType.Shallow)
-    ref mut vb : TypeBinding = scope.get_binding(var_name)
-    vb.struct_name = "Set"
 
     new_ch.push(own decl)
 
@@ -3190,8 +3168,6 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     decl.add_child(own new_call)
 
     scope.set(var_name, TilType.Struct("Map".clone()), FuncType.None, true, stmt.line, stmt.col, false, OwnType.Shallow)
-    ref mut vb : TypeBinding = scope.get_binding(var_name)
-    vb.struct_name = "Map"
 
     new_ch.push(own decl)
 
@@ -3280,16 +3256,9 @@ hoist_param_swap_assign := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Typ
     ref stmt_name : Str = get_payload(stmt.data)
     mut a := Expr.new(NodeType.Ident(stmt_name.clone()), stmt.line, stmt.col, stmt.path)
     a.til_type = ab.type
-    if ab.struct_name.len().gt(0).and(til_type_name(a.til_type).len().eq(0)) {
-        if is_variant(a.til_type, TilType.Struct) {
-            a.til_type = TilType.Struct(ab.struct_name.clone())
-        } else if is_variant(a.til_type, TilType.Enum) {
-            a.til_type = TilType.Enum(ab.struct_name.clone())
-        }
-    }
     call.add_child(own a)
     call.add_child(own stmt.child(0).clone())
-    tname := type_to_name(ab.type, ab.struct_name)
+    tname := type_to_name(ab.type, til_type_name(ab.type))
     mut sz_call := make_ns_call(tname, "size", usize_type(scope), "", stmt)
     mut sz := hoist_to_temp(sz_call, hoisted, scope)
     call.add_child(own sz)
@@ -3634,8 +3603,6 @@ desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
         mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
 
         scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, line, col, false, OwnType.Shallow)
-        ref vab : TypeBinding = scope.get_binding(va_name)
-        vab.struct_name = "Array"
 
         new_ch.push(own va_decl)
 
@@ -3754,8 +3721,6 @@ desugar_kwargs_calls := proc(mut body: Expr, mut scope: TypeScope) {
         kw_decl := build_kwargs_dynmap_decl(fcall, kw_name)
 
         scope.set(kw_name, TilType.Struct("DynMap".clone()), FuncType.None, false, fcall.line, fcall.col, false, OwnType.Shallow)
-        ref mut kwb : TypeBinding = scope.get_binding(kw_name)
-        kwb.struct_name = "DynMap"
 
         new_ch.push(own kw_decl)
 
@@ -4066,7 +4031,7 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
         mut li := LocalInfo()
         li.name = b.name
         li.type = b.type
-        li.struct_name = b.struct_name
+        li.struct_name = til_type_name(b.type)
         li.decl_index = decl_idx
         li.last_use = last_use
         li.own_transfer = own_transfer
@@ -4421,7 +4386,6 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns
     ident.til_type = val.til_type
     scope.set(tname, val.til_type, FuncType.None, false, val.line, val.col, false, OwnType.Shallow)
     ref mut tb : TypeBinding = scope.get_binding(tname)
-    tb.struct_name = val_sname.clone()
     if val_is_ref {
         dd.own_type = OwnType.Ref
         if is_null(tb).not() { tb.own_type = OwnType.Ref }

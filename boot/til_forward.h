@@ -440,7 +440,6 @@ typedef struct TypeBinding {
     Expr *struct_def;
     Expr *func_def;
     Bool is_builtin;
-    Str struct_name;
 } TypeBinding;
 
 
