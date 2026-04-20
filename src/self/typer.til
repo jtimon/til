@@ -3260,7 +3260,7 @@ hoist_param_swap_assign := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Typ
     call.add_child(own stmt.child(0).clone())
     tname := type_to_name(ab.type, til_type_name(ab.type))
     mut sz_call := make_ns_call(tname, "size", usize_type(scope), "", stmt)
-    mut sz := hoist_to_temp(sz_call, hoisted, scope)
+    mut sz := hoist_to_temp(sz_call, hoisted, scope, false)
     call.add_child(own sz)
     stmt = call
 }
@@ -3335,6 +3335,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
             }
         }
 
+        mut slot_is_own := false
         if is_null(ctor_body).not() {
             mut fld_own := OwnType.Shallow
             mut field_type := TilType.None
@@ -3355,9 +3356,12 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
                     continue
                 }
             }
+            slot_is_own = fld_own.eq(OwnType.Own)
+        } else {
+            slot_is_own = get_own_arg(expr, i)
         }
 
-        expr.children.set(i, own hoist_to_temp(arg.clone(), hoisted, scope))
+        expr.children.set(i, own hoist_to_temp(arg.clone(), hoisted, scope, slot_is_own))
     }
 }
 
@@ -3369,7 +3373,7 @@ hoist_if_cond := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     hoist_expr(stmt.child(0), hoisted, scope)
     ref cond : Expr = stmt.child(0)
     if is_variant(cond.data, NodeType.FCall) {
-        stmt.children.set(0, own hoist_to_temp(cond, hoisted, scope))
+        stmt.children.set(0, own hoist_to_temp(cond, hoisted, scope, false))
     }
 }
 
@@ -3381,7 +3385,7 @@ hoist_return_expr := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope
         .or(is_variant(rhs.data, NodeType.LiteralNum))
         .or(is_variant(rhs.data, NodeType.LiteralStr))
         .or(is_variant(rhs.data, NodeType.LiteralBool)) {
-        stmt.children.set(0, own hoist_to_temp(rhs, hoisted, scope))
+        stmt.children.set(0, own hoist_to_temp(rhs, hoisted, scope, false))
     }
 }
 
@@ -3404,7 +3408,7 @@ hoist_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
         .or(is_variant(rhs.data, NodeType.LiteralStr))
         .or(is_variant(rhs.data, NodeType.LiteralBool))
     ) {
-        stmt.children.set(0, own hoist_to_temp(rhs, hoisted, scope))
+        stmt.children.set(0, own hoist_to_temp(rhs, hoisted, scope, false))
     }
 }
 
@@ -3424,14 +3428,14 @@ hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Type
         .or(is_variant(rhs.data, NodeType.LiteralStr))
         .or(is_variant(rhs.data, NodeType.LiteralBool))
     ) {
-        stmt.children.set(1, own hoist_to_temp(rhs, hoisted, scope))
+        stmt.children.set(1, own hoist_to_temp(rhs, hoisted, scope, false))
     }
 }
 
 hoist_stmt_fcall := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     hoist_expr(stmt, hoisted, scope)
     if is_variant(stmt.til_type, TilType.None).not() {
-        hoist_to_temp(stmt, hoisted, scope)
+        hoist_to_temp(stmt, hoisted, scope, false)
         popped : Expr = hoisted.pop()
         stmt = popped
     }
@@ -4362,7 +4366,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
     return 0.to_i32()
 }
 
-hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns Expr {
+hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow is_own: Bool) returns Expr {
     val_sname := til_type_name(val.til_type)
     tp := type_prefix(val.til_type, val_sname)
     tname := "_t_".concat(tp).concat("_").concat(hoist_counter.to_i64().to_str())
@@ -4389,6 +4393,9 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns
     if val_is_ref {
         dd.own_type = OwnType.Ref
         if is_null(tb).not() { tb.own_type = OwnType.Ref }
+    } else if is_own {
+        dd.own_type = OwnType.Own
+        if is_null(tb).not() { tb.own_type = OwnType.Own }
     }
 
     hoisted.push(own decl)
