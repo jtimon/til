@@ -7,8 +7,8 @@ mut gc_strs := Vec.new("Str", Str.size())
 scav_fa_is_ns := func(e: Expr) returns shallow Bool {
     if e.child_count().eq(0) { return false }
     ref obj : Expr = e.child(0)
-    if is_variant(obj.data, NodeType.Ident) {
-        if is_variant(obj.til_type, TilType.StructDef).or(is_variant(obj.til_type, TilType.EnumDef)) {
+    if obj.data.is(NodeType.Ident) {
+        if obj.til_type.is(TilType.StructDef).or(obj.til_type.is(TilType.EnumDef)) {
             return true
         }
         // Also check: if ident name matches struct_name, it's a type reference
@@ -73,15 +73,15 @@ children_filter := proc(mut v: Vec, marks: Dynamic, shallow n: USize) {
 }
 
 is_def := func(e: Expr) returns shallow Bool {
-    if is_variant(e.child(0).data, NodeType.FuncDef) { return true }
-    if is_variant(e.child(0).data, NodeType.StructDef) { return true }
-    if is_variant(e.child(0).data, NodeType.EnumDef) { return true }
+    if e.child(0).data.is(NodeType.FuncDef) { return true }
+    if e.child(0).data.is(NodeType.StructDef) { return true }
+    if e.child(0).data.is(NodeType.EnumDef) { return true }
     return false
 }
 
 is_struct_or_enum := func(e: Expr) returns shallow Bool {
-    if is_variant(e.child(0).data, NodeType.StructDef) { return true }
-    if is_variant(e.child(0).data, NodeType.EnumDef) { return true }
+    if e.child(0).data.is(NodeType.StructDef) { return true }
+    if e.child(0).data.is(NodeType.EnumDef) { return true }
     return false
 }
 
@@ -99,13 +99,13 @@ push_builtin_methods := proc(mut v: Vec, builtin_name: Str, m1: Str, m2: Str, m3
 collect_refs := proc(e: Expr, mut refs: Vec) {
     if is_null(e) { return }
 
-    if is_variant(e.data, NodeType.Ident) {
+    if e.data.is(NodeType.Ident) {
         ref ident : Str = get_payload(e.data)
         vec_push_str(refs, ident)
-    } else if is_variant(e.data, NodeType.FCall) {
+    } else if e.data.is(NodeType.FCall) {
         // Check for namespace method call: Type.method(args...)
         if e.child_count().gt(0) {
-            if is_variant(e.child(0).data, NodeType.FieldAccess) {
+            if e.child(0).data.is(NodeType.FieldAccess) {
                 if scav_fa_is_ns(e.child(0)) {
                     ref fa : Expr = e.child(0)
                     ref type_name : Str = get_payload(fa.child(0).data)
@@ -122,7 +122,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         }
         // array()/vec() builtins need Array/Vec constructor methods
         if e.child_count().gte(2) {
-            if is_variant(e.child(0).data, NodeType.Ident) {
+            if e.child(0).data.is(NodeType.Ident) {
                 ref cn : Str = get_payload(e.child(0).data)
                 if cn.eq("array") {
                     push_builtin_methods(refs, "Array", "new", "set", "delete")
@@ -131,7 +131,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
                 }
             }
         }
-    } else if is_variant(e.data, NodeType.FuncDef) {
+    } else if e.data.is(NodeType.FuncDef) {
         ref fdef : FunctionDef = get_payload(e.data)
         for i : U32 in 0..fdef.nparam {
             ref p : Param = fdef.params.get(i)
@@ -148,25 +148,25 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         if fdef.return_type.len().gt(0) {
             vec_push_str(refs, fdef.return_type)
         }
-    } else if is_variant(e.data, NodeType.FieldAccess) {
+    } else if e.data.is(NodeType.FieldAccess) {
         if scav_fa_is_ns(e) {
-            if is_variant(e.child(0).data, NodeType.Ident) {
+            if e.child(0).data.is(NodeType.Ident) {
                 ref type_name : Str = get_payload(e.child(0).data)
                 ref field_name : Str = get_payload(e.data)
                 vec_push_str(refs, type_name)
                 push_qn(refs, type_name, field_name)
             }
         }
-    } else if is_variant(e.data, NodeType.FieldAssign) {
+    } else if e.data.is(NodeType.FieldAssign) {
         if scav_fa_is_ns(e) {
-            if is_variant(e.child(0).data, NodeType.Ident) {
+            if e.child(0).data.is(NodeType.Ident) {
                 ref type_name : Str = get_payload(e.child(0).data)
                 ref field_name : Str = get_payload(e.data)
                 vec_push_str(refs, type_name)
                 push_qn(refs, type_name, field_name)
             }
         }
-    } else if is_variant(e.data, NodeType.Decl) {
+    } else if e.data.is(NodeType.Decl) {
         ref decl : Declaration = get_payload(e.data)
         if decl.explicit_type.len().gt(0) {
             vec_push_str(refs, decl.explicit_type)
@@ -186,7 +186,7 @@ find_ns_method := func(program: Expr, top: Map, name: Str) returns ref Expr {
     if top.has(type_part).not() { return NULL }
     ref tidx : U32 = top.get(type_part)
     ref tdecl : Expr = program.child(tidx)
-    if is_variant(tdecl.data, NodeType.Decl).not() { return NULL }
+    if tdecl.data.is(NodeType.Decl).not() { return NULL }
     if is_struct_or_enum(tdecl).not() { return NULL }
     dot_u := dot.to_u32()
     method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
@@ -220,7 +220,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     if is_null(core_program).not() {
         for i in 0..core_program.child_count() {
             ref stmt : Expr = core_program.child(i)
-            if is_variant(stmt.data, NodeType.Decl) {
+            if stmt.data.is(NodeType.Decl) {
                 ref decl : Declaration = get_payload(stmt.data)
                 core_top.set(own decl.name.clone(), own i.clone())
             }
@@ -229,7 +229,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     mut top := Map.new("Str", Str.size(), "U32", U32.size())
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
-        if is_variant(stmt.data, NodeType.Decl) {
+        if stmt.data.is(NodeType.Decl) {
             ref decl : Declaration = get_payload(stmt.data)
             top.set(own decl.name.clone(), own i.clone())
         }
@@ -241,7 +241,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         vec_push_str(worklist, "main")
         for i in 0..program.child_count() {
             ref stmt : Expr = program.child(i)
-            if is_variant(stmt.data, NodeType.Decl) {
+            if stmt.data.is(NodeType.Decl) {
                 if is_def(stmt) { continue }
             }
             collect_refs(stmt, worklist)
@@ -249,8 +249,8 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     } else if run_tests {
         for i in 0..program.child_count() {
             ref stmt : Expr = program.child(i)
-            if is_variant(stmt.data, NodeType.Decl) {
-                if is_variant(stmt.child(0).data, NodeType.FuncDef) {
+            if stmt.data.is(NodeType.Decl) {
+                if stmt.child(0).data.is(NodeType.FuncDef) {
                     ref fdef : FunctionDef = get_payload(stmt.child(0).data)
                     if fdef.func_type.eq(FuncType.Test) {
                         ref d : Declaration = get_payload(stmt.data)
@@ -264,7 +264,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     } else {
         for i in 0..program.child_count() {
             ref stmt : Expr = program.child(i)
-            if is_variant(stmt.data, NodeType.Decl) {
+            if stmt.data.is(NodeType.Decl) {
                 if is_def(stmt) { continue }
             }
             collect_refs(stmt, worklist)
@@ -329,14 +329,14 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         // Namespace method? (check both user and core)
         ref method : Expr = find_ns_method(program, top, name)
         if is_null(method).not() {
-            if is_variant(method.child(0).data, NodeType.FuncDef) {
+            if method.child(0).data.is(NodeType.FuncDef) {
                 collect_refs(method.child(0), worklist)
             }
         }
         if is_null(core_program).not() {
             ref core_method : Expr = find_ns_method(core_program, core_top, name)
             if is_null(core_method).not() {
-                if is_variant(core_method.child(0).data, NodeType.FuncDef) {
+                if core_method.child(0).data.is(NodeType.FuncDef) {
                     collect_refs(core_method.child(0), worklist)
                 }
             }
@@ -350,7 +350,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         memset(cm, 0, cn)
         for i in 0..cn {
             ref stmt : Expr = core_program.child(i)
-            if is_variant(stmt.data, NodeType.Decl) {
+            if stmt.data.is(NodeType.Decl) {
                 if is_def(stmt) {
                     ref d : Declaration = get_payload(stmt.data)
                     if visited.has(d.name).not() {
@@ -368,7 +368,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         memset(pm, 0, pn)
         for i in 0..pn {
             ref stmt : Expr = program.child(i)
-            if is_variant(stmt.data, NodeType.Decl) {
+            if stmt.data.is(NodeType.Decl) {
                 if is_def(stmt) {
                     ref d : Declaration = get_payload(stmt.data)
                     if visited.has(d.name).not() {
@@ -385,7 +385,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     if is_null(core_program).not() {
         for i in 0..core_program.child_count() {
             ref stmt : Expr = core_program.child(i)
-            if is_variant(stmt.data, NodeType.Decl).not() { continue }
+            if stmt.data.is(NodeType.Decl).not() { continue }
             if is_struct_or_enum(stmt).not() { continue }
             ref sdecl : Declaration = get_payload(stmt.data)
             ref body : Expr = stmt.child(0).child(0)
@@ -408,7 +408,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     }
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
-        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        if stmt.data.is(NodeType.Decl).not() { continue }
         if is_struct_or_enum(stmt).not() { continue }
         ref sdecl : Declaration = get_payload(stmt.data)
         ref body : Expr = stmt.child(0).child(0)

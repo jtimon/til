@@ -214,7 +214,6 @@ void *deref(void *slot);
 void write_ptr(void *dest, void *val);
 Bool is_null(void *p);
 Bool is(void *self, void *other);
-Bool is_variant(void *self, void *other);
 void *get_payload(void *self);
 
 // CLI arg parsing

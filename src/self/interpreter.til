@@ -43,7 +43,7 @@ StructInstance := struct {
                 if dd.is_namespace { continue }
                 foff := dd.field_offset
                 ref ftype : Str = dd.explicit_type
-                if is_variant(dd.own_type, OwnType.Own) {
+                if dd.own_type.is(OwnType.Own) {
                     ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.to_i64().to_u64()))
                     if is_null(src_ptr).not() {
                         if is_null(dd.field_struct_def).not() {
@@ -56,7 +56,7 @@ StructInstance := struct {
                     }
                     continue
                 }
-                if is_variant(dd.own_type, OwnType.Ref) { continue }
+                if dd.own_type.is(OwnType.Ref) { continue }
                 if ftype.eq("Str") {
                     ref s : Str = ptr_add(self.data, foff.to_i64().to_u64())
                     if s.count.to_i64().gt(0) {
@@ -69,7 +69,7 @@ StructInstance := struct {
                     continue
                 }
                 if is_null(dd.field_struct_def).not() {
-                    if is_variant(dd.field_struct_def.data, NodeType.EnumDef) {
+                    if dd.field_struct_def.data.is(NodeType.EnumDef) {
                         if enum_has_payloads(dd.field_struct_def) {
                             ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_i64().to_u64()))
                             if is_null(ei_ref).not() {
@@ -86,7 +86,7 @@ StructInstance := struct {
                     }
                 }
                 if is_null(dd.field_struct_def).not() {
-                    if is_variant(dd.field_struct_def.data, NodeType.EnumDef).not() {
+                    if dd.field_struct_def.data.is(NodeType.EnumDef).not() {
                         ref nested : Expr = dd.field_struct_def
                         ref nested_sdef : StructDefData = get_payload(nested.data)
                         mut tmp := StructInstance(struct_name = ftype, struct_def = nested, data = ptr_add(self.data, foff.to_i64().to_u64()), borrowed = true)
@@ -113,7 +113,9 @@ EnumInstance := struct {
     mut data_size : I32 = 0
     namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns shallow Bool {
-        return is_variant(a, b)
+        // TODO(#113): switch to a.is(b) once UFCS resolution handles
+        // free functions whose first param is Dynamic on struct types.
+        return is(a, b)
     }
     to_str := func(self: EnumInstance) returns Str {
         if is_null(self.enum_name) { return "EnumInstance" }
@@ -154,13 +156,13 @@ Value := enum {
     Ptr: Dynamic
     namespace:
     eq := func(a: Value, b: Value) returns Bool {
-        if is_variant(a, Value.None).and(is_variant(b, Value.None)) { return true }
-        if is_variant(a, Value.Int).and(is_variant(b, Value.Int)) {
+        if a.is(Value.None).and(b.is(Value.None)) { return true }
+        if a.is(Value.Int).and(b.is(Value.Int)) {
             ref _ai : I64 = get_payload(a)
             ref _bi : I64 = get_payload(b)
             return _ai.eq(_bi)
         }
-        if is_variant(a, Value.Boolean).and(is_variant(b, Value.Boolean)) {
+        if a.is(Value.Boolean).and(b.is(Value.Boolean)) {
             ref _ab : Bool = get_payload(a)
             ref _bb : Bool = get_payload(b)
             return _ab.eq(_bb)
@@ -168,65 +170,65 @@ Value := enum {
         return false
     }
     to_str := func(self: Value) returns Str {
-        if is_variant(self, Value.None) { return "None" }
-        if is_variant(self, Value.Int) {
+        if self.is(Value.None) { return "None" }
+        if self.is(Value.Int) {
             ref _si : I64 = get_payload(self)
             return _si.to_str()
         }
-        if is_variant(self, Value.Boolean) {
+        if self.is(Value.Boolean) {
             ref _sb : Bool = get_payload(self)
             return _sb.to_str()
         }
         return "Value"
     }
     clone := func(self: Value) returns Value {
-        if is_variant(self, Value.Struct) {
+        if self.is(Value.Struct) {
             ref si : StructInstance = get_payload(self)
             return Value.Struct(si.clone())
         }
-        if is_variant(self, Value.Enum) {
+        if self.is(Value.Enum) {
             ref ei : EnumInstance = get_payload(self)
             return Value.Enum(ei.clone())
         }
-        if is_variant(self, Value.Int) {
+        if self.is(Value.Int) {
             ref v : I64 = get_payload(self)
             return Value.Int(v)
         }
-        if is_variant(self, Value.Byte) {
+        if self.is(Value.Byte) {
             ref v : U8 = get_payload(self)
             return Value.Byte(v)
         }
-        if is_variant(self, Value.Short) {
+        if self.is(Value.Short) {
             ref v : I16 = get_payload(self)
             return Value.Short(v)
         }
-        if is_variant(self, Value.Int32) {
+        if self.is(Value.Int32) {
             ref v : I32 = get_payload(self)
             return Value.Int32(v)
         }
-        if is_variant(self, Value.Uint32) {
+        if self.is(Value.Uint32) {
             ref v : U32 = get_payload(self)
             return Value.Uint32(v)
         }
-        if is_variant(self, Value.Uint64) {
+        if self.is(Value.Uint64) {
             ref v : U64 = get_payload(self)
             return Value.Uint64(v)
         }
-        if is_variant(self, Value.Float) {
+        if self.is(Value.Float) {
             ref v : F32 = get_payload(self)
             return Value.Float(v)
         }
-        if is_variant(self, Value.Boolean) {
+        if self.is(Value.Boolean) {
             ref v : Bool = get_payload(self)
             return Value.Boolean(v)
         }
-        if is_variant(self, Value.None) {
+        if self.is(Value.None) {
             return Value.None
         }
         // Func, Ptr: read void* payload via U64 reinterpret (both 8 bytes)
         ref payload : Dynamic = get_payload(self)
         ref raw : U64 = payload
-        if is_variant(self, Value.Func) {
+        if self.is(Value.Func) {
             return Value.Func(ptr_add(NULL, raw))
         }
         return Value.Ptr(ptr_add(NULL, raw))
@@ -341,7 +343,7 @@ parse_cli_arg := func(s: Str, type_name: Str) returns shallow Value {
 }
 
 eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
-    if is_variant(e.data, NodeType.LiteralStr) {
+    if e.data.is(NodeType.LiteralStr) {
         ref raw : Str = get_payload(e.data)
         buf : Dynamic = malloc(raw.count.to_u64().add(1))
         mut j : U64 = 0
@@ -367,24 +369,24 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         free(own buf)
         return v
     }
-    if is_variant(e.data, NodeType.LiteralNum) {
+    if e.data.is(NodeType.LiteralNum) {
         ref num_str : Str = get_payload(e.data)
-        if is_variant(e.til_type, TilType.U8) { return val_u8(num_str.to_i64()) }
-        if is_variant(e.til_type, TilType.U32) { return val_u32(num_str.to_i64()) }
-        if is_variant(e.til_type, TilType.U64) { return val_u64(num_str.to_i64().to_u64()) }
-        if is_variant(e.til_type, TilType.I16) { return val_i16(num_str.to_i64()) }
-        if is_variant(e.til_type, TilType.I32) { return val_i32(num_str.to_i64()) }
-        if is_variant(e.til_type, TilType.F32) { return val_f32(num_str.to_f32()) }
+        if e.til_type.is(TilType.U8) { return val_u8(num_str.to_i64()) }
+        if e.til_type.is(TilType.U32) { return val_u32(num_str.to_i64()) }
+        if e.til_type.is(TilType.U64) { return val_u64(num_str.to_i64().to_u64()) }
+        if e.til_type.is(TilType.I16) { return val_i16(num_str.to_i64()) }
+        if e.til_type.is(TilType.I32) { return val_i32(num_str.to_i64()) }
+        if e.til_type.is(TilType.F32) { return val_f32(num_str.to_f32()) }
         return val_i64(num_str.to_i64())
     }
-    if is_variant(e.data, NodeType.LiteralBool) {
+    if e.data.is(NodeType.LiteralBool) {
         ref b : Bool = get_payload(e.data)
         return val_bool(b)
     }
-    if is_variant(e.data, NodeType.LiteralNull) {
+    if e.data.is(NodeType.LiteralNull) {
         return Value.Ptr(NULL)
     }
-    if is_variant(e.data, NodeType.Ident) {
+    if e.data.is(NodeType.Ident) {
         ref ident : Str = get_payload(e.data)
         ref cell : Cell = scope_get(scope, ident)
         if is_null(cell) {
@@ -393,24 +395,24 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         }
         return shallow_copy_value(cell.val)
     }
-    if is_variant(e.data, NodeType.FCall) {
+    if e.data.is(NodeType.FCall) {
         return eval_call(scope, e)
     }
-    if is_variant(e.data, NodeType.FuncDef) {
+    if e.data.is(NodeType.FuncDef) {
         return Value.Func(e)
     }
-    if is_variant(e.data, NodeType.StructDef) {
+    if e.data.is(NodeType.StructDef) {
         return Value.Func(e)
     }
-    if is_variant(e.data, NodeType.EnumDef) {
+    if e.data.is(NodeType.EnumDef) {
         return Value.Func(e)
     }
-    if is_variant(e.data, NodeType.FieldAccess) {
+    if e.data.is(NodeType.FieldAccess) {
         mut obj := eval_expr(scope, e.child(0))
         ref fname : Str = get_payload(e.data)
         if interp_fa_is_ns(scope, e) {
             mut sname := ""
-            if is_variant(obj, Value.Struct) {
+            if obj.is(Value.Struct) {
                 ref si : StructInstance = get_payload(obj)
                 sname = si.struct_name
             } else {
@@ -419,21 +421,21 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             }
             ref nsv : Value = ns_get(sname, fname)
             if is_null(nsv).not() {
-                if is_variant(nsv, Value.Int) { ref iv : I64 = get_payload(nsv); return val_i64(iv) }
-                if is_variant(nsv, Value.Int32) { ref iv : I32 = get_payload(nsv); return val_i32(iv.to_i64()) }
-                if is_variant(nsv, Value.Func) {
-                    if is_variant(e.til_type, TilType.Enum) {
+                if nsv.is(Value.Int) { ref iv : I64 = get_payload(nsv); return val_i64(iv) }
+                if nsv.is(Value.Int32) { ref iv : I32 = get_payload(nsv); return val_i32(iv.to_i64()) }
+                if nsv.is(Value.Func) {
+                    if e.til_type.is(TilType.Enum) {
                         ref fptr : Dynamic = get_payload(nsv)
                         ref fdef : Expr = deref(fptr)
-                        if is_variant(fdef.data, NodeType.FuncDef) {
+                        if fdef.data.is(NodeType.FuncDef) {
                             ref fd : FunctionDef = get_payload(fdef.data)
-                            if is_variant(fd.func_type, FuncType.ExtFunc) {
+                            if fd.func_type.is(FuncType.ExtFunc) {
                                 ref tc : Cell = scope_get(scope, sname)
                                 if is_null(tc).not() {
-                                    if is_variant(tc.val, Value.Func) {
+                                    if tc.val.is(Value.Func) {
                                         ref eptr : Dynamic = get_payload(tc.val)
                                         ref edef : Expr = deref(eptr)
-                                        if is_variant(edef.data, NodeType.EnumDef) {
+                                        if edef.data.is(NodeType.EnumDef) {
                                             tag := enum_variant_tag(edef, fname)
                                             if tag.to_i64().gte(0) {
                                                 if enum_has_payloads(edef) {
@@ -454,19 +456,19 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             e.error("no namespace field '".concat(fname).concat("'"))
             exit(1.to_i32())
         }
-        if is_variant(obj, Value.Ptr) {
+        if obj.is(Value.Ptr) {
             ref obj_expr : Expr = e.child(0)
-            if is_variant(obj_expr.til_type, TilType.Struct)
-                .or(is_variant(obj_expr.til_type, TilType.Enum))
-                .or(is_variant(obj_expr.til_type, TilType.Custom)) {
+            if obj_expr.til_type.is(TilType.Struct)
+                .or(obj_expr.til_type.is(TilType.Enum))
+                .or(obj_expr.til_type.is(TilType.Custom)) {
                 ref obj_sname : Str = get_payload(obj_expr.til_type)
                 if obj_sname.len().gt(0) {
                     ref tc : Cell = scope_get(scope, obj_sname)
                     if is_null(tc).not() {
-                        if is_variant(tc.val, Value.Func) {
+                        if tc.val.is(Value.Func) {
                             ref tptr : Dynamic = get_payload(tc.val)
                             ref tdef : Expr = deref(tptr)
-                            if is_variant(tdef.data, NodeType.StructDef) {
+                            if tdef.data.is(NodeType.StructDef) {
                                 ref pv : Dynamic = get_payload(obj)
                                 obj = make_struct_value(obj_sname, tdef, deref(pv), true)
                             }
@@ -475,7 +477,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                 }
             }
         }
-        if is_variant(obj, Value.Struct).not() {
+        if obj.is(Value.Struct).not() {
             e.error("field access on non-struct")
             exit(1.to_i32())
         }
@@ -495,7 +497,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
 // Reinterpret a Value.Ptr to the appropriate scalar/struct/enum Value
 // based on a type name. Used by eval_call (param binding) and eval_body (ref decl).
 reinterpret_ptr_value := proc(val: Value, type_name: Str, scope: Scope) returns Value {
-    if is_variant(val, Value.Ptr).not() { return shallow_copy_value(val) }
+    if val.is(Value.Ptr).not() { return shallow_copy_value(val) }
     ref pv : Dynamic = get_payload(val)
     ref p : Dynamic = deref(pv)
     if is_null(p) { return shallow_copy_value(val) }
@@ -515,17 +517,17 @@ reinterpret_ptr_value := proc(val: Value, type_name: Str, scope: Scope) returns 
     }
     ref tc : Cell = scope_get(scope, type_name)
     if is_null(tc).not() {
-        if is_variant(tc.val, Value.Func) {
+        if tc.val.is(Value.Func) {
             ref fptr : Dynamic = get_payload(tc.val)
             ref tdef : Expr = deref(fptr)
-            if is_variant(tdef.data, NodeType.FuncDef) {
+            if tdef.data.is(NodeType.FuncDef) {
                 if tdef.child_count().eq(0) {
                     // FuncSig: dereference to get function pointer
                     ref fp : Dynamic = deref(p)
                     return Value.Func(fp)
                 }
             }
-            if is_variant(tdef.data, NodeType.EnumDef) {
+            if tdef.data.is(NodeType.EnumDef) {
                 ref etag : I32 = p
                 if enum_has_payloads(tdef) {
                     ecopy : Dynamic = malloc(8)
@@ -534,7 +536,7 @@ reinterpret_ptr_value := proc(val: Value, type_name: Str, scope: Scope) returns 
                 }
                 return val_i32(etag.to_i64())
             }
-            if is_variant(tdef.data, NodeType.StructDef) {
+            if tdef.data.is(NodeType.StructDef) {
                 return make_struct_value(type_name, tdef, p, true)
             }
         }
@@ -549,27 +551,27 @@ guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shal
     if fd.nparam.eq(0) { return false }
     if fd.params.len().eq(0) { return false }
     ref p0 : Param = fd.params.get(0)
-    if is_variant(p0.own_type, OwnType.Own).not() { return false }
+    if p0.own_type.is(OwnType.Own).not() { return false }
     if e.child_count().lte(1) { return false }
-    if is_variant(e.child(1).data, NodeType.Ident).not() { return false }
+    if e.child(1).data.is(NodeType.Ident).not() { return false }
     ref arg_ident : Str = get_payload(e.child(1).data)
     ref fc : Cell = scope_get(scope, arg_ident)
     if is_null(fc) { return false }
-    if is_variant(fc.val, Value.None) { return true }
-    if is_variant(fc.val, Value.Struct) {
+    if fc.val.is(Value.None) { return true }
+    if fc.val.is(Value.Struct) {
         ref si : StructInstance = get_payload(fc.val)
         if si.borrowed { memcpy(fc.val, val_none(), Value.size()); return true }
     }
-    if is_variant(fc.val, Value.Ptr) { memcpy(fc.val, val_none(), Value.size()); return true }
+    if fc.val.is(Value.Ptr) { memcpy(fc.val, val_none(), Value.size()); return true }
     return false
 }
 
 resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns ref Dynamic {
-    if is_variant(obj_expr.data, NodeType.Ident) {
+    if obj_expr.data.is(NodeType.Ident) {
         ref ident : Str = get_payload(obj_expr.data)
         ref cell : Cell = scope_get(scope, ident)
         if is_null(cell) { return NULL }
-        if is_variant(cell.val, Value.Struct) {
+        if cell.val.is(Value.Struct) {
             ref si : StructInstance = get_payload(cell.val)
             return si.data
         }
@@ -579,11 +581,11 @@ resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns ref Dyna
 }
 
 resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr {
-    if is_variant(obj_expr.data, NodeType.Ident) {
+    if obj_expr.data.is(NodeType.Ident) {
         ref ident : Str = get_payload(obj_expr.data)
         ref cell : Cell = scope_get(scope, ident)
         if is_null(cell) { return NULL }
-        if is_variant(cell.val, Value.Struct) {
+        if cell.val.is(Value.Struct) {
             ref si : StructInstance = get_payload(cell.val)
             return si.struct_def
         }
@@ -598,14 +600,14 @@ eval_body := proc(scope: Scope, body: Expr) {
         if has_break { return }
         if has_continue { return }
         ref stmt : Expr = body.child(i)
-        if is_variant(stmt.data, NodeType.Decl) {
+        if stmt.data.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.data)
             ref rhs : Expr = stmt.child(0)
-            if is_variant(stmt.til_type, TilType.None) {
-                if is_variant(rhs.data, NodeType.Ident) { continue }
+            if stmt.til_type.is(TilType.None) {
+                if rhs.data.is(NodeType.Ident) { continue }
             }
-            if is_variant(dd.own_type, OwnType.Ref) {
-                if is_variant(rhs.data, NodeType.Ident) {
+            if dd.own_type.is(OwnType.Ref) {
+                if rhs.data.is(NodeType.Ident) {
                     ref rhs_ident : Str = get_payload(rhs.data)
                     ref src : Cell = scope_get(scope, rhs_ident)
                     scope_set_borrowed(scope, dd.name, src)
@@ -613,7 +615,7 @@ eval_body := proc(scope: Scope, body: Expr) {
                 }
             }
             mut val := val_none()
-            if is_variant(rhs.data, NodeType.Ident) {
+            if rhs.data.is(NodeType.Ident) {
                 ref rhs_ident : Str = get_payload(rhs.data)
                 ref src : Cell = scope_get(scope, rhs_ident)
                 if is_null(src) {
@@ -621,19 +623,19 @@ eval_body := proc(scope: Scope, body: Expr) {
                     exit(1.to_i32())
                 }
                 val = shallow_copy_value(src.val)
-                if is_variant(val, Value.Func).not() {
+                if val.is(Value.Func).not() {
                     memcpy(src.val, val_none(), Value.size())
                 }
             } else {
                 val = eval_expr(scope, rhs)
             }
-            if is_variant(dd.own_type, OwnType.Ref) {
+            if dd.own_type.is(OwnType.Ref) {
                 if dd.explicit_type.len().gt(0) {
                     val = reinterpret_ptr_value(val, dd.explicit_type, scope)
                 }
             }
             scope_set_owned(scope, dd.name, val)
-        } else if is_variant(stmt.data, NodeType.Assign) {
+        } else if stmt.data.is(NodeType.Assign) {
             ref rhs : Expr = stmt.child(0)
             ref assign_name : Str = get_payload(stmt.data)
             ref cell : Cell = scope_get(scope, assign_name)
@@ -641,12 +643,12 @@ eval_body := proc(scope: Scope, body: Expr) {
                 stmt.error("undefined variable '".concat(assign_name).concat("'"))
                 exit(1.to_i32())
             }
-            if is_variant(stmt.til_type, TilType.Dynamic) {
-                if is_variant(rhs.data, NodeType.Ident) {
+            if stmt.til_type.is(TilType.Dynamic) {
+                if rhs.data.is(NodeType.Ident) {
                     ref rhs_ident : Str = get_payload(rhs.data)
                     ref src : Cell = scope_get(scope, rhs_ident)
                     memcpy(cell.val, src.val, Value.size())
-                    if is_variant(src.val, Value.Func).not() {
+                    if src.val.is(Value.Func).not() {
                         memcpy(src.val, val_none(), Value.size())
                     }
                     continue
@@ -654,12 +656,12 @@ eval_body := proc(scope: Scope, body: Expr) {
             }
             new_val := eval_expr(scope, rhs)
             memcpy(cell.val, new_val, Value.size())
-        } else if is_variant(stmt.data, NodeType.FieldAssign) {
+        } else if stmt.data.is(NodeType.FieldAssign) {
             ref val_expr : Expr = stmt.child(1)
             mut val := val_none()
             ref mut move_src : Cell = NULL
-            if is_variant(val_expr.til_type, TilType.Dynamic) {
-                if is_variant(val_expr.data, NodeType.Ident) {
+            if val_expr.til_type.is(TilType.Dynamic) {
+                if val_expr.data.is(NodeType.Ident) {
                     ref vi : Str = get_payload(val_expr.data)
                     move_src = scope_get(scope, vi)
                     val = shallow_copy_value(move_src.val)
@@ -670,7 +672,7 @@ eval_body := proc(scope: Scope, body: Expr) {
             if interp_fa_is_ns(scope, stmt) {
                 obj := eval_expr(scope, stmt.child(0))
                 mut sname := ""
-                if is_variant(obj, Value.Struct) {
+                if obj.is(Value.Struct) {
                     ref si : StructInstance = get_payload(obj)
                     sname = si.struct_name
                 } else {
@@ -683,19 +685,19 @@ eval_body := proc(scope: Scope, body: Expr) {
                 ref mut base : Dynamic = resolve_field_assign_base(scope, stmt.child(0))
                 ref mut cur_sdef : Expr = resolve_field_assign_sdef(scope, stmt.child(0))
                 // Chain walking for nested field access (e.g. a.b.c = val)
-                if is_variant(stmt.child(0).data, NodeType.FieldAccess) {
+                if stmt.child(0).data.is(NodeType.FieldAccess) {
                     ref obj_expr : Expr = stmt.child(0)
                     // Walk to root ident
                     ref mut cur : Expr = obj_expr
                     mut depth : I32 = 0
-                    while is_variant(cur.data, NodeType.FieldAccess) {
+                    while cur.data.is(NodeType.FieldAccess) {
                         depth = depth.add(1.to_i32())
                         cur = cur.child(0)
                     }
                     ref root_ident : Str = get_payload(cur.data)
                     ref cell : Cell = scope_get(scope, root_ident)
                     if is_null(cell).not() {
-                        if is_variant(cell.val, Value.Struct) {
+                        if cell.val.is(Value.Struct) {
                             ref si : StructInstance = get_payload(cell.val)
                             base = to_ptr(si.data)
                             cur_sdef = si.struct_def
@@ -705,7 +707,7 @@ eval_body := proc(scope: Scope, body: Expr) {
                                 ref fd : Expr = find_field_decl(cur_sdef, fa_name)
                                 if is_null(fd).not() {
                                     ref fdd : Declaration = get_payload(fd.data)
-                                    if is_variant(fdd.own_type, OwnType.Shallow).not() {
+                                    if fdd.own_type.is(OwnType.Shallow).not() {
                                         base = deref(ptr_add(base, fdd.field_offset.to_i64().to_u64()))
                                     } else {
                                         base = ptr_add(base, fdd.field_offset.to_i64().to_u64())
@@ -729,21 +731,21 @@ eval_body := proc(scope: Scope, body: Expr) {
                 write_field(tmp_inst, fdecl, val)
                 tmp_inst.data = NULL
                 if is_null(move_src).not() {
-                    if is_variant(move_src.val, Value.Func).not() {
+                    if move_src.val.is(Value.Func).not() {
                         memcpy(move_src.val, val_none(), Value.size())
                     }
                 }
             }
-        } else if is_variant(stmt.data, NodeType.FCall) {
+        } else if stmt.data.is(NodeType.FCall) {
             eval_call(scope, stmt)
-        } else if is_variant(stmt.data, NodeType.Body) {
+        } else if stmt.data.is(NodeType.Body) {
             block_scope := scope_new(scope)
             eval_body(block_scope, stmt)
             if has_return {
                 return_value = return_value.clone()
             }
             scope_free(own block_scope)
-        } else if is_variant(stmt.data, NodeType.If) {
+        } else if stmt.data.is(NodeType.If) {
             cond := eval_expr(scope, stmt.child(0))
             ref cv : Bool = get_payload(cond)
             if cv {
@@ -757,7 +759,7 @@ eval_body := proc(scope: Scope, body: Expr) {
                 if has_return { return_value = return_value.clone() }
                 scope_free(own else_scope)
             }
-        } else if is_variant(stmt.data, NodeType.While) {
+        } else if stmt.data.is(NodeType.While) {
             while true {
                 if has_return { break }
                 cond := eval_expr(scope, stmt.child(0))
@@ -770,13 +772,13 @@ eval_body := proc(scope: Scope, body: Expr) {
                 if has_break { has_break = false; break }
                 if has_continue { has_continue = false }
             }
-        } else if is_variant(stmt.data, NodeType.Break) {
+        } else if stmt.data.is(NodeType.Break) {
             has_break = true
             return
-        } else if is_variant(stmt.data, NodeType.Continue) {
+        } else if stmt.data.is(NodeType.Continue) {
             has_continue = true
             return
-        } else if is_variant(stmt.data, NodeType.Return) {
+        } else if stmt.data.is(NodeType.Return) {
             if stmt.child_count().gt(0) {
                 return_value = eval_expr(scope, stmt.child(0))
             } else {
@@ -795,9 +797,9 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     ref callee_expr : Expr = e.child(0)
 
     // Namespace method call: Struct.method(args)
-    if is_variant(callee_expr.data, NodeType.FieldAccess) {
+    if callee_expr.data.is(NodeType.FieldAccess) {
         fn_val := eval_expr(scope, callee_expr)
-        if is_variant(fn_val, Value.Func).not() {
+        if fn_val.is(Value.Func).not() {
             e.error("namespace field is not a function")
             exit(1)
         }
@@ -807,11 +809,11 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         // FuncPtr field: stored function may be ext_func from another type
         if callee_expr.til_type.eq(TilType.FuncPtr) {
             ref fp_fdef : FunctionDef = get_payload(func_def.data)
-            if is_variant(fp_fdef.func_type, FuncType.ExtFunc).or(is_variant(fp_fdef.func_type, FuncType.ExtProc)) {
+            if fp_fdef.func_type.is(FuncType.ExtFunc).or(fp_fdef.func_type.is(FuncType.ExtProc)) {
                 for ki in 0..ns_fields.count {
                     ref qn : Str = ptr_add(ns_fields.key_data, ki.mul(ns_fields.key_size))
                     ref nsv : Value = ptr_add(ns_fields.val_data, ki.mul(ns_fields.val_size))
-                    if is_variant(nsv, Value.Func) {
+                    if nsv.is(Value.Func) {
                         ref nsv_fptr : Dynamic = get_payload(nsv)
                         ref nsv_fdef : Expr = deref(nsv_fptr)
                         if ptr_eq(nsv_fdef, func_def) {
@@ -832,20 +834,20 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         }
         // Direct ext_func namespace method -- dispatch by flat name
         ref fdef_ns : FunctionDef = get_payload(func_def.data)
-        if is_variant(fdef_ns.func_type, FuncType.ExtFunc).or(is_variant(fdef_ns.func_type, FuncType.ExtProc)) {
+        if fdef_ns.func_type.is(FuncType.ExtFunc).or(fdef_ns.func_type.is(FuncType.ExtProc)) {
             parent_sname := til_type_name(callee_expr.child(0).til_type)
             ref tc : Cell = scope_get(scope, parent_sname)
             if is_null(tc).not() {
-                if is_variant(tc.val, Value.Func) {
+                if tc.val.is(Value.Func) {
                     ref tc_fptr : Dynamic = get_payload(tc.val)
                     ref tc_edef : Expr = deref(tc_fptr)
-                    if is_variant(tc_edef.data, NodeType.EnumDef) {
+                    if tc_edef.data.is(NodeType.EnumDef) {
                         ref callee_ident : Str = get_payload(callee_expr.data)
                         mut eresult := val_none()
                         if enum_method_dispatch(callee_ident, scope, tc_edef, parent_sname, e, eresult) {
                             for oi in 1..e.child_count() {
                                 ref oa : Expr = e.child(oi)
-                                if is_variant(oa.data, NodeType.Ident).and(get_own_arg(e, oi)) {
+                                if oa.data.is(NodeType.Ident).and(get_own_arg(e, oi)) {
                                     ref oa_ident : Str = get_payload(oa.data)
                                     ref oc : Cell = scope_get(scope, oa_ident)
                                     if is_null(oc).not() { oc.val = val_none() }
@@ -878,10 +880,10 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         for pi in 0..fdef_params.nparam {
             ref param : Param = fdef_params.params.get(pi)
             ref arg_expr : Expr = e.child(pi.add(1))
-            if is_variant(arg_expr.data, NodeType.Ident) {
+            if arg_expr.data.is(NodeType.Ident) {
                 ref arg_ident : Str = get_payload(arg_expr.data)
                 ref arg_cell : Cell = scope_get(scope, arg_ident)
-                if is_variant(arg_cell.val, Value.Ptr).and(param.ptype.len().gt(0)) {
+                if arg_cell.val.is(Value.Ptr).and(param.ptype.len().gt(0)) {
                     mut arg := reinterpret_ptr_value(arg_cell.val, param.ptype, scope)
                     arg = widen_numeric(arg, param.ptype)
                     scope_set_owned(call_scope, param.name, arg)
@@ -894,7 +896,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                 }
             } else {
                 mut arg := eval_expr(scope, arg_expr)
-                if is_variant(arg, Value.Ptr).and(param.ptype.len().gt(0)) {
+                if arg.is(Value.Ptr).and(param.ptype.len().gt(0)) {
                     arg = reinterpret_ptr_value(arg, param.ptype, scope)
                 }
                 arg = widen_numeric(arg, param.ptype)
@@ -920,7 +922,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     if ext_function_dispatch(name, scope, e, ext_result) {
         for oi in 1..e.child_count() {
             ref oa : Expr = e.child(oi)
-            if is_variant(oa.data, NodeType.Ident).and(get_own_arg(e, oi)) {
+            if oa.data.is(NodeType.Ident).and(get_own_arg(e, oi)) {
                 ref oa_ident : Str = get_payload(oa.data)
                 ref oc : Cell = scope_get(scope, oa_ident)
                 if is_null(oc).not() { oc.val = val_none() }
@@ -937,17 +939,17 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     }
 
     // Struct instantiation
-    if is_variant(fn_cell.val, Value.Func) {
+    if fn_cell.val.is(Value.Func) {
         ref si_fptr : Dynamic = get_payload(fn_cell.val)
         ref si_edef : Expr = deref(si_fptr)
-        if is_variant(si_edef.data, NodeType.StructDef) {
+        if si_edef.data.is(NodeType.StructDef) {
             ref sdef_body : Expr = si_edef.child(0)
             ref sdd : StructDefData = get_payload(si_edef.data)
             inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
             mut inst := val_none()
-            if is_variant(e.til_type, TilType.Struct)
-                .or(is_variant(e.til_type, TilType.Enum))
-                .or(is_variant(e.til_type, TilType.Custom)) {
+            if e.til_type.is(TilType.Struct)
+                .or(e.til_type.is(TilType.Enum))
+                .or(e.til_type.is(TilType.Custom)) {
                 ref _es : Str = get_payload(e.til_type)
                 if _es.len().gt(0) {
                     inst = make_struct_value(_es, si_edef, inst_data, false)
@@ -967,11 +969,11 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                     ref arg : Expr = e.child(arg_idx)
                     arg_idx = arg_idx.add(1)
                     mut val := val_none()
-                    if is_variant(arg.data, NodeType.Ident) {
+                    if arg.data.is(NodeType.Ident) {
                         ref arg_ident : Str = get_payload(arg.data)
                         ref src : Cell = scope_get(scope, arg_ident)
                         val = shallow_copy_value(src.val)
-                        if get_own_arg(e, arg_idx).and(is_variant(val, Value.Func).not()) {
+                        if get_own_arg(e, arg_idx).and(val.is(Value.Func).not()) {
                             src.val = val_none()
                         }
                     } else {
@@ -984,7 +986,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         }
     }
 
-    if is_variant(fn_cell.val, Value.Func).not() {
+    if fn_cell.val.is(Value.Func).not() {
         e.error(name.concat(" is not a function"))
         exit(1)
     }
@@ -999,19 +1001,19 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         ref first_param : Param = fdef2.params.get(0)
         if first_param.own_type.eq(OwnType.Own) {
             ref first_arg : Expr = e.child(1)
-            if is_variant(first_arg.data, NodeType.Ident) {
+            if first_arg.data.is(NodeType.Ident) {
                 ref fa_ident : Str = get_payload(first_arg.data)
                 ref fc : Cell = scope_get(scope, fa_ident)
                 if is_null(fc).not() {
-                    if is_variant(fc.val, Value.None) { return val_none() }
-                    if is_variant(fc.val, Value.Struct) {
+                    if fc.val.is(Value.None) { return val_none() }
+                    if fc.val.is(Value.Struct) {
                         ref fsi : StructInstance = get_payload(fc.val)
                         if fsi.borrowed {
                             fc.val = val_none()
                             return val_none()
                         }
                     }
-                    if is_variant(fc.val, Value.Ptr) {
+                    if fc.val.is(Value.Ptr) {
                         fc.val = val_none()
                         return val_none()
                     }
@@ -1025,7 +1027,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     for pi in 0..nparam2 {
         ref arg_expr : Expr = e.child(pi.add(1))
         ref param : Param = fdef2.params.get(pi)
-        if is_variant(arg_expr.data, NodeType.Ident) {
+        if arg_expr.data.is(NodeType.Ident) {
             ref arg_ident : Str = get_payload(arg_expr.data)
             ref arg_cell : Cell = scope_get(scope, arg_ident)
             if needs_widen(arg_cell.val, param.ptype) {
@@ -1054,13 +1056,13 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
 }
 
 free_value := proc(shallow v: Value) {
-    if is_variant(v, Value.Struct) {
+    if v.is(Value.Struct) {
         ref si : StructInstance = get_payload(v)
         if si.borrowed.not() {
             if is_null(si.data).not() { free(own si.data) }
         }
     }
-    if is_variant(v, Value.Enum) {
+    if v.is(Value.Enum) {
         ref ei : EnumInstance = get_payload(v)
         if is_null(ei.data).not() { free(own ei.data) }
     }
@@ -1069,16 +1071,16 @@ free_value := proc(shallow v: Value) {
 needs_widen := func(val: Value, ptype: Str) returns shallow Bool {
     if is_null(ptype) { return false }
     if ptype.len().eq(0) { return false }
-    if is_variant(val, Value.Byte) {
+    if val.is(Value.Byte) {
         return ptype.eq("U8").not()
     }
-    if is_variant(val, Value.Short) {
+    if val.is(Value.Short) {
         return ptype.eq("I16").not()
     }
-    if is_variant(val, Value.Int32) {
+    if val.is(Value.Int32) {
         return ptype.eq("I32").not()
     }
-    if is_variant(val, Value.Uint32) {
+    if val.is(Value.Uint32) {
         return ptype.eq("U32").not()
     }
     return false
@@ -1108,17 +1110,17 @@ widen_numeric := func(v: Value, ptype: Str) returns Value {
     mut ival : I64 = 0
     mut uval : U64 = 0
     mut is_unsigned := false
-    if is_variant(v, Value.Byte) {
+    if v.is(Value.Byte) {
         ref bv : U8 = get_payload(v)
         uval = bv.to_u64()
         is_unsigned = true
-    } else if is_variant(v, Value.Short) {
+    } else if v.is(Value.Short) {
         ref sv : I16 = get_payload(v)
         ival = sv.to_i64()
-    } else if is_variant(v, Value.Int32) {
+    } else if v.is(Value.Int32) {
         ref iv : I32 = get_payload(v)
         ival = iv.to_i64()
-    } else if is_variant(v, Value.Uint32) {
+    } else if v.is(Value.Uint32) {
         ref uv : U32 = get_payload(v)
         uval = uv.to_u64()
         is_unsigned = true
@@ -1134,14 +1136,14 @@ widen_numeric := func(v: Value, ptype: Str) returns Value {
     if ptype.eq("U64") { return val_u64(uval) }
     if ptype.eq("USize") { return val_u32(uval.to_i64()) }
     if ptype.eq("U32") {
-        if is_variant(v, Value.Byte) { return val_u32(uval.to_i64()) }
+        if v.is(Value.Byte) { return val_u32(uval.to_i64()) }
     }
     if ptype.eq("I32") {
-        if is_variant(v, Value.Byte) { return val_i32(ival) }
-        if is_variant(v, Value.Short) { return val_i32(ival) }
+        if v.is(Value.Byte) { return val_i32(ival) }
+        if v.is(Value.Short) { return val_i32(ival) }
     }
     if ptype.eq("I16") {
-        if is_variant(v, Value.Byte) { return val_i16(ival) }
+        if v.is(Value.Byte) { return val_i16(ival) }
     }
     return shallow_copy_value(v)
 }
@@ -1199,7 +1201,7 @@ scope_free := proc(own s: Scope) {
     for i in 0..s.bindings.count {
         ref b : Binding = ptr_add(s.bindings.val_data, i.to_u64().mul(s.bindings.val_size.to_u64()))
         if b.cell_is_local {
-            if is_variant(b.cell.val, Value.Enum) {
+            if b.cell.val.is(Value.Enum) {
                 ref ei : EnumInstance = get_payload(b.cell.val)
                 if is_null(ei.data).not() { free(own ei.data) }
             }
@@ -1216,11 +1218,11 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
     ref obj_expr : Expr = e.child(0)
     ref tc : Cell = scope_get(scope, sname)
     if is_null(tc) { return false }
-    if is_variant(tc.val, Value.Func).not() { return false }
+    if tc.val.is(Value.Func).not() { return false }
     ref fptr : Dynamic = get_payload(tc.val)
     ref sdef : Expr = deref(fptr)
-    if is_variant(sdef.data, NodeType.StructDef).not() {
-        if is_variant(sdef.data, NodeType.EnumDef).not() { return false }
+    if sdef.data.is(NodeType.StructDef).not() {
+        if sdef.data.is(NodeType.EnumDef).not() { return false }
     }
     ref mut fname : Str = get_payload(e.data)
     ref body : Expr = sdef.child(0)
@@ -1239,7 +1241,7 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
     }
     if has_ns.not() {
         if has_inst.not() {
-            if is_variant(obj_expr.data, NodeType.Ident) {
+            if obj_expr.data.is(NodeType.Ident) {
                 ref ident : Str = get_payload(obj_expr.data)
                 if ident.eq(sname) { return true }
                 if ident.len().gt(0) {
@@ -1253,7 +1255,7 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
     }
     if has_ns {
         if has_inst {
-            if is_variant(obj_expr.data, NodeType.Ident).not() { return false }
+            if obj_expr.data.is(NodeType.Ident).not() { return false }
             ref ident : Str = get_payload(obj_expr.data)
             if ident.eq(sname) { return true }
             if ident.len().gt(0) {
@@ -1270,7 +1272,7 @@ interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
     ref obj_expr : Expr = e.child(0)
     sname := til_type_name(obj_expr.til_type)
     if sname.len().gt(0) { return interp_fa_is_ns_inner(scope, e, sname) }
-    if is_variant(obj_expr.data, NodeType.Ident) {
+    if obj_expr.data.is(NodeType.Ident) {
         ref ident : Str = get_payload(obj_expr.data)
         return interp_fa_is_ns_inner(scope, e, ident)
     }
@@ -1284,7 +1286,7 @@ value_to_buf := proc(dest: Dynamic, val: Value, type_name: Str) {
     if type_name.eq("I32") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 4); return }
     if type_name.eq("U32") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 4); return }
     if type_name.eq("Bool") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 1); return }
-    if is_variant(val, Value.Struct) {
+    if val.is(Value.Struct) {
         ref si : StructInstance = get_payload(val)
         ref sd : StructDefData = get_payload(si.struct_def.data)
         sz := sd.total_struct_size
@@ -1334,14 +1336,14 @@ interpreter_init_ns := proc(mut global: Scope, program: Expr) {
     }
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
-        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        if stmt.data.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.child_count().eq(0) { continue }
         ref sdef : Expr = stmt.child(0)
-        if is_variant(sdef.data, NodeType.StructDef).not() {
-            if is_variant(sdef.data, NodeType.EnumDef).not() { continue }
+        if sdef.data.is(NodeType.StructDef).not() {
+            if sdef.data.is(NodeType.EnumDef).not() { continue }
         }
-        if is_variant(sdef.data, NodeType.StructDef) {
+        if sdef.data.is(NodeType.StructDef) {
             if dd.name.eq("Str") { cached_str_def = sdef; cached_str_name = dd.name }
             if dd.name.eq("Array") { cached_array_def = sdef; cached_array_name = dd.name }
             if dd.name.eq("Vec") { cached_vec_def = sdef; cached_vec_name = dd.name }
@@ -1352,9 +1354,9 @@ interpreter_init_ns := proc(mut global: Scope, program: Expr) {
             ref fdd : Declaration = get_payload(field.data)
             if fdd.is_namespace {
                 mut fval := eval_expr(global, field.child(0))
-                if is_variant(sdef.data, NodeType.EnumDef) {
+                if sdef.data.is(NodeType.EnumDef) {
                     if enum_has_payloads(sdef).not() {
-                        if is_variant(fval, Value.Int) {
+                        if fval.is(Value.Int) {
                             ref iv : I64 = get_payload(fval)
                             fval = val_i32(iv)
                         }
@@ -1435,7 +1437,7 @@ read_field := func(inst: StructInstance, fdecl: Expr) returns shallow Value {
     ref dd : Declaration = get_payload(fdecl.data)
     ref ftype : Str = dd.explicit_type
     ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
-    if is_variant(dd.own_type, OwnType.Own) {
+    if dd.own_type.is(OwnType.Own) {
         if is_null(dd.field_struct_def).not() {
             ref owned : Dynamic = deref(ptr)
             return make_struct_value(ftype, dd.field_struct_def, owned, true)
@@ -1443,7 +1445,7 @@ read_field := func(inst: StructInstance, fdecl: Expr) returns shallow Value {
         ref owned2 : Dynamic = deref(ptr)
         return Value.Ptr(owned2)
     }
-    if is_variant(dd.own_type, OwnType.Ref) {
+    if dd.own_type.is(OwnType.Ref) {
         if is_null(deref(ptr)) { return Value.Ptr(NULL) }
         if is_null(dd.field_struct_def).not() {
             ref rp : Dynamic = deref(ptr)
@@ -1463,7 +1465,7 @@ read_field := func(inst: StructInstance, fdecl: Expr) returns shallow Value {
     if ftype.eq("Bool") { ref v : Bool = ptr; return val_bool(v) }
     // Enum field
     if is_null(dd.field_struct_def).not() {
-        if is_variant(dd.field_struct_def.data, NodeType.EnumDef) {
+        if dd.field_struct_def.data.is(NodeType.EnumDef) {
             ref edef : Expr = dd.field_struct_def
             if enum_has_payloads(edef) {
                 ref ei : EnumInstance = deref(ptr)
@@ -1499,8 +1501,8 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
     ref dd : Declaration = get_payload(fdecl.data)
     ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
     fsz := dd.field_size
-    if is_variant(dd.own_type, OwnType.Own) {
-        if is_variant(val, Value.Struct) {
+    if dd.own_type.is(OwnType.Own) {
+        if val.is(Value.Struct) {
             ref si : StructInstance = get_payload(val)
             write_ptr(ptr, si.data)
         } else {
@@ -1509,11 +1511,11 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
         }
         return
     }
-    if is_variant(dd.own_type, OwnType.Ref) {
-        if is_variant(val, Value.Ptr) {
+    if dd.own_type.is(OwnType.Ref) {
+        if val.is(Value.Ptr) {
             ref pv : Dynamic = get_payload(val)
             write_ptr(ptr, deref(pv))
-        } else if is_variant(val, Value.Struct) {
+        } else if val.is(Value.Struct) {
             ref si : StructInstance = get_payload(val)
             write_ptr(ptr, si.data)
         } else {
@@ -1521,15 +1523,15 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
         }
         return
     }
-    if is_variant(val, Value.Int) { ref v : I64 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if is_variant(val, Value.Byte) { ref v : U8 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if is_variant(val, Value.Short) { ref v : I16 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if is_variant(val, Value.Int32) { ref v : I32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if is_variant(val, Value.Uint32) { ref v : U32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if is_variant(val, Value.Uint64) { ref v : U64 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if is_variant(val, Value.Float) { ref v : F32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if is_variant(val, Value.Boolean) { ref v : Bool = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if is_variant(val, Value.Struct) {
+    if val.is(Value.Int) { ref v : I64 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if val.is(Value.Byte) { ref v : U8 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if val.is(Value.Short) { ref v : I16 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if val.is(Value.Int32) { ref v : I32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if val.is(Value.Uint32) { ref v : U32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if val.is(Value.Uint64) { ref v : U64 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if val.is(Value.Float) { ref v : F32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if val.is(Value.Boolean) { ref v : Bool = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
+    if val.is(Value.Struct) {
         ref si : StructInstance = get_payload(val)
         if si.borrowed {
             mut cloned := val.clone()
@@ -1542,7 +1544,7 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
         }
         return
     }
-    if is_variant(val, Value.Enum) {
+    if val.is(Value.Enum) {
         ref ei : EnumInstance = get_payload(val)
         mut total := ei.data_size
         if total.to_i64().lt(8) { total = 8.to_i32() }
@@ -1556,17 +1558,17 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
         write_ptr(ptr, heap_ei)
         return
     }
-    if is_variant(val, Value.Ptr) { ref pv : Dynamic = get_payload(val); write_ptr(ptr, deref(pv)); return }
-    if is_variant(val, Value.Func) { ref fv : Dynamic = get_payload(val); write_ptr(ptr, deref(fv)); return }
+    if val.is(Value.Ptr) { ref pv : Dynamic = get_payload(val); write_ptr(ptr, deref(pv)); return }
+    if val.is(Value.Func) { ref fv : Dynamic = get_payload(val); write_ptr(ptr, deref(fv)); return }
 }
 
 interpret_register_defs := proc(mut global: Scope, prog: Expr) {
     for i in 0..prog.child_count() {
         ref stmt : Expr = prog.child(i)
-        if is_variant(stmt.data, NodeType.Decl).and(stmt.child_count().gt(0)) {
-            if is_variant(stmt.child(0).data, NodeType.FuncDef)
-                .or(is_variant(stmt.child(0).data, NodeType.StructDef))
-                .or(is_variant(stmt.child(0).data, NodeType.EnumDef)) {
+        if stmt.data.is(NodeType.Decl).and(stmt.child_count().gt(0)) {
+            if stmt.child(0).data.is(NodeType.FuncDef)
+                .or(stmt.child(0).data.is(NodeType.StructDef))
+                .or(stmt.child(0).data.is(NodeType.EnumDef)) {
                 ref dd : Declaration = get_payload(stmt.data)
                 mut val := val_none()
                 memcpy(val, 9.to_i32(), 4)
@@ -1581,19 +1583,19 @@ interpret_register_defs := proc(mut global: Scope, prog: Expr) {
 interpret_register_aliases := proc(mut global: Scope, prog: Expr) {
     for i in 0..prog.child_count() {
         ref stmt : Expr = prog.child(i)
-        if is_variant(stmt.data, NodeType.Decl).not() { }
-        else if is_variant(stmt.til_type, TilType.None).not() { }
+        if stmt.data.is(NodeType.Decl).not() { }
+        else if stmt.til_type.is(TilType.None).not() { }
         else if stmt.child_count().eq(0) { }
         else {
             ref rhs : Expr = stmt.child(0)
-            if is_variant(rhs.data, NodeType.Ident) {
+            if rhs.data.is(NodeType.Ident) {
                 ref rhs_ident : Str = get_payload(rhs.data)
                 ref src : Cell = scope_get(global, rhs_ident)
                 if is_null(src).not() {
-                    if is_variant(src.val, Value.Func) {
+                    if src.val.is(Value.Func) {
                         ref fptr : Dynamic = get_payload(src.val)
                         ref sdef : Expr = deref(fptr)
-                        if is_variant(sdef.data, NodeType.StructDef).or(is_variant(sdef.data, NodeType.EnumDef)) {
+                        if sdef.data.is(NodeType.StructDef).or(sdef.data.is(NodeType.EnumDef)) {
                             ref dd : Declaration = get_payload(stmt.data)
                             mut val := val_none()
                             memcpy(val, 9.to_i32(), 4)
@@ -1611,19 +1613,19 @@ interpret_register_aliases := proc(mut global: Scope, prog: Expr) {
 interpret_copy_alias_ns := proc(prog: Expr, global: Scope) {
     for i in 0..prog.child_count() {
         ref stmt : Expr = prog.child(i)
-        if is_variant(stmt.data, NodeType.Decl).not() { }
-        else if is_variant(stmt.til_type, TilType.None).not() { }
+        if stmt.data.is(NodeType.Decl).not() { }
+        else if stmt.til_type.is(TilType.None).not() { }
         else if stmt.child_count().eq(0) { }
         else {
             ref rhs : Expr = stmt.child(0)
-            if is_variant(rhs.data, NodeType.Ident) {
+            if rhs.data.is(NodeType.Ident) {
                 ref dd : Declaration = get_payload(stmt.data)
                 ref rhs_ident : Str = get_payload(rhs.data)
                 ref tc : Cell = scope_get(global, rhs_ident)
-                if is_null(tc).not().and(is_variant(tc.val, Value.Func)) {
+                if is_null(tc).not().and(tc.val.is(Value.Func)) {
                     ref fptr : Dynamic = get_payload(tc.val)
                     ref sdef : Expr = deref(fptr)
-                    if is_variant(sdef.data, NodeType.StructDef).or(is_variant(sdef.data, NodeType.EnumDef)) {
+                    if sdef.data.is(NodeType.StructDef).or(sdef.data.is(NodeType.EnumDef)) {
                         ref body : Expr = sdef.child(0)
                         for j in 0..body.child_count() {
                             ref field : Expr = body.child(j)
@@ -1676,12 +1678,12 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
         mut pass_count : I32 = 0
         for i in 0..program.child_count() {
             ref stmt : Expr = program.child(i)
-            if is_variant(stmt.data, NodeType.Decl).not() { }
+            if stmt.data.is(NodeType.Decl).not() { }
             else if stmt.child_count().eq(0) { }
-            else if is_variant(stmt.child(0).data, NodeType.FuncDef).not() { }
+            else if stmt.child(0).data.is(NodeType.FuncDef).not() { }
             else {
                 ref fd : FunctionDef = get_payload(stmt.child(0).data)
-                if is_variant(fd.func_type, FuncType.Test) {
+                if fd.func_type.is(FuncType.Test) {
                     ref dd : Declaration = get_payload(stmt.data)
                     test_count = test_count.add(1)
                     test_scope := scope_new(global)
@@ -1713,7 +1715,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     // In needs_main mode, call main()
     if is_null(mode).not() { if mode.needs_main {
         ref main_cell : Cell = scope_get(global, "main")
-        if is_null(main_cell).or(is_variant(main_cell.val, Value.Func).not()) {
+        if is_null(main_cell).or(main_cell.val.is(Value.Func).not()) {
             eprint_single(path)
             eprint_single(": error: this mode requires a 'main' proc\n")
             exit(1)

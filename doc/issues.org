@@ -663,18 +663,28 @@
   - treat the failed ~StructDef~ unification as a symptom of the import model,
     not just a naming conflict
 
-** OPEN #113 Proper enums
+** OPEN #113 Proper enums -- remaining: exhaustive switch
   Enum semantics and syntax are usable now, but the surface is still rough
   and partly historical.
 
   Main cleanup goals:
-  - rename ~is_variant(...)~ to ~is(...)~
-  - keep ~eq(...)~ as full enum equality, including payload comparison
-  - document the intended split clearly:
+  - [X] ~is_variant~ renamed to ~is~ and removed entirely (declaration
+    gone from ~src/core/dyn.til~ and ~src/c/ext.{c,h}~, and no longer
+    synthesized by typer/initer)
+  - [X] ~eq(...)~ is full enum equality, including payload comparison
+  - [X] intended split documented in ~doc/enums.org~:
     - ~x.is(E.V)~ means tag-only check
     - ~x.eq(E.V(...))~ means full value equality
-  - make ~switch~ over enums exhaustive unless there is an explicit
+  - [ ] make ~switch~ over enums exhaustive unless there is an explicit
     default case
+
+  Notes:
+  - Two call sites (~src/self/interpreter.til~ EnumInstance.eq,
+    ~src/self/precomp.til~ ~fn_cell.val~ check) still use the
+    function-call form ~is(a, b)~ because the current UFCS rewrite
+    rejects free functions whose first param is ~Dynamic~ when the
+    object type is a struct or an enum-typed struct field. Both sites
+    carry a TODO referencing this issue.
 
   Motivation:
   - UFCS-friendly syntax like ~tok.is(Token.Num)~ reads much better than
@@ -684,11 +694,9 @@
   - exhaustive ~switch~ checking should make enum control flow safer and
     reduce silent missing-case bugs
 
-  Expected implementation areas:
-  - core declaration / docs for ~is~
-  - removal/rename of ~is_variant~
+  Remaining work:
   - parser / typer support for exhaustive enum ~switch~
-  - test updates in ~src/test/enums.til~
+  - tests for exhaustive and default-case behaviour in ~src/test/enums.til~
 
 ** OPEN #109 Fix memory leaks (make test_asan clean)
   ~make test_asan~ currently OOMs at 64G. Most leaks are from

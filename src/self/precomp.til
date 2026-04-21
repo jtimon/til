@@ -105,8 +105,8 @@ is_known := func(e: Expr, mut out: Value) returns shallow Bool {
 }
 
 func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope) returns shallow Bool {
-    if is_variant(e.data, NodeType.FuncDef) { return false }
-    if is_variant(e.data, NodeType.Ident) {
+    if e.data.is(NodeType.FuncDef) { return false }
+    if e.data.is(NodeType.Ident) {
         ref name : Str = get_payload(e.data)
         ref fd : FunctionDef = get_payload(func_def.data)
         for pi in 0..fd.nparam {
@@ -128,10 +128,12 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
     ref callee_ident : Str = get_payload(fcall.child(0).data)
     ref fn_cell : Cell = scope_get(scope, callee_ident)
     if is_null(fn_cell).not() {
-        if is_variant(fn_cell.val, Value.Func) {
+        // TODO(#113): switch to fn_cell.val.is(Value.Func) once UFCS
+        // infers the enum type of a struct field access for .is().
+        if is(fn_cell.val, Value.Func) {
             ref fptr : Dynamic = get_payload(fn_cell.val)
             ref fdef : Expr = deref(fptr)
-            if is_variant(fdef.data, NodeType.FuncDef) {
+            if fdef.data.is(NodeType.FuncDef) {
                 if fdef.child_count().gt(0) {
                     if func_uses_unknown_globals(fdef.child(0), fdef, scope) {
                         return NULL
@@ -163,15 +165,15 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
     result := eval_expr(scope, ec)
 
     // Check if result is convertible to AST (value_to_expr returns NULL otherwise)
-    mut can_convert := is_variant(result, Value.Int)
-        .or(is_variant(result, Value.Byte))
-        .or(is_variant(result, Value.Short))
-        .or(is_variant(result, Value.Int32))
-        .or(is_variant(result, Value.Uint32))
-        .or(is_variant(result, Value.Uint64))
-        .or(is_variant(result, Value.Float))
-        .or(is_variant(result, Value.Boolean))
-    if can_convert.not().and(is_variant(result, Value.Struct)) {
+    mut can_convert := result.is(Value.Int)
+        .or(result.is(Value.Byte))
+        .or(result.is(Value.Short))
+        .or(result.is(Value.Int32))
+        .or(result.is(Value.Uint32))
+        .or(result.is(Value.Uint64))
+        .or(result.is(Value.Float))
+        .or(result.is(Value.Boolean))
+    if can_convert.not().and(result.is(Value.Struct)) {
         ref si : StructInstance = get_payload(result)
         if si.to_str().eq("Str") { can_convert = true }
     }
@@ -201,31 +203,31 @@ track_literal := proc(scope: Scope, name: Str, rhs: Expr) {
 }
 
 is_macro_call := func(e: Expr) returns shallow Bool {
-    if is_variant(e.data, NodeType.FCall).not() { return false }
+    if e.data.is(NodeType.FCall).not() { return false }
     if e.child_count().eq(0) { return false }
     ref callee : Expr = e.child(0)
-    if is_variant(callee.data, NodeType.Ident).not() { return false }
+    if callee.data.is(NodeType.Ident).not() { return false }
     return precomp_has_macro(get_payload(callee.data))
 }
 
 is_func_call := func(e: Expr) returns shallow Bool {
-    if is_variant(e.data, NodeType.FCall).not() { return false }
+    if e.data.is(NodeType.FCall).not() { return false }
     if e.child_count().eq(0) { return false }
     ref callee : Expr = e.child(0)
-    if is_variant(callee.data, NodeType.Ident).not() { return false }
+    if callee.data.is(NodeType.Ident).not() { return false }
     return precomp_has_func(get_payload(callee.data))
 }
 
 process_body := proc(scope: Scope, body: Expr) {
     for i in 0..body.child_count() {
         ref stmt : Expr = body.child(i)
-        if is_variant(stmt.data, NodeType.Decl) {
+        if stmt.data.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.data)
             if stmt.child_count().eq(0) { }
-            else if is_variant(stmt.child(0).data, NodeType.FuncDef)
-                .or(is_variant(stmt.child(0).data, NodeType.StructDef))
-                .or(is_variant(stmt.child(0).data, NodeType.EnumDef)) {
-                if is_variant(stmt.child(0).data, NodeType.FuncDef)
+            else if stmt.child(0).data.is(NodeType.FuncDef)
+                .or(stmt.child(0).data.is(NodeType.StructDef))
+                .or(stmt.child(0).data.is(NodeType.EnumDef)) {
+                if stmt.child(0).data.is(NodeType.FuncDef)
                     .and(stmt.child(0).child_count().gt(0)) {
                     process_body(scope, stmt.child(0).child(0))
                 }
@@ -248,18 +250,18 @@ process_body := proc(scope: Scope, body: Expr) {
             } else {
                 track_literal(scope, dd.name, stmt.child(0))
             }
-        } else if is_variant(stmt.data, NodeType.If) {
+        } else if stmt.data.is(NodeType.If) {
             if stmt.child_count().gt(1) {
                 process_body(scope, stmt.child(1))
             }
             if stmt.child_count().gt(2) {
                 process_body(scope, stmt.child(2))
             }
-        } else if is_variant(stmt.data, NodeType.While) {
+        } else if stmt.data.is(NodeType.While) {
             if stmt.child_count().gt(1) {
                 process_body(scope, stmt.child(1))
             }
-        } else if is_variant(stmt.data, NodeType.FCall) {
+        } else if stmt.data.is(NodeType.FCall) {
             if is_macro_call(stmt) {
                 ref lit : Expr = try_eval_call(scope, stmt, true)
                 if is_null(lit).not() {
@@ -278,18 +280,18 @@ process_body := proc(scope: Scope, body: Expr) {
 precomp_scan_names := proc(prog: Expr) {
     for i in 0..prog.child_count() {
         ref stmt : Expr = prog.child(i)
-        if is_variant(stmt.data, NodeType.Decl).and(stmt.child_count().gt(0)) {
-            if is_variant(stmt.child(0).data, NodeType.FuncDef) {
+        if stmt.data.is(NodeType.Decl).and(stmt.child_count().gt(0)) {
+            if stmt.child(0).data.is(NodeType.FuncDef) {
                 ref fd : FunctionDef = get_payload(stmt.child(0).data)
                 ref dd : Declaration = get_payload(stmt.data)
-                if is_variant(fd.func_type, FuncType.Macro) {
+                if fd.func_type.is(FuncType.Macro) {
                     macros.add(own dd.name.clone())
-                } else if is_variant(fd.func_type, FuncType.Func) {
+                } else if fd.func_type.is(FuncType.Func) {
                     funcs.add(own dd.name.clone())
                 }
             }
-            if is_variant(stmt.child(0).data, NodeType.StructDef)
-                .or(is_variant(stmt.child(0).data, NodeType.EnumDef)) {
+            if stmt.child(0).data.is(NodeType.StructDef)
+                .or(stmt.child(0).data.is(NodeType.EnumDef)) {
                 ref sdd : Declaration = get_payload(stmt.data)
                 ref body : Expr = stmt.child(0).child(0)
                 for j in 0..body.child_count() {
@@ -297,9 +299,9 @@ precomp_scan_names := proc(prog: Expr) {
                     ref fdd : Declaration = get_payload(field.data)
                     if fdd.is_namespace {
                         if field.child_count().gt(0) {
-                            if is_variant(field.child(0).data, NodeType.FuncDef) {
+                            if field.child(0).data.is(NodeType.FuncDef) {
                                 ref ffd : FunctionDef = get_payload(field.child(0).data)
-                                if is_variant(ffd.func_type, FuncType.Func) {
+                                if ffd.func_type.is(FuncType.Func) {
                                     qname := sdd.name.concat("_").concat(fdd.name)
                                     funcs.add(own qname)
                                 }
@@ -315,10 +317,10 @@ precomp_scan_names := proc(prog: Expr) {
 precomp_register_defs := proc(mut global: Scope, prog: Expr) {
     for i in 0..prog.child_count() {
         ref stmt : Expr = prog.child(i)
-        if is_variant(stmt.data, NodeType.Decl).and(stmt.child_count().gt(0)) {
-            if is_variant(stmt.child(0).data, NodeType.FuncDef)
-                .or(is_variant(stmt.child(0).data, NodeType.StructDef))
-                .or(is_variant(stmt.child(0).data, NodeType.EnumDef)) {
+        if stmt.data.is(NodeType.Decl).and(stmt.child_count().gt(0)) {
+            if stmt.child(0).data.is(NodeType.FuncDef)
+                .or(stmt.child(0).data.is(NodeType.StructDef))
+                .or(stmt.child(0).data.is(NodeType.EnumDef)) {
                 ref dd : Declaration = get_payload(stmt.data)
                 mut val := val_none()
                 // Build Value.Func manually: tag=9 (Func), data=pointer to child(0)

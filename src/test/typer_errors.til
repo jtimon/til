@@ -57,8 +57,8 @@ ImmutStruct := struct {
     id := 0
     mut name := "x"
 }
-is := ImmutStruct()
-is.id = 5
+immut_struct := ImmutStruct()
+immut_struct.id = 5
 
 // struct instantiation: unknown field
 bad1 := ImmutStruct(bogus=1)

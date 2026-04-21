@@ -76,9 +76,9 @@ extract_imports := func(body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
     for i in 0..Expr.child_count(body) {
         ref stmt : Expr = Expr.child(body, i)
-        if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
-            if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
-                .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
+        if stmt.data.is(NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
+            if Expr.child(stmt, 0).data.is(NodeType.Ident)
+                .and(Expr.child(stmt, 1).data.is(NodeType.LiteralStr)) {
                 ref _c0id : Str = get_payload(Expr.child(stmt, 0).data)
                 if _c0id.eq("import") {
                     ref path : Str = get_payload(Expr.child(stmt, 1).data)
@@ -173,9 +173,9 @@ extract_link_info := proc(mut lp: LoadedProgram) {
     ref ast : Expr = lp.ast
     for i in 0..Expr.child_count(ast) {
         ref stmt : Expr = Expr.child(ast, i)
-        if is_variant(stmt.data, NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
-            if is_variant(Expr.child(stmt, 0).data, NodeType.Ident)
-                .and(is_variant(Expr.child(stmt, 1).data, NodeType.LiteralStr)) {
+        if stmt.data.is(NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
+            if Expr.child(stmt, 0).data.is(NodeType.Ident)
+                .and(Expr.child(stmt, 1).data.is(NodeType.LiteralStr)) {
                 ref fname : Str = get_payload(Expr.child(stmt, 0).data)
                 ref arg : Str = get_payload(Expr.child(stmt, 1).data)
                 if fname.eq("link") {

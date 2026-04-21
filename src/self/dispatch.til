@@ -159,11 +159,11 @@ ffi_init_struct_defs := proc(program: Expr) {
     ffi_struct_defs = Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
-        if is_variant(stmt.data, NodeType.Decl).not().or(stmt.child_count().eq(0)) {
+        if stmt.data.is(NodeType.Decl).not().or(stmt.child_count().eq(0)) {
             continue
         }
         ref sdef : Expr = stmt.child(0)
-        if is_variant(sdef.data, NodeType.StructDef).not() {
+        if sdef.data.is(NodeType.StructDef).not() {
             continue
         }
         ref dd : Declaration = get_payload(stmt.data)
@@ -174,31 +174,31 @@ ffi_init_struct_defs := proc(program: Expr) {
 }
 
 value_to_i64 := func(v: Value) returns I64 {
-    if is_variant(v, Value.Int) {
+    if v.is(Value.Int) {
         ref x : I64 = get_payload(v)
         return x.clone()
     }
-    if is_variant(v, Value.Byte) {
+    if v.is(Value.Byte) {
         ref x : U8 = get_payload(v)
         return x.to_u64().to_i64()
     }
-    if is_variant(v, Value.Short) {
+    if v.is(Value.Short) {
         ref x : I16 = get_payload(v)
         return x.to_i64()
     }
-    if is_variant(v, Value.Int32) {
+    if v.is(Value.Int32) {
         ref x : I32 = get_payload(v)
         return x.to_i64()
     }
-    if is_variant(v, Value.Uint32) {
+    if v.is(Value.Uint32) {
         ref x : U32 = get_payload(v)
         return x.to_i64()
     }
-    if is_variant(v, Value.Uint64) {
+    if v.is(Value.Uint64) {
         ref x : U64 = get_payload(v)
         return x.to_i64()
     }
-    if is_variant(v, Value.Boolean) {
+    if v.is(Value.Boolean) {
         ref x : Bool = get_payload(v)
         if x { return 1 }
         return 0
@@ -207,31 +207,31 @@ value_to_i64 := func(v: Value) returns I64 {
 }
 
 value_to_u64 := func(v: Value) returns U64 {
-    if is_variant(v, Value.Int) {
+    if v.is(Value.Int) {
         ref x : I64 = get_payload(v)
         return x.to_u64()
     }
-    if is_variant(v, Value.Byte) {
+    if v.is(Value.Byte) {
         ref x : U8 = get_payload(v)
         return x.to_u64()
     }
-    if is_variant(v, Value.Short) {
+    if v.is(Value.Short) {
         ref x : I16 = get_payload(v)
         return x.to_i64().to_u64()
     }
-    if is_variant(v, Value.Int32) {
+    if v.is(Value.Int32) {
         ref x : I32 = get_payload(v)
         return x.to_i64().to_u64()
     }
-    if is_variant(v, Value.Uint32) {
+    if v.is(Value.Uint32) {
         ref x : U32 = get_payload(v)
         return x.to_u64()
     }
-    if is_variant(v, Value.Uint64) {
+    if v.is(Value.Uint64) {
         ref x : U64 = get_payload(v)
         return x.clone()
     }
-    if is_variant(v, Value.Boolean) {
+    if v.is(Value.Boolean) {
         ref x : Bool = get_payload(v)
         if x { return 1 }
         return 0
@@ -273,7 +273,7 @@ value_to_f32 := func(v: Value) returns F32 {
 
 eval_arg := proc(s: Scope, e: Expr) returns Value {
     v := eval_expr(s, e)
-    if is_variant(v, Value.Ptr).not().or(e.til_type.eq(TilType.Dynamic)) {
+    if v.is(Value.Ptr).not().or(e.til_type.eq(TilType.Dynamic)) {
         return v
     }
     ref p : Dynamic = get_payload(v)
@@ -452,7 +452,7 @@ h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     if is_null(nsv) {
         panic(__LOC__, "dyn_fn: unknown ", type_name, ".", method)
     }
-    if is_variant(nsv, Value.Func).not() {
+    if nsv.is(Value.Func).not() {
         panic(__LOC__, "dyn_fn: unknown ", type_name, ".", method)
     }
     r = nsv.clone()
@@ -544,7 +544,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
     mut nfields : U32 = 0
     for i in 0..body.child_count() {
         ref f : Expr = body.child(i)
-        if is_variant(f.data, NodeType.Decl) {
+        if f.data.is(NodeType.Decl) {
             ref fd : Declaration = get_payload(f.data)
             if fd.is_namespace.not() {
                 nfields = nfields.add(1)
@@ -555,7 +555,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
     mut idx : U32 = 0
     for i in 0..body.child_count() {
         ref f : Expr = body.child(i)
-        if is_variant(f.data, NodeType.Decl) {
+        if f.data.is(NodeType.Decl) {
             ref fd : Declaration = get_payload(f.data)
             if fd.is_namespace.not() {
                 ref ft : ffi_type = field_ffi_type(f)
@@ -577,7 +577,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
 }
 
 h_free := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    if is_variant(e.child(1).data, NodeType.Ident).not() {
+    if e.child(1).data.is(NodeType.Ident).not() {
         val := eval_expr(s, e.child(1))
         free_value(val)
         r = val_none()
@@ -745,12 +745,12 @@ h_array := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     for i in 0..count {
         elem := eval_expr(s, e.child(i.add(2)))
         ref mut src_ptr : Dynamic = val_to_ptr(elem)
-        if is_variant(elem, Value.Ptr) {
+        if elem.is(Value.Ptr) {
             ref pp : Dynamic = get_payload(elem)
             src_ptr = deref(pp)
         }
         if is_null(src_ptr).not() {
-            if is_variant(elem, Value.Struct) {
+            if elem.is(Value.Struct) {
                 ref esi : StructInstance = get_payload(elem)
                 if esi.to_str().eq("Str") {
                     // Deep-copy Str: copy flat bytes then strndup the data pointer
@@ -806,12 +806,12 @@ h_vec := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     for i in 0..count {
         elem := eval_expr(s, e.child(i.add(2)))
         ref mut src_ptr : Dynamic = val_to_ptr(elem)
-        if is_variant(elem, Value.Ptr) {
+        if elem.is(Value.Ptr) {
             ref pp : Dynamic = get_payload(elem)
             src_ptr = deref(pp)
         }
         if is_null(src_ptr).not() {
-            if is_variant(elem, Value.Struct) {
+            if elem.is(Value.Struct) {
                 ref esi : StructInstance = get_payload(elem)
                 if esi.to_str().eq("Str") {
                     memcpy(ptr_add(data, i.to_u64().mul(elem_size.to_i64().to_u64())), src_ptr, elem_size.to_i64().to_u64())
@@ -872,39 +872,39 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 payload := eval_expr(scope, e.child(1))
                 ref mut pdata : Dynamic = NULL
                 mut psz : I32 = 0
-                if is_variant(payload, Value.Int) {
+                if payload.is(Value.Int) {
                     pdata = to_ptr(get_payload(payload))
                     psz = 8.to_i32()
                 }
-                else if is_variant(payload, Value.Byte) {
+                else if payload.is(Value.Byte) {
                     pdata = to_ptr(get_payload(payload))
                     psz = 1.to_i32()
                 }
-                else if is_variant(payload, Value.Short) {
+                else if payload.is(Value.Short) {
                     pdata = to_ptr(get_payload(payload))
                     psz = 2.to_i32()
                 }
-                else if is_variant(payload, Value.Int32) {
+                else if payload.is(Value.Int32) {
                     pdata = to_ptr(get_payload(payload))
                     psz = 4.to_i32()
                 }
-                else if is_variant(payload, Value.Uint32) {
+                else if payload.is(Value.Uint32) {
                     pdata = to_ptr(get_payload(payload))
                     psz = 4.to_i32()
                 }
-                else if is_variant(payload, Value.Uint64) {
+                else if payload.is(Value.Uint64) {
                     pdata = to_ptr(get_payload(payload))
                     psz = 8.to_i32()
                 }
-                else if is_variant(payload, Value.Float) {
+                else if payload.is(Value.Float) {
                     pdata = to_ptr(get_payload(payload))
                     psz = 4.to_i32()
                 }
-                else if is_variant(payload, Value.Boolean) {
+                else if payload.is(Value.Boolean) {
                     pdata = to_ptr(get_payload(payload))
                     psz = 1.to_i32()
                 }
-                else if is_variant(payload, Value.Struct) {
+                else if payload.is(Value.Struct) {
                     ref si : StructInstance = get_payload(payload)
                     if is_null(si.struct_def).not() {
                         ref sd : StructDefData = get_payload(si.struct_def.data)
@@ -912,16 +912,16 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                     }
                     pdata = to_ptr(si.data)
                 }
-                else if is_variant(payload, Value.Enum) {
+                else if payload.is(Value.Enum) {
                     ref ei : EnumInstance = get_payload(payload)
                     psz = ei.data_size
                     pdata = to_ptr(ei.data)
                 }
-                else if is_variant(payload, Value.Ptr) {
+                else if payload.is(Value.Ptr) {
                     pdata = to_ptr(get_payload(payload))
                     psz = 8.to_i32()
                 }
-                else if is_variant(payload, Value.Func) {
+                else if payload.is(Value.Func) {
                     pdata = to_ptr(get_payload(payload))
                     psz = 8.to_i32()
                 }
@@ -961,7 +961,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
         }
         if is_shallow {
             // Shallow: store dereferenced value directly
-            if is_variant(v, Value.Struct) {
+            if v.is(Value.Struct) {
                 ref si : StructInstance = get_payload(v)
                 write_ptr(ptr_add(arg_ptrs, i.to_u64().mul(8)), si.data)
             } else {
@@ -969,42 +969,42 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
                 ref atype : Dynamic = deref(at)
                 if ptr_eq(atype, ffi_type_sint64_ref()) {
                     mut tmp : I64 = 0
-                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I64 = deref(pv); tmp = iv }
+                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I64 = deref(pv); tmp = iv }
                     else { tmp = value_to_i64(v) }
                     memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 8)
                 } else if ptr_eq(atype, ffi_type_uint8_ref()) {
                     mut tmp : U8 = 0
-                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U8 = deref(pv); tmp = iv }
+                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U8 = deref(pv); tmp = iv }
                     else { tmp = value_to_u64(v).to_i64().to_u8() }
                     memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 1)
                 } else if ptr_eq(atype, ffi_type_sint16_ref()) {
                     mut tmp : I16 = 0
-                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I16 = deref(pv); tmp = iv }
+                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I16 = deref(pv); tmp = iv }
                     else { tmp = value_to_i64(v).to_i16() }
                     memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 2)
                 } else if ptr_eq(atype, ffi_type_sint32_ref()) {
                     mut tmp : I32 = 0
-                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I32 = deref(pv); tmp = iv }
+                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I32 = deref(pv); tmp = iv }
                     else { tmp = value_to_i64(v).to_i32() }
                     memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 4)
                 } else if ptr_eq(atype, ffi_type_uint32_ref()) {
                     mut tmp : U32 = 0
-                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U32 = deref(pv); tmp = iv }
+                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U32 = deref(pv); tmp = iv }
                     else { tmp = value_to_u64(v).to_i64().to_u32() }
                     memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 4)
                 } else if ptr_eq(atype, ffi_type_uint64_ref()) {
                     mut tmp : U64 = 0
-                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U64 = deref(pv); tmp = iv }
+                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U64 = deref(pv); tmp = iv }
                     else { tmp = value_to_u64(v) }
                     memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 8)
                 } else if ptr_eq(atype, ffi_type_float_ref()) {
                     mut tmp : F32 = 0.to_f32()
-                    if is_variant(v, Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : F32 = deref(pv); tmp = iv }
+                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : F32 = deref(pv); tmp = iv }
                     else { tmp = value_to_f32(v) }
                     memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 4)
                 } else {
                     // Default: Ptr value
-                    if is_variant(v, Value.Ptr) {
+                    if v.is(Value.Ptr) {
                         ref pv : Dynamic = get_payload(v)
                         write_ptr(ptr_add(args, i.to_u64().mul(8)), deref(pv))
                     } else {
@@ -1016,37 +1016,37 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
         } else {
             // Deep: pass heap-allocated pointer (FFI callee may free it)
             ref mut dp : Dynamic = NULL
-            if is_variant(v, Value.Int) {
+            if v.is(Value.Int) {
                 dp = malloc(8)
                 memcpy(dp, get_payload(v), 8)
-            } else if is_variant(v, Value.Byte) {
+            } else if v.is(Value.Byte) {
                 dp = malloc(1)
                 memcpy(dp, get_payload(v), 1)
-            } else if is_variant(v, Value.Short) {
+            } else if v.is(Value.Short) {
                 dp = malloc(2)
                 memcpy(dp, get_payload(v), 2)
-            } else if is_variant(v, Value.Int32) {
+            } else if v.is(Value.Int32) {
                 dp = malloc(4)
                 memcpy(dp, get_payload(v), 4)
-            } else if is_variant(v, Value.Uint32) {
+            } else if v.is(Value.Uint32) {
                 dp = malloc(4)
                 memcpy(dp, get_payload(v), 4)
-            } else if is_variant(v, Value.Uint64) {
+            } else if v.is(Value.Uint64) {
                 dp = malloc(8)
                 memcpy(dp, get_payload(v), 8)
-            } else if is_variant(v, Value.Float) {
+            } else if v.is(Value.Float) {
                 dp = malloc(4)
                 memcpy(dp, get_payload(v), 4)
-            } else if is_variant(v, Value.Boolean) {
+            } else if v.is(Value.Boolean) {
                 dp = malloc(1)
                 memcpy(dp, get_payload(v), 1)
-            } else if is_variant(v, Value.Ptr) {
+            } else if v.is(Value.Ptr) {
                 ref pv : Dynamic = get_payload(v)
                 write_ptr(ptr_add(args, i.to_u64().mul(8)), deref(pv))
-            } else if is_variant(v, Value.Struct) {
+            } else if v.is(Value.Struct) {
                 ref si : StructInstance = get_payload(v)
                 write_ptr(ptr_add(args, i.to_u64().mul(8)), si.data)
-            } else if is_variant(v, Value.Enum) {
+            } else if v.is(Value.Enum) {
                 ref ei : EnumInstance = get_payload(v)
                 write_ptr(ptr_add(args, i.to_u64().mul(8)), ei.data)
             } else {
@@ -1204,14 +1204,14 @@ ffi_init_scan_program := proc(program: Expr) {
     }
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
-        if is_variant(stmt.data, NodeType.Decl).not() { }
+        if stmt.data.is(NodeType.Decl).not() { }
         else if stmt.child_count().eq(0) { }
         else {
             // Top-level ext_func/ext_proc
-            if is_variant(stmt.child(0).data, NodeType.FuncDef) {
+            if stmt.child(0).data.is(NodeType.FuncDef) {
                 ref fdef : Expr = stmt.child(0)
                 ref fd : FunctionDef = get_payload(fdef.data)
-                if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) {
+                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
                     ref dname : Declaration = get_payload(stmt.data)
                     ref fn_ptr : U8 = ffi_dlsym(dname.name)
                     if is_null(fn_ptr).not() {
@@ -1220,7 +1220,7 @@ ffi_init_scan_program := proc(program: Expr) {
                 }
             }
             // Struct namespace ext_func/ext_proc
-            if is_variant(stmt.child(0).data, NodeType.StructDef) {
+            if stmt.child(0).data.is(NodeType.StructDef) {
                 ref sdd : Declaration = get_payload(stmt.data)
                 ref body : Expr = stmt.child(0).child(0)
                 for j in 0..body.child_count() {
@@ -1230,9 +1230,9 @@ ffi_init_scan_program := proc(program: Expr) {
                     else if field.child_count().eq(0) { }
                     else {
                         ref fdef : Expr = field.child(0)
-                        if is_variant(fdef.data, NodeType.FuncDef) {
+                        if fdef.data.is(NodeType.FuncDef) {
                             ref fd : FunctionDef = get_payload(fdef.data)
-                            if is_variant(fd.func_type, FuncType.ExtFunc).or(is_variant(fd.func_type, FuncType.ExtProc)) {
+                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
                                 flat_name := sdd.name.concat("_").concat(fdd.name)
                                 ref fn_ptr : U8 = ffi_dlsym(flat_name)
                                 if is_null(fn_ptr).not() {
@@ -1241,16 +1241,16 @@ ffi_init_scan_program := proc(program: Expr) {
                                     // zero flat_name to prevent destructor from freeing c_str
                                     memset(flat_name, 0, Str.size())
                                 }
-                            } else if is_variant(fd.func_type, FuncType.Func).or(is_variant(fd.func_type, FuncType.Proc)) {
+                            } else if fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc)) {
                                 // Scan function body for nested ext_func/ext_proc
                                 ref fbody : Expr = fdef.child(0)
                                 for k in 0..fbody.child_count() {
                                     ref inner : Expr = fbody.child(k)
-                                    if is_variant(inner.data, NodeType.Decl).and(inner.child_count().gt(0)) {
+                                    if inner.data.is(NodeType.Decl).and(inner.child_count().gt(0)) {
                                         ref idef : Expr = inner.child(0)
-                                        if is_variant(idef.data, NodeType.FuncDef) {
+                                        if idef.data.is(NodeType.FuncDef) {
                                             ref ifd : FunctionDef = get_payload(idef.data)
-                                            if is_variant(ifd.func_type, FuncType.ExtFunc).or(is_variant(ifd.func_type, FuncType.ExtProc)) {
+                                            if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {
                                                 ref iname : Declaration = get_payload(inner.data)
                                                 ref ifn : U8 = ffi_dlsym(iname.name)
                                                 if is_null(ifn).not() {

@@ -313,7 +313,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             continue
         }
         mut stmt := parse_statement(p)
-        if in_namespace.and(is_variant(stmt.data, NodeType.Decl)) {
+        if in_namespace.and(stmt.data.is(NodeType.Decl)) {
             ref mut dd : Declaration = get_payload(stmt.data)
             dd.is_namespace = true
             ref mut sdd : StructDefData = get_payload(def.data)
@@ -325,7 +325,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             cloned_dd.default_value = rhs
             sdd.ns_decls.push(own cloned_dd)
         }
-        if in_namespace.not().and(is_variant(stmt.data, NodeType.Decl)) {
+        if in_namespace.not().and(stmt.data.is(NodeType.Decl)) {
             ref dd : Declaration = get_payload(stmt.data)
             ref mut sdd : StructDefData = get_payload(def.data)
             ref mut rhs : Expr = NULL
@@ -363,8 +363,8 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
         }
         if in_namespace {
             mut stmt := parse_statement(p)
-            if is_variant(stmt.data, NodeType.Decl) {
-                if is_variant(stmt.data, NodeType.Decl) {
+            if stmt.data.is(NodeType.Decl) {
+                if stmt.data.is(NodeType.Decl) {
                     ref mut dd : Declaration = get_payload(stmt.data)
                     dd.is_namespace = true
                 }
@@ -823,7 +823,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p), p.path)
             while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
                 mut stmt := parse_statement(p)
-                if is_variant(stmt.data, NodeType.Decl) {
+                if stmt.data.is(NodeType.Decl) {
                     ref mut dd : Declaration = get_payload(stmt.data)
                     dd.is_namespace = true
                 }
@@ -853,7 +853,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             expect_token(p, TokenType.Eq)
             // Parse (name1, name2, ...) — just identifiers
             expect_token(p, TokenType.LParen)
-            if is_variant(sig.data, NodeType.FuncDef) {
+            if sig.data.is(NodeType.FuncDef) {
                 ref mut sfd : FunctionDef = get_payload(sig.data)
                 for pi in 0..sfd.params.len() {
                     if pi.gt(0) { expect_token(p, TokenType.Comma) }
@@ -1200,9 +1200,9 @@ parse_statement := proc(mut p: Parser) returns Expr {
         // For UFCS method calls like 'own x.delete()', set bit 0 (callee)
         // as a signal. UFCS desugaring converts this to own on self (bit 1).
         mut expr := parse_expression(p)
-        if is_variant(expr.data, NodeType.FCall) {
+        if expr.data.is(NodeType.FCall) {
             if expr.child_count().gt(0) {
-                if is_variant(expr.child(0).data, NodeType.FieldAccess) {
+                if expr.child(0).data.is(NodeType.FieldAccess) {
                     set_own_arg(expr, 0)
                 }
             }

@@ -42,15 +42,15 @@ til_type_name_c := func(t: TilType) returns Str {
 // Extract the struct/enum/custom name carried in a TilType's payload.
 // Returns empty Str for any other variant.
 til_type_name := func(t: TilType) returns Str {
-    if is_variant(t, TilType.Struct) {
+    if t.is(TilType.Struct) {
         ref s : Str = get_payload(t)
         return s.clone()
     }
-    if is_variant(t, TilType.Enum) {
+    if t.is(TilType.Enum) {
         ref s : Str = get_payload(t)
         return s.clone()
     }
-    if is_variant(t, TilType.Custom) {
+    if t.is(TilType.Custom) {
         ref s : Str = get_payload(t)
         return s.clone()
     }
@@ -349,7 +349,7 @@ enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
     ref body : Expr = enum_def.child(0)
     for i in 0..body.child_count() {
         ref f : Expr = body.child(i)
-        if is_variant(f.data, NodeType.Decl) {
+        if f.data.is(NodeType.Decl) {
             ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not().and(decl.explicit_type.len().gt(0)) {
                 return true
@@ -364,7 +364,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
     mut tag : I32 = 0
     for i in 0..body.child_count() {
         ref f : Expr = body.child(i)
-        if is_variant(f.data, NodeType.Decl) {
+        if f.data.is(NodeType.Decl) {
             ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not() {
                 if decl.name.eq(variant_name) { return tag }
@@ -380,7 +380,7 @@ enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
     mut idx : I32 = 0
     for i in 0..body.child_count() {
         ref f : Expr = body.child(i)
-        if is_variant(f.data, NodeType.Decl) {
+        if f.data.is(NodeType.Decl) {
             ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not() {
                 if idx.eq(tag) { return decl.explicit_type }
