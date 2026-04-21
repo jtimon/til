@@ -112,8 +112,19 @@ try_ufcs_rewrite := proc(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
                 ref top_param : Param = top_fdef.params.get(0)
                 ref first_param : Str = top_param.ptype
                 if first_param.len().gt(0) {
+                    is_free_func := top.func_type.is(FuncType.Func)
+                        .or(top.func_type.is(FuncType.ExtFunc))
+                        .or(top.func_type.is(FuncType.Proc))
+                        .or(top.func_type.is(FuncType.ExtProc))
                     if type_name.len().gt(0) {
                         if first_param.eq(type_name) {
+                            ufcs_match = 1
+                        } else if first_param.eq("Dynamic").and(is_free_func) {
+                            // Free function with Dynamic first-param accepts
+                            // any object type via UFCS. Restricted to actual
+                            // free functions so function-pointer struct fields
+                            // (e.g. Vec.elem_delete : DeleteFn) keep going
+                            // through the func-ptr-field path instead.
                             ufcs_match = 1
                         }
                     } else if obj.til_type.is(TilType.Dynamic) {

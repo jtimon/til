@@ -696,12 +696,16 @@
     default case
 
   Notes:
-  - Two call sites (~src/self/interpreter.til~ EnumInstance.eq,
-    ~src/self/precomp.til~ ~fn_cell.val~ check) still use the
-    function-call form ~is(a, b)~ because the current UFCS rewrite
-    rejects free functions whose first param is ~Dynamic~ when the
-    object type is a struct or an enum-typed struct field. Both sites
-    carry a TODO referencing this issue.
+  - The UFCS rewrite was widened so a free function with a ~Dynamic~
+    first param matches any object type. The branch is restricted to
+    bindings whose ~func_type~ is one of ~Func/ExtFunc/Proc/ExtProc~
+    so function-pointer struct fields (e.g. ~Vec.elem_delete : DeleteFn~)
+    keep going through the func-ptr-field path.
+  - One call site (~src/self/precomp.til~ ~fn_cell.val.is(Value.Func)~)
+    still uses ~is(a, b)~ because ~Cell.val~ types as ~unknown~ instead
+    of ~Value~, so UFCS has no ~type_name~ to dispatch on. Carries a
+    ~TODO(#113)~. Root cause is a typer field-type-inference gap, not
+    UFCS itself.
 
   Motivation:
   - UFCS-friendly syntax like ~tok.is(Token.Num)~ reads much better than

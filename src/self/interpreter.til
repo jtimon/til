@@ -113,9 +113,7 @@ EnumInstance := struct {
     mut data_size : I32 = 0
     namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns shallow Bool {
-        // TODO(#113): switch to a.is(b) once UFCS resolution handles
-        // free functions whose first param is Dynamic on struct types.
-        return is(a, b)
+        return a.is(b)
     }
     to_str := func(self: EnumInstance) returns Str {
         if is_null(self.enum_name) { return "EnumInstance" }

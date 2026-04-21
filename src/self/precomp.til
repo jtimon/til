@@ -128,8 +128,9 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
     ref callee_ident : Str = get_payload(fcall.child(0).data)
     ref fn_cell : Cell = scope_get(scope, callee_ident)
     if is_null(fn_cell).not() {
-        // TODO(#113): switch to fn_cell.val.is(Value.Func) once UFCS
-        // infers the enum type of a struct field access for .is().
+        // TODO(#113): switch to fn_cell.val.is(Value.Func) once the
+        // typer infers the Value enum type for Cell.val (currently
+        // resolves to 'unknown', so UFCS has nothing to dispatch on).
         if is(fn_cell.val, Value.Func) {
             ref fptr : Dynamic = get_payload(fn_cell.val)
             ref fdef : Expr = deref(fptr)
