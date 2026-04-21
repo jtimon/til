@@ -4139,6 +4139,23 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
                 }
                 continue
             }
+            if rhs.data.is(NodeType.FieldAccess) {
+                ref mut root : Expr = rhs
+                while root.data.is(NodeType.FieldAccess).and(root.children.len().gt(0)) {
+                    root = root.child(0)
+                }
+                if root.data.is(NodeType.Ident) {
+                    ref src_name : Str = get_payload(root.data)
+                    for j in 0..n_locals {
+                        ref mut local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+                        if local.name.eq(src_name).and(local.last_use.lt(ref_last)) {
+                            local.last_use = ref_last
+                            ref_changed = true
+                        }
+                    }
+                }
+                continue
+            }
             if rhs.data.is(NodeType.FCall).not() { continue }
             for a in 1..rhs.children.len() {
                 ref mut arg : Expr = rhs.child(a)
