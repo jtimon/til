@@ -69,6 +69,7 @@ LocalInfo := struct {
     mut last_use : I32 = 0
     mut own_transfer : I32 = -1.to_i32()
     mut skip_scope_delete := false
+    mut is_heap := false
 }
 
 CtorArg := enum {
@@ -3050,6 +3051,7 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
     mut va_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col, fcall.path)
     ref mut dd : Declaration = get_payload(va_decl.data)
     dd.name = va_name.clone()
+    dd.own_type = OwnType.Own
     va_decl.til_type = TilType.Struct("Array".clone())
     va_decl.add_child(own new_call)
     return va_decl
@@ -3652,7 +3654,7 @@ desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
         _va_counter.inc()
         mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
 
-        scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, line, col, false, OwnType.Shallow)
+        scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, line, col, false, OwnType.Own)
 
         new_ch.push(own va_decl)
 
@@ -4085,6 +4087,7 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
         li.last_use = last_use
         li.own_transfer = own_transfer
         li.skip_scope_delete = skip_scope_delete
+        li.is_heap = b.own_type.eq(OwnType.Own).and(b.is_param.not())
         locals_vec.push(own li)
     }
 }
@@ -4196,7 +4199,8 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
                     }
                 }
                 if type_to_name(local.type).len().gt(0) {
-                    del := make_delete_call(local.name, local.type, false, false, stmt)
+                    heap := local.is_heap
+                    del := make_delete_call(local.name, local.type, heap, heap, stmt)
                     new_ch.push(own del.clone())
                 }
             }
@@ -4256,7 +4260,8 @@ insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, s
         if local.decl_index.lt(stmt_idx.to_i64().to_i32()) {
             if local.last_use.gte(stmt_idx.to_i64().to_i32()).or(local.last_use.eq(-1.to_i32())) {
                 if type_to_name(local.type).len().gt(0) {
-                    del := make_delete_call(local.name, local.type, false, false, stmt)
+                    heap := local.is_heap
+                    del := make_delete_call(local.name, local.type, heap, heap, stmt)
                     new_ch.push(own del.clone())
                 }
             }
@@ -4274,13 +4279,15 @@ insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: 
         if local.own_transfer.gte(0) { continue }
         if local.last_use.eq(stmt_idx.to_i64().to_i32()) {
             if type_to_name(local.type).len().gt(0) {
-                del := make_delete_call(local.name, local.type, false, false, stmt)
+                heap := local.is_heap
+                    del := make_delete_call(local.name, local.type, heap, heap, stmt)
                 new_ch.push(own del.clone())
             }
         }
         if local.last_use.eq(-1.to_i32()).and(local.decl_index.eq(stmt_idx.to_i64().to_i32())) {
             if type_to_name(local.type).len().gt(0) {
-                del := make_delete_call(local.name, local.type, false, false, stmt)
+                heap := local.is_heap
+                    del := make_delete_call(local.name, local.type, heap, heap, stmt)
                 new_ch.push(own del.clone())
             }
         }
@@ -4301,7 +4308,8 @@ insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: 
                 stmt.til_type = local.type.clone()
             } else {
                 if type_to_name(local.type).len().gt(0) {
-                    del := make_delete_call(local.name, local.type, false, false, stmt)
+                    heap := local.is_heap
+                    del := make_delete_call(local.name, local.type, heap, heap, stmt)
                     new_ch.push(own del.clone())
                 }
             }
@@ -4310,9 +4318,9 @@ insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: 
     }
 }
 
-promote_own_transferred_locals := proc(mut body: Expr, locals: Dynamic, shallow n_locals: U32) {
+promote_own_transferred_locals := proc(mut body: Expr, mut locals: Dynamic, shallow n_locals: U32) {
     for j in 0..n_locals {
-        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+        ref mut local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
         if local.own_transfer.lt(0.to_i32()) { continue }
         if local.decl_index.lt(0.to_i32()) { continue }
         ref stmt : Expr = body.child(local.decl_index.to_i64().to_u32())
@@ -4320,6 +4328,7 @@ promote_own_transferred_locals := proc(mut body: Expr, locals: Dynamic, shallow 
         ref mut dd : Declaration = get_payload(stmt.data)
         if dd.own_type.eq(OwnType.Ref) { continue }
         dd.own_type = OwnType.Own
+        local.is_heap = true
     }
 }
 
@@ -4435,6 +4444,8 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow
         val_is_ref = fcall_returns_ref(val, scope).eq(0).not()
     }
 
+    is_compound := val.til_type.is(TilType.Struct).or(val.til_type.is(TilType.Enum))
+
     decl.add_child(own val.clone())
 
     mut ident := Expr.new(NodeType.Ident(tname.clone()), val.line, val.col, val.path)
@@ -4444,7 +4455,7 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow
     if val_is_ref {
         dd.own_type = OwnType.Ref
         if is_null(tb).not() { tb.own_type = OwnType.Ref }
-    } else if is_own {
+    } else if is_own.or(is_compound) {
         dd.own_type = OwnType.Own
         if is_null(tb).not() { tb.own_type = OwnType.Own }
     }

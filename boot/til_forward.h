@@ -482,6 +482,7 @@ typedef struct LocalInfo {
     I32 last_use;
     I32 own_transfer;
     Bool skip_scope_delete;
+    Bool is_heap;
 } LocalInfo;
 
 

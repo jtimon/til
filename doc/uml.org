@@ -219,6 +219,7 @@
 *** mut last_use : I32 = 0
 *** mut own_transfer : I32 = -1.to_i32()
 *** mut skip_scope_delete := false
+*** mut is_heap := false
 ** CtorArg: EnumDef
 *** Unfilled
 *** Filled:Expr

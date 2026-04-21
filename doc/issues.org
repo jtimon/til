@@ -339,12 +339,29 @@
      container left alone for the frame to unwind). With the own bit
      cleared, emit_as_ptr no longer wraps the arg in the ~_oa~ malloc.
 
-   ~_oa = malloc~ wrap sites in boot/til.c: 2472 (pre-fix) -> 69.
+   - Commit 1f42959: variadic desugar's ~_va_Array_N~ temp now carries
+     ~own_type = Own~ on both the Declaration and the scope binding,
+     so the builder emits the Array directly on the heap and the
+     variadic call site stops wrapping it in ~_oa~.
+   - This commit: hoisted temps for compound (Struct/Enum) types get
+     promoted to ~own_type = Own~ unconditionally (not just when they
+     flow into an own arg slot). ~LocalInfo~ gains an ~is_heap~ bool,
+     populated in ~collect_scope_locals~ and updated in
+     ~promote_own_transferred_locals~. The five ~make_delete_call~
+     sites in ~insert_free_calls~ (early-exit / nested / post-stmt /
+     scope-end / assign-replace) now pass ~arg_is_own = is_heap,
+     call_free = is_heap~, so heap locals are properly freed at exit
+     and stack locals stay borrow-style. Eliminates the ~Expr x =
+     *_hp; free(_hp)~ return round-trip for hoisted compound temps
+     (the main pattern called out in the issue body).
 
-   Still TODO: the ~Expr x = *_hp; free(_hp)~ return round-trip
-   mentioned in the issue body (owned struct returns), and the final
-   handful of ~_oa wraps for values that aren't directly named user
-   locals (complex expressions, variadic arg arrays, etc.).
+   ~_oa = malloc~ wrap sites in boot/til.c: 2472 (pre-fix) -> 26.
+   ~_hp = ~ return round-trip sites in boot/til.c: 7909 (pre-fix) -> 1438.
+
+   Still TODO: remaining ~_hp~ round-trips for user-declared locals
+   that receive fcall results but aren't promoted (e.g. they're
+   read-only borrows, or never transferred); final ~_oa~ wraps on
+   module-global delete paths and a few complex expressions.
 
 ** OPEN #136 Precomp doesn't fold namespace method calls
   ~Dynamic.size()~ is defined in ~dyn.til~ as ~func() returns USize { return 8 }~

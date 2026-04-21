@@ -246,9 +246,9 @@
   <text x="1468" y="560" class="title">TypeScope: StructDef</text>
   <text x="1468" y="578" class="line">mut bindings := Map.new(&quot;Str&quot;, Str.size(), &quot;TypeBinding&quot;, TypeBinding.size())</text>
   <text x="1468" y="596" class="line">ref mut parent : TypeScope = NULL</text>
-  <rect x="2152" y="24" width="356" height="336" rx="14" ry="14" class="panel"/>
+  <rect x="2152" y="24" width="356" height="354" rx="14" ry="14" class="panel"/>
   <text x="2172" y="62" class="panel-label">typer</text>
-  <rect x="2172" y="88" width="316" height="154" rx="10" ry="10" class="box"/>
+  <rect x="2172" y="88" width="316" height="172" rx="10" ry="10" class="box"/>
   <text x="2186" y="126" class="title">LocalInfo: StructDef</text>
   <text x="2186" y="144" class="line">ref mut name : Str = NULL</text>
   <text x="2186" y="162" class="line">mut type := TilType.Unknown</text>
@@ -256,10 +256,11 @@
   <text x="2186" y="198" class="line">mut last_use : I32 = 0</text>
   <text x="2186" y="216" class="line">mut own_transfer : I32 = -1.to_i32()</text>
   <text x="2186" y="234" class="line">mut skip_scope_delete := false</text>
-  <rect x="2172" y="260" width="156" height="82" rx="10" ry="10" class="box"/>
-  <text x="2186" y="298" class="title">CtorArg: EnumDef</text>
-  <text x="2186" y="316" class="line">Unfilled</text>
-  <text x="2186" y="334" class="line">Filled:Expr</text>
+  <text x="2186" y="252" class="line">mut is_heap := false</text>
+  <rect x="2172" y="278" width="156" height="82" rx="10" ry="10" class="box"/>
+  <text x="2186" y="316" class="title">CtorArg: EnumDef</text>
+  <text x="2186" y="334" class="line">Unfilled</text>
+  <text x="2186" y="352" class="line">Filled:Expr</text>
   <rect x="2542" y="24" width="120" height="82" rx="14" ry="14" class="panel"/>
   <text x="2562" y="62" class="panel-label">precomp</text>
   <rect x="2696" y="24" width="120" height="82" rx="14" ry="14" class="panel"/>
