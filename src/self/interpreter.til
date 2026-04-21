@@ -369,13 +369,15 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
     }
     if e.data.is(NodeType.LiteralNum) {
         ref num_str : Str = get_payload(e.data)
-        if e.til_type.is(TilType.U8) { return val_u8(num_str.to_i64()) }
-        if e.til_type.is(TilType.U32) { return val_u32(num_str.to_i64()) }
-        if e.til_type.is(TilType.U64) { return val_u64(num_str.to_i64().to_u64()) }
-        if e.til_type.is(TilType.I16) { return val_i16(num_str.to_i64()) }
-        if e.til_type.is(TilType.I32) { return val_i32(num_str.to_i64()) }
-        if e.til_type.is(TilType.F32) { return val_f32(num_str.to_f32()) }
-        return val_i64(num_str.to_i64())
+        switch e.til_type {
+        case TilType.U8:  return val_u8(num_str.to_i64())
+        case TilType.U32: return val_u32(num_str.to_i64())
+        case TilType.U64: return val_u64(num_str.to_i64().to_u64())
+        case TilType.I16: return val_i16(num_str.to_i64())
+        case TilType.I32: return val_i32(num_str.to_i64())
+        case TilType.F32: return val_f32(num_str.to_f32())
+        case: return val_i64(num_str.to_i64())
+        }
     }
     if e.data.is(NodeType.LiteralBool) {
         ref b : Bool = get_payload(e.data)
@@ -1521,16 +1523,16 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
         }
         return
     }
-    if val.is(Value.Int) { ref v : I64 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if val.is(Value.Byte) { ref v : U8 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if val.is(Value.Short) { ref v : I16 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if val.is(Value.Int32) { ref v : I32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if val.is(Value.Uint32) { ref v : U32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if val.is(Value.Uint64) { ref v : U64 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if val.is(Value.Float) { ref v : F32 = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if val.is(Value.Boolean) { ref v : Bool = get_payload(val); memcpy(ptr, v, fsz.to_i64().to_u64()); return }
-    if val.is(Value.Struct) {
-        ref si : StructInstance = get_payload(val)
+    switch val {
+    case Value.Int(v):     memcpy(ptr, v, fsz.to_i64().to_u64())
+    case Value.Byte(v):    memcpy(ptr, v, fsz.to_i64().to_u64())
+    case Value.Short(v):   memcpy(ptr, v, fsz.to_i64().to_u64())
+    case Value.Int32(v):   memcpy(ptr, v, fsz.to_i64().to_u64())
+    case Value.Uint32(v):  memcpy(ptr, v, fsz.to_i64().to_u64())
+    case Value.Uint64(v):  memcpy(ptr, v, fsz.to_i64().to_u64())
+    case Value.Float(v):   memcpy(ptr, v, fsz.to_i64().to_u64())
+    case Value.Boolean(v): memcpy(ptr, v, fsz.to_i64().to_u64())
+    case Value.Struct(si):
         if si.borrowed {
             mut cloned := val.clone()
             ref mut csi : StructInstance = get_payload(cloned)
@@ -1540,10 +1542,7 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
         } else {
             memcpy(ptr, si.data, fsz.to_i64().to_u64())
         }
-        return
-    }
-    if val.is(Value.Enum) {
-        ref ei : EnumInstance = get_payload(val)
+    case Value.Enum(ei):
         mut total := ei.data_size
         if total.to_i64().lt(8) { total = 8.to_i32() }
         heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
@@ -1554,10 +1553,10 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
         // Write data pointer into the heap EnumInstance
         write_ptr(ptr_add(heap_ei, 16), new_data)
         write_ptr(ptr, heap_ei)
-        return
+    case Value.Ptr(pv):  write_ptr(ptr, deref(pv))
+    case Value.Func(fv): write_ptr(ptr, deref(fv))
+    case:
     }
-    if val.is(Value.Ptr) { ref pv : Dynamic = get_payload(val); write_ptr(ptr, deref(pv)); return }
-    if val.is(Value.Func) { ref fv : Dynamic = get_payload(val); write_ptr(ptr, deref(fv)); return }
 }
 
 interpret_register_defs := proc(mut global: Scope, prog: Expr) {

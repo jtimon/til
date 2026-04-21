@@ -872,58 +872,27 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 payload := eval_expr(scope, e.child(1))
                 ref mut pdata : Dynamic = NULL
                 mut psz : I32 = 0
-                if payload.is(Value.Int) {
-                    pdata = to_ptr(get_payload(payload))
-                    psz = 8.to_i32()
-                }
-                else if payload.is(Value.Byte) {
-                    pdata = to_ptr(get_payload(payload))
-                    psz = 1.to_i32()
-                }
-                else if payload.is(Value.Short) {
-                    pdata = to_ptr(get_payload(payload))
-                    psz = 2.to_i32()
-                }
-                else if payload.is(Value.Int32) {
-                    pdata = to_ptr(get_payload(payload))
-                    psz = 4.to_i32()
-                }
-                else if payload.is(Value.Uint32) {
-                    pdata = to_ptr(get_payload(payload))
-                    psz = 4.to_i32()
-                }
-                else if payload.is(Value.Uint64) {
-                    pdata = to_ptr(get_payload(payload))
-                    psz = 8.to_i32()
-                }
-                else if payload.is(Value.Float) {
-                    pdata = to_ptr(get_payload(payload))
-                    psz = 4.to_i32()
-                }
-                else if payload.is(Value.Boolean) {
-                    pdata = to_ptr(get_payload(payload))
-                    psz = 1.to_i32()
-                }
-                else if payload.is(Value.Struct) {
-                    ref si : StructInstance = get_payload(payload)
+                switch payload {
+                case Value.Int(x):     pdata = to_ptr(x); psz = 8.to_i32()
+                case Value.Byte(x):    pdata = to_ptr(x); psz = 1.to_i32()
+                case Value.Short(x):   pdata = to_ptr(x); psz = 2.to_i32()
+                case Value.Int32(x):   pdata = to_ptr(x); psz = 4.to_i32()
+                case Value.Uint32(x):  pdata = to_ptr(x); psz = 4.to_i32()
+                case Value.Uint64(x):  pdata = to_ptr(x); psz = 8.to_i32()
+                case Value.Float(x):   pdata = to_ptr(x); psz = 4.to_i32()
+                case Value.Boolean(x): pdata = to_ptr(x); psz = 1.to_i32()
+                case Value.Struct(si):
                     if is_null(si.struct_def).not() {
                         ref sd : StructDefData = get_payload(si.struct_def.data)
                         psz = sd.total_struct_size
                     }
                     pdata = to_ptr(si.data)
-                }
-                else if payload.is(Value.Enum) {
-                    ref ei : EnumInstance = get_payload(payload)
+                case Value.Enum(ei):
                     psz = ei.data_size
                     pdata = to_ptr(ei.data)
-                }
-                else if payload.is(Value.Ptr) {
-                    pdata = to_ptr(get_payload(payload))
-                    psz = 8.to_i32()
-                }
-                else if payload.is(Value.Func) {
-                    pdata = to_ptr(get_payload(payload))
-                    psz = 8.to_i32()
+                case Value.Ptr(p):  pdata = to_ptr(p); psz = 8.to_i32()
+                case Value.Func(f): pdata = to_ptr(f); psz = 8.to_i32()
+                case:
                 }
                 mut tmp := val_enum_flat(enum_name, enum_def, ctor_tag, pdata, psz)
                 memcpy(result, tmp, Value.size())
