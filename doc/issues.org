@@ -326,18 +326,25 @@
      temp's Declaration is marked ~own_type = Own~, so the builder's
      existing own-local path emits it directly on the heap and skips
      the stack-then-~_oa~-malloc-copy wrap at the call site.
-   - Commit d84d30d: ~insert_free_calls~ in typer.til now runs a
+   - Commit 8e8763a: ~insert_free_calls~ in typer.til now runs a
      ~promote_own_transferred_locals~ step after
      ~collect_scope_locals~: user-declared locals with
      ~own_transfer >= 0~ get their Decl's ~own_type~ flipped to Own,
      so they're emitted as heap pointers too.
+   - This commit: early-exit deletes emitted by ~insert_exit_deletes~
+     now use ~arg_is_own=false, call_free=false~ instead of
+     ~true, true~. The ~live~ filter ensures these deletes only fire
+     for Shallow (stack) locals that haven't been promoted, so
+     ~call_free=false~ is the right semantic (fields cleaned, stack
+     container left alone for the frame to unwind). With the own bit
+     cleared, emit_as_ptr no longer wraps the arg in the ~_oa~ malloc.
 
-   ~_oa = malloc~ wrap sites in boot/til.c: 2472 (pre-fix) -> 670.
+   ~_oa = malloc~ wrap sites in boot/til.c: 2472 (pre-fix) -> 69.
 
    Still TODO: the ~Expr x = *_hp; free(_hp)~ return round-trip
-   mentioned in the issue body (owned struct returns), and the
-   remaining ~670 _oa wraps for values that aren't directly named
-   user locals.
+   mentioned in the issue body (owned struct returns), and the final
+   handful of ~_oa wraps for values that aren't directly named user
+   locals (complex expressions, variadic arg arrays, etc.).
 
 ** OPEN #136 Precomp doesn't fold namespace method calls
   ~Dynamic.size()~ is defined in ~dyn.til~ as ~func() returns USize { return 8 }~

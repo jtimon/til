@@ -4196,7 +4196,7 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
                     }
                 }
                 if type_to_name(local.type).len().gt(0) {
-                    del := make_delete_call(local.name, local.type, true, true, stmt)
+                    del := make_delete_call(local.name, local.type, false, false, stmt)
                     new_ch.push(own del.clone())
                 }
             }
