@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 151
+# NEXT_ISSUE: 153
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -989,7 +989,93 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-* [0/34] Post
+* [0/36] Post
+** OPEN #152 True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
+  :DEPENDENCIES: #150 (unrelated, just handy to mention)
+  :RELATED: rstil Issue #135
+
+  Cross-compiling til programs to macOS from Linux or Windows currently
+  is not feasible the way linux-arm64 / linux-riscv64 / windows-x64 are:
+  Apple's SDK headers and frameworks aren't redistributable, and
+  mingw-style freely available toolchains don't exist for Mach-O. Our
+  current cross-compile pipeline assumes each host has a working
+  ~{target}-gcc~ that can produce the target's executable format from
+  the generated C. macOS breaks that assumption.
+
+  Rstil sketched the same problem in its Issue #135 ("True
+  cross-compilation via precompiled ext.o per platform"). The proposed
+  shape, adapted for til:
+
+  1. Move every OS-specific call out of the generated C into
+     ~src/c/ext.c~ so the emitted ~gen/til/*.c~ ideally only calls into
+     a small fixed set of ~til_*~ runtime symbols. The #ifdef _WIN32
+     blocks added for windows-x64 are a decent starting audit of which
+     functions need this treatment.
+  2. Precompile ~ext.c~ once per target on a native runner in CI, ship
+     the resulting ~lib/ext-{target}.o~ (e.g. ~ext-macos-x64.o~,
+     ~ext-macos-arm64.o~) alongside the sources. For macOS that means a
+     ~runs-on: macos-latest~ / ~macos-15-intel~ job whose only output
+     is the committed ext object.
+  3. Teach ~src/self/builder.til~ to link against the precompiled
+     ~ext-{target}.o~ when cross-compiling instead of compiling ext.c
+     in-tree. Non-macOS targets (linux-*, windows-x64) keep the current
+     compile-ext.c-together flow; macOS uses the precompiled object.
+  4. CI adds a ~macos-x64~ / ~macos-arm64~ cross-compile job that
+     downloads the committed ext-macos-*.o artifacts and links.
+
+  Rstil wrote up and rejected one iteration of this (branch
+  ~claude/fix-issue-135-SMlEh~ in rstil) that removed ~static inline~
+  from every ext function and hardcoded 50+ ~extern~ declarations into
+  ccodegen. That approach is too brittle; the duplication in both
+  ccodegen.rs and ccodegen.til made adding any ext function require
+  edits in three places. Whatever til does here needs a lighter coupling
+  between ~builder.til~ and ~ext.c~ -- probably a single shared
+  ~ext_forward.h~ emitted once and consumed by both the generated C and
+  the precompiled ext object.
+
+  Open questions (same as rstil's):
+  - How are platform-specific ext.o files versioned / regenerated when
+    ext.c changes? Do we fail the main CI if ext-macos-*.o is stale?
+  - Ship ~zig cc~ as an alternative? Single toolchain that can target
+    everything, at the cost of a ~300MB dependency.
+  - Do we keep the current compile-ext.c-together path forever for the
+    host target, or migrate fully to the precompiled-per-target model?
+
+** OPEN #151 32-bit targets: wasm32 and templeos-x86
+  :DEPENDENCIES: #81
+
+  ~src/self/targets.til~ already has ~Target.Wasm32~ and
+  ~Target.TempleosX86~ in the enum (mirrored from rstil), with
+  toolchain selection (~clang --target=wasm32~, ~holyc~) and
+  executable extension (~.wasm~, no ext) wired up. Nothing actually
+  builds for these targets because til's generated C assumes 64-bit
+  pointers everywhere (~USize~, raw pointer arithmetic), and the
+  32-bit targets would generate C that's unsound on 32-bit ABIs.
+
+  Depends on #81: once ~UPtr~ is a pointer-sized integer that's
+  ~U64~ on 64-bit targets and ~U32~ on 32-bit ones, the codegen can
+  use ~UPtr~ consistently for anything that must match the target
+  pointer width. That unblocks emitting valid C for wasm32 and
+  templeos-x86.
+
+  Scope once #81 lands:
+  - Audit ~src/self/builder.til~ for places that assume 64-bit
+    pointer arithmetic and replace with ~UPtr~.
+  - Add ~wasm32~ and ~templeos-x86~ CI jobs mirroring the existing
+    cross-compile pattern: ubuntu-latest + ~clang~ (wasm32) or
+    HolyC toolchain (templeos-x86), cross-compile a
+    ~src/examples/hello_script.til~ and verify the output format
+    (~file~ says ~WebAssembly~ for wasm32; TempleOS ~.BIN~ format
+    for templeos-x86).
+  - For templeos-x86, ~lang~ must switch to ~Lang.HolyC~ via
+    ~default_lang_for_target~, which is already the case in
+    ~targets.til~.
+
+  Rstil implemented neither of these targets in CI for the same
+  reason (no UPtr equivalent / HolyC codegen not wired up) -- the
+  enum values exist as placeholders to reserve names and keep the
+  ~--target~ parser honest.
+
 ** OPEN #148 SIGSEGV on unqualified namespace member access (should be type error)
   Accessing a namespace member without qualifying it segfaults instead of
   producing a type error. Affects both standalone namespaces (added in ~#65~)
