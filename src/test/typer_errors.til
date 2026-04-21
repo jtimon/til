@@ -255,3 +255,19 @@ unused_local := func() returns I64 {
     return 0
 }
 unused_local()
+
+// #113: non-exhaustive switch on enum (simple, no payload)
+TerrColor := enum { Red, Green, Blue }
+terr_color := TerrColor.Green
+switch terr_color {
+case TerrColor.Red: println("red")
+case TerrColor.Green: println("green")
+}
+
+// #113: non-exhaustive switch on enum (payload variants)
+TerrTok := enum { Num: I64, Name: Str, Eof }
+terr_tok := TerrTok.Eof
+switch terr_tok {
+case TerrTok.Num: println("num")
+case TerrTok.Eof: println("eof")
+}

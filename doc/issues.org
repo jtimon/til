@@ -4,7 +4,7 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/16] Pre
+* [0/15] Pre
 ** OPEN #155 Typer infers ~unknown~ for enum-typed struct field access
    Spun off from ~#113~. Accessing a struct field whose declared
    default is an enum constructor types as ~unknown~ instead of the
@@ -718,44 +718,6 @@
   - keep ~StructDefData~ for now
   - treat the failed ~StructDef~ unification as a symptom of the import model,
     not just a naming conflict
-
-** OPEN #113 Proper enums -- remaining: exhaustive switch
-  Enum semantics and syntax are usable now, but the surface is still rough
-  and partly historical.
-
-  Main cleanup goals:
-  - [X] ~is_variant~ renamed to ~is~ and removed entirely (declaration
-    gone from ~src/core/dyn.til~ and ~src/c/ext.{c,h}~, and no longer
-    synthesized by typer/initer)
-  - [X] ~eq(...)~ is full enum equality, including payload comparison
-  - [X] intended split documented in ~doc/enums.org~:
-    - ~x.is(E.V)~ means tag-only check
-    - ~x.eq(E.V(...))~ means full value equality
-  - [ ] make ~switch~ over enums exhaustive unless there is an explicit
-    default case
-
-  Notes:
-  - The UFCS rewrite was widened so a free function with a ~Dynamic~
-    first param matches any object type. The branch is restricted to
-    bindings whose ~func_type~ is one of ~Func/ExtFunc/Proc/ExtProc~
-    so function-pointer struct fields (e.g. ~Vec.elem_delete : DeleteFn~)
-    keep going through the func-ptr-field path.
-  - One call site (~src/self/precomp.til~ ~fn_cell.val.is(Value.Func)~)
-    still uses ~is(a, b)~ because ~Cell.val~ types as ~unknown~ instead
-    of ~Value~, so UFCS has no ~type_name~ to dispatch on. Tracked
-    separately as ~#155~ (typer field-type-inference gap, not UFCS).
-
-  Motivation:
-  - UFCS-friendly syntax like ~tok.is(Token.Num)~ reads much better than
-    ~is_variant(tok, Token.Num)~
-  - payload enums need a clean semantic distinction between "same variant"
-    and "same value"
-  - exhaustive ~switch~ checking should make enum control flow safer and
-    reduce silent missing-case bugs
-
-  Remaining work:
-  - parser / typer support for exhaustive enum ~switch~
-  - tests for exhaustive and default-case behaviour in ~src/test/enums.til~
 
 ** OPEN #109 Fix memory leaks (make test_asan clean)
   ~make test_asan~ currently OOMs at 64G. Most leaks are from

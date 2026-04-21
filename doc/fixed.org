@@ -1,5 +1,51 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #113 Proper enums
+
+  Four-part enum cleanup, all landed:
+
+  - [X] ~is_variant~ renamed to ~is~ and removed entirely. Declaration
+    is gone from ~src/core/dyn.til~ and ~src/c/ext.{c,h}~, the
+    typer/initer synthesize ~is~ in switch lowering and enum
+    namespace methods, and every user-visible call site uses either
+    UFCS ~x.is(E.V)~ or the free-function form ~is(a, b)~.
+  - [X] ~eq(...)~ is full enum equality, including payload comparison.
+    Existing coverage in ~src/test/enums.til~ (~test_payload_eq~,
+    ~test_struct_payload_eq~) exercises same-variant / different-
+    variant / different-payload combinations.
+  - [X] Intended split documented in ~doc/enums.org~:
+    ~x.is(E.V)~ is the tag-only check and ~x.eq(E.V(...))~ is full
+    value equality.
+  - [X] ~switch~ over enums is exhaustive by default. ~infer_switch_stmt~
+    in ~src/self/typer.til~ tracks covered variants via
+    ~mark_switch_case_covered_variant~ and reports a
+    "non-exhaustive switch on enum 'E'; missing cases: ..."
+    type error when a variant is missing and no default ~case:~
+    is present. A default case catches everything the other cases
+    didn't, so switches with a default always pass the check.
+
+  Tests:
+
+  - Positive: ~test_switch_enum~, ~test_switch_payload~,
+    ~test_switch_payload_multi~, ~test_switch_payload_with_default~
+    in ~src/test/enums.til~.
+  - Negative (dedicated file): ~src/test/enum_switch_missing_case.til~
+    triggers two "non-exhaustive" errors, wired into ~src/tests.til~
+    as ~enum_switch_missing_case_interp~ and ~_build~.
+  - Negative (typer_errors): two new blocks in
+    ~src/test/typer_errors.til~ exercise missing-case switches over a
+    no-payload enum and a payload enum; the ~typer_errors~ count
+    moved 54 -> 56.
+
+  Follow-ups spun off from the cleanup:
+
+  - ~#155~ covers the remaining ~TODO(#113)~ in
+    ~src/self/precomp.til~ ~try_eval_call~: ~Cell.val~ types as
+    ~unknown~ instead of ~Value~, so UFCS cannot resolve
+    ~fn_cell.val.is(Value.Func)~ and the site still uses
+    ~is(fn_cell.val, Value.Func)~. Root cause is a typer
+    field-type-inference gap on enum-typed struct fields, not UFCS.
+
 * FIXED #86 Typer error for unused declarations (parameters + locals)
 
   Unused function parameters and unused local variables are now type

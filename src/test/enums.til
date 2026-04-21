@@ -343,3 +343,23 @@ test_get_payload_struct := test() {
     assert_eq(__LOC__, p.x, 3)
     assert_eq(__LOC__, p.y, 4)
 }
+
+# --- exhaustive switch (#113): default catches everything the other cases don't ---
+
+test_switch_default_only := test() {
+    mut result := ""
+    switch Color.Blue {
+    case: result = "other"
+    }
+    assert_eq_str(__LOC__, result, "other")
+}
+
+test_switch_default_covers_missing := test() {
+    # only Red is explicit; default absorbs Green and Blue
+    mut result := ""
+    switch Color.Green {
+    case Color.Red: result = "red"
+    case: result = "other"
+    }
+    assert_eq_str(__LOC__, result, "other")
+}
