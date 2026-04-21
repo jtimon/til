@@ -153,8 +153,8 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 // --- LoadedProgram ---
 
 LoadedProgram := struct {
-    ref mut core_ast : Expr = NULL
-    ref mut ast : Expr = NULL
+    own mut core_ast := Expr.new(NodeType.Body, 0, 0, "")
+    own mut ast := Expr.new(NodeType.Body, 0, 0, "")
     mut cur_mode := Mode()
     mut ctx := Context()
     mut skip_core := false

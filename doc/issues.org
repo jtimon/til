@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 156
+# NEXT_ISSUE: 157
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -1023,10 +1023,27 @@
     at the end of parse.
 
   Fix order for remaining buckets (cheapest -> hardest):
-    1. [DONE this commit] Bucket A.
-    2. Bucket C (skip clones in insert_exit_deletes when no insert).
-       1 function.
-    3. Bucket D (LoadedProgram.ast + core_ast to ~own mut~).
+    1. [DONE, prior commit] Bucket A.
+    2. [INVESTIGATED, not fixed] Bucket C -- the ~did_insert~ gate
+       was implemented and measured as a no-op (identical leak totals
+       before and after).  The clones inside ~new_ch~ when it is
+       dropped without ~move_from~ get deleted by the auto
+       ~Vec_delete~ at scope end; they are NOT leaking.  The 45K
+       cluster attributed to this line is actually from the stmts
+       that DO get move_from'd into body.children, reachable only via
+       ~lp.ast~, and was freed by Bucket D instead.  Lesson: leak
+       attribution points to where memory was allocated, not where
+       ownership was lost.  Don't guess.
+    3. [DONE this commit] Bucket D.  ~LoadedProgram.core_ast~ /
+       ~LoadedProgram.ast~ changed from ~ref mut : Expr = NULL~ to
+       ~own mut := Expr.new(NodeType.Body, 0, 0, "")~, letting auto
+       ~LoadedProgram.delete~ free the whole AST.  Measured impact
+       (see "2026-04-21 bucket D" below).  Trade-off: the assignment
+       ~lp.ast = ast~ goes through the #144 clone-and-assign codegen,
+       so there is a brief peak memory spike during load_program.
+       ~take_children~ was tried as an alternative but gave zero
+       reduction (the memcpy path doesn't engage the LoadedProgram
+       delete cleanup), so ~=~ was kept.
     4. Bucket B (5 remaining ~e.children = new_ch~ sites).  Blocker
        is #144 / TypeBinding.func_def aliasing.
     5. Bucket E / F -- smaller, audit last.
@@ -1034,6 +1051,54 @@
   After each bucket: rerun ~bin/til_asan translate tmp/empty.til~ and
   record the new baseline.  If a fix does not move the baseline, the
   attribution is wrong and we should re-examine before committing.
+
+  2026-04-21 bucket D impact (this commit, on master cf27441):
+
+  | scenario                                     | pre-D    | +BucketD | delta         |
+  |----------------------------------------------+----------+----------+---------------|
+  | translate tmp/empty.til                      | 556,374  | 405,043  | -27.2% bytes  |
+  |                                              |  40,203  |  30,298  | -24.6% allocs |
+  | interpret tmp/empty.til                      | 557,737  | 407,706  | -26.9% bytes  |
+  |                                              |  40,292  |  30,476  | -24.4% allocs |
+  | build tmp/empty.til                          | 555,XXX  | 405,427  | -27% bytes    |
+  | interpret src/examples/hello_pure.til        | 610,754  | 519,833  | -14.9% bytes  |
+  |                                              |  44,024  |  37,872  | -14.0% allocs |
+  | interpret src/examples/cli_args.til hello w  | 608,XXX  | 415,099  | -32% bytes    |
+  | translate src/test/strings.til               | 495,728  | 528,308  | +6.6% bytes   |
+  |                                              |  36,009  |  37,943  | +5.4% allocs  |
+
+  strings.til regresses because the clone-and-assign on ~lp.ast = ast~
+  (the #144 codegen path) briefly doubles peak memory for the already-
+  large operator-syntax AST.  This is a trade-off with the #144
+  infrastructure, not a bug in the fix.  When #144 is resolved and the
+  typer uses ownership transfer on struct-field assignment, this
+  regression will disappear and strings.til will improve too.
+
+  Cluster table for ~translate tmp/empty.til~ after Bucket D:
+
+  |  bytes | allocs | sites | site (boot/til.c)                 |
+  |--------+--------+-------+-----------------------------------|
+  |140,288 |  8,768 |   568 | insert_exit_deletes               |
+  | 49,595 |  3,275 |   241 | hoist_fcall_args                  |
+  | 33,808 |  2,113 |   143 | insert_free_calls                 |
+  | 15,168 |    948 |     2 | <truncated deep AST clone>        |
+  | 10,491 |    842 |   195 | parse_primary (multiple sites)    |
+  |  9,024 |  2,256 |     4 | TokenType_clone (Bucket F)        |
+  | ~19K   | ~1.2K  | ~610  | make_delete_call (5 internal sites)|
+  |  4,928 |    308 |    91 | hoist_to_temp                     |
+  |  4,144 |    259 |    14 | resolve_imports (Bucket E)        |
+  |  3,376 |    844 |     2 | lookup_keyword (Bucket F)         |
+
+  The insert_exit_deletes / insert_free_calls / hoist_fcall_args trio
+  still dominate.  These are clones that land inside body.children via
+  ~move_from~ and ARE reachable from lp.ast, so Bucket D did free them
+  -- but the leak attribution is by allocation site, so they still
+  show up in this cluster.  The count of LEAKED allocations dropped
+  from 40K -> 30K, which is the real measure.  The remaining 30K are
+  pass-over-pass AST growth (each typer pass adds delete calls, hoist
+  temps, etc) that compound inside lp.ast and don't get garbage-
+  collected between passes.  Fixing that is a typer-side question
+  (prune dropped nodes) and not in the current bucket list.
 
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via
@@ -1135,7 +1200,79 @@
   Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
   (it's useful for other things), but containers no longer use it.
 
-* [0/37] Post
+* [0/38] Post
+** OPEN #156 Improve til-mode indentation rules
+  Commit ~6b441819~ ("Indentation: apply current til-mode
+  indentation rules") re-indented ~src/self/*.til~ with emacs'
+  til-mode and produced some results that read as unusual compared
+  to mainstream languages.  A few patterns worth revisiting:
+
+  - Continuation arguments of a multi-line function/proc signature
+    indent to column 4 from the start of the line, instead of
+    aligning with the first arg after the opening paren.  Example
+    from ~src/self/loader.til~ before 6b44181:
+    #+begin_src til
+    resolve_imports := proc(import_paths: Vec, base_dir: Str,
+                            mut resolved_set: Set, mut stack: Vec,
+                            mut merged: Vec, lib_dir: Str,
+                            mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
+        for i in 0..import_paths.len() {
+            ...
+        }
+    }
+    #+end_src
+    After 6b44181:
+    #+begin_src til
+    resolve_imports := proc(import_paths: Vec, base_dir: Str,
+        mut resolved_set: Set, mut stack: Vec,
+        mut merged: Vec, lib_dir: Str,
+        mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
+            for i in 0..import_paths.len() {
+                ...
+            }
+        }
+    #+end_src
+    The function body is now at 8-space indent (two levels past the
+    signature) rather than the usual 4.  Most mainstream languages
+    put the body one level past the signature line's column of
+    definition, regardless of how many continuation lines the
+    signature spans.
+
+  - Chained method calls on a continuation line drop from
+    continuation-indent to align with the outer expression's column
+    — compare the ~.and(...)~ in ~extract_imports~ before and after
+    6b44181:
+    #+begin_src til
+    // before
+    if stmt.child(0).data.is(NodeType.Ident)
+        .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
+    // after
+    if stmt.child(0).data.is(NodeType.Ident)
+    .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
+    #+end_src
+    The ~.and(...)~ at column 0 looks like a top-level form at a
+    glance, not a continuation of the previous line's expression.
+
+  Proposed rules to consider (exact choices open to discussion):
+  - Signature bodies indent one level past the column of the
+    function/proc NAME (~resolve_imports~ above), not past the deepest
+    signature continuation.
+  - Continuation args align with the first arg after the opening
+    paren when that column is reasonable (< 60); otherwise fall
+    back to a 4-space hang indent.
+  - Chained-method continuation lines indent relative to the base
+    expression of the chain, so the leading ~.~ is visually offset
+    from the outer statement indent.
+
+  Out of scope for this issue: revisit whether til should have any
+  indentation enforcement at all beyond editor guidance.  til's lexer
+  is whitespace-insensitive.
+
+  References:
+  - Commit ~6b441819~ applied the current rules in bulk.
+  - Emacs til-mode lives in ~editor/~ (the exact mechanism should
+    be linked here when someone tackles this issue).
+
 ** OPEN #154 Typer error for unused imports
   Follow-up to #86 (fixed). Now that unused function parameters and
   unused local variables are type errors, do the same for unused
