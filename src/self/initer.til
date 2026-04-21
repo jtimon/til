@@ -18,7 +18,7 @@ TypeBinding := struct {
     ref mut func_def : Expr = NULL
     mut is_builtin := false
     mut used := false
-    namespace:
+namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns shallow Bool {
         return a.name.eq(b.name)
     }
@@ -1540,7 +1540,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
             mut ftype := fd.explicit_type
             if ftype.len().eq(0) {
                 if field.children.len().gt(0) {
-                ref def_val : Expr = field.child(0)
+                    ref def_val : Expr = field.child(0)
                     if def_val.data.is(NodeType.FCall) {
                         if def_val.children.len().gt(0) {
                             ref callee : Expr = def_val.child(0)
@@ -1736,7 +1736,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
             }
         }
         if callee.data.is(NodeType.FieldAccess).and(_init_ns2)
-            .and(til_type_name(rhs.til_type).len().gt(0)).and(rhs.til_type.is(TilType.Enum)) {
+        .and(til_type_name(rhs.til_type).len().gt(0)).and(rhs.til_type.is(TilType.Enum)) {
             out_type = TilType.Enum(til_type_name(rhs.til_type))
             return true
         }
@@ -1780,7 +1780,7 @@ ScopeFind := enum { NotFound, Found: TypeBinding }
 TypeScope := struct {
     mut bindings := Map.new("Str", Str.size(), "TypeBinding", TypeBinding.size())
     ref mut parent : TypeScope = NULL
-    namespace:
+namespace:
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
         if self.bindings.has(name) {
             ref b : TypeBinding = self.bindings.get(name)
@@ -1822,24 +1822,24 @@ TypeScope := struct {
         return false
     }
     set := proc(mut self: TypeScope, name: Str, type: TilType,
-                shallow func_type: FuncType, shallow is_mut: Bool,
-                shallow line: U32, shallow col: U32,
-                shallow is_param: Bool, shallow own_type: OwnType) {
-        if self.bindings.has(name) {
-            ref mut b : TypeBinding = self.bindings.get(name)
-            b.type = type
-            b.func_type = func_type
-            b.is_mut = is_mut
-            b.line = line
-            b.col = col
-            b.is_param = is_param
-            b.own_type = own_type
-            return
+        shallow func_type: FuncType, shallow is_mut: Bool,
+        shallow line: U32, shallow col: U32,
+        shallow is_param: Bool, shallow own_type: OwnType) {
+            if self.bindings.has(name) {
+                ref mut b : TypeBinding = self.bindings.get(name)
+                b.type = type
+                b.func_type = func_type
+                b.is_mut = is_mut
+                b.line = line
+                b.col = col
+                b.is_param = is_param
+                b.own_type = own_type
+                return
+            }
+            nb := TypeBinding(name = name.clone(), type = type.clone(),
+                func_type = func_type, is_mut = is_mut,
+                line = line, col = col,
+                is_param = is_param, own_type = own_type)
+            self.bindings.set(own name.clone(), own nb)
         }
-        nb := TypeBinding(name = name.clone(), type = type.clone(),
-                          func_type = func_type, is_mut = is_mut,
-                          line = line, col = col,
-                          is_param = is_param, own_type = own_type)
-        self.bindings.set(own name.clone(), own nb)
-    }
 }

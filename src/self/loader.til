@@ -78,7 +78,7 @@ extract_imports := func(body: Expr) returns Vec {
         ref stmt : Expr = body.child(i)
         if stmt.data.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
             if stmt.child(0).data.is(NodeType.Ident)
-                .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
+            .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
                 ref _c0id : Str = get_payload(stmt.child(0).data)
                 if _c0id.eq("import") {
                     ref path : Str = get_payload(stmt.child(1).data)
@@ -92,63 +92,63 @@ extract_imports := func(body: Expr) returns Vec {
 
 // Recursively resolve imports.
 resolve_imports := proc(import_paths: Vec, base_dir: Str,
-                        mut resolved_set: Set, mut stack: Vec,
-                        mut merged: Vec, lib_dir: Str,
-                        mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
-    for i in 0..import_paths.len() {
-        ref import_path : Str = import_paths.get(i)
-        // Try relative to importing file's directory, then lib_dir
-        mut try_path := base_dir.concat("/").concat(import_path)
-        mut abs := realpath_str(try_path)
-        if abs.eq("").and(lib_dir.len().gt(0)) {
-            try_path = lib_dir.concat("/").concat(import_path)
-            abs = realpath_str(try_path)
-        }
-        if abs.eq("") {
-            println("error: could not find import '".concat(import_path).concat("' (from ").concat(base_dir).concat("/)"))
-            return 1
-        }
+    mut resolved_set: Set, mut stack: Vec,
+    mut merged: Vec, lib_dir: Str,
+    mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
+        for i in 0..import_paths.len() {
+            ref import_path : Str = import_paths.get(i)
+            // Try relative to importing file's directory, then lib_dir
+            mut try_path := base_dir.concat("/").concat(import_path)
+            mut abs := realpath_str(try_path)
+            if abs.eq("").and(lib_dir.len().gt(0)) {
+                try_path = lib_dir.concat("/").concat(import_path)
+                abs = realpath_str(try_path)
+            }
+            if abs.eq("") {
+                println("error: could not find import '".concat(import_path).concat("' (from ").concat(base_dir).concat("/)"))
+                return 1
+            }
 
-        // Dedup (also handles circular imports -- files are added to
-        // resolved_set when they start processing)
-        if Set.has(resolved_set, abs) {
-            continue
-        }
-        Set.add(resolved_set, own abs.clone())
+            // Dedup (also handles circular imports -- files are added to
+            // resolved_set when they start processing)
+            if Set.has(resolved_set, abs) {
+                continue
+            }
+            Set.add(resolved_set, own abs.clone())
 
-        // Load, lex, parse the imported file. Use display_path for the
-        // path strings that get embedded in the AST / generated C, so the
-        // boot/ files don't carry absolute paths.
-        disp := display_path(abs, cwd)
-        source := readfile(abs)
-        tokens := tokenize(source, disp)
-        mut sub_mode := ""
-        sub_ast := parse(tokens, disp.clone(), sub_mode)
-        sub_mode = normalize_mode_name(sub_mode)
-        ref sub_mode_def : Mode = require_mode(disp, sub_mode)
-        context_register_path_mode(ctx, disp, sub_mode_def)
-        sub_imports := extract_imports(sub_ast)
+            // Load, lex, parse the imported file. Use display_path for the
+            // path strings that get embedded in the AST / generated C, so the
+            // boot/ files don't carry absolute paths.
+            disp := display_path(abs, cwd)
+            source := readfile(abs)
+            tokens := tokenize(source, disp)
+            mut sub_mode := ""
+            sub_ast := parse(tokens, disp.clone(), sub_mode)
+            sub_mode = normalize_mode_name(sub_mode)
+            ref sub_mode_def : Mode = require_mode(disp, sub_mode)
+            context_register_path_mode(ctx, disp, sub_mode_def)
+            sub_imports := extract_imports(sub_ast)
 
-        // Get imported file's directory for recursive resolution
-        sub_dir := dir_of(abs)
+            // Get imported file's directory for recursive resolution
+            sub_dir := dir_of(abs)
 
-        // Recurse for sub-imports
-        if sub_imports.len().gt(0) {
-            err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir,
-                                   ctx, default_mode, cwd)
-            if err.gt(0) {
-                return err
+            // Recurse for sub-imports
+            if sub_imports.len().gt(0) {
+                err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir,
+                    ctx, default_mode, cwd)
+                if err.gt(0) {
+                    return err
+                }
+            }
+
+            // Append imported file's declarations
+            for k in 0..sub_ast.children.len() {
+                ref ch : Expr = sub_ast.child(k)
+                merged.push(own ch.clone())
             }
         }
-
-        // Append imported file's declarations
-        for k in 0..sub_ast.children.len() {
-            ref ch : Expr = sub_ast.child(k)
-            merged.push(own ch.clone())
-        }
+        return 0
     }
-    return 0
-}
 
 // --- LoadedProgram ---
 
@@ -175,7 +175,7 @@ extract_link_info := proc(mut lp: LoadedProgram) {
         ref stmt : Expr = ast.child(i)
         if stmt.data.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
             if stmt.child(0).data.is(NodeType.Ident)
-                .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
+            .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
                 ref fname : Str = get_payload(stmt.child(0).data)
                 ref arg : Str = get_payload(stmt.child(1).data)
                 if fname.eq("link") {
@@ -251,7 +251,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
-                               core_import_decls, "", ctx, "lib", cwd)
+            core_import_decls, "", ctx, "lib", cwd)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve core imports")
         }
@@ -276,7 +276,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     if imports.len().gt(0) {
         lib_dir := bin_dir.concat("/src/lib")
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
-                               import_decls, lib_dir, ctx, "", cwd)
+            import_decls, lib_dir, ctx, "", cwd)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve imports")
         }

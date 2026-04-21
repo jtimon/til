@@ -167,13 +167,13 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
 
     // Check if result is convertible to AST (value_to_expr returns NULL otherwise)
     mut can_convert := result.is(Value.Int)
-        .or(result.is(Value.Byte))
-        .or(result.is(Value.Short))
-        .or(result.is(Value.Int32))
-        .or(result.is(Value.Uint32))
-        .or(result.is(Value.Uint64))
-        .or(result.is(Value.Float))
-        .or(result.is(Value.Boolean))
+    .or(result.is(Value.Byte))
+    .or(result.is(Value.Short))
+    .or(result.is(Value.Int32))
+    .or(result.is(Value.Uint32))
+    .or(result.is(Value.Uint64))
+    .or(result.is(Value.Float))
+    .or(result.is(Value.Boolean))
     if can_convert.not().and(result.is(Value.Struct)) {
         ref si : StructInstance = get_payload(result)
         if si.to_str().eq("Str") { can_convert = true }
@@ -226,10 +226,10 @@ process_body := proc(scope: Scope, body: Expr) {
             ref dd : Declaration = get_payload(stmt.data)
             if stmt.children.len().eq(0) { }
             else if stmt.child(0).data.is(NodeType.FuncDef)
-                .or(stmt.child(0).data.is(NodeType.StructDef))
-                .or(stmt.child(0).data.is(NodeType.EnumDef)) {
+            .or(stmt.child(0).data.is(NodeType.StructDef))
+            .or(stmt.child(0).data.is(NodeType.EnumDef)) {
                 if stmt.child(0).data.is(NodeType.FuncDef)
-                    .and(stmt.child(0).children.len().gt(0)) {
+                .and(stmt.child(0).children.len().gt(0)) {
                     process_body(scope, stmt.child(0).child(0))
                 }
             } else if dd.own_type.eq(OwnType.Ref) { }
@@ -292,7 +292,7 @@ precomp_scan_names := proc(prog: Expr) {
                 }
             }
             if stmt.child(0).data.is(NodeType.StructDef)
-                .or(stmt.child(0).data.is(NodeType.EnumDef)) {
+            .or(stmt.child(0).data.is(NodeType.EnumDef)) {
                 ref sdd : Declaration = get_payload(stmt.data)
                 ref body : Expr = stmt.child(0).child(0)
                 for j in 0..body.children.len() {
@@ -320,8 +320,8 @@ precomp_register_defs := proc(mut global: Scope, prog: Expr) {
         ref stmt : Expr = prog.child(i)
         if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).data.is(NodeType.FuncDef)
-                .or(stmt.child(0).data.is(NodeType.StructDef))
-                .or(stmt.child(0).data.is(NodeType.EnumDef)) {
+            .or(stmt.child(0).data.is(NodeType.StructDef))
+            .or(stmt.child(0).data.is(NodeType.EnumDef)) {
                 ref dd : Declaration = get_payload(stmt.data)
                 mut val := val_none()
                 // Build Value.Func manually: tag=9 (Func), data=pointer to child(0)

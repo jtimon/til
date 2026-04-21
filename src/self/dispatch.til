@@ -140,9 +140,9 @@ ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_
         lf = link_flags
     }
     cmd := format("cc -Wall -Wextra -shared -fPIC -I", ext_dir,
-                  " -include ", fwd_path,
-                  " -o ", so_path_out,
-                  " ", user_c_path, lf)
+        " -include ", fwd_path,
+        " -o ", so_path_out,
+        " ", user_c_path, lf)
     rc := system_cmd(cmd)
     if rc.neq(0) {
         stderr_print(format("error: failed to compile FFI library '", user_c_path, "'\n"))
@@ -954,7 +954,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     for i in 0..nargs {
         v := eval_expr(scope, e.child(i.add(1)))
         mut is_shallow := is_null(fe.param_shallows).not()
-            .and(i.lt(fe.nparam.to_i64().to_usize()))
+        .and(i.lt(fe.nparam.to_i64().to_usize()))
         if is_shallow {
             ref ps : Bool = ptr_add(fe.param_shallows, i.to_u64())
             is_shallow = ps

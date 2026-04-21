@@ -559,8 +559,8 @@ parse_primary := proc(mut p: Parser) returns Expr {
     if e_set.not().and(t.type.eq(TokenType.KwFunc).or(t.type.eq(TokenType.KwProc))
         .or(t.type.eq(TokenType.KwTest)).or(t.type.eq(TokenType.KwMacro))
         .or(t.type.eq(TokenType.KwExtFunc)).or(t.type.eq(TokenType.KwExtProc))) {
-        return parse_func_def(p)
-    }
+            return parse_func_def(p)
+        }
     if e_set.not().and(t.type.eq(TokenType.KwStruct)) {
         return parse_struct_def(p, "")
     }
@@ -726,8 +726,8 @@ parse_additive := proc(mut p: Parser) returns Expr {
 parse_comparison := proc(mut p: Parser) returns Expr {
     mut e := parse_additive(p)
     while check(p, TokenType.EqEq).or(check(p, TokenType.Neq))
-        .or(check(p, TokenType.Lt)).or(check(p, TokenType.LtEq))
-        .or(check(p, TokenType.Gt)).or(check(p, TokenType.GtEq)) {
+    .or(check(p, TokenType.Lt)).or(check(p, TokenType.LtEq))
+    .or(check(p, TokenType.Gt)).or(check(p, TokenType.GtEq)) {
         op_line := peek_line(p)
         op_col := peek_col(p)
         ref op : Token = advance(p)
@@ -1118,9 +1118,9 @@ parse_statement := proc(mut p: Parser) returns Expr {
         return node
     }
     if t.type.eq(TokenType.StringTok).or(t.type.eq(TokenType.Number))
-        .or(t.type.eq(TokenType.KwTrue)).or(t.type.eq(TokenType.KwFalse))
-        .or(t.type.eq(TokenType.KwNull)).or(t.type.eq(TokenType.LParen))
-        .or(t.type.eq(TokenType.Minus)) {
+    .or(t.type.eq(TokenType.KwTrue)).or(t.type.eq(TokenType.KwFalse))
+    .or(t.type.eq(TokenType.KwNull)).or(t.type.eq(TokenType.LParen))
+    .or(t.type.eq(TokenType.Minus)) {
         return parse_expression(p)
     }
     if t.type.eq(TokenType.LBrace) {

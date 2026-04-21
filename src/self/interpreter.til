@@ -10,7 +10,7 @@ StructInstance := struct {
     ref mut struct_def : Expr = NULL
     own mut data : U8 = 0
     mut borrowed := false
-    namespace:
+namespace:
     eq := func(a: StructInstance, b: StructInstance) returns shallow Bool {
         return a.struct_name.eq(b.struct_name)
     }
@@ -111,7 +111,7 @@ EnumInstance := struct {
     ref mut enum_def : Expr = NULL
     own mut data : U8 = 0
     mut data_size : I32 = 0
-    namespace:
+namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns shallow Bool {
         return a.is(b)
     }
@@ -122,16 +122,16 @@ EnumInstance := struct {
     clone := func(self: EnumInstance) returns EnumInstance {
         if is_null(self.data) {
             return EnumInstance(enum_name = self.enum_name,
-                               enum_def = self.enum_def,
-                               data = NULL,
-                               data_size = self.data_size)
+                enum_def = self.enum_def,
+                data = NULL,
+                data_size = self.data_size)
         }
         buf : Dynamic = malloc(self.data_size.to_i64().to_usize())
         memcpy(buf, self.data, self.data_size.to_i64().to_usize())
         return EnumInstance(enum_name = self.enum_name,
-                           enum_def = self.enum_def,
-                           data = buf,
-                           data_size = self.data_size)
+            enum_def = self.enum_def,
+            data = buf,
+            data_size = self.data_size)
     }
     delete := func(own self: EnumInstance, call_free: Bool = true) {
         if call_free { free(own self) }
@@ -152,7 +152,7 @@ Value := enum {
     Struct: StructInstance,
     Enum: EnumInstance,
     Ptr: Dynamic
-    namespace:
+namespace:
     eq := func(a: Value, b: Value) returns Bool {
         if a.is(Value.None).and(b.is(Value.None)) { return true }
         if a.is(Value.Int).and(b.is(Value.Int)) {
@@ -457,8 +457,8 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         if obj.is(Value.Ptr) {
             ref obj_expr : Expr = e.child(0)
             if obj_expr.til_type.is(TilType.Struct)
-                .or(obj_expr.til_type.is(TilType.Enum))
-                .or(obj_expr.til_type.is(TilType.Custom)) {
+            .or(obj_expr.til_type.is(TilType.Enum))
+            .or(obj_expr.til_type.is(TilType.Custom)) {
                 ref obj_sname : Str = get_payload(obj_expr.til_type)
                 if obj_sname.len().gt(0) {
                     ref tc : Cell = scope_get(scope, obj_sname)
@@ -946,8 +946,8 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
             mut inst := val_none()
             if e.til_type.is(TilType.Struct)
-                .or(e.til_type.is(TilType.Enum))
-                .or(e.til_type.is(TilType.Custom)) {
+            .or(e.til_type.is(TilType.Enum))
+            .or(e.til_type.is(TilType.Custom)) {
                 ref _es : Str = get_payload(e.til_type)
                 if _es.len().gt(0) {
                     inst = make_struct_value(_es, si_edef, inst_data, false)
@@ -1565,8 +1565,8 @@ interpret_register_defs := proc(mut global: Scope, prog: Expr) {
         ref stmt : Expr = prog.child(i)
         if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).data.is(NodeType.FuncDef)
-                .or(stmt.child(0).data.is(NodeType.StructDef))
-                .or(stmt.child(0).data.is(NodeType.EnumDef)) {
+            .or(stmt.child(0).data.is(NodeType.StructDef))
+            .or(stmt.child(0).data.is(NodeType.EnumDef)) {
                 ref dd : Declaration = get_payload(stmt.data)
                 mut val := val_none()
                 memcpy(val, 9.to_i32(), 4)
@@ -1791,8 +1791,8 @@ cmd_interpret := proc(lp: LoadedProgram, user_argv: Vec) returns shallow I32 {
     }
     if result.eq(0) {
         result = interpret(lp.core_ast, lp.ast, lp.cur_mode, lp.run_tests, lp.path,
-                           lp.link_c_paths, lp.ext_c_path, lp.link_flags,
-                           user_argv, interpret_fwd_path)
+            lp.link_c_paths, lp.ext_c_path, lp.link_flags,
+            user_argv, interpret_fwd_path)
     }
     return result
 }

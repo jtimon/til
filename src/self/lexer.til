@@ -65,8 +65,8 @@ is_digit := func(c: U8) returns Bool {
 
 is_alpha := func(c: U8) returns Bool {
     return c.gte('a').and(c.lte('z'))
-        .or(c.gte('A').and(c.lte('Z')))
-        .or(c.eq('_'))
+    .or(c.gte('A').and(c.lte('Z')))
+    .or(c.eq('_'))
 }
 
 is_alnum := func(c: U8) returns Bool {
@@ -308,7 +308,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             word := src.substr(start, pos.sub(start))
             type := lookup_keyword(word)
             tokens.push(own Token(type = type, text = word.clone(),
-                                  line = line.clone(), col = col.clone()))
+                line = line.clone(), col = col.clone()))
             continue
         }
 
@@ -317,131 +317,131 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             pos.inc()
             while pos.lt(src_len) {
                 if src.byte_at(pos).eq('"') { break }
-                if src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len)) {
-                    pos.inc()
-                }
-                if src.byte_at(pos).eq('\n') {
-                    line = line.add(1)
-                    line_start = pos.add(1)
-                }
-                pos.inc()
-            }
-            if pos.lt(src_len).and(src.byte_at(pos).eq('"')) {
-                pos.inc()
-                tokens.push(own Token(type = TokenType.StringTok,
-                    text = src.substr(start.add(1), pos.sub(start).sub(2)).clone(),
-                    line = line.clone(), col = col.clone()))
-            } else {
-                println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated string")
-                tokens.push(own Token(type = TokenType.Error,
-                    text = src.substr(start, pos.sub(start)).clone(),
-                    line = line.clone(), col = col.clone()))
-            }
+        if src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len)) {
+            pos.inc()
+        }
+        if src.byte_at(pos).eq('\n') {
+            line = line.add(1)
+            line_start = pos.add(1)
+        }
+        pos.inc()
+    }
+    if pos.lt(src_len).and(src.byte_at(pos).eq('"')) {
+        pos.inc()
+        tokens.push(own Token(type = TokenType.StringTok,
+            text = src.substr(start.add(1), pos.sub(start).sub(2)).clone(),
+            line = line.clone(), col = col.clone()))
+    } else {
+        println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated string")
+        tokens.push(own Token(type = TokenType.Error,
+            text = src.substr(start, pos.sub(start)).clone(),
+            line = line.clone(), col = col.clone()))
+    }
             continue
         }
 
-        // Character literals: 'x' or '\x'
-        if c.eq('\'') {
-            pos.inc()
-            ch_start := pos
-            if pos.lt(src_len).and(src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len))) {
-                pos.inc()
-            }
-            pos.inc()
-            if pos.lt(src_len).and(src.byte_at(pos).eq('\'')) {
-                tokens.push(own Token(type = TokenType.Char,
-                    text = src.substr(ch_start, pos.sub(ch_start)).clone(),
-                    line = line.clone(), col = col.clone()))
-                pos.inc()
-            } else {
-                println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated character literal")
-                tokens.push(own Token(type = TokenType.Error,
-                    text = src.substr(start, pos.sub(start)).clone(),
-                    line = line.clone(), col = col.clone()))
-            }
-            continue
-        }
+// Character literals: 'x' or '\x'
+if c.eq('\'') {
+    pos.inc()
+    ch_start := pos
+    if pos.lt(src_len).and(src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len))) {
+        pos.inc()
+    }
+    pos.inc()
+    if pos.lt(src_len).and(src.byte_at(pos).eq('\'')) {
+        tokens.push(own Token(type = TokenType.Char,
+            text = src.substr(ch_start, pos.sub(ch_start)).clone(),
+            line = line.clone(), col = col.clone()))
+        pos.inc()
+    } else {
+        println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated character literal")
+        tokens.push(own Token(type = TokenType.Error,
+            text = src.substr(start, pos.sub(start)).clone(),
+            line = line.clone(), col = col.clone()))
+    }
+    continue
+}
 
-        // Two-character tokens
-        if pos.add(1).lt(src_len) {
-            ref c2 : U8 = src.byte_at(pos.add(1))
-            mut two := TokenType.Eof
-            if c.eq(':').and(c2.eq('=')) { two = TokenType.ColonEq }
-            else if c.eq('=').and(c2.eq('=')) { two = TokenType.EqEq }
-            else if c.eq('!').and(c2.eq('=')) { two = TokenType.Neq }
-            else if c.eq('<').and(c2.eq('=')) { two = TokenType.LtEq }
-            else if c.eq('>').and(c2.eq('=')) { two = TokenType.GtEq }
-            else if c.eq('+').and(c2.eq('+')) { two = TokenType.PlusPlus }
-            else if c.eq('-').and(c2.eq('-')) { two = TokenType.MinusMinus }
-            else if c.eq('.').and(c2.eq('.')) {
-                // Check for ... (three dots) vs .. (two dots)
-                if pos.add(2).lt(src_len) {
-                    ref c3 : U8 = src.byte_at(pos.add(2))
-                    if c3.eq('.') {
-                        tokens.push(own Token(type = TokenType.DotDotDot,
-                            text = src.substr(start, 3).clone(),
-                            line = line.clone(), col = col.clone()))
-                        pos = pos.add(3)
-                        continue
-                    }
-                }
-                two = TokenType.DotDot
-            }
-            if two.eq(TokenType.Eof).not() {
-                tokens.push(own Token(type = two,
-                    text = src.substr(start, 2).clone(),
+// Two-character tokens
+if pos.add(1).lt(src_len) {
+    ref c2 : U8 = src.byte_at(pos.add(1))
+    mut two := TokenType.Eof
+    if c.eq(':').and(c2.eq('=')) { two = TokenType.ColonEq }
+    else if c.eq('=').and(c2.eq('=')) { two = TokenType.EqEq }
+    else if c.eq('!').and(c2.eq('=')) { two = TokenType.Neq }
+    else if c.eq('<').and(c2.eq('=')) { two = TokenType.LtEq }
+    else if c.eq('>').and(c2.eq('=')) { two = TokenType.GtEq }
+    else if c.eq('+').and(c2.eq('+')) { two = TokenType.PlusPlus }
+    else if c.eq('-').and(c2.eq('-')) { two = TokenType.MinusMinus }
+    else if c.eq('.').and(c2.eq('.')) {
+        // Check for ... (three dots) vs .. (two dots)
+        if pos.add(2).lt(src_len) {
+            ref c3 : U8 = src.byte_at(pos.add(2))
+            if c3.eq('.') {
+                tokens.push(own Token(type = TokenType.DotDotDot,
+                    text = src.substr(start, 3).clone(),
                     line = line.clone(), col = col.clone()))
-                pos = pos.add(2)
+                pos = pos.add(3)
                 continue
             }
         }
-
-        // Single-character tokens
-        mut single := TokenType.Eof
-        switch c {
-        case '(': single = TokenType.LParen
-        case ')': single = TokenType.RParen
-        case '{': single = TokenType.LBrace
-        case '}': single = TokenType.RBrace
-        case '[': single = TokenType.LBracket
-        case ']': single = TokenType.RBracket
-        case ',': single = TokenType.Comma
-        case ':': single = TokenType.Colon
-        case '.': single = TokenType.Dot
-        case '?': single = TokenType.Question
-        case '!': single = TokenType.Bang
-        case '+': single = TokenType.Plus
-        case '-': single = TokenType.Minus
-        case '*': single = TokenType.Star
-        case '/': single = TokenType.Slash
-        case '%': single = TokenType.Percent
-        case '&': single = TokenType.Ampersand
-        case '|': single = TokenType.Pipe
-        case '^': single = TokenType.Caret
-        case '=': single = TokenType.Eq
-        case '<': single = TokenType.Lt
-        case '>': single = TokenType.Gt
-        }
-
-        if single.eq(TokenType.Eof).not() {
-            tokens.push(own Token(type = single,
-                text = src.substr(start, 1).clone(),
-                line = line.clone(), col = col.clone()))
-            pos.inc()
-            continue
-        }
-
-        // Unknown character
-        println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
-        tokens.push(own Token(type = TokenType.Error,
-            text = src.substr(start, 1).clone(),
-            line = line.clone(), col = col.clone()))
-        pos.inc()
+        two = TokenType.DotDot
     }
+    if two.eq(TokenType.Eof).not() {
+        tokens.push(own Token(type = two,
+            text = src.substr(start, 2).clone(),
+            line = line.clone(), col = col.clone()))
+        pos = pos.add(2)
+        continue
+    }
+}
 
-    // EOF
-    col := pos.sub(line_start).add(1).to_i64()
-    tokens.push(own Token(type = TokenType.Eof, text = "",
-                          line = line.clone(), col = col.clone()))
-    return tokens
+// Single-character tokens
+mut single := TokenType.Eof
+switch c {
+case '(': single = TokenType.LParen
+case ')': single = TokenType.RParen
+case '{': single = TokenType.LBrace
+case '}': single = TokenType.RBrace
+case '[': single = TokenType.LBracket
+case ']': single = TokenType.RBracket
+case ',': single = TokenType.Comma
+case ':': single = TokenType.Colon
+case '.': single = TokenType.Dot
+case '?': single = TokenType.Question
+case '!': single = TokenType.Bang
+case '+': single = TokenType.Plus
+case '-': single = TokenType.Minus
+case '*': single = TokenType.Star
+case '/': single = TokenType.Slash
+case '%': single = TokenType.Percent
+case '&': single = TokenType.Ampersand
+case '|': single = TokenType.Pipe
+case '^': single = TokenType.Caret
+case '=': single = TokenType.Eq
+case '<': single = TokenType.Lt
+case '>': single = TokenType.Gt
+}
+
+if single.eq(TokenType.Eof).not() {
+    tokens.push(own Token(type = single,
+        text = src.substr(start, 1).clone(),
+        line = line.clone(), col = col.clone()))
+    pos.inc()
+    continue
+}
+
+// Unknown character
+println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
+tokens.push(own Token(type = TokenType.Error,
+    text = src.substr(start, 1).clone(),
+    line = line.clone(), col = col.clone()))
+pos.inc()
+}
+
+// EOF
+col := pos.sub(line_start).add(1).to_i64()
+tokens.push(own Token(type = TokenType.Eof, text = "",
+    line = line.clone(), col = col.clone()))
+return tokens
 }

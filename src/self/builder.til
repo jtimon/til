@@ -411,8 +411,8 @@ emit_indent := proc(f: File, shallow depth: I32) {
 
 emit_til_default := proc(f: File, shallow t: TilType, struct_name: Str) {
     if t.eq(TilType.I64).or(t.eq(TilType.I16)).or(t.eq(TilType.I32))
-        .or(t.eq(TilType.U32)).or(t.eq(TilType.U64)).or(t.eq(TilType.F32))
-        .or(t.eq(TilType.U8)) {
+    .or(t.eq(TilType.U32)).or(t.eq(TilType.U64)).or(t.eq(TilType.F32))
+    .or(t.eq(TilType.U8)) {
         f.write_str("0")
     } else if t.eq(TilType.Bool) {
         f.write_str("false")
@@ -750,8 +750,8 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                 emit_deref(f, rhs, depth); f.write_str(";\n")
             } else {
                 can_hoist := is_global.not().and(dd.own_type.eq(OwnType.Own).not())
-                    .and(e.til_type.eq(TilType.FuncPtr).not()).and(e.til_type.eq(TilType.Dynamic).not())
-                    .and(rhs.data.is(NodeType.FCall).and(fcall_returns_dynamic(rhs)).not())
+                .and(e.til_type.eq(TilType.FuncPtr).not()).and(e.til_type.eq(TilType.Dynamic).not())
+                .and(rhs.data.is(NodeType.FCall).and(fcall_returns_dynamic(rhs)).not())
                 // Struct constructor
                 rhs_sname := til_type_name(rhs.til_type)
                 mut is_ctor := rhs.data.is(NodeType.FCall).and(rhs_sname.len().gt(0))
@@ -773,7 +773,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                     }
                     emit_ctor_fields(f, dd.name, rhs, depth)
                 } else if rhs.data.is(NodeType.FCall).or(rhs.data.is(NodeType.LiteralStr))
-                    .or(rhs.data.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(rhs.til_type.is(TilType.Enum))) {
+                .or(rhs.data.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(rhs.til_type.is(TilType.Enum))) {
                     if is_global {
                         if rhs.data.is(NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
                             f.write_str(dd.name); f.write_str(" = "); emit_expr(f, rhs, depth); f.write_str(";\n")
@@ -886,12 +886,12 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
         }
         // Inline field value: box for return
         if rv.data.is(NodeType.FieldAccess).and(builder_fa_is_ptr(rv).not())
-            .and(builder_fa_is_ns(rv).not()).and(rv.til_type.eq(TilType.Dynamic).not()) {
+        .and(builder_fa_is_ns(rv).not()).and(rv.til_type.eq(TilType.Dynamic).not()) {
             emit_return_box(f, rv, depth)
-        // Shallow fcall: box for return
+            // Shallow fcall: box for return
         } else if rv.data.is(NodeType.FCall).and(fcall_is_shallow_return(rv)) {
             emit_return_box(f, rv, depth)
-        // Hoisted local: box for return
+            // Hoisted local: box for return
         } else if rv.data.is(NodeType.Ident) {
             ref rv_name : Str = get_payload(rv.data)
             mut is_shallow_ret := false
@@ -909,7 +909,7 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
             } else {
                 f.write_str("return "); emit_expr(f, rv, depth); f.write_str(";\n")
             }
-        // Bare enum variant ref: heap-allocate
+            // Bare enum variant ref: heap-allocate
         } else if rv.data.is(NodeType.FieldAccess).and(builder_fa_is_ns(rv)).and(rv.til_type.is(TilType.Enum)) {
             sn := til_type_name(rv.child(0).til_type)
             ref vname : Str = get_payload(rv.data)
@@ -972,7 +972,7 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
             }
         } else {
             if rhs.data.is(NodeType.FCall).or(rhs.data.is(NodeType.LiteralStr))
-                .or(rhs.data.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(rhs.til_type.is(TilType.Enum))) {
+            .or(rhs.data.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(rhs.til_type.is(TilType.Enum))) {
                 if rhs.data.is(NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
                     f.write_str("*"); f.write_str(aname); f.write_str(" = ")
                 } else {
@@ -1061,7 +1061,7 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
     if sfd.return_type.len().eq(0) {
         ret_c = "void"
     } else if e.til_type.eq(TilType.None).not().and(e.til_type.eq(TilType.Unknown).not())
-        .and(e.til_type.eq(TilType.Dynamic).not()) {
+    .and(e.til_type.eq(TilType.Dynamic).not()) {
         ret_c = til_type_to_c(e.til_type)
         if e.til_type.is(TilType.Struct).or(e.til_type.is(TilType.Enum)) {
             e_sname := til_type_name(e.til_type)
@@ -1403,7 +1403,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                         f.write_str(");\n")
                     } else {
                         if field_type.eq(TilType.FuncPtr).or(field_type.eq(TilType.Dynamic))
-                            .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
+                        .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
                             emit_field(f, var, fname)
                             f.write_str(" = ")
                             emit_expr(f, arg, depth)
@@ -1421,7 +1421,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                     }
                 } else {
                     if field_type.eq(TilType.FuncPtr).or(field_type.eq(TilType.Dynamic))
-                        .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
+                    .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
                         emit_field(f, var, fname)
                         f.write_str(" = ")
                         emit_expr(f, arg, depth)
@@ -1439,7 +1439,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                 }
             } else {
                 if field_type.eq(TilType.FuncPtr).or(field_type.eq(TilType.Dynamic))
-                    .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
+                .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
                     emit_field(f, var, fname)
                     f.write_str(" = ")
                     emit_expr(f, arg, depth)
@@ -1851,7 +1851,7 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
         ref dd : Declaration = get_payload(field.data)
         if dd.is_namespace.not() { continue }
         if field.children.len().eq(0) { continue }
-                        if field.child(0).data.is(NodeType.FuncDef) { continue }
+        if field.child(0).data.is(NodeType.FuncDef) { continue }
         if field.til_type.is(TilType.Struct).or(field.til_type.is(TilType.Enum)) {
             fc0_sname3 := til_type_name(field.child(0).til_type)
             if fc0_sname3.len().gt(0) {
@@ -2227,7 +2227,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
                     if fdd.is_namespace.not() { continue }
                     if field.children.len().eq(0) { continue }
                     if field.children.len().eq(0) { continue }
-        if field.child(0).data.is(NodeType.FuncDef).not() { continue }
+                    if field.child(0).data.is(NodeType.FuncDef).not() { continue }
                     ref fdef : Expr = field.child(0)
                     ref fd : FunctionDef = get_payload(fdef.data)
                     if is_core_pass.and(fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc))) { continue }
@@ -2769,7 +2769,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     // Compile library .c to object
     obj_path := "gen/lib/".concat(lib_name).concat(".o")
     mut cmd := compiler.concat(extra).concat(" -Werror -fPIC -I").concat(ext_dir)
-        .concat(" -c ").concat(c_path).concat(" -o ").concat(obj_path)
+    .concat(" -c ").concat(c_path).concat(" -o ").concat(obj_path)
     mut result := system_cmd(cmd)
     if result.neq(0) {
         println("error: library compilation failed")
@@ -2779,7 +2779,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     // Compile ext.c to object
     ext_obj := "gen/lib/ext.o"
     cmd = compiler.concat(extra).concat(" -Werror -fPIC -I").concat(ext_dir)
-        .concat(" -c ").concat(ext_c_path).concat(" -o ").concat(ext_obj)
+    .concat(" -c ").concat(ext_c_path).concat(" -o ").concat(ext_obj)
     result = system_cmd(cmd)
     if result.neq(0) {
         println("error: ext.c compilation failed")
@@ -2791,7 +2791,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     if uc.len().gt(0) {
         user_obj = "gen/lib/user.o"
         cmd = compiler.concat(extra).concat(" -Werror -fPIC -I").concat(ext_dir).concat(ifl)
-            .concat(" -c ").concat(uc).concat(" -o ").concat(user_obj)
+        .concat(" -c ").concat(uc).concat(" -o ").concat(user_obj)
         result = system_cmd(cmd)
         if result.neq(0) {
             println("error: user .c compilation failed")
@@ -2802,8 +2802,8 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     // Create shared library
     so_path := "gen/lib/lib".concat(lib_name).concat(".so")
     cmd = compiler.concat(" -shared -o ").concat(so_path)
-        .concat(" ").concat(obj_path).concat(" ").concat(ext_obj)
-        .concat(" ").concat(user_obj).concat(lf)
+    .concat(" ").concat(obj_path).concat(" ").concat(ext_obj)
+    .concat(" ").concat(user_obj).concat(lf)
     result = system_cmd(cmd)
     if result.neq(0) {
         println("error: shared library creation failed")
@@ -2813,8 +2813,8 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     // Create static library
     a_path := "gen/lib/lib".concat(lib_name).concat(".a")
     cmd = "ar rcs ".concat(a_path)
-        .concat(" ").concat(obj_path).concat(" ").concat(ext_obj)
-        .concat(" ").concat(user_obj)
+    .concat(" ").concat(obj_path).concat(" ").concat(ext_obj)
+    .concat(" ").concat(user_obj)
     result = system_cmd(cmd)
     if result.neq(0) {
         println("error: static library creation failed")
@@ -2864,8 +2864,8 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
             mut fwd_flag := " -include ".concat(fwd_path)
             if file.starts_with("src/c/") { fwd_flag = " -Isrc/c -Iboot" }
             obj_cmd := compiler.concat(extra).concat(" -Werror -I").concat(ext_dir)
-                .concat(fwd_flag).concat(ifl).concat(" -c ").concat(file)
-                .concat(" -o ").concat(user_obj)
+            .concat(fwd_flag).concat(ifl).concat(" -c ").concat(file)
+            .concat(" -o ").concat(user_obj)
 
             obj_result := system_cmd(obj_cmd)
             if obj_result.neq(0) {
@@ -2887,8 +2887,8 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     if target.eq(Target.WindowsX64) { plat_libs = " -lpsapi" }
 
     cmd := compiler.concat(extra).concat(" -Werror -g").concat(dyn_flag).concat(" -I").concat(ext_dir)
-        .concat(" -o ").concat(bin_path).concat(" ").concat(c_path)
-        .concat(" ").concat(ext_c_path).concat(user_part).concat(lf).concat(plat_libs)
+    .concat(" -o ").concat(bin_path).concat(" ").concat(c_path)
+    .concat(" ").concat(ext_c_path).concat(user_part).concat(lf).concat(plat_libs)
 
     result := system_cmd(cmd)
     if result.neq(0) {
@@ -2928,7 +2928,7 @@ emit_global_inits_prog := proc(f: File, prog: Expr) {
         if gs.data.is(NodeType.Decl) {
             ref rhs : Expr = gs.child(0)
             if rhs.data.is(NodeType.FuncDef).or(rhs.data.is(NodeType.StructDef))
-                .or(rhs.data.is(NodeType.EnumDef)) { continue }
+            .or(rhs.data.is(NodeType.EnumDef)) { continue }
             if gs.til_type.eq(TilType.None) {
                 if rhs.data.is(NodeType.Ident) { continue }
             }

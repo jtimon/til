@@ -113,9 +113,9 @@ try_ufcs_rewrite := proc(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
                 ref first_param : Str = top_param.ptype
                 if first_param.len().gt(0) {
                     is_free_func := top.func_type.is(FuncType.Func)
-                        .or(top.func_type.is(FuncType.ExtFunc))
-                        .or(top.func_type.is(FuncType.Proc))
-                        .or(top.func_type.is(FuncType.ExtProc))
+                    .or(top.func_type.is(FuncType.ExtFunc))
+                    .or(top.func_type.is(FuncType.Proc))
+                    .or(top.func_type.is(FuncType.ExtProc))
                     if type_name.len().gt(0) {
                         if first_param.eq(type_name) {
                             ufcs_match = 1
@@ -765,13 +765,13 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         mut type_name := ""
         mut has_type_name := false
         if obj.til_type.is(TilType.I64)
-            .or(obj.til_type.is(TilType.U8))
-            .or(obj.til_type.is(TilType.I16))
-            .or(obj.til_type.is(TilType.I32))
-            .or(obj.til_type.is(TilType.U32))
-            .or(obj.til_type.is(TilType.U64))
-            .or(obj.til_type.is(TilType.F32))
-            .or(obj.til_type.is(TilType.Bool)) {
+        .or(obj.til_type.is(TilType.U8))
+        .or(obj.til_type.is(TilType.I16))
+        .or(obj.til_type.is(TilType.I32))
+        .or(obj.til_type.is(TilType.U32))
+        .or(obj.til_type.is(TilType.U64))
+        .or(obj.til_type.is(TilType.F32))
+        .or(obj.til_type.is(TilType.Bool)) {
             type_name = til_type_name_c(obj.til_type)
             has_type_name = true
         } else if obj.til_type.is(TilType.Struct).or(obj.til_type.is(TilType.Enum)) {
@@ -959,7 +959,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             }
         }
         if can_implicit_widen(arg.til_type, ptype)
-            .or(can_implicit_usize_coerce(arg.til_type, ptype, ptype_name)) {
+        .or(can_implicit_usize_coerce(arg.til_type, ptype, ptype_name)) {
             arg.til_type = ptype
             continue
         }
@@ -1068,9 +1068,9 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
 
 infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
     if expr.data.is(NodeType.LiteralStr)
-        .or(expr.data.is(NodeType.LiteralNum))
-        .or(expr.data.is(NodeType.LiteralBool))
-        .or(expr.data.is(NodeType.LiteralNull)) {
+    .or(expr.data.is(NodeType.LiteralNum))
+    .or(expr.data.is(NodeType.LiteralBool))
+    .or(expr.data.is(NodeType.LiteralNull)) {
         infer_literal_expr(expr)
     } else if expr.data.is(NodeType.Ident) {
         infer_ident_expr(scope, expr)
@@ -1236,13 +1236,13 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         pshallow := param.own_type.eq(OwnType.Shallow)
         if pshallow {
             is_scalar := pt.is(TilType.I64)
-                .or(pt.is(TilType.U8))
-                .or(pt.is(TilType.I16))
-                .or(pt.is(TilType.I32))
-                .or(pt.is(TilType.U32))
-                .or(pt.is(TilType.U64))
-                .or(pt.is(TilType.F32))
-                .or(pt.is(TilType.Bool))
+            .or(pt.is(TilType.U8))
+            .or(pt.is(TilType.I16))
+            .or(pt.is(TilType.I32))
+            .or(pt.is(TilType.U32))
+            .or(pt.is(TilType.U64))
+            .or(pt.is(TilType.F32))
+            .or(pt.is(TilType.Bool))
             if is_scalar.not().and(pt.is(TilType.Struct).not()).and(pt.is(TilType.StructDef).not()).and(pt.is(TilType.Enum).not()) {
                 type_error(expr, "shallow parameter '".concat(param.name).concat("' must be a scalar or struct type"))
             }
@@ -1654,9 +1654,9 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
     } else if val.data.is(NodeType.LiteralNull).and(sdecl.own_type.eq(OwnType.Ref).not()) {
         type_error(stmt, "null can only be assigned to 'ref' declarations")
     } else if can_implicit_usize_coerce(val.til_type, declared, sdecl.explicit_type).not()
-        .and(val.til_type.is(declared).not())
-        .and(val.til_type.is(TilType.Dynamic).not())
-        .and(declared.is(TilType.Dynamic).not()) {
+    .and(val.til_type.is(declared).not())
+    .and(val.til_type.is(TilType.Dynamic).not())
+    .and(declared.is(TilType.Dynamic).not()) {
         type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared))
             .concat(" but value is ").concat(type_to_name(val.til_type)))
     } else if declared.is(TilType.Struct).or(declared.is(TilType.Enum)) {
@@ -1863,29 +1863,29 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                         if match_expr.child(0).child(0).data.is(NodeType.Ident) {
                             ref range_name : Str = get_payload(match_expr.child(0).child(0).data)
                             if range_name.eq("Range") {
-                ref start_expr : Expr = match_expr.child(1)
-                ref end_expr : Expr = match_expr.child(2)
+                                ref start_expr : Expr = match_expr.child(1)
+                                ref end_expr : Expr = match_expr.child(2)
 
-                mut sw1 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
-                mut gte_acc := Expr.new(NodeType.FieldAccess("gte"), sw_line, sw_col, sw_path)
-                gte_acc.add_child(own sw1)
-                mut gte_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
-                gte_call.add_child(own gte_acc)
-                gte_call.add_child(own start_expr.clone())
+                                mut sw1 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                                mut gte_acc := Expr.new(NodeType.FieldAccess("gte"), sw_line, sw_col, sw_path)
+                                gte_acc.add_child(own sw1)
+                                mut gte_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
+                                gte_call.add_child(own gte_acc)
+                                gte_call.add_child(own start_expr.clone())
 
-                mut sw2 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
-                mut lte_acc := Expr.new(NodeType.FieldAccess("lte"), sw_line, sw_col, sw_path)
-                lte_acc.add_child(own sw2)
-                mut lte_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
-                lte_call.add_child(own lte_acc)
-                lte_call.add_child(own end_expr.clone())
+                                mut sw2 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                                mut lte_acc := Expr.new(NodeType.FieldAccess("lte"), sw_line, sw_col, sw_path)
+                                lte_acc.add_child(own sw2)
+                                mut lte_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
+                                lte_call.add_child(own lte_acc)
+                                lte_call.add_child(own end_expr.clone())
 
-                mut and_acc := Expr.new(NodeType.FieldAccess("and"), sw_line, sw_col, sw_path)
-                and_acc.add_child(own gte_call)
-                condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
-                condition.add_child(own and_acc)
-                condition.add_child(own lte_call)
-                has_condition = true
+                                mut and_acc := Expr.new(NodeType.FieldAccess("and"), sw_line, sw_col, sw_path)
+                                and_acc.add_child(own gte_call)
+                                condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
+                                condition.add_child(own and_acc)
+                                condition.add_child(own lte_call)
+                                has_condition = true
                             }
                         }
                     }
@@ -1920,32 +1920,32 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         }
                                     }
                                     if payload_type.len().gt(0) {
-                    mut iv_id := Expr.new(NodeType.Ident("is"), sw_line, sw_col, sw_path)
-                    mut sw_id := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
-                    mut vtype_id := Expr.new(NodeType.Ident(type_name.clone()), sw_line, sw_col, sw_path)
-                    mut vref := Expr.new(NodeType.FieldAccess(variant_name.clone()), sw_line, sw_col, sw_path)
-                    vref.add_child(own vtype_id)
-                    condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
-                    condition.add_child(own iv_id)
-                    condition.add_child(own sw_id)
-                    condition.add_child(own vref)
+                                        mut iv_id := Expr.new(NodeType.Ident("is"), sw_line, sw_col, sw_path)
+                                        mut sw_id := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                                        mut vtype_id := Expr.new(NodeType.Ident(type_name.clone()), sw_line, sw_col, sw_path)
+                                        mut vref := Expr.new(NodeType.FieldAccess(variant_name.clone()), sw_line, sw_col, sw_path)
+                                        vref.add_child(own vtype_id)
+                                        condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
+                                        condition.add_child(own iv_id)
+                                        condition.add_child(own sw_id)
+                                        condition.add_child(own vref)
 
-                    mut gp_ident := Expr.new(NodeType.Ident("get_payload"), sw_line, sw_col, sw_path)
-                    mut sw_id2 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
-                    mut get_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
-                    get_call.add_child(own gp_ident)
-                    get_call.add_child(own sw_id2)
+                                        mut gp_ident := Expr.new(NodeType.Ident("get_payload"), sw_line, sw_col, sw_path)
+                                        mut sw_id2 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                                        mut get_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col, sw_path)
+                                        get_call.add_child(own gp_ident)
+                                        get_call.add_child(own sw_id2)
 
-                    mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), own_type = OwnType.Ref)), sw_line, sw_col, sw_path)
-                    bind_decl.add_child(own get_call)
+                                        mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), own_type = OwnType.Ref)), sw_line, sw_col, sw_path)
+                                        bind_decl.add_child(own get_call)
 
-                    mut new_ch := Vec.new("Expr", Expr.size())
-                    new_ch.push(own bind_decl)
-                    for bi in 0..case_body.children.len() {
-                        new_ch.push(own case_body.child(bi).clone())
-                    }
-                    case_body.children.move_from(new_ch)
-                    has_condition = true
+                                        mut new_ch := Vec.new("Expr", Expr.size())
+                                        new_ch.push(own bind_decl)
+                                        for bi in 0..case_body.children.len() {
+                                            new_ch.push(own case_body.child(bi).clone())
+                                        }
+                                    case_body.children.move_from(new_ch)
+                                        has_condition = true
                                     }
                                 }
                             }
@@ -2462,15 +2462,15 @@ reregister_scope_defs := proc(body: Expr, scope: TypeScope) {
             if is_null(rb).not() {
                 if is_null(rb.struct_def).not().and(
                     rstmt.child(0).data.is(NodeType.StructDef).or(rstmt.child(0).data.is(NodeType.EnumDef))) {
-                    ref old_sd : Expr = rb.struct_def
-                    rb.struct_def = rstmt.child(0)
-                    for bi in 0..scope.bindings.count {
-                        ref mut b : TypeBinding = ptr_add(scope.bindings.val_data, bi.mul(scope.bindings.val_size))
-                        if ptr_eq(b, rb).not().and(ptr_eq(b.struct_def, old_sd)) {
-                            b.struct_def = rstmt.child(0)
+                        ref old_sd : Expr = rb.struct_def
+                        rb.struct_def = rstmt.child(0)
+                        for bi in 0..scope.bindings.count {
+                            ref mut b : TypeBinding = ptr_add(scope.bindings.val_data, bi.mul(scope.bindings.val_size))
+                            if ptr_eq(b, rb).not().and(ptr_eq(b.struct_def, old_sd)) {
+                                b.struct_def = rstmt.child(0)
+                            }
                         }
                     }
-                }
                 if is_null(rb.func_def).not().and(rstmt.child(0).data.is(NodeType.FuncDef)) {
                     ref old_fd : Expr = rb.func_def
                     rb.func_def = rstmt.child(0)
@@ -3441,9 +3441,9 @@ hoist_return_expr := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope
     hoist_expr(stmt.child(0), hoisted, scope)
     ref rhs : Expr = stmt.child(0)
     if rhs.data.is(NodeType.FCall)
-        .or(rhs.data.is(NodeType.LiteralNum))
-        .or(rhs.data.is(NodeType.LiteralStr))
-        .or(rhs.data.is(NodeType.LiteralBool)) {
+    .or(rhs.data.is(NodeType.LiteralNum))
+    .or(rhs.data.is(NodeType.LiteralStr))
+    .or(rhs.data.is(NodeType.LiteralBool)) {
         stmt.children.set(0, own hoist_to_temp(rhs, hoisted, scope, false))
     }
 }
@@ -3881,31 +3881,31 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
     if fcall_sname.len().gt(0) { if fcall.child(0).data.is(NodeType.Ident) {
         ref _c0s : Str = get_payload(fcall.child(0).data)
         if _c0s.eq(fcall_sname) {
-        ref sdef : Expr = scope.get_struct(fcall_sname)
-        if is_null(sdef).not() {
-            ref body : Expr = sdef.child(0)
-            mut fi : USize = 0
-            for i in 0..body.children.len() {
-                ref fld : Expr = body.child(i)
-                if fld.data.is(NodeType.Decl).not() { continue }
-                ref fld_decl : Declaration = get_payload(fld.data)
-                if fld_decl.is_namespace { continue }
-                arg_idx := fi.add(1)
-                fi = fi.add(1)
-                if arg_idx.lt(fcall.children.len()) {
-                    ref arg : Expr = fcall.child(arg_idx)
-                    if arg.data.is(NodeType.Ident) {
-                        ref _an : Str = get_payload(arg.data)
-                        if _an.eq(var_name).and(fld_decl.own_type.eq(OwnType.Ref).not()) {
-                            if fld_decl.own_type.eq(OwnType.Own).or(type_ctor_consumes(fld.til_type)) {
-                            return true
+            ref sdef : Expr = scope.get_struct(fcall_sname)
+            if is_null(sdef).not() {
+                ref body : Expr = sdef.child(0)
+                mut fi : USize = 0
+                for i in 0..body.children.len() {
+                    ref fld : Expr = body.child(i)
+                    if fld.data.is(NodeType.Decl).not() { continue }
+                    ref fld_decl : Declaration = get_payload(fld.data)
+                    if fld_decl.is_namespace { continue }
+                    arg_idx := fi.add(1)
+                    fi = fi.add(1)
+                    if arg_idx.lt(fcall.children.len()) {
+                        ref arg : Expr = fcall.child(arg_idx)
+                        if arg.data.is(NodeType.Ident) {
+                            ref _an : Str = get_payload(arg.data)
+                            if _an.eq(var_name).and(fld_decl.own_type.eq(OwnType.Ref).not()) {
+                                if fld_decl.own_type.eq(OwnType.Own).or(type_ctor_consumes(fld.til_type)) {
+                                    return true
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-    } } }
+        } } }
     // Direct call
     if fcall.child(0).data.is(NodeType.Ident) {
         ref fn_name : Str = get_payload(fcall.child(0).data)
@@ -4291,14 +4291,14 @@ insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: 
         if local.last_use.eq(stmt_idx.to_i64().to_i32()) {
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
-                    del := make_delete_call(local.name, local.type, heap, heap, stmt)
+                del := make_delete_call(local.name, local.type, heap, heap, stmt)
                 new_ch.push(own del)
             }
         }
         if local.last_use.eq(-1.to_i32()).and(local.decl_index.eq(stmt_idx.to_i64().to_i32())) {
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
-                    del := make_delete_call(local.name, local.type, heap, heap, stmt)
+                del := make_delete_call(local.name, local.type, heap, heap, stmt)
                 new_ch.push(own del)
             }
         }
