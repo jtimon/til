@@ -129,7 +129,7 @@ try_ufcs_rewrite := proc(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
                         }
                     } else if obj.til_type.is(TilType.Dynamic) {
                         pt := type_from_name(first_param, scope)
-                        narrow_dynamic(obj, pt, first_param)
+                        narrow_dynamic(obj, pt)
                         ufcs_match = 1
                     }
                 }
@@ -540,7 +540,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         }
         ref param1 : Param = fdef_data.params.get(pi)
         ref ptype : Str = param1.ptype
-        narrow_dynamic(e.child(ci), type_from_name(ptype, scope), ptype)
+        narrow_dynamic(e.child(ci), type_from_name(ptype, scope))
         ci = ci.add(1)
         pi = pi.add(1)
     }
@@ -936,7 +936,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         if i.sub(1).gte(ns_fdef2.params.len()) { break }
         ref param2 : Param = ns_fdef2.params.get(i.sub(1))
         ref ptype : Str = param2.ptype
-        narrow_dynamic(e.child(i), type_from_name(ptype, scope), ptype)
+        narrow_dynamic(e.child(i), type_from_name(ptype, scope))
     }
     for i in 1..e.children.len() {
         ref ns_fdef3 : FunctionDef = get_payload(ns_func2.data)
@@ -1680,7 +1680,7 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
     if can_implicit_usize_coerce(val.til_type, declared, sdecl.explicit_type) {
         val.til_type = declared
     }
-    narrow_dynamic(val, declared, sdecl.explicit_type)
+    narrow_dynamic(val, declared)
     if declared.is(TilType.Struct).or(declared.is(TilType.Enum)) {
         if til_type_name(val.til_type).len().gt(0) {
             ref resolved : Str = resolve_type_alias(scope, sdecl.explicit_type)
@@ -4406,16 +4406,11 @@ infer_literal_expr := proc(mut expr: Expr) {
     }
 }
 
-narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str) {
+narrow_dynamic := proc(mut expr: Expr, target: TilType) {
     if expr.til_type.is(TilType.Dynamic).not() { return }
     if target.is(TilType.Dynamic) { return }
     if target.is(TilType.Unknown) { return }
     expr.til_type = target
-    if target.is(TilType.Struct).and(til_type_name(target).len().eq(0)) {
-        expr.til_type = TilType.Struct(target_struct_name.clone())
-    } else if target.is(TilType.Enum).and(til_type_name(target).len().eq(0)) {
-        expr.til_type = TilType.Enum(target_struct_name.clone())
-    }
 }
 
 fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {

@@ -1020,7 +1020,7 @@ void insert_assign_delete(Expr * stmt, void * locals, U32 n_locals, Vec * new_ch
 void promote_own_transferred_locals(Expr * body, void * locals, U32 n_locals);
 void insert_free_calls(Expr * body, TypeScope * scope, I32 scope_exit);
 void infer_literal_expr(Expr * expr);
-void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name);
+void narrow_dynamic(Expr * expr, TilType * target);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
 Expr * hoist_to_temp(Expr * val, Vec * hoisted, TypeScope * scope, Bool is_own);
 I32 type_check(Expr * program, TypeScope * scope, Context * ctx);
