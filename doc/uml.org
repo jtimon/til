@@ -205,6 +205,7 @@
 *** ref mut struct_def : Expr = NULL
 *** ref mut func_def : Expr = NULL
 *** mut is_builtin := false
+*** mut used := false
 ** ScopeFind: EnumDef
 *** NotFound
 *** Found:TypeBinding }

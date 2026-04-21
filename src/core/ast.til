@@ -122,7 +122,7 @@ FCallData := struct {
             .and(a.kwargs_index.eq(b.kwargs_index))
             .and(a.kwargs_count.eq(b.kwargs_count))
     }
-    to_str := func(self: FCallData) returns Str { return "FCall" }
+    to_str := func(_self: FCallData) returns Str { return "FCall" }
 }
 
 set_own_arg := proc(mut fcall: Expr, shallow arg_index: USize) {
@@ -148,7 +148,7 @@ StructDefData := struct {
     eq := func(a: StructDefData, b: StructDefData) returns Bool {
         return a.total_struct_size.eq(b.total_struct_size)
     }
-    to_str := func(self: StructDefData) returns Str { return "StructDef" }
+    to_str := func(_self: StructDefData) returns Str { return "StructDef" }
 }
 
 // --- NodeType payload enum (25 variants) ---
@@ -253,11 +253,11 @@ Expr := struct {
         }
         return out
     }
-    eq := func(self: Expr, other: Expr) returns shallow Bool {
+    eq := func(_self: Expr, _other: Expr) returns shallow Bool {
         TODO(__LOC__, "Expr.eq")
         return false
     }
-    to_str := func(self: Expr) returns Str {
+    to_str := func(_self: Expr) returns Str {
         TODO(__LOC__, "Expr.to_str")
         return "Expr"
     }

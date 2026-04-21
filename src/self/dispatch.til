@@ -381,7 +381,7 @@ h_print_single := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
-h_print_flush := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
     print_flush()
     r = val_none()
     return true
@@ -480,12 +480,12 @@ h_file_mtime := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
-h_clock_ms := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+h_clock_ms := proc(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
     r = val_i64(clock_ms())
     return true
 }
 
-h_get_thread_count := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+h_get_thread_count := proc(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
     r = val_i64(get_thread_count())
     return true
 }

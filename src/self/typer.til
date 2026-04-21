@@ -1036,8 +1036,9 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
         name = resolved_name.clone()
     }
     if infer_struct_constructor_fcall(scope, e, name, in_func, ctx) { return }
-    ref callee_bind : TypeBinding = scope.get_binding(name)
+    ref mut callee_bind : TypeBinding = scope.get_binding(name)
     if is_null(callee_bind).not() {
+        callee_bind.used = true
         if is_null(callee_bind.func_def).not() {
             desugar_user_func_fcall_args(e, name, callee_bind)
         }
@@ -1082,8 +1083,9 @@ infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
         type_error(expr, "undefined symbol '".concat(id_name).concat("'"))
     }
     expr.til_type = type
-    ref ib : TypeBinding = scope.get_binding(id_name)
+    ref mut ib : TypeBinding = scope.get_binding(id_name)
     if is_null(ib).not() {
+        ib.used = true
         if is_null(ib.func_def).not() {
             expr.til_type = TilType.FuncPtr
         }
@@ -1262,7 +1264,24 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         type_error(expr, "macro must declare a return type")
     }
     check_ref_function_returns(func_scope, expr)
+    check_unused_params(func_scope, expr)
     TypeScope.delete(own func_scope)
+}
+
+check_unused_params := proc(func_scope: TypeScope, expr: Expr) {
+    ref fdef : FunctionDef = get_payload(expr.data)
+    if is_variant(fdef.func_type, FuncType.ExtFunc) { return }
+    if is_variant(fdef.func_type, FuncType.ExtProc) { return }
+    for i in 0..fdef.nparam {
+        ref param : Param = fdef.params.get(i)
+        if param.name.len().eq(0) { continue }
+        if param.name.starts_with("_") { continue }
+        ref pb : TypeBinding = func_scope.get_binding(param.name)
+        if is_null(pb) { continue }
+        if pb.used.not() {
+            type_error(expr, "unused parameter '".concat(param.name).concat("'"))
+        }
+    }
 }
 
 infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context) {
@@ -2494,6 +2513,8 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     ref mut rhs : Expr = stmt.child(0)
     stmt.til_type = rhs.til_type
     ref aname : Str = get_payload(stmt.data)
+    ref mut ub : TypeBinding = scope.get_binding(aname)
+    if is_null(ub).not() { ub.used = true }
     existing := scope.get_type(aname)
     if is_variant(existing, TilType.Unknown) {
         type_error(stmt, "undefined symbol '".concat(aname).concat("'"))

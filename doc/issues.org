@@ -1002,6 +1002,10 @@
   Implementation: typer tracks which bindings are read. After
   type-checking a scope, any unread non-~_~ binding is an error.
 
+  Status: partial. Function parameters are now checked (~check_unused_params~
+  in ~src/self/typer.til~, skipping ExtFunc/ExtProc). Unused local variables
+  and imports still TODO.
+
 
   At each step, run benchmarks to verify no significant performance
   regressions from the til versions vs the C originals. The test suite

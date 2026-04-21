@@ -507,7 +507,7 @@ generate_svg := proc(panels: Vec) returns Str {
     return svg
 }
 
-main := proc(args: ..Str) {
+main := proc(_args: ..Str) {
     paths := ordered_paths()
     types := collect_types(paths)
     panels := collect_panels(paths, types)

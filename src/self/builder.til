@@ -1054,7 +1054,7 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
     } else { f.write_str("/* TODO: unknown stmt type */\n") }
 }
 
-emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr, shallow depth: I32) {
+emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr, shallow _depth: I32) {
     ref sfd : FunctionDef = get_payload(sig.data)
     ret_shallow := is_variant(sfd.return_own_type, OwnType.Shallow)
     mut ret_c := "void *"
@@ -1848,7 +1848,7 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
     }
 }
 
-emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, shallow is_lib: Bool) {
+emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, shallow _is_lib: Bool) {
     ref body : Expr = struct_def.child(0)
     for i in 0..body.child_count() {
         ref field : Expr = body.child(i)
@@ -2296,7 +2296,7 @@ emit_header_global_decls := proc(f: File, core_program: Expr, program: Expr) {
     f.write_str("\n")
 }
 
-build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str, ctx: Context) returns shallow I32 {
+build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str, _ctx: Context) returns shallow I32 {
     build_register_funcsig_names(core_program, program)
     f := File.new(fwd_path, true)
     f.write_str("#pragma once\n#include \"ext.h\"\n\n")
@@ -2308,7 +2308,7 @@ build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str, c
     return 0.to_i32()
 }
 
-build_header := proc(core_program: Expr, program: Expr, h_path: Str, ctx: Context) returns shallow I32 {
+build_header := proc(core_program: Expr, program: Expr, h_path: Str, _ctx: Context) returns shallow I32 {
     build_register_funcsig_names(core_program, program)
     f := File.new(h_path, true)
     f.write_str("#pragma once\n#include \"ext.h\"\n\n")
@@ -2353,7 +2353,7 @@ emit_binding_ns_methods := proc(f: File, body: Expr) {
     }
 }
 
-build_til_binding := proc(core_program: Expr, program: Expr, til_path: Str, lib_name: Str, ctx: Context) returns shallow I32 {
+build_til_binding := proc(_core_program: Expr, program: Expr, til_path: Str, lib_name: Str, _ctx: Context) returns shallow I32 {
     f := File.new(til_path, true)
     f.write_str("// Auto-generated FFI binding for "); f.write_str(lib_name); f.write_str("\n")
     f.write_str("link(\""); f.write_str(lib_name); f.write_str("\")\n\n")
@@ -2454,7 +2454,7 @@ type_name_to_ctypes_return := func(name: Str, shallow is_shallow: Bool) returns 
     return "ctypes.POINTER(".concat(base).concat(")")
 }
 
-build_python_binding := proc(core_program: Expr, program: Expr, py_path: Str, lib_name: Str, ctx: Context) returns shallow I32 {
+build_python_binding := proc(_core_program: Expr, program: Expr, py_path: Str, lib_name: Str, _ctx: Context) returns shallow I32 {
     f := File.new(py_path, true)
     f.write_str("# Auto-generated Python binding for "); f.write_str(lib_name); f.write_str("\n")
     f.write_str("import ctypes\n")
@@ -3734,7 +3734,7 @@ emit_lib_init := proc(f: File) {
     f.write_str("}\n\n")
 }
 
-build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, c_output_path: Str, ctx: Context) returns shallow I32 {
+build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, _path: Str, c_output_path: Str, _ctx: Context) returns shallow I32 {
     codegen_core_program = core_program
     codegen_program = program
     mut is_lib := false

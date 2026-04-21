@@ -50,7 +50,7 @@ namespace:
     mod := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     inc := func(mut self: I64) { self = self.add(1) }
     dec := func(mut self: I64) { self = self.sub(1) }
-    unity := func(self: I64) returns I64 { return 1 }
+    unity := func(_self: I64) returns I64 { return 1 }
     eq := ext_func(shallow a: I64, shallow b: I64) returns shallow Bool {}
     cmp := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     neg := func(a: I64) returns I64 { return 0.sub(a) }

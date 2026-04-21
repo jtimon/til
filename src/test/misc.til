@@ -480,7 +480,7 @@ namespace:
     sub := func(a: Vec2, b: Vec2) returns Vec2 {
         return Vec2(x = a.x.sub(b.x), y = a.y.sub(b.y))
     }
-    unity := func(self: Vec2) returns Vec2 { return Vec2(x = 1, y = 1) }
+    unity := func(_self: Vec2) returns Vec2 { return Vec2(x = 1, y = 1) }
     cmp := func(a: Vec2, b: Vec2) returns I64 {
         if a.x.lt(b.x) { return -1 }
         if a.x.gt(b.x) { return 1 }

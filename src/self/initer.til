@@ -17,6 +17,7 @@ TypeBinding := struct {
     ref mut struct_def : Expr = NULL
     ref mut func_def : Expr = NULL
     mut is_builtin := false
+    mut used := false
     namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns shallow Bool {
         return a.name.eq(b.name)
@@ -198,7 +199,9 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
         func_decl.nparam = 1
-        func_decl.params.push(own Param(name = "self", ptype = sname.clone()))
+        mut self_pname := "self"
+        if field_names.len().eq(0) { self_pname = "_self" }
+        func_decl.params.push(own Param(name = self_pname, ptype = sname.clone()))
         func_decl.return_type = sname.clone()
         func_decl.variadic_index = -1.to_i32()
         func_decl.kwargs_index = -1.to_i32()
@@ -1180,7 +1183,7 @@ generate_enum_size_methods := proc(program: Expr) {
     }
 }
 
-generate_unity_derived_methods := proc(program: Expr, scope: TypeScope) {
+generate_unity_derived_methods := proc(program: Expr, _scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
         if is_variant(stmt.data, NodeType.Decl).not() { continue }
@@ -1266,12 +1269,12 @@ generate_unity_derived_methods := proc(program: Expr, scope: TypeScope) {
     }
 }
 
-generate_size_methods := proc(program: Expr, scope: TypeScope) {
+generate_size_methods := proc(program: Expr, _scope: TypeScope) {
     generate_struct_size_methods(program)
     generate_enum_size_methods(program)
 }
 
-generate_cmp_derived_methods := proc(program: Expr, scope: TypeScope) {
+generate_cmp_derived_methods := proc(program: Expr, _scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
         if is_variant(stmt.data, NodeType.Decl).not() { continue }
@@ -1782,7 +1785,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
     }
 }
 
-init_declarations := proc(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
+init_declarations := proc(program: Expr, scope: TypeScope, _ctx: Context) returns shallow I32 {
     mut errors : I32 = 0
 
     errors = errors.add(register_struct_definitions(program, scope))

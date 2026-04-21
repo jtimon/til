@@ -10,8 +10,8 @@ MAX_BOARD := 4096
 Heuristic := func(Dynamic) returns I64
 NextBoardsFn := proc(Dynamic) returns Vec
 
-default_heuristic : Heuristic = (board) { return 0 }
-default_next_boards : NextBoardsFn = (board) { return Vec.new("Board", Board.size()) }
+default_heuristic : Heuristic = (_board) { return 0 }
+default_next_boards : NextBoardsFn = (_board) { return Vec.new("Board", Board.size()) }
 
 Board := struct {
     mut data := Array.new("U8", 1, MAX_BOARD.to_usize())

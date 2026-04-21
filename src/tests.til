@@ -106,7 +106,7 @@ ModeData := struct {
             .and(a.run_mem.eq(b.run_mem))
             .and(a.output_match.eq(b.output_match))
     }
-    to_str := func(self: ModeData) returns Str { return "ModeData" }
+    to_str := func(_self: ModeData) returns Str { return "ModeData" }
 }
 
 TestKind := enum { Mode: ModeData, Single, Count }
@@ -406,7 +406,7 @@ main := proc(args: ..Str) {
                asan_safe_cmd(til_bin.concat(" run src/examples/ffi/ext_module.til"), til_bin))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "type error:", 51,
+    add_count(tests, "typer_errors", "typer", "type error:", 52,
               asan_safe_cmd(til_bin.concat(" interpret src/test/typer_errors.til"), til_bin))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
