@@ -92,11 +92,9 @@ find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
     ref body : Expr = sdef.child(0)
     for i in 0..body.children.len() {
         ref field : Expr = body.child(i)
-        if field.data.is(NodeType.Decl).not() { continue }
+        if is_namespace_method(field).not() { continue }
         ref fd : Declaration = get_payload(field.data)
-        if fd.is_namespace.not() { continue }
         if fd.name.eq(method).not() { continue }
-        if field.child(0).data.is(NodeType.FuncDef).not() { continue }
         return field.child(0)
     }
     return NULL
@@ -1542,9 +1540,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
 }
 
 infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
-    if stmt.child(0).data.is(NodeType.StructDef).not().and(stmt.child(0).data.is(NodeType.EnumDef).not()) {
-        return false
-    }
+    if is_struct_or_enum(stmt).not() { return false }
     is_enum := stmt.child(0).data.is(NodeType.EnumDef)
     ref mut sdecl : Declaration = get_payload(stmt.data)
     if sdecl.explicit_type.len().gt(0) {
@@ -1598,7 +1594,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
 }
 
 infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
-    if stmt.child(0).data.is(NodeType.FuncDef).not() { return false }
+    if is_func_decl(stmt).not() { return false }
     ref mut sdecl : Declaration = get_payload(stmt.data)
     if sdecl.explicit_type.len().gt(0).and(sdecl.explicit_type.eq("FunctionDef").not()) {
         type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is FunctionDef"))
@@ -2297,10 +2293,8 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     ref mut get_func : Expr = NULL
     for fi in 0..sbody.children.len() {
         ref field : Expr = sbody.child(fi)
-        if field.data.is(NodeType.Decl).not() { continue }
+        if is_namespace_method(field).not() { continue }
         ref fd : Declaration = get_payload(field.data)
-        if fd.is_namespace.not() { continue }
-        if field.child(0).data.is(NodeType.FuncDef).not() { continue }
         if fd.name.eq("len") { len_func = field.child(0) }
         if fd.name.eq("get") { get_func = field.child(0) }
     }
@@ -3694,11 +3688,9 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
                     ref method_name : Str = get_payload(callee.data)
                     for j in 0..sbody.children.len() {
                         ref f : Expr = sbody.child(j)
-                        if f.data.is(NodeType.Decl).not() { continue }
+                        if is_namespace_method(f).not() { continue }
                         ref fd : Declaration = get_payload(f.data)
-                        if fd.is_namespace.not() { continue }
                         if fd.name.eq(method_name).not() { continue }
-                        if f.child(0).data.is(NodeType.FuncDef).not() { continue }
                         ref ffd : FunctionDef = get_payload(f.child(0).data)
                         fvi := ffd.variadic_index
                         if fvi.gte(0) {

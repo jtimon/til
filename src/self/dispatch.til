@@ -1191,7 +1191,7 @@ ffi_init_scan_program := proc(program: Expr) {
             // Struct namespace ext_func/ext_proc
             if stmt.child(0).data.is(NodeType.StructDef) {
                 ref sdd : Declaration = get_payload(stmt.data)
-                ref body : Expr = stmt.child(0).child(0)
+                ref body : Expr = decl_body(stmt)
                 for j in 0..body.children.len() {
                     ref field : Expr = body.child(j)
                     ref fdd : Declaration = get_payload(field.data)

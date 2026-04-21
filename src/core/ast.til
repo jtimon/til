@@ -331,6 +331,50 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     println(")")
 }
 
+// --- Decl/type helpers ---
+
+// Is stmt a NodeType.Decl that has an RHS child?
+is_decl_with_child := func(stmt: Expr) returns shallow Bool {
+    return stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0))
+}
+
+// Is stmt a Decl whose RHS is a StructDef or EnumDef?
+is_struct_or_enum := func(stmt: Expr) returns shallow Bool {
+    if is_decl_with_child(stmt).not() { return false }
+    ref def : Expr = stmt.child(0)
+    return def.data.is(NodeType.StructDef).or(def.data.is(NodeType.EnumDef))
+}
+
+// Is stmt a Decl whose RHS is a FuncDef?
+is_func_decl := func(stmt: Expr) returns shallow Bool {
+    if is_decl_with_child(stmt).not() { return false }
+    return stmt.child(0).data.is(NodeType.FuncDef)
+}
+
+// Is stmt a Decl whose RHS is any of FuncDef/StructDef/EnumDef?
+is_def := func(stmt: Expr) returns shallow Bool {
+    if is_decl_with_child(stmt).not() { return false }
+    ref def : Expr = stmt.child(0)
+    return def.data.is(NodeType.FuncDef)
+        .or(def.data.is(NodeType.StructDef))
+        .or(def.data.is(NodeType.EnumDef))
+}
+
+// For a struct/enum decl stmt, return the body Expr (child(0).child(0)).
+decl_body := func(stmt: Expr) returns ref Expr {
+    ref body : Expr = stmt.child(0).child(0)
+    return body
+}
+
+// Is field a namespace: method with a FuncDef RHS?
+is_namespace_method := func(field: Expr) returns shallow Bool {
+    if field.data.is(NodeType.Decl).not() { return false }
+    if field.children.len().eq(0) { return false }
+    ref fdd : Declaration = get_payload(field.data)
+    if fdd.is_namespace.not() { return false }
+    return field.child(0).data.is(NodeType.FuncDef)
+}
+
 // --- Enum helpers ---
 
 enum_has_payloads := func(enum_def: Expr) returns shallow Bool {

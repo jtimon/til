@@ -752,7 +752,7 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         errors = errors.add(reg_errors)
         if reg_errors.gt(0) { continue }
 
-        ref mut body : Expr = stmt.child(0).child(0)
+        ref mut body : Expr = decl_body(stmt)
 
         variant_names := Vec.new("Str", Str.size())
         variant_types := Vec.new("Str", Str.size())
@@ -767,10 +767,8 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         for j in 0..body.children.len() {
             ref f : Expr = body.child(j)
             if f.data.is(NodeType.Decl).not() { continue }
+            if is_namespace_method(f).not() { continue }
             ref fdecl : Declaration = get_payload(f.data)
-            if fdecl.is_namespace.not() { continue }
-            if f.children.len().eq(0) { continue }
-            if f.child(0).data.is(NodeType.FuncDef).not() { continue }
 
             if fdecl.name.eq("is") { has_is = true }
             if fdecl.name.eq("eq") { has_eq = true }
@@ -808,16 +806,14 @@ generate_missing_enum_clones := proc(program: Expr) {
         line := stmt.line
         col := stmt.col
         path := stmt.path
-        ref mut body : Expr = stmt.child(0).child(0)
+        ref mut body : Expr = decl_body(stmt)
 
         mut has_clone := false
         for j in 0..body.children.len() {
             ref f : Expr = body.child(j)
             if f.data.is(NodeType.Decl).not() { continue }
+            if is_namespace_method(f).not() { continue }
             ref fdecl : Declaration = get_payload(f.data)
-            if fdecl.is_namespace.not() { continue }
-            if f.children.len().eq(0) { continue }
-            if f.child(0).data.is(NodeType.FuncDef).not() { continue }
             if fdecl.name.eq("clone") {
                 has_clone = true
                 break
@@ -931,8 +927,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
-        if stmt.data.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).data.is(NodeType.FuncDef).not() { continue }
+        if is_func_decl(stmt).not() { continue }
         if stmt.child(0).children.len().neq(0) { continue }
         ref sdecl : Declaration = get_payload(stmt.data)
         scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -1171,9 +1166,8 @@ generate_enum_size_methods := proc(program: Expr) {
 generate_unity_derived_methods := proc(program: Expr) {
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
-        if stmt.data.is(NodeType.Decl).not() { continue }
+        if is_struct_or_enum(stmt).not() { continue }
         ref def : Expr = stmt.child(0)
-        if def.data.is(NodeType.StructDef).not().and(def.data.is(NodeType.EnumDef).not()) { continue }
 
         ref sdecl : Declaration = get_payload(stmt.data)
         sname := sdecl.name
@@ -1189,10 +1183,8 @@ generate_unity_derived_methods := proc(program: Expr) {
         for j in 0..body.children.len() {
             ref f : Expr = body.child(j)
             if f.data.is(NodeType.Decl).not() { continue }
+            if is_namespace_method(f).not() { continue }
             ref fd : Declaration = get_payload(f.data)
-            if fd.is_namespace.not() { continue }
-            if f.children.len().eq(0) { continue }
-            if f.child(0).data.is(NodeType.FuncDef).not() { continue }
             fn := fd.name
             if fn.eq("add") { has_add = true }
             if fn.eq("sub") { has_sub = true }
@@ -1261,9 +1253,8 @@ generate_size_methods := proc(program: Expr) {
 generate_cmp_derived_methods := proc(program: Expr) {
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
-        if stmt.data.is(NodeType.Decl).not() { continue }
+        if is_struct_or_enum(stmt).not() { continue }
         ref def : Expr = stmt.child(0)
-        if def.data.is(NodeType.StructDef).not().and(def.data.is(NodeType.EnumDef).not()) { continue }
 
         ref sdecl : Declaration = get_payload(stmt.data)
         sname := sdecl.name
@@ -1281,10 +1272,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
         for j in 0..body.children.len() {
             ref f : Expr = body.child(j)
             if f.data.is(NodeType.Decl).not() { continue }
+            if is_namespace_method(f).not() { continue }
             ref fd : Declaration = get_payload(f.data)
-            if fd.is_namespace.not() { continue }
-            if f.children.len().eq(0) { continue }
-            if f.child(0).data.is(NodeType.FuncDef).not() { continue }
             fn := fd.name
             if fn.eq("cmp") { has_cmp = true }
             if fn.eq("eq") { has_eq = true }

@@ -72,19 +72,6 @@ children_filter := proc(mut v: Vec, marks: Dynamic, shallow n: USize) {
     v.count = w
 }
 
-is_def := func(e: Expr) returns shallow Bool {
-    if e.child(0).data.is(NodeType.FuncDef) { return true }
-    if e.child(0).data.is(NodeType.StructDef) { return true }
-    if e.child(0).data.is(NodeType.EnumDef) { return true }
-    return false
-}
-
-is_struct_or_enum := func(e: Expr) returns shallow Bool {
-    if e.child(0).data.is(NodeType.StructDef) { return true }
-    if e.child(0).data.is(NodeType.EnumDef) { return true }
-    return false
-}
-
 // Push gc'd qualified "Type.method" refs into v
 push_qn := proc(mut v: Vec, type_name: Str, method: Str) {
     v.push(own qualified_name(type_name, method))
@@ -190,7 +177,7 @@ find_ns_method := func(program: Expr, top: Map, name: Str) returns ref Expr {
     if is_struct_or_enum(tdecl).not() { return NULL }
     dot_u := dot.to_u32()
     method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
-    ref body : Expr = tdecl.child(0).child(0)
+    ref body : Expr = decl_body(tdecl)
     for k in 0..body.children.len() {
         ref field : Expr = body.child(k)
         ref fd : Declaration = get_payload(field.data)
@@ -289,7 +276,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             ref idx : U32 = top.get(name)
             ref decl : Expr = program.child(idx)
             if is_struct_or_enum(decl) {
-                ref body : Expr = decl.child(0).child(0)
+                ref body : Expr = decl_body(decl)
                 for j in 0..body.children.len() {
                     ref field : Expr = body.child(j)
                     ref fd : Declaration = get_payload(field.data)
@@ -309,7 +296,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             ref idx : U32 = core_top.get(name)
             ref decl : Expr = core_program.child(idx)
             if is_struct_or_enum(decl) {
-                ref body : Expr = decl.child(0).child(0)
+                ref body : Expr = decl_body(decl)
                 for j in 0..body.children.len() {
                     ref field : Expr = body.child(j)
                     ref fd : Declaration = get_payload(field.data)
@@ -388,7 +375,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             if stmt.data.is(NodeType.Decl).not() { continue }
             if is_struct_or_enum(stmt).not() { continue }
             ref sdecl : Declaration = get_payload(stmt.data)
-            ref body : Expr = stmt.child(0).child(0)
+            ref body : Expr = decl_body(stmt)
             bn := body.children.len()
             bm : Dynamic = malloc(bn)
             memset(bm, 0, bn)
@@ -411,7 +398,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         if stmt.data.is(NodeType.Decl).not() { continue }
         if is_struct_or_enum(stmt).not() { continue }
         ref sdecl : Declaration = get_payload(stmt.data)
-        ref body : Expr = stmt.child(0).child(0)
+        ref body : Expr = decl_body(stmt)
         bn := body.children.len()
         bm : Dynamic = malloc(bn)
         memset(bm, 0, bn)
