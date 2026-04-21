@@ -166,6 +166,7 @@ usage := proc() {
     println("  build      Compile a .til file to a binary")
     println("  run        Compile and run a .til file")
     println("  test       Run test functions in a .til file")
+    println("  ast        Print the parsed AST as a Lisp-like S-expression")
     println("  help       Print this message")
 }
 

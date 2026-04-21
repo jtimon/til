@@ -245,10 +245,88 @@ Expr := struct {
         TODO(__LOC__, "Expr.eq")
         return false
     }
-    to_str := func(_self: Expr) returns Str {
-        TODO(__LOC__, "Expr.to_str")
-        return "Expr"
+    to_str := func(self: Expr) returns Str {
+        return expr_to_str_indent(self, 0.to_u32())
     }
+}
+
+// --- func_type_pascal ---
+// Enum-name form of FuncType (as written in NodeType.FuncDef payload), for
+// Expr.to_str output. Distinct from func_type_name which returns the til
+// keyword (lowercase/snake_case).
+func_type_pascal := func(ft: FuncType) returns Str {
+    switch ft {
+    case FuncType.None:    return "None"
+    case FuncType.Func:    return "Func"
+    case FuncType.Proc:    return "Proc"
+    case FuncType.Test:    return "Test"
+    case FuncType.Macro:   return "Macro"
+    case FuncType.ExtFunc: return "ExtFunc"
+    case FuncType.ExtProc: return "ExtProc"
+    case: return "?"
+    }
+}
+
+// --- node_head_str ---
+// Head string used inside the parentheses by Expr.to_str: the NodeType's
+// variant name plus any inline payload (identifier, literal text, decl name,
+// etc.). Names are kept as written in the NodeType enum (no case conversion).
+node_head_str := func(data: NodeType) returns Str {
+    switch data {
+    case NodeType.Body:           return "Body"
+    case NodeType.LiteralStr(s):  return format("LiteralStr \"", s, "\"")
+    case NodeType.LiteralNum(s):  return format("LiteralNum ", s)
+    case NodeType.LiteralBool(b):
+        if b { return "LiteralBool true" }
+        return "LiteralBool false"
+    case NodeType.LiteralNull:    return "LiteralNull"
+    case NodeType.Ident(s):       return format("Ident ", s)
+    case NodeType.Decl(d):
+        if d.is_mut { return format("Decl mut ", d.name) }
+        return format("Decl ", d.name)
+    case NodeType.Assign(a):      return format("Assign ", a.name)
+    case NodeType.FCall:          return "FCall"
+    case NodeType.FuncDef(f):     return format("FuncDef ", func_type_pascal(f.func_type))
+    case NodeType.StructDef:      return "StructDef"
+    case NodeType.EnumDef:        return "EnumDef"
+    case NodeType.FieldAccess(s): return format("FieldAccess ", s)
+    case NodeType.FieldAssign(s): return format("FieldAssign ", s)
+    case NodeType.Return:         return "Return"
+    case NodeType.If:             return "If"
+    case NodeType.While:          return "While"
+    case NodeType.ForIn(s):       return format("ForIn ", s)
+    case NodeType.NamedArg(s):    return format("NamedArg ", s)
+    case NodeType.Break:          return "Break"
+    case NodeType.Continue:       return "Continue"
+    case NodeType.MapLit:         return "MapLit"
+    case NodeType.SetLit:         return "SetLit"
+    case NodeType.Switch:         return "Switch"
+    case NodeType.Case:           return "Case"
+    case NodeType.NoDefaultArg:   return "NoDefaultArg"
+    case: return "?"
+    }
+}
+
+// --- expr_to_str_indent ---
+// Backing implementation for Expr.to_str. Produces format B-hybrid:
+//   leaf (no children):        (Head)
+//   with children:             ((Head)\n  c1\n  c2 ...)
+// where Head = NodeType variant name + inline payload (see node_head_str).
+expr_to_str_indent := func(self: Expr, shallow indent: U32) returns Str {
+    mut out := ""
+    for _i in 0..indent.to_i64().to_u64() {
+        out = out.concat("  ")
+    }
+    head := node_head_str(self.data)
+    if self.children.len().eq(0) {
+        return out.concat("(").concat(head).concat(")")
+    }
+    out = out.concat("((").concat(head).concat(")")
+    for i in 0..self.children.len() {
+        ref c : Expr = self.child(i)
+        out = out.concat("\n").concat(expr_to_str_indent(c, indent.add(1.to_u32())))
+    }
+    return out.concat(")")
 }
 
 // --- node_name ---

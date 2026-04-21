@@ -358,5 +358,5 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
 
 cmd_ast := proc(lp: LoadedProgram) {
     println("mode: ".concat(lp.mode_str))
-    ast_print(lp.ast, 0)
+    println(lp.ast.to_str())
 }
