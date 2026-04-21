@@ -355,6 +355,25 @@
    them. Could be avoided if the codegen supported returning structs by
    value without the heap detour.
 
+   Progress (args side):
+   - Commit 4392524: typer's ~hoist_to_temp~ now takes ~is_own~; when
+     a hoisted arg flows into an own parameter slot the synthesized
+     temp's Declaration is marked ~own_type = Own~, so the builder's
+     existing own-local path emits it directly on the heap and skips
+     the stack-then-~_oa~-malloc-copy wrap at the call site.
+   - Commit d84d30d: ~insert_free_calls~ in typer.til now runs a
+     ~promote_own_transferred_locals~ step after
+     ~collect_scope_locals~: user-declared locals with
+     ~own_transfer >= 0~ get their Decl's ~own_type~ flipped to Own,
+     so they're emitted as heap pointers too.
+
+   ~_oa = malloc~ wrap sites in boot/til.c: 2472 (pre-fix) -> 670.
+
+   Still TODO: the ~Expr x = *_hp; free(_hp)~ return round-trip
+   mentioned in the issue body (owned struct returns), and the
+   remaining ~670 _oa wraps for values that aren't directly named
+   user locals.
+
 ** OPEN #136 Precomp doesn't fold namespace method calls
   ~Dynamic.size()~ is defined in ~dyn.til~ as ~func() returns USize { return 8 }~
   but is not folded by precomp. ~is_func_call~ in ~precomp.til~ (line 150)

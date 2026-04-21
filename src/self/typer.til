@@ -4268,6 +4268,19 @@ insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: 
     }
 }
 
+promote_own_transferred_locals := proc(mut body: Expr, locals: Dynamic, shallow n_locals: U32) {
+    for j in 0..n_locals {
+        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+        if local.own_transfer.lt(0.to_i32()) { continue }
+        if local.decl_index.lt(0.to_i32()) { continue }
+        ref stmt : Expr = body.child(local.decl_index.to_i64().to_u32())
+        if is_variant(stmt.data, NodeType.Decl).not() { continue }
+        ref mut dd : Declaration = get_payload(stmt.data)
+        if dd.own_type.eq(OwnType.Ref) { continue }
+        dd.own_type = OwnType.Own
+    }
+}
+
 insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) {
     if scope_exit.eq(0) { return }
     is_program_scope := is_null(scope.parent)
@@ -4280,6 +4293,7 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
 
     extend_ref_local_lifetimes(body, locals, n_locals)
     check_use_after_own_transfer(body, locals, n_locals)
+    promote_own_transferred_locals(body, locals, n_locals)
 
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..body.child_count() {
