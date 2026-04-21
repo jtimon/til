@@ -4,9 +4,16 @@
 #include <string.h>
 #include <time.h>
 #include <limits.h>
+#include <stdint.h>
 
 #ifdef _WIN32
+// winnt.h declares 'TokenType' as an enum constant inside
+// TOKEN_INFORMATION_CLASS, which collides with our 'TokenType' typedef from
+// boot/modes.h. ext.c never references the Windows token enum, so rename it
+// via the preprocessor for the duration of the Windows headers.
+#define TokenType _WinTokenType_Conflict
 #include <windows.h>
+#undef TokenType
 #include <direct.h>
 #include <io.h>
 #include <psapi.h>
@@ -183,8 +190,10 @@ I32 I32_clone(I32 *v) { return *v; }
 // I32 CLI
 I32 *cli_parse_i32(const char *s) {
     char *end;
-    long v = strtol(s, &end, 10);
-    if (*end != '\0' || v < -2147483648L || v > 2147483647L) {
+    // strtoll is used instead of strtol because 'long' is 32-bit on Windows,
+    // which makes the INT32 range check below always-false under -Wtype-limits.
+    long long v = strtoll(s, &end, 10);
+    if (*end != '\0' || v < (long long)INT32_MIN || v > (long long)INT32_MAX) {
         fprintf(stderr, "error: cannot parse '%s' as I32\n", s);
         exit(1);
     }
