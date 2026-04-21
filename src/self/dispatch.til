@@ -1191,41 +1191,36 @@ ffi_init_scan_program := proc(program: Expr) {
             // Struct namespace ext_func/ext_proc
             if stmt.child(0).data.is(NodeType.StructDef) {
                 ref sdd : Declaration = get_payload(stmt.data)
-                ref body : Expr = decl_body(stmt)
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    ref fdd : Declaration = get_payload(field.data)
-                    if fdd.is_namespace.not() { }
-                    else if field.children.len().eq(0) { }
-                    else {
-                        ref fdef : Expr = field.child(0)
-                        if fdef.data.is(NodeType.FuncDef) {
-                            ref fd : FunctionDef = get_payload(fdef.data)
-                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
-                                flat_name := sdd.name.concat("_").concat(fdd.name)
-                                ref fn_ptr : U8 = ffi_dlsym(flat_name)
-                                if is_null(fn_ptr).not() {
-                                    ffi_register(flat_name, fn_ptr, fdef)
-                                    // ffi_register stores a CAP_VIEW of name->c_str;
-                                    // zero flat_name to prevent destructor from freeing c_str
-                                    memset(flat_name, 0, Str.size())
-                                }
-                            } else if fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc)) {
-                                // Scan function body for nested ext_func/ext_proc
-                                ref fbody : Expr = fdef.child(0)
-                                for k in 0..fbody.children.len() {
-                                    ref inner : Expr = fbody.child(k)
-                                    if inner.data.is(NodeType.Decl).and(inner.children.len().gt(0)) {
-                                        ref idef : Expr = inner.child(0)
-                                        if idef.data.is(NodeType.FuncDef) {
-                                            ref ifd : FunctionDef = get_payload(idef.data)
-                                            if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {
-                                                ref iname : Declaration = get_payload(inner.data)
-                                                ref ifn : U8 = ffi_dlsym(iname.name)
-                                                if is_null(ifn).not() {
-                                                    ffi_register(iname.name, ifn, idef)
-                                                }
-                                            }
+                ref sdd_data : StructDefData = get_payload(stmt.child(0).data)
+                for j in 0..sdd_data.ns_decls.len() {
+                    ref fdd : Declaration = sdd_data.ns_decls.get(j)
+                    ref fdef : Expr = fdd.default_value
+                    if is_null(fdef) { continue }
+                    if fdef.data.is(NodeType.FuncDef).not() { continue }
+                    ref fd : FunctionDef = get_payload(fdef.data)
+                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
+                        flat_name := sdd.name.concat("_").concat(fdd.name)
+                        ref fn_ptr : U8 = ffi_dlsym(flat_name)
+                        if is_null(fn_ptr).not() {
+                            ffi_register(flat_name, fn_ptr, fdef)
+                            // ffi_register stores a CAP_VIEW of name->c_str;
+                            // zero flat_name to prevent destructor from freeing c_str
+                            memset(flat_name, 0, Str.size())
+                        }
+                    } else if fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc)) {
+                        // Scan function body for nested ext_func/ext_proc
+                        ref fbody : Expr = fdef.child(0)
+                        for k in 0..fbody.children.len() {
+                            ref inner : Expr = fbody.child(k)
+                            if inner.data.is(NodeType.Decl).and(inner.children.len().gt(0)) {
+                                ref idef : Expr = inner.child(0)
+                                if idef.data.is(NodeType.FuncDef) {
+                                    ref ifd : FunctionDef = get_payload(idef.data)
+                                    if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {
+                                        ref iname : Declaration = get_payload(inner.data)
+                                        ref ifn : U8 = ffi_dlsym(iname.name)
+                                        if is_null(ifn).not() {
+                                            ffi_register(iname.name, ifn, idef)
                                         }
                                     }
                                 }
