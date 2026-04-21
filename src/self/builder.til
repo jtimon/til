@@ -409,7 +409,7 @@ emit_indent := proc(f: File, shallow depth: I32) {
     }
 }
 
-emit_til_default := proc(f: File, shallow t: TilType, struct_name: Str) {
+emit_til_default := proc(f: File, shallow t: TilType) {
     if t.eq(TilType.I64).or(t.eq(TilType.I16)).or(t.eq(TilType.I32))
     .or(t.eq(TilType.U32)).or(t.eq(TilType.U64)).or(t.eq(TilType.F32))
     .or(t.eq(TilType.U8)) {
@@ -417,13 +417,12 @@ emit_til_default := proc(f: File, shallow t: TilType, struct_name: Str) {
     } else if t.eq(TilType.Bool) {
         f.write_str("false")
     } else if t.is(TilType.Struct).or(t.is(TilType.Enum)) {
-        if is_null(struct_name).not() {
-            if struct_name.eq("Str") {
-                f.write_str("\"\"")
-            } else {
-                f.write_str(struct_name)
-                f.write_str("()")
-            }
+        name := til_type_name(t)
+        if name.eq("Str") {
+            f.write_str("\"\"")
+        } else if name.len().gt(0) {
+            f.write_str(name)
+            f.write_str("()")
         } else {
             f.write_str("0")
         }
@@ -2393,7 +2392,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
                 f.write_str(fdd.name)
                 if fdd.explicit_type.len().gt(0) { f.write_str(" : "); f.write_str(fdd.explicit_type) }
                 f.write_str(" := ")
-                if field.children.len().gt(0) { emit_til_default(f, field.til_type, til_type_name(field.child(0).til_type)) }
+                if field.children.len().gt(0) { emit_til_default(f, field.til_type) }
                 else { f.write_str("0") }
                 f.write_str("\n")
             }

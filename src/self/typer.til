@@ -961,7 +961,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             arg.til_type = ptype
             continue
         }
-        if type_prefix(arg.til_type, til_type_name(arg.til_type)).eq(type_prefix(ptype, ptype_name)).not() {
+        if type_prefix(arg.til_type).eq(type_prefix(ptype)).not() {
             ref param_name : Str = param3.name
             type_error(arg, format(
                 "argument type mismatch for '", param_name,
@@ -2064,7 +2064,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         }
     }
 
-    tp := type_prefix(sw_expr.til_type, sw_expr_sname)
+    tp := type_prefix(sw_expr.til_type)
     sw_name := "_sw_".concat(tp).concat("_").concat(hoist_counter.to_str())
     hoist_counter.inc()
 
@@ -2865,7 +2865,7 @@ find_kwargs_fcall := func(e: Expr) returns ref Expr {
     return NULL
 }
 
-type_prefix := func(t: TilType, sname: Str) returns Str {
+type_prefix := func(t: TilType) returns Str {
     switch t {
     case TilType.I64: return "I64"
     case TilType.U8: return "U8"
@@ -2876,11 +2876,11 @@ type_prefix := func(t: TilType, sname: Str) returns Str {
     case TilType.F32: return "F32"
     case TilType.Bool: return "Bool"
     case TilType.None: return "None"
-    case TilType.Struct:
-        if sname.len().gt(0) { return sname }
+    case TilType.Struct(s):
+        if s.len().gt(0) { return s.clone() }
         return "compound"
-    case TilType.Enum:
-        if sname.len().gt(0) { return sname }
+    case TilType.Enum(s):
+        if s.len().gt(0) { return s.clone() }
         return "compound"
     case: return "v"
     }
@@ -4447,8 +4447,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
 }
 
 hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow is_own: Bool) returns Expr {
-    val_sname := til_type_name(val.til_type)
-    tp := type_prefix(val.til_type, val_sname)
+    tp := type_prefix(val.til_type)
     tname := "_t_".concat(tp).concat("_").concat(hoist_counter.to_i64().to_str())
     hoist_counter.inc()
 
