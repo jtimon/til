@@ -287,6 +287,14 @@ main := proc(args: ..Str) {
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path)
     user_argv := collect_user_argv(lp, args, cli.path_idx.add(1))
 
+    // `ast` prints the raw parsed AST -- skip init/typecheck/precomp/scavenge
+    // so output matches the parser's direct output and stays cheap on large
+    // programs (full pipeline on src/til.til takes minutes).
+    if cli.command.eq("ast") {
+        cmd_ast(lp)
+        return
+    }
+
     prepare_program(lp, cli.command.eq("test"))
 
     mut target := detect_current_target()
@@ -304,8 +312,6 @@ main := proc(args: ..Str) {
         result = cmd_build(lp, cli.custom_bin, cli.custom_c, target, cli.cc)
     } else if cli.command.eq("run") {
         result = cmd_run(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc)
-    } else if cli.command.eq("ast") {
-        cmd_ast(lp)
     } else {
         println("error: unknown command '".concat(cli.command).concat("'"))
         usage()
