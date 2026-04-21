@@ -2,13 +2,41 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <limits.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <direct.h>
+#include <io.h>
+#include <psapi.h>
+#include <sys/stat.h>
+#ifndef PATH_MAX
+#define PATH_MAX MAX_PATH
+#endif
+#else
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
-#include <time.h>
-#include <limits.h>
 #include <dlfcn.h>
+#endif
+
+#ifdef _WIN32
+static HMODULE ffi_handle;
+#else
+static void *ffi_handle;
+#endif
+
+// Portable strndup replacement -- MSVC toolchains don't ship one and mingw's
+// availability varies by _GNU_SOURCE. This is tiny, so inline it.
+static char *dup_n(const char *s, size_t n) {
+    char *r = malloc(n + 1);
+    if (!r) return NULL;
+    memcpy(r, s, n);
+    r[n] = '\0';
+    return r;
+}
 
 // Internal helpers for heap-allocating scalar values
 static I64 *new_i64(I64 v) { I64 *r = malloc(sizeof(I64)); *r = v; return r; }
@@ -21,8 +49,6 @@ static U32 *new_u32(U32 v) { U32 *r = malloc(sizeof(U32)); *r = v; return r; }
 __attribute__((unused)) static F32 *new_f32(F32 v) { F32 *r = malloc(sizeof(F32)); *r = v; return r; }
 static U64 *new_u64(U64 v) { U64 *r = malloc(sizeof(U64)); *r = v; return r; }
 static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r; }
-
-static void *ffi_handle;
 
 // I64 clone
 I64 I64_clone(I64 *v) { return *v; }
@@ -336,7 +362,7 @@ Bool *cli_parse_bool(const char *s) {
 // These use the codegen Str layout: { U8 *c_str, U64 count, U64 cap }.
 
 Str *readfile(Str *path) {
-    char *p = strndup((char *)path->c_str, path->count);
+    char *p = dup_n((char *)path->c_str, path->count);
     FILE *f = fopen(p, "rb");
     if (!f) {
         fprintf(stderr, "readfile: could not open '%s'\n", p);
@@ -358,7 +384,7 @@ Str *readfile(Str *path) {
 }
 
 void writefile(Str *path, Str *content) {
-    char *p = strndup((char *)path->c_str, path->count);
+    char *p = dup_n((char *)path->c_str, path->count);
     FILE *f = fopen(p, "wb");
     if (!f) {
         fprintf(stderr, "writefile: could not open '%s'\n", p);
@@ -373,7 +399,7 @@ void writefile(Str *path, Str *content) {
 // --- File handle I/O ---
 
 void *cfile_open(Str *path, Bool is_write) {
-    char *p = strndup((char *)path->c_str, path->count);
+    char *p = dup_n((char *)path->c_str, path->count);
     FILE *f = fopen(p, is_write ? "wb" : "rb");
     if (!f) {
         fprintf(stderr, "cfile_open: could not open '%s'\n", p);
@@ -448,39 +474,73 @@ Str *cfile_read_all(void *handle) {
 
 Str *get_cwd_str(void) {
     char buf[PATH_MAX];
+#ifdef _WIN32
+    if (!_getcwd(buf, sizeof(buf))) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    for (char *q = buf; *q; q++) if (*q == '\\') *q = '/';
+#else
     if (!getcwd(buf, sizeof(buf))) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+#endif
     return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen(buf), .cap = CAP_VIEW});
 }
 
 Str *realpath_str(Str *path) {
-    char *p = strndup((char *)path->c_str, path->count);
+    char *p = malloc(path->count + 1);
+    memcpy(p, path->c_str, path->count);
+    p[path->count] = '\0';
+#ifdef _WIN32
+    char *abs = _fullpath(NULL, p, 0);
+    free(p);
+    if (!abs) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    // Normalize backslashes to forward slashes so path comparisons stay
+    // consistent across Unix and Windows codepaths.
+    for (char *q = abs; *q; q++) if (*q == '\\') *q = '/';
+#else
     char *abs = realpath(p, NULL);
     free(p);
     if (!abs) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+#endif
     Str *s = Str_clone(&(Str){.c_str = (U8*)(abs), .count = (USize)strlen((const char*)(abs)), .cap = CAP_VIEW});
     free(abs);
     return s;
 }
 
 I32 system_cmd(Str *cmd) {
-    char *c = strndup((char *)cmd->c_str, cmd->count);
+    char *c = malloc(cmd->count + 1);
+    memcpy(c, cmd->c_str, cmd->count);
+    c[cmd->count] = '\0';
     int status = system(c);
     free(c);
+#ifdef _WIN32
+    return (I32)status;
+#else
     if (WIFEXITED(status)) return WEXITSTATUS(status);
     return 1;
+#endif
 }
 
 Str *get_bin_dir(void) {
     char buf[PATH_MAX];
+#ifdef _WIN32
+    DWORD len = GetModuleFileNameA(NULL, buf, (DWORD)sizeof(buf));
+    if (len == 0 || len >= sizeof(buf)) {
+        return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+    }
+    for (DWORD i = 0; i < len; i++) if (buf[i] == '\\') buf[i] = '/';
+#else
     ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     if (len <= 0) return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
     buf[len] = '\0';
+#endif
     char *slash = strrchr(buf, '/');
     if (slash) *slash = '\0';
     for (int i = 0; i < 5; i++) {
         char test[PATH_MAX + 32];
         snprintf(test, sizeof(test), "%s/src/core/core.til", buf);
+#ifdef _WIN32
+        if (_access(test, 0) == 0) return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
+#else
         if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
+#endif
         slash = strrchr(buf, '/');
         if (!slash) break;
         *slash = '\0';
@@ -488,8 +548,43 @@ Str *get_bin_dir(void) {
     return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
 }
 
+#ifdef _WIN32
 I64 *spawn_cmd(Str *cmd) {
-    char *c = strndup((char *)cmd->c_str, cmd->count);
+    char *c = malloc(cmd->count + 1);
+    memcpy(c, cmd->c_str, cmd->count);
+    c[cmd->count] = '\0';
+
+    char cmdline[8192];
+    snprintf(cmdline, sizeof(cmdline), "cmd.exe /c %s", c);
+    free(c);
+
+    STARTUPINFOA si = {0};
+    PROCESS_INFORMATION pi = {0};
+    si.cb = sizeof(si);
+    if (!CreateProcessA(NULL, cmdline, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        fprintf(stderr, "spawn_cmd: CreateProcess failed\n");
+        exit(1);
+    }
+    CloseHandle(pi.hThread);
+    return new_i64((I64)(intptr_t)pi.hProcess);
+}
+
+I64 check_cmd_status(I64 pid) {
+    HANDLE h = (HANDLE)(intptr_t)pid;
+    DWORD wait = WaitForSingleObject(h, 0);
+    if (wait == WAIT_TIMEOUT) return -1;
+    DWORD code = 0;
+    GetExitCodeProcess(h, &code);
+    CloseHandle(h);
+    return (I64)code;
+}
+
+void sleep_ms(I64 ms) {
+    Sleep((DWORD)ms);
+}
+#else
+I64 *spawn_cmd(Str *cmd) {
+    char *c = dup_n((char *)cmd->c_str, cmd->count);
     pid_t pid = fork();
     if (pid == 0) {
         execl("/bin/sh", "sh", "-c", c, NULL);
@@ -514,9 +609,10 @@ I64 check_cmd_status(I64 pid) {
 void sleep_ms(I64 ms) {
     usleep((useconds_t)(ms * 1000));
 }
+#endif
 
 I64 file_mtime(Str *path) {
-    char *p = strndup((char *)path->c_str, path->count);
+    char *p = dup_n((char *)path->c_str, path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
@@ -525,17 +621,32 @@ I64 file_mtime(Str *path) {
 }
 
 I64 clock_ms(void) {
+#ifdef _WIN32
+    return (I64)GetTickCount64();
+#else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000;
+#endif
 }
 
 I64 get_thread_count(void) {
+#ifdef _WIN32
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    return (I64)si.dwNumberOfProcessors;
+#else
     long count = sysconf(_SC_NPROCESSORS_ONLN);
     return count > 0 ? (I64)count : 1;
+#endif
 }
 
 U64 peak_rss_bytes(void) {
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) return 0;
+    return (U64)pmc.PeakWorkingSetSize;
+#else
     struct rusage ru;
     if (getrusage(RUSAGE_SELF, &ru) != 0) return 0;
 #if defined(__APPLE__)
@@ -543,8 +654,10 @@ U64 peak_rss_bytes(void) {
 #else
     return (U64)ru.ru_maxrss * 1024ULL;
 #endif
+#endif
 }
 
+#ifndef _WIN32
 static U64 proc_rss_bytes(pid_t pid) {
     char path[64];
     snprintf(path, sizeof(path), "/proc/%lld/statm", (long long)pid);
@@ -607,6 +720,7 @@ static U64 proc_tree_rss_bytes(pid_t pid) {
     }
     return total;
 }
+#endif  // !_WIN32
 
 U64 current_rss_bytes(I64 pid) {
 #if defined(__linux__)
@@ -620,37 +734,76 @@ U64 current_rss_bytes(I64 pid) {
 // --- Utility functions (for til.til ext_func calls) ---
 
 Str *til_bin_dir(void) {
-    char buf[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    if (len <= 0) return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
-    buf[len] = '\0';
-    char *slash = strrchr(buf, '/');
-    if (slash) *slash = '\0';
-    for (int i = 0; i < 5; i++) {
-        char test[PATH_MAX + 32];
-        snprintf(test, sizeof(test), "%s/src/core/core.til", buf);
-        if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (U8*)buf, .count = (USize)strlen(buf), .cap = CAP_VIEW});
-        slash = strrchr(buf, '/');
-        if (!slash) break;
-        *slash = '\0';
-    }
-    return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+    return get_bin_dir();
 }
 
 Str *til_realpath(Str *path) {
-    char *abs = realpath((const char *)path->c_str, NULL);
-    if (!abs) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
-    Str *s = Str_clone(&(Str){.c_str = (U8*)abs, .count = (USize)strlen(abs), .cap = CAP_VIEW});
-    free(abs);
-    return s;
+    return realpath_str(path);
 }
 
 I32 til_system(Str *cmd) {
     int status = system((const char *)cmd->c_str);
+#ifdef _WIN32
+    return (I32)status;
+#else
     if (WIFEXITED(status)) return WEXITSTATUS(status);
     return 1;
+#endif
 }
 
+#ifdef _WIN32
+Bool ffi_load_global_lib(Str *soname) {
+    return LoadLibraryA((const char *)soname->c_str) != NULL;
+}
+
+Bool ffi_open_user_so(Str *path) {
+    ffi_handle = LoadLibraryA((const char *)path->c_str);
+    return ffi_handle != NULL;
+}
+
+void ffi_close_user_so(void) {
+    if (ffi_handle) {
+        FreeLibrary(ffi_handle);
+        ffi_handle = NULL;
+    }
+}
+
+U8 *ffi_user_symbol(Str *name) {
+    if (!ffi_handle) return NULL;
+    return (U8 *)GetProcAddress(ffi_handle, (const char *)name->c_str);
+}
+
+U8 *ffi_global_symbol(Str *name) {
+    // Walk loaded modules looking for the symbol. Mirrors RTLD_DEFAULT
+    // semantics well enough for the built-in libs til links against.
+    HMODULE mods[256];
+    DWORD needed = 0;
+    if (!EnumProcessModules(GetCurrentProcess(), mods, sizeof(mods), &needed)) return NULL;
+    DWORD count = needed / sizeof(HMODULE);
+    if (count > 256) count = 256;
+    for (DWORD i = 0; i < count; i++) {
+        FARPROC p = GetProcAddress(mods[i], (const char *)name->c_str);
+        if (p) return (U8 *)p;
+    }
+    return NULL;
+}
+
+Str *ffi_last_error(void) {
+    DWORD err = GetLastError();
+    if (!err) {
+        return Str_clone(&(Str){.c_str = (U8 *)"", .count = 0, .cap = CAP_LIT});
+    }
+    char buf[512];
+    DWORD n = FormatMessageA(
+        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL, err, 0, buf, sizeof(buf), NULL);
+    if (n == 0) {
+        snprintf(buf, sizeof(buf), "Windows error %lu", (unsigned long)err);
+        n = (DWORD)strlen(buf);
+    }
+    return Str_clone(&(Str){.c_str = (U8 *)buf, .count = (USize)n, .cap = CAP_VIEW});
+}
+#else
 Bool ffi_load_global_lib(Str *soname) {
     return dlopen((const char *)soname->c_str, RTLD_NOW | RTLD_GLOBAL) != NULL;
 }
@@ -683,6 +836,7 @@ Str *ffi_last_error(void) {
     }
     return Str_clone(&(Str){.c_str = (U8 *)msg, .count = (USize)strlen(msg), .cap = CAP_VIEW});
 }
+#endif
 
 I32 stderr_print(Str *msg) {
     fprintf(stderr, "%.*s", (int)msg->count, msg->c_str ? (char *)msg->c_str : "");
@@ -690,11 +844,19 @@ I32 stderr_print(Str *msg) {
 }
 
 void unlink_path(Str *path) {
+#ifdef _WIN32
+    _unlink((const char *)path->c_str);
+#else
     unlink((const char *)path->c_str);
+#endif
 }
 
 I32 process_id(void) {
+#ifdef _WIN32
+    return (I32)GetCurrentProcessId();
+#else
     return (I32)getpid();
+#endif
 }
 
 Str *til_str_left(Str *s, U64 n) {

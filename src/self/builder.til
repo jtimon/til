@@ -2860,9 +2860,18 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
         user_part = all_objs
     }
 
-    cmd := compiler.concat(extra).concat(" -Werror -g -rdynamic -I").concat(ext_dir)
+    // -rdynamic is a Linux/ELF gcc driver flag for exporting symbols to dlsym.
+    // mingw silently ignores it but clangs error out, so only add for non-Windows.
+    mut dyn_flag := " -rdynamic"
+    if target.eq(Target.WindowsX64) { dyn_flag = "" }
+    // Windows FFI / peak_rss helpers in ext.c call GetProcessMemoryInfo and
+    // EnumProcessModules from psapi.
+    mut plat_libs := ""
+    if target.eq(Target.WindowsX64) { plat_libs = " -lpsapi" }
+
+    cmd := compiler.concat(extra).concat(" -Werror -g").concat(dyn_flag).concat(" -I").concat(ext_dir)
         .concat(" -o ").concat(bin_path).concat(" ").concat(c_path)
-        .concat(" ").concat(ext_c_path).concat(user_part).concat(lf)
+        .concat(" ").concat(ext_c_path).concat(user_part).concat(lf).concat(plat_libs)
 
     result := system_cmd(cmd)
     if result.neq(0) {
@@ -3821,7 +3830,7 @@ BuildPaths := struct {
     mut do_lib := false
 }
 
-derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str) returns BuildPaths {
+derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns BuildPaths {
     mut paths := BuildPaths()
 
     last_slash := lp.path.rfind("/")
@@ -3839,7 +3848,7 @@ derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str) re
 
     mut c_path := "gen/til/".concat(name).concat(".c")
     if custom_c.len().gt(0) { c_path = custom_c.clone() }
-    mut bin_path := "bin/".concat(name)
+    mut bin_path := "bin/".concat(name).concat(executable_extension(target))
     if custom_bin.len().gt(0) { bin_path = custom_bin.clone() }
 
     paths.c_path = c_path
@@ -3907,7 +3916,7 @@ compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_ove
 }
 
 cmd_translate := proc(lp: LoadedProgram, custom_c: Str) returns shallow I32 {
-    paths := derive_build_paths(lp, "", custom_c)
+    paths := derive_build_paths(lp, "", custom_c, detect_current_target())
     make_build_dirs(paths)
     result := translate_ast(lp, paths)
     if result.eq(0) { print_translate_success(paths) }
@@ -3915,7 +3924,7 @@ cmd_translate := proc(lp: LoadedProgram, custom_c: Str) returns shallow I32 {
 }
 
 cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str) returns shallow I32 {
-    paths := derive_build_paths(lp, custom_bin, custom_c)
+    paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
     if result.eq(0) { result = compile_ast(lp, paths, target, cc_override) }
@@ -3931,7 +3940,7 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
     if lp.cur_mode.is_library {
         panic(__LOC__, "cannot run a library -- use translate or build")
     }
-    paths := derive_build_paths(lp, custom_bin, custom_c)
+    paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
     if result.eq(0) { result = compile_ast(lp, paths, target, cc_override) }

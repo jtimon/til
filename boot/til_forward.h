@@ -1078,6 +1078,7 @@ Str * target_prefix_args(Target * target);
 Str * common_warning_flags(void);
 Str * clang_warning_flags(void);
 Str * toolchain_extra_args(Target * target, Str * compiler);
+Str * executable_extension(Target * target);
 Target * detect_current_target(void);
 I32 system_cmd(Str * cmd);
 CollectionInfo * CollectionInfo_clone(CollectionInfo * self);
@@ -1193,7 +1194,7 @@ I32 build(Expr * core_program, Expr * program, Mode * mode, Bool run_tests, Str 
 BuildPaths * BuildPaths_clone(BuildPaths * self);
 void BuildPaths_delete(BuildPaths * self, Bool * call_free);
 U32 BuildPaths_size(void);
-BuildPaths * derive_build_paths(LoadedProgram * lp, Str * custom_bin, Str * custom_c);
+BuildPaths * derive_build_paths(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target);
 void make_build_dirs(BuildPaths * paths);
 I32 translate_ast(LoadedProgram * lp, BuildPaths * paths);
 void print_translate_success(BuildPaths * paths);

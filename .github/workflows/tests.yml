@@ -55,3 +55,39 @@ jobs:
         run: |
           ./bin/til build --target=linux-riscv64 -o bin/hello_script_riscv64 src/examples/hello_script.til
           file bin/hello_script_riscv64 | grep -q "RISC-V"
+
+  windows-x64-build:
+    name: windows-x64 (cross-compile on linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri mingw-w64
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build bin/til (native)
+        run: make
+      - name: Cross-compile for windows-x64
+        run: |
+          ./bin/til build --target=windows-x64 -o bin/hello_script.exe src/examples/hello_script.til
+          file bin/hello_script.exe | grep -q "PE32+"
+      - name: Upload .exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello_script-windows-x64
+          path: bin/hello_script.exe
+
+  windows-x64-run:
+    name: windows-x64 (run .exe on windows)
+    needs: windows-x64-build
+    runs-on: windows-latest
+    steps:
+      - name: Download .exe artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: hello_script-windows-x64
+      - name: Run .exe
+        shell: bash
+        run: |
+          ./hello_script.exe
+          ./hello_script.exe | grep -q "Hello World"
