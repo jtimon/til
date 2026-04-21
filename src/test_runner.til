@@ -227,15 +227,13 @@ main := proc(args: ..Str) {
 
         outfile := "gen/out/single/".concat(label).concat(".out")
 
-        start := clock_ms()
         phase := run_phase(cmd.concat(" > ").concat(outfile).concat(" 2>&1"))
-        status := phase.status
         ms := phase.ms
         mem := phase.mem
 
         mut ok := 1
-        if status.neq(expected_exit) {
-            println("FAIL: ", label, " exit=", status.to_str(), " expected=", expected_exit.to_str())
+        if phase.status.neq(expected_exit) {
+            println("FAIL: ", label, " exit=", phase.status.to_str(), " expected=", expected_exit.to_str())
             ok = 0
         }
 
@@ -289,7 +287,6 @@ main := proc(args: ..Str) {
         outfile := "gen/out/single/".concat(label).concat(".out")
 
         phase := run_phase(cmd.concat(" > ").concat(outfile).concat(" 2>&1"))
-        status := phase.status
         ms := phase.ms
         mem := phase.mem
 

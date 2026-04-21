@@ -248,3 +248,10 @@ hn := HasNew(x = 1)
 // #86: unused function parameter (prefix with _ to suppress)
 unused_param := func(a: I64, b: I64) returns I64 { return a }
 unused_param(1, 2)
+
+// #86: unused local variable (prefix with _ to suppress)
+unused_local := func() returns I64 {
+    unused := 99
+    return 0
+}
+unused_local()

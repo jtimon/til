@@ -967,9 +967,10 @@
   Implementation: typer tracks which bindings are read. After
   type-checking a scope, any unread non-~_~ binding is an error.
 
-  Status: partial. Function parameters are now checked (~check_unused_params~
-  in ~src/self/typer.til~, skipping ExtFunc/ExtProc). Unused local variables
-  and imports still TODO.
+  Status: partial. Function parameters and local variables are now checked
+  (~check_unused_params~ and ~check_unused_locals~ in ~src/self/typer.til~;
+  parameter check skips ExtFunc/ExtProc; local check runs on every
+  non-type-body scope). Unused imports still TODO.
 
   Cleanup of the initial _-prefix fixes: truly unused parameters have been
   removed outright in ~src/self/builder.til~, ~src/self/initer.til~,

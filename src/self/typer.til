@@ -81,6 +81,11 @@ type_error := proc(e: Expr, msg: Str) {
     errors.inc()
 }
 
+type_error_at := proc(path: Str, shallow line: U32, shallow col: U32, msg: Str) {
+    println(path, ":", line.to_str(), ":", col.to_str(), ": type error: ", msg)
+    errors.inc()
+}
+
 find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
     if is_null(sdef) { return NULL }
     ref body : Expr = sdef.child(0)
@@ -288,7 +293,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
         }
     }
     mut field_vals := Vec.new("CtorArg", CtorArg.size())
-    for i in 0..nfields {
+    for _i in 0..nfields {
         field_vals.push(own CtorArg.Unfilled())
     }
     mut field_idx := Vec.new("U32", U32.size())
@@ -381,7 +386,7 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
     mut va_args := Vec.new("Expr", Expr.size())
     mut kw_args := Vec.new("Expr", Expr.size())
     mut new_args := Vec.new("CtorArg", CtorArg.size())
-    for i in 0..nparam {
+    for _i in 0..nparam {
         new_args.push(own CtorArg.Unfilled())
     }
     mut pos_idx : U32 = 0
@@ -848,7 +853,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         ref ns_fdef : FunctionDef = get_payload(ns_func2.data)
         np := ns_fdef.nparam
         mut new_args := Vec.new("CtorArg", CtorArg.size())
-        for i in 0..np {
+        for _i in 0..np {
             new_args.push(own CtorArg.Unfilled())
         }
         mut pos_idx : U32 = 0
@@ -1265,6 +1270,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     }
     check_ref_function_returns(func_scope, expr)
     check_unused_params(func_scope, expr)
+    check_unused_locals(func_scope, expr.path)
     TypeScope.delete(own func_scope)
 }
 
@@ -1281,6 +1287,21 @@ check_unused_params := proc(func_scope: TypeScope, expr: Expr) {
         if pb.used.not() {
             type_error(expr, "unused parameter '".concat(param.name).concat("'"))
         }
+    }
+}
+
+check_unused_locals := proc(scope: TypeScope, path: Str) {
+    for bi in 0..scope.bindings.count {
+        ref b : TypeBinding = ptr_add(scope.bindings.val_data, bi.mul(scope.bindings.val_size))
+        if b.is_param { continue }
+        if b.is_builtin { continue }
+        if b.is_type_alias { continue }
+        if is_null(b.struct_def).not() { continue }
+        if is_null(b.func_def).not() { continue }
+        if b.name.len().eq(0) { continue }
+        if b.name.starts_with("_") { continue }
+        if b.used { continue }
+        type_error_at(path, b.line, b.col, "unused variable '".concat(b.name).concat("'"))
     }
 }
 
@@ -1322,10 +1343,12 @@ infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, sh
     }
     then_scope := TypeScope(parent = scope)
     infer_body(then_scope, stmt.child(1), in_func, 1, in_loop, returns_ref, 0, ctx)
+    check_unused_locals(then_scope, stmt.path)
     TypeScope.delete(own then_scope)
     if stmt.child_count().gt(2) {
         else_scope := TypeScope(parent = scope)
         infer_body(else_scope, stmt.child(2), in_func, 1, in_loop, returns_ref, 0, ctx)
+        check_unused_locals(else_scope, stmt.path)
         TypeScope.delete(own else_scope)
     }
     stmt.til_type = TilType.None
@@ -1503,6 +1526,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
     }
     while_scope := TypeScope(parent = scope)
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
+    check_unused_locals(while_scope, stmt.path)
     TypeScope.delete(own while_scope)
     stmt.til_type = TilType.None
 }
@@ -2399,6 +2423,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
     case NodeType.Body:
         block_scope := TypeScope(parent = scope)
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
+        check_unused_locals(block_scope, stmt.path)
         TypeScope.delete(own block_scope)
     case NodeType.While:
         infer_while_stmt(scope, stmt, in_func, returns_ref, ctx)

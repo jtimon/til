@@ -64,7 +64,7 @@ test_alias_in_if := test() {
 
 test_alias_in_loop := test() {
     x := "loop"
-    for i in 0..3 {
+    for _i in 0..3 {
         y := x
         assert_eq_str(__LOC__, y, "loop")
     }

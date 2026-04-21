@@ -953,7 +953,6 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
 
     for i in 0..nargs {
         v := eval_expr(scope, e.child(i.add(1)))
-        ref mut arg_slot : Dynamic = ptr_add(args, i.to_u64().mul(8))
         mut is_shallow := is_null(fe.param_shallows).not()
             .and(i.lt(fe.nparam.to_i64().to_usize()))
         if is_shallow {

@@ -284,7 +284,7 @@ namespace:
         if frac_part.len().gt(0) {
             frac := frac_part.to_i64().to_f32()
             mut scale := 1.to_f32()
-            for i in 0..frac_part.len() {
+            for _i in 0..frac_part.len() {
                 scale = scale.mul(10.to_f32())
             }
             out = out.add(frac.div(scale))

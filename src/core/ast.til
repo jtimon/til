@@ -310,7 +310,7 @@ func_type_name := func(ft: FuncType) returns Str {
 
 // --- ast_print ---
 ast_print := proc(e: Expr, shallow indent: U32) {
-    for i in 0..indent.to_i64().to_u64() {
+    for _i in 0..indent.to_i64().to_u64() {
         print("  ")
     }
     print("(", node_name(e.data))
@@ -336,7 +336,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
         for i in 0..e.children.len() {
             ast_print(e.child(i), indent.add(1))
         }
-        for i in 0..indent.to_i64().to_u64() {
+        for _i in 0..indent.to_i64().to_u64() {
             print("  ")
         }
     }

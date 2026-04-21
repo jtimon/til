@@ -107,7 +107,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
         bin_dir := get_bin_dir()
         til_bin := bin_dir.concat("/bin/til")
         cmd := til_bin.concat(" interpret ").concat(tmp_path).concat(" > ").concat(out_path).concat(" 2>&1")
-        rc := system_cmd(cmd)
+        system_cmd(cmd)
 
         // Read full output and print only the delta vs the previous run's
         // output. Since the combined program is re-run from scratch each

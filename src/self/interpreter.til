@@ -699,9 +699,6 @@ eval_body := proc(scope: Scope, body: Expr) {
                             ref si : StructInstance = get_payload(cell.val)
                             base = to_ptr(si.data)
                             cur_sdef = si.struct_def
-                            // Re-walk the chain applying offsets
-                            ref mut walk : Expr = obj_expr
-                            mut d := depth.sub(1.to_i32())
                             // For simplicity, handle depth=1 (most common: a.field = val)
                             if depth.eq(1.to_i32()) {
                                 ref fa_name : Str = get_payload(obj_expr.data)

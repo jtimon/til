@@ -232,7 +232,7 @@ test_switch_payload := test() {
     mut result := 0
     switch Token.Num(42) {
     case Token.Num(value): result = value
-    case Token.Name(s): result = -1
+    case Token.Name(_s): result = -1
     case Token.Eof: result = -2
     }
     assert_eq(__LOC__, result, 42)
@@ -259,8 +259,8 @@ test_switch_payload_multi := test() {
 test_switch_payload_with_default := test() {
     mut result := ""
     switch Token.Eof {
-    case Token.Num(n): result = "num"
-    case Token.Name(s): result = "name"
+    case Token.Num(_n): result = "num"
+    case Token.Name(_s): result = "name"
     case: result = "other"
     }
     assert_eq_str(__LOC__, result, "other")
