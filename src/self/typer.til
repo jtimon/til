@@ -567,7 +567,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         if is_variant(arg.data, NodeType.LiteralNum) {
             if is_numeric_type(ptype) {
                 if literal_in_range(get_payload(arg.data), ptype).not() {
-                    type_error(arg, "integer literal ".concat(get_payload(arg.data)).concat(" out of range for ").concat(type_to_name(ptype, "")))
+                    type_error(arg, "integer literal ".concat(get_payload(arg.data)).concat(" out of range for ").concat(type_to_name(ptype)))
                 }
                 arg.til_type = ptype
                 ci = ci.add(1)
@@ -588,7 +588,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
             continue
         }
         if is_variant(arg.til_type, ptype).not() {
-            type_error(arg, "argument type mismatch for '".concat(param2.name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.til_type, til_type_name(arg.til_type))))
+            type_error(arg, "argument type mismatch for '".concat(param2.name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.til_type)))
         } else if is_variant(ptype, TilType.Struct).or(is_variant(ptype, TilType.Enum)) {
             arg_sname := til_type_name(arg.til_type)
             if arg_sname.len().gt(0) {
@@ -671,7 +671,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                             continue
                         }
                         if is_variant(arg.til_type, expected).not() {
-                            type_error(e, "function pointer '".concat(name).concat("' param ").concat(ai.add(1).to_i64().to_str()).concat(": expected ").concat(expected_name).concat(", got ").concat(type_to_name(arg.til_type, til_type_name(arg.til_type))))
+                            type_error(e, "function pointer '".concat(name).concat("' param ").concat(ai.add(1).to_i64().to_str()).concat(": expected ").concat(expected_name).concat(", got ").concat(type_to_name(arg.til_type)))
                         }
                         ai = ai.add(1)
                     }
@@ -1283,7 +1283,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
             if is_variant(sf, ScopeFind.Found) {
                 ref b : TypeBinding = get_payload(sf)
                 if b.own_type.eq(OwnType.Ref).and(b.is_alias).or(b.is_param.and(b.own_type.eq(OwnType.Own).not())) {
-                    tname := type_to_name(stmt.til_type, til_type_name(stmt.child(0).til_type))
+                    tname := type_to_name(stmt.til_type)
                     if tname.len().gt(0) {
                         mc := make_clone_call(tname, stmt.til_type, stmt.child(0), stmt)
                         stmt.children.set(0, own mc)
@@ -1424,7 +1424,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
             )
         )
     ) {
-        tname := type_to_name(rhs.til_type, til_type_name(rhs.til_type))
+        tname := type_to_name(rhs.til_type)
         if tname.len().gt(0) {
             mc := make_clone_call(tname, rhs.til_type, rhs, rhs)
             stmt.children.set(1, own mc)
@@ -1435,7 +1435,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
 infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     if is_variant(stmt.child(0).til_type, TilType.Bool).not().and(is_variant(stmt.child(0).til_type, TilType.Unknown).not()) {
-        type_error(stmt, "while condition must be Bool, got ".concat(type_to_name(stmt.child(0).til_type, til_type_name(stmt.child(0).til_type))))
+        type_error(stmt, "while condition must be Bool, got ".concat(type_to_name(stmt.child(0).til_type)))
     }
     if expr_contains_fcall(stmt.child(0)) {
         ref cond : Expr = stmt.child(0)
@@ -1593,7 +1593,7 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
         type_error(stmt, "undefined type '".concat(sdecl.explicit_type).concat("'"))
     } else if is_variant(val.data, NodeType.LiteralNum).and(is_numeric_type(declared).or(is_variant(declared, TilType.Dynamic))) {
         if is_numeric_type(declared).and(literal_in_range(get_payload(val.data), declared).not()) {
-            type_error(val, "integer literal ".concat(get_payload(val.data)).concat(" out of range for ").concat(type_to_name(declared, "")))
+            type_error(val, "integer literal ".concat(get_payload(val.data)).concat(" out of range for ").concat(type_to_name(declared)))
         }
         val.til_type = declared
     } else if is_variant(val.data, NodeType.LiteralNull).and(sdecl.own_type.eq(OwnType.Ref).not()) {
@@ -1602,8 +1602,8 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
         .and(is_variant(val.til_type, declared).not())
         .and(is_variant(val.til_type, TilType.Dynamic).not())
         .and(is_variant(declared, TilType.Dynamic).not()) {
-        type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared, ""))
-            .concat(" but value is ").concat(type_to_name(val.til_type, "")))
+        type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared))
+            .concat(" but value is ").concat(type_to_name(val.til_type)))
     } else if is_variant(declared, TilType.Struct).or(is_variant(declared, TilType.Enum)) {
         val_sname := til_type_name(val.til_type)
         if val_sname.len().gt(0).and(resolve_type_alias(scope, sdecl.explicit_type).eq(val_sname).not()) {
@@ -1709,7 +1709,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
         )
     ) {
         if sdecl.own_type.eq(OwnType.Ref).not() {
-            tname := type_to_name(stmt.til_type, til_type_name(rhs.til_type))
+            tname := type_to_name(stmt.til_type)
             if tname.len().gt(0) {
                 mc := make_clone_call(tname, stmt.til_type, rhs, stmt)
                 stmt.children.set(0, own mc)
@@ -2158,10 +2158,10 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
             if ts_sname.len().gt(0) {
                 elem_type = ts_sname
             } else {
-                elem_type = type_to_name(type_src.til_type, "")
+                elem_type = type_to_name(type_src.til_type)
             }
         } else {
-            elem_type = type_to_name(type_src.til_type, "")
+            elem_type = type_to_name(type_src.til_type)
         }
     }
 
@@ -2529,7 +2529,7 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                 is_variant(rhs.til_type, TilType.Struct).or(is_variant(rhs.til_type, TilType.Enum))
             )
         ) {
-            tname := type_to_name(rhs.til_type, til_type_name(rhs.til_type))
+            tname := type_to_name(rhs.til_type)
             if tname.len().gt(0) {
                 mc := make_clone_call(tname, rhs.til_type, rhs, stmt)
                 stmt.children.set(0, own mc)
@@ -2831,8 +2831,9 @@ type_prefix := func(t: TilType, sname: Str) returns Str {
     }
 }
 
-type_to_name := func(t: TilType, struct_name: Str) returns Str {
-    if struct_name.len().gt(0) { return struct_name.clone() }
+type_to_name := func(t: TilType) returns Str {
+    name := til_type_name(t)
+    if name.len().gt(0) { return name }
     switch t {
     case TilType.I64: return I64Name.clone()
     case TilType.U8: return U8Name.clone()
@@ -2848,7 +2849,7 @@ type_to_name := func(t: TilType, struct_name: Str) returns Str {
 
 make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) returns Expr {
     ref rhs : Expr = field_assign.child(1)
-    tname := type_to_name(rhs.til_type, til_type_name(rhs.til_type))
+    tname := type_to_name(rhs.til_type)
     if tname.len().eq(0) { return NULL }
 
     mut call := Expr.new(NodeType.FCall(FCallData()), field_assign.line, field_assign.col, field_assign.path)
@@ -2873,8 +2874,8 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     return call
 }
 
-make_delete_call := proc(var_name: Str, shallow type: TilType, struct_name: Str, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
-    tname := type_to_name(type, struct_name)
+make_delete_call := proc(var_name: Str, shallow type: TilType, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
+    tname := type_to_name(type)
     if tname.len().eq(0) { return NULL }
 
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col, src.path)
@@ -2965,7 +2966,7 @@ build_kwargs_dynmap_set := proc(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     set_own_arg(set_call, set_call.child_count())
     set_call.add_child(own key_lit)
 
-    tname := type_to_name(val.til_type, til_type_name(val.til_type))
+    tname := type_to_name(val.til_type)
     mut type_lit := Expr.new(NodeType.LiteralStr(tname.clone()), fcall.line, fcall.col, fcall.path)
     type_lit.til_type = TilType.Struct("Str".clone())
     set_own_arg(set_call, set_call.child_count())
@@ -3023,7 +3024,7 @@ build_variadic_array_set := proc(fcall: Expr, scope: TypeScope, va_name: Str, sh
     ref val_in : Expr = fcall.child(vi.add(j.to_i64().to_i32()).to_i64().to_usize())
     mut val := val_in.clone()
     if is_variant(val_in.data, NodeType.Ident).or(is_variant(val_in.data, NodeType.FieldAccess)) {
-        tname := type_to_name(val_in.til_type, til_type_name(val_in.til_type))
+        tname := type_to_name(val_in.til_type)
         if tname.len().gt(0) {
             val = make_clone_call(tname, val_in.til_type, val_in, val_in)
         }
@@ -3045,7 +3046,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     }
 
     ref first : Expr = set_lit.child(0)
-    elem_type := type_to_name(first.til_type, til_type_name(first.til_type))
+    elem_type := type_to_name(first.til_type)
     if elem_type.len().eq(0) {
         type_error(first, "set literal: cannot determine element type")
         new_ch.push(own stmt.clone())
@@ -3058,7 +3059,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 
     for j in 1..set_lit.child_count() {
         ref v : Expr = set_lit.child(j)
-        vt := type_to_name(v.til_type, til_type_name(v.til_type))
+        vt := type_to_name(v.til_type)
         if vt.len().eq(0).or(vt.eq(elem_type).not()) {
             type_error(v, "set literal: all elements must be the same type")
         }
@@ -3113,8 +3114,8 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 
     ref first_key : Expr = map_lit.child(0)
     ref first_val : Expr = map_lit.child(1)
-    key_type := type_to_name(first_key.til_type, til_type_name(first_key.til_type))
-    val_type := type_to_name(first_val.til_type, til_type_name(first_val.til_type))
+    key_type := type_to_name(first_key.til_type)
+    val_type := type_to_name(first_val.til_type)
 
     if key_type.len().eq(0) {
         type_error(first_key, "map literal: cannot determine key type")
@@ -3134,13 +3135,13 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     for j in 2..map_lit.child_count() {
         if j.mod(2).eq(0) {
             ref k : Expr = map_lit.child(j)
-            kt := type_to_name(k.til_type, til_type_name(k.til_type))
+            kt := type_to_name(k.til_type)
             if kt.len().eq(0).or(kt.eq(key_type).not()) {
                 type_error(k, "map literal: all keys must be the same type")
             }
         } else {
             ref v : Expr = map_lit.child(j)
-            vt := type_to_name(v.til_type, til_type_name(v.til_type))
+            vt := type_to_name(v.til_type)
             if vt.len().eq(0).or(vt.eq(val_type).not()) {
                 type_error(v, "map literal: all values must be the same type")
             }
@@ -3257,7 +3258,7 @@ hoist_param_swap_assign := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Typ
     a.til_type = ab.type
     call.add_child(own a)
     call.add_child(own stmt.child(0).clone())
-    tname := type_to_name(ab.type, til_type_name(ab.type))
+    tname := type_to_name(ab.type)
     mut sz_call := make_ns_call(tname, "size", usize_type(scope), "", stmt)
     mut sz := hoist_to_temp(sz_call, hoisted, scope, false)
     call.add_child(own sz)
@@ -3481,7 +3482,7 @@ insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
         if is_variant(stmt.data, NodeType.FieldAssign) {
             if field_assign_needs_delete(stmt, scope) {
                 ref rhs : Expr = stmt.child(1)
-                if type_to_name(rhs.til_type, til_type_name(rhs.til_type)).len().gt(0) {
+                if type_to_name(rhs.til_type).len().gt(0) {
                     needs_delete = true
                     break
                 }
@@ -3498,7 +3499,7 @@ insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
             fot := fa_own_type(stmt, scope)
             if field_assign_needs_delete(stmt, scope) {
                 ref rhs : Expr = stmt.child(1)
-                if type_to_name(rhs.til_type, til_type_name(rhs.til_type)).len().gt(0) {
+                if type_to_name(rhs.til_type).len().gt(0) {
                     del := make_field_delete(stmt, fot)
                     new_ch.push(own del.clone())
                 }
@@ -4148,9 +4149,8 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
                         continue
                     }
                 }
-                local_sname := til_type_name(local.type)
-                if type_to_name(local.type, local_sname).len().gt(0) {
-                    del := make_delete_call(local.name, local.type, local_sname, true, true, stmt)
+                if type_to_name(local.type).len().gt(0) {
+                    del := make_delete_call(local.name, local.type, true, true, stmt)
                     new_ch.push(own del.clone())
                 }
             }
@@ -4209,9 +4209,8 @@ insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, s
         if local.own_transfer.gte(0) { continue }
         if local.decl_index.lt(stmt_idx.to_i64().to_i32()) {
             if local.last_use.gte(stmt_idx.to_i64().to_i32()).or(local.last_use.eq(-1.to_i32())) {
-                local_sname := til_type_name(local.type)
-                if type_to_name(local.type, local_sname).len().gt(0) {
-                    del := make_delete_call(local.name, local.type, local_sname, false, false, stmt)
+                if type_to_name(local.type).len().gt(0) {
+                    del := make_delete_call(local.name, local.type, false, false, stmt)
                     new_ch.push(own del.clone())
                 }
             }
@@ -4228,16 +4227,14 @@ insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: 
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
         if local.last_use.eq(stmt_idx.to_i64().to_i32()) {
-            local_sname := til_type_name(local.type)
-            if type_to_name(local.type, local_sname).len().gt(0) {
-                del := make_delete_call(local.name, local.type, local_sname, false, false, stmt)
+            if type_to_name(local.type).len().gt(0) {
+                del := make_delete_call(local.name, local.type, false, false, stmt)
                 new_ch.push(own del.clone())
             }
         }
         if local.last_use.eq(-1.to_i32()).and(local.decl_index.eq(stmt_idx.to_i64().to_i32())) {
-            local_sname := til_type_name(local.type)
-            if type_to_name(local.type, local_sname).len().gt(0) {
-                del := make_delete_call(local.name, local.type, local_sname, false, false, stmt)
+            if type_to_name(local.type).len().gt(0) {
+                del := make_delete_call(local.name, local.type, false, false, stmt)
                 new_ch.push(own del.clone())
             }
         }
@@ -4257,9 +4254,8 @@ insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: 
                 ad.save_old_delete = true
                 stmt.til_type = local.type.clone()
             } else {
-                local_sname := til_type_name(local.type)
-                if type_to_name(local.type, local_sname).len().gt(0) {
-                    del := make_delete_call(local.name, local.type, local_sname, false, false, stmt)
+                if type_to_name(local.type).len().gt(0) {
+                    del := make_delete_call(local.name, local.type, false, false, stmt)
                     new_ch.push(own del.clone())
                 }
             }
