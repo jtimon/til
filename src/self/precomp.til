@@ -130,7 +130,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
     if is_null(fn_cell).not() {
         if is_variant(fn_cell.val, Value.Func) {
             ref fptr : Dynamic = get_payload(fn_cell.val)
-            ref fdef : Expr = read_ptr(fptr)
+            ref fdef : Expr = deref(fptr)
             if is_variant(fdef.data, NodeType.FuncDef) {
                 if fdef.child_count().gt(0) {
                     if func_uses_unknown_globals(fdef.child(0), fdef, scope) {
