@@ -75,13 +75,13 @@ dir_of := func(abs: Str) returns Str {
 extract_imports := func(body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
     for i in 0..body.children.len() {
-        ref stmt : Expr = Expr.child(body, i)
+        ref stmt : Expr = body.child(i)
         if stmt.data.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
-            if Expr.child(stmt, 0).data.is(NodeType.Ident)
-                .and(Expr.child(stmt, 1).data.is(NodeType.LiteralStr)) {
-                ref _c0id : Str = get_payload(Expr.child(stmt, 0).data)
+            if stmt.child(0).data.is(NodeType.Ident)
+                .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
+                ref _c0id : Str = get_payload(stmt.child(0).data)
                 if _c0id.eq("import") {
-                    ref path : Str = get_payload(Expr.child(stmt, 1).data)
+                    ref path : Str = get_payload(stmt.child(1).data)
                     paths.push(own path.clone())
                 }
             }
@@ -143,8 +143,8 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 
         // Append imported file's declarations
         for k in 0..sub_ast.children.len() {
-            ref ch : Expr = Expr.child(sub_ast, k)
-            merged.push(own Expr.clone(ch))
+            ref ch : Expr = sub_ast.child(k)
+            merged.push(own ch.clone())
         }
     }
     return 0
@@ -172,12 +172,12 @@ LoadedProgram := struct {
 extract_link_info := proc(mut lp: LoadedProgram) {
     ref ast : Expr = lp.ast
     for i in 0..ast.children.len() {
-        ref stmt : Expr = Expr.child(ast, i)
+        ref stmt : Expr = ast.child(i)
         if stmt.data.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
-            if Expr.child(stmt, 0).data.is(NodeType.Ident)
-                .and(Expr.child(stmt, 1).data.is(NodeType.LiteralStr)) {
-                ref fname : Str = get_payload(Expr.child(stmt, 0).data)
-                ref arg : Str = get_payload(Expr.child(stmt, 1).data)
+            if stmt.child(0).data.is(NodeType.Ident)
+                .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
+                ref fname : Str = get_payload(stmt.child(0).data)
+                ref arg : Str = get_payload(stmt.child(1).data)
                 if fname.eq("link") {
                     if arg.find("/").gte(0) {
                         lp.link_flags = lp.link_flags.concat(" ").concat(arg)

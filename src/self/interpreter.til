@@ -995,7 +995,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
 
     // Guard: skip call if first 'own' param is val_none, borrowed struct, or Ptr
     ref fdef2 : FunctionDef = get_payload(func_def2.data)
-    if fdef2.params.len().gt(0).and(fdef2.params.len().gt(0)).and(e.children.len().gt(1)) {
+    if fdef2.params.len().gt(0).and(e.children.len().gt(1)) {
         ref first_param : Param = fdef2.params.get(0)
         if first_param.own_type.eq(OwnType.Own) {
             ref first_arg : Expr = e.child(1)
