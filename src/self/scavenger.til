@@ -134,9 +134,9 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
     } else if e.data.is(NodeType.FuncDef) {
         ref fdef : FunctionDef = get_payload(e.data)
         for i : U32 in 0..fdef.params.len() {
-            ref p : Param = fdef.params.get(i)
-            if p.ptype.len().gt(0) {
-                vec_push_str(refs, p.ptype)
+            ref p : Declaration = fdef.params.get(i)
+            if p.explicit_type.len().gt(0) {
+                vec_push_str(refs, p.explicit_type)
             }
         }
         if fdef.variadic_index.gte(0) {

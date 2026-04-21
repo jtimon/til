@@ -212,9 +212,13 @@
       ~Vec<Declaration>~. Pure refactor affecting parser + initer +
       codegen.
 
-   2. Move ~FunctionDef.param_defaults: Map<Str, Expr>~ into per-param
-      ~Param.default_value: *Expr~ (or unify Param with Declaration so
-      they share ~default_value~).
+   2. [DONE] Unify ~Param~ with ~Declaration~ and delete
+      ~FunctionDef.param_defaults~. ~FunctionDef.params~ becomes
+      ~Vec<Declaration>~; the per-param default lives in
+      ~Declaration.default_value~ (now an owned ~Expr~, not a borrowed
+      ref). Added ~NodeType.NoDefaultArg~ as the marker used for args
+      without a default. ~Param~ struct and ~.ptype~ field are gone;
+      all readers use ~Declaration.explicit_type~.
 
    3. Add ~Context.struct_layouts: Map<Str, StructLayout>~. Populate
       from the existing ~compute_struct_layout~ in ~initer.til:1682~;

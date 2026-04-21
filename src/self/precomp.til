@@ -110,7 +110,7 @@ func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope)
         ref name : Str = get_payload(e.data)
         ref fd : FunctionDef = get_payload(func_def.data)
         for pi in 0..fd.params.len() {
-            ref p : Param = fd.params.get(pi)
+            ref p : Declaration = fd.params.get(pi)
             if p.name.eq(name) { return false }
         }
         if known.has(name) { return false }

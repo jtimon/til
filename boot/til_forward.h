@@ -44,7 +44,6 @@ typedef enum {
 } OwnType_tag;
 typedef struct OwnType OwnType;
 typedef struct Declaration Declaration;
-typedef struct Param Param;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
 typedef struct StructDefData StructDefData;
@@ -74,7 +73,8 @@ typedef enum {
     NodeType_TAG_MapLit,
     NodeType_TAG_SetLit,
     NodeType_TAG_Switch,
-    NodeType_TAG_Case
+    NodeType_TAG_Case,
+    NodeType_TAG_NoDefaultArg
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
@@ -273,12 +273,14 @@ typedef struct Declaration {
 } Declaration;
 
 
-typedef struct Param {
-    Str name;
-    Str ptype;
-    Bool is_mut;
-    OwnType own_type;
-} Param;
+typedef struct FunctionDef {
+    FuncType func_type;
+    Vec params;
+    Str return_type;
+    I32 variadic_index;
+    I32 kwargs_index;
+    OwnType return_own_type;
+} FunctionDef;
 
 
 typedef struct FCallData {
@@ -304,6 +306,35 @@ typedef struct AssignData {
     Str name;
     Bool save_old_delete;
 } AssignData;
+
+
+struct NodeType {
+    NodeType_tag tag;
+    union {
+        Str LiteralStr;
+        Str LiteralNum;
+        Bool LiteralBool;
+        Str Ident;
+        Declaration Decl;
+        AssignData Assign;
+        FCallData FCall;
+        FunctionDef FuncDef;
+        StructDefData StructDef;
+        Str FieldAccess;
+        Str FieldAssign;
+        Str ForIn;
+        Str NamedArg;
+    } data;
+};
+
+typedef struct Expr {
+    NodeType data;
+    TilType til_type;
+    Vec children;
+    U32 line;
+    U32 col;
+    Str path;
+} Expr;
 
 
 
@@ -362,46 +393,6 @@ typedef struct Set {
     void * elem_delete;
     void * elem_cmp;
 } Set;
-
-
-typedef struct FunctionDef {
-    FuncType func_type;
-    Vec params;
-    Map param_defaults;
-    Str return_type;
-    I32 variadic_index;
-    I32 kwargs_index;
-    OwnType return_own_type;
-} FunctionDef;
-
-
-struct NodeType {
-    NodeType_tag tag;
-    union {
-        Str LiteralStr;
-        Str LiteralNum;
-        Bool LiteralBool;
-        Str Ident;
-        Declaration Decl;
-        AssignData Assign;
-        FCallData FCall;
-        FunctionDef FuncDef;
-        StructDefData StructDef;
-        Str FieldAccess;
-        Str FieldAssign;
-        Str ForIn;
-        Str NamedArg;
-    } data;
-};
-
-typedef struct Expr {
-    NodeType data;
-    TilType til_type;
-    Vec children;
-    U32 line;
-    U32 col;
-    Str path;
-} Expr;
 
 
 struct TokenType {
@@ -731,9 +722,6 @@ Bool * Declaration_eq(Declaration * a, Declaration * b);
 Declaration * Declaration_clone(Declaration * self);
 void Declaration_delete(Declaration * self, Bool * call_free);
 U32 Declaration_size(void);
-Param * Param_clone(Param * self);
-void Param_delete(Param * self, Bool * call_free);
-U32 Param_size(void);
 Bool * FunctionDef_eq(FunctionDef * a, FunctionDef * b);
 FunctionDef * FunctionDef_clone(FunctionDef * self);
 void FunctionDef_delete(FunctionDef * self, Bool * call_free);

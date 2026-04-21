@@ -129,7 +129,7 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
     for i in 0..ptypes.len() {
         ref t : Str = ptypes.get(i)
         ref m : Bool = pmuts.get(i)
-        fd.params.push(own Param(name = "", ptype = t.clone(), is_mut = m))
+        fd.params.push(own Declaration(name = "", explicit_type = t.clone(), is_mut = m, own_type = OwnType.Ref))
     }
     mut sig := Expr.new(NodeType.FuncDef(fd), line, col, p.path)
 
@@ -235,19 +235,19 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             if syn_name.len().gt(0) { tp = syn_name }
         }
 
-        // Optional default value (before push(own nm) consumes nm)
+        // Optional default value
+        mut param_decl := Declaration(name = nm, explicit_type = tp, is_mut = is_mut, own_type = own_type)
         mut has_default := false
         if check(p, TokenType.Eq) {
             advance(p)
-            def_expr := parse_expression(p)
-            fd.param_defaults.set(own nm.clone(), own def_expr)
+            param_decl.default_value = parse_expression(p)
             has_default = true
         }
         if fd.variadic_index.neq(-1.to_i32()).and(is_variadic.not()).and(has_default.not()) {
             panic(__LOC__, "positional param not allowed after variadic")
         }
 
-        fd.params.push(own Param(name = nm, ptype = tp, is_mut = is_mut, own_type = own_type))
+        fd.params.push(own param_decl)
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
@@ -315,23 +315,19 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             ref mut dd : Declaration = get_payload(stmt.data)
             dd.is_namespace = true
             ref mut sdd : StructDefData = get_payload(def.data)
-            ref mut rhs : Expr = NULL
-            if stmt.children.len().gt(0) {
-                rhs = stmt.child(0)
-            }
             mut cloned_dd := dd.clone()
-            cloned_dd.default_value = rhs
+            if stmt.children.len().gt(0) {
+                cloned_dd.default_value = stmt.child(0).clone()
+            }
             sdd.ns_decls.push(own cloned_dd)
         }
         if in_namespace.not().and(stmt.data.is(NodeType.Decl)) {
             ref dd : Declaration = get_payload(stmt.data)
             ref mut sdd : StructDefData = get_payload(def.data)
-            ref mut rhs : Expr = NULL
-            if stmt.children.len().gt(0) {
-                rhs = stmt.child(0)
-            }
             mut cloned_dd := dd.clone()
-            cloned_dd.default_value = rhs
+            if stmt.children.len().gt(0) {
+                cloned_dd.default_value = stmt.child(0).clone()
+            }
             sdd.fields.push(own cloned_dd)
         }
         body.add_child(own stmt)
@@ -856,7 +852,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 for pi in 0..sfd.params.len() {
                     if pi.gt(0) { expect_token(p, TokenType.Comma) }
                     pn := expect_text(p, TokenType.Ident)
-                    ref pp : Param = sfd.params.get(pi)
+                    ref pp : Declaration = sfd.params.get(pi)
                     pp.name = pn
                 }
             }
@@ -920,7 +916,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 ffd.variadic_index = -1.to_i32()
                 ffd.kwargs_index = -1.to_i32()
                 for pn : Str in pnames {
-                    ffd.params.push(own Param(name = pn.clone()))
+                    ffd.params.push(own Declaration(name = pn.clone(), own_type = OwnType.Ref))
                 }
                 mut fdef := Expr.new(NodeType.FuncDef(ffd), t_line, t_col, p.path)
                 fdef.add_child(own body)

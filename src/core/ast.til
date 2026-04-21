@@ -77,25 +77,16 @@ Declaration := struct {
     mut field_offset : I32 = 0
     mut field_size : I32 = 0
     ref mut field_struct_def : Expr = NULL
-    ref mut default_value : Expr = NULL
+    own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0, "")
     namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: Declaration) returns Str { return self.name }
 }
 
-// --- Param struct ---
-Param := struct {
-    mut name := ""
-    mut ptype := ""
-    mut is_mut := false
-    mut own_type := OwnType.Ref
-}
-
 // --- FunctionDef struct ---
 FunctionDef := struct {
     mut func_type := FuncType.Func
-    mut params := Vec.new("Param", Param.size())
-    mut param_defaults := Map.new("Str", Str.size(), "Expr", Expr.size())
+    mut params := Vec.new("Declaration", Declaration.size())
     mut return_type := ""
     mut variadic_index : I32 = -1.to_i32()
     mut kwargs_index : I32 = -1.to_i32()
@@ -186,6 +177,7 @@ NodeType := enum {
     SetLit,
     Switch,
     Case,
+    NoDefaultArg,
 }
 
 // --- Expr struct ---

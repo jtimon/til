@@ -548,7 +548,7 @@ guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shal
     ref fd : FunctionDef = get_payload(func_def.data)
     if fd.params.len().eq(0) { return false }
     if fd.params.len().eq(0) { return false }
-    ref p0 : Param = fd.params.get(0)
+    ref p0 : Declaration = fd.params.get(0)
     if p0.own_type.is(OwnType.Own).not() { return false }
     if e.children.len().lte(1) { return false }
     if e.child(1).data.is(NodeType.Ident).not() { return false }
@@ -876,28 +876,28 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         call_scope := scope_new(scope)
         ref fdef_params : FunctionDef = get_payload(func_def.data)
         for pi in 0..fdef_params.params.len() {
-            ref param : Param = fdef_params.params.get(pi)
+            ref param : Declaration = fdef_params.params.get(pi)
             ref arg_expr : Expr = e.child(pi.add(1))
             if arg_expr.data.is(NodeType.Ident) {
                 ref arg_ident : Str = get_payload(arg_expr.data)
                 ref arg_cell : Cell = scope_get(scope, arg_ident)
-                if arg_cell.val.is(Value.Ptr).and(param.ptype.len().gt(0)) {
-                    mut arg := reinterpret_ptr_value(arg_cell.val, param.ptype, scope)
-                    arg = widen_numeric(arg, param.ptype)
+                if arg_cell.val.is(Value.Ptr).and(param.explicit_type.len().gt(0)) {
+                    mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, scope)
+                    arg = widen_numeric(arg, param.explicit_type)
                     scope_set_owned(call_scope, param.name, arg)
-                } else if needs_widen(arg_cell.val, param.ptype) {
+                } else if needs_widen(arg_cell.val, param.explicit_type) {
                     mut arg := arg_cell.val.clone()
-                    arg = widen_numeric(arg, param.ptype)
+                    arg = widen_numeric(arg, param.explicit_type)
                     scope_set_owned(call_scope, param.name, arg)
                 } else {
                     scope_set_borrowed(call_scope, param.name, arg_cell)
                 }
             } else {
                 mut arg := eval_expr(scope, arg_expr)
-                if arg.is(Value.Ptr).and(param.ptype.len().gt(0)) {
-                    arg = reinterpret_ptr_value(arg, param.ptype, scope)
+                if arg.is(Value.Ptr).and(param.explicit_type.len().gt(0)) {
+                    arg = reinterpret_ptr_value(arg, param.explicit_type, scope)
                 }
-                arg = widen_numeric(arg, param.ptype)
+                arg = widen_numeric(arg, param.explicit_type)
                 scope_set_owned(call_scope, param.name, arg)
             }
         }
@@ -996,7 +996,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     // Guard: skip call if first 'own' param is val_none, borrowed struct, or Ptr
     ref fdef2 : FunctionDef = get_payload(func_def2.data)
     if fdef2.params.len().gt(0).and(e.children.len().gt(1)) {
-        ref first_param : Param = fdef2.params.get(0)
+        ref first_param : Declaration = fdef2.params.get(0)
         if first_param.own_type.eq(OwnType.Own) {
             ref first_arg : Expr = e.child(1)
             if first_arg.data.is(NodeType.Ident) {
@@ -1024,20 +1024,20 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     nparam2 := fdef2.params.len()
     for pi in 0..nparam2 {
         ref arg_expr : Expr = e.child(pi.add(1))
-        ref param : Param = fdef2.params.get(pi)
+        ref param : Declaration = fdef2.params.get(pi)
         if arg_expr.data.is(NodeType.Ident) {
             ref arg_ident : Str = get_payload(arg_expr.data)
             ref arg_cell : Cell = scope_get(scope, arg_ident)
-            if needs_widen(arg_cell.val, param.ptype) {
+            if needs_widen(arg_cell.val, param.explicit_type) {
                 mut arg := arg_cell.val.clone()
-                arg = widen_numeric(arg, param.ptype)
+                arg = widen_numeric(arg, param.explicit_type)
                 scope_set_owned(call_scope2, param.name, arg)
             } else {
                 scope_set_borrowed(call_scope2, param.name, arg_cell)
             }
         } else {
             mut arg := eval_expr(scope, arg_expr)
-            arg = widen_numeric(arg, param.ptype)
+            arg = widen_numeric(arg, param.explicit_type)
             scope_set_owned(call_scope2, param.name, arg)
         }
     }
@@ -1750,16 +1750,16 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
             }
             mut argi : I32 = 0
             for pi in 0..nparam {
-                ref param : Param = fd.params.get(pi)
+                ref param : Declaration = fd.params.get(pi)
                 if pi.to_i64().eq(vi.to_i64()) {
                     va_count := user_argc.sub(fixed)
-                    ref va_param : Param = fd.params.get(vi.to_i64().to_usize())
-                    arr := build_argv_array(user_argv, argi.to_i64().to_u32(), va_count, va_param.ptype)
+                    ref va_param : Declaration = fd.params.get(vi.to_i64().to_usize())
+                    arr := build_argv_array(user_argv, argi.to_i64().to_u32(), va_count, va_param.explicit_type)
                     scope_set_owned(main_scope, param.name, arr)
                     argi = argi.add(va_count.to_i64().to_i32())
                 } else {
                     ref arg_s : Str = user_argv.get(argi.to_i64().to_usize())
-                    v := parse_cli_arg(arg_s, param.ptype)
+                    v := parse_cli_arg(arg_s, param.explicit_type)
                     scope_set_owned(main_scope, param.name, v)
                     argi = argi.add(1)
                 }

@@ -119,16 +119,10 @@
 *** mut field_offset : I32 = 0
 *** mut field_size : I32 = 0
 *** ref mut field_struct_def : Expr = NULL
-*** ref mut default_value : Expr = NULL
-** Param: StructDef
-*** mut name := ""
-*** mut ptype := ""
-*** mut is_mut := false
-*** mut own_type := OwnType.Ref
+*** own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0, "")
 ** FunctionDef: StructDef
 *** mut func_type := FuncType.Func
-*** mut params := Vec.new("Param", Param.size())
-*** mut param_defaults := Map.new("Str", Str.size(), "Expr", Expr.size())
+*** mut params := Vec.new("Declaration", Declaration.size())
 *** mut return_type := ""
 *** mut variadic_index : I32 = -1.to_i32()
 *** mut kwargs_index : I32 = -1.to_i32()
@@ -175,6 +169,7 @@
 *** SetLit
 *** Switch
 *** Case
+*** NoDefaultArg
 ** Expr: StructDef
 *** mut data := NodeType.Body
 *** mut til_type := TilType.Unknown

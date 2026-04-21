@@ -200,7 +200,7 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
         func_decl.func_type = FuncType.Func
         mut self_pname := "self"
         if field_names.len().eq(0) { self_pname = "_self" }
-        func_decl.params.push(own Param(name = self_pname, ptype = sname.clone()))
+        func_decl.params.push(own Declaration(name = self_pname, explicit_type = sname.clone(), own_type = OwnType.Ref))
         func_decl.return_type = sname.clone()
         func_decl.variadic_index = -1.to_i32()
         func_decl.kwargs_index = -1.to_i32()
@@ -269,7 +269,7 @@ generate_enum_variant_constructors := proc(body: Expr, ename: Str, shallow line:
         func_decl.func_type = FuncType.ExtFunc
         ref vtype : Str = variant_types.get(j)
         if vtype.len().gt(0) {
-            param := Param(name = "val", ptype = vtype.clone())
+            param := Declaration(name = "val", explicit_type = vtype.clone(), own_type = OwnType.Ref)
             func_decl.params.push(own param)
         }
         func_decl.return_type = ename.clone()
@@ -302,8 +302,8 @@ generate_enum_is_method := proc(body: Expr, ename: Str, shallow line: U32, shall
 
     mut func_decl := FunctionDef()
     func_decl.func_type = FuncType.Func
-    self_param := Param(name = "self", ptype = ename.clone())
-    other_param := Param(name = "other", ptype = ename.clone())
+    self_param := Declaration(name = "self", explicit_type = ename.clone(), own_type = OwnType.Ref)
+    other_param := Declaration(name = "other", explicit_type = ename.clone(), own_type = OwnType.Ref)
     func_decl.params.push(own self_param)
     func_decl.params.push(own other_param)
     func_decl.return_type = "Bool"
@@ -427,8 +427,8 @@ generate_enum_eq_method := proc(body: Expr, ename: Str, shallow line: U32, shall
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Param(name = "self", ptype = ename.clone()))
-    fdecl.params.push(own Param(name = "other", ptype = ename.clone()))
+    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), own_type = OwnType.Ref))
+    fdecl.params.push(own Declaration(name = "other", explicit_type = ename.clone(), own_type = OwnType.Ref))
     fdecl.return_type = "Bool"
     fdecl.return_own_type = OwnType.Shallow
     fdecl.variadic_index = -1.to_i32()
@@ -509,9 +509,8 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Param(name = "self", ptype = ename.clone(), own_type = OwnType.Own))
-    fdecl.params.push(own Param(name = "call_free", ptype = "Bool"))
-    fdecl.param_defaults.set(own "call_free".clone(), own default_true.clone())
+    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), own_type = OwnType.Own))
+    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", own_type = OwnType.Ref, default_value = default_true.clone()))
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
 
@@ -623,7 +622,7 @@ generate_enum_to_str_method := proc(body: Expr, ename: Str, shallow line: U32, s
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Param(name = "self", ptype = ename.clone()))
+    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), own_type = OwnType.Ref))
     fdecl.return_type = "Str"
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
@@ -723,7 +722,7 @@ generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Param(name = "self", ptype = ename.clone()))
+    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), own_type = OwnType.Ref))
     fdecl.return_type = ename.clone()
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
@@ -915,9 +914,8 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 
         mut proc_decl := FunctionDef()
         proc_decl.func_type = FuncType.Func
-        proc_decl.params.push(own Param(name = "self", ptype = sname.clone(), own_type = OwnType.Own))
-        proc_decl.params.push(own Param(name = "call_free", ptype = "Bool"))
-        proc_decl.param_defaults.set(own "call_free".clone(), own default_true.clone())
+        proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), own_type = OwnType.Own))
+        proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", own_type = OwnType.Ref, default_value = default_true.clone()))
         proc_decl.variadic_index = -1.to_i32()
         proc_decl.kwargs_index = -1.to_i32()
 
@@ -1041,9 +1039,9 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
                         }
                         fdef.func_type = sigdef.func_type
                         for j in 0..sigdef.params.len() {
-                            ref mut dp : Param = fdef.params.get(j)
-                            ref sp : Param = sigdef.params.get(j)
-                            dp.ptype = sp.ptype
+                            ref mut dp : Declaration = fdef.params.get(j)
+                            ref sp : Declaration = sigdef.params.get(j)
+                            dp.explicit_type = sp.explicit_type
                             dp.is_mut = sp.is_mut
                             dp.own_type = sp.own_type
                         }
@@ -1240,7 +1238,7 @@ generate_unity_derived_methods := proc(program: Expr) {
 
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            param := Param(name = "self", ptype = sname.clone(), is_mut = true)
+            param := Declaration(name = "self", explicit_type = sname.clone(), is_mut = true, own_type = OwnType.Ref)
             func_decl.params.push(own param)
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
@@ -1318,8 +1316,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            a_param := Param(name = "a", ptype = sname.clone())
-            b_param := Param(name = "b", ptype = sname.clone())
+            a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
+            b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
@@ -1359,8 +1357,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            a_param := Param(name = "a", ptype = sname.clone())
-            b_param := Param(name = "b", ptype = sname.clone())
+            a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
+            b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
@@ -1394,8 +1392,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            a_param := Param(name = "a", ptype = sname.clone())
-            b_param := Param(name = "b", ptype = sname.clone())
+            a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
+            b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
@@ -1427,8 +1425,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            a_param := Param(name = "a", ptype = sname.clone())
-            b_param := Param(name = "b", ptype = sname.clone())
+            a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
+            b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
@@ -1460,8 +1458,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            a_param := Param(name = "a", ptype = sname.clone())
-            b_param := Param(name = "b", ptype = sname.clone())
+            a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
+            b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"
@@ -1493,8 +1491,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            a_param := Param(name = "a", ptype = sname.clone())
-            b_param := Param(name = "b", ptype = sname.clone())
+            a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
+            b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
             func_decl.params.push(own a_param)
             func_decl.params.push(own b_param)
             func_decl.return_type = "Bool"

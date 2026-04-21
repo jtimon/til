@@ -226,7 +226,7 @@ is_shallow_param := func(name: Str) returns shallow Bool {
     if is_null(current_fdef) { return false }
     ref fd : FunctionDef = get_payload(current_fdef.data)
     for pi in 0..fd.params.len() {
-        ref p : Param = fd.params.get(pi)
+        ref p : Declaration = fd.params.get(pi)
         if p.own_type.is(OwnType.Shallow) {
             if p.name.eq(name) { return true }
         }
@@ -259,7 +259,7 @@ callee_param_is_shallow := func(callee_name: Str, shallow arg_index: U32) return
     ref fd : FunctionDef = get_payload(fdef.data)
     if arg_index.gte(fd.params.len()) { return false }
     if fd.params.len().eq(0) { return false }
-    ref p : Param = fd.params.get(arg_index)
+    ref p : Declaration = fd.params.get(arg_index)
     return p.own_type.is(OwnType.Shallow)
 }
 
@@ -268,8 +268,8 @@ callee_param_is_usize := func(callee_name: Str, shallow arg_index: U32) returns 
     if is_null(fdef) { return false }
     ref fd : FunctionDef = get_payload(fdef.data)
     if arg_index.gte(fd.params.len()) { return false }
-    ref p : Param = fd.params.get(arg_index)
-    return p.ptype.eq("USize")
+    ref p : Declaration = fd.params.get(arg_index)
+    return p.explicit_type.eq("USize")
 }
 
 callee_param_is_own := func(callee_name: Str, shallow arg_index: U32) returns shallow Bool {
@@ -277,7 +277,7 @@ callee_param_is_own := func(callee_name: Str, shallow arg_index: U32) returns sh
     if is_null(fdef) { return false }
     ref fd : FunctionDef = get_payload(fdef.data)
     if arg_index.gte(fd.params.len()) { return false }
-    ref p : Param = fd.params.get(arg_index)
+    ref p : Declaration = fd.params.get(arg_index)
     return p.own_type.is(OwnType.Own)
 }
 
@@ -446,18 +446,18 @@ emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool) {
             if ii.eq(fd.variadic_index) {
                 ptype = "Array *"
             } else if ii.eq(fd.kwargs_index) {
-                ref p : Param = fd.params.get(i)
-                ptype = type_name_to_c(p.ptype)
+                ref p : Declaration = fd.params.get(i)
+                ptype = type_name_to_c(p.explicit_type)
             } else {
-                ref p : Param = fd.params.get(i)
+                ref p : Declaration = fd.params.get(i)
                 if p.own_type.is(OwnType.Shallow) {
-                    ptype = type_name_to_c_value(p.ptype)
+                    ptype = type_name_to_c_value(p.explicit_type)
                 } else {
-                    ptype = type_name_to_c(p.ptype)
+                    ptype = type_name_to_c(p.explicit_type)
                 }
             }
             if with_names {
-                ref p : Param = fd.params.get(i)
+                ref p : Declaration = fd.params.get(i)
                 f.write_str(ptype)
                 f.write_str(" ")
                 f.write_str(p.name)
@@ -606,7 +606,7 @@ check_fcall_mut_args := proc(e: Expr) {
                 for a in 1..e.children.len() {
                     pi := a.sub(1)
                     if pi.lt(fd.params.len()) {
-                        ref p : Param = fd.params.get(pi)
+                        ref p : Declaration = fd.params.get(pi)
                         if p.is_mut {
                             ref arg : Expr = e.child(a)
                             if arg.data.is(NodeType.Ident) {
@@ -1077,7 +1077,7 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
         ref arg : Expr = e.child(i)
         mut arg_shallow := false
         if i.sub(1).lt(sfd.params.len()) {
-            ref p : Param = sfd.params.get(i.sub(1))
+            ref p : Declaration = sfd.params.get(i.sub(1))
             arg_shallow = p.own_type.is(OwnType.Shallow)
         }
         mut arg_c := "void *"
@@ -1100,7 +1100,7 @@ emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, shallow depth: I32)
         if i.gt(1) { f.write_str(", ") }
         mut arg_shallow := false
         if i.sub(1).lt(sfd.params.len()) {
-            ref p : Param = sfd.params.get(i.sub(1))
+            ref p : Declaration = sfd.params.get(i.sub(1))
             arg_shallow = p.own_type.is(OwnType.Shallow)
         }
         if arg_shallow { emit_deref(f, e.child(i), depth) }
@@ -1721,39 +1721,39 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         if nparam.gt(0) {
             mut argi := 1.to_i32()
             for i in 0..nparam {
-                ref p : Param = fd.params.get(i)
+                ref p : Declaration = fd.params.get(i)
                 ii := i.to_i64().to_i32()
                 if ii.eq(vi) {
                     // Variadic array
                     f.write_str("    int _va_argc = argc - "); emit_i32(f, argi); f.write_str(";\n")
-                    f.write_str("    USize _va_esz = sizeof("); f.write_str(p.ptype); f.write_str(");\n")
+                    f.write_str("    USize _va_esz = sizeof("); f.write_str(p.explicit_type); f.write_str(");\n")
                     f.write_str("    USize _va_cap = _va_argc;\n")
-                    f.write_str("    Array *"); f.write_str(p.name); f.write_str(" = Array_new(&(Str){.c_str = (U8 *)\""); f.write_str(p.ptype); f.write_str("\", .count = "); emit_u64(f, p.ptype.len().to_i64().to_u64()); f.write_str("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_esz}, &(USize){_va_cap});\n")
+                    f.write_str("    Array *"); f.write_str(p.name); f.write_str(" = Array_new(&(Str){.c_str = (U8 *)\""); f.write_str(p.explicit_type); f.write_str("\", .count = "); emit_u64(f, p.explicit_type.len().to_i64().to_u64()); f.write_str("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_esz}, &(USize){_va_cap});\n")
                     f.write_str("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write_str("        USize _idx = _i;\n")
-                    if p.ptype.eq("Str") {
+                    if p.explicit_type.eq("Str") {
                         f.write_str("        Str *_val = Str_clone(&(Str){.c_str = (U8 *)argv["); emit_i32(f, argi); f.write_str(" + _i], .count = strlen(argv["); emit_i32(f, argi); f.write_str(" + _i]), .cap = TIL_CAP_LIT});\n")
-                    } else if p.ptype.eq("I64") {
+                    } else if p.explicit_type.eq("I64") {
                         f.write_str("        I64 *_val = cli_parse_i64(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
-                    } else if p.ptype.eq("U8") {
+                    } else if p.explicit_type.eq("U8") {
                         f.write_str("        U8 *_val = cli_parse_u8(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
-                    } else if p.ptype.eq("I16") {
+                    } else if p.explicit_type.eq("I16") {
                         f.write_str("        I16 *_val = cli_parse_i16(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
-                    } else if p.ptype.eq("I32") {
+                    } else if p.explicit_type.eq("I32") {
                         f.write_str("        I32 *_val = cli_parse_i32(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
-                    } else if p.ptype.eq("U32") {
+                    } else if p.explicit_type.eq("U32") {
                         f.write_str("        U32 *_val = cli_parse_u32(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
-                    } else if p.ptype.eq("U64") {
+                    } else if p.explicit_type.eq("U64") {
                         f.write_str("        U64 *_val = cli_parse_u64(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
-                    } else if p.ptype.eq("USize") {
+                    } else if p.explicit_type.eq("USize") {
                         f.write_str("        USize *_val = (USize *)cli_parse_u64(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
-                    } else if p.ptype.eq("Bool") {
+                    } else if p.explicit_type.eq("Bool") {
                         f.write_str("        Bool *_val = cli_parse_bool(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
                     }
                     f.write_str("        Array_set("); f.write_str(p.name); f.write_str(", &(USize){_idx}, _val);\n")
                     f.write_str("    }\n")
                 } else {
-                    emit_cli_parse_arg(f, p.name, p.ptype, argi)
+                    emit_cli_parse_arg(f, p.name, p.explicit_type, argi)
                     argi = argi.add(1.to_i32())
                 }
             }
@@ -1783,7 +1783,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         emit_param_list(f, func_def, true)
         f.write_str(") {\n")
         for i in 0..fd.params.len() {
-            ref p : Param = fd.params.get(i)
+            ref p : Declaration = fd.params.get(i)
             f.write_str("    (void)"); f.write_str(p.name); f.write_str(";\n")
         }
         in_func_def = true
@@ -2355,9 +2355,9 @@ emit_binding_ns_methods := proc(f: File, body: Expr) {
         f.write_str("    "); f.write_str(fdd.name); f.write_str(" := "); f.write_str(kw); f.write_str("(")
         for p in 0..fd.params.len() {
             if p.gt(0) { f.write_str(", ") }
-            ref param : Param = fd.params.get(p)
+            ref param : Declaration = fd.params.get(p)
             if param.own_type.is(OwnType.Own) { f.write_str("own ") }
-            f.write_str(param.name); f.write_str(": "); f.write_str(param.ptype)
+            f.write_str(param.name); f.write_str(": "); f.write_str(param.explicit_type)
         }
         f.write_str(")")
         if fd.return_type.len().gt(0) {
@@ -2421,14 +2421,14 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
             f.write_str(dd.name); f.write_str(" := "); f.write_str(kw); f.write_str("(")
             for p in 0..fd.params.len() {
                 if p.gt(0) { f.write_str(", ") }
-                ref param : Param = fd.params.get(p)
+                ref param : Declaration = fd.params.get(p)
                 if param.own_type.is(OwnType.Own) { f.write_str("own ") }
                 pi := p.to_i64().to_i32()
                 if pi.eq(fd.variadic_index) { f.write_str("..") }
                 if pi.eq(fd.kwargs_index) {
                     f.write_str(param.name); f.write_str(": ...")
                 } else {
-                    f.write_str(param.name); f.write_str(": "); f.write_str(param.ptype)
+                    f.write_str(param.name); f.write_str(": "); f.write_str(param.explicit_type)
                 }
             }
             f.write_str(")")
@@ -2618,9 +2618,9 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                 f.write_str(".argtypes = [")
                 for p in 0..fd.params.len() {
                     if p.gt(0) { f.write_str(", ") }
-                    ref param : Param = fd.params.get(p)
+                    ref param : Declaration = fd.params.get(p)
                     ps := param.own_type.is(OwnType.Shallow)
-                    f.write_str(type_name_to_ctypes_param(param.ptype, ps))
+                    f.write_str(type_name_to_ctypes_param(param.explicit_type, ps))
                 }
                 f.write_str("]\n")
 
@@ -2648,13 +2648,13 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
             f.write_str("_lib."); f.write_str(c_name); f.write_str(".argtypes = [")
             for p in 0..fd.params.len() {
                 if p.gt(0) { f.write_str(", ") }
-                ref param : Param = fd.params.get(p)
+                ref param : Declaration = fd.params.get(p)
                 pi := p.to_i64().to_i32()
                 if pi.eq(fd.variadic_index) {
                     f.write_str("ctypes.POINTER(Array)")
                 } else {
                     ps := param.own_type.is(OwnType.Shallow)
-                    f.write_str(type_name_to_ctypes_param(param.ptype, ps))
+                    f.write_str(type_name_to_ctypes_param(param.explicit_type, ps))
                 }
             }
             f.write_str("]\n")
@@ -3325,7 +3325,7 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
                 has_return := fd.return_type.len().gt(0)
                 mut any_shallow := ret_shallow
                 for p in 0..np {
-                    ref pp : Param = fd.params.get(p)
+                    ref pp : Declaration = fd.params.get(p)
                     if pp.own_type.is(OwnType.Shallow) { any_shallow = true }
                 }
                 if any_shallow.not() { continue }
@@ -3352,9 +3352,9 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
                 }
                 for p in 0..np {
                     if p.gt(0) { f.write_str(", ") }
-                    ref pp : Param = fd.params.get(p)
+                    ref pp : Declaration = fd.params.get(p)
                     if pp.own_type.is(OwnType.Shallow) {
-                        pc := type_name_to_c_value(pp.ptype)
+                        pc := type_name_to_c_value(pp.explicit_type)
                         f.write_str("*("); f.write_str(pc); f.write_str(" *)_a"); emit_i32(f, p.to_i64().to_i32())
                     } else {
                         f.write_str("_a"); emit_i32(f, p.to_i64().to_i32())
@@ -3391,7 +3391,7 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
                 ref fd : FunctionDef = get_payload(fdef.data)
                 mut any_shallow := fd.return_own_type.is(OwnType.Shallow)
                 for p in 0..fd.params.len() {
-                    ref pp : Param = fd.params.get(p)
+                    ref pp : Declaration = fd.params.get(p)
                     if pp.own_type.is(OwnType.Shallow) { any_shallow = true }
                 }
                 mut suffix := ""
@@ -3451,14 +3451,14 @@ emit_dyn_call_bodies := proc(f: File, core_program: Expr, program: Expr) {
                 ref mfd : FunctionDef = get_payload(method_fdef.data)
                 mut arg1 := "val"
                 if mfd.params.len().gt(0) {
-                    ref p0 : Param = mfd.params.get(0)
+                    ref p0 : Declaration = mfd.params.get(0)
                     if p0.own_type.is(OwnType.Shallow) { arg1 = "*(".concat(dd.name).concat(" *)val") }
                 }
                 mut arg2_s := "arg2"
                 if info.nargs.eq(2) {
                     if mfd.params.len().gt(1) {
                         if mfd.params.len().gt(1) {
-                            ref p1 : Param = mfd.params.get(1)
+                            ref p1 : Declaration = mfd.params.get(1)
                             if p1.own_type.is(OwnType.Shallow) { arg2_s = "*(".concat(dd.name).concat(" *)arg2") }
                         }
                     }
