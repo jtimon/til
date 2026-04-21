@@ -860,7 +860,7 @@ void generate_cmp_derived_methods(Expr * program);
 void generate_derived_methods(Expr * program);
 void compute_struct_layout(Expr * struct_def, TypeScope * scope);
 void compute_all_struct_layouts(Expr * program, TypeScope * scope);
-Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_type, Str * out_struct_name);
+Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_type);
 I32 init_declarations(Expr * program, TypeScope * scope);
 void * Vec_take(Vec * v);
 ScopeFind * ScopeFind_NotFound(void);

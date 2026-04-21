@@ -997,8 +997,7 @@ register_top_level_values := proc(program: Expr, scope: TypeScope) {
         }
 
         mut t := TilType.Unknown
-        mut struct_name := ""
-        if infer_top_level_decl_type(stmt, scope, t, struct_name).not() { continue }
+        if infer_top_level_decl_type(stmt, scope, t).not() { continue }
         if t.eq(TilType.Unknown) { continue }
 
         ref sdecl : Declaration = get_payload(stmt.data)
@@ -1669,18 +1668,14 @@ compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
     }
 }
 
-infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: TilType, mut out_struct_name: Str) returns shallow Bool {
+infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: TilType) returns shallow Bool {
     ref rhs : Expr = stmt.child(0)
     out_type = TilType.Unknown
-    out_struct_name = ""
 
     if stmt.data.is(NodeType.Decl) {
         ref dd : Declaration = get_payload(stmt.data)
         if dd.explicit_type.len().gt(0) {
             out_type = type_from_name_init(dd.explicit_type, scope)
-            if out_type.is(TilType.Struct).or(out_type.is(TilType.Enum)) {
-                out_struct_name = dd.explicit_type
-            }
             return out_type.is(TilType.Unknown).not()
         }
     }
@@ -1694,7 +1689,6 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         return true
     case NodeType.LiteralStr:
         out_type = TilType.Struct("Str".clone())
-        out_struct_name = "Str"
         return true
     case NodeType.LiteralNull:
         out_type = TilType.Dynamic
@@ -1703,8 +1697,6 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         ref b : TypeBinding = scope.get_binding(id)
         if is_null(b) { return false }
         out_type = b.type
-        b_sname := til_type_name(b.type)
-        if b_sname.len().gt(0) { out_struct_name = b_sname }
         return out_type.is(TilType.Unknown).not()
     case NodeType.FieldAccess:
         mut _init_ns1 := false
@@ -1722,7 +1714,6 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
                 _enum_name = til_type_name(rhs.child(0).til_type)
             }
             out_type = TilType.Enum(_enum_name.clone())
-            out_struct_name = _enum_name
             return true
         }
         return false
@@ -1732,7 +1723,6 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
             ref cn : Str = get_payload(callee.data)
             if cn.eq(til_type_name(rhs.til_type)) {
                 out_type = TilType.Struct(til_type_name(rhs.til_type))
-                out_struct_name = til_type_name(rhs.til_type)
                 return true
             }
         }
@@ -1748,7 +1738,6 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         if callee.data.is(NodeType.FieldAccess).and(_init_ns2)
             .and(til_type_name(rhs.til_type).len().gt(0)).and(rhs.til_type.is(TilType.Enum)) {
             out_type = TilType.Enum(til_type_name(rhs.til_type))
-            out_struct_name = til_type_name(rhs.til_type)
             return true
         }
         if callee.data.is(NodeType.Ident) {
@@ -1756,8 +1745,6 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
             ref fb : TypeBinding = scope.get_binding(fn_name)
             if is_null(fb) { return false }
             out_type = fb.type
-            fb_sname := til_type_name(fb.type)
-            if fb_sname.len().gt(0) { out_struct_name = fb_sname }
             return out_type.is(TilType.Unknown).not()
         }
         return false
