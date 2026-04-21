@@ -1,5 +1,68 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #153 Interpreter reinterpret_ptr_value dropped enum tag
+
+  ~ref va : E = m.get("a")~ always read back tag 0 in the interpreter
+  regardless of the stored value, so any pointer-returning API that
+  hands out an enum (Map.get, FFI return, heap-held enum field)
+  produced the wrong variant. Compiled mode was correct because the C
+  read path reads the tag straight from the pointer.
+
+  Root cause: ~reinterpret_ptr_value~ in ~src/self/interpreter.til~
+  had a stub for ~NodeType.EnumDef~ that hardcoded ~etag = 0~ and
+  copied 8 bytes from the enum pointer into a new ~Value.Enum~
+  payload, ignoring the actual tag at ~*p~ entirely. Integer branches
+  in the same function all read from ~p~ correctly; the enum branch
+  was an outlier.
+
+  Fix:
+  - Read the 4-byte tag at ~*p~ into ~etag~.
+  - If the enum has no payloads, return ~val_i32(etag)~ to match the
+    representation ~FieldAccess~ already uses at line 441 for bare
+    variant constructors (~val_i32(tag)~).
+  - If the enum has payloads, copy the 8 payload bytes from
+    ~p + ENUM_PAYLOAD_OFFSET~ (not ~p~ itself) and build a
+    ~val_enum_flat~ with the actual tag.
+
+  Discovered while fixing #150 (module-level enum Map literal in
+  compiled mode) and initially registered with ~-no-interp~ as a
+  workaround; now ~src/test/bug150.til~ exercises both fixes on the
+  default ~flags~ (interpret + compile + run).
+
+* FIXED #150 Enum-valued Map literal crashed in compiled mode
+
+  Module-level ~M := { "a": E.A, "b": E.B }~ (with ~E~ a user enum)
+  compiled cleanly, ran the test body, then aborted with
+  ~free(): invalid pointer~ during teardown when the map deleted the
+  enum values.
+
+  Two independent bugs stacked:
+
+  1. Scavenger (~src/self/scavenger.til~) in ~mode test~ only seeded
+     the worklist with test-function names, not with top-level
+     initializer statements. The Map-literal desugar produced
+     ~Map.set(M, own "a", own E.A)~ at module scope, but
+     ~Map.set~ was never reachable from the seed, so the namespace
+     method got pruned from the core AST. The resulting
+     ~gen/til/*_forward.h~ was missing ~Map_set~ (and ~_has~, ~_len~)
+     and C compilation failed once the generator emitted the call
+     anyway. Fix: in ~run_tests~ seed, also ~collect_refs~ on every
+     non-def top-level statement, matching the ~is_cli~ and default
+     branches.
+
+  2. In ~src/self/builder.til~ ~emit_as_ptr~, a bare namespace enum
+     constructor (e.g. ~E.A~) was always lowered to a compound-literal
+     pointer ~&(E){.tag = E_TAG_A}~ regardless of the ~is_own~ flag.
+     That pointer has automatic storage, but ~Map.set~'s
+     ~own val: Dynamic~ path ends with ~free(val)~, so the
+     compiled binary freed a non-heap pointer during teardown. Fix:
+     when ~is_own~ is true for such a FieldAccess, emit the
+     malloc+compound-literal pattern ~({ E *_oa = malloc(sizeof(E));
+     *_oa = (E){.tag = E_TAG_A}; _oa; })~.
+
+  The regression test ~src/test/bug150.til~ covers both this crash
+  and #153 on the default interpret + run registration.
+
 * FIXED #10 REPL: interactive read-eval-print loop
   ~til repl~ starts an interactive session; ~til~ with no arguments
   defaults to the REPL (like Python). Entering ~mode X~ restarts the

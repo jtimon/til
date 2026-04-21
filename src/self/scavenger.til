@@ -257,7 +257,9 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                         vec_push_str(worklist, d.name)
                     }
                 }
+                if is_def(stmt) { continue }
             }
+            collect_refs(stmt, worklist)
         }
     } else {
         for i in 0..program.child_count() {

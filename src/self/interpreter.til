@@ -526,9 +526,13 @@ reinterpret_ptr_value := proc(val: Value, type_name: Str, scope: Scope) returns 
                 }
             }
             if is_variant(tdef.data, NodeType.EnumDef) {
-                ecopy : Dynamic = malloc(8)
-                memcpy(ecopy, p, 8)
-                return val_enum_flat(type_name, tdef, 0.to_i32(), ecopy, 8.to_i32())
+                ref etag : I32 = p
+                if enum_has_payloads(tdef) {
+                    ecopy : Dynamic = malloc(8)
+                    memcpy(ecopy, ptr_add(p, ENUM_PAYLOAD_OFFSET.to_i64().to_u64()), 8)
+                    return val_enum_flat(type_name, tdef, etag, ecopy, 8.to_i32())
+                }
+                return val_i32(etag.to_i64())
             }
             if is_variant(tdef.data, NodeType.StructDef) {
                 return make_struct_value(type_name, tdef, p, true)

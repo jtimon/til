@@ -1,9 +1,12 @@
 mode test
 
-// Reproducer for #150: enum-valued Map literal crashes at runtime in
-// compiled mode (works in the interpreter). Not yet wired into
-// src/tests.til -- once #150 is fixed, add it there to run in the
-// suite.
+// Regression test for #150: module-level enum-valued Map literal.
+// The scavenger used to drop top-level init statements in test mode
+// (so Map.set got pruned) and emit_as_ptr passed a stack compound
+// literal to Map.set's own val param (so the internal free() hit a
+// non-heap pointer and the binary aborted during teardown). Also
+// covers #153 (reinterpret_ptr_value hardcoded enum tag to 0, so
+// ref va : E = m.get("a") always read back tag 0 in the interpreter).
 
 E := enum { A, B, C }
 

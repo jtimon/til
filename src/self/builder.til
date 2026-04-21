@@ -1609,7 +1609,24 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
         if builder_fa_is_ptr(e) {
             emit_expr(f, e, depth)
         } else if builder_fa_is_ns(e).and(is_variant(e.til_type, TilType.Enum)) {
-            emit_expr(f, e, depth)
+            if is_own {
+                ref obj : Expr = e.child(0)
+                ref fname : Str = get_payload(e.data)
+                obj_sname := til_type_name(obj.til_type)
+                f.write_str("({ ")
+                f.write_str(obj_sname)
+                f.write_str(" *_oa = malloc(sizeof(")
+                f.write_str(obj_sname)
+                f.write_str(")); *_oa = (")
+                f.write_str(obj_sname)
+                f.write_str("){.tag = ")
+                f.write_str(obj_sname)
+                f.write_str("_TAG_")
+                f.write_str(fname)
+                f.write_str("}; _oa; })")
+            } else {
+                emit_expr(f, e, depth)
+            }
         } else if e.til_type.eq(TilType.Dynamic) {
             emit_expr(f, e, depth)
         } else {
