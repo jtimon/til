@@ -964,7 +964,7 @@ Str * type_to_name(TilType * t);
 Expr * make_field_delete(Expr * field_assign, OwnType field_own_type);
 Expr * make_delete_call(Str * var_name, TilType type, Bool arg_is_own, Bool call_free, Expr * src);
 Expr * make_clone_call(Str * type_name, TilType type, Expr * arg, Expr * src);
-Expr * make_ns_call(Str * sname, Str * method, TilType ret_type, Str * ret_sname, Expr * src);
+Expr * make_ns_call(Str * sname, Str * method, TilType ret_type, Expr * src);
 Expr * build_kwargs_dynmap_decl(Expr * fcall, Str * kw_name);
 Expr * build_kwargs_dynmap_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg);
 Expr * build_variadic_array_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, U32 vc);

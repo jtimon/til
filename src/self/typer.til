@@ -2975,18 +2975,9 @@ make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: E
     return call
 }
 
-make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, ret_sname: Str, src: Expr) returns Expr {
+make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, src: Expr) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col, src.path)
     call.til_type = ret_type
-    if ret_sname.len().gt(0).and(til_type_name(ret_type).len().eq(0)) {
-        if ret_type.is(TilType.Struct) {
-            call.til_type = TilType.Struct(ret_sname.clone())
-        } else if ret_type.is(TilType.Enum) {
-            call.til_type = TilType.Enum(ret_sname.clone())
-        } else {
-            call.til_type = TilType.Custom(ret_sname.clone())
-        }
-    }
 
     mut type_id := Expr.new(NodeType.Ident(sname.clone()), src.line, src.col, src.path)
     type_id.til_type = TilType.Custom(sname.clone())
@@ -2998,7 +2989,7 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, ret_sna
 }
 
 build_kwargs_dynmap_decl := func(fcall: Expr, kw_name: Str) returns Expr {
-    mut new_call := make_ns_call("DynMap", "new", TilType.Struct("DynMap".clone()), "DynMap", fcall)
+    mut new_call := make_ns_call("DynMap", "new", TilType.Struct("DynMap".clone()), fcall)
     mut kw_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col, fcall.path)
     ref mut dd : Declaration = get_payload(kw_decl.data)
     dd.name = kw_name.clone()
@@ -3010,7 +3001,7 @@ build_kwargs_dynmap_decl := func(fcall: Expr, kw_name: Str) returns Expr {
 build_kwargs_dynmap_set := proc(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr) returns Expr {
     ref key_name : Str = get_payload(named_arg.data)
     ref val : Expr = named_arg.child(0)
-    mut set_call := make_ns_call("DynMap", "set", TilType.None, "", fcall)
+    mut set_call := make_ns_call("DynMap", "set", TilType.None, fcall)
 
     mut self_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
     self_id.til_type = TilType.Struct("DynMap".clone())
@@ -3027,7 +3018,7 @@ build_kwargs_dynmap_set := proc(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     set_own_arg(set_call, set_call.children.len())
     set_call.add_child(own type_lit)
 
-    mut size_call := make_ns_call(tname, "size", usize_type(scope), "", fcall)
+    mut size_call := make_ns_call(tname, "size", usize_type(scope), fcall)
     set_call.add_child(own size_call)
 
     mut out_val := val.clone()
@@ -3042,13 +3033,13 @@ build_kwargs_dynmap_set := proc(fcall: Expr, scope: TypeScope, kw_name: Str, nam
 }
 
 build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, shallow vc: U32) returns Expr {
-    mut new_call := make_ns_call("Array", "new", TilType.Struct("Array".clone()), "Array", fcall)
+    mut new_call := make_ns_call("Array", "new", TilType.Struct("Array".clone()), fcall)
 
     mut et := Expr.new(NodeType.LiteralStr(elem_type.clone()), fcall.line, fcall.col, fcall.path)
     et.til_type = TilType.Struct("Str".clone())
     new_call.add_child(own et)
 
-    mut sz := make_ns_call(elem_type, "size", usize_type(scope), "", fcall)
+    mut sz := make_ns_call(elem_type, "size", usize_type(scope), fcall)
     new_call.add_child(own sz)
 
     cap_str := vc.to_i64().to_str()
@@ -3066,7 +3057,7 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
 }
 
 build_variadic_array_set := proc(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr {
-    mut set_call := make_ns_call("Array", "set", TilType.None, "", fcall)
+    mut set_call := make_ns_call("Array", "set", TilType.None, fcall)
 
     mut self_id := Expr.new(NodeType.Ident(va_name.clone()), fcall.line, fcall.col, fcall.path)
     self_id.til_type = TilType.Struct("Array".clone())
@@ -3121,11 +3112,11 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         }
     }
 
-    mut new_call := make_ns_call("Set", "new", TilType.Struct("Set".clone()), "Set", set_lit)
+    mut new_call := make_ns_call("Set", "new", TilType.Struct("Set".clone()), set_lit)
     mut et_str := Expr.new(NodeType.LiteralStr(elem_type.clone()), set_lit.line, set_lit.col, set_lit.path)
     et_str.til_type = TilType.Struct("Str".clone())
     new_call.add_child(own et_str)
-    mut esz := make_ns_call(elem_type, "size", usize_type(scope), "", set_lit)
+    mut esz := make_ns_call(elem_type, "size", usize_type(scope), set_lit)
     new_call.add_child(own esz)
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col, set_lit.path)
@@ -3140,7 +3131,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     new_ch.push(own decl)
 
     for j in 0..set_lit.children.len() {
-        mut add_call := make_ns_call("Set", "add", TilType.None, "", set_lit)
+        mut add_call := make_ns_call("Set", "add", TilType.None, set_lit)
         mut self_id := Expr.new(NodeType.Ident(var_name.clone()), set_lit.line, set_lit.col, set_lit.path)
         self_id.til_type = TilType.Struct("Set".clone())
         add_call.add_child(own self_id)
@@ -3204,16 +3195,16 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         }
     }
 
-    mut new_call := make_ns_call("Map", "new", TilType.Struct("Map".clone()), "Map", map_lit)
+    mut new_call := make_ns_call("Map", "new", TilType.Struct("Map".clone()), map_lit)
     mut kt_str := Expr.new(NodeType.LiteralStr(key_type.clone()), map_lit.line, map_lit.col, map_lit.path)
     kt_str.til_type = TilType.Struct("Str".clone())
     new_call.add_child(own kt_str)
-    mut ksz := make_ns_call(key_type, "size", usize_type(scope), "", map_lit)
+    mut ksz := make_ns_call(key_type, "size", usize_type(scope), map_lit)
     new_call.add_child(own ksz)
     mut vt_str := Expr.new(NodeType.LiteralStr(val_type.clone()), map_lit.line, map_lit.col, map_lit.path)
     vt_str.til_type = TilType.Struct("Str".clone())
     new_call.add_child(own vt_str)
-    mut vsz := make_ns_call(val_type, "size", usize_type(scope), "", map_lit)
+    mut vsz := make_ns_call(val_type, "size", usize_type(scope), map_lit)
     new_call.add_child(own vsz)
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col, map_lit.path)
@@ -3228,7 +3219,7 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     new_ch.push(own decl)
 
     for j in 0..n_pairs {
-        mut set_call := make_ns_call("Map", "set", TilType.None, "", map_lit)
+        mut set_call := make_ns_call("Map", "set", TilType.None, map_lit)
         mut self_id := Expr.new(NodeType.Ident(var_name.clone()), map_lit.line, map_lit.col, map_lit.path)
         self_id.til_type = TilType.Struct("Map".clone())
         set_call.add_child(own self_id)
@@ -3315,7 +3306,7 @@ hoist_param_swap_assign := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Typ
     call.add_child(own a)
     call.add_child(own stmt.child(0).clone())
     tname := type_to_name(ab.type)
-    mut sz_call := make_ns_call(tname, "size", usize_type(scope), "", stmt)
+    mut sz_call := make_ns_call(tname, "size", usize_type(scope), stmt)
     mut sz := hoist_to_temp(sz_call, hoisted, scope, false)
     call.add_child(own sz)
     stmt = call
