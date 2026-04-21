@@ -157,9 +157,9 @@ ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_
 
 ffi_init_struct_defs := proc(program: Expr) {
     ffi_struct_defs = Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
-        if stmt.data.is(NodeType.Decl).not().or(stmt.child_count().eq(0)) {
+        if stmt.data.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) {
             continue
         }
         ref sdef : Expr = stmt.child(0)
@@ -542,7 +542,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
     }
     ref body : Expr = struct_def.child(0)
     mut nfields : U32 = 0
-    for i in 0..body.child_count() {
+    for i in 0..body.children.len() {
         ref f : Expr = body.child(i)
         if f.data.is(NodeType.Decl) {
             ref fd : Declaration = get_payload(f.data)
@@ -553,7 +553,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
     }
     elements : Dynamic = malloc(nfields.add(1).to_u64().mul(Dynamic.size().to_u64()))
     mut idx : U32 = 0
-    for i in 0..body.child_count() {
+    for i in 0..body.children.len() {
         ref f : Expr = body.child(i)
         if f.data.is(NodeType.Decl) {
             ref fd : Declaration = get_payload(f.data)
@@ -734,7 +734,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
 h_array := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     type_name_val := eval_expr(s, e.child(1))
     type_name := str_view(type_name_val)
-    count := e.child_count().sub(2)
+    count := e.children.len().sub(2)
     elem_size := get_elem_size(s, type_name, e)
 
     // Allocate array data
@@ -793,7 +793,7 @@ h_array := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 h_vec := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     type_name_val := eval_expr(s, e.child(1))
     type_name := str_view(type_name_val)
-    count := e.child_count().sub(2)
+    count := e.children.len().sub(2)
     elem_size := get_elem_size(s, type_name, e)
 
     // Allocate vec data with exact capacity
@@ -858,7 +858,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
             ref vbody : Expr = enum_def.child(0)
             mut has_payload := false
             mut vidx : I32 = 0
-            for vi in 0..vbody.child_count() {
+            for vi in 0..vbody.children.len() {
                 ref vf : Expr = vbody.child(vi)
                 ref vdd : Declaration = get_payload(vf.data)
                 if vdd.is_namespace.not() {
@@ -944,7 +944,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     if ffi_map.has(name).not() { return false }
 
     ref fe : FFIEntry = ffi_map.get(name)
-    nargs := e.child_count().sub(1)
+    nargs := e.children.len().sub(1)
     mut alloc_n := nargs
     if alloc_n.eq(0) { alloc_n = 1 }
     // args[i] = void* for each arg, arg_ptrs[i] = &args[i]
@@ -1139,7 +1139,7 @@ ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
 }
 ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
     ref fd : FunctionDef = get_payload(fdef.data)
-    np := fd.nparam
+    np := fd.params.len()
     mut alloc_np := np
     if alloc_np.eq(0) { alloc_np = 1 }
     // Build ffi_type* array (each element is a pointer = 8 bytes)
@@ -1202,10 +1202,10 @@ ffi_init_scan_program := proc(program: Expr) {
         ffi_map = Map.new("Str", Str.size(), "FFIEntry", FFIEntry.size())
         ffi_map_inited = true
     }
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { }
-        else if stmt.child_count().eq(0) { }
+        else if stmt.children.len().eq(0) { }
         else {
             // Top-level ext_func/ext_proc
             if stmt.child(0).data.is(NodeType.FuncDef) {
@@ -1223,11 +1223,11 @@ ffi_init_scan_program := proc(program: Expr) {
             if stmt.child(0).data.is(NodeType.StructDef) {
                 ref sdd : Declaration = get_payload(stmt.data)
                 ref body : Expr = stmt.child(0).child(0)
-                for j in 0..body.child_count() {
+                for j in 0..body.children.len() {
                     ref field : Expr = body.child(j)
                     ref fdd : Declaration = get_payload(field.data)
                     if fdd.is_namespace.not() { }
-                    else if field.child_count().eq(0) { }
+                    else if field.children.len().eq(0) { }
                     else {
                         ref fdef : Expr = field.child(0)
                         if fdef.data.is(NodeType.FuncDef) {
@@ -1244,9 +1244,9 @@ ffi_init_scan_program := proc(program: Expr) {
                             } else if fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc)) {
                                 // Scan function body for nested ext_func/ext_proc
                                 ref fbody : Expr = fdef.child(0)
-                                for k in 0..fbody.child_count() {
+                                for k in 0..fbody.children.len() {
                                     ref inner : Expr = fbody.child(k)
-                                    if inner.data.is(NodeType.Decl).and(inner.child_count().gt(0)) {
+                                    if inner.data.is(NodeType.Decl).and(inner.children.len().gt(0)) {
                                         ref idef : Expr = inner.child(0)
                                         if idef.data.is(NodeType.FuncDef) {
                                             ref ifd : FunctionDef = get_payload(idef.data)

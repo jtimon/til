@@ -5,7 +5,7 @@ mut gc_strs := Vec.new("Str", Str.size())
 // Check if a FieldAccess is a namespace access (type-level, not instance).
 // The typer marks type-name idents with StructDef/EnumDef til_type.
 scav_fa_is_ns := func(e: Expr) returns shallow Bool {
-    if e.child_count().eq(0) { return false }
+    if e.children.len().eq(0) { return false }
     ref obj : Expr = e.child(0)
     if obj.data.is(NodeType.Ident) {
         if obj.til_type.is(TilType.StructDef).or(obj.til_type.is(TilType.EnumDef)) {
@@ -104,7 +104,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         vec_push_str(refs, ident)
     } else if e.data.is(NodeType.FCall) {
         // Check for namespace method call: Type.method(args...)
-        if e.child_count().gt(0) {
+        if e.children.len().gt(0) {
             if e.child(0).data.is(NodeType.FieldAccess) {
                 if scav_fa_is_ns(e.child(0)) {
                     ref fa : Expr = e.child(0)
@@ -113,7 +113,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
                     vec_push_str(refs, type_name)
                     push_qn(refs, type_name, method)
                     // Recurse into args (skip callee -- already handled)
-                    for i in 1..e.child_count() {
+                    for i in 1..e.children.len() {
                         collect_refs(e.child(i), refs)
                     }
                     return
@@ -121,7 +121,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
             }
         }
         // array()/vec() builtins need Array/Vec constructor methods
-        if e.child_count().gte(2) {
+        if e.children.len().gte(2) {
             if e.child(0).data.is(NodeType.Ident) {
                 ref cn : Str = get_payload(e.child(0).data)
                 if cn.eq("array") {
@@ -133,7 +133,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         }
     } else if e.data.is(NodeType.FuncDef) {
         ref fdef : FunctionDef = get_payload(e.data)
-        for i : U32 in 0..fdef.nparam {
+        for i : U32 in 0..fdef.params.len() {
             ref p : Param = fdef.params.get(i)
             if p.ptype.len().gt(0) {
                 vec_push_str(refs, p.ptype)
@@ -174,7 +174,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
     }
 
     // Recurse into children
-    for i in 0..e.child_count() {
+    for i in 0..e.children.len() {
         collect_refs(e.child(i), refs)
     }
 }
@@ -191,7 +191,7 @@ find_ns_method := func(program: Expr, top: Map, name: Str) returns ref Expr {
     dot_u := dot.to_u32()
     method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
     ref body : Expr = tdecl.child(0).child(0)
-    for k in 0..body.child_count() {
+    for k in 0..body.children.len() {
         ref field : Expr = body.child(k)
         ref fd : Declaration = get_payload(field.data)
         if fd.is_namespace {
@@ -218,7 +218,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     // 1. Build top-level declaration maps (name -> child index)
     mut core_top := Map.new("Str", Str.size(), "U32", U32.size())
     if is_null(core_program).not() {
-        for i in 0..core_program.child_count() {
+        for i in 0..core_program.children.len() {
             ref stmt : Expr = core_program.child(i)
             if stmt.data.is(NodeType.Decl) {
                 ref decl : Declaration = get_payload(stmt.data)
@@ -227,7 +227,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         }
     }
     mut top := Map.new("Str", Str.size(), "U32", U32.size())
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl) {
             ref decl : Declaration = get_payload(stmt.data)
@@ -239,7 +239,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     mut worklist := Vec.new("Str", Str.size())
     if is_cli {
         vec_push_str(worklist, "main")
-        for i in 0..program.child_count() {
+        for i in 0..program.children.len() {
             ref stmt : Expr = program.child(i)
             if stmt.data.is(NodeType.Decl) {
                 if is_def(stmt) { continue }
@@ -247,7 +247,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             collect_refs(stmt, worklist)
         }
     } else if run_tests {
-        for i in 0..program.child_count() {
+        for i in 0..program.children.len() {
             ref stmt : Expr = program.child(i)
             if stmt.data.is(NodeType.Decl) {
                 if stmt.child(0).data.is(NodeType.FuncDef) {
@@ -262,7 +262,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             collect_refs(stmt, worklist)
         }
     } else {
-        for i in 0..program.child_count() {
+        for i in 0..program.children.len() {
             ref stmt : Expr = program.child(i)
             if stmt.data.is(NodeType.Decl) {
                 if is_def(stmt) { continue }
@@ -290,7 +290,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             ref decl : Expr = program.child(idx)
             if is_struct_or_enum(decl) {
                 ref body : Expr = decl.child(0).child(0)
-                for j in 0..body.child_count() {
+                for j in 0..body.children.len() {
                     ref field : Expr = body.child(j)
                     ref fd : Declaration = get_payload(field.data)
                     if fd.is_namespace.not() {
@@ -310,7 +310,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             ref decl : Expr = core_program.child(idx)
             if is_struct_or_enum(decl) {
                 ref body : Expr = decl.child(0).child(0)
-                for j in 0..body.child_count() {
+                for j in 0..body.children.len() {
                     ref field : Expr = body.child(j)
                     ref fd : Declaration = get_payload(field.data)
                     if fd.is_namespace.not() {
@@ -345,7 +345,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
 
     // 4. Filter top-level declarations (both core and user)
     if is_null(core_program).not() {
-        cn := core_program.child_count()
+        cn := core_program.children.len()
         cm : Dynamic = malloc(cn)
         memset(cm, 0, cn)
         for i in 0..cn {
@@ -363,7 +363,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         free(own cm)
     }
     {
-        pn := program.child_count()
+        pn := program.children.len()
         pm : Dynamic = malloc(pn)
         memset(pm, 0, pn)
         for i in 0..pn {
@@ -383,13 +383,13 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
 
     // 5. Filter namespace methods in kept structs (both core and user)
     if is_null(core_program).not() {
-        for i in 0..core_program.child_count() {
+        for i in 0..core_program.children.len() {
             ref stmt : Expr = core_program.child(i)
             if stmt.data.is(NodeType.Decl).not() { continue }
             if is_struct_or_enum(stmt).not() { continue }
             ref sdecl : Declaration = get_payload(stmt.data)
             ref body : Expr = stmt.child(0).child(0)
-            bn := body.child_count()
+            bn := body.children.len()
             bm : Dynamic = malloc(bn)
             memset(bm, 0, bn)
             for j in 0..bn {
@@ -406,13 +406,13 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             free(own bm)
         }
     }
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         if is_struct_or_enum(stmt).not() { continue }
         ref sdecl : Declaration = get_payload(stmt.data)
         ref body : Expr = stmt.child(0).child(0)
-        bn := body.child_count()
+        bn := body.children.len()
         bm : Dynamic = malloc(bn)
         memset(bm, 0, bn)
         for j in 0..bn {

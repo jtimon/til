@@ -51,7 +51,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
                 if is_null(b.struct_def).not() { return b.type }
             }
             if is_null(b.func_def).not() {
-                if b.func_def.child_count().eq(0) {
+                if b.func_def.children.len().eq(0) {
                     return TilType.FuncPtr
                 }
             }
@@ -69,7 +69,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
 
 register_struct_definitions := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
@@ -116,7 +116,7 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
 }
 
 generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
@@ -141,7 +141,7 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
 
         field_names := Vec.new("Str", Str.size())
         field_refs := Vec.new("I32", I32.size())
-        for j in 0..body.child_count() {
+        for j in 0..body.children.len() {
             ref field : Expr = body.child(j)
             if field.data.is(NodeType.Decl).not() { continue }
             ref fd : Declaration = get_payload(field.data)
@@ -198,7 +198,6 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
 
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
-        func_decl.nparam = 1
         mut self_pname := "self"
         if field_names.len().eq(0) { self_pname = "_self" }
         func_decl.params.push(own Param(name = self_pname, ptype = sname.clone()))
@@ -241,7 +240,7 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
 
 collect_enum_variants := proc(body: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool) {
     has_payloads = false
-    for j in 0..body.child_count() {
+    for j in 0..body.children.len() {
         ref field : Expr = body.child(j)
         ref fdecl : Declaration = get_payload(field.data)
         if fdecl.is_namespace { continue }
@@ -270,11 +269,8 @@ generate_enum_variant_constructors := proc(body: Expr, ename: Str, shallow line:
         func_decl.func_type = FuncType.ExtFunc
         ref vtype : Str = variant_types.get(j)
         if vtype.len().gt(0) {
-            func_decl.nparam = 1
             param := Param(name = "val", ptype = vtype.clone())
             func_decl.params.push(own param)
-        } else {
-            func_decl.nparam = 0
         }
         func_decl.return_type = ename.clone()
         func_decl.variadic_index = -1.to_i32()
@@ -306,7 +302,6 @@ generate_enum_is_method := proc(body: Expr, ename: Str, shallow line: U32, shall
 
     mut func_decl := FunctionDef()
     func_decl.func_type = FuncType.Func
-    func_decl.nparam = 2
     self_param := Param(name = "self", ptype = ename.clone())
     other_param := Param(name = "other", ptype = ename.clone())
     func_decl.params.push(own self_param)
@@ -432,7 +427,6 @@ generate_enum_eq_method := proc(body: Expr, ename: Str, shallow line: U32, shall
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.nparam = 2
     fdecl.params.push(own Param(name = "self", ptype = ename.clone()))
     fdecl.params.push(own Param(name = "other", ptype = ename.clone()))
     fdecl.return_type = "Bool"
@@ -483,7 +477,7 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
             gc.add_child(own gp)
             gc.add_child(own self2)
             gc.til_type = type_from_name_init(vtype, scope)
-            set_own_arg(del_call, del_call.child_count())
+            set_own_arg(del_call, del_call.children.len())
             del_call.add_child(own gc)
 
             mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col, path)
@@ -503,7 +497,7 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
     mut free_id := Expr.new(NodeType.Ident("free"), line, col, path)
     free_call.add_child(own free_id)
     mut self_arg := Expr.new(NodeType.Ident("self"), line, col, path)
-    set_own_arg(free_call, free_call.child_count())
+    set_own_arg(free_call, free_call.children.len())
     free_call.add_child(own self_arg)
     then_body.add_child(own free_call)
     mut if_node := Expr.new(NodeType.If, line, col, path)
@@ -515,7 +509,6 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.nparam = 2
     fdecl.params.push(own Param(name = "self", ptype = ename.clone(), own_type = OwnType.Own))
     fdecl.params.push(own Param(name = "call_free", ptype = "Bool"))
     fdecl.param_defaults.set(own "call_free".clone(), own default_true.clone())
@@ -630,7 +623,6 @@ generate_enum_to_str_method := proc(body: Expr, ename: Str, shallow line: U32, s
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.nparam = 1
     fdecl.params.push(own Param(name = "self", ptype = ename.clone()))
     fdecl.return_type = "Str"
     fdecl.variadic_index = -1.to_i32()
@@ -731,7 +723,6 @@ generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.nparam = 1
     fdecl.params.push(own Param(name = "self", ptype = ename.clone()))
     fdecl.return_type = ename.clone()
     fdecl.variadic_index = -1.to_i32()
@@ -747,7 +738,7 @@ generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32
 
 register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
@@ -774,12 +765,12 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         mut has_eq := false
         mut has_delete := false
         mut has_to_str := false
-        for j in 0..body.child_count() {
+        for j in 0..body.children.len() {
             ref f : Expr = body.child(j)
             if f.data.is(NodeType.Decl).not() { continue }
             ref fdecl : Declaration = get_payload(f.data)
             if fdecl.is_namespace.not() { continue }
-            if f.child_count().eq(0) { continue }
+            if f.children.len().eq(0) { continue }
             if f.child(0).data.is(NodeType.FuncDef).not() { continue }
 
             if fdecl.name.eq("is") { has_is = true }
@@ -808,7 +799,7 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
 }
 
 generate_missing_enum_clones := proc(program: Expr) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
@@ -821,12 +812,12 @@ generate_missing_enum_clones := proc(program: Expr) {
         ref mut body : Expr = stmt.child(0).child(0)
 
         mut has_clone := false
-        for j in 0..body.child_count() {
+        for j in 0..body.children.len() {
             ref f : Expr = body.child(j)
             if f.data.is(NodeType.Decl).not() { continue }
             ref fdecl : Declaration = get_payload(f.data)
             if fdecl.is_namespace.not() { continue }
-            if f.child_count().eq(0) { continue }
+            if f.children.len().eq(0) { continue }
             if f.child(0).data.is(NodeType.FuncDef).not() { continue }
             if fdecl.name.eq("clone") {
                 has_clone = true
@@ -846,7 +837,7 @@ generate_missing_enum_clones := proc(program: Expr) {
 }
 
 generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
@@ -871,7 +862,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 
         field_names := Vec.new("Str", Str.size())
         field_owns := Vec.new("Bool", Bool.size())
-        for j in 0..body.child_count() {
+        for j in 0..body.children.len() {
             ref field : Expr = body.child(j)
             if field.data.is(NodeType.Decl).not() { continue }
             ref fd : Declaration = get_payload(field.data)
@@ -912,7 +903,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
         mut free_id := Expr.new(NodeType.Ident("free"), stmt.line, stmt.col, stmt.path)
         free_call.add_child(own free_id)
         mut self_arg := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col, stmt.path)
-        set_own_arg(free_call, free_call.child_count())
+        set_own_arg(free_call, free_call.children.len())
         free_call.add_child(own self_arg)
         then_body.add_child(own free_call)
         mut if_node := Expr.new(NodeType.If, stmt.line, stmt.col, stmt.path)
@@ -924,7 +915,6 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 
         mut proc_decl := FunctionDef()
         proc_decl.func_type = FuncType.Func
-        proc_decl.nparam = 2
         proc_decl.params.push(own Param(name = "self", ptype = sname.clone(), own_type = OwnType.Own))
         proc_decl.params.push(own Param(name = "call_free", ptype = "Bool"))
         proc_decl.param_defaults.set(own "call_free".clone(), own default_true.clone())
@@ -941,11 +931,11 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 }
 
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.FuncDef).not() { continue }
-        if stmt.child(0).child_count().neq(0) { continue }
+        if stmt.child(0).children.len().neq(0) { continue }
         ref sdecl : Declaration = get_payload(stmt.data)
         scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
@@ -954,7 +944,7 @@ register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
 }
 
 register_type_aliases := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
@@ -968,7 +958,7 @@ register_type_aliases := proc(program: Expr, scope: TypeScope) {
             if is_null(target.func_def) {
                 continue
             }
-            if target.func_def.child_count().neq(0) {
+            if target.func_def.children.len().neq(0) {
                 continue
             }
         }
@@ -989,7 +979,7 @@ register_type_aliases := proc(program: Expr, scope: TypeScope) {
 }
 
 register_top_level_values := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
@@ -1017,7 +1007,7 @@ register_top_level_values := proc(program: Expr, scope: TypeScope) {
 }
 
 register_function_definitions := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
@@ -1025,7 +1015,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
 
         ref sdecl : Declaration = get_payload(stmt.data)
 
-        if def.child_count().eq(0) {
+        if def.children.len().eq(0) {
             scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
@@ -1038,20 +1028,20 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
                 ref fs_payload : Dynamic = get_payload(fs_find)
                 ref fsb : TypeBinding = fs_payload
                 if is_null(fsb.func_def).not() {
-                    if fsb.func_def.child_count().eq(0) {
+                    if fsb.func_def.children.len().eq(0) {
                         ref mut fdef : FunctionDef = get_payload(def.data)
                         ref sig : Expr = fsb.func_def
                         ref sigdef : FunctionDef = get_payload(sig.data)
-                        if fdef.nparam.neq(sigdef.nparam) {
+                        if fdef.params.len().neq(sigdef.params.len()) {
                             panic(
                                 __LOC__,
                                 stmt.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                                ": error: '", sdecl.name, "' expects ", fdef.nparam.to_str(),
-                                " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.nparam.to_str(),
+                                ": error: '", sdecl.name, "' expects ", fdef.params.len().to_str(),
+                                " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.params.len().to_str(),
                             )
                         }
                         fdef.func_type = sigdef.func_type
-                        for j in 0..sigdef.nparam {
+                        for j in 0..sigdef.params.len() {
                             ref mut dp : Param = fdef.params.get(j)
                             ref sp : Param = sigdef.params.get(j)
                             dp.ptype = sp.ptype
@@ -1084,7 +1074,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
 }
 
 generate_struct_size_methods := proc(program: Expr) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
@@ -1116,7 +1106,6 @@ generate_struct_size_methods := proc(program: Expr) {
 
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
-        func_decl.nparam = 0
         func_decl.return_type = "USize"
         func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1.to_i32()
@@ -1132,7 +1121,7 @@ generate_struct_size_methods := proc(program: Expr) {
 }
 
 generate_enum_size_methods := proc(program: Expr) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
@@ -1144,7 +1133,7 @@ generate_enum_size_methods := proc(program: Expr) {
         if sname.eq("Dynamic") { continue }
         ref mut body : Expr = def.child(0)
         mut has_size := false
-        for j in 0..body.child_count() {
+        for j in 0..body.children.len() {
             ref field : Expr = body.child(j)
             if field.data.is(NodeType.Decl).not() { continue }
             ref fd : Declaration = get_payload(field.data)
@@ -1168,7 +1157,6 @@ generate_enum_size_methods := proc(program: Expr) {
 
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
-        func_decl.nparam = 0
         func_decl.return_type = "USize"
         func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1.to_i32()
@@ -1184,7 +1172,7 @@ generate_enum_size_methods := proc(program: Expr) {
 }
 
 generate_unity_derived_methods := proc(program: Expr) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
@@ -1201,12 +1189,12 @@ generate_unity_derived_methods := proc(program: Expr) {
         mut has_unity := false
         mut has_inc := false
         mut has_dec := false
-        for j in 0..body.child_count() {
+        for j in 0..body.children.len() {
             ref f : Expr = body.child(j)
             if f.data.is(NodeType.Decl).not() { continue }
             ref fd : Declaration = get_payload(f.data)
             if fd.is_namespace.not() { continue }
-            if f.child_count().eq(0) { continue }
+            if f.children.len().eq(0) { continue }
             if f.child(0).data.is(NodeType.FuncDef).not() { continue }
             fn := fd.name
             if fn.eq("add") { has_add = true }
@@ -1253,7 +1241,6 @@ generate_unity_derived_methods := proc(program: Expr) {
 
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            func_decl.nparam = 1
             param := Param(name = "self", ptype = sname.clone(), is_mut = true)
             func_decl.params.push(own param)
             func_decl.variadic_index = -1.to_i32()
@@ -1275,7 +1262,7 @@ generate_size_methods := proc(program: Expr) {
 }
 
 generate_cmp_derived_methods := proc(program: Expr) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
@@ -1294,12 +1281,12 @@ generate_cmp_derived_methods := proc(program: Expr) {
         mut has_gt := false
         mut has_lte := false
         mut has_gte := false
-        for j in 0..body.child_count() {
+        for j in 0..body.children.len() {
             ref f : Expr = body.child(j)
             if f.data.is(NodeType.Decl).not() { continue }
             ref fd : Declaration = get_payload(f.data)
             if fd.is_namespace.not() { continue }
-            if f.child_count().eq(0) { continue }
+            if f.children.len().eq(0) { continue }
             if f.child(0).data.is(NodeType.FuncDef).not() { continue }
             fn := fd.name
             if fn.eq("cmp") { has_cmp = true }
@@ -1332,7 +1319,6 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            func_decl.nparam = 2
             a_param := Param(name = "a", ptype = sname.clone())
             b_param := Param(name = "b", ptype = sname.clone())
             func_decl.params.push(own a_param)
@@ -1374,7 +1360,6 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            func_decl.nparam = 2
             a_param := Param(name = "a", ptype = sname.clone())
             b_param := Param(name = "b", ptype = sname.clone())
             func_decl.params.push(own a_param)
@@ -1410,7 +1395,6 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            func_decl.nparam = 2
             a_param := Param(name = "a", ptype = sname.clone())
             b_param := Param(name = "b", ptype = sname.clone())
             func_decl.params.push(own a_param)
@@ -1444,7 +1428,6 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            func_decl.nparam = 2
             a_param := Param(name = "a", ptype = sname.clone())
             b_param := Param(name = "b", ptype = sname.clone())
             func_decl.params.push(own a_param)
@@ -1478,7 +1461,6 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            func_decl.nparam = 2
             a_param := Param(name = "a", ptype = sname.clone())
             b_param := Param(name = "b", ptype = sname.clone())
             func_decl.params.push(own a_param)
@@ -1512,7 +1494,6 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
-            func_decl.nparam = 2
             a_param := Param(name = "a", ptype = sname.clone())
             b_param := Param(name = "b", ptype = sname.clone())
             func_decl.params.push(own a_param)
@@ -1543,7 +1524,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     mut offset : I32 = 0
     mut max_align : I32 = 1
 
-    for i in 0..body.child_count() {
+    for i in 0..body.children.len() {
         ref mut field : Expr = body.child(i)
         if field.data.is(NodeType.Decl).not() { continue }
 
@@ -1559,10 +1540,10 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
 
             mut ftype := fd.explicit_type
             if ftype.len().eq(0) {
-                if field.child_count().gt(0) {
+                if field.children.len().gt(0) {
                 ref def_val : Expr = field.child(0)
                     if def_val.data.is(NodeType.FCall) {
-                        if def_val.child_count().gt(0) {
+                        if def_val.children.len().gt(0) {
                             ref callee : Expr = def_val.child(0)
                             if callee.data.is(NodeType.Ident) {
                                 ref _ft : Str = get_payload(callee.data)
@@ -1585,20 +1566,20 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
         } else {
             mut ftype := fd.explicit_type
             if ftype.len().eq(0) {
-                if field.child_count().gt(0) {
+                if field.children.len().gt(0) {
                     ref def_val : Expr = field.child(0)
                     if def_val.data.is(NodeType.LiteralNum) { ftype = "I64" }
                     else if def_val.data.is(NodeType.LiteralStr) { ftype = "Str" }
                     else if def_val.data.is(NodeType.LiteralBool) { ftype = "Bool" }
                     else if til_type_name(def_val.til_type).len().gt(0) { ftype = til_type_name(def_val.til_type) }
                     else if def_val.data.is(NodeType.FCall) {
-                        if def_val.child_count().gt(0) {
+                        if def_val.children.len().gt(0) {
                             ref callee : Expr = def_val.child(0)
                             if callee.data.is(NodeType.Ident) {
                                 ref _ft : Str = get_payload(callee.data)
                                 ftype = _ft
                             } else if callee.data.is(NodeType.FieldAccess) {
-                                if callee.child_count().gt(0) {
+                                if callee.children.len().gt(0) {
                                     ref type_node : Expr = callee.child(0)
                                     if type_node.data.is(NodeType.Ident) {
                                         ref _ft : Str = get_payload(type_node.data)
@@ -1608,7 +1589,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                             }
                         }
                     } else if def_val.data.is(NodeType.FieldAccess) {
-                        if def_val.child_count().gt(0) {
+                        if def_val.children.len().gt(0) {
                             ref type_node : Expr = def_val.child(0)
                             if type_node.data.is(NodeType.Ident) {
                                 ref _ft : Str = get_payload(type_node.data)
@@ -1676,7 +1657,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
 }
 
 compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
@@ -1727,7 +1708,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         return out_type.is(TilType.Unknown).not()
     case NodeType.FieldAccess:
         mut _init_ns1 := false
-        if rhs.child_count().gt(0) {
+        if rhs.children.len().gt(0) {
             ref _io1 : Expr = rhs.child(0)
             if _io1.data.is(NodeType.Ident) {
                 if _io1.til_type.is(TilType.StructDef).or(_io1.til_type.is(TilType.EnumDef)) {
@@ -1737,7 +1718,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         }
         if _init_ns1.and(rhs.til_type.is(TilType.Enum)) {
             mut _enum_name := ""
-            if rhs.child_count().gt(0) {
+            if rhs.children.len().gt(0) {
                 _enum_name = til_type_name(rhs.child(0).til_type)
             }
             out_type = TilType.Enum(_enum_name.clone())
@@ -1756,7 +1737,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
             }
         }
         mut _init_ns2 := false
-        if callee.data.is(NodeType.FieldAccess).and(callee.child_count().gt(0)) {
+        if callee.data.is(NodeType.FieldAccess).and(callee.children.len().gt(0)) {
             ref _io2 : Expr = callee.child(0)
             if _io2.data.is(NodeType.Ident) {
                 if _io2.til_type.is(TilType.StructDef).or(_io2.til_type.is(TilType.EnumDef)) {

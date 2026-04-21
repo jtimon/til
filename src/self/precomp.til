@@ -109,7 +109,7 @@ func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope)
     if e.data.is(NodeType.Ident) {
         ref name : Str = get_payload(e.data)
         ref fd : FunctionDef = get_payload(func_def.data)
-        for pi in 0..fd.nparam {
+        for pi in 0..fd.params.len() {
             ref p : Param = fd.params.get(pi)
             if p.name.eq(name) { return false }
         }
@@ -117,7 +117,7 @@ func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope)
         if is_null(scope_get(precomp_scope, name)).not() { return false }
         return true
     }
-    for ci in 0..e.child_count() {
+    for ci in 0..e.children.len() {
         if func_uses_unknown_globals(e.child(ci), func_def, precomp_scope) { return true }
     }
     return false
@@ -134,7 +134,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
             ref fptr : Dynamic = get_payload(fn_cell.val)
             ref fdef : Expr = deref(fptr)
             if fdef.data.is(NodeType.FuncDef) {
-                if fdef.child_count().gt(0) {
+                if fdef.children.len().gt(0) {
                     if func_uses_unknown_globals(fdef.child(0), fdef, scope) {
                         return NULL
                     }
@@ -144,7 +144,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
     }
 
     // Build a call with literal args for the interpreter
-    nargs := fcall.child_count().sub(1)
+    nargs := fcall.children.len().sub(1)
     mut ec := Expr.new(NodeType.FCall, fcall.line, fcall.col, fcall.path)
     ec.til_type = fcall.til_type
     ec.add_child(own fcall.child(0).clone())
@@ -204,7 +204,7 @@ track_literal := proc(scope: Scope, name: Str, rhs: Expr) {
 
 is_macro_call := func(e: Expr) returns shallow Bool {
     if e.data.is(NodeType.FCall).not() { return false }
-    if e.child_count().eq(0) { return false }
+    if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
     if callee.data.is(NodeType.Ident).not() { return false }
     return precomp_has_macro(get_payload(callee.data))
@@ -212,23 +212,23 @@ is_macro_call := func(e: Expr) returns shallow Bool {
 
 is_func_call := func(e: Expr) returns shallow Bool {
     if e.data.is(NodeType.FCall).not() { return false }
-    if e.child_count().eq(0) { return false }
+    if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
     if callee.data.is(NodeType.Ident).not() { return false }
     return precomp_has_func(get_payload(callee.data))
 }
 
 process_body := proc(scope: Scope, body: Expr) {
-    for i in 0..body.child_count() {
+    for i in 0..body.children.len() {
         ref stmt : Expr = body.child(i)
         if stmt.data.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.data)
-            if stmt.child_count().eq(0) { }
+            if stmt.children.len().eq(0) { }
             else if stmt.child(0).data.is(NodeType.FuncDef)
                 .or(stmt.child(0).data.is(NodeType.StructDef))
                 .or(stmt.child(0).data.is(NodeType.EnumDef)) {
                 if stmt.child(0).data.is(NodeType.FuncDef)
-                    .and(stmt.child(0).child_count().gt(0)) {
+                    .and(stmt.child(0).children.len().gt(0)) {
                     process_body(scope, stmt.child(0).child(0))
                 }
             } else if dd.own_type.eq(OwnType.Ref) { }
@@ -251,14 +251,14 @@ process_body := proc(scope: Scope, body: Expr) {
                 track_literal(scope, dd.name, stmt.child(0))
             }
         } else if stmt.data.is(NodeType.If) {
-            if stmt.child_count().gt(1) {
+            if stmt.children.len().gt(1) {
                 process_body(scope, stmt.child(1))
             }
-            if stmt.child_count().gt(2) {
+            if stmt.children.len().gt(2) {
                 process_body(scope, stmt.child(2))
             }
         } else if stmt.data.is(NodeType.While) {
-            if stmt.child_count().gt(1) {
+            if stmt.children.len().gt(1) {
                 process_body(scope, stmt.child(1))
             }
         } else if stmt.data.is(NodeType.FCall) {
@@ -278,9 +278,9 @@ process_body := proc(scope: Scope, body: Expr) {
 }
 
 precomp_scan_names := proc(prog: Expr) {
-    for i in 0..prog.child_count() {
+    for i in 0..prog.children.len() {
         ref stmt : Expr = prog.child(i)
-        if stmt.data.is(NodeType.Decl).and(stmt.child_count().gt(0)) {
+        if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).data.is(NodeType.FuncDef) {
                 ref fd : FunctionDef = get_payload(stmt.child(0).data)
                 ref dd : Declaration = get_payload(stmt.data)
@@ -294,11 +294,11 @@ precomp_scan_names := proc(prog: Expr) {
                 .or(stmt.child(0).data.is(NodeType.EnumDef)) {
                 ref sdd : Declaration = get_payload(stmt.data)
                 ref body : Expr = stmt.child(0).child(0)
-                for j in 0..body.child_count() {
+                for j in 0..body.children.len() {
                     ref field : Expr = body.child(j)
                     ref fdd : Declaration = get_payload(field.data)
                     if fdd.is_namespace {
-                        if field.child_count().gt(0) {
+                        if field.children.len().gt(0) {
                             if field.child(0).data.is(NodeType.FuncDef) {
                                 ref ffd : FunctionDef = get_payload(field.child(0).data)
                                 if ffd.func_type.is(FuncType.Func) {
@@ -315,9 +315,9 @@ precomp_scan_names := proc(prog: Expr) {
 }
 
 precomp_register_defs := proc(mut global: Scope, prog: Expr) {
-    for i in 0..prog.child_count() {
+    for i in 0..prog.children.len() {
         ref stmt : Expr = prog.child(i)
-        if stmt.data.is(NodeType.Decl).and(stmt.child_count().gt(0)) {
+        if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).data.is(NodeType.FuncDef)
                 .or(stmt.child(0).data.is(NodeType.StructDef))
                 .or(stmt.child(0).data.is(NodeType.EnumDef)) {

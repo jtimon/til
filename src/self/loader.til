@@ -74,9 +74,9 @@ dir_of := func(abs: Str) returns Str {
 // Matching nodes are removed from the body.
 extract_imports := func(body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
-    for i in 0..Expr.child_count(body) {
+    for i in 0..body.children.len() {
         ref stmt : Expr = Expr.child(body, i)
-        if stmt.data.is(NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
+        if stmt.data.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
             if Expr.child(stmt, 0).data.is(NodeType.Ident)
                 .and(Expr.child(stmt, 1).data.is(NodeType.LiteralStr)) {
                 ref _c0id : Str = get_payload(Expr.child(stmt, 0).data)
@@ -142,7 +142,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         }
 
         // Append imported file's declarations
-        for k in 0..Expr.child_count(sub_ast) {
+        for k in 0..sub_ast.children.len() {
             ref ch : Expr = Expr.child(sub_ast, k)
             merged.push(own Expr.clone(ch))
         }
@@ -171,9 +171,9 @@ LoadedProgram := struct {
 // include_flags, link_c_paths on the given LoadedProgram.
 extract_link_info := proc(mut lp: LoadedProgram) {
     ref ast : Expr = lp.ast
-    for i in 0..Expr.child_count(ast) {
+    for i in 0..ast.children.len() {
         ref stmt : Expr = Expr.child(ast, i)
-        if stmt.data.is(NodeType.FCall).and(Expr.child_count(stmt).eq(2)) {
+        if stmt.data.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
             if Expr.child(stmt, 0).data.is(NodeType.Ident)
                 .and(Expr.child(stmt, 1).data.is(NodeType.LiteralStr)) {
                 ref fname : Str = get_payload(Expr.child(stmt, 0).data)

@@ -233,9 +233,9 @@ extract_types_from_file := proc(path: Str) returns Vec {
     label := file_label(path)
 
     mut i : USize = 0
-    while i.lt(ast.child_count()) {
+    while i.lt(ast.children.len()) {
         ref stmt : Expr = ast.child(i)
-        if stmt.data.is(NodeType.Decl).and(stmt.child_count().gt(0)) {
+        if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref dd : Declaration = get_payload(stmt.data)
             ref rhs : Expr = stmt.child(0)
 

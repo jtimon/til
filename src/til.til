@@ -84,7 +84,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
         peek_tokens := tokenize(kept, "<repl>")
         mut peek_mode_out := ""
         peek_ast := parse(peek_tokens, "<repl>", peek_mode_out)
-        _discard := Expr.child_count(peek_ast)
+        _discard := peek_ast.children.len()
         if peek_mode_out.len().gt(0) {
             next_mode_out = peek_mode_out.clone()
             return

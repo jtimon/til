@@ -37,7 +37,7 @@ StructInstance := struct {
             }
         } else {
             ref body : Expr = self.struct_def.child(0)
-            for fi in 0..body.child_count() {
+            for fi in 0..body.children.len() {
                 ref field : Expr = body.child(fi)
                 ref dd : Declaration = get_payload(field.data)
                 if dd.is_namespace { continue }
@@ -521,7 +521,7 @@ reinterpret_ptr_value := proc(val: Value, type_name: Str, scope: Scope) returns 
             ref fptr : Dynamic = get_payload(tc.val)
             ref tdef : Expr = deref(fptr)
             if tdef.data.is(NodeType.FuncDef) {
-                if tdef.child_count().eq(0) {
+                if tdef.children.len().eq(0) {
                     // FuncSig: dereference to get function pointer
                     ref fp : Dynamic = deref(p)
                     return Value.Func(fp)
@@ -548,11 +548,11 @@ reinterpret_ptr_value := proc(val: Value, type_name: Str, scope: Scope) returns 
 // Returns true if call should be skipped (caller returns val_none).
 guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shallow Bool {
     ref fd : FunctionDef = get_payload(func_def.data)
-    if fd.nparam.eq(0) { return false }
+    if fd.params.len().eq(0) { return false }
     if fd.params.len().eq(0) { return false }
     ref p0 : Param = fd.params.get(0)
     if p0.own_type.is(OwnType.Own).not() { return false }
-    if e.child_count().lte(1) { return false }
+    if e.children.len().lte(1) { return false }
     if e.child(1).data.is(NodeType.Ident).not() { return false }
     ref arg_ident : Str = get_payload(e.child(1).data)
     ref fc : Cell = scope_get(scope, arg_ident)
@@ -595,7 +595,7 @@ resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr
 }
 
 eval_body := proc(scope: Scope, body: Expr) {
-    for i in 0..body.child_count() {
+    for i in 0..body.children.len() {
         if has_return { return }
         if has_break { return }
         if has_continue { return }
@@ -753,7 +753,7 @@ eval_body := proc(scope: Scope, body: Expr) {
                 eval_body(then_scope, stmt.child(1))
                 if has_return { return_value = return_value.clone() }
                 scope_free(own then_scope)
-            } else if stmt.child_count().gt(2) {
+            } else if stmt.children.len().gt(2) {
                 else_scope := scope_new(scope)
                 eval_body(else_scope, stmt.child(2))
                 if has_return { return_value = return_value.clone() }
@@ -779,7 +779,7 @@ eval_body := proc(scope: Scope, body: Expr) {
             has_continue = true
             return
         } else if stmt.data.is(NodeType.Return) {
-            if stmt.child_count().gt(0) {
+            if stmt.children.len().gt(0) {
                 return_value = eval_expr(scope, stmt.child(0))
             } else {
                 return_value = val_none()
@@ -845,7 +845,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                         ref callee_ident : Str = get_payload(callee_expr.data)
                         mut eresult := val_none()
                         if enum_method_dispatch(callee_ident, scope, tc_edef, parent_sname, e, eresult) {
-                            for oi in 1..e.child_count() {
+                            for oi in 1..e.children.len() {
                                 ref oa : Expr = e.child(oi)
                                 if oa.data.is(NodeType.Ident).and(get_own_arg(e, oi)) {
                                     ref oa_ident : Str = get_payload(oa.data)
@@ -877,7 +877,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         if guard_own_param_skip(scope, e, func_def) { return val_none() }
         call_scope := scope_new(scope)
         ref fdef_params : FunctionDef = get_payload(func_def.data)
-        for pi in 0..fdef_params.nparam {
+        for pi in 0..fdef_params.params.len() {
             ref param : Param = fdef_params.params.get(pi)
             ref arg_expr : Expr = e.child(pi.add(1))
             if arg_expr.data.is(NodeType.Ident) {
@@ -920,7 +920,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     // Ext function dispatch
     mut ext_result := val_none()
     if ext_function_dispatch(name, scope, e, ext_result) {
-        for oi in 1..e.child_count() {
+        for oi in 1..e.children.len() {
             ref oa : Expr = e.child(oi)
             if oa.data.is(NodeType.Ident).and(get_own_arg(e, oi)) {
                 ref oa_ident : Str = get_payload(oa.data)
@@ -961,7 +961,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             }
             ref si_inst : StructInstance = get_payload(inst)
             mut arg_idx : U32 = 1
-            for fi in 0..sdef_body.child_count() {
+            for fi in 0..sdef_body.children.len() {
                 ref field : Expr = sdef_body.child(fi)
                 ref fdd : Declaration = get_payload(field.data)
                 if fdd.is_namespace { }
@@ -997,7 +997,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
 
     // Guard: skip call if first 'own' param is val_none, borrowed struct, or Ptr
     ref fdef2 : FunctionDef = get_payload(func_def2.data)
-    if fdef2.nparam.gt(0).and(fdef2.params.len().gt(0)).and(e.child_count().gt(1)) {
+    if fdef2.params.len().gt(0).and(fdef2.params.len().gt(0)).and(e.children.len().gt(1)) {
         ref first_param : Param = fdef2.params.get(0)
         if first_param.own_type.eq(OwnType.Own) {
             ref first_arg : Expr = e.child(1)
@@ -1023,7 +1023,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     }
 
     call_scope2 := scope_new(scope)
-    nparam2 := fdef2.nparam
+    nparam2 := fdef2.params.len()
     for pi in 0..nparam2 {
         ref arg_expr : Expr = e.child(pi.add(1))
         ref param : Param = fdef2.params.get(pi)
@@ -1228,7 +1228,7 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
     ref body : Expr = sdef.child(0)
     mut has_ns := false
     mut has_inst := false
-    for i in 0..body.child_count() {
+    for i in 0..body.children.len() {
         ref f : Expr = body.child(i)
         ref dd : Declaration = get_payload(f.data)
         if dd.name.eq(fname) {
@@ -1334,11 +1334,11 @@ interpreter_init_ns := proc(mut global: Scope, program: Expr) {
         ns_keys = Vec.new("Dynamic", Dynamic.size())
         ns_inited = true
     }
-    for i in 0..program.child_count() {
+    for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = get_payload(stmt.data)
-        if stmt.child_count().eq(0) { continue }
+        if stmt.children.len().eq(0) { continue }
         ref sdef : Expr = stmt.child(0)
         if sdef.data.is(NodeType.StructDef).not() {
             if sdef.data.is(NodeType.EnumDef).not() { continue }
@@ -1349,7 +1349,7 @@ interpreter_init_ns := proc(mut global: Scope, program: Expr) {
             if dd.name.eq("Vec") { cached_vec_def = sdef; cached_vec_name = dd.name }
         }
         ref body : Expr = sdef.child(0)
-        for j in 0..body.child_count() {
+        for j in 0..body.children.len() {
             ref field : Expr = body.child(j)
             ref fdd : Declaration = get_payload(field.data)
             if fdd.is_namespace {
@@ -1417,7 +1417,7 @@ str_view := func(shallow v: Value) returns shallow Str {
 
 find_field_decl := func(struct_def: Expr, fname: Str) returns ref Expr {
     ref body : Expr = struct_def.child(0)
-    for i in 0..body.child_count() {
+    for i in 0..body.children.len() {
         ref f : Expr = body.child(i)
         if f.data.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(f.data)
@@ -1563,9 +1563,9 @@ write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
 }
 
 interpret_register_defs := proc(mut global: Scope, prog: Expr) {
-    for i in 0..prog.child_count() {
+    for i in 0..prog.children.len() {
         ref stmt : Expr = prog.child(i)
-        if stmt.data.is(NodeType.Decl).and(stmt.child_count().gt(0)) {
+        if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).data.is(NodeType.FuncDef)
                 .or(stmt.child(0).data.is(NodeType.StructDef))
                 .or(stmt.child(0).data.is(NodeType.EnumDef)) {
@@ -1581,11 +1581,11 @@ interpret_register_defs := proc(mut global: Scope, prog: Expr) {
 }
 
 interpret_register_aliases := proc(mut global: Scope, prog: Expr) {
-    for i in 0..prog.child_count() {
+    for i in 0..prog.children.len() {
         ref stmt : Expr = prog.child(i)
         if stmt.data.is(NodeType.Decl).not() { }
         else if stmt.til_type.is(TilType.None).not() { }
-        else if stmt.child_count().eq(0) { }
+        else if stmt.children.len().eq(0) { }
         else {
             ref rhs : Expr = stmt.child(0)
             if rhs.data.is(NodeType.Ident) {
@@ -1611,11 +1611,11 @@ interpret_register_aliases := proc(mut global: Scope, prog: Expr) {
 }
 
 interpret_copy_alias_ns := proc(prog: Expr, global: Scope) {
-    for i in 0..prog.child_count() {
+    for i in 0..prog.children.len() {
         ref stmt : Expr = prog.child(i)
         if stmt.data.is(NodeType.Decl).not() { }
         else if stmt.til_type.is(TilType.None).not() { }
-        else if stmt.child_count().eq(0) { }
+        else if stmt.children.len().eq(0) { }
         else {
             ref rhs : Expr = stmt.child(0)
             if rhs.data.is(NodeType.Ident) {
@@ -1627,7 +1627,7 @@ interpret_copy_alias_ns := proc(prog: Expr, global: Scope) {
                     ref sdef : Expr = deref(fptr)
                     if sdef.data.is(NodeType.StructDef).or(sdef.data.is(NodeType.EnumDef)) {
                         ref body : Expr = sdef.child(0)
-                        for j in 0..body.child_count() {
+                        for j in 0..body.children.len() {
                             ref field : Expr = body.child(j)
                             ref fdd : Declaration = get_payload(field.data)
                             if fdd.is_namespace {
@@ -1676,10 +1676,10 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     if run_tests {
         mut test_count : I32 = 0
         mut pass_count : I32 = 0
-        for i in 0..program.child_count() {
+        for i in 0..program.children.len() {
             ref stmt : Expr = program.child(i)
             if stmt.data.is(NodeType.Decl).not() { }
-            else if stmt.child_count().eq(0) { }
+            else if stmt.children.len().eq(0) { }
             else if stmt.child(0).data.is(NodeType.FuncDef).not() { }
             else {
                 ref fd : FunctionDef = get_payload(stmt.child(0).data)
@@ -1723,7 +1723,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
         ref fptr : Dynamic = get_payload(main_cell.val)
         ref func_def : Expr = deref(fptr)
         ref fd : FunctionDef = get_payload(func_def.data)
-        nparam := fd.nparam
+        nparam := fd.params.len()
         vi := fd.variadic_index
         ref body : Expr = func_def.child(0)
         main_scope := scope_new(global)

@@ -367,7 +367,6 @@ typedef struct Set {
 typedef struct FunctionDef {
     FuncType func_type;
     Vec params;
-    U32 nparam;
     Map param_defaults;
     Str return_type;
     I32 variadic_index;
@@ -763,7 +762,6 @@ void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
 void Expr_take_children(Expr * self, Expr * other);
 Expr * Expr_child(Expr * parent, U32 * i);
-U32 Expr_child_count(Expr * parent);
 Expr * Expr_new(NodeType * data, U32 line, U32 col, Str * path);
 Expr * Expr_clone(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);

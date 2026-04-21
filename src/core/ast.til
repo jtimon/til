@@ -95,7 +95,6 @@ Param := struct {
 FunctionDef := struct {
     mut func_type := FuncType.Func
     mut params := Vec.new("Param", Param.size())
-    mut nparam : USize = 0
     mut param_defaults := Map.new("Str", Str.size(), "Expr", Expr.size())
     mut return_type := ""
     mut variadic_index : I32 = -1.to_i32()
@@ -239,9 +238,6 @@ Expr := struct {
         ref c : Expr = parent.children.get(i)
         return c
     }
-    child_count := func(parent: Expr) returns shallow USize {
-        return parent.children.len()
-    }
     new := func(data: NodeType, shallow line: U32, shallow col: U32, path: Str) returns Expr {
         mut out := Expr(data = data.clone(), line = line, col = col, path = path.clone())
         if out.data.is(NodeType.FCall) {
@@ -347,7 +343,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
 
 enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
     ref body : Expr = enum_def.child(0)
-    for i in 0..body.child_count() {
+    for i in 0..body.children.len() {
         ref f : Expr = body.child(i)
         if f.data.is(NodeType.Decl) {
             ref decl : Declaration = get_payload(f.data)
@@ -362,7 +358,7 @@ enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
 enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
     ref body : Expr = enum_def.child(0)
     mut tag : I32 = 0
-    for i in 0..body.child_count() {
+    for i in 0..body.children.len() {
         ref f : Expr = body.child(i)
         if f.data.is(NodeType.Decl) {
             ref decl : Declaration = get_payload(f.data)
@@ -378,7 +374,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
 enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
     ref body : Expr = enum_def.child(0)
     mut idx : I32 = 0
-    for i in 0..body.child_count() {
+    for i in 0..body.children.len() {
         ref f : Expr = body.child(i)
         if f.data.is(NodeType.Decl) {
             ref decl : Declaration = get_payload(f.data)
