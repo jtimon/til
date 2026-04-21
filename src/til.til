@@ -36,7 +36,8 @@ get_cwd_str := ext_func() returns Str {}
 // Read one line of REPL input. Returns the line (without trailing newline) on
 // success, or empty string on EOF.
 repl_read_line := proc(mode_name: Str) returns Str {
-    print_single("til[")
+    logo := Str.from_byte(238).concat(Str.from_byte(128)).concat(Str.from_byte(128))
+    print_single(logo.concat("["))
     print_single(mode_name)
     print_single("]> ")
     mut line := ""
