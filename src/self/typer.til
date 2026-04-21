@@ -3560,7 +3560,7 @@ insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
                 ref rhs : Expr = stmt.child(1)
                 if type_to_name(rhs.til_type).len().gt(0) {
                     del := make_field_delete(stmt, fot)
-                    new_ch.push(own del.clone())
+                    new_ch.push(own del)
                 }
             }
         }
@@ -4212,7 +4212,7 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
                 if type_to_name(local.type).len().gt(0) {
                     heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                    new_ch.push(own del.clone())
+                    new_ch.push(own del)
                 }
             }
         }
@@ -4273,7 +4273,7 @@ insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, s
                 if type_to_name(local.type).len().gt(0) {
                     heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                    new_ch.push(own del.clone())
+                    new_ch.push(own del)
                 }
             }
         }
@@ -4292,14 +4292,14 @@ insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: 
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                new_ch.push(own del.clone())
+                new_ch.push(own del)
             }
         }
         if local.last_use.eq(-1.to_i32()).and(local.decl_index.eq(stmt_idx.to_i64().to_i32())) {
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                new_ch.push(own del.clone())
+                new_ch.push(own del)
             }
         }
     }
@@ -4321,7 +4321,7 @@ insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: 
                 if type_to_name(local.type).len().gt(0) {
                     heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                    new_ch.push(own del.clone())
+                    new_ch.push(own del)
                 }
             }
         }
