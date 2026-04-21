@@ -37,13 +37,13 @@ test_macro_proc_call := test() {
 macro_square := macro(x: I64) returns I64 {
     return x.mul(x)
 }
-square_plus_one := func(_dummy: I64) returns I64 {
+square_plus_one := func() returns I64 {
     s := macro_square(7)
     return s.add(1)
 }
 
 test_macro_in_func := test() {
-    assert_eq(__LOC__, square_plus_one(0), 50)
+    assert_eq(__LOC__, square_plus_one(), 50)
 }
 
 # macro returning Bool

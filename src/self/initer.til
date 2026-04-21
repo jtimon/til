@@ -1183,7 +1183,7 @@ generate_enum_size_methods := proc(program: Expr) {
     }
 }
 
-generate_unity_derived_methods := proc(program: Expr, _scope: TypeScope) {
+generate_unity_derived_methods := proc(program: Expr) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
         if is_variant(stmt.data, NodeType.Decl).not() { continue }
@@ -1269,12 +1269,12 @@ generate_unity_derived_methods := proc(program: Expr, _scope: TypeScope) {
     }
 }
 
-generate_size_methods := proc(program: Expr, _scope: TypeScope) {
+generate_size_methods := proc(program: Expr) {
     generate_struct_size_methods(program)
     generate_enum_size_methods(program)
 }
 
-generate_cmp_derived_methods := proc(program: Expr, _scope: TypeScope) {
+generate_cmp_derived_methods := proc(program: Expr) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
         if is_variant(stmt.data, NodeType.Decl).not() { continue }
@@ -1530,9 +1530,9 @@ generate_cmp_derived_methods := proc(program: Expr, _scope: TypeScope) {
     }
 }
 
-generate_derived_methods := proc(program: Expr, scope: TypeScope) {
-    generate_cmp_derived_methods(program, scope)
-    generate_unity_derived_methods(program, scope)
+generate_derived_methods := proc(program: Expr) {
+    generate_cmp_derived_methods(program)
+    generate_unity_derived_methods(program)
 }
 
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
@@ -1785,7 +1785,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
     }
 }
 
-init_declarations := proc(program: Expr, scope: TypeScope, _ctx: Context) returns shallow I32 {
+init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
 
     errors = errors.add(register_struct_definitions(program, scope))
@@ -1796,8 +1796,8 @@ init_declarations := proc(program: Expr, scope: TypeScope, _ctx: Context) return
     generate_missing_enum_clones(program)
     register_type_aliases(program, scope)
     compute_all_struct_layouts(program, scope)
-    generate_size_methods(program, scope)
-    generate_derived_methods(program, scope)
+    generate_size_methods(program)
+    generate_derived_methods(program)
     register_function_definitions(program, scope)
     register_top_level_values(program, scope)
 

@@ -330,9 +330,9 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     // Init phase: pre-scan declarations (core first, then user)
     lp.ctx.scope = TypeScope()
     if lp.skip_core.not() {
-        init_declarations(lp.core_ast, lp.ctx.scope, lp.ctx)
+        init_declarations(lp.core_ast, lp.ctx.scope)
     }
-    init_declarations(lp.ast, lp.ctx.scope, lp.ctx)
+    init_declarations(lp.ast, lp.ctx.scope)
 
     // Type checking (core first, then user)
     mut type_errors : I32 = 0
