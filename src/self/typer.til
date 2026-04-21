@@ -65,7 +65,6 @@ BoolName := "Bool"
 LocalInfo := struct {
     ref mut name : Str = NULL
     mut type := TilType.Unknown
-    ref mut struct_name : Str = NULL
     mut decl_index : I32 = 0
     mut last_use : I32 = 0
     mut own_transfer : I32 = -1.to_i32()
@@ -4035,7 +4034,6 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
         mut li := LocalInfo()
         li.name = b.name
         li.type = b.type
-        li.struct_name = til_type_name(b.type)
         li.decl_index = decl_idx
         li.last_use = last_use
         li.own_transfer = own_transfer
@@ -4150,8 +4148,9 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
                         continue
                     }
                 }
-                if type_to_name(local.type, local.struct_name).len().gt(0) {
-                    del := make_delete_call(local.name, local.type, local.struct_name, true, true, stmt)
+                local_sname := til_type_name(local.type)
+                if type_to_name(local.type, local_sname).len().gt(0) {
+                    del := make_delete_call(local.name, local.type, local_sname, true, true, stmt)
                     new_ch.push(own del.clone())
                 }
             }
@@ -4210,8 +4209,9 @@ insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, s
         if local.own_transfer.gte(0) { continue }
         if local.decl_index.lt(stmt_idx.to_i64().to_i32()) {
             if local.last_use.gte(stmt_idx.to_i64().to_i32()).or(local.last_use.eq(-1.to_i32())) {
-                if type_to_name(local.type, local.struct_name).len().gt(0) {
-                    del := make_delete_call(local.name, local.type, local.struct_name, false, false, stmt)
+                local_sname := til_type_name(local.type)
+                if type_to_name(local.type, local_sname).len().gt(0) {
+                    del := make_delete_call(local.name, local.type, local_sname, false, false, stmt)
                     new_ch.push(own del.clone())
                 }
             }
@@ -4228,14 +4228,16 @@ insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: 
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
         if local.last_use.eq(stmt_idx.to_i64().to_i32()) {
-            if type_to_name(local.type, local.struct_name).len().gt(0) {
-                del := make_delete_call(local.name, local.type, local.struct_name, false, false, stmt)
+            local_sname := til_type_name(local.type)
+            if type_to_name(local.type, local_sname).len().gt(0) {
+                del := make_delete_call(local.name, local.type, local_sname, false, false, stmt)
                 new_ch.push(own del.clone())
             }
         }
         if local.last_use.eq(-1.to_i32()).and(local.decl_index.eq(stmt_idx.to_i64().to_i32())) {
-            if type_to_name(local.type, local.struct_name).len().gt(0) {
-                del := make_delete_call(local.name, local.type, local.struct_name, false, false, stmt)
+            local_sname := til_type_name(local.type)
+            if type_to_name(local.type, local_sname).len().gt(0) {
+                del := make_delete_call(local.name, local.type, local_sname, false, false, stmt)
                 new_ch.push(own del.clone())
             }
         }
@@ -4253,18 +4255,11 @@ insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: 
             ref rhs : Expr = stmt.child(0)
             if expr_uses_var(rhs, vname) {
                 ad.save_old_delete = true
-                if is_null(local.struct_name).not() {
-                    if local.struct_name.len().gt(0) {
-                        if is_variant(local.type, TilType.Struct) {
-                            stmt.til_type = TilType.Struct(local.struct_name.clone())
-                        } else {
-                            stmt.til_type = TilType.Enum(local.struct_name.clone())
-                        }
-                    }
-                }
+                stmt.til_type = local.type.clone()
             } else {
-                if type_to_name(local.type, local.struct_name).len().gt(0) {
-                    del := make_delete_call(local.name, local.type, local.struct_name, false, false, stmt)
+                local_sname := til_type_name(local.type)
+                if type_to_name(local.type, local_sname).len().gt(0) {
+                    del := make_delete_call(local.name, local.type, local_sname, false, false, stmt)
                     new_ch.push(own del.clone())
                 }
             }

@@ -478,7 +478,6 @@ typedef struct Context {
 typedef struct LocalInfo {
     Str *name;
     TilType type;
-    Str *struct_name;
     I32 decl_index;
     I32 last_use;
     I32 own_transfer;
