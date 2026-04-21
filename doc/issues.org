@@ -1,10 +1,49 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 155
+# NEXT_ISSUE: 156
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/15] Pre
+* [0/16] Pre
+** OPEN #155 Typer infers ~unknown~ for enum-typed struct field access
+   Spun off from ~#113~. Accessing a struct field whose declared
+   default is an enum constructor types as ~unknown~ instead of the
+   field's enum type, so UFCS method calls on the field don't resolve.
+
+   Repro in-tree:
+
+   #+begin_src til
+   Cell := struct {
+       mut val := Value.None
+   }
+   ref c : Cell = ...
+   if c.val.is(Value.Func) { ... }   // type error: no method 'is' for type 'unknown'
+   #+end_src
+
+   ~Value~ here is an enum, ~Cell.val~ has no explicit type annotation
+   and is initialised to ~Value.None~. The typer should infer the
+   field's til_type from the default-value expression
+   (~TilType.Enum("Value")~) and propagate it through field access so
+   ~c.val~ has type ~Value~. Today it leaves the field at
+   ~TilType.Unknown~, which leaves the UFCS rewrite with no
+   ~type_name~ to dispatch on and no namespace-method lookup target.
+
+   Symptom site: ~src/self/precomp.til~ ~try_eval_call~ has a
+   ~TODO(#113)~ workaround that calls ~is(fn_cell.val, Value.Func)~ in
+   free-function form for exactly this reason. Once the inference is
+   fixed the workaround can be reverted to ~fn_cell.val.is(Value.Func)~
+   and the TODO removed.
+
+   Likely fix area: field-type inference in ~src/self/typer.til~ /
+   ~src/self/initer.til~ where struct fields without explicit types
+   pick up their type from the default-value expression. The same code
+   path probably already handles primitive defaults (~mut x := 0~ ->
+   ~I64~); the enum case looks like an oversight.
+
+   Out of scope:
+   - Exhaustive-switch checking for enums (~#113~ part d).
+   - Widening UFCS itself (already done in ~#113~ follow-up).
+
 ** OPEN #149 Add ns_decls container for namespace-section Decls
    Struct and enum definitions carry a ~namespace:~ section whose members
    are parsed as siblings of the instance fields in the same ~body.children~
@@ -703,9 +742,8 @@
     keep going through the func-ptr-field path.
   - One call site (~src/self/precomp.til~ ~fn_cell.val.is(Value.Func)~)
     still uses ~is(a, b)~ because ~Cell.val~ types as ~unknown~ instead
-    of ~Value~, so UFCS has no ~type_name~ to dispatch on. Carries a
-    ~TODO(#113)~. Root cause is a typer field-type-inference gap, not
-    UFCS itself.
+    of ~Value~, so UFCS has no ~type_name~ to dispatch on. Tracked
+    separately as ~#155~ (typer field-type-inference gap, not UFCS).
 
   Motivation:
   - UFCS-friendly syntax like ~tok.is(Token.Num)~ reads much better than
