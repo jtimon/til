@@ -78,7 +78,7 @@ Declaration := struct {
     mut field_size : I32 = 0
     ref mut field_struct_def : Expr = NULL
     own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0, "")
-    namespace:
+namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: Declaration) returns Str { return self.name }
 }
@@ -91,7 +91,7 @@ FunctionDef := struct {
     mut variadic_index : I32 = -1.to_i32()
     mut kwargs_index : I32 = -1.to_i32()
     mut return_own_type := OwnType.Own
-    namespace:
+namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type.eq(b.return_type) }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }
 }
@@ -105,12 +105,12 @@ FCallData := struct {
     mut is_splat := false
     mut own_args : U64 = 0
     ref mut fn_sig : Expr = NULL
-    namespace:
+namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
         return a.variadic_index.eq(b.variadic_index)
-            .and(a.variadic_count.eq(b.variadic_count))
-            .and(a.kwargs_index.eq(b.kwargs_index))
-            .and(a.kwargs_count.eq(b.kwargs_count))
+        .and(a.variadic_count.eq(b.variadic_count))
+        .and(a.kwargs_index.eq(b.kwargs_index))
+        .and(a.kwargs_count.eq(b.kwargs_count))
     }
     to_str := func(_self: FCallData) returns Str { return "FCall" }
 }
@@ -134,7 +134,7 @@ StructDefData := struct {
     mut fields := Vec.new("Declaration", Declaration.size())
     mut ns_decls := Vec.new("Declaration", Declaration.size())
     mut c_tag := ""
-    namespace:
+namespace:
     eq := func(a: StructDefData, b: StructDefData) returns Bool {
         return a.total_struct_size.eq(b.total_struct_size)
     }
@@ -146,7 +146,7 @@ StructDefData := struct {
 AssignData := struct {
     mut name := ""
     mut save_old_delete := false
-    namespace:
+namespace:
     eq := func(a: AssignData, b: AssignData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: AssignData) returns Str { return self.name }
 }
@@ -189,7 +189,8 @@ Expr := struct {
     mut line : U32 = 0
     mut col : U32 = 0
     mut path := ""
-    namespace:
+
+namespace:
     error := proc(self: Expr, msg: Str) {
         println(self.path, ":", self.line.to_str(), ":", self.col.to_str(), ": error: ", msg)
     }
@@ -221,7 +222,7 @@ Expr := struct {
             self.children.cap = new_cap
         }
         memcpy(ptr_add(self.children.data, self.children.count.mul(self.children.elem_size)),
-               other.children.data, other.children.count.mul(other.children.elem_size))
+            other.children.data, other.children.count.mul(other.children.elem_size))
         self.children.count = needed
         other.children.count = 0
         other.children.data = NULL
@@ -434,8 +435,8 @@ is_def := func(stmt: Expr) returns shallow Bool {
     if is_decl_with_child(stmt).not() { return false }
     ref def : Expr = stmt.child(0)
     return def.data.is(NodeType.FuncDef)
-        .or(def.data.is(NodeType.StructDef))
-        .or(def.data.is(NodeType.EnumDef))
+    .or(def.data.is(NodeType.StructDef))
+    .or(def.data.is(NodeType.EnumDef))
 }
 
 // For a struct/enum decl stmt, return the body Expr (child(0).child(0)).
