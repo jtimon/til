@@ -3603,7 +3603,7 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
         new_own = new_own.or(bit)
         fcall_new_ch.push(own va_id)
     }
-    fcall.children = fcall_new_ch
+    fcall.children.move_from(fcall_new_ch)
     fcall_data.own_args = new_own
     fcall_data.variadic_index = -1.to_i32()
     fcall_data.variadic_count = 0.to_u32()
@@ -3728,7 +3728,7 @@ desugar_pure_splat_variadic_call := proc(mut fcall: Expr, mut new_ch: Vec, stmt:
             fcall_new_ch.push(own fcall.child(j).clone())
         }
     }
-    fcall.children = fcall_new_ch
+    fcall.children.move_from(fcall_new_ch)
     set_own_arg(fcall, vi.to_i64().to_usize())
     fcd.variadic_index = -1.to_i32()
     fcd.variadic_count = 0
@@ -3830,7 +3830,7 @@ rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
         fcall_new_ch.push(own kw_id)
     }
 
-    fcall.children = fcall_new_ch
+    fcall.children.move_from(fcall_new_ch)
     fcd.own_args = new_own
     fcd.kwargs_index = -1.to_i32()
     fcd.kwargs_count = 0
