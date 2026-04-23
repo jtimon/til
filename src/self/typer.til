@@ -717,7 +717,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
             }
         }
     }
-    ref cur_mode : Mode = context_mode(ctx)
+    ref cur_mode : Mode = ctx.mode
     mut debug_exempt := false
     if cur_mode.debug_prints {
         if name.eq("print").or(name.eq("println")) {
@@ -1205,7 +1205,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             type_error(expr, "test functions cannot have parameters")
         }
     }
-    ref cur_mode : Mode = context_mode(ctx)
+    ref cur_mode : Mode = ctx.mode
     if cur_mode.is_pure {
         if fdef.func_type.is(FuncType.Proc) {
             type_error(expr, "proc not allowed in pure mode")

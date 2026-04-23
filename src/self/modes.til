@@ -19,10 +19,6 @@ Context := struct {
     mut is_repl := false
 }
 
-context_mode := func(ctx: Context) returns ref Mode {
-    return ctx.mode
-}
-
 context_register_path_mode := proc(mut ctx: Context, path: Str, mode: Mode) {
     ctx.path_modes.set(own path.clone(), own mode.clone())
 }

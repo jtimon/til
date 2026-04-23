@@ -880,7 +880,6 @@ U32 Mode_size(void);
 Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool * call_free);
 U32 Context_size(void);
-Mode * context_mode(Context * ctx);
 void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 Mode * mode_resolve(Str * name);
