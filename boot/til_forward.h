@@ -163,8 +163,8 @@ typedef enum {
 } ScopeFind_tag;
 typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
-typedef struct Mode Mode;
 typedef struct Context Context;
+typedef struct Mode Mode;
 typedef struct LocalInfo LocalInfo;
 typedef enum {
     CtorArg_TAG_Unfilled,
@@ -458,14 +458,6 @@ typedef struct Mode {
 } Mode;
 
 
-typedef struct Context {
-    Mode mode;
-    Map path_modes;
-    TypeScope scope;
-    Bool is_repl;
-} Context;
-
-
 typedef struct LocalInfo {
     Str *name;
     TilType type;
@@ -483,22 +475,6 @@ struct CtorArg {
         Expr Filled;
     } data;
 };
-
-typedef struct LoadedProgram {
-    Expr *core_ast;
-    Expr *ast;
-    Mode cur_mode;
-    Context ctx;
-    Bool skip_core;
-    Str mode_str;
-    Str path;
-    Str ext_c_path;
-    Str link_flags;
-    Str include_flags;
-    Str link_c_paths;
-    Bool run_tests;
-} LoadedProgram;
-
 
 struct Lang {
     Lang_tag tag;
@@ -641,6 +617,30 @@ typedef struct CliArgs {
     U32 path_idx;
     Bool early_return;
 } CliArgs;
+
+
+typedef struct Context {
+    Mode mode;
+    Map path_modes;
+    TypeScope scope;
+    Bool is_repl;
+} Context;
+
+
+typedef struct LoadedProgram {
+    Expr *core_ast;
+    Expr *ast;
+    Mode cur_mode;
+    Context ctx;
+    Bool skip_core;
+    Str mode_str;
+    Str path;
+    Str ext_c_path;
+    Str link_flags;
+    Str include_flags;
+    Str link_c_paths;
+    Bool run_tests;
+} LoadedProgram;
 
 
 Array * Array_new(Str * elem_type, U32 * elem_size, U32 * cap);
@@ -828,6 +828,25 @@ Expr * parse(Vec * tokens, Str * path, Str * mode_out);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U32 TypeBinding_size(void);
+ScopeFind * ScopeFind_NotFound(void);
+ScopeFind * ScopeFind_Found(TypeBinding * val);
+Bool ScopeFind_is(ScopeFind * self, ScopeFind * other);
+void ScopeFind_delete(ScopeFind * self, Bool * call_free);
+ScopeFind * ScopeFind_clone(ScopeFind * self);
+U32 ScopeFind_size(void);
+TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
+ScopeFind * TypeScope_find(TypeScope * self, Str * name);
+TilType * TypeScope_get_type(TypeScope * self, Str * name);
+FuncType TypeScope_get_func_type(TypeScope * self, Str * name);
+Expr * TypeScope_get_struct(TypeScope * self, Str * name);
+Bool TypeScope_is_mut(TypeScope * self, Str * name);
+void TypeScope_set(TypeScope * self, Str * name, TilType * type, FuncType func_type, Bool is_mut, U32 line, U32 col, Bool is_param, OwnType own_type);
+TypeScope * TypeScope_clone(TypeScope * self);
+void TypeScope_delete(TypeScope * self, Bool * call_free);
+U32 TypeScope_size(void);
+Context * Context_clone(Context * self);
+void Context_delete(Context * self, Bool * call_free);
+U32 Context_size(void);
 I32 align_up(I32 offset, I32 align);
 TilType * type_from_name_init(Str * name, TypeScope * scope);
 I32 register_struct_definitions(Expr * program, TypeScope * scope);
@@ -858,28 +877,9 @@ void compute_all_struct_layouts(Expr * program, TypeScope * scope);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_type);
 I32 init_declarations(Expr * program, TypeScope * scope);
 void * Vec_take(Vec * v);
-ScopeFind * ScopeFind_NotFound(void);
-ScopeFind * ScopeFind_Found(TypeBinding * val);
-Bool ScopeFind_is(ScopeFind * self, ScopeFind * other);
-void ScopeFind_delete(ScopeFind * self, Bool * call_free);
-ScopeFind * ScopeFind_clone(ScopeFind * self);
-U32 ScopeFind_size(void);
-TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
-ScopeFind * TypeScope_find(TypeScope * self, Str * name);
-TilType * TypeScope_get_type(TypeScope * self, Str * name);
-FuncType TypeScope_get_func_type(TypeScope * self, Str * name);
-Expr * TypeScope_get_struct(TypeScope * self, Str * name);
-Bool TypeScope_is_mut(TypeScope * self, Str * name);
-void TypeScope_set(TypeScope * self, Str * name, TilType * type, FuncType func_type, Bool is_mut, U32 line, U32 col, Bool is_param, OwnType own_type);
-TypeScope * TypeScope_clone(TypeScope * self);
-void TypeScope_delete(TypeScope * self, Bool * call_free);
-U32 TypeScope_size(void);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);
 U32 Mode_size(void);
-Context * Context_clone(Context * self);
-void Context_delete(Context * self, Bool * call_free);
-U32 Context_size(void);
 void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 Mode * mode_resolve(Str * name);

@@ -206,6 +206,11 @@
 ** TypeScope: StructDef
 *** mut bindings := Map.new("Str", Str.size(), "TypeBinding", TypeBinding.size())
 *** ref mut parent : TypeScope = NULL
+** Context: StructDef
+*** mut mode := Mode()
+*** mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
+*** mut scope := TypeScope()
+*** mut is_repl := false
 * typer
 ** LocalInfo: StructDef
 *** ref mut name : Str = NULL
@@ -309,8 +314,3 @@
 *** mut is_pure := false
 *** mut run_tests := false
 *** mut debug_prints := false
-** Context: StructDef
-*** mut mode := Mode()
-*** mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
-*** mut scope := TypeScope()
-*** mut is_repl := false

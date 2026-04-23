@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="4856" height="2464" viewBox="0 0 4856 2464">
+<svg xmlns="http://www.w3.org/2000/svg" width="4536" height="2464" viewBox="0 0 4536 2464">
   <defs>
     <style>
       .bg { fill: #f7f5ef; }
@@ -9,7 +9,7 @@
       .line { font: 13px 'Courier New', monospace; fill: #1f2937; }
     </style>
   </defs>
-  <rect class="bg" x="0" y="0" width="4856" height="2464"/>
+  <rect class="bg" x="0" y="0" width="4536" height="2464"/>
   <rect x="24" y="24" width="236" height="1542" rx="14" ry="14" class="panel"/>
   <text x="44" y="62" class="panel-label">lexer</text>
   <rect x="44" y="88" width="172" height="1324" rx="10" ry="10" class="box"/>
@@ -213,7 +213,7 @@
   <text x="1006" y="162" class="line">mut pos : USize = 0</text>
   <text x="1006" y="180" class="line">mut path := &quot;&quot;</text>
   <text x="1006" y="198" class="line">mut fn_sig_decls := Vec.new(&quot;Expr&quot;, Expr.size())</text>
-  <rect x="1458" y="24" width="684" height="598" rx="14" ry="14" class="panel"/>
+  <rect x="1458" y="24" width="684" height="734" rx="14" ry="14" class="panel"/>
   <text x="1478" y="62" class="panel-label">initer</text>
   <rect x="1478" y="88" width="292" height="316" rx="10" ry="10" class="box"/>
   <text x="1492" y="126" class="title">TypeBinding: StructDef</text>
@@ -240,6 +240,12 @@
   <text x="1492" y="560" class="title">TypeScope: StructDef</text>
   <text x="1492" y="578" class="line">mut bindings := Map.new(&quot;Str&quot;, Str.size(), &quot;TypeBinding&quot;, TypeBinding.size())</text>
   <text x="1492" y="596" class="line">ref mut parent : TypeScope = NULL</text>
+  <rect x="1478" y="622" width="548" height="118" rx="10" ry="10" class="box"/>
+  <text x="1492" y="660" class="title">Context: StructDef</text>
+  <text x="1492" y="678" class="line">mut mode := Mode()</text>
+  <text x="1492" y="696" class="line">mut path_modes := Map.new(&quot;Str&quot;, Str.size(), &quot;Mode&quot;, Mode.size())</text>
+  <text x="1492" y="714" class="line">mut scope := TypeScope()</text>
+  <text x="1492" y="732" class="line">mut is_repl := false</text>
   <rect x="2176" y="24" width="356" height="354" rx="14" ry="14" class="panel"/>
   <text x="2196" y="62" class="panel-label">typer</text>
   <rect x="2196" y="88" width="316" height="172" rx="10" ry="10" class="box"/>
@@ -357,7 +363,7 @@
   <text x="3624" y="896" class="title">Scope: StructDef</text>
   <text x="3624" y="914" class="line">mut bindings := Map.new(&quot;Str&quot;, Str.size(), &quot;Binding&quot;, Binding.size())</text>
   <text x="3624" y="932" class="line">ref mut parent : Scope = NULL</text>
-  <rect x="4244" y="24" width="588" height="390" rx="14" ry="14" class="panel"/>
+  <rect x="4244" y="24" width="268" height="254" rx="14" ry="14" class="panel"/>
   <text x="4264" y="62" class="panel-label">modes</text>
   <rect x="4264" y="88" width="228" height="172" rx="10" ry="10" class="box"/>
   <text x="4278" y="126" class="title">Mode: StructDef</text>
@@ -368,10 +374,4 @@
   <text x="4278" y="216" class="line">mut is_pure := false</text>
   <text x="4278" y="234" class="line">mut run_tests := false</text>
   <text x="4278" y="252" class="line">mut debug_prints := false</text>
-  <rect x="4264" y="278" width="548" height="118" rx="10" ry="10" class="box"/>
-  <text x="4278" y="316" class="title">Context: StructDef</text>
-  <text x="4278" y="334" class="line">mut mode := Mode()</text>
-  <text x="4278" y="352" class="line">mut path_modes := Map.new(&quot;Str&quot;, Str.size(), &quot;Mode&quot;, Mode.size())</text>
-  <text x="4278" y="370" class="line">mut scope := TypeScope()</text>
-  <text x="4278" y="388" class="line">mut is_repl := false</text>
 </svg>

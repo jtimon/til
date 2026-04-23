@@ -12,13 +12,6 @@ Mode := struct {
     mut debug_prints := false
 }
 
-Context := struct {
-    mut mode := Mode()
-    mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
-    mut scope := TypeScope()
-    mut is_repl := false
-}
-
 context_register_path_mode := proc(mut ctx: Context, path: Str, mode: Mode) {
     ctx.path_modes.set(own path.clone(), own mode.clone())
 }
