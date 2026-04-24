@@ -64,8 +64,13 @@ namespace:
         return FuncType.None
     }
     get_struct := func(self: TypeScope, name: Str) returns ref Expr {
-        ref b : TypeBinding = self.get_binding(name)
-        if is_null(b).not() { return b.struct_def }
+        if self.bindings.has(name) {
+            ref b : TypeBinding = self.bindings.get(name)
+            if is_null(b.struct_def).not() { return b.struct_def }
+        }
+        if is_null(self.parent).not() {
+            return self.parent.get_struct(name)
+        }
         ref none : Expr = NULL
         return none
     }
