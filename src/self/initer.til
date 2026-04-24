@@ -546,7 +546,7 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
             mut then_body := Expr.new(NodeType.Body, line, col, path)
 
             mut type_id := Expr.new(NodeType.Ident(vtype.clone()), line, col, path)
-            type_id.til_type = TilType.Custom(vtype.clone())
+            type_id.til_type = type_from_name_init(vtype, scope)
             mut del_acc := Expr.new(NodeType.FieldAccess("delete"), line, col, path)
             del_acc.add_child(own type_id)
             mut del_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
