@@ -809,6 +809,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         ufcs_desugared = true
         mut instance := obj.clone()
         mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), obj.line, obj.col, obj.path)
+        type_ident.til_type = TilType.Struct(type_name.clone())
         fa.children.set(0, own type_ident)
         // Shift own_args bitmask: bits at position >=1 move to position+1
         // (UFCS inserts self at position 1)
