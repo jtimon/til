@@ -1834,6 +1834,3 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
 
     return errors
 }
-
-// C-facing declarations (still used by typer.c etc.)
-Vec_take := ext_func(v: Vec) returns Dynamic {}

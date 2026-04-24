@@ -4083,7 +4083,7 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
     }
 }
 
-extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals: U32) {
+extend_ref_local_lifetimes := proc(body: Expr, mut locals: Vec) {
     mut ref_changed := true
     while ref_changed {
         ref_changed = false
@@ -4101,8 +4101,8 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
                 }
             }
             if ref_last.eq(-1.to_i32()) { ref_last = i.to_i64().to_i32() }
-            for j in 0..n_locals {
-                ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+            for j in 0..locals.len() {
+                ref local : LocalInfo = locals.get(j)
                 if local.name.eq(dd.name).and(local.last_use.gt(ref_last)) {
                     ref_last = local.last_use
                 }
@@ -4110,8 +4110,8 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
 
             if rhs.data.is(NodeType.Ident) {
                 ref src_name : Str = get_payload(rhs.data)
-                for j in 0..n_locals {
-                    ref mut local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+                for j in 0..locals.len() {
+                    ref mut local : LocalInfo = locals.get(j)
                     if local.name.eq(src_name).and(local.last_use.lt(ref_last)) {
                         local.last_use = ref_last
                         ref_changed = true
@@ -4126,8 +4126,8 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
                 }
                 if root.data.is(NodeType.Ident) {
                     ref src_name : Str = get_payload(root.data)
-                    for j in 0..n_locals {
-                        ref mut local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+                    for j in 0..locals.len() {
+                        ref mut local : LocalInfo = locals.get(j)
                         if local.name.eq(src_name).and(local.last_use.lt(ref_last)) {
                             local.last_use = ref_last
                             ref_changed = true
@@ -4144,8 +4144,8 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
                 }
                 if arg.data.is(NodeType.Ident).not() { continue }
                 ref aname : Str = get_payload(arg.data)
-                for j in 0..n_locals {
-                    ref mut local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+                for j in 0..locals.len() {
+                    ref mut local : LocalInfo = locals.get(j)
                     if local.name.eq(aname).and(local.last_use.lt(ref_last)) {
                         local.last_use = ref_last
                         ref_changed = true
@@ -4156,9 +4156,9 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
     }
 }
 
-check_use_after_own_transfer := proc(body: Expr, locals: Dynamic, shallow n_locals: U32) {
-    for j in 0..n_locals {
-        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+check_use_after_own_transfer := proc(body: Expr, mut locals: Vec) {
+    for j in 0..locals.len() {
+        ref local : LocalInfo = locals.get(j)
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
             ref stmt : Expr = body.child(local.last_use.to_i64().to_usize())
             type_error(stmt, "use of '".concat(local.name).concat("' after ownership transfer"))
@@ -4169,7 +4169,7 @@ check_use_after_own_transfer := proc(body: Expr, locals: Dynamic, shallow n_loca
     }
 }
 
-insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, shallow return_only: Bool) {
+insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: Bool) {
     // Quick check: any returns/breaks/continues or nested if/while?
     mut needs_scan := false
     for i in 0..body.children.len() {
@@ -4191,15 +4191,15 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
         if is_compile_directive(stmt) { continue }
         if stmt.data.is(NodeType.If) {
             for c in 1..stmt.children.len() {
-                insert_exit_deletes(stmt.child(c), live, n_live, return_only)
+                insert_exit_deletes(stmt.child(c), live, return_only)
             }
         }
         if stmt.data.is(NodeType.While) {
-            insert_exit_deletes(stmt.child(1), live, n_live, true)
+            insert_exit_deletes(stmt.child(1), live, true)
         }
         if stmt.data.is(NodeType.Return).or(return_only.not().and(stmt.data.is(NodeType.Break).or(stmt.data.is(NodeType.Continue)))) {
-            for j in 0..n_live {
-                ref local : LocalInfo = ptr_add(live, j.mul(LocalInfo.size()))
+            for j in 0..live.len() {
+                ref local : LocalInfo = live.get(j)
                 if stmt.children.len().gt(0) {
                     ref retval : Expr = stmt.child(0)
                     if expr_uses_var(retval, local.name).or(alias_used_in_expr(body, local.name, retval)) {
@@ -4220,13 +4220,13 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
     }
 }
 
-insert_nested_exit_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: U32, shallow stmt_idx: U32) {
+insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32) {
     if stmt.data.is(NodeType.If).not() {
         if stmt.data.is(NodeType.While).not() { return }
     }
     mut live_vec := Vec.new("LocalInfo", LocalInfo.size())
-    for j in 0..n_locals {
-        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+    for j in 0..locals.len() {
+        ref local : LocalInfo = locals.get(j)
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
         if local.decl_index.lt(stmt_idx.to_i64().to_i32()) {
@@ -4236,27 +4236,24 @@ insert_nested_exit_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals
         }
     }
     if live_vec.len().gt(0) {
-        n_live := live_vec.len()
-        live : Dynamic = Vec_take(live_vec)
         if stmt.data.is(NodeType.If) {
             for c in 1..stmt.children.len() {
-                insert_exit_deletes(stmt.child(c), live, n_live, false)
+                insert_exit_deletes(stmt.child(c), live_vec, false)
             }
         } else {
-            insert_exit_deletes(stmt.child(1), live, n_live, true)
+            insert_exit_deletes(stmt.child(1), live_vec, true)
         }
-        free(own live)
     }
 }
 
-insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, shallow n_locals: U32, shallow stmt_idx: U32, mut new_ch: Vec) {
+insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec) {
     if stmt.data.is(NodeType.Return).not() {
         if stmt.data.is(NodeType.Break).not() {
             if stmt.data.is(NodeType.Continue).not() { return }
         }
     }
-    for j in 0..n_locals {
-        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+    for j in 0..locals.len() {
+        ref local : LocalInfo = locals.get(j)
         if stmt.children.len().gt(0) {
             ref retval : Expr = stmt.child(0)
             if expr_uses_var(retval, local.name).or(alias_used_in_expr(body, local.name, retval)) {
@@ -4277,12 +4274,12 @@ insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, s
     }
 }
 
-insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: U32, shallow stmt_idx: U32, mut new_ch: Vec) {
+insert_post_stmt_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec) {
     if stmt.data.is(NodeType.Return).or(stmt.data.is(NodeType.Break)).or(stmt.data.is(NodeType.Continue)) {
         return
     }
-    for j in 0..n_locals {
-        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+    for j in 0..locals.len() {
+        ref local : LocalInfo = locals.get(j)
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
         if local.last_use.eq(stmt_idx.to_i64().to_i32()) {
@@ -4302,12 +4299,12 @@ insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: 
     }
 }
 
-insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: U32, mut new_ch: Vec) {
+insert_assign_delete := proc(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
     if stmt.data.is(NodeType.Assign).not() { return }
     ref mut ad : AssignData = get_payload(stmt.data)
     vname := ad.name
-    for j in 0..n_locals {
-        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+    for j in 0..locals.len() {
+        ref local : LocalInfo = locals.get(j)
         if local.name.eq(vname).not() { continue }
         if local.type.is(TilType.Struct).or(local.type.is(TilType.Enum)) {
             ref rhs : Expr = stmt.child(0)
@@ -4326,9 +4323,9 @@ insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: 
     }
 }
 
-promote_own_transferred_locals := proc(mut body: Expr, mut locals: Dynamic, shallow n_locals: U32) {
-    for j in 0..n_locals {
-        ref mut local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+promote_own_transferred_locals := proc(mut body: Expr, mut locals: Vec) {
+    for j in 0..locals.len() {
+        ref mut local : LocalInfo = locals.get(j)
         if local.own_transfer.lt(0.to_i32()) { continue }
         if local.decl_index.lt(0.to_i32()) { continue }
         ref stmt : Expr = body.child(local.decl_index.to_i64().to_u32())
@@ -4347,27 +4344,24 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     mut locals_vec := Vec.new("LocalInfo", LocalInfo.size())
     collect_scope_locals(body, scope, is_program_scope, locals_vec)
     if locals_vec.len().eq(0) { return }
-    n_locals := locals_vec.len().to_i64().to_u32()
-    locals : Dynamic = Vec_take(locals_vec)
 
-    extend_ref_local_lifetimes(body, locals, n_locals)
-    check_use_after_own_transfer(body, locals, n_locals)
-    promote_own_transferred_locals(body, locals, n_locals)
+    extend_ref_local_lifetimes(body, locals_vec)
+    check_use_after_own_transfer(body, locals_vec)
+    promote_own_transferred_locals(body, locals_vec)
 
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..body.children.len() {
         ref stmt : Expr = body.child(i)
         if is_compile_directive(stmt) { continue }
-        insert_exit_deletes_into_stmt(stmt, body, locals, n_locals, i.to_i64().to_u32(), new_ch)
-        insert_nested_exit_deletes(stmt, locals, n_locals, i.to_i64().to_u32())
-        insert_assign_delete(stmt, locals, n_locals, new_ch)
+        insert_exit_deletes_into_stmt(stmt, body, locals_vec, i.to_i64().to_u32(), new_ch)
+        insert_nested_exit_deletes(stmt, locals_vec, i.to_i64().to_u32())
+        insert_assign_delete(stmt, locals_vec, new_ch)
         new_ch.push(own stmt.clone())
-        insert_post_stmt_deletes(stmt, locals, n_locals, i.to_i64().to_u32(), new_ch)
+        insert_post_stmt_deletes(stmt, locals_vec, i.to_i64().to_u32(), new_ch)
     }
 
     body.children.move_from(new_ch)
     reregister_scope_defs(body, scope)
-    free(own locals)
 }
 
 infer_literal_expr := proc(mut expr: Expr) {
