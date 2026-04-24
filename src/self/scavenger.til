@@ -8,7 +8,7 @@ scav_fa_is_ns := func(e: Expr) returns shallow Bool {
     if e.children.len().eq(0) { return false }
     ref obj : Expr = e.child(0)
     if obj.data.is(NodeType.Ident) {
-        if obj.til_type.is(TilType.StructDef).or(obj.til_type.is(TilType.EnumDef)) {
+        if til_type_name(obj.til_type).eq("StructDef").or(obj.til_type.is(TilType.EnumDef)) {
             return true
         }
         // Also check: if ident name matches struct_name, it's a type reference

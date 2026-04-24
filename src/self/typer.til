@@ -1239,7 +1239,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             .or(pt.is(TilType.U64))
             .or(pt.is(TilType.F32))
             .or(pt.is(TilType.Bool))
-            if is_scalar.not().and(pt.is(TilType.Struct).not()).and(pt.is(TilType.StructDef).not()).and(pt.is(TilType.Enum).not()) {
+            if is_scalar.not().and(pt.is(TilType.Struct).not()).and(pt.is(TilType.Enum).not()) {
                 type_error(expr, "shallow parameter '".concat(param.name).concat("' must be a scalar or struct type"))
             }
             if pown {
@@ -1545,9 +1545,9 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
     ref mut sdecl : Declaration = get_payload(stmt.data)
     if sdecl.explicit_type.len().gt(0) {
         declared := type_from_name(sdecl.explicit_type, scope)
-        mut expected := TilType.StructDef
+        mut expected := TilType.Struct("StructDef".clone())
         if is_enum { expected = TilType.EnumDef }
-        if declared.is(expected).not() {
+        if declared.eq(expected).not() {
             mut value_type := "StructDef"
             if is_enum { value_type = "EnumDef" }
             type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is ").concat(value_type))
@@ -1583,7 +1583,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
     else if sname.eq("F32") { builtin_type = TilType.F32; is_builtin = true }
     else if sname.eq("Str") { is_builtin = false }
     else if sname.eq("Bool") { builtin_type = TilType.Bool; is_builtin = true }
-    else if sname.eq("StructDef") { builtin_type = TilType.StructDef; is_builtin = false }
+    else if sname.eq("StructDef") { is_builtin = false }
     else if sname.eq("FunctionDef") { is_builtin = false }
     else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
     scope.set(sname, builtin_type, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -2701,7 +2701,7 @@ type_from_name := func(name: Str, scope: TypeScope) returns TilType {
     if name.eq("F32")  { return TilType.F32 }
     if name.eq("Str")  { return TilType.Struct("Str".clone()) }
     if name.eq("Bool") { return TilType.Bool }
-    if name.eq("StructDef") { return TilType.StructDef }
+    if name.eq("StructDef") { return TilType.Struct("StructDef".clone()) }
     if name.eq("EnumDef")   { return TilType.EnumDef }
     if name.eq("Fn")        { return TilType.FuncPtr }
     if name.eq("Dynamic")   { return TilType.Dynamic }
