@@ -849,7 +849,11 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         infer_expr(scope, obj3, in_func, ctx)
     }
     ref mut sdef2 : Expr = NULL
-    obj3_sname := til_type_name(obj3.til_type)
+    mut obj3_sname := til_type_name(obj3.til_type)
+    if obj3_sname.len().eq(0).and(obj3.data.is(NodeType.Ident)) {
+        ref _obj3_id : Str = get_payload(obj3.data)
+        obj3_sname = _obj3_id.clone()
+    }
     if obj3_sname.len().gt(0) {
         sdef2 = scope.get_struct(obj3_sname)
     }
@@ -1091,10 +1095,6 @@ infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: 
 }
 
 infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
-    // If type was pre-set by a code generator (e.g. enum delete generator),
-    // preserve it -- scope lookup might find a shadowing function binding
-    // (e.g. an enum variant constructor with the same name as a struct type).
-    if expr.til_type.is(TilType.Struct).or(expr.til_type.is(TilType.Enum)) { return }
     ref id_name : Str = get_payload(expr.data)
     type := scope.get_type(id_name)
     if type.is(TilType.Unknown) {
