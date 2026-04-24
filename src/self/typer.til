@@ -1583,7 +1583,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
     else if sname.eq("F32") { builtin_type = TilType.F32; is_builtin = true }
     else if sname.eq("Str") { is_builtin = false }
     else if sname.eq("Bool") { builtin_type = TilType.Bool; is_builtin = true }
-    else if sname.eq("StructDef") { builtin_type = TilType.StructDef; is_builtin = true }
+    else if sname.eq("StructDef") { builtin_type = TilType.StructDef; is_builtin = false }
     else if sname.eq("FunctionDef") { is_builtin = false }
     else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
     scope.set(sname, builtin_type, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)

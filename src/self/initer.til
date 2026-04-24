@@ -179,7 +179,7 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
         else if sname.eq("USize") { builtin_type = TilType.U32; is_builtin = true }
         else if sname.eq("Str") { is_builtin = false }
         else if sname.eq("Bool") { builtin_type = TilType.Bool; is_builtin = true }
-        else if sname.eq("StructDef") { builtin_type = TilType.StructDef; is_builtin = true }
+        else if sname.eq("StructDef") { builtin_type = TilType.StructDef; is_builtin = false }
         else if sname.eq("FunctionDef") { is_builtin = false }
         else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
 
