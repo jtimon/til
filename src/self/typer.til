@@ -1091,6 +1091,10 @@ infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: 
 }
 
 infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
+    // If type was pre-set by a code generator (e.g. enum delete generator),
+    // preserve it -- scope lookup might find a shadowing function binding
+    // (e.g. an enum variant constructor with the same name as a struct type).
+    if expr.til_type.is(TilType.Struct).or(expr.til_type.is(TilType.Enum)) { return }
     ref id_name : Str = get_payload(expr.data)
     type := scope.get_type(id_name)
     if type.is(TilType.Unknown) {
