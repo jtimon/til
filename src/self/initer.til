@@ -199,7 +199,7 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
 
         ref sdecl : Declaration = get_payload(stmt.data)
         sname := sdecl.name
-        if sname.eq("StructDef").or(sname.eq("Dynamic")) { continue }
+        if sname.eq("Dynamic") { continue }
 
         ref sdef : Expr = stmt.child(0)
         ref mut body : Expr = sdef.child(0)
@@ -915,7 +915,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 
         ref sdecl : Declaration = get_payload(stmt.data)
         sname := sdecl.name
-        if sname.eq("StructDef").or(sname.eq("Dynamic")) { continue }
+        if sname.eq("Dynamic") { continue }
 
         ref sdef : Expr = stmt.child(0)
         ref mut body : Expr = sdef.child(0)
@@ -1150,7 +1150,6 @@ generate_struct_size_methods := proc(program: Expr) {
 
         ref sdecl : Declaration = get_payload(stmt.data)
         sname := sdecl.name
-        if sname.eq("StructDef") { continue }
         if sname.eq("Dynamic") { continue }
         ref mut body : Expr = def.child(0)
         ref struct_meta : StructDefData = get_payload(def.data)
@@ -1197,7 +1196,6 @@ generate_enum_size_methods := proc(program: Expr) {
 
         ref sdecl : Declaration = get_payload(stmt.data)
         sname := sdecl.name
-        if sname.eq("StructDef") { continue }
         if sname.eq("Dynamic") { continue }
         ref mut body : Expr = def.child(0)
         mut has_size := false
@@ -1247,7 +1245,6 @@ generate_unity_derived_methods := proc(program: Expr) {
 
         ref sdecl : Declaration = get_payload(stmt.data)
         sname := sdecl.name
-        if sname.eq("StructDef") { continue }
         if sname.eq("Dynamic") { continue }
 
         ref mut body : Expr = def.child(0)
@@ -1334,7 +1331,6 @@ generate_cmp_derived_methods := proc(program: Expr) {
 
         ref sdecl : Declaration = get_payload(stmt.data)
         sname := sdecl.name
-        if sname.eq("StructDef") { continue }
         if sname.eq("Dynamic") { continue }
 
         ref mut body : Expr = def.child(0)
@@ -1725,7 +1721,6 @@ compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
         ref _sd : Declaration = get_payload(stmt.data)
         sname := _sd.name
-        if sname.eq("StructDef") { continue }
         if sname.eq("Dynamic") { continue }
         compute_struct_layout(stmt.child(0), scope)
     }
