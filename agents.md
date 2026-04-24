@@ -82,8 +82,8 @@ Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
 - Always include ALL modified files in commits.
 - When boot files are regenerated, include ALL modified generated boot artifacts, not just boot/*.c.
   This includes boot/*.c, boot/*.h, boot/*_forward.h, and any other changed files under boot/.
-- Remote agents (GitHub Actions, Codex, etc.): include doc/totals.csv and img/totals.svg in commits
-- Local agents: do NOT include doc/totals.csv or img/totals.svg
+- Local agents: include doc/totals.csv and img/totals.svg in commits
+- Remote agents (GitHub Actions, Codex, etc.): do NOT include doc/totals.csv or img/totals.svg
 - Use `make test` before every commit (skip when only documentation changed)
 - Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
@@ -111,8 +111,9 @@ to accept whatever master has for them. The full procedure is:
    them cleanly on top of the new codebase:
    `git checkout HEAD -- doc/totals.csv img/totals.svg`
 6. `make clean && make test`
-7. `git add -A && git commit ...` with all regenerated files included
-   (boot/*, doc/totals.csv, img/totals.svg).
+7. `git add -A && git commit ...` with regenerated files included:
+   boot/* always; doc/totals.csv and img/totals.svg only on local
+   agents (remote agents must leave totals uncommitted).
 8. `git push -u origin <branch>` (force-push only if the user explicitly
    authorized it; otherwise ask first).
 

@@ -794,6 +794,8 @@ Bool * is_digit(U8 * c);
 Bool * is_alpha(U8 * c);
 Bool * is_alnum(U8 * c);
 Str * tok_name(TokenType * type);
+TokenType lookup_single_char(U8 * c);
+TokenType lookup_two_char(U8 * c, U8 * c2);
 TokenType * lookup_keyword(Str * word);
 Vec * tokenize(Str * src, Str * path);
 Parser * Parser_clone(Parser * self);

@@ -154,6 +154,56 @@ tok_name := func(type: TokenType) returns Str {
     }
 }
 
+// --- Single-character lookup ---
+// Returns TokenType.Eof when the character is not a recognised
+// single-char token (caller treats Eof as the "no match" sentinel).
+// Using a func avoids the mut-reassign-then-clone pattern that leaked
+// one TokenType heap allocation per case.
+
+lookup_single_char := func(c: U8) returns shallow TokenType {
+    switch c {
+    case '(': return TokenType.LParen
+    case ')': return TokenType.RParen
+    case '{': return TokenType.LBrace
+    case '}': return TokenType.RBrace
+    case '[': return TokenType.LBracket
+    case ']': return TokenType.RBracket
+    case ',': return TokenType.Comma
+    case ':': return TokenType.Colon
+    case '.': return TokenType.Dot
+    case '?': return TokenType.Question
+    case '!': return TokenType.Bang
+    case '+': return TokenType.Plus
+    case '-': return TokenType.Minus
+    case '*': return TokenType.Star
+    case '/': return TokenType.Slash
+    case '%': return TokenType.Percent
+    case '&': return TokenType.Ampersand
+    case '|': return TokenType.Pipe
+    case '^': return TokenType.Caret
+    case '=': return TokenType.Eq
+    case '<': return TokenType.Lt
+    case '>': return TokenType.Gt
+    case: return TokenType.Eof
+    }
+}
+
+// --- Two-character lookup ---
+// Returns TokenType.Eof when (c, c2) is not a recognised two-char
+// token. Same leak-avoidance rationale as lookup_single_char.
+
+lookup_two_char := func(c: U8, c2: U8) returns shallow TokenType {
+    if c.eq(':').and(c2.eq('=')) { return TokenType.ColonEq }
+    if c.eq('=').and(c2.eq('=')) { return TokenType.EqEq }
+    if c.eq('!').and(c2.eq('=')) { return TokenType.Neq }
+    if c.eq('<').and(c2.eq('=')) { return TokenType.LtEq }
+    if c.eq('>').and(c2.eq('=')) { return TokenType.GtEq }
+    if c.eq('+').and(c2.eq('+')) { return TokenType.PlusPlus }
+    if c.eq('-').and(c2.eq('-')) { return TokenType.MinusMinus }
+    if c.eq('.').and(c2.eq('.')) { return TokenType.DotDot }
+    return TokenType.Eof
+}
+
 // --- Keyword lookup ---
 // C version uses Keyword struct + static array with memcmp loop.
 // til version uses switch on Str — functionally equivalent.
@@ -306,8 +356,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                 pos.inc()
             }
             word := src.substr(start, pos.sub(start))
-            type := lookup_keyword(word)
-            tokens.push(own Token(type = type, text = word.clone(),
+            tokens.push(own Token(type = lookup_keyword(word), text = word.clone(),
                 line = line.clone(), col = col.clone()))
             continue
         }
@@ -365,28 +414,18 @@ if c.eq('\'') {
 // Two-character tokens
 if pos.add(1).lt(src_len) {
     ref c2 : U8 = src.byte_at(pos.add(1))
-    mut two := TokenType.Eof
-    if c.eq(':').and(c2.eq('=')) { two = TokenType.ColonEq }
-    else if c.eq('=').and(c2.eq('=')) { two = TokenType.EqEq }
-    else if c.eq('!').and(c2.eq('=')) { two = TokenType.Neq }
-    else if c.eq('<').and(c2.eq('=')) { two = TokenType.LtEq }
-    else if c.eq('>').and(c2.eq('=')) { two = TokenType.GtEq }
-    else if c.eq('+').and(c2.eq('+')) { two = TokenType.PlusPlus }
-    else if c.eq('-').and(c2.eq('-')) { two = TokenType.MinusMinus }
-    else if c.eq('.').and(c2.eq('.')) {
-        // Check for ... (three dots) vs .. (two dots)
-        if pos.add(2).lt(src_len) {
-            ref c3 : U8 = src.byte_at(pos.add(2))
-            if c3.eq('.') {
-                tokens.push(own Token(type = TokenType.DotDotDot,
-                    text = src.substr(start, 3).clone(),
-                    line = line.clone(), col = col.clone()))
-                pos = pos.add(3)
-                continue
-            }
+    // Check for ... (three dots) before the two-char dispatch below
+    if c.eq('.').and(c2.eq('.')).and(pos.add(2).lt(src_len)) {
+        ref c3 : U8 = src.byte_at(pos.add(2))
+        if c3.eq('.') {
+            tokens.push(own Token(type = TokenType.DotDotDot,
+                text = src.substr(start, 3).clone(),
+                line = line.clone(), col = col.clone()))
+            pos = pos.add(3)
+            continue
         }
-        two = TokenType.DotDot
     }
+    two := lookup_two_char(c, c2)
     if two.eq(TokenType.Eof).not() {
         tokens.push(own Token(type = two,
             text = src.substr(start, 2).clone(),
@@ -397,32 +436,7 @@ if pos.add(1).lt(src_len) {
 }
 
 // Single-character tokens
-mut single := TokenType.Eof
-switch c {
-case '(': single = TokenType.LParen
-case ')': single = TokenType.RParen
-case '{': single = TokenType.LBrace
-case '}': single = TokenType.RBrace
-case '[': single = TokenType.LBracket
-case ']': single = TokenType.RBracket
-case ',': single = TokenType.Comma
-case ':': single = TokenType.Colon
-case '.': single = TokenType.Dot
-case '?': single = TokenType.Question
-case '!': single = TokenType.Bang
-case '+': single = TokenType.Plus
-case '-': single = TokenType.Minus
-case '*': single = TokenType.Star
-case '/': single = TokenType.Slash
-case '%': single = TokenType.Percent
-case '&': single = TokenType.Ampersand
-case '|': single = TokenType.Pipe
-case '^': single = TokenType.Caret
-case '=': single = TokenType.Eq
-case '<': single = TokenType.Lt
-case '>': single = TokenType.Gt
-}
-
+single := lookup_single_char(c)
 if single.eq(TokenType.Eof).not() {
     tokens.push(own Token(type = single,
         text = src.substr(start, 1).clone(),
