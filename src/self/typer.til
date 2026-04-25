@@ -14,8 +14,16 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns shallow Bool {
     }
     ref sdef : Expr = scope.get_struct(sn)
     if is_null(sdef) { return false }
-    ref body : Expr = sdef.child(0)
     ref fname : Str = get_payload(e.data)
+    if sdef.data.is(NodeType.StructDef) {
+        ref sdd : StructDefData = get_payload(sdef.data)
+        for i in 0..sdd.ns_decls.len() {
+            ref dd : Declaration = sdd.ns_decls.get(i)
+            if dd.name.eq(fname) { return true }
+        }
+        return false
+    }
+    ref body : Expr = sdef.child(0)
     for i in 0..body.children.len() {
         ref field : Expr = body.child(i)
         ref dd : Declaration = get_payload(field.data)
@@ -278,13 +286,24 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
     // #99: if struct has new(), disallow literal outside its namespace
     if _current_type_name.eq(name).not() {
         mut _has_new := false
-        for _ni in 0..body.children.len() {
-            ref _nf : Expr = body.child(_ni)
-            if _nf.data.is(NodeType.Decl) {
-                ref _nd : Declaration = get_payload(_nf.data)
-                if _nd.is_namespace.and(_nd.name.eq("new")) {
+        if sdef.data.is(NodeType.StructDef) {
+            ref sdd : StructDefData = get_payload(sdef.data)
+            for _ni in 0..sdd.ns_decls.len() {
+                ref _nd : Declaration = sdd.ns_decls.get(_ni)
+                if _nd.name.eq("new") {
                     _has_new = true
                     break
+                }
+            }
+        } else {
+            for _ni in 0..body.children.len() {
+                ref _nf : Expr = body.child(_ni)
+                if _nf.data.is(NodeType.Decl) {
+                    ref _nd : Declaration = get_payload(_nf.data)
+                    if _nd.is_namespace.and(_nd.name.eq("new")) {
+                        _has_new = true
+                        break
+                    }
                 }
             }
         }
@@ -2750,6 +2769,14 @@ usize_type := func(scope: TypeScope) returns TilType {
 type_has_cmp := func(scope: TypeScope, type_name: Str) returns shallow Bool {
     ref sdef : Expr = scope.get_struct(type_name)
     if is_null(sdef) { return false }
+    if sdef.data.is(NodeType.StructDef) {
+        ref sdd : StructDefData = get_payload(sdef.data)
+        for i in 0..sdd.ns_decls.len() {
+            ref decl : Declaration = sdd.ns_decls.get(i)
+            if decl.name.eq("cmp") { return true }
+        }
+        return false
+    }
     ref body : Expr = sdef.child(0)
     for i in 0..body.children.len() {
         ref f : Expr = body.child(i)
