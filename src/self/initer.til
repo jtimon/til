@@ -1827,8 +1827,35 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     compute_all_struct_layouts(program, scope)
     generate_size_methods(program)
     generate_derived_methods(program)
+    sync_body_ns_to_payload(program)
     register_function_definitions(program, scope)
     register_top_level_values(program, scope)
 
     return errors
+}
+
+sync_body_ns_to_payload := proc(program: Expr) {
+    for i in 0..program.children.len() {
+        ref stmt : Expr = program.child(i)
+        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        ref def : Expr = stmt.child(0)
+        if def.data.is(NodeType.EnumDef).not() { continue }
+        ref mut ns : Vec = def_ns_decls(def)
+        ref body : Expr = def.child(0)
+        for j in 0..body.children.len() {
+            ref field : Expr = body.child(j)
+            if is_namespace_method(field).not() { continue }
+            ref fd : Declaration = get_payload(field.data)
+            mut already := false
+            for k in 0..ns.len() {
+                ref existing : Declaration = ns.get(k)
+                if existing.name.eq(fd.name) { already = true; break }
+            }
+            if already { continue }
+            mut synced := fd.clone()
+            synced.default_value = field.child(0).clone()
+            ns.push(own synced)
+        }
+    }
 }

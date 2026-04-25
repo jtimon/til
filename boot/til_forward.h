@@ -894,6 +894,7 @@ void compute_struct_layout(Expr * struct_def, TypeScope * scope);
 void compute_all_struct_layouts(Expr * program, TypeScope * scope);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_type);
 I32 init_declarations(Expr * program, TypeScope * scope);
+void sync_body_ns_to_payload(Expr * program);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);
 U32 Mode_size(void);
