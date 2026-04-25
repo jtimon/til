@@ -1830,21 +1830,7 @@ mark_switch_case_covered_variant := proc(switch_enum_def: Expr, mut covered_vari
         }
     }
     if covered_variant_name.len().eq(0) { return }
-    mut covered_tag : I32 = -1.to_i32()
-    mut variant_idx : I32 = 0
-    ref enum_body : Expr = switch_enum_def.child(0)
-    for vi in 0..enum_body.children.len() {
-        ref variant : Expr = enum_body.child(vi)
-        if variant.data.is(NodeType.Decl) {
-            ref vd : Declaration = get_payload(variant.data)
-            if vd.is_namespace { continue }
-            if vd.name.eq(covered_variant_name) {
-                covered_tag = variant_idx
-                break
-            }
-            variant_idx.inc()
-        }
-    }
+    covered_tag := enum_variant_tag(switch_enum_def, covered_variant_name)
     if covered_tag.gte(0.to_i32()).and(covered_tag.lt(n_variants)) {
         ref mut covered : Bool = covered_variants.get(covered_tag.to_i64().to_u32())
         covered = true
@@ -1907,17 +1893,10 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 ref binding_name : Str = get_payload(match_expr.child(1).data)
                                 ref enum_def : Expr = scope.get_struct(type_name)
                                 if is_null(enum_def).not().and(enum_def.data.is(NodeType.EnumDef)) {
+                                    _vt_tag := enum_variant_tag(enum_def, variant_name)
                                     mut payload_type := ""
-                                    ref enum_body : Expr = enum_def.child(0)
-                                    for vi in 0..enum_body.children.len() {
-                                        ref variant : Expr = enum_body.child(vi)
-                                        if variant.data.is(NodeType.Decl) {
-                                            ref vd : Declaration = get_payload(variant.data)
-                                            if vd.is_namespace.not().and(vd.name.eq(variant_name)) {
-                                                payload_type = vd.explicit_type.clone()
-                                                break
-                                            }
-                                        }
+                                    if _vt_tag.gte(0.to_i32()) {
+                                        payload_type = enum_variant_type(enum_def, _vt_tag)
                                     }
                                     if payload_type.len().gt(0) {
                                         mut iv_id := Expr.new(NodeType.Ident("is"), sw_line, sw_col, sw_path)
@@ -1964,17 +1943,10 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                     ref variant_name : Str = get_payload(match_expr.data)
                     ref enum_def : Expr = scope.get_struct(type_name)
                     if is_null(enum_def).not().and(enum_def.data.is(NodeType.EnumDef)) {
+                        _vt_tag2 := enum_variant_tag(enum_def, variant_name)
                         mut payload_type := ""
-                        ref enum_body : Expr = enum_def.child(0)
-                        for vi in 0..enum_body.children.len() {
-                            ref variant : Expr = enum_body.child(vi)
-                            if variant.data.is(NodeType.Decl) {
-                                ref vd : Declaration = get_payload(variant.data)
-                                if vd.is_namespace.not().and(vd.name.eq(variant_name)) {
-                                    payload_type = vd.explicit_type.clone()
-                                    break
-                                }
-                            }
+                        if _vt_tag2.gte(0.to_i32()) {
+                            payload_type = enum_variant_type(enum_def, _vt_tag2)
                         }
                         if payload_type.len().gt(0) {
                             mut iv_id := Expr.new(NodeType.Ident("is"), sw_line, sw_col, sw_path)
@@ -2053,16 +2025,10 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
         if is_null(switch_enum_def).not().and(switch_enum_def.data.is(NodeType.EnumDef)) {
             has_switch_enum_def = true
-            ref enum_body : Expr = switch_enum_def.child(0)
-            for vi in 0..enum_body.children.len() {
-                ref variant : Expr = enum_body.child(vi)
-                if variant.data.is(NodeType.Decl) {
-                    ref vd : Declaration = get_payload(variant.data)
-                    if vd.is_namespace.not() {
-                        n_variants.inc()
-                        covered_variants.push(own false)
-                    }
-                }
+            ref _sw_edd : EnumDef = get_payload(switch_enum_def.data)
+            n_variants = _sw_edd.variants.len().to_i64().to_i32()
+            for _svi in 0..n_variants.to_i64().to_usize() {
+                covered_variants.push(own false)
             }
         }
     }

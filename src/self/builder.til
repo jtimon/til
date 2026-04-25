@@ -2364,14 +2364,15 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
             f.write_str("}\n\n")
         } else if rhs.data.is(NodeType.EnumDef) {
             ref body : Expr = rhs.child(0)
+            ref _bind_edd : EnumDef = get_payload(rhs.data)
             f.write_str(dd.name); f.write_str(" := enum {\n")
-            for j in 0..body.children.len() {
-                ref v : Expr = body.child(j)
-                ref vdd : Declaration = get_payload(v.data)
-                if vdd.is_namespace { continue }
-                f.write_str("    "); f.write_str(vdd.name)
-                if vdd.explicit_type.len().gt(0) { f.write_str(": "); f.write_str(vdd.explicit_type) }
+            mut _bind_vi : USize = 0
+            for _bind_vn : Str in _bind_edd.variants {
+                _bind_vt := enum_variant_type(rhs, _bind_vi.to_i64().to_i32())
+                f.write_str("    "); f.write_str(_bind_vn)
+                if _bind_vt.len().gt(0) { f.write_str(": "); f.write_str(_bind_vt) }
                 f.write_str(",\n")
+                _bind_vi = _bind_vi.add(1)
             }
             emit_binding_ns_methods(f, body)
             f.write_str("}\n\n")
@@ -2513,16 +2514,13 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
             f.write_str("]\n")
 
         } else if rhs.data.is(NodeType.EnumDef) {
-            ref body : Expr = rhs.child(0)
+            ref _ct_edd : EnumDef = get_payload(rhs.data)
             hp := enum_has_payloads(rhs)
 
             // Emit tag constants
             mut tag := 0
-            for j in 0..body.children.len() {
-                ref v : Expr = body.child(j)
-                ref vdd : Declaration = get_payload(v.data)
-                if vdd.is_namespace { continue }
-                f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(vdd.name)
+            for _ct_vn : Str in _ct_edd.variants {
+                f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(_ct_vn)
                 f.write_str(" = "); f.write_str(tag.to_str()); f.write_str("\n")
                 tag = tag.add(1)
             }
@@ -2531,15 +2529,15 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
             if hp {
                 f.write_str("\nclass "); f.write_str(dd.name); f.write_str("_data(ctypes.Union):\n")
                 f.write_str("    _fields_ = [\n")
-                for j in 0..body.children.len() {
-                    ref v : Expr = body.child(j)
-                    ref vdd : Declaration = get_payload(v.data)
-                    if vdd.is_namespace { continue }
-                    if vdd.explicit_type.len().gt(0) {
-                        f.write_str("        ('"); f.write_str(vdd.name); f.write_str("', ")
-                        f.write_str(type_name_to_ctypes_param(vdd.explicit_type, false))
+                mut _ct_vi : USize = 0
+                for _ct_uvn : Str in _ct_edd.variants {
+                    _ct_vt := enum_variant_type(rhs, _ct_vi.to_i64().to_i32())
+                    if _ct_vt.len().gt(0) {
+                        f.write_str("        ('"); f.write_str(_ct_uvn); f.write_str("', ")
+                        f.write_str(type_name_to_ctypes_param(_ct_vt, false))
                         f.write_str("),\n")
                     }
+                    _ct_vi = _ct_vi.add(1)
                 }
                 f.write_str("    ]\n")
             }
