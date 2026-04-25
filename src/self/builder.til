@@ -1861,6 +1861,31 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
     }
 }
 
+emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr) {
+    ref fd : FunctionDef = get_payload(fdef.data)
+    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { return }
+    // Emit size() as sizeof
+    if dd_name.eq("size").and(fd.params.len().eq(0)).and(fd.return_type.len().gt(0)) {
+        if fd.return_type.eq("USize").or(fd.return_type.eq("U32")).or(fd.return_type.eq("U64")) {
+            ret_ctype := type_name_to_c_value(fd.return_type)
+            if fd.return_own_type.is(OwnType.Shallow) {
+                f.write_str(ret_ctype); f.write_str(" "); f.write_str(name); f.write_str("_size(void) {\n")
+                f.write_str("    return ("); f.write_str(ret_ctype); f.write_str(")sizeof("); f.write_str(name); f.write_str(");\n")
+            } else {
+                f.write_str(ret_ctype); f.write_str(" *"); f.write_str(name); f.write_str("_size(void) {\n")
+                f.write_str("    "); f.write_str(ret_ctype); f.write_str(" *r = malloc(sizeof("); f.write_str(ret_ctype); f.write_str("));\n")
+                f.write_str("    *r = ("); f.write_str(ret_ctype); f.write_str(")sizeof("); f.write_str(name); f.write_str(");\n")
+                f.write_str("    return r;\n")
+            }
+            f.write_str("}\n\n")
+            return
+        }
+    }
+    full_name := name.concat("_").concat(dd_name)
+    emit_func_def(f, full_name, fdef, NULL, false)
+    f.write_str("\n")
+}
+
 emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr) {
     ref body : Expr = struct_def.child(0)
     for i in 0..body.children.len() {
@@ -1868,28 +1893,7 @@ emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr) {
         if is_namespace_method(field).not() { continue }
         ref dd : Declaration = get_payload(field.data)
         ref fdef : Expr = field.child(0)
-        ref fd : FunctionDef = get_payload(fdef.data)
-        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-        // Emit size() as sizeof
-        if dd.name.eq("size").and(fd.params.len().eq(0)).and(fd.return_type.len().gt(0)) {
-            if fd.return_type.eq("USize").or(fd.return_type.eq("U32")).or(fd.return_type.eq("U64")) {
-                ret_ctype := type_name_to_c_value(fd.return_type)
-                if fd.return_own_type.is(OwnType.Shallow) {
-                    f.write_str(ret_ctype); f.write_str(" "); f.write_str(name); f.write_str("_size(void) {\n")
-                    f.write_str("    return ("); f.write_str(ret_ctype); f.write_str(")sizeof("); f.write_str(name); f.write_str(");\n")
-                } else {
-                    f.write_str(ret_ctype); f.write_str(" *"); f.write_str(name); f.write_str("_size(void) {\n")
-                    f.write_str("    "); f.write_str(ret_ctype); f.write_str(" *r = malloc(sizeof("); f.write_str(ret_ctype); f.write_str("));\n")
-                    f.write_str("    *r = ("); f.write_str(ret_ctype); f.write_str(")sizeof("); f.write_str(name); f.write_str(");\n")
-                    f.write_str("    return r;\n")
-                }
-                f.write_str("}\n\n")
-                continue
-            }
-        }
-        full_name := name.concat("_").concat(dd.name)
-        emit_func_def(f, full_name, fdef, NULL, false)
-        f.write_str("\n")
+        emit_ns_method(f, name, dd.name, fdef)
     }
 }
 
@@ -1939,27 +1943,7 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
         if is_namespace_method(field).not() { continue }
         ref dd : Declaration = get_payload(field.data)
         ref fdef : Expr = field.child(0)
-        ref fd : FunctionDef = get_payload(fdef.data)
-        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-        if dd.name.eq("size").and(fd.params.len().eq(0)).and(fd.return_type.len().gt(0)) {
-            if fd.return_type.eq("USize").or(fd.return_type.eq("U32")).or(fd.return_type.eq("U64")) {
-                ret_ctype := type_name_to_c_value(fd.return_type)
-                if fd.return_own_type.is(OwnType.Shallow) {
-                    f.write_str(ret_ctype); f.write_str(" "); f.write_str(name); f.write_str("_size(void) {\n")
-                    f.write_str("    return ("); f.write_str(ret_ctype); f.write_str(")sizeof("); f.write_str(name); f.write_str(");\n")
-                } else {
-                    f.write_str(ret_ctype); f.write_str(" *"); f.write_str(name); f.write_str("_size(void) {\n")
-                    f.write_str("    "); f.write_str(ret_ctype); f.write_str(" *r = malloc(sizeof("); f.write_str(ret_ctype); f.write_str("));\n")
-                    f.write_str("    *r = ("); f.write_str(ret_ctype); f.write_str(")sizeof("); f.write_str(name); f.write_str(");\n")
-                    f.write_str("    return r;\n")
-                }
-                f.write_str("}\n\n")
-                continue
-            }
-        }
-        full_name := name.concat("_").concat(dd.name)
-        emit_func_def(f, full_name, fdef, NULL, false)
-        f.write_str("\n")
+        emit_ns_method(f, name, dd.name, fdef)
     }
 }
 

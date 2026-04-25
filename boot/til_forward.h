@@ -1171,6 +1171,7 @@ void emit_usize_ref(File * f, Expr * e, I32 depth);
 void emit_cli_parse_arg(File * f, Str * pname, Str * ptype, I32 argi);
 void emit_func_def(File * f, Str * name, Expr * func_def, Mode * mode, Bool is_static);
 void emit_struct_typedef(File * f, Str * name, Expr * struct_def);
+void emit_ns_method(File * f, Str * name, Str * dd_name, Expr * fdef);
 void emit_struct_funcs(File * f, Str * name, Expr * struct_def);
 void emit_enum_def(File * f, Str * name, Expr * enum_def);
 void emit_enum_struct_body(File * f, Str * ename, Expr * enum_def);
