@@ -1553,7 +1553,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
     if sdecl.explicit_type.len().gt(0) {
         declared := type_from_name(sdecl.explicit_type, scope)
         mut expected := TilType.Struct("StructDef".clone())
-        if is_enum { expected = TilType.EnumDef }
+        if is_enum { expected = TilType.Struct("EnumDef".clone()) }
         if declared.eq(expected).not() {
             mut value_type := "StructDef"
             if is_enum { value_type = "EnumDef" }
@@ -2709,7 +2709,7 @@ type_from_name := func(name: Str, scope: TypeScope) returns TilType {
     if name.eq("Str")  { return TilType.Struct("Str".clone()) }
     if name.eq("Bool") { return TilType.Bool }
     if name.eq("StructDef") { return TilType.Struct("StructDef".clone()) }
-    if name.eq("EnumDef")   { return TilType.EnumDef }
+    if name.eq("EnumDef")   { return TilType.Struct("EnumDef".clone()) }
     if name.eq("Fn")        { return TilType.FuncPtr }
     if name.eq("Dynamic")   { return TilType.Dynamic }
     if is_null(scope).not() {

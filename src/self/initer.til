@@ -124,6 +124,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
     if name.eq("Str")  { return TilType.Struct("Str".clone()) }
     if name.eq("Bool") { return TilType.Bool }
     if name.eq("StructDef") { return TilType.Struct("StructDef".clone()) }
+    if name.eq("EnumDef") { return TilType.Struct("EnumDef".clone()) }
     if name.eq("Dynamic")   { return TilType.Dynamic }
     if is_null(scope).not() {
         ref b : TypeBinding = scope.get_binding(name)
@@ -1766,7 +1767,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         if rhs.children.len().gt(0) {
             ref _io1 : Expr = rhs.child(0)
             if _io1.data.is(NodeType.Ident) {
-                if til_type_name(_io1.til_type).eq("StructDef").or(_io1.til_type.is(TilType.EnumDef)) {
+                if til_type_name(_io1.til_type).eq("StructDef").or(til_type_name(_io1.til_type).eq("EnumDef")) {
                     _init_ns1 = true
                 }
             }
@@ -1793,7 +1794,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         if callee.data.is(NodeType.FieldAccess).and(callee.children.len().gt(0)) {
             ref _io2 : Expr = callee.child(0)
             if _io2.data.is(NodeType.Ident) {
-                if til_type_name(_io2.til_type).eq("StructDef").or(_io2.til_type.is(TilType.EnumDef)) {
+                if til_type_name(_io2.til_type).eq("StructDef").or(til_type_name(_io2.til_type).eq("EnumDef")) {
                     _init_ns2 = true
                 }
             }
