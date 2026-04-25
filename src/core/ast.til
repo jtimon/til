@@ -72,6 +72,7 @@ Declaration := struct {
     mut is_mut := false
     mut is_namespace := false
     mut own_type := OwnType.Shallow
+    mut til_type := TilType.Unknown
     mut field_offset : I32 = 0
     mut field_size : I32 = 0
     ref mut field_struct_def : Expr = NULL

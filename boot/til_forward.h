@@ -267,6 +267,7 @@ typedef struct Declaration {
     Bool is_mut;
     Bool is_namespace;
     OwnType own_type;
+    TilType til_type;
     I32 field_offset;
     I32 field_size;
     Expr *field_struct_def;
