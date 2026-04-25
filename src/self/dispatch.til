@@ -773,7 +773,7 @@ h_array := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     }
 
     // Build Array struct
-    ref sdd : StructDefData = get_payload(cached_array_def.data)
+    ref sdd : StructDef = get_payload(cached_array_def.data)
     inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
     mut inst := make_struct_value(cached_array_name, cached_array_def, inst_data, false)
     ref si : StructInstance = get_payload(inst)
@@ -833,7 +833,7 @@ h_vec := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     }
 
     // Build Vec struct
-    ref vdd : StructDefData = get_payload(cached_vec_def.data)
+    ref vdd : StructDef = get_payload(cached_vec_def.data)
     inst_data : Dynamic = calloc(1, vdd.total_struct_size.to_i64().to_usize())
     mut inst := make_struct_value(cached_vec_name, cached_vec_def, inst_data, false)
     ref si : StructInstance = get_payload(inst)
@@ -883,7 +883,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Boolean(x): pdata = to_ptr(x); psz = 1.to_i32()
                 case Value.Struct(si):
                     if is_null(si.struct_def).not() {
-                        ref sd : StructDefData = get_payload(si.struct_def.data)
+                        ref sd : StructDef = get_payload(si.struct_def.data)
                         psz = sd.total_struct_size
                     }
                     pdata = to_ptr(si.data)
@@ -1044,7 +1044,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     raw : Dynamic = calloc(1, 16)
     ref mut ret_buf : Dynamic = NULL
     if is_null(ret_sdef).not() {
-        ref sdd : StructDefData = get_payload(ret_sdef.data)
+        ref sdd : StructDef = get_payload(ret_sdef.data)
         ret_buf = malloc(sdd.total_struct_size.to_i64().to_usize())
         ffi_call(fe.cif, fe.fn, ret_buf, arg_ptrs)
     } else {
@@ -1191,7 +1191,7 @@ ffi_init_scan_program := proc(program: Expr) {
             // Struct namespace ext_func/ext_proc
             if stmt.child(0).data.is(NodeType.StructDef) {
                 ref sdd : Declaration = get_payload(stmt.data)
-                ref sdd_data : StructDefData = get_payload(stmt.child(0).data)
+                ref sdd_data : StructDef = get_payload(stmt.child(0).data)
                 for j in 0..sdd_data.ns_decls.len() {
                     ref fdd : Declaration = sdd_data.ns_decls.get(j)
                     ref fdef : Expr = fdd.default_value

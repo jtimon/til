@@ -293,7 +293,7 @@ precomp_scan_names := proc(prog: Expr) {
             }
             if stmt.child(0).data.is(NodeType.StructDef) {
                 ref sdd : Declaration = get_payload(stmt.data)
-                ref sdd_data : StructDefData = get_payload(stmt.child(0).data)
+                ref sdd_data : StructDef = get_payload(stmt.child(0).data)
                 for j in 0..sdd_data.ns_decls.len() {
                     ref fdd : Declaration = sdd_data.ns_decls.get(j)
                     ref fdef : Expr = fdd.default_value

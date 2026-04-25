@@ -20,7 +20,7 @@ namespace:
     }
     clone := func(self: StructInstance) returns StructInstance {
         ref src_sdef : Expr = self.struct_def
-        ref sdef_data : StructDefData = get_payload(src_sdef.data)
+        ref sdef_data : StructDef = get_payload(src_sdef.data)
         sz := sdef_data.total_struct_size
         dst_data : Dynamic = malloc(sz.to_i64().to_u64())
         memcpy(dst_data, self.data, sz.to_i64().to_u64())
@@ -88,7 +88,7 @@ namespace:
                 if is_null(dd.field_struct_def).not() {
                     if dd.field_struct_def.data.is(NodeType.EnumDef).not() {
                         ref nested : Expr = dd.field_struct_def
-                        ref nested_sdef : StructDefData = get_payload(nested.data)
+                        ref nested_sdef : StructDef = get_payload(nested.data)
                         mut tmp := StructInstance(struct_name = ftype, struct_def = nested, data = ptr_add(self.data, foff.to_i64().to_u64()), borrowed = true)
                         mut cloned := tmp.clone()
                         tmp.data = NULL
@@ -944,7 +944,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         ref si_edef : Expr = deref(si_fptr)
         if si_edef.data.is(NodeType.StructDef) {
             ref sdef_body : Expr = si_edef.child(0)
-            ref sdd : StructDefData = get_payload(si_edef.data)
+            ref sdd : StructDef = get_payload(si_edef.data)
             inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
             mut inst := val_none()
             if e.til_type.is(TilType.Struct)
@@ -1288,7 +1288,7 @@ value_to_buf := proc(dest: Dynamic, val: Value, type_name: Str) {
     if type_name.eq("Bool") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 1); return }
     if val.is(Value.Struct) {
         ref si : StructInstance = get_payload(val)
-        ref sd : StructDefData = get_payload(si.struct_def.data)
+        ref sd : StructDef = get_payload(si.struct_def.data)
         sz := sd.total_struct_size
         if si.borrowed {
             mut cloned := val.clone()
@@ -1312,7 +1312,7 @@ build_argv_array := proc(argv: Vec, shallow offset: U32, shallow count: U32, ele
         v := parse_cli_arg(s, elem_type)
         value_to_buf(ptr_add(data, i.to_u64().mul(esz.to_i64().to_u64())), v, elem_type)
     }
-    ref asd : StructDefData = get_payload(cached_array_def.data)
+    ref asd : StructDef = get_payload(cached_array_def.data)
     inst_data : Dynamic = calloc(1, asd.total_struct_size.to_i64().to_u64())
     mut tmp := StructInstance(struct_name = cached_array_name, struct_def = cached_array_def, data = to_ptr(inst_data), borrowed = true)
     write_field(tmp, find_field_decl(cached_array_def, "data"), Value.Ptr(data))

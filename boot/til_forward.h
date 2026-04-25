@@ -46,7 +46,7 @@ typedef struct OwnType OwnType;
 typedef struct Declaration Declaration;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
-typedef struct StructDefData StructDefData;
+typedef struct StructDef StructDef;
 typedef struct AssignData AssignData;
 typedef enum {
     NodeType_TAG_Body,
@@ -294,12 +294,12 @@ typedef struct FCallData {
 } FCallData;
 
 
-typedef struct StructDefData {
+typedef struct StructDef {
     I32 total_struct_size;
     Vec fields;
     Vec ns_decls;
     Str c_tag;
-} StructDefData;
+} StructDef;
 
 
 typedef struct AssignData {
@@ -319,7 +319,7 @@ struct NodeType {
         AssignData Assign;
         FCallData FCall;
         FunctionDef FuncDef;
-        StructDefData StructDef;
+        StructDef StructDef;
         Str FieldAccess;
         Str FieldAssign;
         Str ForIn;
@@ -732,10 +732,10 @@ void FCallData_delete(FCallData * self, Bool * call_free);
 U32 FCallData_size(void);
 void set_own_arg(Expr * fcall, U32 arg_index);
 Bool get_own_arg(Expr * fcall, U32 arg_index);
-Bool * StructDefData_eq(StructDefData * a, StructDefData * b);
-StructDefData * StructDefData_clone(StructDefData * self);
-void StructDefData_delete(StructDefData * self, Bool * call_free);
-U32 StructDefData_size(void);
+Bool * StructDef_eq(StructDef * a, StructDef * b);
+StructDef * StructDef_clone(StructDef * self);
+void StructDef_delete(StructDef * self, Bool * call_free);
+U32 StructDef_size(void);
 Bool * AssignData_eq(AssignData * a, AssignData * b);
 AssignData * AssignData_clone(AssignData * self);
 void AssignData_delete(AssignData * self, Bool * call_free);

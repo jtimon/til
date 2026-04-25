@@ -1805,7 +1805,7 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
         ref dd : Declaration = get_payload(fld.data)
         if dd.is_namespace.not() { has_instance_fields = true }
     }
-    ref sdd : StructDefData = get_payload(struct_def.data)
+    ref sdd : StructDef = get_payload(struct_def.data)
     if sdd.c_tag.eq("@anon") {
         f.write_str("typedef struct {\n")
     } else if sdd.c_tag.len().gt(0) {
@@ -2159,7 +2159,7 @@ emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
                 ref rhs : Expr = stmt.child(0)
                 if rhs.data.is(NodeType.StructDef) {
                     if is_ext_h_type(dd.name) { continue }
-                    ref fwd_sdd : StructDefData = get_payload(rhs.data)
+                    ref fwd_sdd : StructDef = get_payload(rhs.data)
                     if fwd_sdd.c_tag.eq("@anon") {
                         // anonymous ext_struct: no forward decl possible
                     } else if fwd_sdd.c_tag.len().gt(0) {

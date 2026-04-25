@@ -208,7 +208,7 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
 
         ref sdef : Expr = stmt.child(0)
         ref mut body : Expr = sdef.child(0)
-        ref sdd : StructDefData = get_payload(sdef.data)
+        ref sdd : StructDef = get_payload(sdef.data)
 
         mut has_clone := false
         for j in 0..sdd.ns_decls.len() {
@@ -924,7 +924,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 
         ref sdef : Expr = stmt.child(0)
         ref mut body : Expr = sdef.child(0)
-        ref sdd : StructDefData = get_payload(sdef.data)
+        ref sdd : StructDef = get_payload(sdef.data)
 
         mut has_delete := false
         for j in 0..sdd.ns_decls.len() {
@@ -1157,7 +1157,7 @@ generate_struct_size_methods := proc(program: Expr) {
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
         ref mut body : Expr = def.child(0)
-        ref struct_meta : StructDefData = get_payload(def.data)
+        ref struct_meta : StructDef = get_payload(def.data)
         mut has_size := false
         for j in 0..struct_meta.ns_decls.len() {
             ref fd : Declaration = struct_meta.ns_decls.get(j)
@@ -1580,7 +1580,7 @@ generate_derived_methods := proc(program: Expr) {
 }
 
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
-    ref mut struct_meta : StructDefData = get_payload(struct_def.data)
+    ref mut struct_meta : StructDef = get_payload(struct_def.data)
     if struct_meta.total_struct_size.gt(0) { return }
 
     ref body : Expr = struct_def.child(0)
@@ -1695,7 +1695,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                     fd.field_struct_def = nested_def
                 } else if is_null(nested_def).not() {
                     compute_struct_layout(nested_def, scope)
-                    ref nested_meta : StructDefData = get_payload(nested_def.data)
+                    ref nested_meta : StructDef = get_payload(nested_def.data)
                     fsz = nested_meta.total_struct_size
                     falign = 8
                     fd.field_struct_def = nested_def

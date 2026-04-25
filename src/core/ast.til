@@ -1,8 +1,6 @@
 mode lib
 
-// builtin types (empty structs for future namespace support)
-StructDef : StructDef = struct {}
-EnumDef : StructDef = struct {}
+// builtin types
 
 // --- TilType enum ---
 
@@ -129,17 +127,19 @@ get_own_arg := func(fcall: Expr, shallow arg_index: USize) returns shallow Bool 
     return fcd.own_args.and(bit).gt(0)
 }
 
-StructDefData := struct {
+StructDef : StructDef = struct {
     mut total_struct_size : I32 = 0
     mut fields := Vec.new("Declaration", Declaration.size())
     mut ns_decls := Vec.new("Declaration", Declaration.size())
     mut c_tag := ""
 namespace:
-    eq := func(a: StructDefData, b: StructDefData) returns Bool {
+    eq := func(a: StructDef, b: StructDef) returns Bool {
         return a.total_struct_size.eq(b.total_struct_size)
     }
-    to_str := func(_self: StructDefData) returns Str { return "StructDef" }
+    to_str := func(_self: StructDef) returns Str { return "StructDef" }
 }
+
+EnumDef : StructDef = struct {}
 
 // --- NodeType payload enum (25 variants) ---
 
@@ -162,7 +162,7 @@ NodeType := enum {
     Assign: AssignData,
     FCall: FCallData,
     FuncDef: FunctionDef,
-    StructDef: StructDefData,
+    StructDef: StructDef,
     EnumDef,
     FieldAccess: Str,
     FieldAssign: Str,

@@ -294,9 +294,9 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     is_ext := c_tag.len().gt(0)
     if is_ext.not() { advance(p) }
 
-    mut def := Expr.new(NodeType.StructDef(StructDefData()), kw_line, kw_col, p.path)
+    mut def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col, p.path)
     if is_ext {
-        ref mut sdd : StructDefData = get_payload(def.data)
+        ref mut sdd : StructDef = get_payload(def.data)
         sdd.c_tag = c_tag.clone()
     }
     expect_token(p, TokenType.LBrace)
@@ -314,7 +314,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
         if in_namespace.and(stmt.data.is(NodeType.Decl)) {
             ref mut dd : Declaration = get_payload(stmt.data)
             dd.is_namespace = true
-            ref mut sdd : StructDefData = get_payload(def.data)
+            ref mut sdd : StructDef = get_payload(def.data)
             mut cloned_dd := dd.clone()
             if stmt.children.len().gt(0) {
                 cloned_dd.default_value = stmt.child(0).clone()
@@ -323,7 +323,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
         }
         if in_namespace.not().and(stmt.data.is(NodeType.Decl)) {
             ref dd : Declaration = get_payload(stmt.data)
-            ref mut sdd : StructDefData = get_payload(def.data)
+            ref mut sdd : StructDef = get_payload(def.data)
             mut cloned_dd := dd.clone()
             if stmt.children.len().gt(0) {
                 cloned_dd.default_value = stmt.child(0).clone()
@@ -812,7 +812,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
         // Namespace sugar: Name := namespace { ... }
         if check(p, TokenType.KwNamespace) {
             advance(p)
-            mut def := Expr.new(NodeType.StructDef(StructDefData()), t_line, t_col, p.path)
+            mut def := Expr.new(NodeType.StructDef(StructDef()), t_line, t_col, p.path)
             expect_token(p, TokenType.LBrace)
             mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p), p.path)
             while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
