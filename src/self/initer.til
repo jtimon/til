@@ -848,12 +848,9 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         mut has_eq := false
         mut has_delete := false
         mut has_to_str := false
-        for j in 0..body.children.len() {
-            ref f : Expr = body.child(j)
-            if f.data.is(NodeType.Decl).not() { continue }
-            if is_namespace_method(f).not() { continue }
-            ref fdecl : Declaration = get_payload(f.data)
-
+        ref _ens_edd : EnumDef = get_payload(stmt.child(0).data)
+        for j in 0.._ens_edd.ns_decls.len() {
+            ref fdecl : Declaration = _ens_edd.ns_decls.get(j)
             if fdecl.name.eq("is") { has_is = true }
             if fdecl.name.eq("eq") { has_eq = true }
             if fdecl.name.eq("delete") { has_delete = true }
@@ -893,11 +890,9 @@ generate_missing_enum_clones := proc(program: Expr) {
         ref mut body : Expr = decl_body(stmt)
 
         mut has_clone := false
-        for j in 0..body.children.len() {
-            ref f : Expr = body.child(j)
-            if f.data.is(NodeType.Decl).not() { continue }
-            if is_namespace_method(f).not() { continue }
-            ref fdecl : Declaration = get_payload(f.data)
+        ref _ecl_edd : EnumDef = get_payload(stmt.child(0).data)
+        for j in 0.._ecl_edd.ns_decls.len() {
+            ref fdecl : Declaration = _ecl_edd.ns_decls.get(j)
             if fdecl.name.eq("clone") {
                 has_clone = true
                 break
