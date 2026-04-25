@@ -1895,38 +1895,22 @@ emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr) {
 
 emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
     ref body : Expr = enum_def.child(0)
+    ref edd : EnumDef = get_payload(enum_def.data)
     hp := enum_has_payloads(enum_def)
     if hp.not() {
         // Simple enum
-        mut vnames := Vec.new("Str", Str.size())
-        for i in 0..body.children.len() {
-            ref v : Expr = body.child(i)
-            ref dd : Declaration = get_payload(v.data)
-            if dd.is_namespace { continue }
-            vnames.push(own dd.name.clone())
-        }
-        for i in 0..vnames.len() {
-            ref vn : Str = vnames.get(i)
+        for i in 0..edd.variants.len() {
+            ref vn : Str = edd.variants.get(i)
             f.write_str(name); f.write_str(" *"); f.write_str(name); f.write_str("_"); f.write_str(vn); f.write_str("() {\n")
             f.write_str("    "); f.write_str(name); f.write_str(" *r = malloc(sizeof("); f.write_str(name); f.write_str("));\n")
             f.write_str("    *r = ("); f.write_str(name); f.write_str("){ .tag = "); f.write_str(name); f.write_str("_TAG_"); f.write_str(vn); f.write_str(" };\n")
             f.write_str("    return r;\n"); f.write_str("}\n")
         }
-        own vnames.delete()
     } else {
         // Payload enum
-        mut vnames := Vec.new("Str", Str.size())
-        mut vtypes := Vec.new("Str", Str.size())
-        for i in 0..body.children.len() {
-            ref v : Expr = body.child(i)
-            ref dd : Declaration = get_payload(v.data)
-            if dd.is_namespace { continue }
-            vnames.push(own dd.name.clone())
-            vtypes.push(own dd.explicit_type.clone())
-        }
-        for i in 0..vnames.len() {
-            ref vn : Str = vnames.get(i)
-            ref vt : Str = vtypes.get(i)
+        for i in 0..edd.variants.len() {
+            ref vn : Str = edd.variants.get(i)
+            vt := enum_variant_type(enum_def, i.to_i64().to_i32())
             if vt.len().eq(0) {
                 f.write_str(name); f.write_str(" *"); f.write_str(name); f.write_str("_"); f.write_str(vn); f.write_str("() {\n")
                 f.write_str("    "); f.write_str(name); f.write_str(" *r = malloc(sizeof("); f.write_str(name); f.write_str("));\n")
@@ -1948,8 +1932,6 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
             }
             f.write_str("    return r;\n"); f.write_str("}\n")
         }
-        own vnames.delete()
-        own vtypes.delete()
     }
     // Namespace methods
     for i in 0..body.children.len() {
@@ -1982,19 +1964,18 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
 }
 
 emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr) {
-    ref ebody : Expr = enum_def.child(0)
+    ref edd : EnumDef = get_payload(enum_def.data)
     hp := enum_has_payloads(enum_def)
     f.write_str("struct "); f.write_str(ename); f.write_str(" {\n")
     f.write_str("    "); f.write_str(ename); f.write_str("_tag tag;\n")
     if hp {
         f.write_str("    union {\n")
-        for j in 0..ebody.children.len() {
-            ref v : Expr = ebody.child(j)
-            ref dd : Declaration = get_payload(v.data)
-            if dd.is_namespace { continue }
-            if dd.explicit_type.len().gt(0) {
-                tnv := type_name_to_c_value(dd.explicit_type)
-                f.write_str("        "); f.write_str(tnv); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+        for j in 0..edd.variants.len() {
+            ref vn : Str = edd.variants.get(j)
+            vt := enum_variant_type(enum_def, j.to_i64().to_i32())
+            if vt.len().gt(0) {
+                tnv := type_name_to_c_value(vt)
+                f.write_str("        "); f.write_str(tnv); f.write_str(" "); f.write_str(vn); f.write_str(";\n")
             }
         }
         f.write_str("    } data;\n")

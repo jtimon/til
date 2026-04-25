@@ -855,19 +855,8 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
     if enum_has_payloads(enum_def) {
         ctor_tag := enum_variant_tag(enum_def, method)
         if ctor_tag.to_i64().gte(0) {
-            ref vbody : Expr = enum_def.child(0)
-            mut has_payload := false
-            mut vidx : I32 = 0
-            for vi in 0..vbody.children.len() {
-                ref vf : Expr = vbody.child(vi)
-                ref vdd : Declaration = get_payload(vf.data)
-                if vdd.is_namespace.not() {
-                    if vidx.eq(ctor_tag) {
-                        if vdd.explicit_type.len().gt(0) { has_payload = true }
-                    }
-                    vidx = vidx.add(1.to_i32())
-                }
-            }
+            vtype := enum_variant_type(enum_def, ctor_tag)
+            has_payload := vtype.len().gt(0)
             if has_payload {
                 payload := eval_expr(scope, e.child(1))
                 ref mut pdata : Dynamic = NULL

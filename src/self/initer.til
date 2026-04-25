@@ -320,16 +320,18 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
     return 0
 }
 
-collect_enum_variants := proc(body: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool) {
-    has_payloads = false
-    for j in 0..body.children.len() {
-        ref field : Expr = body.child(j)
-        ref fdecl : Declaration = get_payload(field.data)
-        if fdecl.is_namespace { continue }
-        variant_names.push(own fdecl.name.clone())
-        variant_types.push(own fdecl.explicit_type.clone())
-        if fdecl.explicit_type.len().gt(0) {
-            has_payloads = true
+collect_enum_variants := proc(enum_def: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool) {
+    ref edd : EnumDef = get_payload(enum_def.data)
+    has_payloads = edd.payload_types.len().gt(0)
+    for j in 0..edd.variants.len() {
+        ref vn : Str = edd.variants.get(j)
+        variant_names.push(own vn.clone())
+        idx := j
+        if edd.payload_types.has(idx) {
+            ref pt : Str = edd.payload_types.get(idx)
+            variant_types.push(own pt.clone())
+        } else {
+            variant_types.push(own "".clone())
         }
     }
 }
@@ -839,7 +841,7 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         variant_names := Vec.new("Str", Str.size())
         variant_types := Vec.new("Str", Str.size())
         mut has_payloads := false
-        collect_enum_variants(body, variant_names, variant_types, has_payloads)
+        collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
         generate_enum_variant_constructors(body, ename, line, col, path, variant_names, variant_types, has_payloads)
 
         mut has_is := false
@@ -905,7 +907,7 @@ generate_missing_enum_clones := proc(program: Expr) {
             variant_names := Vec.new("Str", Str.size())
             variant_types := Vec.new("Str", Str.size())
             mut has_payloads := false
-            collect_enum_variants(body, variant_names, variant_types, has_payloads)
+            collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
             generate_enum_clone_method(body, ename, line.to_i64().to_i32(), col.to_i64().to_i32(), path, variant_names, variant_types, has_payloads)
             Vec.delete(own variant_names, false)
             Vec.delete(own variant_types, false)
