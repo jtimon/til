@@ -38,12 +38,12 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
     }
     ref sdef : Expr = scope.get_struct(sn)
     if is_null(sdef) { return OwnType.Shallow }
-    ref body : Expr = sdef.child(0)
+    if sdef.data.is(NodeType.StructDef).not() { return OwnType.Shallow }
+    ref ot_sdd : StructDef = get_payload(sdef.data)
     ref fname : Str = get_payload(e.data)
-    for i in 0..body.children.len() {
-        ref field : Expr = body.child(i)
-        ref dd : Declaration = get_payload(field.data)
-        if dd.name.eq(fname).and(dd.is_namespace.not()) { return dd.own_type }
+    for i in 0..ot_sdd.fields.len() {
+        ref dd : Declaration = ot_sdd.fields.get(i)
+        if dd.name.eq(fname) { return dd.own_type }
     }
     return OwnType.Shallow
 }
