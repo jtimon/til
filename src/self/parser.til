@@ -371,23 +371,18 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             body.add_child(own stmt)
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated
-            v_line := peek_line(p)
-            v_col := peek_col(p)
             vname := expect_text(p, TokenType.Ident)
             ref mut edd : EnumDef = get_payload(def.data)
             edd.variants.push(own vname.clone())
-            mut dd := Declaration(name = vname)
+            mut vtype := ""
             if check(p, TokenType.Colon) {
                 advance(p)
-                dd.explicit_type = expect_text(p, TokenType.Ident)
+                vtype = expect_text(p, TokenType.Ident)
             }
-            if dd.explicit_type.len().gt(0) {
-                edd.payload_types.set(own variant_idx.clone(), own dd.explicit_type.clone())
+            if vtype.len().gt(0) {
+                edd.payload_types.set(own variant_idx.clone(), own vtype.clone())
             }
             variant_idx = variant_idx.add(1)
-            mut variant := Expr.new(NodeType.Decl(dd), v_line, v_col, p.path)
-            variant.til_type = til_type_from_explicit_type(dd.explicit_type)
-            body.add_child(own variant)
             if check(p, TokenType.Comma) { advance(p) }
         }
     }

@@ -2027,14 +2027,15 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     mut n_variants : I32 = 0
     mut has_default_case := false
     mut has_switch_enum_def := false
+    ref mut switch_enum_def : Expr = NULL
     sw_expr_sname := til_type_name(sw_expr.til_type)
     if sw_expr.til_type.is(TilType.Enum).and(sw_expr_sname.len().gt(0)) {
-        ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
+        switch_enum_def = scope.get_struct(sw_expr_sname)
         if is_null(switch_enum_def).not().and(switch_enum_def.data.is(NodeType.EnumDef)) {
             has_switch_enum_def = true
-            ref _sw_edd : EnumDef = get_payload(switch_enum_def.data)
-            n_variants = _sw_edd.variants.len().to_i64().to_i32()
-            for _svi in 0..n_variants.to_i64().to_usize() {
+            ref sw_edd : EnumDef = get_payload(switch_enum_def.data)
+            n_variants = sw_edd.variants.len().to_i64().to_i32()
+            for _sw_vi in 0..n_variants.to_i64().to_usize() {
                 covered_variants.push(own false)
             }
         }
@@ -2091,22 +2092,17 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
 
     if has_switch_enum_def.and(covered_variants.len().gt(0)).and(has_default_case.not()) {
         ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
-        ref enum_body : Expr = switch_enum_def.child(0)
         mut msg := "non-exhaustive switch on enum '".concat(sw_expr_sname).concat("'; missing cases:")
-        mut variant_idx : U32 = 0
+        ref mc_edd : EnumDef = get_payload(switch_enum_def.data)
         mut missing := false
-        for vi in 0..enum_body.children.len() {
-            ref variant : Expr = enum_body.child(vi)
-            if variant.data.is(NodeType.Decl).not() { continue }
-            ref vd : Declaration = get_payload(variant.data)
-            if vd.is_namespace { continue }
-            ref covered : Bool = covered_variants.get(variant_idx)
+        for vi in 0..n_variants.to_i64().to_usize() {
+            ref covered : Bool = covered_variants.get(vi.to_i64().to_u32())
             if covered.not() {
                 missing = true
+                ref vn : Str = mc_edd.variants.get(vi)
                 if msg.ends_with(":").not() { msg = msg.concat(",") }
-                msg = msg.concat(" ").concat(vd.name)
+                msg = msg.concat(" ").concat(vn)
             }
-            variant_idx.inc()
         }
         if missing { type_error(stmt, msg) }
     }
