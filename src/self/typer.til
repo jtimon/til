@@ -748,12 +748,9 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
 
     mut obj_is_type := false
     if obj.data.is(NodeType.Ident) {
-        sf_tb := scope.find(get_payload(obj.data))
-        if sf_tb.is(ScopeFind.Found) {
-            ref tb : TypeBinding = get_payload(sf_tb)
-            if is_null(tb.struct_def).not() {
-                obj_is_type = true
-            }
+        ref _oit_id : Str = get_payload(obj.data)
+        if is_null(scope.get_struct(_oit_id)).not() {
+            obj_is_type = true
         }
     }
 
@@ -862,6 +859,11 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         type_error(e, format("no namespace function '", method, "'"))
         e.til_type = TilType.Unknown
         return true
+    }
+    // Ensure obj3 carries the resolved struct type so the interpreter can
+    // extract the parent type name via til_type_name for dispatch.
+    if obj3_sname.len().gt(0).and(obj3.til_type.is(TilType.Struct).not()) {
+        obj3.til_type = TilType.Struct(obj3_sname.clone())
     }
     {
         ref ns_fdef : FunctionDef = get_payload(ns_func2.data)
