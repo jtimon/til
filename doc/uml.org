@@ -77,8 +77,6 @@
 *** line : U32 = 0
 *** col : U32 = 0
 * ast
-** StructDef: StructDef
-** EnumDef: StructDef
 ** TilType: EnumDef
 *** Unknown
 *** None
@@ -135,11 +133,15 @@
 *** mut is_splat := false
 *** mut own_args : U64 = 0
 *** ref mut fn_sig : Expr = NULL
-** StructDefData: StructDef
+** StructDef: StructDef
 *** mut total_struct_size : I32 = 0
 *** mut fields := Vec.new("Declaration", Declaration.size())
 *** mut ns_decls := Vec.new("Declaration", Declaration.size())
 *** mut c_tag := ""
+** EnumDef: StructDef
+*** mut ns_decls := Vec.new("Declaration", Declaration.size())
+*** mut variants := Vec.new("Str", Str.size())
+*** mut payload_types := Map.new("I64", I64.size(), "Str", Str.size())
 ** AssignData: StructDef
 *** mut name := ""
 *** mut save_old_delete := false
@@ -154,8 +156,8 @@
 *** Assign:AssignData
 *** FCall:FCallData
 *** FuncDef:FunctionDef
-*** StructDef:StructDefData
-*** EnumDef
+*** StructDef:StructDef
+*** EnumDef:EnumDef
 *** FieldAccess:Str
 *** FieldAssign:Str
 *** Return

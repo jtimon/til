@@ -348,7 +348,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
 
     mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p), p.path)
     mut in_namespace := false
-    mut variant_idx : USize = 0
+    mut variant_idx : I64 = 0
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
         if check(p, TokenType.KwNamespace) {
             advance(p)

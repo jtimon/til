@@ -47,6 +47,7 @@ typedef struct Declaration Declaration;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
 typedef struct StructDef StructDef;
+typedef struct EnumDef EnumDef;
 typedef struct AssignData AssignData;
 typedef enum {
     NodeType_TAG_Body,
@@ -308,35 +309,6 @@ typedef struct AssignData {
 } AssignData;
 
 
-struct NodeType {
-    NodeType_tag tag;
-    union {
-        Str LiteralStr;
-        Str LiteralNum;
-        Bool LiteralBool;
-        Str Ident;
-        Declaration Decl;
-        AssignData Assign;
-        FCallData FCall;
-        FunctionDef FuncDef;
-        StructDef StructDef;
-        Str FieldAccess;
-        Str FieldAssign;
-        Str ForIn;
-        Str NamedArg;
-    } data;
-};
-
-typedef struct Expr {
-    NodeType data;
-    TilType til_type;
-    Vec children;
-    U32 line;
-    U32 col;
-    Str path;
-} Expr;
-
-
 
 
 
@@ -393,6 +365,43 @@ typedef struct Set {
     void * elem_delete;
     void * elem_cmp;
 } Set;
+
+
+typedef struct EnumDef {
+    Vec ns_decls;
+    Vec variants;
+    Map payload_types;
+} EnumDef;
+
+
+struct NodeType {
+    NodeType_tag tag;
+    union {
+        Str LiteralStr;
+        Str LiteralNum;
+        Bool LiteralBool;
+        Str Ident;
+        Declaration Decl;
+        AssignData Assign;
+        FCallData FCall;
+        FunctionDef FuncDef;
+        StructDef StructDef;
+        EnumDef EnumDef;
+        Str FieldAccess;
+        Str FieldAssign;
+        Str ForIn;
+        Str NamedArg;
+    } data;
+};
+
+typedef struct Expr {
+    NodeType data;
+    TilType til_type;
+    Vec children;
+    U32 line;
+    U32 col;
+    Str path;
+} Expr;
 
 
 struct TokenType {
@@ -651,6 +660,7 @@ void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
 U32 Array_size(void);
 Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size);
+U32 * Map_len(Map * self);
 Bool Map_has(Map * self, void * key);
 void * Map_get(Map * self, void * key);
 void Map_set(Map * self, void * key, void * val);
@@ -736,6 +746,10 @@ Bool * StructDef_eq(StructDef * a, StructDef * b);
 StructDef * StructDef_clone(StructDef * self);
 void StructDef_delete(StructDef * self, Bool * call_free);
 U32 StructDef_size(void);
+Bool * EnumDef_eq(EnumDef * a, EnumDef * b);
+EnumDef * EnumDef_clone(EnumDef * self);
+void EnumDef_delete(EnumDef * self, Bool * call_free);
+U32 EnumDef_size(void);
 Bool * AssignData_eq(AssignData * a, AssignData * b);
 AssignData * AssignData_clone(AssignData * self);
 void AssignData_delete(AssignData * self, Bool * call_free);
@@ -768,6 +782,7 @@ Expr * decl_body(Expr * stmt);
 Bool is_namespace_method(Expr * field);
 Bool enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
+Str * enum_variant_type(Expr * enum_def, I32 tag);
 U32 * Dynamic_size(void);
 void * default_clone(void * v);
 void default_delete(void * _v, Bool * _cf);
@@ -854,7 +869,7 @@ TilType * type_from_name_init(Str * name, TypeScope * scope);
 I32 register_struct_definitions(Expr * program, TypeScope * scope);
 void generate_missing_struct_clones(Expr * program, TypeScope * scope);
 I32 register_enum_definition(Expr * stmt, TypeScope * scope);
-void collect_enum_variants(Expr * body, Vec * variant_names, Vec * variant_types, Bool * has_payloads);
+void collect_enum_variants(Expr * enum_def, Vec * variant_names, Vec * variant_types, Bool * has_payloads);
 void generate_enum_variant_constructors(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, Bool has_payloads);
 void generate_enum_is_method(Expr * body, Str * ename, U32 line, U32 col, Str * path);
 void generate_enum_eq_method(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, TypeScope * scope);

@@ -326,7 +326,7 @@ collect_enum_variants := proc(enum_def: Expr, mut variant_names: Vec, mut varian
     for j in 0..edd.variants.len() {
         ref vn : Str = edd.variants.get(j)
         variant_names.push(own vn.clone())
-        idx := j
+        idx := j.to_i64()
         if edd.payload_types.has(idx) {
             ref pt : Str = edd.payload_types.get(idx)
             variant_types.push(own pt.clone())

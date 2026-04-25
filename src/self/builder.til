@@ -2028,14 +2028,12 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
                     }
                 }
             } else if def.data.is(NodeType.EnumDef) {
-                ref ebody : Expr = def.child(0)
-                for fi in 0..ebody.children.len() {
-                    ref v : Expr = ebody.child(fi)
-                    ref dd : Declaration = get_payload(v.data)
-                    if dd.is_namespace { continue }
-                    if dd.explicit_type.len().gt(0) {
-                        if is_primitive_type(dd.explicit_type).not().and(is_funcsig_type(dd.explicit_type).not()) {
-                            if emitted.has(dd.explicit_type).not() { deps_ok = false }
+                ref _dep_edd : EnumDef = get_payload(def.data)
+                for fi in 0.._dep_edd.variants.len() {
+                    _dep_vt := enum_variant_type(def, fi.to_i64().to_i32())
+                    if _dep_vt.len().gt(0) {
+                        if is_primitive_type(_dep_vt).not().and(is_funcsig_type(_dep_vt).not()) {
+                            if emitted.has(_dep_vt).not() { deps_ok = false }
                         }
                     }
                 }
@@ -2150,16 +2148,12 @@ emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
                     }
                 }
                 if rhs.data.is(NodeType.EnumDef) {
-                    ref ebody : Expr = rhs.child(0)
+                    ref _fwd_edd : EnumDef = get_payload(rhs.data)
                     f.write_str("typedef enum {\n")
-                    mut tag := 0.to_i32()
-                    for j in 0..ebody.children.len() {
-                        ref v : Expr = ebody.child(j)
-                        ref vdd : Declaration = get_payload(v.data)
-                        if vdd.is_namespace { continue }
-                        if tag.gt(0.to_i32()) { f.write_str(",\n") }
-                        f.write_str("    "); f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(vdd.name)
-                        tag = tag.add(1.to_i32())
+                    for j in 0.._fwd_edd.variants.len() {
+                        ref _fwd_vn : Str = _fwd_edd.variants.get(j)
+                        if j.gt(0) { f.write_str(",\n") }
+                        f.write_str("    "); f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(_fwd_vn)
                     }
                     f.write_str("\n} "); f.write_str(dd.name); f.write_str("_tag;\n")
                     f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
@@ -2245,16 +2239,17 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
             if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
         }
         f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
-        for j in 0..ebody.children.len() {
-            ref v : Expr = ebody.child(j)
-            ref vdd : Declaration = get_payload(v.data)
-            if vdd.is_namespace { continue }
-            if vdd.explicit_type.len().gt(0) {
-                tnc := type_name_to_c(vdd.explicit_type)
-                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+        ref _hdr_edd : EnumDef = get_payload(stmt.child(0).data)
+        mut _hdr_vi : USize = 0
+        for _hdr_vn : Str in _hdr_edd.variants {
+            _hdr_vt := enum_variant_type(stmt.child(0), _hdr_vi.to_i64().to_i32())
+            if _hdr_vt.len().gt(0) {
+                tnc := type_name_to_c(_hdr_vt)
+                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(_hdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
             } else {
-                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("();\n")
+                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(_hdr_vn); f.write_str("();\n")
             }
+            _hdr_vi = _hdr_vi.add(1)
         }
     }
     f.write_str("\n")
@@ -2677,39 +2672,40 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
         f.write_str(eq_ret); f.write_str("\n\n")
 
         // Per-variant helpers
-        for j in 0..ebody.children.len() {
-            ref v : Expr = ebody.child(j)
-            ref vdd : Declaration = get_payload(v.data)
-            if vdd.is_namespace { continue }
+        ref _py_edd : EnumDef = get_payload(rhs.data)
+        mut _py_vi : USize = 0
+        for _py_vn : Str in _py_edd.variants {
+            _py_vt := enum_variant_type(rhs, _py_vi.to_i64().to_i32())
 
             if hp {
                 // is_Variant
-                f.write_str("_lib."); f.write_str(sname); f.write_str("_is_"); f.write_str(vdd.name)
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_is_"); f.write_str(_py_vn)
                 f.write_str(".argtypes = [ctypes.POINTER("); f.write_str(sname); f.write_str(")]\n")
-                f.write_str("_lib."); f.write_str(sname); f.write_str("_is_"); f.write_str(vdd.name)
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_is_"); f.write_str(_py_vn)
                 f.write_str(".restype = "); f.write_str(eq_ret); f.write_str("\n\n")
             }
 
-            if vdd.explicit_type.len().gt(0) {
+            if _py_vt.len().gt(0) {
                 // Constructor: takes payload, returns POINTER(Enum)
-                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(vdd.name)
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(_py_vn)
                 f.write_str(".argtypes = [")
-                f.write_str(type_name_to_ctypes_param(vdd.explicit_type, false)); f.write_str("]\n")
-                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(vdd.name)
+                f.write_str(type_name_to_ctypes_param(_py_vt, false)); f.write_str("]\n")
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(_py_vn)
                 f.write_str(".restype = ctypes.POINTER("); f.write_str(sname); f.write_str(")\n\n")
                 // get_Variant
-                f.write_str("_lib."); f.write_str(sname); f.write_str("_get_"); f.write_str(vdd.name)
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_get_"); f.write_str(_py_vn)
                 f.write_str(".argtypes = [ctypes.POINTER("); f.write_str(sname); f.write_str(")]\n")
-                f.write_str("_lib."); f.write_str(sname); f.write_str("_get_"); f.write_str(vdd.name)
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_get_"); f.write_str(_py_vn)
                 f.write_str(".restype = ")
-                f.write_str(type_name_to_ctypes_param(vdd.explicit_type, false)); f.write_str("\n\n")
+                f.write_str(type_name_to_ctypes_param(_py_vt, false)); f.write_str("\n\n")
             } else {
                 // Constructor: no args, returns POINTER(Enum)
-                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(vdd.name)
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(_py_vn)
                 f.write_str(".argtypes = []\n")
-                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(vdd.name)
+                f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(_py_vn)
                 f.write_str(".restype = ctypes.POINTER("); f.write_str(sname); f.write_str(")\n\n")
             }
+            _py_vi = _py_vi.add(1)
         }
     }
 
@@ -3083,16 +3079,17 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
             if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
         }
         f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
-        for j in 0..ebody.children.len() {
-            ref v : Expr = ebody.child(j)
-            ref vdd : Declaration = get_payload(v.data)
-            if vdd.is_namespace { continue }
-            if vdd.explicit_type.len().gt(0) {
-                tnc := type_name_to_c(vdd.explicit_type)
-                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+        ref _hdr_edd : EnumDef = get_payload(stmt.child(0).data)
+        mut _hdr_vi : USize = 0
+        for _hdr_vn : Str in _hdr_edd.variants {
+            _hdr_vt := enum_variant_type(stmt.child(0), _hdr_vi.to_i64().to_i32())
+            if _hdr_vt.len().gt(0) {
+                tnc := type_name_to_c(_hdr_vt)
+                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(_hdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
             } else {
-                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("();\n")
+                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(_hdr_vn); f.write_str("();\n")
             }
+            _hdr_vi = _hdr_vi.add(1)
         }
     }
 }
@@ -3173,16 +3170,17 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
                 if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
             }
             f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
-            for j in 0..ebody.children.len() {
-                ref v : Expr = ebody.child(j)
-                ref vdd : Declaration = get_payload(v.data)
-                if vdd.is_namespace { continue }
-                if vdd.explicit_type.len().gt(0) {
-                    tnc := type_name_to_c(vdd.explicit_type)
-                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+            ref _shdr_edd : EnumDef = get_payload(stmt.child(0).data)
+            mut _shdr_vi : USize = 0
+            for _shdr_vn : Str in _shdr_edd.variants {
+                _shdr_vt := enum_variant_type(stmt.child(0), _shdr_vi.to_i64().to_i32())
+                if _shdr_vt.len().gt(0) {
+                    tnc := type_name_to_c(_shdr_vt)
+                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(_shdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
                 } else {
-                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(vdd.name); f.write_str("();\n")
+                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(_shdr_vn); f.write_str("();\n")
                 }
+                _shdr_vi = _shdr_vi.add(1)
             }
         }
     }
