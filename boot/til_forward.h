@@ -780,6 +780,7 @@ Bool is_func_decl(Expr * stmt);
 Bool is_def(Expr * stmt);
 Expr * decl_body(Expr * stmt);
 Bool is_namespace_method(Expr * field);
+Vec * def_ns_decls(Expr * sdef);
 Bool enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);

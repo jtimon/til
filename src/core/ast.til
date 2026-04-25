@@ -463,6 +463,15 @@ is_namespace_method := func(field: Expr) returns shallow Bool {
     return field.child(0).data.is(NodeType.FuncDef)
 }
 
+def_ns_decls := func(sdef: Expr) returns ref Vec {
+    if sdef.data.is(NodeType.StructDef) {
+        ref sd : StructDef = get_payload(sdef.data)
+        return sd.ns_decls
+    }
+    ref ed : EnumDef = get_payload(sdef.data)
+    return ed.ns_decls
+}
+
 // --- Enum helpers ---
 
 enum_has_payloads := func(enum_def: Expr) returns shallow Bool {

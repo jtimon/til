@@ -89,13 +89,20 @@ type_error_at := proc(path: Str, shallow line: U32, shallow col: U32, msg: Str) 
 
 find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
     if is_null(sdef) { return NULL }
+    // Search body children first (includes initer-generated methods)
     ref body : Expr = sdef.child(0)
     for i in 0..body.children.len() {
         ref field : Expr = body.child(i)
         if is_namespace_method(field).not() { continue }
-        ref fd : Declaration = get_payload(field.data)
-        if fd.name.eq(method).not() { continue }
+        ref bd : Declaration = get_payload(field.data)
+        if bd.name.eq(method).not() { continue }
         return field.child(0)
+    }
+    // Fall back to payload ns_decls
+    ref ns : Vec = def_ns_decls(sdef)
+    for i in 0..ns.len() {
+        ref fd : Declaration = ns.get(i)
+        if fd.name.eq(method) { return fd.default_value }
     }
     return NULL
 }
