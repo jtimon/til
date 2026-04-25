@@ -223,11 +223,8 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
 
         field_names := Vec.new("Str", Str.size())
         field_refs := Vec.new("I32", I32.size())
-        for j in 0..body.children.len() {
-            ref field : Expr = body.child(j)
-            if field.data.is(NodeType.Decl).not() { continue }
-            ref fd : Declaration = get_payload(field.data)
-            if fd.is_namespace { continue }
+        for j in 0..sdd.fields.len() {
+            ref fd : Declaration = sdd.fields.get(j)
             field_names.push(own fd.name.clone())
             mut ref_flag : I32 = 0
             if fd.own_type.eq(OwnType.Ref) {
@@ -936,11 +933,9 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 
         field_names := Vec.new("Str", Str.size())
         field_owns := Vec.new("Bool", Bool.size())
-        for j in 0..body.children.len() {
-            ref field : Expr = body.child(j)
-            if field.data.is(NodeType.Decl).not() { continue }
-            ref fd : Declaration = get_payload(field.data)
-            if fd.is_namespace.or(fd.own_type.eq(OwnType.Ref)) { continue }
+        for j in 0..sdd.fields.len() {
+            ref fd : Declaration = sdd.fields.get(j)
+            if fd.own_type.eq(OwnType.Ref) { continue }
             if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
                 continue
             }
