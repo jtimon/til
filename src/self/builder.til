@@ -1797,14 +1797,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
 }
 
 emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
-    ref body : Expr = struct_def.child(0)
     if is_ext_h_type(name) { return }
-    mut has_instance_fields := false
-    for i in 0..body.children.len() {
-        ref fld : Expr = body.child(i)
-        ref dd : Declaration = get_payload(fld.data)
-        if dd.is_namespace.not() { has_instance_fields = true }
-    }
     ref sdd : StructDef = get_payload(struct_def.data)
     if sdd.c_tag.eq("@anon") {
         f.write_str("typedef struct {\n")
@@ -1813,35 +1806,34 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
     } else {
         f.write_str("typedef struct "); f.write_str(name); f.write_str(" {\n")
     }
-    if has_instance_fields.not() { f.write_str("    char _;\n") }
-    for i in 0..body.children.len() {
-        ref field : Expr = body.child(i)
-        ref dd : Declaration = get_payload(field.data)
-        if dd.is_namespace { continue }
+    if sdd.fields.len().eq(0) { f.write_str("    char _;\n") }
+    for i in 0..sdd.fields.len() {
+        ref dd : Declaration = sdd.fields.get(i)
         if dd.own_type.eq(OwnType.Shallow).not() {
-            if field.til_type.is(TilType.Struct).or(field.til_type.is(TilType.Enum)) {
-                fc0_sname := til_type_name(field.child(0).til_type)
-                if fc0_sname.len().gt(0) {
-                    f.write_str("    "); f.write_str(fc0_sname); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+            if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
+                sname := til_type_name(dd.til_type)
+                if sname.len().gt(0) {
+                    f.write_str("    "); f.write_str(sname); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
                 } else {
-                    tc := til_type_to_c(field.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                    tc := til_type_to_c(dd.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
                 }
             } else {
-                tc := til_type_to_c(field.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                tc := til_type_to_c(dd.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
             }
-        } else if field.til_type.is(TilType.Struct).or(field.til_type.is(TilType.Enum)) {
-            fc0_sname2 := til_type_name(field.child(0).til_type)
-            if fc0_sname2.len().gt(0) {
-                f.write_str("    "); f.write_str(fc0_sname2); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+        } else if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
+            sname := til_type_name(dd.til_type)
+            if sname.len().gt(0) {
+                f.write_str("    "); f.write_str(sname); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
             } else {
-                tc := til_type_to_c(field.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                tc := til_type_to_c(dd.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
             }
         } else {
-            tc := til_type_to_c(field.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+            tc := til_type_to_c(dd.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
         }
     }
     f.write_str("} "); f.write_str(name); f.write_str(";\n\n")
     // Namespace fields as globals
+    ref body : Expr = struct_def.child(0)
     for i in 0..body.children.len() {
         ref field : Expr = body.child(i)
         ref dd : Declaration = get_payload(field.data)
