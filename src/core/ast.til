@@ -139,7 +139,16 @@ namespace:
     to_str := func(_self: StructDef) returns Str { return "StructDef" }
 }
 
-EnumDef : StructDef = struct {}
+EnumDef : StructDef = struct {
+    mut ns_decls := Vec.new("Declaration", Declaration.size())
+    mut variants := Vec.new("Str", Str.size())
+    mut payload_types := Map.new("USize", USize.size(), "Str", Str.size())
+namespace:
+    eq := func(a: EnumDef, b: EnumDef) returns Bool {
+        return a.variants.len().eq(b.variants.len())
+    }
+    to_str := func(_self: EnumDef) returns Str { return "EnumDef" }
+}
 
 // --- NodeType payload enum (25 variants) ---
 
@@ -163,7 +172,7 @@ NodeType := enum {
     FCall: FCallData,
     FuncDef: FunctionDef,
     StructDef: StructDef,
-    EnumDef,
+    EnumDef: EnumDef,
     FieldAccess: Str,
     FieldAssign: Str,
     Return,

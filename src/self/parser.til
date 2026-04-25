@@ -343,11 +343,12 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     kw_col := peek_col(p)
     advance(p)
 
-    mut def := Expr.new(NodeType.EnumDef, kw_line, kw_col, p.path)
+    mut def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col, p.path)
     expect_token(p, TokenType.LBrace)
 
     mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p), p.path)
     mut in_namespace := false
+    mut variant_idx : USize = 0
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
         if check(p, TokenType.KwNamespace) {
             advance(p)
@@ -358,10 +359,14 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
         if in_namespace {
             mut stmt := parse_statement(p)
             if stmt.data.is(NodeType.Decl) {
-                if stmt.data.is(NodeType.Decl) {
-                    ref mut dd : Declaration = get_payload(stmt.data)
-                    dd.is_namespace = true
+                ref mut dd : Declaration = get_payload(stmt.data)
+                dd.is_namespace = true
+                ref mut edd : EnumDef = get_payload(def.data)
+                mut cloned_dd := dd.clone()
+                if stmt.children.len().gt(0) {
+                    cloned_dd.default_value = stmt.child(0).clone()
                 }
+                edd.ns_decls.push(own cloned_dd)
             }
             body.add_child(own stmt)
         } else {
@@ -369,11 +374,17 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             v_line := peek_line(p)
             v_col := peek_col(p)
             vname := expect_text(p, TokenType.Ident)
+            ref mut edd : EnumDef = get_payload(def.data)
+            edd.variants.push(own vname.clone())
             mut dd := Declaration(name = vname)
             if check(p, TokenType.Colon) {
                 advance(p)
                 dd.explicit_type = expect_text(p, TokenType.Ident)
             }
+            if dd.explicit_type.len().gt(0) {
+                edd.payload_types.set(own variant_idx.clone(), own dd.explicit_type.clone())
+            }
+            variant_idx = variant_idx.add(1)
             mut variant := Expr.new(NodeType.Decl(dd), v_line, v_col, p.path)
             variant.til_type = til_type_from_explicit_type(dd.explicit_type)
             body.add_child(own variant)
