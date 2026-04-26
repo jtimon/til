@@ -307,19 +307,15 @@ precomp_scan_names := proc(prog: Expr) {
                 }
             } else if stmt.child(0).data.is(NodeType.EnumDef) {
                 ref sdd : Declaration = get_payload(stmt.data)
-                ref body : Expr = decl_body(stmt)
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    ref fdd : Declaration = get_payload(field.data)
-                    if fdd.is_namespace {
-                        if field.children.len().gt(0) {
-                            if field.child(0).data.is(NodeType.FuncDef) {
-                                ref ffd : FunctionDef = get_payload(field.child(0).data)
-                                if ffd.func_type.is(FuncType.Func) {
-                                    qname := sdd.name.concat("_").concat(fdd.name)
-                                    funcs.add(own qname)
-                                }
-                            }
+                ref _pc_edd : EnumDef = get_payload(stmt.child(0).data)
+                for j in 0.._pc_edd.ns_decls.len() {
+                    ref nsd : Declaration = _pc_edd.ns_decls.get(j)
+                    if is_null(nsd.default_value) { continue }
+                    if nsd.default_value.data.is(NodeType.FuncDef) {
+                        ref ffd : FunctionDef = get_payload(nsd.default_value.data)
+                        if ffd.func_type.is(FuncType.Func) {
+                            qname := sdd.name.concat("_").concat(nsd.name)
+                            funcs.add(own qname)
                         }
                     }
                 }

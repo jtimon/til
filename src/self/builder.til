@@ -23,6 +23,7 @@ ref mut codegen_program : Expr = NULL
 ref mut current_fdef : Expr = NULL
 mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", I64.size())
 mut func_defs := Map.new("Str", Str.size(), "Dynamic", I64.size())
+mut struct_def_exprs := Map.new("Str", Str.size(), "Dynamic", I64.size())
 mut script_globals := Set.new("Str", Str.size())
 mut has_script_globals := false
 mut ref_globals := Set.new("Str", Str.size())
@@ -160,6 +161,11 @@ find_struct_body := func(name: Str) returns ref Expr {
     return deref(struct_bodies.get(name))
 }
 
+find_struct_def := func(name: Str) returns ref Expr {
+    if struct_def_exprs.has(name).not() { return NULL }
+    return deref(struct_def_exprs.get(name))
+}
+
 find_callee_fdef := func(name: Str) returns ref Expr {
     if func_defs.has(name).not() { return NULL }
     return deref(func_defs.get(name))
@@ -200,13 +206,18 @@ builder_fa_is_ns := func(e: Expr) returns shallow Bool {
     if is_null(body) { return false }
     mut has_ns := false
     mut has_inst := false
+    ref _bfn_def : Expr = find_struct_def(sname)
+    if is_null(_bfn_def).not() {
+        ref _bfn_ns : Vec = def_ns_decls(_bfn_def)
+        for _bfn_i in 0.._bfn_ns.len() {
+            ref _bfn_d : Declaration = _bfn_ns.get(_bfn_i)
+            if _bfn_d.name.eq(fname) { has_ns = true }
+        }
+    }
     for fi in 0..body.children.len() {
         ref f : Expr = body.child(fi)
         ref dd : Declaration = get_payload(f.data)
-        if dd.name.eq(fname) {
-            if dd.is_namespace { has_ns = true }
-            else { has_inst = true }
-        }
+        if dd.name.eq(fname).and(dd.is_namespace.not()) { has_inst = true }
     }
     if has_ns.and(has_inst.not()) { return true }
     if has_ns.not() { return false }
@@ -500,6 +511,15 @@ collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
             }
         }
     }
+    if e.data.is(NodeType.StructDef).or(e.data.is(NodeType.EnumDef)) {
+        ref _cdm_ns : Vec = def_ns_decls(e)
+        for _cdm_i in 0.._cdm_ns.len() {
+            ref _cdm_d : Declaration = _cdm_ns.get(_cdm_i)
+            if is_null(_cdm_d.default_value).not() {
+                collect_dyn_methods(_cdm_d.default_value, methods)
+            }
+        }
+    }
     for ci in 0..e.children.len() {
         collect_dyn_methods(e.child(ci), methods)
     }
@@ -532,6 +552,15 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
                         }
                     }
                 }
+            }
+        }
+    }
+    if e.data.is(NodeType.StructDef).or(e.data.is(NodeType.EnumDef)) {
+        ref _ccb_ns : Vec = def_ns_decls(e)
+        for _ccb_i in 0.._ccb_ns.len() {
+            ref _ccb_d : Declaration = _ccb_ns.get(_ccb_i)
+            if is_null(_ccb_d.default_value).not() {
+                collect_collection_builtins(_ccb_d.default_value, infos)
             }
         }
     }
@@ -695,6 +724,15 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
             }
         }
     }
+    if e.data.is(NodeType.StructDef).or(e.data.is(NodeType.EnumDef)) {
+        ref _cdh_ns : Vec = def_ns_decls(e)
+        for _cdh_i in 0.._cdh_ns.len() {
+            ref _cdh_d : Declaration = _cdh_ns.get(_cdh_i)
+            if is_null(_cdh_d.default_value).not() {
+                collect_dyn_has_methods(_cdh_d.default_value, methods)
+            }
+        }
+    }
     for ci in 0..e.children.len() {
         collect_dyn_has_methods(e.child(ci), methods)
     }
@@ -763,10 +801,6 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                 if is_ctor {
                     if is_global {
                         f.write_str("memset(&"); f.write_str(dd.name); f.write_str(", 0, sizeof("); f.write_str(ctype); f.write_str("));\n")
-                    } else if can_hoist {
-                        f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str("; memset(&"); f.write_str(dd.name); f.write_str(", 0, sizeof("); f.write_str(ctype); f.write_str("));\n")
-                        stack_locals.add(own dd.name.clone())
-                        stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
                         f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(" = malloc(sizeof("); f.write_str(ctype); f.write_str("));\n")
                     }
@@ -1474,20 +1508,18 @@ emit_ns_inits := proc(f: File, shallow depth: I32) {
             if is_struct_or_enum(stmt) {
                 ref sname : Str = get_payload(stmt.data)
                 ref edef : Expr = stmt.child(0)
-                ref body : Expr = edef.child(0)
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    ref dd : Declaration = get_payload(field.data)
-                    if dd.is_namespace.not() { continue }
-                    if field.children.len().eq(0) { continue }
-                    if field.child(0).data.is(NodeType.FuncDef) { continue }
-                    if edef.data.is(NodeType.EnumDef) { continue }
+                if edef.data.is(NodeType.EnumDef) { continue }
+                ref _ni_ns : Vec = def_ns_decls(edef)
+                for j in 0.._ni_ns.len() {
+                    ref dd : Declaration = _ni_ns.get(j)
+                    if is_null(dd.default_value) { continue }
+                    if dd.default_value.data.is(NodeType.FuncDef) { continue }
                     emit_indent(f, depth)
                     f.write_str(sname)
                     f.write_str("_")
                     f.write_str(dd.name)
                     f.write_str(" = ")
-                    emit_deref(f, field.child(0), depth)
+                    emit_deref(f, dd.default_value, depth)
                     f.write_str(";\n")
                 }
             }
@@ -1832,23 +1864,21 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
         }
     }
     f.write_str("} "); f.write_str(name); f.write_str(";\n\n")
-    // Namespace fields as globals
-    ref body : Expr = struct_def.child(0)
-    for i in 0..body.children.len() {
-        ref field : Expr = body.child(i)
-        ref dd : Declaration = get_payload(field.data)
-        if dd.is_namespace.not() { continue }
-        if field.children.len().eq(0) { continue }
-        if field.child(0).data.is(NodeType.FuncDef) { continue }
-        if field.til_type.is(TilType.Struct).or(field.til_type.is(TilType.Enum)) {
-            fc0_sname3 := til_type_name(field.child(0).til_type)
-            if fc0_sname3.len().gt(0) {
-                f.write_str(fc0_sname3); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
+    // Namespace non-function fields as globals
+    ref _ng_ns : Vec = def_ns_decls(struct_def)
+    for i in 0.._ng_ns.len() {
+        ref dd : Declaration = _ng_ns.get(i)
+        if is_null(dd.default_value) { continue }
+        if dd.default_value.data.is(NodeType.FuncDef) { continue }
+        if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
+            _ng_sname := til_type_name(dd.default_value.til_type)
+            if _ng_sname.len().gt(0) {
+                f.write_str(_ng_sname); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
             } else {
-                tc := til_type_to_c(field.til_type); f.write_str(tc); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
+                tc := til_type_to_c(dd.til_type); f.write_str(tc); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
             }
         } else {
-            tc := til_type_to_c(field.til_type); f.write_str(tc); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
+            tc := til_type_to_c(dd.til_type); f.write_str(tc); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
         }
     }
 }
@@ -1879,12 +1909,15 @@ emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr) {
 }
 
 emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr) {
-    ref body : Expr = struct_def.child(0)
-    for i in 0..body.children.len() {
-        ref field : Expr = body.child(i)
-        if is_namespace_method(field).not() { continue }
-        ref dd : Declaration = get_payload(field.data)
-        emit_ns_method(f, name, dd.name, field.child(0))
+    // User-defined from ns_decls
+    ref ns : Vec = def_ns_decls(struct_def)
+    for i in 0..ns.len() {
+        ref dd : Declaration = ns.get(i)
+        if is_null(dd.default_value) { continue }
+        if dd.default_value.data.is(NodeType.NoDefaultArg) { continue }
+        if dd.default_value.data.is(NodeType.FuncDef) {
+            emit_ns_method(f, name, dd.name, dd.default_value)
+        }
     }
 }
 
@@ -2158,17 +2191,16 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
             if stmt.children.len().eq(0) { continue }
             ref rhs : Expr = stmt.child(0)
             if rhs.data.is(NodeType.StructDef).or(rhs.data.is(NodeType.EnumDef)) {
-                if is_scalar_method_type(dd.name) { continue }
-                ref body : Expr = rhs.child(0)
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    if is_namespace_method(field).not() { continue }
-                    ref fdd : Declaration = get_payload(field.data)
-                    ref fdef : Expr = field.child(0)
-                    ref fd : FunctionDef = get_payload(fdef.data)
+                // Forward-declare from ns_decls (user-defined)
+                ref fwd_ns : Vec = def_ns_decls(rhs)
+                for j in 0..fwd_ns.len() {
+                    ref fdd : Declaration = fwd_ns.get(j)
+                    if is_null(fdd.default_value) { continue }
+                    if fdd.default_value.data.is(NodeType.FuncDef).not() { continue }
+                    ref fd : FunctionDef = get_payload(fdd.default_value.data)
                     if is_core_pass.and(fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc))) { continue }
                     full_name := dd.name.concat("_").concat(fdd.name)
-                    emit_func_forward_decl(f, full_name, fdef)
+                    emit_func_forward_decl(f, full_name, fdd.default_value)
                 }
             } else if rhs.data.is(NodeType.FuncDef) {
                 if rhs.children.len().eq(0) { continue }
@@ -2188,19 +2220,29 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
         if stmt.children.len().eq(0) { continue }
         if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
         ref ebody : Expr = decl_body(stmt)
-        // Find eq fdef
+        // Find eq fdef from ns_decls first, then body
         mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
         mut has_eq_fdef := false
-        for j in 0..ebody.children.len() {
-            ref field : Expr = ebody.child(j)
-            ref fdd : Declaration = get_payload(field.data)
-            if fdd.is_namespace {
-                if fdd.name.eq("eq") {
-                    if field.children.len().gt(0) {
-                        if field.child(0).data.is(NodeType.FuncDef) {
-                            eq_fdef = field.child(0).clone()
-                            has_eq_fdef = true
-                        }
+        ref eq_ns : Vec = def_ns_decls(stmt.child(0))
+        for j in 0..eq_ns.len() {
+            ref nsd : Declaration = eq_ns.get(j)
+            if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
+                if nsd.default_value.data.is(NodeType.FuncDef) {
+                    eq_fdef = nsd.default_value.clone()
+                    has_eq_fdef = true
+                    break
+                }
+            }
+        }
+        if has_eq_fdef.not() {
+            for j in 0..ebody.children.len() {
+                ref field : Expr = ebody.child(j)
+                ref fdd : Declaration = get_payload(field.data)
+                if fdd.is_namespace.and(fdd.name.eq("eq")) {
+                    if field.children.len().gt(0).and(field.child(0).data.is(NodeType.FuncDef)) {
+                        eq_fdef = field.child(0).clone()
+                        has_eq_fdef = true
+                        break
                     }
                 }
             }
@@ -2275,33 +2317,38 @@ build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns sha
     return 0.to_i32()
 }
 
-emit_binding_ns_methods := proc(f: File, body: Expr) {
+emit_binding_ns_method := proc(f: File, fdd_name: Str, fd: FunctionDef, mut has_ns: Bool) returns shallow Bool {
+    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { return has_ns }
+    if has_ns.not() { f.write_str("    namespace:\n"); has_ns = true }
+    mut kw := "ext_func"
+    if fd.func_type.is(FuncType.Proc).or(fd.func_type.is(FuncType.Test)) { kw = "ext_proc" }
+    f.write_str("    "); f.write_str(fdd_name); f.write_str(" := "); f.write_str(kw); f.write_str("(")
+    for p in 0..fd.params.len() {
+        if p.gt(0) { f.write_str(", ") }
+        ref param : Declaration = fd.params.get(p)
+        if param.own_type.is(OwnType.Own) { f.write_str("own ") }
+        f.write_str(param.name); f.write_str(": "); f.write_str(param.explicit_type)
+    }
+    f.write_str(")")
+    if fd.return_type.len().gt(0) {
+        f.write_str(" returns ")
+        if fd.return_own_type.is(OwnType.Ref) { f.write_str("ref ") }
+        if fd.return_own_type.is(OwnType.Shallow) { f.write_str("shallow ") }
+        f.write_str(fd.return_type)
+    }
+    f.write_str(" {}\n")
+    return has_ns
+}
+
+emit_binding_ns_methods := proc(f: File, def: Expr) {
     mut has_ns := false
-    for j in 0..body.children.len() {
-        ref field : Expr = body.child(j)
-        if is_namespace_method(field).not() { continue }
-        ref fdd : Declaration = get_payload(field.data)
-        ref fdef : Expr = field.child(0)
-        ref fd : FunctionDef = get_payload(fdef.data)
-        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-        if has_ns.not() { f.write_str("    namespace:\n"); has_ns = true }
-        mut kw := "ext_func"
-        if fd.func_type.is(FuncType.Proc).or(fd.func_type.is(FuncType.Test)) { kw = "ext_proc" }
-        f.write_str("    "); f.write_str(fdd.name); f.write_str(" := "); f.write_str(kw); f.write_str("(")
-        for p in 0..fd.params.len() {
-            if p.gt(0) { f.write_str(", ") }
-            ref param : Declaration = fd.params.get(p)
-            if param.own_type.is(OwnType.Own) { f.write_str("own ") }
-            f.write_str(param.name); f.write_str(": "); f.write_str(param.explicit_type)
-        }
-        f.write_str(")")
-        if fd.return_type.len().gt(0) {
-            f.write_str(" returns ")
-            if fd.return_own_type.is(OwnType.Ref) { f.write_str("ref ") }
-            if fd.return_own_type.is(OwnType.Shallow) { f.write_str("shallow ") }
-            f.write_str(fd.return_type)
-        }
-        f.write_str(" {}\n")
+    ref _ebn_ns : Vec = def_ns_decls(def)
+    for j in 0.._ebn_ns.len() {
+        ref nsd : Declaration = _ebn_ns.get(j)
+        if is_null(nsd.default_value) { continue }
+        if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
+        ref fd : FunctionDef = get_payload(nsd.default_value.data)
+        has_ns = emit_binding_ns_method(f, nsd.name, fd, has_ns)
     }
 }
 
@@ -2332,10 +2379,9 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
                 else { f.write_str("0") }
                 f.write_str("\n")
             }
-            emit_binding_ns_methods(f, body)
+            emit_binding_ns_methods(f, rhs)
             f.write_str("}\n\n")
         } else if rhs.data.is(NodeType.EnumDef) {
-            ref body : Expr = rhs.child(0)
             ref _bind_edd : EnumDef = get_payload(rhs.data)
             f.write_str(dd.name); f.write_str(" := enum {\n")
             mut _bind_vi : USize = 0
@@ -2346,7 +2392,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
                 f.write_str(",\n")
                 _bind_vi = _bind_vi.add(1)
             }
-            emit_binding_ns_methods(f, body)
+            emit_binding_ns_methods(f, rhs)
             f.write_str("}\n\n")
         } else if rhs.data.is(NodeType.FuncDef) {
             ref fd : FunctionDef = get_payload(rhs.data)
@@ -2534,20 +2580,15 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
         ref rhs : Expr = stmt.child(0)
 
         if rhs.data.is(NodeType.StructDef).or(rhs.data.is(NodeType.EnumDef)) {
-            // Emit namespace method bindings
-            ref body : Expr = rhs.child(0)
-            for j in 0..body.children.len() {
-                ref field : Expr = body.child(j)
-                ref fdd : Declaration = get_payload(field.data)
-                if fdd.is_namespace.not() { continue }
-                if field.children.len().eq(0) { continue }
-                ref mdef : Expr = field.child(0)
-                if mdef.data.is(NodeType.FuncDef).not() { continue }
-                ref fd : FunctionDef = get_payload(mdef.data)
+            // Emit namespace method bindings from ns_decls
+            ref _pyb_ns : Vec = def_ns_decls(rhs)
+            for j in 0.._pyb_ns.len() {
+                ref nsd : Declaration = _pyb_ns.get(j)
+                if is_null(nsd.default_value) { continue }
+                if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
+                ref fd : FunctionDef = get_payload(nsd.default_value.data)
                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-
-                // argtypes
-                f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name)
+                f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(nsd.name)
                 f.write_str(".argtypes = [")
                 for p in 0..fd.params.len() {
                     if p.gt(0) { f.write_str(", ") }
@@ -2556,15 +2597,13 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                     f.write_str(type_name_to_ctypes_param(param.explicit_type, ps))
                 }
                 f.write_str("]\n")
-
-                // restype
                 if fd.return_type.len().gt(0) {
                     rs := fd.return_own_type.is(OwnType.Shallow)
-                    f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name)
+                    f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(nsd.name)
                     f.write_str(".restype = ")
                     f.write_str(type_name_to_ctypes_return(fd.return_type, rs)); f.write_str("\n")
                 } else {
-                    f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name)
+                    f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(nsd.name)
                     f.write_str(".restype = None\n")
                 }
                 f.write_str("\n")
@@ -2616,20 +2655,32 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
         hp := enum_has_payloads(rhs)
         ref ebody : Expr = rhs.child(0)
 
-        // Find eq fdef to check return shallow
+        // Find eq fdef to check return shallow (ns_decls first, body fallback)
         mut eq_shallow := false
-        for j in 0..ebody.children.len() {
-            ref field : Expr = ebody.child(j)
-            ref efdd : Declaration = get_payload(field.data)
-            if efdd.is_namespace.and(efdd.name.eq("eq")) {
-                if field.children.len().gt(0) {
-                    ref eq_def : Expr = field.child(0)
-                    if eq_def.data.is(NodeType.FuncDef) {
-                        ref eqfd : FunctionDef = get_payload(eq_def.data)
-                        eq_shallow = eqfd.return_own_type.is(OwnType.Shallow)
-                    }
+        ref py_eq_ns : Vec = def_ns_decls(rhs)
+        mut py_eq_found := false
+        for j in 0..py_eq_ns.len() {
+            ref nsd : Declaration = py_eq_ns.get(j)
+            if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
+                if nsd.default_value.data.is(NodeType.FuncDef) {
+                    ref eqfd : FunctionDef = get_payload(nsd.default_value.data)
+                    eq_shallow = eqfd.return_own_type.is(OwnType.Shallow)
+                    py_eq_found = true
                 }
                 break
+            }
+        }
+        if py_eq_found.not() {
+            for j in 0..ebody.children.len() {
+                ref field : Expr = ebody.child(j)
+                ref efdd : Declaration = get_payload(field.data)
+                if efdd.is_namespace.and(efdd.name.eq("eq")) {
+                    if field.children.len().gt(0).and(field.child(0).data.is(NodeType.FuncDef)) {
+                        ref eqfd : FunctionDef = get_payload(field.child(0).data)
+                        eq_shallow = eqfd.return_own_type.is(OwnType.Shallow)
+                    }
+                    break
+                }
             }
         }
         mut eq_ret := "ctypes.POINTER(ctypes.c_bool)"
@@ -2921,17 +2972,22 @@ register_lookups_prog := proc(prog: Expr) {
                 v : Dynamic = malloc(I64.size())
                 write_ptr(v, body)
                 struct_bodies.set(own dd.name.clone(), own v)
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    if is_namespace_method(field).not() { continue }
-                    ref fd : Declaration = get_payload(field.data)
-                    ref fdef : Expr = field.child(0)
-                    key := dd.name.concat("_").concat(fd.name)
+                _sdv : Dynamic = malloc(I64.size())
+                write_ptr(_sdv, rhs)
+                struct_def_exprs.set(own dd.name.clone(), own _sdv)
+                // Register ns_decls methods into func_defs
+                ref _rl_ns : Vec = def_ns_decls(rhs)
+                for j in 0.._rl_ns.len() {
+                    ref nsd : Declaration = _rl_ns.get(j)
+                    if is_null(nsd.default_value) { continue }
+                    if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
+                    key := dd.name.concat("_").concat(nsd.name)
+                    if func_defs.has(key) { continue }
                     fv : Dynamic = malloc(I64.size())
-                    write_ptr(fv, fdef)
+                    write_ptr(fv, nsd.default_value)
                     func_defs.set(own key, own fv)
-                    if fdef.children.len().gt(0) {
-                        ref fbody : Expr = fdef.child(0)
+                    if nsd.default_value.children.len().gt(0) {
+                        ref fbody : Expr = nsd.default_value.child(0)
                         for k in 0..fbody.children.len() {
                             ref nested : Expr = fbody.child(k)
                             if is_func_decl(nested).not() { continue }
@@ -2958,6 +3014,7 @@ register_lookups_prog := proc(prog: Expr) {
 // the clone bug makes stored pointers point to cloned nodes
 build_register_lookups := proc(core_program: Expr, program: Expr) {
     struct_bodies = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     stack_locals = Set.new("Str", Str.size())
     stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
@@ -2993,17 +3050,15 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
             if stmt.children.len().eq(0) { continue }
             ref rhs : Expr = stmt.child(0)
             if rhs.data.is(NodeType.StructDef).or(rhs.data.is(NodeType.EnumDef)) {
-                if is_scalar_method_type(dd.name) { continue }
-                ref body : Expr = rhs.child(0)
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    if is_namespace_method(field).not() { continue }
-                    ref fdd : Declaration = get_payload(field.data)
-                    ref fdef : Expr = field.child(0)
-                    ref fd : FunctionDef = get_payload(fdef.data)
+                ref fwd_ns2 : Vec = def_ns_decls(rhs)
+                for j in 0..fwd_ns2.len() {
+                    ref fdd : Declaration = fwd_ns2.get(j)
+                    if is_null(fdd.default_value) { continue }
+                    if fdd.default_value.data.is(NodeType.FuncDef).not() { continue }
+                    ref fd : FunctionDef = get_payload(fdd.default_value.data)
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                     full_name := dd.name.concat("_").concat(fdd.name)
-                    emit_func_forward_decl(f, full_name, fdef)
+                    emit_func_forward_decl(f, full_name, fdd.default_value)
                 }
             } else if rhs.data.is(NodeType.FuncDef) {
                 if rhs.children.len().eq(0) { continue }
@@ -3029,16 +3084,26 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
         ref ebody : Expr = decl_body(stmt)
         mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
         mut has_eq_fdef := false
-        for j in 0..ebody.children.len() {
-            ref field : Expr = ebody.child(j)
-            ref fdd : Declaration = get_payload(field.data)
-            if fdd.is_namespace {
-                if fdd.name.eq("eq") {
-                    if field.children.len().gt(0) {
-                        if field.child(0).data.is(NodeType.FuncDef) {
-                            eq_fdef = field.child(0).clone()
-                            has_eq_fdef = true
-                        }
+        ref sh3_eq_ns : Vec = def_ns_decls(stmt.child(0))
+        for j in 0..sh3_eq_ns.len() {
+            ref nsd : Declaration = sh3_eq_ns.get(j)
+            if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
+                if nsd.default_value.data.is(NodeType.FuncDef) {
+                    eq_fdef = nsd.default_value.clone()
+                    has_eq_fdef = true
+                    break
+                }
+            }
+        }
+        if has_eq_fdef.not() {
+            for j in 0..ebody.children.len() {
+                ref field : Expr = ebody.child(j)
+                ref fdd : Declaration = get_payload(field.data)
+                if fdd.is_namespace.and(fdd.name.eq("eq")) {
+                    if field.children.len().gt(0).and(field.child(0).data.is(NodeType.FuncDef)) {
+                        eq_fdef = field.child(0).clone()
+                        has_eq_fdef = true
+                        break
                     }
                 }
             }
@@ -3078,18 +3143,17 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
             if stmt.children.len().eq(0) { continue }
             ref rhs : Expr = stmt.child(0)
             if rhs.data.is(NodeType.StructDef).or(rhs.data.is(NodeType.EnumDef)) {
-                ref body : Expr = rhs.child(0)
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    if is_namespace_method(field).not() { continue }
-                    ref fdd : Declaration = get_payload(field.data)
-                    ref fdef : Expr = field.child(0)
-                    ref fd : FunctionDef = get_payload(fdef.data)
+                ref _afd_ns : Vec = def_ns_decls(rhs)
+                for j in 0.._afd_ns.len() {
+                    ref fdd : Declaration = _afd_ns.get(j)
+                    if is_null(fdd.default_value) { continue }
+                    if fdd.default_value.data.is(NodeType.FuncDef).not() { continue }
+                    ref fd : FunctionDef = get_payload(fdd.default_value.data)
                     if is_core_pass {
                         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                     }
                     full_name := dd.name.concat("_").concat(fdd.name)
-                    emit_func_forward_decl(f, full_name, fdef)
+                    emit_func_forward_decl(f, full_name, fdd.default_value)
                 }
             } else if rhs.data.is(NodeType.FuncDef) {
                 if rhs.children.len().eq(0) { continue }
@@ -3117,19 +3181,29 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
             if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = get_payload(stmt.data)
             ref ebody : Expr = decl_body(stmt)
-            // Find eq fdef
+            // Find eq fdef (ns_decls first, body fallback)
             mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
             mut has_eq_fdef := false
-            for j in 0..ebody.children.len() {
-                ref field : Expr = ebody.child(j)
-                ref fdd : Declaration = get_payload(field.data)
-                if fdd.is_namespace {
-                    if fdd.name.eq("eq") {
-                        if field.children.len().gt(0) {
-                            if field.child(0).data.is(NodeType.FuncDef) {
-                                eq_fdef = field.child(0).clone()
-                                has_eq_fdef = true
-                            }
+            ref sh_eq_ns : Vec = def_ns_decls(stmt.child(0))
+            for j in 0..sh_eq_ns.len() {
+                ref nsd : Declaration = sh_eq_ns.get(j)
+                if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
+                    if nsd.default_value.data.is(NodeType.FuncDef) {
+                        eq_fdef = nsd.default_value.clone()
+                        has_eq_fdef = true
+                        break
+                    }
+                }
+            }
+            if has_eq_fdef.not() {
+                for j in 0..ebody.children.len() {
+                    ref field : Expr = ebody.child(j)
+                    ref fdd : Declaration = get_payload(field.data)
+                    if fdd.is_namespace.and(fdd.name.eq("eq")) {
+                        if field.children.len().gt(0).and(field.child(0).data.is(NodeType.FuncDef)) {
+                            eq_fdef = field.child(0).clone()
+                            has_eq_fdef = true
+                            break
                         }
                     }
                 }
@@ -3225,6 +3299,54 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
     own coll_infos.delete()
 }
 
+emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: FunctionDef) {
+    np := fd.params.len()
+    ret_shallow := fd.return_own_type.is(OwnType.Shallow)
+    has_return := fd.return_type.len().gt(0)
+    mut any_shallow := ret_shallow
+    for p in 0..np {
+        ref pp : Declaration = fd.params.get(p)
+        if pp.own_type.is(OwnType.Shallow) { any_shallow = true }
+    }
+    if any_shallow.not() { return }
+    if has_return {
+        f.write_str("void *"); f.write_str(type_name); f.write_str("_"); f.write_str(method_name); f.write_str("_dyn(")
+    } else {
+        f.write_str("void "); f.write_str(type_name); f.write_str("_"); f.write_str(method_name); f.write_str("_dyn(")
+    }
+    for p in 0..np {
+        if p.gt(0) { f.write_str(", ") }
+        f.write_str("void *_a"); emit_i32(f, p.to_i64().to_i32())
+    }
+    if np.eq(0) { f.write_str("void") }
+    f.write_str(") {\n")
+    if has_return {
+        if ret_shallow {
+            rc := type_name_to_c_value(fd.return_type)
+            f.write_str("    "); f.write_str(rc); f.write_str(" *_r = malloc(sizeof("); f.write_str(rc); f.write_str(")); *_r = "); f.write_str(type_name); f.write_str("_"); f.write_str(method_name); f.write_str("(")
+        } else {
+            f.write_str("    return (void *)"); f.write_str(type_name); f.write_str("_"); f.write_str(method_name); f.write_str("(")
+        }
+    } else {
+        f.write_str("    "); f.write_str(type_name); f.write_str("_"); f.write_str(method_name); f.write_str("(")
+    }
+    for p in 0..np {
+        if p.gt(0) { f.write_str(", ") }
+        ref pp : Declaration = fd.params.get(p)
+        if pp.own_type.is(OwnType.Shallow) {
+            pc := type_name_to_c_value(pp.explicit_type)
+            f.write_str("*("); f.write_str(pc); f.write_str(" *)_a"); emit_i32(f, p.to_i64().to_i32())
+        } else {
+            f.write_str("_a"); emit_i32(f, p.to_i64().to_i32())
+        }
+    }
+    f.write_str(");")
+    if has_return {
+        if ret_shallow { f.write_str(" return _r;") }
+    }
+    f.write_str("\n}\n")
+}
+
 emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
     // Emit wrapper functions that normalize calling convention
     for prog_idx in 0..2 {
@@ -3236,58 +3358,13 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
             if is_struct_or_enum(stmt).not() { continue }
             ref def : Expr = stmt.child(0)
             ref dd : Declaration = get_payload(stmt.data)
-            ref body : Expr = def.child(0)
-            for j in 0..body.children.len() {
-                ref field : Expr = body.child(j)
-                if is_namespace_method(field).not() { continue }
-                ref fdd : Declaration = get_payload(field.data)
-                ref fdef : Expr = field.child(0)
-                ref fd : FunctionDef = get_payload(fdef.data)
-                np := fd.params.len()
-                ret_shallow := fd.return_own_type.is(OwnType.Shallow)
-                has_return := fd.return_type.len().gt(0)
-                mut any_shallow := ret_shallow
-                for p in 0..np {
-                    ref pp : Declaration = fd.params.get(p)
-                    if pp.own_type.is(OwnType.Shallow) { any_shallow = true }
-                }
-                if any_shallow.not() { continue }
-                if has_return {
-                    f.write_str("void *"); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str("_dyn(")
-                } else {
-                    f.write_str("void "); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str("_dyn(")
-                }
-                for p in 0..np {
-                    if p.gt(0) { f.write_str(", ") }
-                    f.write_str("void *_a"); emit_i32(f, p.to_i64().to_i32())
-                }
-                if np.eq(0) { f.write_str("void") }
-                f.write_str(") {\n")
-                if has_return {
-                    if ret_shallow {
-                        rc := type_name_to_c_value(fd.return_type)
-                        f.write_str("    "); f.write_str(rc); f.write_str(" *_r = malloc(sizeof("); f.write_str(rc); f.write_str(")); *_r = "); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str("(")
-                    } else {
-                        f.write_str("    return (void *)"); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str("(")
-                    }
-                } else {
-                    f.write_str("    "); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str("(")
-                }
-                for p in 0..np {
-                    if p.gt(0) { f.write_str(", ") }
-                    ref pp : Declaration = fd.params.get(p)
-                    if pp.own_type.is(OwnType.Shallow) {
-                        pc := type_name_to_c_value(pp.explicit_type)
-                        f.write_str("*("); f.write_str(pc); f.write_str(" *)_a"); emit_i32(f, p.to_i64().to_i32())
-                    } else {
-                        f.write_str("_a"); emit_i32(f, p.to_i64().to_i32())
-                    }
-                }
-                f.write_str(");")
-                if has_return {
-                    if ret_shallow { f.write_str(" return _r;") }
-                }
-                f.write_str("\n}\n")
+            ref _dfw_ns : Vec = def_ns_decls(def)
+            for j in 0.._dfw_ns.len() {
+                ref nsd : Declaration = _dfw_ns.get(j)
+                if is_null(nsd.default_value) { continue }
+                if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
+                ref fd : FunctionDef = get_payload(nsd.default_value.data)
+                emit_dyn_fn_wrapper(f, dd.name, nsd.name, fd)
             }
         }
     }
@@ -3302,13 +3379,12 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
             if is_struct_or_enum(stmt).not() { continue }
             ref def : Expr = stmt.child(0)
             ref dd : Declaration = get_payload(stmt.data)
-            ref body : Expr = def.child(0)
-            for j in 0..body.children.len() {
-                ref field : Expr = body.child(j)
-                if is_namespace_method(field).not() { continue }
-                ref fdd : Declaration = get_payload(field.data)
-                ref fdef : Expr = field.child(0)
-                ref fd : FunctionDef = get_payload(fdef.data)
+            ref _dfn_ns : Vec = def_ns_decls(def)
+            for j in 0.._dfn_ns.len() {
+                ref nsd : Declaration = _dfn_ns.get(j)
+                if is_null(nsd.default_value) { continue }
+                if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
+                ref fd : FunctionDef = get_payload(nsd.default_value.data)
                 mut any_shallow := fd.return_own_type.is(OwnType.Shallow)
                 for p in 0..fd.params.len() {
                     ref pp : Declaration = fd.params.get(p)
@@ -3317,8 +3393,8 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
                 mut suffix := ""
                 if any_shallow { suffix = "_dyn" }
                 tlen := dd.name.len().to_i64().to_u64()
-                mlen := fdd.name.len().to_i64().to_u64()
-                f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0 && method->count == "); emit_u64(f, mlen); f.write_str("ULL && memcmp(method->c_str, \""); f.write_str(fdd.name); f.write_str("\", "); emit_u64(f, mlen); f.write_str("ULL) == 0) return (void*)"); f.write_str(dd.name); f.write_str("_"); f.write_str(fdd.name); f.write_str(suffix); f.write_str(";\n")
+                mlen := nsd.name.len().to_i64().to_u64()
+                f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0 && method->count == "); emit_u64(f, mlen); f.write_str("ULL && memcmp(method->c_str, \""); f.write_str(nsd.name); f.write_str("\", "); emit_u64(f, mlen); f.write_str("ULL) == 0) return (void*)"); f.write_str(dd.name); f.write_str("_"); f.write_str(nsd.name); f.write_str(suffix); f.write_str(";\n")
             }
         }
     }
@@ -3350,18 +3426,16 @@ emit_dyn_call_bodies := proc(f: File, core_program: Expr, program: Expr) {
                 if is_struct_or_enum(stmt).not() { continue }
                 ref def : Expr = stmt.child(0)
                 ref dd : Declaration = get_payload(stmt.data)
-                ref body : Expr = def.child(0)
+                // Search ns_decls first, then body
                 ref mut method_fdef : Expr = NULL
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    ref fdd : Declaration = get_payload(field.data)
-                    if fdd.is_namespace {
-                        if fdd.name.eq(method) {
-                            if field.children.len().gt(0) {
-                                if field.child(0).data.is(NodeType.FuncDef) {
-                                    method_fdef = field.child(0)
-                                    break
-                                }
+                ref _dcb_ns : Vec = def_ns_decls(def)
+                for j in 0.._dcb_ns.len() {
+                    ref nsd : Declaration = _dcb_ns.get(j)
+                    if nsd.name.eq(method) {
+                        if is_null(nsd.default_value).not() {
+                            if nsd.default_value.data.is(NodeType.FuncDef) {
+                                method_fdef = nsd.default_value
+                                break
                             }
                         }
                     }
@@ -3461,14 +3535,11 @@ emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
                 if is_struct_or_enum(stmt).not() { continue }
                 ref rhs : Expr = stmt.child(0)
                 ref dd : Declaration = get_payload(stmt.data)
-                ref body : Expr = rhs.child(0)
                 mut found := false
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    ref fdd : Declaration = get_payload(field.data)
-                    if fdd.is_namespace {
-                        if fdd.name.eq(method) { found = true; break }
-                    }
+                ref _dhb_ns : Vec = def_ns_decls(rhs)
+                for j in 0.._dhb_ns.len() {
+                    ref nsd : Declaration = _dhb_ns.get(j)
+                    if nsd.name.eq(method) { found = true; break }
                 }
                 if found.not() { continue }
                 if dyn_has_shallow {

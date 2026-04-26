@@ -160,10 +160,44 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         }
     }
 
+    // Also traverse ns_decls entries (not in Expr children tree)
+    if e.data.is(NodeType.StructDef).or(e.data.is(NodeType.EnumDef)) {
+        ref _cr_ns : Vec = def_ns_decls(e)
+        for _cr_i in 0.._cr_ns.len() {
+            ref _cr_d : Declaration = _cr_ns.get(_cr_i)
+            if is_null(_cr_d.default_value).not() {
+                collect_refs(_cr_d.default_value, refs)
+            }
+        }
+    }
+
     // Recurse into children
     for i in 0..e.children.len() {
         collect_refs(e.child(i), refs)
     }
+}
+
+find_ns_decl_fdef := func(program: Expr, top: Map, name: Str) returns ref Expr {
+    dot := name.find(".")
+    if dot.lt(0) { return NULL }
+    type_part := name.substr(0, dot.to_u32())
+    if top.has(type_part).not() { return NULL }
+    ref tidx : U32 = top.get(type_part)
+    ref tdecl : Expr = program.child(tidx)
+    if tdecl.data.is(NodeType.Decl).not() { return NULL }
+    if is_struct_or_enum(tdecl).not() { return NULL }
+    dot_u := dot.to_u32()
+    method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
+    ref ns : Vec = def_ns_decls(tdecl.child(0))
+    for k in 0..ns.len() {
+        ref nsd : Declaration = ns.get(k)
+        if nsd.name.eq(method_part) {
+            if is_null(nsd.default_value).not() {
+                return nsd.default_value
+            }
+        }
+    }
+    return NULL
 }
 
 find_ns_method := func(program: Expr, top: Map, name: Str) returns ref Expr {
@@ -187,6 +221,8 @@ find_ns_method := func(program: Expr, top: Map, name: Str) returns ref Expr {
             }
         }
     }
+    // Not found in body -- also mark ns_decls as visited
+    // (return NULL; caller will check ns_decls separately)
     return NULL
 }
 
@@ -288,6 +324,12 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                 push_qn(worklist, name, "clone")
                 push_qn(worklist, name, "size")
                 push_qn(worklist, name, "cmp")
+                // Also push all ns_decls methods
+                ref _bfs_ns : Vec = def_ns_decls(decl.child(0))
+                for _bfs_j in 0.._bfs_ns.len() {
+                    ref _bfs_d : Declaration = _bfs_ns.get(_bfs_j)
+                    push_qn(worklist, name, _bfs_d.name)
+                }
             } else {
                 collect_refs(decl.child(0), worklist)
             }
@@ -308,23 +350,29 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                 push_qn(worklist, name, "clone")
                 push_qn(worklist, name, "size")
                 push_qn(worklist, name, "cmp")
+                // Also push all ns_decls methods
+                ref _bfs_ns2 : Vec = def_ns_decls(decl.child(0))
+                for _bfs_j2 in 0.._bfs_ns2.len() {
+                    ref _bfs_d2 : Declaration = _bfs_ns2.get(_bfs_j2)
+                    push_qn(worklist, name, _bfs_d2.name)
+                }
             } else {
                 collect_refs(decl.child(0), worklist)
             }
         }
 
-        // Namespace method? (check both user and core)
-        ref method : Expr = find_ns_method(program, top, name)
-        if is_null(method).not() {
-            if method.child(0).data.is(NodeType.FuncDef) {
-                collect_refs(method.child(0), worklist)
+        // Namespace method? (check ns_decls in both user and core)
+        ref ns_fdef : Expr = find_ns_decl_fdef(program, top, name)
+        if is_null(ns_fdef).not() {
+            if ns_fdef.data.is(NodeType.FuncDef) {
+                collect_refs(ns_fdef, worklist)
             }
         }
         if is_null(core_program).not() {
-            ref core_method : Expr = find_ns_method(core_program, core_top, name)
-            if is_null(core_method).not() {
-                if core_method.child(0).data.is(NodeType.FuncDef) {
-                    collect_refs(core_method.child(0), worklist)
+            ref core_ns_fdef : Expr = find_ns_decl_fdef(core_program, core_top, name)
+            if is_null(core_ns_fdef).not() {
+                if core_ns_fdef.data.is(NodeType.FuncDef) {
+                    collect_refs(core_ns_fdef, worklist)
                 }
             }
         }
@@ -375,6 +423,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             if stmt.data.is(NodeType.Decl).not() { continue }
             if is_struct_or_enum(stmt).not() { continue }
             ref sdecl : Declaration = get_payload(stmt.data)
+            // Filter body ns methods
             ref body : Expr = decl_body(stmt)
             bn := body.children.len()
             bm : Dynamic = malloc(bn)
@@ -391,6 +440,22 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             }
             children_filter(body.children, bm, bn)
             free(own bm)
+            // Filter ns_decls entries
+            ref _scv_ns : Vec = def_ns_decls(stmt.child(0))
+            _scv_nn := _scv_ns.len()
+            if _scv_nn.gt(0) {
+                _scv_nm : Dynamic = malloc(_scv_nn)
+                memset(_scv_nm, 0, _scv_nn)
+                for j in 0.._scv_nn {
+                    ref nsd : Declaration = _scv_ns.get(j)
+                    _scv_qn := qualified_name(sdecl.name, nsd.name)
+                    if visited.has(_scv_qn).not() {
+                        memset(ptr_add(_scv_nm, j), 1, 1)
+                    }
+                }
+                children_filter(_scv_ns, _scv_nm, _scv_nn)
+                free(own _scv_nm)
+            }
         }
     }
     for i in 0..program.children.len() {
@@ -414,6 +479,22 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         }
         children_filter(body.children, bm, bn)
         free(own bm)
+        // Filter ns_decls entries
+        ref _scv_ns2 : Vec = def_ns_decls(stmt.child(0))
+        _scv_nn2 := _scv_ns2.len()
+        if _scv_nn2.gt(0) {
+            _scv_nm2 : Dynamic = malloc(_scv_nn2)
+            memset(_scv_nm2, 0, _scv_nn2)
+            for j in 0.._scv_nn2 {
+                ref nsd : Declaration = _scv_ns2.get(j)
+                _scv_qn2 := qualified_name(sdecl.name, nsd.name)
+                if visited.has(_scv_qn2).not() {
+                    memset(ptr_add(_scv_nm2, j), 1, 1)
+                }
+            }
+            children_filter(_scv_ns2, _scv_nm2, _scv_nn2)
+            free(own _scv_nm2)
+        }
     }
 
     gc_free_all()

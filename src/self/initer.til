@@ -208,7 +208,6 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
         if sname.eq("Dynamic") { continue }
 
         ref sdef : Expr = stmt.child(0)
-        ref mut body : Expr = sdef.child(0)
         ref sdd : StructDef = get_payload(sdef.data)
 
         mut has_clone := false
@@ -287,9 +286,8 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
         func_def.add_child(own func_body)
 
-        mut decl := Expr.new(NodeType.Decl(Declaration(name = "clone", is_namespace = true, is_mut = false, explicit_type = "")), stmt.line, stmt.col, stmt.path)
-        decl.add_child(own func_def)
-        body.add_child(own decl)
+        ref mut _cl_sdd : StructDef = get_payload(sdef.data)
+        _cl_sdd.ns_decls.push(own Declaration(name = "clone", is_namespace = true, default_value = func_def))
     }
 }
 
@@ -918,7 +916,6 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
         if sname.eq("Dynamic") { continue }
 
         ref sdef : Expr = stmt.child(0)
-        ref mut body : Expr = sdef.child(0)
         ref sdd : StructDef = get_payload(sdef.data)
 
         mut has_delete := false
@@ -992,9 +989,8 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
         mut proc_def := Expr.new(NodeType.FuncDef(proc_decl), stmt.line, stmt.col, stmt.path)
         proc_def.add_child(own proc_body)
 
-        mut decl := Expr.new(NodeType.Decl(Declaration(name = "delete", is_namespace = true, is_mut = false, explicit_type = "")), stmt.line, stmt.col, stmt.path)
-        decl.add_child(own proc_def)
-        body.add_child(own decl)
+        ref mut _del_sdd : StructDef = get_payload(sdef.data)
+        _del_sdd.ns_decls.push(own Declaration(name = "delete", is_namespace = true, default_value = proc_def))
     }
 }
 
@@ -1149,7 +1145,6 @@ generate_struct_size_methods := proc(program: Expr) {
         ref sdecl : Declaration = get_payload(stmt.data)
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
-        ref mut body : Expr = def.child(0)
         ref struct_meta : StructDef = get_payload(def.data)
         mut has_size := false
         for j in 0..struct_meta.ns_decls.len() {
@@ -1179,9 +1174,8 @@ generate_struct_size_methods := proc(program: Expr) {
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
         func_def.add_child(own func_body)
 
-        mut decl := Expr.new(NodeType.Decl(Declaration(name = "size", is_namespace = true, is_mut = false, explicit_type = "")), stmt.line, stmt.col, stmt.path)
-        decl.add_child(own func_def)
-        body.add_child(own decl)
+        ref mut _sz_sdd : StructDef = get_payload(def.data)
+        _sz_sdd.ns_decls.push(own Declaration(name = "size", is_namespace = true, default_value = func_def))
     }
 }
 
@@ -1197,11 +1191,10 @@ generate_enum_size_methods := proc(program: Expr) {
         if sname.eq("Dynamic") { continue }
         ref mut body : Expr = def.child(0)
         mut has_size := false
-        for j in 0..body.children.len() {
-            ref field : Expr = body.child(j)
-            if field.data.is(NodeType.Decl).not() { continue }
-            ref fd : Declaration = get_payload(field.data)
-            if fd.is_namespace.and(fd.name.eq("size")) {
+        ref size_ns : Vec = def_ns_decls(def)
+        for j in 0..size_ns.len() {
+            ref fd : Declaration = size_ns.get(j)
+            if fd.name.eq("size") {
                 has_size = true
                 break
             }
@@ -1251,17 +1244,14 @@ generate_unity_derived_methods := proc(program: Expr) {
         mut has_unity := false
         mut has_inc := false
         mut has_dec := false
-        for j in 0..body.children.len() {
-            ref f : Expr = body.child(j)
-            if f.data.is(NodeType.Decl).not() { continue }
-            if is_namespace_method(f).not() { continue }
-            ref fd : Declaration = get_payload(f.data)
-            fn := fd.name
-            if fn.eq("add") { has_add = true }
-            if fn.eq("sub") { has_sub = true }
-            if fn.eq("unity") { has_unity = true }
-            if fn.eq("inc") { has_inc = true }
-            if fn.eq("dec") { has_dec = true }
+        ref unity_ns : Vec = def_ns_decls(def)
+        for j in 0..unity_ns.len() {
+            ref fd : Declaration = unity_ns.get(j)
+            if fd.name.eq("add") { has_add = true }
+            if fd.name.eq("sub") { has_sub = true }
+            if fd.name.eq("unity") { has_unity = true }
+            if fd.name.eq("inc") { has_inc = true }
+            if fd.name.eq("dec") { has_dec = true }
         }
         if has_unity.not() { continue }
 
@@ -1309,9 +1299,14 @@ generate_unity_derived_methods := proc(program: Expr) {
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own proc_body)
 
-            mut decl := Expr.new(NodeType.Decl(Declaration(name = method.clone(), is_namespace = true)), stmt.line, stmt.col, stmt.path)
-            decl.add_child(own func_def)
-            body.add_child(own decl)
+            if def.data.is(NodeType.StructDef) {
+                ref mut _un_sdd : StructDef = get_payload(def.data)
+                _un_sdd.ns_decls.push(own Declaration(name = method.clone(), is_namespace = true, default_value = func_def))
+            } else {
+                mut decl := Expr.new(NodeType.Decl(Declaration(name = method.clone(), is_namespace = true)), stmt.line, stmt.col, stmt.path)
+                decl.add_child(own func_def)
+                body.add_child(own decl)
+            }
         }
     }
 }
@@ -1339,19 +1334,16 @@ generate_cmp_derived_methods := proc(program: Expr) {
         mut has_gt := false
         mut has_lte := false
         mut has_gte := false
-        for j in 0..body.children.len() {
-            ref f : Expr = body.child(j)
-            if f.data.is(NodeType.Decl).not() { continue }
-            if is_namespace_method(f).not() { continue }
-            ref fd : Declaration = get_payload(f.data)
-            fn := fd.name
-            if fn.eq("cmp") { has_cmp = true }
-            if fn.eq("eq") { has_eq = true }
-            if fn.eq("neq") { has_neq = true }
-            if fn.eq("lt") { has_lt = true }
-            if fn.eq("gt") { has_gt = true }
-            if fn.eq("lte") { has_lte = true }
-            if fn.eq("gte") { has_gte = true }
+        ref cmp_ns : Vec = def_ns_decls(def)
+        for j in 0..cmp_ns.len() {
+            ref fd : Declaration = cmp_ns.get(j)
+            if fd.name.eq("cmp") { has_cmp = true }
+            if fd.name.eq("eq") { has_eq = true }
+            if fd.name.eq("neq") { has_neq = true }
+            if fd.name.eq("lt") { has_lt = true }
+            if fd.name.eq("gt") { has_gt = true }
+            if fd.name.eq("lte") { has_lte = true }
+            if fd.name.eq("gte") { has_gte = true }
         }
         if has_cmp.not() { continue }
 
@@ -1385,9 +1377,14 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            mut decl := Expr.new(NodeType.Decl(Declaration(name = "eq", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-            decl.add_child(own func_def)
-            body.add_child(own decl)
+            if def.data.is(NodeType.StructDef) {
+                ref mut _cmp_sdd : StructDef = get_payload(def.data)
+                _cmp_sdd.ns_decls.push(own Declaration(name = "eq", is_namespace = true, default_value = func_def))
+            } else {
+                mut decl := Expr.new(NodeType.Decl(Declaration(name = "eq", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+                decl.add_child(own func_def)
+                body.add_child(own decl)
+            }
         }
 
         if has_lt.not() {
@@ -1426,9 +1423,14 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            mut decl := Expr.new(NodeType.Decl(Declaration(name = "lt", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-            decl.add_child(own func_def)
-            body.add_child(own decl)
+            if def.data.is(NodeType.StructDef) {
+                ref mut _cmp_sdd : StructDef = get_payload(def.data)
+                _cmp_sdd.ns_decls.push(own Declaration(name = "lt", is_namespace = true, default_value = func_def))
+            } else {
+                mut decl := Expr.new(NodeType.Decl(Declaration(name = "lt", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+                decl.add_child(own func_def)
+                body.add_child(own decl)
+            }
         }
 
         if has_gt.not() {
@@ -1461,9 +1463,14 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            mut decl := Expr.new(NodeType.Decl(Declaration(name = "gt", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-            decl.add_child(own func_def)
-            body.add_child(own decl)
+            if def.data.is(NodeType.StructDef) {
+                ref mut _cmp_sdd : StructDef = get_payload(def.data)
+                _cmp_sdd.ns_decls.push(own Declaration(name = "gt", is_namespace = true, default_value = func_def))
+            } else {
+                mut decl := Expr.new(NodeType.Decl(Declaration(name = "gt", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+                decl.add_child(own func_def)
+                body.add_child(own decl)
+            }
         }
 
         if has_neq.not() {
@@ -1494,9 +1501,14 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            mut decl := Expr.new(NodeType.Decl(Declaration(name = "neq", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-            decl.add_child(own func_def)
-            body.add_child(own decl)
+            if def.data.is(NodeType.StructDef) {
+                ref mut _cmp_sdd : StructDef = get_payload(def.data)
+                _cmp_sdd.ns_decls.push(own Declaration(name = "neq", is_namespace = true, default_value = func_def))
+            } else {
+                mut decl := Expr.new(NodeType.Decl(Declaration(name = "neq", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+                decl.add_child(own func_def)
+                body.add_child(own decl)
+            }
         }
 
         if has_lte.not() {
@@ -1527,9 +1539,14 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            mut decl := Expr.new(NodeType.Decl(Declaration(name = "lte", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-            decl.add_child(own func_def)
-            body.add_child(own decl)
+            if def.data.is(NodeType.StructDef) {
+                ref mut _cmp_sdd : StructDef = get_payload(def.data)
+                _cmp_sdd.ns_decls.push(own Declaration(name = "lte", is_namespace = true, default_value = func_def))
+            } else {
+                mut decl := Expr.new(NodeType.Decl(Declaration(name = "lte", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+                decl.add_child(own func_def)
+                body.add_child(own decl)
+            }
         }
 
         if has_gte.not() {
@@ -1560,9 +1577,14 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            mut decl := Expr.new(NodeType.Decl(Declaration(name = "gte", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-            decl.add_child(own func_def)
-            body.add_child(own decl)
+            if def.data.is(NodeType.StructDef) {
+                ref mut _cmp_sdd : StructDef = get_payload(def.data)
+                _cmp_sdd.ns_decls.push(own Declaration(name = "gte", is_namespace = true, default_value = func_def))
+            } else {
+                mut decl := Expr.new(NodeType.Decl(Declaration(name = "gte", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+                decl.add_child(own func_def)
+                body.add_child(own decl)
+            }
         }
     }
 }

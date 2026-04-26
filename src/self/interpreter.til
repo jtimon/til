@@ -1228,13 +1228,15 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
     ref body : Expr = sdef.child(0)
     mut has_ns := false
     mut has_inst := false
+    ref _ins_ns : Vec = def_ns_decls(sdef)
+    for _ins_i in 0.._ins_ns.len() {
+        ref _ins_d : Declaration = _ins_ns.get(_ins_i)
+        if _ins_d.name.eq(fname) { has_ns = true }
+    }
     for i in 0..body.children.len() {
         ref f : Expr = body.child(i)
         ref dd : Declaration = get_payload(f.data)
-        if dd.name.eq(fname) {
-            if dd.is_namespace { has_ns = true }
-            else { has_inst = true }
-        }
+        if dd.name.eq(fname).and(dd.is_namespace.not()) { has_inst = true }
     }
     if has_ns {
         if has_inst.not() { return true }
@@ -1348,22 +1350,20 @@ interpreter_init_ns := proc(mut global: Scope, program: Expr) {
             if dd.name.eq("Array") { cached_array_def = sdef; cached_array_name = dd.name }
             if dd.name.eq("Vec") { cached_vec_def = sdef; cached_vec_name = dd.name }
         }
-        ref body : Expr = sdef.child(0)
-        for j in 0..body.children.len() {
-            ref field : Expr = body.child(j)
-            ref fdd : Declaration = get_payload(field.data)
-            if fdd.is_namespace {
-                mut fval := eval_expr(global, field.child(0))
-                if sdef.data.is(NodeType.EnumDef) {
-                    if enum_has_payloads(sdef).not() {
-                        if fval.is(Value.Int) {
-                            ref iv : I64 = get_payload(fval)
-                            fval = val_i32(iv)
-                        }
+        ref _ien_ns : Vec = def_ns_decls(sdef)
+        for j in 0.._ien_ns.len() {
+            ref nsd : Declaration = _ien_ns.get(j)
+            if is_null(nsd.default_value) { continue }
+            mut fval := eval_expr(global, nsd.default_value)
+            if sdef.data.is(NodeType.EnumDef) {
+                if enum_has_payloads(sdef).not() {
+                    if fval.is(Value.Int) {
+                        ref iv : I64 = get_payload(fval)
+                        fval = val_i32(iv)
                     }
                 }
-                ns_set(dd.name, fdd.name, fval)
             }
+            ns_set(dd.name, nsd.name, fval)
         }
     }
 }
@@ -1623,14 +1623,11 @@ interpret_copy_alias_ns := proc(prog: Expr, global: Scope) {
                     ref fptr : Dynamic = get_payload(tc.val)
                     ref sdef : Expr = deref(fptr)
                     if sdef.data.is(NodeType.StructDef).or(sdef.data.is(NodeType.EnumDef)) {
-                        ref body : Expr = sdef.child(0)
-                        for j in 0..body.children.len() {
-                            ref field : Expr = body.child(j)
-                            ref fdd : Declaration = get_payload(field.data)
-                            if fdd.is_namespace {
-                                ref v : Value = ns_get(rhs_ident, fdd.name)
-                                if is_null(v).not() { ns_set(dd.name, fdd.name, v) }
-                            }
+                        ref _ica_ns : Vec = def_ns_decls(sdef)
+                        for j in 0.._ica_ns.len() {
+                            ref nsd : Declaration = _ica_ns.get(j)
+                            ref v : Value = ns_get(rhs_ident, nsd.name)
+                            if is_null(v).not() { ns_set(dd.name, nsd.name, v) }
                         }
                     }
                 }

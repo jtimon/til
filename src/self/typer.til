@@ -14,12 +14,11 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns shallow Bool {
     }
     ref sdef : Expr = scope.get_struct(sn)
     if is_null(sdef) { return false }
-    ref body : Expr = sdef.child(0)
     ref fname : Str = get_payload(e.data)
-    for i in 0..body.children.len() {
-        ref field : Expr = body.child(i)
-        ref dd : Declaration = get_payload(field.data)
-        if dd.name.eq(fname).and(dd.is_namespace) { return true }
+    ref ns : Vec = def_ns_decls(sdef)
+    for i in 0..ns.len() {
+        ref dd : Declaration = ns.get(i)
+        if dd.name.eq(fname) { return true }
     }
     return false
 }
@@ -90,16 +89,6 @@ type_error_at := proc(path: Str, shallow line: U32, shallow col: U32, msg: Str) 
 
 find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
     if is_null(sdef) { return NULL }
-    // Search body first (type-checked Exprs for codegen)
-    ref body : Expr = sdef.child(0)
-    for i in 0..body.children.len() {
-        ref field : Expr = body.child(i)
-        if is_namespace_method(field).not() { continue }
-        ref bd : Declaration = get_payload(field.data)
-        if bd.name.eq(method).not() { continue }
-        return field.child(0)
-    }
-    // Fall back to ns_decls (user-defined not in body)
     ref ns : Vec = def_ns_decls(sdef)
     for i in 0..ns.len() {
         ref fd : Declaration = ns.get(i)
@@ -286,14 +275,12 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
     // #99: if struct has new(), disallow literal outside its namespace
     if _current_type_name.eq(name).not() {
         mut _has_new := false
-        for _ni in 0..body.children.len() {
-            ref _nf : Expr = body.child(_ni)
-            if _nf.data.is(NodeType.Decl) {
-                ref _nd : Declaration = get_payload(_nf.data)
-                if _nd.is_namespace.and(_nd.name.eq("new")) {
-                    _has_new = true
-                    break
-                }
+        ref _new_ns : Vec = def_ns_decls(sdef)
+        for _ni in 0.._new_ns.len() {
+            ref _nd : Declaration = _new_ns.get(_ni)
+            if _nd.name.eq("new") {
+                _has_new = true
+                break
             }
         }
         if _has_new {
@@ -1173,6 +1160,31 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     }
     inner := TypeScope(parent = scope)
     infer_body(inner, expr.child(0), 0, 0, 0, 0, 1, ctx)
+    // Type-check ns_decls (stored directly by parser, not via body)
+    ref tc_ns : Vec = def_ns_decls(expr)
+    for tc_i in 0..tc_ns.len() {
+        ref mut tc_nd : Declaration = tc_ns.get(tc_i)
+        if is_null(tc_nd.default_value) { continue }
+        if tc_nd.default_value.data.is(NodeType.NoDefaultArg) { continue }
+        if tc_nd.default_value.data.is(NodeType.FuncDef) {
+            ref tc_fd : FunctionDef = get_payload(tc_nd.default_value.data)
+            mut tc_rt := TilType.None
+            if tc_fd.return_type.len().gt(0) {
+                tc_rt = type_from_name(tc_fd.return_type, inner)
+            }
+            tc_nd.til_type = tc_rt.clone()
+            inner.set(tc_nd.name, tc_rt, tc_fd.func_type, false, 0, 0, false, OwnType.Shallow)
+            ref mut tc_fb : TypeBinding = inner.get_binding(tc_nd.name)
+            tc_fb.func_def = tc_nd.default_value
+            if tc_fd.func_type.is(FuncType.ExtFunc).or(tc_fd.func_type.is(FuncType.ExtProc)) {
+                tc_fb.is_builtin = true
+            }
+            infer_func_def_expr(inner, tc_nd.default_value, ctx)
+        } else {
+            infer_expr(inner, tc_nd.default_value, 0, ctx)
+            tc_nd.til_type = tc_nd.default_value.til_type.clone()
+        }
+    }
     TypeScope.delete(own inner)
     _current_struct_def = saved_struct_def
 }
@@ -2323,15 +2335,13 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
         return false
     }
 
-    ref sbody : Expr = sdef.child(0)
     ref mut len_func : Expr = NULL
     ref mut get_func : Expr = NULL
-    for fi in 0..sbody.children.len() {
-        ref field : Expr = sbody.child(fi)
-        if is_namespace_method(field).not() { continue }
-        ref fd : Declaration = get_payload(field.data)
-        if fd.name.eq("len") { len_func = field.child(0) }
-        if fd.name.eq("get") { get_func = field.child(0) }
+    ref forin_ns : Vec = def_ns_decls(sdef)
+    for fi in 0..forin_ns.len() {
+        ref fd : Declaration = forin_ns.get(fi)
+        if fd.name.eq("len").and(is_null(fd.default_value).not()) { len_func = fd.default_value }
+        if fd.name.eq("get").and(is_null(fd.default_value).not()) { get_func = fd.default_value }
     }
 
     if is_null(len_func) {
@@ -2785,15 +2795,10 @@ usize_type := func(scope: TypeScope) returns TilType {
 type_has_cmp := func(scope: TypeScope, type_name: Str) returns shallow Bool {
     ref sdef : Expr = scope.get_struct(type_name)
     if is_null(sdef) { return false }
-    ref body : Expr = sdef.child(0)
-    for i in 0..body.children.len() {
-        ref f : Expr = body.child(i)
-        if f.data.is(NodeType.Decl) {
-            ref decl : Declaration = get_payload(f.data)
-            if decl.is_namespace.and(decl.name.eq("cmp")) {
-                return true
-            }
-        }
+    ref cmp_ns : Vec = def_ns_decls(sdef)
+    for i in 0..cmp_ns.len() {
+        ref decl : Declaration = cmp_ns.get(i)
+        if decl.name.eq("cmp") { return true }
     }
     return false
 }
@@ -3939,15 +3944,12 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
         ref _tn : Str = get_payload(type_node.data)
         ref sdef : Expr = scope.get_struct(_tn)
         if is_null(sdef) { return false }
-        ref body : Expr = sdef.child(0)
-        for i in 0..body.children.len() {
-            ref field : Expr = body.child(i)
-            if field.data.is(NodeType.Decl) {
-                ref fd : Declaration = get_payload(field.data)
-                if fd.is_namespace.and(fd.name.eq(method)) {
-                    if field.child(0).data.is(NodeType.FuncDef) {
-                        return check_own_args(field.child(0), fcall, var_name)
-                    }
+        ref oa_ns : Vec = def_ns_decls(sdef)
+        for i in 0..oa_ns.len() {
+            ref fd : Declaration = oa_ns.get(i)
+            if fd.name.eq(method) {
+                if is_null(fd.default_value).not().and(fd.default_value.data.is(NodeType.FuncDef)) {
+                    return check_own_args(fd.default_value, fcall, var_name)
                 }
             }
         }
@@ -4440,17 +4442,14 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
         ref _cti : Str = get_payload(callee.child(0).data)
         ref sdef : Expr = scope.get_struct(_cti)
         if is_null(sdef) { return 0.to_i32() }
-        ref body : Expr = sdef.child(0)
         ref _cfa : Str = get_payload(callee.data)
-        for j in 0..body.children.len() {
-            ref f : Expr = body.child(j)
-            if f.data.is(NodeType.Decl) {
-                ref fd : Declaration = get_payload(f.data)
-                if fd.is_namespace.and(fd.name.eq(_cfa)) {
-                    if f.child(0).data.is(NodeType.FuncDef) {
-                        ref _ffd : FunctionDef = get_payload(f.child(0).data)
-                        return _ffd.return_own_type.eq(OwnType.Ref)
-                    }
+        ref _cfa_ns : Vec = def_ns_decls(sdef)
+        for j in 0.._cfa_ns.len() {
+            ref fd : Declaration = _cfa_ns.get(j)
+            if fd.name.eq(_cfa) {
+                if is_null(fd.default_value).not().and(fd.default_value.data.is(NodeType.FuncDef)) {
+                    ref _ffd : FunctionDef = get_payload(fd.default_value.data)
+                    return _ffd.return_own_type.eq(OwnType.Ref)
                 }
             }
         }
