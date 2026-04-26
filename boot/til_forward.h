@@ -1527,6 +1527,7 @@ extern I32 _va_counter;
 extern I32 _kw_counter;
 extern I32 errors;
 extern Str _current_type_name;
+extern Expr *_current_struct_def;
 extern Str I64Name;
 extern Str U8Name;
 extern Str I16Name;
