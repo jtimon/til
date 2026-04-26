@@ -398,13 +398,23 @@
      *_hp; free(_hp)~ return round-trip for hoisted compound temps
      (the main pattern called out in the issue body).
 
-   ~_oa = malloc~ wrap sites in boot/til.c: 2472 (pre-fix) -> 26.
-   ~_hp = ~ return round-trip sites in boot/til.c: 7909 (pre-fix) -> 1438.
+   - This commit: ~promote_own_transferred_locals~ also promotes any
+     user local of ~Struct~ type (even when ~own_transfer < 0~), so
+     ~mut x := Str_lit("...")~ etc. are emitted as ~Str *x = ...~
+     directly and skip the ~Str x; { Str *_hp = ...; x = *_hp;
+     free(_hp); }~ round-trip. ~Enum~-typed user locals are NOT
+     promoted: doing so trips an interpreter-mode regression in
+     ~Token.Num(42).to_str()~ (returns ~Num(0)~) where the FFI path
+     for ~get_payload~ on a heap-promoted enum local mishandles the
+     payload. Compiled-C run mode is fine. Investigation deferred.
 
-   Still TODO: remaining ~_hp~ round-trips for user-declared locals
-   that receive fcall results but aren't promoted (e.g. they're
-   read-only borrows, or never transferred); final ~_oa~ wraps on
-   module-global delete paths and a few complex expressions.
+   ~_oa = malloc~ wrap sites in boot/til.c: 2472 (pre-fix) -> 26.
+   ~_hp = ~ return round-trip sites in boot/til.c: 7909 (pre-fix) -> 381.
+
+   Still TODO: remaining ~_hp~ round-trips for non-Struct compound
+   user locals (Enum, blocked on the interp regression above) and a
+   handful of edge cases; final ~_oa~ wraps on module-global delete
+   paths.
 
 ** OPEN #136 Precomp doesn't fold namespace method calls
   ~Dynamic.size()~ is defined in ~dyn.til~ as ~func() returns USize { return 8 }~

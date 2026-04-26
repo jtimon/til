@@ -4375,12 +4375,13 @@ insert_assign_delete := proc(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
 promote_own_transferred_locals := proc(mut body: Expr, mut locals: Vec) {
     for j in 0..locals.len() {
         ref mut local : LocalInfo = locals.get(j)
-        if local.own_transfer.lt(0.to_i32()) { continue }
         if local.decl_index.lt(0.to_i32()) { continue }
         ref stmt : Expr = body.child(local.decl_index.to_i64().to_u32())
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref mut dd : Declaration = get_payload(stmt.data)
         if dd.own_type.eq(OwnType.Ref) { continue }
+        is_struct := local.type.is(TilType.Struct)
+        if local.own_transfer.lt(0.to_i32()).and(is_struct.not()) { continue }
         dd.own_type = OwnType.Own
         local.is_heap = true
     }
