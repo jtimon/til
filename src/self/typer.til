@@ -1166,7 +1166,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     inner := TypeScope(parent = scope)
     infer_body(inner, expr.child(0), 0, 0, 0, 0, 1, ctx)
     TypeScope.delete(own inner)
-    // Sync til_type from body field Decls to sdd.fields
+    // Post-sync: copy final til_type from body field Decls (catches inferred types)
     if expr.data.is(NodeType.StructDef) {
         ref mut sync_sdd : StructDef = get_payload(expr.data)
         ref sync_body : Expr = expr.child(0)

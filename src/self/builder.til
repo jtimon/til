@@ -1989,16 +1989,14 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
             ref def : Expr = stmt.child(0)
             mut deps_ok := true
             if def.data.is(NodeType.StructDef) {
-                ref sbody : Expr = def.child(0)
-                for fi in 0..sbody.children.len() {
-                    ref field : Expr = sbody.child(fi)
-                    ref dd : Declaration = get_payload(field.data)
-                    if dd.is_namespace { continue }
+                ref dep_sdd : StructDef = get_payload(def.data)
+                for fi in 0..dep_sdd.fields.len() {
+                    ref dd : Declaration = dep_sdd.fields.get(fi)
                     if dd.own_type.eq(OwnType.Shallow) {
-                        if field.til_type.is(TilType.Struct).or(field.til_type.is(TilType.Enum)) {
-                            fc0_sname := til_type_name(field.child(0).til_type)
-                            if fc0_sname.len().gt(0) {
-                                if emitted.has(fc0_sname).not() { deps_ok = false }
+                        if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
+                            dep_sname := til_type_name(dd.til_type)
+                            if dep_sname.len().gt(0) {
+                                if emitted.has(dep_sname).not() { deps_ok = false }
                             }
                         }
                     }
