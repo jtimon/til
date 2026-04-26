@@ -166,16 +166,12 @@ namespace:
         return false
     }
     to_str := func(self: Value) returns Str {
-        if self.is(Value.None) { return "None" }
-        if self.is(Value.Int) {
-            ref _si : I64 = get_payload(self)
-            return _si.to_str()
+        switch self {
+        case Value.None:       return "None"
+        case Value.Int(v):     return v.to_str()
+        case Value.Boolean(v): return v.to_str()
+        case:                  return "Value"
         }
-        if self.is(Value.Boolean) {
-            ref _sb : Bool = get_payload(self)
-            return _sb.to_str()
-        }
-        return "Value"
     }
     clone := func(self: Value) returns Value {
         if self.is(Value.Struct) {
