@@ -185,8 +185,8 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
     }
 
     // Recurse into children
-    for i in 0..e.children.len() {
-        collect_refs(e.child(i), refs)
+    for c : Expr in e.children {
+        collect_refs(c, refs)
     }
 }
 
@@ -275,16 +275,14 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     mut worklist := Vec.new("Str", Str.size())
     if is_cli {
         vec_push_str(worklist, "main")
-        for i in 0..program.children.len() {
-            ref stmt : Expr = program.child(i)
+        for stmt : Expr in program.children {
             if stmt.data.is(NodeType.Decl) {
                 if is_def(stmt) { continue }
             }
             collect_refs(stmt, worklist)
         }
     } else if run_tests {
-        for i in 0..program.children.len() {
-            ref stmt : Expr = program.child(i)
+        for stmt : Expr in program.children {
             if stmt.data.is(NodeType.Decl) {
                 if stmt.child(0).data.is(NodeType.FuncDef) {
                     ref fdef : FunctionDef = get_payload(stmt.child(0).data)
@@ -298,8 +296,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             collect_refs(stmt, worklist)
         }
     } else {
-        for i in 0..program.children.len() {
-            ref stmt : Expr = program.child(i)
+        for stmt : Expr in program.children {
             if stmt.data.is(NodeType.Decl) {
                 if is_def(stmt) { continue }
             }
@@ -339,8 +336,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                     }
                 } else {
                     ref body : Expr = decl_body(decl)
-                    for j in 0..body.children.len() {
-                        ref field : Expr = body.child(j)
+                    for field : Expr in body.children {
                         ref fd : Declaration = get_payload(field.data)
                         if fd.is_namespace.not() {
                             collect_refs(field, worklist)
@@ -379,8 +375,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                     }
                 } else {
                     ref body : Expr = decl_body(decl)
-                    for j in 0..body.children.len() {
-                        ref field : Expr = body.child(j)
+                    for field : Expr in body.children {
                         ref fd : Declaration = get_payload(field.data)
                         if fd.is_namespace.not() {
                             collect_refs(field, worklist)
