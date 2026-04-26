@@ -1884,8 +1884,7 @@ emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr) {
         ref field : Expr = body.child(i)
         if is_namespace_method(field).not() { continue }
         ref dd : Declaration = get_payload(field.data)
-        ref fdef : Expr = field.child(0)
-        emit_ns_method(f, name, dd.name, fdef)
+        emit_ns_method(f, name, dd.name, field.child(0))
     }
 }
 
@@ -1934,8 +1933,7 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
         ref field : Expr = body.child(i)
         if is_namespace_method(field).not() { continue }
         ref dd : Declaration = get_payload(field.data)
-        ref fdef : Expr = field.child(0)
-        emit_ns_method(f, name, dd.name, fdef)
+        emit_ns_method(f, name, dd.name, field.child(0))
     }
 }
 

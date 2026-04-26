@@ -90,7 +90,7 @@ type_error_at := proc(path: Str, shallow line: U32, shallow col: U32, msg: Str) 
 
 find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
     if is_null(sdef) { return NULL }
-    // Search body children first (includes initer-generated methods)
+    // Search body first (type-checked Exprs for codegen)
     ref body : Expr = sdef.child(0)
     for i in 0..body.children.len() {
         ref field : Expr = body.child(i)
@@ -99,7 +99,7 @@ find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
         if bd.name.eq(method).not() { continue }
         return field.child(0)
     }
-    // Fall back to payload ns_decls
+    // Fall back to ns_decls (user-defined not in body)
     ref ns : Vec = def_ns_decls(sdef)
     for i in 0..ns.len() {
         ref fd : Declaration = ns.get(i)
