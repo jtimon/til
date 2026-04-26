@@ -369,18 +369,24 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             continue
         }
         if in_namespace {
-            mut stmt := parse_statement(p)
-            if stmt.data.is(NodeType.Decl) {
-                ref mut dd : Declaration = get_payload(stmt.data)
-                dd.is_namespace = true
-                ref mut edd : EnumDef = get_payload(def.data)
-                mut cloned_dd := dd.clone()
-                if stmt.children.len().gt(0) {
-                    cloned_dd.default_value = stmt.child(0).clone()
-                }
-                edd.ns_decls.push(own cloned_dd)
+            mut ns_name := ""
+            mut ns_explicit_type := ""
+            mut ns_is_mut := false
+            if check(p, TokenType.KwMut) { advance(p); ns_is_mut = true }
+            ns_name = expect_text(p, TokenType.Ident)
+            if check(p, TokenType.ColonEq) {
+                advance(p)
+            } else if check(p, TokenType.Colon) {
+                advance(p)
+                ns_explicit_type = expect_text(p, TokenType.Ident)
+                expect_token(p, TokenType.Eq)
             }
-            body.add_child(own stmt)
+            mut ns_value := parse_expression(p)
+            mut ns_dd := Declaration(name = ns_name, is_namespace = true,
+                is_mut = ns_is_mut, explicit_type = ns_explicit_type,
+                default_value = ns_value)
+            ref mut edd : EnumDef = get_payload(def.data)
+            edd.ns_decls.push(own ns_dd)
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated
             vname := expect_text(p, TokenType.Ident)

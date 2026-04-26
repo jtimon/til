@@ -1922,7 +1922,6 @@ emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr) {
 }
 
 emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
-    ref body : Expr = enum_def.child(0)
     ref edd : EnumDef = get_payload(enum_def.data)
     hp := enum_has_payloads(enum_def)
     if hp.not() {
@@ -1961,12 +1960,13 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
             f.write_str("    return r;\n"); f.write_str("}\n")
         }
     }
-    // Namespace methods
-    for i in 0..body.children.len() {
-        ref field : Expr = body.child(i)
-        if is_namespace_method(field).not() { continue }
-        ref dd : Declaration = get_payload(field.data)
-        emit_ns_method(f, name, dd.name, field.child(0))
+    // Namespace methods from ns_decls
+    ref _ens : Vec = def_ns_decls(enum_def)
+    for i in 0.._ens.len() {
+        ref dd : Declaration = _ens.get(i)
+        if is_null(dd.default_value) { continue }
+        if dd.default_value.data.is(NodeType.FuncDef).not() { continue }
+        emit_ns_method(f, name, dd.name, dd.default_value)
     }
 }
 

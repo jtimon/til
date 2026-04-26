@@ -331,14 +331,13 @@ collect_enum_variants := proc(enum_def: Expr, mut variant_names: Vec, mut varian
     }
 }
 
-generate_enum_variant_constructors := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+generate_enum_variant_constructors := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+    ref mut _evc_edd : EnumDef = get_payload(enum_def.data)
     if has_payloads.not() {
         for j in 0..variant_names.len() {
             ref vname : Str = variant_names.get(j)
             mut lit := Expr.new(NodeType.LiteralNum(j.to_str()), line, col, path)
-            mut decl := Expr.new(NodeType.Decl(Declaration(name = vname.clone(), is_namespace = true)), line, col, path)
-            decl.add_child(own lit)
-            body.add_child(own decl)
+            _evc_edd.ns_decls.push(own Declaration(name = vname.clone(), is_namespace = true, default_value = lit))
         }
         return
     }
@@ -360,13 +359,11 @@ generate_enum_variant_constructors := proc(body: Expr, ename: Str, shallow line:
         func_def.add_child(own func_body)
 
         ref vname : Str = variant_names.get(j)
-        mut decl := Expr.new(NodeType.Decl(Declaration(name = vname.clone(), is_namespace = true)), line, col, path)
-        decl.add_child(own func_def)
-        body.add_child(own decl)
+        _evc_edd.ns_decls.push(own Declaration(name = vname.clone(), is_namespace = true, default_value = func_def))
     }
 }
 
-generate_enum_is_method := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str) {
+generate_enum_is_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str) {
     mut func_body := Expr.new(NodeType.Body, line, col, path)
     mut is_id := Expr.new(NodeType.Ident("is"), line, col, path)
     mut self_id := Expr.new(NodeType.Ident("self"), line, col, path)
@@ -393,12 +390,11 @@ generate_enum_is_method := proc(body: Expr, ename: Str, shallow line: U32, shall
     mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col, path)
     func_def.add_child(own func_body)
 
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = "is", is_namespace = true)), line, col, path)
-    decl.add_child(own func_def)
-    body.add_child(own decl)
+    ref mut _eis_edd : EnumDef = get_payload(enum_def.data)
+    _eis_edd.ns_decls.push(own Declaration(name = "is", is_namespace = true, default_value = func_def))
 }
 
-generate_enum_eq_method := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
+generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col, path)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names.get(j)
@@ -516,12 +512,11 @@ generate_enum_eq_method := proc(body: Expr, ename: Str, shallow line: U32, shall
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col, path)
     fdef.add_child(own func_body)
 
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = "eq", is_namespace = true)), line, col, path)
-    decl.add_child(own fdef)
-    body.add_child(own decl)
+    ref mut _eeq_edd : EnumDef = get_payload(enum_def.data)
+    _eeq_edd.ns_decls.push(own Declaration(name = "eq", is_namespace = true, default_value = fdef))
 }
 
-generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
     mut proc_body := Expr.new(NodeType.Body, line, col, path)
     if has_payloads {
         for j in 0..variant_names.len() {
@@ -596,12 +591,11 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col, path)
     fdef.add_child(own proc_body)
 
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = "delete", is_namespace = true)), line, col, path)
-    decl.add_child(own fdef)
-    body.add_child(own decl)
+    ref mut _edel_edd : EnumDef = get_payload(enum_def.data)
+    _edel_edd.ns_decls.push(own Declaration(name = "delete", is_namespace = true, default_value = fdef))
 }
 
-generate_enum_to_str_method := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col, path)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names.get(j)
@@ -709,12 +703,11 @@ generate_enum_to_str_method := proc(body: Expr, ename: Str, shallow line: U32, s
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col, path)
     fdef.add_child(own func_body)
 
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = "to_str", is_namespace = true)), line, col, path)
-    decl.add_child(own fdef)
-    body.add_child(own decl)
+    ref mut _ets_edd : EnumDef = get_payload(enum_def.data)
+    _ets_edd.ns_decls.push(own Declaration(name = "to_str", is_namespace = true, default_value = fdef))
 }
 
-generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32, shallow col: I32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32, shallow col: I32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
     mut func_body := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
     for j in 0..variant_names.len() {
         ref vname : Str = variant_names.get(j)
@@ -809,9 +802,8 @@ generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
     fdef.add_child(own func_body)
 
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = "clone", is_namespace = true)), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-    decl.add_child(own fdef)
-    body.add_child(own decl)
+    ref mut _ecl_edd2 : EnumDef = get_payload(enum_def.data)
+    _ecl_edd2.ns_decls.push(own Declaration(name = "clone", is_namespace = true, default_value = fdef))
 }
 
 register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeScope) returns shallow I32 {
@@ -831,13 +823,11 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         errors = errors.add(reg_errors)
         if reg_errors.gt(0) { continue }
 
-        ref mut body : Expr = decl_body(stmt)
-
         variant_names := Vec.new("Str", Str.size())
         variant_types := Vec.new("Str", Str.size())
         mut has_payloads := false
         collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
-        generate_enum_variant_constructors(body, ename, line, col, path, variant_names, variant_types, has_payloads)
+        generate_enum_variant_constructors(stmt.child(0), ename, line, col, path, variant_names, variant_types, has_payloads)
 
         mut has_is := false
         mut has_eq := false
@@ -853,16 +843,16 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         }
 
         if has_is.not() {
-            generate_enum_is_method(body, ename, line, col, path)
+            generate_enum_is_method(stmt.child(0), ename, line, col, path)
         }
         if has_eq.not() {
-            generate_enum_eq_method(body, ename, line, col, path, variant_names, variant_types, scope)
+            generate_enum_eq_method(stmt.child(0), ename, line, col, path, variant_names, variant_types, scope)
         }
         if has_delete.not() {
-            generate_enum_delete_method(body, ename, line, col, path, variant_names, variant_types, has_payloads, scope)
+            generate_enum_delete_method(stmt.child(0), ename, line, col, path, variant_names, variant_types, has_payloads, scope)
         }
         if has_to_str.not() {
-            generate_enum_to_str_method(body, ename, line, col, path, variant_names, variant_types, has_payloads, scope)
+            generate_enum_to_str_method(stmt.child(0), ename, line, col, path, variant_names, variant_types, has_payloads, scope)
         }
 
         Vec.delete(own variant_names, false)
@@ -882,8 +872,6 @@ generate_missing_enum_clones := proc(program: Expr) {
         line := stmt.line
         col := stmt.col
         path := stmt.path
-        ref mut body : Expr = decl_body(stmt)
-
         mut has_clone := false
         ref _ecl_edd : EnumDef = get_payload(stmt.child(0).data)
         for j in 0.._ecl_edd.ns_decls.len() {
@@ -898,7 +886,7 @@ generate_missing_enum_clones := proc(program: Expr) {
             variant_types := Vec.new("Str", Str.size())
             mut has_payloads := false
             collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
-            generate_enum_clone_method(body, ename, line.to_i64().to_i32(), col.to_i64().to_i32(), path, variant_names, variant_types, has_payloads)
+            generate_enum_clone_method(stmt.child(0), ename, line.to_i64().to_i32(), col.to_i64().to_i32(), path, variant_names, variant_types, has_payloads)
             Vec.delete(own variant_names, false)
             Vec.delete(own variant_types, false)
         }
@@ -1189,7 +1177,6 @@ generate_enum_size_methods := proc(program: Expr) {
         ref sdecl : Declaration = get_payload(stmt.data)
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
-        ref mut body : Expr = def.child(0)
         mut has_size := false
         ref size_ns : Vec = def_ns_decls(def)
         for j in 0..size_ns.len() {
@@ -1222,9 +1209,8 @@ generate_enum_size_methods := proc(program: Expr) {
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
         func_def.add_child(own func_body)
 
-        mut decl := Expr.new(NodeType.Decl(Declaration(name = "size", is_namespace = true, is_mut = false, explicit_type = "")), stmt.line, stmt.col, stmt.path)
-        decl.add_child(own func_def)
-        body.add_child(own decl)
+        ref mut _esz_edd : EnumDef = get_payload(def.data)
+        _esz_edd.ns_decls.push(own Declaration(name = "size", is_namespace = true, default_value = func_def))
     }
 }
 
@@ -1238,7 +1224,6 @@ generate_unity_derived_methods := proc(program: Expr) {
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
 
-        ref mut body : Expr = def.child(0)
         mut has_add := false
         mut has_sub := false
         mut has_unity := false
@@ -1303,9 +1288,8 @@ generate_unity_derived_methods := proc(program: Expr) {
                 ref mut _un_sdd : StructDef = get_payload(def.data)
                 _un_sdd.ns_decls.push(own Declaration(name = method.clone(), is_namespace = true, default_value = func_def))
             } else {
-                mut decl := Expr.new(NodeType.Decl(Declaration(name = method.clone(), is_namespace = true)), stmt.line, stmt.col, stmt.path)
-                decl.add_child(own func_def)
-                body.add_child(own decl)
+                ref mut _eu_edd : EnumDef = get_payload(def.data)
+                _eu_edd.ns_decls.push(own Declaration(name = method.clone(), is_namespace = true, default_value = func_def))
             }
         }
     }
@@ -1326,7 +1310,6 @@ generate_cmp_derived_methods := proc(program: Expr) {
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
 
-        ref mut body : Expr = def.child(0)
         mut has_cmp := false
         mut has_eq := false
         mut has_neq := false
@@ -1381,9 +1364,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
                 ref mut _cmp_sdd : StructDef = get_payload(def.data)
                 _cmp_sdd.ns_decls.push(own Declaration(name = "eq", is_namespace = true, default_value = func_def))
             } else {
-                mut decl := Expr.new(NodeType.Decl(Declaration(name = "eq", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-                decl.add_child(own func_def)
-                body.add_child(own decl)
+                ref mut _ec_edd : EnumDef = get_payload(def.data)
+                _ec_edd.ns_decls.push(own Declaration(name = "eq", is_namespace = true, default_value = func_def))
             }
         }
 
@@ -1427,9 +1409,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
                 ref mut _cmp_sdd : StructDef = get_payload(def.data)
                 _cmp_sdd.ns_decls.push(own Declaration(name = "lt", is_namespace = true, default_value = func_def))
             } else {
-                mut decl := Expr.new(NodeType.Decl(Declaration(name = "lt", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-                decl.add_child(own func_def)
-                body.add_child(own decl)
+                ref mut _ec_edd : EnumDef = get_payload(def.data)
+                _ec_edd.ns_decls.push(own Declaration(name = "lt", is_namespace = true, default_value = func_def))
             }
         }
 
@@ -1467,9 +1448,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
                 ref mut _cmp_sdd : StructDef = get_payload(def.data)
                 _cmp_sdd.ns_decls.push(own Declaration(name = "gt", is_namespace = true, default_value = func_def))
             } else {
-                mut decl := Expr.new(NodeType.Decl(Declaration(name = "gt", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-                decl.add_child(own func_def)
-                body.add_child(own decl)
+                ref mut _ec_edd : EnumDef = get_payload(def.data)
+                _ec_edd.ns_decls.push(own Declaration(name = "gt", is_namespace = true, default_value = func_def))
             }
         }
 
@@ -1505,9 +1485,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
                 ref mut _cmp_sdd : StructDef = get_payload(def.data)
                 _cmp_sdd.ns_decls.push(own Declaration(name = "neq", is_namespace = true, default_value = func_def))
             } else {
-                mut decl := Expr.new(NodeType.Decl(Declaration(name = "neq", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-                decl.add_child(own func_def)
-                body.add_child(own decl)
+                ref mut _ec_edd : EnumDef = get_payload(def.data)
+                _ec_edd.ns_decls.push(own Declaration(name = "neq", is_namespace = true, default_value = func_def))
             }
         }
 
@@ -1543,9 +1522,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
                 ref mut _cmp_sdd : StructDef = get_payload(def.data)
                 _cmp_sdd.ns_decls.push(own Declaration(name = "lte", is_namespace = true, default_value = func_def))
             } else {
-                mut decl := Expr.new(NodeType.Decl(Declaration(name = "lte", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-                decl.add_child(own func_def)
-                body.add_child(own decl)
+                ref mut _ec_edd : EnumDef = get_payload(def.data)
+                _ec_edd.ns_decls.push(own Declaration(name = "lte", is_namespace = true, default_value = func_def))
             }
         }
 
@@ -1581,9 +1559,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
                 ref mut _cmp_sdd : StructDef = get_payload(def.data)
                 _cmp_sdd.ns_decls.push(own Declaration(name = "gte", is_namespace = true, default_value = func_def))
             } else {
-                mut decl := Expr.new(NodeType.Decl(Declaration(name = "gte", is_namespace = true)), stmt.line, stmt.col, stmt.path)
-                decl.add_child(own func_def)
-                body.add_child(own decl)
+                ref mut _ec_edd : EnumDef = get_payload(def.data)
+                _ec_edd.ns_decls.push(own Declaration(name = "gte", is_namespace = true, default_value = func_def))
             }
         }
     }
@@ -1844,39 +1821,10 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     compute_all_struct_layouts(program, scope)
     generate_size_methods(program)
     generate_derived_methods(program)
-    sync_body_ns_to_payload(program)
     register_function_definitions(program, scope)
     register_top_level_values(program, scope)
 
     return errors
 }
 
-sync_body_ns_to_payload := proc(program: Expr) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
-        if stmt.data.is(NodeType.Decl).not() { continue }
-        if stmt.children.len().eq(0) { continue }
-        ref def : Expr = stmt.child(0)
-        if def.data.is(NodeType.EnumDef).not() { continue }
-        ref mut ns : Vec = def_ns_decls(def)
-        ref body : Expr = def.child(0)
-        for j in 0..body.children.len() {
-            ref field : Expr = body.child(j)
-            if field.data.is(NodeType.Decl).not() { continue }
-            ref fd : Declaration = get_payload(field.data)
-            if fd.is_namespace.not() { continue }
-            mut already := false
-            for k in 0..ns.len() {
-                ref existing : Declaration = ns.get(k)
-                if existing.name.eq(fd.name) { already = true; break }
-            }
-            if already { continue }
-            mut synced := fd.clone()
-            if field.children.len().gt(0) {
-                synced.default_value = field.child(0).clone()
-            }
-            synced.til_type = field.til_type.clone()
-            ns.push(own synced)
-        }
-    }
-}
+// sync_body_ns_to_payload: deleted -- all ns methods now go directly to ns_decls
