@@ -1165,7 +1165,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         }
     }
     ref saved_struct_def : Expr = _current_struct_def
-    if expr.data.is(NodeType.StructDef) {
+    if expr.data.is(NodeType.StructDef).or(expr.data.is(NodeType.EnumDef)) {
         _current_struct_def = expr
     } else {
         ref null_expr : Expr = NULL
@@ -1406,21 +1406,18 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
                     }
                 }
             }
-            // Search namespace methods from body and ns_decls
+            // Search namespace declarations from payload ns_decls
             if found.not() {
-                ref body : Expr = sdef.child(0)
-                for i in 0..body.children.len() {
-                    ref field : Expr = body.child(i)
-                    ref fld_decl : Declaration = get_payload(field.data)
-                    if fld_decl.is_namespace.not() { continue }
-                    if fld_decl.name.eq(fname) {
-                        expr.til_type = field.til_type
-                        if sdef.data.is(NodeType.EnumDef).and(field.children.len().gt(0)) {
-                            ref fc : Expr = field.child(0)
-                            if fc.data.is(NodeType.FuncDef).not() {
+                ref fa_ns : Vec = def_ns_decls(sdef)
+                for i in 0..fa_ns.len() {
+                    ref nsd : Declaration = fa_ns.get(i)
+                    if nsd.name.eq(fname) {
+                        expr.til_type = nsd.til_type.clone()
+                        if sdef.data.is(NodeType.EnumDef).and(is_null(nsd.default_value).not()) {
+                            if nsd.default_value.data.is(NodeType.FuncDef).not() {
                                 expr.til_type = TilType.Enum(obj_sname.clone())
                             } else {
-                                ref fd : FunctionDef = get_payload(fc.data)
+                                ref fd : FunctionDef = get_payload(nsd.default_value.data)
                                 if fd.func_type.is(FuncType.ExtFunc).and(fd.return_type.len().gt(0)).and(fd.return_type.eq(obj_sname)) {
                                     expr.til_type = TilType.Enum(obj_sname.clone())
                                 }
@@ -1481,25 +1478,24 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                     break
                 }
             }
-            // Fall back to body for namespace fields
+            // Search namespace declarations from payload ns_decls
             if found.not() {
-                ref body : Expr = sdef.child(0)
-                for i in 0..body.children.len() {
-                    ref field : Expr = body.child(i)
-                    ref fld_decl : Declaration = get_payload(field.data)
-                    if fld_decl.name.eq(fname) {
+                ref fa_ns : Vec = def_ns_decls(sdef)
+                for i in 0..fa_ns.len() {
+                    ref nsd : Declaration = fa_ns.get(i)
+                    if nsd.name.eq(fname) {
                         found = true
-                        if fld_decl.is_mut.not() {
+                        if nsd.is_mut.not() {
                             type_error(stmt, "cannot assign to immutable field '".concat(fname).concat("'"))
                         }
-                        if rhs.data.is(NodeType.LiteralNum).and(is_numeric_type(field.til_type)) {
-                            if literal_in_range(get_payload(rhs.data), field.til_type).not() {
+                        if rhs.data.is(NodeType.LiteralNum).and(is_numeric_type(nsd.til_type)) {
+                            if literal_in_range(get_payload(rhs.data), nsd.til_type).not() {
                                 type_error(rhs, "integer literal out of range for field '".concat(fname).concat("'"))
                             }
-                            rhs.til_type = field.til_type
+                            rhs.til_type = nsd.til_type.clone()
                         } else {
                             rhs_type := rhs.til_type
-                            if rhs_type.is(field.til_type).not() {
+                            if rhs_type.is(nsd.til_type).not() {
                                 if rhs_type.is(TilType.Unknown).not() {
                                     if rhs_type.is(TilType.Dynamic).not() {
                                         type_error(stmt, "field '".concat(fname).concat("' type mismatch"))
@@ -1841,14 +1837,24 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
         infer_decl_untyped_value(stmt)
     }
     finalize_decl_binding(scope, stmt, in_type_body)
-    // Sync til_type to sdd.fields for struct field Decls
+    // Sync til_type to payload (sdd.fields or ns_decls)
     if in_type_body.eq(1).and(is_null(_current_struct_def).not()) {
-        if sdecl.is_namespace.not() {
+        if sdecl.is_namespace.not().and(_current_struct_def.data.is(NodeType.StructDef)) {
             ref mut sdd : StructDef = get_payload(_current_struct_def.data)
             for fi in 0..sdd.fields.len() {
                 ref mut pf : Declaration = sdd.fields.get(fi)
                 if pf.name.eq(sdecl.name) {
                     pf.til_type = stmt.til_type.clone()
+                    break
+                }
+            }
+        }
+        if sdecl.is_namespace {
+            ref mut ns : Vec = def_ns_decls(_current_struct_def)
+            for ni in 0..ns.len() {
+                ref mut nd : Declaration = ns.get(ni)
+                if nd.name.eq(sdecl.name) {
+                    nd.til_type = stmt.til_type.clone()
                     break
                 }
             }

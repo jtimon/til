@@ -1840,8 +1840,9 @@ sync_body_ns_to_payload := proc(program: Expr) {
         ref body : Expr = def.child(0)
         for j in 0..body.children.len() {
             ref field : Expr = body.child(j)
-            if is_namespace_method(field).not() { continue }
+            if field.data.is(NodeType.Decl).not() { continue }
             ref fd : Declaration = get_payload(field.data)
+            if fd.is_namespace.not() { continue }
             mut already := false
             for k in 0..ns.len() {
                 ref existing : Declaration = ns.get(k)
@@ -1849,7 +1850,10 @@ sync_body_ns_to_payload := proc(program: Expr) {
             }
             if already { continue }
             mut synced := fd.clone()
-            synced.default_value = field.child(0).clone()
+            if field.children.len().gt(0) {
+                synced.default_value = field.child(0).clone()
+            }
+            synced.til_type = field.til_type.clone()
             ns.push(own synced)
         }
     }
