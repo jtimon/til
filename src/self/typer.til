@@ -147,12 +147,10 @@ try_ufcs_rewrite := proc(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
 
 infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, shallow in_func: I32, ctx: Context) returns shallow Bool {
     if is_null(sdef).or(obj.til_type.is(TilType.Struct).not().and(obj.til_type.is(TilType.Enum).not())) { return false }
-    ref body : Expr = sdef.child(0)
-    for fi in 0..body.children.len() {
-        ref field : Expr = body.child(fi)
-        if field.data.is(NodeType.Decl).not() { continue }
-        ref fd : Declaration = get_payload(field.data)
-        if fd.is_namespace { continue }
+    if sdef.data.is(NodeType.StructDef).not() { return false }
+    ref _fpf_sdd : StructDef = get_payload(sdef.data)
+    for fi in 0.._fpf_sdd.fields.len() {
+        ref fd : Declaration = _fpf_sdd.fields.get(fi)
         if fd.name.eq(method).not() { continue }
         if fd.explicit_type.len().eq(0) { continue }
         sf_ftb := scope.find(fd.explicit_type)
@@ -270,7 +268,6 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
             return true
         }
     }
-    ref body : Expr = sdef.child(0)
 
     // #99: if struct has new(), disallow literal outside its namespace
     if _current_type_name.eq(name).not() {
@@ -290,23 +287,11 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
         }
     }
 
-    mut nfields : U32 = 0
-    for i in 0..body.children.len() {
-        ref fld_decl : Declaration = get_payload(body.child(i).data)
-        if fld_decl.is_namespace.not() {
-            nfields = nfields.add(1)
-        }
-    }
+    ref _ctor_sdd : StructDef = get_payload(sdef.data)
+    nfields := _ctor_sdd.fields.len()
     mut field_vals := Vec.new("CtorArg", CtorArg.size())
     for _i in 0..nfields {
         field_vals.push(own CtorArg.Unfilled())
-    }
-    mut field_idx := Vec.new("U32", U32.size())
-    for i in 0..body.children.len() {
-        ref fld_decl : Declaration = get_payload(body.child(i).data)
-        if fld_decl.is_namespace.not() {
-            field_idx.push(own i)
-        }
     }
     for i in 1..e.children.len() {
         ref arg : Expr = e.child(i)
@@ -317,8 +302,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
         ref aname : Str = get_payload(arg.data)
         mut slot := -1.to_i32()
         for j in 0..nfields {
-            ref fld_idx : U32 = field_idx.get(j)
-            ref fld_decl : Declaration = get_payload(body.child(fld_idx).data)
+            ref fld_decl : Declaration = _ctor_sdd.fields.get(j)
             if fld_decl.name.eq(aname) {
                 slot = j.to_i64().to_i32()
                 break
@@ -342,8 +326,8 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
     for i in 0..nfields {
         ref slot_arg : CtorArg = field_vals.get(i)
         if slot_arg.is(CtorArg.Filled).not() {
-            ref fld_idx : U32 = field_idx.get(i)
-            field_vals.set(i, own CtorArg.Filled(body.child(fld_idx).child(0).clone()))
+            ref _fld_d : Declaration = _ctor_sdd.fields.get(i)
+            field_vals.set(i, own CtorArg.Filled(_fld_d.default_value.clone()))
         }
     }
     mut new_ch := Vec.new("Expr", Expr.size())
@@ -360,17 +344,13 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
             infer_expr(scope, e.child(i), in_func, ctx)
         }
     }
-    mut fi : U32 = 0
-    for bi in 0..body.children.len() {
+    for fi in 0..nfields {
         if fi.gte(e.children.len().sub(1)) { break }
-        ref fld : Expr = body.child(bi)
-        ref fld_decl : Declaration = get_payload(fld.data)
-        if fld_decl.is_namespace { continue }
+        ref fld_decl : Declaration = _ctor_sdd.fields.get(fi)
         ai := fi.add(1).to_i64().to_i32()
-        fi = fi.add(1)
         if fld_decl.own_type.eq(OwnType.Ref) { continue }
         if fld_decl.own_type.eq(OwnType.Own).not() {
-            if type_ctor_consumes(fld.til_type).not() { continue }
+            if type_ctor_consumes(fld_decl.til_type).not() { continue }
         }
         set_own_arg(e, ai.to_i64().to_usize())
     }
@@ -1159,6 +1139,52 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         _current_struct_def = null_expr
     }
     inner := TypeScope(parent = scope)
+    if expr.data.is(NodeType.StructDef) {
+        ref mut _tc_sdd : StructDef = get_payload(expr.data)
+        for _fi in 0.._tc_sdd.fields.len() {
+            ref mut _fd : Declaration = _tc_sdd.fields.get(_fi)
+            if is_null(_fd.default_value).not().and(_fd.default_value.data.is(NodeType.NoDefaultArg).not()) {
+                infer_expr(inner, _fd.default_value, 0, ctx)
+            }
+            if _fd.explicit_type.len().gt(0) {
+                _fd.til_type = type_from_name(_fd.explicit_type, inner)
+                if _fd.til_type.is(TilType.Unknown).not() {
+                    if is_null(_fd.default_value).not().and(_fd.default_value.data.is(NodeType.NoDefaultArg).not()) {
+                        if _fd.default_value.data.is(NodeType.LiteralNum).and(is_numeric_type(_fd.til_type)) {
+                            _fd.default_value.til_type = _fd.til_type
+                        }
+                        if _fd.default_value.data.is(NodeType.LiteralNull).not() {
+                            narrow_dynamic(_fd.default_value, _fd.til_type)
+                        }
+                    }
+                }
+            } else {
+                if is_null(_fd.default_value).not() {
+                    _fd.til_type = _fd.default_value.til_type
+                }
+            }
+            inner.set(_fd.name, _fd.til_type, FuncType.None, _fd.is_mut, expr.line, expr.col, false, _fd.own_type)
+            if _fd.til_type.is(TilType.FuncPtr) {
+                ref mut _fb : TypeBinding = inner.get_binding(_fd.name)
+                if is_null(_fd.default_value).not().and(_fd.default_value.data.is(NodeType.Ident)) {
+                    ref _src : TypeBinding = inner.get_binding(get_payload(_fd.default_value.data))
+                    if is_null(_src).not().and(is_null(_src.func_def).not()) {
+                        _fb.func_def = _src.func_def
+                    }
+                }
+                if is_null(_fb.func_def) {
+                    if _fd.explicit_type.len().gt(0) {
+                        ref _fsb : TypeBinding = inner.get_binding(_fd.explicit_type)
+                        if is_null(_fsb).not().and(is_null(_fsb.func_def).not()) {
+                            if _fsb.func_def.children.len().eq(0) {
+                                _fb.func_def = _fsb.func_def
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     infer_body(inner, expr.child(0), 0, 0, 0, 0, 1, ctx)
     // Type-check ns_decls (stored directly by parser, not via body)
     ref tc_ns : Vec = def_ns_decls(expr)
@@ -1849,18 +1875,8 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
         infer_decl_untyped_value(stmt)
     }
     finalize_decl_binding(scope, stmt, in_type_body)
-    // Sync til_type to payload (sdd.fields or ns_decls)
+    // Sync til_type to ns_decls payload
     if in_type_body.eq(1).and(is_null(_current_struct_def).not()) {
-        if sdecl.is_namespace.not().and(_current_struct_def.data.is(NodeType.StructDef)) {
-            ref mut sdd : StructDef = get_payload(_current_struct_def.data)
-            for fi in 0..sdd.fields.len() {
-                ref mut pf : Declaration = sdd.fields.get(fi)
-                if pf.name.eq(sdecl.name) {
-                    pf.til_type = stmt.til_type.clone()
-                    break
-                }
-            }
-        }
         if sdecl.is_namespace {
             ref mut ns : Vec = def_ns_decls(_current_struct_def)
             for ni in 0..ns.len() {
@@ -3357,7 +3373,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     }
     if expr.data.is(NodeType.FCall).not() { return }
 
-    ref mut ctor_body : Expr = NULL
+    ref mut _hoist_sdef : Expr = NULL
     expr_sname := til_type_name(expr.til_type)
     if expr_sname.len().gt(0) {
         if expr.children.len().gt(0) {
@@ -3365,10 +3381,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
             if callee.data.is(NodeType.Ident) {
                 ref callee_name : Str = get_payload(callee.data)
                 if callee_name.eq(expr_sname) {
-                    ref sdef : Expr = scope.get_struct(expr_sname)
-                    if is_null(sdef).not() {
-                        ctor_body = sdef.child(0)
-                    }
+                    _hoist_sdef = scope.get_struct(expr_sname)
                 }
             }
         }
@@ -3406,6 +3419,12 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
         }
 
         ref arg : Expr = expr.child(i)
+        mut _hoist_fi := fi
+        if is_null(_hoist_sdef).not() {
+        if _hoist_sdef.data.is(NodeType.StructDef) {
+            fi = fi.add(1)
+        }
+        }
         if arg.data.is(NodeType.FCall).not() {
             if arg.data.is(NodeType.LiteralNum).not() {
                 if arg.data.is(NodeType.LiteralStr).not() {
@@ -3417,20 +3436,15 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
         }
 
         mut slot_is_own := false
-        if is_null(ctor_body).not() {
+        if is_null(_hoist_sdef).not() {
+        if _hoist_sdef.data.is(NodeType.StructDef) {
             mut fld_own := OwnType.Shallow
             mut field_type := TilType.None
-            while fi.lt(ctor_body.children.len()) {
-                ref field : Expr = ctor_body.child(fi)
-                fi = fi.add(1)
-                if field.data.is(NodeType.Decl) {
-                    ref fd : Declaration = get_payload(field.data)
-                    if fd.is_namespace.not() {
-                        fld_own = fd.own_type
-                        field_type = field.child(0).til_type
-                        break
-                    }
-                }
+            ref _h_sdd : StructDef = get_payload(_hoist_sdef.data)
+            if _hoist_fi.lt(_h_sdd.fields.len()) {
+                ref _h_fd : Declaration = _h_sdd.fields.get(_hoist_fi)
+                fld_own = _h_fd.own_type
+                field_type = _h_fd.til_type
             }
             if fld_own.eq(OwnType.Own).not() {
                 if field_type.is(TilType.Struct).or(field_type.is(TilType.Enum)) {
@@ -3440,6 +3454,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
             slot_is_own = fld_own.eq(OwnType.Own)
         } else {
             slot_is_own = get_own_arg(expr, i)
+        }
         }
 
         expr.children.set(i, own hoist_to_temp(arg.clone(), hoisted, scope, slot_is_own))
@@ -3903,27 +3918,24 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
         if _c0s.eq(fcall_sname) {
             ref sdef : Expr = scope.get_struct(fcall_sname)
             if is_null(sdef).not() {
-                ref body : Expr = sdef.child(0)
-                mut fi : USize = 0
-                for i in 0..body.children.len() {
-                    ref fld : Expr = body.child(i)
-                    if fld.data.is(NodeType.Decl).not() { continue }
-                    ref fld_decl : Declaration = get_payload(fld.data)
-                    if fld_decl.is_namespace { continue }
+            if sdef.data.is(NodeType.StructDef) {
+                ref _fhoa_sdd : StructDef = get_payload(sdef.data)
+                for fi in 0.._fhoa_sdd.fields.len() {
+                    ref fld_decl : Declaration = _fhoa_sdd.fields.get(fi)
                     arg_idx := fi.add(1)
-                    fi = fi.add(1)
                     if arg_idx.lt(fcall.children.len()) {
                         ref arg : Expr = fcall.child(arg_idx)
                         if arg.data.is(NodeType.Ident) {
                             ref _an : Str = get_payload(arg.data)
                             if _an.eq(var_name).and(fld_decl.own_type.eq(OwnType.Ref).not()) {
-                                if fld_decl.own_type.eq(OwnType.Own).or(type_ctor_consumes(fld.til_type)) {
+                                if fld_decl.own_type.eq(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
                                     return true
                                 }
                             }
                         }
                     }
                 }
+            }
             }
         } } }
     // Direct call

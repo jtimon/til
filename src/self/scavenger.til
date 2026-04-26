@@ -160,6 +160,19 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         }
     }
 
+    // Also traverse sdd.fields for structs
+    if e.data.is(NodeType.StructDef) {
+        ref _cr_sdd : StructDef = get_payload(e.data)
+        for _cr_fi in 0.._cr_sdd.fields.len() {
+            ref _cr_fd : Declaration = _cr_sdd.fields.get(_cr_fi)
+            if is_null(_cr_fd.default_value).not() {
+                collect_refs(_cr_fd.default_value, refs)
+            }
+            if _cr_fd.explicit_type.len().gt(0) {
+                vec_push_str(refs, _cr_fd.explicit_type)
+            }
+        }
+    }
     // Also traverse ns_decls entries (not in Expr children tree)
     if e.data.is(NodeType.StructDef).or(e.data.is(NodeType.EnumDef)) {
         ref _cr_ns : Vec = def_ns_decls(e)
@@ -312,12 +325,26 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             ref idx : U32 = top.get(name)
             ref decl : Expr = program.child(idx)
             if is_struct_or_enum(decl) {
-                ref body : Expr = decl_body(decl)
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    ref fd : Declaration = get_payload(field.data)
-                    if fd.is_namespace.not() {
-                        collect_refs(field, worklist)
+                ref _bfs_tdef : Expr = decl.child(0)
+                if _bfs_tdef.data.is(NodeType.StructDef) {
+                    ref _bfs_sdd : StructDef = get_payload(_bfs_tdef.data)
+                    for j in 0.._bfs_sdd.fields.len() {
+                        ref _bfs_fd : Declaration = _bfs_sdd.fields.get(j)
+                        if is_null(_bfs_fd.default_value).not() {
+                            collect_refs(_bfs_fd.default_value, worklist)
+                        }
+                        if _bfs_fd.explicit_type.len().gt(0) {
+                            vec_push_str(worklist, _bfs_fd.explicit_type)
+                        }
+                    }
+                } else {
+                    ref body : Expr = decl_body(decl)
+                    for j in 0..body.children.len() {
+                        ref field : Expr = body.child(j)
+                        ref fd : Declaration = get_payload(field.data)
+                        if fd.is_namespace.not() {
+                            collect_refs(field, worklist)
+                        }
                     }
                 }
                 push_qn(worklist, name, "delete")
@@ -338,12 +365,26 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             ref idx : U32 = core_top.get(name)
             ref decl : Expr = core_program.child(idx)
             if is_struct_or_enum(decl) {
-                ref body : Expr = decl_body(decl)
-                for j in 0..body.children.len() {
-                    ref field : Expr = body.child(j)
-                    ref fd : Declaration = get_payload(field.data)
-                    if fd.is_namespace.not() {
-                        collect_refs(field, worklist)
+                ref _bfs_tdef2 : Expr = decl.child(0)
+                if _bfs_tdef2.data.is(NodeType.StructDef) {
+                    ref _bfs_sdd2 : StructDef = get_payload(_bfs_tdef2.data)
+                    for j in 0.._bfs_sdd2.fields.len() {
+                        ref _bfs_fd2 : Declaration = _bfs_sdd2.fields.get(j)
+                        if is_null(_bfs_fd2.default_value).not() {
+                            collect_refs(_bfs_fd2.default_value, worklist)
+                        }
+                        if _bfs_fd2.explicit_type.len().gt(0) {
+                            vec_push_str(worklist, _bfs_fd2.explicit_type)
+                        }
+                    }
+                } else {
+                    ref body : Expr = decl_body(decl)
+                    for j in 0..body.children.len() {
+                        ref field : Expr = body.child(j)
+                        ref fd : Declaration = get_payload(field.data)
+                        if fd.is_namespace.not() {
+                            collect_refs(field, worklist)
+                        }
                     }
                 }
                 push_qn(worklist, name, "delete")

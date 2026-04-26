@@ -331,17 +331,27 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             ref mut sdd : StructDef = get_payload(def.data)
             sdd.ns_decls.push(own ns_dd)
         } else {
-            mut stmt := parse_statement(p)
-            if stmt.data.is(NodeType.Decl) {
-                ref dd : Declaration = get_payload(stmt.data)
-                ref mut sdd : StructDef = get_payload(def.data)
-                mut cloned_dd := dd.clone()
-                if stmt.children.len().gt(0) {
-                    cloned_dd.default_value = stmt.child(0).clone()
-                }
-                sdd.fields.push(own cloned_dd)
+            mut f_own_type := OwnType.Shallow
+            mut f_is_mut := false
+            if check(p, TokenType.KwOwn) { advance(p); f_own_type = OwnType.Own }
+            if check(p, TokenType.KwRef) { advance(p); f_own_type = OwnType.Ref }
+            if check(p, TokenType.KwMut) { advance(p); f_is_mut = true }
+            f_name := expect_text(p, TokenType.Ident)
+            mut f_explicit_type := ""
+            if check(p, TokenType.Colon) {
+                advance(p)
+                f_explicit_type = expect_text(p, TokenType.Ident)
+                if check(p, TokenType.Eq) { advance(p) }
+                else { expect_token(p, TokenType.ColonEq) }
+            } else {
+                expect_token(p, TokenType.ColonEq)
             }
-            body.add_child(own stmt)
+            mut f_value := parse_expression(p)
+            mut f_dd := Declaration(name = f_name, is_mut = f_is_mut,
+                own_type = f_own_type, explicit_type = f_explicit_type,
+                default_value = f_value)
+            ref mut sdd : StructDef = get_payload(def.data)
+            sdd.fields.push(own f_dd)
         }
     }
     expect_token(p, TokenType.RBrace)

@@ -344,6 +344,12 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
         panic(__LOC__, type_errors.to_str().concat(" type error(s) found"))
     }
 
+    // Re-resolve field_struct_def after hoisting invalidates pointers
+    if lp.skip_core.not() {
+        resolve_field_struct_defs(lp.core_ast, lp.ctx.scope)
+    }
+    resolve_field_struct_defs(lp.ast, lp.ctx.scope)
+
     precomp(lp.core_ast, lp.ast)
 
     // Skip scavenging for lib/pure modes, and for programs with link_c

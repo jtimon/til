@@ -187,12 +187,13 @@ fa_struct_name := func(e: Expr) returns Str {
 builder_fa_is_ptr := func(e: Expr) returns shallow Bool {
     sname := fa_struct_name(e)
     ref fname : Str = get_payload(e.data)
-    ref body : Expr = find_struct_body(sname)
-    if is_null(body) { return false }
-    for fi in 0..body.children.len() {
-        ref f : Expr = body.child(fi)
-        ref dd : Declaration = get_payload(f.data)
-        if dd.is_namespace.not().and(dd.name.eq(fname)) {
+    ref _fap_def : Expr = find_struct_def(sname)
+    if is_null(_fap_def) { return false }
+    if _fap_def.data.is(NodeType.StructDef).not() { return false }
+    ref _fap_sdd : StructDef = get_payload(_fap_def.data)
+    for fi in 0.._fap_sdd.fields.len() {
+        ref dd : Declaration = _fap_sdd.fields.get(fi)
+        if dd.name.eq(fname) {
             return dd.own_type.eq(OwnType.Shallow).not()
         }
     }
@@ -202,22 +203,21 @@ builder_fa_is_ptr := func(e: Expr) returns shallow Bool {
 builder_fa_is_ns := func(e: Expr) returns shallow Bool {
     sname := fa_struct_name(e)
     ref fname : Str = get_payload(e.data)
-    ref body : Expr = find_struct_body(sname)
-    if is_null(body) { return false }
+    ref _bfn_def : Expr = find_struct_def(sname)
+    if is_null(_bfn_def) { return false }
     mut has_ns := false
     mut has_inst := false
-    ref _bfn_def : Expr = find_struct_def(sname)
-    if is_null(_bfn_def).not() {
-        ref _bfn_ns : Vec = def_ns_decls(_bfn_def)
-        for _bfn_i in 0.._bfn_ns.len() {
-            ref _bfn_d : Declaration = _bfn_ns.get(_bfn_i)
-            if _bfn_d.name.eq(fname) { has_ns = true }
-        }
+    ref _bfn_ns : Vec = def_ns_decls(_bfn_def)
+    for _bfn_i in 0.._bfn_ns.len() {
+        ref _bfn_d : Declaration = _bfn_ns.get(_bfn_i)
+        if _bfn_d.name.eq(fname) { has_ns = true }
     }
-    for fi in 0..body.children.len() {
-        ref f : Expr = body.child(fi)
-        ref dd : Declaration = get_payload(f.data)
-        if dd.name.eq(fname).and(dd.is_namespace.not()) { has_inst = true }
+    if _bfn_def.data.is(NodeType.StructDef) {
+        ref _bfn_sdd : StructDef = get_payload(_bfn_def.data)
+        for fi in 0.._bfn_sdd.fields.len() {
+            ref dd : Declaration = _bfn_sdd.fields.get(fi)
+            if dd.name.eq(fname) { has_inst = true }
+        }
     }
     if has_ns.and(has_inst.not()) { return true }
     if has_ns.not() { return false }
@@ -1336,25 +1336,23 @@ emit_body := proc(f: File, body: Expr, shallow depth: I32) {
     }
 }
 emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
-    ref sbody : Expr = find_struct_body(til_type_name(ctor.til_type))
+    ref _ecf_def : Expr = find_struct_def(til_type_name(ctor.til_type))
     mut fi : U32 = 0
     for i in 1..ctor.children.len() {
         mut fld_own := OwnType.Shallow
         mut field_type := TilType.Unknown
         mut fname := ""
-        if is_null(sbody).not() {
-            while fi.lt(sbody.children.len()) {
-                ref fld : Expr = sbody.child(fi)
-                ref dd : Declaration = get_payload(fld.data)
-                if dd.is_namespace.not() {
-                    fld_own = dd.own_type
-                    field_type = fld.til_type
-                    fname = dd.name
-                    fi = fi.add(1)
-                    break
-                }
+        if is_null(_ecf_def).not() {
+        if _ecf_def.data.is(NodeType.StructDef) {
+            ref _ecf_sdd : StructDef = get_payload(_ecf_def.data)
+            if fi.lt(_ecf_sdd.fields.len()) {
+                ref dd : Declaration = _ecf_sdd.fields.get(fi)
+                fld_own = dd.own_type
+                field_type = dd.til_type
+                fname = dd.name
                 fi = fi.add(1)
             }
+        }
         }
         ref arg : Expr = ctor.child(i)
         emit_indent(f, depth)
@@ -2363,19 +2361,17 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
         if stmt.children.len().eq(0) { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.data.is(NodeType.StructDef) {
-            ref body : Expr = rhs.child(0)
+            ref _btb_sdd : StructDef = get_payload(rhs.data)
             f.write_str(dd.name); f.write_str(" := struct {\n")
-            for j in 0..body.children.len() {
-                ref field : Expr = body.child(j)
-                ref fdd : Declaration = get_payload(field.data)
-                if fdd.is_namespace { continue }
+            for j in 0.._btb_sdd.fields.len() {
+                ref fdd : Declaration = _btb_sdd.fields.get(j)
                 f.write_str("    ")
                 if fdd.is_mut { f.write_str("mut ") }
                 if fdd.own_type.is(OwnType.Own) { f.write_str("own ") }
                 f.write_str(fdd.name)
                 if fdd.explicit_type.len().gt(0) { f.write_str(" : "); f.write_str(fdd.explicit_type) }
                 f.write_str(" := ")
-                if field.children.len().gt(0) { emit_til_default(f, field.til_type) }
+                if is_null(fdd.default_value).not() { emit_til_default(f, fdd.til_type) }
                 else { f.write_str("0") }
                 f.write_str("\n")
             }
@@ -2504,17 +2500,15 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
         ref rhs : Expr = stmt.child(0)
 
         if rhs.data.is(NodeType.StructDef) {
-            ref body : Expr = rhs.child(0)
+            ref _bpb_sdd : StructDef = get_payload(rhs.data)
             f.write_str("\n"); f.write_str(dd.name); f.write_str("._fields_ = [\n")
-            for j in 0..body.children.len() {
-                ref field : Expr = body.child(j)
-                ref fdd : Declaration = get_payload(field.data)
-                if fdd.is_namespace { continue }
+            for j in 0.._bpb_sdd.fields.len() {
+                ref fdd : Declaration = _bpb_sdd.fields.get(j)
                 mut ct := ""
                 if fdd.explicit_type.len().gt(0) {
                     ct = type_name_to_ctypes_param(fdd.explicit_type, false)
                 } else {
-                    switch field.til_type {
+                    switch fdd.til_type {
                     case TilType.I64:  ct = "ctypes.POINTER(ctypes.c_longlong)"
                     case TilType.U8:   ct = "ctypes.POINTER(ctypes.c_ubyte)"
                     case TilType.I16:  ct = "ctypes.POINTER(ctypes.c_short)"

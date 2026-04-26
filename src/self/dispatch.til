@@ -516,8 +516,7 @@ shallow_ffi_type := func(type_name: Str) returns ref ffi_type {
     return ffi_type_pointer_ref()
 }
 
-field_ffi_type := func(field: Expr) returns ref ffi_type {
-    ref dd : Declaration = get_payload(field.data)
+field_ffi_type := func(dd: Declaration) returns ref ffi_type {
     if dd.own_type.eq(OwnType.Shallow).not() { return ffi_type_pointer_ref() }
     if dd.explicit_type.len().eq(0) { return ffi_type_sint64_ref() }
     if dd.explicit_type.eq("I64")   { return ffi_type_sint64_ref() }
@@ -540,29 +539,13 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
         ffi_type_cache = Vec.new("FFITypePtrBox", FFITypePtrBox.size())
         ffi_type_cache_inited = true
     }
-    ref body : Expr = struct_def.child(0)
-    mut nfields : U32 = 0
-    for i in 0..body.children.len() {
-        ref f : Expr = body.child(i)
-        if f.data.is(NodeType.Decl) {
-            ref fd : Declaration = get_payload(f.data)
-            if fd.is_namespace.not() {
-                nfields = nfields.add(1)
-            }
-        }
-    }
+    ref _bsf_sdd : StructDef = get_payload(struct_def.data)
+    nfields := _bsf_sdd.fields.len()
     elements : Dynamic = malloc(nfields.add(1).to_u64().mul(Dynamic.size().to_u64()))
-    mut idx : U32 = 0
-    for i in 0..body.children.len() {
-        ref f : Expr = body.child(i)
-        if f.data.is(NodeType.Decl) {
-            ref fd : Declaration = get_payload(f.data)
-            if fd.is_namespace.not() {
-                ref ft : ffi_type = field_ffi_type(f)
-                memcpy(ptr_add(elements, idx.to_u64().mul(Dynamic.size().to_u64())), ft, Dynamic.size().to_u64())
-                idx = idx.add(1)
-            }
-        }
+    for i in 0..nfields {
+        ref fd : Declaration = _bsf_sdd.fields.get(i)
+        ref ft : ffi_type = field_ffi_type(fd)
+        memcpy(ptr_add(elements, i.to_u64().mul(Dynamic.size().to_u64())), ft, Dynamic.size().to_u64())
     }
     memset(ptr_add(elements, nfields.to_u64().mul(Dynamic.size().to_u64())), 0, Dynamic.size().to_u64())
     st : Dynamic = malloc(ffi_type.size().to_u64())

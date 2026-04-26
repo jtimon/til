@@ -1575,16 +1575,11 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     ref mut struct_meta : StructDef = get_payload(struct_def.data)
     if struct_meta.total_struct_size.gt(0) { return }
 
-    ref body : Expr = struct_def.child(0)
     mut offset : I32 = 0
     mut max_align : I32 = 1
 
-    for i in 0..body.children.len() {
-        ref mut field : Expr = body.child(i)
-        if field.data.is(NodeType.Decl).not() { continue }
-
-        ref mut fd : Declaration = get_payload(field.data)
-        if fd.is_namespace { continue }
+    for i in 0..struct_meta.fields.len() {
+        ref mut fd : Declaration = struct_meta.fields.get(i)
 
         mut fsz : I32 = 0
         mut falign : I32 = 0
@@ -1595,8 +1590,8 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
 
             mut ftype := fd.explicit_type
             if ftype.len().eq(0) {
-                if field.children.len().gt(0) {
-                    ref def_val : Expr = field.child(0)
+                if is_null(fd.default_value).not() {
+                    ref def_val : Expr = fd.default_value
                     if def_val.data.is(NodeType.FCall) {
                         if def_val.children.len().gt(0) {
                             ref callee : Expr = def_val.child(0)
@@ -1621,8 +1616,8 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
         } else {
             mut ftype := fd.explicit_type
             if ftype.len().eq(0) {
-                if field.children.len().gt(0) {
-                    ref def_val : Expr = field.child(0)
+                if is_null(fd.default_value).not() {
+                    ref def_val : Expr = fd.default_value
                     if def_val.data.is(NodeType.LiteralNum) { ftype = "I64" }
                     else if def_val.data.is(NodeType.LiteralStr) { ftype = "Str" }
                     else if def_val.data.is(NodeType.LiteralBool) { ftype = "Bool" }
@@ -1720,6 +1715,29 @@ compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
         sname := _sd.name
         if sname.eq("Dynamic") { continue }
         compute_struct_layout(stmt.child(0), scope)
+    }
+}
+
+// Re-resolve field_struct_def pointers after hoisting (cloning) invalidates them.
+resolve_field_struct_defs := proc(program: Expr, scope: TypeScope) {
+    for i in 0..program.children.len() {
+        ref stmt : Expr = program.child(i)
+        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
+        ref mut sdd : StructDef = get_payload(stmt.child(0).data)
+        for fi in 0..sdd.fields.len() {
+            ref mut fd : Declaration = sdd.fields.get(fi)
+            if fd.explicit_type.len().gt(0) {
+                ftype := fd.explicit_type
+                if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I16").not())
+                .and(ftype.eq("I32").not()).and(ftype.eq("U32").not()).and(ftype.eq("Bool").not()) {
+                    ref nested_def : Expr = scope.get_struct(ftype)
+                    if is_null(nested_def).not() {
+                        fd.field_struct_def = nested_def
+                    }
+                }
+            }
+        }
     }
 }
 

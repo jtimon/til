@@ -36,11 +36,9 @@ namespace:
                 }
             }
         } else {
-            ref body : Expr = self.struct_def.child(0)
-            for fi in 0..body.children.len() {
-                ref field : Expr = body.child(fi)
-                ref dd : Declaration = get_payload(field.data)
-                if dd.is_namespace { continue }
+            ref _cl_sdd : StructDef = get_payload(src_sdef.data)
+            for fi in 0.._cl_sdd.fields.len() {
+                ref dd : Declaration = _cl_sdd.fields.get(fi)
                 foff := dd.field_offset
                 ref ftype : Str = dd.explicit_type
                 if dd.own_type.is(OwnType.Own) {
@@ -482,7 +480,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             exit(1.to_i32())
         }
         ref si : StructInstance = get_payload(obj)
-        ref fdecl : Expr = find_field_decl(si.struct_def, fname)
+        ref fdecl : Declaration = find_field_decl(si.struct_def, fname)
         if is_null(fdecl) {
             e.error("no field '".concat(fname).concat("'"))
             exit(1.to_i32())
@@ -704,15 +702,14 @@ eval_body := proc(scope: Scope, body: Expr) {
                             // For simplicity, handle depth=1 (most common: a.field = val)
                             if depth.eq(1.to_i32()) {
                                 ref fa_name : Str = get_payload(obj_expr.data)
-                                ref fd : Expr = find_field_decl(cur_sdef, fa_name)
+                                ref fd : Declaration = find_field_decl(cur_sdef, fa_name)
                                 if is_null(fd).not() {
-                                    ref fdd : Declaration = get_payload(fd.data)
-                                    if fdd.own_type.is(OwnType.Shallow).not() {
-                                        base = deref(ptr_add(base, fdd.field_offset.to_i64().to_u64()))
+                                    if fd.own_type.is(OwnType.Shallow).not() {
+                                        base = deref(ptr_add(base, fd.field_offset.to_i64().to_u64()))
                                     } else {
-                                        base = ptr_add(base, fdd.field_offset.to_i64().to_u64())
+                                        base = ptr_add(base, fd.field_offset.to_i64().to_u64())
                                     }
-                                    cur_sdef = fdd.field_struct_def
+                                    cur_sdef = fd.field_struct_def
                                 }
                             }
                         }
@@ -726,7 +723,7 @@ eval_body := proc(scope: Scope, body: Expr) {
                     stmt.error("field assign on non-struct")
                     exit(1.to_i32())
                 }
-                ref fdecl : Expr = find_field_decl(cur_sdef, fname)
+                ref fdecl : Declaration = find_field_decl(cur_sdef, fname)
                 mut tmp_inst := StructInstance(struct_name = NULL, struct_def = cur_sdef, data = base, borrowed = true)
                 write_field(tmp_inst, fdecl, val)
                 tmp_inst.data = NULL
@@ -943,7 +940,6 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         ref si_fptr : Dynamic = get_payload(fn_cell.val)
         ref si_edef : Expr = deref(si_fptr)
         if si_edef.data.is(NodeType.StructDef) {
-            ref sdef_body : Expr = si_edef.child(0)
             ref sdd : StructDef = get_payload(si_edef.data)
             inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
             mut inst := val_none()
@@ -961,26 +957,22 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             }
             ref si_inst : StructInstance = get_payload(inst)
             mut arg_idx : U32 = 1
-            for fi in 0..sdef_body.children.len() {
-                ref field : Expr = sdef_body.child(fi)
-                ref fdd : Declaration = get_payload(field.data)
-                if fdd.is_namespace { }
-                else {
-                    ref arg : Expr = e.child(arg_idx)
-                    arg_idx = arg_idx.add(1)
-                    mut val := val_none()
-                    if arg.data.is(NodeType.Ident) {
-                        ref arg_ident : Str = get_payload(arg.data)
-                        ref src : Cell = scope_get(scope, arg_ident)
-                        val = shallow_copy_value(src.val)
-                        if get_own_arg(e, arg_idx).and(val.is(Value.Func).not()) {
-                            src.val = val_none()
-                        }
-                    } else {
-                        val = eval_expr(scope, arg)
+            for fi in 0..sdd.fields.len() {
+                ref fdd : Declaration = sdd.fields.get(fi)
+                ref arg : Expr = e.child(arg_idx)
+                arg_idx = arg_idx.add(1)
+                mut val := val_none()
+                if arg.data.is(NodeType.Ident) {
+                    ref arg_ident : Str = get_payload(arg.data)
+                    ref src : Cell = scope_get(scope, arg_ident)
+                    val = shallow_copy_value(src.val)
+                    if get_own_arg(e, arg_idx).and(val.is(Value.Func).not()) {
+                        src.val = val_none()
                     }
-                    write_field(si_inst, field, val)
+                } else {
+                    val = eval_expr(scope, arg)
                 }
+                write_field(si_inst, fdd, val)
             }
             return inst
         }
@@ -1317,14 +1309,18 @@ build_argv_array := proc(argv: Vec, shallow offset: U32, shallow count: U32, ele
     ref asd : StructDef = get_payload(cached_array_def.data)
     inst_data : Dynamic = calloc(1, asd.total_struct_size.to_i64().to_u64())
     mut tmp := StructInstance(struct_name = cached_array_name, struct_def = cached_array_def, data = to_ptr(inst_data), borrowed = true)
-    write_field(tmp, find_field_decl(cached_array_def, "data"), Value.Ptr(data))
-    write_field(tmp, find_field_decl(cached_array_def, "cap"), val_u32(count.to_i64()))
-    write_field(tmp, find_field_decl(cached_array_def, "elem_size"), val_u32(esz.to_i64()))
-    write_field(tmp, find_field_decl(cached_array_def, "elem_type"), make_str_value(elem_type.c_str, elem_type.count.to_u64()))
+    ref _ba_data_d : Declaration = find_field_decl(cached_array_def, "data")
+    write_field(tmp, _ba_data_d, Value.Ptr(data))
+    ref _ba_cap_d : Declaration = find_field_decl(cached_array_def, "cap")
+    write_field(tmp, _ba_cap_d, val_u32(count.to_i64()))
+    ref _ba_esz_d : Declaration = find_field_decl(cached_array_def, "elem_size")
+    write_field(tmp, _ba_esz_d, val_u32(esz.to_i64()))
+    ref _ba_et_d : Declaration = find_field_decl(cached_array_def, "elem_type")
+    write_field(tmp, _ba_et_d, make_str_value(elem_type.c_str, elem_type.count.to_u64()))
     ref clone_fn : Value = ns_get(elem_type, "clone")
-    if is_null(clone_fn).not() { write_field(tmp, find_field_decl(cached_array_def, "elem_clone"), shallow_copy_value(clone_fn)) }
+    if is_null(clone_fn).not() { ref _ba_ec_d : Declaration = find_field_decl(cached_array_def, "elem_clone"); write_field(tmp, _ba_ec_d, shallow_copy_value(clone_fn)) }
     ref delete_fn : Value = ns_get(elem_type, "delete")
-    if is_null(delete_fn).not() { write_field(tmp, find_field_decl(cached_array_def, "elem_delete"), shallow_copy_value(delete_fn)) }
+    if is_null(delete_fn).not() { ref _ba_ed_d : Declaration = find_field_decl(cached_array_def, "elem_delete"); write_field(tmp, _ba_ed_d, shallow_copy_value(delete_fn)) }
     tmp.data = NULL
     return make_struct_value(cached_array_name, cached_array_def, to_ptr(inst_data), false)
 }
@@ -1415,17 +1411,13 @@ str_view := func(shallow v: Value) returns shallow Str {
     return result
 }
 
-find_field_decl := func(struct_def: Expr, fname: Str) returns ref Expr {
-    ref body : Expr = struct_def.child(0)
-    for i in 0..body.children.len() {
-        ref f : Expr = body.child(i)
-        if f.data.is(NodeType.Decl) {
-            ref dd : Declaration = get_payload(f.data)
-            if dd.is_namespace.not() {
-                if dd.name.eq(fname) {
-                    return f
-                }
-            }
+find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
+    if struct_def.data.is(NodeType.StructDef).not() { return NULL }
+    ref _ffd_sdd : StructDef = get_payload(struct_def.data)
+    for i in 0.._ffd_sdd.fields.len() {
+        ref dd : Declaration = _ffd_sdd.fields.get(i)
+        if dd.name.eq(fname) {
+            return dd
         }
     }
     return NULL
@@ -1433,8 +1425,7 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Expr {
 
 ENUM_PAYLOAD_OFFSET : I32 = 8
 
-read_field := func(inst: StructInstance, fdecl: Expr) returns shallow Value {
-    ref dd : Declaration = get_payload(fdecl.data)
+read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value {
     ref ftype : Str = dd.explicit_type
     ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
     if dd.own_type.is(OwnType.Own) {
@@ -1497,8 +1488,7 @@ read_field := func(inst: StructInstance, fdecl: Expr) returns shallow Value {
     return val_i64(fi)
 }
 
-write_field := proc(mut inst: StructInstance, fdecl: Expr, val: Value) {
-    ref dd : Declaration = get_payload(fdecl.data)
+write_field := proc(mut inst: StructInstance, dd: Declaration, val: Value) {
     ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
     fsz := dd.field_size
     if dd.own_type.is(OwnType.Own) {
