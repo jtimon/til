@@ -7,10 +7,17 @@ mode test
 // are #54).
 
 BinaryOp := func(I64, I64) returns I64
+UnaryOp := func(I64) returns I64
 
 apply_binop := func(op: BinaryOp, a: I64, b: I64) returns I64 {
     return op(a, b)
 }
+
+apply_unary := func(op: UnaryOp, x: I64) returns I64 {
+    return op(x)
+}
+
+// --- Lambda as positional FCall argument ---
 
 test_lambda_basic_add := test() {
     assert_eq(__LOC__, apply_binop(func(a: I64, b: I64) returns I64 { return a.add(b) }, 3, 4), 7)
@@ -23,4 +30,65 @@ test_lambda_basic_mul := test() {
 test_lambda_distinct_call_sites := test() {
     assert_eq(__LOC__, apply_binop(func(a: I64, b: I64) returns I64 { return a.sub(b) }, 10, 3), 7)
     assert_eq(__LOC__, apply_binop(func(a: I64, b: I64) returns I64 { return a.add(b.mul(2)) }, 1, 5), 11)
+}
+
+// --- Lambda as named FCall argument ---
+
+test_lambda_named_arg := test() {
+    assert_eq(__LOC__, apply_unary(op = func(x: I64) returns I64 { return x.mul(3) }, x = 4), 12)
+}
+
+// --- Lambda nested across multiple FCalls ---
+
+test_lambda_nested_calls := test() {
+    inner := apply_unary(func(x: I64) returns I64 { return x.add(1) }, 5)
+    assert_eq(__LOC__, inner, 6)
+    outer := apply_binop(func(a: I64, b: I64) returns I64 { return a.mul(b) }, inner, 7)
+    assert_eq(__LOC__, outer, 42)
+}
+
+// --- Lambda as UFCS method-call argument ---
+
+Wrapper := struct {
+    mut val : I64 = 0
+
+namespace:
+    apply := func(self: Wrapper, op: UnaryOp) returns I64 {
+        return op(self.val)
+    }
+}
+
+test_lambda_ufcs_method_arg := test() {
+    w := Wrapper(val = 6)
+    assert_eq(__LOC__, w.apply(func(x: I64) returns I64 { return x.mul(7) }), 42)
+}
+
+// --- Lambda as RHS of FuncSig-typed declaration ---
+
+test_lambda_as_value_unary := test() {
+    f : UnaryOp = func(x: I64) returns I64 { return x.mul(2) }
+    assert_eq(__LOC__, f(7), 14)
+    assert_eq(__LOC__, apply_unary(f, 5), 10)
+}
+
+test_lambda_as_value_binary := test() {
+    g : BinaryOp = func(a: I64, b: I64) returns I64 { return a.add(b) }
+    assert_eq(__LOC__, g(3, 4), 7)
+    assert_eq(__LOC__, apply_binop(g, 10, 20), 30)
+}
+
+// --- Lambda as struct-field default value ---
+
+Handler := struct {
+    mut on_click : BinaryOp = func(a: I64, b: I64) returns I64 { return a.add(b) }
+}
+
+test_struct_field_lambda_default := test() {
+    h := Handler()
+    assert_eq(__LOC__, h.on_click(3, 5), 8)
+}
+
+test_struct_field_lambda_ctor := test() {
+    h := Handler(on_click = func(a: I64, b: I64) returns I64 { return a.mul(b) })
+    assert_eq(__LOC__, h.on_click(4, 6), 24)
 }

@@ -2122,32 +2122,41 @@
   Parameter and return types are explicit (per the FuncDef literal rule).
   No captures — pure lambdas only. Closures (captures) are #54.
 
-*** Done: lambda as FCall argument (positional and named, top-level
-    call and UFCS method call)
+*** Done: lambda lifting in argument and value positions
 
-   Parser lifts every anonymous FuncDef literal seen at an FCall argument
-   position to a hidden top-level ~_lambda_<N>~ declaration and replaces
-   the argument with an Ident referring to the lifted name. Existing
-   fn_ptr machinery (#14) then treats the lambda as a regular named
-   function. See ~maybe_lift_lambda~ in src/self/parser.til. Tests:
-   src/test/first_class.til (test_lambda_basic_add, _basic_mul,
-   _distinct_call_sites).
+   Parser lifts every anonymous FuncDef literal seen at an "argument"
+   position into a hidden top-level ~_lambda_<N>~ declaration and replaces
+   the original expression with an Ident referring to the lifted name.
+   Existing fn_ptr machinery (#14) then treats the lambda as a regular
+   named function -- no typer, builder, or interpreter changes needed.
+   See ~maybe_lift_lambda~ in src/self/parser.til.
 
-*** Open: lambda as RHS of explicitly-typed declaration
+   Lifted positions:
+   - Positional FCall arg: ~apply(func(...) { ... }, 3, 4)~
+   - Named FCall arg: ~apply(op = func(...) { ... }, x = 4)~
+   - UFCS method-call arg (positional and named): ~obj.m(func(...) { ... })~
+   - RHS of FuncSig-typed declaration: ~f : UnaryOp = func(...) { ... }~
+   - Struct field default value: ~Handler := struct { mut on_click : BinaryOp = func(...) { ... } }~
+   - Struct constructor named arg: ~Handler(on_click = func(...) { ... })~
 
-   ~f : UnaryOp = func(x: I64) returns I64 { return x.mul(2) }~ currently
-   fails with ~type error: 'f' declared as UnaryOp but value is FunctionDef~.
-   The typer doesn't yet treat a FuncDef literal as an instance of its
-   matching FuncSig. Workaround today: assign to a top-level name first,
-   then the existing fn_ptr machinery handles ~f : UnaryOp = name~.
+   Tests: src/test/first_class.til (10 tests, both interpret and run).
 
-*** Open: lambda inside a generic collection
+*** Open: storing in a Vec of FuncSig elements
 
    ~ops.push(own func(...) { ... })~ where ~ops := Vec.new("BinaryOp", ...)~
-   panics at runtime with ~dyn_fn: unknown BinaryOp.clone~. Vec's clone
-   path tries to call ~.clone()~ on the FuncSig element, but FuncSig
-   isn't a real struct and has no clone method. Same root cause as the
-   "deferred: storing in collections" note under fixed #14.
+   panics at runtime with ~dyn_fn: unknown BinaryOp.clone~. The same
+   panic happens with a NAMED function (~ops.push(own fn_add)~), so this
+   is a pre-existing Vec/FuncSig limitation, not lambda-specific. Same
+   root cause as the "deferred: storing in collections" note under
+   fixed #14.
+
+*** Open: FuncSig form lambda as expression
+
+   ~apply(func(I64) returns I64 = (x) { return x.mul(2) }, 5)~ does not
+   parse: the parser doesn't accept ~= (names) { body }~ continuation
+   in expression position (only after a ~name : Type =~ decl head).
+   The FuncDef form ~func(x: I64) returns I64 { ... }~ already covers
+   every use case so this is low priority.
 
 ** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
   :DEPENDENCIES: #14 #61
