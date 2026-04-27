@@ -1549,6 +1549,8 @@ Str get_version(void);
 Str * get_bin_dir(void);
 Str * get_cwd_str(void);
 Str * repl_read_line(Str * mode_name);
+Bool * is_repl_op_method(Str * name);
+Bool * is_repl_bare_expr(Expr * ast);
 void run_repl_session(Str * mode_name_in, Str * next_mode_out);
 void run_repl(Str * initial_mode);
 void usage(void);

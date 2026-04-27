@@ -45,6 +45,46 @@ repl_read_line := proc(mode_name: Str) returns Str {
     return line
 }
 
+// True for binary/unary operator methods that the parser desugars `+`, `-`,
+// `==`, `<`, etc. into. These always return a value, so a top-level FCall
+// whose head is a FieldAccess named one of these is a bare expression we
+// can auto-echo. Method calls with other names are excluded because they
+// might be procs (returning nothing).
+is_repl_op_method := func(name: Str) returns Bool {
+    if name.eq("add").or(name.eq("sub")).or(name.eq("mul")) { return true }
+    if name.eq("div").or(name.eq("mod")) { return true }
+    if name.eq("eq").or(name.eq("neq")) { return true }
+    if name.eq("lt").or(name.eq("lte")).or(name.eq("gt")).or(name.eq("gte")) { return true }
+    if name.eq("and").or(name.eq("or")).or(name.eq("xor")).or(name.eq("not")) { return true }
+    return false
+}
+
+// Decide if a parsed REPL block is a bare expression that should be
+// auto-echoed Python-style, by wrapping it in `println((...).to_str())`.
+// Conservative: only literals, identifiers, field accesses, and FCalls
+// that are operator desugarings. Free-function calls and method calls
+// with non-operator names are left alone (they may be procs).
+is_repl_bare_expr := func(ast: Expr) returns Bool {
+    if ast.children.len().neq(1) { return false }
+    ref child : Expr = ast.children.get(0)
+    switch child.data {
+    case NodeType.LiteralNum:  return true
+    case NodeType.LiteralStr:  return true
+    case NodeType.LiteralBool: return true
+    case NodeType.LiteralNull: return true
+    case NodeType.Ident:       return true
+    case NodeType.FieldAccess: return true
+    case NodeType.FCall:
+        if child.children.len().eq(0) { return false }
+        ref head : Expr = child.children.get(0)
+        switch head.data {
+        case NodeType.FieldAccess(name): return is_repl_op_method(name)
+        case: return false
+        }
+    case: return false
+    }
+}
+
 // Run one REPL session in a given mode. On EOF, leaves next_mode_out empty.
 // If a `mode X` statement is entered, sets next_mode_out = X so the caller
 // can restart the session in the new mode.
@@ -84,10 +124,16 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
         peek_tokens := tokenize(kept, "<repl>")
         mut peek_mode_out := ""
         peek_ast := parse(peek_tokens, "<repl>", peek_mode_out)
-        _discard := peek_ast.children.len()
         if peek_mode_out.len().gt(0) {
             next_mode_out = peek_mode_out.clone()
             return
+        }
+
+        // Python-style auto-echo: if the user typed a bare expression, wrap
+        // it in `println((...).to_str())` before running and remembering it.
+        mut block_eff := block.clone()
+        if is_repl_bare_expr(peek_ast) {
+            block_eff = "println((".concat(block).concat(").to_str())")
         }
 
         // Append block to accumulated source.
@@ -95,7 +141,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
         combined = combined.concat("mode ").concat(mode_str).concat("\n")
         combined = combined.concat(accum)
         if accum.len().gt(0) { combined = combined.concat("\n") }
-        combined = combined.concat(block)
+        combined = combined.concat(block_eff)
 
         // Write to a temp file and run via til_interpret_source.
         tmp_path := "tmp/repl_".concat(process_id().to_str()).concat(".til")
@@ -137,7 +183,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
         // may matter for future inputs (e.g. `a := 1` is a known
         // unused-var bug on its own but valid once referenced later).
         if accum.len().gt(0) { accum = accum.concat("\n") }
-        accum = accum.concat(block)
+        accum = accum.concat(block_eff)
         prev_out = full_out.clone()
     }
 }
