@@ -1,3 +1,4 @@
+/// Integer interval from start (inclusive) to end (exclusive).
 Range := struct {
     start : U64 = 0
     end : U64 = 0

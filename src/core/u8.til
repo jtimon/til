@@ -1,5 +1,6 @@
 mode lib
 
+/// Unsigned 8-bit integer.
 U8 := struct {
 namespace:
     to_i64 := ext_func(shallow val: U8) returns shallow I64 {}

@@ -1,5 +1,6 @@
 mode lib
 
+/// String-keyed map of dynamically-typed values.
 DynMap := struct {
     mut items := Map.new("Str", Str.size(), "Tuple", Tuple.size())
 

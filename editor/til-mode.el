@@ -72,8 +72,10 @@
   "Words to highlight as warning in comments.")
 
 (defconst til-highlights `(
-    ;; Doc comments: /// to end of line (Rust style)
-    ("///.*$" . font-lock-doc-face)
+    ;; Doc comments: /// to end of line (Rust style). The trailing `t' is
+    ;; the OVERRIDE flag so we win against the syntax-table's comment-face
+    ;; (which would otherwise paint the whole // line as a regular comment).
+    ("///.*$" 0 font-lock-doc-face t)
     ;; Error words
     (,(regexp-opt til-error-words 'symbols) . compilation-error)
     ;; Error words in comments

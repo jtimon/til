@@ -3,6 +3,7 @@ mode lib
 CAP_LIT : USize = -1.to_usize()
 CAP_VIEW : USize = -2.to_usize()
 
+/// Concatenate multiple strings into one.
 format := func(parts: ..Str) returns Str {
     mut total : USize = 0
     for s : Str in parts {
@@ -15,6 +16,7 @@ format := func(parts: ..Str) returns Str {
     return out
 }
 
+/// UTF-8 string with owned heap storage.
 Str := struct {
     own mut c_str : U8 = 0
     mut count : USize = 0

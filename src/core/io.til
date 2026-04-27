@@ -5,6 +5,7 @@ readfile := ext_func(path: Str) returns Str {}
 writefile := ext_proc(path: Str, content: Str) {}
 in_read_line := ext_proc(mut line: Str) returns shallow Bool {}
 
+/// Print strings to stdout followed by a newline.
 println := proc(parts: ..Str) {
     for s : Str in parts {
         print_single(s)
@@ -12,6 +13,7 @@ println := proc(parts: ..Str) {
     print_flush()
 }
 
+/// Print strings to stdout without a newline.
 print := proc(parts: ..Str) {
     for s : Str in parts {
         print_single(s)

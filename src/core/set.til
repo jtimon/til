@@ -1,5 +1,6 @@
 mode lib
 
+/// Unordered collection of unique typed elements.
 Set := struct {
     own mut data : U8 = 0
     mut count : USize = 0

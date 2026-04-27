@@ -1,5 +1,6 @@
 mode lib
 
+/// Signed 64-bit integer.
 I64 : StructDef = struct {
 namespace:
     to_str := func(val: I64) returns Str {

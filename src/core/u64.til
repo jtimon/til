@@ -1,5 +1,6 @@
 mode lib
 
+/// Unsigned 64-bit integer.
 U64 := struct {
 namespace:
     to_i64 := ext_func(shallow val: U64) returns shallow I64 {}

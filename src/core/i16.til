@@ -1,5 +1,6 @@
 mode lib
 
+/// Signed 16-bit integer.
 I16 := struct {
 namespace:
     to_i64 := ext_func(shallow val: I16) returns shallow I64 {}

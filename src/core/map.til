@@ -1,5 +1,6 @@
 mode lib
 
+/// Hash map from typed keys to typed values.
 Map := struct {
     own mut key_data : U8 = 0
     own mut val_data : U8 = 0
