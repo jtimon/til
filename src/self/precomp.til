@@ -122,7 +122,94 @@ func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope)
     return false
 }
 
+// If the function body is a trivially literal-returning shape, return a
+// reference to that literal Expr. Handles both `return <lit>` and the
+// typer-hoisted `_t := <lit>; return _t` form. Returns NULL otherwise.
+extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
+    if fdef.children.len().eq(0) { return NULL }
+    ref body : Expr = fdef.child(0)
+    n := body.children.len()
+    if n.eq(1) {
+        ref ret : Expr = body.child(0)
+        if ret.data.is(NodeType.Return).not() { return NULL }
+        if ret.children.len().eq(0) { return NULL }
+        ref rv : Expr = ret.child(0)
+        if rv.data.is(NodeType.LiteralNum)
+            .or(rv.data.is(NodeType.LiteralStr))
+            .or(rv.data.is(NodeType.LiteralBool)) {
+            return rv
+        }
+        return NULL
+    }
+    if n.eq(2) {
+        ref decl : Expr = body.child(0)
+        ref ret : Expr = body.child(1)
+        if decl.data.is(NodeType.Decl).not() { return NULL }
+        if ret.data.is(NodeType.Return).not() { return NULL }
+        if decl.children.len().eq(0) { return NULL }
+        if ret.children.len().eq(0) { return NULL }
+        ref dd : Declaration = get_payload(decl.data)
+        ref ret_val : Expr = ret.child(0)
+        if ret_val.data.is(NodeType.Ident).not() { return NULL }
+        ref ident_name : Str = get_payload(ret_val.data)
+        if ident_name.eq(dd.name).not() { return NULL }
+        ref rhs : Expr = decl.child(0)
+        if rhs.data.is(NodeType.LiteralNum)
+            .or(rhs.data.is(NodeType.LiteralStr))
+            .or(rhs.data.is(NodeType.LiteralBool)) {
+            return rhs
+        }
+    }
+    return NULL
+}
+
+// Fast path: if the callee is a nullary function whose body trivially
+// returns a literal, return a heap-allocated clone of that literal.
+try_fast_fold_call := proc(scope: Scope, fcall: Expr) returns ref Expr {
+    if fcall.children.len().eq(1).not() { return NULL }
+    ref _fc_callee : Expr = fcall.child(0)
+    ref mut _fc_fp : Dynamic = NULL
+    if _fc_callee.data.is(NodeType.Ident) {
+        ref _ci : Str = get_payload(_fc_callee.data)
+        ref _cell : Cell = scope_get(scope, _ci)
+        if is_null(_cell).not() {
+            if is(_cell.val, Value.Func) {
+                _fc_fp = get_payload(_cell.val)
+            }
+        }
+    } else if _fc_callee.data.is(NodeType.FieldAccess) {
+        if _fc_callee.children.len().gt(0) {
+            ref _recv : Expr = _fc_callee.child(0)
+            if _recv.data.is(NodeType.Ident) {
+                ref _sn : Str = get_payload(_recv.data)
+                ref _mn : Str = get_payload(_fc_callee.data)
+                ref _nv : Value = ns_get(_sn, _mn)
+                if is_null(_nv).not() {
+                    if is(_nv, Value.Func) {
+                        _fc_fp = get_payload(_nv)
+                    }
+                }
+            }
+        }
+    }
+    if is_null(_fc_fp) { return NULL }
+    ref _fc_fdef : Expr = deref(_fc_fp)
+    if _fc_fdef.data.is(NodeType.FuncDef).not() { return NULL }
+    ref _lit : Expr = extract_trivial_literal_return(_fc_fdef)
+    if is_null(_lit) { return NULL }
+    mut _lit_clone := _lit.clone()
+    _lit_clone.til_type = fcall.til_type
+    _heap : Dynamic = malloc(Expr.size().to_u64())
+    memcpy(_heap, _lit_clone, Expr.size())
+    memset(_lit_clone, 0, Expr.size())
+    ref _heap_ref : Expr = to_ptr(_heap)
+    return _heap_ref
+}
+
 try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) returns ref Expr {
+    ref _fast : Expr = try_fast_fold_call(scope, fcall)
+    if is_null(_fast).not() { return _fast }
+
     // Check if the function body references unknown globals
     ref callee : Expr = fcall.child(0)
     if callee.data.is(NodeType.Ident) {
@@ -227,8 +314,19 @@ is_macro_call := func(e: Expr) returns shallow Bool {
     if e.data.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
-    if callee.data.is(NodeType.Ident).not() { return false }
-    return precomp_has_macro(get_payload(callee.data))
+    if callee.data.is(NodeType.Ident) {
+        return precomp_has_macro(get_payload(callee.data))
+    }
+    if callee.data.is(NodeType.FieldAccess) {
+        if callee.children.len().eq(0) { return false }
+        ref recv : Expr = callee.child(0)
+        if recv.data.is(NodeType.Ident).not() { return false }
+        ref sname : Str = get_payload(recv.data)
+        ref mname : Str = get_payload(callee.data)
+        qname := sname.concat("_").concat(mname)
+        return precomp_has_macro(qname)
+    }
+    return false
 }
 
 is_func_call := func(e: Expr) returns shallow Bool {
@@ -250,62 +348,47 @@ is_func_call := func(e: Expr) returns shallow Bool {
     return false
 }
 
-process_body := proc(scope: Scope, body: Expr) {
-    for i in 0..body.children.len() {
-        ref stmt : Expr = body.child(i)
-        if stmt.data.is(NodeType.Decl) {
-            ref dd : Declaration = get_payload(stmt.data)
-            if stmt.children.len().eq(0) { }
-            else if stmt.child(0).data.is(NodeType.FuncDef)
-            .or(stmt.child(0).data.is(NodeType.StructDef))
-            .or(stmt.child(0).data.is(NodeType.EnumDef)) {
-                if stmt.child(0).data.is(NodeType.FuncDef)
-                .and(stmt.child(0).children.len().gt(0)) {
-                    process_body(scope, decl_body(stmt))
-                }
-            } else if dd.own_type.eq(OwnType.Ref) { }
-            else if dd.is_mut { }
-            else if is_macro_call(stmt.child(0)) {
-                ref lit : Expr = try_eval_call(scope, stmt.child(0), true)
-                if is_null(lit).not() {
-                    stmt.children.set(0, own lit.clone())
-                    track_literal(scope, dd.name, lit)
-                }
-            } else if is_func_call(stmt.child(0)) {
-                ref lit : Expr = try_eval_call(scope, stmt.child(0), false)
-                if is_null(lit).not() {
-                    stmt.children.set(0, own lit.clone())
-                    track_literal(scope, dd.name, lit)
-                } else {
-                    track_literal(scope, dd.name, stmt.child(0))
-                }
-            } else {
-                track_literal(scope, dd.name, stmt.child(0))
-            }
-        } else if stmt.data.is(NodeType.If) {
-            if stmt.children.len().gt(1) {
-                process_body(scope, stmt.child(1))
-            }
-            if stmt.children.len().gt(2) {
-                process_body(scope, stmt.child(2))
-            }
-        } else if stmt.data.is(NodeType.While) {
-            if stmt.children.len().gt(1) {
-                process_body(scope, stmt.child(1))
-            }
-        } else if stmt.data.is(NodeType.FCall) {
-            if is_macro_call(stmt) {
-                ref lit : Expr = try_eval_call(scope, stmt, true)
-                if is_null(lit).not() {
-                    body.children.set(i, own lit.clone())
-                }
-            } else if is_func_call(stmt) {
-                ref lit : Expr = try_eval_call(scope, stmt, false)
-                if is_null(lit).not() {
-                    body.children.set(i, own lit.clone())
-                }
+// Uniform fold: walk the subtree rooted at `e` and replace every FCall
+// child whose callee is a known macro or pure func with its folded
+// literal. Macros are forced (require_known); funcs use the trivial-
+// literal-return fast path because the eval-based path still trips a
+// pre-existing interpreter use-after-free outside the narrow contexts
+// the old code allowed.
+fold_subtree := proc(scope: Scope, mut e: Expr) {
+    for i in 0..e.children.len() {
+        ref child : Expr = e.child(i)
+        fold_subtree(scope, child)
+        if child.data.is(NodeType.FCall) {
+            if is_macro_call(child) {
+                ref lit : Expr = try_eval_call(scope, child, true)
+                if is_null(lit).not() { e.children.set(i, own lit.clone()) }
+            } else if is_func_call(child) {
+                ref lit : Expr = try_fast_fold_call(scope, child)
+                if is_null(lit).not() { e.children.set(i, own lit.clone()) }
             }
         }
+    }
+}
+
+process_body := proc(scope: Scope, body: Expr) {
+    fold_subtree(scope, body)
+    // Track top-level Decl literals so future Idents see them as known.
+    // Recurse into FuncDef bodies. Mut Decls aren't constants. Ref Decls
+    // bind a location, not a value. Struct/Enum/FuncDef Decls aren't values.
+    for stmt : Expr in body.children {
+        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+        if rhs.data.is(NodeType.FuncDef) {
+            if rhs.children.len().gt(0) { process_body(scope, decl_body(stmt)) }
+            continue
+        }
+        if rhs.data.is(NodeType.StructDef) { continue }
+        if rhs.data.is(NodeType.EnumDef) { continue }
+        ref dd : Declaration = get_payload(stmt.data)
+        if dd.is_mut { continue }
+        if dd.own_type.eq(OwnType.Ref) { continue }
+        track_literal(scope, dd.name, rhs)
     }
 }
 
@@ -329,8 +412,10 @@ precomp_scan_names := proc(prog: Expr) {
                     ref fdef : Expr = fdd.default_value
                     if fdef.data.is(NodeType.FuncDef) {
                         ref ffd : FunctionDef = get_payload(fdef.data)
-                        if ffd.func_type.is(FuncType.Func) {
-                            qname := sdd.name.concat("_").concat(fdd.name)
+                        qname := sdd.name.concat("_").concat(fdd.name)
+                        if ffd.func_type.is(FuncType.Macro) {
+                            macros.add(own qname)
+                        } else if ffd.func_type.is(FuncType.Func) {
                             funcs.add(own qname)
                         }
                     }
@@ -343,8 +428,10 @@ precomp_scan_names := proc(prog: Expr) {
                     if is_null(nsd.default_value) { continue }
                     if nsd.default_value.data.is(NodeType.FuncDef) {
                         ref ffd : FunctionDef = get_payload(nsd.default_value.data)
-                        if ffd.func_type.is(FuncType.Func) {
-                            qname := sdd.name.concat("_").concat(nsd.name)
+                        qname := sdd.name.concat("_").concat(nsd.name)
+                        if ffd.func_type.is(FuncType.Macro) {
+                            macros.add(own qname)
+                        } else if ffd.func_type.is(FuncType.Func) {
                             funcs.add(own qname)
                         }
                     }
@@ -400,8 +487,9 @@ precomp := proc(core_program: Expr, program: Expr) {
         ffi_init_scan_program(core_program)
     }
 
-    // 3. Process the program body (user only)
+    // 3. Fold calls in both core and user programs.
     known = Map.new("Str", Str.size(), "Value", Value.size())
+    if is_null(core_program).not() { process_body(global, core_program) }
     process_body(global, program)
 
     // Cleanup
