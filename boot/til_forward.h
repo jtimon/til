@@ -1266,6 +1266,7 @@ Bool callee_param_is_own(Str * callee_name, U32 arg_index);
 Bool fcall_is_shallow_return(Expr * fcall);
 Bool fcall_returns_dynamic(Expr * fcall);
 Str * til_type_to_c(TilType t);
+Str * resolve_decl_ctype(TilType t, TilType rhs_t, Str * explicit);
 Str * c_type_name(TilType t, Str * struct_name);
 Str * func_to_c(Str * name);
 Str * type_name_to_c(Str * name);

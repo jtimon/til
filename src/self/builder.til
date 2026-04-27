@@ -346,6 +346,21 @@ til_type_to_c := func(shallow t: TilType) returns Str {
     }
 }
 
+// Resolve the C type name for a Decl whose explicit_type may be empty.
+// Skips the heap-allocated empty-Str dance from til_type_name when t isn't
+// Struct/Enum/FuncPtr (where the name actually matters) -- saves the Str_lit("")
+// leak per call.
+resolve_decl_ctype := func(shallow t: TilType, shallow rhs_t: TilType, explicit: Str) returns Str {
+    if t.is(TilType.Struct).or(t.is(TilType.Enum)).or(t.eq(TilType.FuncPtr)) {
+        sn := til_type_name(t)
+        if sn.len().gt(0) { return c_type_name(t, sn) }
+        sn2 := til_type_name(rhs_t)
+        if sn2.len().gt(0) { return c_type_name(t, sn2) }
+        return c_type_name(t, explicit)
+    }
+    return c_type_name(t, "")
+}
+
 c_type_name := func(shallow t: TilType, struct_name: Str) returns Str {
     if t.is(TilType.Struct).or(t.is(TilType.Enum)) {
         if is_null(struct_name).not() {
@@ -767,18 +782,12 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
         if dd.own_type.eq(OwnType.Ref) {
             is_rg := is_ref_global(dd.name).and(in_func_def.not())
             if is_rg.not() { ref_locals.add(own dd.name.clone()) }
-            mut _sn := til_type_name(e.til_type)
-            if _sn.len().eq(0) { _sn = til_type_name(rhs.til_type) }
-            if _sn.len().eq(0) { _sn = dd.explicit_type.clone() }
-            ctype := c_type_name(e.til_type, _sn)
+            ctype := resolve_decl_ctype(e.til_type, rhs.til_type, dd.explicit_type)
             if is_rg { f.write_str(dd.name); f.write_str(" = ") }
             else { f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(" = ") }
             emit_as_ptr(f, rhs, depth, false); f.write_str(";\n")
         } else {
-            mut _sn := til_type_name(e.til_type)
-            if _sn.len().eq(0) { _sn = til_type_name(rhs.til_type) }
-            if _sn.len().eq(0) { _sn = dd.explicit_type.clone() }
-            ctype := c_type_name(e.til_type, _sn)
+            ctype := resolve_decl_ctype(e.til_type, rhs.til_type, dd.explicit_type)
             is_global := is_value_global(dd.name).and(in_func_def.not())
             if e.til_type.eq(TilType.Dynamic) {
                 if is_global { f.write_str(dd.name); f.write_str(" = ") }
