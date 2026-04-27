@@ -416,22 +416,6 @@
    handful of edge cases; final ~_oa~ wraps on module-global delete
    paths.
 
-** OPEN #136 Precomp doesn't fold namespace method calls
-  ~Dynamic.size()~ is defined in ~dyn.til~ as ~func() returns USize { return 8 }~
-  but is not folded by precomp. ~is_func_call~ in ~precomp.til~ (line 150)
-  rejects FieldAccess callees. ~try_eval_call~ in ~precomp.til~
-  assumes the callee is an Ident. Namespace method calls use FieldAccess.
-  The builder's ~emit_struct_funcs~ overrides all ~size()~ methods with
-  ~sizeof(name)~, which emits ~sizeof(Dynamic)~ = 1 because Dynamic is
-  emitted as ~struct { char _; }~. This masks the folding gap for all
-  types except Dynamic.
-  Fix: 1) remove the special case excluding namespaced functions in precomp
-  2) remove the hardcoded sizeof stuff in builder
-  Workarounds in builder.til until fixed:
-  - ~I64.size()~ instead of ~Dynamic.size()~ for pointer-sized map values
-  - ~ref mut prog~ assignment leaks (clones instead of pointer copy)
-  - Unnecessary helper procs (~register_lookups_prog~, ~register_funcsig_prog~,
-    ~emit_global_inits_prog~) that should be inlined once clone leak is fixed
 ** OPEN #130 AST / ~Expr~ representation cleanup
   The current AST shape is confusing and duplicates state in ways that make
   parser and ownership bugs harder to reason about.

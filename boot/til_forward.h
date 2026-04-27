@@ -371,6 +371,7 @@ typedef struct EnumDef {
     Vec ns_decls;
     Vec variants;
     Map payload_types;
+    I32 total_enum_size;
 } EnumDef;
 
 
@@ -1012,12 +1013,14 @@ void register_type_aliases(Expr * program, TypeScope * scope);
 void register_top_level_values(Expr * program, TypeScope * scope);
 void register_function_definitions(Expr * program, TypeScope * scope);
 void generate_struct_size_methods(Expr * program);
-void generate_enum_size_methods(Expr * program);
+void generate_enum_size_methods(Expr * program, TypeScope * scope);
 void generate_unity_derived_methods(Expr * program);
-void generate_size_methods(Expr * program);
+void generate_size_methods(Expr * program, TypeScope * scope);
 void generate_cmp_derived_methods(Expr * program);
 void generate_derived_methods(Expr * program);
 void compute_struct_layout(Expr * struct_def, TypeScope * scope);
+void type_size_align(Str * ftype, TypeScope * scope, I32 * sz, I32 * al);
+I32 compute_enum_layout(Expr * enum_def, TypeScope * scope);
 void compute_all_struct_layouts(Expr * program, TypeScope * scope);
 void resolve_field_struct_defs(Expr * program, TypeScope * scope);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_type);

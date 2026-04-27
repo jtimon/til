@@ -143,6 +143,7 @@ EnumDef : StructDef = struct {
     mut ns_decls := Vec.new("Declaration", Declaration.size())
     mut variants := Vec.new("Str", Str.size())
     mut payload_types := Map.new("I64", I64.size(), "Str", Str.size())
+    mut total_enum_size : I32 = 0
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {
         return a.variants.len().eq(b.variants.len())

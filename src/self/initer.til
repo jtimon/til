@@ -1157,7 +1157,7 @@ generate_struct_size_methods := proc(program: Expr) {
     }
 }
 
-generate_enum_size_methods := proc(program: Expr) {
+generate_enum_size_methods := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
@@ -1177,10 +1177,7 @@ generate_enum_size_methods := proc(program: Expr) {
         }
         if has_size { continue }
 
-        mut sz_text := "4"
-        if enum_has_payloads(def) {
-            sz_text = "8"
-        }
+        sz_text := compute_enum_layout(def, scope).to_i64().to_str()
 
         mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
         mut size_expr := Expr.new(NodeType.LiteralNum(sz_text.clone()), stmt.line, stmt.col, stmt.path)
@@ -1283,9 +1280,9 @@ generate_unity_derived_methods := proc(program: Expr) {
     }
 }
 
-generate_size_methods := proc(program: Expr) {
+generate_size_methods := proc(program: Expr, scope: TypeScope) {
     generate_struct_size_methods(program)
-    generate_enum_size_methods(program)
+    generate_enum_size_methods(program, scope)
 }
 
 generate_cmp_derived_methods := proc(program: Expr) {
@@ -1659,13 +1656,8 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
             else {
                 ref nested_def : Expr = scope.get_struct(ftype)
                 if is_null(nested_def).not().and(nested_def.data.is(NodeType.EnumDef)) {
-                    if enum_has_payloads(nested_def) {
-                        fsz = 8
-                        falign = 8
-                    } else {
-                        fsz = 4
-                        falign = 4
-                    }
+                    fsz = compute_enum_layout(nested_def, scope)
+                    if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
                     fd.field_struct_def = nested_def
                 } else if is_null(nested_def).not() {
                     compute_struct_layout(nested_def, scope)
@@ -1693,6 +1685,65 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     }
 }
 
+// Compute size and alignment for a TIL type name.
+// For struct/enum payloads, recurses into compute_struct_layout / compute_enum_layout.
+type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) {
+    if ftype.eq("I64") { sz = 8; al = 8; return }
+    if ftype.eq("U64") { sz = 8; al = 8; return }
+    if ftype.eq("F32") { sz = 4; al = 4; return }
+    if ftype.eq("U8") { sz = 1; al = 1; return }
+    if ftype.eq("I8") { sz = 1; al = 1; return }
+    if ftype.eq("I16") { sz = 2; al = 2; return }
+    if ftype.eq("I32") { sz = 4; al = 4; return }
+    if ftype.eq("U32") { sz = 4; al = 4; return }
+    if ftype.eq("Bool") { sz = 1; al = 1; return }
+    if ftype.eq("Dynamic") { sz = 8; al = 8; return }
+    if type_from_name_init(ftype, scope).eq(TilType.FuncPtr) { sz = 8; al = 8; return }
+    ref nested : Expr = scope.get_struct(ftype)
+    if is_null(nested) { sz = 8; al = 8; return }
+    if nested.data.is(NodeType.StructDef) {
+        compute_struct_layout(nested, scope)
+        ref _nm : StructDef = get_payload(nested.data)
+        sz = _nm.total_struct_size
+        al = 8
+        return
+    }
+    if nested.data.is(NodeType.EnumDef) {
+        sz = compute_enum_layout(nested, scope)
+        al = 8
+        return
+    }
+    sz = 8
+    al = 8
+}
+
+compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns shallow I32 {
+    ref mut edd : EnumDef = get_payload(enum_def.data)
+    if edd.total_enum_size.gt(0) { return edd.total_enum_size }
+    // Set sentinel before recursing to break self-referential cycles.
+    edd.total_enum_size = 4
+
+    mut max_payload_size : I32 = 0
+    mut max_payload_align : I32 = 4
+    for vi in 0..edd.variants.len() {
+        vt := enum_variant_type(enum_def, vi.to_i64().to_i32())
+        if vt.len().eq(0) { continue }
+        mut psz : I32 = 0
+        mut palign : I32 = 0
+        type_size_align(vt, scope, psz, palign)
+        if psz.gt(max_payload_size) { max_payload_size = psz }
+        if palign.gt(max_payload_align) { max_payload_align = palign }
+    }
+    mut total : I32 = 4
+    if max_payload_size.gt(0) {
+        total = align_up(4, max_payload_align)
+        total = total.add(max_payload_size)
+    }
+    total = align_up(total, max_payload_align)
+    edd.total_enum_size = total
+    return total
+}
+
 compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
@@ -1701,6 +1752,11 @@ compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
         sname := _sd.name
         if sname.eq("Dynamic") { continue }
         compute_struct_layout(stmt.child(0), scope)
+    }
+    for stmt : Expr in program.children {
+        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
+        compute_enum_layout(stmt.child(0), scope)
     }
 }
 
@@ -1822,7 +1878,7 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     generate_missing_enum_clones(program)
     register_type_aliases(program, scope)
     compute_all_struct_layouts(program, scope)
-    generate_size_methods(program)
+    generate_size_methods(program, scope)
     generate_derived_methods(program)
     register_function_definitions(program, scope)
     register_top_level_values(program, scope)

@@ -142,6 +142,7 @@
 *** mut ns_decls := Vec.new("Declaration", Declaration.size())
 *** mut variants := Vec.new("Str", Str.size())
 *** mut payload_types := Map.new("I64", I64.size(), "Str", Str.size())
+*** mut total_enum_size : I32 = 0
 ** AssignData: StructDef
 *** mut name := ""
 *** mut save_old_delete := false

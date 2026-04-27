@@ -79,3 +79,10 @@ greet := func(name: Str) returns Str {
 test_func_str := test() {
     assert_eq_str(__LOC__, greet("til"), "hi til")
 }
+
+# #136: Dynamic.size() is defined as `func() returns USize { return 8 }`
+# in dyn.til; before the fix, the builder's size() override emitted
+# sizeof(Dynamic) = 1 (Dynamic is `struct { char _; }` in C).
+test_func_ns_method_size := test() {
+    assert_eq(__LOC__, Dynamic.size().to_i64(), 8)
+}
