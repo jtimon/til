@@ -265,7 +265,6 @@ typedef struct Declaration {
     Str name;
     Str explicit_type;
     Bool is_mut;
-    Bool is_namespace;
     OwnType own_type;
     TilType til_type;
     I32 field_offset;

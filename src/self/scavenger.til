@@ -306,10 +306,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                 } else {
                     ref body : Expr = decl_body(decl)
                     for field : Expr in body.children {
-                        ref fd : Declaration = get_payload(field.data)
-                        if fd.is_namespace.not() {
-                            collect_refs(field, worklist)
-                        }
+                        collect_refs(field, worklist)
                     }
                 }
                 push_qn(worklist, name, "delete")
@@ -343,10 +340,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                 } else {
                     ref body : Expr = decl_body(decl)
                     for field : Expr in body.children {
-                        ref fd : Declaration = get_payload(field.data)
-                        if fd.is_namespace.not() {
-                            collect_refs(field, worklist)
-                        }
+                        collect_refs(field, worklist)
                     }
                 }
                 push_qn(worklist, name, "delete")
@@ -424,23 +418,6 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             if stmt.data.is(NodeType.Decl).not() { continue }
             if is_struct_or_enum(stmt).not() { continue }
             ref sdecl : Declaration = get_payload(stmt.data)
-            // Filter body ns methods
-            ref body : Expr = decl_body(stmt)
-            bn := body.children.len()
-            bm : Dynamic = malloc(bn)
-            memset(bm, 0, bn)
-            for j in 0..bn {
-                ref field : Expr = body.child(j)
-                ref fd : Declaration = get_payload(field.data)
-                if fd.is_namespace {
-                    qn := qualified_name(sdecl.name, fd.name)
-                    if visited.has(qn).not() {
-                        memset(ptr_add(bm, j), 1, 1)
-                    }
-                }
-            }
-            children_filter(body.children, bm, bn)
-            free(own bm)
             // Filter ns_decls entries
             ref _scv_ns : Vec = def_ns_decls(stmt.child(0))
             _scv_nn := _scv_ns.len()
@@ -463,22 +440,6 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         if stmt.data.is(NodeType.Decl).not() { continue }
         if is_struct_or_enum(stmt).not() { continue }
         ref sdecl : Declaration = get_payload(stmt.data)
-        ref body : Expr = decl_body(stmt)
-        bn := body.children.len()
-        bm : Dynamic = malloc(bn)
-        memset(bm, 0, bn)
-        for j in 0..bn {
-            ref field : Expr = body.child(j)
-            ref fd : Declaration = get_payload(field.data)
-            if fd.is_namespace {
-                qn := qualified_name(sdecl.name, fd.name)
-                if visited.has(qn).not() {
-                    memset(ptr_add(bm, j), 1, 1)
-                }
-            }
-        }
-        children_filter(body.children, bm, bn)
-        free(own bm)
         // Filter ns_decls entries
         ref _scv_ns2 : Vec = def_ns_decls(stmt.child(0))
         _scv_nn2 := _scv_ns2.len()

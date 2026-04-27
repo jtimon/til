@@ -112,7 +112,6 @@
 *** mut name := ""
 *** mut explicit_type := ""
 *** mut is_mut := false
-*** mut is_namespace := false
 *** mut own_type := OwnType.Shallow
 *** mut til_type := TilType.Unknown
 *** mut field_offset : I32 = 0

@@ -1117,7 +1117,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         for v : Expr in body.children {
             if v.data.is(NodeType.Decl) {
                 ref dd : Declaration = get_payload(v.data)
-                if dd.is_namespace.not().and(dd.explicit_type.len().gt(0)).and(dd.own_type.eq(OwnType.Ref)) {
+                if dd.explicit_type.len().gt(0).and(dd.own_type.eq(OwnType.Ref)) {
                     type_error(v, "ref payloads in tagged enum variants are not supported")
                 }
             }
@@ -1861,19 +1861,6 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
         infer_decl_untyped_value(stmt)
     }
     finalize_decl_binding(scope, stmt, in_type_body)
-    // Sync til_type to ns_decls payload
-    if in_type_body.eq(1).and(is_null(_current_struct_def).not()) {
-        if sdecl.is_namespace {
-            ref mut ns : Vec = def_ns_decls(_current_struct_def)
-            for ni in 0..ns.len() {
-                ref mut nd : Declaration = ns.get(ni)
-                if nd.name.eq(sdecl.name) {
-                    nd.til_type = stmt.til_type.clone()
-                    break
-                }
-            }
-        }
-    }
 }
 
 mark_switch_case_covered_variant := proc(switch_enum_def: Expr, mut covered_variants: Vec, shallow n_variants: I32, sw_expr: Expr, match_expr: Expr) {
