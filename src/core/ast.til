@@ -454,14 +454,6 @@ decl_body := func(stmt: Expr) returns ref Expr {
     return body
 }
 
-// Is field a namespace: method with a FuncDef RHS?
-is_namespace_method := func(field: Expr) returns shallow Bool {
-    if field.data.is(NodeType.Decl).not() { return false }
-    if field.children.len().eq(0) { return false }
-    ref fdd : Declaration = get_payload(field.data)
-    if fdd.is_namespace.not() { return false }
-    return field.child(0).data.is(NodeType.FuncDef)
-}
 
 def_ns_decls := func(sdef: Expr) returns ref Vec {
     if sdef.data.is(NodeType.StructDef) {

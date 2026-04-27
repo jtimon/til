@@ -213,32 +213,6 @@ find_ns_decl_fdef := func(program: Expr, top: Map, name: Str) returns ref Expr {
     return NULL
 }
 
-find_ns_method := func(program: Expr, top: Map, name: Str) returns ref Expr {
-    dot := name.find(".")
-    if dot.lt(0) { return NULL }
-    type_part := name.substr(0, dot.to_u32())
-    if top.has(type_part).not() { return NULL }
-    ref tidx : U32 = top.get(type_part)
-    ref tdecl : Expr = program.child(tidx)
-    if tdecl.data.is(NodeType.Decl).not() { return NULL }
-    if is_struct_or_enum(tdecl).not() { return NULL }
-    dot_u := dot.to_u32()
-    method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
-    ref body : Expr = decl_body(tdecl)
-    for k in 0..body.children.len() {
-        ref field : Expr = body.child(k)
-        ref fd : Declaration = get_payload(field.data)
-        if fd.is_namespace {
-            if fd.name.eq(method_part) {
-                return field
-            }
-        }
-    }
-    // Not found in body -- also mark ns_decls as visited
-    // (return NULL; caller will check ns_decls separately)
-    return NULL
-}
-
 scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow run_tests: Bool) {
     mut is_cli := false
     if is_null(mode).not() {

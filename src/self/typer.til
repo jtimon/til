@@ -3735,14 +3735,14 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
                 ref type_name : Str = get_payload(type_node.data)
                 ref sdef : Expr = scope.get_struct(type_name)
                 if is_null(sdef).not() {
-                    ref sbody : Expr = sdef.child(0)
+                    ref ns : Vec = def_ns_decls(sdef.child(0))
                     ref method_name : Str = get_payload(callee.data)
-                    for j in 0..sbody.children.len() {
-                        ref f : Expr = sbody.child(j)
-                        if is_namespace_method(f).not() { continue }
-                        ref fd : Declaration = get_payload(f.data)
-                        if fd.name.eq(method_name).not() { continue }
-                        ref ffd : FunctionDef = get_payload(f.child(0).data)
+                    for j in 0..ns.len() {
+                        ref nd : Declaration = ns.get(j)
+                        if nd.name.eq(method_name).not() { continue }
+                        if is_null(nd.default_value) { break }
+                        if nd.default_value.data.is(NodeType.FuncDef).not() { break }
+                        ref ffd : FunctionDef = get_payload(nd.default_value.data)
                         fvi := ffd.variadic_index
                         if fvi.gte(0) {
                             ref param : Declaration = ffd.params.get(fvi.to_i64().to_usize())
@@ -4480,7 +4480,6 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow
     ref mut dd : Declaration = get_payload(decl.data)
     dd.name = tname.clone()
     dd.is_mut = false
-    dd.is_namespace = false
     decl.til_type = val.til_type
 
     mut val_is_ref := false

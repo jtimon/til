@@ -2210,8 +2210,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.children.len().eq(0) { continue }
         if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
-        ref ebody : Expr = decl_body(stmt)
-        // Find eq fdef from ns_decls first, then body
+        // Find eq fdef from ns_decls
         mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
         mut has_eq_fdef := false
         ref eq_ns : Vec = def_ns_decls(stmt.child(0))
@@ -2222,19 +2221,6 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
                     eq_fdef = nsd.default_value.clone()
                     has_eq_fdef = true
                     break
-                }
-            }
-        }
-        if has_eq_fdef.not() {
-            for j in 0..ebody.children.len() {
-                ref field : Expr = ebody.child(j)
-                ref fdd : Declaration = get_payload(field.data)
-                if fdd.is_namespace.and(fdd.name.eq("eq")) {
-                    if field.children.len().gt(0).and(field.child(0).data.is(NodeType.FuncDef)) {
-                        eq_fdef = field.child(0).clone()
-                        has_eq_fdef = true
-                        break
-                    }
                 }
             }
         }
@@ -2634,9 +2620,8 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
         if rhs.data.is(NodeType.EnumDef).not() { continue }
         sname := dd.name
         hp := enum_has_payloads(rhs)
-        ref ebody : Expr = rhs.child(0)
 
-        // Find eq fdef to check return shallow (ns_decls first, body fallback)
+        // Find eq fdef to check return shallow
         mut eq_shallow := false
         ref py_eq_ns : Vec = def_ns_decls(rhs)
         mut py_eq_found := false
@@ -2649,19 +2634,6 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                     py_eq_found = true
                 }
                 break
-            }
-        }
-        if py_eq_found.not() {
-            for j in 0..ebody.children.len() {
-                ref field : Expr = ebody.child(j)
-                ref efdd : Declaration = get_payload(field.data)
-                if efdd.is_namespace.and(efdd.name.eq("eq")) {
-                    if field.children.len().gt(0).and(field.child(0).data.is(NodeType.FuncDef)) {
-                        ref eqfd : FunctionDef = get_payload(field.child(0).data)
-                        eq_shallow = eqfd.return_own_type.is(OwnType.Shallow)
-                    }
-                    break
-                }
             }
         }
         mut eq_ret := "ctypes.POINTER(ctypes.c_bool)"
@@ -3059,7 +3031,6 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.children.len().eq(0) { continue }
         if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
-        ref ebody : Expr = decl_body(stmt)
         mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
         mut has_eq_fdef := false
         ref sh3_eq_ns : Vec = def_ns_decls(stmt.child(0))
@@ -3070,19 +3041,6 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
                     eq_fdef = nsd.default_value.clone()
                     has_eq_fdef = true
                     break
-                }
-            }
-        }
-        if has_eq_fdef.not() {
-            for j in 0..ebody.children.len() {
-                ref field : Expr = ebody.child(j)
-                ref fdd : Declaration = get_payload(field.data)
-                if fdd.is_namespace.and(fdd.name.eq("eq")) {
-                    if field.children.len().gt(0).and(field.child(0).data.is(NodeType.FuncDef)) {
-                        eq_fdef = field.child(0).clone()
-                        has_eq_fdef = true
-                        break
-                    }
                 }
             }
         }
@@ -3158,8 +3116,7 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
             if stmt.children.len().eq(0) { continue }
             if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = get_payload(stmt.data)
-            ref ebody : Expr = decl_body(stmt)
-            // Find eq fdef (ns_decls first, body fallback)
+            // Find eq fdef
             mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
             mut has_eq_fdef := false
             ref sh_eq_ns : Vec = def_ns_decls(stmt.child(0))
@@ -3170,19 +3127,6 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
                         eq_fdef = nsd.default_value.clone()
                         has_eq_fdef = true
                         break
-                    }
-                }
-            }
-            if has_eq_fdef.not() {
-                for j in 0..ebody.children.len() {
-                    ref field : Expr = ebody.child(j)
-                    ref fdd : Declaration = get_payload(field.data)
-                    if fdd.is_namespace.and(fdd.name.eq("eq")) {
-                        if field.children.len().gt(0).and(field.child(0).data.is(NodeType.FuncDef)) {
-                            eq_fdef = field.child(0).clone()
-                            has_eq_fdef = true
-                            break
-                        }
                     }
                 }
             }

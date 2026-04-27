@@ -1213,7 +1213,6 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
         if sdef.data.is(NodeType.EnumDef).not() { return false }
     }
     ref mut fname : Str = get_payload(e.data)
-    ref body : Expr = sdef.child(0)
     mut has_ns := false
     mut has_inst := false
     ref _ins_ns : Vec = def_ns_decls(sdef)
@@ -1221,9 +1220,17 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
         ref _ins_d : Declaration = _ins_ns.get(_ins_i)
         if _ins_d.name.eq(fname) { has_ns = true }
     }
-    for f : Expr in body.children {
-        ref dd : Declaration = get_payload(f.data)
-        if dd.name.eq(fname).and(dd.is_namespace.not()) { has_inst = true }
+    if sdef.data.is(NodeType.StructDef) {
+        ref _ins_sdd : StructDef = get_payload(sdef.data)
+        for i in 0.._ins_sdd.fields.len() {
+            ref dd : Declaration = _ins_sdd.fields.get(i)
+            if dd.name.eq(fname) { has_inst = true }
+        }
+    } else {
+        ref _ins_edd : EnumDef = get_payload(sdef.data)
+        for vn : Str in _ins_edd.variants {
+            if vn.eq(fname) { has_inst = true }
+        }
     }
     if has_ns {
         if has_inst.not() { return true }
