@@ -37,8 +37,7 @@ namespace:
             }
         } else {
             ref _cl_sdd : StructDef = get_payload(src_sdef.data)
-            for fi in 0.._cl_sdd.fields.len() {
-                ref dd : Declaration = _cl_sdd.fields.get(fi)
+            for dd : Declaration in _cl_sdd.fields {
                 foff := dd.field_offset
                 ref ftype : Str = dd.explicit_type
                 if dd.own_type.is(OwnType.Own) {
@@ -953,8 +952,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             }
             ref si_inst : StructInstance = get_payload(inst)
             mut arg_idx : U32 = 1
-            for fi in 0..sdd.fields.len() {
-                ref fdd : Declaration = sdd.fields.get(fi)
+            for fdd : Declaration in sdd.fields {
                 ref arg : Expr = e.child(arg_idx)
                 arg_idx = arg_idx.add(1)
                 mut val := val_none()
@@ -1216,14 +1214,12 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
     mut has_ns := false
     mut has_inst := false
     ref _ins_ns : Vec = def_ns_decls(sdef)
-    for _ins_i in 0.._ins_ns.len() {
-        ref _ins_d : Declaration = _ins_ns.get(_ins_i)
+    for _ins_d : Declaration in _ins_ns {
         if _ins_d.name.eq(fname) { has_ns = true }
     }
     if sdef.data.is(NodeType.StructDef) {
         ref _ins_sdd : StructDef = get_payload(sdef.data)
-        for i in 0.._ins_sdd.fields.len() {
-            ref dd : Declaration = _ins_sdd.fields.get(i)
+        for dd : Declaration in _ins_sdd.fields {
             if dd.name.eq(fname) { has_inst = true }
         }
     } else {
@@ -1334,8 +1330,7 @@ interpreter_init_ns := proc(mut global: Scope, program: Expr) {
         ns_keys = Vec.new("Dynamic", Dynamic.size())
         ns_inited = true
     }
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.children.len().eq(0) { continue }
@@ -1416,8 +1411,7 @@ str_view := func(shallow v: Value) returns shallow Str {
 find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
     if struct_def.data.is(NodeType.StructDef).not() { return NULL }
     ref _ffd_sdd : StructDef = get_payload(struct_def.data)
-    for i in 0.._ffd_sdd.fields.len() {
-        ref dd : Declaration = _ffd_sdd.fields.get(i)
+    for dd : Declaration in _ffd_sdd.fields {
         if dd.name.eq(fname) {
             return dd
         }
@@ -1552,8 +1546,7 @@ write_field := proc(mut inst: StructInstance, dd: Declaration, val: Value) {
 }
 
 interpret_register_defs := proc(mut global: Scope, prog: Expr) {
-    for i in 0..prog.children.len() {
-        ref stmt : Expr = prog.child(i)
+    for stmt : Expr in prog.children {
         if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).data.is(NodeType.FuncDef)
             .or(stmt.child(0).data.is(NodeType.StructDef))
@@ -1570,8 +1563,7 @@ interpret_register_defs := proc(mut global: Scope, prog: Expr) {
 }
 
 interpret_register_aliases := proc(mut global: Scope, prog: Expr) {
-    for i in 0..prog.children.len() {
-        ref stmt : Expr = prog.child(i)
+    for stmt : Expr in prog.children {
         if stmt.data.is(NodeType.Decl).not() { }
         else if stmt.til_type.is(TilType.None).not() { }
         else if stmt.children.len().eq(0) { }
@@ -1600,8 +1592,7 @@ interpret_register_aliases := proc(mut global: Scope, prog: Expr) {
 }
 
 interpret_copy_alias_ns := proc(prog: Expr, global: Scope) {
-    for i in 0..prog.children.len() {
-        ref stmt : Expr = prog.child(i)
+    for stmt : Expr in prog.children {
         if stmt.data.is(NodeType.Decl).not() { }
         else if stmt.til_type.is(TilType.None).not() { }
         else if stmt.children.len().eq(0) { }
@@ -1662,8 +1653,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     if run_tests {
         mut test_count : I32 = 0
         mut pass_count : I32 = 0
-        for i in 0..program.children.len() {
-            ref stmt : Expr = program.child(i)
+        for stmt : Expr in program.children {
             if is_func_decl(stmt) {
                 ref fd : FunctionDef = get_payload(stmt.child(0).data)
                 if fd.func_type.is(FuncType.Test) {

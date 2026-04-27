@@ -191,8 +191,7 @@ builder_fa_is_ptr := func(e: Expr) returns shallow Bool {
     if is_null(_fap_def) { return false }
     if _fap_def.data.is(NodeType.StructDef).not() { return false }
     ref _fap_sdd : StructDef = get_payload(_fap_def.data)
-    for fi in 0.._fap_sdd.fields.len() {
-        ref dd : Declaration = _fap_sdd.fields.get(fi)
+    for dd : Declaration in _fap_sdd.fields {
         if dd.name.eq(fname) {
             return dd.own_type.eq(OwnType.Shallow).not()
         }
@@ -208,14 +207,12 @@ builder_fa_is_ns := func(e: Expr) returns shallow Bool {
     mut has_ns := false
     mut has_inst := false
     ref _bfn_ns : Vec = def_ns_decls(_bfn_def)
-    for _bfn_i in 0.._bfn_ns.len() {
-        ref _bfn_d : Declaration = _bfn_ns.get(_bfn_i)
+    for _bfn_d : Declaration in _bfn_ns {
         if _bfn_d.name.eq(fname) { has_ns = true }
     }
     if _bfn_def.data.is(NodeType.StructDef) {
         ref _bfn_sdd : StructDef = get_payload(_bfn_def.data)
-        for fi in 0.._bfn_sdd.fields.len() {
-            ref dd : Declaration = _bfn_sdd.fields.get(fi)
+        for dd : Declaration in _bfn_sdd.fields {
             if dd.name.eq(fname) { has_inst = true }
         }
     }
@@ -236,8 +233,7 @@ builder_fa_is_ns := func(e: Expr) returns shallow Bool {
 is_shallow_param := func(name: Str) returns shallow Bool {
     if is_null(current_fdef) { return false }
     ref fd : FunctionDef = get_payload(current_fdef.data)
-    for pi in 0..fd.params.len() {
-        ref p : Declaration = fd.params.get(pi)
+    for p : Declaration in fd.params {
         if p.own_type.is(OwnType.Shallow) {
             if p.name.eq(name) { return true }
         }
@@ -512,8 +508,7 @@ collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
                                 }
                             }
                             mut found := false
-                            for mi in 0..methods.len() {
-                                ref existing : DynCallInfo = methods.get(mi)
+                            for existing : DynCallInfo in methods {
                                 if existing.method.eq(method) { found = true }
                             }
                             if found.not() {
@@ -528,8 +523,7 @@ collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
     }
     if e.data.is(NodeType.StructDef).or(e.data.is(NodeType.EnumDef)) {
         ref _cdm_ns : Vec = def_ns_decls(e)
-        for _cdm_i in 0.._cdm_ns.len() {
-            ref _cdm_d : Declaration = _cdm_ns.get(_cdm_i)
+        for _cdm_d : Declaration in _cdm_ns {
             if is_null(_cdm_d.default_value).not() {
                 collect_dyn_methods(_cdm_d.default_value, methods)
             }
@@ -554,8 +548,7 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
                         if is_vec.gte(0.to_i32()) {
                             ref type_name : Str = get_payload(e.child(1).data)
                             mut found := false
-                            for ci_i in 0..infos.len() {
-                                ref existing : CollectionInfo = infos.get(ci_i)
+                            for existing : CollectionInfo in infos {
                                 if existing.type_name.eq(type_name) {
                                     if existing.is_vec.eq(is_vec) { found = true }
                                 }
@@ -572,8 +565,7 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
     }
     if e.data.is(NodeType.StructDef).or(e.data.is(NodeType.EnumDef)) {
         ref _ccb_ns : Vec = def_ns_decls(e)
-        for _ccb_i in 0.._ccb_ns.len() {
-            ref _ccb_d : Declaration = _ccb_ns.get(_ccb_i)
+        for _ccb_d : Declaration in _ccb_ns {
             if is_null(_ccb_d.default_value).not() {
                 collect_collection_builtins(_ccb_d.default_value, infos)
             }
@@ -725,8 +717,7 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
                         if e.child(2).data.is(NodeType.LiteralStr) {
                             ref method : Str = get_payload(e.child(2).data)
                             mut found := false
-                            for mi in 0..methods.len() {
-                                ref existing : Str = methods.get(mi)
+                            for existing : Str in methods {
                                 if existing.eq(method) { found = true }
                             }
                             if found.not() {
@@ -740,8 +731,7 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
     }
     if e.data.is(NodeType.StructDef).or(e.data.is(NodeType.EnumDef)) {
         ref _cdh_ns : Vec = def_ns_decls(e)
-        for _cdh_i in 0.._cdh_ns.len() {
-            ref _cdh_d : Declaration = _cdh_ns.get(_cdh_i)
+        for _cdh_d : Declaration in _cdh_ns {
             if is_null(_cdh_d.default_value).not() {
                 collect_dyn_has_methods(_cdh_d.default_value, methods)
             }
@@ -1515,8 +1505,7 @@ emit_ns_inits := proc(f: File, shallow depth: I32) {
                 ref edef : Expr = stmt.child(0)
                 if edef.data.is(NodeType.EnumDef) { continue }
                 ref _ni_ns : Vec = def_ns_decls(edef)
-                for j in 0.._ni_ns.len() {
-                    ref dd : Declaration = _ni_ns.get(j)
+                for dd : Declaration in _ni_ns {
                     if is_null(dd.default_value) { continue }
                     if dd.default_value.data.is(NodeType.FuncDef) { continue }
                     emit_indent(f, depth)
@@ -1814,8 +1803,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         f.write_str(ret); f.write_str(" "); fc := func_to_c(name); f.write_str(fc); f.write_str("(")
         emit_param_list(f, func_def, true)
         f.write_str(") {\n")
-        for i in 0..fd.params.len() {
-            ref p : Declaration = fd.params.get(i)
+        for p : Declaration in fd.params {
             f.write_str("    (void)"); f.write_str(p.name); f.write_str(";\n")
         }
         in_func_def = true
@@ -1843,8 +1831,7 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
         f.write_str("typedef struct "); f.write_str(name); f.write_str(" {\n")
     }
     if sdd.fields.len().eq(0) { f.write_str("    char _;\n") }
-    for i in 0..sdd.fields.len() {
-        ref dd : Declaration = sdd.fields.get(i)
+    for dd : Declaration in sdd.fields {
         if dd.own_type.eq(OwnType.Shallow).not() {
             if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
                 sname := til_type_name(dd.til_type)
@@ -1870,8 +1857,7 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
     f.write_str("} "); f.write_str(name); f.write_str(";\n\n")
     // Namespace non-function fields as globals
     ref _ng_ns : Vec = def_ns_decls(struct_def)
-    for i in 0.._ng_ns.len() {
-        ref dd : Declaration = _ng_ns.get(i)
+    for dd : Declaration in _ng_ns {
         if is_null(dd.default_value) { continue }
         if dd.default_value.data.is(NodeType.FuncDef) { continue }
         if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
@@ -1915,8 +1901,7 @@ emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr) {
 emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr) {
     // User-defined from ns_decls
     ref ns : Vec = def_ns_decls(struct_def)
-    for i in 0..ns.len() {
-        ref dd : Declaration = ns.get(i)
+    for dd : Declaration in ns {
         if is_null(dd.default_value) { continue }
         if dd.default_value.data.is(NodeType.NoDefaultArg) { continue }
         if dd.default_value.data.is(NodeType.FuncDef) {
@@ -1930,8 +1915,7 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
     hp := enum_has_payloads(enum_def)
     if hp.not() {
         // Simple enum
-        for i in 0..edd.variants.len() {
-            ref vn : Str = edd.variants.get(i)
+        for vn : Str in edd.variants {
             f.write_str(name); f.write_str(" *"); f.write_str(name); f.write_str("_"); f.write_str(vn); f.write_str("() {\n")
             f.write_str("    "); f.write_str(name); f.write_str(" *r = malloc(sizeof("); f.write_str(name); f.write_str("));\n")
             f.write_str("    *r = ("); f.write_str(name); f.write_str("){ .tag = "); f.write_str(name); f.write_str("_TAG_"); f.write_str(vn); f.write_str(" };\n")
@@ -1966,8 +1950,7 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
     }
     // Namespace methods from ns_decls
     ref _ens : Vec = def_ns_decls(enum_def)
-    for i in 0.._ens.len() {
-        ref dd : Declaration = _ens.get(i)
+    for dd : Declaration in _ens {
         if is_null(dd.default_value) { continue }
         if dd.default_value.data.is(NodeType.FuncDef).not() { continue }
         emit_ns_method(f, name, dd.name, dd.default_value)
@@ -2025,8 +2008,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
             mut deps_ok := true
             if def.data.is(NodeType.StructDef) {
                 ref dep_sdd : StructDef = get_payload(def.data)
-                for fi in 0..dep_sdd.fields.len() {
-                    ref dd : Declaration = dep_sdd.fields.get(fi)
+                for dd : Declaration in dep_sdd.fields {
                     if dd.own_type.eq(OwnType.Shallow) {
                         if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
                             dep_sname := til_type_name(dd.til_type)
@@ -2194,8 +2176,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
             if rhs.data.is(NodeType.StructDef).or(rhs.data.is(NodeType.EnumDef)) {
                 // Forward-declare from ns_decls (user-defined)
                 ref fwd_ns : Vec = def_ns_decls(rhs)
-                for j in 0..fwd_ns.len() {
-                    ref fdd : Declaration = fwd_ns.get(j)
+                for fdd : Declaration in fwd_ns {
                     if is_null(fdd.default_value) { continue }
                     if fdd.default_value.data.is(NodeType.FuncDef).not() { continue }
                     ref fd : FunctionDef = get_payload(fdd.default_value.data)
@@ -2223,8 +2204,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
         mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
         mut has_eq_fdef := false
         ref eq_ns : Vec = def_ns_decls(stmt.child(0))
-        for j in 0..eq_ns.len() {
-            ref nsd : Declaration = eq_ns.get(j)
+        for nsd : Declaration in eq_ns {
             if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
                 if nsd.default_value.data.is(NodeType.FuncDef) {
                     eq_fdef = nsd.default_value.clone()
@@ -2328,8 +2308,7 @@ emit_binding_ns_method := proc(f: File, fdd_name: Str, fd: FunctionDef, mut has_
 emit_binding_ns_methods := proc(f: File, def: Expr) {
     mut has_ns := false
     ref _ebn_ns : Vec = def_ns_decls(def)
-    for j in 0.._ebn_ns.len() {
-        ref nsd : Declaration = _ebn_ns.get(j)
+    for nsd : Declaration in _ebn_ns {
         if is_null(nsd.default_value) { continue }
         if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
         ref fd : FunctionDef = get_payload(nsd.default_value.data)
@@ -2349,8 +2328,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
         if rhs.data.is(NodeType.StructDef) {
             ref _btb_sdd : StructDef = get_payload(rhs.data)
             f.write_str(dd.name); f.write_str(" := struct {\n")
-            for j in 0.._btb_sdd.fields.len() {
-                ref fdd : Declaration = _btb_sdd.fields.get(j)
+            for fdd : Declaration in _btb_sdd.fields {
                 f.write_str("    ")
                 if fdd.is_mut { f.write_str("mut ") }
                 if fdd.own_type.is(OwnType.Own) { f.write_str("own ") }
@@ -2486,8 +2464,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
         if rhs.data.is(NodeType.StructDef) {
             ref _bpb_sdd : StructDef = get_payload(rhs.data)
             f.write_str("\n"); f.write_str(dd.name); f.write_str("._fields_ = [\n")
-            for j in 0.._bpb_sdd.fields.len() {
-                ref fdd : Declaration = _bpb_sdd.fields.get(j)
+            for fdd : Declaration in _bpb_sdd.fields {
                 mut ct := ""
                 if fdd.explicit_type.len().gt(0) {
                     ct = type_name_to_ctypes_param(fdd.explicit_type, false)
@@ -2559,8 +2536,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
         if rhs.data.is(NodeType.StructDef).or(rhs.data.is(NodeType.EnumDef)) {
             // Emit namespace method bindings from ns_decls
             ref _pyb_ns : Vec = def_ns_decls(rhs)
-            for j in 0.._pyb_ns.len() {
-                ref nsd : Declaration = _pyb_ns.get(j)
+            for nsd : Declaration in _pyb_ns {
                 if is_null(nsd.default_value) { continue }
                 if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
                 ref fd : FunctionDef = get_payload(nsd.default_value.data)
@@ -2634,8 +2610,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
         mut eq_shallow := false
         ref py_eq_ns : Vec = def_ns_decls(rhs)
         mut py_eq_found := false
-        for j in 0..py_eq_ns.len() {
-            ref nsd : Declaration = py_eq_ns.get(j)
+        for nsd : Declaration in py_eq_ns {
             if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
                 if nsd.default_value.data.is(NodeType.FuncDef) {
                     ref eqfd : FunctionDef = get_payload(nsd.default_value.data)
@@ -2921,8 +2896,7 @@ build_register_funcsig_names := proc(core_program: Expr, program: Expr) {
 }
 
 register_lookups_prog := proc(prog: Expr) {
-    for i in 0..prog.children.len() {
-        ref stmt : Expr = prog.child(i)
+    for stmt : Expr in prog.children {
         if stmt.data.is(NodeType.Decl) {
             ref rhs : Expr = stmt.child(0)
             if rhs.data.is(NodeType.StructDef).or(rhs.data.is(NodeType.EnumDef)) {
@@ -3002,8 +2976,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if stmt.data.is(NodeType.Decl).not() { continue }
             ref dd : Declaration = get_payload(stmt.data)
             if stmt.children.len().eq(0) { continue }
@@ -3034,8 +3007,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
         }
     }
     // Enum auto-helper declarations (user program only)
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.children.len().eq(0) { continue }
@@ -3081,8 +3053,7 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
         is_core_pass := prog_idx.eq(0).and(is_null(core_program).not())
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if stmt.data.is(NodeType.Decl).not() { continue }
             ref dd : Declaration = get_payload(stmt.data)
             if stmt.children.len().eq(0) { continue }
@@ -3119,8 +3090,7 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if stmt.data.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
@@ -3165,8 +3135,7 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
     mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
     if is_null(core_program).not() { collect_dyn_methods(core_program, dyn_methods) }
     collect_dyn_methods(program, dyn_methods)
-    for m in 0..dyn_methods.len() {
-        ref info : DynCallInfo = dyn_methods.get(m)
+    for info : DynCallInfo in dyn_methods {
         if info.has_return {
             if info.nargs.eq(1) {
                 f.write_str("void *dyn_call_"); f.write_str(info.method); f.write_str("(Str *type_name, void *val);\n")
@@ -3192,8 +3161,7 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
         if dyn_has_shallow { break }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if is_func_decl(stmt).not() { continue }
             ref sdd : Declaration = get_payload(stmt.data)
             if sdd.name.eq("dyn_has_method") {
@@ -3208,8 +3176,7 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
     mut has_methods := Vec.new("Str", Str.size())
     if is_null(core_program).not() { collect_dyn_has_methods(core_program, has_methods) }
     collect_dyn_has_methods(program, has_methods)
-    for m in 0..has_methods.len() {
-        ref method : Str = has_methods.get(m)
+    for method : Str in has_methods {
         f.write_str(dyn_has_ret); f.write_str(" dyn_has_"); f.write_str(method); f.write_str("(Str *type_name);\n")
     }
     if has_methods.len().gt(0) { f.write_str("\n") }
@@ -3219,8 +3186,7 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
     mut coll_infos := Vec.new("CollectionInfo", CollectionInfo.size())
     if is_null(core_program).not() { collect_collection_builtins(core_program, coll_infos) }
     collect_collection_builtins(program, coll_infos)
-    for i in 0..coll_infos.len() {
-        ref ci : CollectionInfo = coll_infos.get(i)
+    for ci : CollectionInfo in coll_infos {
         mut prefix := "array"
         mut ret := "Array"
         if ci.is_vec.neq(0) { prefix = "vec"; ret = "Vec" }
@@ -3284,8 +3250,7 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if is_struct_or_enum(stmt).not() { continue }
             ref def : Expr = stmt.child(0)
             ref dd : Declaration = get_payload(stmt.data)
@@ -3305,8 +3270,7 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if is_struct_or_enum(stmt).not() { continue }
             ref def : Expr = stmt.child(0)
             ref dd : Declaration = get_payload(stmt.data)
@@ -3338,8 +3302,7 @@ emit_dyn_call_bodies := proc(f: File, core_program: Expr, program: Expr) {
     mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
     if is_null(core_program).not() { collect_dyn_methods(core_program, dyn_methods) }
     collect_dyn_methods(program, dyn_methods)
-    for m in 0..dyn_methods.len() {
-        ref info : DynCallInfo = dyn_methods.get(m)
+    for info : DynCallInfo in dyn_methods {
         ref method : Str = info.method
         mut ret_type := "void "
         if info.has_return { ret_type = "void *" }
@@ -3433,8 +3396,7 @@ emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if stmt.data.is(NodeType.Decl) {
                 if stmt.children.len().gt(0) {
                     if stmt.child(0).data.is(NodeType.FuncDef) {
@@ -3454,8 +3416,7 @@ emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
     mut has_methods := Vec.new("Str", Str.size())
     if is_null(core_program).not() { collect_dyn_has_methods(core_program, has_methods) }
     collect_dyn_has_methods(program, has_methods)
-    for m in 0..has_methods.len() {
-        ref method : Str = has_methods.get(m)
+    for method : Str in has_methods {
         f.write_str(dyn_has_ret); f.write_str(" dyn_has_"); f.write_str(method); f.write_str("(Str *type_name) {\n    (void)type_name;\n")
         for prog_idx in 0..2 {
             ref mut prog : Expr = NULL
@@ -3491,8 +3452,7 @@ emit_collection_helpers := proc(f: File, core_program: Expr, program: Expr) {
     mut coll_infos := Vec.new("CollectionInfo", CollectionInfo.size())
     if is_null(core_program).not() { collect_collection_builtins(core_program, coll_infos) }
     collect_collection_builtins(program, coll_infos)
-    for i in 0..coll_infos.len() {
-        ref ci : CollectionInfo = coll_infos.get(i)
+    for ci : CollectionInfo in coll_infos {
         et := ci.type_name
         et_len := et.len().to_i64().to_u64()
         if ci.is_vec.neq(0) {
@@ -3547,8 +3507,7 @@ emit_global_declarations := proc(f: File, core_program: Expr, program: Expr) {
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if is_exported_top_level_global(stmt).not() { continue }
             ref rhs : Expr = stmt.child(0)
             mut ctype := ""
@@ -3572,8 +3531,7 @@ emit_test_main := proc(f: File, program: Expr) {
     emit_ns_inits(f, 1)
     emit_global_inits(f)
     mut test_count : I32 = 0
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.data.is(NodeType.FuncDef).not() { continue }
@@ -3598,8 +3556,7 @@ emit_script_main := proc(f: File, program: Expr) {
     emit_ns_inits(f, 1)
     unsafe_to_hoist = Set.new("Str", Str.size())
     collect_unsafe_to_hoist(program)
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl) {
             ref rhs : Expr = stmt.child(0)
             if rhs.data.is(NodeType.FuncDef).or(rhs.data.is(NodeType.StructDef)).or(rhs.data.is(NodeType.EnumDef)) { continue }
@@ -3617,8 +3574,7 @@ emit_function_bodies := proc(f: File, core_program: Expr, program: Expr, mode: M
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if stmt.data.is(NodeType.Decl) {
                 ref dd : Declaration = get_payload(stmt.data)
                 ref rhs : Expr = stmt.child(0)
@@ -3640,8 +3596,7 @@ emit_function_bodies := proc(f: File, core_program: Expr, program: Expr, mode: M
 }
 
 emit_ext_func_declarations := proc(f: File, program: Expr) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if is_func_decl(stmt).not() { continue }
         ref fdef : Expr = stmt.child(0)
         ref fd : FunctionDef = get_payload(fdef.data)

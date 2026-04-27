@@ -157,8 +157,7 @@ ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_
 
 ffi_init_struct_defs := proc(program: Expr) {
     ffi_struct_defs = Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) {
             continue
         }
@@ -1143,8 +1142,7 @@ ffi_init_scan_program := proc(program: Expr) {
         ffi_map = Map.new("Str", Str.size(), "FFIEntry", FFIEntry.size())
         ffi_map_inited = true
     }
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { }
         else if stmt.children.len().eq(0) { }
         else {
@@ -1237,8 +1235,7 @@ ffi_cleanup := proc() {
         ffi_loaded = false
     }
     if ffi_type_cache_inited {
-        for i in 0..ffi_type_cache.len() {
-            ref box : FFITypePtrBox = ffi_type_cache.get(i)
+        for box : FFITypePtrBox in ffi_type_cache {
             if is_null(box.ptr).not() {
                 free(own box.ptr.elements)
                 free(own box.ptr)

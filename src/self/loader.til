@@ -94,8 +94,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
     mut resolved_set: Set, mut stack: Vec,
     mut merged: Vec, lib_dir: Str,
     mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
-        for i in 0..import_paths.len() {
-            ref import_path : Str = import_paths.get(i)
+        for import_path : Str in import_paths {
             // Try relative to importing file's directory, then lib_dir
             mut try_path := base_dir.concat("/").concat(import_path)
             mut abs := realpath_str(try_path)

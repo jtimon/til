@@ -109,8 +109,7 @@ func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope)
     if e.data.is(NodeType.Ident) {
         ref name : Str = get_payload(e.data)
         ref fd : FunctionDef = get_payload(func_def.data)
-        for pi in 0..fd.params.len() {
-            ref p : Declaration = fd.params.get(pi)
+        for p : Declaration in fd.params {
             if p.name.eq(name) { return false }
         }
         if known.has(name) { return false }
@@ -279,8 +278,7 @@ process_body := proc(scope: Scope, body: Expr) {
 }
 
 precomp_scan_names := proc(prog: Expr) {
-    for i in 0..prog.children.len() {
-        ref stmt : Expr = prog.child(i)
+    for stmt : Expr in prog.children {
         if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).data.is(NodeType.FuncDef) {
                 ref fd : FunctionDef = get_payload(stmt.child(0).data)
@@ -325,8 +323,7 @@ precomp_scan_names := proc(prog: Expr) {
 }
 
 precomp_register_defs := proc(mut global: Scope, prog: Expr) {
-    for i in 0..prog.children.len() {
-        ref stmt : Expr = prog.child(i)
+    for stmt : Expr in prog.children {
         if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).data.is(NodeType.FuncDef)
             .or(stmt.child(0).data.is(NodeType.StructDef))

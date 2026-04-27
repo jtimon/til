@@ -120,8 +120,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         }
     } else if e.data.is(NodeType.FuncDef) {
         ref fdef : FunctionDef = get_payload(e.data)
-        for i : U32 in 0..fdef.params.len() {
-            ref p : Declaration = fdef.params.get(i)
+        for p : Declaration in fdef.params {
             if p.explicit_type.len().gt(0) {
                 vec_push_str(refs, p.explicit_type)
             }
@@ -163,8 +162,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
     // Also traverse sdd.fields for structs
     if e.data.is(NodeType.StructDef) {
         ref _cr_sdd : StructDef = get_payload(e.data)
-        for _cr_fi in 0.._cr_sdd.fields.len() {
-            ref _cr_fd : Declaration = _cr_sdd.fields.get(_cr_fi)
+        for _cr_fd : Declaration in _cr_sdd.fields {
             if is_null(_cr_fd.default_value).not() {
                 collect_refs(_cr_fd.default_value, refs)
             }
@@ -176,8 +174,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
     // Also traverse ns_decls entries (not in Expr children tree)
     if e.data.is(NodeType.StructDef).or(e.data.is(NodeType.EnumDef)) {
         ref _cr_ns : Vec = def_ns_decls(e)
-        for _cr_i in 0.._cr_ns.len() {
-            ref _cr_d : Declaration = _cr_ns.get(_cr_i)
+        for _cr_d : Declaration in _cr_ns {
             if is_null(_cr_d.default_value).not() {
                 collect_refs(_cr_d.default_value, refs)
             }
@@ -202,8 +199,7 @@ find_ns_decl_fdef := func(program: Expr, top: Map, name: Str) returns ref Expr {
     dot_u := dot.to_u32()
     method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
     ref ns : Vec = def_ns_decls(tdecl.child(0))
-    for k in 0..ns.len() {
-        ref nsd : Declaration = ns.get(k)
+    for nsd : Declaration in ns {
         if nsd.name.eq(method_part) {
             if is_null(nsd.default_value).not() {
                 return nsd.default_value
@@ -299,8 +295,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                 ref _bfs_tdef : Expr = decl.child(0)
                 if _bfs_tdef.data.is(NodeType.StructDef) {
                     ref _bfs_sdd : StructDef = get_payload(_bfs_tdef.data)
-                    for j in 0.._bfs_sdd.fields.len() {
-                        ref _bfs_fd : Declaration = _bfs_sdd.fields.get(j)
+                    for _bfs_fd : Declaration in _bfs_sdd.fields {
                         if is_null(_bfs_fd.default_value).not() {
                             collect_refs(_bfs_fd.default_value, worklist)
                         }
@@ -323,8 +318,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                 push_qn(worklist, name, "cmp")
                 // Also push all ns_decls methods
                 ref _bfs_ns : Vec = def_ns_decls(decl.child(0))
-                for _bfs_j in 0.._bfs_ns.len() {
-                    ref _bfs_d : Declaration = _bfs_ns.get(_bfs_j)
+                for _bfs_d : Declaration in _bfs_ns {
                     push_qn(worklist, name, _bfs_d.name)
                 }
             } else {
@@ -338,8 +332,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                 ref _bfs_tdef2 : Expr = decl.child(0)
                 if _bfs_tdef2.data.is(NodeType.StructDef) {
                     ref _bfs_sdd2 : StructDef = get_payload(_bfs_tdef2.data)
-                    for j in 0.._bfs_sdd2.fields.len() {
-                        ref _bfs_fd2 : Declaration = _bfs_sdd2.fields.get(j)
+                    for _bfs_fd2 : Declaration in _bfs_sdd2.fields {
                         if is_null(_bfs_fd2.default_value).not() {
                             collect_refs(_bfs_fd2.default_value, worklist)
                         }
@@ -362,8 +355,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                 push_qn(worklist, name, "cmp")
                 // Also push all ns_decls methods
                 ref _bfs_ns2 : Vec = def_ns_decls(decl.child(0))
-                for _bfs_j2 in 0.._bfs_ns2.len() {
-                    ref _bfs_d2 : Declaration = _bfs_ns2.get(_bfs_j2)
+                for _bfs_d2 : Declaration in _bfs_ns2 {
                     push_qn(worklist, name, _bfs_d2.name)
                 }
             } else {
@@ -428,8 +420,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
 
     // 5. Filter namespace methods in kept structs (both core and user)
     if is_null(core_program).not() {
-        for i in 0..core_program.children.len() {
-            ref stmt : Expr = core_program.child(i)
+        for stmt : Expr in core_program.children {
             if stmt.data.is(NodeType.Decl).not() { continue }
             if is_struct_or_enum(stmt).not() { continue }
             ref sdecl : Declaration = get_payload(stmt.data)
@@ -468,8 +459,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             }
         }
     }
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         if is_struct_or_enum(stmt).not() { continue }
         ref sdecl : Declaration = get_payload(stmt.data)

@@ -151,8 +151,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
 
 register_struct_definitions := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
 
@@ -198,8 +197,7 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
 }
 
 generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
 
@@ -808,8 +806,7 @@ generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32
 
 register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
 
@@ -862,8 +859,7 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
 }
 
 generate_missing_enum_clones := proc(program: Expr) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
 
@@ -894,8 +890,7 @@ generate_missing_enum_clones := proc(program: Expr) {
 }
 
 generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
 
@@ -983,8 +978,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 }
 
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if is_func_decl(stmt).not() { continue }
         if stmt.child(0).children.len().neq(0) { continue }
         ref sdecl : Declaration = get_payload(stmt.data)
@@ -995,8 +989,7 @@ register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
 }
 
 register_type_aliases := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.data.is(NodeType.Ident).not() { continue }
@@ -1030,8 +1023,7 @@ register_type_aliases := proc(program: Expr, scope: TypeScope) {
 }
 
 register_top_level_values := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.data.is(NodeType.FuncDef).or(rhs.data.is(NodeType.StructDef)).or(rhs.data.is(NodeType.EnumDef)) {
@@ -1057,8 +1049,7 @@ register_top_level_values := proc(program: Expr, scope: TypeScope) {
 }
 
 register_function_definitions := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
         if def.data.is(NodeType.FuncDef).not() { continue }
@@ -1124,8 +1115,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
 }
 
 generate_struct_size_methods := proc(program: Expr) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
         if def.data.is(NodeType.StructDef).not() { continue }
@@ -1168,8 +1158,7 @@ generate_struct_size_methods := proc(program: Expr) {
 }
 
 generate_enum_size_methods := proc(program: Expr) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
         if def.data.is(NodeType.EnumDef).not() { continue }
@@ -1215,8 +1204,7 @@ generate_enum_size_methods := proc(program: Expr) {
 }
 
 generate_unity_derived_methods := proc(program: Expr) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if is_struct_or_enum(stmt).not() { continue }
         ref def : Expr = stmt.child(0)
 
@@ -1301,8 +1289,7 @@ generate_size_methods := proc(program: Expr) {
 }
 
 generate_cmp_derived_methods := proc(program: Expr) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if is_struct_or_enum(stmt).not() { continue }
         ref def : Expr = stmt.child(0)
 
@@ -1707,8 +1694,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
 }
 
 compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
         ref _sd : Declaration = get_payload(stmt.data)
@@ -1720,8 +1706,7 @@ compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
 
 // Re-resolve field_struct_def pointers after hoisting (cloning) invalidates them.
 resolve_field_struct_defs := proc(program: Expr, scope: TypeScope) {
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
         ref mut sdd : StructDef = get_payload(stmt.child(0).data)
