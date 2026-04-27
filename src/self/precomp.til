@@ -124,19 +124,40 @@ func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope)
 
 try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) returns ref Expr {
     // Check if the function body references unknown globals
-    ref callee_ident : Str = get_payload(fcall.child(0).data)
-    ref fn_cell : Cell = scope_get(scope, callee_ident)
-    if is_null(fn_cell).not() {
-        // TODO(#155): switch to fn_cell.val.is(Value.Func) once the
-        // typer infers the Value enum type for Cell.val (currently
-        // resolves to 'unknown', so UFCS has nothing to dispatch on).
-        if is(fn_cell.val, Value.Func) {
-            ref fptr : Dynamic = get_payload(fn_cell.val)
-            ref fdef : Expr = deref(fptr)
-            if fdef.data.is(NodeType.FuncDef) {
-                if fdef.children.len().gt(0) {
-                    if func_uses_unknown_globals(fdef.child(0), fdef, scope) {
-                        return NULL
+    ref callee : Expr = fcall.child(0)
+    if callee.data.is(NodeType.Ident) {
+        ref callee_ident : Str = get_payload(callee.data)
+        ref fn_cell : Cell = scope_get(scope, callee_ident)
+        if is_null(fn_cell).not() {
+            // TODO(#155): switch to fn_cell.val.is(Value.Func) once the
+            // typer infers the Value enum type for Cell.val (currently
+            // resolves to 'unknown', so UFCS has nothing to dispatch on).
+            if is(fn_cell.val, Value.Func) {
+                ref fptr : Dynamic = get_payload(fn_cell.val)
+                ref fdef : Expr = deref(fptr)
+                if fdef.data.is(NodeType.FuncDef) {
+                    if fdef.children.len().gt(0) {
+                        if func_uses_unknown_globals(fdef.child(0), fdef, scope) {
+                            return NULL
+                        }
+                    }
+                }
+            }
+        }
+    } else if callee.data.is(NodeType.FieldAccess) {
+        ref recv : Expr = callee.child(0)
+        ref sname : Str = get_payload(recv.data)
+        ref mname : Str = get_payload(callee.data)
+        ref ns_val : Value = ns_get(sname, mname)
+        if is_null(ns_val).not() {
+            if is(ns_val, Value.Func) {
+                ref fptr : Dynamic = get_payload(ns_val)
+                ref fdef : Expr = deref(fptr)
+                if fdef.data.is(NodeType.FuncDef) {
+                    if fdef.children.len().gt(0) {
+                        if func_uses_unknown_globals(fdef.child(0), fdef, scope) {
+                            return NULL
+                        }
                     }
                 }
             }
@@ -214,8 +235,19 @@ is_func_call := func(e: Expr) returns shallow Bool {
     if e.data.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
-    if callee.data.is(NodeType.Ident).not() { return false }
-    return precomp_has_func(get_payload(callee.data))
+    if callee.data.is(NodeType.Ident) {
+        return precomp_has_func(get_payload(callee.data))
+    }
+    if callee.data.is(NodeType.FieldAccess) {
+        if callee.children.len().eq(0) { return false }
+        ref recv : Expr = callee.child(0)
+        if recv.data.is(NodeType.Ident).not() { return false }
+        ref sname : Str = get_payload(recv.data)
+        ref mname : Str = get_payload(callee.data)
+        qname := sname.concat("_").concat(mname)
+        return precomp_has_func(qname)
+    }
+    return false
 }
 
 process_body := proc(scope: Scope, body: Expr) {
