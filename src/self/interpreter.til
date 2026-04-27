@@ -1221,8 +1221,7 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
         ref _ins_d : Declaration = _ins_ns.get(_ins_i)
         if _ins_d.name.eq(fname) { has_ns = true }
     }
-    for i in 0..body.children.len() {
-        ref f : Expr = body.child(i)
+    for f : Expr in body.children {
         ref dd : Declaration = get_payload(f.data)
         if dd.name.eq(fname).and(dd.is_namespace.not()) { has_inst = true }
     }

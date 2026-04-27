@@ -450,16 +450,14 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
         if i.to_i64().to_i32().eq(vi) {
             ref mut fcall_data : FCallData = get_payload(e.data)
             fcall_data.variadic_index = new_ch.len().to_i64().to_i32()
-            for j in 0..va_args.len() {
-                ref va : Expr = va_args.get(j)
+            for va : Expr in va_args {
                 new_ch.push(own va.clone())
             }
             fcall_data.variadic_count = va_args.len().to_i64().to_u32()
         } else if i.to_i64().to_i32().eq(kwi) {
             ref mut fcall_data : FCallData = get_payload(e.data)
             fcall_data.kwargs_index = new_ch.len().to_i64().to_i32()
-            for j in 0..kw_args.len() {
-                ref kw : Expr = kw_args.get(j)
+            for kw : Expr in kw_args {
                 new_ch.push(own kw.clone())
             }
             fcall_data.kwargs_count = kw_args.len().to_i64().to_u32()
@@ -1121,8 +1119,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     expr.til_type = TilType.None
     if expr.data.is(NodeType.EnumDef) {
         ref body : Expr = expr.child(0)
-        for vi in 0..body.children.len() {
-            ref v : Expr = body.child(vi)
+        for v : Expr in body.children {
             if v.data.is(NodeType.Decl) {
                 ref dd : Declaration = get_payload(v.data)
                 if dd.is_namespace.not().and(dd.explicit_type.len().gt(0)).and(dd.own_type.eq(OwnType.Ref)) {
@@ -1235,8 +1232,7 @@ check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr) {
     ref fdef : FunctionDef = get_payload(expr.data)
     if fdef.return_own_type.eq(OwnType.Ref).not() { return }
     ref body : Expr = expr.child(0)
-    for ri in 0..body.children.len() {
-        ref stmt : Expr = body.child(ri)
+    for stmt : Expr in body.children {
         if stmt.data.is(NodeType.Return).not() { continue }
         if stmt.children.len().eq(0) { continue }
         ref rv : Expr = stmt.child(0)

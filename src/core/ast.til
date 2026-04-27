@@ -333,8 +333,7 @@ expr_to_str_indent := func(self: Expr, shallow indent: U32) returns Str {
         return out.concat("(").concat(head).concat(")")
     }
     out = out.concat("((").concat(head).concat(")")
-    for i in 0..self.children.len() {
-        ref c : Expr = self.child(i)
+    for c : Expr in self.children {
         out = out.concat("\n").concat(expr_to_str_indent(c, indent.add(1.to_u32())))
     }
     return out.concat(")")

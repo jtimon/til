@@ -653,8 +653,7 @@ check_fcall_mut_args := proc(e: Expr) {
 }
 
 collect_unsafe_to_hoist := proc(body: Expr) {
-    for si in 0..body.children.len() {
-        ref stmt : Expr = body.child(si)
+    for stmt : Expr in body.children {
         check_fcall_mut_args(stmt)
         if stmt.data.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.data)
@@ -1501,8 +1500,7 @@ emit_ns_inits := proc(f: File, shallow depth: I32) {
         if prog_idx.eq(0) { prog = codegen_core_program }
         else { prog = codegen_program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if is_struct_or_enum(stmt) {
                 ref sname : Str = get_payload(stmt.data)
                 ref edef : Expr = stmt.child(0)
@@ -1733,8 +1731,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                 ref mut prog : Expr = NULL
                 if prog_idx.eq(0) { prog = codegen_core_program } else { prog = codegen_program }
                 if is_null(prog) { continue }
-                for i in 0..prog.children.len() {
-                    ref gs : Expr = prog.child(i)
+                for gs : Expr in prog.children {
                     if gs.data.is(NodeType.Decl) {
                         ref rhs : Expr = gs.child(0)
                         if rhs.data.is(NodeType.FuncDef).or(rhs.data.is(NodeType.StructDef)).or(rhs.data.is(NodeType.EnumDef)) { continue }
@@ -2105,8 +2102,7 @@ emit_funcsig_typedefs := proc(f: File, core_program: Expr, program: Expr) {
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if stmt.data.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             ref dd : Declaration = get_payload(stmt.data)
@@ -2133,8 +2129,7 @@ emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if stmt.data.is(NodeType.Decl) {
                 ref dd : Declaration = get_payload(stmt.data)
                 if stmt.children.len().eq(0) { continue }
@@ -2182,8 +2177,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
         is_core_pass := prog_idx.eq(0).and(is_null(core_program).not())
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if stmt.data.is(NodeType.Decl).not() { continue }
             ref dd : Declaration = get_payload(stmt.data)
             if stmt.children.len().eq(0) { continue }
@@ -2211,8 +2205,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
     }
 
     // Enum auto-helper forward declarations
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.children.len().eq(0) { continue }
@@ -2272,8 +2265,7 @@ emit_header_global_decls := proc(f: File, core_program: Expr, program: Expr) {
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if is_exported_top_level_global(stmt).not() { continue }
             ref rhs : Expr = stmt.child(0)
             ref dd : Declaration = get_payload(stmt.data)
@@ -2354,8 +2346,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
     f := File.new(til_path, true)
     f.write_str("// Auto-generated FFI binding for "); f.write_str(lib_name); f.write_str("\n")
     f.write_str("link(\""); f.write_str(lib_name); f.write_str("\")\n\n")
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.children.len().eq(0) { continue }
@@ -2475,8 +2466,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
     f.write_str("    ]\n\n")
 
     // Forward-declare all struct/enum classes
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.children.len().eq(0) { continue }
@@ -2492,8 +2482,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
     f.write_str("\n")
 
     // Emit struct field definitions and enum definitions
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.children.len().eq(0) { continue }
@@ -2566,8 +2555,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
     f.write_str("\n")
 
     // Emit function bindings
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.children.len().eq(0) { continue }
@@ -2638,8 +2626,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
     }
 
     // Emit enum auto-helper bindings (eq, constructors, is_Variant, get_Variant)
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = get_payload(stmt.data)
         if stmt.children.len().eq(0) { continue }
@@ -2878,8 +2865,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
 }
 
 register_funcsig_prog := proc(prog: Expr) {
-    for i in 0..prog.children.len() {
-        ref stmt : Expr = prog.child(i)
+    for stmt : Expr in prog.children {
         if stmt.data.is(NodeType.Decl) {
             ref rhs : Expr = stmt.child(0)
             if rhs.data.is(NodeType.FuncDef) {
@@ -2902,8 +2888,7 @@ register_funcsig_prog := proc(prog: Expr) {
 }
 
 emit_global_inits_prog := proc(f: File, prog: Expr) {
-    for i in 0..prog.children.len() {
-        ref gs : Expr = prog.child(i)
+    for gs : Expr in prog.children {
         if gs.data.is(NodeType.Decl) {
             ref rhs : Expr = gs.child(0)
             if rhs.data.is(NodeType.FuncDef).or(rhs.data.is(NodeType.StructDef))
@@ -2931,8 +2916,7 @@ build_register_funcsig_names := proc(core_program: Expr, program: Expr) {
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
-        for i in 0..prog.children.len() {
-            ref stmt : Expr = prog.child(i)
+        for stmt : Expr in prog.children {
             if stmt.data.is(NodeType.Decl) {
                 ref rhs : Expr = stmt.child(0)
                 if rhs.data.is(NodeType.FuncDef) {

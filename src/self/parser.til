@@ -1269,8 +1269,7 @@ parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
         root.add_child(own parse_statement(p))
     }
     // Append synthetic Fn type declarations (initer registers them before typer runs)
-    for i in 0..p.fn_sig_decls.len() {
-        ref d : Expr = p.fn_sig_decls.get(i)
+    for d : Expr in p.fn_sig_decls {
         root.add_child(own d.clone())
     }
     return root
