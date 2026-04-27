@@ -197,6 +197,10 @@ and(true, 42)
 type_test := func(a: I64, _b: Bool) returns I64 { return a }
 type_test(1, 2)
 
+// #157 argument type mismatch: variadic ..Str called with non-Str
+print(1+1)
+println(true)
+
 // cannot call method on Dynamic value (namespace UFCS ambiguous)
 dyn_vec := vec("I64", 10, 20)
 dyn_bad := dyn_vec.get(0).add(35)

@@ -465,6 +465,42 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
     e.children = new_ch
 }
 
+// Validate a single argument against its parameter's type. Narrows
+// numeric literals to fit the param type, applies implicit widen /
+// usize-coerce, and emits a type_error on mismatch. Skips Dynamic-typed
+// args (the caller has already decided this arg is not constrained).
+validate_fcall_arg := proc(mut arg: Expr, ptype: TilType, ptype_name: Str, param_name: Str) {
+    if arg.til_type.is(TilType.Dynamic) { return }
+    if arg.til_type.is(TilType.Unknown) { return }
+    if arg.data.is(NodeType.LiteralNum) {
+        if is_numeric_type(ptype) {
+            if literal_in_range(get_payload(arg.data), ptype).not() {
+                type_error(arg, "integer literal ".concat(get_payload(arg.data)).concat(" out of range for ").concat(type_to_name(ptype)))
+            }
+            arg.til_type = ptype
+            return
+        }
+    }
+    if can_implicit_widen(arg.til_type, ptype) {
+        arg.til_type = ptype
+        return
+    }
+    if can_implicit_usize_coerce(arg.til_type, ptype, ptype_name) {
+        arg.til_type = ptype
+        return
+    }
+    if arg.til_type.is(ptype).not() {
+        type_error(arg, "argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.til_type)))
+    } else if ptype.is(TilType.Struct).or(ptype.is(TilType.Enum)) {
+        arg_sname := til_type_name(arg.til_type)
+        if arg_sname.len().gt(0) {
+            if ptype_name.eq(arg_sname).not() {
+                type_error(arg, "argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(arg_sname))
+            }
+        }
+    }
+}
+
 infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, shallow in_func: I32, ctx: Context) {
     for i in 1..e.children.len() {
         infer_expr(scope, e.child(i), in_func, ctx)
@@ -491,6 +527,11 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         if ci.gte(e.children.len()) { break }
         if fvi.gte(0) {
             if pi.to_i64().to_i32().eq(fvi) {
+                ref vparam : Declaration = fdef_data.params.get(pi)
+                vptype := type_from_name(vparam.explicit_type, scope)
+                for vk in 0..fvc {
+                    narrow_dynamic(e.child(ci.add(vk)), vptype)
+                }
                 ci = ci.add(fvc)
                 pi = pi.add(1)
                 continue
@@ -515,6 +556,17 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         if ci.gte(e.children.len()) { break }
         if fvi.gte(0) {
             if pi.to_i64().to_i32().eq(fvi) {
+                ref vparam : Declaration = fdef_data.params.get(pi)
+                ref vptype_name : Str = vparam.explicit_type
+                ref fcd_v : FCallData = get_payload(e.data)
+                if vptype_name.len().gt(0).and(fcd_v.is_splat.not()) {
+                    vptype := type_from_name(vptype_name, scope)
+                    if vptype.is(TilType.Dynamic).not() {
+                        for vk in 0..fvc {
+                            validate_fcall_arg(e.child(ci.add(vk)), vptype, vptype_name, vparam.name)
+                        }
+                    }
+                }
                 ci = ci.add(fvc)
                 pi = pi.add(1)
                 continue
@@ -534,51 +586,13 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
             pi = pi.add(1)
             continue
         }
-        ref arg : Expr = e.child(ci)
-        if arg.til_type.is(TilType.Dynamic) {
-            ci = ci.add(1)
-            pi = pi.add(1)
-            continue
-        }
         ptype := type_from_name(ptype_name, scope)
         if ptype.is(TilType.Dynamic) {
             ci = ci.add(1)
             pi = pi.add(1)
             continue
         }
-        if arg.data.is(NodeType.LiteralNum) {
-            if is_numeric_type(ptype) {
-                if literal_in_range(get_payload(arg.data), ptype).not() {
-                    type_error(arg, "integer literal ".concat(get_payload(arg.data)).concat(" out of range for ").concat(type_to_name(ptype)))
-                }
-                arg.til_type = ptype
-                ci = ci.add(1)
-                pi = pi.add(1)
-                continue
-            }
-        }
-        if can_implicit_widen(arg.til_type, ptype) {
-            arg.til_type = ptype
-            ci = ci.add(1)
-            pi = pi.add(1)
-            continue
-        }
-        if can_implicit_usize_coerce(arg.til_type, ptype, ptype_name) {
-            arg.til_type = ptype
-            ci = ci.add(1)
-            pi = pi.add(1)
-            continue
-        }
-        if arg.til_type.is(ptype).not() {
-            type_error(arg, "argument type mismatch for '".concat(param2.name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.til_type)))
-        } else if ptype.is(TilType.Struct).or(ptype.is(TilType.Enum)) {
-            arg_sname := til_type_name(arg.til_type)
-            if arg_sname.len().gt(0) {
-                if ptype_name.eq(arg_sname).not() {
-                    type_error(arg, "argument type mismatch for '".concat(param2.name).concat("': expected ").concat(ptype_name).concat(", got ").concat(arg_sname))
-                }
-            }
-        }
+        validate_fcall_arg(e.child(ci), ptype, ptype_name, param2.name)
         ci = ci.add(1)
         pi = pi.add(1)
     }
