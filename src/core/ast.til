@@ -117,14 +117,14 @@ namespace:
 set_own_arg := proc(mut fcall: Expr, shallow arg_index: USize) {
     ref mut fcd : FCallData = get_payload(fcall.data)
     mut bit : U64 = 1
-    for _i in 0..arg_index { bit = bit.mul(2) }
+    for _ in 0..arg_index { bit = bit.mul(2) }
     fcd.own_args = fcd.own_args.or(bit)
 }
 
 get_own_arg := func(fcall: Expr, shallow arg_index: USize) returns shallow Bool {
     ref fcd : FCallData = get_payload(fcall.data)
     mut bit : U64 = 1
-    for _i in 0..arg_index { bit = bit.mul(2) }
+    for _ in 0..arg_index { bit = bit.mul(2) }
     return fcd.own_args.and(bit).gt(0)
 }
 
@@ -326,7 +326,7 @@ node_head_str := func(data: NodeType) returns Str {
 // where Head = NodeType variant name + inline payload (see node_head_str).
 expr_to_str_indent := func(self: Expr, shallow indent: U32) returns Str {
     mut out := ""
-    for _i in 0..indent.to_i64().to_u64() {
+    for _ in 0..indent.to_i64().to_u64() {
         out = out.concat("  ")
     }
     head := node_head_str(self.data)
@@ -387,7 +387,7 @@ func_type_name := func(ft: FuncType) returns Str {
 
 // --- ast_print ---
 ast_print := proc(e: Expr, shallow indent: U32) {
-    for _i in 0..indent.to_i64().to_u64() {
+    for _ in 0..indent.to_i64().to_u64() {
         print("  ")
     }
     print("(", node_name(e.data))
@@ -410,10 +410,10 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     }
     if e.children.len().gt(0) {
         println("")
-        for _e_i : Expr in e.children {
-            ast_print(_e_i, indent.add(1))
+        for e_i : Expr in e.children {
+            ast_print(e_i, indent.add(1))
         }
-        for _i in 0..indent.to_i64().to_u64() {
+        for _ in 0..indent.to_i64().to_u64() {
             print("  ")
         }
     }

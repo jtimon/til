@@ -538,11 +538,11 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
         ffi_type_cache = Vec.new("FFITypePtrBox", FFITypePtrBox.size())
         ffi_type_cache_inited = true
     }
-    ref _bsf_sdd : StructDef = get_payload(struct_def.data)
-    nfields := _bsf_sdd.fields.len()
+    ref bsf_sdd : StructDef = get_payload(struct_def.data)
+    nfields := bsf_sdd.fields.len()
     elements : Dynamic = malloc(nfields.add(1).to_u64().mul(Dynamic.size().to_u64()))
     for i in 0..nfields {
-        ref fd : Declaration = _bsf_sdd.fields.get(i)
+        ref fd : Declaration = bsf_sdd.fields.get(i)
         ref ft : ffi_type = field_ffi_type(fd)
         memcpy(ptr_add(elements, i.to_u64().mul(Dynamic.size().to_u64())), ft, Dynamic.size().to_u64())
     }
@@ -1162,8 +1162,8 @@ ffi_init_scan_program := proc(program: Expr) {
             if stmt.child(0).data.is(NodeType.StructDef) {
                 ref sdd : Declaration = get_payload(stmt.data)
                 ref sdd_data : StructDef = get_payload(stmt.child(0).data)
-                for _d_j : Declaration in sdd_data.ns_decls {
-                    ref fdd : Declaration = _d_j
+                for d_j : Declaration in sdd_data.ns_decls {
+                    ref fdd : Declaration = d_j
                     ref fdef : Expr = fdd.default_value
                     if is_null(fdef) { continue }
                     if fdef.data.is(NodeType.FuncDef).not() { continue }

@@ -36,8 +36,8 @@ namespace:
                 }
             }
         } else {
-            ref _cl_sdd : StructDef = get_payload(src_sdef.data)
-            for dd : Declaration in _cl_sdd.fields {
+            ref cl_sdd : StructDef = get_payload(src_sdef.data)
+            for dd : Declaration in cl_sdd.fields {
                 foff := dd.field_offset
                 ref ftype : Str = dd.explicit_type
                 if dd.own_type.is(OwnType.Own) {
@@ -588,11 +588,11 @@ resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr
 }
 
 eval_body := proc(scope: Scope, body: Expr) {
-    for _e_i : Expr in body.children {
+    for e_i : Expr in body.children {
         if has_return { return }
         if has_break { return }
         if has_continue { return }
-        ref stmt : Expr = _e_i
+        ref stmt : Expr = e_i
         if stmt.data.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.data)
             ref rhs : Expr = stmt.child(0)
@@ -1213,18 +1213,18 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
     ref mut fname : Str = get_payload(e.data)
     mut has_ns := false
     mut has_inst := false
-    ref _ins_ns : Vec = def_ns_decls(sdef)
-    for _ins_d : Declaration in _ins_ns {
-        if _ins_d.name.eq(fname) { has_ns = true }
+    ref ins_ns : Vec = def_ns_decls(sdef)
+    for ins_d : Declaration in ins_ns {
+        if ins_d.name.eq(fname) { has_ns = true }
     }
     if sdef.data.is(NodeType.StructDef) {
-        ref _ins_sdd : StructDef = get_payload(sdef.data)
-        for dd : Declaration in _ins_sdd.fields {
+        ref ins_sdd : StructDef = get_payload(sdef.data)
+        for dd : Declaration in ins_sdd.fields {
             if dd.name.eq(fname) { has_inst = true }
         }
     } else {
-        ref _ins_edd : EnumDef = get_payload(sdef.data)
-        for vn : Str in _ins_edd.variants {
+        ref ins_edd : EnumDef = get_payload(sdef.data)
+        for vn : Str in ins_edd.variants {
             if vn.eq(fname) { has_inst = true }
         }
     }
@@ -1307,18 +1307,18 @@ build_argv_array := proc(argv: Vec, shallow offset: U32, shallow count: U32, ele
     ref asd : StructDef = get_payload(cached_array_def.data)
     inst_data : Dynamic = calloc(1, asd.total_struct_size.to_i64().to_u64())
     mut tmp := StructInstance(struct_name = cached_array_name, struct_def = cached_array_def, data = to_ptr(inst_data), borrowed = true)
-    ref _ba_data_d : Declaration = find_field_decl(cached_array_def, "data")
-    write_field(tmp, _ba_data_d, Value.Ptr(data))
-    ref _ba_cap_d : Declaration = find_field_decl(cached_array_def, "cap")
-    write_field(tmp, _ba_cap_d, val_u32(count.to_i64()))
-    ref _ba_esz_d : Declaration = find_field_decl(cached_array_def, "elem_size")
-    write_field(tmp, _ba_esz_d, val_u32(esz.to_i64()))
-    ref _ba_et_d : Declaration = find_field_decl(cached_array_def, "elem_type")
-    write_field(tmp, _ba_et_d, make_str_value(elem_type.c_str, elem_type.count.to_u64()))
+    ref ba_data_d : Declaration = find_field_decl(cached_array_def, "data")
+    write_field(tmp, ba_data_d, Value.Ptr(data))
+    ref ba_cap_d : Declaration = find_field_decl(cached_array_def, "cap")
+    write_field(tmp, ba_cap_d, val_u32(count.to_i64()))
+    ref ba_esz_d : Declaration = find_field_decl(cached_array_def, "elem_size")
+    write_field(tmp, ba_esz_d, val_u32(esz.to_i64()))
+    ref ba_et_d : Declaration = find_field_decl(cached_array_def, "elem_type")
+    write_field(tmp, ba_et_d, make_str_value(elem_type.c_str, elem_type.count.to_u64()))
     ref clone_fn : Value = ns_get(elem_type, "clone")
-    if is_null(clone_fn).not() { ref _ba_ec_d : Declaration = find_field_decl(cached_array_def, "elem_clone"); write_field(tmp, _ba_ec_d, shallow_copy_value(clone_fn)) }
+    if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(cached_array_def, "elem_clone"); write_field(tmp, ba_ec_d, shallow_copy_value(clone_fn)) }
     ref delete_fn : Value = ns_get(elem_type, "delete")
-    if is_null(delete_fn).not() { ref _ba_ed_d : Declaration = find_field_decl(cached_array_def, "elem_delete"); write_field(tmp, _ba_ed_d, shallow_copy_value(delete_fn)) }
+    if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(cached_array_def, "elem_delete"); write_field(tmp, ba_ed_d, shallow_copy_value(delete_fn)) }
     tmp.data = NULL
     return make_struct_value(cached_array_name, cached_array_def, to_ptr(inst_data), false)
 }
@@ -1343,9 +1343,9 @@ interpreter_init_ns := proc(mut global: Scope, program: Expr) {
             if dd.name.eq("Array") { cached_array_def = sdef; cached_array_name = dd.name }
             if dd.name.eq("Vec") { cached_vec_def = sdef; cached_vec_name = dd.name }
         }
-        ref _ien_ns : Vec = def_ns_decls(sdef)
-        for _d_j : Declaration in _ien_ns {
-            ref nsd : Declaration = _d_j
+        ref ien_ns : Vec = def_ns_decls(sdef)
+        for d_j : Declaration in ien_ns {
+            ref nsd : Declaration = d_j
             if is_null(nsd.default_value) { continue }
             mut fval := eval_expr(global, nsd.default_value)
             if sdef.data.is(NodeType.EnumDef) {
@@ -1410,8 +1410,8 @@ str_view := func(shallow v: Value) returns shallow Str {
 
 find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
     if struct_def.data.is(NodeType.StructDef).not() { return NULL }
-    ref _ffd_sdd : StructDef = get_payload(struct_def.data)
-    for dd : Declaration in _ffd_sdd.fields {
+    ref ffd_sdd : StructDef = get_payload(struct_def.data)
+    for dd : Declaration in ffd_sdd.fields {
         if dd.name.eq(fname) {
             return dd
         }
@@ -1606,9 +1606,9 @@ interpret_copy_alias_ns := proc(prog: Expr, global: Scope) {
                     ref fptr : Dynamic = get_payload(tc.val)
                     ref sdef : Expr = deref(fptr)
                     if sdef.data.is(NodeType.StructDef).or(sdef.data.is(NodeType.EnumDef)) {
-                        ref _ica_ns : Vec = def_ns_decls(sdef)
-                        for _d_j : Declaration in _ica_ns {
-                            ref nsd : Declaration = _d_j
+                        ref ica_ns : Vec = def_ns_decls(sdef)
+                        for d_j : Declaration in ica_ns {
+                            ref nsd : Declaration = d_j
                             ref v : Value = ns_get(rhs_ident, nsd.name)
                             if is_null(v).not() { ns_set(dd.name, nsd.name, v) }
                         }

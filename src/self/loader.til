@@ -226,8 +226,8 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     // Load core.til
     core_source := readfile(core_path)
     core_tokens := tokenize(core_source, core_disp)
-    mut _core_mode := ""
-    core_ast := parse(core_tokens, core_disp.clone(), _core_mode)
+    mut core_mode_str := ""
+    core_ast := parse(core_tokens, core_disp.clone(), core_mode_str)
     ref core_mode : Mode = require_mode(core_disp, "lib")
     context_register_path_mode(ctx, core_disp, core_mode)
 

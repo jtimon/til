@@ -187,9 +187,9 @@ executable_extension := func(target: Target) returns Str {
 
 detect_current_target := proc() returns Target {
     mut uname_s := ""
-    _rc_s := run_cmd(uname_s, "uname", "-s")
+    run_cmd(uname_s, "uname", "-s")
     mut uname_m := ""
-    _rc_m := run_cmd(uname_m, "uname", "-m")
+    run_cmd(uname_m, "uname", "-m")
 
     os := uname_s.replace(Str.from_byte(10), "")
     arch := uname_m.replace(Str.from_byte(10), "")
