@@ -2404,7 +2404,16 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
 
     mut block := Expr.new(NodeType.Body, line, col, path)
 
-    mut col_decl := Expr.new(NodeType.Decl(Declaration(name = col_name.clone())), line, col, path)
+    // When iter is an lvalue (ident or field access), bind _fc as a ref to
+    // alias the source instead of letting infer_decl_value insert a deep
+    // .clone() that would dangle any refs taken out of the loop body.
+    // For rvalues (literals, calls), keep the default Shallow so the result
+    // gets stored as a value.
+    mut col_own_type := OwnType.Shallow
+    if iter.data.is(NodeType.Ident).or(iter.data.is(NodeType.FieldAccess)) {
+        col_own_type = OwnType.Ref
+    }
+    mut col_decl := Expr.new(NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type)), line, col, path)
     col_decl.add_child(own iter.clone())
     block.add_child(own col_decl)
 
