@@ -4267,7 +4267,9 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: 
 
 insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32) {
     if stmt.data.is(NodeType.If).not() {
-        if stmt.data.is(NodeType.While).not() { return }
+        if stmt.data.is(NodeType.While).not() {
+            if stmt.data.is(NodeType.Body).not() { return }
+        }
     }
     mut live_vec := Vec.new("LocalInfo", LocalInfo.size())
     for j in 0..locals.len() {
@@ -4285,8 +4287,11 @@ insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx
             for c in 1..stmt.children.len() {
                 insert_exit_deletes(stmt.child(c), live_vec, false)
             }
-        } else {
+        } else if stmt.data.is(NodeType.While) {
             insert_exit_deletes(stmt.child(1), live_vec, true)
+        } else {
+            // NodeType.Body -- desugared for-in wraps its decls + while in a Body block
+            insert_exit_deletes(stmt, live_vec, true)
         }
     }
 }
