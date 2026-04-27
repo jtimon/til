@@ -416,6 +416,46 @@
    handful of edge cases; final ~_oa~ wraps on module-global delete
    paths.
 
+** OPEN #136 Precomp doesn't fold most function calls
+
+  Originally about namespace method calls (~Dynamic.size()~). The
+  precomp-side gate was lifted (commit d1cfcb3 accepts FieldAccess
+  callees) and the builder's sizeof override was dropped (~Dynamic_size()~
+  now returns 8 at runtime from the user's ~return 8~ body), but
+  precomp itself still folds almost nothing. A pile of unjustified
+  exceptions block folds:
+
+  Intended behaviour:
+  - ~macro~: forced precomp (already so).
+  - ~func~ or ~ext_func~: precomp if all args are comptime.
+  - Non-mut globals are constants, i.e. comptime, and should count as
+    foldable arg values everywhere ~is_known~ is consulted.
+
+  Exceptions to remove:
+  - ~precomp_scan_names~ excludes ~ext_func~ by type (~FuncType.Func~
+    only). E.g. ~I64.add(1, 1)~ never even reaches the fold attempt.
+  - ~is_macro_call~ rejects FieldAccess callees (same gap that
+    ~is_func_call~ had until d1cfcb3).
+  - ~func_uses_unknown_globals~ has a false positive: the typer's
+    ~hoist_return_expr~ rewrites ~return 8~ into ~_t := 8; return _t~,
+    and the temp local Ident looks like an unknown global, so the
+    body-safety check bails for almost every body.
+  - ~is_known~ only accepts literal args; it doesn't recursively try
+    to fold inner fcalls. So ~f(g(1))~ never folds even when both
+    would individually.
+  - ~try_eval_call~'s ~can_convert~ accepts only Str among struct
+    results, and rejects Enum / Ptr / Func / None entirely.
+  - ~process_body~ skips ~dd.own_type.eq(OwnType.Ref)~ Decls.
+  - ~process_body~ skips ~dd.is_mut~ Decls.
+  - ~process_body~ only walks Decl-init and top-level FCall; it does
+    not visit nested fcall args, so calls inside arguments are never
+    folded.
+  - ~process_body~ does not recurse into ForIn / Switch / Return
+    bodies, so calls there are never folded.
+
+  Each of these needs a concrete reason to stay. Default should be:
+  fold whenever it is sound to do so.
+
 ** OPEN #130 AST / ~Expr~ representation cleanup
   The current AST shape is confusing and duplicates state in ways that make
   parser and ownership bugs harder to reason about.

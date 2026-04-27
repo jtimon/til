@@ -1,45 +1,5 @@
 # Fixed issues moved from issues.org.
 
-* FIXED #136 Precomp doesn't fold namespace method calls
-
-  Two-part fix:
-
-  1. Precomp side (already in master, commit d1cfcb3): ~is_func_call~
-     and ~try_eval_call~ now accept FieldAccess callees by extracting
-     the receiver/method names, looking up the qualified name (e.g.
-     ~Dynamic_size~) in the funcs set, and resolving the FunctionDef
-     via ~ns_get(sname, mname)~.
-
-  2. Builder side: removed the ~size()~ sizeof override in
-     ~emit_ns_method~ that was emitting ~Dynamic_size()~ as
-     ~(USize)sizeof(Dynamic)~ = 1 (Dynamic is ~struct { char _; }~ in
-     C). With the override gone, ~Dynamic_size()~ now compiles from the
-     user-defined body ~return 8~ and returns 8 at runtime as the TIL
-     source intends.
-
-  To remove the override safely, the auto-generated ~<Enum>_size()~
-  methods needed correct values too. Previously
-  ~generate_enum_size_methods~ hardcoded ~4~ for tag-only enums and
-  ~8~ for any payload enum -- wrong for enums whose payloads are
-  larger than 8 bytes (e.g. ~Value~ has a ~Struct: StructInstance~
-  variant; the C union member is ~StructInstance~ inline). Added
-  ~compute_enum_layout~ in ~initer.til~ that walks variants, recurses
-  into struct/enum payload sizes, and returns ~tag(4) + max_payload~
-  aligned. ~compute_struct_layout~'s enum-field branch now uses it
-  too, replacing the hardcoded 8.
-
-  Regression test: ~test_func_ns_method_size~ in
-  ~src/test/macros.til~ asserts ~Dynamic.size().to_i64() == 8~.
-
-  Not addressed (separate issue):
-  - The ~ref mut prog~ clone-instead-of-pointer-copy leak (~#135~).
-  - The ~I64.size()~ vs ~Dynamic.size()~ workaround in builder.til's
-    top-level ~struct_bodies~ / ~func_defs~ / ~struct_def_exprs~ map
-    initializers. Switching them to ~Dynamic.size()~ now segfaults the
-    self-built til; the value is correct (8) at runtime, so something
-    else in the module-init path is sensitive to that specific call.
-    Left for follow-up.
-
 * FIXED #113 Proper enums
 
   Four-part enum cleanup, all landed:
