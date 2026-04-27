@@ -2045,13 +2045,19 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
     own indices.delete()
 }
 
+// Resolve the C return type for a FunctionDef; "void" when the proc
+// has no return type. Avoids the `mut ret := "void"` reassign pattern
+// in emit_func_forward_decl / emit_funcsig_typedef whose default
+// "void" Str_lit leaked when reassigned.
+func_return_ctype := func(fd: FunctionDef) returns Str {
+    if fd.return_type.len().eq(0) { return "void" }
+    if fd.return_own_type.is(OwnType.Shallow) { return type_name_to_c_value(fd.return_type) }
+    return type_name_to_c(fd.return_type)
+}
+
 emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr) {
     ref fd : FunctionDef = get_payload(fdef.data)
-    mut ret := "void"
-    if fd.return_type.len().gt(0) {
-        if fd.return_own_type.is(OwnType.Shallow) { ret = type_name_to_c_value(fd.return_type) }
-        else { ret = type_name_to_c(fd.return_type) }
-    }
+    ret := func_return_ctype(fd)
     f.write_str(ret); f.write_str(" "); f.write_str(name); f.write_str("(")
     emit_param_list(f, fdef, true)
     f.write_str(");\n")
@@ -2059,11 +2065,7 @@ emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr) {
 
 emit_funcsig_typedef := proc(f: File, name: Str, fdef: Expr) {
     ref fd : FunctionDef = get_payload(fdef.data)
-    mut ret := "void"
-    if fd.return_type.len().gt(0) {
-        if fd.return_own_type.is(OwnType.Shallow) { ret = type_name_to_c_value(fd.return_type) }
-        else { ret = type_name_to_c(fd.return_type) }
-    }
+    ret := func_return_ctype(fd)
     f.write_str("typedef "); f.write_str(ret); f.write_str(" (*"); f.write_str(name); f.write_str(")(")
     emit_param_list(f, fdef, false)
     f.write_str(");\n")

@@ -1315,6 +1315,7 @@ void emit_struct_funcs(File * f, Str * name, Expr * struct_def);
 void emit_enum_def(File * f, Str * name, Expr * enum_def);
 void emit_enum_struct_body(File * f, Str * ename, Expr * enum_def);
 void topo_emit_struct_enum_defs(File * f, Expr * prog, Set * emitted);
+Str * func_return_ctype(FunctionDef * fd);
 void emit_func_forward_decl(File * f, Str * name, Expr * fdef);
 void emit_funcsig_typedef(File * f, Str * name, Expr * fdef);
 void emit_funcsig_typedefs(File * f, Expr * core_program, Expr * program);
