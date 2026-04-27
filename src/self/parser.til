@@ -9,6 +9,7 @@ Parser := struct {
     mut pos : USize = 0
     mut path := ""
     mut fn_sig_decls := Vec.new("Expr", Expr.size())
+    mut lambda_decls := Vec.new("Expr", Expr.size())
 }
 
 peek := func(p: Parser) returns ref Token {
@@ -139,6 +140,24 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
     p.fn_sig_decls.push(own decl)
 
     return name
+}
+
+// maybe_lift_lambda: if the expression is an anonymous FuncDef literal
+// with a body (a lambda), lift it to a hidden top-level _lambda_<N>
+// declaration and return an Ident referring to that name. Otherwise
+// return the expression unchanged. Used at every FCall argument position
+// so existing fn_ptr machinery picks the lambda up as a regular named
+// function. Bodyless FuncDefs (FuncSig types) are passed through.
+maybe_lift_lambda := proc(mut p: Parser, own e: Expr) returns Expr {
+    if e.data.is(NodeType.FuncDef).not() { return e }
+    if e.children.len().eq(0) { return e }
+    lname := "_lambda_".concat(p.lambda_decls.len().to_i64().to_str())
+    line := e.line
+    col := e.col
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone())), line, col, p.path)
+    decl.add_child(own e)
+    p.lambda_decls.push(own decl)
+    return Expr.new(NodeType.Ident(lname.clone()), line, col, p.path)
 }
 
 // parse_block: expects '{' already consumed, reads statements until '}'
@@ -440,7 +459,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
                     aname := expect_text(p, TokenType.Ident)
                     advance(p) // consume '='
                     mut na := Expr.new(NodeType.NamedArg(aname), na_line, na_col, p.path)
-                    na.add_child(own parse_expression(p))
+                    na.add_child(own maybe_lift_lambda(p, own parse_expression(p)))
                     call.add_child(own na)
                     if check(p, TokenType.Comma) { advance(p) }
                     continue
@@ -459,7 +478,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
             advance(p)
             is_own_arg = true
         }
-        mut arg := parse_expression(p)
+        mut arg := maybe_lift_lambda(p, own parse_expression(p))
         if is_own_arg { set_own_arg(call, call.children.len()) }
         if is_splat {
             ref mut fcd : FCallData = get_payload(call.data)
@@ -674,7 +693,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
                             aname := expect_text(p, TokenType.Ident)
                             advance(p) // consume '='
                             mut na := Expr.new(NodeType.NamedArg(aname), na_line, na_col, p.path)
-                            na.add_child(own parse_expression(p))
+                            na.add_child(own maybe_lift_lambda(p, own parse_expression(p)))
                             mcall.add_child(own na)
                             if check(p, TokenType.Comma) { advance(p) }
                             continue
@@ -683,7 +702,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
                 }
                 mut is_own_arg := false
                 if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
-                mut marg := parse_expression(p)
+                mut marg := maybe_lift_lambda(p, own parse_expression(p))
                 if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
                 mcall.add_child(own marg)
                 if check(p, TokenType.Comma) { advance(p) }
@@ -1010,7 +1029,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                             aname := expect_text(p, TokenType.Ident)
                             advance(p) // consume '='
                             mut na := Expr.new(NodeType.NamedArg(aname), na_line, na_col, p.path)
-                            na.add_child(own parse_expression(p))
+                            na.add_child(own maybe_lift_lambda(p, own parse_expression(p)))
                             mcall.add_child(own na)
                             if check(p, TokenType.Comma) { advance(p) }
                             continue
@@ -1019,7 +1038,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 }
                 mut is_own_arg := false
                 if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
-                mut marg := parse_expression(p)
+                mut marg := maybe_lift_lambda(p, own parse_expression(p))
                 if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
                 mcall.add_child(own marg)
                 if check(p, TokenType.Comma) { advance(p) }
@@ -1274,6 +1293,12 @@ parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
     }
     // Append synthetic Fn type declarations (initer registers them before typer runs)
     for d : Expr in p.fn_sig_decls {
+        root.add_child(own d.clone())
+    }
+    // Append lifted lambda declarations. Each is a fully-typed FuncDef
+    // bound to a synthetic _lambda_<N> name; the existing initer/typer
+    // path treats it as any other named function.
+    for d : Expr in p.lambda_decls {
         root.add_child(own d.clone())
     }
     return root

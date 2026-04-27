@@ -422,6 +422,7 @@ typedef struct Parser {
     U32 pos;
     Str path;
     Vec fn_sig_decls;
+    Vec lambda_decls;
 } Parser;
 
 
@@ -950,6 +951,7 @@ U32 peek_line(Parser * p);
 U32 peek_col(Parser * p);
 TilType * til_type_from_explicit_type(Str * name);
 Str * parse_fn_signature(Parser * p, U32 line, U32 col);
+Expr * maybe_lift_lambda(Parser * p, Expr * e);
 Expr * parse_block(Parser * p);
 Expr * parse_func_def(Parser * p);
 Expr * parse_struct_def(Parser * p, Str * c_tag);

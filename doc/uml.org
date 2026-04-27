@@ -186,6 +186,7 @@
 *** mut pos : USize = 0
 *** mut path := ""
 *** mut fn_sig_decls := Vec.new("Expr", Expr.size())
+*** mut lambda_decls := Vec.new("Expr", Expr.size())
 * initer
 ** TypeBinding: StructDef
 *** mut name := ""
