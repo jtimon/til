@@ -455,6 +455,18 @@ emit_til_default := proc(f: File, shallow t: TilType) {
 
 callee_return_ctype := ext_func(callee_name: Str) returns Str {}
 
+// Resolve the C parameter type for fd.params[i]. Avoids the
+// `mut ptype := ""` pre-init pattern in emit_param_list, whose empty
+// Str leaked once per parameter on each call.
+param_ctype := func(fd: FunctionDef, shallow i: USize) returns Str {
+    ii := i.to_i64().to_i32()
+    if ii.eq(fd.variadic_index) { return "Array *" }
+    ref p : Declaration = fd.params.get(i)
+    if ii.eq(fd.kwargs_index) { return type_name_to_c(p.explicit_type) }
+    if p.own_type.is(OwnType.Shallow) { return type_name_to_c_value(p.explicit_type) }
+    return type_name_to_c(p.explicit_type)
+}
+
 emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool) {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) {
@@ -462,21 +474,7 @@ emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool) {
     } else {
         for i in 0..fd.params.len() {
             if i.gt(0) { f.write_str(", ") }
-            mut ptype := ""
-            ii := i.to_i64().to_i32()
-            if ii.eq(fd.variadic_index) {
-                ptype = "Array *"
-            } else if ii.eq(fd.kwargs_index) {
-                ref p : Declaration = fd.params.get(i)
-                ptype = type_name_to_c(p.explicit_type)
-            } else {
-                ref p : Declaration = fd.params.get(i)
-                if p.own_type.is(OwnType.Shallow) {
-                    ptype = type_name_to_c_value(p.explicit_type)
-                } else {
-                    ptype = type_name_to_c(p.explicit_type)
-                }
-            }
+            ptype := param_ctype(fd, i)
             if with_names {
                 ref p : Declaration = fd.params.get(i)
                 f.write_str(ptype)

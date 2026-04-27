@@ -1276,6 +1276,7 @@ void emit_i32(File * f, I32 v);
 void emit_indent(File * f, I32 depth);
 void emit_til_default(File * f, TilType t);
 Str * callee_return_ctype(Str * callee_name);
+Str * param_ctype(FunctionDef * fd, U32 i);
 void emit_param_list(File * f, Expr * fdef, Bool with_names);
 void collect_dyn_methods(Expr * e, Vec * methods);
 void collect_collection_builtins(Expr * e, Vec * infos);
