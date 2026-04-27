@@ -185,13 +185,13 @@ parse_func_def := proc(mut p: Parser) returns Expr {
 
         pname := expect_text(p, TokenType.Ident)
 
-        // Bare type (FuncSig style): no colon after identifier
-        mut nm := ""
-        mut tp := ""
+        // Build param_decl directly; struct field assigns delete the
+        // previous value cleanly, unlike `mut nm := \"\"` reassignment.
+        mut param_decl := Declaration(is_mut = is_mut, own_type = own_type.clone())
         mut is_variadic := false
         if check(p, TokenType.Colon).not() {
-            tp = pname.clone()
-            nm = ""
+            // Bare type (FuncSig style): name stays "", type from pname
+            param_decl.explicit_type = pname.clone()
         } else {
             expect_token(p, TokenType.Colon)
             if check(p, TokenType.DotDotDot) {
@@ -207,9 +207,9 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                     panic(__LOC__, "cannot combine variadic and kwargs in the same function")
                 }
                 fd.kwargs_index = fd.params.len().to_i64().to_i32()
-                own_type = OwnType.Own // kwargs Map is owned by callee
-                nm = pname.clone()
-                tp = "DynMap"
+                param_decl.own_type = OwnType.Own // kwargs Map is owned by callee
+                param_decl.name = pname.clone()
+                param_decl.explicit_type = "DynMap"
             } else if check(p, TokenType.DotDot) {
                 advance(p)
                 if own_type.eq(OwnType.Own) { panic(__LOC__, "variadic param cannot be 'own'") }
@@ -221,22 +221,21 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 }
                 fd.variadic_index = fd.params.len().to_i64().to_i32()
                 is_variadic = true
-                tp = expect_text(p, TokenType.Ident)
-                nm = pname.clone()
+                param_decl.explicit_type = expect_text(p, TokenType.Ident)
+                param_decl.name = pname.clone()
             } else {
-                tp = expect_text(p, TokenType.Ident)
-                nm = pname.clone()
+                param_decl.explicit_type = expect_text(p, TokenType.Ident)
+                param_decl.name = pname.clone()
             }
         }
 
         // If type is Fn, try to parse Fn(T1, T2) returns T signature
-        if tp.eq("Fn") {
+        if param_decl.explicit_type.eq("Fn") {
             syn_name := parse_fn_signature(p, peek_line(p), peek_col(p))
-            if syn_name.len().gt(0) { tp = syn_name }
+            if syn_name.len().gt(0) { param_decl.explicit_type = syn_name }
         }
 
         // Optional default value
-        mut param_decl := Declaration(name = nm, explicit_type = tp, is_mut = is_mut, own_type = own_type)
         mut has_default := false
         if check(p, TokenType.Eq) {
             advance(p)
