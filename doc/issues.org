@@ -2036,12 +2036,17 @@
   Anonymous inline functions (lambdas) without captures.
   Split from #14 which covered named function pointers.
 
-  Syntax TBD — likely ~|a, b| { a.add(b) }~ or ~func(a: I64, b: I64) returns I64 { a.add(b) }~.
+  A lambda is an anonymous FuncDef literal — the same syntax as a named
+  FuncDef definition, just without a name. From rstil/doc/first_class.org.
   Must work anywhere a FuncSig-typed value is expected:
-  - As argument: ~apply(|x| { x.mul(2) }, 5)~
-  - As value: ~f : UnaryOp = |x| { x.mul(2) }~
-  - In collections: ~ops.push(|a, b| { a.add(b) })~
+  - As argument: ~apply(func(x: I64) returns I64 { return x.mul(2) }, 5)~
+  - As value: ~f : UnaryOp = func(x: I64) returns I64 { return x.mul(2) }~
+  - In collections: ~ops.push(func(a: I64, b: I64) returns I64 { return a.add(b) })~
 
+  FuncSig form lambdas (type separated from param names) also work:
+  - ~apply(func(I64) returns I64 = (x) { return x.mul(2) }, 5)~
+
+  Parameter and return types are explicit (per the FuncDef literal rule).
   No captures — pure lambdas only. Closures (captures) are #54.
 
 ** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
@@ -2118,14 +2123,66 @@
    is a FuncDef (value). The presence of a body (and parameter names)
    distinguishes them.
 
+*** Parameters always require explicit types
+
+   Lambda and named function parameters always require explicit types.
+   ~Dynamic~ and ~Type~ are special parameter types and inferring argument
+   types would create ambiguity. Explicit parameter types also make function
+   signatures self-documenting.
+
+   #+begin_src til
+   // REQUIRED: explicit types in function parameters
+   add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+
+   // NOT ALLOWED: inferred parameter types
+   add := func(a, b) returns I64 { ... }  // error
+   #+end_src
+
+*** FuncSig form vs FuncDef form
+
+   Two equivalent ways to define a function, mirroring the two metatypes.
+   Both produce the same FuncDef value:
+
+   #+begin_src til
+   // 1. FuncDef form: FuncDef literal (type inferred as FuncDef)
+   add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+
+   // 2. FuncSig form: explicit signature as type, names + body as value
+   add : func(I64, I64) returns I64 = (a, b) { return a.add(b) }
+
+   // 3. FuncSig form with named alias
+   add : BinaryOp = (a, b) { return a.add(b) }
+
+   // 4. Explicit FuncDef metatype
+   add : FuncDef = func(a: I64, b: I64) returns I64 { return a.add(b) }
+   #+end_src
+
+   Forms 2 and 3 are the same (with or without a type alias). Form 1 is the
+   FuncDef literal — the parser extracts argument names and body to produce
+   the same internal representation. Form 4 is the explicit-metatype version
+   of form 1.
+
 *** Collections of types
 
    #+begin_src til
-   Vec.new("BinaryOp")   // Vec of function pointers with the same signature
-   Vec.new("FuncSig")    // Vec of function signatures (different signatures)
-   Vec.new("FuncDef")    // Vec of function definitions (different definitions)
-   Vec.new("StructDef")  // Vec of struct definitions
-   Vec.new("Type")       // Vec of any type definition
+   Vec.new(BinaryOp)   // Vec of function pointers with the same signature
+   Vec.new(FuncSig)    // Vec of function signatures (different signatures)
+   Vec.new(FuncDef)    // Vec of function definitions (different definitions)
+   Vec.new(StructDef)  // Vec of struct definitions
+   Vec.new(EnumDef)    // Vec of enum definitions
+   Vec.new(Type)       // Vec of any type definition
+   #+end_src
+
+*** Introspection
+
+   First-class types support reflection via the ~func_sig_of~,
+   ~struct_def_of~, ~enum_def_of~ helpers (see rstil/std.meta):
+
+   #+begin_src til
+   sig := func_sig_of("BinaryOp")
+   sig.args.len()             // 2
+   sig.return_types.len()     // 1
+   sig.throw_types.len()      // 0
    #+end_src
 
 *** Type parameters
@@ -2221,6 +2278,25 @@
    MyResult := make_result(I64, Str)
    #+end_src
 
+*** Storing in collections
+
+   Enum definitions are values, so they can be stored:
+
+   #+begin_src til
+   // Vec of enum instances (same type, different values)
+   mut dirs := Vec.new(Direction)
+   dirs.push(own Direction.North)
+   dirs.push(own Direction.South)
+
+   // Vec of enum *definitions* (different types stored in same Vec)
+   mut defs := Vec.new(EnumDef)
+   defs.push(own enum_def_of("Direction"))
+   defs.push(own enum_def_of("Shape"))
+
+   // Anonymous enum literal pushed directly
+   defs.push(own enum { Red, Green, Blue })
+   #+end_src
+
 *** Comparison
 
    | Language   | Enum with data                         | Anonymous sum types?         |
@@ -2281,6 +2357,25 @@
            origin := func() returns Point { return Point() }
        }
    }
+   #+end_src
+
+*** Storing in collections
+
+   Struct definitions are values, so they can be stored:
+
+   #+begin_src til
+   // Vec of struct instances (same type, different values)
+   mut points := Vec.new(Point)
+   points.push(own Point(x=10, y=20))
+   points.push(own Point(x=30, y=40))
+
+   // Vec of struct *definitions* (different types stored in same Vec)
+   mut defs := Vec.new(StructDef)
+   defs.push(own struct_def_of("Point"))
+   defs.push(own struct_def_of("Color"))
+
+   // Anonymous struct literal pushed directly
+   defs.push(own struct { mut x: I64 = 0, mut y: I64 = 0 })
    #+end_src
 
 *** Comparison
@@ -2344,7 +2439,7 @@
    t.on_complete()
 
    // Store in a collection
-   steps := Vec.new("Body")
+   steps := Vec.new(Body)
    steps.push(own { println("step 1") })
    steps.push(own { println("step 2") })
    for step : Body in steps {
@@ -2368,7 +2463,7 @@
    data := vec("I64", 1, 2, 3)
 
    // Body with capture list
-   summer := captures mut total, data { for item : I64 in data { total = total.add(item) } }
+   summer : Body = [mut total, data] { for item : I64 in data { total = total.add(item) } }
    summer()
    // total is now 6
    #+end_src
@@ -2447,7 +2542,7 @@
   Split from #17 (global variable access, now fixed).
 
   Closures = lambdas (#61) + captures. #61 provides anonymous inline
-  functions (lambdas); this issue adds the ~captures~ keyword that turns
+  functions (lambdas); this issue adds the bracket capture list that turns
   a lambda into a closure by binding outer-scope variables.
 
   til requires *explicit capture lists* — if a function references an outer
@@ -2456,22 +2551,22 @@
 
 *** Capture syntax
 
-   The ~captures~ keyword appears after the parameter list (and before
-   ~returns~ if present) in FuncDef form, or after the argument names in
-   FuncSig form:
+   The capture list ~[name1, name2, ...]~ appears after ~returns Type~
+   (or after the parameter list when there is no return type) and before
+   the body in FuncDef form, or after the argument names in FuncSig form:
 
    #+begin_src til
    scale := 10
 
-   // FuncDef form: captures between params and returns
-   f := func(a: I64) captures scale returns I64 { return a.mul(scale) }
+   // FuncDef form: captures after returns, before body
+   f := func(a: I64) returns I64 [scale] { return a.mul(scale) }
 
    // FuncSig form: captures after argument names
-   f : func(I64) returns I64 = (a) captures scale { return a.mul(scale) }
+   f : func(I64) returns I64 = (a) [scale] { return a.mul(scale) }
 
    // With a named type alias
    Transformer := func(I64) returns I64
-   f : Transformer = (a) captures scale { return a.mul(scale) }
+   f : Transformer = (a) [scale] { return a.mul(scale) }
    #+end_src
 
 *** Capture modifiers
@@ -2479,21 +2574,25 @@
    Captures follow the same rules as function parameters — no new rules
    to learn:
 
-   | Capture syntax        | Semantics                     | Same as param mode |
-   |-----------------------+-------------------------------+--------------------|
-   | ~captures x~          | Const by reference (default)  | ~x: T~             |
-   | ~captures mut x~      | Mutable reference             | ~mut x: T~         |
-   | ~captures own x~      | Ownership transfer (moved in) | ~own x: T~         |
+   | Capture syntax | Semantics                     | Same as param mode |
+   |----------------+-------------------------------+--------------------|
+   | ~[x]~          | Const by reference (default)  | ~x: T~             |
+   | ~[mut x]~      | Mutable reference             | ~mut x: T~         |
+   | ~[copy x]~     | Deep copy (snapshot)          | ~copy x: T~        |
+   | ~[own x]~      | Ownership transfer (moved in) | ~own x: T~         |
 
    #+begin_src til
    mut total := 0
    data := vec("I64", 1, 2, 3)
 
    // mut capture: closure can modify total
-   data.for_each(func(x: I64) captures mut total { total = total.add(x) })
+   data.for_each(func(x: I64) [mut total] { total = total.add(x) })
+
+   // copy capture: closure gets a snapshot, original unchanged
+   data.map(func(x: I64) returns I64 [copy total] { return x.add(total) })
 
    // own capture: moves data into the closure, caller can't use it after
-   consume := proc() captures own data { data.clear() }
+   consume := proc() [own data] { data.clear() }
    #+end_src
 
 *** Block captures (scope restriction)
@@ -2508,7 +2607,7 @@
    data := vec("I64", 1, 2, 3)
 
    // Only total and data are accessible inside this block
-   captures total, data {
+   [total, data] {
        for item : I64 in data {
            total = total.add(item)
        }
@@ -2526,12 +2625,12 @@
    total = total.add(x)
 
    // Step 2: block with captures (limit scope, verify dependencies)
-   captures total, x {
+   [total, x] {
        total = total.add(x)
    }
 
    // Step 3: promote to lambda (add params, same captures)
-   adder := func(a: I64) captures total returns I64 { return total.add(a) }
+   adder : func(a: I64) returns I64 = [total] { return total.add(a) }
 
    // Step 4: promote to pure function (captures become params, no closure)
    adder := func(a: I64, b: I64) returns I64 { return a.add(b) }
@@ -2548,14 +2647,14 @@
      captures to know where it can safely go.
 
    Explicit captures solve all three:
-   - *Reading*: ~captures scale~ tells you exactly what comes from outside.
+   - *Reading*: ~[scale]~ tells you exactly what comes from outside.
    - *Refactoring*: captures become parameters. Mechanical transformation.
    - *Inlining*: captures tell you exactly what the block depends on.
 
 *** Implementation
 
-   - Parser: recognize ~captures~ keyword in func defs (between params
-     and returns/body) and bare blocks (before ~{~)
+   - Parser: recognize ~[name, ...]~ capture list in func defs (after
+     returns Type, before body) and bare blocks (before ~{~)
    - AST: store capture list on NODE_FUNC_DEF and NODE_BODY
    - Typer: validate captures exist in outer scope, enforce modifier rules
    - Interpreter: bind captured variables in call_scope from definition scope
