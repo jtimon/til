@@ -707,6 +707,28 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     }
 }
 
+// For methods like `obj.foo(...)`: returns the type-name lookup key
+// (a primitive's c_name, a struct/enum payload name, or "" when no
+// match). Used by infer_field_access_fcall to find the namespace.
+// Avoids the `mut type_name := ""; type_name = ...` reassign pattern
+// that leaked the empty Str default.
+obj_method_type_name := func(obj: Expr) returns Str {
+    if obj.til_type.is(TilType.I64)
+    .or(obj.til_type.is(TilType.U8))
+    .or(obj.til_type.is(TilType.I16))
+    .or(obj.til_type.is(TilType.I32))
+    .or(obj.til_type.is(TilType.U32))
+    .or(obj.til_type.is(TilType.U64))
+    .or(obj.til_type.is(TilType.F32))
+    .or(obj.til_type.is(TilType.Bool)) {
+        return til_type_name_c(obj.til_type)
+    }
+    if obj.til_type.is(TilType.Struct).or(obj.til_type.is(TilType.Enum)) {
+        return til_type_name(obj.til_type)
+    }
+    return ""
+}
+
 infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) returns shallow Bool {
     ref mut fa : Expr = e.child(0)
     ref mut obj : Expr = fa.child(0)
@@ -724,25 +746,8 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
 
     mut ufcs_desugared := false
     if obj_is_type.not() {
-        mut type_name := ""
-        mut has_type_name := false
-        if obj.til_type.is(TilType.I64)
-        .or(obj.til_type.is(TilType.U8))
-        .or(obj.til_type.is(TilType.I16))
-        .or(obj.til_type.is(TilType.I32))
-        .or(obj.til_type.is(TilType.U32))
-        .or(obj.til_type.is(TilType.U64))
-        .or(obj.til_type.is(TilType.F32))
-        .or(obj.til_type.is(TilType.Bool)) {
-            type_name = til_type_name_c(obj.til_type)
-            has_type_name = true
-        } else if obj.til_type.is(TilType.Struct).or(obj.til_type.is(TilType.Enum)) {
-            obj_sname := til_type_name(obj.til_type)
-            if obj_sname.len().gt(0) {
-                type_name = obj_sname
-                has_type_name = true
-            }
-        }
+        type_name := obj_method_type_name(obj)
+        has_type_name := type_name.len().gt(0)
 
         ref mut sdef1 : Expr = NULL
         if has_type_name {
