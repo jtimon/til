@@ -409,8 +409,8 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     }
     if e.children.len().gt(0) {
         println("")
-        for i in 0..e.children.len() {
-            ast_print(e.child(i), indent.add(1))
+        for _e_i : Expr in e.children {
+            ast_print(_e_i, indent.add(1))
         }
         for _i in 0..indent.to_i64().to_u64() {
             print("  ")

@@ -116,8 +116,8 @@ func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope)
         if is_null(scope_get(precomp_scope, name)).not() { return false }
         return true
     }
-    for ci in 0..e.children.len() {
-        if func_uses_unknown_globals(e.child(ci), func_def, precomp_scope) { return true }
+    for _e_ci : Expr in e.children {
+        if func_uses_unknown_globals(_e_ci, func_def, precomp_scope) { return true }
     }
     return false
 }
@@ -324,8 +324,8 @@ precomp_scan_names := proc(prog: Expr) {
             if stmt.child(0).data.is(NodeType.StructDef) {
                 ref sdd : Declaration = get_payload(stmt.data)
                 ref sdd_data : StructDef = get_payload(stmt.child(0).data)
-                for j in 0..sdd_data.ns_decls.len() {
-                    ref fdd : Declaration = sdd_data.ns_decls.get(j)
+                for _d_j : Declaration in sdd_data.ns_decls {
+                    ref fdd : Declaration = _d_j
                     ref fdef : Expr = fdd.default_value
                     if fdef.data.is(NodeType.FuncDef) {
                         ref ffd : FunctionDef = get_payload(fdef.data)
@@ -338,8 +338,8 @@ precomp_scan_names := proc(prog: Expr) {
             } else if stmt.child(0).data.is(NodeType.EnumDef) {
                 ref sdd : Declaration = get_payload(stmt.data)
                 ref _pc_edd : EnumDef = get_payload(stmt.child(0).data)
-                for j in 0.._pc_edd.ns_decls.len() {
-                    ref nsd : Declaration = _pc_edd.ns_decls.get(j)
+                for _d_j : Declaration in _pc_edd.ns_decls {
+                    ref nsd : Declaration = _d_j
                     if is_null(nsd.default_value) { continue }
                     if nsd.default_value.data.is(NodeType.FuncDef) {
                         ref ffd : FunctionDef = get_payload(nsd.default_value.data)

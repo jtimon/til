@@ -1102,15 +1102,15 @@ infer_named_arg_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: 
 }
 
 infer_map_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
-    for i in 0..expr.children.len() {
-        infer_expr(scope, expr.child(i), in_func, ctx)
+    for _e_i : Expr in expr.children {
+        infer_expr(scope, _e_i, in_func, ctx)
     }
     expr.til_type = TilType.Struct("Map".clone())
 }
 
 infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
-    for i in 0..expr.children.len() {
-        infer_expr(scope, expr.child(i), in_func, ctx)
+    for _e_i : Expr in expr.children {
+        infer_expr(scope, _e_i, in_func, ctx)
     }
     expr.til_type = TilType.Struct("Set".clone())
 }
@@ -1138,8 +1138,8 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     inner := TypeScope(parent = scope)
     if expr.data.is(NodeType.StructDef) {
         ref mut _tc_sdd : StructDef = get_payload(expr.data)
-        for _fi in 0.._tc_sdd.fields.len() {
-            ref mut _fd : Declaration = _tc_sdd.fields.get(_fi)
+        for _d__fi : Declaration in _tc_sdd.fields {
+            ref mut _fd : Declaration = _d__fi
             if is_null(_fd.default_value).not().and(_fd.default_value.data.is(NodeType.NoDefaultArg).not()) {
                 infer_expr(inner, _fd.default_value, 0, ctx)
             }
@@ -1185,8 +1185,8 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     infer_body(inner, expr.child(0), 0, 0, 0, 0, 1, ctx)
     // Type-check ns_decls (stored directly by parser, not via body)
     ref tc_ns : Vec = def_ns_decls(expr)
-    for tc_i in 0..tc_ns.len() {
-        ref mut tc_nd : Declaration = tc_ns.get(tc_i)
+    for _d_tc_i : Declaration in tc_ns {
+        ref mut tc_nd : Declaration = _d_tc_i
         if is_null(tc_nd.default_value) { continue }
         if tc_nd.default_value.data.is(NodeType.NoDefaultArg) { continue }
         if tc_nd.default_value.data.is(NodeType.FuncDef) {
@@ -1219,8 +1219,8 @@ infer_func_sig_expr := proc(scope: TypeScope, mut expr: Expr) {
         ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
         fdef.return_type = resolved_return_type
     }
-    for i in 0..fdef.params.len() {
-        ref mut param : Declaration = fdef.params.get(i)
+    for _d_i : Declaration in fdef.params {
+        ref mut param : Declaration = _d_i
         ptype_name := param.explicit_type.clone()
         ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
         param.explicit_type = resolved_ptype
@@ -1606,8 +1606,8 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         mut new_ch := Vec.new("Expr", Expr.size())
         new_ch.push(own decl)
         new_ch.push(own if_node)
-        for j in 0..body.children.len() {
-            new_ch.push(own body.child(j).clone())
+        for _e_j : Expr in body.children {
+            new_ch.push(own _e_j.clone())
         }
         body.children.move_from(new_ch)
     }
@@ -1992,8 +1992,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
 
                                         mut new_ch := Vec.new("Expr", Expr.size())
                                         new_ch.push(own bind_decl)
-                                        for bi in 0..case_body.children.len() {
-                                            new_ch.push(own case_body.child(bi).clone())
+                                        for _e_bi : Expr in case_body.children {
+                                            new_ch.push(own _e_bi.clone())
                                         }
                                     case_body.children.move_from(new_ch)
                                         has_condition = true
@@ -2208,8 +2208,8 @@ make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, fo
     mut step_ident := Expr.new(NodeType.Ident(cur_name.clone()), line, col, path)
     wb.add_child(own make_field_access_call0(step_ident, step, line, col, path))
 
-    for bi in 0..for_body.children.len() {
-        wb.add_child(own for_body.child(bi).clone())
+    for _e_bi : Expr in for_body.children {
+        wb.add_child(own _e_bi.clone())
     }
     return wb
 }
@@ -2426,8 +2426,8 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     idx_assign.add_child(own make_field_access_call1(idx_ident_inc, "add", one, line, col, path))
     wbody.add_child(own idx_assign)
 
-    for bi in 0..for_body.children.len() {
-        wbody.add_child(own for_body.child(bi).clone())
+    for _e_bi : Expr in for_body.children {
+        wbody.add_child(own _e_bi.clone())
     }
 
     while_node.add_child(own wbody)
@@ -2541,8 +2541,8 @@ reregister_field_struct_defs := proc(body: Expr, scope: TypeScope) {
             if sdef.data.is(NodeType.StructDef).or(sdef.data.is(NodeType.EnumDef)) {
                 if sdef.children.len().gt(0) {
                     ref sbody : Expr = sdef.child(0)
-                    for fi in 0..sbody.children.len() {
-                        ref field : Expr = sbody.child(fi)
+                    for _e_fi : Expr in sbody.children {
+                        ref field : Expr = _e_fi
                         if field.data.is(NodeType.Decl) {
                             ref mut fd : Declaration = get_payload(field.data)
                             if is_null(fd.field_struct_def).not() {
@@ -2804,8 +2804,8 @@ type_has_cmp := func(scope: TypeScope, type_name: Str) returns shallow Bool {
 
 expr_contains_fcall := func(e: Expr) returns shallow Bool {
     if e.data.is(NodeType.FCall) { return true }
-    for i in 0..e.children.len() {
-        if expr_contains_fcall(e.child(i)) { return true }
+    for _e_i : Expr in e.children {
+        if expr_contains_fcall(_e_i) { return true }
     }
     return false
 }
@@ -2820,8 +2820,8 @@ expr_uses_var := func(e: Expr, name: Str) returns shallow Bool {
         ref _as : Str = get_payload(e.data)
         if _as.eq(name) { return true }
     }
-    for i in 0..e.children.len() {
-        if expr_uses_var(e.child(i), name) { return true }
+    for _e_i : Expr in e.children {
+        if expr_uses_var(_e_i, name) { return true }
     }
     return false
 }
@@ -2832,8 +2832,8 @@ expr_contains_decl := func(e: Expr, name: Str) returns shallow Bool {
         ref _dd : Declaration = get_payload(e.data)
         if _dd.name.eq(name) { return true }
     }
-    for i in 0..e.children.len() {
-        if expr_contains_decl(e.child(i), name) { return true }
+    for _e_i : Expr in e.children {
+        if expr_contains_decl(_e_i, name) { return true }
     }
     return false
 }
@@ -2849,8 +2849,8 @@ expr_used_in_nested_func := func(e: Expr, name: Str) returns shallow Bool {
         }
         return false
     }
-    for i in 0..e.children.len() {
-        if expr_used_in_nested_func(e.child(i), name) { return true }
+    for _e_i : Expr in e.children {
+        if expr_used_in_nested_func(_e_i, name) { return true }
     }
     return false
 }
@@ -2873,8 +2873,8 @@ find_variadic_fcall := func(e: Expr) returns ref Expr {
             return e
         }
     }
-    for i in 0..e.children.len() {
-        ref found : Expr = find_variadic_fcall(e.child(i))
+    for _e_i : Expr in e.children {
+        ref found : Expr = find_variadic_fcall(_e_i)
         if is_null(found).not() { return found }
     }
     return NULL
@@ -2890,8 +2890,8 @@ find_kwargs_fcall := func(e: Expr) returns ref Expr {
         ref fcall : FCallData = get_payload(e.data)
         if fcall.kwargs_index.gte(0) { return e }
     }
-    for i in 0..e.children.len() {
-        ref found : Expr = find_kwargs_fcall(e.child(i))
+    for _e_i : Expr in e.children {
+        ref found : Expr = find_kwargs_fcall(_e_i)
         if is_null(found).not() { return found }
     }
     return NULL
@@ -3162,12 +3162,12 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 
     new_ch.push(own decl)
 
-    for j in 0..set_lit.children.len() {
+    for _e_j : Expr in set_lit.children {
         mut add_call := make_ns_call("Set", "add", TilType.None, set_lit)
         mut self_id := Expr.new(NodeType.Ident(var_name.clone()), set_lit.line, set_lit.col, set_lit.path)
         self_id.til_type = TilType.Struct("Set".clone())
         add_call.add_child(own self_id)
-        mut val := set_lit.child(j).clone()
+        mut val := _e_j.clone()
         set_own_arg(add_call, add_call.children.len())
         add_call.add_child(own val)
         new_ch.push(own add_call)
@@ -3346,8 +3346,8 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     if expr.data.is(NodeType.EnumDef) { return }
     if expr.data.is(NodeType.Body) { return }
 
-    for i in 0..expr.children.len() {
-        hoist_expr(expr.child(i), hoisted, scope)
+    for _e_i : Expr in expr.children {
+        hoist_expr(_e_i, hoisted, scope)
     }
     if expr.data.is(NodeType.FCall).not() { return }
 
@@ -3641,8 +3641,8 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
 
 desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
     mut has_variadic := false
-    for i in 0..body.children.len() {
-        if is_null(find_variadic_fcall(body.child(i))).not() {
+    for _e_i : Expr in body.children {
+        if is_null(find_variadic_fcall(_e_i)).not() {
             has_variadic = true
             break
         }
@@ -3766,8 +3766,8 @@ desugar_pure_splat_variadic_call := proc(mut fcall: Expr, mut new_ch: Vec, stmt:
 
 desugar_kwargs_calls := proc(mut body: Expr, mut scope: TypeScope) {
     mut has_kwargs := false
-    for i in 0..body.children.len() {
-        if is_null(find_kwargs_fcall(body.child(i))).not() {
+    for _e_i : Expr in body.children {
+        if is_null(find_kwargs_fcall(_e_i)).not() {
             has_kwargs = true
             break
         }
@@ -3951,8 +3951,8 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope) returns sha
             }
         }
     }
-    for i in 0..e.children.len() {
-        if expr_transfers_own(e.child(i), var_name, scope) { return true }
+    for _e_i : Expr in e.children {
+        if expr_transfers_own(_e_i, var_name, scope) { return true }
     }
     return false
 }

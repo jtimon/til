@@ -209,8 +209,8 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
         ref sdd : StructDef = get_payload(sdef.data)
 
         mut has_clone := false
-        for j in 0..sdd.ns_decls.len() {
-            ref fd : Declaration = sdd.ns_decls.get(j)
+        for _d_j : Declaration in sdd.ns_decls {
+            ref fd : Declaration = _d_j
             if fd.name.eq("clone") {
                 has_clone = true
                 break
@@ -220,8 +220,8 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
 
         field_names := Vec.new("Str", Str.size())
         field_refs := Vec.new("I32", I32.size())
-        for j in 0..sdd.fields.len() {
-            ref fd : Declaration = sdd.fields.get(j)
+        for _d_j : Declaration in sdd.fields {
+            ref fd : Declaration = _d_j
             field_names.push(own fd.name.clone())
             mut ref_flag : I32 = 0
             if fd.own_type.eq(OwnType.Ref) {
@@ -831,8 +831,8 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         mut has_delete := false
         mut has_to_str := false
         ref _ens_edd : EnumDef = get_payload(stmt.child(0).data)
-        for j in 0.._ens_edd.ns_decls.len() {
-            ref fdecl : Declaration = _ens_edd.ns_decls.get(j)
+        for _d_j : Declaration in _ens_edd.ns_decls {
+            ref fdecl : Declaration = _d_j
             if fdecl.name.eq("is") { has_is = true }
             if fdecl.name.eq("eq") { has_eq = true }
             if fdecl.name.eq("delete") { has_delete = true }
@@ -870,8 +870,8 @@ generate_missing_enum_clones := proc(program: Expr) {
         path := stmt.path
         mut has_clone := false
         ref _ecl_edd : EnumDef = get_payload(stmt.child(0).data)
-        for j in 0.._ecl_edd.ns_decls.len() {
-            ref fdecl : Declaration = _ecl_edd.ns_decls.get(j)
+        for _d_j : Declaration in _ecl_edd.ns_decls {
+            ref fdecl : Declaration = _d_j
             if fdecl.name.eq("clone") {
                 has_clone = true
                 break
@@ -902,8 +902,8 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
         ref sdd : StructDef = get_payload(sdef.data)
 
         mut has_delete := false
-        for j in 0..sdd.ns_decls.len() {
-            ref fd : Declaration = sdd.ns_decls.get(j)
+        for _d_j : Declaration in sdd.ns_decls {
+            ref fd : Declaration = _d_j
             if fd.name.eq("delete") {
                 has_delete = true
                 break
@@ -913,8 +913,8 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
 
         field_names := Vec.new("Str", Str.size())
         field_owns := Vec.new("Bool", Bool.size())
-        for j in 0..sdd.fields.len() {
-            ref fd : Declaration = sdd.fields.get(j)
+        for _d_j : Declaration in sdd.fields {
+            ref fd : Declaration = _d_j
             if fd.own_type.eq(OwnType.Ref) { continue }
             if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
                 continue
@@ -1125,8 +1125,8 @@ generate_struct_size_methods := proc(program: Expr) {
         if sname.eq("Dynamic") { continue }
         ref struct_meta : StructDef = get_payload(def.data)
         mut has_size := false
-        for j in 0..struct_meta.ns_decls.len() {
-            ref fd : Declaration = struct_meta.ns_decls.get(j)
+        for _d_j : Declaration in struct_meta.ns_decls {
+            ref fd : Declaration = _d_j
             if fd.name.eq("size") {
                 has_size = true
                 break
@@ -1168,8 +1168,8 @@ generate_enum_size_methods := proc(program: Expr, scope: TypeScope) {
         if sname.eq("Dynamic") { continue }
         mut has_size := false
         ref size_ns : Vec = def_ns_decls(def)
-        for j in 0..size_ns.len() {
-            ref fd : Declaration = size_ns.get(j)
+        for _d_j : Declaration in size_ns {
+            ref fd : Declaration = _d_j
             if fd.name.eq("size") {
                 has_size = true
                 break
@@ -1215,8 +1215,8 @@ generate_unity_derived_methods := proc(program: Expr) {
         mut has_inc := false
         mut has_dec := false
         ref unity_ns : Vec = def_ns_decls(def)
-        for j in 0..unity_ns.len() {
-            ref fd : Declaration = unity_ns.get(j)
+        for _d_j : Declaration in unity_ns {
+            ref fd : Declaration = _d_j
             if fd.name.eq("add") { has_add = true }
             if fd.name.eq("sub") { has_sub = true }
             if fd.name.eq("unity") { has_unity = true }
@@ -1302,8 +1302,8 @@ generate_cmp_derived_methods := proc(program: Expr) {
         mut has_lte := false
         mut has_gte := false
         ref cmp_ns : Vec = def_ns_decls(def)
-        for j in 0..cmp_ns.len() {
-            ref fd : Declaration = cmp_ns.get(j)
+        for _d_j : Declaration in cmp_ns {
+            ref fd : Declaration = _d_j
             if fd.name.eq("cmp") { has_cmp = true }
             if fd.name.eq("eq") { has_eq = true }
             if fd.name.eq("neq") { has_neq = true }
@@ -1562,8 +1562,8 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     mut offset : I32 = 0
     mut max_align : I32 = 1
 
-    for i in 0..struct_meta.fields.len() {
-        ref mut fd : Declaration = struct_meta.fields.get(i)
+    for _d_i : Declaration in struct_meta.fields {
+        ref mut fd : Declaration = _d_i
 
         mut fsz : I32 = 0
         mut falign : I32 = 0
@@ -1766,8 +1766,8 @@ resolve_field_struct_defs := proc(program: Expr, scope: TypeScope) {
         if stmt.data.is(NodeType.Decl).not() { continue }
         if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
         ref mut sdd : StructDef = get_payload(stmt.child(0).data)
-        for fi in 0..sdd.fields.len() {
-            ref mut fd : Declaration = sdd.fields.get(fi)
+        for _d_fi : Declaration in sdd.fields {
+            ref mut fd : Declaration = _d_fi
             if fd.explicit_type.len().gt(0) {
                 ftype := fd.explicit_type
                 if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I16").not())

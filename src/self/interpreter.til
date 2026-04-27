@@ -588,11 +588,11 @@ resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr
 }
 
 eval_body := proc(scope: Scope, body: Expr) {
-    for i in 0..body.children.len() {
+    for _e_i : Expr in body.children {
         if has_return { return }
         if has_break { return }
         if has_continue { return }
-        ref stmt : Expr = body.child(i)
+        ref stmt : Expr = _e_i
         if stmt.data.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.data)
             ref rhs : Expr = stmt.child(0)
@@ -1344,8 +1344,8 @@ interpreter_init_ns := proc(mut global: Scope, program: Expr) {
             if dd.name.eq("Vec") { cached_vec_def = sdef; cached_vec_name = dd.name }
         }
         ref _ien_ns : Vec = def_ns_decls(sdef)
-        for j in 0.._ien_ns.len() {
-            ref nsd : Declaration = _ien_ns.get(j)
+        for _d_j : Declaration in _ien_ns {
+            ref nsd : Declaration = _d_j
             if is_null(nsd.default_value) { continue }
             mut fval := eval_expr(global, nsd.default_value)
             if sdef.data.is(NodeType.EnumDef) {
@@ -1607,8 +1607,8 @@ interpret_copy_alias_ns := proc(prog: Expr, global: Scope) {
                     ref sdef : Expr = deref(fptr)
                     if sdef.data.is(NodeType.StructDef).or(sdef.data.is(NodeType.EnumDef)) {
                         ref _ica_ns : Vec = def_ns_decls(sdef)
-                        for j in 0.._ica_ns.len() {
-                            ref nsd : Declaration = _ica_ns.get(j)
+                        for _d_j : Declaration in _ica_ns {
+                            ref nsd : Declaration = _d_j
                             ref v : Value = ns_get(rhs_ident, nsd.name)
                             if is_null(v).not() { ns_set(dd.name, nsd.name, v) }
                         }

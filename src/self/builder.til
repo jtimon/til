@@ -527,8 +527,8 @@ collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
             }
         }
     }
-    for ci in 0..e.children.len() {
-        collect_dyn_methods(e.child(ci), methods)
+    for _e_ci : Expr in e.children {
+        collect_dyn_methods(_e_ci, methods)
     }
 }
 
@@ -569,8 +569,8 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
             }
         }
     }
-    for ci in 0..e.children.len() {
-        collect_collection_builtins(e.child(ci), infos)
+    for _e_ci : Expr in e.children {
+        collect_collection_builtins(_e_ci, infos)
     }
 }
 
@@ -652,8 +652,8 @@ check_fcall_mut_args := proc(e: Expr) {
             }
         }
     }
-    for ci in 0..e.children.len() {
-        check_fcall_mut_args(e.child(ci))
+    for _e_ci : Expr in e.children {
+        check_fcall_mut_args(_e_ci)
     }
 }
 
@@ -735,8 +735,8 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
             }
         }
     }
-    for ci in 0..e.children.len() {
-        collect_dyn_has_methods(e.child(ci), methods)
+    for _e_ci : Expr in e.children {
+        collect_dyn_has_methods(_e_ci, methods)
     }
 }
 
@@ -1327,8 +1327,8 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
 }
 
 emit_body := proc(f: File, body: Expr, shallow depth: I32) {
-    for i in 0..body.children.len() {
-        emit_stmt(f, body.child(i), depth)
+    for _e_i : Expr in body.children {
+        emit_stmt(f, _e_i, depth)
     }
 }
 emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
@@ -2893,8 +2893,8 @@ register_lookups_prog := proc(prog: Expr) {
                 struct_def_exprs.set(own dd.name.clone(), own _sdv)
                 // Register ns_decls methods into func_defs
                 ref _rl_ns : Vec = def_ns_decls(rhs)
-                for j in 0.._rl_ns.len() {
-                    ref nsd : Declaration = _rl_ns.get(j)
+                for _d_j : Declaration in _rl_ns {
+                    ref nsd : Declaration = _d_j
                     if is_null(nsd.default_value) { continue }
                     if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
                     key := dd.name.concat("_").concat(nsd.name)
@@ -2998,8 +2998,8 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
         mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
         mut has_eq_fdef := false
         ref sh3_eq_ns : Vec = def_ns_decls(stmt.child(0))
-        for j in 0..sh3_eq_ns.len() {
-            ref nsd : Declaration = sh3_eq_ns.get(j)
+        for _d_j : Declaration in sh3_eq_ns {
+            ref nsd : Declaration = _d_j
             if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
                 if nsd.default_value.data.is(NodeType.FuncDef) {
                     eq_fdef = nsd.default_value.clone()
@@ -3043,8 +3043,8 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
             ref rhs : Expr = stmt.child(0)
             if rhs.data.is(NodeType.StructDef).or(rhs.data.is(NodeType.EnumDef)) {
                 ref _afd_ns : Vec = def_ns_decls(rhs)
-                for j in 0.._afd_ns.len() {
-                    ref fdd : Declaration = _afd_ns.get(j)
+                for _d_j : Declaration in _afd_ns {
+                    ref fdd : Declaration = _d_j
                     if is_null(fdd.default_value) { continue }
                     if fdd.default_value.data.is(NodeType.FuncDef).not() { continue }
                     ref fd : FunctionDef = get_payload(fdd.default_value.data)
@@ -3082,8 +3082,8 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
             mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
             mut has_eq_fdef := false
             ref sh_eq_ns : Vec = def_ns_decls(stmt.child(0))
-            for j in 0..sh_eq_ns.len() {
-                ref nsd : Declaration = sh_eq_ns.get(j)
+            for _d_j : Declaration in sh_eq_ns {
+                ref nsd : Declaration = _d_j
                 if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
                     if nsd.default_value.data.is(NodeType.FuncDef) {
                         eq_fdef = nsd.default_value.clone()
@@ -3238,8 +3238,8 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
             ref def : Expr = stmt.child(0)
             ref dd : Declaration = get_payload(stmt.data)
             ref _dfw_ns : Vec = def_ns_decls(def)
-            for j in 0.._dfw_ns.len() {
-                ref nsd : Declaration = _dfw_ns.get(j)
+            for _d_j : Declaration in _dfw_ns {
+                ref nsd : Declaration = _d_j
                 if is_null(nsd.default_value) { continue }
                 if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
                 ref fd : FunctionDef = get_payload(nsd.default_value.data)
@@ -3258,8 +3258,8 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
             ref def : Expr = stmt.child(0)
             ref dd : Declaration = get_payload(stmt.data)
             ref _dfn_ns : Vec = def_ns_decls(def)
-            for j in 0.._dfn_ns.len() {
-                ref nsd : Declaration = _dfn_ns.get(j)
+            for _d_j : Declaration in _dfn_ns {
+                ref nsd : Declaration = _d_j
                 if is_null(nsd.default_value) { continue }
                 if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
                 ref fd : FunctionDef = get_payload(nsd.default_value.data)
@@ -3298,8 +3298,8 @@ emit_dyn_call_bodies := proc(f: File, core_program: Expr, program: Expr) {
             ref mut prog : Expr = NULL
             if prog_idx.eq(0) { prog = core_program } else { prog = program }
             if is_null(prog) { continue }
-            for i in 0..prog.children.len() {
-                ref stmt : Expr = prog.child(i)
+            for _e_i : Expr in prog.children {
+                ref stmt : Expr = _e_i
                 if is_struct_or_enum(stmt).not() { continue }
                 ref def : Expr = stmt.child(0)
                 ref dd : Declaration = get_payload(stmt.data)
@@ -3405,8 +3405,8 @@ emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
             ref mut prog : Expr = NULL
             if prog_idx.eq(0) { prog = core_program } else { prog = program }
             if is_null(prog) { continue }
-            for i in 0..prog.children.len() {
-                ref stmt : Expr = prog.child(i)
+            for _e_i : Expr in prog.children {
+                ref stmt : Expr = _e_i
                 if is_struct_or_enum(stmt).not() { continue }
                 ref rhs : Expr = stmt.child(0)
                 ref dd : Declaration = get_payload(stmt.data)
