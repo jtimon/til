@@ -163,6 +163,27 @@ extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
     return NULL
 }
 
+// Try splitting `name` on every `_` and looking up each (left, right)
+// pair via ns_get. Returns the first match's payload pointer or NULL.
+// Lets the fast path resolve a typer/builder-flattened namespace
+// callee like "Str_size" back to ns_get("Str", "size").
+ns_lookup_flat := func(name: Str) returns shallow Dynamic {
+    n := name.len()
+    for i in 1..n {
+        ref _b : U8 = name.byte_at(i)
+        if _b.eq(95.to_u8()).not() { continue }
+        sname := name.substr(0, i)
+        rest_start := i.add(1)
+        if rest_start.gte(n) { continue }
+        mname := name.substr(rest_start, n.sub(rest_start))
+        ref _nv : Value = ns_get(sname, mname)
+        if is_null(_nv) { continue }
+        if is(_nv, Value.Func).not() { continue }
+        return get_payload(_nv)
+    }
+    return NULL
+}
+
 // Fast path: if the callee is a nullary function whose body trivially
 // returns a literal, return a heap-allocated clone of that literal.
 try_fast_fold_call := proc(scope: Scope, fcall: Expr) returns ref Expr {
@@ -177,6 +198,9 @@ try_fast_fold_call := proc(scope: Scope, fcall: Expr) returns ref Expr {
                 _fc_fp = get_payload(_cell.val)
             }
         }
+        // Fall back to namespace lookup for typer-flattened callees
+        // (`Str_size()` instead of `Str.size()`).
+        if is_null(_fc_fp) { _fc_fp = ns_lookup_flat(_ci) }
     } else if _fc_callee.data.is(NodeType.FieldAccess) {
         if _fc_callee.children.len().gt(0) {
             ref _recv : Expr = _fc_callee.child(0)
@@ -372,6 +396,23 @@ fold_subtree := proc(scope: Scope, mut e: Expr) {
 
 process_body := proc(scope: Scope, body: Expr) {
     fold_subtree(scope, body)
+    // Namespace method bodies live in StructDef/EnumDef ns_decls, not in
+    // the body tree, so fold_subtree never reaches them. Walk them here.
+    for stmt : Expr in body.children {
+        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+        if rhs.data.is(NodeType.StructDef).or(rhs.data.is(NodeType.EnumDef)) {
+            ref ns : Vec = def_ns_decls(rhs)
+            for _nsd_e : Declaration in ns {
+                ref nsd : Declaration = _nsd_e
+                if is_null(nsd.default_value) { continue }
+                if nsd.default_value.data.is(NodeType.FuncDef).not() { continue }
+                if nsd.default_value.children.len().eq(0) { continue }
+                fold_subtree(scope, nsd.default_value.child(0))
+            }
+        }
+    }
     // Track top-level Decl literals so future Idents see them as known.
     // Recurse into FuncDef bodies. Mut Decls aren't constants. Ref Decls
     // bind a location, not a value. Struct/Enum/FuncDef Decls aren't values.
@@ -400,7 +441,8 @@ precomp_scan_names := proc(prog: Expr) {
                 ref dd : Declaration = get_payload(stmt.data)
                 if fd.func_type.is(FuncType.Macro) {
                     macros.add(own dd.name.clone())
-                } else if fd.func_type.is(FuncType.Func) {
+                } else if fd.func_type.is(FuncType.Func)
+                    .or(fd.func_type.is(FuncType.ExtFunc)) {
                     funcs.add(own dd.name.clone())
                 }
             }
@@ -415,7 +457,8 @@ precomp_scan_names := proc(prog: Expr) {
                         qname := sdd.name.concat("_").concat(fdd.name)
                         if ffd.func_type.is(FuncType.Macro) {
                             macros.add(own qname)
-                        } else if ffd.func_type.is(FuncType.Func) {
+                        } else if ffd.func_type.is(FuncType.Func)
+                            .or(ffd.func_type.is(FuncType.ExtFunc)) {
                             funcs.add(own qname)
                         }
                     }
@@ -431,7 +474,8 @@ precomp_scan_names := proc(prog: Expr) {
                         qname := sdd.name.concat("_").concat(nsd.name)
                         if ffd.func_type.is(FuncType.Macro) {
                             macros.add(own qname)
-                        } else if ffd.func_type.is(FuncType.Func) {
+                        } else if ffd.func_type.is(FuncType.Func)
+                            .or(ffd.func_type.is(FuncType.ExtFunc)) {
                             funcs.add(own qname)
                         }
                     }

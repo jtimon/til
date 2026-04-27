@@ -1,5 +1,101 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #136 Precomp doesn't fold pure function calls
+
+  Originally surfaced as ~Dynamic.size()~ returning 1 at runtime
+  (because the builder overrode every ~size()~ method with
+  ~sizeof(<C-name>)~ and Dynamic was emitted as ~struct { char _; }~).
+  The deeper issue was that precomp folded almost nothing:
+  ~is_func_call~ rejected FieldAccess callees, ~is_macro_call~ did
+  too, ~precomp_scan_names~ skipped ext_func, the body-safety check
+  treated typer-hoisted temps as unknown globals, ~process_body~ had
+  per-statement-type case ladders that missed calls inside ForIn /
+  Switch / Return, namespace method bodies in ~ns_decls~ were never
+  walked, and core_program was never processed at all.
+
+  Five commits, summarised:
+
+  1. d1cfcb3 (precomp side): ~is_func_call~ and ~try_eval_call~ accept
+     FieldAccess callees, looking up qualified names (e.g.
+     ~Dynamic_size~ in ~funcs~) and resolving the FuncDef via
+     ~ns_get(sname, mname)~.
+
+  2. 4e04bcd (builder side): the ~size()~ method sizeof override in
+     ~emit_ns_method~ was dropped. With it gone, ~Dynamic_size()~
+     compiles from the user's ~return 8~ body in ~dyn.til~ and returns
+     8 as TIL semantics intend. Removing it safely required correct
+     auto-generated enum sizes -- ~generate_enum_size_methods~
+     hardcoded ~4~/~8~, broken for enums whose payloads exceed 8
+     bytes (e.g. ~Value~'s ~Struct: StructInstance~ variant). Added
+     ~compute_enum_layout~ in ~initer.til~ that walks variants,
+     recurses into struct/enum payload sizes via ~type_size_align~,
+     and returns ~tag(4) + max_payload~ aligned. Cached on
+     ~EnumDef.total_enum_size~ with a sentinel-before-recurse for
+     self-referential cycles. ~compute_struct_layout~'s enum-field
+     branch uses it instead of hardcoding 8.
+
+  3. ca432a8 (uniform fold): ~process_body~'s case ladder (Decl rhs,
+     If/While recurse, top-level FCall) is replaced by a recursive
+     ~fold_subtree~ walk that visits every Expr and folds any FCall
+     whose callee is a registered macro or pure func. Catches calls
+     in shapes the old code never visited: ForIn / Switch / Return
+     bodies, conditions, expression args. The Decl-tracking step
+     (~track_literal~) is kept, but as a separate phase after the
+     fold.
+
+     Also added a trivial-literal-return fast path: if a callee's
+     body is ~return <lit>~ or the typer-hoisted ~_t := <lit>; return
+     _t~, fold to that literal directly without invoking the
+     interpreter. The eval path still trips a pre-existing
+     heap-use-after-free outside the narrow contexts the old code
+     allowed; the fast path bypasses it.
+
+     ~precomp~ now runs ~process_body~ on ~core_program~ as well, so
+     calls inside core function bodies (the ~Bool.size()~ in
+     ~Array_new~, etc.) actually fold.
+
+  4. 9676a37 (this commit): three more exceptions removed.
+     - ~precomp_scan_names~ now registers ~ExtFunc~-typed top-level
+       and namespace methods alongside ~Func~-typed ones. The fast
+       path naturally returns NULL for empty bodies, so adding
+       ext_funcs no longer triggers the interpreter side-effects
+       that broke earlier attempts.
+     - ~is_macro_call~ accepts FieldAccess callees too, matching
+       what ~is_func_call~ already does. ~precomp_scan_names~
+       registers ~FuncType.Macro~ members from ns_decls so namespace
+       macros (~Type.macro_method()~) can be found.
+     - The fast path now resolves typer-flattened namespace callees:
+       when the callee is an Ident like ~Str_size~ that doesn't
+       resolve in scope, ~ns_lookup_flat~ tries every ~_~ split
+       position and uses ~ns_get(left, right)~ for each.
+     - ~fold_subtree~ now walks namespace method bodies. They live
+       in StructDef/EnumDef ~ns_decls~, not in the body tree, so the
+       recursive walk never reached them. ~process_body~ now
+       iterates each struct/enum Decl and folds each ns_decl's
+       FuncDef body.
+
+  Result on the til.til self-build: 0 runtime calls remain to
+  ~Dynamic_size~, ~Bool_size~, ~I64_size~, ~U32_size~. ~Str_size~
+  drops from ~50+ to 2; the remaining 2 are inside contexts the fast
+  path can't statically resolve.
+
+  Regression test ~test_func_ns_method_size~ in ~src/test/macros.til~
+  asserts ~Dynamic.size().to_i64() == 8~ -- would return 1 with the
+  old sizeof shim.
+
+  Not addressed (left for follow-up):
+  - ~try_eval_call~'s ~can_convert~ still only accepts Str among
+    struct results because ~value_to_expr~ doesn't know how to
+    materialise other struct/enum values back into AST.
+  - ~is_known~ doesn't track local Decls inside function bodies; only
+    module-level non-mut Decls are seen as known.
+  - The pre-existing eval-path heap-use-after-free that forces funcs
+    to use the trivial-literal fast path only.
+  - ~ref mut prog~ clone-instead-of-pointer-copy leak (~#135~).
+  - The ~I64.size()~ vs ~Dynamic.size()~ workaround in builder.til's
+    top-level Map initialisers; switching them segfaults the
+    self-built til even though ~Dynamic_size()~ returns 8 correctly.
+
 * FIXED #113 Proper enums
 
   Four-part enum cleanup, all landed:

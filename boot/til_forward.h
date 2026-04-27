@@ -1184,6 +1184,7 @@ Value expr_to_value(Expr * e);
 Bool is_known(Expr * e, Value * out);
 Bool func_uses_unknown_globals(Expr * e, Expr * func_def, Scope * precomp_scope);
 Expr * extract_trivial_literal_return(Expr * fdef);
+void * ns_lookup_flat(Str * name);
 Expr * try_fast_fold_call(Scope * scope, Expr * fcall);
 Expr * try_eval_call(Scope * scope, Expr * fcall, Bool require_known);
 void track_literal(Scope * scope, Str * name, Expr * rhs);
