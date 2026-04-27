@@ -29,6 +29,9 @@ TokenType := enum {
     // Literals
     Ident, StringTok, Number, Char,
 
+    // Doc comment (text of one /// line, leading /// + one optional space stripped)
+    DocComment,
+
     // Keywords
     KwMut, KwOwn, KwRef, KwShallow,
     KwStruct, KwEnum, KwNamespace,
@@ -115,6 +118,7 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.StringTok: return "string"
     case TokenType.Number: return "number"
     case TokenType.Char: return "char"
+    case TokenType.DocComment: return "doc_comment"
     case TokenType.KwMut: return "mut"
     case TokenType.KwOwn: return "own"
     case TokenType.KwRef: return "ref"
@@ -288,6 +292,25 @@ tokenize := proc(src: Str, path: Str) returns Vec {
         if c.eq('/').and(pos.add(1).lt(src_len)) {
             ref c2 : U8 = src.byte_at(pos.add(1))
             if c2.eq('/') {
+                // Check for /// doc comment
+                is_doc := pos.add(2).lt(src_len).and(src.byte_at(pos.add(2)).eq('/'))
+                if is_doc {
+                    mut text_start := pos.add(3)
+                    if text_start.lt(src_len).and(src.byte_at(text_start).eq(' ')) {
+                        text_start = text_start.add(1)
+                    }
+                    mut text_end := text_start
+                    while text_end.lt(src_len) {
+                        if src.byte_at(text_end).eq('\n') { break }
+                        text_end = text_end.add(1)
+                    }
+                    line_text := src.substr(text_start, text_end.sub(text_start))
+                    tokens.push(own Token(type = TokenType.DocComment,
+                        text = line_text.clone(),
+                        line = line.clone(), col = col.clone()))
+                    pos = text_end
+                    continue
+                }
                 while pos.lt(src_len) {
                     if src.byte_at(pos).eq('\n') { break }
                     pos.inc()

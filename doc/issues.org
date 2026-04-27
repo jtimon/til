@@ -4,7 +4,80 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/15] Pre
+* [0/16] Pre
+** OPEN #157 Rust-style ~///~ doc comments and ~help()~ builtin
+   Replace the emacs-mode-only ~/** ... */~ doc-comment placeholder with
+   real Rust-style ~///~ doc comments. The text rides through the
+   lexer and parser, lands on ~Declaration.doc~, and is exposed to user
+   code via a ~help(name : Str)~ builtin so ~help("Vec")~ works the
+   same in the REPL, in ~til interpret~, and in compiled ~til run~
+   binaries. Done in two phases.
+
+*** Phase 1 -- doc comments + ~help()~ builtin (this commit)
+
+   - ~editor/til-mode.el~: highlight ~///~ as ~font-lock-doc-face~;
+     drop the legacy ~/** ... */~ regex.
+   - ~src/self/lexer.til~: add ~TokenType.DocComment~. Recognise
+     ~///~, capture the rest of the line (stripped of the leading
+     ~///~ and one optional space), emit one DocComment token per
+     line. Plain ~//~ and ~/* */~ continue to be skipped as before.
+   - ~src/core/ast.til~: add ~mut doc := ""~ to ~Declaration~.
+   - ~src/self/parser.til~: at the top of ~parse_statement~ drain a
+     run of leading DocComment tokens, joining them with ~\n~. After
+     the inner statement parses, if the result is a ~NodeType.Decl~
+     attach the accumulated text to its ~Declaration.doc~. Doc
+     comments that don't precede a Decl are discarded. Inside struct
+     and enum bodies DocComment tokens are skipped silently in Phase
+     1 (no attachment to namespace decls; see Phase 1.5 below).
+   - ~src/core/doc.til~ (new): module-global
+     ~mut __til_docs__ : Map<Str, Str>~; ~__doc_register__(name, text)~
+     proc; ~help(name : Str)~ proc that prints the doc or
+     "no documentation for: <name>".
+   - ~src/core/core.til~: ~import("doc.til")~ after ~io.til~ so the
+     map and ~println~ are both already in scope.
+   - ~src/self/loader.til~: after parsing core + user, walk both
+     ASTs, collect every top-level Decl with a non-empty ~doc~,
+     synthesise ~__doc_register__("name", "text")~ FCalls and append
+     them to ~lp.core_ast.children~ so they run before user
+     top-level code.
+   - Tests: a small ~src/test/doc/~ .til file with ~///~ on a
+     handful of top-level decls, asserting ~help("name")~ prints the
+     expected text.
+
+*** Phase 1.5 -- namespace methods (later commit)
+
+   Phase 1 only collects top-level Decls. Extend the parser drain
+   into ~parse_struct_def~ / ~parse_enum_def~ namespace blocks so
+   ~Declaration.doc~ is attached to ns_decls too, then teach the
+   loader synthesis to register them under the qualified name
+   (~Vec.pop~, ~Foo.bar~). Also covers struct fields and enum
+   variants if cheap.
+
+*** Phase 2 -- ~til doc <path>~ generator (later commit)
+
+   Add a new top-level subcommand ~til doc <path>~ that runs the
+   same loader pipeline as ~til run~ but, instead of building or
+   interpreting, walks the merged AST and emits a doxygen-style
+   cross-referenced documentation tree from the collected ~///~
+   text. Reuses the Phase 1 ~Declaration.doc~ and the registry
+   walker -- no new lexer/parser work expected.
+
+   Default proposed output: one ~.org~ file per source file under
+   ~doc/api/<source>.org~, because emacs already renders org
+   natively and ~org-export~ then provides HTML as a secondary
+   target. ~.html~-direct emission is an open question -- decide
+   when implementing.
+
+*** Out of scope (note for Phase 1)
+
+   - ~help(Vec)~ / ~help(Vec.pop)~ taking the value rather than the
+     name. Phase 1 is Str-only.
+   - ~//!~ inner doc comments (Rust's module/crate docs).
+   - Doc comments on struct fields and enum variants (covered in
+     Phase 1.5).
+   - Cross-linking between docs / type names in rendered output
+     (Phase 2 concern).
+
 ** OPEN #155 Typer infers ~unknown~ for enum-typed struct field access
    Spun off from ~#113~. Accessing a struct field whose declared
    default is an enum constructor types as ~unknown~ instead of the

@@ -300,6 +300,11 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         ast.take_children(mode_ast)
     }
     ast.children.append(own import_decls)
+    if skip_core.not() {
+        mut doc_body := Expr.new(NodeType.Body, 0, 0, "")
+        synthesize_doc_registry(core_ast, user_ast, doc_body)
+        ast.take_children(doc_body)
+    }
     ast.take_children(user_ast)
 
     lp.core_ast = core_ast
@@ -311,6 +316,95 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 
     extract_link_info(lp)
     return lp
+}
+
+// --- Doc registry synthesis ---
+
+// Escape raw bytes for use as a NodeType.LiteralStr text. The interpreter
+// (eval_expr in interpreter.til) and the C codegen (Str_lit in builder.til)
+// both expect the source-level form: \\, \", \n, \t. Escaping here keeps
+// both paths happy when synthesised doc text contains newlines or quotes.
+escape_doc_for_literal_str := func(raw: Str) returns Str {
+    mut out := ""
+    for i in 0..raw.len() {
+        ref c : U8 = raw.byte_at(i)
+        if c.eq('\\') {
+            out = out.concat("\\\\")
+        } else if c.eq('"') {
+            out = out.concat("\\\"")
+        } else if c.eq(10.to_u8()) {
+            out = out.concat("\\n")
+        } else if c.eq(9.to_u8()) {
+            out = out.concat("\\t")
+        } else {
+            out = out.concat(Str.from_byte(c))
+        }
+    }
+    return out
+}
+
+// Build a synthetic __doc_register__("name", "text") FCall expression.
+// The text payload is escape-encoded so newlines and quotes round-trip
+// correctly through both the interpreter and the C compiler.
+make_doc_register_call := func(name: Str, text: Str, path: Str,
+        shallow line: U32, shallow col: U32) returns Expr {
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+    mut callee := Expr.new(NodeType.Ident("__doc_register__"), line, col, path)
+    call.add_child(own callee)
+    esc_name := escape_doc_for_literal_str(name)
+    esc_text := escape_doc_for_literal_str(text)
+    mut name_arg := Expr.new(NodeType.LiteralStr(esc_name.clone()), line, col, path)
+    call.add_child(own name_arg)
+    mut text_arg := Expr.new(NodeType.LiteralStr(esc_text.clone()), line, col, path)
+    call.add_child(own text_arg)
+    return call
+}
+
+// Walk a Body's top-level Decls, push (name, doc, path, line, col) to the
+// parallel out vectors for every Decl with a non-empty Declaration.doc.
+collect_decl_docs := proc(body: Expr,
+        mut names: Vec, mut docs: Vec, mut paths: Vec,
+        mut lines: Vec, mut cols: Vec) {
+    for stmt : Expr in body.children {
+        if stmt.data.is(NodeType.Decl) {
+            ref dd : Declaration = get_payload(stmt.data)
+            if dd.doc.is_empty().not() {
+                names.push(own dd.name.clone())
+                docs.push(own dd.doc.clone())
+                paths.push(own stmt.path.clone())
+                lines.push(own stmt.line.clone())
+                cols.push(own stmt.col.clone())
+            }
+        }
+    }
+}
+
+// Build a Body of __doc_register__("name", "text") FCalls into out_body
+// for every top-level Decl in core_ast or user_ast with a non-empty doc.
+// The caller splices out_body into the merged ast between imports and
+// user top-level code: the calls land on the user ast (so the scavenger
+// seeds them and keeps the doc registry alive in compiled binaries) and
+// run after doc.til's __til_docs__ Map and __doc_register__ proc are
+// initialised (both in core_ast) but before user top-level code that may
+// call help(name).
+synthesize_doc_registry := proc(core_ast: Expr, user_ast: Expr, mut out_body: Expr) {
+    mut names := Vec.new("Str", Str.size())
+    mut docs := Vec.new("Str", Str.size())
+    mut paths := Vec.new("Str", Str.size())
+    mut lines := Vec.new("U32", U32.size())
+    mut cols := Vec.new("U32", U32.size())
+
+    collect_decl_docs(core_ast, names, docs, paths, lines, cols)
+    collect_decl_docs(user_ast, names, docs, paths, lines, cols)
+
+    for i in 0..names.len() {
+        ref n : Str = names.get(i)
+        ref d : Str = docs.get(i)
+        ref p : Str = paths.get(i)
+        ref ln : U32 = lines.get(i)
+        ref cl : U32 = cols.get(i)
+        out_body.add_child(own make_doc_register_call(n, d, p, ln, cl))
+    }
 }
 
 // Append -l flag to the link_flags carried on lp.

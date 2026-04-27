@@ -72,8 +72,8 @@
   "Words to highlight as warning in comments.")
 
 (defconst til-highlights `(
-    ;; Doc comments /** ... */
-    ("/\\*\\*\\([^*]\\|\\*[^/]\\)*\\*/" . font-lock-doc-face)
+    ;; Doc comments: /// to end of line (Rust style)
+    ("///.*$" . font-lock-doc-face)
     ;; Error words
     (,(regexp-opt til-error-words 'symbols) . compilation-error)
     ;; Error words in comments

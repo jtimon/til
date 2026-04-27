@@ -1,0 +1,36 @@
+mode test
+
+/// single-line documentation
+single_doc := func() returns Str {
+    return "single"
+}
+
+/// first line
+/// second line
+multi_doc := func() returns Str {
+    return "multi"
+}
+
+undocumented := func() returns Str {
+    return "none"
+}
+
+test_single_line_doc := test() {
+    assert(__LOC__, __til_docs__.has("single_doc"))
+    assert_eq_str(__LOC__, __til_docs__.get("single_doc"), "single-line documentation")
+}
+
+test_multi_line_doc := test() {
+    assert(__LOC__, __til_docs__.has("multi_doc"))
+    assert_eq_str(__LOC__, __til_docs__.get("multi_doc"), "first line\nsecond line")
+}
+
+test_undocumented_decl := test() {
+    assert(__LOC__, __til_docs__.has("undocumented").not())
+}
+
+test_core_doc_registered := test() {
+    assert(__LOC__, __til_docs__.has("help"))
+    assert(__LOC__, __til_docs__.has("__doc_register__"))
+    assert(__LOC__, __til_docs__.has("__til_docs__"))
+}

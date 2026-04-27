@@ -68,6 +68,7 @@ OwnType := enum {
 
 Declaration := struct {
     mut name := ""
+    mut doc := ""
     mut explicit_type := ""
     mut is_mut := false
     mut own_type := OwnType.Shallow

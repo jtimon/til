@@ -36,6 +36,7 @@
 *** StringTok
 *** Number
 *** Char
+*** DocComment
 *** KwMut
 *** KwOwn
 *** KwRef
@@ -110,6 +111,7 @@
 *** Shallow
 ** Declaration: StructDef
 *** mut name := ""
+*** mut doc := ""
 *** mut explicit_type := ""
 *** mut is_mut := false
 *** mut own_type := OwnType.Shallow
@@ -187,6 +189,7 @@
 *** mut path := ""
 *** mut fn_sig_decls := Vec.new("Expr", Expr.size())
 *** mut lambda_decls := Vec.new("Expr", Expr.size())
+*** mut pending_doc := ""
 * initer
 ** TypeBinding: StructDef
 *** mut name := ""

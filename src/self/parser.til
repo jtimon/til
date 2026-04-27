@@ -10,6 +10,9 @@ Parser := struct {
     mut path := ""
     mut fn_sig_decls := Vec.new("Expr", Expr.size())
     mut lambda_decls := Vec.new("Expr", Expr.size())
+    // Accumulates the text of leading /// doc comments. Cleared by
+    // parse_statement after attaching to the next NodeType.Decl.
+    mut pending_doc := ""
 }
 
 peek := func(p: Parser) returns ref Token {
@@ -162,10 +165,19 @@ maybe_lift_lambda := proc(mut p: Parser, own e: Expr) returns Expr {
 
 // parse_block: expects '{' already consumed, reads statements until '}'
 parse_block := proc(mut p: Parser) returns Expr {
+    // Save outer pending_doc so the surrounding Decl's leading /// survives
+    // the block parse. Inner /// inside the block accumulate into pending_doc
+    // and are attached to the next inner Decl by parse_statement; any
+    // unconsumed inner doc text at '}' is discarded.
+    saved_doc := p.pending_doc.clone()
+    p.pending_doc = ""
     mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p), p.path)
-    while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+    while true {
+        drain_doc_comments(p)
+        if check(p, TokenType.RBrace).or(check(p, TokenType.Eof)) { break }
         body.add_child(own parse_statement(p))
     }
+    p.pending_doc = saved_doc.clone()
     expect_token(p, TokenType.RBrace)
     return body
 }
@@ -322,6 +334,8 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p), p.path)
     mut in_namespace := false
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+        // Phase 1: discard doc comments inside struct bodies (no attachment yet)
+        if check(p, TokenType.DocComment) { advance(p); continue }
         if check(p, TokenType.KwNamespace) {
             advance(p)
             expect_token(p, TokenType.Colon)
@@ -390,6 +404,8 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     mut in_namespace := false
     mut variant_idx : I64 = 0
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+        // Phase 1: discard doc comments inside enum bodies (no attachment yet)
+        if check(p, TokenType.DocComment) { advance(p); continue }
         if check(p, TokenType.KwNamespace) {
             advance(p)
             expect_token(p, TokenType.Colon)
@@ -1105,7 +1121,35 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
 }
 
 // parse_statement
+// Consume any leading DocComment tokens, accumulating their text into
+// p.pending_doc (joined with '\n'). The next call to parse_statement
+// attaches and clears the accumulator.
+drain_doc_comments := proc(mut p: Parser) {
+    while check(p, TokenType.DocComment) {
+        ref t : Token = peek(p)
+        if p.pending_doc.is_empty() {
+            p.pending_doc = t.text.clone()
+        } else {
+            p.pending_doc = p.pending_doc.concat("\n").concat(t.text)
+        }
+        advance(p)
+    }
+}
+
 parse_statement := proc(mut p: Parser) returns Expr {
+    drain_doc_comments(p)
+    mut stmt := parse_statement_body(p)
+    if p.pending_doc.is_empty().not() {
+        if stmt.data.is(NodeType.Decl) {
+            ref mut dd : Declaration = get_payload(stmt.data)
+            dd.doc = p.pending_doc.clone()
+        }
+        p.pending_doc = ""
+    }
+    return stmt
+}
+
+parse_statement_body := proc(mut p: Parser) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
     ref t : Token = peek(p)
@@ -1286,11 +1330,16 @@ parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
         }
     }
 
-    // Parse body
+    // Parse body. Drain leading doc comments before the EOF check so
+    // trailing /// lines (e.g. a single-line REPL input) don't panic when
+    // there's no following statement to attach them to.
     mut root := Expr.new(NodeType.Body, 1, 1, p.path)
-    while check(p, TokenType.Eof).not() {
+    while true {
+        drain_doc_comments(p)
+        if check(p, TokenType.Eof) { break }
         root.add_child(own parse_statement(p))
     }
+    p.pending_doc = ""
     // Append synthetic Fn type declarations (initer registers them before typer runs)
     for d : Expr in p.fn_sig_decls {
         root.add_child(own d.clone())

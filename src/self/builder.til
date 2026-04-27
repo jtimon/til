@@ -3536,6 +3536,16 @@ emit_script_main := proc(f: File, program: Expr) {
     emit_ns_inits(f, 1)
     unsafe_to_hoist = Set.new("Str", Str.size())
     collect_unsafe_to_hoist(program)
+    if is_null(codegen_core_program).not() {
+        for gs : Expr in codegen_core_program.children {
+            if gs.data.is(NodeType.Decl) {
+                ref rhs : Expr = gs.child(0)
+                if rhs.data.is(NodeType.FuncDef).or(rhs.data.is(NodeType.StructDef)).or(rhs.data.is(NodeType.EnumDef)) { continue }
+                if gs.til_type.eq(TilType.None).and(rhs.data.is(NodeType.Ident)) { continue }
+            } else if gs.data.is(NodeType.FCall).not() { continue }
+            emit_stmt(f, gs, 1)
+        }
+    }
     for stmt : Expr in program.children {
         if stmt.data.is(NodeType.Decl) {
             ref rhs : Expr = stmt.child(0)

@@ -1,0 +1,22 @@
+mode lib
+
+/// Runtime registry of /// doc comments collected by the loader.
+/// Keys are top-level declaration names, values are the joined doc text.
+mut __til_docs__ := Map.new("Str", Str.size(), "Str", Str.size())
+
+/// Loader-emitted entry point used to populate __til_docs__ at startup.
+/// Not intended for direct user calls.
+__doc_register__ := proc(name: Str, text: Str) {
+    __til_docs__.set(own name.clone(), own text.clone())
+}
+
+/// Print the doc comment attached to a top-level declaration.
+/// Prints "no documentation for: <name>" if the name is not registered.
+help := proc(name: Str) {
+    if __til_docs__.has(name) {
+        ref t : Str = __til_docs__.get(name)
+        println(t)
+    } else {
+        println("no documentation for: ", name)
+    }
+}

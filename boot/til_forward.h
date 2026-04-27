@@ -118,6 +118,7 @@ typedef enum {
     TokenType_TAG_StringTok,
     TokenType_TAG_Number,
     TokenType_TAG_Char,
+    TokenType_TAG_DocComment,
     TokenType_TAG_KwMut,
     TokenType_TAG_KwOwn,
     TokenType_TAG_KwRef,
@@ -263,6 +264,7 @@ struct OwnType {
 
 typedef struct Declaration {
     Str name;
+    Str doc;
     Str explicit_type;
     Bool is_mut;
     OwnType own_type;
@@ -423,6 +425,7 @@ typedef struct Parser {
     Str path;
     Vec fn_sig_decls;
     Vec lambda_decls;
+    Str pending_doc;
 } Parser;
 
 
@@ -922,6 +925,7 @@ I64 * wait_cmd(I64 * pid);
 I64 * run_cmd(Str * output, Array * args);
 void panic(Str * loc_str, Array * parts);
 void TODO(Str * loc_str, Array * parts);
+void __doc_register__(Str * name, Str * text);
 Bool TokenType_is(TokenType * self, TokenType * other);
 Bool TokenType_eq(TokenType * self, TokenType * other);
 void TokenType_delete(TokenType * self, Bool * call_free);
@@ -967,7 +971,9 @@ Expr * parse_bitxor(Parser * p);
 Expr * parse_bitor(Parser * p);
 Expr * parse_expression(Parser * p);
 Expr * parse_statement_ident(Parser * p, Bool is_mut, OwnType own_type);
+void drain_doc_comments(Parser * p);
 Expr * parse_statement(Parser * p);
+Expr * parse_statement_body(Parser * p);
 Expr * parse(Vec * tokens, Str * path, Str * mode_out);
 Bool TypeBinding_eq(TypeBinding * a, TypeBinding * b);
 Str * TypeBinding_to_str(TypeBinding * self);
@@ -1209,6 +1215,10 @@ void LoadedProgram_delete(LoadedProgram * self, Bool * call_free);
 U32 LoadedProgram_size(void);
 void extract_link_info(LoadedProgram * lp);
 LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path);
+Str * escape_doc_for_literal_str(Str * raw);
+Expr * make_doc_register_call(Str * name, Str * text, Str * path, U32 line, U32 col);
+void collect_decl_docs(Expr * body, Vec * names, Vec * docs, Vec * paths, Vec * lines, Vec * cols);
+void synthesize_doc_registry(Expr * core_ast, Expr * user_ast, Expr * out_body);
 void loaded_add_lflag(LoadedProgram * lp, Str * lib);
 void prepare_program(LoadedProgram * lp, Bool run_tests);
 void cmd_ast(LoadedProgram * lp);
@@ -1600,6 +1610,7 @@ TokenType *TokenType_Ident();
 TokenType *TokenType_StringTok();
 TokenType *TokenType_Number();
 TokenType *TokenType_Char();
+TokenType *TokenType_DocComment();
 TokenType *TokenType_KwMut();
 TokenType *TokenType_KwOwn();
 TokenType *TokenType_KwRef();
@@ -1671,6 +1682,7 @@ Value *Value_Ptr(void *);
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;
+extern Map __til_docs__;
 extern Map core_modes;
 extern I32 hoist_counter;
 extern I32 _va_counter;
