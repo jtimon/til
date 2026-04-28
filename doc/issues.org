@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 159
+# NEXT_ISSUE: 160
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -1339,7 +1339,60 @@
   Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
   (it's useful for other things), but containers no longer use it.
 
-* [0/39] Post
+* [0/40] Post
+** OPEN #159 Show the til logo as a single character in the REPL prompt
+   We have ~fonts/til_logo.ttf~ (generated from ~img/logo-transparent.svg~
+   by ~src/examples/svg2ttf.til~) with the logo mapped to codepoint
+   ~'T'~ (0x54).  The goal: replace the REPL prompt's ~til[mode]>~
+   (in ~src/til.til~ ~repl_read_line~) with ~<logo>[mode]>~ where
+   ~<logo>~ is the single glyph rendered from ~til_logo.ttf~.
+
+   Barriers:
+
+   - The REPL is a terminal-only CLI.  A terminal renders whatever
+     font the user has configured; it cannot pick up an arbitrary
+     TTF file from the repo.  To see the logo there, the user (or
+     an install step) has to copy ~fonts/til_logo.ttf~ into a
+     system font directory (~~/.local/share/fonts~ on Linux)
+     and the terminal has to actually use that font, or a fallback
+     chain that reaches it.  This is out of our control.
+
+   - A safer substitute is a Unicode codepoint that has broad font
+     support, but there is none that matches the logo.  A Private
+     Use Area codepoint (e.g. ~U+E000~) would need our TTF installed
+     anyway; without it, terminals render the tofu box.
+
+   - ~CLAUDE.md~ requires plain ASCII everywhere in source files,
+     so we cannot embed a non-ASCII codepoint directly in the prompt
+     string even if we wanted to.  It would have to be built up with
+     ~Str.from_byte~ calls, which is doable but intentionally ugly.
+
+   - ~mode gui~ would let us draw the glyph for real via raylib's
+     ~LoadFontEx~ + ~DrawTextEx~, but the REPL in ~src/til.til~ is
+     ~mode cli~ and has no event loop.  Lifting it into a raylib
+     window is a separate project.
+
+   Possible paths forward:
+
+   1. Keep the terminal REPL; opt in via an env var (e.g.
+      ~TIL_FANCY_PROMPT=1~) that emits the Private Use Area
+      codepoint through ~Str.from_byte~.  Document the font
+      install step.  Users without the font see a box; everyone
+      else sees the logo.  Low effort, limited reach.
+
+   2. Ship a small ~src/examples/tilminal.til~-hosted REPL that
+      loads ~fonts/til_logo.ttf~ via raylib and draws the prompt
+      glyph plus user input.  Higher effort but no install step.
+      A natural follow-up to ~src/examples/tilminal.til~.
+
+   3. Wait until til grows Unicode string support, pick a Private
+      Use Area codepoint, and ship the font as a first-class asset
+      that the build step installs (or that ~cargo install~-style
+      tooling handles).  Cleanest but gated on several prior
+      pieces.
+
+   Until one of these lands the REPL prompt stays ~til[mode]>~.
+
 ** OPEN #157 ~print(1+1)~ silently accepted -- no type error on typed-vararg mismatch
    ~print~ and ~println~ are declared with ~..Str~ varargs, but the
    typer accepts arbitrary types in those positions without error. The

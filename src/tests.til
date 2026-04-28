@@ -471,6 +471,14 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_typed_err2", "src/examples/cli_typed.til", "a b c", 1, "", til_bin)
     add_cli_pair(tests, "hello_cli_err", "src/examples/hello_cli.til", "extra", 1, "", til_bin)
 
+    // svg2ttf: transparent 2-colour logo produces fonts/til_logo.ttf (exit=0);
+    // the full-colour logo panics with "too many colours" (exit=1).
+    run("mkdir -p fonts")
+    add_cli_pair(tests, "svg2ttf_ok", "src/examples/svg2ttf.til",
+                 "img/logo-transparent.svg fonts/til_logo.ttf", 0, "", til_bin)
+    add_cli_pair(tests, "svg2ttf_too_many_colors", "src/examples/svg2ttf.til",
+                 "img/logo.svg tmp/svg2ttf_fail.ttf", 1, "", til_bin)
+
     // === library mode checks ===
     add_single(tests, "pure_build", "library", 0, "",
                asan_safe_cmd(til_bin.concat(" build src/test/pure.til"), til_bin))

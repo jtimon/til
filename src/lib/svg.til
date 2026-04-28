@@ -1,0 +1,285 @@
+mode lib
+
+// Minimal SVG parser, just enough to convert img/logo-transparent.svg
+// into a font glyph. Panics on any feature outside that subset.
+//
+// Supported:
+//   <g transform="translate(A,B) scale(C,D)" ...>   (exact literal match)
+//   fill="#RRGGBB" or fill="none"
+//   <path d="...">
+//   path commands: M m L l C c Z z (plus implicit continuations)
+//
+// Coordinates in path data are integers (the logo is 100% integer).
+
+// --- Segment kinds ---
+
+SegKind := enum { Move, Line, Quad, Close }
+
+// One segment of a path, in em-space (transform already applied).
+// x,y = endpoint for Move/Line/Quad; cx,cy = quad control point.
+Segment := struct {
+    mut kind := SegKind.Close
+    mut x := 0
+    mut y := 0
+    mut cx := 0
+    mut cy := 0
+}
+
+// --- Fill colour scanner ---
+
+// Returns the list of unique fill="..." values in the SVG, excluding "none".
+// A text scan, not a real XML parse. Good enough for our logo files.
+scan_fills := func(svg: Str) returns Vec {
+    fills := Vec.new("Str", Str.size())
+    parts := svg.split("fill=\"")
+    mut i : USize = 1
+    while i.lt(parts.len()) {
+        ref part : Str = parts.get(i)
+        end := part.find("\"")
+        if end.gt(0) {
+            val := part.substr(0, end.to_usize())
+            if val.eq("none").not() {
+                mut found := false
+                mut j : USize = 0
+                while j.lt(fills.len()) {
+                    ref e : Str = fills.get(j)
+                    if e.eq(val) { found = true }
+                    j = j.add(1)
+                }
+                if found.not() { fills.push(own val.clone()) }
+            }
+        }
+        i = i.add(1)
+    }
+    return fills
+}
+
+// Counts "effective" colours, including one for the transparent background.
+count_colors := func(svg: Str) returns I64 {
+    fills := scan_fills(svg)
+    return fills.len().to_i64().add(1)
+}
+
+// Panic if the SVG uses more than 2 colours (transparent + one fill).
+check_color_count := proc(svg: Str) {
+    n := count_colors(svg)
+    if n.gt(2) {
+        panic(__LOC__, "svg uses ", n.to_str(), " colours (max 2 supported)")
+    }
+}
+
+// --- Transform / path extraction ---
+
+// We only support the exact transform used by `convert -` style pbm->svg
+// output (which is how img/logo-transparent.svg was generated).
+EXPECTED_TRANSFORM := "translate(0.000000,1024.000000) scale(0.100000,-0.100000)"
+VIEWBOX_W := 1024
+VIEWBOX_H := 1024
+
+// em-space size. Chosen so em_x = raw_path_x (the path values span ~0..10240).
+EM_SIZE := 10240
+
+check_group_transform := proc(svg: Str) {
+    needle := "transform=\""
+    pos := svg.find(needle)
+    if pos.lt(0) {
+        panic(__LOC__, "expected a <g transform=\"...\"> element")
+    }
+    start : USize = pos.to_usize().add(needle.len())
+    tail := svg.substr(start, svg.len().sub(start))
+    end := tail.find("\"")
+    if end.lt(0) { panic(__LOC__, "malformed transform attribute") }
+    val := tail.substr(0, end.to_usize())
+    if val.eq(EXPECTED_TRANSFORM).not() {
+        panic(__LOC__, "unsupported transform: '", val, "'")
+    }
+}
+
+check_viewbox := proc(svg: Str) {
+    needle := "viewBox=\""
+    pos := svg.find(needle)
+    if pos.lt(0) { panic(__LOC__, "expected viewBox attribute") }
+    start : USize = pos.to_usize().add(needle.len())
+    tail := svg.substr(start, svg.len().sub(start))
+    end := tail.find("\"")
+    if end.lt(0) { panic(__LOC__, "malformed viewBox") }
+    val := tail.substr(0, end.to_usize())
+    expected := "0 0 1024.000000 1024.000000"
+    if val.eq(expected).not() {
+        panic(__LOC__, "unsupported viewBox: '", val, "' (expected '", expected, "')")
+    }
+}
+
+// Return all d="..." attribute contents from the SVG, with newlines replaced
+// by spaces (so a single scan can parse multi-line path data).
+extract_paths := func(svg: Str) returns Vec {
+    out := Vec.new("Str", Str.size())
+    parts := svg.split("d=\"")
+    mut i : USize = 1
+    while i.lt(parts.len()) {
+        ref part : Str = parts.get(i)
+        end := part.find("\"")
+        if end.gt(0) {
+            val := part.substr(0, end.to_usize())
+            normalized := val.replace(Str.from_byte(10.to_u8()), " ")
+            out.push(own normalized.clone())
+        }
+        i = i.add(1)
+    }
+    return out
+}
+
+// --- Path data tokenizer ---
+
+is_ws := func(b: U8) returns Bool {
+    return b.eq(' ').or(b.eq('\t')).or(b.eq('\n')).or(b.eq('\r')).or(b.eq(','))
+}
+
+is_digit_ch := func(b: U8) returns Bool {
+    return b.gte('0').and(b.lte('9'))
+}
+
+is_cmd_ch := func(b: U8) returns Bool {
+    return b.gte('A').and(b.lte('Z')).or(b.gte('a').and(b.lte('z')))
+}
+
+skip_ws := func(d: Str, shallow i: USize) returns USize {
+    mut j := i
+    while j.lt(d.len()) {
+        ref b : U8 = d.byte_at(j)
+        if is_ws(b).not() { break }
+        j = j.add(1)
+    }
+    return j
+}
+
+// Parse one signed integer starting at or after position `i`. The new index
+// is written back through `out_idx`. Panics if no digits are found.
+parse_int := proc(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
+    mut j := skip_ws(d, i)
+    mut neg := false
+    if j.lt(d.len()) {
+        ref b : U8 = d.byte_at(j)
+        if b.eq('-') { neg = true; j = j.add(1) }
+        else if b.eq('+') { j = j.add(1) }
+    }
+    mut val : I64 = 0
+    mut digits := 0
+    while j.lt(d.len()) {
+        ref b : U8 = d.byte_at(j)
+        if is_digit_ch(b).not() { break }
+        val = val.mul(10).add(b.to_i64().sub(48))
+        digits = digits.add(1)
+        j = j.add(1)
+    }
+    if digits.eq(0) {
+        panic(__LOC__, "expected integer in path data at byte ", j.to_i64().to_str())
+    }
+    if neg { val = 0.sub(val) }
+    out_idx = j
+    return val
+}
+
+// --- Path data parser ---
+
+// Convert an SVG path `d` string into a Vec<Segment> in em-space.
+// Applies the known transform: em_x = svg_x, em_y = EM_SIZE - svg_y.
+// Cubic `c`/`C` commands are split into two quadratics via the
+// standard midpoint heuristic:
+//   q1 = (3*P1 - P0)/2    first control point
+//   q2 = (3*P2 - P3)/2    second control point
+//   m  = (q1 + q2)/2      shared on-curve midpoint
+parse_path_d := proc(d: Str, mut segments: Vec) {
+    mut i : USize = skip_ws(d, 0)
+    mut cur_x : I64 = 0
+    mut cur_y : I64 = 0
+    mut start_x : I64 = 0
+    mut start_y : I64 = 0
+    mut last_cmd : U8 = 0.to_u8()
+    mem := EM_SIZE
+
+    while i.lt(d.len()) {
+        i = skip_ws(d, i)
+        if i.gte(d.len()) { break }
+        ref first : U8 = d.byte_at(i)
+        mut cmd : U8 = last_cmd
+        if is_cmd_ch(first) {
+            cmd = first
+            i = i.add(1)
+            i = skip_ws(d, i)
+        }
+        if cmd.eq(0.to_u8()) {
+            panic(__LOC__, "path data must start with a command")
+        }
+
+        if cmd.eq('M').or(cmd.eq('m')) {
+            x := parse_int(d, i, i)
+            y := parse_int(d, i, i)
+            if cmd.eq('m') {
+                cur_x = cur_x.add(x)
+                cur_y = cur_y.add(y)
+            } else {
+                cur_x = x
+                cur_y = y
+            }
+            start_x = cur_x
+            start_y = cur_y
+            segments.push(own Segment(kind = SegKind.Move,
+                                      x = cur_x, y = mem.sub(cur_y)))
+            if cmd.eq('M') { last_cmd = 'L' } else { last_cmd = 'l' }
+        } else if cmd.eq('L').or(cmd.eq('l')) {
+            x := parse_int(d, i, i)
+            y := parse_int(d, i, i)
+            if cmd.eq('l') {
+                cur_x = cur_x.add(x)
+                cur_y = cur_y.add(y)
+            } else {
+                cur_x = x
+                cur_y = y
+            }
+            segments.push(own Segment(kind = SegKind.Line,
+                                      x = cur_x, y = mem.sub(cur_y)))
+            last_cmd = cmd
+        } else if cmd.eq('C').or(cmd.eq('c')) {
+            x1 := parse_int(d, i, i)
+            y1 := parse_int(d, i, i)
+            x2 := parse_int(d, i, i)
+            y2 := parse_int(d, i, i)
+            x3 := parse_int(d, i, i)
+            y3 := parse_int(d, i, i)
+            p0x := cur_x
+            p0y := cur_y
+            mut p1x := x1; mut p1y := y1
+            mut p2x := x2; mut p2y := y2
+            mut p3x := x3; mut p3y := y3
+            if cmd.eq('c') {
+                p1x = cur_x.add(x1); p1y = cur_y.add(y1)
+                p2x = cur_x.add(x2); p2y = cur_y.add(y2)
+                p3x = cur_x.add(x3); p3y = cur_y.add(y3)
+            }
+            q1x := p1x.mul(3).sub(p0x).div(2)
+            q1y := p1y.mul(3).sub(p0y).div(2)
+            q2x := p2x.mul(3).sub(p3x).div(2)
+            q2y := p2y.mul(3).sub(p3y).div(2)
+            mx := q1x.add(q2x).div(2)
+            my := q1y.add(q2y).div(2)
+            segments.push(own Segment(kind = SegKind.Quad,
+                                      cx = q1x, cy = mem.sub(q1y),
+                                      x  = mx,  y  = mem.sub(my)))
+            segments.push(own Segment(kind = SegKind.Quad,
+                                      cx = q2x, cy = mem.sub(q2y),
+                                      x  = p3x, y  = mem.sub(p3y)))
+            cur_x = p3x
+            cur_y = p3y
+            last_cmd = cmd
+        } else if cmd.eq('Z').or(cmd.eq('z')) {
+            cur_x = start_x
+            cur_y = start_y
+            segments.push(own Segment(kind = SegKind.Close))
+            last_cmd = 0.to_u8()
+        } else {
+            panic(__LOC__, "unsupported SVG path command '",
+                  Str.from_byte(cmd), "'")
+        }
+    }
+}

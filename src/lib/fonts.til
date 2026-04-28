@@ -1,0 +1,596 @@
+mode lib
+
+// Minimal TrueType font writer. Produces a 2-glyph TTF (a zero-size .notdef
+// plus one "logo" glyph) mapped to a single codepoint via a format-4 cmap
+// subtable.
+//
+// All numeric fields are big-endian. Glyph coordinates are 16-bit signed
+// integer font units; default em-square size is 10240 (see svg.til).
+
+import("svg.til")
+
+// --- Primitive writers ---
+
+// Write a single byte.
+w_u8 := func(mut buf: Str, b: U8) {
+    buf.push_str(Str.from_byte(b))
+}
+
+// Write a big-endian U16. Accepts I64; wraps negatives via + 2^16.
+w_u16 := func(mut buf: Str, v: I64) {
+    mut u := v
+    if u.lt(0) { u = u.add(65536) }
+    w_u8(buf, u.div(256).mod(256).to_u8())
+    w_u8(buf, u.mod(256).to_u8())
+}
+
+// Big-endian I16 (same wire format as U16 via two's complement).
+w_i16 := func(mut buf: Str, v: I64) { w_u16(buf, v) }
+
+// Big-endian U32. Accepts I64; wraps negatives via + 2^32.
+w_u32 := func(mut buf: Str, v: I64) {
+    mut u := v
+    if u.lt(0) { u = u.add(4294967296) }
+    w_u8(buf, u.div(16777216).mod(256).to_u8())
+    w_u8(buf, u.div(65536).mod(256).to_u8())
+    w_u8(buf, u.div(256).mod(256).to_u8())
+    w_u8(buf, u.mod(256).to_u8())
+}
+
+// Write a 4-byte ASCII tag literally.
+w_tag := func(mut buf: Str, tag: Str) {
+    if tag.len().eq(4).not() {
+        panic(__LOC__, "w_tag: tag '", tag, "' must be 4 bytes")
+    }
+    buf.push_str(tag)
+}
+
+// Write raw bytes.
+w_bytes := func(mut buf: Str, bytes: Str) { buf.push_str(bytes) }
+
+// Pad buf up to the next multiple of 4 bytes with zeros.
+pad_to_4 := func(mut buf: Str) {
+    while buf.len().mod(4).gt(0) {
+        w_u8(buf, 0.to_u8())
+    }
+}
+
+// Overwrite a 4-byte big-endian U32 at `offset` in an already-built buffer.
+patch_u32 := func(mut buf: Str, offset: USize, v: I64) {
+    mut u := v
+    if u.lt(0) { u = u.add(4294967296) }
+    b0 := u.div(16777216).mod(256).to_u8()
+    b1 := u.div(65536).mod(256).to_u8()
+    b2 := u.div(256).mod(256).to_u8()
+    b3 := u.mod(256).to_u8()
+    memcpy(ptr_add(buf.c_str, offset),         b0, 1)
+    memcpy(ptr_add(buf.c_str, offset.add(1)),  b1, 1)
+    memcpy(ptr_add(buf.c_str, offset.add(2)),  b2, 1)
+    memcpy(ptr_add(buf.c_str, offset.add(3)),  b3, 1)
+}
+
+// Sum of U32 big-endian words over buf[offset..offset+length], zero-padded.
+// Returns the sum mod 2^32.
+sum_u32_be := func(buf: Str, offset: USize, length: USize) returns I64 {
+    mut sum : I64 = 0
+    mut i : USize = 0
+    while i.lt(length) {
+        mut word : I64 = 0
+        mut j : USize = 0
+        while j.lt(4) {
+            mut byte_val : I64 = 0
+            if i.add(j).lt(length) {
+                ref b : U8 = buf.byte_at(offset.add(i).add(j))
+                byte_val = b.to_i64()
+            }
+            word = word.mul(256).add(byte_val)
+            j = j.add(1)
+        }
+        sum = sum.add(word)
+        if sum.gte(4294967296) { sum = sum.sub(4294967296) }
+        i = i.add(4)
+    }
+    return sum
+}
+
+// Encode an ASCII string as UTF-16BE bytes.
+utf16be_ascii := func(s: Str) returns Str {
+    mut out := Str.with_capacity(s.len().mul(2))
+    mut i : USize = 0
+    while i.lt(s.len()) {
+        ref b : U8 = s.byte_at(i)
+        w_u8(out, 0.to_u8())
+        w_u8(out, b)
+        i = i.add(1)
+    }
+    return out
+}
+
+// --- Glyph construction ---
+
+// A single glyph with its bounding box and the raw simple-glyph bytes
+// (from numberOfContours through yCoordinates, inclusive).
+Glyph := struct {
+    mut bytes := ""
+    mut x_min := 0
+    mut y_min := 0
+    mut x_max := 0
+    mut y_max := 0
+    mut num_contours := 0
+    mut num_points := 0
+}
+
+// ON_CURVE flag bit in a glyph point's flags byte.
+ON_CURVE := 1
+
+// Assemble a single simple glyph from a Vec<Segment> produced by svg.til.
+// All coords are emitted as I16 deltas (no short flags).
+build_glyph := proc(segments: Vec) returns Glyph {
+    xs := Vec.new("I64", I64.size())
+    ys := Vec.new("I64", I64.size())
+    on_curve := Vec.new("I64", I64.size())
+    contour_ends := Vec.new("I64", I64.size())
+
+    mut contour_open := false
+    mut i : USize = 0
+    while i.lt(segments.len()) {
+        ref seg : Segment = segments.get(i)
+        if seg.kind.eq(SegKind.Move) {
+            if contour_open {
+                contour_ends.push(own xs.len().to_i64().sub(1))
+            }
+            xs.push(own seg.x.clone())
+            ys.push(own seg.y.clone())
+            on_curve.push(own 1.clone())
+            contour_open = true
+        } else if seg.kind.eq(SegKind.Line) {
+            xs.push(own seg.x.clone())
+            ys.push(own seg.y.clone())
+            on_curve.push(own 1.clone())
+        } else if seg.kind.eq(SegKind.Quad) {
+            xs.push(own seg.cx.clone())
+            ys.push(own seg.cy.clone())
+            on_curve.push(own 0.clone())
+            xs.push(own seg.x.clone())
+            ys.push(own seg.y.clone())
+            on_curve.push(own 1.clone())
+        } else if seg.kind.eq(SegKind.Close) {
+            if contour_open {
+                contour_ends.push(own xs.len().to_i64().sub(1))
+                contour_open = false
+            }
+        }
+        i = i.add(1)
+    }
+    if contour_open {
+        contour_ends.push(own xs.len().to_i64().sub(1))
+    }
+
+    n := xs.len()
+    if n.eq(0) {
+        panic(__LOC__, "build_glyph: no points")
+    }
+
+    // Bounding box.
+    ref x0 : I64 = xs.get(0)
+    ref y0 : I64 = ys.get(0)
+    mut xmn := x0.clone()
+    mut xmx := x0.clone()
+    mut ymn := y0.clone()
+    mut ymx := y0.clone()
+    mut k : USize = 1
+    while k.lt(n) {
+        ref xv : I64 = xs.get(k)
+        ref yv : I64 = ys.get(k)
+        if xv.lt(xmn) { xmn = xv.clone() }
+        if xv.gt(xmx) { xmx = xv.clone() }
+        if yv.lt(ymn) { ymn = yv.clone() }
+        if yv.gt(ymx) { ymx = yv.clone() }
+        k = k.add(1)
+    }
+
+    // Emit simple-glyph bytes.
+    mut body := Str.with_capacity(n.mul(6).add(contour_ends.len().mul(2)).add(64))
+    w_i16(body, contour_ends.len().to_i64())
+    w_i16(body, xmn)
+    w_i16(body, ymn)
+    w_i16(body, xmx)
+    w_i16(body, ymx)
+    mut ci : USize = 0
+    while ci.lt(contour_ends.len()) {
+        ref e : I64 = contour_ends.get(ci)
+        w_u16(body, e)
+        ci = ci.add(1)
+    }
+    w_u16(body, 0) // instructionLength
+
+    // Flags: one byte per point. 0x01 = on-curve.
+    mut fi : USize = 0
+    while fi.lt(n) {
+        ref oc : I64 = on_curve.get(fi)
+        mut flag : I64 = 0
+        if oc.eq(1) { flag = ON_CURVE }
+        w_u8(body, flag.to_u8())
+        fi = fi.add(1)
+    }
+
+    // X coordinates as I16 deltas.
+    mut prev_x : I64 = 0
+    mut xi : USize = 0
+    while xi.lt(n) {
+        ref xv : I64 = xs.get(xi)
+        w_i16(body, xv.sub(prev_x))
+        prev_x = xv.clone()
+        xi = xi.add(1)
+    }
+
+    // Y coordinates as I16 deltas.
+    mut prev_y : I64 = 0
+    mut yi : USize = 0
+    while yi.lt(n) {
+        ref yv : I64 = ys.get(yi)
+        w_i16(body, yv.sub(prev_y))
+        prev_y = yv.clone()
+        yi = yi.add(1)
+    }
+
+    return Glyph(
+        bytes = body.clone(),
+        x_min = xmn,
+        y_min = ymn,
+        x_max = xmx,
+        y_max = ymx,
+        num_contours = contour_ends.len().to_i64(),
+        num_points = n.to_i64(),
+    )
+}
+
+// --- Table builders ---
+//
+// Each builder returns a Str containing that table's bytes. Tables are
+// NOT internally padded; the offset-table builder pads between tables.
+
+// Max power of 2 <= n, as (value, log2).
+pow2_le := func(n: I64) returns Vec {
+    out := Vec.new("I64", I64.size())
+    mut v := 1
+    mut log := 0
+    while v.mul(2).lte(n) {
+        v = v.mul(2)
+        log = log.add(1)
+    }
+    out.push(own v.clone())
+    out.push(own log.clone())
+    return out
+}
+
+build_head := func(glyph: Glyph, units_per_em: I64) returns Str {
+    mut t := Str.with_capacity(64)
+    w_u32(t, 65536)          // version 1.0 = 0x00010000
+    w_u32(t, 65536)          // fontRevision 1.0
+    w_u32(t, 0)              // checkSumAdjustment (patched later)
+    w_u32(t, 1594834165)     // magicNumber 0x5F0F3CF5
+    w_u16(t, 11)             // flags (bits 0,1,3)
+    w_u16(t, units_per_em)
+    w_u32(t, 0)              // created hi
+    w_u32(t, 0)              // created lo
+    w_u32(t, 0)              // modified hi
+    w_u32(t, 0)              // modified lo
+    w_i16(t, glyph.x_min)
+    w_i16(t, glyph.y_min)
+    w_i16(t, glyph.x_max)
+    w_i16(t, glyph.y_max)
+    w_u16(t, 0)              // macStyle
+    w_u16(t, 8)              // lowestRecPPEM
+    w_i16(t, 2)              // fontDirectionHint
+    w_i16(t, 1)              // indexToLocFormat = 1 (long)
+    w_i16(t, 0)              // glyphDataFormat
+    return t
+}
+
+build_hhea := func(glyph: Glyph, advance: I64) returns Str {
+    mut t := Str.with_capacity(40)
+    w_u32(t, 65536)
+    w_i16(t, glyph.y_max)    // ascender
+    w_i16(t, glyph.y_min)    // descender
+    w_i16(t, 0)              // lineGap
+    w_u16(t, advance)        // advanceWidthMax
+    w_i16(t, glyph.x_min)    // minLeftSideBearing
+    w_i16(t, advance.sub(glyph.x_max))  // minRightSideBearing
+    w_i16(t, glyph.x_max)    // xMaxExtent
+    w_i16(t, 1)              // caretSlopeRise
+    w_i16(t, 0)              // caretSlopeRun
+    w_i16(t, 0)              // caretOffset
+    w_i16(t, 0); w_i16(t, 0); w_i16(t, 0); w_i16(t, 0)  // reserved
+    w_i16(t, 0)              // metricDataFormat
+    w_u16(t, 2)              // numberOfHMetrics
+    return t
+}
+
+build_maxp := func(glyph: Glyph) returns Str {
+    mut t := Str.with_capacity(32)
+    w_u32(t, 65536)          // version 1.0
+    w_u16(t, 2)              // numGlyphs
+    w_u16(t, glyph.num_points)
+    w_u16(t, glyph.num_contours)
+    w_u16(t, 0)              // maxComponentPoints
+    w_u16(t, 0)              // maxComponentContours
+    w_u16(t, 1)              // maxZones
+    w_u16(t, 0)              // maxTwilightPoints
+    w_u16(t, 0)              // maxStorage
+    w_u16(t, 0)              // maxFunctionDefs
+    w_u16(t, 0)              // maxInstructionDefs
+    w_u16(t, 0)              // maxStackElements
+    w_u16(t, 0)              // maxSizeOfInstructions
+    w_u16(t, 0)              // maxComponentElements
+    w_u16(t, 0)              // maxComponentDepth
+    return t
+}
+
+// Two-entry hmtx: .notdef then the logo glyph.
+build_hmtx := func(advance: I64, glyph: Glyph) returns Str {
+    mut t := Str.with_capacity(16)
+    w_u16(t, advance)
+    w_i16(t, 0)              // .notdef lsb
+    w_u16(t, advance)
+    w_i16(t, glyph.x_min)    // logo lsb
+    return t
+}
+
+// loca (long): 3 U32 entries [0, notdef_end, logo_end].
+build_loca := func(glyph_offset: I64, glyph_len: I64) returns Str {
+    mut t := Str.with_capacity(16)
+    w_u32(t, 0)              // offset of .notdef
+    w_u32(t, glyph_offset)   // offset of glyph 1
+    w_u32(t, glyph_offset.add(glyph_len))  // end
+    return t
+}
+
+// glyf: empty .notdef (0 bytes) followed by the logo glyph.
+build_glyf := func(glyph: Glyph) returns Str {
+    return glyph.bytes.clone()
+}
+
+// cmap with a single format-4 subtable covering one codepoint.
+// codepoint maps to glyph index 1.
+build_cmap := func(codepoint: I64) returns Str {
+    mut t := Str.with_capacity(64)
+    // Header
+    w_u16(t, 0)              // version
+    w_u16(t, 1)              // numTables
+    // Encoding record (Windows / Unicode BMP)
+    w_u16(t, 3)              // platformID
+    w_u16(t, 1)              // encodingID
+    w_u32(t, 12)             // offset to subtable (within cmap)
+    // Subtable format 4 with 2 segments (our range + 0xFFFF sentinel).
+    w_u16(t, 4)              // format
+    w_u16(t, 32)             // length
+    w_u16(t, 0)              // language
+    w_u16(t, 4)              // segCountX2
+    w_u16(t, 4)              // searchRange (2 * largest power of 2 <= segCount)
+    w_u16(t, 1)              // entrySelector (log2 of the above / 2)
+    w_u16(t, 0)              // rangeShift
+    // endCode[]
+    w_u16(t, codepoint)
+    w_u16(t, 65535)
+    w_u16(t, 0)              // reservedPad
+    // startCode[]
+    w_u16(t, codepoint)
+    w_u16(t, 65535)
+    // idDelta[]: codepoint + delta = 1 (two's complement)
+    w_i16(t, 1.sub(codepoint))
+    w_i16(t, 1)              // 0xFFFF + 1 overflows to 0 (glyph .notdef)
+    // idRangeOffset[]
+    w_u16(t, 0)
+    w_u16(t, 0)
+    return t
+}
+
+build_post := func() returns Str {
+    mut t := Str.with_capacity(32)
+    w_u32(t, 196608)         // version 3.0 = 0x00030000
+    w_u32(t, 0)              // italicAngle
+    w_i16(t, 0)              // underlinePosition
+    w_i16(t, 0)              // underlineThickness
+    w_u32(t, 0)              // isFixedPitch
+    w_u32(t, 0)              // minMemType42
+    w_u32(t, 0)              // maxMemType42
+    w_u32(t, 0)              // minMemType1
+    w_u32(t, 0)              // maxMemType1
+    return t
+}
+
+// name table with 6 nameIDs on platform 3 / encoding 1 / language 0x409.
+NameRec := struct {
+    mut name_id := 0
+    mut text := ""
+    mut offset := 0     // offset into string pool
+    mut length := 0     // UTF-16BE byte length
+}
+
+build_name := func() returns Str {
+    recs := Vec.new("NameRec", NameRec.size())
+    recs.push(own NameRec(name_id = 1, text = "TIL Logo"))
+    recs.push(own NameRec(name_id = 2, text = "Regular"))
+    recs.push(own NameRec(name_id = 3, text = "TIL-Logo-1.0"))
+    recs.push(own NameRec(name_id = 4, text = "TIL Logo Regular"))
+    recs.push(own NameRec(name_id = 5, text = "Version 1.0"))
+    recs.push(own NameRec(name_id = 6, text = "TILLogo"))
+
+    // Build string pool and fill offsets/lengths.
+    pool := Str.with_capacity(512)
+    mut i : USize = 0
+    while i.lt(recs.len()) {
+        ref r : NameRec = recs.get(i)
+        enc := utf16be_ascii(r.text)
+        r.offset = pool.len().to_i64()
+        r.length = enc.len().to_i64()
+        pool.push_str(enc)
+        i = i.add(1)
+    }
+
+    mut t := Str.with_capacity(512)
+    // Header
+    w_u16(t, 0)                                // format
+    w_u16(t, recs.len().to_i64())              // count
+    string_offset := 6.add(recs.len().to_i64().mul(12))
+    w_u16(t, string_offset)                    // offset to string data
+    // Records (sorted by platformID,encodingID,languageID,nameID -- they
+    // already are: all share the first three, and we inserted nameIDs in order).
+    i = 0
+    while i.lt(recs.len()) {
+        ref r : NameRec = recs.get(i)
+        w_u16(t, 3)                            // platformID
+        w_u16(t, 1)                            // encodingID
+        w_u16(t, 1033)                         // languageID 0x0409
+        w_u16(t, r.name_id)
+        w_u16(t, r.length)
+        w_u16(t, r.offset)
+        i = i.add(1)
+    }
+    // String pool
+    t.push_str(pool)
+    return t
+}
+
+// --- Full TTF assembly ---
+
+// Padded length of a table (up to next multiple of 4).
+padded_len := func(n: USize) returns USize {
+    m := n.mod(4)
+    if m.eq(0) { return n }
+    return n.add(4).sub(m)
+}
+
+// Build a TTF in memory, given the single logo Glyph and a codepoint.
+// The advance width is the em-square size (fills one em horizontally).
+build_ttf := proc(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
+    advance := units_per_em
+
+    // Tables (unpadded) in alphabetical-tag order.
+    cmap := build_cmap(codepoint)
+    glyf := build_glyf(glyph)
+    head := build_head(glyph, units_per_em)
+    hhea := build_hhea(glyph, advance)
+    hmtx := build_hmtx(advance, glyph)
+    // loca depends on glyf length
+    loca := build_loca(0, glyf.len().to_i64())
+    maxp := build_maxp(glyph)
+    name := build_name()
+    post := build_post()
+
+    tags := Vec.new("Str", Str.size())
+    tags.push(own "cmap")
+    tags.push(own "glyf")
+    tags.push(own "head")
+    tags.push(own "hhea")
+    tags.push(own "hmtx")
+    tags.push(own "loca")
+    tags.push(own "maxp")
+    tags.push(own "name")
+    tags.push(own "post")
+
+    blobs := Vec.new("Str", Str.size())
+    blobs.push(own cmap.clone())
+    blobs.push(own glyf.clone())
+    blobs.push(own head.clone())
+    blobs.push(own hhea.clone())
+    blobs.push(own hmtx.clone())
+    blobs.push(own loca.clone())
+    blobs.push(own maxp.clone())
+    blobs.push(own name.clone())
+    blobs.push(own post.clone())
+
+    num_tables := blobs.len().to_i64()
+    p2 := pow2_le(num_tables)
+    ref p2v : I64 = p2.get(0)
+    ref p2l : I64 = p2.get(1)
+    search_range := p2v.mul(16)
+    entry_selector := p2l.clone()
+    range_shift := num_tables.mul(16).sub(search_range)
+
+    // Compute offsets.
+    table_record_size := 16
+    offset_table_size := 12.add(num_tables.mul(table_record_size))
+    offsets := Vec.new("I64", I64.size())
+    lengths := Vec.new("I64", I64.size())
+    mut cur : I64 = offset_table_size
+    mut bi : USize = 0
+    while bi.lt(blobs.len()) {
+        ref blob : Str = blobs.get(bi)
+        offsets.push(own cur.clone())
+        lengths.push(own blob.len().to_i64())
+        cur = cur.add(padded_len(blob.len()).to_i64())
+        bi = bi.add(1)
+    }
+
+    // Assemble the file: offset table, then padded tables.
+    total : I64 = cur
+    mut file := Str.with_capacity(total.add(64).to_usize())
+    // sfnt header
+    w_u32(file, 65536)                   // scaler 0x00010000 (TrueType)
+    w_u16(file, num_tables)
+    w_u16(file, search_range)
+    w_u16(file, entry_selector)
+    w_u16(file, range_shift)
+
+    // Record table offset within the offset table for each entry, so we can
+    // patch the checksums once the file is laid out.
+    record_checksum_offsets := Vec.new("I64", I64.size())
+    mut ri : USize = 0
+    while ri.lt(tags.len()) {
+        ref tag : Str = tags.get(ri)
+        ref off : I64 = offsets.get(ri)
+        ref ln : I64 = lengths.get(ri)
+        w_tag(file, tag)
+        record_checksum_offsets.push(own file.len().to_i64())
+        w_u32(file, 0)                   // checksum (patched below)
+        w_u32(file, off)
+        w_u32(file, ln)
+        ri = ri.add(1)
+    }
+
+    // Write padded tables and record their absolute offsets.
+    mut wi : USize = 0
+    while wi.lt(blobs.len()) {
+        ref blob : Str = blobs.get(wi)
+        w_bytes(file, blob)
+        // pad
+        rem := blob.len().mod(4)
+        if rem.gt(0) {
+            pad : USize = 4.to_usize().sub(rem)
+            mut pi : USize = 0
+            while pi.lt(pad) { w_u8(file, 0.to_u8()); pi = pi.add(1) }
+        }
+        wi = wi.add(1)
+    }
+
+    // Compute each table's checksum (over its padded region) and patch the
+    // corresponding record in the offset table.
+    mut ti : USize = 0
+    while ti.lt(tags.len()) {
+        ref off : I64 = offsets.get(ti)
+        ref ln : I64 = lengths.get(ti)
+        cs := sum_u32_be(file, off.to_usize(), padded_len(ln.to_usize()))
+        ref rec_off : I64 = record_checksum_offsets.get(ti)
+        patch_u32(file, rec_off.to_usize(), cs)
+        ti = ti.add(1)
+    }
+
+    // Compute the whole-file checksum and patch head.checkSumAdjustment.
+    file_cs := sum_u32_be(file, 0, file.len())
+    mut adj : I64 = 2999027578.sub(file_cs)   // 0xB1B0AFBA - file_cs
+    if adj.lt(0) { adj = adj.add(4294967296) }
+    // head's offset is offsets[2] (cmap, glyf, head is index 2).
+    ref head_off : I64 = offsets.get(2)
+    patch_u32(file, head_off.to_usize().add(8), adj)
+
+    return file.clone()
+}
+
+// Top-level convenience: segments (from svg.til) -> TTF file.
+write_ttf := proc(segments: Vec, codepoint: I64, dest_path: Str) {
+    glyph := build_glyph(segments)
+    ttf := build_ttf(glyph, codepoint, EM_SIZE)
+    writefile(dest_path, ttf)
+}

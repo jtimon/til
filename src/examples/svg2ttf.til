@@ -1,0 +1,36 @@
+mode cli
+
+// svg2ttf: turn a monochrome SVG (like img/logo-transparent.svg) into a
+// TrueType font with a single custom glyph mapped to the ASCII letter 'T'.
+//
+// Usage: svg2ttf <src.svg> <dest.ttf>
+//
+// Constraints (panics otherwise):
+//   * At most 2 colours in the SVG (transparent counts as one).
+//   * Expects the exact viewBox/transform used by potrace/ImageMagick SVG
+//     output for the TIL logo. See src/lib/svg.til for the full grammar.
+
+import("../lib/svg.til")
+import("../lib/fonts.til")
+
+// Map the glyph to the ASCII codepoint for 'T' (decimal 84).
+LOGO_CODEPOINT := 84
+
+main := proc(src: Str, dest: Str) {
+    svg := readfile(src)
+
+    check_color_count(svg)
+    check_viewbox(svg)
+    check_group_transform(svg)
+
+    segments := Vec.new("Segment", Segment.size())
+    paths := extract_paths(svg)
+    mut i : USize = 0
+    while i.lt(paths.len()) {
+        ref d : Str = paths.get(i)
+        parse_path_d(d, segments)
+        i = i.add(1)
+    }
+
+    write_ttf(segments, LOGO_CODEPOINT, dest)
+}
