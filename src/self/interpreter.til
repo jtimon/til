@@ -802,9 +802,9 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         if callee_expr.til_type.eq(TilType.FuncPtr) {
             ref fp_fdef : FunctionDef = get_payload(func_def.node_type)
             if fp_fdef.func_type.is(FuncType.ExtFunc).or(fp_fdef.func_type.is(FuncType.ExtProc)) {
-                for ki in 0..ns_fields.count {
-                    ref qn : Str = ptr_add(ns_fields.key_data, ki.mul(ns_fields.key_size))
-                    ref nsv : Value = ptr_add(ns_fields.val_data, ki.mul(ns_fields.val_size))
+                for ki in 0..ns_fields.len() {
+                    ref qn : Str = Map.key_ptr(ns_fields, ki)
+                    ref nsv : Value = Map.val_ptr(ns_fields, ki)
                     if nsv.is(Value.Func) {
                         ref nsv_fptr : Dynamic = get_payload(nsv)
                         ref nsv_fdef : Expr = deref(nsv_fptr)
@@ -1184,8 +1184,8 @@ scope_set_borrowed := proc(mut s: Scope, name: Str, cell: Cell) {
     s.bindings.set(own k, own v)
 }
 scope_free := proc(own s: Scope) {
-    for i in 0..s.bindings.count {
-        ref b : Binding = ptr_add(s.bindings.val_data, i.to_u64().mul(s.bindings.val_size.to_u64()))
+    for i in 0..s.bindings.len() {
+        ref b : Binding = Map.val_ptr(s.bindings, i)
         if b.cell_is_local {
             if b.cell.val.is(Value.Enum) {
                 ref ei : EnumInstance = get_payload(b.cell.val)

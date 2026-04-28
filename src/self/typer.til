@@ -1366,8 +1366,8 @@ check_unused_params := proc(func_scope: TypeScope, expr: Expr) {
 }
 
 check_unused_locals := proc(scope: TypeScope, path: Str) {
-    for bi in 0..scope.bindings.count {
-        ref b : TypeBinding = ptr_add(scope.bindings.val_data, bi.mul(scope.bindings.val_size))
+    for bi in 0..scope.bindings.len() {
+        ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
@@ -2518,8 +2518,8 @@ reregister_scope_defs := proc(body: Expr, scope: TypeScope) {
                     rstmt.child(0).node_type.is(NodeType.StructDef).or(rstmt.child(0).node_type.is(NodeType.EnumDef))) {
                         ref old_sd : Expr = rb.struct_def
                         rb.struct_def = rstmt.child(0)
-                        for bi in 0..scope.bindings.count {
-                            ref mut b : TypeBinding = ptr_add(scope.bindings.val_data, bi.mul(scope.bindings.val_size))
+                        for bi in 0..scope.bindings.len() {
+                            ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
                             if ptr_eq(b, rb).not().and(ptr_eq(b.struct_def, old_sd)) {
                                 b.struct_def = rstmt.child(0)
                             }
@@ -2528,8 +2528,8 @@ reregister_scope_defs := proc(body: Expr, scope: TypeScope) {
                 if is_null(rb.func_def).not().and(rstmt.child(0).node_type.is(NodeType.FuncDef)) {
                     ref old_fd : Expr = rb.func_def
                     rb.func_def = rstmt.child(0)
-                    for bi in 0..scope.bindings.count {
-                        ref mut b : TypeBinding = ptr_add(scope.bindings.val_data, bi.mul(scope.bindings.val_size))
+                    for bi in 0..scope.bindings.len() {
+                        ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
                         if ptr_eq(b, rb).not().and(ptr_eq(b.func_def, old_fd)) {
                             b.func_def = rstmt.child(0)
                         }
@@ -2538,8 +2538,8 @@ reregister_scope_defs := proc(body: Expr, scope: TypeScope) {
                 if is_null(rb.alias_target).not().and(rstmt.child(0).node_type.is(NodeType.Ident)) {
                     ref old_at : Str = rb.alias_target
                     rb.alias_target = get_payload(rstmt.child(0).node_type)
-                    for bi in 0..scope.bindings.count {
-                        ref mut b : TypeBinding = ptr_add(scope.bindings.val_data, bi.mul(scope.bindings.val_size))
+                    for bi in 0..scope.bindings.len() {
+                        ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
                         if ptr_eq(b, rb).not().and(ptr_eq(b.alias_target, old_at)) {
                             b.alias_target = get_payload(rstmt.child(0).node_type)
                         }
@@ -4111,8 +4111,8 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow B
 }
 
 collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
-    for i in 0..scope.bindings.count {
-        ref b : TypeBinding = ptr_add(scope.bindings.val_data, i.mul(scope.bindings.val_size))
+    for i in 0..scope.bindings.len() {
+        ref b : TypeBinding = Map.val_ptr(scope.bindings, i)
         if b.is_param.and(b.own_type.eq(OwnType.Own).not()) { continue }
         if is_null(b.struct_def).not() { continue }
         if is_null(b.func_def).not() { continue }

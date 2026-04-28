@@ -1223,8 +1223,8 @@ ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str
 ffi_cleanup := proc() {
     ffi_close_user_so()
     if ffi_loaded {
-        for i in 0..ffi_map.count {
-            ref fe : FFIEntry = ptr_add(ffi_map.val_data, i.mul(ffi_map.val_size))
+        for i in 0..ffi_map.len() {
+            ref fe : FFIEntry = Map.val_ptr(ffi_map, i)
             free(own fe.param_shallows)
             free(own fe.arg_types)
             free(own fe.cif)

@@ -45,6 +45,22 @@ namespace:
 
     len := func(self: Map) returns USize { return self.count }
 
+    // Get a ref to the key slot at index i.
+    key_ptr := func(self: Map, i: USize) returns ref Dynamic {
+        if i.gte(self.count) {
+            panic(__LOC__, "Map.key_ptr: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+        }
+        return ptr_add(self.key_data, i.mul(self.key_size))
+    }
+
+    // Get a ref to the value slot at index i.
+    val_ptr := func(self: Map, i: USize) returns ref Dynamic {
+        if i.gte(self.count) {
+            panic(__LOC__, "Map.val_ptr: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+        }
+        return ptr_add(self.val_data, i.mul(self.val_size))
+    }
+
     has := func(self: Map, key: Dynamic) returns shallow Bool {
         mut lo : USize = 0
         mut hi := self.count
