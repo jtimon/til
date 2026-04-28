@@ -183,7 +183,17 @@ parse_int := proc(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
 // --- Path data parser ---
 
 // Convert an SVG path `d` string into a Vec<Segment> in em-space.
-// Applies the known transform: em_x = svg_x, em_y = EM_SIZE - svg_y.
+//
+// Coordinate mapping:
+//
+//   The SVG places paths inside a <g> with
+//     transform="translate(0,1024) scale(0.1,-0.1)"
+//   so the path's raw Y is *already* Y-up: high path_y = visually-top,
+//   low path_y = visually-bottom (the scale(-0.1) flips SVG's Y-down
+//   convention back to Y-up).  TTF em-space is also Y-up.  So we don't
+//   need to flip Y again -- em_y = path_y.  X simply scales 1:1, since
+//   the path range (~0..10240) matches our chosen em size of 10240.
+//
 // Cubic `c`/`C` commands are split into two quadratics via the
 // standard midpoint heuristic:
 //   q1 = (3*P1 - P0)/2    first control point
@@ -196,7 +206,6 @@ parse_path_d := proc(d: Str, mut segments: Vec) {
     mut start_x : I64 = 0
     mut start_y : I64 = 0
     mut last_cmd : U8 = 0.to_u8()
-    mem := EM_SIZE
 
     while i.lt(d.len()) {
         i = skip_ws(d, i)
@@ -225,7 +234,7 @@ parse_path_d := proc(d: Str, mut segments: Vec) {
             start_x = cur_x
             start_y = cur_y
             segments.push(own Segment(kind = SegKind.Move,
-                                      x = cur_x, y = mem.sub(cur_y)))
+                                      x = cur_x, y = cur_y))
             if cmd.eq('M') { last_cmd = 'L' } else { last_cmd = 'l' }
         } else if cmd.eq('L').or(cmd.eq('l')) {
             x := parse_int(d, i, i)
@@ -238,7 +247,7 @@ parse_path_d := proc(d: Str, mut segments: Vec) {
                 cur_y = y
             }
             segments.push(own Segment(kind = SegKind.Line,
-                                      x = cur_x, y = mem.sub(cur_y)))
+                                      x = cur_x, y = cur_y))
             last_cmd = cmd
         } else if cmd.eq('C').or(cmd.eq('c')) {
             x1 := parse_int(d, i, i)
@@ -264,11 +273,11 @@ parse_path_d := proc(d: Str, mut segments: Vec) {
             mx := q1x.add(q2x).div(2)
             my := q1y.add(q2y).div(2)
             segments.push(own Segment(kind = SegKind.Quad,
-                                      cx = q1x, cy = mem.sub(q1y),
-                                      x  = mx,  y  = mem.sub(my)))
+                                      cx = q1x, cy = q1y,
+                                      x  = mx,  y  = my))
             segments.push(own Segment(kind = SegKind.Quad,
-                                      cx = q2x, cy = mem.sub(q2y),
-                                      x  = p3x, y  = mem.sub(p3y)))
+                                      cx = q2x, cy = q2y,
+                                      x  = p3x, y  = p3y))
             cur_x = p3x
             cur_y = p3y
             last_cmd = cmd
