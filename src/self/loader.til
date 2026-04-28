@@ -70,6 +70,12 @@ dir_of := func(abs: Str) returns Str {
 
 // --- Import resolution ---
 
+ProgramUnit := struct {
+    mut path := ""
+    mut mode := Mode()
+    own mut ast := Expr.new(NodeType.Body, 0, 0, "")
+}
+
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
 // Matching nodes are removed from the body.
 extract_imports := func(body: Expr) returns Vec {
@@ -92,7 +98,7 @@ extract_imports := func(body: Expr) returns Vec {
 // Recursively resolve imports.
 resolve_imports := proc(import_paths: Vec, base_dir: Str,
     mut resolved_set: Set, mut stack: Vec,
-    mut merged: Vec, lib_dir: Str,
+    mut merged: Vec, mut units: Vec, lib_dir: Str,
     mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
         for import_path : Str in import_paths {
             // Try relative to importing file's directory, then lib_dir
@@ -132,12 +138,17 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 
             // Recurse for sub-imports
             if sub_imports.len().gt(0) {
-                err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir,
+                err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, units, lib_dir,
                     ctx, default_mode, cwd)
                 if err.gt(0) {
                     return err
                 }
             }
+
+            // Record this file as a per-file unit (dependency-first order).
+            mut unit := ProgramUnit(path = disp.clone(), mode = sub_mode_def.clone())
+            unit.ast.take_children(sub_ast.clone())
+            units.push(own unit)
 
             // Append imported file's declarations
             for ch : Expr in sub_ast.children {
@@ -148,12 +159,6 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
     }
 
 // --- LoadedProgram ---
-
-ProgramUnit := struct {
-    mut path := ""
-    mut mode := Mode()
-    own mut ast := Expr.new(NodeType.Body, 0, 0, "")
-}
 
 LoadedProgram := struct {
     own mut core_ast := Expr.new(NodeType.Body, 0, 0, "")
@@ -255,15 +260,17 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 
     // Resolve core imports
     core_import_decls := Vec.new("Expr", Expr.size())
+    core_units := Vec.new("ProgramUnit", ProgramUnit.size())
     core_imports := extract_imports(core_ast)
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
-            core_import_decls, "", ctx, "lib", cwd)
+            core_import_decls, core_units, "", ctx, "lib", cwd)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve core imports")
         }
     }
+
 
     // Load user file
     source := readfile(path)
@@ -281,10 +288,11 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 
     // Resolve user imports (using same resolved set -- skips files already loaded by core)
     import_decls := Vec.new("Expr", Expr.size())
+    units := Vec.new("ProgramUnit", ProgramUnit.size())
     if imports.len().gt(0) {
         lib_dir := bin_dir.concat("/src/lib")
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
-            import_decls, lib_dir, ctx, "", cwd)
+            import_decls, units, lib_dir, ctx, "", cwd)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve imports")
         }
@@ -296,6 +304,11 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         core_imports_expr.children = core_import_decls
         core_ast.take_children(core_imports_expr)
     }
+
+    // Core entrypoint unit (after its imports).
+    mut core_unit := ProgramUnit(path = core_disp.clone(), mode = core_mode.clone())
+    core_unit.ast.take_children(core_ast.clone())
+    core_units.push(own core_unit)
 
     // Build user program: mode imports, then user imports, then parsed user code
     mut ast := Expr.new(NodeType.Body, 0, 0, "")
@@ -309,13 +322,28 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         mode_mode = normalize_mode_name(mode_mode)
         ref mode_mode_def : Mode = require_mode(mode_disp, mode_mode)
         context_register_path_mode(ctx, mode_disp, mode_mode_def)
+
+        // Mode auto-import unit.
+        mut mode_unit := ProgramUnit(path = mode_disp.clone(), mode = mode_mode_def.clone())
+        mode_unit.ast.take_children(mode_ast.clone())
+        units.push(own mode_unit)
+
         ast.take_children(mode_ast)
     }
     ast.children.append(own import_decls)
+
+    // User entrypoint unit.
+    mut user_unit := ProgramUnit(path = path.clone(), mode = cur_mode.clone())
+    user_unit.ast.take_children(user_ast.clone())
+    units.push(own user_unit)
+
     ast.take_children(user_ast)
 
     lp.core_ast = core_ast
     lp.ast = ast
+
+    lp.core_units = core_units
+    lp.units = units
     lp.cur_mode = cur_mode.clone()
     lp.ctx = ctx
     lp.skip_core = skip_core
