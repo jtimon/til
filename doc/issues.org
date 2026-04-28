@@ -1,10 +1,54 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 160
+# NEXT_ISSUE: 162
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/16] Pre
+** OPEN #161 ref mut accepts a non-mut ref source (mutability laundering)
+   The typer currently allows binding a `ref mut` to a plain `ref`
+   source without complaint:
+
+       for x : T in coll {
+           ref mut y : T = x   // x is `ref T`, not `ref mut T`
+           y.field = ...       // accepted; mutates through x
+       }
+
+   This silently launders away the const-ness of `x`. The whole point
+   of `ref` vs `ref mut` is to track which references can write. The
+   typer should reject `ref mut <name> : T = <expr>` when `<expr>` is
+   typed as `ref T` (immutable ref) -- only `ref mut T` and owning
+   values should be assignable to a `ref mut` binding.
+
+   Several call sites in src/self/typer.til use this pattern as a
+   workaround for the lack of `for mut x : T in coll` (see #160). Once
+   those are converted to direct `for x : T in coll { x.field = ... }`
+   (which already works -- field mutation through a plain ref iter
+   persists), the laundering uses go away and we can tighten the typer.
+
+** OPEN #160 for-in collection: support `for mut x : T in coll` and `for ref mut x : T in coll`
+   The for-in collection loop currently only accepts a plain identifier
+   for the iteration variable: `for x : T in coll { ... }`.
+
+   Field mutation through that ref works (`x.field = ...` persists into
+   the underlying element), but reassigning the whole `x` does not, and
+   anything that wants an explicit `ref mut` binding must first alias
+   the iter variable:
+
+       for d_x : T in coll {
+           ref mut x : T = d_x
+           ...
+       }
+
+   The parser rejects both `for mut x : T in coll` and
+   `for ref mut x : T in coll` with `expected 'identifier', found 'mut'`
+   / `... found 'ref'`.
+
+   Add support so we can write `for mut x : T in coll` directly and
+   drop the `ref mut` alias workaround. Several call sites in
+   src/self/typer.til (e.g. typer.til:1156, 1203, 1237) already use the
+   alias pattern and would simplify under this change.
+
 ** OPEN #158 One pass per phase across the whole pipeline
    Each phase listed in doc/pipeline.org (lex, parse,
    init_declarations, type_check, precomp, scavenge, interpret /
