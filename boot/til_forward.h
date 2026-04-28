@@ -173,6 +173,7 @@ typedef enum {
     CtorArg_TAG_Filled
 } CtorArg_tag;
 typedef struct CtorArg CtorArg;
+typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef enum {
     Lang_TAG_C,
@@ -490,6 +491,13 @@ struct CtorArg {
     } data;
 };
 
+typedef struct ProgramUnit {
+    Str path;
+    Mode mode;
+    Expr *ast;
+} ProgramUnit;
+
+
 struct Lang {
     Lang_tag tag;
 };
@@ -644,6 +652,8 @@ typedef struct Context {
 typedef struct LoadedProgram {
     Expr *core_ast;
     Expr *ast;
+    Vec *core_units;
+    Vec *units;
     Mode cur_mode;
     Context ctx;
     Bool skip_core;
@@ -1215,6 +1225,9 @@ Str * forward_header_path(Str * path);
 Str * dir_of(Str * abs);
 Vec * extract_imports(Expr * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * merged, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
+ProgramUnit * ProgramUnit_clone(ProgramUnit * self);
+void ProgramUnit_delete(ProgramUnit * self, Bool * call_free);
+U32 ProgramUnit_size(void);
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 void LoadedProgram_delete(LoadedProgram * self, Bool * call_free);
 U32 LoadedProgram_size(void);

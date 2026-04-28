@@ -149,9 +149,21 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 
 // --- LoadedProgram ---
 
+ProgramUnit := struct {
+    mut path := ""
+    mut mode := Mode()
+    own mut ast := Expr.new(NodeType.Body, 0, 0, "")
+}
+
 LoadedProgram := struct {
     own mut core_ast := Expr.new(NodeType.Body, 0, 0, "")
     own mut ast := Expr.new(NodeType.Body, 0, 0, "")
+
+    // Per-file AST units (rstil-style). Currently unused; populated in later
+    // commits as we switch the pipeline away from merged ASTs.
+    own mut core_units := Vec.new("ProgramUnit", ProgramUnit.size())
+    own mut units := Vec.new("ProgramUnit", ProgramUnit.size())
+
     mut cur_mode := Mode()
     mut ctx := Context()
     mut skip_core := false
