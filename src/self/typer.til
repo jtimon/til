@@ -2598,6 +2598,31 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
     insert_free_calls(body, scope, owns_scope)
 }
 
+infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
+    body.til_type = TilType.None
+    mut i := 0.to_u32()
+    while i.lt(body.children.len().to_i64().to_u32()) {
+        infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
+        i.inc()
+    }
+    if owns_scope.neq(0) { desugar_set_literals(body, scope) }
+    if owns_scope.neq(0) { desugar_map_literals(body, scope) }
+    if owns_scope.neq(0) { desugar_variadic_calls(body, scope) }
+    if owns_scope.neq(0) { desugar_kwargs_calls(body, scope) }
+    if owns_scope.neq(0) { hoist_fcall_args(body, scope) }
+    insert_field_deletes(body, scope)
+    insert_free_calls(body, scope, owns_scope)
+}
+
+// Type-check a single file unit. Caller must have registered a mode for path.
+type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
+    errors = 0.to_i32()
+    context_enter_file(ctx, path)
+    // For per-file units, we do not switch modes per statement.
+    infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
+    return errors
+}
+
 infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     ref mut rhs : Expr = stmt.child(0)
