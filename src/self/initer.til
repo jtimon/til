@@ -106,6 +106,17 @@ Context := struct {
     mut mode := Mode()
     mut path := ""
     mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
+
+    // Import tracking (rstil-style). When we switch phases to operate on per-file
+    // AST units, these tables let init/typer/precomp/etc. look up an AST+mode by
+    // path and avoid re-processing via per-phase done sets.
+    mut imported_asts := Map.new("Str", Str.size(), "Expr", Expr.size())
+    mut imported_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
+    mut imports_init_done := Set.new("Str", Str.size())
+    mut imports_typer_done := Set.new("Str", Str.size())
+    mut imports_precomp_done := Set.new("Str", Str.size())
+    mut imports_eval_done := Set.new("Str", Str.size())
+
     mut scope := TypeScope()
     mut is_repl := false
 }

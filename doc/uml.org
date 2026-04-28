@@ -217,6 +217,12 @@
 *** mut mode := Mode()
 *** mut path := ""
 *** mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
+*** mut imported_asts := Map.new("Str", Str.size(), "Expr", Expr.size())
+*** mut imported_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
+*** mut imports_init_done := Set.new("Str", Str.size())
+*** mut imports_typer_done := Set.new("Str", Str.size())
+*** mut imports_precomp_done := Set.new("Str", Str.size())
+*** mut imports_eval_done := Set.new("Str", Str.size())
 *** mut scope := TypeScope()
 *** mut is_repl := false
 * typer

@@ -346,6 +346,23 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     lp.units = units
     lp.cur_mode = cur_mode.clone()
     lp.ctx = ctx
+
+    // Seed rstil-style import tables from resolved units.
+    // Note: we store cloned Expr ASTs so later phase passes can safely mutate
+    // their working ASTs without aliasing the unit list.
+    if skip_core.not() {
+        for i in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(i)
+            lp.ctx.imported_asts.set(own u.path.clone(), own u.ast.clone())
+            lp.ctx.imported_modes.set(own u.path.clone(), own u.mode.clone())
+        }
+    }
+    for i in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(i)
+        lp.ctx.imported_asts.set(own u.path.clone(), own u.ast.clone())
+        lp.ctx.imported_modes.set(own u.path.clone(), own u.mode.clone())
+    }
+
     lp.skip_core = skip_core
     lp.mode_str = mode_str
 

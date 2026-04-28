@@ -645,6 +645,12 @@ typedef struct Context {
     Mode mode;
     Str path;
     Map path_modes;
+    Map imported_asts;
+    Map imported_modes;
+    Set imports_init_done;
+    Set imports_typer_done;
+    Set imports_precomp_done;
+    Set imports_eval_done;
     TypeScope scope;
     Bool is_repl;
 } Context;
