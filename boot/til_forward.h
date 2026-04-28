@@ -1049,6 +1049,7 @@ void Mode_delete(Mode * self, Bool * call_free);
 U32 Mode_size(void);
 void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
+void context_enter_file(Context * ctx, Str * path);
 Mode * mode_resolve(Str * name);
 Bool fa_is_ns(Expr * e, TypeScope * scope);
 OwnType fa_own_type(Expr * e, TypeScope * scope);

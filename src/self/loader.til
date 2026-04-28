@@ -532,10 +532,16 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     }
     init_declarations(lp.ast, lp.ctx.scope)
 
+    // Ensure ctx.path is set to the user entrypoint by default.
+    if lp.units.len().gt(0) {
+        ref last : ProgramUnit = lp.units.get(lp.units.len().sub(1))
+        context_enter_file(lp.ctx, last.path)
+    }
+
     // Type checking (core first, then user)
     mut type_errors : I32 = 0
     if lp.skip_core.not() {
-        type_errors = type_check(lp.core_ast, lp.ctx.scope, lp.ctx)
+        type_errors = type_errors.add(type_check(lp.core_ast, lp.ctx.scope, lp.ctx))
     }
     type_errors = type_errors.add(type_check(lp.ast, lp.ctx.scope, lp.ctx))
     if type_errors.gt(0) {
