@@ -24,6 +24,12 @@ context_set_mode_from_path := proc(mut ctx: Context, path: Str) {
     ctx.mode = path_mode.clone()
 }
 
+// Set ctx.path and ctx.mode for work in a file.
+context_enter_file := proc(mut ctx: Context, path: Str) {
+    ctx.path = path.clone()
+    context_set_mode_from_path(ctx, path)
+}
+
 // Core mode registry — user-defined modes (#63) will add to this via -M flag
 core_modes := {
     "script": Mode(decls_only = false),

@@ -219,7 +219,7 @@
   <text x="1006" y="198" class="line">mut fn_sig_decls := Vec.new(&quot;Expr&quot;, Expr.size())</text>
   <text x="1006" y="216" class="line">mut lambda_decls := Vec.new(&quot;Expr&quot;, Expr.size())</text>
   <text x="1006" y="234" class="line">mut pending_doc := &quot;&quot;</text>
-  <rect x="1458" y="24" width="684" height="734" rx="14" ry="14" class="panel"/>
+  <rect x="1458" y="24" width="684" height="752" rx="14" ry="14" class="panel"/>
   <text x="1478" y="62" class="panel-label">initer</text>
   <rect x="1478" y="88" width="292" height="316" rx="10" ry="10" class="box"/>
   <text x="1492" y="126" class="title">TypeBinding: StructDef</text>
@@ -246,12 +246,13 @@
   <text x="1492" y="560" class="title">TypeScope: StructDef</text>
   <text x="1492" y="578" class="line">mut bindings := Map.new(&quot;Str&quot;, Str.size(), &quot;TypeBinding&quot;, TypeBinding.size())</text>
   <text x="1492" y="596" class="line">ref mut parent : TypeScope = NULL</text>
-  <rect x="1478" y="622" width="548" height="118" rx="10" ry="10" class="box"/>
+  <rect x="1478" y="622" width="548" height="136" rx="10" ry="10" class="box"/>
   <text x="1492" y="660" class="title">Context: StructDef</text>
   <text x="1492" y="678" class="line">mut mode := Mode()</text>
-  <text x="1492" y="696" class="line">mut path_modes := Map.new(&quot;Str&quot;, Str.size(), &quot;Mode&quot;, Mode.size())</text>
-  <text x="1492" y="714" class="line">mut scope := TypeScope()</text>
-  <text x="1492" y="732" class="line">mut is_repl := false</text>
+  <text x="1492" y="696" class="line">mut path := &quot;&quot;</text>
+  <text x="1492" y="714" class="line">mut path_modes := Map.new(&quot;Str&quot;, Str.size(), &quot;Mode&quot;, Mode.size())</text>
+  <text x="1492" y="732" class="line">mut scope := TypeScope()</text>
+  <text x="1492" y="750" class="line">mut is_repl := false</text>
   <rect x="2176" y="24" width="356" height="354" rx="14" ry="14" class="panel"/>
   <text x="2196" y="62" class="panel-label">typer</text>
   <rect x="2196" y="88" width="316" height="172" rx="10" ry="10" class="box"/>

@@ -643,6 +643,7 @@ typedef struct CliArgs {
 
 typedef struct Context {
     Mode mode;
+    Str path;
     Map path_modes;
     TypeScope scope;
     Bool is_repl;
