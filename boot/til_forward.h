@@ -165,6 +165,7 @@ typedef enum {
 } ScopeFind_tag;
 typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
+typedef struct ImportUnit ImportUnit;
 typedef struct Context Context;
 typedef struct Mode Mode;
 typedef struct LocalInfo LocalInfo;
@@ -641,12 +642,17 @@ typedef struct CliArgs {
 } CliArgs;
 
 
+typedef struct ImportUnit {
+    Mode mode;
+    Expr *ast;
+} ImportUnit;
+
+
 typedef struct Context {
     Mode mode;
     Str path;
     Map path_modes;
-    Map imported_asts;
-    Map imported_modes;
+    Map imported;
     Set imports_init_done;
     Set imports_typer_done;
     Set imports_precomp_done;
@@ -1015,6 +1021,9 @@ void TypeScope_set(TypeScope * self, Str * name, TilType * type, FuncType func_t
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U32 TypeScope_size(void);
+ImportUnit * ImportUnit_clone(ImportUnit * self);
+void ImportUnit_delete(ImportUnit * self, Bool * call_free);
+U32 ImportUnit_size(void);
 Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool * call_free);
 U32 Context_size(void);

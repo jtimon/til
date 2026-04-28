@@ -213,12 +213,14 @@
 ** TypeScope: StructDef
 *** mut bindings := Map.new("Str", Str.size(), "TypeBinding", TypeBinding.size())
 *** ref mut parent : TypeScope = NULL
+** ImportUnit: StructDef
+*** mut mode := Mode()
+*** own mut ast := Expr.new(NodeType.Body, 0, 0, "")
 ** Context: StructDef
 *** mut mode := Mode()
 *** mut path := ""
 *** mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
-*** mut imported_asts := Map.new("Str", Str.size(), "Expr", Expr.size())
-*** mut imported_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
+*** mut imported := Map.new("Str", Str.size(), "ImportUnit", ImportUnit.size())
 *** mut imports_init_done := Set.new("Str", Str.size())
 *** mut imports_typer_done := Set.new("Str", Str.size())
 *** mut imports_precomp_done := Set.new("Str", Str.size())

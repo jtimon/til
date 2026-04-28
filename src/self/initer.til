@@ -102,16 +102,18 @@ namespace:
         }
 }
 
+ImportUnit := struct {
+    mut mode := Mode()
+    own mut ast := Expr.new(NodeType.Body, 0, 0, "")
+}
+
 Context := struct {
     mut mode := Mode()
     mut path := ""
     mut path_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
 
-    // Import tracking (rstil-style). When we switch phases to operate on per-file
-    // AST units, these tables let init/typer/precomp/etc. look up an AST+mode by
-    // path and avoid re-processing via per-phase done sets.
-    mut imported_asts := Map.new("Str", Str.size(), "Expr", Expr.size())
-    mut imported_modes := Map.new("Str", Str.size(), "Mode", Mode.size())
+    // Import tracking (rstil-style). Map path -> (mode, ast).
+    mut imported := Map.new("Str", Str.size(), "ImportUnit", ImportUnit.size())
     mut imports_init_done := Set.new("Str", Str.size())
     mut imports_typer_done := Set.new("Str", Str.size())
     mut imports_precomp_done := Set.new("Str", Str.size())
