@@ -1614,11 +1614,14 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         true_lit.til_type = TilType.Bool
         stmt.children.set(0, own true_lit)
 
+        mut old := Vec.new("Expr", Expr.size())
+        old.move_from(body.children)
+
         mut new_ch := Vec.new("Expr", Expr.size())
         new_ch.push(own decl)
         new_ch.push(own if_node)
-        for e_j : Expr in body.children {
-            new_ch.push(own e_j.clone())
+        for j in 0..old.len() {
+            new_ch.push_take(old, j)
         }
         body.children.move_from(new_ch)
     }
@@ -2001,10 +2004,13 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), own_type = OwnType.Ref)), sw_line, sw_col, sw_path)
                                         bind_decl.add_child(own get_call)
 
+                                        mut old := Vec.new("Expr", Expr.size())
+                                        old.move_from(case_body.children)
+
                                         mut new_ch := Vec.new("Expr", Expr.size())
                                         new_ch.push(own bind_decl)
-                                        for e_bi : Expr in case_body.children {
-                                            new_ch.push(own e_bi.clone())
+                                        for bi in 0..old.len() {
+                                            new_ch.push_take(old, bi)
                                         }
                                     case_body.children.move_from(new_ch)
                                         has_condition = true
@@ -3124,23 +3130,23 @@ build_variadic_array_set := proc(fcall: Expr, scope: TypeScope, va_name: Str, sh
     return set_call
 }
 
-desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) {
+// Returns true if the call constructed replacement stmts and pushed them
+// to new_ch; false if the original stmt should be kept (caller pushes it).
+desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool {
     ref set_lit : Expr = stmt.child(0)
     ref stmt_decl : Declaration = get_payload(stmt.data)
     ref var_name : Str = stmt_decl.name
 
     if set_lit.children.len().eq(0) {
         type_error(set_lit, "set literal must have at least one element")
-        new_ch.push(own stmt.clone())
-        return
+        return false
     }
 
     ref first : Expr = set_lit.child(0)
     elem_type := type_to_name(first.til_type)
     if elem_type.len().eq(0) {
         type_error(first, "set literal: cannot determine element type")
-        new_ch.push(own stmt.clone())
-        return
+        return false
     }
 
     if type_has_cmp(scope, elem_type).not() {
@@ -3183,9 +3189,12 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         add_call.add_child(own val)
         new_ch.push(own add_call)
     }
+    return true
 }
 
-desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) {
+// Returns true if the call constructed replacement stmts and pushed them
+// to new_ch; false if the original stmt should be kept (caller pushes it).
+desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool {
     ref map_lit : Expr = stmt.child(0)
     ref stmt_decl : Declaration = get_payload(stmt.data)
     ref var_name : Str = stmt_decl.name
@@ -3193,13 +3202,11 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 
     if map_lit.children.len().eq(0) {
         type_error(map_lit, "map literal must have at least one entry")
-        new_ch.push(own stmt.clone())
-        return
+        return false
     }
     if map_lit.children.len().mod(2).eq(0).not() {
         type_error(map_lit, "map literal has mismatched key/value pairs")
-        new_ch.push(own stmt.clone())
-        return
+        return false
     }
 
     ref first_key : Expr = map_lit.child(0)
@@ -3209,13 +3216,11 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 
     if key_type.len().eq(0) {
         type_error(first_key, "map literal: cannot determine key type")
-        new_ch.push(own stmt.clone())
-        return
+        return false
     }
     if val_type.len().eq(0) {
         type_error(first_val, "map literal: cannot determine value type")
-        new_ch.push(own stmt.clone())
-        return
+        return false
     }
 
     if type_has_cmp(scope, key_type).not() {
@@ -3274,6 +3279,7 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         set_call.add_child(own mval)
         new_ch.push(own set_call)
     }
+    return true
 }
 
 desugar_set_literals := proc(mut body: Expr, mut scope: TypeScope) {
@@ -3289,12 +3295,18 @@ desugar_set_literals := proc(mut body: Expr, mut scope: TypeScope) {
     }
     if has_set_lit.not() { return }
 
+    mut old := Vec.new("Expr", Expr.size())
+    old.move_from(body.children)
+
     mut new_ch := Vec.new("Expr", Expr.size())
-    for stmt : Expr in body.children {
+    for i in 0..old.len() {
+        ref stmt : Expr = old.get(i)
         if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.child(0).data.is(NodeType.SetLit)) {
-            desugar_set_literal_decl(stmt, new_ch, scope)
+            if desugar_set_literal_decl(stmt, new_ch, scope).not() {
+                new_ch.push_take(old, i)
+            }
         } else {
-            new_ch.push(own stmt.clone())
+            new_ch.push_take(old, i)
         }
     }
     body.children.move_from(new_ch)
@@ -3313,12 +3325,18 @@ desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
     }
     if has_map_lit.not() { return }
 
+    mut old := Vec.new("Expr", Expr.size())
+    old.move_from(body.children)
+
     mut new_ch := Vec.new("Expr", Expr.size())
-    for stmt : Expr in body.children {
+    for i in 0..old.len() {
+        ref stmt : Expr = old.get(i)
         if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.child(0).data.is(NodeType.MapLit)) {
-            desugar_map_literal_decl(stmt, new_ch, scope)
+            if desugar_map_literal_decl(stmt, new_ch, scope).not() {
+                new_ch.push_take(old, i)
+            }
         } else {
-            new_ch.push(own stmt.clone())
+            new_ch.push_take(old, i)
         }
     }
     body.children.move_from(new_ch)
@@ -3527,10 +3545,13 @@ hoist_stmt_fcall := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
 }
 
 hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
+    mut old := Vec.new("Expr", Expr.size())
+    old.move_from(body.children)
+
     mut new_ch := Vec.new("Expr", Expr.size())
-    for stmt_in_body : Expr in body.children {
-        if is_compile_directive(stmt_in_body) { continue }
-        mut stmt := stmt_in_body.clone()
+    for i in 0..old.len() {
+        ref stmt : Expr = old.get(i)
+        if is_compile_directive(stmt) { continue }
         mut hoisted := Vec.new("Expr", Expr.size())
 
         switch stmt.data {
@@ -3552,7 +3573,7 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
         }
 
         new_ch.append(own hoisted)
-        new_ch.push(own stmt)
+        new_ch.push_take(old, i)
     }
 
     body.children.move_from(new_ch)
@@ -3574,8 +3595,12 @@ insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
     }
     if needs_delete.not() { return }
 
+    mut old := Vec.new("Expr", Expr.size())
+    old.move_from(body.children)
+
     mut new_ch := Vec.new("Expr", Expr.size())
-    for stmt : Expr in body.children {
+    for i in 0..old.len() {
+        ref stmt : Expr = old.get(i)
         if is_compile_directive(stmt) { continue }
         if stmt.data.is(NodeType.FieldAssign) {
             fot := fa_own_type(stmt, scope)
@@ -3587,7 +3612,7 @@ insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
                 }
             }
         }
-        new_ch.push(own stmt.clone())
+        new_ch.push_take(old, i)
     }
     body.children.move_from(new_ch)
     reregister_scope_defs(body, scope)
@@ -3601,10 +3626,12 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
     line := fcall.line
     col := fcall.col
     path := fcall.path
+    mut old_args := Vec.new("Expr", Expr.size())
+    old_args.move_from(fcall.children)
     mut fcall_new_ch := Vec.new("Expr", Expr.size())
     mut va_inserted := false
     mut new_own : U64 = 0
-    for j in 0..fcall.children.len() {
+    for j in 0..old_args.len() {
         if j.to_i64().to_i32().gte(vi).and(j.to_i64().to_i32().lt(vi.add(vc.to_i64().to_i32()))) {
             if va_inserted.not() {
                 mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col, path)
@@ -3634,7 +3661,7 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
             for _ in 0..fcall_new_ch.len() { nb = nb.mul(2) }
             new_own = new_own.or(nb)
         }
-        fcall_new_ch.push(own fcall.child(j).clone())
+        fcall_new_ch.push_take(old_args, j)
     }
     if va_inserted.not() {
         mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col, path)
@@ -3660,11 +3687,15 @@ desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
     }
     if has_variadic.not() { return }
 
+    mut old := Vec.new("Expr", Expr.size())
+    old.move_from(body.children)
+
     mut new_ch := Vec.new("Expr", Expr.size())
-    for stmt : Expr in body.children {
+    for i in 0..old.len() {
+        ref stmt : Expr = old.get(i)
         ref fcall : Expr = find_variadic_fcall(stmt)
         if is_null(fcall) {
-            new_ch.push(own stmt.clone())
+            new_ch.push_take(old, i)
             continue
         }
         ref fcall_data : FCallData = get_payload(fcall.data)
@@ -3675,11 +3706,12 @@ desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
 
         ref elem_type : Str = resolve_variadic_elem_type(fcall, scope)
         if is_null(elem_type) {
-            new_ch.push(own stmt.clone())
+            new_ch.push_take(old, i)
             continue
         }
 
-        if desugar_pure_splat_variadic_call(fcall, new_ch, stmt) {
+        if desugar_pure_splat_variadic_call(fcall) {
+            new_ch.push_take(old, i)
             continue
         }
 
@@ -3696,7 +3728,7 @@ desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
         }
 
         rewrite_variadic_fcall_args(fcall, va_name)
-        new_ch.push(own stmt.clone())
+        new_ch.push_take(old, i)
     }
     body.children.move_from(new_ch)
     reregister_scope_defs(body, scope)
@@ -3745,33 +3777,37 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
     return NULL
 }
 
-desugar_pure_splat_variadic_call := proc(mut fcall: Expr, mut new_ch: Vec, stmt: Expr) returns shallow Bool {
+// Returns true if it rewrote fcall in place. Caller is responsible for
+// pushing the (now mutated) stmt into new_ch.
+desugar_pure_splat_variadic_call := proc(mut fcall: Expr) returns shallow Bool {
     ref fcd : FCallData = get_payload(fcall.data)
     vi := fcd.variadic_index
     vc := fcd.variadic_count
     if vc.eq(1).not() { return false }
     if fcd.is_splat.not() { return false }
 
-    ref splat_in : Expr = fcall.child(vi.to_i64().to_usize())
+    mut old_args := Vec.new("Expr", Expr.size())
+    old_args.move_from(fcall.children)
+
+    ref splat_in : Expr = old_args.get(vi.to_i64().to_usize())
     mut splat := splat_in.clone()
     fcd.is_splat = false
     if splat_in.data.is(NodeType.Ident) {
         splat = make_clone_call("Array", TilType.Struct("Array".clone()), splat_in, splat_in)
     }
     mut fcall_new_ch := Vec.new("Expr", Expr.size())
-    for j in 0..fcall.children.len() {
+    for j in 0..old_args.len() {
         ji := j.to_i64().to_i32()
         if ji.eq(vi) {
             fcall_new_ch.push(own splat)
         } else {
-            fcall_new_ch.push(own fcall.child(j).clone())
+            fcall_new_ch.push_take(old_args, j)
         }
     }
     fcall.children.move_from(fcall_new_ch)
     set_own_arg(fcall, vi.to_i64().to_usize())
     fcd.variadic_index = -1.to_i32()
     fcd.variadic_count = 0
-    new_ch.push(own stmt.clone())
     return true
 }
 
@@ -3785,11 +3821,15 @@ desugar_kwargs_calls := proc(mut body: Expr, mut scope: TypeScope) {
     }
     if has_kwargs.not() { return }
 
+    mut old := Vec.new("Expr", Expr.size())
+    old.move_from(body.children)
+
     mut new_ch := Vec.new("Expr", Expr.size())
-    for stmt : Expr in body.children {
+    for i in 0..old.len() {
+        ref stmt : Expr = old.get(i)
         ref fcall : Expr = find_kwargs_fcall(stmt)
         if is_null(fcall) {
-            new_ch.push(own stmt.clone())
+            new_ch.push_take(old, i)
             continue
         }
         ref fcd : FCallData = get_payload(fcall.data)
@@ -3811,7 +3851,7 @@ desugar_kwargs_calls := proc(mut body: Expr, mut scope: TypeScope) {
         }
 
         rewrite_kwargs_fcall_args(fcall, kw_name)
-        new_ch.push(own stmt.clone())
+        new_ch.push_take(old, i)
     }
     body.children.move_from(new_ch)
     reregister_scope_defs(body, scope)
@@ -3822,11 +3862,13 @@ rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
     ki := fcd.kwargs_index
     kc := fcd.kwargs_count
     old_own := fcd.own_args
+    mut old_args := Vec.new("Expr", Expr.size())
+    old_args.move_from(fcall.children)
     mut fcall_new_ch := Vec.new("Expr", Expr.size())
     mut kw_inserted := false
     mut new_own : U64 = 0
 
-    for j in 0..fcall.children.len() {
+    for j in 0..old_args.len() {
         ji := j.to_i64().to_i32()
         if ji.gte(ki).and(ji.lt(ki.add(kc.to_i64().to_i32()))) {
             if kw_inserted.not() {
@@ -3857,7 +3899,7 @@ rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
             for _ in 0..fcall_new_ch.len() { nb = nb.mul(2) }
             new_own = new_own.or(nb)
         }
-        fcall_new_ch.push(own fcall.child(j).clone())
+        fcall_new_ch.push_take(old_args, j)
     }
     if kw_inserted.not() {
         mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
@@ -4026,8 +4068,8 @@ field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns shallow 
     return false
 }
 
-alias_used_in_expr := func(body: Expr, name: Str, expr: Expr) returns shallow Bool {
-    for d : Expr in body.children {
+alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow Bool {
+    for d : Expr in stmts {
         if d.data.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(d.data)
             if dd.own_type.eq(OwnType.Ref).and(d.children.len().gt(0)) {
@@ -4209,8 +4251,12 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: 
     }
     if needs_scan.not() { return }
 
+    mut old := Vec.new("Expr", Expr.size())
+    old.move_from(body.children)
+
     mut new_ch := Vec.new("Expr", Expr.size())
-    for stmt : Expr in body.children {
+    for i in 0..old.len() {
+        ref stmt : Expr = old.get(i)
         if is_compile_directive(stmt) { continue }
         if stmt.data.is(NodeType.If) {
             for c in 1..stmt.children.len() {
@@ -4224,7 +4270,7 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: 
             for local : LocalInfo in live {
                 if stmt.children.len().gt(0) {
                     ref retval : Expr = stmt.child(0)
-                    if expr_uses_var(retval, local.name).or(alias_used_in_expr(body, local.name, retval)) {
+                    if expr_uses_var(retval, local.name).or(alias_used_in_stmts(old, local.name, retval)) {
                         continue
                     }
                 }
@@ -4235,11 +4281,9 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: 
                 }
             }
         }
-        new_ch.push(own stmt.clone())
+        new_ch.push_take(old, i)
     }
-    if new_ch.len().neq(body.children.len()) {
-        body.children.move_from(new_ch)
-    }
+    body.children.move_from(new_ch)
 }
 
 insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32) {
@@ -4272,7 +4316,7 @@ insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx
     }
 }
 
-insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec) {
+insert_exit_deletes_into_stmt := proc(stmt: Expr, body_stmts: Vec, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec) {
     if stmt.data.is(NodeType.Return).not() {
         if stmt.data.is(NodeType.Break).not() {
             if stmt.data.is(NodeType.Continue).not() { return }
@@ -4281,7 +4325,7 @@ insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, mut locals: Vec, s
     for local : LocalInfo in locals {
         if stmt.children.len().gt(0) {
             ref retval : Expr = stmt.child(0)
-            if expr_uses_var(retval, local.name).or(alias_used_in_expr(body, local.name, retval)) {
+            if expr_uses_var(retval, local.name).or(alias_used_in_stmts(body_stmts, local.name, retval)) {
                 continue
             }
         }
@@ -4372,15 +4416,20 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     check_use_after_own_transfer(body, locals_vec)
     promote_own_transferred_locals(body, locals_vec)
 
+    mut old := Vec.new("Expr", Expr.size())
+    old.move_from(body.children)
+
     mut new_ch := Vec.new("Expr", Expr.size())
-    for i in 0..body.children.len() {
-        ref stmt : Expr = body.child(i)
+    for i in 0..old.len() {
+        ref stmt : Expr = old.get(i)
         if is_compile_directive(stmt) { continue }
-        insert_exit_deletes_into_stmt(stmt, body, locals_vec, i.to_i64().to_u32(), new_ch)
+        insert_exit_deletes_into_stmt(stmt, old, locals_vec, i.to_i64().to_u32(), new_ch)
         insert_nested_exit_deletes(stmt, locals_vec, i.to_i64().to_u32())
         insert_assign_delete(stmt, locals_vec, new_ch)
-        new_ch.push(own stmt.clone())
-        insert_post_stmt_deletes(stmt, locals_vec, i.to_i64().to_u32(), new_ch)
+        mut post_deletes := Vec.new("Expr", Expr.size())
+        insert_post_stmt_deletes(stmt, locals_vec, i.to_i64().to_u32(), post_deletes)
+        new_ch.push_take(old, i)
+        new_ch.append(own post_deletes)
     }
 
     body.children.move_from(new_ch)

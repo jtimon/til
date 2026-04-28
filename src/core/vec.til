@@ -140,6 +140,27 @@ namespace:
         free(own val)
     }
 
+    // Move bytes of src[i] into self (push). Source slot is zeroed so that
+    // src's eventual elem_delete on it is a no-op (relies on the same
+    // count==0/data==NULL convention used by take_children and Vec.delete).
+    push_take := proc(mut self: Vec, mut src: Vec, shallow i: USize) {
+        if i.gte(src.count) {
+            panic(__LOC__, "Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
+        }
+        if self.elem_size.eq(src.elem_size).not().or(self.elem_type.eq(src.elem_type).not()) {
+            panic(__LOC__, "Vec.push_take: incompatible vecs")
+        }
+        if self.count.eq(self.cap) {
+            new_cap := self.cap.mul(2)
+            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.cap = new_cap
+        }
+        memcpy(ptr_add(self.data, self.count.mul(self.elem_size)),
+               ptr_add(src.data, i.mul(src.elem_size)), self.elem_size)
+        memset(ptr_add(src.data, i.mul(src.elem_size)), 0, src.elem_size)
+        self.count = self.count.add(1)
+    }
+
     delete := func(own self: Vec, call_free: Bool = true) {
         if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
             for i in 0..self.count {

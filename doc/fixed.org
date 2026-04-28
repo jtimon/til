@@ -1,5 +1,13 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #144 Remove clone-and-assign in typer desugar passes
+  The typer's desugar passes (insert_free_calls, desugar_variadic_calls,
+  etc.) rebuilt body.children via body.children = new_ch. The generated
+  C did Vec_delete + Vec_clone + Vec_delete for each pass, plus the loop
+  body did new_ch.push(own stmt.clone()) -- a deep Expr.clone() per kept
+  statement -- and the final reassignment did another Vec_clone of the
+  whole new_ch into body.children.
+
 * FIXED #123 variadic-call double-free across forward references
 
   Original symptom (the surface bug that opened the issue):
@@ -52,99 +60,55 @@
 
 * FIXED #136 Precomp doesn't fold pure function calls
 
-  Originally surfaced as ~Dynamic.size()~ returning 1 at runtime
-  (because the builder overrode every ~size()~ method with
-  ~sizeof(<C-name>)~ and Dynamic was emitted as ~struct { char _; }~).
-  The deeper issue was that precomp folded almost nothing:
-  ~is_func_call~ rejected FieldAccess callees, ~is_macro_call~ did
-  too, ~precomp_scan_names~ skipped ext_func, the body-safety check
-  treated typer-hoisted temps as unknown globals, ~process_body~ had
-  per-statement-type case ladders that missed calls inside ForIn /
-  Switch / Return, namespace method bodies in ~ns_decls~ were never
-  walked, and core_program was never processed at all.
+  Two-step fix landed:
 
-  Five commits, summarised:
+  1. Vec.move_from(mut self, mut other) in src/core/vec.til. memcpys
+     other's buffer into self after deleting self's old elements. Nulls
+     other.count so the caller's scope-end auto-delete frees only the
+     buffer (no per-elem re-delete of the moved bytes). Replaces the
+     final body.children = new_ch with body.children.move_from(new_ch),
+     dropping the Vec_clone of the whole vec. (Signature was originally
+     `own other` but that elided the caller's auto-delete on new_ch; the
+     leak hit insert_exit_deletes, where the move_from call is inside
+     an if -- on the false branch new_ch leaked entirely. Using `mut`
+     keeps normal ownership and the caller's scope-end delete fires.)
 
-  1. d1cfcb3 (precomp side): ~is_func_call~ and ~try_eval_call~ accept
-     FieldAccess callees, looking up qualified names (e.g.
-     ~Dynamic_size~ in ~funcs~) and resolving the FuncDef via
-     ~ns_get(sname, mname)~.
+  2. Vec.push_take(mut self, mut src, i) in src/core/vec.til. memcpys
+     bytes of src[i] into self and memsets src[i] to zero. Used inside
+     desugar passes that detach body.children to a local `old` vec
+     first (via move_from), then iterate `old` and either build
+     transformed Exprs into new_ch or push_take from old. The zeroed
+     slot is in the same family of state that take_children produces
+     (Vec.data=NULL, count=0, etc.) and the existing delete chain
+     handles it: Vec.delete checks elem_type.is_empty() and count, so
+     zero-init owned subfields walk cleanly without dereferencing
+     anything.
 
-  2. 4e04bcd (builder side): the ~size()~ method sizeof override in
-     ~emit_ns_method~ was dropped. With it gone, ~Dynamic_size()~
-     compiles from the user's ~return 8~ body in ~dyn.til~ and returns
-     8 as TIL semantics intend. Removing it safely required correct
-     auto-generated enum sizes -- ~generate_enum_size_methods~
-     hardcoded ~4~/~8~, broken for enums whose payloads exceed 8
-     bytes (e.g. ~Value~'s ~Struct: StructInstance~ variant). Added
-     ~compute_enum_layout~ in ~initer.til~ that walks variants,
-     recurses into struct/enum payload sizes via ~type_size_align~,
-     and returns ~tag(4) + max_payload~ aligned. Cached on
-     ~EnumDef.total_enum_size~ with a sentinel-before-recurse for
-     self-referential cycles. ~compute_struct_layout~'s enum-field
-     branch uses it instead of hardcoding 8.
+     Two helpers needed adjustment to make detachment work:
+     - desugar_set_literal_decl / desugar_map_literal_decl now return
+       Bool ("did I push replacement stmts?"); the caller does
+       push_take(old, i) when the helper returns false (error fallback).
+     - desugar_pure_splat_variadic_call no longer pushes the original
+       stmt itself; the caller does push_take after the helper returns.
+     - alias_used_in_expr renamed to alias_used_in_stmts and takes a
+       Vec instead of Expr, so it can scan `old` after detachment.
+     - insert_free_calls collects post-stmt deletes into a separate
+       local Vec (post_deletes) and appends after push_take, so stmt
+       can stay a ref into old throughout the pre-push helpers without
+       being invalidated by Vec_push reallocs of new_ch.
 
-  3. ca432a8 (uniform fold): ~process_body~'s case ladder (Decl rhs,
-     If/While recurse, top-level FCall) is replaced by a recursive
-     ~fold_subtree~ walk that visits every Expr and folds any FCall
-     whose callee is a registered macro or pure func. Catches calls
-     in shapes the old code never visited: ForIn / Switch / Return
-     bodies, conditions, expression args. The Decl-tracking step
-     (~track_literal~) is kept, but as a separate phase after the
-     fold.
+  Sites converted: 10 body.children rebuilds + the case_body.children
+  site + 3 fcall.children rebuilds (rewrite_variadic_fcall_args,
+  desugar_pure_splat_variadic_call, rewrite_kwargs_fcall_args).
 
-     Also added a trivial-literal-return fast path: if a callee's
-     body is ~return <lit>~ or the typer-hoisted ~_t := <lit>; return
-     _t~, fold to that literal directly without invoking the
-     interpreter. The eval path still trips a pre-existing
-     heap-use-after-free outside the narrow contexts the old code
-     allowed; the fast path bypasses it.
+  Verified:
+  - 89/89 tests pass.
+  - ASAN on src/test/strings.til: no leaks involve push_take, move_from,
+    or memset; total leak count and bytes within noise of master.
 
-     ~precomp~ now runs ~process_body~ on ~core_program~ as well, so
-     calls inside core function bodies (the ~Bool.size()~ in
-     ~Array_new~, etc.) actually fold.
-
-  4. 9676a37 (this commit): three more exceptions removed.
-     - ~precomp_scan_names~ now registers ~ExtFunc~-typed top-level
-       and namespace methods alongside ~Func~-typed ones. The fast
-       path naturally returns NULL for empty bodies, so adding
-       ext_funcs no longer triggers the interpreter side-effects
-       that broke earlier attempts.
-     - ~is_macro_call~ accepts FieldAccess callees too, matching
-       what ~is_func_call~ already does. ~precomp_scan_names~
-       registers ~FuncType.Macro~ members from ns_decls so namespace
-       macros (~Type.macro_method()~) can be found.
-     - The fast path now resolves typer-flattened namespace callees:
-       when the callee is an Ident like ~Str_size~ that doesn't
-       resolve in scope, ~ns_lookup_flat~ tries every ~_~ split
-       position and uses ~ns_get(left, right)~ for each.
-     - ~fold_subtree~ now walks namespace method bodies. They live
-       in StructDef/EnumDef ~ns_decls~, not in the body tree, so the
-       recursive walk never reached them. ~process_body~ now
-       iterates each struct/enum Decl and folds each ns_decl's
-       FuncDef body.
-
-  Result on the til.til self-build: 0 runtime calls remain to
-  ~Dynamic_size~, ~Bool_size~, ~I64_size~, ~U32_size~. ~Str_size~
-  drops from ~50+ to 2; the remaining 2 are inside contexts the fast
-  path can't statically resolve.
-
-  Regression test ~test_func_ns_method_size~ in ~src/test/macros.til~
-  asserts ~Dynamic.size().to_i64() == 8~ -- would return 1 with the
-  old sizeof shim.
-
-  Not addressed (left for follow-up):
-  - ~try_eval_call~'s ~can_convert~ still only accepts Str among
-    struct results because ~value_to_expr~ doesn't know how to
-    materialise other struct/enum values back into AST.
-  - ~is_known~ doesn't track local Decls inside function bodies; only
-    module-level non-mut Decls are seen as known.
-  - The pre-existing eval-path heap-use-after-free that forces funcs
-    to use the trivial-literal fast path only.
-  - ~ref mut prog~ clone-instead-of-pointer-copy leak (~#135~).
-  - The ~I64.size()~ vs ~Dynamic.size()~ workaround in builder.til's
-    top-level Map initialisers; switching them segfaults the
-    self-built til even though ~Dynamic_size()~ returns 8 correctly.
+  Related: #146 (unify the 7 desugar/insert passes into a single walk),
+  #109 (residual ASAN leaks; the largest were the body.children rebuilds
+  this issue addressed).
 
 * FIXED #113 Proper enums
 
