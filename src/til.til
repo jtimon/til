@@ -172,10 +172,20 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
 
         mut block_eff := block.clone()
         if typer_errs.eq(0) {
+            // Rebuild combined source with REPL doc registry init.
+            combined = ""
+            combined = combined.concat("mode ").concat(mode_str).concat("\n")
+            combined = combined.concat(doc_init_src_line(typed_lp.core_ast, typed_lp.ast))
+            combined = combined.concat(accum)
+            if accum.len().gt(0) { combined = combined.concat("\n") }
+            combined = combined.concat(block_eff)
+            writefile(tmp_path, combined)
+
             if repl_should_wrap(peek_ast, typed_lp.ast) {
                 block_eff = "println((".concat(block).concat(").to_str())")
                 combined = ""
                 combined = combined.concat("mode ").concat(mode_str).concat("\n")
+                combined = combined.concat(doc_init_src_line(typed_lp.core_ast, typed_lp.ast))
                 combined = combined.concat(accum)
                 if accum.len().gt(0) { combined = combined.concat("\n") }
                 combined = combined.concat(block_eff)

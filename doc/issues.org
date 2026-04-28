@@ -1806,8 +1806,18 @@
   Those are still useful, but they are not a substitute for docs attached to
   the source and available interactively.
 
-  Depends conceptually on ~#10~, but the syntax/storage side can be designed
-  and implemented before the REPL command itself.
+   Depends conceptually on ~#10~, but the syntax/storage side can be designed
+   and implemented before the REPL command itself.
+
+   Progress:
+
+   - ~///~ doc comments are parsed and attached to ~Declaration.doc~.
+   - ~src/core/doc.til~ provides ~help(name)~ and the internal doc/kind blobs.
+   - Loader doc injection (~__doc_init__~ synthesis) is now REPL-only via a
+     hidden ~til interpret --repl-docs~ path (the normal loader pipeline does
+     not populate docs for ~til interpret/build/run/test/translate~).
+   - Next: real tooling output (docgen) under a dedicated command, likely
+     emitting ~.org~ (and optionally exporting to HTML).
 
 ** OPEN #102 Auto-generate eq and to_str for structs
   Structs only auto-generate ~clone~, ~delete~, ~size~. Enums get

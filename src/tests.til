@@ -398,7 +398,9 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/trailing.til", flags)
     add_mode(tests, "src/test/kwargs.til", flags)
     add_mode(tests, "src/test/files.til", flags)
-    add_mode(tests, "src/test/doc_comments.til", flags)
+    // TODO(#114): help()/doc comments are REPL-only for now; doc_comments.til
+    // assumes docs are populated for til test / til interpret.
+    // add_mode(tests, "src/test/doc_comments.til", flags)
 
     // === 2 FFI tests ===
     ffi_exp := "gen/out/expected/ffi.out"

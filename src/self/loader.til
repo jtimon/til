@@ -300,11 +300,6 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         ast.take_children(mode_ast)
     }
     ast.children.append(own import_decls)
-    if skip_core.not() {
-        mut doc_body := Expr.new(NodeType.Body, 0, 0, "")
-        synthesize_doc_registry(core_ast, user_ast, doc_body)
-        ast.take_children(doc_body)
-    }
     ast.take_children(user_ast)
 
     lp.core_ast = core_ast
@@ -460,6 +455,24 @@ synthesize_doc_registry := proc(core_ast: Expr, user_ast: Expr, mut out_body: Ex
     }
 
     out_body.add_child(own make_register_call("__doc_init__", packed_kinds, packed_docs, syn_path, syn_line, syn_col))
+}
+
+// Build a single source-level __doc_init__("...", "...") line for use by the
+// REPL. We keep docs REPL-only for now: normal loader pipelines do not
+// synthesize doc init calls.
+doc_init_src_line := proc(core_ast: Expr, user_ast: Expr) returns Str {
+    cap := packed_capacity(core_ast).add(packed_capacity(user_ast)).add(8.to_usize())
+    mut packed_kinds := Str.with_capacity(cap)
+    mut packed_docs := Str.with_capacity(cap)
+
+    collect_decl_packed(core_ast, packed_kinds, packed_docs)
+    collect_decl_packed(user_ast, packed_kinds, packed_docs)
+
+    if packed_kinds.is_empty().and(packed_docs.is_empty()) { return "" }
+
+    esc_kinds := escape_doc_for_literal_str(packed_kinds)
+    esc_docs := escape_doc_for_literal_str(packed_docs)
+    return "__doc_init__(\"".concat(esc_kinds).concat("\", \"").concat(esc_docs).concat("\")\n")
 }
 
 // Append -l flag to the link_flags carried on lp.
