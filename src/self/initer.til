@@ -140,7 +140,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
         }
         ref sdef : Expr = scope.get_struct(name)
         if is_null(sdef).not() {
-            if sdef.data.is(NodeType.EnumDef) {
+            if sdef.node_type.is(NodeType.EnumDef) {
                 return TilType.Enum(name.clone())
             }
             return TilType.Struct(name.clone())
@@ -152,10 +152,10 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
 register_struct_definitions := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
 
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         sname := sdecl.name
 
         existing_find := scope.find(sname)
@@ -198,15 +198,15 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
 
 generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
 
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
 
         ref sdef : Expr = stmt.child(0)
-        ref sdd : StructDef = get_payload(sdef.data)
+        ref sdd : StructDef = get_payload(sdef.node_type)
 
         mut has_clone := false
         for d_j : Declaration in sdd.ns_decls {
@@ -284,13 +284,13 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
         func_def.add_child(own func_body)
 
-        ref mut cl_sdd : StructDef = get_payload(sdef.data)
+        ref mut cl_sdd : StructDef = get_payload(sdef.node_type)
         cl_sdd.ns_decls.push(own Declaration(name = "clone", default_value = func_def))
     }
 }
 
 register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
-    ref edecl : Declaration = get_payload(stmt.data)
+    ref edecl : Declaration = get_payload(stmt.node_type)
     ename := edecl.name
 
     existing_find := scope.find(ename)
@@ -314,7 +314,7 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
 }
 
 collect_enum_variants := proc(enum_def: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool) {
-    ref edd : EnumDef = get_payload(enum_def.data)
+    ref edd : EnumDef = get_payload(enum_def.node_type)
     has_payloads = edd.payload_types.len().gt(0)
     for j in 0..edd.variants.len() {
         ref vn : Str = edd.variants.get(j)
@@ -330,7 +330,7 @@ collect_enum_variants := proc(enum_def: Expr, mut variant_names: Vec, mut varian
 }
 
 generate_enum_variant_constructors := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
-    ref mut evc_edd : EnumDef = get_payload(enum_def.data)
+    ref mut evc_edd : EnumDef = get_payload(enum_def.node_type)
     if has_payloads.not() {
         for j in 0..variant_names.len() {
             ref vname : Str = variant_names.get(j)
@@ -388,7 +388,7 @@ generate_enum_is_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
     mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col, path)
     func_def.add_child(own func_body)
 
-    ref mut eis_edd : EnumDef = get_payload(enum_def.data)
+    ref mut eis_edd : EnumDef = get_payload(enum_def.node_type)
     eis_edd.ns_decls.push(own Declaration(name = "is", default_value = func_def))
 }
 
@@ -510,7 +510,7 @@ generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col, path)
     fdef.add_child(own func_body)
 
-    ref mut eeq_edd : EnumDef = get_payload(enum_def.data)
+    ref mut eeq_edd : EnumDef = get_payload(enum_def.node_type)
     eeq_edd.ns_decls.push(own Declaration(name = "eq", default_value = fdef))
 }
 
@@ -589,7 +589,7 @@ generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U3
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col, path)
     fdef.add_child(own proc_body)
 
-    ref mut edel_edd : EnumDef = get_payload(enum_def.data)
+    ref mut edel_edd : EnumDef = get_payload(enum_def.node_type)
     edel_edd.ns_decls.push(own Declaration(name = "delete", default_value = fdef))
 }
 
@@ -701,7 +701,7 @@ generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U3
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col, path)
     fdef.add_child(own func_body)
 
-    ref mut ets_edd : EnumDef = get_payload(enum_def.data)
+    ref mut ets_edd : EnumDef = get_payload(enum_def.node_type)
     ets_edd.ns_decls.push(own Declaration(name = "to_str", default_value = fdef))
 }
 
@@ -800,17 +800,17 @@ generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
     fdef.add_child(own func_body)
 
-    ref mut ecl_edd2 : EnumDef = get_payload(enum_def.data)
+    ref mut ecl_edd2 : EnumDef = get_payload(enum_def.node_type)
     ecl_edd2.ns_decls.push(own Declaration(name = "clone", default_value = fdef))
 }
 
 register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
 
-        ref edecl : Declaration = get_payload(stmt.data)
+        ref edecl : Declaration = get_payload(stmt.node_type)
         ename := edecl.name
         line := stmt.line
         col := stmt.col
@@ -830,7 +830,7 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         mut has_eq := false
         mut has_delete := false
         mut has_to_str := false
-        ref ens_edd : EnumDef = get_payload(stmt.child(0).data)
+        ref ens_edd : EnumDef = get_payload(stmt.child(0).node_type)
         for d_j : Declaration in ens_edd.ns_decls {
             ref fdecl : Declaration = d_j
             if fdecl.name.eq("is") { has_is = true }
@@ -860,16 +860,16 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
 
 generate_missing_enum_clones := proc(program: Expr) {
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
 
-        ref edecl : Declaration = get_payload(stmt.data)
+        ref edecl : Declaration = get_payload(stmt.node_type)
         ename := edecl.name
         line := stmt.line
         col := stmt.col
         path := stmt.path
         mut has_clone := false
-        ref ecl_edd : EnumDef = get_payload(stmt.child(0).data)
+        ref ecl_edd : EnumDef = get_payload(stmt.child(0).node_type)
         for d_j : Declaration in ecl_edd.ns_decls {
             ref fdecl : Declaration = d_j
             if fdecl.name.eq("clone") {
@@ -891,15 +891,15 @@ generate_missing_enum_clones := proc(program: Expr) {
 
 generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
 
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
 
         ref sdef : Expr = stmt.child(0)
-        ref sdd : StructDef = get_payload(sdef.data)
+        ref sdd : StructDef = get_payload(sdef.node_type)
 
         mut has_delete := false
         for d_j : Declaration in sdd.ns_decls {
@@ -972,7 +972,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
         mut proc_def := Expr.new(NodeType.FuncDef(proc_decl), stmt.line, stmt.col, stmt.path)
         proc_def.add_child(own proc_body)
 
-        ref mut del_sdd : StructDef = get_payload(sdef.data)
+        ref mut del_sdd : StructDef = get_payload(sdef.node_type)
         del_sdd.ns_decls.push(own Declaration(name = "delete", default_value = proc_def))
     }
 }
@@ -981,7 +981,7 @@ register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
         if is_func_decl(stmt).not() { continue }
         if stmt.child(0).children.len().neq(0) { continue }
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
         fb.func_def = stmt.child(0)
@@ -990,10 +990,10 @@ register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
 
 register_type_aliases := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
-        if rhs.data.is(NodeType.Ident).not() { continue }
-        ref target_name : Str = get_payload(rhs.data)
+        if rhs.node_type.is(NodeType.Ident).not() { continue }
+        ref target_name : Str = get_payload(rhs.node_type)
         find := scope.find(target_name)
         if find.is(ScopeFind.Found).not() { continue }
         ref target_payload : Dynamic = get_payload(find)
@@ -1006,7 +1006,7 @@ register_type_aliases := proc(program: Expr, scope: TypeScope) {
                 continue
             }
         }
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         if scope.find(sdecl.name).is(ScopeFind.Found) { continue }
         scope.set(sdecl.name, target.type, target.func_type, false, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
@@ -1024,15 +1024,15 @@ register_type_aliases := proc(program: Expr, scope: TypeScope) {
 
 register_top_level_values := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
-        if rhs.data.is(NodeType.FuncDef).or(rhs.data.is(NodeType.StructDef)).or(rhs.data.is(NodeType.EnumDef)) {
+        if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
             continue
         }
-        if rhs.data.is(NodeType.Ident) {
-            ref sdecl : Declaration = get_payload(stmt.data)
+        if rhs.node_type.is(NodeType.Ident) {
+            ref sdecl : Declaration = get_payload(stmt.node_type)
             if sdecl.explicit_type.len().eq(0) {
-                ref rhs_name : Str = get_payload(rhs.data)
+                ref rhs_name : Str = get_payload(rhs.node_type)
                 if type_from_name_init(rhs_name, scope).eq(TilType.Unknown).not() {
                     continue
                 }
@@ -1043,18 +1043,18 @@ register_top_level_values := proc(program: Expr, scope: TypeScope) {
         if infer_top_level_decl_type(stmt, scope, t).not() { continue }
         if t.eq(TilType.Unknown) { continue }
 
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, stmt.line, stmt.col, false, OwnType.Shallow)
     }
 }
 
 register_function_definitions := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
-        if def.data.is(NodeType.FuncDef).not() { continue }
+        if def.node_type.is(NodeType.FuncDef).not() { continue }
 
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
 
         if def.children.len().eq(0) {
             scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -1070,9 +1070,9 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
                 ref fsb : TypeBinding = fs_payload
                 if is_null(fsb.func_def).not() {
                     if fsb.func_def.children.len().eq(0) {
-                        ref mut fdef : FunctionDef = get_payload(def.data)
+                        ref mut fdef : FunctionDef = get_payload(def.node_type)
                         ref sig : Expr = fsb.func_def
-                        ref sigdef : FunctionDef = get_payload(sig.data)
+                        ref sigdef : FunctionDef = get_payload(sig.node_type)
                         if fdef.params.len().neq(sigdef.params.len()) {
                             panic(
                                 __LOC__,
@@ -1097,7 +1097,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
             }
         }
 
-        ref fdef : FunctionDef = get_payload(def.data)
+        ref fdef : FunctionDef = get_payload(def.node_type)
         ft := fdef.func_type
 
         mut rt := TilType.None
@@ -1116,14 +1116,14 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
 
 generate_struct_size_methods := proc(program: Expr) {
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
-        if def.data.is(NodeType.StructDef).not() { continue }
+        if def.node_type.is(NodeType.StructDef).not() { continue }
 
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
-        ref struct_meta : StructDef = get_payload(def.data)
+        ref struct_meta : StructDef = get_payload(def.node_type)
         mut has_size := false
         for d_j : Declaration in struct_meta.ns_decls {
             ref fd : Declaration = d_j
@@ -1152,18 +1152,18 @@ generate_struct_size_methods := proc(program: Expr) {
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
         func_def.add_child(own func_body)
 
-        ref mut sz_sdd : StructDef = get_payload(def.data)
+        ref mut sz_sdd : StructDef = get_payload(def.node_type)
         sz_sdd.ns_decls.push(own Declaration(name = "size", default_value = func_def))
     }
 }
 
 generate_enum_size_methods := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref def : Expr = stmt.child(0)
-        if def.data.is(NodeType.EnumDef).not() { continue }
+        if def.node_type.is(NodeType.EnumDef).not() { continue }
 
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
         mut has_size := false
@@ -1195,7 +1195,7 @@ generate_enum_size_methods := proc(program: Expr, scope: TypeScope) {
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
         func_def.add_child(own func_body)
 
-        ref mut esz_edd : EnumDef = get_payload(def.data)
+        ref mut esz_edd : EnumDef = get_payload(def.node_type)
         esz_edd.ns_decls.push(own Declaration(name = "size", default_value = func_def))
     }
 }
@@ -1205,7 +1205,7 @@ generate_unity_derived_methods := proc(program: Expr) {
         if is_struct_or_enum(stmt).not() { continue }
         ref def : Expr = stmt.child(0)
 
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
 
@@ -1269,11 +1269,11 @@ generate_unity_derived_methods := proc(program: Expr) {
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own proc_body)
 
-            if def.data.is(NodeType.StructDef) {
-                ref mut un_sdd : StructDef = get_payload(def.data)
+            if def.node_type.is(NodeType.StructDef) {
+                ref mut un_sdd : StructDef = get_payload(def.node_type)
                 un_sdd.ns_decls.push(own Declaration(name = method.clone(), default_value = func_def))
             } else {
-                ref mut eu_edd : EnumDef = get_payload(def.data)
+                ref mut eu_edd : EnumDef = get_payload(def.node_type)
                 eu_edd.ns_decls.push(own Declaration(name = method.clone(), default_value = func_def))
             }
         }
@@ -1290,7 +1290,7 @@ generate_cmp_derived_methods := proc(program: Expr) {
         if is_struct_or_enum(stmt).not() { continue }
         ref def : Expr = stmt.child(0)
 
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         sname := sdecl.name
         if sname.eq("Dynamic") { continue }
 
@@ -1344,11 +1344,11 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            if def.data.is(NodeType.StructDef) {
-                ref mut cmp_sdd : StructDef = get_payload(def.data)
+            if def.node_type.is(NodeType.StructDef) {
+                ref mut cmp_sdd : StructDef = get_payload(def.node_type)
                 cmp_sdd.ns_decls.push(own Declaration(name = "eq", default_value = func_def))
             } else {
-                ref mut ec_edd : EnumDef = get_payload(def.data)
+                ref mut ec_edd : EnumDef = get_payload(def.node_type)
                 ec_edd.ns_decls.push(own Declaration(name = "eq", default_value = func_def))
             }
         }
@@ -1389,11 +1389,11 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            if def.data.is(NodeType.StructDef) {
-                ref mut cmp_sdd : StructDef = get_payload(def.data)
+            if def.node_type.is(NodeType.StructDef) {
+                ref mut cmp_sdd : StructDef = get_payload(def.node_type)
                 cmp_sdd.ns_decls.push(own Declaration(name = "lt", default_value = func_def))
             } else {
-                ref mut ec_edd : EnumDef = get_payload(def.data)
+                ref mut ec_edd : EnumDef = get_payload(def.node_type)
                 ec_edd.ns_decls.push(own Declaration(name = "lt", default_value = func_def))
             }
         }
@@ -1428,11 +1428,11 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            if def.data.is(NodeType.StructDef) {
-                ref mut cmp_sdd : StructDef = get_payload(def.data)
+            if def.node_type.is(NodeType.StructDef) {
+                ref mut cmp_sdd : StructDef = get_payload(def.node_type)
                 cmp_sdd.ns_decls.push(own Declaration(name = "gt", default_value = func_def))
             } else {
-                ref mut ec_edd : EnumDef = get_payload(def.data)
+                ref mut ec_edd : EnumDef = get_payload(def.node_type)
                 ec_edd.ns_decls.push(own Declaration(name = "gt", default_value = func_def))
             }
         }
@@ -1465,11 +1465,11 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            if def.data.is(NodeType.StructDef) {
-                ref mut cmp_sdd : StructDef = get_payload(def.data)
+            if def.node_type.is(NodeType.StructDef) {
+                ref mut cmp_sdd : StructDef = get_payload(def.node_type)
                 cmp_sdd.ns_decls.push(own Declaration(name = "neq", default_value = func_def))
             } else {
-                ref mut ec_edd : EnumDef = get_payload(def.data)
+                ref mut ec_edd : EnumDef = get_payload(def.node_type)
                 ec_edd.ns_decls.push(own Declaration(name = "neq", default_value = func_def))
             }
         }
@@ -1502,11 +1502,11 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            if def.data.is(NodeType.StructDef) {
-                ref mut cmp_sdd : StructDef = get_payload(def.data)
+            if def.node_type.is(NodeType.StructDef) {
+                ref mut cmp_sdd : StructDef = get_payload(def.node_type)
                 cmp_sdd.ns_decls.push(own Declaration(name = "lte", default_value = func_def))
             } else {
-                ref mut ec_edd : EnumDef = get_payload(def.data)
+                ref mut ec_edd : EnumDef = get_payload(def.node_type)
                 ec_edd.ns_decls.push(own Declaration(name = "lte", default_value = func_def))
             }
         }
@@ -1539,11 +1539,11 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.kwargs_index = -1.to_i32()
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
             func_def.add_child(own func_body)
-            if def.data.is(NodeType.StructDef) {
-                ref mut cmp_sdd : StructDef = get_payload(def.data)
+            if def.node_type.is(NodeType.StructDef) {
+                ref mut cmp_sdd : StructDef = get_payload(def.node_type)
                 cmp_sdd.ns_decls.push(own Declaration(name = "gte", default_value = func_def))
             } else {
-                ref mut ec_edd : EnumDef = get_payload(def.data)
+                ref mut ec_edd : EnumDef = get_payload(def.node_type)
                 ec_edd.ns_decls.push(own Declaration(name = "gte", default_value = func_def))
             }
         }
@@ -1556,7 +1556,7 @@ generate_derived_methods := proc(program: Expr) {
 }
 
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
-    ref mut struct_meta : StructDef = get_payload(struct_def.data)
+    ref mut struct_meta : StructDef = get_payload(struct_def.node_type)
     if struct_meta.total_struct_size.gt(0) { return }
 
     mut offset : I32 = 0
@@ -1576,11 +1576,11 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
             if ftype.len().eq(0) {
                 if is_null(fd.default_value).not() {
                     ref def_val : Expr = fd.default_value
-                    if def_val.data.is(NodeType.FCall) {
+                    if def_val.node_type.is(NodeType.FCall) {
                         if def_val.children.len().gt(0) {
                             ref callee : Expr = def_val.child(0)
-                            if callee.data.is(NodeType.Ident) {
-                                ref _ft : Str = get_payload(callee.data)
+                            if callee.node_type.is(NodeType.Ident) {
+                                ref _ft : Str = get_payload(callee.node_type)
                                 ftype = _ft
                             }
                         }
@@ -1602,31 +1602,31 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
             if ftype.len().eq(0) {
                 if is_null(fd.default_value).not() {
                     ref def_val : Expr = fd.default_value
-                    if def_val.data.is(NodeType.LiteralNum) { ftype = "I64" }
-                    else if def_val.data.is(NodeType.LiteralStr) { ftype = "Str" }
-                    else if def_val.data.is(NodeType.LiteralBool) { ftype = "Bool" }
+                    if def_val.node_type.is(NodeType.LiteralNum) { ftype = "I64" }
+                    else if def_val.node_type.is(NodeType.LiteralStr) { ftype = "Str" }
+                    else if def_val.node_type.is(NodeType.LiteralBool) { ftype = "Bool" }
                     else if til_type_name(def_val.til_type).len().gt(0) { ftype = til_type_name(def_val.til_type) }
-                    else if def_val.data.is(NodeType.FCall) {
+                    else if def_val.node_type.is(NodeType.FCall) {
                         if def_val.children.len().gt(0) {
                             ref callee : Expr = def_val.child(0)
-                            if callee.data.is(NodeType.Ident) {
-                                ref _ft : Str = get_payload(callee.data)
+                            if callee.node_type.is(NodeType.Ident) {
+                                ref _ft : Str = get_payload(callee.node_type)
                                 ftype = _ft
-                            } else if callee.data.is(NodeType.FieldAccess) {
+                            } else if callee.node_type.is(NodeType.FieldAccess) {
                                 if callee.children.len().gt(0) {
                                     ref type_node : Expr = callee.child(0)
-                                    if type_node.data.is(NodeType.Ident) {
-                                        ref _ft : Str = get_payload(type_node.data)
+                                    if type_node.node_type.is(NodeType.Ident) {
+                                        ref _ft : Str = get_payload(type_node.node_type)
                                         ftype = _ft
                                     }
                                 }
                             }
                         }
-                    } else if def_val.data.is(NodeType.FieldAccess) {
+                    } else if def_val.node_type.is(NodeType.FieldAccess) {
                         if def_val.children.len().gt(0) {
                             ref type_node : Expr = def_val.child(0)
-                            if type_node.data.is(NodeType.Ident) {
-                                ref _ft : Str = get_payload(type_node.data)
+                            if type_node.node_type.is(NodeType.Ident) {
+                                ref _ft : Str = get_payload(type_node.node_type)
                                 ftype = _ft
                             }
                         }
@@ -1655,13 +1655,13 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
             else if type_from_name_init(ftype, scope).eq(TilType.FuncPtr) { fsz = 8; falign = 8 }
             else {
                 ref nested_def : Expr = scope.get_struct(ftype)
-                if is_null(nested_def).not().and(nested_def.data.is(NodeType.EnumDef)) {
+                if is_null(nested_def).not().and(nested_def.node_type.is(NodeType.EnumDef)) {
                     fsz = compute_enum_layout(nested_def, scope)
                     if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
                     fd.field_struct_def = nested_def
                 } else if is_null(nested_def).not() {
                     compute_struct_layout(nested_def, scope)
-                    ref nested_meta : StructDef = get_payload(nested_def.data)
+                    ref nested_meta : StructDef = get_payload(nested_def.node_type)
                     fsz = nested_meta.total_struct_size
                     falign = 8
                     fd.field_struct_def = nested_def
@@ -1701,14 +1701,14 @@ type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) 
     if type_from_name_init(ftype, scope).eq(TilType.FuncPtr) { sz = 8; al = 8; return }
     ref nested : Expr = scope.get_struct(ftype)
     if is_null(nested) { sz = 8; al = 8; return }
-    if nested.data.is(NodeType.StructDef) {
+    if nested.node_type.is(NodeType.StructDef) {
         compute_struct_layout(nested, scope)
-        ref _nm : StructDef = get_payload(nested.data)
+        ref _nm : StructDef = get_payload(nested.node_type)
         sz = _nm.total_struct_size
         al = 8
         return
     }
-    if nested.data.is(NodeType.EnumDef) {
+    if nested.node_type.is(NodeType.EnumDef) {
         sz = compute_enum_layout(nested, scope)
         al = 8
         return
@@ -1718,7 +1718,7 @@ type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) 
 }
 
 compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns shallow I32 {
-    ref mut edd : EnumDef = get_payload(enum_def.data)
+    ref mut edd : EnumDef = get_payload(enum_def.node_type)
     if edd.total_enum_size.gt(0) { return edd.total_enum_size }
     // Set sentinel before recursing to break self-referential cycles.
     edd.total_enum_size = 4
@@ -1746,16 +1746,16 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns shallow I3
 
 compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
-        ref _sd : Declaration = get_payload(stmt.data)
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
+        ref _sd : Declaration = get_payload(stmt.node_type)
         sname := _sd.name
         if sname.eq("Dynamic") { continue }
         compute_struct_layout(stmt.child(0), scope)
     }
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).data.is(NodeType.EnumDef).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
         compute_enum_layout(stmt.child(0), scope)
     }
 }
@@ -1763,9 +1763,9 @@ compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
 // Re-resolve field_struct_def pointers after hoisting (cloning) invalidates them.
 resolve_field_struct_defs := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).data.is(NodeType.StructDef).not() { continue }
-        ref mut sdd : StructDef = get_payload(stmt.child(0).data)
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
+        ref mut sdd : StructDef = get_payload(stmt.child(0).node_type)
         for d_fi : Declaration in sdd.fields {
             ref mut fd : Declaration = d_fi
             if fd.explicit_type.len().gt(0) {
@@ -1786,15 +1786,15 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
     ref rhs : Expr = stmt.child(0)
     out_type = TilType.Unknown
 
-    if stmt.data.is(NodeType.Decl) {
-        ref dd : Declaration = get_payload(stmt.data)
+    if stmt.node_type.is(NodeType.Decl) {
+        ref dd : Declaration = get_payload(stmt.node_type)
         if dd.explicit_type.len().gt(0) {
             out_type = type_from_name_init(dd.explicit_type, scope)
             return out_type.is(TilType.Unknown).not()
         }
     }
 
-    switch rhs.data {
+    switch rhs.node_type {
     case NodeType.LiteralNum:
         out_type = TilType.I64
         return true
@@ -1816,7 +1816,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         mut init_ns1 := false
         if rhs.children.len().gt(0) {
             ref _io1 : Expr = rhs.child(0)
-            if _io1.data.is(NodeType.Ident) {
+            if _io1.node_type.is(NodeType.Ident) {
                 if til_type_name(_io1.til_type).eq("StructDef").or(til_type_name(_io1.til_type).eq("EnumDef")) {
                     init_ns1 = true
                 }
@@ -1833,29 +1833,29 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         return false
     case NodeType.FCall:
         ref callee : Expr = rhs.child(0)
-        if til_type_name(rhs.til_type).len().gt(0).and(callee.data.is(NodeType.Ident)) {
-            ref cn : Str = get_payload(callee.data)
+        if til_type_name(rhs.til_type).len().gt(0).and(callee.node_type.is(NodeType.Ident)) {
+            ref cn : Str = get_payload(callee.node_type)
             if cn.eq(til_type_name(rhs.til_type)) {
                 out_type = TilType.Struct(til_type_name(rhs.til_type))
                 return true
             }
         }
         mut init_ns2 := false
-        if callee.data.is(NodeType.FieldAccess).and(callee.children.len().gt(0)) {
+        if callee.node_type.is(NodeType.FieldAccess).and(callee.children.len().gt(0)) {
             ref _io2 : Expr = callee.child(0)
-            if _io2.data.is(NodeType.Ident) {
+            if _io2.node_type.is(NodeType.Ident) {
                 if til_type_name(_io2.til_type).eq("StructDef").or(til_type_name(_io2.til_type).eq("EnumDef")) {
                     init_ns2 = true
                 }
             }
         }
-        if callee.data.is(NodeType.FieldAccess).and(init_ns2)
+        if callee.node_type.is(NodeType.FieldAccess).and(init_ns2)
         .and(til_type_name(rhs.til_type).len().gt(0)).and(rhs.til_type.is(TilType.Enum)) {
             out_type = TilType.Enum(til_type_name(rhs.til_type))
             return true
         }
-        if callee.data.is(NodeType.Ident) {
-            ref fn_name : Str = get_payload(callee.data)
+        if callee.node_type.is(NodeType.Ident) {
+            ref fn_name : Str = get_payload(callee.node_type)
             ref fb : TypeBinding = scope.get_binding(fn_name)
             if is_null(fb) { return false }
             out_type = fb.type

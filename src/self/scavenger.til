@@ -7,12 +7,12 @@ mut gc_strs := Vec.new("Str", Str.size())
 scav_fa_is_ns := func(e: Expr) returns shallow Bool {
     if e.children.len().eq(0) { return false }
     ref obj : Expr = e.child(0)
-    if obj.data.is(NodeType.Ident) {
+    if obj.node_type.is(NodeType.Ident) {
         if til_type_name(obj.til_type).eq("StructDef").or(til_type_name(obj.til_type).eq("EnumDef")) {
             return true
         }
         // Also check: if ident name matches struct_name, it's a type reference
-        ref id : Str = get_payload(obj.data)
+        ref id : Str = get_payload(obj.node_type)
         if til_type_name(obj.til_type).len().gt(0).and(til_type_name(obj.til_type).eq(id)) { return true }
     }
     return false
@@ -86,17 +86,17 @@ push_builtin_methods := proc(mut v: Vec, builtin_name: Str, m1: Str, m2: Str, m3
 collect_refs := proc(e: Expr, mut refs: Vec) {
     if is_null(e) { return }
 
-    if e.data.is(NodeType.Ident) {
-        ref ident : Str = get_payload(e.data)
+    if e.node_type.is(NodeType.Ident) {
+        ref ident : Str = get_payload(e.node_type)
         vec_push_str(refs, ident)
-    } else if e.data.is(NodeType.FCall) {
+    } else if e.node_type.is(NodeType.FCall) {
         // Check for namespace method call: Type.method(args...)
         if e.children.len().gt(0) {
-            if e.child(0).data.is(NodeType.FieldAccess) {
+            if e.child(0).node_type.is(NodeType.FieldAccess) {
                 if scav_fa_is_ns(e.child(0)) {
                     ref fa : Expr = e.child(0)
-                    ref type_name : Str = get_payload(fa.child(0).data)
-                    ref method : Str = get_payload(fa.data)
+                    ref type_name : Str = get_payload(fa.child(0).node_type)
+                    ref method : Str = get_payload(fa.node_type)
                     vec_push_str(refs, type_name)
                     push_qn(refs, type_name, method)
                     // Recurse into args (skip callee -- already handled)
@@ -109,8 +109,8 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         }
         // array()/vec() builtins need Array/Vec constructor methods
         if e.children.len().gte(2) {
-            if e.child(0).data.is(NodeType.Ident) {
-                ref cn : Str = get_payload(e.child(0).data)
+            if e.child(0).node_type.is(NodeType.Ident) {
+                ref cn : Str = get_payload(e.child(0).node_type)
                 if cn.eq("array") {
                     push_builtin_methods(refs, "Array", "new", "set", "delete")
                 } else if cn.eq("vec") {
@@ -118,8 +118,8 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
                 }
             }
         }
-    } else if e.data.is(NodeType.FuncDef) {
-        ref fdef : FunctionDef = get_payload(e.data)
+    } else if e.node_type.is(NodeType.FuncDef) {
+        ref fdef : FunctionDef = get_payload(e.node_type)
         for p : Declaration in fdef.params {
             if p.explicit_type.len().gt(0) {
                 vec_push_str(refs, p.explicit_type)
@@ -134,34 +134,34 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         if fdef.return_type.len().gt(0) {
             vec_push_str(refs, fdef.return_type)
         }
-    } else if e.data.is(NodeType.FieldAccess) {
+    } else if e.node_type.is(NodeType.FieldAccess) {
         if scav_fa_is_ns(e) {
-            if e.child(0).data.is(NodeType.Ident) {
-                ref type_name : Str = get_payload(e.child(0).data)
-                ref field_name : Str = get_payload(e.data)
+            if e.child(0).node_type.is(NodeType.Ident) {
+                ref type_name : Str = get_payload(e.child(0).node_type)
+                ref field_name : Str = get_payload(e.node_type)
                 vec_push_str(refs, type_name)
                 push_qn(refs, type_name, field_name)
             }
         }
-    } else if e.data.is(NodeType.FieldAssign) {
+    } else if e.node_type.is(NodeType.FieldAssign) {
         if scav_fa_is_ns(e) {
-            if e.child(0).data.is(NodeType.Ident) {
-                ref type_name : Str = get_payload(e.child(0).data)
-                ref field_name : Str = get_payload(e.data)
+            if e.child(0).node_type.is(NodeType.Ident) {
+                ref type_name : Str = get_payload(e.child(0).node_type)
+                ref field_name : Str = get_payload(e.node_type)
                 vec_push_str(refs, type_name)
                 push_qn(refs, type_name, field_name)
             }
         }
-    } else if e.data.is(NodeType.Decl) {
-        ref decl : Declaration = get_payload(e.data)
+    } else if e.node_type.is(NodeType.Decl) {
+        ref decl : Declaration = get_payload(e.node_type)
         if decl.explicit_type.len().gt(0) {
             vec_push_str(refs, decl.explicit_type)
         }
     }
 
     // Also traverse sdd.fields for structs
-    if e.data.is(NodeType.StructDef) {
-        ref cr_sdd : StructDef = get_payload(e.data)
+    if e.node_type.is(NodeType.StructDef) {
+        ref cr_sdd : StructDef = get_payload(e.node_type)
         for cr_fd : Declaration in cr_sdd.fields {
             if is_null(cr_fd.default_value).not() {
                 collect_refs(cr_fd.default_value, refs)
@@ -172,7 +172,7 @@ collect_refs := proc(e: Expr, mut refs: Vec) {
         }
     }
     // Also traverse ns_decls entries (not in Expr children tree)
-    if e.data.is(NodeType.StructDef).or(e.data.is(NodeType.EnumDef)) {
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref cr_ns : Vec = def_ns_decls(e)
         for cr_d : Declaration in cr_ns {
             if is_null(cr_d.default_value).not() {
@@ -194,7 +194,7 @@ find_ns_decl_fdef := func(program: Expr, top: Map, name: Str) returns ref Expr {
     if top.has(type_part).not() { return NULL }
     ref tidx : U32 = top.get(type_part)
     ref tdecl : Expr = program.child(tidx)
-    if tdecl.data.is(NodeType.Decl).not() { return NULL }
+    if tdecl.node_type.is(NodeType.Decl).not() { return NULL }
     if is_struct_or_enum(tdecl).not() { return NULL }
     dot_u := dot.to_u32()
     method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
@@ -226,8 +226,8 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     if is_null(core_program).not() {
         for i in 0..core_program.children.len() {
             ref stmt : Expr = core_program.child(i)
-            if stmt.data.is(NodeType.Decl) {
-                ref decl : Declaration = get_payload(stmt.data)
+            if stmt.node_type.is(NodeType.Decl) {
+                ref decl : Declaration = get_payload(stmt.node_type)
                 core_top.set(own decl.name.clone(), own i.clone())
             }
         }
@@ -235,8 +235,8 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     mut top := Map.new("Str", Str.size(), "U32", U32.size())
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
-        if stmt.data.is(NodeType.Decl) {
-            ref decl : Declaration = get_payload(stmt.data)
+        if stmt.node_type.is(NodeType.Decl) {
+            ref decl : Declaration = get_payload(stmt.node_type)
             top.set(own decl.name.clone(), own i.clone())
         }
     }
@@ -246,18 +246,18 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     if is_cli {
         vec_push_str(worklist, "main")
         for stmt : Expr in program.children {
-            if stmt.data.is(NodeType.Decl) {
+            if stmt.node_type.is(NodeType.Decl) {
                 if is_def(stmt) { continue }
             }
             collect_refs(stmt, worklist)
         }
     } else if run_tests {
         for stmt : Expr in program.children {
-            if stmt.data.is(NodeType.Decl) {
-                if stmt.child(0).data.is(NodeType.FuncDef) {
-                    ref fdef : FunctionDef = get_payload(stmt.child(0).data)
+            if stmt.node_type.is(NodeType.Decl) {
+                if stmt.child(0).node_type.is(NodeType.FuncDef) {
+                    ref fdef : FunctionDef = get_payload(stmt.child(0).node_type)
                     if fdef.func_type.eq(FuncType.Test) {
-                        ref d : Declaration = get_payload(stmt.data)
+                        ref d : Declaration = get_payload(stmt.node_type)
                         vec_push_str(worklist, d.name)
                     }
                 }
@@ -267,7 +267,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         }
     } else {
         for stmt : Expr in program.children {
-            if stmt.data.is(NodeType.Decl) {
+            if stmt.node_type.is(NodeType.Decl) {
                 if is_def(stmt) { continue }
             }
             collect_refs(stmt, worklist)
@@ -293,8 +293,8 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             ref decl : Expr = program.child(idx)
             if is_struct_or_enum(decl) {
                 ref bfs_tdef : Expr = decl.child(0)
-                if bfs_tdef.data.is(NodeType.StructDef) {
-                    ref bfs_sdd : StructDef = get_payload(bfs_tdef.data)
+                if bfs_tdef.node_type.is(NodeType.StructDef) {
+                    ref bfs_sdd : StructDef = get_payload(bfs_tdef.node_type)
                     for bfs_fd : Declaration in bfs_sdd.fields {
                         if is_null(bfs_fd.default_value).not() {
                             collect_refs(bfs_fd.default_value, worklist)
@@ -327,8 +327,8 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             ref decl : Expr = core_program.child(idx)
             if is_struct_or_enum(decl) {
                 ref bfs_tdef2 : Expr = decl.child(0)
-                if bfs_tdef2.data.is(NodeType.StructDef) {
-                    ref bfs_sdd2 : StructDef = get_payload(bfs_tdef2.data)
+                if bfs_tdef2.node_type.is(NodeType.StructDef) {
+                    ref bfs_sdd2 : StructDef = get_payload(bfs_tdef2.node_type)
                     for bfs_fd2 : Declaration in bfs_sdd2.fields {
                         if is_null(bfs_fd2.default_value).not() {
                             collect_refs(bfs_fd2.default_value, worklist)
@@ -360,14 +360,14 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         // Namespace method? (check ns_decls in both user and core)
         ref ns_fdef : Expr = find_ns_decl_fdef(program, top, name)
         if is_null(ns_fdef).not() {
-            if ns_fdef.data.is(NodeType.FuncDef) {
+            if ns_fdef.node_type.is(NodeType.FuncDef) {
                 collect_refs(ns_fdef, worklist)
             }
         }
         if is_null(core_program).not() {
             ref core_ns_fdef : Expr = find_ns_decl_fdef(core_program, core_top, name)
             if is_null(core_ns_fdef).not() {
-                if core_ns_fdef.data.is(NodeType.FuncDef) {
+                if core_ns_fdef.node_type.is(NodeType.FuncDef) {
                     collect_refs(core_ns_fdef, worklist)
                 }
             }
@@ -381,9 +381,9 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         memset(cm, 0, cn)
         for i in 0..cn {
             ref stmt : Expr = core_program.child(i)
-            if stmt.data.is(NodeType.Decl) {
+            if stmt.node_type.is(NodeType.Decl) {
                 if is_def(stmt) {
-                    ref d : Declaration = get_payload(stmt.data)
+                    ref d : Declaration = get_payload(stmt.node_type)
                     if visited.has(d.name).not() {
                         memset(ptr_add(cm, i), 1, 1)
                     }
@@ -399,9 +399,9 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         memset(pm, 0, pn)
         for i in 0..pn {
             ref stmt : Expr = program.child(i)
-            if stmt.data.is(NodeType.Decl) {
+            if stmt.node_type.is(NodeType.Decl) {
                 if is_def(stmt) {
-                    ref d : Declaration = get_payload(stmt.data)
+                    ref d : Declaration = get_payload(stmt.node_type)
                     if visited.has(d.name).not() {
                         memset(ptr_add(pm, i), 1, 1)
                     }
@@ -415,9 +415,9 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
     // 5. Filter namespace methods in kept structs (both core and user)
     if is_null(core_program).not() {
         for stmt : Expr in core_program.children {
-            if stmt.data.is(NodeType.Decl).not() { continue }
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
             if is_struct_or_enum(stmt).not() { continue }
-            ref sdecl : Declaration = get_payload(stmt.data)
+            ref sdecl : Declaration = get_payload(stmt.node_type)
             // Filter ns_decls entries
             ref scv_ns : Vec = def_ns_decls(stmt.child(0))
             scv_nn := scv_ns.len()
@@ -437,9 +437,9 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         }
     }
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { continue }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
         if is_struct_or_enum(stmt).not() { continue }
-        ref sdecl : Declaration = get_payload(stmt.data)
+        ref sdecl : Declaration = get_payload(stmt.node_type)
         // Filter ns_decls entries
         ref scv_ns2 : Vec = def_ns_decls(stmt.child(0))
         scv_nn2 := scv_ns2.len()

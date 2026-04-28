@@ -176,7 +176,7 @@
 *** Case
 *** NoDefaultArg
 ** Expr: StructDef
-*** mut data := NodeType.Body
+*** mut node_type := NodeType.Body
 *** mut til_type := TilType.Unknown
 *** mut children := Vec.new("Expr", Expr.size())
 *** mut line : U32 = 0

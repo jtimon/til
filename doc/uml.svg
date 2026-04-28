@@ -203,7 +203,7 @@
   <text x="328" y="2268" class="line">NoDefaultArg</text>
   <rect x="314" y="2294" width="380" height="154" rx="10" ry="10" class="box"/>
   <text x="328" y="2332" class="title">Expr: StructDef</text>
-  <text x="328" y="2350" class="line">mut data := NodeType.Body</text>
+  <text x="328" y="2350" class="line">mut node_type := NodeType.Body</text>
   <text x="328" y="2368" class="line">mut til_type := TilType.Unknown</text>
   <text x="328" y="2386" class="line">mut children := Vec.new(&quot;Expr&quot;, Expr.size())</text>
   <text x="328" y="2404" class="line">mut line : U32 = 0</text>

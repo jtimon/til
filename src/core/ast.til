@@ -115,14 +115,14 @@ namespace:
 }
 
 set_own_arg := proc(mut fcall: Expr, shallow arg_index: USize) {
-    ref mut fcd : FCallData = get_payload(fcall.data)
+    ref mut fcd : FCallData = get_payload(fcall.node_type)
     mut bit : U64 = 1
     for _ in 0..arg_index { bit = bit.mul(2) }
     fcd.own_args = fcd.own_args.or(bit)
 }
 
 get_own_arg := func(fcall: Expr, shallow arg_index: USize) returns shallow Bool {
-    ref fcd : FCallData = get_payload(fcall.data)
+    ref fcd : FCallData = get_payload(fcall.node_type)
     mut bit : U64 = 1
     for _ in 0..arg_index { bit = bit.mul(2) }
     return fcd.own_args.and(bit).gt(0)
@@ -194,7 +194,7 @@ NodeType := enum {
 // --- Expr struct ---
 
 Expr := struct {
-    mut data := NodeType.Body
+    mut node_type := NodeType.Body
     mut til_type := TilType.Unknown
     mut children := Vec.new("Expr", Expr.size())
     mut line : U32 = 0
@@ -243,9 +243,9 @@ namespace:
         return c
     }
     new := func(data: NodeType, shallow line: U32, shallow col: U32, path: Str) returns Expr {
-        mut out := Expr(data = data.clone(), line = line, col = col, path = path.clone())
-        if out.data.is(NodeType.FCall) {
-            ref mut fcall_data : FCallData = get_payload(out.data)
+        mut out := Expr(node_type = data.clone(), line = line, col = col, path = path.clone())
+        if out.node_type.is(NodeType.FCall) {
+            ref mut fcall_data : FCallData = get_payload(out.node_type)
             fcall_data.variadic_index = -1.to_i32()
             fcall_data.variadic_count = 0
             fcall_data.kwargs_index = -1.to_i32()
@@ -329,7 +329,7 @@ expr_to_str_indent := func(self: Expr, shallow indent: U32) returns Str {
     for _ in 0..indent.to_i64().to_u64() {
         out = out.concat("  ")
     }
-    head := node_head_str(self.data)
+    head := node_head_str(self.node_type)
     if self.children.len().eq(0) {
         return out.concat("(").concat(head).concat(")")
     }
@@ -390,11 +390,11 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     for _ in 0..indent.to_i64().to_u64() {
         print("  ")
     }
-    print("(", node_name(e.data))
+    print("(", node_name(e.node_type))
     if e.til_type.eq(TilType.Unknown).not() {
         print(":", til_type_name_c(e.til_type))
     }
-    switch e.data {
+    switch e.node_type {
     case NodeType.Ident(s):      print(" \"", s, "\"")
     case NodeType.LiteralStr(s): print(" \"", s, "\"")
     case NodeType.LiteralNum(s): print(" \"", s, "\"")
@@ -424,29 +424,29 @@ ast_print := proc(e: Expr, shallow indent: U32) {
 
 // Is stmt a NodeType.Decl that has an RHS child?
 is_decl_with_child := func(stmt: Expr) returns shallow Bool {
-    return stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0))
+    return stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0))
 }
 
 // Is stmt a Decl whose RHS is a StructDef or EnumDef?
 is_struct_or_enum := func(stmt: Expr) returns shallow Bool {
     if is_decl_with_child(stmt).not() { return false }
     ref def : Expr = stmt.child(0)
-    return def.data.is(NodeType.StructDef).or(def.data.is(NodeType.EnumDef))
+    return def.node_type.is(NodeType.StructDef).or(def.node_type.is(NodeType.EnumDef))
 }
 
 // Is stmt a Decl whose RHS is a FuncDef?
 is_func_decl := func(stmt: Expr) returns shallow Bool {
     if is_decl_with_child(stmt).not() { return false }
-    return stmt.child(0).data.is(NodeType.FuncDef)
+    return stmt.child(0).node_type.is(NodeType.FuncDef)
 }
 
 // Is stmt a Decl whose RHS is any of FuncDef/StructDef/EnumDef?
 is_def := func(stmt: Expr) returns shallow Bool {
     if is_decl_with_child(stmt).not() { return false }
     ref def : Expr = stmt.child(0)
-    return def.data.is(NodeType.FuncDef)
-    .or(def.data.is(NodeType.StructDef))
-    .or(def.data.is(NodeType.EnumDef))
+    return def.node_type.is(NodeType.FuncDef)
+    .or(def.node_type.is(NodeType.StructDef))
+    .or(def.node_type.is(NodeType.EnumDef))
 }
 
 // For a struct/enum decl stmt, return the body Expr (child(0).child(0)).
@@ -457,23 +457,23 @@ decl_body := func(stmt: Expr) returns ref Expr {
 
 
 def_ns_decls := func(sdef: Expr) returns ref Vec {
-    if sdef.data.is(NodeType.StructDef) {
-        ref sd : StructDef = get_payload(sdef.data)
+    if sdef.node_type.is(NodeType.StructDef) {
+        ref sd : StructDef = get_payload(sdef.node_type)
         return sd.ns_decls
     }
-    ref ed : EnumDef = get_payload(sdef.data)
+    ref ed : EnumDef = get_payload(sdef.node_type)
     return ed.ns_decls
 }
 
 // --- Enum helpers ---
 
 enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
-    ref edd : EnumDef = get_payload(enum_def.data)
+    ref edd : EnumDef = get_payload(enum_def.node_type)
     return edd.payload_types.len().gt(0)
 }
 
 enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
-    ref edd : EnumDef = get_payload(enum_def.data)
+    ref edd : EnumDef = get_payload(enum_def.node_type)
     for i in 0..edd.variants.len() {
         ref vn : Str = edd.variants.get(i)
         if vn.eq(variant_name) { return i.to_i64().to_i32() }
@@ -482,7 +482,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
 }
 
 enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
-    ref edd : EnumDef = get_payload(enum_def.data)
+    ref edd : EnumDef = get_payload(enum_def.node_type)
     idx := tag.to_i64()
     if edd.payload_types.has(idx) {
         ref pt : Str = edd.payload_types.get(idx)

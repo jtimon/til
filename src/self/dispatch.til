@@ -158,14 +158,14 @@ ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_
 ffi_init_struct_defs := proc(program: Expr) {
     ffi_struct_defs = Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) {
+        if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) {
             continue
         }
         ref sdef : Expr = stmt.child(0)
-        if sdef.data.is(NodeType.StructDef).not() {
+        if sdef.node_type.is(NodeType.StructDef).not() {
             continue
         }
-        ref dd : Declaration = get_payload(stmt.data)
+        ref dd : Declaration = get_payload(stmt.node_type)
         key := Str(c_str = dd.name.c_str, count = dd.name.count, cap = CAP_VIEW)
         box := ExprPtrBox(ptr = sdef)
         ffi_struct_defs.set(own key, own box)
@@ -538,7 +538,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
         ffi_type_cache = Vec.new("FFITypePtrBox", FFITypePtrBox.size())
         ffi_type_cache_inited = true
     }
-    ref bsf_sdd : StructDef = get_payload(struct_def.data)
+    ref bsf_sdd : StructDef = get_payload(struct_def.node_type)
     nfields := bsf_sdd.fields.len()
     elements : Dynamic = malloc(nfields.add(1).to_u64().mul(Dynamic.size().to_u64()))
     for i in 0..nfields {
@@ -559,13 +559,13 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
 }
 
 h_free := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    if e.child(1).data.is(NodeType.Ident).not() {
+    if e.child(1).node_type.is(NodeType.Ident).not() {
         val := eval_expr(s, e.child(1))
         free_value(val)
         r = val_none()
         return true
     }
-    ref ident : Str = get_payload(e.child(1).data)
+    ref ident : Str = get_payload(e.child(1).node_type)
     ref cell : Cell = scope_get(s, ident)
     free_value(cell.val)
     memcpy(cell.val, val_none(), Value.size())
@@ -683,7 +683,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
     // child 3 is arity literal, actual args start at child 4
     ref arity_expr : Expr = e.child(3)
-    ref arity_str : Str = get_payload(arity_expr.data)
+    ref arity_str : Str = get_payload(arity_expr.node_type)
     nargs := arity_str.to_i64().to_u32()
     for ai in 0..nargs {
         fake_call.push_child_clone(e.child(ai.add(4)))
@@ -755,7 +755,7 @@ h_array := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     }
 
     // Build Array struct
-    ref sdd : StructDef = get_payload(cached_array_def.data)
+    ref sdd : StructDef = get_payload(cached_array_def.node_type)
     inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
     mut inst := make_struct_value(cached_array_name, cached_array_def, inst_data, false)
     ref si : StructInstance = get_payload(inst)
@@ -815,7 +815,7 @@ h_vec := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     }
 
     // Build Vec struct
-    ref vdd : StructDef = get_payload(cached_vec_def.data)
+    ref vdd : StructDef = get_payload(cached_vec_def.node_type)
     inst_data : Dynamic = calloc(1, vdd.total_struct_size.to_i64().to_usize())
     mut inst := make_struct_value(cached_vec_name, cached_vec_def, inst_data, false)
     ref si : StructInstance = get_payload(inst)
@@ -854,7 +854,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Boolean(x): pdata = to_ptr(x); psz = 1.to_i32()
                 case Value.Struct(si):
                     if is_null(si.struct_def).not() {
-                        ref sd : StructDef = get_payload(si.struct_def.data)
+                        ref sd : StructDef = get_payload(si.struct_def.node_type)
                         psz = sd.total_struct_size
                     }
                     pdata = to_ptr(si.data)
@@ -1015,7 +1015,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     raw : Dynamic = calloc(1, 16)
     ref mut ret_buf : Dynamic = NULL
     if is_null(ret_sdef).not() {
-        ref sdd : StructDef = get_payload(ret_sdef.data)
+        ref sdd : StructDef = get_payload(ret_sdef.node_type)
         ret_buf = malloc(sdd.total_struct_size.to_i64().to_usize())
         ffi_call(fe.cif, fe.fn, ret_buf, arg_ptrs)
     } else {
@@ -1078,7 +1078,7 @@ ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     return ext_dispatch_ffi(name, scope, e, result)
 }
 ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
-    ref fd : FunctionDef = get_payload(fdef.data)
+    ref fd : FunctionDef = get_payload(fdef.node_type)
     np := fd.params.len()
     mut alloc_np := np
     if alloc_np.eq(0) { alloc_np = 1 }
@@ -1143,15 +1143,15 @@ ffi_init_scan_program := proc(program: Expr) {
         ffi_map_inited = true
     }
     for stmt : Expr in program.children {
-        if stmt.data.is(NodeType.Decl).not() { }
+        if stmt.node_type.is(NodeType.Decl).not() { }
         else if stmt.children.len().eq(0) { }
         else {
             // Top-level ext_func/ext_proc
-            if stmt.child(0).data.is(NodeType.FuncDef) {
+            if stmt.child(0).node_type.is(NodeType.FuncDef) {
                 ref fdef : Expr = stmt.child(0)
-                ref fd : FunctionDef = get_payload(fdef.data)
+                ref fd : FunctionDef = get_payload(fdef.node_type)
                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
-                    ref dname : Declaration = get_payload(stmt.data)
+                    ref dname : Declaration = get_payload(stmt.node_type)
                     ref fn_ptr : U8 = ffi_dlsym(dname.name)
                     if is_null(fn_ptr).not() {
                         ffi_register(dname.name, fn_ptr, fdef)
@@ -1159,15 +1159,15 @@ ffi_init_scan_program := proc(program: Expr) {
                 }
             }
             // Struct namespace ext_func/ext_proc
-            if stmt.child(0).data.is(NodeType.StructDef) {
-                ref sdd : Declaration = get_payload(stmt.data)
-                ref sdd_data : StructDef = get_payload(stmt.child(0).data)
+            if stmt.child(0).node_type.is(NodeType.StructDef) {
+                ref sdd : Declaration = get_payload(stmt.node_type)
+                ref sdd_data : StructDef = get_payload(stmt.child(0).node_type)
                 for d_j : Declaration in sdd_data.ns_decls {
                     ref fdd : Declaration = d_j
                     ref fdef : Expr = fdd.default_value
                     if is_null(fdef) { continue }
-                    if fdef.data.is(NodeType.FuncDef).not() { continue }
-                    ref fd : FunctionDef = get_payload(fdef.data)
+                    if fdef.node_type.is(NodeType.FuncDef).not() { continue }
+                    ref fd : FunctionDef = get_payload(fdef.node_type)
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
                         flat_name := sdd.name.concat("_").concat(fdd.name)
                         ref fn_ptr : U8 = ffi_dlsym(flat_name)
@@ -1181,12 +1181,12 @@ ffi_init_scan_program := proc(program: Expr) {
                         // Scan function body for nested ext_func/ext_proc
                         ref fbody : Expr = fdef.child(0)
                         for inner : Expr in fbody.children {
-                            if inner.data.is(NodeType.Decl).and(inner.children.len().gt(0)) {
+                            if inner.node_type.is(NodeType.Decl).and(inner.children.len().gt(0)) {
                                 ref idef : Expr = inner.child(0)
-                                if idef.data.is(NodeType.FuncDef) {
-                                    ref ifd : FunctionDef = get_payload(idef.data)
+                                if idef.node_type.is(NodeType.FuncDef) {
+                                    ref ifd : FunctionDef = get_payload(idef.node_type)
                                     if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {
-                                        ref iname : Declaration = get_payload(inner.data)
+                                        ref iname : Declaration = get_payload(inner.node_type)
                                         ref ifn : U8 = ffi_dlsym(iname.name)
                                         if is_null(ifn).not() {
                                             ffi_register(iname.name, ifn, idef)

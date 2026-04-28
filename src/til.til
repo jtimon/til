@@ -76,7 +76,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
 repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
     if peek_ast.children.len().eq(0) { return false }
     ref puser : Expr = peek_ast.children.get(peek_ast.children.len().sub(1))
-    switch puser.data {
+    switch puser.node_type {
     case NodeType.Decl:        return false
     case NodeType.Assign:      return false
     case NodeType.FieldAssign: return false

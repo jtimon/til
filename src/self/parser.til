@@ -152,7 +152,7 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
 // so existing fn_ptr machinery picks the lambda up as a regular named
 // function. Bodyless FuncDefs (FuncSig types) are passed through.
 maybe_lift_lambda := proc(mut p: Parser, own e: Expr) returns Expr {
-    if e.data.is(NodeType.FuncDef).not() { return e }
+    if e.node_type.is(NodeType.FuncDef).not() { return e }
     if e.children.len().eq(0) { return e }
     lname := "_lambda_".concat(p.lambda_decls.len().to_i64().to_str())
     line := e.line
@@ -315,7 +315,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         }
         advance(p) // consume '='
         expect_token(p, TokenType.LParen)
-        ref mut sfd : FunctionDef = get_payload(def.data)
+        ref mut sfd : FunctionDef = get_payload(def.node_type)
         mut pi : USize = 0
         while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
             pn := expect_text(p, TokenType.Ident)
@@ -358,7 +358,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
 
     mut def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col, p.path)
     if is_ext {
-        ref mut sdd : StructDef = get_payload(def.data)
+        ref mut sdd : StructDef = get_payload(def.node_type)
         sdd.c_tag = c_tag.clone()
     }
     expect_token(p, TokenType.LBrace)
@@ -392,7 +392,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut ns_dd := Declaration(name = ns_name,
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
                 default_value = ns_value)
-            ref mut sdd : StructDef = get_payload(def.data)
+            ref mut sdd : StructDef = get_payload(def.node_type)
             sdd.ns_decls.push(own ns_dd)
         } else {
             mut f_own_type := OwnType.Shallow
@@ -414,7 +414,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut f_dd := Declaration(name = f_name, is_mut = f_is_mut,
                 own_type = f_own_type, explicit_type = f_explicit_type,
                 default_value = f_value)
-            ref mut sdd : StructDef = get_payload(def.data)
+            ref mut sdd : StructDef = get_payload(def.node_type)
             sdd.fields.push(own f_dd)
         }
     }
@@ -461,12 +461,12 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             mut ns_dd := Declaration(name = ns_name,
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
                 default_value = ns_value)
-            ref mut edd : EnumDef = get_payload(def.data)
+            ref mut edd : EnumDef = get_payload(def.node_type)
             edd.ns_decls.push(own ns_dd)
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated
             vname := expect_text(p, TokenType.Ident)
-            ref mut edd : EnumDef = get_payload(def.data)
+            ref mut edd : EnumDef = get_payload(def.node_type)
             edd.variants.push(own vname.clone())
             mut vtype := ""
             if check(p, TokenType.Colon) {
@@ -529,7 +529,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
         mut arg := maybe_lift_lambda(p, own parse_expression(p))
         if is_own_arg { set_own_arg(call, call.children.len()) }
         if is_splat {
-            ref mut fcd : FCallData = get_payload(call.data)
+            ref mut fcd : FCallData = get_payload(call.node_type)
             fcd.is_splat = true
         }
         call.add_child(own arg)
@@ -917,14 +917,14 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p), p.path)
             while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
                 mut stmt := parse_statement(p)
-                if stmt.data.is(NodeType.Decl) {
-                    ref dd : Declaration = get_payload(stmt.data)
+                if stmt.node_type.is(NodeType.Decl) {
+                    ref dd : Declaration = get_payload(stmt.node_type)
                     mut ns_dd := Declaration(name = dd.name.clone(), is_mut = dd.is_mut,
                         explicit_type = dd.explicit_type.clone(), own_type = dd.own_type)
                     if stmt.children.len().gt(0) {
                         ns_dd.default_value = stmt.child(0).clone()
                     }
-                    ref mut sdd : StructDef = get_payload(def.data)
+                    ref mut sdd : StructDef = get_payload(def.node_type)
                     sdd.ns_decls.push(own ns_dd)
                 }
             }
@@ -1156,8 +1156,8 @@ parse_statement := proc(mut p: Parser) returns Expr {
     drain_doc_comments(p)
     mut stmt := parse_statement_body(p)
     if p.pending_doc.is_empty().not() {
-        if stmt.data.is(NodeType.Decl) {
-            ref mut dd : Declaration = get_payload(stmt.data)
+        if stmt.node_type.is(NodeType.Decl) {
+            ref mut dd : Declaration = get_payload(stmt.node_type)
             dd.doc = p.pending_doc.clone()
         }
         p.pending_doc = ""
@@ -1308,9 +1308,9 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         // For UFCS method calls like 'own x.delete()', set bit 0 (callee)
         // as a signal. UFCS desugaring converts this to own on self (bit 1).
         mut expr := parse_expression(p)
-        if expr.data.is(NodeType.FCall) {
+        if expr.node_type.is(NodeType.FCall) {
             if expr.children.len().gt(0) {
-                if expr.child(0).data.is(NodeType.FieldAccess) {
+                if expr.child(0).node_type.is(NodeType.FieldAccess) {
                     set_own_arg(expr, 0)
                 }
             }

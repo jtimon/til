@@ -75,12 +75,12 @@ dir_of := func(abs: Str) returns Str {
 extract_imports := func(body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
     for stmt : Expr in body.children {
-        if stmt.data.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
-            if stmt.child(0).data.is(NodeType.Ident)
-            .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
-                ref _c0id : Str = get_payload(stmt.child(0).data)
+        if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
+            if stmt.child(0).node_type.is(NodeType.Ident)
+            .and(stmt.child(1).node_type.is(NodeType.LiteralStr)) {
+                ref _c0id : Str = get_payload(stmt.child(0).node_type)
                 if _c0id.eq("import") {
-                    ref path : Str = get_payload(stmt.child(1).data)
+                    ref path : Str = get_payload(stmt.child(1).node_type)
                     paths.push(own path.clone())
                 }
             }
@@ -169,11 +169,11 @@ LoadedProgram := struct {
 extract_link_info := proc(mut lp: LoadedProgram) {
     ref ast : Expr = lp.ast
     for stmt : Expr in ast.children {
-        if stmt.data.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
-            if stmt.child(0).data.is(NodeType.Ident)
-            .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
-                ref fname : Str = get_payload(stmt.child(0).data)
-                ref arg : Str = get_payload(stmt.child(1).data)
+        if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
+            if stmt.child(0).node_type.is(NodeType.Ident)
+            .and(stmt.child(1).node_type.is(NodeType.LiteralStr)) {
+                ref fname : Str = get_payload(stmt.child(0).node_type)
+                ref arg : Str = get_payload(stmt.child(1).node_type)
                 if fname.eq("link") {
                     if arg.find("/").gte(0) {
                         lp.link_flags = lp.link_flags.concat(" ").concat(arg)
@@ -378,7 +378,7 @@ func_kind := func(ft: FuncType) returns Str {
 decl_kind := func(stmt: Expr) returns Str {
     if stmt.children.len().eq(0) { return "var" }
     ref rhs : Expr = stmt.children.get(0)
-    switch rhs.data {
+    switch rhs.node_type {
     case NodeType.StructDef: return "struct"
     case NodeType.EnumDef:   return "enum"
     case NodeType.FuncDef(fd): return func_kind(fd.func_type)
@@ -402,8 +402,8 @@ append_packed_entry := proc(mut packed: Str, name: Str, value: Str) {
 // non-empty. Both blobs use 0x01 as field-sep and 0x02 as record-sep.
 collect_decl_packed := proc(body: Expr, mut kinds: Str, mut docs: Str) {
     for stmt : Expr in body.children {
-        if stmt.data.is(NodeType.Decl) {
-            ref dd : Declaration = get_payload(stmt.data)
+        if stmt.node_type.is(NodeType.Decl) {
+            ref dd : Declaration = get_payload(stmt.node_type)
             append_packed_entry(kinds, dd.name, decl_kind(stmt))
             if dd.doc.is_empty().not() {
                 append_packed_entry(docs, dd.name, dd.doc)
@@ -421,8 +421,8 @@ packed_capacity := func(body: Expr) returns USize {
     mut kinds_cap : USize = 0
     mut docs_cap : USize = 0
     for stmt : Expr in body.children {
-        if stmt.data.is(NodeType.Decl) {
-            ref dd : Declaration = get_payload(stmt.data)
+        if stmt.node_type.is(NodeType.Decl) {
+            ref dd : Declaration = get_payload(stmt.node_type)
             kinds_cap = kinds_cap.add(dd.name.len()).add(10.to_usize())
             if dd.doc.is_empty().not() {
                 docs_cap = docs_cap.add(dd.name.len()).add(dd.doc.len()).add(2.to_usize())

@@ -398,7 +398,7 @@ struct NodeType {
 };
 
 typedef struct Expr {
-    NodeType data;
+    NodeType node_type;
     TilType til_type;
     Vec children;
     U32 line;
