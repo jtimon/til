@@ -1,20 +1,14 @@
 mode lib
 
+
+import("vec.til")
+
 /// Hash map from typed keys to typed values.
 Map := struct {
-    own mut key_data : U8 = 0
-    own mut val_data : U8 = 0
-    mut count : USize = 0
-    mut cap : USize = 0
-    key_size : USize = 0
-    key_type := ""
-    val_size : USize = 0
-    val_type := ""
-    key_clone : CloneFn = default_clone
-    key_delete : DeleteFn = default_delete
-    key_cmp : CmpFn = default_cmp
-    val_clone : CloneFn = default_clone
-    val_delete : DeleteFn = default_delete
+    mut keys := Vec.new("Dynamic", Dynamic.size())
+    mut values := Vec.new("Dynamic", Dynamic.size())
+
+    mut key_cmp : CmpFn = default_cmp
 
 namespace:
     new := func(key_type: Str, key_size: USize, val_type: Str, val_size: USize) returns Map {
@@ -25,49 +19,32 @@ namespace:
         if val_type.is_empty() {
             panic(__LOC__, "Map.new: val_type required")
         }
-        if val_type.eq("Dynamic") {
-            return Map(key_data = malloc(key_size), val_data = malloc(val_size),
-                       cap = 1, key_size = key_size, key_type = key_type.clone(),
-                       val_size = val_size, val_type = val_type.clone(),
-                       key_clone = dyn_fn(key_type, "clone"),
-                       key_delete = dyn_fn(key_type, "delete"),
-                       key_cmp = dyn_fn(key_type, "cmp"))
-        }
-        return Map(key_data = malloc(key_size), val_data = malloc(val_size),
-                   cap = 1, key_size = key_size, key_type = key_type.clone(),
-                   val_size = val_size, val_type = val_type.clone(),
-                   key_clone = dyn_fn(key_type, "clone"),
-                   key_delete = dyn_fn(key_type, "delete"),
-                   key_cmp = dyn_fn(key_type, "cmp"),
-                   val_clone = dyn_fn(val_type, "clone"),
-                   val_delete = dyn_fn(val_type, "delete"))
+        mut m := Map()
+        m.keys = Vec.new(key_type, key_size)
+        m.values = Vec.new(val_type, val_size)
+        m.key_cmp = dyn_fn(key_type, "cmp")
+        return m
     }
 
-    len := func(self: Map) returns USize { return self.count }
+    len := func(self: Map) returns USize { return self.keys.count }
 
     // Get a ref to the key slot at index i.
     key_ptr := func(self: Map, i: USize) returns ref Dynamic {
-        if i.gte(self.count) {
-            panic(__LOC__, "Map.key_ptr: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
-        }
-        return ptr_add(self.key_data, i.mul(self.key_size))
+        return self.keys.get(i)
     }
 
     // Get a ref to the value slot at index i.
     val_ptr := func(self: Map, i: USize) returns ref Dynamic {
-        if i.gte(self.count) {
-            panic(__LOC__, "Map.val_ptr: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
-        }
-        return ptr_add(self.val_data, i.mul(self.val_size))
+        return self.values.get(i)
     }
 
     has := func(self: Map, key: Dynamic) returns shallow Bool {
         mut lo : USize = 0
-        mut hi := self.count
+        mut hi : USize = self.keys.count
         while lo.lt(hi) {
-            mid := lo.add(hi.sub(lo).div(2))
+            mid : USize = lo.add(hi.sub(lo).div(2))
             c : I64 = self.key_cmp(
-                          ptr_add(self.key_data, mid.mul(self.key_size)), key)
+                          self.key_ptr(mid), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
                 if c.gt(0) { hi = mid }
@@ -79,29 +56,29 @@ namespace:
 
     get := func(self: Map, key: Dynamic) returns ref Dynamic {
         mut lo : USize = 0
-        mut hi := self.count
+        mut hi : USize = self.keys.count
         while lo.lt(hi) {
-            mid := lo.add(hi.sub(lo).div(2))
+            mid : USize = lo.add(hi.sub(lo).div(2))
             c : I64 = self.key_cmp(
-                          ptr_add(self.key_data, mid.mul(self.key_size)), key)
+                          self.key_ptr(mid), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
                 if c.gt(0) { hi = mid }
-                else { return ptr_add(self.val_data, mid.mul(self.val_size)) }
+                else { return self.val_ptr(mid) }
             }
         }
         panic(__LOC__, "Map.get: key not found")
-        return to_ptr(self.val_data)
+        return to_ptr(self.values.data)
     }
 
     set := func(mut self: Map, own key: Dynamic, own val: Dynamic) {
         mut lo : USize = 0
-        mut hi := self.count
+        mut hi : USize = self.keys.count
         mut found := false
         while lo.lt(hi) {
-            mid := lo.add(hi.sub(lo).div(2))
+            mid : USize = lo.add(hi.sub(lo).div(2))
             c : I64 = self.key_cmp(
-                          ptr_add(self.key_data, mid.mul(self.key_size)), key)
+                          self.key_ptr(mid), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
                 if c.gt(0) { hi = mid }
@@ -109,86 +86,61 @@ namespace:
             }
         }
         if found {
-            if self.key_type.is_empty().not() {
-                self.key_delete(key, false)
+            // Delete old key/value at index lo.
+            if self.keys.elem_type.is_empty().not() {
+                self.keys.elem_delete(self.key_ptr(lo), false)
             }
+            if self.values.elem_type.is_empty().not().and(self.values.elem_type.eq("Dynamic").not()) {
+                self.values.elem_delete(self.val_ptr(lo), false)
+            }
+
+            // Overwrite bytes with new key/value.
+            memcpy(self.key_ptr(lo), key, self.keys.elem_size)
+            memcpy(self.val_ptr(lo), val, self.values.elem_size)
             free(own key)
-            if self.val_type.is_empty().not().and(self.val_type.eq("Dynamic").not()) {
-                self.val_delete(
-                          ptr_add(self.val_data, lo.mul(self.val_size)), false)
-            }
-            memcpy(ptr_add(self.val_data, lo.mul(self.val_size)), val, self.val_size)
             free(own val)
         } else {
-            if self.count.eq(self.cap) {
-                new_cap := self.cap.mul(2)
-                self.key_data = realloc(own self.key_data, new_cap.mul(self.key_size))
-                self.val_data = realloc(own self.val_data, new_cap.mul(self.val_size))
-                self.cap = new_cap
+            if self.keys.count.eq(self.keys.cap) {
+                new_cap : USize = self.keys.cap.mul(2)
+                self.keys.data = realloc(own self.keys.data, new_cap.mul(self.keys.elem_size))
+                self.values.data = realloc(own self.values.data, new_cap.mul(self.values.elem_size))
+                self.keys.cap = new_cap
+                self.values.cap = new_cap
             }
-            memmove(ptr_add(self.key_data, lo.add(1).mul(self.key_size)),
-                    ptr_add(self.key_data, lo.mul(self.key_size)),
-                    self.count.sub(lo).mul(self.key_size))
-            memmove(ptr_add(self.val_data, lo.add(1).mul(self.val_size)),
-                    ptr_add(self.val_data, lo.mul(self.val_size)),
-                    self.count.sub(lo).mul(self.val_size))
-            memcpy(ptr_add(self.key_data, lo.mul(self.key_size)), key, self.key_size)
-            memcpy(ptr_add(self.val_data, lo.mul(self.val_size)), val, self.val_size)
+            memmove(ptr_add(self.keys.data, lo.add(1).mul(self.keys.elem_size)),
+                    ptr_add(self.keys.data, lo.mul(self.keys.elem_size)),
+                    self.keys.count.sub(lo).mul(self.keys.elem_size))
+            memmove(ptr_add(self.values.data, lo.add(1).mul(self.values.elem_size)),
+                    ptr_add(self.values.data, lo.mul(self.values.elem_size)),
+                    self.values.count.sub(lo).mul(self.values.elem_size))
+            memcpy(ptr_add(self.keys.data, lo.mul(self.keys.elem_size)), key, self.keys.elem_size)
+            memcpy(ptr_add(self.values.data, lo.mul(self.values.elem_size)), val, self.values.elem_size)
             free(own key)
             free(own val)
-            self.count = self.count.add(1)
+            self.keys.count = self.keys.count.add(1)
+            self.values.count = self.values.count.add(1)
         }
     }
 
     delete := func(own self: Map, call_free: Bool = true) {
-        if self.key_type.is_empty().not() {
-            for i in 0..self.count {
-                self.key_delete(
-                          ptr_add(self.key_data, i.mul(self.key_size)), false)
-            }
-        }
-        if self.val_type.is_empty().not().and(self.val_type.eq("Dynamic").not()) {
-            for i in 0..self.count {
-                self.val_delete(
-                          ptr_add(self.val_data, i.mul(self.val_size)), false)
-            }
-        }
-        free(own self.key_data)
-        free(own self.val_data)
-        if self.key_type.is_empty().not() {
-            Str.delete(own self.key_type, false)
-        }
-        if self.val_type.is_empty().not() {
-            Str.delete(own self.val_type, false)
-        }
+        Vec.delete(own self.keys, false)
+        Vec.delete(own self.values, false)
         if call_free { free(own self) }
     }
 
     clone := func(self: Map) returns Map {
-        new_keys : Dynamic = malloc(self.cap.mul(self.key_size))
-        new_vals : Dynamic = malloc(self.cap.mul(self.val_size))
-        for i in 0..self.count {
-            ck : Dynamic = self.key_clone(
-                     ptr_add(self.key_data, i.mul(self.key_size)))
-            memcpy(ptr_add(new_keys, i.mul(self.key_size)), ck, self.key_size)
-            free(own ck)
-            if self.val_type.eq("Dynamic") {
-                memcpy(ptr_add(new_vals, i.mul(self.val_size)),
-                       ptr_add(self.val_data, i.mul(self.val_size)),
-                       self.val_size)
+        mut out := Map.new(self.keys.elem_type, self.keys.elem_size, self.values.elem_type, self.values.elem_size)
+        for i in 0..self.len() {
+            ck : Dynamic = self.keys.elem_clone(self.key_ptr(i))
+            if self.values.elem_type.eq("Dynamic") {
+                cv : Dynamic = malloc(self.values.elem_size)
+                memcpy(cv, self.val_ptr(i), self.values.elem_size)
+                out.set(own ck, own cv)
             } else {
-                cv : Dynamic = self.val_clone(
-                         ptr_add(self.val_data, i.mul(self.val_size)))
-                memcpy(ptr_add(new_vals, i.mul(self.val_size)), cv, self.val_size)
-                free(own cv)
+                cv : Dynamic = self.values.elem_clone(self.val_ptr(i))
+                out.set(own ck, own cv)
             }
         }
-        return Map(key_data = new_keys, val_data = new_vals,
-                   count = self.count, cap = self.cap,
-                   key_size = self.key_size, key_type = self.key_type.clone(),
-                   val_size = self.val_size, val_type = self.val_type.clone(),
-                   key_clone = self.key_clone, key_delete = self.key_delete,
-                   key_cmp = self.key_cmp,
-                   val_clone = self.val_clone, val_delete = self.val_delete)
+        return out
     }
 }

@@ -2,10 +2,10 @@
 #include "ext.h"
 
 typedef struct Array Array;
+typedef struct Vec Vec;
 typedef struct Map Map;
 typedef struct Set Set;
 typedef struct Str Str;
-typedef struct Vec Vec;
 typedef enum {
     TilType_TAG_Unknown,
     TilType_TAG_None,
@@ -236,17 +236,6 @@ typedef struct Str {
 } Str;
 
 
-typedef struct Vec {
-    U8 *data;
-    U32 count;
-    U32 cap;
-    U32 elem_size;
-    Str elem_type;
-    void * elem_clone;
-    void * elem_delete;
-} Vec;
-
-
 struct TilType {
     TilType_tag tag;
     union {
@@ -278,16 +267,6 @@ typedef struct Declaration {
 } Declaration;
 
 
-typedef struct FunctionDef {
-    FuncType func_type;
-    Vec params;
-    Str return_type;
-    I32 variadic_index;
-    I32 kwargs_index;
-    OwnType return_own_type;
-} FunctionDef;
-
-
 typedef struct FCallData {
     I32 variadic_index;
     U32 variadic_count;
@@ -297,14 +276,6 @@ typedef struct FCallData {
     U64 own_args;
     Expr *fn_sig;
 } FCallData;
-
-
-typedef struct StructDef {
-    I32 total_struct_size;
-    Vec fields;
-    Vec ns_decls;
-    Str c_tag;
-} StructDef;
 
 
 typedef struct AssignData {
@@ -342,20 +313,21 @@ typedef struct Array {
 } Array;
 
 
-typedef struct Map {
-    U8 *key_data;
-    U8 *val_data;
+typedef struct Vec {
+    U8 *data;
     U32 count;
     U32 cap;
-    U32 key_size;
-    Str key_type;
-    U32 val_size;
-    Str val_type;
-    void * key_clone;
-    void * key_delete;
+    U32 elem_size;
+    Str elem_type;
+    void * elem_clone;
+    void * elem_delete;
+} Vec;
+
+
+typedef struct Map {
+    Vec keys;
+    Vec values;
     void * key_cmp;
-    void * val_clone;
-    void * val_delete;
 } Map;
 
 
@@ -369,6 +341,24 @@ typedef struct Set {
     void * elem_delete;
     void * elem_cmp;
 } Set;
+
+
+typedef struct FunctionDef {
+    FuncType func_type;
+    Vec params;
+    Str return_type;
+    I32 variadic_index;
+    I32 kwargs_index;
+    OwnType return_own_type;
+} FunctionDef;
+
+
+typedef struct StructDef {
+    I32 total_struct_size;
+    Vec fields;
+    Vec ns_decls;
+    Str c_tag;
+} StructDef;
 
 
 typedef struct EnumDef {
@@ -687,6 +677,19 @@ void Array_set(Array * self, U32 * i, void * val);
 void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
 U32 Array_size(void);
+Vec * Vec_new(Str * elem_type, U32 * elem_size);
+U32 Vec_len(Vec * self);
+void Vec_push(Vec * self, void * val);
+void Vec_append(Vec * self, Vec * other);
+void Vec_move_from(Vec * self, Vec * other);
+void * Vec_get(Vec * self, U32 * i);
+void * Vec_pop(Vec * self);
+Vec * Vec_take_prefix(Vec * self, U32 * n);
+void Vec_set(Vec * self, U32 * i, void * val);
+void Vec_push_take(Vec * self, Vec * src, U32 i);
+void Vec_delete(Vec * self, Bool * call_free);
+Vec * Vec_clone(Vec * self);
+U32 Vec_size(void);
 Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size);
 U32 * Map_len(Map * self);
 void * Map_key_ptr(Map * self, U32 * i);
@@ -740,19 +743,6 @@ Bool Str_neq(Str * a, Str * b);
 Bool Str_lte(Str * a, Str * b);
 Bool Str_gte(Str * a, Str * b);
 Str * join(Vec * parts, Str * sep);
-Vec * Vec_new(Str * elem_type, U32 * elem_size);
-U32 Vec_len(Vec * self);
-void Vec_push(Vec * self, void * val);
-void Vec_append(Vec * self, Vec * other);
-void Vec_move_from(Vec * self, Vec * other);
-void * Vec_get(Vec * self, U32 * i);
-void * Vec_pop(Vec * self);
-Vec * Vec_take_prefix(Vec * self, U32 * n);
-void Vec_set(Vec * self, U32 * i, void * val);
-void Vec_push_take(Vec * self, Vec * src, U32 i);
-void Vec_delete(Vec * self, Bool * call_free);
-Vec * Vec_clone(Vec * self);
-U32 Vec_size(void);
 Bool TilType_is(TilType * self, TilType * other);
 Bool TilType_eq(TilType * self, TilType * other);
 void TilType_delete(TilType * self, Bool * call_free);
