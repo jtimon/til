@@ -326,8 +326,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 // both paths happy when synthesised doc text contains newlines or quotes.
 escape_doc_for_literal_str := func(raw: Str) returns Str {
     mut out := ""
-    for i in 0..raw.len() {
-        ref c : U8 = raw.byte_at(i)
+    for c : U8 in raw {
         if c.eq('\\') {
             out = out.concat("\\\\")
         } else if c.eq('"') {

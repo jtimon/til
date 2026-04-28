@@ -132,9 +132,7 @@ build_glyph := proc(segments: Vec) returns Glyph {
     contour_ends := Vec.new("I64", I64.size())
 
     mut contour_open := false
-    mut i : USize = 0
-    while i.lt(segments.len()) {
-        ref seg : Segment = segments.get(i)
+    for seg : Segment in segments {
         if seg.kind.eq(SegKind.Move) {
             if contour_open {
                 contour_ends.push(own xs.len().to_i64().sub(1))
@@ -160,7 +158,6 @@ build_glyph := proc(segments: Vec) returns Glyph {
                 contour_open = false
             }
         }
-        i = i.add(1)
     }
     if contour_open {
         contour_ends.push(own xs.len().to_i64().sub(1))
@@ -196,42 +193,30 @@ build_glyph := proc(segments: Vec) returns Glyph {
     w_i16(body, ymn)
     w_i16(body, xmx)
     w_i16(body, ymx)
-    mut ci : USize = 0
-    while ci.lt(contour_ends.len()) {
-        ref e : I64 = contour_ends.get(ci)
+    for e : I64 in contour_ends {
         w_u16(body, e)
-        ci = ci.add(1)
     }
     w_u16(body, 0) // instructionLength
 
     // Flags: one byte per point. 0x01 = on-curve.
-    mut fi : USize = 0
-    while fi.lt(n) {
-        ref oc : I64 = on_curve.get(fi)
+    for oc : I64 in on_curve {
         mut flag : I64 = 0
         if oc.eq(1) { flag = ON_CURVE }
         w_u8(body, flag.to_u8())
-        fi = fi.add(1)
     }
 
     // X coordinates as I16 deltas.
     mut prev_x : I64 = 0
-    mut xi : USize = 0
-    while xi.lt(n) {
-        ref xv : I64 = xs.get(xi)
+    for xv : I64 in xs {
         w_i16(body, xv.sub(prev_x))
         prev_x = xv.clone()
-        xi = xi.add(1)
     }
 
     // Y coordinates as I16 deltas.
     mut prev_y : I64 = 0
-    mut yi : USize = 0
-    while yi.lt(n) {
-        ref yv : I64 = ys.get(yi)
+    for yv : I64 in ys {
         w_i16(body, yv.sub(prev_y))
         prev_y = yv.clone()
-        yi = yi.add(1)
     }
 
     return Glyph(
@@ -437,16 +422,13 @@ build_name := func() returns Str {
     w_u16(t, string_offset)                    // offset to string data
     // Records (sorted by platformID,encodingID,languageID,nameID -- they
     // already are: all share the first three, and we inserted nameIDs in order).
-    i = 0
-    while i.lt(recs.len()) {
-        ref r : NameRec = recs.get(i)
+    for r : NameRec in recs {
         w_u16(t, 3)                            // platformID
         w_u16(t, 1)                            // encodingID
         w_u16(t, 1033)                         // languageID 0x0409
         w_u16(t, r.name_id)
         w_u16(t, r.length)
         w_u16(t, r.offset)
-        i = i.add(1)
     }
     // String pool
     t.push_str(pool)
@@ -515,13 +497,10 @@ build_ttf := proc(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
     offsets := Vec.new("I64", I64.size())
     lengths := Vec.new("I64", I64.size())
     mut cur : I64 = offset_table_size
-    mut bi : USize = 0
-    while bi.lt(blobs.len()) {
-        ref blob : Str = blobs.get(bi)
+    for blob : Str in blobs {
         offsets.push(own cur.clone())
         lengths.push(own blob.len().to_i64())
         cur = cur.add(padded_len(blob.len()).to_i64())
-        bi = bi.add(1)
     }
 
     // Assemble the file: offset table, then padded tables.
@@ -551,9 +530,7 @@ build_ttf := proc(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
     }
 
     // Write padded tables and record their absolute offsets.
-    mut wi : USize = 0
-    while wi.lt(blobs.len()) {
-        ref blob : Str = blobs.get(wi)
+    for blob : Str in blobs {
         w_bytes(file, blob)
         // pad
         rem := blob.len().mod(4)
@@ -562,7 +539,6 @@ build_ttf := proc(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
             mut pi : USize = 0
             while pi.lt(pad) { w_u8(file, 0.to_u8()); pi = pi.add(1) }
         }
-        wi = wi.add(1)
     }
 
     // Compute each table's checksum (over its padded region) and patch the

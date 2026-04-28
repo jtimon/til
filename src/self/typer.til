@@ -4227,8 +4227,7 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: 
             insert_exit_deletes(stmt.child(1), live, true)
         }
         if stmt.data.is(NodeType.Return).or(return_only.not().and(stmt.data.is(NodeType.Break).or(stmt.data.is(NodeType.Continue)))) {
-            for j in 0..live.len() {
-                ref local : LocalInfo = live.get(j)
+            for local : LocalInfo in live {
                 if stmt.children.len().gt(0) {
                     ref retval : Expr = stmt.child(0)
                     if expr_uses_var(retval, local.name).or(alias_used_in_expr(body, local.name, retval)) {

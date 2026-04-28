@@ -33,8 +33,7 @@ namespace:
         }
         mut best := 0.sub(AB_INF)
         mut a := alpha
-        for i in 0..children.len() {
-            ref child : Board = children.get(i)
+        for child : Board in children {
             score := 0.sub(self.search_ab(child, depth.sub(1),
                            0.sub(beta), 0.sub(a)))
             if score.gt(best) { best = score }

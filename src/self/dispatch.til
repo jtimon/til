@@ -1180,8 +1180,7 @@ ffi_init_scan_program := proc(program: Expr) {
                     } else if fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc)) {
                         // Scan function body for nested ext_func/ext_proc
                         ref fbody : Expr = fdef.child(0)
-                        for k in 0..fbody.children.len() {
-                            ref inner : Expr = fbody.child(k)
+                        for inner : Expr in fbody.children {
                             if inner.data.is(NodeType.Decl).and(inner.children.len().gt(0)) {
                                 ref idef : Expr = inner.child(0)
                                 if idef.data.is(NodeType.FuncDef) {

@@ -40,11 +40,8 @@ scan_fills := func(svg: Str) returns Vec {
             val := part.substr(0, end.to_usize())
             if val.eq("none").not() {
                 mut found := false
-                mut j : USize = 0
-                while j.lt(fills.len()) {
-                    ref e : Str = fills.get(j)
+                for e : Str in fills {
                     if e.eq(val) { found = true }
-                    j = j.add(1)
                 }
                 if found.not() { fills.push(own val.clone()) }
             }
