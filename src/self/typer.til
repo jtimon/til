@@ -1152,8 +1152,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     inner := TypeScope(parent = scope)
     if expr.data.is(NodeType.StructDef) {
         ref mut tc_sdd : StructDef = get_payload(expr.data)
-        for df : Declaration in tc_sdd.fields {
-            ref mut fd : Declaration = df
+        for fd : Declaration in tc_sdd.fields {
             if is_null(fd.default_value).not().and(fd.default_value.data.is(NodeType.NoDefaultArg).not()) {
                 infer_expr(inner, fd.default_value, 0, ctx)
             }
@@ -1199,8 +1198,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     infer_body(inner, expr.child(0), 0, 0, 0, 0, 1, ctx)
     // Type-check ns_decls (stored directly by parser, not via body)
     ref tc_ns : Vec = def_ns_decls(expr)
-    for d_tc_i : Declaration in tc_ns {
-        ref mut tc_nd : Declaration = d_tc_i
+    for tc_nd : Declaration in tc_ns {
         if is_null(tc_nd.default_value) { continue }
         if tc_nd.default_value.data.is(NodeType.NoDefaultArg) { continue }
         if tc_nd.default_value.data.is(NodeType.FuncDef) {
@@ -1233,8 +1231,7 @@ infer_func_sig_expr := proc(scope: TypeScope, mut expr: Expr) {
         ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
         fdef.return_type = resolved_return_type
     }
-    for d_i : Declaration in fdef.params {
-        ref mut param : Declaration = d_i
+    for param : Declaration in fdef.params {
         ptype_name := param.explicit_type.clone()
         ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
         param.explicit_type = resolved_ptype
@@ -4142,8 +4139,7 @@ extend_ref_local_lifetimes := proc(body: Expr, mut locals: Vec) {
 
             if rhs.data.is(NodeType.Ident) {
                 ref src_name : Str = get_payload(rhs.data)
-                for j in 0..locals.len() {
-                    ref mut local : LocalInfo = locals.get(j)
+                for local : LocalInfo in locals {
                     if local.name.eq(src_name).and(local.last_use.lt(ref_last)) {
                         local.last_use = ref_last
                         ref_changed = true
@@ -4158,8 +4154,7 @@ extend_ref_local_lifetimes := proc(body: Expr, mut locals: Vec) {
                 }
                 if root.data.is(NodeType.Ident) {
                     ref src_name : Str = get_payload(root.data)
-                    for j in 0..locals.len() {
-                        ref mut local : LocalInfo = locals.get(j)
+                    for local : LocalInfo in locals {
                         if local.name.eq(src_name).and(local.last_use.lt(ref_last)) {
                             local.last_use = ref_last
                             ref_changed = true
@@ -4176,8 +4171,7 @@ extend_ref_local_lifetimes := proc(body: Expr, mut locals: Vec) {
                 }
                 if arg.data.is(NodeType.Ident).not() { continue }
                 ref aname : Str = get_payload(arg.data)
-                for j in 0..locals.len() {
-                    ref mut local : LocalInfo = locals.get(j)
+                for local : LocalInfo in locals {
                     if local.name.eq(aname).and(local.last_use.lt(ref_last)) {
                         local.last_use = ref_last
                         ref_changed = true
@@ -4353,8 +4347,7 @@ insert_assign_delete := proc(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
 }
 
 promote_own_transferred_locals := proc(mut body: Expr, mut locals: Vec) {
-    for j in 0..locals.len() {
-        ref mut local : LocalInfo = locals.get(j)
+    for local : LocalInfo in locals {
         if local.decl_index.lt(0.to_i32()) { continue }
         ref stmt : Expr = body.child(local.decl_index.to_i64().to_u32())
         if stmt.data.is(NodeType.Decl).not() { continue }

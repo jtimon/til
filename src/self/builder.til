@@ -2903,8 +2903,7 @@ register_lookups_prog := proc(prog: Expr) {
                     func_defs.set(own key, own fv)
                     if nsd.default_value.children.len().gt(0) {
                         ref fbody : Expr = nsd.default_value.child(0)
-                        for k in 0..fbody.children.len() {
-                            ref nested : Expr = fbody.child(k)
+                        for nested : Expr in fbody.children {
                             if is_func_decl(nested).not() { continue }
                             ref nfdef : Expr = nested.child(0)
                             ref nd : Declaration = get_payload(nested.data)

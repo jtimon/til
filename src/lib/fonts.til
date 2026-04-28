@@ -404,14 +404,11 @@ build_name := func() returns Str {
 
     // Build string pool and fill offsets/lengths.
     pool := Str.with_capacity(512)
-    mut i : USize = 0
-    while i.lt(recs.len()) {
-        ref r : NameRec = recs.get(i)
+    for r : NameRec in recs {
         enc := utf16be_ascii(r.text)
         r.offset = pool.len().to_i64()
         r.length = enc.len().to_i64()
         pool.push_str(enc)
-        i = i.add(1)
     }
 
     mut t := Str.with_capacity(512)
