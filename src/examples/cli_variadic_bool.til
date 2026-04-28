@@ -2,11 +2,8 @@ mode cli
 
 main := proc(flags: ..Bool) {
     mut all := true
-    mut i : USize = 0
-    while i.lt(flags.len()) {
-        ref f: Bool = flags.get(i)
+    for f : Bool in flags {
         all = all.and(f)
-        i = i.add(1)
     }
     println(all.to_str())
 }

@@ -1,10 +1,7 @@
 mode cli
 
 main := proc(args: ..Str) {
-    mut i : USize = 0
-    while i.lt(args.len()) {
-        ref a: Str = args.get(i)
+    for a : Str in args {
         println(a)
-        i = i.add(1)
     }
 }

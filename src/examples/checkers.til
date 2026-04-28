@@ -208,8 +208,7 @@ execute_move := proc(mut board: Array, from: I64, to: I64, jumped_idx: I64) retu
 // Count pieces for a side
 count_pieces := func(mut board: Array, side: I64) returns I64 {
     mut count := 0
-    for i in 0..64 {
-        ref p : I64 = board.get(i)
+    for p : I64 in board {
         if is_side(p, side) { count = count.add(1) }
     }
     return count

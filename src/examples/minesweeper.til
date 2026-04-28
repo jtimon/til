@@ -163,14 +163,10 @@ main := proc() {
 
                             // Check win
                             mut revealed := 0
-                            mut wi := 0
-                            while wi.lt(total) {
-                                wi_u : USize = wi.to_usize()
-                                ref ws : I64 = state.get(wi_u)
+                            for ws : I64 in state {
                                 if ws.eq(1) {
                                     revealed = revealed.add(1)
                                 }
-                                wi = wi.add(1)
                             }
                             if revealed.eq(total.sub(num_mines)) {
                                 game_won = true

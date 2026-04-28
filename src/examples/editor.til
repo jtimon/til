@@ -23,11 +23,8 @@ main := proc(args: ..Str) {
         content := readfile(filename)
         if content.len().gt(0) {
             parts := content.split("\n")
-            mut i : USize = 0
-            while i.lt(parts.len()) {
-                ref p : Str = parts.get(i)
+            for p : Str in parts {
                 lines.push(own p.clone())
-                i = i.add(1)
             }
             // If file ended with newline, last split element is empty, keep it
         } else {
@@ -87,11 +84,8 @@ main := proc(args: ..Str) {
                 content := readfile(filename)
                 if content.len().gt(0) {
                     parts := content.split("\n")
-                    mut i : USize = 0
-                    while i.lt(parts.len()) {
-                        ref p : Str = parts.get(i)
+                    for p : Str in parts {
                         new_lines.push(own p.clone())
-                        i = i.add(1)
                     }
                 } else {
                     new_lines.push(own "".clone())

@@ -9,20 +9,14 @@ usage := proc() {
 main := proc(op: Str, nums: ..I64) {
     if op.eq("add") {
         mut result := 0
-        mut i : USize = 0
-        while i.lt(nums.len()) {
-            ref n: I64 = nums.get(i)
+        for n : I64 in nums {
             result = result.add(n)
-            i = i.add(1)
         }
         println(result.to_str())
     } else if op.eq("mul") {
         mut result := 1
-        mut i : USize = 0
-        while i.lt(nums.len()) {
-            ref n: I64 = nums.get(i)
+        for n : I64 in nums {
             result = result.mul(n)
-            i = i.add(1)
         }
         println(result.to_str())
     } else {

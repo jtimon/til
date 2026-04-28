@@ -1,13 +1,10 @@
 mode gui
 
 main := proc(args: ..Str) {
-    mut ai : USize = 0
-    while ai.lt(args.len()) {
-        ref a : Str = args.get(ai)
+    for a : Str in args {
         if a.eq("--mute") {
             sound_enabled = false
         }
-        ai = ai.add(1)
     }
 
     init_window(480, 320, "popcorn")

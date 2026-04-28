@@ -313,8 +313,7 @@ main := proc() {
         end_drawing()
     }
 
-    for i in 0..NUM_KEYS {
-        ref s : Sound = sounds.get(i)
+    for s : Sound in sounds {
         unload_sound(s)
     }
     unload_font(fnt)

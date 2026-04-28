@@ -185,10 +185,8 @@ split_enum_variants := proc(lines: Vec) returns Vec {
     tokens := tokenize(body, "uml_enum_body")
     mut current := ""
     mut paren_depth := 0
-    mut i : USize = 0
 
-    while i.lt(tokens.len()) {
-        ref tok : Token = tokens.get(i)
+    for tok : Token in tokens {
         if tok.type.eq(TokenType.Eof) { break }
 
         if tok.type.eq(TokenType.LParen) {
@@ -206,8 +204,6 @@ split_enum_variants := proc(lines: Vec) returns Vec {
         } else {
             current = append_token_text(current, tok)
         }
-
-        i = i.add(1)
     }
 
     last := trim_trailing_comma(current)
@@ -232,9 +228,7 @@ extract_types_from_file := proc(path: Str) returns Vec {
     mut out := Vec.new("UmlType", UmlType.size())
     label := file_label(path)
 
-    mut i : USize = 0
-    while i.lt(ast.children.len()) {
-        ref stmt : Expr = ast.child(i)
+    for stmt : Expr in ast.children {
         if stmt.data.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref dd : Declaration = get_payload(stmt.data)
             ref rhs : Expr = stmt.child(0)
@@ -255,7 +249,6 @@ extract_types_from_file := proc(path: Str) returns Vec {
                 ))
             }
         }
-        i = i.add(1)
     }
 
     return out
@@ -349,9 +342,7 @@ svg_text := func(x: I64, y: I64, klass: Str, body: Str) returns Str {
 
 xml_escape := func(s: Str) returns Str {
     mut out := ""
-    mut i : USize = 0
-    while i.lt(s.len()) {
-        ref c : U8 = s.get(i)
+    for c : U8 in s {
         if c.eq('&') {
             out = out.concat("&amp;")
         } else if c.eq('<') {
@@ -363,7 +354,6 @@ xml_escape := func(s: Str) returns Str {
         } else {
             out = out.concat(Str.from_byte(c))
         }
-        i = i.add(1)
     }
     return out
 }
@@ -371,12 +361,9 @@ xml_escape := func(s: Str) returns Str {
 max_line_chars := func(t: UmlType) returns I64 {
     header := t.name.concat(": ").concat(t.kind)
     mut max := header.len().to_i64()
-    mut i : USize = 0
-    while i.lt(t.lines.len()) {
-        ref line : Str = t.lines.get(i)
+    for line : Str in t.lines {
         n := line.len().to_i64()
         if n.gt(max) { max = n }
-        i = i.add(1)
     }
     return max
 }
@@ -393,12 +380,9 @@ box_h := func(t: UmlType) returns I64 {
 panel_w := func(p: UmlPanel) returns I64 {
     if p.types.len().eq(0) { return EMPTY_PANEL_W }
     mut max := 0
-    mut i : USize = 0
-    while i.lt(p.types.len()) {
-        ref t : UmlType = p.types.get(i)
+    for t : UmlType in p.types {
         w := box_w(t)
         if w.gt(max) { max = w }
-        i = i.add(1)
     }
     return max.add(PANEL_PAD_X.mul(2))
 }

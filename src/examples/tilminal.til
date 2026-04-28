@@ -10,11 +10,8 @@ push_output := proc(lines: Vec, output: Str) {
         return
     }
     parts := output.split("\n")
-    mut i : USize = 0
-    while i.lt(parts.len()) {
-        ref p : Str = parts.get(i)
+    for p : Str in parts {
         push_line(lines, p)
-        i = i.add(1)
     }
 }
 
