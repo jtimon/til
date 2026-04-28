@@ -16,21 +16,48 @@ undocumented := func() returns Str {
 }
 
 test_single_line_doc := test() {
-    assert(__LOC__, __til_docs__.has("single_doc"))
-    assert_eq_str(__LOC__, __til_docs__.get("single_doc"), "single-line documentation")
+    assert(__LOC__, __til_has_doc__("single_doc"))
+    assert_eq_str(__LOC__, __til_get_doc__("single_doc"), "single-line documentation")
 }
 
 test_multi_line_doc := test() {
-    assert(__LOC__, __til_docs__.has("multi_doc"))
-    assert_eq_str(__LOC__, __til_docs__.get("multi_doc"), "first line\nsecond line")
+    assert(__LOC__, __til_has_doc__("multi_doc"))
+    assert_eq_str(__LOC__, __til_get_doc__("multi_doc"), "first line\nsecond line")
 }
 
 test_undocumented_decl := test() {
-    assert(__LOC__, __til_docs__.has("undocumented").not())
+    assert(__LOC__, __til_has_doc__("undocumented").not())
 }
 
 test_core_doc_registered := test() {
-    assert(__LOC__, __til_docs__.has("help"))
-    assert(__LOC__, __til_docs__.has("__doc_register__"))
-    assert(__LOC__, __til_docs__.has("__til_docs__"))
+    assert(__LOC__, __til_has_doc__("help"))
+    assert(__LOC__, __til_has_doc__("__doc_init__"))
+    assert(__LOC__, __til_has_doc__("__til_docs_blob__"))
+    assert(__LOC__, __til_has_doc__("__til_kinds_blob__"))
+}
+
+test_kind_func := test() {
+    assert(__LOC__, __til_has_kind__("undocumented"))
+    assert_eq_str(__LOC__, __til_get_kind__("undocumented"), "func")
+    assert(__LOC__, __til_has_kind__("single_doc"))
+    assert_eq_str(__LOC__, __til_get_kind__("single_doc"), "func")
+}
+
+test_kind_unknown := test() {
+    assert(__LOC__, __til_has_kind__("not_a_real_symbol_xyz").not())
+    assert(__LOC__, __til_has_doc__("not_a_real_symbol_xyz").not())
+}
+
+test_kind_struct := test() {
+    assert(__LOC__, __til_has_kind__("Str"))
+    assert_eq_str(__LOC__, __til_get_kind__("Str"), "struct")
+    assert(__LOC__, __til_has_kind__("Vec"))
+    assert_eq_str(__LOC__, __til_get_kind__("Vec"), "struct")
+}
+
+test_kind_proc := test() {
+    assert(__LOC__, __til_has_kind__("println"))
+    assert_eq_str(__LOC__, __til_get_kind__("println"), "proc")
+    assert(__LOC__, __til_has_kind__("help"))
+    assert_eq_str(__LOC__, __til_get_kind__("help"), "proc")
 }

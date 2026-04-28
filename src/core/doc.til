@@ -1,22 +1,100 @@
 mode lib
 
-/// Runtime registry of /// doc comments collected by the loader.
-/// Keys are top-level declaration names, values are the joined doc text.
-mut __til_docs__ := Map.new("Str", Str.size(), "Str", Str.size())
+// Packed registry blobs populated by the loader at startup. Each blob
+// uses 0x01 as field-sep and 0x02 as record-sep:
+//   "name1<0x01>value1<0x02>name2<0x01>value2<0x02>..."
+// help() scans them linearly on demand. There's no per-entry runtime
+// cost at startup: the loader emits one __doc_init__ call that just
+// stores two string references.
 
-/// Loader-emitted entry point used to populate __til_docs__ at startup.
-/// Not intended for direct user calls.
-__doc_register__ := proc(name: Str, text: Str) {
-    __til_docs__.set(own name.clone(), own text.clone())
+/// Packed runtime registry of /// doc comments collected by the loader.
+/// Encoded as `name<0x01>doc<0x02>...`. Use help(name) for lookup.
+mut __til_docs_blob__ := ""
+
+/// Packed runtime registry of declaration kinds collected by the loader.
+/// Encoded as `name<0x01>kind<0x02>...`. Use help(name) for lookup.
+mut __til_kinds_blob__ := ""
+
+/// Loader-emitted entry point that hands the packed registry blobs to
+/// the runtime. Not intended for direct user calls.
+__doc_init__ := proc(kinds_data: Str, docs_data: Str) {
+    __til_kinds_blob__ = kinds_data.clone()
+    __til_docs_blob__ = docs_data.clone()
+}
+
+// Scan blob for `name`. Returns the matching value as an owned Str or
+// "" if not found. Linear scan; intended for interactive use of help().
+__doc_lookup__ := func(blob: Str, name: Str) returns Str {
+    n := blob.len()
+    nm_len := name.len()
+    mut i : USize = 0
+    while i.lt(n) {
+        mut sep1 := i
+        while sep1.lt(n).and(blob.byte_at(sep1).neq(1.to_u8())) {
+            sep1 = sep1.add(1)
+        }
+        if sep1.gte(n) { return "" }
+        mut sep2 := sep1.add(1)
+        while sep2.lt(n).and(blob.byte_at(sep2).neq(2.to_u8())) {
+            sep2 = sep2.add(1)
+        }
+        if sep2.gt(n) { return "" }
+        if sep1.sub(i).eq(nm_len) {
+            mut hit := true
+            for k in 0..nm_len {
+                ref a : U8 = blob.byte_at(i.add(k))
+                ref b : U8 = name.byte_at(k)
+                if a.neq(b) { hit = false }
+            }
+            if hit {
+                return blob.substr(sep1.add(1), sep2.sub(sep1).sub(1)).clone()
+            }
+        }
+        i = sep2.add(1)
+    }
+    return ""
+}
+
+/// True iff the named declaration has a /// doc comment registered.
+__til_has_doc__ := func(name: Str) returns shallow Bool {
+    return __doc_lookup__(__til_docs_blob__, name).is_empty().not()
+}
+
+/// True iff the named declaration is registered with a kind label.
+__til_has_kind__ := func(name: Str) returns shallow Bool {
+    return __doc_lookup__(__til_kinds_blob__, name).is_empty().not()
+}
+
+/// Get the registered /// doc comment for a declaration, or "" if none.
+__til_get_doc__ := func(name: Str) returns Str {
+    return __doc_lookup__(__til_docs_blob__, name)
+}
+
+/// Get the registered kind label for a declaration, or "" if not found.
+__til_get_kind__ := func(name: Str) returns Str {
+    return __doc_lookup__(__til_kinds_blob__, name)
 }
 
 /// Print the doc comment attached to a top-level declaration.
-/// Prints "no documentation for: <name>" if the name is not registered.
+/// If the name exists but has no doc, print its kind. If the name is
+/// not declared at all, print "undefined symbol: <name>".
 help := proc(name: Str) {
-    if __til_docs__.has(name) {
-        ref t : Str = __til_docs__.get(name)
-        println(t)
-    } else {
-        println("no documentation for: ", name)
+    doc := __til_get_doc__(name)
+    if doc.is_empty().not() {
+        println(doc)
+        return
     }
+    kind := __til_get_kind__(name)
+    if kind.is_empty().not() {
+        println(name, " is a ", kind, " (no documentation)")
+        return
+    }
+    println("undefined symbol: ", name)
 }
+
+// Backward-compat stubs for old boot/til.c which synthesizes per-decl
+// __doc_register__ / __kind_register__ FCalls. Once boot is regenerated
+// from the new loader, only __doc_init__ is emitted and these are
+// unused. Removable next bootstrap cycle.
+__doc_register__ := proc(_name: Str, _text: Str) {}
+__kind_register__ := proc(_name: Str, _kind: Str) {}
