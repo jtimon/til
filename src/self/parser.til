@@ -252,6 +252,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 }
                 fd.variadic_index = fd.params.len().to_i64().to_i32()
                 is_variadic = true
+                param_decl.own_type = OwnType.Own // variadic Array is owned by callee
                 param_decl.explicit_type = expect_text(p, TokenType.Ident)
                 param_decl.name = pname.clone()
             } else {

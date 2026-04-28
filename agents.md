@@ -63,6 +63,10 @@ due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
   Example: `make > tmp/build.log 2>&1` then use Read/Grep on `tmp/build.log`.
   ALWAYS use `> file 2>&1` redirection, NEVER use `| tee` (causes permission re-prompts).
 
+## Background vs Foreground
+
+NEVER run commands in the background. No exceptions.
+
 ## Recovery
 
 - The last commit ALWAYS works. til_boot is built from it via git.
