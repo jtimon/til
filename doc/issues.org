@@ -2165,64 +2165,8 @@
   - How does mode linking/composition work? ~mode gui + server~? Inheritance?
   - How are stdlib modes distributed — as .til files? Compiled-in?
 
-** OPEN #61 Lambdas: anonymous inline functions
-  :DEPENDENCIES: #14
-  :BLOCKS: #54
-  :RELATED: #58
-  Anonymous inline functions (lambdas) without captures.
-  Split from #14 which covered named function pointers.
-
-  A lambda is an anonymous FuncDef literal — the same syntax as a named
-  FuncDef definition, just without a name. From rstil/doc/first_class.org.
-  Must work anywhere a FuncSig-typed value is expected:
-  - As argument: ~apply(func(x: I64) returns I64 { return x.mul(2) }, 5)~
-  - As value: ~f : UnaryOp = func(x: I64) returns I64 { return x.mul(2) }~
-  - In collections: ~ops.push(func(a: I64, b: I64) returns I64 { return a.add(b) })~
-
-  FuncSig form lambdas (type separated from param names) also work:
-  - ~apply(func(I64) returns I64 = (x) { return x.mul(2) }, 5)~
-
-  Parameter and return types are explicit (per the FuncDef literal rule).
-  No captures — pure lambdas only. Closures (captures) are #54.
-
-*** Done: lambda lifting in argument and value positions
-
-   Parser lifts every anonymous FuncDef literal seen at an "argument"
-   position into a hidden top-level ~_lambda_<N>~ declaration and replaces
-   the original expression with an Ident referring to the lifted name.
-   Existing fn_ptr machinery (#14) then treats the lambda as a regular
-   named function -- no typer, builder, or interpreter changes needed.
-   See ~maybe_lift_lambda~ in src/self/parser.til.
-
-   Lifted positions:
-   - Positional FCall arg: ~apply(func(...) { ... }, 3, 4)~
-   - Named FCall arg: ~apply(op = func(...) { ... }, x = 4)~
-   - UFCS method-call arg (positional and named): ~obj.m(func(...) { ... })~
-   - RHS of FuncSig-typed declaration: ~f : UnaryOp = func(...) { ... }~
-   - Struct field default value: ~Handler := struct { mut on_click : BinaryOp = func(...) { ... } }~
-   - Struct constructor named arg: ~Handler(on_click = func(...) { ... })~
-
-   Tests: src/test/first_class.til (10 tests, both interpret and run).
-
-*** Open: storing in a Vec of FuncSig elements
-
-   ~ops.push(own func(...) { ... })~ where ~ops := Vec.new("BinaryOp", ...)~
-   panics at runtime with ~dyn_fn: unknown BinaryOp.clone~. The same
-   panic happens with a NAMED function (~ops.push(own fn_add)~), so this
-   is a pre-existing Vec/FuncSig limitation, not lambda-specific. Same
-   root cause as the "deferred: storing in collections" note under
-   fixed #14.
-
-*** Open: FuncSig form lambda as expression
-
-   ~apply(func(I64) returns I64 = (x) { return x.mul(2) }, 5)~ does not
-   parse: the parser doesn't accept ~= (names) { body }~ continuation
-   in expression position (only after a ~name : Type =~ decl head).
-   The FuncDef form ~func(x: I64) returns I64 { ... }~ already covers
-   every use case so this is low priority.
-
 ** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
-  :DEPENDENCIES: #14 #61
+  :DEPENDENCIES: #14
   Based on rstil/doc/first_class.org. Everything in til is a value —
   functions, structs, enums can all be assigned, passed, returned, and
   stored. This issue covers the metatype system that makes it work.
@@ -2344,6 +2288,16 @@
    Vec.new(EnumDef)    // Vec of enum definitions
    Vec.new(Type)       // Vec of any type definition
    #+end_src
+
+   Storing function pointers in collections currently fails:
+   ~ops.push(own fn_add)~ where ~ops := Vec.new("BinaryOp", ...)~ panics
+   with ~dyn_fn: unknown BinaryOp.clone~. Vec.push assumes values are
+   heap-allocated boxes and calls elem_clone/elem_delete, but a function
+   pointer is a plain value (not a struct). Needs Vec to support
+   FuncSig-typed elements via a dedicated clone/delete path. Moved here
+   from #61 (where it appeared as "storing function pointers in
+   collections") since fixing it requires type-hierarchy work, not
+   lambda-lifting changes.
 
 *** Introspection
 

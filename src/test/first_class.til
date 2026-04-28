@@ -92,3 +92,18 @@ test_struct_field_lambda_ctor := test() {
     h := Handler(on_click = func(a: I64, b: I64) returns I64 { return a.mul(b) })
     assert_eq(__LOC__, h.on_click(4, 6), 24)
 }
+
+// --- FuncSig-form lambda (type separated from param names) ---
+
+test_funcsig_form_lambda_unary := test() {
+    assert_eq(__LOC__, apply_unary(func(I64) returns I64 = (a) { return a.mul(2) }, 7), 14)
+}
+
+test_funcsig_form_lambda_binary := test() {
+    assert_eq(__LOC__, apply_binop(func(I64, I64) returns I64 = (a, b) { return a.add(b) }, 3, 4), 7)
+}
+
+test_funcsig_form_lambda_as_value := test() {
+    f : BinaryOp = func(I64, I64) returns I64 = (a, b) { return a.sub(b) }
+    assert_eq(__LOC__, f(10, 3), 7)
+}
