@@ -2202,24 +2202,28 @@
    - Struct field default value: ~Handler := struct { mut on_click : BinaryOp = func(...) { ... } }~
    - Struct constructor named arg: ~Handler(on_click = func(...) { ... })~
 
-   Tests: src/test/first_class.til (10 tests, both interpret and run).
+*** Done: FuncSig form lambda as expression
 
-*** Open: storing in a Vec of FuncSig elements
+   ~parse_func_def~ now accepts the ~= (names) { body }~ continuation
+   after a bodyless ~func(Types) returns T~, producing a complete FuncDef
+   Expr usable anywhere a FuncDef literal is. Param names are wired into
+   the existing FuncSig-typed params.
+
+   Examples:
+   - ~apply(func(I64) returns I64 = (x) { return x.mul(2) }, 5)~
+   - ~f : BinaryOp = func(I64, I64) returns I64 = (a, b) { return a.sub(b) }~
+
+   Tests: src/test/first_class.til (13 tests total, both interpret and run).
+
+*** Out of scope: storing function pointers in collections
 
    ~ops.push(own func(...) { ... })~ where ~ops := Vec.new("BinaryOp", ...)~
-   panics at runtime with ~dyn_fn: unknown BinaryOp.clone~. The same
-   panic happens with a NAMED function (~ops.push(own fn_add)~), so this
-   is a pre-existing Vec/FuncSig limitation, not lambda-specific. Same
-   root cause as the "deferred: storing in collections" note under
-   fixed #14.
-
-*** Open: FuncSig form lambda as expression
-
-   ~apply(func(I64) returns I64 = (x) { return x.mul(2) }, 5)~ does not
-   parse: the parser doesn't accept ~= (names) { body }~ continuation
-   in expression position (only after a ~name : Type =~ decl head).
-   The FuncDef form ~func(x: I64) returns I64 { ... }~ already covers
-   every use case so this is low priority.
+   currently fails at Vec.new (or push) -- but the same failure happens
+   with a NAMED function (~ops.push(own fn_add)~). This is a generic
+   ~Vec~ / function-pointer storage problem (Vec.push assumes ~val~ is a
+   heap-allocated box, but a function pointer is a value). It is shared
+   with #14's "deferred: storing in collections" item and is not
+   lambda-specific, so it does not belong on #61.
 
 ** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
   :DEPENDENCIES: #14 #61
