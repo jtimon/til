@@ -1898,4 +1898,33 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     return errors
 }
 
+// rstil-style unit initializer: index declarations for one file, but do not
+// run global layout/method generation that must see the whole program.
+init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
+    context_enter_file(ctx, path)
+    mut errors : I32 = 0
+    errors = errors.add(register_struct_definitions(program, scope))
+    register_funcsig_aliases(program, scope)
+    errors = errors.add(register_enums_and_generate_nonclone_methods(program, scope))
+    register_type_aliases(program, scope)
+    register_function_definitions(program, scope)
+    register_top_level_values(program, scope)
+    return errors
+}
+
+// Run the global init steps that require a full program view.
+init_declarations_global := proc(program: Expr, scope: TypeScope) returns shallow I32 {
+    mut errors : I32 = 0
+    generate_missing_struct_clones(program, scope)
+    generate_missing_struct_deletes(program, scope)
+    generate_missing_enum_clones(program)
+    compute_all_struct_layouts(program, scope)
+    generate_size_methods(program, scope)
+    generate_derived_methods(program)
+    // Global generation steps add new function/value decls; register them now.
+    register_function_definitions(program, scope)
+    register_top_level_values(program, scope)
+    return errors
+}
+
 // sync_body_ns_to_payload: deleted -- all ns methods now go directly to ns_decls

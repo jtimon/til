@@ -147,11 +147,15 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 
             // Record this file as a per-file unit (dependency-first order).
             mut unit := ProgramUnit(path = disp.clone(), mode = sub_mode_def.clone())
-            unit.ast.take_children(sub_ast.clone())
+            // Take ownership of the parsed AST so later phases mutate the same
+            // nodes recorded in units.
+            unit.ast.take_children(sub_ast)
             units.push(own unit)
 
-            // Append imported file's declarations
-            for ch : Expr in sub_ast.children {
+            // Append imported file's declarations to merged (clone so merged
+            // remains an independent compatibility view).
+            ref u2 : ProgramUnit = units.get(units.len().sub(1))
+            for ch : Expr in u2.ast.children {
                 merged.push(own ch.clone())
             }
         }
@@ -298,17 +302,20 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         }
     }
 
-    // Build core_program: append core_import_decls to core_ast
+    // Core entrypoint unit (after its imports).
+    mut core_unit := ProgramUnit(path = core_disp.clone(), mode = core_mode.clone())
+    core_unit.ast.take_children(core_ast)
+    core_units.push(own core_unit)
+
+    // Build merged core_program: append core_import_decls + core.til decls.
+    mut core_program := Expr.new(NodeType.Body, 0, 0, "")
     if skip_core.not() {
         mut core_imports_expr := Expr.new(NodeType.Body, 0, 0, "")
         core_imports_expr.children = core_import_decls
-        core_ast.take_children(core_imports_expr)
+        core_program.take_children(core_imports_expr)
     }
-
-    // Core entrypoint unit (after its imports).
-    mut core_unit := ProgramUnit(path = core_disp.clone(), mode = core_mode.clone())
-    core_unit.ast.take_children(core_ast.clone())
-    core_units.push(own core_unit)
+    ref last_core : ProgramUnit = core_units.get(core_units.len().sub(1))
+    core_program.take_children(last_core.ast.clone())
 
     // Build user program: mode imports, then user imports, then parsed user code
     mut ast := Expr.new(NodeType.Body, 0, 0, "")
@@ -339,7 +346,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 
     ast.take_children(user_ast)
 
-    lp.core_ast = core_ast
+    lp.core_ast = core_program
     lp.ast = ast
 
     lp.core_units = core_units
