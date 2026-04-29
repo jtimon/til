@@ -289,6 +289,70 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     Set.delete(own funcs, false)
 }
 
+// Scavenge across per-file units (rstil-style): compute a single visited set
+// from merged views, then filter each file's canonical AST in ctx.imported.
+scavenge_imported := proc(mut lp: LoadedProgram) {
+    // Build temporary merged views for dependency discovery.
+    mut tmp_core := Expr.new(NodeType.Body, 0, 0, "")
+    if lp.skip_core.not() {
+        for i in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(i)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for ch : Expr in iu.ast.children {
+                tmp_core.add_child(own ch.clone())
+            }
+        }
+    }
+    mut tmp_user := Expr.new(NodeType.Body, 0, 0, "")
+    for i in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(i)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for ch : Expr in iu.ast.children {
+            tmp_user.add_child(own ch.clone())
+        }
+    }
+
+    visited := scavenge_visited(tmp_core, tmp_user, lp.cur_mode, lp.run_tests)
+
+    if lp.skip_core.not() {
+        for i in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(i)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            scavenge_filter(iu.ast, visited)
+        }
+    }
+    for i in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(i)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        scavenge_filter(iu.ast, visited)
+    }
+
+    // Keep merged ASTs in sync for downstream phases (builder still reads
+    // lp.core_ast/lp.ast).
+    if lp.skip_core.not() {
+        mut old_children := lp.core_ast.children
+        lp.core_ast.children = Vec.new("Expr", Expr.size())
+        own old_children.delete()
+        for i in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(i)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for ch : Expr in iu.ast.children {
+                lp.core_ast.add_child(own ch.clone())
+            }
+        }
+    }
+    mut old_children2 := lp.ast.children
+    lp.ast.children = Vec.new("Expr", Expr.size())
+    own old_children2.delete()
+    for i in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(i)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for ch : Expr in iu.ast.children {
+            lp.ast.add_child(own ch.clone())
+        }
+    }
+}
+
 // Scan program AST for link()/link_c() directives; fill link_flags,
 // include_flags, link_c_paths on the given LoadedProgram.
 extract_link_info := proc(mut lp: LoadedProgram) {
@@ -739,25 +803,29 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     // Rebuild merged ASTs from the canonical per-file ASTs in ctx.imported.
     // Builder/precomp/scavenge currently operate on lp.core_ast/lp.ast.
     if lp.skip_core.not() {
-        mut new_core := Expr.new(NodeType.Body, 0, 0, "")
+        // Drop the previous merged core AST to avoid leaking clones.
+        mut old_children := lp.core_ast.children
+        lp.core_ast.children = Vec.new("Expr", Expr.size())
+        own old_children.delete()
         for i in 0..lp.core_units.len() {
             ref u : ProgramUnit = lp.core_units.get(i)
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for ch : Expr in iu.ast.children {
-                new_core.add_child(own ch.clone())
+                lp.core_ast.add_child(own ch.clone())
             }
         }
-        lp.core_ast = new_core
     }
-    mut new_user := Expr.new(NodeType.Body, 0, 0, "")
+    // Drop the previous merged user AST to avoid leaking clones.
+    mut old_children2 := lp.ast.children
+    lp.ast.children = Vec.new("Expr", Expr.size())
+    own old_children2.delete()
     for i in 0..lp.units.len() {
         ref u : ProgramUnit = lp.units.get(i)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for ch : Expr in iu.ast.children {
-            new_user.add_child(own ch.clone())
+            lp.ast.add_child(own ch.clone())
         }
     }
-    lp.ast = new_user
 
     // Re-resolve field_struct_def after hoisting invalidates pointers
     if lp.skip_core.not() {
@@ -771,7 +839,7 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     // (scavenger can't track C-level dependencies)
     skip_scavenge := lp.cur_mode.is_library
     if skip_scavenge.not().and(lp.link_c_paths.len().eq(0)) {
-        scavenge(lp.core_ast, lp.ast, lp.cur_mode, lp.run_tests)
+        scavenge_imported(lp)
     }
 }
 

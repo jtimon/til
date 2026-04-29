@@ -32,7 +32,7 @@ gc_free_all := proc() {
     gc_strs = Vec.new("Str", Str.size())
 }
 
-vec_push_str := proc(mut v: Vec, s: Str) {
+vec_push_str := func(mut v: Vec, s: Str) {
     v.push(own s.clone())
 }
 
@@ -72,18 +72,18 @@ children_filter := proc(mut v: Vec, marks: Dynamic, shallow n: USize) {
     v.count = w
 }
 
-// Push gc'd qualified "Type.method" refs into v
-push_qn := proc(mut v: Vec, type_name: Str, method: Str) {
+// Push qualified "Type.method" refs into v
+push_qn := func(mut v: Vec, type_name: Str, method: Str) {
     v.push(own qualified_name(type_name, method))
 }
 
-push_builtin_methods := proc(mut v: Vec, builtin_name: Str, m1: Str, m2: Str, m3: Str) {
+push_builtin_methods := func(mut v: Vec, builtin_name: Str, m1: Str, m2: Str, m3: Str) {
     v.push(own qualified_name(builtin_name, m1))
     v.push(own qualified_name(builtin_name, m2))
     v.push(own qualified_name(builtin_name, m3))
 }
 
-collect_refs := proc(e: Expr, mut refs: Vec) {
+collect_refs := func(e: Expr, mut refs: Vec) {
     if is_null(e) { return }
 
     if e.node_type.is(NodeType.Ident) {
@@ -209,7 +209,9 @@ find_ns_decl_fdef := func(program: Expr, top: Map, name: Str) returns ref Expr {
     return NULL
 }
 
-scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow run_tests: Bool) {
+// Compute the visited symbol set for a program pair. Used by both the legacy
+// merged scavenger and the per-file (rstil-style) pipeline.
+scavenge_visited := func(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool) returns Set {
     mut is_cli := false
     if is_null(mode).not() {
         if mode.needs_main {
@@ -218,8 +220,6 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             }
         }
     }
-
-    gc_strs = Vec.new("Str", Str.size())
 
     // 1. Build top-level declaration maps (name -> child index)
     mut core_top := Map.new("Str", Str.size(), "U32", U32.size())
@@ -283,11 +283,7 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
         if visited.has(name) { continue }
         visited.add(own name.clone())
 
-        // Top-level declaration? Process both user and core: a user file may
-        // declare ~ext_proc name(){}~ as a forward shim for a core definition,
-        // and the scavenger must still walk the core body so that everything
-        // that body references (methods, helpers, generated ~lte~/~gte~, ...)
-        // gets added to the worklist.
+        // Top-level declaration? Process both user and core.
         if top.has(name) {
             ref idx : U32 = top.get(name)
             ref decl : Expr = program.child(idx)
@@ -313,7 +309,6 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                 push_qn(worklist, name, "clone")
                 push_qn(worklist, name, "size")
                 push_qn(worklist, name, "cmp")
-                // Also push all ns_decls methods
                 ref bfs_ns : Vec = def_ns_decls(decl.child(0))
                 for bfs_d : Declaration in bfs_ns {
                     push_qn(worklist, name, bfs_d.name)
@@ -347,7 +342,6 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
                 push_qn(worklist, name, "clone")
                 push_qn(worklist, name, "size")
                 push_qn(worklist, name, "cmp")
-                // Also push all ns_decls methods
                 ref bfs_ns2 : Vec = def_ns_decls(decl.child(0))
                 for bfs_d2 : Declaration in bfs_ns2 {
                     push_qn(worklist, name, bfs_d2.name)
@@ -373,74 +367,33 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             }
         }
     }
+    return visited
+}
 
-    // 4. Filter top-level declarations (both core and user)
-    if is_null(core_program).not() {
-        cn := core_program.children.len()
-        cm : Dynamic = malloc(cn)
-        memset(cm, 0, cn)
-        for i in 0..cn {
-            ref stmt : Expr = core_program.child(i)
-            if stmt.node_type.is(NodeType.Decl) {
-                if is_def(stmt) {
-                    ref d : Declaration = get_payload(stmt.node_type)
-                    if visited.has(d.name).not() {
-                        memset(ptr_add(cm, i), 1, 1)
-                    }
+// Filter top-level declarations and namespace methods in-place using a
+// precomputed visited set.
+scavenge_filter := proc(mut program: Expr, visited: Set) {
+    pn := program.children.len()
+    pm : Dynamic = malloc(pn)
+    memset(pm, 0, pn)
+    for i in 0..pn {
+        ref stmt : Expr = program.child(i)
+        if stmt.node_type.is(NodeType.Decl) {
+            if is_def(stmt) {
+                ref d : Declaration = get_payload(stmt.node_type)
+                if visited.has(d.name).not() {
+                    memset(ptr_add(pm, i), 1, 1)
                 }
             }
         }
-        children_filter(core_program.children, cm, cn)
-        free(own cm)
     }
-    {
-        pn := program.children.len()
-        pm : Dynamic = malloc(pn)
-        memset(pm, 0, pn)
-        for i in 0..pn {
-            ref stmt : Expr = program.child(i)
-            if stmt.node_type.is(NodeType.Decl) {
-                if is_def(stmt) {
-                    ref d : Declaration = get_payload(stmt.node_type)
-                    if visited.has(d.name).not() {
-                        memset(ptr_add(pm, i), 1, 1)
-                    }
-                }
-            }
-        }
-        children_filter(program.children, pm, pn)
-        free(own pm)
-    }
+    children_filter(program.children, pm, pn)
+    free(own pm)
 
-    // 5. Filter namespace methods in kept structs (both core and user)
-    if is_null(core_program).not() {
-        for stmt : Expr in core_program.children {
-            if stmt.node_type.is(NodeType.Decl).not() { continue }
-            if is_struct_or_enum(stmt).not() { continue }
-            ref sdecl : Declaration = get_payload(stmt.node_type)
-            // Filter ns_decls entries
-            ref scv_ns : Vec = def_ns_decls(stmt.child(0))
-            scv_nn := scv_ns.len()
-            if scv_nn.gt(0) {
-                scv_nm : Dynamic = malloc(scv_nn)
-                memset(scv_nm, 0, scv_nn)
-                for j in 0..scv_nn {
-                    ref nsd : Declaration = scv_ns.get(j)
-                    scv_qn := qualified_name(sdecl.name, nsd.name)
-                    if visited.has(scv_qn).not() {
-                        memset(ptr_add(scv_nm, j), 1, 1)
-                    }
-                }
-                children_filter(scv_ns, scv_nm, scv_nn)
-                free(own scv_nm)
-            }
-        }
-    }
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if is_struct_or_enum(stmt).not() { continue }
         ref sdecl : Declaration = get_payload(stmt.node_type)
-        // Filter ns_decls entries
         ref scv_ns2 : Vec = def_ns_decls(stmt.child(0))
         scv_nn2 := scv_ns2.len()
         if scv_nn2.gt(0) {
@@ -457,6 +410,14 @@ scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow 
             free(own scv_nm2)
         }
     }
+}
+
+scavenge := proc(mut core_program: Expr, mut program: Expr, mode: Mode, shallow run_tests: Bool) {
+    gc_strs = Vec.new("Str", Str.size())
+
+    visited := scavenge_visited(core_program, program, mode, run_tests)
+    if is_null(core_program).not() { scavenge_filter(core_program, visited) }
+    scavenge_filter(program, visited)
 
     gc_free_all()
 }
