@@ -111,7 +111,7 @@ namespace:
 
 ImportUnit := struct {
     mut mode := Mode()
-    own mut ast := Expr.new(NodeType.Body, 0, 0, "")
+    own mut ast := Expr.new(NodeType.Body, 0, 0)
     mut imports := Vec.new("Str", Str.size())
 }
 
@@ -254,42 +254,42 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
             field_refs.push(own ref_flag)
         }
 
-        mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
+        mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
         if field_names.len().eq(0) {
-            mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
-            mut ctor_name := Expr.new(NodeType.Ident(sname.clone()), stmt.line, stmt.col, initer_path)
+            mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+            mut ctor_name := Expr.new(NodeType.Ident(sname.clone()), stmt.line, stmt.col)
             ctor.add_child(own ctor_name)
 
-            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col, initer_path)
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
             ret.add_child(own ctor)
             func_body.add_child(own ret)
         } else {
-            mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
-            mut ctor_name := Expr.new(NodeType.Ident(sname.clone()), stmt.line, stmt.col, initer_path)
+            mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+            mut ctor_name := Expr.new(NodeType.Ident(sname.clone()), stmt.line, stmt.col)
             ctor.add_child(own ctor_name)
 
             for j in 0..field_names.len() {
                 ref fname : Str = field_names.get(j)
                 ref fref : I32 = field_refs.get(j)
 
-                mut self_id := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col, initer_path)
-                mut field_acc := Expr.new(NodeType.FieldAccess(fname.clone()), stmt.line, stmt.col, initer_path)
+                mut self_id := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
+                mut field_acc := Expr.new(NodeType.FieldAccess(fname.clone()), stmt.line, stmt.col)
                 field_acc.add_child(own self_id)
 
-                mut named := Expr.new(NodeType.NamedArg(fname.clone()), stmt.line, stmt.col, initer_path)
+                mut named := Expr.new(NodeType.NamedArg(fname.clone()), stmt.line, stmt.col)
                 if fref.eq(1) {
                     named.add_child(own field_acc)
                 } else {
-                    mut clone_acc := Expr.new(NodeType.FieldAccess("clone"), stmt.line, stmt.col, initer_path)
+                    mut clone_acc := Expr.new(NodeType.FieldAccess("clone"), stmt.line, stmt.col)
                     clone_acc.add_child(own field_acc)
-                    mut clone_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+                    mut clone_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
                     clone_call.add_child(own clone_acc)
                     named.add_child(own clone_call)
                 }
                 ctor.add_child(own named)
             }
 
-            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col, initer_path)
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
             ret.add_child(own ctor)
             func_body.add_child(own ret)
         }
@@ -303,7 +303,7 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
         func_decl.variadic_index = -1.to_i32()
         func_decl.kwargs_index = -1.to_i32()
 
-        mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, initer_path)
+        mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
 
         ref mut cl_sdd : StructDef = get_payload(sdef.node_type)
@@ -351,12 +351,12 @@ collect_enum_variants := proc(enum_def: Expr, mut variant_names: Vec, mut varian
     }
 }
 
-generate_enum_variant_constructors := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+generate_enum_variant_constructors := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
     ref mut evc_edd : EnumDef = get_payload(enum_def.node_type)
     if has_payloads.not() {
         for j in 0..variant_names.len() {
             ref vname : Str = variant_names.get(j)
-            mut lit := Expr.new(NodeType.LiteralNum(j.to_str()), line, col, path)
+            mut lit := Expr.new(NodeType.LiteralNum(j.to_str()), line, col)
             evc_edd.ns_decls.push(own Declaration(name = vname.clone(), default_value = lit))
         }
         return
@@ -374,8 +374,8 @@ generate_enum_variant_constructors := proc(enum_def: Expr, ename: Str, shallow l
         func_decl.variadic_index = -1.to_i32()
         func_decl.kwargs_index = -1.to_i32()
 
-        mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col, path)
-        mut func_body := Expr.new(NodeType.Body, line, col, path)
+        mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col)
+        mut func_body := Expr.new(NodeType.Body, line, col)
         func_def.add_child(own func_body)
 
         ref vname : Str = variant_names.get(j)
@@ -383,16 +383,16 @@ generate_enum_variant_constructors := proc(enum_def: Expr, ename: Str, shallow l
     }
 }
 
-generate_enum_is_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str) {
-    mut func_body := Expr.new(NodeType.Body, line, col, path)
-    mut is_id := Expr.new(NodeType.Ident("is"), line, col, path)
-    mut self_id := Expr.new(NodeType.Ident("self"), line, col, path)
-    mut other_id := Expr.new(NodeType.Ident("other"), line, col, path)
-    mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+generate_enum_is_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32) {
+    mut func_body := Expr.new(NodeType.Body, line, col)
+    mut is_id := Expr.new(NodeType.Ident("is"), line, col)
+    mut self_id := Expr.new(NodeType.Ident("self"), line, col)
+    mut other_id := Expr.new(NodeType.Ident("other"), line, col)
+    mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
     is_call.add_child(own is_id)
     is_call.add_child(own self_id)
     is_call.add_child(own other_id)
-    mut ret := Expr.new(NodeType.Return, line, col, path)
+    mut ret := Expr.new(NodeType.Return, line, col)
     ret.add_child(own is_call)
     func_body.add_child(own ret)
 
@@ -407,116 +407,116 @@ generate_enum_is_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
     func_decl.variadic_index = -1.to_i32()
     func_decl.kwargs_index = -1.to_i32()
 
-    mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col, path)
+    mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col)
     func_def.add_child(own func_body)
 
     ref mut eis_edd : EnumDef = get_payload(enum_def.node_type)
     eis_edd.ns_decls.push(own Declaration(name = "is", default_value = func_def))
 }
 
-generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
-    mut func_body := Expr.new(NodeType.Body, line, col, path)
+generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
+    mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names.get(j)
-        mut iv1 := Expr.new(NodeType.Ident("is"), line, col, path)
-        mut self_id := Expr.new(NodeType.Ident("self"), line, col, path)
-        mut et1 := Expr.new(NodeType.Ident(ename.clone()), line, col, path)
-        mut vr1 := Expr.new(NodeType.FieldAccess(vn.clone()), line, col, path)
+        mut iv1 := Expr.new(NodeType.Ident("is"), line, col)
+        mut self_id := Expr.new(NodeType.Ident("self"), line, col)
+        mut et1 := Expr.new(NodeType.Ident(ename.clone()), line, col)
+        mut vr1 := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
         vr1.add_child(own et1)
-        mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+        mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
         is_call.add_child(own iv1)
         is_call.add_child(own self_id)
         is_call.add_child(own vr1)
 
-        mut then_body := Expr.new(NodeType.Body, line, col, path)
+        mut then_body := Expr.new(NodeType.Body, line, col)
 
         ref vtype : Str = variant_types.get(j)
         if vtype.len().gt(0) {
             is_funcsig := type_from_name_init(vtype, scope).eq(TilType.FuncPtr)
 
-            mut iv2 := Expr.new(NodeType.Ident("is"), line, col, path)
-            mut other_id := Expr.new(NodeType.Ident("other"), line, col, path)
-            mut et2 := Expr.new(NodeType.Ident(ename.clone()), line, col, path)
-            mut vr2 := Expr.new(NodeType.FieldAccess(vn.clone()), line, col, path)
+            mut iv2 := Expr.new(NodeType.Ident("is"), line, col)
+            mut other_id := Expr.new(NodeType.Ident("other"), line, col)
+            mut et2 := Expr.new(NodeType.Ident(ename.clone()), line, col)
+            mut vr2 := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
             vr2.add_child(own et2)
-            mut is_call2 := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+            mut is_call2 := Expr.new(NodeType.FCall(FCallData()), line, col)
             is_call2.add_child(own iv2)
             is_call2.add_child(own other_id)
             is_call2.add_child(own vr2)
-            mut not_acc := Expr.new(NodeType.FieldAccess("not"), line, col, path)
+            mut not_acc := Expr.new(NodeType.FieldAccess("not"), line, col)
             not_acc.add_child(own is_call2)
-            mut not_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+            mut not_call := Expr.new(NodeType.FCall(FCallData()), line, col)
             not_call.add_child(own not_acc)
 
-            mut ret_false := Expr.new(NodeType.Return, line, col, path)
-            mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col, path)
+            mut ret_false := Expr.new(NodeType.Return, line, col)
+            mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col)
             ret_false.add_child(own false_lit)
-            mut guard_body := Expr.new(NodeType.Body, line, col, path)
+            mut guard_body := Expr.new(NodeType.Body, line, col)
             guard_body.add_child(own ret_false)
-            mut guard_if := Expr.new(NodeType.If, line, col, path)
+            mut guard_if := Expr.new(NodeType.If, line, col)
             guard_if.add_child(own not_call)
             guard_if.add_child(own guard_body)
             then_body.add_child(own guard_if)
 
             if is_funcsig {
-                mut ret_true := Expr.new(NodeType.Return, line, col, path)
-                mut true_lit := Expr.new(NodeType.LiteralBool(true), line, col, path)
+                mut ret_true := Expr.new(NodeType.Return, line, col)
+                mut true_lit := Expr.new(NodeType.LiteralBool(true), line, col)
                 ret_true.add_child(own true_lit)
                 then_body.add_child(own ret_true)
             } else {
-                mut gp1 := Expr.new(NodeType.Ident("get_payload"), line, col, path)
-                mut self2 := Expr.new(NodeType.Ident("self"), line, col, path)
-                mut gc1 := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+                mut gp1 := Expr.new(NodeType.Ident("get_payload"), line, col)
+                mut self2 := Expr.new(NodeType.Ident("self"), line, col)
+                mut gc1 := Expr.new(NodeType.FCall(FCallData()), line, col)
                 gc1.add_child(own gp1)
                 gc1.add_child(own self2)
-                mut sd1 := Expr.new(NodeType.Decl(Declaration(name = "_sp", explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col, path)
+                mut sd1 := Expr.new(NodeType.Decl(Declaration(name = "_sp", explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col)
                 sd1.add_child(own gc1)
                 then_body.add_child(own sd1)
 
-                mut gp2 := Expr.new(NodeType.Ident("get_payload"), line, col, path)
-                mut other2 := Expr.new(NodeType.Ident("other"), line, col, path)
-                mut gc2 := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+                mut gp2 := Expr.new(NodeType.Ident("get_payload"), line, col)
+                mut other2 := Expr.new(NodeType.Ident("other"), line, col)
+                mut gc2 := Expr.new(NodeType.FCall(FCallData()), line, col)
                 gc2.add_child(own gp2)
                 gc2.add_child(own other2)
-                mut sd2 := Expr.new(NodeType.Decl(Declaration(name = "_op", explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col, path)
+                mut sd2 := Expr.new(NodeType.Decl(Declaration(name = "_op", explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col)
                 sd2.add_child(own gc2)
                 then_body.add_child(own sd2)
 
-                mut sp_id := Expr.new(NodeType.Ident("_sp"), line, col, path)
-                mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line, col, path)
+                mut sp_id := Expr.new(NodeType.Ident("_sp"), line, col)
+                mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line, col)
                 eq_acc.add_child(own sp_id)
-                mut op_id := Expr.new(NodeType.Ident("_op"), line, col, path)
-                mut eq_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+                mut op_id := Expr.new(NodeType.Ident("_op"), line, col)
+                mut eq_call := Expr.new(NodeType.FCall(FCallData()), line, col)
                 eq_call.add_child(own eq_acc)
                 eq_call.add_child(own op_id)
 
-                mut ret_eq := Expr.new(NodeType.Return, line, col, path)
+                mut ret_eq := Expr.new(NodeType.Return, line, col)
                 ret_eq.add_child(own eq_call)
                 then_body.add_child(own ret_eq)
             }
         } else {
-            mut iv3 := Expr.new(NodeType.Ident("is"), line, col, path)
-            mut other_id := Expr.new(NodeType.Ident("other"), line, col, path)
-            mut et3 := Expr.new(NodeType.Ident(ename.clone()), line, col, path)
-            mut vr3 := Expr.new(NodeType.FieldAccess(vn.clone()), line, col, path)
+            mut iv3 := Expr.new(NodeType.Ident("is"), line, col)
+            mut other_id := Expr.new(NodeType.Ident("other"), line, col)
+            mut et3 := Expr.new(NodeType.Ident(ename.clone()), line, col)
+            mut vr3 := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
             vr3.add_child(own et3)
-            mut is_call3 := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+            mut is_call3 := Expr.new(NodeType.FCall(FCallData()), line, col)
             is_call3.add_child(own iv3)
             is_call3.add_child(own other_id)
             is_call3.add_child(own vr3)
-            mut ret := Expr.new(NodeType.Return, line, col, path)
+            mut ret := Expr.new(NodeType.Return, line, col)
             ret.add_child(own is_call3)
             then_body.add_child(own ret)
         }
 
-        mut if_node := Expr.new(NodeType.If, line, col, path)
+        mut if_node := Expr.new(NodeType.If, line, col)
         if_node.add_child(own is_call)
         if_node.add_child(own then_body)
         func_body.add_child(own if_node)
     }
 
-    mut ret_false := Expr.new(NodeType.Return, line, col, path)
-    mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col, path)
+    mut ret_false := Expr.new(NodeType.Return, line, col)
+    mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col)
     ret_false.add_child(own false_lit)
     func_body.add_child(own ret_false)
 
@@ -529,15 +529,15 @@ generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
 
-    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col, path)
+    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
 
     ref mut eeq_edd : EnumDef = get_payload(enum_def.node_type)
     eeq_edd.ns_decls.push(own Declaration(name = "eq", default_value = fdef))
 }
 
-generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
-    mut proc_body := Expr.new(NodeType.Body, line, col, path)
+generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+    mut proc_body := Expr.new(NodeType.Body, line, col)
     if has_payloads {
         for j in 0..variant_names.len() {
             ref vn : Str = variant_names.get(j)
@@ -546,60 +546,60 @@ generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U3
             if vtype.eq("Dynamic") { continue }
             if type_from_name_init(vtype, scope).eq(TilType.FuncPtr) { continue }
 
-            mut tiv := Expr.new(NodeType.Ident("is"), line, col, path)
-            mut self_id := Expr.new(NodeType.Ident("self"), line, col, path)
-            mut tet := Expr.new(NodeType.Ident(ename.clone()), line, col, path)
-            mut tvr := Expr.new(NodeType.FieldAccess(vn.clone()), line, col, path)
+            mut tiv := Expr.new(NodeType.Ident("is"), line, col)
+            mut self_id := Expr.new(NodeType.Ident("self"), line, col)
+            mut tet := Expr.new(NodeType.Ident(ename.clone()), line, col)
+            mut tvr := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
             tvr.add_child(own tet)
-            mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+            mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
             is_call.add_child(own tiv)
             is_call.add_child(own self_id)
             is_call.add_child(own tvr)
 
-            mut then_body := Expr.new(NodeType.Body, line, col, path)
+            mut then_body := Expr.new(NodeType.Body, line, col)
 
-            mut type_id := Expr.new(NodeType.Ident(vtype.clone()), line, col, path)
+            mut type_id := Expr.new(NodeType.Ident(vtype.clone()), line, col)
             type_id.til_type = type_from_name_init(vtype, scope)
-            mut del_acc := Expr.new(NodeType.FieldAccess("delete"), line, col, path)
+            mut del_acc := Expr.new(NodeType.FieldAccess("delete"), line, col)
             del_acc.add_child(own type_id)
-            mut del_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+            mut del_call := Expr.new(NodeType.FCall(FCallData()), line, col)
             del_call.add_child(own del_acc)
 
-            mut gp := Expr.new(NodeType.Ident("get_payload"), line, col, path)
-            mut self2 := Expr.new(NodeType.Ident("self"), line, col, path)
-            mut gc := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+            mut gp := Expr.new(NodeType.Ident("get_payload"), line, col)
+            mut self2 := Expr.new(NodeType.Ident("self"), line, col)
+            mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
             gc.add_child(own gp)
             gc.add_child(own self2)
             gc.til_type = type_from_name_init(vtype, scope)
             set_own_arg(del_call, del_call.children.len())
             del_call.add_child(own gc)
 
-            mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col, path)
+            mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col)
             del_call.add_child(own false_lit)
             then_body.add_child(own del_call)
 
-            mut if_node2 := Expr.new(NodeType.If, line, col, path)
+            mut if_node2 := Expr.new(NodeType.If, line, col)
             if_node2.add_child(own is_call)
             if_node2.add_child(own then_body)
             proc_body.add_child(own if_node2)
         }
     }
 
-    mut cond := Expr.new(NodeType.Ident("call_free"), line, col, path)
-    mut then_body := Expr.new(NodeType.Body, line, col, path)
-    mut free_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
-    mut free_id := Expr.new(NodeType.Ident("free"), line, col, path)
+    mut cond := Expr.new(NodeType.Ident("call_free"), line, col)
+    mut then_body := Expr.new(NodeType.Body, line, col)
+    mut free_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mut free_id := Expr.new(NodeType.Ident("free"), line, col)
     free_call.add_child(own free_id)
-    mut self_arg := Expr.new(NodeType.Ident("self"), line, col, path)
+    mut self_arg := Expr.new(NodeType.Ident("self"), line, col)
     set_own_arg(free_call, free_call.children.len())
     free_call.add_child(own self_arg)
     then_body.add_child(own free_call)
-    mut if_node := Expr.new(NodeType.If, line, col, path)
+    mut if_node := Expr.new(NodeType.If, line, col)
     if_node.add_child(own cond)
     if_node.add_child(own then_body)
     proc_body.add_child(own if_node)
 
-    mut default_true := Expr.new(NodeType.LiteralBool(true), line, col, path)
+    mut default_true := Expr.new(NodeType.LiteralBool(true), line, col)
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
@@ -608,108 +608,108 @@ generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U3
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
 
-    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col, path)
+    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own proc_body)
 
     ref mut edel_edd : EnumDef = get_payload(enum_def.node_type)
     edel_edd.ns_decls.push(own Declaration(name = "delete", default_value = fdef))
 }
 
-generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
-    mut func_body := Expr.new(NodeType.Body, line, col, path)
+generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+    mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names.get(j)
         ref vtype : Str = variant_types.get(j)
 
         if has_payloads {
-            mut tiv := Expr.new(NodeType.Ident("is"), line, col, path)
-            mut self_id := Expr.new(NodeType.Ident("self"), line, col, path)
-            mut tet := Expr.new(NodeType.Ident(ename.clone()), line, col, path)
-            mut tvr := Expr.new(NodeType.FieldAccess(vn.clone()), line, col, path)
+            mut tiv := Expr.new(NodeType.Ident("is"), line, col)
+            mut self_id := Expr.new(NodeType.Ident("self"), line, col)
+            mut tet := Expr.new(NodeType.Ident(ename.clone()), line, col)
+            mut tvr := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
             tvr.add_child(own tet)
-            mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+            mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
             is_call.add_child(own tiv)
             is_call.add_child(own self_id)
             is_call.add_child(own tvr)
 
-            mut then_body := Expr.new(NodeType.Body, line, col, path)
+            mut then_body := Expr.new(NodeType.Body, line, col)
             if vtype.len().gt(0).and(type_from_name_init(vtype, scope).eq(TilType.FuncPtr)) {
                 ret_text := format(vn, "(func)")
-                mut ret_str := Expr.new(NodeType.LiteralStr(ret_text), line, col, path)
-                mut ret := Expr.new(NodeType.Return, line, col, path)
+                mut ret_str := Expr.new(NodeType.LiteralStr(ret_text), line, col)
+                mut ret := Expr.new(NodeType.Return, line, col)
                 ret.add_child(own ret_str)
                 then_body.add_child(own ret)
             } else if vtype.len().gt(0) {
                 pn := format("_p_", vtype, "_", j.to_str())
-                mut gp := Expr.new(NodeType.Ident("get_payload"), line, col, path)
-                mut self2 := Expr.new(NodeType.Ident("self"), line, col, path)
-                mut gc := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+                mut gp := Expr.new(NodeType.Ident("get_payload"), line, col)
+                mut self2 := Expr.new(NodeType.Ident("self"), line, col)
+                mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
                 gc.add_child(own gp)
                 gc.add_child(own self2)
-                mut pd := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col, path)
+                mut pd := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col)
                 pd.add_child(own gc)
                 then_body.add_child(own pd)
 
-                mut fmt_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
-                mut fmt_id := Expr.new(NodeType.Ident("format"), line, col, path)
+                mut fmt_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+                mut fmt_id := Expr.new(NodeType.Ident("format"), line, col)
                 fmt_call.add_child(own fmt_id)
 
                 prefix_text := format(vn, "(")
-                mut prefix := Expr.new(NodeType.LiteralStr(prefix_text), line, col, path)
+                mut prefix := Expr.new(NodeType.LiteralStr(prefix_text), line, col)
                 fmt_call.add_child(own prefix)
 
-                mut p_id := Expr.new(NodeType.Ident(pn), line, col, path)
-                mut tostr_acc := Expr.new(NodeType.FieldAccess("to_str"), line, col, path)
+                mut p_id := Expr.new(NodeType.Ident(pn), line, col)
+                mut tostr_acc := Expr.new(NodeType.FieldAccess("to_str"), line, col)
                 tostr_acc.add_child(own p_id)
-                mut tostr_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+                mut tostr_call := Expr.new(NodeType.FCall(FCallData()), line, col)
                 tostr_call.add_child(own tostr_acc)
                 fmt_call.add_child(own tostr_call)
 
-                mut suffix := Expr.new(NodeType.LiteralStr(")"), line, col, path)
+                mut suffix := Expr.new(NodeType.LiteralStr(")"), line, col)
                 fmt_call.add_child(own suffix)
 
-                mut ret := Expr.new(NodeType.Return, line, col, path)
+                mut ret := Expr.new(NodeType.Return, line, col)
                 ret.add_child(own fmt_call)
                 then_body.add_child(own ret)
             } else {
-                mut ret_str := Expr.new(NodeType.LiteralStr(vn.clone()), line, col, path)
-                mut ret := Expr.new(NodeType.Return, line, col, path)
+                mut ret_str := Expr.new(NodeType.LiteralStr(vn.clone()), line, col)
+                mut ret := Expr.new(NodeType.Return, line, col)
                 ret.add_child(own ret_str)
                 then_body.add_child(own ret)
             }
 
-            mut if_node := Expr.new(NodeType.If, line, col, path)
+            mut if_node := Expr.new(NodeType.If, line, col)
             if_node.add_child(own is_call)
             if_node.add_child(own then_body)
             func_body.add_child(own if_node)
         } else {
-            mut self_id := Expr.new(NodeType.Ident("self"), line, col, path)
-            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line, col, path)
+            mut self_id := Expr.new(NodeType.Ident("self"), line, col)
+            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line, col)
             eq_acc.add_child(own self_id)
 
-            mut ename_id := Expr.new(NodeType.Ident(ename.clone()), line, col, path)
-            mut var_acc := Expr.new(NodeType.FieldAccess(vn.clone()), line, col, path)
+            mut ename_id := Expr.new(NodeType.Ident(ename.clone()), line, col)
+            mut var_acc := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
             var_acc.add_child(own ename_id)
 
-            mut eq_call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
+            mut eq_call := Expr.new(NodeType.FCall(FCallData()), line, col)
             eq_call.add_child(own eq_acc)
             eq_call.add_child(own var_acc)
 
-            mut ret_str := Expr.new(NodeType.LiteralStr(vn.clone()), line, col, path)
-            mut ret := Expr.new(NodeType.Return, line, col, path)
+            mut ret_str := Expr.new(NodeType.LiteralStr(vn.clone()), line, col)
+            mut ret := Expr.new(NodeType.Return, line, col)
             ret.add_child(own ret_str)
-            mut then_body := Expr.new(NodeType.Body, line, col, path)
+            mut then_body := Expr.new(NodeType.Body, line, col)
             then_body.add_child(own ret)
 
-            mut if_node := Expr.new(NodeType.If, line, col, path)
+            mut if_node := Expr.new(NodeType.If, line, col)
             if_node.add_child(own eq_call)
             if_node.add_child(own then_body)
             func_body.add_child(own if_node)
         }
     }
 
-    mut unk := Expr.new(NodeType.LiteralStr("unknown"), line, col, path)
-    mut ret_unk := Expr.new(NodeType.Return, line, col, path)
+    mut unk := Expr.new(NodeType.LiteralStr("unknown"), line, col)
+    mut ret_unk := Expr.new(NodeType.Return, line, col)
     ret_unk.add_child(own unk)
     func_body.add_child(own ret_unk)
 
@@ -720,87 +720,87 @@ generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U3
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
 
-    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col, path)
+    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
 
     ref mut ets_edd : EnumDef = get_payload(enum_def.node_type)
     ets_edd.ns_decls.push(own Declaration(name = "to_str", default_value = fdef))
 }
 
-generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32, shallow col: I32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
-    mut func_body := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32, shallow col: I32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+    mut func_body := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32())
     for j in 0..variant_names.len() {
         ref vname : Str = variant_names.get(j)
 
-        mut ename_id := Expr.new(NodeType.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-        mut ctor_acc := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+        mut ename_id := Expr.new(NodeType.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
+        mut ctor_acc := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
         ctor_acc.add_child(own ename_id)
 
-        mut ctor_expr := Expr.new(NodeType.LiteralNull, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-        mut pd := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+        mut ctor_expr := Expr.new(NodeType.LiteralNull, line.to_i64().to_u32(), col.to_i64().to_u32())
+        mut pd := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32())
         mut has_pd := false
         ref vtype : Str = variant_types.get(j)
         if vtype.len().gt(0) {
             pn := format("_clone_payload_", vname, "_", j.to_str())
 
-            mut gp := Expr.new(NodeType.Ident("get_payload"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-            mut self_g := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-            mut gc := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            mut gp := Expr.new(NodeType.Ident("get_payload"), line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut self_g := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut gc := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32())
             gc.add_child(own gp)
             gc.add_child(own self_g)
 
-            mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), own_type = OwnType.Ref)), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), own_type = OwnType.Ref)), line.to_i64().to_u32(), col.to_i64().to_u32())
             decl_expr.add_child(own gc)
             pd = decl_expr
             has_pd = true
 
-            mut ctor_call := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            mut ctor_call := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32())
             ctor_call.add_child(own ctor_acc)
-            mut p_id := Expr.new(NodeType.Ident(pn), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            mut p_id := Expr.new(NodeType.Ident(pn), line.to_i64().to_u32(), col.to_i64().to_u32())
             ctor_call.add_child(own p_id)
             ctor_expr = ctor_call
         } else {
             ctor_expr = ctor_acc
         }
 
-        mut ret := Expr.new(NodeType.Return, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+        mut ret := Expr.new(NodeType.Return, line.to_i64().to_u32(), col.to_i64().to_u32())
         ret.add_child(own ctor_expr)
 
         if j.lt(variant_names.len().sub(1)) {
-            mut cond := Expr.new(NodeType.LiteralNull, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            mut cond := Expr.new(NodeType.LiteralNull, line.to_i64().to_u32(), col.to_i64().to_u32())
             if has_payloads {
-                mut civ := Expr.new(NodeType.Ident("is"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-                mut self_id := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-                mut cet := Expr.new(NodeType.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-                mut cvr := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                mut civ := Expr.new(NodeType.Ident("is"), line.to_i64().to_u32(), col.to_i64().to_u32())
+                mut self_id := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32())
+                mut cet := Expr.new(NodeType.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
+                mut cvr := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
                 cvr.add_child(own cet)
-                mut cond_call := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                mut cond_call := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32())
                 cond_call.add_child(own civ)
                 cond_call.add_child(own self_id)
                 cond_call.add_child(own cvr)
                 cond = cond_call
             } else {
-                mut self_id := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-                mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                mut self_id := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32())
+                mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line.to_i64().to_u32(), col.to_i64().to_u32())
                 eq_acc.add_child(own self_id)
 
-                mut en2 := Expr.new(NodeType.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
-                mut va2 := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                mut en2 := Expr.new(NodeType.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
+                mut va2 := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
                 va2.add_child(own en2)
 
-                mut cond_call := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                mut cond_call := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32())
                 cond_call.add_child(own eq_acc)
                 cond_call.add_child(own va2)
                 cond = cond_call
             }
 
-            mut then_body := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            mut then_body := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32())
             if has_pd {
                 then_body.add_child(own pd.clone())
             }
             then_body.add_child(own ret)
 
-            mut if_node := Expr.new(NodeType.If, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            mut if_node := Expr.new(NodeType.If, line.to_i64().to_u32(), col.to_i64().to_u32())
             if_node.add_child(own cond)
             if_node.add_child(own then_body)
             func_body.add_child(own if_node)
@@ -819,7 +819,7 @@ generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
 
-    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line.to_i64().to_u32(), col.to_i64().to_u32())
     fdef.add_child(own func_body)
 
     ref mut ecl_edd2 : EnumDef = get_payload(enum_def.node_type)
@@ -836,7 +836,6 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         ename := edecl.name
         line := stmt.line
         col := stmt.col
-        path := initer_path
 
         reg_errors := register_enum_definition(stmt, scope)
         errors = errors.add(reg_errors)
@@ -846,7 +845,7 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         variant_types := Vec.new("Str", Str.size())
         mut has_payloads := false
         collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
-        generate_enum_variant_constructors(stmt.child(0), ename, line, col, path, variant_names, variant_types, has_payloads)
+        generate_enum_variant_constructors(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads)
 
         mut has_is := false
         mut has_eq := false
@@ -862,16 +861,16 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         }
 
         if has_is.not() {
-            generate_enum_is_method(stmt.child(0), ename, line, col, path)
+            generate_enum_is_method(stmt.child(0), ename, line, col)
         }
         if has_eq.not() {
-            generate_enum_eq_method(stmt.child(0), ename, line, col, path, variant_names, variant_types, scope)
+            generate_enum_eq_method(stmt.child(0), ename, line, col, variant_names, variant_types, scope)
         }
         if has_delete.not() {
-            generate_enum_delete_method(stmt.child(0), ename, line, col, path, variant_names, variant_types, has_payloads, scope)
+            generate_enum_delete_method(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
         }
         if has_to_str.not() {
-            generate_enum_to_str_method(stmt.child(0), ename, line, col, path, variant_names, variant_types, has_payloads, scope)
+            generate_enum_to_str_method(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
         }
 
         Vec.delete(own variant_names, false)
@@ -889,7 +888,6 @@ generate_missing_enum_clones := proc(program: Expr) {
         ename := edecl.name
         line := stmt.line
         col := stmt.col
-        path := initer_path
         mut has_clone := false
         ref ecl_edd : EnumDef = get_payload(stmt.child(0).node_type)
         for d_j : Declaration in ecl_edd.ns_decls {
@@ -904,7 +902,7 @@ generate_missing_enum_clones := proc(program: Expr) {
             variant_types := Vec.new("Str", Str.size())
             mut has_payloads := false
             collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
-            generate_enum_clone_method(stmt.child(0), ename, line.to_i64().to_i32(), col.to_i64().to_i32(), path, variant_names, variant_types, has_payloads)
+            generate_enum_clone_method(stmt.child(0), ename, line.to_i64().to_i32(), col.to_i64().to_i32(), variant_names, variant_types, has_payloads)
             Vec.delete(own variant_names, false)
             Vec.delete(own variant_types, false)
         }
@@ -949,40 +947,40 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
             }
         }
 
-        mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
+        mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
         for j in 0..field_names.len() {
             ref fname : Str = field_names.get(j)
             ref fown : Bool = field_owns.get(j)
-            mut self_id := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col, initer_path)
-            mut field_acc := Expr.new(NodeType.FieldAccess(fname.clone()), stmt.line, stmt.col, initer_path)
+            mut self_id := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
+            mut field_acc := Expr.new(NodeType.FieldAccess(fname.clone()), stmt.line, stmt.col)
             field_acc.add_child(own self_id)
 
-            mut del_acc := Expr.new(NodeType.FieldAccess("delete"), stmt.line, stmt.col, initer_path)
+            mut del_acc := Expr.new(NodeType.FieldAccess("delete"), stmt.line, stmt.col)
             del_acc.add_child(own field_acc)
-            mut del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             set_own_arg(del_call, 0) // signal UFCS own for self arg
             del_call.add_child(own del_acc)
 
-            mut cf_lit := Expr.new(NodeType.LiteralBool(fown), stmt.line, stmt.col, initer_path)
+            mut cf_lit := Expr.new(NodeType.LiteralBool(fown), stmt.line, stmt.col)
             del_call.add_child(own cf_lit)
             proc_body.add_child(own del_call)
         }
 
-        mut cond := Expr.new(NodeType.Ident("call_free"), stmt.line, stmt.col, initer_path)
-        mut then_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
-        mut free_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
-        mut free_id := Expr.new(NodeType.Ident("free"), stmt.line, stmt.col, initer_path)
+        mut cond := Expr.new(NodeType.Ident("call_free"), stmt.line, stmt.col)
+        mut then_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+        mut free_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+        mut free_id := Expr.new(NodeType.Ident("free"), stmt.line, stmt.col)
         free_call.add_child(own free_id)
-        mut self_arg := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col, initer_path)
+        mut self_arg := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
         set_own_arg(free_call, free_call.children.len())
         free_call.add_child(own self_arg)
         then_body.add_child(own free_call)
-        mut if_node := Expr.new(NodeType.If, stmt.line, stmt.col, initer_path)
+        mut if_node := Expr.new(NodeType.If, stmt.line, stmt.col)
         if_node.add_child(own cond)
         if_node.add_child(own then_body)
         proc_body.add_child(own if_node)
 
-        mut default_true := Expr.new(NodeType.LiteralBool(true), stmt.line, stmt.col, initer_path)
+        mut default_true := Expr.new(NodeType.LiteralBool(true), stmt.line, stmt.col)
 
         mut proc_decl := FunctionDef()
         proc_decl.func_type = FuncType.Func
@@ -991,7 +989,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
         proc_decl.variadic_index = -1.to_i32()
         proc_decl.kwargs_index = -1.to_i32()
 
-        mut proc_def := Expr.new(NodeType.FuncDef(proc_decl), stmt.line, stmt.col, initer_path)
+        mut proc_def := Expr.new(NodeType.FuncDef(proc_decl), stmt.line, stmt.col)
         proc_def.add_child(own proc_body)
 
         ref mut del_sdd : StructDef = get_payload(sdef.node_type)
@@ -1158,9 +1156,9 @@ generate_struct_size_methods := proc(program: Expr) {
 
         sz_text := struct_meta.total_struct_size.to_str()
 
-        mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
-        mut size_expr := Expr.new(NodeType.LiteralNum(sz_text.clone()), stmt.line, stmt.col, initer_path)
-        mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col, initer_path)
+        mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+        mut size_expr := Expr.new(NodeType.LiteralNum(sz_text.clone()), stmt.line, stmt.col)
+        mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
         ret.add_child(own size_expr)
         func_body.add_child(own ret)
 
@@ -1171,7 +1169,7 @@ generate_struct_size_methods := proc(program: Expr) {
         func_decl.variadic_index = -1.to_i32()
         func_decl.kwargs_index = -1.to_i32()
 
-        mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, initer_path)
+        mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
 
         ref mut sz_sdd : StructDef = get_payload(def.node_type)
@@ -1201,9 +1199,9 @@ generate_enum_size_methods := proc(program: Expr, scope: TypeScope) {
 
         sz_text := compute_enum_layout(def, scope).to_i64().to_str()
 
-        mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
-        mut size_expr := Expr.new(NodeType.LiteralNum(sz_text.clone()), stmt.line, stmt.col, initer_path)
-        mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col, initer_path)
+        mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+        mut size_expr := Expr.new(NodeType.LiteralNum(sz_text.clone()), stmt.line, stmt.col)
+        mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
         ret.add_child(own size_expr)
         func_body.add_child(own ret)
 
@@ -1214,7 +1212,7 @@ generate_enum_size_methods := proc(program: Expr, scope: TypeScope) {
         func_decl.variadic_index = -1.to_i32()
         func_decl.kwargs_index = -1.to_i32()
 
-        mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, initer_path)
+        mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
 
         ref mut esz_edd : EnumDef = get_payload(def.node_type)
@@ -1261,24 +1259,24 @@ generate_unity_derived_methods := proc(program: Expr) {
             if already_has { continue }
             if has_op.not() { continue }
 
-            mut self1 := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col, initer_path)
-            mut self2 := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col, initer_path)
+            mut self1 := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
+            mut self2 := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
 
-            mut unity_acc := Expr.new(NodeType.FieldAccess("unity"), stmt.line, stmt.col, initer_path)
+            mut unity_acc := Expr.new(NodeType.FieldAccess("unity"), stmt.line, stmt.col)
             unity_acc.add_child(own self2)
-            mut unity_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut unity_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             unity_call.add_child(own unity_acc)
 
-            mut op_acc := Expr.new(NodeType.FieldAccess(op.clone()), stmt.line, stmt.col, initer_path)
+            mut op_acc := Expr.new(NodeType.FieldAccess(op.clone()), stmt.line, stmt.col)
             op_acc.add_child(own self1)
-            mut op_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut op_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             op_call.add_child(own op_acc)
             op_call.add_child(own unity_call)
 
-            mut assign := Expr.new(NodeType.Assign(AssignData(name = "self")), stmt.line, stmt.col, initer_path)
+            mut assign := Expr.new(NodeType.Assign(AssignData(name = "self")), stmt.line, stmt.col)
             assign.add_child(own op_call)
 
-            mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
+            mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
             proc_body.add_child(own assign)
 
             mut func_decl := FunctionDef()
@@ -1288,7 +1286,7 @@ generate_unity_derived_methods := proc(program: Expr) {
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
 
-            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, initer_path)
+            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
             func_def.add_child(own proc_body)
 
             if def.node_type.is(NodeType.StructDef) {
@@ -1337,22 +1335,22 @@ generate_cmp_derived_methods := proc(program: Expr) {
         if has_cmp.not() { continue }
 
         if has_eq.not() {
-            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col, initer_path)
-            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col, initer_path)
-            mut cmp_acc := Expr.new(NodeType.FieldAccess("cmp"), stmt.line, stmt.col, initer_path)
+            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
+            mut cmp_acc := Expr.new(NodeType.FieldAccess("cmp"), stmt.line, stmt.col)
             cmp_acc.add_child(own a_id)
-            mut cmp_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut cmp_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             cmp_call.add_child(own cmp_acc)
             cmp_call.add_child(own b_id)
-            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col, initer_path)
+            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col)
             eq_acc.add_child(own cmp_call)
-            mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             eq_call.add_child(own eq_acc)
-            mut zero := Expr.new(NodeType.LiteralNum("0"), stmt.line, stmt.col, initer_path)
+            mut zero := Expr.new(NodeType.LiteralNum("0"), stmt.line, stmt.col)
             eq_call.add_child(own zero)
-            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col, initer_path)
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
             ret.add_child(own eq_call)
-            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
+            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
@@ -1364,7 +1362,7 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
-            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, initer_path)
+            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
             func_def.add_child(own func_body)
             if def.node_type.is(NodeType.StructDef) {
                 ref mut cmp_sdd : StructDef = get_payload(def.node_type)
@@ -1376,28 +1374,28 @@ generate_cmp_derived_methods := proc(program: Expr) {
         }
 
         if has_lt.not() {
-            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col, initer_path)
-            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col, initer_path)
-            mut cmp_acc := Expr.new(NodeType.FieldAccess("cmp"), stmt.line, stmt.col, initer_path)
+            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
+            mut cmp_acc := Expr.new(NodeType.FieldAccess("cmp"), stmt.line, stmt.col)
             cmp_acc.add_child(own a_id)
-            mut cmp_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut cmp_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             cmp_call.add_child(own cmp_acc)
             cmp_call.add_child(own b_id)
-            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col, initer_path)
+            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col)
             eq_acc.add_child(own cmp_call)
-            mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             eq_call.add_child(own eq_acc)
-            mut zero := Expr.new(NodeType.LiteralNum("0"), stmt.line, stmt.col, initer_path)
-            mut sub_acc := Expr.new(NodeType.FieldAccess("sub"), stmt.line, stmt.col, initer_path)
+            mut zero := Expr.new(NodeType.LiteralNum("0"), stmt.line, stmt.col)
+            mut sub_acc := Expr.new(NodeType.FieldAccess("sub"), stmt.line, stmt.col)
             sub_acc.add_child(own zero)
-            mut neg1_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut neg1_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             neg1_call.add_child(own sub_acc)
-            mut one := Expr.new(NodeType.LiteralNum("1"), stmt.line, stmt.col, initer_path)
+            mut one := Expr.new(NodeType.LiteralNum("1"), stmt.line, stmt.col)
             neg1_call.add_child(own one)
             eq_call.add_child(own neg1_call)
-            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col, initer_path)
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
             ret.add_child(own eq_call)
-            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
+            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
@@ -1409,7 +1407,7 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
-            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, initer_path)
+            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
             func_def.add_child(own func_body)
             if def.node_type.is(NodeType.StructDef) {
                 ref mut cmp_sdd : StructDef = get_payload(def.node_type)
@@ -1421,22 +1419,22 @@ generate_cmp_derived_methods := proc(program: Expr) {
         }
 
         if has_gt.not() {
-            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col, initer_path)
-            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col, initer_path)
-            mut cmp_acc := Expr.new(NodeType.FieldAccess("cmp"), stmt.line, stmt.col, initer_path)
+            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
+            mut cmp_acc := Expr.new(NodeType.FieldAccess("cmp"), stmt.line, stmt.col)
             cmp_acc.add_child(own a_id)
-            mut cmp_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut cmp_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             cmp_call.add_child(own cmp_acc)
             cmp_call.add_child(own b_id)
-            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col, initer_path)
+            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col)
             eq_acc.add_child(own cmp_call)
-            mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             eq_call.add_child(own eq_acc)
-            mut one := Expr.new(NodeType.LiteralNum("1"), stmt.line, stmt.col, initer_path)
+            mut one := Expr.new(NodeType.LiteralNum("1"), stmt.line, stmt.col)
             eq_call.add_child(own one)
-            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col, initer_path)
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
             ret.add_child(own eq_call)
-            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
+            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
@@ -1448,7 +1446,7 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
-            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, initer_path)
+            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
             func_def.add_child(own func_body)
             if def.node_type.is(NodeType.StructDef) {
                 ref mut cmp_sdd : StructDef = get_payload(def.node_type)
@@ -1460,20 +1458,20 @@ generate_cmp_derived_methods := proc(program: Expr) {
         }
 
         if has_neq.not() {
-            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col, initer_path)
-            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col, initer_path)
-            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col, initer_path)
+            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
+            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col)
             eq_acc.add_child(own a_id)
-            mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             eq_call.add_child(own eq_acc)
             eq_call.add_child(own b_id)
-            mut not_acc := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col, initer_path)
+            mut not_acc := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col)
             not_acc.add_child(own eq_call)
-            mut not_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut not_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             not_call.add_child(own not_acc)
-            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col, initer_path)
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
             ret.add_child(own not_call)
-            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
+            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
@@ -1485,7 +1483,7 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
-            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, initer_path)
+            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
             func_def.add_child(own func_body)
             if def.node_type.is(NodeType.StructDef) {
                 ref mut cmp_sdd : StructDef = get_payload(def.node_type)
@@ -1497,20 +1495,20 @@ generate_cmp_derived_methods := proc(program: Expr) {
         }
 
         if has_lte.not() {
-            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col, initer_path)
-            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col, initer_path)
-            mut gt_acc := Expr.new(NodeType.FieldAccess("gt"), stmt.line, stmt.col, initer_path)
+            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
+            mut gt_acc := Expr.new(NodeType.FieldAccess("gt"), stmt.line, stmt.col)
             gt_acc.add_child(own a_id)
-            mut gt_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut gt_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             gt_call.add_child(own gt_acc)
             gt_call.add_child(own b_id)
-            mut not_acc := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col, initer_path)
+            mut not_acc := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col)
             not_acc.add_child(own gt_call)
-            mut not_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut not_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             not_call.add_child(own not_acc)
-            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col, initer_path)
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
             ret.add_child(own not_call)
-            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
+            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
@@ -1522,7 +1520,7 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
-            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, initer_path)
+            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
             func_def.add_child(own func_body)
             if def.node_type.is(NodeType.StructDef) {
                 ref mut cmp_sdd : StructDef = get_payload(def.node_type)
@@ -1534,20 +1532,20 @@ generate_cmp_derived_methods := proc(program: Expr) {
         }
 
         if has_gte.not() {
-            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col, initer_path)
-            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col, initer_path)
-            mut lt_acc := Expr.new(NodeType.FieldAccess("lt"), stmt.line, stmt.col, initer_path)
+            mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+            mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
+            mut lt_acc := Expr.new(NodeType.FieldAccess("lt"), stmt.line, stmt.col)
             lt_acc.add_child(own a_id)
-            mut lt_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut lt_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             lt_call.add_child(own lt_acc)
             lt_call.add_child(own b_id)
-            mut not_acc := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col, initer_path)
+            mut not_acc := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col)
             not_acc.add_child(own lt_call)
-            mut not_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col, initer_path)
+            mut not_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
             not_call.add_child(own not_acc)
-            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col, initer_path)
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
             ret.add_child(own not_call)
-            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col, initer_path)
+            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
             func_body.add_child(own ret)
             mut func_decl := FunctionDef()
             func_decl.func_type = FuncType.Func
@@ -1559,7 +1557,7 @@ generate_cmp_derived_methods := proc(program: Expr) {
             func_decl.return_own_type = OwnType.Shallow
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
-            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col, initer_path)
+            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
             func_def.add_child(own func_body)
             if def.node_type.is(NodeType.StructDef) {
                 ref mut cmp_sdd : StructDef = get_payload(def.node_type)

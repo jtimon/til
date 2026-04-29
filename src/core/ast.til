@@ -76,7 +76,7 @@ Declaration := struct {
     mut field_offset : I32 = 0
     mut field_size : I32 = 0
     ref mut field_struct_def : Expr = NULL
-    own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0, "")
+    own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: Declaration) returns Str { return self.name }
@@ -250,9 +250,7 @@ namespace:
         ref c : Expr = parent.children.get(i)
         return c
     }
-    new := func(data: NodeType, shallow line: U32, shallow col: U32, path: Str) returns Expr {
-        // Keep (path) parameter for call site stability; Expr no longer stores it.
-        if path.len().eq(0) { }
+    new := func(data: NodeType, shallow line: U32, shallow col: U32) returns Expr {
         mut out := Expr(node_type = data.clone(), line = line, col = col)
         if out.node_type.is(NodeType.FCall) {
             ref mut fcall_data : FCallData = get_payload(out.node_type)

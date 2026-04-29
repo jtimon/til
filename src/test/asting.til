@@ -23,15 +23,15 @@ test_til_type := test() {
 }
 
 test_expr_new := test() {
-    mut e := Expr.new(NodeType.Body, 1, 5, "test.til")
+    mut e := Expr.new(NodeType.Body, 1, 5)
     assert_eq(__LOC__, e.line.to_i64(), 1)
     assert_eq(__LOC__, e.col.to_i64(), 5)
 }
 
 test_expr_children := test() {
-    mut parent := Expr.new(NodeType.Body, 1, 1, "test.til")
-    child1 := Expr.new(NodeType.Body, 2, 1, "test.til")
-    child2 := Expr.new(NodeType.Body, 3, 1, "test.til")
+    mut parent := Expr.new(NodeType.Body, 1, 1)
+    child1 := Expr.new(NodeType.Body, 2, 1)
+    child2 := Expr.new(NodeType.Body, 3, 1)
     Expr.add_child(parent, own child1)
     Expr.add_child(parent, own child2)
     assert_eq(__LOC__, parent.children.len().to_i64(), 2)

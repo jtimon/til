@@ -187,8 +187,8 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 // --- LoadedProgram ---
 
 LoadedProgram := struct {
-    own mut core_ast := Expr.new(NodeType.Body, 0, 0, "")
-    own mut ast := Expr.new(NodeType.Body, 0, 0, "")
+    own mut core_ast := Expr.new(NodeType.Body, 0, 0)
+    own mut ast := Expr.new(NodeType.Body, 0, 0)
 
     // Per-file AST units (rstil-style). Currently unused; populated in later
     // commits as we switch the pipeline away from merged ASTs.
@@ -295,7 +295,7 @@ precomp_imported := proc(mut lp: LoadedProgram) {
 // from merged views, then filter each file's canonical AST in ctx.imported.
 scavenge_imported := proc(mut lp: LoadedProgram) {
     // Build temporary merged views for dependency discovery.
-    mut tmp_core := Expr.new(NodeType.Body, 0, 0, "")
+    mut tmp_core := Expr.new(NodeType.Body, 0, 0)
     if lp.skip_core.not() {
         for i in 0..lp.core_units.len() {
             ref u : ProgramUnit = lp.core_units.get(i)
@@ -305,7 +305,7 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
             }
         }
     }
-    mut tmp_user := Expr.new(NodeType.Body, 0, 0, "")
+    mut tmp_user := Expr.new(NodeType.Body, 0, 0)
     for i in 0..lp.units.len() {
         ref u : ProgramUnit = lp.units.get(i)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -497,9 +497,9 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     core_units.push(own core_unit)
 
     // Build merged core_program: append core_import_decls + core.til decls.
-    mut core_program := Expr.new(NodeType.Body, 0, 0, "")
+    mut core_program := Expr.new(NodeType.Body, 0, 0)
     if skip_core.not() {
-        mut core_imports_expr := Expr.new(NodeType.Body, 0, 0, "")
+        mut core_imports_expr := Expr.new(NodeType.Body, 0, 0)
         core_imports_expr.children = core_import_decls
         core_program.take_children(core_imports_expr)
     }
@@ -508,7 +508,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     core_program.take_children(core_root_iu.ast.clone())
 
     // Build user program: mode imports, then user imports, then parsed user code
-    mut ast := Expr.new(NodeType.Body, 0, 0, "")
+    mut ast := Expr.new(NodeType.Body, 0, 0)
     mut mode_disp := ""
     if auto_import.len().gt(0) {
         mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
@@ -613,16 +613,16 @@ escape_doc_for_literal_str := func(raw: Str) returns Str {
 // for __doc_init__(packed_kinds, packed_docs). Both payloads are
 // escape-encoded so non-printable bytes round-trip through both the
 // interpreter and the C compiler.
-make_register_call := func(callee_name: Str, name: Str, payload: Str, path: Str,
+make_register_call := func(callee_name: Str, name: Str, payload: Str,
         shallow line: U32, shallow col: U32) returns Expr {
-    mut call := Expr.new(NodeType.FCall(FCallData()), line, col, path)
-    mut callee := Expr.new(NodeType.Ident(callee_name.clone()), line, col, path)
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mut callee := Expr.new(NodeType.Ident(callee_name.clone()), line, col)
     call.add_child(own callee)
     esc_name := escape_doc_for_literal_str(name)
     esc_payload := escape_doc_for_literal_str(payload)
-    mut name_arg := Expr.new(NodeType.LiteralStr(esc_name.clone()), line, col, path)
+    mut name_arg := Expr.new(NodeType.LiteralStr(esc_name.clone()), line, col)
     call.add_child(own name_arg)
-    mut payload_arg := Expr.new(NodeType.LiteralStr(esc_payload.clone()), line, col, path)
+    mut payload_arg := Expr.new(NodeType.LiteralStr(esc_payload.clone()), line, col)
     call.add_child(own payload_arg)
     return call
 }
@@ -717,16 +717,11 @@ synthesize_doc_registry := proc(core_ast: Expr, user_ast: Expr, mut out_body: Ex
 
     if packed_kinds.is_empty().and(packed_docs.is_empty()) { return }
 
-    // Pick a stable, registered path from core_ast for the synthesized FCall.
-    mut syn_path := ""
+    // Use stable line/col (0,0) for the synthesized FCall.
     syn_line : U32 = 0.to_u32()
     syn_col : U32 = 0.to_u32()
-    if core_ast.children.len().gt(0) {
-        ref c0 : Expr = core_ast.children.get(0)
-        syn_path = ""
-    }
 
-    out_body.add_child(own make_register_call("__doc_init__", packed_kinds, packed_docs, syn_path, syn_line, syn_col))
+    out_body.add_child(own make_register_call("__doc_init__", packed_kinds, packed_docs, syn_line, syn_col))
 }
 
 // Build a single source-level __doc_init__("...", "...") line for use by the

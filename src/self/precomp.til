@@ -13,46 +13,46 @@ precomp_has_func := func(name: Str) returns shallow Bool {
     return funcs.has(name)
 }
 
-value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns Expr {
+value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
     switch val {
     case Value.Int(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
         e.til_type = TilType.I64
         return e
     case Value.Byte(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
         e.til_type = TilType.U8
         return e
     case Value.Short(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
         e.til_type = TilType.I16
         return e
     case Value.Int32(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
         e.til_type = TilType.I32
         return e
     case Value.Uint32(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
         e.til_type = TilType.U32
         return e
     case Value.Uint64(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
         e.til_type = TilType.U64
         return e
     case Value.Float(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
         e.til_type = TilType.F32
         return e
     case Value.Struct(si):
         if si.to_str().eq("Str") {
             sv := str_view(val)
-            mut e := Expr.new(NodeType.LiteralStr(sv.clone()), src.line, src.col, ctx.path)
+            mut e := Expr.new(NodeType.LiteralStr(sv.clone()), src.line, src.col)
             e.til_type = TilType.Struct("Str".clone())
             return e
         }
         return NULL
     case Value.Boolean(b):
-        mut e := Expr.new(NodeType.LiteralBool(b.clone()), src.line, src.col, ctx.path)
+        mut e := Expr.new(NodeType.LiteralBool(b.clone()), src.line, src.col)
         e.til_type = TilType.Bool
         return e
     case:
@@ -277,7 +277,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
 
     // Build a call with literal args for the interpreter
     nargs := fcall.children.len().sub(1)
-    mut ec := Expr.new(NodeType.FCall(FCallData()), fcall.line, fcall.col, ctx.path)
+    mut ec := Expr.new(NodeType.FCall(FCallData()), fcall.line, fcall.col)
     ec.til_type = fcall.til_type
     ec.add_child(own fcall.child(0).clone())
 
@@ -294,7 +294,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             }
             return NULL
         }
-        ec.add_child(own value_to_expr(arg_val, arg, ctx))
+        ec.add_child(own value_to_expr(arg_val, arg))
     }
 
     // Evaluate the call using the interpreter
@@ -325,7 +325,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     }
 
     // Convert result to AST -- guaranteed non-NULL, safe to bind owned
-    mut lit_local := value_to_expr(result, fcall, ctx)
+    mut lit_local := value_to_expr(result, fcall)
     heap : Dynamic = malloc(Expr.size().to_u64())
     memcpy(heap, lit_local, Expr.size())
     memset(lit_local, 0, Expr.size())

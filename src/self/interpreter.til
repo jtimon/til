@@ -864,7 +864,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             ref fn_name : Str = get_payload(callee_expr.node_type)
             // If the receiver type is unknown (eg Dynamic), fall back to the
             // unqualified top-level name. This is required for and/or/not.
-            flat_str := fn_name.clone()
+            mut flat_str := fn_name.clone()
             if sn.len().gt(0) {
                 flat_str = sn.concat("_").concat(fn_name)
             }

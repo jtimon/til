@@ -119,7 +119,7 @@
 *** mut field_offset : I32 = 0
 *** mut field_size : I32 = 0
 *** ref mut field_struct_def : Expr = NULL
-*** own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0, "")
+*** own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
 ** FunctionDef: StructDef
 *** mut func_type := FuncType.Func
 *** mut params := Vec.new("Declaration", Declaration.size())
@@ -218,7 +218,7 @@
 *** ref mut parent : TypeScope = NULL
 ** ImportUnit: StructDef
 *** mut mode := Mode()
-*** own mut ast := Expr.new(NodeType.Body, 0, 0, "")
+*** own mut ast := Expr.new(NodeType.Body, 0, 0)
 *** mut imports := Vec.new("Str", Str.size())
 ** Context: StructDef
 *** mut mode := Mode()

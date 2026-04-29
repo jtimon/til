@@ -712,13 +712,13 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     method := str_view(method_val)
 
     // Build fake AST: Type.method(args...)
-    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), e.line, e.col, interp_path)
+    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), e.line, e.col)
     type_ident.til_type = TilType.Struct(type_name.clone())
 
-    mut field_access := Expr.new(NodeType.FieldAccess(method.clone()), e.line, e.col, interp_path)
+    mut field_access := Expr.new(NodeType.FieldAccess(method.clone()), e.line, e.col)
     field_access.add_child(own type_ident)
     // Critical: NodeType.FCall must have an initialized FCallData payload.
-    mut fake_call := Expr.new(NodeType.FCall(FCallData()), e.line, e.col, interp_path)
+    mut fake_call := Expr.new(NodeType.FCall(FCallData()), e.line, e.col)
     fake_call.add_child(own field_access)
 
     // child 3 is arity literal, actual args start at child 4
@@ -740,14 +740,14 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
         exit(1)
     }
     // Build fake call: Type.size()
-    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col, interp_path)
+    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col)
     type_ident.til_type = TilType.Struct(type_name.clone())
 
-    mut field_access := Expr.new(NodeType.FieldAccess("size"), src.line, src.col, interp_path)
+    mut field_access := Expr.new(NodeType.FieldAccess("size"), src.line, src.col)
     field_access.add_child(own type_ident)
 
     // Critical: NodeType.FCall must have an initialized FCallData payload.
-    mut fake_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col, interp_path)
+    mut fake_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     fake_call.add_child(own field_access)
 
     result := eval_call(s, fake_call)
