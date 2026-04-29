@@ -1512,7 +1512,7 @@ void write_field(StructInstance * inst, Declaration * dd, Value * val);
 void interpret_register_defs(Scope * global, Expr * prog);
 void interpret_register_aliases(Scope * global, Expr * prog);
 void interpret_copy_alias_ns(Expr * prog, Scope * global);
-I32 interpret(Expr * core_program, Expr * program, Mode * mode, Bool run_tests, Str * path, Str * user_c, Str * ext_c, Str * link_flags, Vec * user_argv, Str * fwd_path);
+I32 interpret_units(LoadedProgram * lp, Vec * user_argv, Str * fwd_path);
 I32 cmd_interpret(LoadedProgram * lp, Vec * user_argv);
 ExtStr * ExtStr_clone(ExtStr * self);
 void ExtStr_delete(ExtStr * self, Bool * call_free);
