@@ -475,11 +475,18 @@ main := proc(args: ..Str) {
 
     // svg2ttf: transparent 2-colour logo produces fonts/til_logo.ttf (exit=0);
     // the full-colour logo panics with "too many colours" (exit=1).
+    // Compiled-run only (no interpret variant); the interpreted run takes
+    // ~90s and dominates wall time. Categorised as "build" so its time goes
+    // into build_ms rather than cli_ms in totals.
     run("mkdir -p fonts")
-    add_cli_pair(tests, "svg2ttf_ok", "src/examples/svg2ttf.til",
-                 "img/logo-transparent.svg fonts/til_logo.ttf", 0, "", til_bin)
-    add_cli_pair(tests, "svg2ttf_too_many_colors", "src/examples/svg2ttf.til",
-                 "img/logo.svg tmp/svg2ttf_fail.ttf", 1, "", til_bin)
+    add_single(tests, "svg2ttf_ok", "build", 0, "",
+               til_bin.concat(" run -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ")
+                      .concat("src/examples/svg2ttf.til ")
+                      .concat("img/logo-transparent.svg fonts/til_logo.ttf"))
+    add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
+               til_bin.concat(" run -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ")
+                      .concat("src/examples/svg2ttf.til ")
+                      .concat("img/logo.svg tmp/svg2ttf_fail.ttf"))
 
     // === library mode checks ===
     add_single(tests, "pure_build", "library", 0, "",
