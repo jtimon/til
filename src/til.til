@@ -51,14 +51,26 @@ repl_read_line := proc(mode_name: Str) returns Str {
 repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
     lp.ctx.scope = TypeScope()
     if lp.skip_core.not() {
-        init_declarations(lp.core_ast, lp.ctx.scope)
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            init_declarations(iu.ast, lp.ctx.scope)
+        }
     }
-    init_declarations(lp.ast, lp.ctx.scope)
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        init_declarations(iu.ast, lp.ctx.scope)
+    }
     mut errs : I32 = 0
     if lp.skip_core.not() {
-        errs = type_check(lp.core_ast, lp.ctx.scope, lp.ctx)
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            errs = errs.add(type_check(iu.ast, lp.ctx.scope, lp.ctx))
+        }
     }
-    errs = errs.add(type_check(lp.ast, lp.ctx.scope, lp.ctx))
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        errs = errs.add(type_check(iu.ast, lp.ctx.scope, lp.ctx))
+    }
     return errs
 }
 
@@ -175,17 +187,30 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
             // Rebuild combined source with REPL doc registry init.
             combined = ""
             combined = combined.concat("mode ").concat(mode_str).concat("\n")
-            combined = combined.concat(doc_init_src_line(typed_lp.core_ast, typed_lp.ast))
+            // REPL doc registry init uses merged views; keep this local-only.
+            mut core_merged := Expr.new(NodeType.Body, 0, 0)
+            if typed_lp.skip_core.not() {
+                for u : ProgramUnit in typed_lp.core_units {
+                    ref iu : ImportUnit = typed_lp.ctx.imported.get(u.path)
+                    for stmt : Expr in iu.ast.children { core_merged.add_child(own stmt.clone()) }
+                }
+            }
+            mut user_merged := Expr.new(NodeType.Body, 0, 0)
+            for u : ProgramUnit in typed_lp.units {
+                ref iu : ImportUnit = typed_lp.ctx.imported.get(u.path)
+                for stmt : Expr in iu.ast.children { user_merged.add_child(own stmt.clone()) }
+            }
+            combined = combined.concat(doc_init_src_line(core_merged, user_merged))
             combined = combined.concat(accum)
             if accum.len().gt(0) { combined = combined.concat("\n") }
             combined = combined.concat(block_eff)
             writefile(tmp_path, combined)
 
-            if repl_should_wrap(peek_ast, typed_lp.ast) {
+            if repl_should_wrap(peek_ast, user_merged) {
                 block_eff = "println((".concat(block).concat(").to_str())")
                 combined = ""
                 combined = combined.concat("mode ").concat(mode_str).concat("\n")
-                combined = combined.concat(doc_init_src_line(typed_lp.core_ast, typed_lp.ast))
+                combined = combined.concat(doc_init_src_line(core_merged, user_merged))
                 combined = combined.concat(accum)
                 if accum.len().gt(0) { combined = combined.concat("\n") }
                 combined = combined.concat(block_eff)

@@ -1781,106 +1781,112 @@ interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) re
     mut user_argc : U32 = 0
     if is_null(user_argv).not() { user_argc = user_argv.len() }
 
-    // FFI init still scans the merged user AST (link flags, ext decls, etc).
-    ffi_rc := ffi_init(lp.ast, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags)
+    // FFI init: reset, load the shared lib, then scan per-file ASTs.
+    ffi_reset()
+    mut empty := Expr.new(NodeType.Body, 0, 0)
+    ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags)
     if ffi_rc.to_i64().eq(0).not() { return ffi_rc }
-    if is_null(lp.core_ast).not() { ffi_init_scan_program(lp.core_ast) }
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            ffi_init_struct_defs_append(iu.ast)
+            ffi_init_scan_program(iu.ast)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        ffi_init_struct_defs_append(iu.ast)
+        ffi_init_scan_program(iu.ast)
+    }
 
     global := scope_new(NULL)
 
     // 1) Pre-register func/struct/enum definitions
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             interpret_register_defs(global, iu.ast)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         interpret_register_defs(global, iu.ast)
     }
 
     // 2) Pre-register type aliases
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             interpret_register_aliases(global, iu.ast)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         interpret_register_aliases(global, iu.ast)
     }
 
     // 3) Initialize namespace fields
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             interpreter_init_ns(global, iu.ast)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         interpreter_init_ns(global, iu.ast)
     }
 
     // 4) Copy namespace entries for type aliases
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             interpret_copy_alias_ns(iu.ast, global)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         interpret_copy_alias_ns(iu.ast, global)
     }
 
     // 5) Evaluate top-level declarations
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             interp_path = u.path.clone()
             eval_body(global, iu.ast)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         interp_path = u.path.clone()
         eval_body(global, iu.ast)
     }
 
-    // Run tests (still uses merged user AST to find test decls)
+    // Run tests (scan per-file user ASTs)
     if lp.run_tests {
         mut test_count : I32 = 0
         mut pass_count : I32 = 0
-        for stmt : Expr in lp.ast.children {
-            if is_func_decl(stmt) {
-                ref fd : FunctionDef = get_payload(stmt.child(0).node_type)
-                if fd.func_type.is(FuncType.Test) {
-                    ref dd : Declaration = get_payload(stmt.node_type)
-                    test_count = test_count.add(1)
-                    test_scope := scope_new(global)
-                    interp_path = lp.path.clone()
-                    eval_body(test_scope, decl_body(stmt))
-                    if has_return {
-                        return_value = return_value.clone()
+        for u : ProgramUnit in lp.units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                if is_func_decl(stmt) {
+                    ref fd : FunctionDef = get_payload(stmt.child(0).node_type)
+                    if fd.func_type.is(FuncType.Test) {
+                        ref dd : Declaration = get_payload(stmt.node_type)
+                        test_count = test_count.add(1)
+                        test_scope := scope_new(global)
+                        interp_path = lp.path.clone()
+                        eval_body(test_scope, decl_body(stmt))
+                        if has_return {
+                            return_value = return_value.clone()
+                        }
+                        scope_free(own test_scope)
+                        pass_count = pass_count.add(1)
+                        eprint_single("  pass: ")
+                        eprint_single(dd.name)
+                        eprint_single("\n")
                     }
-                    scope_free(own test_scope)
-                    pass_count = pass_count.add(1)
-                    eprint_single("  pass: ")
-                    eprint_single(dd.name)
-                    eprint_single("\n")
                 }
             }
         }

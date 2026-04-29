@@ -53,6 +53,19 @@ mut ffi_loaded := false
 mut ffi_type_cache := Vec.new("FFITypePtrBox", FFITypePtrBox.size())
 mut ffi_type_cache_inited := false
 
+// Reset all FFI state so a fresh scan can run.
+ffi_reset := proc() {
+    if ffi_loaded {
+        ffi_cleanup()
+        ffi_map_inited = false
+    } else if ffi_map_inited {
+        Map.delete(own ffi_map, false)
+        ffi_map_inited = false
+    }
+    // Always ensure struct defs map exists.
+    ffi_struct_defs = Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
+}
+
 ffi_type_pointer_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_pointer")) }
 ffi_type_sint64_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint64")) }
 ffi_type_uint8_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_uint8")) }
@@ -157,6 +170,11 @@ ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_
 
 ffi_init_struct_defs := proc(program: Expr) {
     ffi_struct_defs = Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
+    ffi_init_struct_defs_append(program)
+}
+
+// Append struct defs found in program into ffi_struct_defs (does not reset).
+ffi_init_struct_defs_append := proc(program: Expr) {
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) {
             continue

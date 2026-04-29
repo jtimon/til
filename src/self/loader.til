@@ -114,7 +114,7 @@ extract_imports := func(body: Expr) returns Vec {
 // Recursively resolve imports.
 resolve_imports := proc(import_paths: Vec, base_dir: Str,
     mut resolved_set: Set, mut stack: Vec,
-    mut merged: Vec, mut units: Vec, lib_dir: Str,
+    mut units: Vec, lib_dir: Str,
     mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
         for import_path : Str in import_paths {
             // Try relative to importing file's directory, then lib_dir
@@ -156,7 +156,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 
             // Recurse for sub-imports
             if sub_imports.len().gt(0) {
-                err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, units, lib_dir,
+                err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, units, lib_dir,
                     ctx, default_mode, cwd)
                 if err.gt(0) {
                     return err
@@ -174,12 +174,6 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
             unit.imports = sub_import_disps
             units.push(own unit)
 
-            // Append imported file's declarations to merged (clone so merged
-            // remains an independent compatibility view).
-            ref iu2 : ImportUnit = ctx.imported.get(disp)
-            for ch : Expr in iu2.ast.children {
-                merged.push(own ch.clone())
-            }
         }
         return 0
     }
@@ -187,11 +181,6 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 // --- LoadedProgram ---
 
 LoadedProgram := struct {
-    own mut core_ast := Expr.new(NodeType.Body, 0, 0)
-    own mut ast := Expr.new(NodeType.Body, 0, 0)
-
-    // Per-file AST units (rstil-style). Currently unused; populated in later
-    // commits as we switch the pipeline away from merged ASTs.
     own mut core_units := Vec.new("ProgramUnit", ProgramUnit.size())
     own mut units := Vec.new("ProgramUnit", ProgramUnit.size())
 
@@ -260,11 +249,22 @@ precomp_imported := proc(mut lp: LoadedProgram) {
         interpreter_init_ns(global, iu.ast)
     }
 
-    // 2b) Init FFI (uses merged views)
-    ffi_init(lp.ast, NULL, NULL, NULL, NULL)
+    // 2b) Init FFI for the interpreter used by precomp.
+    // Scan per-file ASTs directly to avoid merged-AST cloning.
+    ffi_reset()
     if lp.skip_core.not() {
-        ffi_init_struct_defs(lp.core_ast)
-        ffi_init_scan_program(lp.core_ast)
+        for i in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(i)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            ffi_init_struct_defs_append(iu.ast)
+            ffi_init_scan_program(iu.ast)
+        }
+    }
+    for i in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(i)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        ffi_init_struct_defs_append(iu.ast)
+        ffi_init_scan_program(iu.ast)
     }
 
     // 3) Fold calls in every file
@@ -293,28 +293,213 @@ precomp_imported := proc(mut lp: LoadedProgram) {
 
 // Scavenge across per-file units (rstil-style): compute a single visited set
 // from merged views, then filter each file's canonical AST in ctx.imported.
-scavenge_imported := proc(mut lp: LoadedProgram) {
-    // Build temporary merged views for dependency discovery.
-    mut tmp_core := Expr.new(NodeType.Body, 0, 0)
-    if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            for ch : Expr in iu.ast.children {
-                tmp_core.add_child(own ch.clone())
+DeclRef := struct {
+    mut path := ""
+    mut idx : U32 = 0.to_u32()
+}
+
+find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) returns ref Expr {
+    dot := name.find(".")
+    if dot.lt(0) { return NULL }
+    type_part := name.substr(0, dot.to_u32())
+    if top.has(type_part).not() { return NULL }
+    ref dr : DeclRef = top.get(type_part)
+    ref iu : ImportUnit = ctx.imported.get(dr.path)
+    ref tdecl : Expr = iu.ast.child(dr.idx)
+    if tdecl.node_type.is(NodeType.Decl).not() { return NULL }
+    if is_struct_or_enum(tdecl).not() { return NULL }
+    dot_u := dot.to_u32()
+    method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
+    ref ns : Vec = def_ns_decls(tdecl.child(0))
+    for nsd : Declaration in ns {
+        if nsd.name.eq(method_part) {
+            if is_null(nsd.default_value).not() {
+                return nsd.default_value
             }
         }
     }
-    mut tmp_user := Expr.new(NodeType.Body, 0, 0)
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        for ch : Expr in iu.ast.children {
-            tmp_user.add_child(own ch.clone())
+    return NULL
+}
+
+scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
+    mut is_cli := false
+    if is_null(lp.cur_mode).not() {
+        if lp.cur_mode.needs_main {
+            if lp.run_tests.not() {
+                is_cli = true
+            }
         }
     }
 
-    visited := scavenge_visited(tmp_core, tmp_user, lp.cur_mode, lp.run_tests)
+    // 1) Build top-level decl maps: name -> (path, idx)
+    mut core_top := Map.new("Str", Str.size(), "DeclRef", DeclRef.size())
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.child(i)
+                if stmt.node_type.is(NodeType.Decl) {
+                    ref decl : Declaration = get_payload(stmt.node_type)
+                    core_top.set(own decl.name.clone(), own DeclRef(path = u.path.clone(), idx = i.clone()))
+                }
+            }
+        }
+    }
+    mut top := Map.new("Str", Str.size(), "DeclRef", DeclRef.size())
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
+            if stmt.node_type.is(NodeType.Decl) {
+                ref decl : Declaration = get_payload(stmt.node_type)
+                top.set(own decl.name.clone(), own DeclRef(path = u.path.clone(), idx = i.clone()))
+            }
+        }
+    }
+
+    // 2) Seed worklist from the concatenated user-unit stream
+    mut worklist := Vec.new("Str", Str.size())
+    if is_cli {
+        vec_push_str(worklist, "main")
+        for ui in 0..lp.units.len() {
+            ref u : ProgramUnit = lp.units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                if stmt.node_type.is(NodeType.Decl) {
+                    if is_def(stmt) { continue }
+                }
+                collect_refs(stmt, worklist)
+            }
+        }
+    } else if lp.run_tests {
+        for ui in 0..lp.units.len() {
+            ref u : ProgramUnit = lp.units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                if stmt.node_type.is(NodeType.Decl) {
+                    if stmt.children.len().gt(0).and(stmt.child(0).node_type.is(NodeType.FuncDef)) {
+                        ref fdef : FunctionDef = get_payload(stmt.child(0).node_type)
+                        if fdef.func_type.eq(FuncType.Test) {
+                            ref d : Declaration = get_payload(stmt.node_type)
+                            vec_push_str(worklist, d.name)
+                        }
+                    }
+                    if is_def(stmt) { continue }
+                }
+                collect_refs(stmt, worklist)
+            }
+        }
+    } else {
+        for ui in 0..lp.units.len() {
+            ref u : ProgramUnit = lp.units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                if stmt.node_type.is(NodeType.Decl) {
+                    if is_def(stmt) { continue }
+                }
+                collect_refs(stmt, worklist)
+            }
+        }
+    }
+
+    // 3) BFS
+    mut visited := Set.new("Str", Str.size())
+    mut cursor : U32 = 0
+    while cursor.lt(worklist.len()) {
+        name := Str.clone(worklist.get(cursor))
+        cursor = cursor.add(1)
+        if visited.has(name) { continue }
+        visited.add(own name.clone())
+
+        if top.has(name) {
+            ref dr : DeclRef = top.get(name)
+            ref iu : ImportUnit = lp.ctx.imported.get(dr.path)
+            ref decl : Expr = iu.ast.child(dr.idx)
+            if is_struct_or_enum(decl) {
+                ref bfs_tdef : Expr = decl.child(0)
+                if bfs_tdef.node_type.is(NodeType.StructDef) {
+                    ref bfs_sdd : StructDef = get_payload(bfs_tdef.node_type)
+                    for bfs_fd : Declaration in bfs_sdd.fields {
+                        if is_null(bfs_fd.default_value).not() {
+                            collect_refs(bfs_fd.default_value, worklist)
+                        }
+                        if bfs_fd.explicit_type.len().gt(0) {
+                            vec_push_str(worklist, bfs_fd.explicit_type)
+                        }
+                    }
+                } else {
+                    ref body : Expr = decl_body(decl)
+                    for field : Expr in body.children {
+                        collect_refs(field, worklist)
+                    }
+                }
+                push_qn(worklist, name, "delete")
+                push_qn(worklist, name, "clone")
+                push_qn(worklist, name, "size")
+                push_qn(worklist, name, "cmp")
+                ref bfs_ns : Vec = def_ns_decls(decl.child(0))
+                for bfs_d : Declaration in bfs_ns {
+                    push_qn(worklist, name, bfs_d.name)
+                }
+            } else {
+                collect_refs(decl.child(0), worklist)
+            }
+        }
+        if core_top.has(name) {
+            ref dr : DeclRef = core_top.get(name)
+            ref iu : ImportUnit = lp.ctx.imported.get(dr.path)
+            ref decl : Expr = iu.ast.child(dr.idx)
+            if is_struct_or_enum(decl) {
+                ref bfs_tdef2 : Expr = decl.child(0)
+                if bfs_tdef2.node_type.is(NodeType.StructDef) {
+                    ref bfs_sdd2 : StructDef = get_payload(bfs_tdef2.node_type)
+                    for bfs_fd2 : Declaration in bfs_sdd2.fields {
+                        if is_null(bfs_fd2.default_value).not() {
+                            collect_refs(bfs_fd2.default_value, worklist)
+                        }
+                        if bfs_fd2.explicit_type.len().gt(0) {
+                            vec_push_str(worklist, bfs_fd2.explicit_type)
+                        }
+                    }
+                } else {
+                    ref body : Expr = decl_body(decl)
+                    for field : Expr in body.children {
+                        collect_refs(field, worklist)
+                    }
+                }
+                push_qn(worklist, name, "delete")
+                push_qn(worklist, name, "clone")
+                push_qn(worklist, name, "size")
+                push_qn(worklist, name, "cmp")
+                ref bfs_ns2 : Vec = def_ns_decls(decl.child(0))
+                for bfs_d2 : Declaration in bfs_ns2 {
+                    push_qn(worklist, name, bfs_d2.name)
+                }
+            } else {
+                collect_refs(decl.child(0), worklist)
+            }
+        }
+
+        ref ns_fdef : Expr = find_ns_decl_fdef_imported(lp.ctx, top, name)
+        if is_null(ns_fdef).not() {
+            if ns_fdef.node_type.is(NodeType.FuncDef) {
+                collect_refs(ns_fdef, worklist)
+            }
+        }
+        ref core_ns_fdef : Expr = find_ns_decl_fdef_imported(lp.ctx, core_top, name)
+        if is_null(core_ns_fdef).not() {
+            if core_ns_fdef.node_type.is(NodeType.FuncDef) {
+                collect_refs(core_ns_fdef, worklist)
+            }
+        }
+    }
+    return visited
+}
+
+scavenge_imported := proc(mut lp: LoadedProgram) {
+    visited := scavenge_visited_imported(lp)
 
     if lp.skip_core.not() {
         for i in 0..lp.core_units.len() {
@@ -329,77 +514,56 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
         scavenge_filter(iu.ast, visited)
     }
 
-    // Keep merged ASTs in sync for downstream phases (builder still reads
-    // lp.core_ast/lp.ast).
-    if lp.skip_core.not() {
-        mut old_children := lp.core_ast.children
-        lp.core_ast.children = Vec.new("Expr", Expr.size())
-        own old_children.delete()
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            for ch : Expr in iu.ast.children {
-                lp.core_ast.add_child(own ch.clone())
-            }
-        }
-    }
-    mut old_children2 := lp.ast.children
-    lp.ast.children = Vec.new("Expr", Expr.size())
-    own old_children2.delete()
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        for ch : Expr in iu.ast.children {
-            lp.ast.add_child(own ch.clone())
-        }
-    }
 }
 
 // Scan program AST for link()/link_c() directives; fill link_flags,
 // include_flags, link_c_paths on the given LoadedProgram.
 extract_link_info := proc(mut lp: LoadedProgram) {
-    ref ast : Expr = lp.ast
-    // Rebuild children without link()/link_c() directives so the interpreter
-    // never tries to evaluate them.
-    mut new_children := Vec.new("Expr", Expr.size())
-    mut old_children := ast.children
-    ast.children = Vec.new("Expr", Expr.size())
-    for stmt : Expr in old_children {
-        mut keep := true
-        if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
-            if stmt.child(0).node_type.is(NodeType.Ident)
-            .and(stmt.child(1).node_type.is(NodeType.LiteralStr)) {
-                ref fname : Str = get_payload(stmt.child(0).node_type)
-                ref arg : Str = get_payload(stmt.child(1).node_type)
-                if fname.eq("link") {
-                    keep = false
-                    if arg.find("/").gte(0) {
-                        lp.link_flags = lp.link_flags.concat(" ").concat(arg)
-                        last_slash := arg.rfind("/")
-                        if last_slash.gte(0) {
-                            parent_dir := arg.substr(0, last_slash.to_usize())
-                            parent_slash := parent_dir.rfind("/")
-                            if parent_slash.gte(0) {
-                                inc_dir := parent_dir.substr(0, parent_slash.to_usize()).concat("/include")
-                                lp.include_flags = lp.include_flags.concat(" -I").concat(inc_dir)
+    // Remove link()/link_c() directives in-place from every user file so the
+    // interpreter never evaluates them.
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        mut new_children := Vec.new("Expr", Expr.size())
+        mut old_children := iu.ast.children
+        iu.ast.children = Vec.new("Expr", Expr.size())
+        for stmt : Expr in old_children {
+            mut keep := true
+            if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
+                if stmt.child(0).node_type.is(NodeType.Ident)
+                .and(stmt.child(1).node_type.is(NodeType.LiteralStr)) {
+                    ref fname : Str = get_payload(stmt.child(0).node_type)
+                    ref arg : Str = get_payload(stmt.child(1).node_type)
+                    if fname.eq("link") {
+                        keep = false
+                        if arg.find("/").gte(0) {
+                            lp.link_flags = lp.link_flags.concat(" ").concat(arg)
+                            last_slash := arg.rfind("/")
+                            if last_slash.gte(0) {
+                                parent_dir := arg.substr(0, last_slash.to_usize())
+                                parent_slash := parent_dir.rfind("/")
+                                if parent_slash.gte(0) {
+                                    inc_dir := parent_dir.substr(0, parent_slash.to_usize()).concat("/include")
+                                    lp.include_flags = lp.include_flags.concat(" -I").concat(inc_dir)
+                                }
                             }
+                        } else {
+                            lp.link_flags = lp.link_flags.concat(" -l").concat(arg)
                         }
-                    } else {
-                        lp.link_flags = lp.link_flags.concat(" -l").concat(arg)
+                    } else if fname.eq("link_c") {
+                        keep = false
+                        if lp.link_c_paths.len().gt(0) {
+                            lp.link_c_paths = lp.link_c_paths.concat(" ")
+                        }
+                        lp.link_c_paths = lp.link_c_paths.concat(arg)
                     }
-                } else if fname.eq("link_c") {
-                    keep = false
-                    if lp.link_c_paths.len().gt(0) {
-                        lp.link_c_paths = lp.link_c_paths.concat(" ")
-                    }
-                    lp.link_c_paths = lp.link_c_paths.concat(arg)
                 }
             }
+            if keep { new_children.push(own stmt.clone()) }
         }
-        if keep { new_children.push(own stmt.clone()) }
+        own old_children.delete()
+        iu.ast.children = new_children
     }
-    own old_children.delete()
-    ast.children = new_children
 }
 
 // Load core.til + user file + imports + mode auto_import. Returns a
@@ -444,13 +608,12 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     }
 
     // Resolve core imports
-    core_import_decls := Vec.new("Expr", Expr.size())
     core_units := Vec.new("ProgramUnit", ProgramUnit.size())
     core_imports := extract_imports(core_ast)
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
-            core_import_decls, core_units, "", ctx, "lib", cwd)
+            core_units, "", ctx, "lib", cwd)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve core imports")
         }
@@ -472,13 +635,12 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     auto_import := cur_mode.auto_import
 
     // Resolve user imports (using same resolved set -- skips files already loaded by core)
-    import_decls := Vec.new("Expr", Expr.size())
     units := Vec.new("ProgramUnit", ProgramUnit.size())
     lib_dir := bin_dir.concat("/src/lib")
     user_import_disps := resolve_import_disps(imports, user_dir, lib_dir, cwd)
     if imports.len().gt(0) {
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
-            import_decls, units, lib_dir, ctx, "", cwd)
+            units, lib_dir, ctx, "", cwd)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve imports")
         }
@@ -496,19 +658,8 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     core_unit.imports = ciu.imports.clone()
     core_units.push(own core_unit)
 
-    // Build merged core_program: append core_import_decls + core.til decls.
-    mut core_program := Expr.new(NodeType.Body, 0, 0)
-    if skip_core.not() {
-        mut core_imports_expr := Expr.new(NodeType.Body, 0, 0)
-        core_imports_expr.children = core_import_decls
-        core_program.take_children(core_imports_expr)
-    }
-    ref core_root : ProgramUnit = core_units.get(core_units.len().sub(1))
-    ref core_root_iu : ImportUnit = ctx.imported.get(core_root.path)
-    core_program.take_children(core_root_iu.ast.clone())
-
-    // Build user program: mode imports, then user imports, then parsed user code
-    mut ast := Expr.new(NodeType.Body, 0, 0)
+    // Mode auto-import is represented as the first unit (if present),
+    // followed by imported files, with the user entrypoint unit last.
     mut mode_disp := ""
     if auto_import.len().gt(0) {
         mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
@@ -532,10 +683,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         mode_unit.imports = Vec.new("Str", Str.size())
         units.push(own mode_unit)
 
-        ref miu : ImportUnit = ctx.imported.get(mode_disp)
-        ast.take_children(miu.ast.clone())
     }
-    ast.children.append(own import_decls)
 
     // User entrypoint import unit.
     mut user_iu := ImportUnit(mode = cur_mode.clone())
@@ -563,12 +711,6 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         user_unit.imports = user_import_disps
     }
     units.push(own user_unit)
-
-    ref uiu : ImportUnit = ctx.imported.get(path)
-    ast.take_children(uiu.ast.clone())
-
-    lp.core_ast = core_program
-    lp.ast = ast
 
     lp.core_units = core_units
     lp.units = units
@@ -797,38 +939,19 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
         panic(__LOC__, type_errors.to_str().concat(" type error(s) found"))
     }
 
-    // Rebuild merged ASTs from the canonical per-file ASTs in ctx.imported.
-    // Builder/precomp/scavenge currently operate on lp.core_ast/lp.ast.
+    // Re-resolve field_struct_def after hoisting invalidates pointers.
     if lp.skip_core.not() {
-        // Drop the previous merged core AST to avoid leaking clones.
-        mut old_children := lp.core_ast.children
-        lp.core_ast.children = Vec.new("Expr", Expr.size())
-        own old_children.delete()
         for i in 0..lp.core_units.len() {
             ref u : ProgramUnit = lp.core_units.get(i)
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            for ch : Expr in iu.ast.children {
-                lp.core_ast.add_child(own ch.clone())
-            }
+            resolve_field_struct_defs(iu.ast, lp.ctx.scope)
         }
     }
-    // Drop the previous merged user AST to avoid leaking clones.
-    mut old_children2 := lp.ast.children
-    lp.ast.children = Vec.new("Expr", Expr.size())
-    own old_children2.delete()
     for i in 0..lp.units.len() {
         ref u : ProgramUnit = lp.units.get(i)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        for ch : Expr in iu.ast.children {
-            lp.ast.add_child(own ch.clone())
-        }
+        resolve_field_struct_defs(iu.ast, lp.ctx.scope)
     }
-
-    // Re-resolve field_struct_def after hoisting invalidates pointers
-    if lp.skip_core.not() {
-        resolve_field_struct_defs(lp.core_ast, lp.ctx.scope)
-    }
-    resolve_field_struct_defs(lp.ast, lp.ctx.scope)
 
     precomp_imported(lp)
 
@@ -844,5 +967,13 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
 
 cmd_ast := proc(lp: LoadedProgram) {
     println("mode: ".concat(lp.mode_str))
-    println(lp.ast.to_str())
+    mut merged := Expr.new(NodeType.Body, 0, 0)
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for stmt : Expr in iu.ast.children {
+            merged.add_child(own stmt.clone())
+        }
+    }
+    println(merged.to_str())
 }

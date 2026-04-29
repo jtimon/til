@@ -177,6 +177,7 @@ typedef enum {
 typedef struct CtorArg CtorArg;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
+typedef struct DeclRef DeclRef;
 typedef enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
@@ -369,6 +370,12 @@ typedef struct LocalInfo {
     Bool skip_scope_delete;
     Bool is_heap;
 } LocalInfo;
+
+
+typedef struct DeclRef {
+    Str path;
+    U32 idx;
+} DeclRef;
 
 
 struct Lang {
@@ -655,8 +662,6 @@ typedef struct ProgramUnit {
 
 
 typedef struct LoadedProgram {
-    Expr *core_ast;
-    Expr *ast;
     Vec *core_units;
     Vec *units;
     Mode cur_mode;
@@ -1240,8 +1245,6 @@ void children_filter(Vec * v, void * marks, U32 n);
 void push_qn(Vec * v, Str * type_name, Str * method);
 void push_builtin_methods(Vec * v, Str * builtin_name, Str * m1, Str * m2, Str * m3);
 void collect_refs(Expr * e, Vec * refs);
-Expr * find_ns_decl_fdef(Expr * program, Map * top, Str * name);
-Set * scavenge_visited(Expr * core_program, Expr * program, Mode * mode, Bool run_tests);
 void scavenge_filter(Expr * program, Set * visited);
 Str * realpath_str(Str * path);
 Str * str_left(Str * s, U32 * n);
@@ -1255,11 +1258,16 @@ void ProgramUnit_delete(ProgramUnit * self, Bool * call_free);
 U32 ProgramUnit_size(void);
 Vec * resolve_import_disps(Vec * import_paths, Str * base_dir, Str * lib_dir, Str * cwd);
 Vec * extract_imports(Expr * body);
-I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * merged, Vec * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
+I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 void LoadedProgram_delete(LoadedProgram * self, Bool * call_free);
 U32 LoadedProgram_size(void);
 void precomp_imported(LoadedProgram * lp);
+DeclRef * DeclRef_clone(DeclRef * self);
+void DeclRef_delete(DeclRef * self, Bool * call_free);
+U32 DeclRef_size(void);
+Expr * find_ns_decl_fdef_imported(Context * ctx, Map * top, Str * name);
+Set * scavenge_visited_imported(LoadedProgram * lp);
 void scavenge_imported(LoadedProgram * lp);
 void extract_link_info(LoadedProgram * lp);
 LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path);
@@ -1308,6 +1316,7 @@ void DynCallInfo_delete(DynCallInfo * self, Bool * call_free);
 U32 DynCallInfo_size(void);
 LoadedProgram * codegen_lp(void);
 void codegen_set_lp(LoadedProgram * lp);
+void codegen_clear_lp(void);
 Bool is_dyn_call_name(Str * name, Bool * has_ret);
 Expr * fcall_fn_sig(Expr * fcall);
 Bool is_stack_local(Str * name);
@@ -1406,7 +1415,7 @@ void build_register_funcsig_names_lp(void);
 void register_lookups_prog(Expr * prog);
 void build_register_lookups_lp(void);
 void emit_monolithic_header_lp(File * f, Mode * mode);
-void emit_all_forward_declarations(File * f, Expr * core_program, Expr * program, Mode * mode);
+void emit_all_forward_declarations(File * f, Mode * mode);
 void emit_dyn_fn_wrapper(File * f, Str * type_name, Str * method_name, FunctionDef * fd);
 void emit_dyn_fn_wrappers(File * f, Expr * core_program, Expr * program);
 void emit_dyn_call_bodies(File * f, Expr * core_program, Expr * program);
@@ -1538,6 +1547,7 @@ U32 ExprPtrBox_size(void);
 FFITypePtrBox * FFITypePtrBox_clone(FFITypePtrBox * self);
 void FFITypePtrBox_delete(FFITypePtrBox * self, Bool * call_free);
 U32 FFITypePtrBox_size(void);
+void ffi_reset(void);
 ffi_type * ffi_type_pointer_ref(void);
 ffi_type * ffi_type_sint64_ref(void);
 ffi_type * ffi_type_uint8_ref(void);
@@ -1565,6 +1575,7 @@ U8 * ffi_dlsym(Str * name);
 void ffi_init_link_libs(Str * link_flags);
 I32 ffi_init_user_so(Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Str * so_path_out);
 void ffi_init_struct_defs(Expr * program);
+void ffi_init_struct_defs_append(Expr * program);
 I64 * value_to_i64(Value * v);
 U64 * value_to_u64(Value * v);
 F32 * value_to_f32(Value * v);
