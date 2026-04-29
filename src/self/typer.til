@@ -2273,10 +2273,6 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
 
     ref forin_data_r : ForInData = get_payload(stmt.node_type)
     ref var_name : Str = forin_data_r.name
-    if forin_data_r.own_type.eq(OwnType.Ref) {
-        type_error(stmt, "'for ref mut x in <range>' is not allowed; ranges produce values, use 'for mut x' instead")
-        return false
-    }
     ref for_body : Expr = stmt.child(1)
     line := stmt.line
     col := stmt.col
@@ -2437,13 +2433,6 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
 
     mut forin_own := OwnType.Shallow
     if get_def.return_own_type.eq(OwnType.Ref) { forin_own = OwnType.Ref }
-    if forin_data_c.own_type.eq(OwnType.Ref) {
-        if get_def.return_own_type.eq(OwnType.Ref).not() {
-            type_error(stmt, "type '".concat(type_name).concat("' get() does not return a ref; cannot use 'for ref mut'"))
-            return false
-        }
-        forin_own = OwnType.Ref
-    }
     mut elem_decl := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), own_type = forin_own, is_mut = forin_data_c.is_mut)), line, col, path)
     mut col_ident_get := Expr.new(NodeType.Ident(col_name.clone()), line, col, path)
     mut idx_ident_get := Expr.new(NodeType.Ident(idx_name.clone()), line, col, path)

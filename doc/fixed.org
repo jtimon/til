@@ -1,36 +1,37 @@
 # Fixed issues moved from issues.org.
 
-* FIXED #160 for-in collection: support `for mut x : T in coll` and `for ref mut x : T in coll`
-  The parser previously rejected `for mut x : T in coll` and
-  `for ref mut x : T in coll` with `expected 'identifier', found 'mut'`
-  / `... found 'ref'`. Both forms are now accepted.
+* FIXED #160 for-in collection: support `for mut x : T in coll`
+  The parser previously rejected `for mut x : T in coll` with
+  `expected 'identifier', found 'mut'`. The form is now accepted.
+
+  ~ref~ is implicit in collection for-in loops: when ~get()~ returns
+  ~ref~, the synthesised element decl already gets ~own_type = Ref~.
+  ~for mut x : T in coll~ keeps that and additionally marks the
+  binding mutable, which is exactly what the ~ref mut x : T = d_x~
+  alias workaround did. No separate ~for ref mut~ keyword is needed.
 
   Changes:
 
-  - ~src/core/ast.til~: introduced ~ForInData~ struct (name, is_mut,
-    own_type) and switched ~NodeType.ForIn~ from ~Str~ payload to
-    ~ForInData~. Updated ~node_head_str~ and ~ast_print~ to render the
-    new modifiers.
+  - ~src/core/ast.til~: introduced ~ForInData~ struct (name, is_mut)
+    and switched ~NodeType.ForIn~ from ~Str~ payload to ~ForInData~.
+    Updated ~node_head_str~ and ~ast_print~ to render the ~mut~
+    modifier.
 
   - ~src/self/parser.til~: ~for~ statement parser now accepts an
-    optional ~ref~ followed by an optional ~mut~ before the iteration
-    variable. ~for ref~ without ~mut~ is rejected explicitly. The
-    parsed flags are stored in the new ~ForInData~ payload.
+    optional ~mut~ before the iteration variable.
 
-  - ~src/self/typer.til~:
-    - ~desugar_for_in_collection_stmt~ reads ~ForInData~ and propagates
-      ~is_mut~ and ~own_type~ to the synthesised element ~Decl~. Using
-      ~for ref mut~ on a collection whose ~get()~ does not return a
-      ~ref~ is rejected with a typer error.
-    - ~desugar_for_in_range_stmt~ propagates ~is_mut~ to the per-
-      iteration loop variable. Using ~for ref mut~ on a range is
-      rejected explicitly (ranges produce values, not refs).
+  - ~src/self/typer.til~: ~desugar_for_in_collection_stmt~ propagates
+    ~is_mut~ onto the synthesised element ~Decl~ (the existing
+    ~own_type = Ref~ behaviour is unchanged).
+    ~desugar_for_in_range_stmt~ propagates ~is_mut~ to the
+    per-iteration variable.
 
-  Tests added in ~src/test/loops.til~: ~test_for_in_mut_collection~,
-  ~test_for_in_ref_mut_collection~, ~test_for_in_mut_range~. Existing
-  ~ref mut~ alias workaround call sites (e.g. ~src/self/initer.til~)
-  can be migrated to the new direct form in a follow-up commit, after
-  this change becomes the boot baseline.
+  - ~src/self/initer.til~: migrated the two ~ref mut x : T = d_x~
+    alias workarounds in ~compute_struct_layout~ and
+    ~resolve_field_struct_defs~ to ~for mut fd : Declaration in ...~.
+
+  Tests in ~src/test/loops.til~: ~test_for_in_mut_collection~,
+  ~test_for_in_mut_range~.
 
 * FIXED #61 Lambdas: anonymous inline functions
 

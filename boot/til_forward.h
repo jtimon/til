@@ -288,7 +288,6 @@ typedef struct AssignData {
 typedef struct ForInData {
     Str name;
     Bool is_mut;
-    OwnType own_type;
 } ForInData;
 
 

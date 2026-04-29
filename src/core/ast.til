@@ -165,7 +165,6 @@ namespace:
 ForInData := struct {
     mut name := ""
     mut is_mut := false
-    mut own_type := OwnType.Shallow
 namespace:
     eq := func(a: ForInData, b: ForInData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: ForInData) returns Str { return self.name }
@@ -316,7 +315,6 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.If:             return "If"
     case NodeType.While:          return "While"
     case NodeType.ForIn(fi):
-        if fi.own_type.eq(OwnType.Ref).and(fi.is_mut) { return format("ForIn ref mut ", fi.name) }
         if fi.is_mut { return format("ForIn mut ", fi.name) }
         return format("ForIn ", fi.name)
     case NodeType.NamedArg(s):    return format("NamedArg ", s)
@@ -412,8 +410,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     case NodeType.LiteralNum(s): print(" \"", s, "\"")
     case NodeType.LiteralBool(b): if b { print(" true") } else { print(" false") }
     case NodeType.ForIn(fi):
-        if fi.own_type.eq(OwnType.Ref).and(fi.is_mut) { print(" ref mut") }
-        else if fi.is_mut { print(" mut") }
+        if fi.is_mut { print(" mut") }
         print(" \"", fi.name, "\"")
     case NodeType.Decl(decl):
         if decl.is_mut { print(" mut") }

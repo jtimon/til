@@ -151,7 +151,6 @@
 ** ForInData: StructDef
 *** mut name := ""
 *** mut is_mut := false
-*** mut own_type := OwnType.Shallow
 ** NodeType: EnumDef
 *** Body
 *** LiteralStr:Str

@@ -1577,9 +1577,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     mut offset : I32 = 0
     mut max_align : I32 = 1
 
-    for d_i : Declaration in struct_meta.fields {
-        ref mut fd : Declaration = d_i
-
+    for mut fd : Declaration in struct_meta.fields {
         mut fsz : I32 = 0
         mut falign : I32 = 0
 
@@ -1781,8 +1779,7 @@ resolve_field_struct_defs := proc(program: Expr, scope: TypeScope) {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
         ref mut sdd : StructDef = get_payload(stmt.child(0).node_type)
-        for d_fi : Declaration in sdd.fields {
-            ref mut fd : Declaration = d_fi
+        for mut fd : Declaration in sdd.fields {
             if fd.explicit_type.len().gt(0) {
                 ftype := fd.explicit_type
                 if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I16").not())

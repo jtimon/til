@@ -248,18 +248,6 @@ test_for_in_mut_collection := test() {
     assert_eq(__LOC__, sum, 60)
 }
 
-// #160: 'for ref mut x : T in coll' is the explicit ref-mut form
-test_for_in_ref_mut_collection := test() {
-    v := vec("I64", 1, 2, 3)
-    mut sum := 0
-    for ref mut x : I64 in v {
-        x = x.add(100)
-        sum = sum.add(x)
-    }
-    // 101 + 102 + 103 = 306
-    assert_eq(__LOC__, sum, 306)
-}
-
 // #160: 'for mut i in <range>' allows mutating the loop variable inside the body
 test_for_in_mut_range := test() {
     mut sum := 0

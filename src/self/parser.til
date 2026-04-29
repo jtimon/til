@@ -1250,24 +1250,15 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     }
     if t.type.eq(TokenType.KwFor) {
         advance(p)
-        mut for_own_type := OwnType.Shallow
         mut for_is_mut := false
-        if check(p, TokenType.KwRef) {
-            advance(p)
-            for_own_type = OwnType.Ref
-        }
         if check(p, TokenType.KwMut) {
             advance(p)
             for_is_mut = true
         }
-        if for_own_type.eq(OwnType.Ref).and(for_is_mut.not()) {
-            panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-                ": 'for ref' must be followed by 'mut'")
-        }
         i_line := peek_line(p)
         i_col := peek_col(p)
         iname := expect_text(p, TokenType.Ident)
-        mut node := Expr.new(NodeType.ForIn(ForInData(name = iname, is_mut = for_is_mut, own_type = for_own_type)), i_line, i_col, p.path)
+        mut node := Expr.new(NodeType.ForIn(ForInData(name = iname, is_mut = for_is_mut)), i_line, i_col, p.path)
         if check(p, TokenType.Colon) {
             advance(p)
             node.til_type = TilType.Custom(expect_text(p, TokenType.Ident))
