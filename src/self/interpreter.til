@@ -5,6 +5,18 @@ import("builder.til")
 
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 
+// Active file path for diagnostics (Expr no longer stores path).
+mut interp_path := ""
+
+interp_error := proc(e: Expr, msg: Str) {
+    println(interp_path, ":", e.line.to_str(), ":", e.col.to_str(), ": error: ", msg)
+}
+
+interp_lang_error := proc(e: Expr, msg: Str) {
+    interp_error(e, msg)
+    println("  note: this is a bug in the language, please report it")
+}
+
 StructInstance := struct {
     ref mut struct_name : Str = NULL
     ref mut struct_def : Expr = NULL
@@ -383,7 +395,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         ref ident : Str = get_payload(e.node_type)
         ref cell : Cell = scope_get(scope, ident)
         if is_null(cell) {
-            e.error("undefined variable '".concat(ident).concat("'"))
+            interp_error(e, "undefined variable '".concat(ident).concat("'"))
             exit(1.to_i32())
         }
         return shallow_copy_value(cell.val)
@@ -446,7 +458,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                 }
                 return shallow_copy_value(nsv)
             }
-            e.error("no namespace field '".concat(fname).concat("'"))
+            interp_error(e, "no namespace field '".concat(fname).concat("'"))
             exit(1.to_i32())
         }
         if obj.is(Value.Ptr) {
@@ -471,18 +483,18 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             }
         }
         if obj.is(Value.Struct).not() {
-            e.error("field access on non-struct")
+            interp_error(e, "field access on non-struct")
             exit(1.to_i32())
         }
         ref si : StructInstance = get_payload(obj)
         ref fdecl : Declaration = find_field_decl(si.struct_def, fname)
         if is_null(fdecl) {
-            e.error("no field '".concat(fname).concat("'"))
+            interp_error(e, "no field '".concat(fname).concat("'"))
             exit(1.to_i32())
         }
         return read_field(si, fdecl)
     }
-    e.lang_error("cannot evaluate node as expression")
+    interp_lang_error(e, "cannot evaluate node as expression")
     exit(1.to_i32())
     return val_none()
 }
@@ -612,7 +624,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 ref rhs_ident : Str = get_payload(rhs.node_type)
                 ref src : Cell = scope_get(scope, rhs_ident)
                 if is_null(src) {
-                    rhs.error("undefined variable '".concat(rhs_ident).concat("'"))
+                    interp_error(rhs, "undefined variable '".concat(rhs_ident).concat("'"))
                     exit(1.to_i32())
                 }
                 val = shallow_copy_value(src.val)
@@ -633,7 +645,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
             ref assign_name : Str = get_payload(stmt.node_type)
             ref cell : Cell = scope_get(scope, assign_name)
             if is_null(cell) {
-                stmt.error("undefined variable '".concat(assign_name).concat("'"))
+                interp_error(stmt, "undefined variable '".concat(assign_name).concat("'"))
                 exit(1.to_i32())
             }
             if stmt.til_type.is(TilType.Dynamic) {
@@ -709,11 +721,11 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                     }
                 }
                 if is_null(base) {
-                    stmt.error("field assign on non-struct")
+                    interp_error(stmt, "field assign on non-struct")
                     exit(1.to_i32())
                 }
                 if is_null(cur_sdef) {
-                    stmt.error("field assign on non-struct")
+                    interp_error(stmt, "field assign on non-struct")
                     exit(1.to_i32())
                 }
                 ref fdecl : Declaration = find_field_decl(cur_sdef, fname)
@@ -777,7 +789,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
             has_return = true
             return
         } else {
-            stmt.lang_error("unexpected statement type")
+            interp_lang_error(stmt, "unexpected statement type")
             exit(1.to_i32())
         }
     }
@@ -790,7 +802,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     if callee_expr.node_type.is(NodeType.FieldAccess) {
         fn_val := eval_expr(scope, callee_expr)
         if fn_val.is(Value.Func).not() {
-            e.error("namespace field is not a function")
+            interp_error(e, "namespace field is not a function")
             exit(1)
         }
         ref fn_ptr : Dynamic = get_payload(fn_val)
@@ -924,7 +936,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     // User-defined function or struct instantiation
     ref fn_cell : Cell = scope_get(scope, name)
     if is_null(fn_cell) {
-        e.error(name.concat(" is undefined"))
+        interp_error(e, name.concat(" is undefined"))
         exit(1)
     }
 
@@ -971,7 +983,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     }
 
     if fn_cell.val.is(Value.Func).not() {
-        e.error(name.concat(" is not a function"))
+        interp_error(e, name.concat(" is not a function"))
         exit(1)
     }
 
@@ -1829,12 +1841,14 @@ interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) re
         for i in 0..lp.core_units.len() {
             ref u : ProgramUnit = lp.core_units.get(i)
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            interp_path = u.path.clone()
             eval_body(global, iu.ast)
         }
     }
     for i in 0..lp.units.len() {
         ref u : ProgramUnit = lp.units.get(i)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        interp_path = u.path.clone()
         eval_body(global, iu.ast)
     }
 
@@ -1849,6 +1863,7 @@ interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) re
                     ref dd : Declaration = get_payload(stmt.node_type)
                     test_count = test_count.add(1)
                     test_scope := scope_new(global)
+                    interp_path = lp.path.clone()
                     eval_body(test_scope, decl_body(stmt))
                     if has_return {
                         return_value = return_value.clone()

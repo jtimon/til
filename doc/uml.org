@@ -199,6 +199,7 @@
 *** mut type := TilType.Unknown
 *** mut func_type := FuncType.None
 *** mut is_mut := false
+*** mut path := ""
 *** mut line : U32 = 0
 *** mut col : U32 = 0
 *** mut is_param := false

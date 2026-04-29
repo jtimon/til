@@ -7,6 +7,7 @@ TypeBinding := struct {
     mut type := TilType.Unknown
     mut func_type := FuncType.None
     mut is_mut := false
+    mut path := ""
     mut line : U32 = 0
     mut col : U32 = 0
     mut is_param := false
@@ -27,6 +28,9 @@ namespace:
         return self.name.clone()
     }
 }
+
+// Active file path for diagnostics / bindings.
+mut initer_path := ""
 
 ScopeFind := enum { NotFound, Found: TypeBinding }
 
@@ -81,6 +85,7 @@ namespace:
     }
     set := proc(mut self: TypeScope, name: Str, type: TilType,
         shallow func_type: FuncType, shallow is_mut: Bool,
+        path: Str,
         shallow line: U32, shallow col: U32,
         shallow is_param: Bool, shallow own_type: OwnType) {
             if self.bindings.has(name) {
@@ -88,6 +93,7 @@ namespace:
                 b.type = type
                 b.func_type = func_type
                 b.is_mut = is_mut
+                b.path = path.clone()
                 b.line = line
                 b.col = col
                 b.is_param = is_param
@@ -96,6 +102,7 @@ namespace:
             }
             nb := TypeBinding(name = name.clone(), type = type.clone(),
                 func_type = func_type, is_mut = is_mut,
+                path = path.clone(),
                 line = line, col = col,
                 is_param = is_param, own_type = own_type)
             self.bindings.set(own name.clone(), own nb)
@@ -179,9 +186,9 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
             ref existing : TypeBinding = existing_payload
             if is_null(existing.struct_def).not() {
                 println(
-                    stmt.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                    initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
                     ": error: struct '", sname, "' already declared at ",
-                    existing.struct_def.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
+                    existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
                 )
                 errors = errors.add(1)
                 continue
@@ -203,7 +210,7 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
         else if sname.eq("FunctionDef") { is_builtin = false }
         else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
 
-        scope.set(sname, builtin_type, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sname, builtin_type, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(sname)
         b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
@@ -314,15 +321,15 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
         ref existing : TypeBinding = existing_payload
         if is_null(existing.struct_def).not() {
             println(
-                stmt.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
                 ": error: enum '", ename, "' already declared at ",
-                existing.struct_def.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
+                existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
             )
             return 1
         }
     }
 
-    scope.set(ename, TilType.Enum(ename.clone()), FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set(ename, TilType.Enum(ename.clone()), FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
     ref mut b : TypeBinding = scope.get_binding(ename)
     b.struct_def = stmt.child(0)
     return 0
@@ -829,7 +836,7 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
         ename := edecl.name
         line := stmt.line
         col := stmt.col
-        path := stmt.path
+        path := initer_path
 
         reg_errors := register_enum_definition(stmt, scope)
         errors = errors.add(reg_errors)
@@ -882,7 +889,7 @@ generate_missing_enum_clones := proc(program: Expr) {
         ename := edecl.name
         line := stmt.line
         col := stmt.col
-        path := stmt.path
+        path := initer_path
         mut has_clone := false
         ref ecl_edd : EnumDef = get_payload(stmt.child(0).node_type)
         for d_j : Declaration in ecl_edd.ns_decls {
@@ -997,7 +1004,7 @@ register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
         if is_func_decl(stmt).not() { continue }
         if stmt.child(0).children.len().neq(0) { continue }
         ref sdecl : Declaration = get_payload(stmt.node_type)
-        scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
         fb.func_def = stmt.child(0)
     }
@@ -1023,7 +1030,7 @@ register_type_aliases := proc(program: Expr, scope: TypeScope) {
         }
         ref sdecl : Declaration = get_payload(stmt.node_type)
         if scope.find(sdecl.name).is(ScopeFind.Found) { continue }
-        scope.set(sdecl.name, target.type, target.func_type, false, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sdecl.name, target.type, target.func_type, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
         ab.struct_def = target.struct_def
         ab.func_def = target.func_def
@@ -1059,7 +1066,7 @@ register_top_level_values := proc(program: Expr, scope: TypeScope) {
         if t.eq(TilType.Unknown) { continue }
 
         ref sdecl : Declaration = get_payload(stmt.node_type)
-        scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
     }
 }
 
@@ -1072,7 +1079,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
         ref sdecl : Declaration = get_payload(stmt.node_type)
 
         if def.children.len().eq(0) {
-            scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
             continue
@@ -1120,7 +1127,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
             rt = type_from_name_init(fdef.return_type, scope)
         }
 
-        scope.set(sdecl.name, rt, ft, false, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sdecl.name, rt, ft, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
         fb.func_def = stmt.child(0)
         if ft.eq(FuncType.ExtFunc).or(ft.eq(FuncType.ExtProc)) {
@@ -1881,6 +1888,8 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
 
 init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
+    // Legacy merged init runs with per-statement modes; keep empty path.
+    initer_path = ""
 
     errors = errors.add(register_struct_definitions(program, scope))
     register_funcsig_aliases(program, scope)
@@ -1902,6 +1911,7 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
 // run global layout/method generation that must see the whole program.
 init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
     context_enter_file(ctx, path)
+    initer_path = ctx.path.clone()
     mut errors : I32 = 0
     errors = errors.add(register_struct_definitions(program, scope))
     register_funcsig_aliases(program, scope)
