@@ -275,3 +275,9 @@ switch terr_tok {
 case TerrTok.Num: println("num")
 case TerrTok.Eof: println("eof")
 }
+
+// #148: unqualified namespace member access from sibling method
+NsUnqualified := namespace {
+    mut urmom := 69
+    get := func() returns I64 { return urmom }
+}

@@ -1,5 +1,34 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #148 SIGSEGV on unqualified namespace member access (now type error)
+  The original crash was caused by the typer letting unqualified
+  references to namespace siblings through type checking. At the time,
+  ~infer_type_def_expr~ created an inner ~TypeScope~ for the struct
+  body and ~finalize_decl_binding~ called ~scope.set(...)~ for every
+  decl in the body -- including ones with ~is_namespace = true~. A
+  function defined inside the namespace had its ~func_scope~ chained
+  to that inner scope, so ~return urmom~ resolved ~urmom~ via the
+  inner-scope binding instead of failing. The bound binding had no
+  runtime backing, so interpret/codegen crashed (SIGSEGV with
+  ~println~, ~Vec.get: index 0 out of bounds (len 0)~ panic without).
+
+  Fixed indirectly by the ~#147~ ~ns_decls~ migration series
+  (commits ~a63e89c~ ... ~e4041d5~ "drop Declaration.is_namespace,
+  finish ns_decls cut-over"). Namespace members are now stored in
+  ~ns_decls~ on the StructDef/EnumDef payload rather than as body
+  Decls, so ~infer_type_def_expr~ no longer registers them as
+  bindings in the type-body scope. Unqualified references therefore
+  reach ~infer_ident_expr~, miss the scope chain, and produce
+  "undefined symbol 'X'" at type check (the standalone ~namespace
+  {}~ case in the issue) or "undefined variable 'X'" earlier
+  (the struct ~namespace:~ section case). Member access still
+  works qualified: ~MyNamespace.urmom~ from inside the namespace's
+  own methods, same as the existing ~#65~ tests.
+
+  Regression test added in ~src/test/typer_errors.til~ for the
+  standalone-namespace case (count in ~src/tests.til~ bumped from
+  58 to 59).
+
 * FIXED #160 for-in collection: support `for mut x : T in coll`
   The parser previously rejected `for mut x : T in coll` with
   `expected 'identifier', found 'mut'`. The form is now accepted.
