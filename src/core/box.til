@@ -1,0 +1,74 @@
+mode lib
+
+/// Single-element typed container. The type-specific clone/delete are
+/// looked up via `dyn_fn` at construction time and stored as function
+/// pointers so the destructor can reach into the typed payload without
+/// touching the rest of the runtime. Mirrors Vec's design but holds
+/// exactly one element.
+Box := struct {
+    own mut data : U8 = 0
+    mut elem_size : USize = 0
+    mut elem_type := ""
+    mut elem_clone : CloneFn = default_clone
+    mut elem_delete : DeleteFn = default_delete
+
+namespace:
+    /// Construct a Box already holding `initial`. Always initialized so
+    /// `set` can safely elem_delete the previous value.
+    new := func(elem_type: Str, elem_size: USize, own initial: Dynamic) returns Box {
+        if elem_type.is_empty() {
+            panic(__LOC__, "Box.new: elem_type required")
+        }
+        data : Dynamic = malloc(elem_size)
+        memcpy(data, initial, elem_size)
+        free(own initial)
+        mut box := Box(data = data, elem_size = elem_size,
+                       elem_type = elem_type.clone())
+        if elem_type.eq("Dynamic").not() {
+            box.elem_clone = dyn_fn(elem_type, "clone")
+            box.elem_delete = dyn_fn(elem_type, "delete")
+        }
+        return box
+    }
+
+    /// Replace the contained value with `val`. Old value is elem_deleted.
+    set := proc(mut self: Box, own val: Dynamic) {
+        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
+            self.elem_delete(self.data, false)
+        }
+        memcpy(self.data, val, self.elem_size)
+        free(own val)
+    }
+
+    /// Borrow the contained value. The returned ref is valid until the
+    /// next set/delete on the Box.
+    get := func(self: Box) returns ref Dynamic {
+        return self.data
+    }
+
+    delete := func(own self: Box, call_free: Bool = true) {
+        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
+            self.elem_delete(self.data, false)
+        }
+        free(own self.data)
+        if self.elem_type.is_empty().not() {
+            Str.delete(own self.elem_type, false)
+        }
+        if call_free { free(own self) }
+    }
+
+    clone := func(self: Box) returns Box {
+        new_data : Dynamic = malloc(self.elem_size)
+        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
+            cloned : Dynamic = self.elem_clone(self.data)
+            memcpy(new_data, cloned, self.elem_size)
+            free(own cloned)
+        } else {
+            memcpy(new_data, self.data, self.elem_size)
+        }
+        return Box(data = new_data, elem_size = self.elem_size,
+                   elem_type = self.elem_type.clone(),
+                   elem_clone = self.elem_clone,
+                   elem_delete = self.elem_delete)
+    }
+}

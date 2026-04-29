@@ -1,0 +1,69 @@
+mode test
+
+test_box_get_initial_int := test() {
+    b := Box.new("I64", I64.size(), own 42)
+    ref a : I64 = b.get()
+    assert_eq(__LOC__, a, 42)
+}
+
+test_box_overwrite_int := test() {
+    b := Box.new("I64", I64.size(), own 1)
+    b.set(own 2)
+    b.set(own 3)
+    ref a : I64 = b.get()
+    assert_eq(__LOC__, a, 3)
+}
+
+test_box_str := test() {
+    b := Box.new("Str", Str.size(), own "hello")
+    ref s : Str = b.get()
+    assert_eq_str(__LOC__, s, "hello")
+}
+
+test_box_overwrite_str := test() {
+    b := Box.new("Str", Str.size(), own "first")
+    b.set(own "second")
+    b.set(own "third")
+    ref s : Str = b.get()
+    assert_eq_str(__LOC__, s, "third")
+}
+
+test_box_clone_int := test() {
+    a := Box.new("I64", I64.size(), own 99)
+    b := a.clone()
+
+    ref av : I64 = a.get()
+    ref bv : I64 = b.get()
+    assert_eq(__LOC__, av, 99)
+    assert_eq(__LOC__, bv, 99)
+
+    // Mutating one must not touch the other.
+    a.set(own 100)
+    ref av2 : I64 = a.get()
+    ref bv2 : I64 = b.get()
+    assert_eq(__LOC__, av2, 100)
+    assert_eq(__LOC__, bv2, 99)
+}
+
+test_box_clone_str := test() {
+    a := Box.new("Str", Str.size(), own "abc")
+    b := a.clone()
+
+    ref av : Str = a.get()
+    ref bv : Str = b.get()
+    assert_eq_str(__LOC__, av, "abc")
+    assert_eq_str(__LOC__, bv, "abc")
+
+    a.set(own "xyz")
+    ref av2 : Str = a.get()
+    ref bv2 : Str = b.get()
+    assert_eq_str(__LOC__, av2, "xyz")
+    assert_eq_str(__LOC__, bv2, "abc")
+}
+
+test_box_dynamic := test() {
+    p : Dynamic = malloc(Dynamic.size())
+    b := Box.new("Dynamic", Dynamic.size(), own p)
+    ref out : Dynamic = b.get()
+    expect(__LOC__, is_null(out).not(), "stored Dynamic pointer should not be null")
+}
