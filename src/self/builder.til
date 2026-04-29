@@ -185,6 +185,9 @@ fa_struct_name := func(e: Expr) returns Str {
 
 // Check if a FieldAccess/FieldAssign accesses an own/ref (pointer) field.
 builder_fa_is_ptr := func(e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.FieldAccess).not().and(e.node_type.is(NodeType.FieldAssign).not()) {
+        return false
+    }
     sname := fa_struct_name(e)
     ref fname : Str = get_payload(e.node_type)
     ref fap_def : Expr = find_struct_def(sname)
@@ -200,6 +203,9 @@ builder_fa_is_ptr := func(e: Expr) returns shallow Bool {
 }
 
 builder_fa_is_ns := func(e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.FieldAccess).not().and(e.node_type.is(NodeType.FieldAssign).not()) {
+        return false
+    }
     sname := fa_struct_name(e)
     ref fname : Str = get_payload(e.node_type)
     ref bfn_def : Expr = find_struct_def(sname)

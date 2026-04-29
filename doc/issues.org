@@ -21,6 +21,10 @@
    - This likely requires moving more phases (precomp/scavenge/eval/build)
      to per-file drivers, or adding explicit file boundaries to merged views.
 
+   WIP branch:
+
+   - wip/per-file-import-init-type-prep (commit 957ab1a99)
+
 ** OPEN #162 Core files should import semantic dependencies explicitly
    We still rely on ~src/core/core.til~ import order for some dependencies.
    This is fragile and makes refactors (like changing Map internals) break in

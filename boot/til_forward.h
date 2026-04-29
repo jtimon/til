@@ -492,7 +492,6 @@ struct CtorArg {
 typedef struct ProgramUnit {
     Str path;
     Mode mode;
-    Expr *ast;
     Vec imports;
 } ProgramUnit;
 
@@ -1065,6 +1064,9 @@ void compute_all_struct_layouts(Expr * program, TypeScope * scope);
 void resolve_field_struct_defs(Expr * program, TypeScope * scope);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_type);
 I32 init_declarations(Expr * program, TypeScope * scope);
+I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
+I32 init_declarations_global(Expr * program, TypeScope * scope);
+I32 init_file(Str * path, Context * ctx);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);
 U32 Mode_size(void);
@@ -1139,6 +1141,9 @@ void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 i
 void reregister_scope_defs(Expr * body, TypeScope * scope);
 void reregister_field_struct_defs(Expr * body, TypeScope * scope);
 void infer_body(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
+void infer_body_unit(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
+I32 type_check_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
+I32 type_file(Str * path, Context * ctx);
 void infer_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 Bool is_numeric_type(TilType * t);
 Bool is_integral_numeric_type(TilType * t);

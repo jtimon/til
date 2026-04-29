@@ -1927,4 +1927,23 @@ init_declarations_global := proc(program: Expr, scope: TypeScope) returns shallo
     return errors
 }
 
+// rstil-style init: recursively init imports then this file.
+init_file := proc(path: Str, ctx: Context) returns shallow I32 {
+    if ctx.imports_init_done.has(path) {
+        return 0.to_i32()
+    }
+    ctx.imports_init_done.add(own path.clone())
+
+    ref iu : ImportUnit = ctx.imported.get(path)
+
+    // Process imports first.
+    for dep : Str in iu.imports {
+        init_file(dep, ctx)
+    }
+
+    ctx.mode = iu.mode.clone()
+    init_declarations_unit(path, iu.ast, ctx.scope, ctx)
+    return 0.to_i32()
+}
+
 // sync_body_ns_to_payload: deleted -- all ns methods now go directly to ns_decls

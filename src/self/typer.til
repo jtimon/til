@@ -2631,6 +2631,24 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
     return errors
 }
 
+// rstil-style typer: recursively type imports then this file.
+type_file := proc(path: Str, ctx: Context) returns shallow I32 {
+    if ctx.imports_typer_done.has(path) {
+        return 0.to_i32()
+    }
+    ctx.imports_typer_done.add(own path.clone())
+
+    ref iu : ImportUnit = ctx.imported.get(path)
+
+    // Process imports first.
+    for dep : Str in iu.imports {
+        type_file(dep, ctx)
+    }
+
+    ctx.mode = iu.mode.clone()
+    return type_check_unit(path, iu.ast, ctx.scope, ctx)
+}
+
 infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     ref mut rhs : Expr = stmt.child(0)
