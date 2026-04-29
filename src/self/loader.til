@@ -207,6 +207,88 @@ LoadedProgram := struct {
     mut run_tests := false
 }
 
+// Precomp across per-file units (rstil-style): fold macros/pure funcs in the
+// canonical ASTs stored in lp.ctx.imported.
+precomp_imported := proc(mut lp: LoadedProgram) {
+    // 1) Collect macro and pure func names across all files
+    macros = Set.new("Str", Str.size())
+    funcs = Set.new("Str", Str.size())
+    if lp.skip_core.not() {
+        for i in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(i)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            precomp_scan_names(iu.ast)
+        }
+    }
+    for i in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(i)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        precomp_scan_names(iu.ast)
+    }
+
+    // Nothing to fold?
+    if macros.count.eq(0).and(funcs.count.eq(0)) {
+        Set.delete(own macros, false)
+        Set.delete(own funcs, false)
+        return
+    }
+
+    // 2) Set up interpreter scope
+    global := scope_new(NULL)
+    if lp.skip_core.not() {
+        for i in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(i)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            precomp_register_defs(global, iu.ast)
+        }
+    }
+    for i in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(i)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        precomp_register_defs(global, iu.ast)
+    }
+    if lp.skip_core.not() {
+        for i in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(i)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            interpreter_init_ns(global, iu.ast)
+        }
+    }
+    for i in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(i)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        interpreter_init_ns(global, iu.ast)
+    }
+
+    // 2b) Init FFI (uses merged views)
+    ffi_init(lp.ast, NULL, NULL, NULL, NULL)
+    if lp.skip_core.not() {
+        ffi_init_struct_defs(lp.core_ast)
+        ffi_init_scan_program(lp.core_ast)
+    }
+
+    // 3) Fold calls in every file
+    known = Map.new("Str", Str.size(), "Value", Value.size())
+    if lp.skip_core.not() {
+        for i in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(i)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            process_body(global, iu.ast)
+        }
+    }
+    for i in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(i)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        process_body(global, iu.ast)
+    }
+
+    // Cleanup
+    Map.delete(own known, false)
+    scope_free(own global)
+    Set.delete(own macros, false)
+    Set.delete(own funcs, false)
+}
+
 // Scan program AST for link()/link_c() directives; fill link_flags,
 // include_flags, link_c_paths on the given LoadedProgram.
 extract_link_info := proc(mut lp: LoadedProgram) {
@@ -683,7 +765,7 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     }
     resolve_field_struct_defs(lp.ast, lp.ctx.scope)
 
-    precomp(lp.core_ast, lp.ast)
+    precomp_imported(lp)
 
     // Skip scavenging for lib/pure modes, and for programs with link_c
     // (scavenger can't track C-level dependencies)

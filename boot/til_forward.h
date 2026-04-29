@@ -1233,7 +1233,6 @@ void fold_subtree(Scope * scope, Expr * e);
 void process_body(Scope * scope, Expr * body);
 void precomp_scan_names(Expr * prog);
 void precomp_register_defs(Scope * global, Expr * prog);
-void precomp(Expr * core_program, Expr * program);
 Bool scav_fa_is_ns(Expr * e);
 Str * qualified_name(Str * type_name, Str * method_name);
 void gc_free_all(void);
@@ -1260,6 +1259,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 void LoadedProgram_delete(LoadedProgram * self, Bool * call_free);
 U32 LoadedProgram_size(void);
+void precomp_imported(LoadedProgram * lp);
 void extract_link_info(LoadedProgram * lp);
 LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path);
 Str * escape_doc_for_literal_str(Str * raw);
