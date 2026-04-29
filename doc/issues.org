@@ -426,8 +426,7 @@
       rstil already built it: ~FuncSig~ = params+return types only,
       ~FuncDef~ = sig + arg names + body. Listed here for completeness.
 
-   9. Remove ~Expr.path~. ~470 Expr.new call sites drop the arg; error
-      functions take path as a parameter. Largely mechanical.
+   9. Remove ~Expr.path~. DONE.
 
    10. Add ~Context.anon_func_counter~ + ~anon_func_map~ for inline
        anonymous funcs. Enables ~#61~ cleanly.
@@ -615,19 +614,16 @@
   Ideas from rstil comparison (rstil's Expr is just 4 fields: node_type,
   params, line, col -- all payload lives in NodeType variants).
 
-  til's Expr is now down to 7 fields: ~data~, ~til_type~, ~struct_name~,
-  ~children~, ~line~, ~col~, ~path~. The remaining gap to rstil's 4-field
-  shape is type-checker outputs (~til_type~, ~struct_name~) and per-node
-  ~path~ duplication.
+  til's Expr is now down to 6 fields: ~data~, ~til_type~, ~struct_name~,
+  ~children~, ~line~, ~col~. The remaining gap to rstil's 4-field shape is
+  type-checker outputs (~til_type~, ~struct_name~).
 
   Expr-level bloat still present:
   - ~Expr.til_type~ and ~Expr.struct_name~: type-checker outputs, not
     parser outputs. rstil has neither on Expr. Could live in a side table
     or TypeBinding instead of bloating every node.
-  - ~Expr.path~: rstil stores ~source_path~ only on FuncDef, not per-Expr.
-    All Exprs in one file share the same path -- could be passed as
-    context during traversal instead of stored on every node. ~470
-    Expr.new call sites would need the path argument removed.
+  - (removed) ~Expr.path~: DONE. Path is tracked per-file (Context.path)
+    instead of stored on every node.
 
   Payload struct bloat still present:
   - ~Declaration.field_offset~ / ~field_size~ / ~field_struct_def~: struct
