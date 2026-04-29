@@ -215,11 +215,13 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
             }
             if new_chunk.len().gt(0) { print_single(new_chunk) }
             prev_out = full_out.clone()
-        }
 
-        // Always commit the (possibly wrapped) block to accumulated source.
-        if accum.len().gt(0) { accum = accum.concat("\n") }
-        accum = accum.concat(block_eff)
+            // Only commit good lines to accumulated source. If typecheck
+            // failed, drop the line so it doesn't pollute future turns
+            // (the typer would replay the same error on every input).
+            if accum.len().gt(0) { accum = accum.concat("\n") }
+            accum = accum.concat(block_eff)
+        }
     }
 }
 
