@@ -1,10 +1,27 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 162
+# NEXT_ISSUE: 163
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/16] Pre
+** OPEN #162 Core files should import semantic dependencies explicitly
+   We still rely on ~src/core/core.til~ import order for some dependencies.
+   This is fragile and makes refactors (like changing Map internals) break in
+   non-obvious ways.
+
+   Goal:
+
+   - Each ~src/core/*.til~ file should explicitly ~import("...")~ the other core
+     files it depends on.
+   - Then ~src/core/core.til~ can be ordered consistently (alphabetically is
+     fine) without encoding hidden dependency order.
+
+   Short list:
+
+   - ~src/core/map.til~ depends on ~vec.til~.
+   - ~src/core/dyn_map.til~ depends on ~map.til~ and ~tuple.til~.
+
 ** OPEN #161 ref mut accepts a non-mut ref source (mutability laundering)
    The typer currently allows binding a `ref mut` to a plain `ref`
    source without complaint:
