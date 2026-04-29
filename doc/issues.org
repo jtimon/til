@@ -11,13 +11,12 @@
    - Store a canonical per-file AST and direct import list in Context
      (like ../rstil/), not in merged ASTs or ProgramUnit.ast.
    - Run phases per file (imports-first) so we can support circular deps.
-   - Eventually remove Expr.path and use Context.path instead for diagnostics
-     and phase behavior.
+   - Use Context.path (and per-file drivers) for diagnostics and phase behavior.
 
    Notes:
 
-   - Keep Expr.path for now; this issue tracks the remaining work needed
-     before it can be removed safely.
+   - Expr.path is removed. Remaining work is to keep phases per-file so we do
+     not re-introduce merged-AST-only assumptions.
    - This likely requires moving more phases (precomp/scavenge/eval/build)
      to per-file drivers, or adding explicit file boundaries to merged views.
 
