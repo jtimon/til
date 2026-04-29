@@ -310,6 +310,203 @@ typedef struct File {
 } File;
 
 
+struct TokenType {
+    TokenType_tag tag;
+};
+
+typedef struct Token {
+    TokenType type;
+    Str text;
+    U32 line;
+    U32 col;
+} Token;
+
+
+typedef struct TypeBinding {
+    Str name;
+    TilType type;
+    FuncType func_type;
+    Bool is_mut;
+    U32 line;
+    U32 col;
+    Bool is_param;
+    OwnType own_type;
+    Bool is_alias;
+    Bool is_type_alias;
+    Str *alias_target;
+    Expr *struct_def;
+    Expr *func_def;
+    Bool is_builtin;
+    Bool used;
+} TypeBinding;
+
+
+struct ScopeFind {
+    ScopeFind_tag tag;
+    union {
+        TypeBinding Found;
+    } data;
+};
+
+typedef struct Mode {
+    Bool needs_main;
+    Bool decls_only;
+    Str auto_import;
+    Bool is_library;
+    Bool is_pure;
+    Bool run_tests;
+    Bool debug_prints;
+} Mode;
+
+
+typedef struct LocalInfo {
+    Str *name;
+    TilType type;
+    I32 decl_index;
+    I32 last_use;
+    I32 own_transfer;
+    Bool skip_scope_delete;
+    Bool is_heap;
+} LocalInfo;
+
+
+struct Lang {
+    Lang_tag tag;
+};
+
+struct Target {
+    Target_tag tag;
+};
+
+typedef struct CollectionInfo {
+    Str *type_name;
+    I32 is_vec;
+} CollectionInfo;
+
+
+typedef struct DynCallInfo {
+    Str *method;
+    I32 nargs;
+    Bool has_return;
+} DynCallInfo;
+
+
+typedef struct BuildPaths {
+    Str name;
+    Str c_path;
+    Str bin_path;
+    Str fwd_path;
+    Str h_path;
+    Str til_path;
+    Str py_path;
+    Bool do_lib;
+} BuildPaths;
+
+
+typedef struct StructInstance {
+    Str *struct_name;
+    Expr *struct_def;
+    U8 *data;
+    Bool borrowed;
+} StructInstance;
+
+
+typedef struct EnumInstance {
+    Str *enum_name;
+    Expr *enum_def;
+    U8 *data;
+    I32 data_size;
+} EnumInstance;
+
+
+struct Value {
+    Value_tag tag;
+    union {
+        I64 Int;
+        U8 Byte;
+        I16 Short;
+        I32 Int32;
+        U32 Uint32;
+        U64 Uint64;
+        F32 Float;
+        Bool Boolean;
+        void * Func;
+        StructInstance Struct;
+        EnumInstance Enum;
+        void * Ptr;
+    } data;
+};
+
+typedef struct Cell {
+    Value val;
+} Cell;
+
+
+typedef struct Binding {
+    Str *name;
+    Cell *cell;
+    Bool cell_is_local;
+} Binding;
+
+
+typedef struct ExtStr {
+    U8 *data;
+    U64 count;
+    U64 cap;
+} ExtStr;
+
+
+typedef struct _ffi_type {
+    U32 size;
+    I16 alignment;
+    I16 type;
+    void * *elements;
+} ffi_type;
+
+
+typedef struct {
+    I32 abi;
+    U32 nargs;
+    void * *arg_types;
+    void * *rtype;
+    U32 bytes;
+    U32 flags;
+} ffi_cif;
+
+
+typedef struct FFIEntry {
+    U8 *fn;
+    Str *return_type;
+    I32 nparam;
+    U8 *param_shallows;
+    Bool return_is_shallow;
+    ffi_cif *cif;
+    void * *arg_types;
+} FFIEntry;
+
+
+typedef struct ExprPtrBox {
+    Expr *ptr;
+} ExprPtrBox;
+
+
+typedef struct FFITypePtrBox {
+    ffi_type *ptr;
+} FFITypePtrBox;
+
+
+typedef struct CliArgs {
+    Str command;
+    Str path;
+    Str custom_bin;
+    Str custom_c;
+    Str target_str;
+    Str cc;
+    U32 path_idx;
+    Bool early_return;
+} CliArgs;
+
+
 typedef struct Array {
     U8 *data;
     U32 cap;
@@ -406,18 +603,6 @@ typedef struct Expr {
 } Expr;
 
 
-struct TokenType {
-    TokenType_tag tag;
-};
-
-typedef struct Token {
-    TokenType type;
-    Str text;
-    U32 line;
-    U32 col;
-} Token;
-
-
 typedef struct Parser {
     Vec tokens;
     U32 pos;
@@ -428,215 +613,10 @@ typedef struct Parser {
 } Parser;
 
 
-typedef struct TypeBinding {
-    Str name;
-    TilType type;
-    FuncType func_type;
-    Bool is_mut;
-    U32 line;
-    U32 col;
-    Bool is_param;
-    OwnType own_type;
-    Bool is_alias;
-    Bool is_type_alias;
-    Str *alias_target;
-    Expr *struct_def;
-    Expr *func_def;
-    Bool is_builtin;
-    Bool used;
-} TypeBinding;
-
-
-struct ScopeFind {
-    ScopeFind_tag tag;
-    union {
-        TypeBinding Found;
-    } data;
-};
-
 typedef struct TypeScope {
     Map bindings;
     TypeScope *parent;
 } TypeScope;
-
-
-typedef struct Mode {
-    Bool needs_main;
-    Bool decls_only;
-    Str auto_import;
-    Bool is_library;
-    Bool is_pure;
-    Bool run_tests;
-    Bool debug_prints;
-} Mode;
-
-
-typedef struct LocalInfo {
-    Str *name;
-    TilType type;
-    I32 decl_index;
-    I32 last_use;
-    I32 own_transfer;
-    Bool skip_scope_delete;
-    Bool is_heap;
-} LocalInfo;
-
-
-struct CtorArg {
-    CtorArg_tag tag;
-    union {
-        Expr Filled;
-    } data;
-};
-
-typedef struct ProgramUnit {
-    Str path;
-    Mode mode;
-    Vec imports;
-} ProgramUnit;
-
-
-struct Lang {
-    Lang_tag tag;
-};
-
-struct Target {
-    Target_tag tag;
-};
-
-typedef struct CollectionInfo {
-    Str *type_name;
-    I32 is_vec;
-} CollectionInfo;
-
-
-typedef struct DynCallInfo {
-    Str *method;
-    I32 nargs;
-    Bool has_return;
-} DynCallInfo;
-
-
-typedef struct BuildPaths {
-    Str name;
-    Str c_path;
-    Str bin_path;
-    Str fwd_path;
-    Str h_path;
-    Str til_path;
-    Str py_path;
-    Bool do_lib;
-} BuildPaths;
-
-
-typedef struct StructInstance {
-    Str *struct_name;
-    Expr *struct_def;
-    U8 *data;
-    Bool borrowed;
-} StructInstance;
-
-
-typedef struct EnumInstance {
-    Str *enum_name;
-    Expr *enum_def;
-    U8 *data;
-    I32 data_size;
-} EnumInstance;
-
-
-struct Value {
-    Value_tag tag;
-    union {
-        I64 Int;
-        U8 Byte;
-        I16 Short;
-        I32 Int32;
-        U32 Uint32;
-        U64 Uint64;
-        F32 Float;
-        Bool Boolean;
-        void * Func;
-        StructInstance Struct;
-        EnumInstance Enum;
-        void * Ptr;
-    } data;
-};
-
-typedef struct Cell {
-    Value val;
-} Cell;
-
-
-typedef struct Binding {
-    Str *name;
-    Cell *cell;
-    Bool cell_is_local;
-} Binding;
-
-
-typedef struct Scope {
-    Map bindings;
-    Scope *parent;
-} Scope;
-
-
-typedef struct ExtStr {
-    U8 *data;
-    U64 count;
-    U64 cap;
-} ExtStr;
-
-
-typedef struct _ffi_type {
-    U32 size;
-    I16 alignment;
-    I16 type;
-    void * *elements;
-} ffi_type;
-
-
-typedef struct {
-    I32 abi;
-    U32 nargs;
-    void * *arg_types;
-    void * *rtype;
-    U32 bytes;
-    U32 flags;
-} ffi_cif;
-
-
-typedef struct FFIEntry {
-    U8 *fn;
-    Str *return_type;
-    I32 nparam;
-    U8 *param_shallows;
-    Bool return_is_shallow;
-    ffi_cif *cif;
-    void * *arg_types;
-} FFIEntry;
-
-
-typedef struct ExprPtrBox {
-    Expr *ptr;
-} ExprPtrBox;
-
-
-typedef struct FFITypePtrBox {
-    ffi_type *ptr;
-} FFITypePtrBox;
-
-
-typedef struct CliArgs {
-    Str command;
-    Str path;
-    Str custom_bin;
-    Str custom_c;
-    Str target_str;
-    Str cc;
-    U32 path_idx;
-    Bool early_return;
-} CliArgs;
 
 
 typedef struct ImportUnit {
@@ -660,6 +640,20 @@ typedef struct Context {
 } Context;
 
 
+struct CtorArg {
+    CtorArg_tag tag;
+    union {
+        Expr Filled;
+    } data;
+};
+
+typedef struct ProgramUnit {
+    Str path;
+    Mode mode;
+    Vec imports;
+} ProgramUnit;
+
+
 typedef struct LoadedProgram {
     Expr *core_ast;
     Expr *ast;
@@ -676,6 +670,12 @@ typedef struct LoadedProgram {
     Str link_c_paths;
     Bool run_tests;
 } LoadedProgram;
+
+
+typedef struct Scope {
+    Map bindings;
+    Scope *parent;
+} Scope;
 
 
 Array * Array_new(Str * elem_type, U32 * elem_size, U32 * cap);
@@ -1306,6 +1306,8 @@ U32 CollectionInfo_size(void);
 DynCallInfo * DynCallInfo_clone(DynCallInfo * self);
 void DynCallInfo_delete(DynCallInfo * self, Bool * call_free);
 U32 DynCallInfo_size(void);
+LoadedProgram * codegen_lp(void);
+void codegen_set_lp(LoadedProgram * lp);
 Bool is_dyn_call_name(Str * name, Bool * has_ret);
 Expr * fcall_fn_sig(Expr * fcall);
 Bool is_stack_local(Str * name);
@@ -1378,16 +1380,16 @@ void emit_ns_method(File * f, Str * name, Str * dd_name, Expr * fdef);
 void emit_struct_funcs(File * f, Str * name, Expr * struct_def);
 void emit_enum_def(File * f, Str * name, Expr * enum_def);
 void emit_enum_struct_body(File * f, Str * ename, Expr * enum_def);
-void topo_emit_struct_enum_defs(File * f, Expr * prog, Set * emitted);
+void topo_emit_struct_enum_defs_lp(File * f, Set * emitted);
 Str * func_return_ctype(FunctionDef * fd);
 void emit_func_forward_decl(File * f, Str * name, Expr * fdef);
 void emit_funcsig_typedef(File * f, Str * name, Expr * fdef);
-void emit_funcsig_typedefs(File * f, Expr * core_program, Expr * program);
-void emit_header_forward_decls(File * f, Expr * core_program, Expr * program);
-void emit_header_defs_and_funcs(File * f, Expr * core_program, Expr * program);
-void emit_header_global_decls(File * f, Expr * core_program, Expr * program);
-I32 build_forward_header(Expr * core_program, Expr * program, Str * fwd_path);
-I32 build_header(Expr * core_program, Expr * program, Str * h_path);
+void emit_funcsig_typedefs_lp(File * f);
+void emit_header_forward_decls_lp(File * f);
+void emit_header_defs_and_funcs_lp(File * f);
+void emit_header_global_decls_lp(File * f);
+I32 build_forward_header_lp(Str * fwd_path);
+I32 build_header_lp(Str * h_path);
 Bool emit_binding_ns_method(File * f, Str * fdd_name, FunctionDef * fd, Bool * has_ns);
 void emit_binding_ns_methods(File * f, Expr * def);
 I32 build_til_binding(Expr * program, Str * til_path, Str * lib_name);
@@ -1397,12 +1399,13 @@ Str * type_name_to_ctypes_return(Str * name, Bool is_shallow);
 I32 build_python_binding(Expr * program, Str * py_path, Str * lib_name);
 I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override);
 I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override);
+void register_funcsig_prog(Expr * prog);
 void emit_global_inits_prog(File * f, Expr * prog);
 void emit_global_inits(File * f);
-void build_register_funcsig_names(Expr * core_program, Expr * program);
+void build_register_funcsig_names_lp(void);
 void register_lookups_prog(Expr * prog);
-void build_register_lookups(Expr * core_program, Expr * program);
-void emit_monolithic_header(File * f, Expr * core_program, Expr * program, Mode * mode);
+void build_register_lookups_lp(void);
+void emit_monolithic_header_lp(File * f, Mode * mode);
 void emit_all_forward_declarations(File * f, Expr * core_program, Expr * program, Mode * mode);
 void emit_dyn_fn_wrapper(File * f, Str * type_name, Str * method_name, FunctionDef * fd);
 void emit_dyn_fn_wrappers(File * f, Expr * core_program, Expr * program);
@@ -1754,8 +1757,7 @@ extern Set macros;
 extern Set funcs;
 extern Map known;
 extern Vec gc_strs;
-extern Expr *codegen_core_program;
-extern Expr *codegen_program;
+extern void * codegen_lp_slot;
 extern Expr *current_fdef;
 extern Map struct_bodies;
 extern Map func_defs;

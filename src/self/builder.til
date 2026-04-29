@@ -18,8 +18,9 @@ DynCallInfo := struct {
 
 // --- Globals ---
 
-ref mut codegen_core_program : Expr = NULL
-ref mut codegen_program : Expr = NULL
+// Points at the LoadedProgram passed to cmd_build/cmd_run for the duration of
+// codegen, so helpers can iterate per-file ASTs without building merged views.
+mut codegen_lp_slot : Dynamic = 0
 ref mut current_fdef : Expr = NULL
 mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", I64.size())
 mut func_defs := Map.new("Str", Str.size(), "Dynamic", I64.size())
@@ -37,6 +38,21 @@ mut stack_locals := Set.new("Str", Str.size())
 mut stack_local_types := Map.new("Str", Str.size(), "Str", Str.size())
 mut unsafe_to_hoist := Set.new("Str", Str.size())
 mut ref_locals := Set.new("Str", Str.size())
+
+codegen_lp := func() returns ref LoadedProgram {
+    if is_null(codegen_lp_slot) {
+        panic(__LOC__, "builder: codegen_lp_slot is NULL")
+    }
+    return deref(codegen_lp_slot)
+}
+
+codegen_set_lp := proc(lp: LoadedProgram) {
+    if is_null(codegen_lp_slot) {
+        codegen_lp_slot = malloc(I64.size())
+    }
+    // Store pointer to stack-owned lp; valid for duration of build.
+    write_ptr(codegen_lp_slot, to_ptr(lp))
+}
 
 // --- Leaf functions ---
 
@@ -1504,12 +1520,38 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
 }
 
 emit_ns_inits := proc(f: File, shallow depth: I32) {
-    for prog_idx in 0..2 {
-        ref mut prog : Expr = NULL
-        if prog_idx.eq(0) { prog = codegen_core_program }
-        else { prog = codegen_program }
-        if is_null(prog) { continue }
-        for stmt : Expr in prog.children {
+    ref lp : LoadedProgram = codegen_lp()
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.child(i)
+                if is_struct_or_enum(stmt) {
+                    ref sname : Str = get_payload(stmt.node_type)
+                    ref edef : Expr = stmt.child(0)
+                    if edef.node_type.is(NodeType.EnumDef) { continue }
+                    ref ni_ns : Vec = def_ns_decls(edef)
+                    for dd : Declaration in ni_ns {
+                        if is_null(dd.default_value) { continue }
+                        if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
+                        emit_indent(f, depth)
+                        f.write_str(sname)
+                        f.write_str("_")
+                        f.write_str(dd.name)
+                        f.write_str(" = ")
+                        emit_deref(f, dd.default_value, depth)
+                        f.write_str(";\n")
+                    }
+                }
+            }
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
             if is_struct_or_enum(stmt) {
                 ref sname : Str = get_payload(stmt.node_type)
                 ref edef : Expr = stmt.child(0)
@@ -1735,11 +1777,27 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         }
         emit_ns_inits(f, 1.to_i32())
         if has_script_globals {
-            for prog_idx in 0..2 {
-                ref mut prog : Expr = NULL
-                if prog_idx.eq(0) { prog = codegen_core_program } else { prog = codegen_program }
-                if is_null(prog) { continue }
-                for gs : Expr in prog.children {
+            ref lp : LoadedProgram = codegen_lp()
+            if lp.skip_core.not() {
+                for ui in 0..lp.core_units.len() {
+                    ref u : ProgramUnit = lp.core_units.get(ui)
+                    ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+                    for gi in 0..iu.ast.children.len() {
+                        ref gs : Expr = iu.ast.child(gi)
+                        if gs.node_type.is(NodeType.Decl) {
+                            ref rhs : Expr = gs.child(0)
+                            if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
+                            if gs.til_type.eq(TilType.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
+                        } else if gs.node_type.is(NodeType.FCall).not() { continue }
+                        emit_stmt(f, gs, 1.to_i32())
+                    }
+                }
+            }
+            for ui in 0..lp.units.len() {
+                ref u : ProgramUnit = lp.units.get(ui)
+                ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+                for gi in 0..iu.ast.children.len() {
+                    ref gs : Expr = iu.ast.child(gi)
                     if gs.node_type.is(NodeType.Decl) {
                         ref rhs : Expr = gs.child(0)
                         if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
@@ -2052,6 +2110,122 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
     own indices.delete()
 }
 
+// Topologically emit struct/enum typedefs across all per-file units in lp.
+topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
+    ref lp : LoadedProgram = codegen_lp()
+    // Vec<Dynamic> stores raw pointers (8-byte values). Each push takes an
+    // allocated 8-byte temp, copies the pointer bytes, then frees the temp.
+    mut items := Vec.new("Dynamic", I64.size())
+    // Collect pointers to all struct/enum decl statements in stable order.
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.child(i)
+                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+                    if stmt.child(0).node_type.is(NodeType.StructDef).or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
+                        tmp : Dynamic = malloc(I64.size())
+                        write_ptr(tmp, stmt)
+                        items.push(own tmp)
+                    }
+                }
+            }
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
+            if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+                if stmt.child(0).node_type.is(NodeType.StructDef).or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
+                    tmp2 : Dynamic = malloc(I64.size())
+                    write_ptr(tmp2, stmt)
+                    items.push(own tmp2)
+                }
+            }
+        }
+    }
+
+    mut remaining := items.len()
+    mut done := Array.new("Bool", Bool.size(), items.len())
+    for di in 0..items.len() {
+        mut f_val := false
+        done.set(di, own f_val)
+    }
+
+    while remaining.gt(0) {
+        mut progress := false
+        for ei in 0..items.len() {
+            ref d : Bool = done.get(ei)
+            if d { continue }
+            ref ptr : Dynamic = items.get(ei)
+            ref stmt : Expr = deref(ptr)
+            ref sname : Str = get_payload(stmt.node_type)
+            ref def : Expr = stmt.child(0)
+            mut deps_ok := true
+            if def.node_type.is(NodeType.StructDef) {
+                ref dep_sdd : StructDef = get_payload(def.node_type)
+                for dd : Declaration in dep_sdd.fields {
+                    if dd.own_type.eq(OwnType.Shallow) {
+                        if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
+                            dep_sname := til_type_name(dd.til_type)
+                            if dep_sname.len().gt(0) {
+                                if emitted.has(dep_sname).not() { deps_ok = false }
+                            }
+                        }
+                    }
+                }
+            } else {
+                ref dep_edd : EnumDef = get_payload(def.node_type)
+                for fi in 0..dep_edd.variants.len() {
+                    dep_vt := enum_variant_type(def, fi.to_i64().to_i32())
+                    if dep_vt.len().gt(0) {
+                        if is_primitive_type(dep_vt).not().and(is_funcsig_type(dep_vt).not()) {
+                            if emitted.has(dep_vt).not() { deps_ok = false }
+                        }
+                    }
+                }
+            }
+            if deps_ok.not() { continue }
+            if def.node_type.is(NodeType.StructDef) {
+                emit_struct_typedef(f, sname, def)
+                f.write_str("\n")
+            } else {
+                emit_enum_struct_body(f, sname, def)
+            }
+            emitted.add(own sname.clone())
+            mut t_val := true
+            done.set(ei, own t_val)
+            remaining = remaining.sub(1)
+            progress = true
+        }
+        if progress.not() {
+            // Fallback: emit remaining in scan order.
+            for ei in 0..items.len() {
+                ref d : Bool = done.get(ei)
+                if d { continue }
+                ref ptr2 : Dynamic = items.get(ei)
+                ref stmt : Expr = deref(ptr2)
+                ref sname : Str = get_payload(stmt.node_type)
+                ref def : Expr = stmt.child(0)
+                if def.node_type.is(NodeType.StructDef) {
+                    emit_struct_typedef(f, sname, def)
+                    f.write_str("\n")
+                } else {
+                    emit_enum_struct_body(f, sname, def)
+                }
+                emitted.add(own sname.clone())
+            }
+            break
+        }
+    }
+
+    own items.delete()
+    own done.delete()
+}
+
 // Resolve the C return type for a FunctionDef; "void" when the proc
 // has no return type. Avoids the `mut ret := "void"` reassign pattern
 // in emit_func_forward_decl / emit_funcsig_typedef whose default
@@ -2105,12 +2279,140 @@ emit_funcsig_typedefs := proc(f: File, core_program: Expr, program: Expr) {
     f.write_str("\n")
 }
 
+emit_funcsig_typedefs_lp := proc(f: File) {
+    ref lp : LoadedProgram = codegen_lp()
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.child(i)
+                if stmt.node_type.is(NodeType.Decl).not() { continue }
+                if stmt.children.len().eq(0) { continue }
+                ref dd : Declaration = get_payload(stmt.node_type)
+                ref rhs : Expr = stmt.child(0)
+                if rhs.node_type.is(NodeType.FuncDef) {
+                    if rhs.children.len().eq(0) {
+                        emit_funcsig_typedef(f, dd.name, rhs)
+                    }
+                } else if rhs.node_type.is(NodeType.Ident) {
+                    if stmt.til_type.eq(TilType.None) {
+                        ref rhs_name : Str = get_payload(rhs.node_type)
+                        if is_funcsig_type(rhs_name) {
+                            f.write_str("typedef "); f.write_str(rhs_name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if stmt.children.len().eq(0) { continue }
+            ref dd : Declaration = get_payload(stmt.node_type)
+            ref rhs : Expr = stmt.child(0)
+            if rhs.node_type.is(NodeType.FuncDef) {
+                if rhs.children.len().eq(0) {
+                    emit_funcsig_typedef(f, dd.name, rhs)
+                }
+            } else if rhs.node_type.is(NodeType.Ident) {
+                if stmt.til_type.eq(TilType.None) {
+                    ref rhs_name : Str = get_payload(rhs.node_type)
+                    if is_funcsig_type(rhs_name) {
+                        f.write_str("typedef "); f.write_str(rhs_name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    }
+                }
+            }
+        }
+    }
+    f.write_str("\n")
+}
+
 emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
     for prog_idx in 0..2 {
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
         for stmt : Expr in prog.children {
+            if stmt.node_type.is(NodeType.Decl) {
+                ref dd : Declaration = get_payload(stmt.node_type)
+                if stmt.children.len().eq(0) { continue }
+                ref rhs : Expr = stmt.child(0)
+                if rhs.node_type.is(NodeType.StructDef) {
+                    if is_ext_h_type(dd.name) { continue }
+                    ref fwd_sdd : StructDef = get_payload(rhs.node_type)
+                    if fwd_sdd.c_tag.eq("@anon") {
+                        // anonymous ext_struct: no forward decl possible
+                    } else if fwd_sdd.c_tag.len().gt(0) {
+                        f.write_str("typedef struct "); f.write_str(fwd_sdd.c_tag); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    } else {
+                        f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    }
+                }
+                if rhs.node_type.is(NodeType.EnumDef) {
+                    ref fwd_edd : EnumDef = get_payload(rhs.node_type)
+                    f.write_str("typedef enum {\n")
+                    for j in 0..fwd_edd.variants.len() {
+                        ref fwd_vn : Str = fwd_edd.variants.get(j)
+                        if j.gt(0) { f.write_str(",\n") }
+                        f.write_str("    "); f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(fwd_vn)
+                    }
+                    f.write_str("\n} "); f.write_str(dd.name); f.write_str("_tag;\n")
+                    f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                }
+            }
+        }
+    }
+    f.write_str("\n")
+}
+
+emit_header_forward_decls_lp := proc(f: File) {
+    ref lp : LoadedProgram = codegen_lp()
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.child(i)
+                if stmt.node_type.is(NodeType.Decl) {
+                    ref dd : Declaration = get_payload(stmt.node_type)
+                    if stmt.children.len().eq(0) { continue }
+                    ref rhs : Expr = stmt.child(0)
+                    if rhs.node_type.is(NodeType.StructDef) {
+                        if is_ext_h_type(dd.name) { continue }
+                        ref fwd_sdd : StructDef = get_payload(rhs.node_type)
+                        if fwd_sdd.c_tag.eq("@anon") {
+                            // anonymous ext_struct: no forward decl possible
+                        } else if fwd_sdd.c_tag.len().gt(0) {
+                            f.write_str("typedef struct "); f.write_str(fwd_sdd.c_tag); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                        } else {
+                            f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                        }
+                    }
+                    if rhs.node_type.is(NodeType.EnumDef) {
+                        ref fwd_edd : EnumDef = get_payload(rhs.node_type)
+                        f.write_str("typedef enum {\n")
+                        for j in 0..fwd_edd.variants.len() {
+                            ref fwd_vn : Str = fwd_edd.variants.get(j)
+                            if j.gt(0) { f.write_str(",\n") }
+                            f.write_str("    "); f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(fwd_vn)
+                        }
+                        f.write_str("\n} "); f.write_str(dd.name); f.write_str("_tag;\n")
+                        f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    }
+                }
+            }
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
             if stmt.node_type.is(NodeType.Decl) {
                 ref dd : Declaration = get_payload(stmt.node_type)
                 if stmt.children.len().eq(0) { continue }
@@ -2225,12 +2527,163 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
     f.write_str("\n")
 }
 
+emit_header_defs_and_funcs_lp := proc(f: File) {
+    mut emitted_h := Set.new("Str", Str.size())
+    emitted_h.add(own "U8".clone()); emitted_h.add(own "I16".clone()); emitted_h.add(own "I32".clone())
+    emitted_h.add(own "U32".clone()); emitted_h.add(own "U64".clone()); emitted_h.add(own "I64".clone())
+    emitted_h.add(own "F32".clone()); emitted_h.add(own "Bool".clone())
+    topo_emit_struct_enum_defs_lp(f, emitted_h)
+    own emitted_h.delete()
+
+    ref lp : LoadedProgram = codegen_lp()
+
+    // Function forward declarations
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.child(i)
+                if stmt.node_type.is(NodeType.Decl).not() { continue }
+                ref dd : Declaration = get_payload(stmt.node_type)
+                if stmt.children.len().eq(0) { continue }
+                ref rhs : Expr = stmt.child(0)
+                if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                    ref fwd_ns : Vec = def_ns_decls(rhs)
+                    for fdd : Declaration in fwd_ns {
+                        if is_null(fdd.default_value) { continue }
+                        if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                        ref fd : FunctionDef = get_payload(fdd.default_value.node_type)
+                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
+                        full_name := dd.name.concat("_").concat(fdd.name)
+                        emit_func_forward_decl(f, full_name, fdd.default_value)
+                    }
+                } else if rhs.node_type.is(NodeType.FuncDef) {
+                    if rhs.children.len().eq(0) { continue }
+                    ref fd : FunctionDef = get_payload(rhs.node_type)
+                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
+                    fc := func_to_c(dd.name)
+                    emit_func_forward_decl(f, fc, rhs)
+                }
+            }
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            ref dd : Declaration = get_payload(stmt.node_type)
+            if stmt.children.len().eq(0) { continue }
+            ref rhs : Expr = stmt.child(0)
+            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                ref fwd_ns : Vec = def_ns_decls(rhs)
+                for fdd : Declaration in fwd_ns {
+                    if is_null(fdd.default_value) { continue }
+                    if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                    full_name := dd.name.concat("_").concat(fdd.name)
+                    emit_func_forward_decl(f, full_name, fdd.default_value)
+                }
+            } else if rhs.node_type.is(NodeType.FuncDef) {
+                if rhs.children.len().eq(0) { continue }
+                fc := func_to_c(dd.name)
+                emit_func_forward_decl(f, fc, rhs)
+            }
+        }
+    }
+
+    // Enum auto-helper forward declarations (user units only)
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            ref dd : Declaration = get_payload(stmt.node_type)
+            if stmt.children.len().eq(0) { continue }
+            if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+            // Find eq fdef from ns_decls
+            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+            mut has_eq_fdef := false
+            ref eq_ns : Vec = def_ns_decls(stmt.child(0))
+            for nsd : Declaration in eq_ns {
+                if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
+                    if nsd.default_value.node_type.is(NodeType.FuncDef) {
+                        eq_fdef = nsd.default_value.clone()
+                        has_eq_fdef = true
+                        break
+                    }
+                }
+            }
+            mut eq_ret := "Bool *"
+            if has_eq_fdef {
+                ref eqfd : FunctionDef = get_payload(eq_fdef.node_type)
+                if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
+            }
+            f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+            ref hdr_edd : EnumDef = get_payload(stmt.child(0).node_type)
+            mut hdr_vi : USize = 0
+            for hdr_vn : Str in hdr_edd.variants {
+                hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i64().to_i32())
+                if hdr_vt.len().gt(0) {
+                    tnc := type_name_to_c(hdr_vt)
+                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+                } else {
+                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("();\n")
+                }
+                hdr_vi = hdr_vi.add(1)
+            }
+        }
+    }
+    f.write_str("\n")
+}
+
 emit_header_global_decls := proc(f: File, core_program: Expr, program: Expr) {
     for prog_idx in 0..2 {
         ref mut prog : Expr = NULL
         if prog_idx.eq(0) { prog = core_program } else { prog = program }
         if is_null(prog) { continue }
         for stmt : Expr in prog.children {
+            if is_exported_top_level_global(stmt).not() { continue }
+            ref rhs : Expr = stmt.child(0)
+            ref dd : Declaration = get_payload(stmt.node_type)
+            ctype := extern_decl_ctype(stmt.til_type, rhs.til_type)
+            if dd.own_type.eq(OwnType.Ref) {
+                f.write_str("extern "); f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+            } else {
+                f.write_str("extern "); f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+            }
+        }
+    }
+    f.write_str("\n")
+}
+
+emit_header_global_decls_lp := proc(f: File) {
+    ref lp : LoadedProgram = codegen_lp()
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.child(i)
+                if is_exported_top_level_global(stmt).not() { continue }
+                ref rhs : Expr = stmt.child(0)
+                ref dd : Declaration = get_payload(stmt.node_type)
+                ctype := extern_decl_ctype(stmt.til_type, rhs.til_type)
+                if dd.own_type.eq(OwnType.Ref) {
+                    f.write_str("extern "); f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                } else {
+                    f.write_str("extern "); f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                }
+            }
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
             if is_exported_top_level_global(stmt).not() { continue }
             ref rhs : Expr = stmt.child(0)
             ref dd : Declaration = get_payload(stmt.node_type)
@@ -2257,6 +2710,18 @@ build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str) r
     return 0.to_i32()
 }
 
+build_forward_header_lp := proc(fwd_path: Str) returns shallow I32 {
+    build_register_funcsig_names_lp()
+    f := File.new(fwd_path, true)
+    f.write_str("#pragma once\n#include \"ext.h\"\n\n")
+    emit_header_forward_decls_lp(f)
+    emit_funcsig_typedefs_lp(f)
+    emit_header_defs_and_funcs_lp(f)
+    emit_header_global_decls_lp(f)
+    f.close()
+    return 0.to_i32()
+}
+
 build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {
     build_register_funcsig_names(core_program, program)
     f := File.new(h_path, true)
@@ -2265,6 +2730,19 @@ build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns sha
     emit_funcsig_typedefs(f, core_program, program)
     emit_header_defs_and_funcs(f, core_program, program)
     emit_header_global_decls(f, core_program, program)
+    f.write_str("#include \"ext.h\"\n\n")
+    f.close()
+    return 0.to_i32()
+}
+
+build_header_lp := proc(h_path: Str) returns shallow I32 {
+    build_register_funcsig_names_lp()
+    f := File.new(h_path, true)
+    f.write_str("#pragma once\n#include \"ext.h\"\n\n")
+    emit_header_forward_decls_lp(f)
+    emit_funcsig_typedefs_lp(f)
+    emit_header_defs_and_funcs_lp(f)
+    emit_header_global_decls_lp(f)
     f.write_str("#include \"ext.h\"\n\n")
     f.close()
     return 0.to_i32()
@@ -2849,8 +3327,19 @@ emit_global_inits_prog := proc(f: File, prog: Expr) {
 
 emit_global_inits := proc(f: File) {
     if has_script_globals.not() { return }
-    if is_null(codegen_core_program).not() { emit_global_inits_prog(f, codegen_core_program) }
-    if is_null(codegen_program).not() { emit_global_inits_prog(f, codegen_program) }
+    ref lp : LoadedProgram = codegen_lp()
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            emit_global_inits_prog(f, iu.ast)
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        emit_global_inits_prog(f, iu.ast)
+    }
 }
 
 build_register_funcsig_names := proc(core_program: Expr, program: Expr) {
@@ -2880,6 +3369,24 @@ build_register_funcsig_names := proc(core_program: Expr, program: Expr) {
                 }
             }
         }
+    }
+}
+
+build_register_funcsig_names_lp := proc() {
+    funcsig_names = Set.new("Str", Str.size())
+    has_funcsig_names = true
+    ref lp : LoadedProgram = codegen_lp()
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            register_funcsig_prog(iu.ast)
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        register_funcsig_prog(iu.ast)
     }
 }
 
@@ -2942,6 +3449,30 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     ref_locals = Set.new("Str", Str.size())
     if is_null(core_program).not() { register_lookups_prog(core_program) }
     register_lookups_prog(program)
+}
+
+build_register_lookups_lp := proc() {
+    struct_bodies = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    stack_locals = Set.new("Str", Str.size())
+    stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
+    unsafe_to_hoist = Set.new("Str", Str.size())
+    ref_locals = Set.new("Str", Str.size())
+
+    ref lp : LoadedProgram = codegen_lp()
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            register_lookups_prog(iu.ast)
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        register_lookups_prog(iu.ast)
+    }
 }
 
 emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode: Mode) {
@@ -3033,28 +3564,73 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
     }
 }
 
-emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr, mode: Mode) {
-    // Forward-declare struct/enum namespace methods and top-level functions
-    for prog_idx in 0..2 {
-        ref mut prog : Expr = NULL
-        if prog_idx.eq(0) { prog = core_program } else { prog = program }
-        if is_null(prog) { continue }
-        is_core_pass := prog_idx.eq(0).and(is_null(core_program).not())
-        for stmt : Expr in prog.children {
+emit_monolithic_header_lp := proc(f: File, mode: Mode) {
+    f.write_str("#include \"ext.h\"\n\n")
+    emit_header_forward_decls_lp(f)
+    emit_funcsig_typedefs_lp(f)
+
+    // Topo-sort struct/enum defs across all units
+    mut emitted_mh := Set.new("Str", Str.size())
+    emitted_mh.add(own "U8".clone()); emitted_mh.add(own "I16".clone()); emitted_mh.add(own "I32".clone())
+    emitted_mh.add(own "U32".clone()); emitted_mh.add(own "U64".clone()); emitted_mh.add(own "I64".clone())
+    emitted_mh.add(own "F32".clone()); emitted_mh.add(own "Bool".clone())
+    topo_emit_struct_enum_defs_lp(f, emitted_mh)
+    own emitted_mh.delete()
+
+    ref lp : LoadedProgram = codegen_lp()
+
+    // Emit function declarations
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.child(i)
+                if stmt.node_type.is(NodeType.Decl).not() { continue }
+                ref dd : Declaration = get_payload(stmt.node_type)
+                if stmt.children.len().eq(0) { continue }
+                ref rhs : Expr = stmt.child(0)
+                if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                    ref fwd_ns2 : Vec = def_ns_decls(rhs)
+                    for fdd : Declaration in fwd_ns2 {
+                        if is_null(fdd.default_value) { continue }
+                        if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                        ref fd : FunctionDef = get_payload(fdd.default_value.node_type)
+                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
+                        full_name := dd.name.concat("_").concat(fdd.name)
+                        emit_func_forward_decl(f, full_name, fdd.default_value)
+                    }
+                } else if rhs.node_type.is(NodeType.FuncDef) {
+                    if rhs.children.len().eq(0) { continue }
+                    ref fd : FunctionDef = get_payload(rhs.node_type)
+                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
+                    if is_null(mode).not() {
+                        if mode.needs_main {
+                            if dd.name.eq("main") { continue }
+                        }
+                    }
+                    fc := func_to_c(dd.name)
+                    emit_func_forward_decl(f, fc, rhs)
+                }
+            }
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             ref dd : Declaration = get_payload(stmt.node_type)
             if stmt.children.len().eq(0) { continue }
             ref rhs : Expr = stmt.child(0)
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                ref afd_ns : Vec = def_ns_decls(rhs)
-                for d_j : Declaration in afd_ns {
-                    ref fdd : Declaration = d_j
+                ref fwd_ns2 : Vec = def_ns_decls(rhs)
+                for fdd : Declaration in fwd_ns2 {
                     if is_null(fdd.default_value) { continue }
                     if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                     ref fd : FunctionDef = get_payload(fdd.default_value.node_type)
-                    if is_core_pass {
-                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-                    }
+                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                     full_name := dd.name.concat("_").concat(fdd.name)
                     emit_func_forward_decl(f, full_name, fdd.default_value)
                 }
@@ -3072,22 +3648,178 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
             }
         }
     }
+
+    // Enum auto-helper declarations (user units only)
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            ref dd : Declaration = get_payload(stmt.node_type)
+            if stmt.children.len().eq(0) { continue }
+            if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+            mut has_eq_fdef := false
+            ref sh3_eq_ns : Vec = def_ns_decls(stmt.child(0))
+            for nsd : Declaration in sh3_eq_ns {
+                if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
+                    if nsd.default_value.node_type.is(NodeType.FuncDef) {
+                        eq_fdef = nsd.default_value.clone()
+                        has_eq_fdef = true
+                        break
+                    }
+                }
+            }
+            mut eq_ret := "Bool *"
+            if has_eq_fdef {
+                ref eqfd : FunctionDef = get_payload(eq_fdef.node_type)
+                if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
+            }
+            f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+            ref hdr_edd : EnumDef = get_payload(stmt.child(0).node_type)
+            mut hdr_vi : USize = 0
+            for hdr_vn : Str in hdr_edd.variants {
+                hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i64().to_i32())
+                if hdr_vt.len().gt(0) {
+                    tnc := type_name_to_c(hdr_vt)
+                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+                } else {
+                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("();\n")
+                }
+                hdr_vi = hdr_vi.add(1)
+            }
+        }
+    }
+}
+
+emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr, mode: Mode) {
+    ref lp : LoadedProgram = codegen_lp()
+    // Forward-declare struct/enum namespace methods and top-level functions
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.child(i)
+                if stmt.node_type.is(NodeType.Decl).not() { continue }
+                ref dd : Declaration = get_payload(stmt.node_type)
+                if stmt.children.len().eq(0) { continue }
+                ref rhs : Expr = stmt.child(0)
+                if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                    ref afd_ns : Vec = def_ns_decls(rhs)
+                    for fdd : Declaration in afd_ns {
+                        if is_null(fdd.default_value) { continue }
+                        if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                        ref fd : FunctionDef = get_payload(fdd.default_value.node_type)
+                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
+                        full_name := dd.name.concat("_").concat(fdd.name)
+                        emit_func_forward_decl(f, full_name, fdd.default_value)
+                    }
+                } else if rhs.node_type.is(NodeType.FuncDef) {
+                    if rhs.children.len().eq(0) { continue }
+                    ref fd : FunctionDef = get_payload(rhs.node_type)
+                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
+                    if is_null(mode).not() {
+                        if mode.needs_main {
+                            if dd.name.eq("main") { continue }
+                        }
+                    }
+                    fc := func_to_c(dd.name)
+                    emit_func_forward_decl(f, fc, rhs)
+                }
+            }
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            ref dd : Declaration = get_payload(stmt.node_type)
+            if stmt.children.len().eq(0) { continue }
+            ref rhs : Expr = stmt.child(0)
+            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                ref afd_ns : Vec = def_ns_decls(rhs)
+                for fdd : Declaration in afd_ns {
+                    if is_null(fdd.default_value) { continue }
+                    if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                    full_name := dd.name.concat("_").concat(fdd.name)
+                    emit_func_forward_decl(f, full_name, fdd.default_value)
+                }
+            } else if rhs.node_type.is(NodeType.FuncDef) {
+                if rhs.children.len().eq(0) { continue }
+                ref fd : FunctionDef = get_payload(rhs.node_type)
+                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
+                if is_null(mode).not() {
+                    if mode.needs_main {
+                        if dd.name.eq("main") { continue }
+                    }
+                }
+                fc := func_to_c(dd.name)
+                emit_func_forward_decl(f, fc, rhs)
+            }
+        }
+    }
+
     // Forward-declare enum ext methods (eq, constructors)
-    for prog_idx in 0..2 {
-        ref mut prog : Expr = NULL
-        if prog_idx.eq(0) { prog = core_program } else { prog = program }
-        if is_null(prog) { continue }
-        for stmt : Expr in prog.children {
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.child(i)
+                if stmt.node_type.is(NodeType.Decl).not() { continue }
+                if stmt.children.len().eq(0) { continue }
+                if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+                ref dd : Declaration = get_payload(stmt.node_type)
+                mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+                mut has_eq_fdef := false
+                ref sh_eq_ns : Vec = def_ns_decls(stmt.child(0))
+                for nsd : Declaration in sh_eq_ns {
+                    if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
+                        if nsd.default_value.node_type.is(NodeType.FuncDef) {
+                            eq_fdef = nsd.default_value.clone()
+                            has_eq_fdef = true
+                            break
+                        }
+                    }
+                }
+                mut eq_ret := "Bool *"
+                if has_eq_fdef {
+                    ref eqfd : FunctionDef = get_payload(eq_fdef.node_type)
+                    if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
+                }
+                f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+                ref shdr_edd : EnumDef = get_payload(stmt.child(0).node_type)
+                mut shdr_vi : USize = 0
+                for shdr_vn : Str in shdr_edd.variants {
+                    shdr_vt := enum_variant_type(stmt.child(0), shdr_vi.to_i64().to_i32())
+                    if shdr_vt.len().gt(0) {
+                        tnc := type_name_to_c(shdr_vt)
+                        f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(shdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+                    } else {
+                        f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(shdr_vn); f.write_str("();\n")
+                    }
+                    shdr_vi = shdr_vi.add(1)
+                }
+            }
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(i)
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = get_payload(stmt.node_type)
-            // Find eq fdef
             mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
             mut has_eq_fdef := false
             ref sh_eq_ns : Vec = def_ns_decls(stmt.child(0))
-            for d_j : Declaration in sh_eq_ns {
-                ref nsd : Declaration = d_j
+            for nsd : Declaration in sh_eq_ns {
                 if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
                     if nsd.default_value.node_type.is(NodeType.FuncDef) {
                         eq_fdef = nsd.default_value.clone()
@@ -3120,8 +3852,18 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
 
     // Forward declarations for dyn_call dispatch functions
     mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
-    if is_null(core_program).not() { collect_dyn_methods(core_program, dyn_methods) }
-    collect_dyn_methods(program, dyn_methods)
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            collect_dyn_methods(iu.ast, dyn_methods)
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        collect_dyn_methods(iu.ast, dyn_methods)
+    }
     for info : DynCallInfo in dyn_methods {
         if info.has_return {
             if info.nargs.eq(1) {
@@ -3161,8 +3903,18 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
     mut dyn_has_ret := "Bool *"
     if dyn_has_shallow { dyn_has_ret = "Bool" }
     mut has_methods := Vec.new("Str", Str.size())
-    if is_null(core_program).not() { collect_dyn_has_methods(core_program, has_methods) }
-    collect_dyn_has_methods(program, has_methods)
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            collect_dyn_has_methods(iu.ast, has_methods)
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        collect_dyn_has_methods(iu.ast, has_methods)
+    }
     for method : Str in has_methods {
         f.write_str(dyn_has_ret); f.write_str(" dyn_has_"); f.write_str(method); f.write_str("(Str *type_name);\n")
     }
@@ -3535,25 +4287,44 @@ emit_test_main := proc(f: File, program: Expr) {
 
 emit_script_main := proc(f: File, program: Expr) {
     f.write_str("int main(void) {\n")
+    // program is kept for signature compatibility; script main emits from lp.units.
+    if program.children.len().eq(0) { }
     emit_ns_inits(f, 1)
     unsafe_to_hoist = Set.new("Str", Str.size())
-    collect_unsafe_to_hoist(program)
-    if is_null(codegen_core_program).not() {
-        for gs : Expr in codegen_core_program.children {
-            if gs.node_type.is(NodeType.Decl) {
-                ref rhs : Expr = gs.child(0)
-                if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
-                if gs.til_type.eq(TilType.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
-            } else if gs.node_type.is(NodeType.FCall).not() { continue }
-            emit_stmt(f, gs, 1)
+    ref lp : LoadedProgram = codegen_lp()
+    // Collect hoist restrictions across all user units.
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        collect_unsafe_to_hoist(iu.ast)
+    }
+    if lp.skip_core.not() {
+        for ui in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(ui)
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for gi in 0..iu.ast.children.len() {
+                ref gs : Expr = iu.ast.child(gi)
+                if gs.node_type.is(NodeType.Decl) {
+                    ref rhs : Expr = gs.child(0)
+                    if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
+                    if gs.til_type.eq(TilType.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
+                } else if gs.node_type.is(NodeType.FCall).not() { continue }
+                emit_stmt(f, gs, 1)
+            }
         }
     }
-    for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl) {
-            ref rhs : Expr = stmt.child(0)
-            if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
+    // Emit top-level non-def statements across all user units, in order.
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for gi in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.child(gi)
+            if stmt.node_type.is(NodeType.Decl) {
+                ref rhs : Expr = stmt.child(0)
+                if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
+            }
+            emit_stmt(f, stmt, 1)
         }
-        emit_stmt(f, stmt, 1)
     }
     f.write_str("    return 0;\n")
     f.write_str("}\n")
@@ -3617,13 +4388,11 @@ emit_lib_init := proc(f: File) {
 }
 
 build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns shallow I32 {
-    codegen_core_program = core_program
-    codegen_program = program
     mut is_lib := false
     if is_null(mode).not() { is_lib = mode.is_library }
 
-    build_register_lookups(core_program, program)
-    build_register_funcsig_names(core_program, program)
+    build_register_lookups_lp()
+    build_register_funcsig_names_lp()
     f := File.new(c_output_path, true)
     if is_null(f) { return 1.to_i32() }
 
@@ -3634,10 +4403,16 @@ build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: 
         if mode.decls_only { is_script = false }
     }
 
-    emit_monolithic_header(f, core_program, program, mode)
+    emit_monolithic_header_lp(f, mode)
     f.write_str("#include \"ext.h\"\n\n")
 
-    emit_ext_func_declarations(f, program)
+    // Ext decls from user units only.
+    ref lp : LoadedProgram = codegen_lp()
+    for ui in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(ui)
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        emit_ext_func_declarations(f, iu.ast)
+    }
 
     f.write_str("Str *Str_lit(const char *s, unsigned long long len);\n")
     f.write_str("void print_single(Str *s);\n")
@@ -3671,7 +4446,13 @@ build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: 
     emit_dyn_has_bodies(f, core_program, program)
     emit_collection_helpers(f, core_program, program)
 
-    if run_tests { emit_test_main(f, program) }
+    if run_tests {
+        // Test discovery from user entrypoint only.
+        ref lp2 : LoadedProgram = codegen_lp()
+        ref root : ProgramUnit = lp2.units.get(lp2.units.len().sub(1))
+        ref iu2 : ImportUnit = lp2.ctx.imported.get(root.path)
+        emit_test_main(f, iu2.ast)
+    }
     if run_tests.not() {
         if is_script.not() {
             if is_lib {
@@ -3683,7 +4464,12 @@ build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: 
         if is_script {
             mut needs_main := false
             if is_null(mode).not() { needs_main = mode.needs_main }
-            if needs_main.not() { emit_script_main(f, program) }
+            if needs_main.not() {
+                ref lp3 : LoadedProgram = codegen_lp()
+                ref root2 : ProgramUnit = lp3.units.get(lp3.units.len().sub(1))
+                ref iu3 : ImportUnit = lp3.ctx.imported.get(root2.path)
+                emit_script_main(f, iu3.ast)
+            }
         }
     }
 
@@ -3764,12 +4550,13 @@ make_build_dirs := proc(paths: BuildPaths) {
 }
 
 translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow I32 {
-    mut result := build_forward_header(lp.core_ast, lp.ast, paths.fwd_path)
+    codegen_set_lp(lp)
+    mut result := build_forward_header_lp(paths.fwd_path)
     if result.eq(0) {
         result = build(lp.core_ast, lp.ast, lp.cur_mode, lp.run_tests, paths.c_path)
     }
     if result.eq(0).and(paths.do_lib) {
-        result = build_header(lp.core_ast, lp.ast, paths.h_path)
+        result = build_header_lp(paths.h_path)
         if result.eq(0) {
             result = build_til_binding(lp.ast, paths.til_path, paths.name)
         }
