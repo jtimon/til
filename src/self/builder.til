@@ -1527,8 +1527,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
 emit_ns_inits := proc(f: File, shallow depth: I32) {
     ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
@@ -1552,8 +1551,7 @@ emit_ns_inits := proc(f: File, shallow depth: I32) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -1784,8 +1782,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         if has_script_globals {
             ref lp : LoadedProgram = codegen_lp()
             if lp.skip_core.not() {
-                for ui in 0..lp.core_units.len() {
-                    ref u : ProgramUnit = lp.core_units.get(ui)
+                for u : ProgramUnit in lp.core_units {
                     ref iu : ImportUnit = lp.ctx.imported.get(u.path)
                     for gi in 0..iu.ast.children.len() {
                         ref gs : Expr = iu.ast.child(gi)
@@ -1798,8 +1795,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                     }
                 }
             }
-            for ui in 0..lp.units.len() {
-                ref u : ProgramUnit = lp.units.get(ui)
+            for u : ProgramUnit in lp.units {
                 ref iu : ImportUnit = lp.ctx.imported.get(u.path)
                 for gi in 0..iu.ast.children.len() {
                     ref gs : Expr = iu.ast.child(gi)
@@ -2123,8 +2119,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
     mut items := Vec.new("Dynamic", I64.size())
     // Collect pointers to all struct/enum decl statements in stable order.
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
@@ -2138,8 +2133,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -2287,8 +2281,7 @@ emit_funcsig_typedefs := proc(f: File, core_program: Expr, program: Expr) {
 emit_funcsig_typedefs_lp := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
@@ -2311,8 +2304,7 @@ emit_funcsig_typedefs_lp := proc(f: File) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -2378,8 +2370,7 @@ emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
 emit_header_forward_decls_lp := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
@@ -2413,8 +2404,7 @@ emit_header_forward_decls_lp := proc(f: File) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -2544,8 +2534,7 @@ emit_header_defs_and_funcs_lp := proc(f: File) {
 
     // Function forward declarations
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
@@ -2573,8 +2562,7 @@ emit_header_defs_and_funcs_lp := proc(f: File) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -2599,8 +2587,7 @@ emit_header_defs_and_funcs_lp := proc(f: File) {
     }
 
     // Enum auto-helper forward declarations (user units only)
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -2667,8 +2654,7 @@ emit_header_global_decls := proc(f: File, core_program: Expr, program: Expr) {
 emit_header_global_decls_lp := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
@@ -2684,8 +2670,7 @@ emit_header_global_decls_lp := proc(f: File) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -3355,14 +3340,12 @@ emit_global_inits := proc(f: File) {
     if has_script_globals.not() { return }
     ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             emit_global_inits_prog(f, iu.ast)
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         emit_global_inits_prog(f, iu.ast)
     }
@@ -3403,14 +3386,12 @@ build_register_funcsig_names_lp := proc() {
     has_funcsig_names = true
     ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             register_funcsig_prog(iu.ast)
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         register_funcsig_prog(iu.ast)
     }
@@ -3488,14 +3469,12 @@ build_register_lookups_lp := proc() {
 
     ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             register_lookups_prog(iu.ast)
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         register_lookups_prog(iu.ast)
     }
@@ -3607,8 +3586,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
 
     // Emit function declarations
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
@@ -3641,8 +3619,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -3676,8 +3653,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
     }
 
     // Enum auto-helper declarations (user units only)
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -3723,8 +3699,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     ref lp : LoadedProgram = codegen_lp()
     // Forward-declare struct/enum namespace methods and top-level functions
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
@@ -3757,8 +3732,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -3791,8 +3765,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
 
     // Forward-declare enum ext methods (eq, constructors)
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
@@ -3833,8 +3806,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -3879,14 +3851,12 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     // Forward declarations for dyn_call dispatch functions
     mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             collect_dyn_methods(iu.ast, dyn_methods)
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         collect_dyn_methods(iu.ast, dyn_methods)
     }
@@ -3943,14 +3913,12 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     if dyn_has_shallow { dyn_has_ret = "Bool" }
     mut has_methods := Vec.new("Str", Str.size())
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             collect_dyn_has_methods(iu.ast, has_methods)
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         collect_dyn_has_methods(iu.ast, has_methods)
     }
@@ -4030,14 +3998,11 @@ emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: Funct
     f.write_str("\n}\n")
 }
 
-emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
-    // core_program/program are kept for signature compatibility; emit from lp units.
-    if is_null(core_program).or(is_null(program)) { }
+emit_dyn_fn_wrappers := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
     // Emit wrapper functions that normalize calling convention
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {
                 if is_struct_or_enum(stmt).not() { continue }
@@ -4054,8 +4019,7 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for stmt : Expr in iu.ast.children {
             if is_struct_or_enum(stmt).not() { continue }
@@ -4074,8 +4038,7 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
     // Emit dyn_fn dispatch
     f.write_str("void *dyn_fn(Str *type_name, Str *method) {\n    (void)type_name; (void)method;\n")
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {
                 if is_struct_or_enum(stmt).not() { continue }
@@ -4100,8 +4063,7 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for stmt : Expr in iu.ast.children {
             if is_struct_or_enum(stmt).not() { continue }
@@ -4130,20 +4092,16 @@ emit_dyn_fn_wrappers := proc(f: File, core_program: Expr, program: Expr) {
     f.write_str("}\n\n")
 }
 
-emit_dyn_call_bodies := proc(f: File, core_program: Expr, program: Expr) {
-    // core_program/program are kept for signature compatibility; emit from lp units.
-    if is_null(core_program).or(is_null(program)) { }
+emit_dyn_call_bodies := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
     mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             collect_dyn_methods(iu.ast, dyn_methods)
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         collect_dyn_methods(iu.ast, dyn_methods)
     }
@@ -4157,8 +4115,7 @@ emit_dyn_call_bodies := proc(f: File, core_program: Expr, program: Expr) {
             f.write_str(ret_type); f.write_str("dyn_call_"); f.write_str(method); f.write_str("(Str *type_name, void *val, void *arg2) {\n")
         }
         if lp.skip_core.not() {
-            for ui in 0..lp.core_units.len() {
-                ref u : ProgramUnit = lp.core_units.get(ui)
+            for u : ProgramUnit in lp.core_units {
                 ref iu : ImportUnit = lp.ctx.imported.get(u.path)
                 for e_i : Expr in iu.ast.children {
                     ref stmt : Expr = e_i
@@ -4226,8 +4183,7 @@ emit_dyn_call_bodies := proc(f: File, core_program: Expr, program: Expr) {
                 }
             }
         }
-        for ui in 0..lp.units.len() {
-            ref u : ProgramUnit = lp.units.get(ui)
+        for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for e_i : Expr in iu.ast.children {
                 ref stmt : Expr = e_i
@@ -4301,17 +4257,14 @@ emit_dyn_call_bodies := proc(f: File, core_program: Expr, program: Expr) {
     own dyn_methods.delete()
 }
 
-emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
-    // core_program/program are kept for signature compatibility; emit from lp units.
-    if is_null(core_program).or(is_null(program)) { }
+emit_dyn_has_bodies := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
 
     // Find dyn_has_method to check return_is_shallow
     mut dyn_has_shallow := false
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
+        for u : ProgramUnit in lp.core_units {
             if dyn_has_shallow { break }
-            ref u : ProgramUnit = lp.core_units.get(ui)
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.child(0).node_type.is(NodeType.FuncDef)) {
@@ -4325,9 +4278,8 @@ emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
+    for u : ProgramUnit in lp.units {
         if dyn_has_shallow { break }
-        ref u : ProgramUnit = lp.units.get(ui)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.child(0).node_type.is(NodeType.FuncDef)) {
@@ -4344,22 +4296,19 @@ emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
     if dyn_has_shallow { dyn_has_ret = "Bool" }
     mut has_methods := Vec.new("Str", Str.size())
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             collect_dyn_has_methods(iu.ast, has_methods)
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         collect_dyn_has_methods(iu.ast, has_methods)
     }
     for method : Str in has_methods {
         f.write_str(dyn_has_ret); f.write_str(" dyn_has_"); f.write_str(method); f.write_str("(Str *type_name) {\n    (void)type_name;\n")
         if lp.skip_core.not() {
-            for ui in 0..lp.core_units.len() {
-                ref u : ProgramUnit = lp.core_units.get(ui)
+            for u : ProgramUnit in lp.core_units {
                 ref iu : ImportUnit = lp.ctx.imported.get(u.path)
                 for e_i : Expr in iu.ast.children {
                     ref stmt : Expr = e_i
@@ -4380,8 +4329,7 @@ emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
                 }
             }
         }
-        for ui in 0..lp.units.len() {
-            ref u : ProgramUnit = lp.units.get(ui)
+        for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for e_i : Expr in iu.ast.children {
                 ref stmt : Expr = e_i
@@ -4408,20 +4356,16 @@ emit_dyn_has_bodies := proc(f: File, core_program: Expr, program: Expr) {
     own has_methods.delete()
 }
 
-emit_collection_helpers := proc(f: File, core_program: Expr, program: Expr) {
-    // core_program/program are kept for signature compatibility; emit from lp units.
-    if is_null(core_program).or(is_null(program)) { }
+emit_collection_helpers := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
     mut coll_infos := Vec.new("CollectionInfo", CollectionInfo.size())
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             collect_collection_builtins(iu.ast, coll_infos)
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         collect_collection_builtins(iu.ast, coll_infos)
     }
@@ -4471,17 +4415,14 @@ emit_collection_helpers := proc(f: File, core_program: Expr, program: Expr) {
     own coll_infos.delete()
 }
 
-emit_global_declarations := proc(f: File, core_program: Expr, program: Expr) {
-    // core_program/program are kept for signature compatibility; emit from lp units.
-    if is_null(core_program).or(is_null(program)) { }
+emit_global_declarations := proc(f: File) {
     script_globals = Set.new("Str", Str.size())
     has_script_globals = true
     ref_globals = Set.new("Str", Str.size())
     has_ref_globals = true
     ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {
                 if is_exported_top_level_global(stmt).not() { continue }
@@ -4498,8 +4439,7 @@ emit_global_declarations := proc(f: File, core_program: Expr, program: Expr) {
             }
         }
     }
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for stmt : Expr in iu.ast.children {
             if is_exported_top_level_global(stmt).not() { continue }
@@ -4543,10 +4483,8 @@ emit_test_main := proc(f: File, program: Expr) {
     f.write_str("}\n")
 }
 
-emit_script_main := proc(f: File, program: Expr) {
+emit_script_main := proc(f: File) {
     f.write_str("int main(void) {\n")
-    // program is kept for signature compatibility; script main emits from lp.units.
-    if program.children.len().eq(0) { }
     emit_ns_inits(f, 1)
     unsafe_to_hoist = Set.new("Str", Str.size())
     ref lp : LoadedProgram = codegen_lp()
@@ -4587,9 +4525,7 @@ emit_script_main := proc(f: File, program: Expr) {
     has_script_globals = false
 }
 
-emit_function_bodies := proc(f: File, core_program: Expr, program: Expr, mode: Mode) {
-    // core_program/program are kept for signature compatibility; emit from lp units.
-    if is_null(core_program).or(is_null(program)) { }
+emit_function_bodies := proc(f: File, mode: Mode) {
     ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -4664,7 +4600,7 @@ emit_lib_init := proc(f: File) {
     f.write_str("}\n\n")
 }
 
-build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns shallow I32 {
+build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns shallow I32 {
     mut is_lib := false
     if is_null(mode).not() { is_lib = mode.is_library }
 
@@ -4714,13 +4650,13 @@ build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: 
     f.write_str("    putchar('\\n');\n")
     f.write_str("}\n\n")
 
-    emit_global_declarations(f, core_program, program)
-    emit_function_bodies(f, core_program, program, mode)
+    emit_global_declarations(f)
+    emit_function_bodies(f, mode)
 
-    emit_dyn_call_bodies(f, core_program, program)
-    emit_dyn_fn_wrappers(f, core_program, program)
-    emit_dyn_has_bodies(f, core_program, program)
-    emit_collection_helpers(f, core_program, program)
+    emit_dyn_call_bodies(f)
+    emit_dyn_fn_wrappers(f)
+    emit_dyn_has_bodies(f)
+    emit_collection_helpers(f)
 
     if run_tests {
         // Test discovery from user entrypoint only.
@@ -4741,10 +4677,7 @@ build := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: 
             mut needs_main := false
             if is_null(mode).not() { needs_main = mode.needs_main }
             if needs_main.not() {
-                ref lp3 : LoadedProgram = codegen_lp()
-                ref root2 : ProgramUnit = lp3.units.get(lp3.units.len().sub(1))
-                ref iu3 : ImportUnit = lp3.ctx.imported.get(root2.path)
-                emit_script_main(f, iu3.ast)
+                emit_script_main(f)
             }
         }
     }
@@ -4829,7 +4762,7 @@ translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow I32 
     codegen_set_lp(lp)
     mut result := build_forward_header_lp(paths.fwd_path)
     if result.eq(0) {
-        result = build(NULL, NULL, lp.cur_mode, lp.run_tests, paths.c_path)
+        result = build(lp.cur_mode, lp.run_tests, paths.c_path)
     }
     if result.eq(0).and(paths.do_lib) {
         result = build_header_lp(paths.h_path)

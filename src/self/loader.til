@@ -967,13 +967,9 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
 
 cmd_ast := proc(lp: LoadedProgram) {
     println("mode: ".concat(lp.mode_str))
-    mut merged := Expr.new(NodeType.Body, 0, 0)
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
+        println("file: ".concat(u.path))
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        for stmt : Expr in iu.ast.children {
-            merged.add_child(own stmt.clone())
-        }
+        println(iu.ast.to_str())
     }
-    println(merged.to_str())
 }
