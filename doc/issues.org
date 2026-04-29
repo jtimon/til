@@ -1,10 +1,26 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 163
+# NEXT_ISSUE: 164
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/16] Pre
+** OPEN #163 Per-file AST/import graph + Context.path (prep for removing Expr.path)
+   Goals:
+
+   - Store a canonical per-file AST and direct import list in Context
+     (like ../rstil/), not in merged ASTs or ProgramUnit.ast.
+   - Run phases per file (imports-first) so we can support circular deps.
+   - Eventually remove Expr.path and use Context.path instead for diagnostics
+     and phase behavior.
+
+   Notes:
+
+   - Keep Expr.path for now; this issue tracks the remaining work needed
+     before it can be removed safely.
+   - This likely requires moving more phases (precomp/scavenge/eval/build)
+     to per-file drivers, or adding explicit file boundaries to merged views.
+
 ** OPEN #162 Core files should import semantic dependencies explicitly
    We still rely on ~src/core/core.til~ import order for some dependencies.
    This is fragile and makes refactors (like changing Map internals) break in
