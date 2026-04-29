@@ -260,6 +260,19 @@ unused_local := func() returns I64 {
 }
 unused_local()
 
+// #161: 'ref mut' cannot launder mutability from an immutable ref local
+TerrLaunder := struct { mut field := 0 }
+terr_launder_local := TerrLaunder(field=1)
+ref terr_launder_r : TerrLaunder = terr_launder_local
+ref mut terr_launder_rm : TerrLaunder = terr_launder_r
+
+// #161: 'ref mut' cannot launder mutability from an immutable param
+terr_launder_fn := proc(p: TerrLaunder) {
+    ref mut leaked : TerrLaunder = p
+    leaked.field = 99
+}
+terr_launder_fn(terr_launder_local)
+
 // #113: non-exhaustive switch on enum (simple, no payload)
 TerrColor := enum { Red, Green, Blue }
 terr_color := TerrColor.Green

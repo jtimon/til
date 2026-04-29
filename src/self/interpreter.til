@@ -587,12 +587,12 @@ resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr
     return NULL
 }
 
-eval_body := proc(scope: Scope, body: Expr) {
-    for e_i : Expr in body.children {
+eval_body := proc(scope: Scope, mut body: Expr) {
+    for mut e_i : Expr in body.children {
         if has_return { return }
         if has_break { return }
         if has_continue { return }
-        ref stmt : Expr = e_i
+        ref mut stmt : Expr = e_i
         if stmt.node_type.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.node_type)
             ref rhs : Expr = stmt.child(0)
@@ -679,9 +679,7 @@ eval_body := proc(scope: Scope, body: Expr) {
                 ref mut cur_sdef : Expr = resolve_field_assign_sdef(scope, stmt.child(0))
                 // Chain walking for nested field access (e.g. a.b.c = val)
                 if stmt.child(0).node_type.is(NodeType.FieldAccess) {
-                    ref obj_expr : Expr = stmt.child(0)
-                    // Walk to root ident
-                    ref mut cur : Expr = obj_expr
+                    ref mut cur : Expr = stmt.child(0)
                     mut depth : I32 = 0
                     while cur.node_type.is(NodeType.FieldAccess) {
                         depth = depth.add(1.to_i32())
@@ -696,7 +694,7 @@ eval_body := proc(scope: Scope, body: Expr) {
                             cur_sdef = si.struct_def
                             // For simplicity, handle depth=1 (most common: a.field = val)
                             if depth.eq(1.to_i32()) {
-                                ref fa_name : Str = get_payload(obj_expr.node_type)
+                                ref fa_name : Str = get_payload(stmt.child(0).node_type)
                                 ref fd : Declaration = find_field_decl(cur_sdef, fa_name)
                                 if is_null(fd).not() {
                                     if fd.own_type.is(OwnType.Shallow).not() {
@@ -1134,7 +1132,7 @@ widen_numeric := func(v: Value, ptype: Str) returns Value {
     return shallow_copy_value(v)
 }
 
-scope_get := func(s: Scope, name: Str) returns ref Cell {
+scope_get := func(mut s: Scope, name: Str) returns ref Cell {
     ref mut cur : Scope = s
     while true {
         if is_null(cur) { return NULL }

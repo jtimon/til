@@ -746,8 +746,7 @@ obj_method_type_name := func(obj: Expr) returns Str {
 infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) returns shallow Bool {
     ref mut fa : Expr = e.child(0)
     ref mut obj : Expr = fa.child(0)
-    ref method0 : Str = get_payload(fa.node_type)
-    ref mut method : Str = method0
+    ref mut method : Str = get_payload(fa.node_type)
     infer_expr(scope, obj, in_func, ctx)
 
     mut obj_is_type := false
@@ -1829,6 +1828,13 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
         decl_b.own_type = OwnType.Ref
         if expr_is_ref_decl_source(rhs, scope).not() {
             type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable")
+        }
+        if sdecl.is_mut.and(rhs.node_type.is(NodeType.Ident)) {
+            ref _rid : Str = get_payload(rhs.node_type)
+            ref _rb : TypeBinding = scope.get_binding(_rid)
+            if is_null(_rb).not().and(_rb.is_mut.not()) {
+                type_error(stmt, "'ref mut' cannot bind to an immutable source; declare the source as 'mut' or 'ref mut'")
+            }
         }
     }
     if sdecl.own_type.eq(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
@@ -4182,16 +4188,16 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
     }
 }
 
-extend_ref_local_lifetimes := proc(body: Expr, mut locals: Vec) {
+extend_ref_local_lifetimes := proc(mut body: Expr, mut locals: Vec) {
     mut ref_changed := true
     while ref_changed {
         ref_changed = false
         for i in 0..body.children.len() {
-            ref stmt : Expr = body.child(i)
+            ref mut stmt : Expr = body.child(i)
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             ref dd : Declaration = get_payload(stmt.node_type)
             if dd.own_type.eq(OwnType.Ref).not() { continue }
-            ref rhs : Expr = stmt.child(0)
+            ref mut rhs : Expr = stmt.child(0)
 
             mut ref_last := -1.to_i32()
             for j in i.add(1)..body.children.len() {
