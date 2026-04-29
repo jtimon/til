@@ -1,10 +1,10 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 164
+# NEXT_ISSUE: 165
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/15] Pre
+* [0/14] Pre
 ** OPEN #163 Per-file AST/import graph + Context.path (prep for removing Expr.path)
    Goals:
 
@@ -37,27 +37,6 @@
 
    - ~src/core/map.til~ depends on ~vec.til~.
    - ~src/core/dyn_map.til~ depends on ~map.til~ and ~tuple.til~.
-
-** OPEN #161 ref mut accepts a non-mut ref source (mutability laundering)
-   The typer currently allows binding a `ref mut` to a plain `ref`
-   source without complaint:
-
-       for x : T in coll {
-           ref mut y : T = x   // x is `ref T`, not `ref mut T`
-           y.field = ...       // accepted; mutates through x
-       }
-
-   This silently launders away the const-ness of `x`. The whole point
-   of `ref` vs `ref mut` is to track which references can write. The
-   typer should reject `ref mut <name> : T = <expr>` when `<expr>` is
-   typed as `ref T` (immutable ref) -- only `ref mut T` and owning
-   values should be assignable to a `ref mut` binding.
-
-   Several call sites in src/self/typer.til use this pattern as a
-   workaround for the lack of `for mut x : T in coll` (see #160). Once
-   those are converted to direct `for x : T in coll { x.field = ... }`
-   (which already works -- field mutation through a plain ref iter
-   persists), the laundering uses go away and we can tighten the typer.
 
 ** OPEN #158 One pass per phase across the whole pipeline
    Each phase listed in doc/pipeline.org (lex, parse,
@@ -1359,7 +1338,34 @@
   Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
   (it's useful for other things), but containers no longer use it.
 
-* [0/40] Post
+* [0/41] Post
+** OPEN #164 Diagnose `mut` qualifiers that are never used to write
+   After #161 the typer rejects `ref mut x : T = src` when `src` is
+   immutable. The simplest way to fix the existing chain-walker
+   patterns (cursors that only rebind themselves to walk a chain, like
+   `scope_get` in src/self/interpreter.til, `extend_ref_local_lifetimes`
+   in src/self/typer.til, and `eval_body`'s nested-FieldAssign walker)
+   is to mark the source param as `mut` so the cursor's `ref mut` is
+   legal. That's a small lie: the param is declared writable but the
+   body never writes through it.
+
+   Goal: have the typer warn (later, error) when a `mut` param or
+   `mut` / `ref mut` local is declared but never used as a write
+   target -- neither `x = ...`, nor `x.f = ...`, nor passed as the
+   `mut`/`own` argument of a callee that writes through it. Then the
+   chain-walker params can drop the `mut` qualifier without losing
+   the laundering check.
+
+   Notes:
+
+   - Rebind-only cursors (`x = x.next`) currently require `ref mut`,
+     which forces the source to be mut. A separate language-level
+     fix would be to distinguish "rebindable local pointer" from
+     "write-through ref mut" so a chain walker doesn't need to lie
+     about its source. Worth considering when picking up this issue.
+   - The diagnostic should ignore `_`-prefixed names (consistent
+     with #86 unused-local handling).
+
 ** OPEN #159 Show the til logo as a single character in the REPL prompt
    We have ~fonts/til_logo.ttf~ (generated from ~img/logo-transparent.svg~
    by ~src/examples/svg2ttf.til~) with the logo mapped to codepoint
