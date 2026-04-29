@@ -2493,7 +2493,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
         if stmt.children.len().eq(0) { continue }
         if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
         // Find eq fdef from ns_decls
-        mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+        mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, "")
         mut has_eq_fdef := false
         ref eq_ns : Vec = def_ns_decls(stmt.child(0))
         for nsd : Declaration in eq_ns {
@@ -2604,7 +2604,7 @@ emit_header_defs_and_funcs_lp := proc(f: File) {
             if stmt.children.len().eq(0) { continue }
             if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
             // Find eq fdef from ns_decls
-            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, "")
             mut has_eq_fdef := false
             ref eq_ns : Vec = def_ns_decls(stmt.child(0))
             for nsd : Declaration in eq_ns {
@@ -3530,7 +3530,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
         ref dd : Declaration = get_payload(stmt.node_type)
         if stmt.children.len().eq(0) { continue }
         if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
-        mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+        mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, "")
         mut has_eq_fdef := false
         ref sh3_eq_ns : Vec = def_ns_decls(stmt.child(0))
         for d_j : Declaration in sh3_eq_ns {
@@ -3659,7 +3659,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
             ref dd : Declaration = get_payload(stmt.node_type)
             if stmt.children.len().eq(0) { continue }
             if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
-            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, "")
             mut has_eq_fdef := false
             ref sh3_eq_ns : Vec = def_ns_decls(stmt.child(0))
             for nsd : Declaration in sh3_eq_ns {
@@ -3774,7 +3774,7 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
                 if stmt.children.len().eq(0) { continue }
                 if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
                 ref dd : Declaration = get_payload(stmt.node_type)
-                mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+                mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, "")
                 mut has_eq_fdef := false
                 ref sh_eq_ns : Vec = def_ns_decls(stmt.child(0))
                 for nsd : Declaration in sh_eq_ns {
@@ -3816,7 +3816,7 @@ emit_all_forward_declarations := proc(f: File, core_program: Expr, program: Expr
             if stmt.children.len().eq(0) { continue }
             if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = get_payload(stmt.node_type)
-            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, stmt.path)
+            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col, "")
             mut has_eq_fdef := false
             ref sh_eq_ns : Vec = def_ns_decls(stmt.child(0))
             for nsd : Declaration in sh_eq_ns {

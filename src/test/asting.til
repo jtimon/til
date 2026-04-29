@@ -26,7 +26,6 @@ test_expr_new := test() {
     mut e := Expr.new(NodeType.Body, 1, 5, "test.til")
     assert_eq(__LOC__, e.line.to_i64(), 1)
     assert_eq(__LOC__, e.col.to_i64(), 5)
-    assert_eq_str(__LOC__, e.path, "test.til")
 }
 
 test_expr_children := test() {

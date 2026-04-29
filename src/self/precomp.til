@@ -13,46 +13,46 @@ precomp_has_func := func(name: Str) returns shallow Bool {
     return funcs.has(name)
 }
 
-value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
+value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns Expr {
     switch val {
     case Value.Int(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
         e.til_type = TilType.I64
         return e
     case Value.Byte(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
         e.til_type = TilType.U8
         return e
     case Value.Short(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
         e.til_type = TilType.I16
         return e
     case Value.Int32(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
         e.til_type = TilType.I32
         return e
     case Value.Uint32(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
         e.til_type = TilType.U32
         return e
     case Value.Uint64(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
         e.til_type = TilType.U64
         return e
     case Value.Float(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, src.path)
+        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col, ctx.path)
         e.til_type = TilType.F32
         return e
     case Value.Struct(si):
         if si.to_str().eq("Str") {
             sv := str_view(val)
-            mut e := Expr.new(NodeType.LiteralStr(sv.clone()), src.line, src.col, src.path)
+            mut e := Expr.new(NodeType.LiteralStr(sv.clone()), src.line, src.col, ctx.path)
             e.til_type = TilType.Struct("Str".clone())
             return e
         }
         return NULL
     case Value.Boolean(b):
-        mut e := Expr.new(NodeType.LiteralBool(b.clone()), src.line, src.col, src.path)
+        mut e := Expr.new(NodeType.LiteralBool(b.clone()), src.line, src.col, ctx.path)
         e.til_type = TilType.Bool
         return e
     case:
@@ -230,7 +230,7 @@ try_fast_fold_call := proc(scope: Scope, fcall: Expr) returns ref Expr {
     return _heap_ref
 }
 
-try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) returns ref Expr {
+try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ctx: Context) returns ref Expr {
     ref _fast : Expr = try_fast_fold_call(scope, fcall)
     if is_null(_fast).not() { return _fast }
 
@@ -277,7 +277,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
 
     // Build a call with literal args for the interpreter
     nargs := fcall.children.len().sub(1)
-    mut ec := Expr.new(NodeType.FCall, fcall.line, fcall.col, fcall.path)
+    mut ec := Expr.new(NodeType.FCall(FCallData()), fcall.line, fcall.col, ctx.path)
     ec.til_type = fcall.til_type
     ec.add_child(own fcall.child(0).clone())
 
@@ -286,11 +286,15 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
         mut arg_val := val_none()
         if is_known(arg, arg_val).not() {
             if require_known {
-                arg.error("macro argument must be known at compile time")
+                panic(
+                    __LOC__,
+                    ctx.path, ":", arg.line.to_str(), ":", arg.col.to_str(),
+                    ": error: macro argument must be known at compile time",
+                )
             }
             return NULL
         }
-        ec.add_child(own value_to_expr(arg_val, arg))
+        ec.add_child(own value_to_expr(arg_val, arg, ctx))
     }
 
     // Evaluate the call using the interpreter
@@ -311,13 +315,17 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool) re
     }
     if can_convert.not() {
         if require_known {
-            fcall.error("macro returned non-primitive type")
+            panic(
+                __LOC__,
+                ctx.path, ":", fcall.line.to_str(), ":", fcall.col.to_str(),
+                ": error: macro returned non-primitive type",
+            )
         }
         return NULL
     }
 
     // Convert result to AST -- guaranteed non-NULL, safe to bind owned
-    mut lit_local := value_to_expr(result, fcall)
+    mut lit_local := value_to_expr(result, fcall, ctx)
     heap : Dynamic = malloc(Expr.size().to_u64())
     memcpy(heap, lit_local, Expr.size())
     memset(lit_local, 0, Expr.size())
@@ -378,13 +386,13 @@ is_func_call := func(e: Expr) returns shallow Bool {
 // literal-return fast path because the eval-based path still trips a
 // pre-existing interpreter use-after-free outside the narrow contexts
 // the old code allowed.
-fold_subtree := proc(scope: Scope, mut e: Expr) {
+fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
     for i in 0..e.children.len() {
         ref child : Expr = e.child(i)
-        fold_subtree(scope, child)
+        fold_subtree(scope, child, ctx)
         if child.node_type.is(NodeType.FCall) {
             if is_macro_call(child) {
-                ref lit : Expr = try_eval_call(scope, child, true)
+                ref lit : Expr = try_eval_call(scope, child, true, ctx)
                 if is_null(lit).not() { e.children.set(i, own lit.clone()) }
             } else if is_func_call(child) {
                 ref lit : Expr = try_fast_fold_call(scope, child)
@@ -394,8 +402,8 @@ fold_subtree := proc(scope: Scope, mut e: Expr) {
     }
 }
 
-process_body := proc(scope: Scope, body: Expr) {
-    fold_subtree(scope, body)
+process_body := proc(scope: Scope, body: Expr, ctx: Context) {
+    fold_subtree(scope, body, ctx)
     // Namespace method bodies live in StructDef/EnumDef ns_decls, not in
     // the body tree, so fold_subtree never reaches them. Walk them here.
     for stmt : Expr in body.children {
@@ -409,7 +417,7 @@ process_body := proc(scope: Scope, body: Expr) {
                 if is_null(nsd.default_value) { continue }
                 if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                 if nsd.default_value.children.len().eq(0) { continue }
-                fold_subtree(scope, nsd.default_value.child(0))
+                fold_subtree(scope, nsd.default_value.child(0), ctx)
             }
         }
     }
@@ -421,7 +429,7 @@ process_body := proc(scope: Scope, body: Expr) {
         if stmt.children.len().eq(0) { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.FuncDef) {
-            if rhs.children.len().gt(0) { process_body(scope, decl_body(stmt)) }
+            if rhs.children.len().gt(0) { process_body(scope, decl_body(stmt), ctx) }
             continue
         }
         if rhs.node_type.is(NodeType.StructDef) { continue }
@@ -503,7 +511,7 @@ precomp_register_defs := proc(mut global: Scope, prog: Expr) {
     }
 }
 
-precomp := proc(core_program: Expr, program: Expr) {
+precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     // 1. Collect macro and pure func names
     macros = Set.new("Str", Str.size())
     funcs = Set.new("Str", Str.size())
@@ -533,8 +541,8 @@ precomp := proc(core_program: Expr, program: Expr) {
 
     // 3. Fold calls in both core and user programs.
     known = Map.new("Str", Str.size(), "Value", Value.size())
-    if is_null(core_program).not() { process_body(global, core_program) }
-    process_body(global, program)
+    if is_null(core_program).not() { process_body(global, core_program, ctx) }
+    process_body(global, program, ctx)
 
     // Cleanup
     Map.delete(own known, false)

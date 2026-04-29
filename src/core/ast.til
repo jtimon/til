@@ -207,18 +207,18 @@ Expr := struct {
     mut children := Vec.new("Expr", Expr.size())
     mut line : U32 = 0
     mut col : U32 = 0
-    mut path := ""
 
 namespace:
-    error := proc(self: Expr, msg: Str) {
-        println(self.path, ":", self.line.to_str(), ":", self.col.to_str(), ": error: ", msg)
+    // Diagnostics: Expr tracks line/col; caller supplies file path.
+    error := proc(self: Expr, path: Str, msg: Str) {
+        println(path, ":", self.line.to_str(), ":", self.col.to_str(), ": error: ", msg)
     }
-    todo_error := proc(self: Expr, msg: Str) {
-        self.error( msg)
+    todo_error := proc(self: Expr, path: Str, msg: Str) {
+        self.error(path, msg)
         println("  note: this language feature is not implemented yet")
     }
-    lang_error := proc(self: Expr, msg: Str) {
-        self.error( msg)
+    lang_error := proc(self: Expr, path: Str, msg: Str) {
+        self.error(path, msg)
         println("  note: this is a bug in the language, please report it")
     }
     add_child := proc(mut self: Expr, own child: Expr) {
@@ -251,7 +251,9 @@ namespace:
         return c
     }
     new := func(data: NodeType, shallow line: U32, shallow col: U32, path: Str) returns Expr {
-        mut out := Expr(node_type = data.clone(), line = line, col = col, path = path.clone())
+        // Keep (path) parameter for call site stability; Expr no longer stores it.
+        if path.len().eq(0) { }
+        mut out := Expr(node_type = data.clone(), line = line, col = col)
         if out.node_type.is(NodeType.FCall) {
             ref mut fcall_data : FCallData = get_payload(out.node_type)
             fcall_data.variadic_index = -1.to_i32()

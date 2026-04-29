@@ -862,7 +862,12 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             }
             sn := til_type_name(callee_expr.child(0).til_type)
             ref fn_name : Str = get_payload(callee_expr.node_type)
-            flat_str := sn.concat("_").concat(fn_name)
+            // If the receiver type is unknown (eg Dynamic), fall back to the
+            // unqualified top-level name. This is required for and/or/not.
+            flat_str := fn_name.clone()
+            if sn.len().gt(0) {
+                flat_str = sn.concat("_").concat(fn_name)
+            }
             orig_callee_val := callee_expr.clone()
             mut flat_ident2 := callee_expr.clone()
             flat_ident2.node_type = NodeType.Ident(flat_str.clone())
@@ -1770,6 +1775,9 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
 // ASTs stored in lp.ctx.imported, but preserves the original overall
 // registration/eval ordering.
 interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns shallow I32 {
+    // Ensure builtin dispatch table is initialized deterministically.
+    if dispatch_inited.not() { dispatch_init() }
+
     mut user_argc : U32 = 0
     if is_null(user_argv).not() { user_argc = user_argv.len() }
 

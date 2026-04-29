@@ -316,8 +316,24 @@ eval_arg := proc(s: Scope, e: Expr) returns Value {
 h_Bool_and := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     a := eval_arg(s, e.child(1))
     b := eval_arg(s, e.child(2))
-    ref av : Bool = get_payload(a)
-    ref bv : Bool = get_payload(b)
+    mut av := false
+    mut bv := false
+    if a.is(Value.Boolean) {
+        ref _av : Bool = get_payload(a)
+        av = _av
+    } else if a.is(Value.Ptr) {
+        ref pv : Dynamic = get_payload(a)
+        ref _av : Bool = deref(pv)
+        av = _av
+    }
+    if b.is(Value.Boolean) {
+        ref _bv : Bool = get_payload(b)
+        bv = _bv
+    } else if b.is(Value.Ptr) {
+        ref pv : Dynamic = get_payload(b)
+        ref _bv : Bool = deref(pv)
+        bv = _bv
+    }
     r = val_bool(and(av, bv))
     return true
 }
@@ -325,15 +341,39 @@ h_Bool_and := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 h_Bool_or := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     a := eval_arg(s, e.child(1))
     b := eval_arg(s, e.child(2))
-    ref av : Bool = get_payload(a)
-    ref bv : Bool = get_payload(b)
+    mut av := false
+    mut bv := false
+    if a.is(Value.Boolean) {
+        ref _av : Bool = get_payload(a)
+        av = _av
+    } else if a.is(Value.Ptr) {
+        ref pv : Dynamic = get_payload(a)
+        ref _av : Bool = deref(pv)
+        av = _av
+    }
+    if b.is(Value.Boolean) {
+        ref _bv : Bool = get_payload(b)
+        bv = _bv
+    } else if b.is(Value.Ptr) {
+        ref pv : Dynamic = get_payload(b)
+        ref _bv : Bool = deref(pv)
+        bv = _bv
+    }
     r = val_bool(or(av, bv))
     return true
 }
 
 h_Bool_not := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     v := eval_arg(s, e.child(1))
-    ref bv : Bool = get_payload(v)
+    mut bv := false
+    if v.is(Value.Boolean) {
+        ref _bv : Bool = get_payload(v)
+        bv = _bv
+    } else if v.is(Value.Ptr) {
+        ref pv : Dynamic = get_payload(v)
+        ref _bv : Bool = deref(pv)
+        bv = _bv
+    }
     r = val_bool(not(bv))
     return true
 }
@@ -672,13 +712,13 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     method := str_view(method_val)
 
     // Build fake AST: Type.method(args...)
-    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), e.line, e.col, e.path)
+    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), e.line, e.col, interp_path)
     type_ident.til_type = TilType.Struct(type_name.clone())
 
-    mut field_access := Expr.new(NodeType.FieldAccess(method.clone()), e.line, e.col, e.path)
+    mut field_access := Expr.new(NodeType.FieldAccess(method.clone()), e.line, e.col, interp_path)
     field_access.add_child(own type_ident)
-
-    mut fake_call := Expr.new(NodeType.FCall, e.line, e.col, e.path)
+    // Critical: NodeType.FCall must have an initialized FCallData payload.
+    mut fake_call := Expr.new(NodeType.FCall(FCallData()), e.line, e.col, interp_path)
     fake_call.add_child(own field_access)
 
     // child 3 is arity literal, actual args start at child 4
@@ -696,17 +736,18 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
     ref size_fn : Value = ns_get(type_name, "size")
     if is_null(size_fn) {
-        src.error(type_name.concat(" has no size() method"))
+        interp_error(src, type_name.concat(" has no size() method"))
         exit(1)
     }
     // Build fake call: Type.size()
-    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col, src.path)
+    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col, interp_path)
     type_ident.til_type = TilType.Struct(type_name.clone())
 
-    mut field_access := Expr.new(NodeType.FieldAccess("size"), src.line, src.col, src.path)
+    mut field_access := Expr.new(NodeType.FieldAccess("size"), src.line, src.col, interp_path)
     field_access.add_child(own type_ident)
 
-    mut fake_call := Expr.new(NodeType.FCall, src.line, src.col, src.path)
+    // Critical: NodeType.FCall must have an initialized FCallData payload.
+    mut fake_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col, interp_path)
     fake_call.add_child(own field_access)
 
     result := eval_call(s, fake_call)
