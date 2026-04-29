@@ -1040,7 +1040,7 @@ U32 Context_size(void);
 I32 align_up(I32 offset, I32 align);
 TilType * type_from_name_init(Str * name, TypeScope * scope);
 I32 register_struct_definitions(Expr * program, TypeScope * scope);
-void generate_missing_struct_clones(Expr * program, TypeScope * scope);
+void generate_missing_struct_clones_and_deletes(Expr * program, TypeScope * scope);
 I32 register_enum_definition(Expr * stmt, TypeScope * scope);
 void collect_enum_variants(Expr * enum_def, Vec * variant_names, Vec * variant_types, Bool * has_payloads);
 void generate_enum_variant_constructors(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads);
@@ -1051,7 +1051,6 @@ void generate_enum_to_str_method(Expr * enum_def, Str * ename, U32 line, U32 col
 void generate_enum_clone_method(Expr * enum_def, Str * ename, I32 line, I32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads);
 I32 register_enums_and_generate_nonclone_methods(Expr * program, TypeScope * scope);
 void generate_missing_enum_clones(Expr * program);
-void generate_missing_struct_deletes(Expr * program, TypeScope * scope);
 void register_funcsig_aliases(Expr * program, TypeScope * scope);
 void register_type_aliases(Expr * program, TypeScope * scope);
 void register_top_level_values(Expr * program, TypeScope * scope);
