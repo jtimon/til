@@ -162,6 +162,15 @@ namespace:
     to_str := func(self: AssignData) returns Str { return self.name }
 }
 
+ForInData := struct {
+    mut name := ""
+    mut is_mut := false
+    mut own_type := OwnType.Shallow
+namespace:
+    eq := func(a: ForInData, b: ForInData) returns Bool { return a.name.eq(b.name) }
+    to_str := func(self: ForInData) returns Str { return self.name }
+}
+
 NodeType := enum {
     Body,
     LiteralStr: Str,
@@ -180,7 +189,7 @@ NodeType := enum {
     Return,
     If,
     While,
-    ForIn: Str,
+    ForIn: ForInData,
     NamedArg: Str,
     Break,
     Continue,
@@ -306,7 +315,10 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.Return:         return "Return"
     case NodeType.If:             return "If"
     case NodeType.While:          return "While"
-    case NodeType.ForIn(s):       return format("ForIn ", s)
+    case NodeType.ForIn(fi):
+        if fi.own_type.eq(OwnType.Ref).and(fi.is_mut) { return format("ForIn ref mut ", fi.name) }
+        if fi.is_mut { return format("ForIn mut ", fi.name) }
+        return format("ForIn ", fi.name)
     case NodeType.NamedArg(s):    return format("NamedArg ", s)
     case NodeType.Break:          return "Break"
     case NodeType.Continue:       return "Continue"
@@ -399,7 +411,10 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     case NodeType.LiteralStr(s): print(" \"", s, "\"")
     case NodeType.LiteralNum(s): print(" \"", s, "\"")
     case NodeType.LiteralBool(b): if b { print(" true") } else { print(" false") }
-    case NodeType.ForIn(s):      print(" \"", s, "\"")
+    case NodeType.ForIn(fi):
+        if fi.own_type.eq(OwnType.Ref).and(fi.is_mut) { print(" ref mut") }
+        else if fi.is_mut { print(" mut") }
+        print(" \"", fi.name, "\"")
     case NodeType.Decl(decl):
         if decl.is_mut { print(" mut") }
         print(" ", decl.name)

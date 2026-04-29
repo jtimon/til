@@ -2214,10 +2214,10 @@ make_field_access_call1 := func(base: Expr, field: Str, arg: Expr, shallow line:
     return fc
 }
 
-make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, path: Str, elem_type: Str) returns Expr {
+make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, path: Str, elem_type: Str, shallow var_is_mut: Bool) returns Expr {
     mut wb := Expr.new(NodeType.Body, line, col, path)
 
-    mut vd := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone())), line, col, path)
+    mut vd := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), is_mut = var_is_mut)), line, col, path)
     mut cur_ident := Expr.new(NodeType.Ident(cur_name.clone()), line, col, path)
     vd.add_child(own cur_ident)
     wb.add_child(own vd)
@@ -2271,7 +2271,12 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
         }
     }
 
-    ref var_name : Str = get_payload(stmt.node_type)
+    ref forin_data_r : ForInData = get_payload(stmt.node_type)
+    ref var_name : Str = forin_data_r.name
+    if forin_data_r.own_type.eq(OwnType.Ref) {
+        type_error(stmt, "'for ref mut x in <range>' is not allowed; ranges produce values, use 'for mut x' instead")
+        return false
+    }
     ref for_body : Expr = stmt.child(1)
     line := stmt.line
     col := stmt.col
@@ -2296,13 +2301,13 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
     mut end_ident_lt := Expr.new(NodeType.Ident(end_name.clone()), line, col, path)
     mut asc_while := Expr.new(NodeType.While, line, col, path)
     asc_while.add_child(own make_field_access_call1(cur_ident_lt, "lt", end_ident_lt, line, col, path))
-    asc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, path, elem_type))
+    asc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, path, elem_type, forin_data_r.is_mut))
 
     mut cur_ident_gt := Expr.new(NodeType.Ident(cur_name.clone()), line, col, path)
     mut end_ident_gt := Expr.new(NodeType.Ident(end_name.clone()), line, col, path)
     mut desc_while := Expr.new(NodeType.While, line, col, path)
     desc_while.add_child(own make_field_access_call1(cur_ident_gt, "gt", end_ident_gt, line, col, path))
-    desc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, path, elem_type))
+    desc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, path, elem_type, forin_data_r.is_mut))
 
     mut if_node := Expr.new(NodeType.If, line, col, path)
     mut cur_ident_lte := Expr.new(NodeType.Ident(cur_name.clone()), line, col, path)
@@ -2389,7 +2394,8 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
         elem_type = get_def.return_type.clone()
     }
 
-    ref var_name : Str = get_payload(stmt.node_type)
+    ref forin_data_c : ForInData = get_payload(stmt.node_type)
+    ref var_name : Str = forin_data_c.name
     ref for_body : Expr = stmt.child(1)
     line := stmt.line
     col := stmt.col
@@ -2431,7 +2437,14 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
 
     mut forin_own := OwnType.Shallow
     if get_def.return_own_type.eq(OwnType.Ref) { forin_own = OwnType.Ref }
-    mut elem_decl := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), own_type = forin_own)), line, col, path)
+    if forin_data_c.own_type.eq(OwnType.Ref) {
+        if get_def.return_own_type.eq(OwnType.Ref).not() {
+            type_error(stmt, "type '".concat(type_name).concat("' get() does not return a ref; cannot use 'for ref mut'"))
+            return false
+        }
+        forin_own = OwnType.Ref
+    }
+    mut elem_decl := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), own_type = forin_own, is_mut = forin_data_c.is_mut)), line, col, path)
     mut col_ident_get := Expr.new(NodeType.Ident(col_name.clone()), line, col, path)
     mut idx_ident_get := Expr.new(NodeType.Ident(idx_name.clone()), line, col, path)
     elem_decl.add_child(own make_field_access_call1(col_ident_get, "get", idx_ident_get, line, col, path))

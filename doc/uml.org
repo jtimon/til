@@ -148,6 +148,10 @@
 ** AssignData: StructDef
 *** mut name := ""
 *** mut save_old_delete := false
+** ForInData: StructDef
+*** mut name := ""
+*** mut is_mut := false
+*** mut own_type := OwnType.Shallow
 ** NodeType: EnumDef
 *** Body
 *** LiteralStr:Str
@@ -166,7 +170,7 @@
 *** Return
 *** If
 *** While
-*** ForIn:Str
+*** ForIn:ForInData
 *** NamedArg:Str
 *** Break
 *** Continue

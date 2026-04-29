@@ -49,6 +49,7 @@ typedef struct FCallData FCallData;
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
 typedef struct AssignData AssignData;
+typedef struct ForInData ForInData;
 typedef enum {
     NodeType_TAG_Body,
     NodeType_TAG_LiteralStr,
@@ -284,6 +285,13 @@ typedef struct AssignData {
 } AssignData;
 
 
+typedef struct ForInData {
+    Str name;
+    Bool is_mut;
+    OwnType own_type;
+} ForInData;
+
+
 
 
 
@@ -384,7 +392,7 @@ struct NodeType {
         EnumDef EnumDef;
         Str FieldAccess;
         Str FieldAssign;
-        Str ForIn;
+        ForInData ForIn;
         Str NamedArg;
     } data;
 };
@@ -797,6 +805,11 @@ Str * AssignData_to_str(AssignData * self);
 AssignData * AssignData_clone(AssignData * self);
 void AssignData_delete(AssignData * self, Bool * call_free);
 U32 AssignData_size(void);
+Bool * ForInData_eq(ForInData * a, ForInData * b);
+Str * ForInData_to_str(ForInData * self);
+ForInData * ForInData_clone(ForInData * self);
+void ForInData_delete(ForInData * self, Bool * call_free);
+U32 ForInData_size(void);
 Bool NodeType_is(NodeType * self, NodeType * other);
 Bool NodeType_eq(NodeType * self, NodeType * other);
 void NodeType_delete(NodeType * self, Bool * call_free);
@@ -1119,7 +1132,7 @@ void infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func
 void replace_body_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
 Expr * make_field_access_call0(Expr * base, Str * field, U32 line, U32 col, Str * path);
 Expr * make_field_access_call1(Expr * base, Str * field, Expr * arg, U32 line, U32 col, Str * path);
-Expr * make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * path, Str * elem_type);
+Expr * make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * path, Str * elem_type, Bool var_is_mut);
 Bool desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Bool desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Bool is_compile_directive(Expr * e);
