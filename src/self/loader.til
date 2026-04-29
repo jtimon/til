@@ -74,6 +74,23 @@ ProgramUnit := struct {
     mut path := ""
     mut mode := Mode()
     own mut ast := Expr.new(NodeType.Body, 0, 0, "")
+    mut imports := Vec.new("Str", Str.size())
+}
+
+// Resolve a file's direct import paths to display paths.
+resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd: Str) returns Vec {
+    mut out := Vec.new("Str", Str.size())
+    for import_path : Str in import_paths {
+        mut try_path := base_dir.concat("/").concat(import_path)
+        mut abs := realpath_str(try_path)
+        if abs.eq("").and(lib_dir.len().gt(0)) {
+            try_path = lib_dir.concat("/").concat(import_path)
+            abs = realpath_str(try_path)
+        }
+        if abs.eq("") { continue }
+        out.push(own display_path(abs, cwd))
+    }
+    return out
 }
 
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
@@ -136,6 +153,8 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
             // Get imported file's directory for recursive resolution
             sub_dir := dir_of(abs)
 
+            sub_import_disps := resolve_import_disps(sub_imports, sub_dir, lib_dir, cwd)
+
             // Recurse for sub-imports
             if sub_imports.len().gt(0) {
                 err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, units, lib_dir,
@@ -150,6 +169,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
             // Take ownership of the parsed AST so later phases mutate the same
             // nodes recorded in units.
             unit.ast.take_children(sub_ast)
+            unit.imports = sub_import_disps
             units.push(own unit)
 
             // Append imported file's declarations to merged (clone so merged
@@ -293,6 +313,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     // Resolve user imports (using same resolved set -- skips files already loaded by core)
     import_decls := Vec.new("Expr", Expr.size())
     units := Vec.new("ProgramUnit", ProgramUnit.size())
+    user_import_disps := resolve_import_disps(imports, user_dir, bin_dir.concat("/src/lib"), cwd)
     if imports.len().gt(0) {
         lib_dir := bin_dir.concat("/src/lib")
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
@@ -305,6 +326,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     // Core entrypoint unit (after its imports).
     mut core_unit := ProgramUnit(path = core_disp.clone(), mode = core_mode.clone())
     core_unit.ast.take_children(core_ast)
+    core_unit.imports = resolve_import_disps(core_imports, bin_dir.concat("/src/core"), "", cwd)
     core_units.push(own core_unit)
 
     // Build merged core_program: append core_import_decls + core.til decls.
@@ -333,6 +355,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         // Mode auto-import unit.
         mut mode_unit := ProgramUnit(path = mode_disp.clone(), mode = mode_mode_def.clone())
         mode_unit.ast.take_children(mode_ast.clone())
+        mode_unit.imports = Vec.new("Str", Str.size())
         units.push(own mode_unit)
 
         ast.take_children(mode_ast)
@@ -342,6 +365,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     // User entrypoint unit.
     mut user_unit := ProgramUnit(path = path.clone(), mode = cur_mode.clone())
     user_unit.ast.take_children(user_ast.clone())
+    user_unit.imports = user_import_disps
     units.push(own user_unit)
 
     ast.take_children(user_ast)
@@ -360,12 +384,14 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     if skip_core.not() {
         for i in 0..lp.core_units.len() {
             ref u : ProgramUnit = lp.core_units.get(i)
-            lp.ctx.imported.set(own u.path.clone(), own ImportUnit(mode = u.mode.clone(), ast = u.ast.clone()))
+            lp.ctx.imported.set(own u.path.clone(),
+                own ImportUnit(mode = u.mode.clone(), ast = u.ast.clone(), imports = u.imports.clone()))
         }
     }
     for i in 0..lp.units.len() {
         ref u : ProgramUnit = lp.units.get(i)
-        lp.ctx.imported.set(own u.path.clone(), own ImportUnit(mode = u.mode.clone(), ast = u.ast.clone()))
+        lp.ctx.imported.set(own u.path.clone(),
+            own ImportUnit(mode = u.mode.clone(), ast = u.ast.clone(), imports = u.imports.clone()))
     }
 
     lp.skip_core = skip_core

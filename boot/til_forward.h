@@ -486,6 +486,7 @@ typedef struct ProgramUnit {
     Str path;
     Mode mode;
     Expr *ast;
+    Vec imports;
 } ProgramUnit;
 
 
@@ -635,6 +636,7 @@ typedef struct CliArgs {
 typedef struct ImportUnit {
     Mode mode;
     Expr *ast;
+    Vec imports;
 } ImportUnit;
 
 
@@ -1235,6 +1237,7 @@ Str * dir_of(Str * abs);
 ProgramUnit * ProgramUnit_clone(ProgramUnit * self);
 void ProgramUnit_delete(ProgramUnit * self, Bool * call_free);
 U32 ProgramUnit_size(void);
+Vec * resolve_import_disps(Vec * import_paths, Str * base_dir, Str * lib_dir, Str * cwd);
 Vec * extract_imports(Expr * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * merged, Vec * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);

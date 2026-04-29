@@ -105,6 +105,7 @@ namespace:
 ImportUnit := struct {
     mut mode := Mode()
     own mut ast := Expr.new(NodeType.Body, 0, 0, "")
+    mut imports := Vec.new("Str", Str.size())
 }
 
 Context := struct {
