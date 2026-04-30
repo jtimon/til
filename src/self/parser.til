@@ -315,23 +315,27 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         }
         advance(p) // consume '='
         expect_token(p, TokenType.LParen)
-        ref mut sfd : FunctionDef = get_payload(def.node_type)
-        mut pi : USize = 0
-        while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-            pn := expect_text(p, TokenType.Ident)
-            if pi.gte(sfd.params.len()) {
-                panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                    ": too many param names for FuncSig form (got more than ", sfd.params.len().to_i64().to_str(), ")")
+        switch def.node_type {
+        case NodeType.FuncDef(sfd):
+            mut pi : USize = 0
+            while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+                pn := expect_text(p, TokenType.Ident)
+                if pi.gte(sfd.params.len()) {
+                    panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                        ": too many param names for FuncSig form (got more than ", sfd.params.len().to_i64().to_str(), ")")
+                }
+                ref pp : Declaration = sfd.params.get(pi)
+                pp.name = pn.clone()
+                pi = pi.add(1)
+                if check(p, TokenType.Comma) { advance(p) }
             }
-            ref pp : Declaration = sfd.params.get(pi)
-            pp.name = pn.clone()
-            pi = pi.add(1)
-            if check(p, TokenType.Comma) { advance(p) }
-        }
-        expect_token(p, TokenType.RParen)
-        if pi.lt(sfd.params.len()) {
-            panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                ": FuncSig form expects ", sfd.params.len().to_i64().to_str(), " param names, got ", pi.to_i64().to_str())
+            expect_token(p, TokenType.RParen)
+            if pi.lt(sfd.params.len()) {
+                panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                    ": FuncSig form expects ", sfd.params.len().to_i64().to_str(), " param names, got ", pi.to_i64().to_str())
+            }
+        case:
+            UNREACHABLE(__LOC__)
         }
         expect_token(p, TokenType.LBrace)
         def.add_child(own parse_block(p))
@@ -358,8 +362,12 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
 
     mut def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
     if is_ext {
-        ref mut sdd : StructDef = get_payload(def.node_type)
-        sdd.c_tag = c_tag.clone()
+        switch def.node_type {
+        case NodeType.StructDef(sdd):
+            sdd.c_tag = c_tag.clone()
+        case:
+            UNREACHABLE(__LOC__)
+        }
     }
     expect_token(p, TokenType.LBrace)
 
@@ -392,8 +400,12 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut ns_dd := Declaration(name = ns_name,
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
                 default_value = ns_value)
-            ref mut sdd : StructDef = get_payload(def.node_type)
-            sdd.ns_decls.push(own ns_dd)
+            switch def.node_type {
+            case NodeType.StructDef(sdd):
+                sdd.ns_decls.push(own ns_dd)
+            case:
+                UNREACHABLE(__LOC__)
+            }
         } else {
             mut f_own_type := OwnType.Shallow
             mut f_is_mut := false
@@ -414,8 +426,12 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut f_dd := Declaration(name = f_name, is_mut = f_is_mut,
                 own_type = f_own_type, explicit_type = f_explicit_type,
                 default_value = f_value)
-            ref mut sdd : StructDef = get_payload(def.node_type)
-            sdd.fields.push(own f_dd)
+            switch def.node_type {
+            case NodeType.StructDef(sdd):
+                sdd.fields.push(own f_dd)
+            case:
+                UNREACHABLE(__LOC__)
+            }
         }
     }
     expect_token(p, TokenType.RBrace)
@@ -461,20 +477,28 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             mut ns_dd := Declaration(name = ns_name,
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
                 default_value = ns_value)
-            ref mut edd : EnumDef = get_payload(def.node_type)
-            edd.ns_decls.push(own ns_dd)
+            switch def.node_type {
+            case NodeType.EnumDef(edd):
+                edd.ns_decls.push(own ns_dd)
+            case:
+                UNREACHABLE(__LOC__)
+            }
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated
             vname := expect_text(p, TokenType.Ident)
-            ref mut edd : EnumDef = get_payload(def.node_type)
-            edd.variants.push(own vname.clone())
             mut vtype := ""
             if check(p, TokenType.Colon) {
                 advance(p)
                 vtype = expect_text(p, TokenType.Ident)
             }
-            if vtype.len().gt(0) {
-                edd.payload_types.set(own variant_idx.clone(), own vtype.clone())
+            switch def.node_type {
+            case NodeType.EnumDef(edd):
+                edd.variants.push(own vname.clone())
+                if vtype.len().gt(0) {
+                    edd.payload_types.set(own variant_idx.clone(), own vtype.clone())
+                }
+            case:
+                UNREACHABLE(__LOC__)
             }
             variant_idx = variant_idx.add(1)
             if check(p, TokenType.Comma) { advance(p) }
@@ -529,8 +553,12 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
         mut arg := maybe_lift_lambda(p, own parse_expression(p))
         if is_own_arg { set_own_arg(call, call.children.len()) }
         if is_splat {
-            ref mut fcd : FCallData = get_payload(call.node_type)
-            fcd.is_splat = true
+            switch call.node_type {
+            case NodeType.FCall(fcd):
+                fcd.is_splat = true
+            case:
+                UNREACHABLE(__LOC__)
+            }
         }
         call.add_child(own arg)
         if check(p, TokenType.Comma) { advance(p) }
@@ -917,15 +945,20 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
             while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
                 mut stmt := parse_statement(p)
-                if stmt.node_type.is(NodeType.Decl) {
-                    ref dd : Declaration = get_payload(stmt.node_type)
+                switch stmt.node_type {
+                case NodeType.Decl(dd):
                     mut ns_dd := Declaration(name = dd.name.clone(), is_mut = dd.is_mut,
                         explicit_type = dd.explicit_type.clone(), own_type = dd.own_type)
                     if stmt.children.len().gt(0) {
                         ns_dd.default_value = stmt.child(0).clone()
                     }
-                    ref mut sdd : StructDef = get_payload(def.node_type)
-                    sdd.ns_decls.push(own ns_dd)
+                    switch def.node_type {
+                    case NodeType.StructDef(sdd):
+                        sdd.ns_decls.push(own ns_dd)
+                    case:
+                        UNREACHABLE(__LOC__)
+                    }
+                case:
                 }
             }
             expect_token(p, TokenType.RBrace)
@@ -1156,9 +1189,10 @@ parse_statement := proc(mut p: Parser) returns Expr {
     drain_doc_comments(p)
     mut stmt := parse_statement_body(p)
     if p.pending_doc.is_empty().not() {
-        if stmt.node_type.is(NodeType.Decl) {
-            ref mut dd : Declaration = get_payload(stmt.node_type)
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
             dd.doc = p.pending_doc.clone()
+        case:
         }
         p.pending_doc = ""
     }

@@ -108,17 +108,26 @@ namespace:
 }
 
 set_own_arg := proc(mut fcall: Expr, shallow arg_index: USize) {
-    ref mut fcd : FCallData = get_payload(fcall.node_type)
-    mut bit : U64 = 1
-    for _ in 0..arg_index { bit = bit.mul(2) }
-    fcd.own_args = fcd.own_args.or(bit)
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        mut bit : U64 = 1
+        for _ in 0..arg_index { bit = bit.mul(2) }
+        fcd.own_args = fcd.own_args.or(bit)
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }
 
 get_own_arg := func(fcall: Expr, shallow arg_index: USize) returns shallow Bool {
-    ref fcd : FCallData = get_payload(fcall.node_type)
-    mut bit : U64 = 1
-    for _ in 0..arg_index { bit = bit.mul(2) }
-    return fcd.own_args.and(bit).gt(0)
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        mut bit : U64 = 1
+        for _ in 0..arg_index { bit = bit.mul(2) }
+        return fcd.own_args.and(bit).gt(0)
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
 }
 
 StructDef : StructDef = struct {
@@ -245,12 +254,13 @@ namespace:
     }
     new := func(data: NodeType, shallow line: U32, shallow col: U32) returns Expr {
         mut out := Expr(node_type = data.clone(), line = line, col = col)
-        if out.node_type.is(NodeType.FCall) {
-            ref mut fcall_data : FCallData = get_payload(out.node_type)
+        switch out.node_type {
+        case NodeType.FCall(fcall_data):
             fcall_data.variadic_index = -1.to_i32()
             fcall_data.variadic_count = 0
             fcall_data.kwargs_index = -1.to_i32()
             fcall_data.kwargs_count = 0
+        case:
         }
         return out
     }
@@ -462,12 +472,15 @@ decl_body := func(stmt: Expr) returns ref Expr {
 
 
 def_ns_decls := func(sdef: Expr) returns ref Vec {
-    if sdef.node_type.is(NodeType.StructDef) {
-        ref sd : StructDef = get_payload(sdef.node_type)
+    switch sdef.node_type {
+    case NodeType.StructDef(sd):
         return sd.ns_decls
+    case NodeType.EnumDef(ed):
+        return ed.ns_decls
+    case:
+        UNREACHABLE(__LOC__)
+        return NULL
     }
-    ref ed : EnumDef = get_payload(sdef.node_type)
-    return ed.ns_decls
 }
 
 // --- Enum helpers ---
