@@ -133,7 +133,7 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
     for i in 0..ptypes.len() {
         ref t : Str = ptypes.get(i)
         ref m : Bool = pmuts.get(i)
-        fd.params.push(own Declaration(name = "", explicit_type = t.clone(), is_mut = m, own_type = OwnType.Ref))
+        fd.params.push(own Declaration(name = "", explicit_type = t.clone(), til_type = til_type_from_explicit_type(t), is_mut = m, own_type = OwnType.Ref))
     }
     mut sig := Expr.new(NodeType.FuncDef(fd), line, col)
 
@@ -223,6 +223,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.Colon).not() {
             // Bare type (FuncSig style): name stays "", type from pname
             param_decl.explicit_type = pname.clone()
+            param_decl.til_type = til_type_from_explicit_type(pname)
         } else {
             expect_token(p, TokenType.Colon)
             if check(p, TokenType.DotDotDot) {
@@ -241,6 +242,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 param_decl.own_type = OwnType.Own // kwargs Map is owned by callee
                 param_decl.name = pname.clone()
                 param_decl.explicit_type = "DynMap"
+                param_decl.til_type = til_type_from_explicit_type("DynMap")
             } else if check(p, TokenType.DotDot) {
                 advance(p)
                 if own_type.is(OwnType.Own) { panic(__LOC__, "variadic param cannot be 'own'") }
@@ -254,9 +256,11 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 is_variadic = true
                 param_decl.own_type = OwnType.Own // variadic Array is owned by callee
                 param_decl.explicit_type = expect_text(p, TokenType.Ident)
+                param_decl.til_type = til_type_from_explicit_type(param_decl.explicit_type)
                 param_decl.name = pname.clone()
             } else {
                 param_decl.explicit_type = expect_text(p, TokenType.Ident)
+                param_decl.til_type = til_type_from_explicit_type(param_decl.explicit_type)
                 param_decl.name = pname.clone()
             }
         }
@@ -264,7 +268,10 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         // If type is Fn, try to parse Fn(T1, T2) returns T signature
         if param_decl.explicit_type.eq("Fn") {
             syn_name := parse_fn_signature(p, peek_line(p), peek_col(p))
-            if syn_name.len().gt(0) { param_decl.explicit_type = syn_name }
+            if syn_name.len().gt(0) {
+                param_decl.explicit_type = syn_name
+                param_decl.til_type = til_type_from_explicit_type(param_decl.explicit_type)
+            }
         }
 
         // Optional default value
@@ -399,6 +406,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut ns_value := parse_expression(p)
             mut ns_dd := Declaration(name = ns_name,
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
+                til_type = til_type_from_explicit_type(ns_explicit_type),
                 default_value = ns_value)
             switch def.node_type {
             case NodeType.StructDef(sdd):
@@ -425,6 +433,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut f_value := maybe_lift_lambda(p, own parse_expression(p))
             mut f_dd := Declaration(name = f_name, is_mut = f_is_mut,
                 own_type = f_own_type, explicit_type = f_explicit_type,
+                til_type = til_type_from_explicit_type(f_explicit_type),
                 default_value = f_value)
             switch def.node_type {
             case NodeType.StructDef(sdd):
@@ -476,6 +485,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             mut ns_value := parse_expression(p)
             mut ns_dd := Declaration(name = ns_name,
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
+                til_type = til_type_from_explicit_type(ns_explicit_type),
                 default_value = ns_value)
             switch def.node_type {
             case NodeType.EnumDef(edd):
@@ -948,7 +958,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     mut ns_dd := Declaration(name = dd.name.clone(), is_mut = dd.is_mut,
-                        explicit_type = dd.explicit_type.clone(), own_type = dd.own_type)
+                        explicit_type = dd.explicit_type.clone(), til_type = dd.til_type.clone(), own_type = dd.own_type)
                     if stmt.children.len().gt(0) {
                         ns_dd.default_value = stmt.child(0).clone()
                     }
@@ -1043,7 +1053,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 mut fdef := Expr.new(NodeType.FuncDef(ffd), t_line, t_col)
                 fdef.add_child(own body)
                 // Wrap in NODE_DECL with explicit_type
-                mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), is_mut = is_mut, own_type = own_type)
+                mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), til_type = til_type_from_explicit_type(type_name), is_mut = is_mut, own_type = own_type)
                 mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
                 decl.til_type = til_type_from_explicit_type(dd.explicit_type)
                 decl.add_child(own fdef)
@@ -1051,7 +1061,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             }
         }
 
-        mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), is_mut = is_mut, own_type = own_type)
+        mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), til_type = til_type_from_explicit_type(type_name), is_mut = is_mut, own_type = own_type)
         mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
         decl.til_type = til_type_from_explicit_type(dd.explicit_type)
         decl.add_child(own maybe_lift_lambda(p, own parse_expression(p)))
@@ -1219,6 +1229,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.Colon) {
             advance(p)
             dd.explicit_type = expect_text(p, TokenType.Ident)
+            dd.til_type = til_type_from_explicit_type(dd.explicit_type)
             expect_token(p, TokenType.Eq)
         } else {
             expect_token(p, TokenType.ColonEq)

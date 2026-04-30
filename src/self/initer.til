@@ -311,7 +311,7 @@ gen_struct_clone_delete_for_stmt := proc(stmt: Expr, scope: TypeScope) {
             func_decl.func_type = FuncType.Func
             mut self_pname := "self"
             if field_names.len().eq(0) { self_pname = "_self" }
-            func_decl.params.push(own Declaration(name = self_pname, explicit_type = sname.clone(), own_type = OwnType.Ref))
+            func_decl.params.push(own Declaration(name = self_pname, explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref))
             func_decl.return_type = sname.clone()
             func_decl.variadic_index = -1.to_i32()
             func_decl.kwargs_index = -1.to_i32()
@@ -376,8 +376,8 @@ gen_struct_clone_delete_for_stmt := proc(stmt: Expr, scope: TypeScope) {
 
             mut proc_decl := FunctionDef()
             proc_decl.func_type = FuncType.Func
-            proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), own_type = OwnType.Own))
-            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", own_type = OwnType.Ref, default_value = default_true.clone()))
+            proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Own))
+            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = TilType.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
             proc_decl.variadic_index = -1.to_i32()
             proc_decl.kwargs_index = -1.to_i32()
 
@@ -463,7 +463,7 @@ generate_enum_variant_constructors := proc(enum_def: Expr, ename: Str, shallow l
             func_decl.func_type = FuncType.ExtFunc
             ref vtype : Str = variant_types.get(j)
             if vtype.len().gt(0) {
-                param := Declaration(name = "val", explicit_type = vtype.clone(), own_type = OwnType.Ref)
+                param := Declaration(name = "val", explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)
                 func_decl.params.push(own param)
             }
             func_decl.return_type = ename.clone()
@@ -497,8 +497,8 @@ generate_enum_is_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
 
     mut func_decl := FunctionDef()
     func_decl.func_type = FuncType.Func
-    self_param := Declaration(name = "self", explicit_type = ename.clone(), own_type = OwnType.Ref)
-    other_param := Declaration(name = "other", explicit_type = ename.clone(), own_type = OwnType.Ref)
+    self_param := Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref)
+    other_param := Declaration(name = "other", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref)
     func_decl.params.push(own self_param)
     func_decl.params.push(own other_param)
     func_decl.return_type = "Bool"
@@ -572,7 +572,7 @@ generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
                 mut gc1 := Expr.new(NodeType.FCall(FCallData()), line, col)
                 gc1.add_child(own gp1)
                 gc1.add_child(own self2)
-                mut sd1 := Expr.new(NodeType.Decl(Declaration(name = "_sp", explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col)
+                mut sd1 := Expr.new(NodeType.Decl(Declaration(name = "_sp", explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line, col)
                 sd1.add_child(own gc1)
                 then_body.add_child(own sd1)
 
@@ -581,7 +581,7 @@ generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
                 mut gc2 := Expr.new(NodeType.FCall(FCallData()), line, col)
                 gc2.add_child(own gp2)
                 gc2.add_child(own other2)
-                mut sd2 := Expr.new(NodeType.Decl(Declaration(name = "_op", explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col)
+                mut sd2 := Expr.new(NodeType.Decl(Declaration(name = "_op", explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line, col)
                 sd2.add_child(own gc2)
                 then_body.add_child(own sd2)
 
@@ -625,8 +625,8 @@ generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), own_type = OwnType.Ref))
-    fdecl.params.push(own Declaration(name = "other", explicit_type = ename.clone(), own_type = OwnType.Ref))
+    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
+    fdecl.params.push(own Declaration(name = "other", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
     fdecl.return_type = "Bool"
     fdecl.return_own_type = OwnType.Shallow
     fdecl.variadic_index = -1.to_i32()
@@ -710,8 +710,8 @@ generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U3
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), own_type = OwnType.Own))
-    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", own_type = OwnType.Ref, default_value = default_true.clone()))
+    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Own))
+    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = TilType.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
 
@@ -757,7 +757,7 @@ generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U3
                 mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
                 gc.add_child(own gp)
                 gc.add_child(own self2)
-                mut pd := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), own_type = OwnType.Ref)), line, col)
+                mut pd := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line, col)
                 pd.add_child(own gc)
                 then_body.add_child(own pd)
 
@@ -826,7 +826,7 @@ generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U3
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), own_type = OwnType.Ref))
+    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
     fdecl.return_type = "Str"
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
@@ -864,7 +864,7 @@ generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32
             gc.add_child(own gp)
             gc.add_child(own self_g)
 
-            mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), own_type = OwnType.Ref)), line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line.to_i64().to_u32(), col.to_i64().to_u32())
             decl_expr.add_child(own gc)
             pd = decl_expr
             has_pd = true
@@ -929,7 +929,7 @@ generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32
 
     mut fdecl := FunctionDef()
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), own_type = OwnType.Ref))
+    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
     fdecl.return_type = ename.clone()
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
@@ -1210,12 +1210,14 @@ register_function_def_for_stmt := proc(stmt: Expr, scope: TypeScope) {
                                     ref mut dp : Declaration = fdef.params.get(j)
                                     ref sp : Declaration = sigdef.params.get(j)
                                     dp.explicit_type = sp.explicit_type
+                                    dp.til_type = sp.til_type.clone()
                                     dp.is_mut = sp.is_mut
                                     dp.own_type = sp.own_type
                                 }
                                 fdef.return_type = sigdef.return_type
                                 fdef.return_own_type = sigdef.return_own_type
                                 sdecl.explicit_type = ""
+                                sdecl.til_type = TilType.Unknown
                             case:
                                 UNREACHABLE(__LOC__)
                             }
@@ -1434,7 +1436,7 @@ gen_unity_derived_for_stmt := proc(stmt: Expr) {
 
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
-        param := Declaration(name = "self", explicit_type = sname.clone(), is_mut = true, own_type = OwnType.Ref)
+        param := Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), is_mut = true, own_type = OwnType.Ref)
         func_decl.params.push(own param)
         func_decl.variadic_index = -1.to_i32()
         func_decl.kwargs_index = -1.to_i32()
@@ -1518,8 +1520,8 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
+        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1564,8 +1566,8 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
+        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1604,8 +1606,8 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
+        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1642,8 +1644,8 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
+        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1680,8 +1682,8 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
+        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1718,8 +1720,8 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef()
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), own_type = OwnType.Ref)
+        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1780,7 +1782,10 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                                 }
                             }
                         }
-                        if ftype.len().gt(0) { fd.explicit_type = ftype }
+                        if ftype.len().gt(0) {
+                            fd.explicit_type = ftype
+                            fd.til_type = til_type_from_explicit_type(fd.explicit_type)
+                        }
                     }
                 }
 
@@ -1829,7 +1834,10 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                                 }
                             }
                         }
-                        if ftype.len().gt(0) { fd.explicit_type = ftype }
+                        if ftype.len().gt(0) {
+                            fd.explicit_type = ftype
+                            fd.til_type = til_type_from_explicit_type(fd.explicit_type)
+                        }
                     }
                 }
 
@@ -1839,6 +1847,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                         if is_null(ab.alias_target).not() {
                             ftype = ab.alias_target
                             fd.explicit_type = ftype
+                            fd.til_type = til_type_from_explicit_type(fd.explicit_type)
                         }
                     }
                 }
