@@ -536,24 +536,29 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
         ffi_type_cache = Vec.new("FFITypePtrBox", FFITypePtrBox.size())
         ffi_type_cache_inited = true
     }
-    ref bsf_sdd : StructDef = get_payload(struct_def.node_type)
-    nfields := bsf_sdd.fields.len()
-    elements : Dynamic = malloc(nfields.add(1).to_u64().mul(Dynamic.size().to_u64()))
-    for i in 0..nfields {
-        ref fd : Declaration = bsf_sdd.fields.get(i)
-        ref ft : ffi_type = field_ffi_type(fd)
-        memcpy(ptr_add(elements, i.to_u64().mul(Dynamic.size().to_u64())), ft, Dynamic.size().to_u64())
+    switch struct_def.node_type {
+    case NodeType.StructDef(bsf_sdd):
+        nfields := bsf_sdd.fields.len()
+        elements : Dynamic = malloc(nfields.add(1).to_u64().mul(Dynamic.size().to_u64()))
+        for i in 0..nfields {
+            ref fd : Declaration = bsf_sdd.fields.get(i)
+            ref ft : ffi_type = field_ffi_type(fd)
+            memcpy(ptr_add(elements, i.to_u64().mul(Dynamic.size().to_u64())), ft, Dynamic.size().to_u64())
+        }
+        memset(ptr_add(elements, nfields.to_u64().mul(Dynamic.size().to_u64())), 0, Dynamic.size().to_u64())
+        st : Dynamic = malloc(ffi_type.size().to_u64())
+        ref mut stp : ffi_type = to_ptr(st)
+        stp.size = 0
+        stp.alignment = 0.to_i16()
+        stp.type = FFI_TYPE_STRUCT
+        stp.elements = elements
+        box := FFITypePtrBox(ptr = stp)
+        ffi_type_cache.push(own box)
+        return stp
+    case:
+        UNREACHABLE(__LOC__)
+        return NULL
     }
-    memset(ptr_add(elements, nfields.to_u64().mul(Dynamic.size().to_u64())), 0, Dynamic.size().to_u64())
-    st : Dynamic = malloc(ffi_type.size().to_u64())
-    ref mut stp : ffi_type = to_ptr(st)
-    stp.size = 0
-    stp.alignment = 0.to_i16()
-    stp.type = FFI_TYPE_STRUCT
-    stp.elements = elements
-    box := FFITypePtrBox(ptr = stp)
-    ffi_type_cache.push(own box)
-    return stp
 }
 
 h_free := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
@@ -1059,63 +1064,67 @@ ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     return ext_dispatch_ffi(name, scope, e, result)
 }
 ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
-    ref fd : FunctionDef = get_payload(fdef.node_type)
-    np := fd.params.len()
-    mut alloc_np := np
-    if alloc_np.eq(0) { alloc_np = 1 }
-    // Build ffi_type* array (each element is a pointer = 8 bytes)
-    atypes : Dynamic = malloc(alloc_np.to_u64().mul(8))
-    ref mut pshallows : Dynamic = NULL
-    mut has_shallow := false
-    for k in 0..np {
-        ref pk : Declaration = fd.params.get(k)
-        if pk.own_type.is(OwnType.Shallow) {
-            write_ptr(ptr_add(atypes, k.to_u64().mul(8)), shallow_ffi_type(pk.explicit_type))
-            has_shallow = true
-        } else {
-            write_ptr(ptr_add(atypes, k.to_u64().mul(8)), ffi_type_pointer_ref())
-        }
-    }
-    if has_shallow {
-        pshallows = malloc(np.to_u64())
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        np := fd.params.len()
+        mut alloc_np := np
+        if alloc_np.eq(0) { alloc_np = 1 }
+        // Build ffi_type* array (each element is a pointer = 8 bytes)
+        atypes : Dynamic = malloc(alloc_np.to_u64().mul(8))
+        ref mut pshallows : Dynamic = NULL
+        mut has_shallow := false
         for k in 0..np {
             ref pk : Declaration = fd.params.get(k)
-            ref mut slot : Bool = ptr_add(pshallows, k.to_u64())
-            slot = pk.own_type.is(OwnType.Shallow)
+            if pk.own_type.is(OwnType.Shallow) {
+                write_ptr(ptr_add(atypes, k.to_u64().mul(8)), shallow_ffi_type(pk.explicit_type))
+                has_shallow = true
+            } else {
+                write_ptr(ptr_add(atypes, k.to_u64().mul(8)), ffi_type_pointer_ref())
+            }
         }
-    }
-    ret_shallow := fd.return_own_type.is(OwnType.Shallow)
-    cif : Dynamic = ffi_alloc_cif()
-
-    // Build FFIEntry
-    mut entry := FFIEntry()
-    entry.fn = fn
-    if fd.return_type.len().gt(0) { entry.return_type = fd.return_type }
-    entry.nparam = np.to_i64().to_i32()
-    entry.param_shallows = pshallows
-    entry.return_is_shallow = ret_shallow
-    entry.cif = cif
-    entry.arg_types = atypes
-
-    // Resolve return ffi_type
-    ref mut rtype : Dynamic = ffi_type_void_ref()
-    if is_null(entry.return_type).not() {
-        if ret_shallow {
-            rtype = to_ptr(shallow_ffi_type(entry.return_type))
-        } else {
-            rtype = to_ptr(ffi_type_pointer_ref())
+        if has_shallow {
+            pshallows = malloc(np.to_u64())
+            for k in 0..np {
+                ref pk : Declaration = fd.params.get(k)
+                ref mut slot : Bool = ptr_add(pshallows, k.to_u64())
+                slot = pk.own_type.is(OwnType.Shallow)
+            }
         }
-    }
-    ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np, rtype, entry.arg_types)
+        ret_shallow := fd.return_own_type.is(OwnType.Shallow)
+        cif : Dynamic = ffi_alloc_cif()
 
-    // Store in ffi_map (CAP_VIEW key to avoid freeing AST string)
-    key : Dynamic = malloc(Str.size().to_u64())
-    memcpy(key, name, Str.size().to_u64())
-    memcpy(ptr_add(key, 12), CAP_VIEW, U32.size().to_u64())
-    val : Dynamic = malloc(FFIEntry.size().to_u64())
-    memcpy(val, entry, FFIEntry.size().to_u64())
-    memset(entry, 0, FFIEntry.size())
-    ffi_map.set(own key, own val)
+        // Build FFIEntry
+        mut entry := FFIEntry()
+        entry.fn = fn
+        if fd.return_type.len().gt(0) { entry.return_type = fd.return_type }
+        entry.nparam = np.to_i64().to_i32()
+        entry.param_shallows = pshallows
+        entry.return_is_shallow = ret_shallow
+        entry.cif = cif
+        entry.arg_types = atypes
+
+        // Resolve return ffi_type
+        ref mut rtype : Dynamic = ffi_type_void_ref()
+        if is_null(entry.return_type).not() {
+            if ret_shallow {
+                rtype = to_ptr(shallow_ffi_type(entry.return_type))
+            } else {
+                rtype = to_ptr(ffi_type_pointer_ref())
+            }
+        }
+        ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np, rtype, entry.arg_types)
+
+        // Store in ffi_map (CAP_VIEW key to avoid freeing AST string)
+        key : Dynamic = malloc(Str.size().to_u64())
+        memcpy(key, name, Str.size().to_u64())
+        memcpy(ptr_add(key, 12), CAP_VIEW, U32.size().to_u64())
+        val : Dynamic = malloc(FFIEntry.size().to_u64())
+        memcpy(val, entry, FFIEntry.size().to_u64())
+        memset(entry, 0, FFIEntry.size())
+        ffi_map.set(own key, own val)
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }
 
 ffi_init_scan_program := proc(program: Expr) {
