@@ -172,9 +172,6 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
 }
 
 register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
-    if stmt.node_type.is(NodeType.Decl).not() { return 0.to_i32() }
-    if stmt.child(0).node_type.is(NodeType.StructDef).not() { return 0.to_i32() }
-
     ref sdecl : Declaration = get_payload(stmt.node_type)
     sname := sdecl.name
 
@@ -214,18 +211,7 @@ register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shall
     return 0.to_i32()
 }
 
-register_struct_definitions := proc(program: Expr, scope: TypeScope) returns shallow I32 {
-    mut errors : I32 = 0
-    for stmt : Expr in program.children {
-        errors = errors.add(register_struct_def_for_stmt(stmt, scope))
-    }
-    return errors
-}
-
 gen_struct_clone_delete_for_stmt := proc(stmt: Expr, scope: TypeScope) {
-    if stmt.node_type.is(NodeType.Decl).not() { return }
-    if stmt.child(0).node_type.is(NodeType.StructDef).not() { return }
-
     ref sdecl : Declaration = get_payload(stmt.node_type)
     sname := sdecl.name
     if sname.eq("Dynamic") { return }
@@ -901,15 +887,10 @@ generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32
 }
 
 register_enum_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
-    if stmt.node_type.is(NodeType.Decl).not() { return 0.to_i32() }
-    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return 0.to_i32() }
     return register_enum_definition(stmt, scope)
 }
 
 gen_enum_nonclone_methods_for_stmt := proc(stmt: Expr, scope: TypeScope) {
-    if stmt.node_type.is(NodeType.Decl).not() { return }
-    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
-
     ref edecl : Declaration = get_payload(stmt.node_type)
     ename := edecl.name
     line := stmt.line
@@ -951,25 +932,7 @@ gen_enum_nonclone_methods_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     Vec.delete(own variant_types, false)
 }
 
-register_enum_and_gen_nonclone_methods_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
-    reg_errors := register_enum_def_for_stmt(stmt, scope)
-    if reg_errors.gt(0) { return reg_errors }
-    gen_enum_nonclone_methods_for_stmt(stmt, scope)
-    return 0.to_i32()
-}
-
-register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeScope) returns shallow I32 {
-    mut errors : I32 = 0
-    for stmt : Expr in program.children {
-        errors = errors.add(register_enum_and_gen_nonclone_methods_for_stmt(stmt, scope))
-    }
-    return errors
-}
-
 gen_missing_enum_clone_for_stmt := proc(stmt: Expr) {
-    if stmt.node_type.is(NodeType.Decl).not() { return }
-    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
-
     ref edecl : Declaration = get_payload(stmt.node_type)
     ename := edecl.name
     line := stmt.line
@@ -994,31 +957,15 @@ gen_missing_enum_clone_for_stmt := proc(stmt: Expr) {
     }
 }
 
-generate_missing_enum_clones := proc(program: Expr) {
-    for stmt : Expr in program.children {
-        gen_missing_enum_clone_for_stmt(stmt)
-    }
-}
-
 register_funcsig_alias_for_stmt := proc(stmt: Expr, scope: TypeScope) {
-    if is_func_decl(stmt).not() { return }
-    if stmt.child(0).children.len().neq(0) { return }
     ref sdecl : Declaration = get_payload(stmt.node_type)
     scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
     ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
     fb.func_def = stmt.child(0)
 }
 
-register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        register_funcsig_alias_for_stmt(stmt, scope)
-    }
-}
-
 register_type_alias_for_stmt := proc(stmt: Expr, scope: TypeScope) {
-    if stmt.node_type.is(NodeType.Decl).not() { return }
     ref rhs : Expr = stmt.child(0)
-    if rhs.node_type.is(NodeType.Ident).not() { return }
     ref target_name : Str = get_payload(rhs.node_type)
     find := scope.find(target_name)
     if find.is(ScopeFind.Found).not() { return }
@@ -1047,28 +994,7 @@ register_type_alias_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     }
 }
 
-register_type_aliases := proc(program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        register_type_alias_for_stmt(stmt, scope)
-    }
-}
-
 register_top_level_value_for_stmt := proc(stmt: Expr, scope: TypeScope) {
-    if stmt.node_type.is(NodeType.Decl).not() { return }
-    ref rhs : Expr = stmt.child(0)
-    if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
-        return
-    }
-    if rhs.node_type.is(NodeType.Ident) {
-        ref sdecl0 : Declaration = get_payload(stmt.node_type)
-        if sdecl0.explicit_type.len().eq(0) {
-            ref rhs_name : Str = get_payload(rhs.node_type)
-            if type_from_name_init(rhs_name, scope).eq(TilType.Unknown).not() {
-                return
-            }
-        }
-    }
-
     mut t := TilType.Unknown
     if infer_top_level_decl_type(stmt, scope, t).not() { return }
     if t.eq(TilType.Unknown) { return }
@@ -1077,25 +1003,9 @@ register_top_level_value_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
 }
 
-register_top_level_values := proc(program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        register_top_level_value_for_stmt(stmt, scope)
-    }
-}
-
 register_function_def_for_stmt := proc(stmt: Expr, scope: TypeScope) {
-    if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
-    if def.node_type.is(NodeType.FuncDef).not() { return }
-
     ref sdecl : Declaration = get_payload(stmt.node_type)
-
-    if def.children.len().eq(0) {
-        scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
-        ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
-        fb.func_def = stmt.child(0)
-        return
-    }
 
     if sdecl.explicit_type.len().gt(0) {
         fs_find := scope.find(sdecl.explicit_type)
@@ -1147,17 +1057,8 @@ register_function_def_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     }
 }
 
-register_function_definitions := proc(program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        register_function_def_for_stmt(stmt, scope)
-    }
-}
-
 gen_struct_size_method_for_stmt := proc(stmt: Expr) {
-    if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
-    if def.node_type.is(NodeType.StructDef).not() { return }
-
     ref sdecl : Declaration = get_payload(stmt.node_type)
     sname := sdecl.name
     if sname.eq("Dynamic") { return }
@@ -1194,17 +1095,8 @@ gen_struct_size_method_for_stmt := proc(stmt: Expr) {
     sz_sdd.ns_decls.push(own Declaration(name = "size", default_value = func_def))
 }
 
-generate_struct_size_methods := proc(program: Expr) {
-    for stmt : Expr in program.children {
-        gen_struct_size_method_for_stmt(stmt)
-    }
-}
-
 gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope) {
-    if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
-    if def.node_type.is(NodeType.EnumDef).not() { return }
-
     ref sdecl : Declaration = get_payload(stmt.node_type)
     sname := sdecl.name
     if sname.eq("Dynamic") { return }
@@ -1241,16 +1133,8 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     esz_edd.ns_decls.push(own Declaration(name = "size", default_value = func_def))
 }
 
-generate_enum_size_methods := proc(program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        gen_enum_size_method_for_stmt(stmt, scope)
-    }
-}
-
 gen_unity_derived_for_stmt := proc(stmt: Expr) {
-    if is_struct_or_enum(stmt).not() { return }
     ref def : Expr = stmt.child(0)
-
     ref sdecl : Declaration = get_payload(stmt.node_type)
     sname := sdecl.name
     if sname.eq("Dynamic") { return }
@@ -1325,21 +1209,8 @@ gen_unity_derived_for_stmt := proc(stmt: Expr) {
     }
 }
 
-generate_unity_derived_methods := proc(program: Expr) {
-    for stmt : Expr in program.children {
-        gen_unity_derived_for_stmt(stmt)
-    }
-}
-
-generate_size_methods := proc(program: Expr, scope: TypeScope) {
-    generate_struct_size_methods(program)
-    generate_enum_size_methods(program, scope)
-}
-
 gen_cmp_derived_for_stmt := proc(stmt: Expr) {
-    if is_struct_or_enum(stmt).not() { return }
     ref def : Expr = stmt.child(0)
-
     ref sdecl : Declaration = get_payload(stmt.node_type)
     sname := sdecl.name
     if sname.eq("Dynamic") { return }
@@ -1599,17 +1470,6 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
     }
 }
 
-generate_cmp_derived_methods := proc(program: Expr) {
-    for stmt : Expr in program.children {
-        gen_cmp_derived_for_stmt(stmt)
-    }
-}
-
-generate_derived_methods := proc(program: Expr) {
-    generate_cmp_derived_methods(program)
-    generate_unity_derived_methods(program)
-}
-
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     ref mut struct_meta : StructDef = get_payload(struct_def.node_type)
     if struct_meta.total_struct_size.gt(0) { return }
@@ -1796,22 +1656,6 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns shallow I3
     total = align_up(total, max_payload_align)
     edd.total_enum_size = total
     return total
-}
-
-compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
-        ref _sd : Declaration = get_payload(stmt.node_type)
-        sname := _sd.name
-        if sname.eq("Dynamic") { continue }
-        compute_struct_layout(stmt.child(0), scope)
-    }
-    for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
-        compute_enum_layout(stmt.child(0), scope)
-    }
 }
 
 // Re-resolve field_struct_def pointers after hoisting (cloning) invalidates them.
