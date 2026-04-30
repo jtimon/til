@@ -87,7 +87,16 @@ Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
 - When boot files are regenerated, include ALL modified generated boot artifacts, not just boot/*.c.
   This includes boot/*.c, boot/*.h, boot/*_forward.h, and any other changed files under boot/.
 - Local agents: include doc/totals.csv and img/totals.svg in commits
-- Remote agents (GitHub Actions, Codex, etc.): do NOT include doc/totals.csv or img/totals.svg
+- Remote agents (GitHub Actions, Codex, etc.): do NOT include doc/totals.csv
+  or img/totals.svg. After `make test` regenerates them, DISCARD the changes
+  before committing -- either form is fine:
+      git checkout HEAD -- doc/totals.csv img/totals.svg
+      git restore        doc/totals.csv img/totals.svg
+  This is an explicit exception to the "no destructive git commands" rule
+  below: totals files are auto-generated and safe to discard in remote
+  sessions. Both files must be discarded together (never just one).
+  Leaving them dirty is not acceptable -- the working tree must be clean
+  after the commit, otherwise the stop hook will block the session.
 - Use `make test` before every commit (skip when only documentation changed)
 - Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
@@ -117,7 +126,9 @@ to accept whatever master has for them. The full procedure is:
 6. `make clean && make test`
 7. `git add -A && git commit ...` with regenerated files included:
    boot/* always; doc/totals.csv and img/totals.svg only on local
-   agents (remote agents must leave totals uncommitted).
+   agents. Remote agents must discard totals before committing
+   (`git restore doc/totals.csv img/totals.svg`) -- see the Commits
+   section above.
 8. `git push -u origin <branch>` (force-push only if the user explicitly
    authorized it; otherwise ask first).
 

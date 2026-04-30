@@ -453,16 +453,16 @@ type_name_to_c_value := func(name: Str) returns Str {
 }
 
 emit_u64 := proc(f: File, shallow v: U64) {
-    f.write_str(v.to_i64().to_str())
+    f.write(v.to_i64().to_str())
 }
 
 emit_i32 := proc(f: File, shallow v: I32) {
-    f.write_str(v.to_i64().to_str())
+    f.write(v.to_i64().to_str())
 }
 
 emit_indent := proc(f: File, shallow depth: I32) {
     for _ : I32 in 0..depth {
-        f.write_str("    ")
+        f.write("    ")
     }
 }
 
@@ -470,21 +470,21 @@ emit_til_default := proc(f: File, shallow t: TilType) {
     if t.eq(TilType.I64).or(t.eq(TilType.I16)).or(t.eq(TilType.I32))
     .or(t.eq(TilType.U32)).or(t.eq(TilType.U64)).or(t.eq(TilType.F32))
     .or(t.eq(TilType.U8)) {
-        f.write_str("0")
+        f.write("0")
     } else if t.eq(TilType.Bool) {
-        f.write_str("false")
+        f.write("false")
     } else if t.is(TilType.Struct).or(t.is(TilType.Enum)) {
         name := til_type_name(t)
         if name.eq("Str") {
-            f.write_str("\"\"")
+            f.write("\"\"")
         } else if name.len().gt(0) {
-            f.write_str(name)
-            f.write_str("()")
+            f.write(name)
+            f.write("()")
         } else {
-            f.write_str("0")
+            f.write("0")
         }
     } else {
-        f.write_str("0")
+        f.write("0")
     }
 }
 
@@ -505,18 +505,18 @@ param_ctype := func(fd: FunctionDef, shallow i: USize) returns Str {
 emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool) {
     ref fd : FunctionDef = get_payload(fdef.node_type)
     if fd.params.len().eq(0) {
-        f.write_str("void")
+        f.write("void")
     } else {
         for i in 0..fd.params.len() {
-            if i.gt(0) { f.write_str(", ") }
+            if i.gt(0) { f.write(", ") }
             ptype := param_ctype(fd, i)
             if with_names {
                 ref p : Declaration = fd.params.get(i)
-                f.write_str(ptype)
-                f.write_str(" ")
-                f.write_str(p.name)
+                f.write(ptype)
+                f.write(" ")
+                f.write(p.name)
             } else {
-                f.write_str(ptype)
+                f.write(ptype)
             }
         }
     }
@@ -610,13 +610,13 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
 }
 
 emit_field := proc(f: File, var: Str, field: Str) {
-    f.write_str(var)
+    f.write(var)
     if is_stack_local(var).or(is_value_global(var)) {
-        f.write_str(".")
+        f.write(".")
     } else {
-        f.write_str("->")
+        f.write("->")
     }
-    f.write_str(field)
+    f.write(field)
 }
 
 get_stack_local_ctype := func(name: Str) returns ref Str {
@@ -789,16 +789,16 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                 is_typedef = true
             }
         }
-        if is_typedef { f.write_str(ct); f.write_str(" "); f.write_str(dd.name); f.write_str(" = ") }
-        else { f.write_str(ct); f.write_str(dd.name); f.write_str(" = ") }
-        emit_expr(f, rhs, depth); f.write_str(";\n")
-        emit_indent(f, depth); f.write_str("(void)"); f.write_str(dd.name); f.write_str(";\n")
+        if is_typedef { f.write(ct); f.write(" "); f.write(dd.name); f.write(" = ") }
+        else { f.write(ct); f.write(dd.name); f.write(" = ") }
+        emit_expr(f, rhs, depth); f.write(";\n")
+        emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
     } else if rhs.node_type.is(NodeType.FuncDef) {
-        f.write_str("/* TODO: nested func "); f.write_str(dd.name); f.write_str(" */\n")
+        f.write("/* TODO: nested func "); f.write(dd.name); f.write(" */\n")
     } else if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-        f.write_str("/* ")
-        if rhs.node_type.is(NodeType.EnumDef) { f.write_str("enum") } else { f.write_str("struct") }
-        f.write_str(" "); f.write_str(dd.name); f.write_str(" defined above */\n")
+        f.write("/* ")
+        if rhs.node_type.is(NodeType.EnumDef) { f.write("enum") } else { f.write("struct") }
+        f.write(" "); f.write(dd.name); f.write(" defined above */\n")
     } else if e.til_type.eq(TilType.None).and(rhs.node_type.is(NodeType.Ident)) {
         // Type alias -- no-op
     } else {
@@ -806,16 +806,16 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
             is_rg := is_ref_global(dd.name).and(in_func_def.not())
             if is_rg.not() { ref_locals.add(own dd.name.clone()) }
             ctype := resolve_decl_ctype(e.til_type, rhs.til_type, dd.explicit_type)
-            if is_rg { f.write_str(dd.name); f.write_str(" = ") }
-            else { f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(" = ") }
-            emit_as_ptr(f, rhs, depth, false); f.write_str(";\n")
+            if is_rg { f.write(dd.name); f.write(" = ") }
+            else { f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ") }
+            emit_as_ptr(f, rhs, depth, false); f.write(";\n")
         } else {
             ctype := resolve_decl_ctype(e.til_type, rhs.til_type, dd.explicit_type)
             is_global := is_value_global(dd.name).and(in_func_def.not())
             if e.til_type.eq(TilType.Dynamic) {
-                if is_global { f.write_str(dd.name); f.write_str(" = ") }
-                else { tc := til_type_to_c(e.til_type); f.write_str(tc); f.write_str(" "); f.write_str(dd.name); f.write_str(" = ") }
-                emit_deref(f, rhs, depth); f.write_str(";\n")
+                if is_global { f.write(dd.name); f.write(" = ") }
+                else { tc := til_type_to_c(e.til_type); f.write(tc); f.write(" "); f.write(dd.name); f.write(" = ") }
+                emit_deref(f, rhs, depth); f.write(";\n")
             } else {
                 can_hoist := is_global.not().and(dd.own_type.eq(OwnType.Own).not())
                 .and(e.til_type.eq(TilType.FuncPtr).not()).and(e.til_type.eq(TilType.Dynamic).not())
@@ -831,24 +831,24 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                 }
                 if is_ctor {
                     if is_global {
-                        f.write_str("memset(&"); f.write_str(dd.name); f.write_str(", 0, sizeof("); f.write_str(ctype); f.write_str("));\n")
+                        f.write("memset(&"); f.write(dd.name); f.write(", 0, sizeof("); f.write(ctype); f.write("));\n")
                     } else {
-                        f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(" = malloc(sizeof("); f.write_str(ctype); f.write_str("));\n")
+                        f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = malloc(sizeof("); f.write(ctype); f.write("));\n")
                     }
                     emit_ctor_fields(f, dd.name, rhs, depth)
                 } else if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is(NodeType.LiteralStr))
                 .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(rhs.til_type.is(TilType.Enum))) {
                     if is_global {
                         if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
-                            f.write_str(dd.name); f.write_str(" = "); emit_expr(f, rhs, depth); f.write_str(";\n")
+                            f.write(dd.name); f.write(" = "); emit_expr(f, rhs, depth); f.write(";\n")
                         } else if rhs.node_type.is(NodeType.FCall) {
                             mut htype := fcall_return_ctype(rhs)
                             if htype.len().eq(0) { htype = ctype.clone() }
-                            f.write_str("{ "); f.write_str(htype); f.write_str(" *_hp = ("); f.write_str(htype); f.write_str(" *)")
+                            f.write("{ "); f.write(htype); f.write(" *_hp = ("); f.write(htype); f.write(" *)")
                             emit_expr(f, rhs, depth)
-                            f.write_str("; "); f.write_str(dd.name); f.write_str(" = *_hp; free(_hp); }\n")
+                            f.write("; "); f.write(dd.name); f.write(" = *_hp; free(_hp); }\n")
                         } else {
-                            f.write_str(dd.name); f.write_str(" = "); emit_deref(f, rhs, depth); f.write_str(";\n")
+                            f.write(dd.name); f.write(" = "); emit_deref(f, rhs, depth); f.write(";\n")
                         }
                     } else if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
                         // Shallow returns are by-value -- always stack-alloc.
@@ -856,46 +856,46 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                         // typer doesn't track these for delete).
                         mut htype := fcall_return_ctype(rhs)
                         if htype.len().eq(0) { htype = ctype.clone() }
-                        f.write_str(htype); f.write_str(" "); f.write_str(dd.name); f.write_str(" = ")
-                        emit_expr(f, rhs, depth); f.write_str(";\n")
+                        f.write(htype); f.write(" "); f.write(dd.name); f.write(" = ")
+                        emit_expr(f, rhs, depth); f.write(";\n")
                         stack_locals.add(own dd.name.clone())
                         stack_local_types.set(own dd.name.clone(), own htype.clone())
                     } else if can_hoist.and(rhs.node_type.is(NodeType.FCall)) {
                         mut htype := fcall_return_ctype(rhs)
                         if htype.len().eq(0) { htype = ctype.clone() }
-                        f.write_str(htype); f.write_str(" "); f.write_str(dd.name); f.write_str("; { "); f.write_str(htype); f.write_str(" *_hp = ("); f.write_str(htype); f.write_str(" *)")
+                        f.write(htype); f.write(" "); f.write(dd.name); f.write("; { "); f.write(htype); f.write(" *_hp = ("); f.write(htype); f.write(" *)")
                         emit_expr(f, rhs, depth)
-                        f.write_str("; "); f.write_str(dd.name); f.write_str(" = *_hp; free(_hp); }\n")
+                        f.write("; "); f.write(dd.name); f.write(" = *_hp; free(_hp); }\n")
                         stack_locals.add(own dd.name.clone())
                         stack_local_types.set(own dd.name.clone(), own htype.clone())
                     } else if can_hoist {
-                        f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str("; { "); f.write_str(ctype); f.write_str(" *_hp = ("); f.write_str(ctype); f.write_str(" *)")
+                        f.write(ctype); f.write(" "); f.write(dd.name); f.write("; { "); f.write(ctype); f.write(" *_hp = ("); f.write(ctype); f.write(" *)")
                         emit_expr(f, rhs, depth)
-                        f.write_str("; "); f.write_str(dd.name); f.write_str(" = *_hp; free(_hp); }\n")
+                        f.write("; "); f.write(dd.name); f.write(" = *_hp; free(_hp); }\n")
                         stack_locals.add(own dd.name.clone())
                         stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
-                        if is_global { f.write_str(dd.name); f.write_str(" = ") }
-                        else { f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(" = ") }
-                        emit_expr(f, rhs, depth); f.write_str(";\n")
+                        if is_global { f.write(dd.name); f.write(" = ") }
+                        else { f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ") }
+                        emit_expr(f, rhs, depth); f.write(";\n")
                     }
                 } else {
                     if is_global {
-                        f.write_str(dd.name); f.write_str(" = "); emit_deref(f, rhs, depth); f.write_str(";\n")
+                        f.write(dd.name); f.write(" = "); emit_deref(f, rhs, depth); f.write(";\n")
                     } else if can_hoist {
-                        f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str(" = ")
-                        emit_deref(f, rhs, depth); f.write_str(";\n")
+                        f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = ")
+                        emit_deref(f, rhs, depth); f.write(";\n")
                         stack_locals.add(own dd.name.clone())
                         stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
-                        f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(" = malloc(sizeof("); f.write_str(ctype); f.write_str("));\n")
+                        f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = malloc(sizeof("); f.write(ctype); f.write("));\n")
                         emit_indent(f, depth)
-                        f.write_str("*"); f.write_str(dd.name); f.write_str(" = "); emit_deref(f, rhs, depth); f.write_str(";\n")
+                        f.write("*"); f.write(dd.name); f.write(" = "); emit_deref(f, rhs, depth); f.write(";\n")
                     }
                 }
             }
         }
-        emit_indent(f, depth); f.write_str("(void)"); f.write_str(dd.name); f.write_str(";\n")
+        emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
     }
 }
 emit_return_ctype := func(rv: Expr) returns Str {
@@ -908,15 +908,15 @@ emit_return_ctype := func(rv: Expr) returns Str {
 
 emit_return_box := proc(f: File, rv: Expr, shallow depth: I32) {
     ctype := emit_return_ctype(rv)
-    f.write_str("{ "); f.write_str(ctype); f.write_str(" *_r = malloc(sizeof("); f.write_str(ctype); f.write_str(")); *_r = ")
+    f.write("{ "); f.write(ctype); f.write(" *_r = malloc(sizeof("); f.write(ctype); f.write(")); *_r = ")
     emit_expr(f, rv, depth)
-    f.write_str("; return _r; }\n")
+    f.write("; return _r; }\n")
 }
 
 emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
     if e.children.len().eq(0) {
-        if in_main_func { f.write_str("return 0;\n") }
-        else { f.write_str("return;\n") }
+        if in_main_func { f.write("return 0;\n") }
+        else { f.write("return;\n") }
     } else {
         ref rv : Expr = e.child(0)
         // Struct constructor return
@@ -926,9 +926,9 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
                 ref ci : Str = get_payload(rv.child(0).node_type)
                 if ci.eq(rv_sname) {
                     ctype := c_type_name(rv.til_type, rv_sname)
-                    f.write_str("{ "); f.write_str(ctype); f.write_str(" *_r = malloc(sizeof("); f.write_str(ctype); f.write_str("));\n")
+                    f.write("{ "); f.write(ctype); f.write(" *_r = malloc(sizeof("); f.write(ctype); f.write("));\n")
                     emit_ctor_fields(f, "_r", rv, depth)
-                    emit_indent(f, depth); f.write_str("return _r; }\n")
+                    emit_indent(f, depth); f.write("return _r; }\n")
                     return
                 }
             }
@@ -937,13 +937,13 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
         if is_null(current_fdef).not() {
             ref fd : FunctionDef = get_payload(current_fdef.node_type)
             if fd.return_own_type.is(OwnType.Ref) {
-                f.write_str("return "); emit_as_ptr(f, rv, depth, false); f.write_str(";\n"); return
+                f.write("return "); emit_as_ptr(f, rv, depth, false); f.write(";\n"); return
             }
             if fd.return_own_type.is(OwnType.Shallow) {
-                f.write_str("return ")
+                f.write("return ")
                 if rv.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rv)) { emit_expr(f, rv, depth) }
                 else { emit_deref(f, rv, depth) }
-                f.write_str(";\n"); return
+                f.write(";\n"); return
             }
         }
         // Inline field value: box for return
@@ -964,20 +964,20 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
             if is_stack_local(rv_name).or(is_value_global(rv_name)) {
                 if is_shallow_ret.not() {
                     ctype := emit_return_ctype(rv)
-                    f.write_str("{ "); f.write_str(ctype); f.write_str(" *_r = malloc(sizeof("); f.write_str(ctype); f.write_str(")); *_r = "); f.write_str(rv_name); f.write_str("; return _r; }\n")
+                    f.write("{ "); f.write(ctype); f.write(" *_r = malloc(sizeof("); f.write(ctype); f.write(")); *_r = "); f.write(rv_name); f.write("; return _r; }\n")
                 } else {
-                    f.write_str("return "); emit_expr(f, rv, depth); f.write_str(";\n")
+                    f.write("return "); emit_expr(f, rv, depth); f.write(";\n")
                 }
             } else {
-                f.write_str("return "); emit_expr(f, rv, depth); f.write_str(";\n")
+                f.write("return "); emit_expr(f, rv, depth); f.write(";\n")
             }
             // Bare enum variant ref: heap-allocate
         } else if rv.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rv)).and(rv.til_type.is(TilType.Enum)) {
             sn := til_type_name(rv.child(0).til_type)
             ref vname : Str = get_payload(rv.node_type)
-            f.write_str("{ "); f.write_str(sn); f.write_str(" *_r = malloc(sizeof("); f.write_str(sn); f.write_str(")); _r->tag = "); f.write_str(sn); f.write_str("_TAG_"); f.write_str(vname); f.write_str("; return _r; }\n")
+            f.write("{ "); f.write(sn); f.write(" *_r = malloc(sizeof("); f.write(sn); f.write(")); _r->tag = "); f.write(sn); f.write("_TAG_"); f.write(vname); f.write("; return _r; }\n")
         } else {
-            f.write_str("return "); emit_expr(f, rv, depth); f.write_str(";\n")
+            f.write("return "); emit_expr(f, rv, depth); f.write(";\n")
         }
     }
 }
@@ -999,54 +999,54 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
             case:
             }
             if do_rebind {
-                f.write_str(aname); f.write_str(" = ")
+                f.write(aname); f.write(" = ")
                 emit_as_ptr(f, rhs, depth, false)
-                f.write_str(";\n"); return
+                f.write(";\n"); return
             }
         }
         if ad.save_old_delete {
             ctype := c_type_name(e.til_type, til_type_name(e.til_type))
             if is_stack_local(aname).or(is_value_global(aname)) {
-                f.write_str("{ "); f.write_str(ctype); f.write_str(" *_new = ("); f.write_str(ctype); f.write_str(" *)")
+                f.write("{ "); f.write(ctype); f.write(" *_new = ("); f.write(ctype); f.write(" *)")
                 emit_expr(f, rhs, depth)
-                f.write_str("; "); f.write_str(ctype); f.write_str("_delete(&"); f.write_str(aname); f.write_str(", &(Bool){0}); "); f.write_str(aname); f.write_str(" = *_new; free(_new); }\n")
+                f.write("; "); f.write(ctype); f.write("_delete(&"); f.write(aname); f.write(", &(Bool){0}); "); f.write(aname); f.write(" = *_new; free(_new); }\n")
             } else {
-                f.write_str("{ "); f.write_str(ctype); f.write_str(" *_old = "); f.write_str(aname); f.write_str("; "); f.write_str(aname); f.write_str(" = ")
+                f.write("{ "); f.write(ctype); f.write(" *_old = "); f.write(aname); f.write("; "); f.write(aname); f.write(" = ")
                 emit_expr(f, rhs, depth)
-                f.write_str("; "); f.write_str(ctype); f.write_str("_delete(_old, &(Bool){1}); }\n")
+                f.write("; "); f.write(ctype); f.write("_delete(_old, &(Bool){1}); }\n")
             }
             return
         }
         is_hoisted := is_stack_local(aname).or(is_value_global(aname))
         if e.til_type.eq(TilType.Dynamic) {
-            f.write_str(aname); f.write_str(" = "); emit_deref(f, rhs, depth); f.write_str(";\n"); return
+            f.write(aname); f.write(" = "); emit_deref(f, rhs, depth); f.write(";\n"); return
         }
         if is_hoisted {
             if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
-                f.write_str(aname); f.write_str(" = "); emit_expr(f, rhs, depth); f.write_str(";\n")
+                f.write(aname); f.write(" = "); emit_expr(f, rhs, depth); f.write(";\n")
             } else if rhs.node_type.is(NodeType.FCall) {
                 ctype := c_type_name(e.til_type, til_type_name(e.til_type))
-                f.write_str("{ "); f.write_str(ctype); f.write_str(" *_hp = ("); f.write_str(ctype); f.write_str(" *)")
+                f.write("{ "); f.write(ctype); f.write(" *_hp = ("); f.write(ctype); f.write(" *)")
                 emit_expr(f, rhs, depth)
-                f.write_str("; "); f.write_str(aname); f.write_str(" = *_hp; free(_hp); }\n")
+                f.write("; "); f.write(aname); f.write(" = *_hp; free(_hp); }\n")
             } else {
-                f.write_str(aname); f.write_str(" = "); emit_deref(f, rhs, depth); f.write_str(";\n")
+                f.write(aname); f.write(" = "); emit_deref(f, rhs, depth); f.write(";\n")
             }
         } else {
             if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is(NodeType.LiteralStr))
             .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(rhs.til_type.is(TilType.Enum))) {
                 if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
-                    f.write_str("*"); f.write_str(aname); f.write_str(" = ")
+                    f.write("*"); f.write(aname); f.write(" = ")
                 } else {
-                    f.write_str(aname); f.write_str(" = ")
+                    f.write(aname); f.write(" = ")
                 }
                 emit_expr(f, rhs, depth)
             } else if e.til_type.eq(TilType.FuncPtr) {
-                f.write_str(aname); f.write_str(" = "); emit_expr(f, rhs, depth)
+                f.write(aname); f.write(" = "); emit_expr(f, rhs, depth)
             } else {
-                f.write_str("*"); f.write_str(aname); f.write_str(" = "); emit_deref(f, rhs, depth)
+                f.write("*"); f.write(aname); f.write(" = "); emit_deref(f, rhs, depth)
             }
-            f.write_str(";\n")
+            f.write(";\n")
         }
     case NodeType.FieldAssign(fname):
         ref obj : Expr = e.child(0)
@@ -1054,29 +1054,29 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
         if rhs_fa.node_type.is(NodeType.FCall).and(builder_fa_is_ptr(e).not()).and(builder_fa_is_ns(e).not()) {
             if fcall_is_shallow_return(rhs_fa) {
                 emit_expr(f, obj, depth)
-                if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
-                f.write_str(fname); f.write_str(" = "); emit_expr(f, rhs_fa, depth); f.write_str(";\n")
+                if use_dot_access(obj) { f.write(".") } else { f.write("->") }
+                f.write(fname); f.write(" = "); emit_expr(f, rhs_fa, depth); f.write(";\n")
             } else {
                 ftype := c_type_name(rhs_fa.til_type, til_type_name(rhs_fa.til_type))
-                f.write_str("{ "); f.write_str(ftype); f.write_str(" *_fa = "); emit_expr(f, rhs_fa, depth); f.write_str("; ")
+                f.write("{ "); f.write(ftype); f.write(" *_fa = "); emit_expr(f, rhs_fa, depth); f.write("; ")
                 emit_expr(f, obj, depth)
-                if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
-                f.write_str(fname); f.write_str(" = *_fa; free(_fa); }\n")
+                if use_dot_access(obj) { f.write(".") } else { f.write("->") }
+                f.write(fname); f.write(" = *_fa; free(_fa); }\n")
             }
         } else {
             if builder_fa_is_ns(e) {
-                f.write_str(til_type_name(obj.til_type)); f.write_str("_"); f.write_str(fname); f.write_str(" = ")
+                f.write(til_type_name(obj.til_type)); f.write("_"); f.write(fname); f.write(" = ")
             } else {
                 emit_expr(f, obj, depth)
-                if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
-                f.write_str(fname); f.write_str(" = ")
+                if use_dot_access(obj) { f.write(".") } else { f.write("->") }
+                f.write(fname); f.write(" = ")
             }
             if builder_fa_is_ptr(e) {
                 emit_as_ptr(f, rhs_fa, depth, true)
             } else {
                 emit_deref(f, rhs_fa, depth)
             }
-            f.write_str(";\n")
+            f.write(";\n")
         }
     case NodeType.FCall:
         if e.children.len().gt(0).and(e.child(0).node_type.is(NodeType.FieldAccess)) {
@@ -1085,7 +1085,7 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                 if e.child(1).node_type.is(NodeType.Ident) {
                     ref del_arg : Str = get_payload(e.child(1).node_type)
                     if is_stack_local(del_arg).and(e.child(1).til_type.is(TilType.Struct).not()).and(e.child(1).til_type.is(TilType.Enum).not()) {
-                        f.write_str(";\n"); return
+                        f.write(";\n"); return
                     }
                 }
             }
@@ -1094,25 +1094,25 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
         if e_sname.len().gt(0).and(e.children.len().gt(0)) {
             if e.child(0).node_type.is(NodeType.Ident) {
                 ref cname : Str = get_payload(e.child(0).node_type)
-                if cname.eq(e_sname) { f.write_str("/* discarded struct constructor */;\n"); return }
+                if cname.eq(e_sname) { f.write("/* discarded struct constructor */;\n"); return }
             }
         }
-        emit_expr(f, e, depth); f.write_str(";\n")
+        emit_expr(f, e, depth); f.write(";\n")
     case NodeType.Return:
         emit_stmt_return(f, e, depth)
     case NodeType.Body:
-        f.write_str("{\n"); emit_body_scoped(f, e, depth.add(1.to_i32())); emit_indent(f, depth); f.write_str("}\n")
+        f.write("{\n"); emit_body_scoped(f, e, depth.add(1.to_i32())); emit_indent(f, depth); f.write("}\n")
     case NodeType.If:
-        f.write_str("if ("); emit_deref(f, e.child(0), depth); f.write_str(") {\n")
+        f.write("if ("); emit_deref(f, e.child(0), depth); f.write(") {\n")
         emit_body_scoped(f, e.child(1), depth.add(1.to_i32())); emit_indent(f, depth)
-        if e.children.len().gt(2) { f.write_str("} else {\n"); emit_body_scoped(f, e.child(2), depth.add(1.to_i32())); emit_indent(f, depth) }
-        f.write_str("}\n")
+        if e.children.len().gt(2) { f.write("} else {\n"); emit_body_scoped(f, e.child(2), depth.add(1.to_i32())); emit_indent(f, depth) }
+        f.write("}\n")
     case NodeType.While:
-        f.write_str("while ("); emit_deref(f, e.child(0), depth); f.write_str(") {\n")
-        emit_body_scoped(f, e.child(1), depth.add(1.to_i32())); emit_indent(f, depth); f.write_str("}\n")
-    case NodeType.Break: f.write_str("break;\n")
-    case NodeType.Continue: f.write_str("continue;\n")
-    case: f.write_str("/* TODO: unknown stmt type */\n")
+        f.write("while ("); emit_deref(f, e.child(0), depth); f.write(") {\n")
+        emit_body_scoped(f, e.child(1), depth.add(1.to_i32())); emit_indent(f, depth); f.write("}\n")
+    case NodeType.Break: f.write("break;\n")
+    case NodeType.Continue: f.write("continue;\n")
+    case: f.write("/* TODO: unknown stmt type */\n")
     }
 }
 
@@ -1131,11 +1131,11 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
         }
         if ret_shallow.not() { ret_c = ret_c.concat(" *") }
     }
-    f.write_str("((")
-    f.write_str(ret_c)
-    f.write_str(" (*)(")
+    f.write("((")
+    f.write(ret_c)
+    f.write(" (*)(")
     for i in 1..e.children.len() {
-        if i.gt(1) { f.write_str(", ") }
+        if i.gt(1) { f.write(", ") }
         ref arg : Expr = e.child(i)
         mut arg_shallow := false
         if i.sub(1).lt(sfd.params.len()) {
@@ -1151,15 +1151,15 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
             }
             if arg_shallow.not() { arg_c = arg_c.concat(" *") }
         }
-        f.write_str(arg_c)
+        f.write(arg_c)
     }
-    if e.children.len().eq(1) { f.write_str("void") }
+    if e.children.len().eq(1) { f.write("void") }
 }
 
 emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, shallow depth: I32) {
     ref sfd : FunctionDef = get_payload(sig.node_type)
     for i in 1..e.children.len() {
-        if i.gt(1) { f.write_str(", ") }
+        if i.gt(1) { f.write(", ") }
         mut arg_shallow := false
         if i.sub(1).lt(sfd.params.len()) {
             ref p : Declaration = sfd.params.get(i.sub(1))
@@ -1173,24 +1173,24 @@ emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, shallow depth: I32)
 emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
     switch e.node_type {
     case NodeType.LiteralStr(s):
-        f.write_str("Str_lit(\"")
-        f.write_str(s)
-        f.write_str("\", ")
+        f.write("Str_lit(\"")
+        f.write(s)
+        f.write("\", ")
         emit_u64(f, s.len().to_i64().to_u64())
-        f.write_str("ULL)")
+        f.write("ULL)")
     case NodeType.LiteralNum(num):
-        f.write_str(num)
+        f.write(num)
     case NodeType.LiteralBool(b):
         if b { emit_i32(f, 1.to_i32()) } else { emit_i32(f, 0.to_i32()) }
     case NodeType.LiteralNull:
-        f.write_str("NULL")
+        f.write("NULL")
     case NodeType.Ident(ident):
         if e.til_type.eq(TilType.FuncPtr) {
-            f.write_str("(void *)")
+            f.write("(void *)")
             fc := func_to_c(ident)
-            f.write_str(fc)
+            f.write(fc)
         } else {
-            f.write_str(ident)
+            f.write(ident)
         }
     case NodeType.FCall:
         ref callee : Expr = e.child(0)
@@ -1200,11 +1200,11 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 ref sig : Expr = fcall_fn_sig(e)
                 if is_null(sig).not() {
                     emit_fcall_funcptr_cast(f, e, sig)
-                    f.write_str("))(void *)(")
+                    f.write("))(void *)(")
                     emit_expr(f, callee, depth)
-                    f.write_str("))(")
+                    f.write("))(")
                     emit_fcall_funcptr_args(f, e, sig, depth)
-                    f.write_str(")")
+                    f.write(")")
                     return
                 }
             }
@@ -1212,12 +1212,12 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             sname := til_type_name(callee.child(0).til_type)
             ref mname : Str = get_payload(callee.node_type)
             flat := sname.concat("_").concat(mname)
-            f.write_str(sname)
-            f.write_str("_")
-            f.write_str(mname)
-            f.write_str("(")
+            f.write(sname)
+            f.write("_")
+            f.write(mname)
+            f.write("(")
             for i in 1..e.children.len() {
-                if i.gt(1) { f.write_str(", ") }
+                if i.gt(1) { f.write(", ") }
                 if callee_param_is_shallow(flat, i.sub(1)) {
                     emit_deref(f, e.child(i), depth)
                 } else if callee_param_is_usize(flat, i.sub(1)).and(callee_param_is_own(flat, i.sub(1)).not()) {
@@ -1226,7 +1226,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                     emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i))
                 }
             }
-            f.write_str(")")
+            f.write(")")
             return
         }
         ref name : Str = get_payload(callee.node_type)
@@ -1234,90 +1234,90 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             ref method : Str = get_payload(e.child(2).node_type)
             ref nargs_str : Str = get_payload(e.child(3).node_type)
             nargs := nargs_str.to_i64().to_i32()
-            f.write_str("dyn_call_")
-            f.write_str(method)
-            f.write_str("(")
+            f.write("dyn_call_")
+            f.write(method)
+            f.write("(")
             emit_as_ptr(f, e.child(1), depth, false)
             for ai : I32 in 0..nargs {
-                f.write_str(", ")
+                f.write(", ")
                 emit_as_ptr(f, e.child(ai.to_i64().add(4).to_u32()), depth, false)
             }
-            f.write_str(")")
+            f.write(")")
         } else if name.eq("dyn_fn") {
-            f.write_str("dyn_fn(")
+            f.write("dyn_fn(")
             emit_as_ptr(f, e.child(1), depth, false)
-            f.write_str(", ")
+            f.write(", ")
             ref method_arg : Expr = e.child(2)
             if method_arg.node_type.is(NodeType.LiteralStr) {
                 ref ms : Str = get_payload(method_arg.node_type)
-                f.write_str("&(Str){.c_str=(U8*)\"")
-                f.write_str(ms)
-                f.write_str("\", .count=")
+                f.write("&(Str){.c_str=(U8*)\"")
+                f.write(ms)
+                f.write("\", .count=")
                 emit_u64(f, ms.len().to_i64().to_u64())
-                f.write_str("ULL, .cap=TIL_CAP_LIT}")
+                f.write("ULL, .cap=TIL_CAP_LIT}")
             } else {
                 emit_as_ptr(f, method_arg, depth, false)
             }
-            f.write_str(")")
+            f.write(")")
         } else if name.eq("array").or(name.eq("vec")) {
             ref elem_type : Str = get_payload(e.child(1).node_type)
             count := e.children.len().sub(2).to_i64().to_i32()
-            if name.eq("array") { f.write_str("array") } else { f.write_str("vec") }
-            f.write_str("_of_")
-            f.write_str(elem_type)
-            f.write_str("(")
+            if name.eq("array") { f.write("array") } else { f.write("vec") }
+            f.write("_of_")
+            f.write(elem_type)
+            f.write("(")
             emit_i32(f, count)
             for i in 2..e.children.len() {
-                f.write_str(", ")
+                f.write(", ")
                 emit_as_ptr(f, e.child(i), depth, false)
             }
-            f.write_str(")")
+            f.write(")")
         } else if name.eq("dyn_has_method") {
             ref method : Str = get_payload(e.child(2).node_type)
-            f.write_str("dyn_has_")
-            f.write_str(method)
-            f.write_str("(")
+            f.write("dyn_has_")
+            f.write(method)
+            f.write("(")
             emit_as_ptr(f, e.child(1), depth, false)
-            f.write_str(")")
+            f.write(")")
         } else if til_type_name(e.til_type).len().gt(0).and(name.eq(til_type_name(e.til_type))) {
             // Struct constructor
             ctype := c_type_name(e.til_type, til_type_name(e.til_type))
             ctor_seq = ctor_seq.add(1.to_i32())
             id := ctor_seq
-            f.write_str("({ ")
-            f.write_str(ctype)
-            f.write_str(" *_sc")
+            f.write("({ ")
+            f.write(ctype)
+            f.write(" *_sc")
             emit_i32(f, id)
-            f.write_str(" = malloc(sizeof(")
-            f.write_str(ctype)
-            f.write_str(")); ")
+            f.write(" = malloc(sizeof(")
+            f.write(ctype)
+            f.write(")); ")
             tmp := "_sc".concat(id.to_i64().to_str())
             emit_ctor_fields(f, tmp, e, depth)
-            f.write_str(" _sc")
+            f.write(" _sc")
             emit_i32(f, id)
-            f.write_str("; })")
+            f.write("; })")
         } else if callee.til_type.eq(TilType.FuncPtr) {
             // Indirect call through function pointer variable
             ref sig : Expr = fcall_fn_sig(e)
             emit_fcall_funcptr_cast(f, e, sig)
             if is_ref_local(name) {
-                f.write_str("))(void *)(*")
-                f.write_str(name)
-                f.write_str("))(")
+                f.write("))(void *)(*")
+                f.write(name)
+                f.write("))(")
             } else {
-                f.write_str("))(void *)")
-                f.write_str(name)
-                f.write_str(")(")
+                f.write("))(void *)")
+                f.write(name)
+                f.write(")(")
             }
             emit_fcall_funcptr_args(f, e, sig, depth)
-            f.write_str(")")
+            f.write(")")
         } else {
             // User-defined function call
             fc := func_to_c(name)
-            f.write_str(fc)
-            f.write_str("(")
+            f.write(fc)
+            f.write("(")
             for i in 1..e.children.len() {
-                if i.gt(1) { f.write_str(", ") }
+                if i.gt(1) { f.write(", ") }
                 if callee_param_is_shallow(name, i.sub(1)) {
                     emit_deref(f, e.child(i), depth)
                 } else if callee_param_is_usize(name, i.sub(1)).and(callee_param_is_own(name, i.sub(1)).not()) {
@@ -1326,32 +1326,32 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                     emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i))
                 }
             }
-            f.write_str(")")
+            f.write(")")
         }
     case NodeType.FieldAccess(fname):
         ref obj : Expr = e.child(0)
         if builder_fa_is_ns(e) {
             obj_sname := til_type_name(obj.til_type)
             if e.til_type.is(TilType.Enum) {
-                f.write_str("&(")
-                f.write_str(obj_sname)
-                f.write_str("){.tag = ")
-                f.write_str(obj_sname)
-                f.write_str("_TAG_")
-                f.write_str(fname)
-                f.write_str("}")
+                f.write("&(")
+                f.write(obj_sname)
+                f.write("){.tag = ")
+                f.write(obj_sname)
+                f.write("_TAG_")
+                f.write(fname)
+                f.write("}")
             } else {
-                f.write_str(obj_sname)
-                f.write_str("_")
-                f.write_str(fname)
+                f.write(obj_sname)
+                f.write("_")
+                f.write(fname)
             }
         } else {
             emit_expr(f, obj, depth)
-            if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
-            f.write_str(fname)
+            if use_dot_access(obj) { f.write(".") } else { f.write("->") }
+            f.write(fname)
         }
     case:
-        f.write_str("/* TODO: unknown expr type */")
+        f.write("/* TODO: unknown expr type */")
     }
 }
 
@@ -1383,9 +1383,9 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
         emit_indent(f, depth)
         if fld_own.eq(OwnType.Ref) {
             emit_field(f, var, fname)
-            f.write_str(" = ")
+            f.write(" = ")
             emit_expr(f, arg, depth)
-            f.write_str(";\n")
+            f.write(";\n")
         } else if fld_own.eq(OwnType.Own) {
             if arg.node_type.is(NodeType.FCall) {
                 arg_sname := til_type_name(arg.til_type)
@@ -1397,41 +1397,41 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                             ctor_seq = ctor_seq.add(1.to_i32())
                             id := ctor_seq
                             tmp := "_cs".concat(id.to_i64().to_str())
-                            f.write_str(ct)
-                            f.write_str(" *")
-                            f.write_str(tmp)
-                            f.write_str(" = malloc(sizeof(")
-                            f.write_str(ct)
-                            f.write_str("));\n")
+                            f.write(ct)
+                            f.write(" *")
+                            f.write(tmp)
+                            f.write(" = malloc(sizeof(")
+                            f.write(ct)
+                            f.write("));\n")
                             emit_ctor_fields(f, tmp, arg, depth)
                             emit_indent(f, depth)
                             emit_field(f, var, fname)
-                            f.write_str(" = ")
-                            f.write_str(tmp)
-                            f.write_str(";\n")
+                            f.write(" = ")
+                            f.write(tmp)
+                            f.write(";\n")
                         } else {
                             emit_field(f, var, fname)
-                            f.write_str(" = ")
+                            f.write(" = ")
                             emit_as_ptr(f, arg, depth, true)
-                            f.write_str(";\n")
+                            f.write(";\n")
                         }
                     } else {
                         emit_field(f, var, fname)
-                        f.write_str(" = ")
+                        f.write(" = ")
                         emit_as_ptr(f, arg, depth, true)
-                        f.write_str(";\n")
+                        f.write(";\n")
                     }
                 } else {
                     emit_field(f, var, fname)
-                    f.write_str(" = ")
+                    f.write(" = ")
                     emit_as_ptr(f, arg, depth, true)
-                    f.write_str(";\n")
+                    f.write(";\n")
                 }
             } else {
                 emit_field(f, var, fname)
-                f.write_str(" = ")
+                f.write(" = ")
                 emit_as_ptr(f, arg, depth, true)
-                f.write_str(";\n")
+                f.write(";\n")
             }
         } else if arg.node_type.is(NodeType.FCall) {
             arg_sname2 := til_type_name(arg.til_type)
@@ -1443,79 +1443,79 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                         ctor_seq = ctor_seq.add(1.to_i32())
                         id := ctor_seq
                         tmp := "_cs".concat(id.to_i64().to_str())
-                        f.write_str(ct)
-                        f.write_str(" *")
-                        f.write_str(tmp)
-                        f.write_str(" = malloc(sizeof(")
-                        f.write_str(ct)
-                        f.write_str("));\n")
+                        f.write(ct)
+                        f.write(" *")
+                        f.write(tmp)
+                        f.write(" = malloc(sizeof(")
+                        f.write(ct)
+                        f.write("));\n")
                         emit_ctor_fields(f, tmp, arg, depth)
                         emit_indent(f, depth)
                         emit_field(f, var, fname)
-                        f.write_str(" = *")
-                        f.write_str(tmp)
-                        f.write_str("; free(")
-                        f.write_str(tmp)
-                        f.write_str(");\n")
+                        f.write(" = *")
+                        f.write(tmp)
+                        f.write("; free(")
+                        f.write(tmp)
+                        f.write(");\n")
                     } else {
                         if field_type.eq(TilType.FuncPtr).or(field_type.eq(TilType.Dynamic))
                         .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
                             emit_field(f, var, fname)
-                            f.write_str(" = ")
+                            f.write(" = ")
                             emit_expr(f, arg, depth)
-                            f.write_str(";\n")
+                            f.write(";\n")
                         } else {
                             ftype := c_type_name(arg.til_type, arg_sname2)
-                            f.write_str("{ ")
-                            f.write_str(ftype)
-                            f.write_str(" *_ca = ")
+                            f.write("{ ")
+                            f.write(ftype)
+                            f.write(" *_ca = ")
                             emit_expr(f, arg, depth)
-                            f.write_str("; ")
+                            f.write("; ")
                             emit_field(f, var, fname)
-                            f.write_str(" = *_ca; free(_ca); }\n")
+                            f.write(" = *_ca; free(_ca); }\n")
                         }
                     }
                 } else {
                     if field_type.eq(TilType.FuncPtr).or(field_type.eq(TilType.Dynamic))
                     .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
                         emit_field(f, var, fname)
-                        f.write_str(" = ")
+                        f.write(" = ")
                         emit_expr(f, arg, depth)
-                        f.write_str(";\n")
+                        f.write(";\n")
                     } else {
                         ftype := c_type_name(arg.til_type, arg_sname2)
-                        f.write_str("{ ")
-                        f.write_str(ftype)
-                        f.write_str(" *_ca = ")
+                        f.write("{ ")
+                        f.write(ftype)
+                        f.write(" *_ca = ")
                         emit_expr(f, arg, depth)
-                        f.write_str("; ")
+                        f.write("; ")
                         emit_field(f, var, fname)
-                        f.write_str(" = *_ca; free(_ca); }\n")
+                        f.write(" = *_ca; free(_ca); }\n")
                     }
                 }
             } else {
                 if field_type.eq(TilType.FuncPtr).or(field_type.eq(TilType.Dynamic))
                 .or(fcall_is_shallow_return(arg)).or(fcall_returns_dynamic(arg)) {
                     emit_field(f, var, fname)
-                    f.write_str(" = ")
+                    f.write(" = ")
                     emit_expr(f, arg, depth)
-                    f.write_str(";\n")
+                    f.write(";\n")
                 } else {
                     ftype := c_type_name(arg.til_type, arg_sname2)
-                    f.write_str("{ ")
-                    f.write_str(ftype)
-                    f.write_str(" *_ca = ")
+                    f.write("{ ")
+                    f.write(ftype)
+                    f.write(" *_ca = ")
                     emit_expr(f, arg, depth)
-                    f.write_str("; ")
+                    f.write("; ")
                     emit_field(f, var, fname)
-                    f.write_str(" = *_ca; free(_ca); }\n")
+                    f.write(" = *_ca; free(_ca); }\n")
                 }
             }
         } else {
             emit_field(f, var, fname)
-            f.write_str(" = ")
+            f.write(" = ")
             emit_deref(f, arg, depth)
-            f.write_str(";\n")
+            f.write(";\n")
         }
     }
 }
@@ -1536,12 +1536,12 @@ emit_ns_inits := proc(f: File, shallow depth: I32) {
                         if is_null(dd.default_value) { continue }
                         if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
                         emit_indent(f, depth)
-                        f.write_str(sname)
-                        f.write_str("_")
-                        f.write_str(dd.name)
-                        f.write_str(" = ")
+                        f.write(sname)
+                        f.write("_")
+                        f.write(dd.name)
+                        f.write(" = ")
                         emit_deref(f, dd.default_value, depth)
-                        f.write_str(";\n")
+                        f.write(";\n")
                     }
                 }
             }
@@ -1560,12 +1560,12 @@ emit_ns_inits := proc(f: File, shallow depth: I32) {
                     if is_null(dd.default_value) { continue }
                     if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
                     emit_indent(f, depth)
-                    f.write_str(sname)
-                    f.write_str("_")
-                    f.write_str(dd.name)
-                    f.write_str(" = ")
+                    f.write(sname)
+                    f.write("_")
+                    f.write(dd.name)
+                    f.write(" = ")
                     emit_deref(f, dd.default_value, depth)
-                    f.write_str(";\n")
+                    f.write(";\n")
                 }
             }
         }
@@ -1589,15 +1589,15 @@ emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
         if e.node_type.is(NodeType.Ident) {
             ref ident : Str = get_payload(e.node_type)
             if is_ref_local(ident) {
-                f.write_str("(void *)DEREF(")
+                f.write("(void *)DEREF(")
                 emit_expr(f, e, depth)
-                f.write_str(")")
+                f.write(")")
             } else {
-                f.write_str("(void *)")
+                f.write("(void *)")
                 emit_expr(f, e, depth)
             }
         } else {
-            f.write_str("(void *)")
+            f.write("(void *)")
             emit_expr(f, e, depth)
         }
     } else {
@@ -1606,21 +1606,21 @@ emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
             if is_shallow_param(ident).or(is_stack_local(ident)).or(is_value_global(ident)) {
                 emit_expr(f, e, depth)
             } else {
-                f.write_str("DEREF(")
+                f.write("DEREF(")
                 emit_expr(f, e, depth)
-                f.write_str(")")
+                f.write(")")
             }
         case NodeType.LiteralStr(s):
-            f.write_str("(Str){.c_str=(U8*)\"")
-            f.write_str(s)
-            f.write_str("\", .count=")
+            f.write("(Str){.c_str=(U8*)\"")
+            f.write(s)
+            f.write("\", .count=")
             emit_u64(f, s.len().to_i64().to_u64())
-            f.write_str("ULL, .cap=TIL_CAP_LIT}")
+            f.write("ULL, .cap=TIL_CAP_LIT}")
         case NodeType.FieldAccess:
             if builder_fa_is_ns(e).and(e.til_type.is(TilType.Enum)) {
-                f.write_str("(*")
+                f.write("(*")
                 emit_expr(f, e, depth)
-                f.write_str(")")
+                f.write(")")
             } else {
                 emit_expr(f, e, depth)
             }
@@ -1637,16 +1637,16 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
             if is_own {
                 ref mut ctype : Str = get_stack_local_ctype(ident)
                 if is_null(ctype) { ctype = c_type_name(e.til_type, til_type_name(e.til_type)) }
-                f.write_str("({ ")
-                f.write_str(ctype)
-                f.write_str(" *_oa = malloc(sizeof(")
-                f.write_str(ctype)
-                f.write_str(")); *_oa = ")
+                f.write("({ ")
+                f.write(ctype)
+                f.write(" *_oa = malloc(sizeof(")
+                f.write(ctype)
+                f.write(")); *_oa = ")
                 emit_expr(f, e, depth)
-                f.write_str("; _oa; })")
+                f.write("; _oa; })")
             } else {
-                f.write_str("&")
-                f.write_str(ident)
+                f.write("&")
+                f.write(ident)
             }
         } else {
             emit_expr(f, e, depth)
@@ -1660,18 +1660,18 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
                     ctype := c_type_name(e.til_type, e_sname)
                     ctor_seq = ctor_seq.add(1.to_i32())
                     id := ctor_seq
-                    f.write_str("({ ")
-                    f.write_str(ctype)
-                    f.write_str(" *_sc")
+                    f.write("({ ")
+                    f.write(ctype)
+                    f.write(" *_sc")
                     emit_i32(f, id)
-                    f.write_str(" = malloc(sizeof(")
-                    f.write_str(ctype)
-                    f.write_str(")); ")
+                    f.write(" = malloc(sizeof(")
+                    f.write(ctype)
+                    f.write(")); ")
                     tmp := "_sc".concat(id.to_i64().to_str())
                     emit_ctor_fields(f, tmp, e, depth)
-                    f.write_str(" _sc")
+                    f.write(" _sc")
                     emit_i32(f, id)
-                    f.write_str("; })")
+                    f.write("; })")
                     return
                 }
             }
@@ -1686,66 +1686,66 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
             if is_own {
                 ref obj : Expr = e.child(0)
                 obj_sname := til_type_name(obj.til_type)
-                f.write_str("({ ")
-                f.write_str(obj_sname)
-                f.write_str(" *_oa = malloc(sizeof(")
-                f.write_str(obj_sname)
-                f.write_str(")); *_oa = (")
-                f.write_str(obj_sname)
-                f.write_str("){.tag = ")
-                f.write_str(obj_sname)
-                f.write_str("_TAG_")
-                f.write_str(fname)
-                f.write_str("}; _oa; })")
+                f.write("({ ")
+                f.write(obj_sname)
+                f.write(" *_oa = malloc(sizeof(")
+                f.write(obj_sname)
+                f.write(")); *_oa = (")
+                f.write(obj_sname)
+                f.write("){.tag = ")
+                f.write(obj_sname)
+                f.write("_TAG_")
+                f.write(fname)
+                f.write("}; _oa; })")
             } else {
                 emit_expr(f, e, depth)
             }
         } else if e.til_type.eq(TilType.Dynamic) {
             emit_expr(f, e, depth)
         } else {
-            f.write_str("&")
+            f.write("&")
             emit_expr(f, e, depth)
         }
     case NodeType.LiteralNull:
-        f.write_str("NULL")
+        f.write("NULL")
     case:
         ctype := c_type_name(e.til_type, til_type_name(e.til_type))
-        f.write_str("&(")
-        f.write_str(ctype)
-        f.write_str("){")
+        f.write("&(")
+        f.write(ctype)
+        f.write("){")
         emit_expr(f, e, depth)
-        f.write_str("}")
+        f.write("}")
     }
 }
 
 emit_usize_ref := proc(f: File, e: Expr, shallow depth: I32) {
-    f.write_str("USIZE_REF(")
+    f.write("USIZE_REF(")
     emit_deref(f, e, depth)
-    f.write_str(")")
+    f.write(")")
 }
 
 emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
     if ptype.eq("Str") {
-        f.write_str("    Str *"); f.write_str(pname); f.write_str(" = Str_clone(&(Str){.c_str = (U8 *)argv["); emit_i32(f, argi); f.write_str("], .count = strlen(argv["); emit_i32(f, argi); f.write_str("]), .cap = TIL_CAP_LIT});\n")
+        f.write("    Str *"); f.write(pname); f.write(" = Str_clone(&(Str){.c_str = (U8 *)argv["); emit_i32(f, argi); f.write("], .count = strlen(argv["); emit_i32(f, argi); f.write("]), .cap = TIL_CAP_LIT});\n")
     } else if ptype.eq("I64") {
-        f.write_str("    I64 *"); f.write_str(pname); f.write_str(" = cli_parse_i64(argv["); emit_i32(f, argi); f.write_str("]);\n")
+        f.write("    I64 *"); f.write(pname); f.write(" = cli_parse_i64(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("U8") {
-        f.write_str("    U8 *"); f.write_str(pname); f.write_str(" = cli_parse_u8(argv["); emit_i32(f, argi); f.write_str("]);\n")
+        f.write("    U8 *"); f.write(pname); f.write(" = cli_parse_u8(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("I16") {
-        f.write_str("    I16 *"); f.write_str(pname); f.write_str(" = cli_parse_i16(argv["); emit_i32(f, argi); f.write_str("]);\n")
+        f.write("    I16 *"); f.write(pname); f.write(" = cli_parse_i16(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("I32") {
-        f.write_str("    I32 *"); f.write_str(pname); f.write_str(" = cli_parse_i32(argv["); emit_i32(f, argi); f.write_str("]);\n")
+        f.write("    I32 *"); f.write(pname); f.write(" = cli_parse_i32(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("U32") {
-        f.write_str("    U32 *"); f.write_str(pname); f.write_str(" = cli_parse_u32(argv["); emit_i32(f, argi); f.write_str("]);\n")
+        f.write("    U32 *"); f.write(pname); f.write(" = cli_parse_u32(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("U64") {
-        f.write_str("    U64 *"); f.write_str(pname); f.write_str(" = cli_parse_u64(argv["); emit_i32(f, argi); f.write_str("]);\n")
+        f.write("    U64 *"); f.write(pname); f.write(" = cli_parse_u64(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("USize") {
-        f.write_str("    USize *"); f.write_str(pname); f.write_str(" = (USize *)cli_parse_u64(argv["); emit_i32(f, argi); f.write_str("]);\n")
+        f.write("    USize *"); f.write(pname); f.write(" = (USize *)cli_parse_u64(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("Bool") {
-        f.write_str("    Bool *"); f.write_str(pname); f.write_str(" = cli_parse_bool(argv["); emit_i32(f, argi); f.write_str("]);\n")
+        f.write("    Bool *"); f.write(pname); f.write(" = cli_parse_bool(argv["); emit_i32(f, argi); f.write("]);\n")
     } else {
-        f.write_str("    // unsupported CLI arg type: "); f.write_str(ptype); f.write_str("\n")
-        f.write_str("    fprintf(stderr, \"error: unsupported CLI argument type '"); f.write_str(ptype); f.write_str("'\\n\"); return 1;\n")
+        f.write("    // unsupported CLI arg type: "); f.write(ptype); f.write("\n")
+        f.write("    fprintf(stderr, \"error: unsupported CLI argument type '"); f.write(ptype); f.write("'\\n\"); return 1;\n")
     }
 }
 
@@ -1761,17 +1761,17 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         nparam := fd.params.len()
         vi := fd.variadic_index
         if nparam.eq(0) {
-            f.write_str("int main(int argc, char **argv) {\n")
-            f.write_str("    (void)argv;\n")
-            f.write_str("    if (argc > 1) { fprintf(stderr, \"error: main expects no arguments, got %d\\n\", argc - 1); return 1; }\n")
+            f.write("int main(int argc, char **argv) {\n")
+            f.write("    (void)argv;\n")
+            f.write("    if (argc > 1) { fprintf(stderr, \"error: main expects no arguments, got %d\\n\", argc - 1); return 1; }\n")
         } else {
-            f.write_str("int main(int argc, char **argv) {\n")
+            f.write("int main(int argc, char **argv) {\n")
             mut fixed := nparam.to_i64().to_i32()
             if vi.gte(0.to_i32()) { fixed = fixed.sub(1.to_i32()) }
             if vi.gte(0.to_i32()) {
-                f.write_str("    if (argc - 1 < "); emit_i32(f, fixed); f.write_str(") { fprintf(stderr, \"error: main expects at least "); emit_i32(f, fixed); f.write_str(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
+                f.write("    if (argc - 1 < "); emit_i32(f, fixed); f.write(") { fprintf(stderr, \"error: main expects at least "); emit_i32(f, fixed); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
             } else {
-                f.write_str("    if (argc - 1 != "); emit_i32(f, nparam.to_i64().to_i32()); f.write_str(") { fprintf(stderr, \"error: main expects "); emit_i32(f, nparam.to_i64().to_i32()); f.write_str(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
+                f.write("    if (argc - 1 != "); emit_i32(f, nparam.to_i64().to_i32()); f.write(") { fprintf(stderr, \"error: main expects "); emit_i32(f, nparam.to_i64().to_i32()); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
             }
         }
         emit_ns_inits(f, 1.to_i32())
@@ -1811,33 +1811,33 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                 ii := i.to_i64().to_i32()
                 if ii.eq(vi) {
                     // Variadic array
-                    f.write_str("    int _va_argc = argc - "); emit_i32(f, argi); f.write_str(";\n")
-                    f.write_str("    USize _va_esz = sizeof("); f.write_str(p.explicit_type); f.write_str(");\n")
-                    f.write_str("    USize _va_cap = _va_argc;\n")
-                    f.write_str("    Array *"); f.write_str(p.name); f.write_str(" = Array_new(&(Str){.c_str = (U8 *)\""); f.write_str(p.explicit_type); f.write_str("\", .count = "); emit_u64(f, p.explicit_type.len().to_i64().to_u64()); f.write_str("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_esz}, &(USize){_va_cap});\n")
-                    f.write_str("    for (int _i = 0; _i < _va_argc; _i++) {\n")
-                    f.write_str("        USize _idx = _i;\n")
+                    f.write("    int _va_argc = argc - "); emit_i32(f, argi); f.write(";\n")
+                    f.write("    USize _va_esz = sizeof("); f.write(p.explicit_type); f.write(");\n")
+                    f.write("    USize _va_cap = _va_argc;\n")
+                    f.write("    Array *"); f.write(p.name); f.write(" = Array_new(&(Str){.c_str = (U8 *)\""); f.write(p.explicit_type); f.write("\", .count = "); emit_u64(f, p.explicit_type.len().to_i64().to_u64()); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_esz}, &(USize){_va_cap});\n")
+                    f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
+                    f.write("        USize _idx = _i;\n")
                     if p.explicit_type.eq("Str") {
-                        f.write_str("        Str *_val = Str_clone(&(Str){.c_str = (U8 *)argv["); emit_i32(f, argi); f.write_str(" + _i], .count = strlen(argv["); emit_i32(f, argi); f.write_str(" + _i]), .cap = TIL_CAP_LIT});\n")
+                        f.write("        Str *_val = Str_clone(&(Str){.c_str = (U8 *)argv["); emit_i32(f, argi); f.write(" + _i], .count = strlen(argv["); emit_i32(f, argi); f.write(" + _i]), .cap = TIL_CAP_LIT});\n")
                     } else if p.explicit_type.eq("I64") {
-                        f.write_str("        I64 *_val = cli_parse_i64(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                        f.write("        I64 *_val = cli_parse_i64(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("U8") {
-                        f.write_str("        U8 *_val = cli_parse_u8(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                        f.write("        U8 *_val = cli_parse_u8(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("I16") {
-                        f.write_str("        I16 *_val = cli_parse_i16(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                        f.write("        I16 *_val = cli_parse_i16(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("I32") {
-                        f.write_str("        I32 *_val = cli_parse_i32(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                        f.write("        I32 *_val = cli_parse_i32(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("U32") {
-                        f.write_str("        U32 *_val = cli_parse_u32(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                        f.write("        U32 *_val = cli_parse_u32(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("U64") {
-                        f.write_str("        U64 *_val = cli_parse_u64(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                        f.write("        U64 *_val = cli_parse_u64(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("USize") {
-                        f.write_str("        USize *_val = (USize *)cli_parse_u64(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                        f.write("        USize *_val = (USize *)cli_parse_u64(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("Bool") {
-                        f.write_str("        Bool *_val = cli_parse_bool(argv["); emit_i32(f, argi); f.write_str(" + _i]);\n")
+                        f.write("        Bool *_val = cli_parse_bool(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     }
-                    f.write_str("        Array_set("); f.write_str(p.name); f.write_str(", &(USize){_idx}, _val);\n")
-                    f.write_str("    }\n")
+                    f.write("        Array_set("); f.write(p.name); f.write(", &(USize){_idx}, _val);\n")
+                    f.write("    }\n")
                 } else {
                     emit_cli_parse_arg(f, p.name, p.explicit_type, argi)
                     argi = argi.add(1.to_i32())
@@ -1853,18 +1853,18 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         in_main_func = false
         own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
         stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
-        f.write_str("    return 0;\n")
-        f.write_str("}\n")
+        f.write("    return 0;\n")
+        f.write("}\n")
     } else {
         // Return type
         ret := func_return_ctype(fd)
         // Signature
-        if is_static { f.write_str("static __attribute__((unused)) ") }
-        f.write_str(ret); f.write_str(" "); fc := func_to_c(name); f.write_str(fc); f.write_str("(")
+        if is_static { f.write("static __attribute__((unused)) ") }
+        f.write(ret); f.write(" "); fc := func_to_c(name); f.write(fc); f.write("(")
         emit_param_list(f, func_def, true)
-        f.write_str(") {\n")
+        f.write(") {\n")
         for p : Declaration in fd.params {
-            f.write_str("    (void)"); f.write_str(p.name); f.write_str(";\n")
+            f.write("    (void)"); f.write(p.name); f.write(";\n")
         }
         in_func_def = true
         current_fdef = func_def
@@ -1876,7 +1876,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
         stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
         in_func_def = false
-        f.write_str("}\n")
+        f.write("}\n")
     }
 }
 
@@ -1884,37 +1884,37 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
     if is_ext_h_type(name) { return }
     ref sdd : StructDef = get_payload(struct_def.node_type)
     if sdd.c_tag.eq("@anon") {
-        f.write_str("typedef struct {\n")
+        f.write("typedef struct {\n")
     } else if sdd.c_tag.len().gt(0) {
-        f.write_str("typedef struct "); f.write_str(sdd.c_tag); f.write_str(" {\n")
+        f.write("typedef struct "); f.write(sdd.c_tag); f.write(" {\n")
     } else {
-        f.write_str("typedef struct "); f.write_str(name); f.write_str(" {\n")
+        f.write("typedef struct "); f.write(name); f.write(" {\n")
     }
-    if sdd.fields.len().eq(0) { f.write_str("    char _;\n") }
+    if sdd.fields.len().eq(0) { f.write("    char _;\n") }
     for dd : Declaration in sdd.fields {
         if dd.own_type.eq(OwnType.Shallow).not() {
             if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
                 sname := til_type_name(dd.til_type)
                 if sname.len().gt(0) {
-                    f.write_str("    "); f.write_str(sname); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                    f.write("    "); f.write(sname); f.write(" *"); f.write(dd.name); f.write(";\n")
                 } else {
-                    tc := til_type_to_c(dd.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                    tc := til_type_to_c(dd.til_type); f.write("    "); f.write(tc); f.write(" *"); f.write(dd.name); f.write(";\n")
                 }
             } else {
-                tc := til_type_to_c(dd.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                tc := til_type_to_c(dd.til_type); f.write("    "); f.write(tc); f.write(" *"); f.write(dd.name); f.write(";\n")
             }
         } else if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
             sname := til_type_name(dd.til_type)
             if sname.len().gt(0) {
-                f.write_str("    "); f.write_str(sname); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                f.write("    "); f.write(sname); f.write(" "); f.write(dd.name); f.write(";\n")
             } else {
-                tc := til_type_to_c(dd.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                tc := til_type_to_c(dd.til_type); f.write("    "); f.write(tc); f.write(" "); f.write(dd.name); f.write(";\n")
             }
         } else {
-            tc := til_type_to_c(dd.til_type); f.write_str("    "); f.write_str(tc); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+            tc := til_type_to_c(dd.til_type); f.write("    "); f.write(tc); f.write(" "); f.write(dd.name); f.write(";\n")
         }
     }
-    f.write_str("} "); f.write_str(name); f.write_str(";\n\n")
+    f.write("} "); f.write(name); f.write(";\n\n")
     // Namespace non-function fields as globals
     ref ng_ns : Vec = def_ns_decls(struct_def)
     for dd : Declaration in ng_ns {
@@ -1923,12 +1923,12 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
         if dd.til_type.is(TilType.Struct).or(dd.til_type.is(TilType.Enum)) {
             ng_sname := til_type_name(dd.default_value.til_type)
             if ng_sname.len().gt(0) {
-                f.write_str(ng_sname); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
+                f.write(ng_sname); f.write(" "); f.write(name); f.write("_"); f.write(dd.name); f.write(";\n")
             } else {
-                tc := til_type_to_c(dd.til_type); f.write_str(tc); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
+                tc := til_type_to_c(dd.til_type); f.write(tc); f.write(" "); f.write(name); f.write("_"); f.write(dd.name); f.write(";\n")
             }
         } else {
-            tc := til_type_to_c(dd.til_type); f.write_str(tc); f.write_str(" "); f.write_str(name); f.write_str("_"); f.write_str(dd.name); f.write_str(";\n")
+            tc := til_type_to_c(dd.til_type); f.write(tc); f.write(" "); f.write(name); f.write("_"); f.write(dd.name); f.write(";\n")
         }
     }
 }
@@ -1938,7 +1938,7 @@ emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr) {
     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { return }
     full_name := name.concat("_").concat(dd_name)
     emit_func_def(f, full_name, fdef, NULL, false)
-    f.write_str("\n")
+    f.write("\n")
 }
 
 emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr) {
@@ -1959,10 +1959,10 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
     if hp.not() {
         // Simple enum
         for vn : Str in edd.variants {
-            f.write_str(name); f.write_str(" *"); f.write_str(name); f.write_str("_"); f.write_str(vn); f.write_str("() {\n")
-            f.write_str("    "); f.write_str(name); f.write_str(" *r = malloc(sizeof("); f.write_str(name); f.write_str("));\n")
-            f.write_str("    *r = ("); f.write_str(name); f.write_str("){ .tag = "); f.write_str(name); f.write_str("_TAG_"); f.write_str(vn); f.write_str(" };\n")
-            f.write_str("    return r;\n"); f.write_str("}\n")
+            f.write(name); f.write(" *"); f.write(name); f.write("_"); f.write(vn); f.write("() {\n")
+            f.write("    "); f.write(name); f.write(" *r = malloc(sizeof("); f.write(name); f.write("));\n")
+            f.write("    *r = ("); f.write(name); f.write("){ .tag = "); f.write(name); f.write("_TAG_"); f.write(vn); f.write(" };\n")
+            f.write("    return r;\n"); f.write("}\n")
         }
     } else {
         // Payload enum
@@ -1970,25 +1970,25 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
             ref vn : Str = edd.variants.get(i)
             vt := enum_variant_type(enum_def, i.to_i64().to_i32())
             if vt.len().eq(0) {
-                f.write_str(name); f.write_str(" *"); f.write_str(name); f.write_str("_"); f.write_str(vn); f.write_str("() {\n")
-                f.write_str("    "); f.write_str(name); f.write_str(" *r = malloc(sizeof("); f.write_str(name); f.write_str("));\n")
-                f.write_str("    r->tag = "); f.write_str(name); f.write_str("_TAG_"); f.write_str(vn); f.write_str(";\n")
-                f.write_str("    return r;\n"); f.write_str("}\n")
+                f.write(name); f.write(" *"); f.write(name); f.write("_"); f.write(vn); f.write("() {\n")
+                f.write("    "); f.write(name); f.write(" *r = malloc(sizeof("); f.write(name); f.write("));\n")
+                f.write("    r->tag = "); f.write(name); f.write("_TAG_"); f.write(vn); f.write(";\n")
+                f.write("    return r;\n"); f.write("}\n")
                 continue
             }
             ptype := type_name_to_c(vt)
-            f.write_str(name); f.write_str(" *"); f.write_str(name); f.write_str("_"); f.write_str(vn); f.write_str("("); f.write_str(ptype); f.write_str(" val) {\n")
-            f.write_str("    "); f.write_str(name); f.write_str(" *r = malloc(sizeof("); f.write_str(name); f.write_str("));\n")
-            f.write_str("    r->tag = "); f.write_str(name); f.write_str("_TAG_"); f.write_str(vn); f.write_str(";\n")
+            f.write(name); f.write(" *"); f.write(name); f.write("_"); f.write(vn); f.write("("); f.write(ptype); f.write(" val) {\n")
+            f.write("    "); f.write(name); f.write(" *r = malloc(sizeof("); f.write(name); f.write("));\n")
+            f.write("    r->tag = "); f.write(name); f.write("_TAG_"); f.write(vn); f.write(";\n")
             if is_primitive_type(vt) {
-                f.write_str("    r->data."); f.write_str(vn); f.write_str(" = *val;\n")
+                f.write("    r->data."); f.write(vn); f.write(" = *val;\n")
             } else if is_funcsig_type(vt).or(vt.eq("Dynamic")) {
-                f.write_str("    r->data."); f.write_str(vn); f.write_str(" = val;\n")
+                f.write("    r->data."); f.write(vn); f.write(" = val;\n")
             } else {
                 tnc := type_name_to_c(vt)
-                f.write_str("    { "); f.write_str(tnc); f.write_str(" _tmp = "); f.write_str(vt); f.write_str("_clone(val); r->data."); f.write_str(vn); f.write_str(" = *_tmp; free(_tmp); }\n")
+                f.write("    { "); f.write(tnc); f.write(" _tmp = "); f.write(vt); f.write("_clone(val); r->data."); f.write(vn); f.write(" = *_tmp; free(_tmp); }\n")
             }
-            f.write_str("    return r;\n"); f.write_str("}\n")
+            f.write("    return r;\n"); f.write("}\n")
         }
     }
     // Namespace methods from ns_decls
@@ -2003,21 +2003,21 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
 emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr) {
     ref edd : EnumDef = get_payload(enum_def.node_type)
     hp := enum_has_payloads(enum_def)
-    f.write_str("struct "); f.write_str(ename); f.write_str(" {\n")
-    f.write_str("    "); f.write_str(ename); f.write_str("_tag tag;\n")
+    f.write("struct "); f.write(ename); f.write(" {\n")
+    f.write("    "); f.write(ename); f.write("_tag tag;\n")
     if hp {
-        f.write_str("    union {\n")
+        f.write("    union {\n")
         for j in 0..edd.variants.len() {
             ref vn : Str = edd.variants.get(j)
             vt := enum_variant_type(enum_def, j.to_i64().to_i32())
             if vt.len().gt(0) {
                 tnv := type_name_to_c_value(vt)
-                f.write_str("        "); f.write_str(tnv); f.write_str(" "); f.write_str(vn); f.write_str(";\n")
+                f.write("        "); f.write(tnv); f.write(" "); f.write(vn); f.write(";\n")
             }
         }
-        f.write_str("    } data;\n")
+        f.write("    } data;\n")
     }
-    f.write_str("};\n\n")
+    f.write("};\n\n")
 }
 
 topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
@@ -2075,7 +2075,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
             if deps_ok.not() { continue }
             if def.node_type.is(NodeType.StructDef) {
                 emit_struct_typedef(f, sname, def)
-                f.write_str("\n")
+                f.write("\n")
             } else {
                 emit_enum_struct_body(f, sname, def)
             }
@@ -2095,7 +2095,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
                 ref def : Expr = stmt.child(0)
                 if def.node_type.is(NodeType.StructDef) {
                     emit_struct_typedef(f, sname, def)
-                    f.write_str("\n")
+                    f.write("\n")
                 } else {
                     emit_enum_struct_body(f, sname, def)
                 }
@@ -2186,7 +2186,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
             if deps_ok.not() { continue }
             if def.node_type.is(NodeType.StructDef) {
                 emit_struct_typedef(f, sname, def)
-                f.write_str("\n")
+                f.write("\n")
             } else {
                 emit_enum_struct_body(f, sname, def)
             }
@@ -2207,7 +2207,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
                 ref def : Expr = stmt.child(0)
                 if def.node_type.is(NodeType.StructDef) {
                     emit_struct_typedef(f, sname, def)
-                    f.write_str("\n")
+                    f.write("\n")
                 } else {
                     emit_enum_struct_body(f, sname, def)
                 }
@@ -2234,17 +2234,17 @@ func_return_ctype := func(fd: FunctionDef) returns Str {
 emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr) {
     ref fd : FunctionDef = get_payload(fdef.node_type)
     ret := func_return_ctype(fd)
-    f.write_str(ret); f.write_str(" "); f.write_str(name); f.write_str("(")
+    f.write(ret); f.write(" "); f.write(name); f.write("(")
     emit_param_list(f, fdef, true)
-    f.write_str(");\n")
+    f.write(");\n")
 }
 
 emit_funcsig_typedef := proc(f: File, name: Str, fdef: Expr) {
     ref fd : FunctionDef = get_payload(fdef.node_type)
     ret := func_return_ctype(fd)
-    f.write_str("typedef "); f.write_str(ret); f.write_str(" (*"); f.write_str(name); f.write_str(")(")
+    f.write("typedef "); f.write(ret); f.write(" (*"); f.write(name); f.write(")(")
     emit_param_list(f, fdef, false)
-    f.write_str(");\n")
+    f.write(");\n")
 }
 
 emit_funcsig_typedefs := proc(f: File, core_program: Expr, program: Expr) {
@@ -2265,13 +2265,13 @@ emit_funcsig_typedefs := proc(f: File, core_program: Expr, program: Expr) {
                 if stmt.til_type.eq(TilType.None) {
                     ref rhs_name : Str = get_payload(rhs.node_type)
                     if is_funcsig_type(rhs_name) {
-                        f.write_str("typedef "); f.write_str(rhs_name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                        f.write("typedef "); f.write(rhs_name); f.write(" "); f.write(dd.name); f.write(";\n")
                     }
                 }
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 }
 
 emit_funcsig_typedefs_lp := proc(f: File) {
@@ -2293,7 +2293,7 @@ emit_funcsig_typedefs_lp := proc(f: File) {
                     if stmt.til_type.eq(TilType.None) {
                         ref rhs_name : Str = get_payload(rhs.node_type)
                         if is_funcsig_type(rhs_name) {
-                            f.write_str("typedef "); f.write_str(rhs_name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                            f.write("typedef "); f.write(rhs_name); f.write(" "); f.write(dd.name); f.write(";\n")
                         }
                     }
                 }
@@ -2316,13 +2316,13 @@ emit_funcsig_typedefs_lp := proc(f: File) {
                 if stmt.til_type.eq(TilType.None) {
                     ref rhs_name : Str = get_payload(rhs.node_type)
                     if is_funcsig_type(rhs_name) {
-                        f.write_str("typedef "); f.write_str(rhs_name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                        f.write("typedef "); f.write(rhs_name); f.write(" "); f.write(dd.name); f.write(";\n")
                     }
                 }
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 }
 
 emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
@@ -2341,26 +2341,26 @@ emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
                     if fwd_sdd.c_tag.eq("@anon") {
                         // anonymous ext_struct: no forward decl possible
                     } else if fwd_sdd.c_tag.len().gt(0) {
-                        f.write_str("typedef struct "); f.write_str(fwd_sdd.c_tag); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                        f.write("typedef struct "); f.write(fwd_sdd.c_tag); f.write(" "); f.write(dd.name); f.write(";\n")
                     } else {
-                        f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                        f.write("typedef struct "); f.write(dd.name); f.write(" "); f.write(dd.name); f.write(";\n")
                     }
                 }
                 if rhs.node_type.is(NodeType.EnumDef) {
                     ref fwd_edd : EnumDef = get_payload(rhs.node_type)
-                    f.write_str("typedef enum {\n")
+                    f.write("typedef enum {\n")
                     for j in 0..fwd_edd.variants.len() {
                         ref fwd_vn : Str = fwd_edd.variants.get(j)
-                        if j.gt(0) { f.write_str(",\n") }
-                        f.write_str("    "); f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(fwd_vn)
+                        if j.gt(0) { f.write(",\n") }
+                        f.write("    "); f.write(dd.name); f.write("_TAG_"); f.write(fwd_vn)
                     }
-                    f.write_str("\n} "); f.write_str(dd.name); f.write_str("_tag;\n")
-                    f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    f.write("\n} "); f.write(dd.name); f.write("_tag;\n")
+                    f.write("typedef struct "); f.write(dd.name); f.write(" "); f.write(dd.name); f.write(";\n")
                 }
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 }
 
 emit_header_forward_decls_lp := proc(f: File) {
@@ -2380,21 +2380,21 @@ emit_header_forward_decls_lp := proc(f: File) {
                         if fwd_sdd.c_tag.eq("@anon") {
                             // anonymous ext_struct: no forward decl possible
                         } else if fwd_sdd.c_tag.len().gt(0) {
-                            f.write_str("typedef struct "); f.write_str(fwd_sdd.c_tag); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                            f.write("typedef struct "); f.write(fwd_sdd.c_tag); f.write(" "); f.write(dd.name); f.write(";\n")
                         } else {
-                            f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                            f.write("typedef struct "); f.write(dd.name); f.write(" "); f.write(dd.name); f.write(";\n")
                         }
                     }
                     if rhs.node_type.is(NodeType.EnumDef) {
                         ref fwd_edd : EnumDef = get_payload(rhs.node_type)
-                        f.write_str("typedef enum {\n")
+                        f.write("typedef enum {\n")
                         for j in 0..fwd_edd.variants.len() {
                             ref fwd_vn : Str = fwd_edd.variants.get(j)
-                            if j.gt(0) { f.write_str(",\n") }
-                            f.write_str("    "); f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(fwd_vn)
+                            if j.gt(0) { f.write(",\n") }
+                            f.write("    "); f.write(dd.name); f.write("_TAG_"); f.write(fwd_vn)
                         }
-                        f.write_str("\n} "); f.write_str(dd.name); f.write_str("_tag;\n")
-                        f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                        f.write("\n} "); f.write(dd.name); f.write("_tag;\n")
+                        f.write("typedef struct "); f.write(dd.name); f.write(" "); f.write(dd.name); f.write(";\n")
                     }
                 }
             }
@@ -2414,26 +2414,26 @@ emit_header_forward_decls_lp := proc(f: File) {
                     if fwd_sdd.c_tag.eq("@anon") {
                         // anonymous ext_struct: no forward decl possible
                     } else if fwd_sdd.c_tag.len().gt(0) {
-                        f.write_str("typedef struct "); f.write_str(fwd_sdd.c_tag); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                        f.write("typedef struct "); f.write(fwd_sdd.c_tag); f.write(" "); f.write(dd.name); f.write(";\n")
                     } else {
-                        f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                        f.write("typedef struct "); f.write(dd.name); f.write(" "); f.write(dd.name); f.write(";\n")
                     }
                 }
                 if rhs.node_type.is(NodeType.EnumDef) {
                     ref fwd_edd : EnumDef = get_payload(rhs.node_type)
-                    f.write_str("typedef enum {\n")
+                    f.write("typedef enum {\n")
                     for j in 0..fwd_edd.variants.len() {
                         ref fwd_vn : Str = fwd_edd.variants.get(j)
-                        if j.gt(0) { f.write_str(",\n") }
-                        f.write_str("    "); f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(fwd_vn)
+                        if j.gt(0) { f.write(",\n") }
+                        f.write("    "); f.write(dd.name); f.write("_TAG_"); f.write(fwd_vn)
                     }
-                    f.write_str("\n} "); f.write_str(dd.name); f.write_str("_tag;\n")
-                    f.write_str("typedef struct "); f.write_str(dd.name); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    f.write("\n} "); f.write(dd.name); f.write("_tag;\n")
+                    f.write("typedef struct "); f.write(dd.name); f.write(" "); f.write(dd.name); f.write(";\n")
                 }
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 }
 
 emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
@@ -2501,21 +2501,21 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
             ref eqfd : FunctionDef = get_payload(eq_fdef.node_type)
             if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
         }
-        f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+        f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
         ref hdr_edd : EnumDef = get_payload(stmt.child(0).node_type)
         mut hdr_vi : USize = 0
         for hdr_vn : Str in hdr_edd.variants {
             hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i64().to_i32())
             if hdr_vt.len().gt(0) {
                 tnc := type_name_to_c(hdr_vt)
-                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+                f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("("); f.write(tnc); f.write(");\n")
             } else {
-                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("();\n")
+                f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("();\n")
             }
             hdr_vi = hdr_vi.add(1)
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 }
 
 emit_header_defs_and_funcs_lp := proc(f: File) {
@@ -2609,22 +2609,22 @@ emit_header_defs_and_funcs_lp := proc(f: File) {
                 ref eqfd : FunctionDef = get_payload(eq_fdef.node_type)
                 if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
             }
-            f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
             ref hdr_edd : EnumDef = get_payload(stmt.child(0).node_type)
             mut hdr_vi : USize = 0
             for hdr_vn : Str in hdr_edd.variants {
                 hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i64().to_i32())
                 if hdr_vt.len().gt(0) {
                     tnc := type_name_to_c(hdr_vt)
-                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+                    f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("("); f.write(tnc); f.write(");\n")
                 } else {
-                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("();\n")
+                    f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("();\n")
                 }
                 hdr_vi = hdr_vi.add(1)
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 }
 
 emit_header_global_decls := proc(f: File, core_program: Expr, program: Expr) {
@@ -2638,13 +2638,13 @@ emit_header_global_decls := proc(f: File, core_program: Expr, program: Expr) {
             ref dd : Declaration = get_payload(stmt.node_type)
             ctype := extern_decl_ctype(stmt.til_type, rhs.til_type)
             if dd.own_type.eq(OwnType.Ref) {
-                f.write_str("extern "); f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                f.write("extern "); f.write(ctype); f.write(" *"); f.write(dd.name); f.write(";\n")
             } else {
-                f.write_str("extern "); f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                f.write("extern "); f.write(ctype); f.write(" "); f.write(dd.name); f.write(";\n")
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 }
 
 emit_header_global_decls_lp := proc(f: File) {
@@ -2659,9 +2659,9 @@ emit_header_global_decls_lp := proc(f: File) {
                 ref dd : Declaration = get_payload(stmt.node_type)
                 ctype := extern_decl_ctype(stmt.til_type, rhs.til_type)
                 if dd.own_type.eq(OwnType.Ref) {
-                    f.write_str("extern "); f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                    f.write("extern "); f.write(ctype); f.write(" *"); f.write(dd.name); f.write(";\n")
                 } else {
-                    f.write_str("extern "); f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    f.write("extern "); f.write(ctype); f.write(" "); f.write(dd.name); f.write(";\n")
                 }
             }
         }
@@ -2675,19 +2675,19 @@ emit_header_global_decls_lp := proc(f: File) {
             ref dd : Declaration = get_payload(stmt.node_type)
             ctype := extern_decl_ctype(stmt.til_type, rhs.til_type)
             if dd.own_type.eq(OwnType.Ref) {
-                f.write_str("extern "); f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                f.write("extern "); f.write(ctype); f.write(" *"); f.write(dd.name); f.write(";\n")
             } else {
-                f.write_str("extern "); f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                f.write("extern "); f.write(ctype); f.write(" "); f.write(dd.name); f.write(";\n")
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 }
 
 build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str) returns shallow I32 {
     build_register_funcsig_names(core_program, program)
     f := File.new(fwd_path, true)
-    f.write_str("#pragma once\n#include \"ext.h\"\n\n")
+    f.write("#pragma once\n#include \"ext.h\"\n\n")
     emit_header_forward_decls(f, core_program, program)
     emit_funcsig_typedefs(f, core_program, program)
     emit_header_defs_and_funcs(f, core_program, program)
@@ -2699,7 +2699,7 @@ build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str) r
 build_forward_header_lp := proc(fwd_path: Str) returns shallow I32 {
     build_register_funcsig_names_lp()
     f := File.new(fwd_path, true)
-    f.write_str("#pragma once\n#include \"ext.h\"\n\n")
+    f.write("#pragma once\n#include \"ext.h\"\n\n")
     emit_header_forward_decls_lp(f)
     emit_funcsig_typedefs_lp(f)
     emit_header_defs_and_funcs_lp(f)
@@ -2711,12 +2711,12 @@ build_forward_header_lp := proc(fwd_path: Str) returns shallow I32 {
 build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {
     build_register_funcsig_names(core_program, program)
     f := File.new(h_path, true)
-    f.write_str("#pragma once\n#include \"ext.h\"\n\n")
+    f.write("#pragma once\n#include \"ext.h\"\n\n")
     emit_header_forward_decls(f, core_program, program)
     emit_funcsig_typedefs(f, core_program, program)
     emit_header_defs_and_funcs(f, core_program, program)
     emit_header_global_decls(f, core_program, program)
-    f.write_str("#include \"ext.h\"\n\n")
+    f.write("#include \"ext.h\"\n\n")
     f.close()
     return 0.to_i32()
 }
@@ -2724,36 +2724,36 @@ build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns sha
 build_header_lp := proc(h_path: Str) returns shallow I32 {
     build_register_funcsig_names_lp()
     f := File.new(h_path, true)
-    f.write_str("#pragma once\n#include \"ext.h\"\n\n")
+    f.write("#pragma once\n#include \"ext.h\"\n\n")
     emit_header_forward_decls_lp(f)
     emit_funcsig_typedefs_lp(f)
     emit_header_defs_and_funcs_lp(f)
     emit_header_global_decls_lp(f)
-    f.write_str("#include \"ext.h\"\n\n")
+    f.write("#include \"ext.h\"\n\n")
     f.close()
     return 0.to_i32()
 }
 
 emit_binding_ns_method := proc(f: File, fdd_name: Str, fd: FunctionDef, mut has_ns: Bool) returns shallow Bool {
     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { return has_ns }
-    if has_ns.not() { f.write_str("    namespace:\n"); has_ns = true }
+    if has_ns.not() { f.write("    namespace:\n"); has_ns = true }
     mut kw := "ext_func"
     if fd.func_type.is(FuncType.Proc).or(fd.func_type.is(FuncType.Test)) { kw = "ext_proc" }
-    f.write_str("    "); f.write_str(fdd_name); f.write_str(" := "); f.write_str(kw); f.write_str("(")
+    f.write("    "); f.write(fdd_name); f.write(" := "); f.write(kw); f.write("(")
     for p in 0..fd.params.len() {
-        if p.gt(0) { f.write_str(", ") }
+        if p.gt(0) { f.write(", ") }
         ref param : Declaration = fd.params.get(p)
-        if param.own_type.is(OwnType.Own) { f.write_str("own ") }
-        f.write_str(param.name); f.write_str(": "); f.write_str(param.explicit_type)
+        if param.own_type.is(OwnType.Own) { f.write("own ") }
+        f.write(param.name); f.write(": "); f.write(param.explicit_type)
     }
-    f.write_str(")")
+    f.write(")")
     if fd.return_type.len().gt(0) {
-        f.write_str(" returns ")
-        if fd.return_own_type.is(OwnType.Ref) { f.write_str("ref ") }
-        if fd.return_own_type.is(OwnType.Shallow) { f.write_str("shallow ") }
-        f.write_str(fd.return_type)
+        f.write(" returns ")
+        if fd.return_own_type.is(OwnType.Ref) { f.write("ref ") }
+        if fd.return_own_type.is(OwnType.Shallow) { f.write("shallow ") }
+        f.write(fd.return_type)
     }
-    f.write_str(" {}\n")
+    f.write(" {}\n")
     return has_ns
 }
 
@@ -2773,8 +2773,8 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
     if is_null(program) { }
     ref lp : LoadedProgram = codegen_lp()
     f := File.new(til_path, true)
-    f.write_str("// Auto-generated FFI binding for "); f.write_str(lib_name); f.write_str("\n")
-    f.write_str("link(\""); f.write_str(lib_name); f.write_str("\")\n\n")
+    f.write("// Auto-generated FFI binding for "); f.write(lib_name); f.write("\n")
+    f.write("link(\""); f.write(lib_name); f.write("\")\n\n")
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for stmt : Expr in iu.ast.children {
@@ -2784,60 +2784,60 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
             ref rhs : Expr = stmt.child(0)
             if rhs.node_type.is(NodeType.StructDef) {
                 ref btb_sdd : StructDef = get_payload(rhs.node_type)
-                f.write_str(dd.name); f.write_str(" := struct {\n")
+                f.write(dd.name); f.write(" := struct {\n")
                 for fdd : Declaration in btb_sdd.fields {
-                    f.write_str("    ")
-                    if fdd.is_mut { f.write_str("mut ") }
-                    if fdd.own_type.is(OwnType.Own) { f.write_str("own ") }
-                    f.write_str(fdd.name)
-                    if fdd.explicit_type.len().gt(0) { f.write_str(" : "); f.write_str(fdd.explicit_type) }
-                    f.write_str(" := ")
+                    f.write("    ")
+                    if fdd.is_mut { f.write("mut ") }
+                    if fdd.own_type.is(OwnType.Own) { f.write("own ") }
+                    f.write(fdd.name)
+                    if fdd.explicit_type.len().gt(0) { f.write(" : "); f.write(fdd.explicit_type) }
+                    f.write(" := ")
                     if is_null(fdd.default_value).not() { emit_til_default(f, fdd.til_type) }
-                    else { f.write_str("0") }
-                    f.write_str("\n")
+                    else { f.write("0") }
+                    f.write("\n")
                 }
                 emit_binding_ns_methods(f, rhs)
-                f.write_str("}\n\n")
+                f.write("}\n\n")
             } else if rhs.node_type.is(NodeType.EnumDef) {
                 ref bind_edd : EnumDef = get_payload(rhs.node_type)
-                f.write_str(dd.name); f.write_str(" := enum {\n")
+                f.write(dd.name); f.write(" := enum {\n")
                 mut bind_vi : USize = 0
                 for bind_vn : Str in bind_edd.variants {
                     bind_vt := enum_variant_type(rhs, bind_vi.to_i64().to_i32())
-                    f.write_str("    "); f.write_str(bind_vn)
-                    if bind_vt.len().gt(0) { f.write_str(": "); f.write_str(bind_vt) }
-                    f.write_str(",\n")
+                    f.write("    "); f.write(bind_vn)
+                    if bind_vt.len().gt(0) { f.write(": "); f.write(bind_vt) }
+                    f.write(",\n")
                     bind_vi = bind_vi.add(1)
                 }
                 emit_binding_ns_methods(f, rhs)
-                f.write_str("}\n\n")
+                f.write("}\n\n")
             } else if rhs.node_type.is(NodeType.FuncDef) {
                 ref fd : FunctionDef = get_payload(rhs.node_type)
                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                 if fd.func_type.is(FuncType.Test) { continue }
                 mut kw := "ext_func"
                 if fd.func_type.is(FuncType.Proc) { kw = "ext_proc" }
-                f.write_str(dd.name); f.write_str(" := "); f.write_str(kw); f.write_str("(")
+                f.write(dd.name); f.write(" := "); f.write(kw); f.write("(")
                 for p in 0..fd.params.len() {
-                    if p.gt(0) { f.write_str(", ") }
+                    if p.gt(0) { f.write(", ") }
                     ref param : Declaration = fd.params.get(p)
-                    if param.own_type.is(OwnType.Own) { f.write_str("own ") }
+                    if param.own_type.is(OwnType.Own) { f.write("own ") }
                     pi := p.to_i64().to_i32()
-                    if pi.eq(fd.variadic_index) { f.write_str("..") }
+                    if pi.eq(fd.variadic_index) { f.write("..") }
                     if pi.eq(fd.kwargs_index) {
-                        f.write_str(param.name); f.write_str(": ...")
+                        f.write(param.name); f.write(": ...")
                     } else {
-                        f.write_str(param.name); f.write_str(": "); f.write_str(param.explicit_type)
+                        f.write(param.name); f.write(": "); f.write(param.explicit_type)
                     }
                 }
-                f.write_str(")")
+                f.write(")")
                 if fd.return_type.len().gt(0) {
-                    f.write_str(" returns ")
-                    if fd.return_own_type.is(OwnType.Ref) { f.write_str("ref ") }
-                    if fd.return_own_type.is(OwnType.Shallow) { f.write_str("shallow ") }
-                    f.write_str(fd.return_type)
+                    f.write(" returns ")
+                    if fd.return_own_type.is(OwnType.Ref) { f.write("ref ") }
+                    if fd.return_own_type.is(OwnType.Shallow) { f.write("shallow ") }
+                    f.write(fd.return_type)
                 }
-                f.write_str(" {}\n\n")
+                f.write(" {}\n\n")
             }
         }
     }
@@ -2876,28 +2876,28 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
     if is_null(program) { }
     ref lp : LoadedProgram = codegen_lp()
     f := File.new(py_path, true)
-    f.write_str("# Auto-generated Python binding for "); f.write_str(lib_name); f.write_str("\n")
-    f.write_str("import ctypes\n")
-    f.write_str("import os\n\n")
-    f.write_str("_dir = os.path.dirname(os.path.abspath(__file__))\n")
-    f.write_str("_lib = ctypes.CDLL(os.path.join(_dir, '..', 'lib', 'lib")
-    f.write_str(lib_name); f.write_str(".so'))\n\n")
+    f.write("# Auto-generated Python binding for "); f.write(lib_name); f.write("\n")
+    f.write("import ctypes\n")
+    f.write("import os\n\n")
+    f.write("_dir = os.path.dirname(os.path.abspath(__file__))\n")
+    f.write("_lib = ctypes.CDLL(os.path.join(_dir, '..', 'lib', 'lib")
+    f.write(lib_name); f.write(".so'))\n\n")
 
-    f.write_str("\nclass Str(ctypes.Structure):\n")
-    f.write_str("    _fields_ = [\n")
-    f.write_str("        ('c_str', ctypes.POINTER(ctypes.c_ubyte)),\n")
-    f.write_str("        ('count', ctypes.c_uint),\n")
-    f.write_str("        ('cap', ctypes.c_uint),\n")
-    f.write_str("    ]\n\n")
-    f.write_str("\nclass Array(ctypes.Structure):\n")
-    f.write_str("    _fields_ = [\n")
-    f.write_str("        ('data', ctypes.POINTER(ctypes.c_ubyte)),\n")
-    f.write_str("        ('cap', ctypes.c_uint),\n")
-    f.write_str("        ('elem_size', ctypes.c_uint),\n")
-    f.write_str("        ('elem_type', Str),\n")
-    f.write_str("        ('elem_clone', ctypes.c_void_p),\n")
-    f.write_str("        ('elem_delete', ctypes.c_void_p),\n")
-    f.write_str("    ]\n\n")
+    f.write("\nclass Str(ctypes.Structure):\n")
+    f.write("    _fields_ = [\n")
+    f.write("        ('c_str', ctypes.POINTER(ctypes.c_ubyte)),\n")
+    f.write("        ('count', ctypes.c_uint),\n")
+    f.write("        ('cap', ctypes.c_uint),\n")
+    f.write("    ]\n\n")
+    f.write("\nclass Array(ctypes.Structure):\n")
+    f.write("    _fields_ = [\n")
+    f.write("        ('data', ctypes.POINTER(ctypes.c_ubyte)),\n")
+    f.write("        ('cap', ctypes.c_uint),\n")
+    f.write("        ('elem_size', ctypes.c_uint),\n")
+    f.write("        ('elem_type', Str),\n")
+    f.write("        ('elem_clone', ctypes.c_void_p),\n")
+    f.write("        ('elem_delete', ctypes.c_void_p),\n")
+    f.write("    ]\n\n")
 
     // Forward-declare all struct/enum classes
     for u : ProgramUnit in lp.units {
@@ -2908,15 +2908,15 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
             if stmt.children.len().eq(0) { continue }
             ref rhs : Expr = stmt.child(0)
             if rhs.node_type.is(NodeType.StructDef) {
-                f.write_str("\nclass "); f.write_str(dd.name); f.write_str("(ctypes.Structure):\n")
-                f.write_str("    pass\n")
+                f.write("\nclass "); f.write(dd.name); f.write("(ctypes.Structure):\n")
+                f.write("    pass\n")
             } else if rhs.node_type.is(NodeType.EnumDef) {
-                f.write_str("\nclass "); f.write_str(dd.name); f.write_str("(ctypes.Structure):\n")
-                f.write_str("    pass\n")
+                f.write("\nclass "); f.write(dd.name); f.write("(ctypes.Structure):\n")
+                f.write("    pass\n")
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 
     // Emit struct field definitions and enum definitions
     for u : ProgramUnit in lp.units {
@@ -2929,7 +2929,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
 
             if rhs.node_type.is(NodeType.StructDef) {
                 ref bpb_sdd : StructDef = get_payload(rhs.node_type)
-                f.write_str("\n"); f.write_str(dd.name); f.write_str("._fields_ = [\n")
+                f.write("\n"); f.write(dd.name); f.write("._fields_ = [\n")
                 for fdd : Declaration in bpb_sdd.fields {
                     mut ct := ""
                     if fdd.explicit_type.len().gt(0) {
@@ -2947,10 +2947,10 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                         case:              ct = "ctypes.c_void_p"
                         }
                     }
-                    f.write_str("    ('"); f.write_str(fdd.name); f.write_str("', ")
-                    f.write_str(ct); f.write_str("),\n")
+                    f.write("    ('"); f.write(fdd.name); f.write("', ")
+                    f.write(ct); f.write("),\n")
                 }
-                f.write_str("]\n")
+                f.write("]\n")
 
             } else if rhs.node_type.is(NodeType.EnumDef) {
                 ref ct_edd : EnumDef = get_payload(rhs.node_type)
@@ -2959,39 +2959,39 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                 // Emit tag constants
                 mut tag := 0
                 for ct_vn : Str in ct_edd.variants {
-                    f.write_str(dd.name); f.write_str("_TAG_"); f.write_str(ct_vn)
-                    f.write_str(" = "); f.write_str(tag.to_str()); f.write_str("\n")
+                    f.write(dd.name); f.write("_TAG_"); f.write(ct_vn)
+                    f.write(" = "); f.write(tag.to_str()); f.write("\n")
                     tag = tag.add(1)
                 }
 
                 // Emit union if has payloads
                 if hp {
-                    f.write_str("\nclass "); f.write_str(dd.name); f.write_str("_data(ctypes.Union):\n")
-                    f.write_str("    _fields_ = [\n")
+                    f.write("\nclass "); f.write(dd.name); f.write("_data(ctypes.Union):\n")
+                    f.write("    _fields_ = [\n")
                     mut ct_vi : USize = 0
                     for ct_uvn : Str in ct_edd.variants {
                         ct_vt := enum_variant_type(rhs, ct_vi.to_i64().to_i32())
                         if ct_vt.len().gt(0) {
-                            f.write_str("        ('"); f.write_str(ct_uvn); f.write_str("', ")
-                            f.write_str(type_name_to_ctypes_param(ct_vt, false))
-                            f.write_str("),\n")
+                            f.write("        ('"); f.write(ct_uvn); f.write("', ")
+                            f.write(type_name_to_ctypes_param(ct_vt, false))
+                            f.write("),\n")
                         }
                         ct_vi = ct_vi.add(1)
                     }
-                    f.write_str("    ]\n")
+                    f.write("    ]\n")
                 }
 
                 // Emit enum struct _fields_
-                f.write_str("\n"); f.write_str(dd.name); f.write_str("._fields_ = [\n")
-                f.write_str("    ('tag', ctypes.c_int),\n")
+                f.write("\n"); f.write(dd.name); f.write("._fields_ = [\n")
+                f.write("    ('tag', ctypes.c_int),\n")
                 if hp {
-                    f.write_str("    ('data', "); f.write_str(dd.name); f.write_str("_data),\n")
+                    f.write("    ('data', "); f.write(dd.name); f.write("_data),\n")
                 }
-                f.write_str("]\n")
+                f.write("]\n")
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 
     // Emit function bindings
     for u : ProgramUnit in lp.units {
@@ -3010,25 +3010,25 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                     if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                     ref fd : FunctionDef = get_payload(nsd.default_value.node_type)
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-                    f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(nsd.name)
-                    f.write_str(".argtypes = [")
+                    f.write("_lib."); f.write(dd.name); f.write("_"); f.write(nsd.name)
+                    f.write(".argtypes = [")
                     for p in 0..fd.params.len() {
-                        if p.gt(0) { f.write_str(", ") }
+                        if p.gt(0) { f.write(", ") }
                         ref param : Declaration = fd.params.get(p)
                         ps := param.own_type.is(OwnType.Shallow)
-                        f.write_str(type_name_to_ctypes_param(param.explicit_type, ps))
+                        f.write(type_name_to_ctypes_param(param.explicit_type, ps))
                     }
-                    f.write_str("]\n")
+                    f.write("]\n")
                     if fd.return_type.len().gt(0) {
                         rs := fd.return_own_type.is(OwnType.Shallow)
-                        f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(nsd.name)
-                        f.write_str(".restype = ")
-                        f.write_str(type_name_to_ctypes_return(fd.return_type, rs)); f.write_str("\n")
+                        f.write("_lib."); f.write(dd.name); f.write("_"); f.write(nsd.name)
+                        f.write(".restype = ")
+                        f.write(type_name_to_ctypes_return(fd.return_type, rs)); f.write("\n")
                     } else {
-                        f.write_str("_lib."); f.write_str(dd.name); f.write_str("_"); f.write_str(nsd.name)
-                        f.write_str(".restype = None\n")
+                        f.write("_lib."); f.write(dd.name); f.write("_"); f.write(nsd.name)
+                        f.write(".restype = None\n")
                     }
-                    f.write_str("\n")
+                    f.write("\n")
                 }
 
             } else if rhs.node_type.is(NodeType.FuncDef) {
@@ -3039,29 +3039,29 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                 c_name := func_to_c(dd.name)
 
                 // argtypes
-                f.write_str("_lib."); f.write_str(c_name); f.write_str(".argtypes = [")
+                f.write("_lib."); f.write(c_name); f.write(".argtypes = [")
                 for p in 0..fd.params.len() {
-                    if p.gt(0) { f.write_str(", ") }
+                    if p.gt(0) { f.write(", ") }
                     ref param : Declaration = fd.params.get(p)
                     pi := p.to_i64().to_i32()
                     if pi.eq(fd.variadic_index) {
-                        f.write_str("ctypes.POINTER(Array)")
+                        f.write("ctypes.POINTER(Array)")
                     } else {
                         ps := param.own_type.is(OwnType.Shallow)
-                        f.write_str(type_name_to_ctypes_param(param.explicit_type, ps))
+                        f.write(type_name_to_ctypes_param(param.explicit_type, ps))
                     }
                 }
-                f.write_str("]\n")
+                f.write("]\n")
 
                 // restype
                 if fd.return_type.len().gt(0) {
                     rs := fd.return_own_type.is(OwnType.Shallow)
-                    f.write_str("_lib."); f.write_str(c_name); f.write_str(".restype = ")
-                    f.write_str(type_name_to_ctypes_return(fd.return_type, rs)); f.write_str("\n")
+                    f.write("_lib."); f.write(c_name); f.write(".restype = ")
+                    f.write(type_name_to_ctypes_return(fd.return_type, rs)); f.write("\n")
                 } else {
-                    f.write_str("_lib."); f.write_str(c_name); f.write_str(".restype = None\n")
+                    f.write("_lib."); f.write(c_name); f.write(".restype = None\n")
                 }
-                f.write_str("\n")
+                f.write("\n")
             }
         }
     }
@@ -3096,10 +3096,10 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
             if eq_shallow { eq_ret = "ctypes.c_bool" }
 
             // eq
-            f.write_str("_lib."); f.write_str(sname); f.write_str("_eq.argtypes = [ctypes.POINTER(")
-            f.write_str(sname); f.write_str("), ctypes.POINTER("); f.write_str(sname); f.write_str(")]\n")
-            f.write_str("_lib."); f.write_str(sname); f.write_str("_eq.restype = ")
-            f.write_str(eq_ret); f.write_str("\n\n")
+            f.write("_lib."); f.write(sname); f.write("_eq.argtypes = [ctypes.POINTER(")
+            f.write(sname); f.write("), ctypes.POINTER("); f.write(sname); f.write(")]\n")
+            f.write("_lib."); f.write(sname); f.write("_eq.restype = ")
+            f.write(eq_ret); f.write("\n\n")
 
             // Per-variant helpers
             ref py_edd : EnumDef = get_payload(rhs.node_type)
@@ -3109,31 +3109,31 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
 
                 if hp {
                     // is_Variant
-                    f.write_str("_lib."); f.write_str(sname); f.write_str("_is_"); f.write_str(py_vn)
-                    f.write_str(".argtypes = [ctypes.POINTER("); f.write_str(sname); f.write_str(")]\n")
-                    f.write_str("_lib."); f.write_str(sname); f.write_str("_is_"); f.write_str(py_vn)
-                    f.write_str(".restype = "); f.write_str(eq_ret); f.write_str("\n\n")
+                    f.write("_lib."); f.write(sname); f.write("_is_"); f.write(py_vn)
+                    f.write(".argtypes = [ctypes.POINTER("); f.write(sname); f.write(")]\n")
+                    f.write("_lib."); f.write(sname); f.write("_is_"); f.write(py_vn)
+                    f.write(".restype = "); f.write(eq_ret); f.write("\n\n")
                 }
 
                 if py_vt.len().gt(0) {
                     // Constructor: takes payload, returns POINTER(Enum)
-                    f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(py_vn)
-                    f.write_str(".argtypes = [")
-                    f.write_str(type_name_to_ctypes_param(py_vt, false)); f.write_str("]\n")
-                    f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(py_vn)
-                    f.write_str(".restype = ctypes.POINTER("); f.write_str(sname); f.write_str(")\n\n")
+                    f.write("_lib."); f.write(sname); f.write("_"); f.write(py_vn)
+                    f.write(".argtypes = [")
+                    f.write(type_name_to_ctypes_param(py_vt, false)); f.write("]\n")
+                    f.write("_lib."); f.write(sname); f.write("_"); f.write(py_vn)
+                    f.write(".restype = ctypes.POINTER("); f.write(sname); f.write(")\n\n")
                     // get_Variant
-                    f.write_str("_lib."); f.write_str(sname); f.write_str("_get_"); f.write_str(py_vn)
-                    f.write_str(".argtypes = [ctypes.POINTER("); f.write_str(sname); f.write_str(")]\n")
-                    f.write_str("_lib."); f.write_str(sname); f.write_str("_get_"); f.write_str(py_vn)
-                    f.write_str(".restype = ")
-                    f.write_str(type_name_to_ctypes_param(py_vt, false)); f.write_str("\n\n")
+                    f.write("_lib."); f.write(sname); f.write("_get_"); f.write(py_vn)
+                    f.write(".argtypes = [ctypes.POINTER("); f.write(sname); f.write(")]\n")
+                    f.write("_lib."); f.write(sname); f.write("_get_"); f.write(py_vn)
+                    f.write(".restype = ")
+                    f.write(type_name_to_ctypes_param(py_vt, false)); f.write("\n\n")
                 } else {
                     // Constructor: no args, returns POINTER(Enum)
-                    f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(py_vn)
-                    f.write_str(".argtypes = []\n")
-                    f.write_str("_lib."); f.write_str(sname); f.write_str("_"); f.write_str(py_vn)
-                    f.write_str(".restype = ctypes.POINTER("); f.write_str(sname); f.write_str(")\n\n")
+                    f.write("_lib."); f.write(sname); f.write("_"); f.write(py_vn)
+                    f.write(".argtypes = []\n")
+                    f.write("_lib."); f.write(sname); f.write("_"); f.write(py_vn)
+                    f.write(".restype = ctypes.POINTER("); f.write(sname); f.write(")\n\n")
                 }
                 py_vi = py_vi.add(1)
             }
@@ -3477,7 +3477,7 @@ build_register_lookups_lp := proc() {
 }
 
 emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode: Mode) {
-    f.write_str("#include \"ext.h\"\n\n")
+    f.write("#include \"ext.h\"\n\n")
     emit_header_forward_decls(f, core_program, program)
     emit_funcsig_typedefs(f, core_program, program)
 
@@ -3549,16 +3549,16 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
             ref eqfd : FunctionDef = get_payload(eq_fdef.node_type)
             if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
         }
-        f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+        f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
         ref hdr_edd : EnumDef = get_payload(stmt.child(0).node_type)
         mut hdr_vi : USize = 0
         for hdr_vn : Str in hdr_edd.variants {
             hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i64().to_i32())
             if hdr_vt.len().gt(0) {
                 tnc := type_name_to_c(hdr_vt)
-                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+                f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("("); f.write(tnc); f.write(");\n")
             } else {
-                f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("();\n")
+                f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("();\n")
             }
             hdr_vi = hdr_vi.add(1)
         }
@@ -3566,7 +3566,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
 }
 
 emit_monolithic_header_lp := proc(f: File, mode: Mode) {
-    f.write_str("#include \"ext.h\"\n\n")
+    f.write("#include \"ext.h\"\n\n")
     emit_header_forward_decls_lp(f)
     emit_funcsig_typedefs_lp(f)
 
@@ -3674,16 +3674,16 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
                 ref eqfd : FunctionDef = get_payload(eq_fdef.node_type)
                 if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
             }
-            f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
             ref hdr_edd : EnumDef = get_payload(stmt.child(0).node_type)
             mut hdr_vi : USize = 0
             for hdr_vn : Str in hdr_edd.variants {
                 hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i64().to_i32())
                 if hdr_vt.len().gt(0) {
                     tnc := type_name_to_c(hdr_vt)
-                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+                    f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("("); f.write(tnc); f.write(");\n")
                 } else {
-                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(hdr_vn); f.write_str("();\n")
+                    f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("();\n")
                 }
                 hdr_vi = hdr_vi.add(1)
             }
@@ -3786,16 +3786,16 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
                     ref eqfd : FunctionDef = get_payload(eq_fdef.node_type)
                     if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
                 }
-                f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+                f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
                 ref shdr_edd : EnumDef = get_payload(stmt.child(0).node_type)
                 mut shdr_vi : USize = 0
                 for shdr_vn : Str in shdr_edd.variants {
                     shdr_vt := enum_variant_type(stmt.child(0), shdr_vi.to_i64().to_i32())
                     if shdr_vt.len().gt(0) {
                         tnc := type_name_to_c(shdr_vt)
-                        f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(shdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+                        f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(shdr_vn); f.write("("); f.write(tnc); f.write(");\n")
                     } else {
-                        f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(shdr_vn); f.write_str("();\n")
+                        f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(shdr_vn); f.write("();\n")
                     }
                     shdr_vi = shdr_vi.add(1)
                 }
@@ -3827,22 +3827,22 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
                 ref eqfd : FunctionDef = get_payload(eq_fdef.node_type)
                 if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
             }
-            f.write_str(eq_ret); f.write_str(" "); f.write_str(dd.name); f.write_str("_eq("); f.write_str(dd.name); f.write_str(" *, "); f.write_str(dd.name); f.write_str(" *);\n")
+            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
             ref shdr_edd : EnumDef = get_payload(stmt.child(0).node_type)
             mut shdr_vi : USize = 0
             for shdr_vn : Str in shdr_edd.variants {
                 shdr_vt := enum_variant_type(stmt.child(0), shdr_vi.to_i64().to_i32())
                 if shdr_vt.len().gt(0) {
                     tnc := type_name_to_c(shdr_vt)
-                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(shdr_vn); f.write_str("("); f.write_str(tnc); f.write_str(");\n")
+                    f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(shdr_vn); f.write("("); f.write(tnc); f.write(");\n")
                 } else {
-                    f.write_str(dd.name); f.write_str(" *"); f.write_str(dd.name); f.write_str("_"); f.write_str(shdr_vn); f.write_str("();\n")
+                    f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(shdr_vn); f.write("();\n")
                 }
                 shdr_vi = shdr_vi.add(1)
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 
     // Forward declarations for dyn_call dispatch functions
     mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
@@ -3859,20 +3859,20 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     for info : DynCallInfo in dyn_methods {
         if info.has_return {
             if info.nargs.eq(1) {
-                f.write_str("void *dyn_call_"); f.write_str(info.method); f.write_str("(Str *type_name, void *val);\n")
+                f.write("void *dyn_call_"); f.write(info.method); f.write("(Str *type_name, void *val);\n")
             } else {
-                f.write_str("void *dyn_call_"); f.write_str(info.method); f.write_str("(Str *type_name, void *val, void *arg2);\n")
+                f.write("void *dyn_call_"); f.write(info.method); f.write("(Str *type_name, void *val, void *arg2);\n")
             }
         } else {
             if info.nargs.eq(1) {
-                f.write_str("void dyn_call_"); f.write_str(info.method); f.write_str("(Str *type_name, void *val);\n")
+                f.write("void dyn_call_"); f.write(info.method); f.write("(Str *type_name, void *val);\n")
             } else {
-                f.write_str("void dyn_call_"); f.write_str(info.method); f.write_str("(Str *type_name, void *val, void *arg2);\n")
+                f.write("void dyn_call_"); f.write(info.method); f.write("(Str *type_name, void *val, void *arg2);\n")
             }
         }
     }
-    f.write_str("void *dyn_fn(Str *type_name, Str *method);\n")
-    f.write_str("\n")
+    f.write("void *dyn_fn(Str *type_name, Str *method);\n")
+    f.write("\n")
     own dyn_methods.delete()
 
     // Forward declarations for dyn_has_method dispatch functions
@@ -3919,9 +3919,9 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
         collect_dyn_has_methods(iu.ast, has_methods)
     }
     for method : Str in has_methods {
-        f.write_str(dyn_has_ret); f.write_str(" dyn_has_"); f.write_str(method); f.write_str("(Str *type_name);\n")
+        f.write(dyn_has_ret); f.write(" dyn_has_"); f.write(method); f.write("(Str *type_name);\n")
     }
-    if has_methods.len().gt(0) { f.write_str("\n") }
+    if has_methods.len().gt(0) { f.write("\n") }
     own has_methods.delete()
 
     // Forward declarations for array/vec builtin helpers
@@ -3940,9 +3940,9 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
         mut prefix := "array"
         mut ret := "Array"
         if ci.is_vec.neq(0) { prefix = "vec"; ret = "Vec" }
-        f.write_str(ret); f.write_str(" *"); f.write_str(prefix); f.write_str("_of_"); f.write_str(ci.type_name); f.write_str("(int count, ...);\n")
+        f.write(ret); f.write(" *"); f.write(prefix); f.write("_of_"); f.write(ci.type_name); f.write("(int count, ...);\n")
     }
-    if coll_infos.len().gt(0) { f.write_str("\n") }
+    if coll_infos.len().gt(0) { f.write("\n") }
     own coll_infos.delete()
 }
 
@@ -3957,41 +3957,41 @@ emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: Funct
     }
     if any_shallow.not() { return }
     if has_return {
-        f.write_str("void *"); f.write_str(type_name); f.write_str("_"); f.write_str(method_name); f.write_str("_dyn(")
+        f.write("void *"); f.write(type_name); f.write("_"); f.write(method_name); f.write("_dyn(")
     } else {
-        f.write_str("void "); f.write_str(type_name); f.write_str("_"); f.write_str(method_name); f.write_str("_dyn(")
+        f.write("void "); f.write(type_name); f.write("_"); f.write(method_name); f.write("_dyn(")
     }
     for p in 0..np {
-        if p.gt(0) { f.write_str(", ") }
-        f.write_str("void *_a"); emit_i32(f, p.to_i64().to_i32())
+        if p.gt(0) { f.write(", ") }
+        f.write("void *_a"); emit_i32(f, p.to_i64().to_i32())
     }
-    if np.eq(0) { f.write_str("void") }
-    f.write_str(") {\n")
+    if np.eq(0) { f.write("void") }
+    f.write(") {\n")
     if has_return {
         if ret_shallow {
             rc := type_name_to_c_value(fd.return_type)
-            f.write_str("    "); f.write_str(rc); f.write_str(" *_r = malloc(sizeof("); f.write_str(rc); f.write_str(")); *_r = "); f.write_str(type_name); f.write_str("_"); f.write_str(method_name); f.write_str("(")
+            f.write("    "); f.write(rc); f.write(" *_r = malloc(sizeof("); f.write(rc); f.write(")); *_r = "); f.write(type_name); f.write("_"); f.write(method_name); f.write("(")
         } else {
-            f.write_str("    return (void *)"); f.write_str(type_name); f.write_str("_"); f.write_str(method_name); f.write_str("(")
+            f.write("    return (void *)"); f.write(type_name); f.write("_"); f.write(method_name); f.write("(")
         }
     } else {
-        f.write_str("    "); f.write_str(type_name); f.write_str("_"); f.write_str(method_name); f.write_str("(")
+        f.write("    "); f.write(type_name); f.write("_"); f.write(method_name); f.write("(")
     }
     for p in 0..np {
-        if p.gt(0) { f.write_str(", ") }
+        if p.gt(0) { f.write(", ") }
         ref pp : Declaration = fd.params.get(p)
         if pp.own_type.is(OwnType.Shallow) {
             pc := type_name_to_c_value(pp.explicit_type)
-            f.write_str("*("); f.write_str(pc); f.write_str(" *)_a"); emit_i32(f, p.to_i64().to_i32())
+            f.write("*("); f.write(pc); f.write(" *)_a"); emit_i32(f, p.to_i64().to_i32())
         } else {
-            f.write_str("_a"); emit_i32(f, p.to_i64().to_i32())
+            f.write("_a"); emit_i32(f, p.to_i64().to_i32())
         }
     }
-    f.write_str(");")
+    f.write(");")
     if has_return {
-        if ret_shallow { f.write_str(" return _r;") }
+        if ret_shallow { f.write(" return _r;") }
     }
-    f.write_str("\n}\n")
+    f.write("\n}\n")
 }
 
 emit_dyn_fn_wrappers := proc(f: File) {
@@ -4032,7 +4032,7 @@ emit_dyn_fn_wrappers := proc(f: File) {
         }
     }
     // Emit dyn_fn dispatch
-    f.write_str("void *dyn_fn(Str *type_name, Str *method) {\n    (void)type_name; (void)method;\n")
+    f.write("void *dyn_fn(Str *type_name, Str *method) {\n    (void)type_name; (void)method;\n")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4054,7 +4054,7 @@ emit_dyn_fn_wrappers := proc(f: File) {
                     if any_shallow { suffix = "_dyn" }
                     tlen := dd.name.len().to_i64().to_u64()
                     mlen := nsd.name.len().to_i64().to_u64()
-                    f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0 && method->count == "); emit_u64(f, mlen); f.write_str("ULL && memcmp(method->c_str, \""); f.write_str(nsd.name); f.write_str("\", "); emit_u64(f, mlen); f.write_str("ULL) == 0) return (void*)"); f.write_str(dd.name); f.write_str("_"); f.write_str(nsd.name); f.write_str(suffix); f.write_str(";\n")
+                    f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0 && method->count == "); emit_u64(f, mlen); f.write("ULL && memcmp(method->c_str, \""); f.write(nsd.name); f.write("\", "); emit_u64(f, mlen); f.write("ULL) == 0) return (void*)"); f.write(dd.name); f.write("_"); f.write(nsd.name); f.write(suffix); f.write(";\n")
                 }
             }
         }
@@ -4079,13 +4079,13 @@ emit_dyn_fn_wrappers := proc(f: File) {
                 if any_shallow { suffix = "_dyn" }
                 tlen := dd.name.len().to_i64().to_u64()
                 mlen := nsd.name.len().to_i64().to_u64()
-                f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0 && method->count == "); emit_u64(f, mlen); f.write_str("ULL && memcmp(method->c_str, \""); f.write_str(nsd.name); f.write_str("\", "); emit_u64(f, mlen); f.write_str("ULL) == 0) return (void*)"); f.write_str(dd.name); f.write_str("_"); f.write_str(nsd.name); f.write_str(suffix); f.write_str(";\n")
+                f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0 && method->count == "); emit_u64(f, mlen); f.write("ULL && memcmp(method->c_str, \""); f.write(nsd.name); f.write("\", "); emit_u64(f, mlen); f.write("ULL) == 0) return (void*)"); f.write(dd.name); f.write("_"); f.write(nsd.name); f.write(suffix); f.write(";\n")
             }
         }
     }
-    f.write_str("    fprintf(stderr, \"dyn_fn: unknown %s.%s\\n\", (char*)type_name->c_str, (char*)method->c_str);\n")
-    f.write_str("    exit(1);\n")
-    f.write_str("}\n\n")
+    f.write("    fprintf(stderr, \"dyn_fn: unknown %s.%s\\n\", (char*)type_name->c_str, (char*)method->c_str);\n")
+    f.write("    exit(1);\n")
+    f.write("}\n\n")
 }
 
 emit_dyn_call_bodies := proc(f: File) {
@@ -4106,9 +4106,9 @@ emit_dyn_call_bodies := proc(f: File) {
         mut ret_type := "void "
         if info.has_return { ret_type = "void *" }
         if info.nargs.eq(1) {
-            f.write_str(ret_type); f.write_str("dyn_call_"); f.write_str(method); f.write_str("(Str *type_name, void *val) {\n")
+            f.write(ret_type); f.write("dyn_call_"); f.write(method); f.write("(Str *type_name, void *val) {\n")
         } else {
-            f.write_str(ret_type); f.write_str("dyn_call_"); f.write_str(method); f.write_str("(Str *type_name, void *val, void *arg2) {\n")
+            f.write(ret_type); f.write("dyn_call_"); f.write(method); f.write("(Str *type_name, void *val, void *arg2) {\n")
         }
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
@@ -4158,22 +4158,22 @@ emit_dyn_call_bodies := proc(f: File) {
                     if info.nargs.eq(2) {
                         if info.has_return {
                             if ret_sh {
-                                f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(ret_ct); f.write_str(" *_r = malloc(sizeof("); f.write_str(ret_ct); f.write_str(")); *_r = "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(", "); f.write_str(arg2_s); f.write_str("); return _r; }\n")
+                                f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) { "); f.write(ret_ct); f.write(" *_r = malloc(sizeof("); f.write(ret_ct); f.write(")); *_r = "); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write(", "); f.write(arg2_s); f.write("); return _r; }\n")
                             } else {
-                                f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) return (void *)"); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(", "); f.write_str(arg2_s); f.write_str(");\n")
+                                f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) return (void *)"); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write(", "); f.write(arg2_s); f.write(");\n")
                             }
                         } else {
-                            f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(", "); f.write_str(arg2_s); f.write_str("); return; }\n")
+                            f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) { "); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write(", "); f.write(arg2_s); f.write("); return; }\n")
                         }
                     } else {
                         if info.has_return {
                             if ret_sh {
-                                f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(ret_ct); f.write_str(" *_r = malloc(sizeof("); f.write_str(ret_ct); f.write_str(")); *_r = "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str("); return _r; }\n")
+                                f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) { "); f.write(ret_ct); f.write(" *_r = malloc(sizeof("); f.write(ret_ct); f.write(")); *_r = "); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write("); return _r; }\n")
                             } else {
-                                f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) return (void *)"); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(");\n")
+                                f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) return (void *)"); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write(");\n")
                             }
                         } else {
-                            f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str("); return; }\n")
+                            f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) { "); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write("); return; }\n")
                         }
                     }
                 }
@@ -4226,29 +4226,29 @@ emit_dyn_call_bodies := proc(f: File) {
                 if info.nargs.eq(2) {
                     if info.has_return {
                         if ret_sh {
-                            f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(ret_ct); f.write_str(" *_r = malloc(sizeof("); f.write_str(ret_ct); f.write_str(")); *_r = "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(", "); f.write_str(arg2_s); f.write_str("); return _r; }\n")
+                            f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) { "); f.write(ret_ct); f.write(" *_r = malloc(sizeof("); f.write(ret_ct); f.write(")); *_r = "); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write(", "); f.write(arg2_s); f.write("); return _r; }\n")
                         } else {
-                            f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) return (void *)"); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(", "); f.write_str(arg2_s); f.write_str(");\n")
+                            f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) return (void *)"); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write(", "); f.write(arg2_s); f.write(");\n")
                         }
                     } else {
-                        f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(", "); f.write_str(arg2_s); f.write_str("); return; }\n")
+                        f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) { "); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write(", "); f.write(arg2_s); f.write("); return; }\n")
                     }
                 } else {
                     if info.has_return {
                         if ret_sh {
-                            f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(ret_ct); f.write_str(" *_r = malloc(sizeof("); f.write_str(ret_ct); f.write_str(")); *_r = "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str("); return _r; }\n")
+                            f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) { "); f.write(ret_ct); f.write(" *_r = malloc(sizeof("); f.write(ret_ct); f.write(")); *_r = "); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write("); return _r; }\n")
                         } else {
-                            f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) return (void *)"); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str(");\n")
+                            f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) return (void *)"); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write(");\n")
                         }
                     } else {
-                        f.write_str("    if (type_name->count == "); emit_u64(f, tlen); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, tlen); f.write_str("ULL) == 0) { "); f.write_str(dd.name); f.write_str("_"); f.write_str(method); f.write_str("("); f.write_str(arg1); f.write_str("); return; }\n")
+                        f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) { "); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write("); return; }\n")
                     }
                 }
             }
         }
-        f.write_str("    fprintf(stderr, \"dyn_call: unknown type for "); f.write_str(method); f.write_str("\\n\");\n")
-        f.write_str("    exit(1);\n")
-        f.write_str("}\n\n")
+        f.write("    fprintf(stderr, \"dyn_call: unknown type for "); f.write(method); f.write("\\n\");\n")
+        f.write("    exit(1);\n")
+        f.write("}\n\n")
     }
     own dyn_methods.delete()
 }
@@ -4302,7 +4302,7 @@ emit_dyn_has_bodies := proc(f: File) {
         collect_dyn_has_methods(iu.ast, has_methods)
     }
     for method : Str in has_methods {
-        f.write_str(dyn_has_ret); f.write_str(" dyn_has_"); f.write_str(method); f.write_str("(Str *type_name) {\n    (void)type_name;\n")
+        f.write(dyn_has_ret); f.write(" dyn_has_"); f.write(method); f.write("(Str *type_name) {\n    (void)type_name;\n")
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
                 ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4318,9 +4318,9 @@ emit_dyn_has_bodies := proc(f: File) {
                     }
                     if found.not() { continue }
                     if dyn_has_shallow {
-                        f.write_str("    if (type_name->count == "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL) == 0) return 1;\n")
+                        f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write("ULL) == 0) return 1;\n")
                     } else {
-                        f.write_str("    if (type_name->count == "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
+                        f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
                     }
                 }
             }
@@ -4339,15 +4339,15 @@ emit_dyn_has_bodies := proc(f: File) {
                 }
                 if found.not() { continue }
                 if dyn_has_shallow {
-                    f.write_str("    if (type_name->count == "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL) == 0) return 1;\n")
+                    f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write("ULL) == 0) return 1;\n")
                 } else {
-                    f.write_str("    if (type_name->count == "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL && memcmp(type_name->c_str, \""); f.write_str(dd.name); f.write_str("\", "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write_str("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
+                    f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().to_i64().to_u64()); f.write("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
                 }
             }
         }
-        if dyn_has_shallow { f.write_str("    return 0;\n") }
-        else { f.write_str("    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n") }
-        f.write_str("}\n\n")
+        if dyn_has_shallow { f.write("    return 0;\n") }
+        else { f.write("    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n") }
+        f.write("}\n\n")
     }
     own has_methods.delete()
 }
@@ -4369,43 +4369,43 @@ emit_collection_helpers := proc(f: File) {
         et := ci.type_name
         et_len := et.len().to_i64().to_u64()
         if ci.is_vec.neq(0) {
-            f.write_str("Vec *vec_of_"); f.write_str(et); f.write_str("(int count, ...) {\n")
-            f.write_str("    USize _esz = sizeof("); f.write_str(et); f.write_str(");\n")
-            f.write_str("    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\""); f.write_str(et); f.write_str("\", .count = "); emit_u64(f, et_len); f.write_str("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
-            f.write_str("    va_list ap; va_start(ap, count);\n")
-            f.write_str("    for (int _i = 0; _i < count; _i++) {\n")
+            f.write("Vec *vec_of_"); f.write(et); f.write("(int count, ...) {\n")
+            f.write("    USize _esz = sizeof("); f.write(et); f.write(");\n")
+            f.write("    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
+            f.write("    va_list ap; va_start(ap, count);\n")
+            f.write("    for (int _i = 0; _i < count; _i++) {\n")
             cn := et.concat("_clone")
             is_shallow := callee_returns_shallow(cn)
             if is_shallow {
-                f.write_str("        "); f.write_str(et); f.write_str(" *_val = malloc(sizeof("); f.write_str(et); f.write_str(")); *_val = "); f.write_str(et); f.write_str("_clone(va_arg(ap, "); f.write_str(et); f.write_str(" *));\n")
+                f.write("        "); f.write(et); f.write(" *_val = malloc(sizeof("); f.write(et); f.write(")); *_val = "); f.write(et); f.write("_clone(va_arg(ap, "); f.write(et); f.write(" *));\n")
             } else {
-                f.write_str("        "); f.write_str(et); f.write_str(" *_val = "); f.write_str(et); f.write_str("_clone(va_arg(ap, "); f.write_str(et); f.write_str(" *));\n")
+                f.write("        "); f.write(et); f.write(" *_val = "); f.write(et); f.write("_clone(va_arg(ap, "); f.write(et); f.write(" *));\n")
             }
-            f.write_str("        Vec_push(_v, _val);\n")
-            f.write_str("    }\n")
-            f.write_str("    va_end(ap);\n")
-            f.write_str("    return _v;\n")
-            f.write_str("}\n\n")
+            f.write("        Vec_push(_v, _val);\n")
+            f.write("    }\n")
+            f.write("    va_end(ap);\n")
+            f.write("    return _v;\n")
+            f.write("}\n\n")
         } else {
-            f.write_str("Array *array_of_"); f.write_str(et); f.write_str("(int count, ...) {\n")
-            f.write_str("    USize _esz = sizeof("); f.write_str(et); f.write_str(");\n")
-            f.write_str("    USize _cap = count;\n")
-            f.write_str("    Array *_a = Array_new(&(Str){.c_str = (U8 *)\""); f.write_str(et); f.write_str("\", .count = "); emit_u64(f, et_len); f.write_str("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz}, &(USize){_cap});\n")
-            f.write_str("    va_list ap; va_start(ap, count);\n")
-            f.write_str("    for (int _i = 0; _i < count; _i++) {\n")
-            f.write_str("        USize _idx = _i;\n")
+            f.write("Array *array_of_"); f.write(et); f.write("(int count, ...) {\n")
+            f.write("    USize _esz = sizeof("); f.write(et); f.write(");\n")
+            f.write("    USize _cap = count;\n")
+            f.write("    Array *_a = Array_new(&(Str){.c_str = (U8 *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz}, &(USize){_cap});\n")
+            f.write("    va_list ap; va_start(ap, count);\n")
+            f.write("    for (int _i = 0; _i < count; _i++) {\n")
+            f.write("        USize _idx = _i;\n")
             cn := et.concat("_clone")
             is_shallow := callee_returns_shallow(cn)
             if is_shallow {
-                f.write_str("        "); f.write_str(et); f.write_str(" *_val = malloc(sizeof("); f.write_str(et); f.write_str(")); *_val = "); f.write_str(et); f.write_str("_clone(va_arg(ap, "); f.write_str(et); f.write_str(" *));\n")
+                f.write("        "); f.write(et); f.write(" *_val = malloc(sizeof("); f.write(et); f.write(")); *_val = "); f.write(et); f.write("_clone(va_arg(ap, "); f.write(et); f.write(" *));\n")
             } else {
-                f.write_str("        "); f.write_str(et); f.write_str(" *_val = "); f.write_str(et); f.write_str("_clone(va_arg(ap, "); f.write_str(et); f.write_str(" *));\n")
+                f.write("        "); f.write(et); f.write(" *_val = "); f.write(et); f.write("_clone(va_arg(ap, "); f.write(et); f.write(" *));\n")
             }
-            f.write_str("        Array_set(_a, &(USize){_idx}, _val);\n")
-            f.write_str("    }\n")
-            f.write_str("    va_end(ap);\n")
-            f.write_str("    return _a;\n")
-            f.write_str("}\n\n")
+            f.write("        Array_set(_a, &(USize){_idx}, _val);\n")
+            f.write("    }\n")
+            f.write("    va_end(ap);\n")
+            f.write("    return _a;\n")
+            f.write("}\n\n")
         }
     }
     own coll_infos.delete()
@@ -4426,10 +4426,10 @@ emit_global_declarations := proc(f: File) {
                 ctype := extern_decl_ctype(stmt.til_type, rhs.til_type)
                 ref dd : Declaration = get_payload(stmt.node_type)
                 if dd.own_type.eq(OwnType.Ref) {
-                    f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                    f.write(ctype); f.write(" *"); f.write(dd.name); f.write(";\n")
                     ref_globals.add(own dd.name.clone())
                 } else {
-                    f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                    f.write(ctype); f.write(" "); f.write(dd.name); f.write(";\n")
                     script_globals.add(own dd.name.clone())
                 }
             }
@@ -4443,19 +4443,19 @@ emit_global_declarations := proc(f: File) {
             ctype := extern_decl_ctype(stmt.til_type, rhs.til_type)
             ref dd : Declaration = get_payload(stmt.node_type)
             if dd.own_type.eq(OwnType.Ref) {
-                f.write_str(ctype); f.write_str(" *"); f.write_str(dd.name); f.write_str(";\n")
+                f.write(ctype); f.write(" *"); f.write(dd.name); f.write(";\n")
                 ref_globals.add(own dd.name.clone())
             } else {
-                f.write_str(ctype); f.write_str(" "); f.write_str(dd.name); f.write_str(";\n")
+                f.write(ctype); f.write(" "); f.write(dd.name); f.write(";\n")
                 script_globals.add(own dd.name.clone())
             }
         }
     }
-    f.write_str("\n")
+    f.write("\n")
 }
 
 emit_test_main := proc(f: File, program: Expr) {
-    f.write_str("int main(void) {\n")
+    f.write("int main(void) {\n")
     emit_ns_inits(f, 1)
     emit_global_inits(f)
     mut test_count : I32 = 0
@@ -4466,21 +4466,21 @@ emit_test_main := proc(f: File, program: Expr) {
         ref fd : FunctionDef = get_payload(rhs.node_type)
         if fd.func_type.is(FuncType.Test).not() { continue }
         ref dd : Declaration = get_payload(stmt.node_type)
-        f.write_str("    "); f.write_str(dd.name); f.write_str("();\n")
-        f.write_str("    fprintf(stderr, \"  pass: %s\\n\", \""); f.write_str(dd.name); f.write_str("\");\n")
+        f.write("    "); f.write(dd.name); f.write("();\n")
+        f.write("    fprintf(stderr, \"  pass: %s\\n\", \""); f.write(dd.name); f.write("\");\n")
         test_count = test_count.add(1.to_i32())
     }
     if test_count.eq(0.to_i32()) {
-        f.write_str("    fprintf(stderr, \"no tests found\\n\");\n")
+        f.write("    fprintf(stderr, \"no tests found\\n\");\n")
     } else {
-        f.write_str("    fprintf(stderr, \""); emit_i32(f, test_count); f.write_str("/"); emit_i32(f, test_count); f.write_str(" tests passed\\n\");\n")
+        f.write("    fprintf(stderr, \""); emit_i32(f, test_count); f.write("/"); emit_i32(f, test_count); f.write(" tests passed\\n\");\n")
     }
-    f.write_str("    return 0;\n")
-    f.write_str("}\n")
+    f.write("    return 0;\n")
+    f.write("}\n")
 }
 
 emit_script_main := proc(f: File) {
-    f.write_str("int main(void) {\n")
+    f.write("int main(void) {\n")
     emit_ns_inits(f, 1)
     unsafe_to_hoist = Set.new("Str", Str.size())
     ref lp : LoadedProgram = codegen_lp()
@@ -4515,8 +4515,8 @@ emit_script_main := proc(f: File) {
             emit_stmt(f, stmt, 1)
         }
     }
-    f.write_str("    return 0;\n")
-    f.write_str("}\n")
+    f.write("    return 0;\n")
+    f.write("}\n")
     own script_globals.delete()
     has_script_globals = false
 }
@@ -4534,13 +4534,13 @@ emit_function_bodies := proc(f: File, mode: Mode) {
                     emit_struct_funcs(f, dd.name, rhs)
                 } else if rhs.node_type.is(NodeType.EnumDef) {
                     emit_enum_def(f, dd.name, rhs)
-                    f.write_str("\n")
+                    f.write("\n")
                 } else if rhs.node_type.is(NodeType.FuncDef) {
                     ref fd : FunctionDef = get_payload(rhs.node_type)
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                     if rhs.children.len().eq(0) { continue }
                     emit_func_def(f, dd.name, rhs, mode, false)
-                    f.write_str("\n")
+                    f.write("\n")
                 }
             }
         }
@@ -4555,13 +4555,13 @@ emit_function_bodies := proc(f: File, mode: Mode) {
                 emit_struct_funcs(f, dd.name, rhs)
             } else if rhs.node_type.is(NodeType.EnumDef) {
                 emit_enum_def(f, dd.name, rhs)
-                f.write_str("\n")
+                f.write("\n")
             } else if rhs.node_type.is(NodeType.FuncDef) {
                 ref fd : FunctionDef = get_payload(rhs.node_type)
                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                 if rhs.children.len().eq(0) { continue }
                 emit_func_def(f, dd.name, rhs, mode, false)
-                f.write_str("\n")
+                f.write("\n")
             }
         }
     }
@@ -4579,21 +4579,21 @@ emit_ext_func_declarations := proc(f: File, program: Expr) {
             mut rt := ""
             if fd.return_own_type.is(OwnType.Shallow) { rt = type_name_to_c_value(fd.return_type) }
             else { rt = type_name_to_c(fd.return_type) }
-            f.write_str(rt); f.write_str(" "); fc := func_to_c(dd.name); f.write_str(fc); f.write_str("(")
+            f.write(rt); f.write(" "); fc := func_to_c(dd.name); f.write(fc); f.write("(")
         } else {
-            f.write_str("void "); fc := func_to_c(dd.name); f.write_str(fc); f.write_str("(")
+            f.write("void "); fc := func_to_c(dd.name); f.write(fc); f.write("(")
         }
         emit_param_list(f, fdef, false)
-        f.write_str(");\n")
+        f.write(");\n")
     }
-    f.write_str("\n")
+    f.write("\n")
 }
 
 emit_lib_init := proc(f: File) {
-    f.write_str("__attribute__((constructor))\nstatic void _til_lib_init(void) {\n")
+    f.write("__attribute__((constructor))\nstatic void _til_lib_init(void) {\n")
     emit_ns_inits(f, 1)
     emit_global_inits(f)
-    f.write_str("}\n\n")
+    f.write("}\n\n")
 }
 
 build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns shallow I32 {
@@ -4605,7 +4605,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     f := File.new(c_output_path, true)
     if is_null(f) { return 1.to_i32() }
 
-    f.write_str("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n\n")
+    f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n\n")
 
     mut is_script := true
     if is_null(mode).not() {
@@ -4613,7 +4613,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     }
 
     emit_monolithic_header_lp(f, mode)
-    f.write_str("#include \"ext.h\"\n\n")
+    f.write("#include \"ext.h\"\n\n")
 
     // Ext decls from user units only.
     ref lp : LoadedProgram = codegen_lp()
@@ -4622,29 +4622,29 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
         emit_ext_func_declarations(f, iu.ast)
     }
 
-    f.write_str("Str *Str_lit(const char *s, unsigned long long len);\n")
-    f.write_str("void print_single(Str *s);\n")
-    f.write_str("void print_flush();\n\n")
+    f.write("Str *Str_lit(const char *s, unsigned long long len);\n")
+    f.write("void print_single(Str *s);\n")
+    f.write("void print_flush();\n\n")
 
     emit_all_forward_declarations(f, mode)
 
-    f.write_str("#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n")
+    f.write("#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n")
 
-    f.write_str("#define TIL_CAP_LIT ((USize)-1)\n")
-    f.write_str("Str *Str_lit(const char *s, unsigned long long len) {\n")
-    f.write_str("    (void)len;\n")
-    f.write_str("    Str *r = malloc(sizeof(Str));\n")
-    f.write_str("    r->c_str = (U8 *)s;\n")
-    f.write_str("    r->count = (USize)strlen(s);\n")
-    f.write_str("    r->cap = TIL_CAP_LIT;\n")
-    f.write_str("    return r;\n")
-    f.write_str("}\n")
-    f.write_str("void print_single(Str *s) {\n")
-    f.write_str("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
-    f.write_str("}\n")
-    f.write_str("void print_flush() {\n")
-    f.write_str("    putchar('\\n');\n")
-    f.write_str("}\n\n")
+    f.write("#define TIL_CAP_LIT ((USize)-1)\n")
+    f.write("Str *Str_lit(const char *s, unsigned long long len) {\n")
+    f.write("    (void)len;\n")
+    f.write("    Str *r = malloc(sizeof(Str));\n")
+    f.write("    r->c_str = (U8 *)s;\n")
+    f.write("    r->count = (USize)strlen(s);\n")
+    f.write("    r->cap = TIL_CAP_LIT;\n")
+    f.write("    return r;\n")
+    f.write("}\n")
+    f.write("void print_single(Str *s) {\n")
+    f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
+    f.write("}\n")
+    f.write("void print_flush() {\n")
+    f.write("    putchar('\\n');\n")
+    f.write("}\n\n")
 
     emit_global_declarations(f)
     emit_function_bodies(f, mode)

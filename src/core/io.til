@@ -37,9 +37,9 @@ namespace:
         return File(handle = h, is_write = is_write)
     }
 
-    write_str := proc(self: File, s: Str) {
+    write := proc(self: File, s: Str) {
         if self.is_write.not() {
-            panic(__LOC__, "File.write_str: file not opened for writing")
+            panic(__LOC__, "File.write: file not opened for writing")
         }
         cfile_write_str(self.handle, s)
     }

@@ -3,8 +3,8 @@ mode test
 test_file_write_and_read := test() {
     path := "tmp/_test_file_io.txt"
     f := File.new(path, true)
-    f.write_str("hello ")
-    f.write_str("world")
+    f.write("hello ")
+    f.write("world")
     f.close()
 
     f2 := File.new(path, false)
@@ -29,8 +29,8 @@ test_file_multiple_writes := test() {
     path := "tmp/_test_file_multi.txt"
     f := File.new(path, true)
     for i in 0..5 {
-        f.write_str(i.to_str())
-        f.write_str(" ")
+        f.write(i.to_str())
+        f.write(" ")
     }
     f.close()
 

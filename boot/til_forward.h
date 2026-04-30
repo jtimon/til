@@ -948,7 +948,7 @@ void default_delete(void * _v, Bool * _cf);
 I64 * default_cmp(void * _a, void * _b);
 void println(Array * parts);
 File * File_new(Str * path, Bool is_write);
-void File_write_str(File * self, Str * s);
+void File_write(File * self, Str * s);
 Str * File_read_all(File * self);
 void File_close(File * self);
 File * File_clone(File * self);
