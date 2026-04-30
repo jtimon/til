@@ -100,6 +100,12 @@ Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
 - Use `make test` before every commit (skip when only documentation changed)
 - Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
+- Force-pushing to your own assigned feature branch (e.g. `claude/...`) is
+  pre-authorized -- do NOT ask for confirmation. Use
+  `git push --force-with-lease -u origin <branch>`. This applies after a
+  rebase or after the previous tip was squash-merged into master and the
+  remote rejects the fast-forward. Force-pushing to master or to a branch
+  not assigned to you still requires explicit authorization.
 - NEVER look for excuses to reduce scope, skip changes, or defer work. If the user says to change something, CHANGE IT. Don't analyze whether it's "needed" or "used" -- just do it.
 - When told "in the whole codebase", that means every file, every path, every occurrence. No exceptions.
 - When the user asks you a question, stop whatever you're doing and answer his questions. They're not rhetorical questions and even if they are, or socratic method, you answer them the best you can and completely honestly.

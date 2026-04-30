@@ -430,9 +430,13 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                         }
                     }
                 } else {
-                    ref body : Expr = decl_body(decl)
-                    for field : Expr in body.children {
-                        collect_refs(field, worklist)
+                    ref bfs_edd : EnumDef = get_payload(bfs_tdef.node_type)
+                    for j in 0..bfs_edd.variants.len() {
+                        idx_e := j.to_i64()
+                        if bfs_edd.payload_types.has(idx_e) {
+                            ref pt_e : Str = bfs_edd.payload_types.get(idx_e)
+                            vec_push_str(worklist, pt_e)
+                        }
                     }
                 }
                 push_qn(worklist, name, "delete")
@@ -464,9 +468,13 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                         }
                     }
                 } else {
-                    ref body : Expr = decl_body(decl)
-                    for field : Expr in body.children {
-                        collect_refs(field, worklist)
+                    ref bfs_edd2 : EnumDef = get_payload(bfs_tdef2.node_type)
+                    for j in 0..bfs_edd2.variants.len() {
+                        idx_e2 := j.to_i64()
+                        if bfs_edd2.payload_types.has(idx_e2) {
+                            ref pt_e2 : Str = bfs_edd2.payload_types.get(idx_e2)
+                            vec_push_str(worklist, pt_e2)
+                        }
                     }
                 }
                 push_qn(worklist, name, "delete")

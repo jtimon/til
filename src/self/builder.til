@@ -4127,7 +4127,7 @@ emit_dyn_call_bodies := proc(f: File) {
                     if is_struct_or_enum(stmt).not() { continue }
                     ref def : Expr = stmt.child(0)
                     ref dd : Declaration = get_payload(stmt.node_type)
-                    // Search ns_decls first, then body
+                    // Search ns_decls
                     ref mut method_fdef : Expr = NULL
                     ref dcb_ns : Vec = def_ns_decls(def)
                     for nsd : Declaration in dcb_ns {
@@ -4195,7 +4195,7 @@ emit_dyn_call_bodies := proc(f: File) {
                 if is_struct_or_enum(stmt).not() { continue }
                 ref def : Expr = stmt.child(0)
                 ref dd : Declaration = get_payload(stmt.node_type)
-                // Search ns_decls first, then body
+                // Search ns_decls
                 ref mut method_fdef : Expr = NULL
                 ref dcb_ns : Vec = def_ns_decls(def)
                 for nsd : Declaration in dcb_ns {
