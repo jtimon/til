@@ -898,7 +898,7 @@ loaded_add_lflag := proc(mut lp: LoadedProgram, lib: Str) {
 }
 
 // Run init/typecheck/precomp/scavenge on the loaded program. Sets
-// lp.run_tests and panics on type errors.
+// lp.run_tests and exits with code 1 if the typer reports any errors.
 prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
 
@@ -944,7 +944,8 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     }
     type_errors = type_errors.add(type_file(user_root.path, lp.ctx))
     if type_errors.gt(0) {
-        panic(__LOC__, type_errors.to_str().concat(" type error(s) found"))
+        println(type_errors.to_str(), " type error(s) found")
+        exit(1)
     }
 
     // Re-resolve field_struct_def after hoisting invalidates pointers.

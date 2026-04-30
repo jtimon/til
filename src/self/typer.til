@@ -79,12 +79,12 @@ CtorArg := enum {
 mut typer_path := ""
 
 type_error := proc(e: Expr, msg: Str) {
-    println(typer_path, ":", e.line.to_str(), ":", e.col.to_str(), ": type error: ", msg)
+    e.error(typer_path, msg)
     errors.inc()
 }
 
 type_error_at := proc(path: Str, shallow line: U32, shallow col: U32, msg: Str) {
-    println(path, ":", line.to_str(), ":", col.to_str(), ": type error: ", msg)
+    println(path, ":", line.to_str(), ":", col.to_str(), ": error: ", msg)
     errors.inc()
 }
 
@@ -2640,13 +2640,15 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
 
     ref iu : ImportUnit = ctx.imported.get(path)
 
-    // Process imports first.
+    // Process imports first; accumulate their error counts so failures in
+    // imported files reach the loader's post-typer check.
+    mut total : I32 = 0
     for dep : Str in iu.imports {
-        type_file(dep, ctx)
+        total = total.add(type_file(dep, ctx))
     }
 
     ctx.mode = iu.mode.clone()
-    return type_check_unit(path, iu.ast, ctx.scope, ctx)
+    return total.add(type_check_unit(path, iu.ast, ctx.scope, ctx))
 }
 
 infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, ctx: Context) {
