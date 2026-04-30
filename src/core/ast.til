@@ -394,7 +394,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
         print("  ")
     }
     print("(", node_name(e.node_type))
-    if e.til_type.eq(TilType.Unknown).not() {
+    if e.til_type.is(TilType.Unknown).not() {
         print(":", til_type_name_c(e.til_type))
     }
     switch e.node_type {

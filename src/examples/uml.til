@@ -159,9 +159,9 @@ join_lines := func(lines: Vec) returns Str {
 }
 
 append_token_text := func(mut out: Str, tok: Token) returns Str {
-    if tok.type.eq(TokenType.Eof) { return out }
+    if tok.type.is(TokenType.Eof) { return out }
     if out.len().gt(0) {
-        no_space_before := tok.type.eq(TokenType.RParen).or(tok.type.eq(TokenType.Colon)).or(tok.type.eq(TokenType.Comma))
+        no_space_before := tok.type.is(TokenType.RParen).or(tok.type.is(TokenType.Colon)).or(tok.type.is(TokenType.Comma))
         ref prev : U8 = out.byte_at(out.len().sub(1))
         no_space_after_prev := prev.eq('(').or(prev.eq(':'))
         if no_space_before.not().and(no_space_after_prev.not()) {
@@ -187,21 +187,26 @@ split_enum_variants := proc(lines: Vec) returns Vec {
     mut paren_depth := 0
 
     for tok : Token in tokens {
-        if tok.type.eq(TokenType.Eof) { break }
+        if tok.type.is(TokenType.Eof) { break }
 
-        if tok.type.eq(TokenType.LParen) {
+        switch tok.type {
+        case TokenType.LParen:
             paren_depth = paren_depth.add(1)
             current = append_token_text(current, tok)
-        } else if tok.type.eq(TokenType.RParen) {
+        case TokenType.RParen:
             paren_depth = paren_depth.sub(1)
             current = append_token_text(current, tok)
-        } else if tok.type.eq(TokenType.Comma).and(paren_depth.eq(0)) {
-            variant := trim_trailing_comma(current)
-            if variant.len().gt(0) {
-                out.push(own variant)
+        case TokenType.Comma:
+            if paren_depth.eq(0) {
+                variant := trim_trailing_comma(current)
+                if variant.len().gt(0) {
+                    out.push(own variant)
+                }
+                current = ""
+            } else {
+                current = append_token_text(current, tok)
             }
-            current = ""
-        } else {
+        case:
             current = append_token_text(current, tok)
         }
     }

@@ -133,7 +133,8 @@ build_glyph := proc(segments: Vec) returns Glyph {
 
     mut contour_open := false
     for seg : Segment in segments {
-        if seg.kind.eq(SegKind.Move) {
+        switch seg.kind {
+        case SegKind.Move:
             if contour_open {
                 contour_ends.push(own xs.len().to_i64().sub(1))
             }
@@ -141,18 +142,18 @@ build_glyph := proc(segments: Vec) returns Glyph {
             ys.push(own seg.y.clone())
             on_curve.push(own 1.clone())
             contour_open = true
-        } else if seg.kind.eq(SegKind.Line) {
+        case SegKind.Line:
             xs.push(own seg.x.clone())
             ys.push(own seg.y.clone())
             on_curve.push(own 1.clone())
-        } else if seg.kind.eq(SegKind.Quad) {
+        case SegKind.Quad:
             xs.push(own seg.cx.clone())
             ys.push(own seg.cy.clone())
             on_curve.push(own 0.clone())
             xs.push(own seg.x.clone())
             ys.push(own seg.y.clone())
             on_curve.push(own 1.clone())
-        } else if seg.kind.eq(SegKind.Close) {
+        case SegKind.Close:
             if contour_open {
                 contour_ends.push(own xs.len().to_i64().sub(1))
                 contour_open = false
