@@ -1126,17 +1126,6 @@ infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I3
 
 infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     expr.til_type = TilType.None
-    if expr.node_type.is(NodeType.EnumDef) {
-        ref body : Expr = expr.child(0)
-        for v : Expr in body.children {
-            if v.node_type.is(NodeType.Decl) {
-                ref dd : Declaration = get_payload(v.node_type)
-                if dd.explicit_type.len().gt(0).and(dd.own_type.is(OwnType.Ref)) {
-                    type_error(v, "ref payloads in tagged enum variants are not supported")
-                }
-            }
-        }
-    }
     ref saved_struct_def : Expr = current_struct_def
     if expr.node_type.is(NodeType.StructDef).or(expr.node_type.is(NodeType.EnumDef)) {
         current_struct_def = expr
@@ -2557,21 +2546,15 @@ reregister_field_struct_defs := proc(body: Expr, scope: TypeScope) {
     for rstmt : Expr in body.children {
         if rstmt.node_type.is(NodeType.Decl).and(rstmt.children.len().gt(0)) {
             ref sdef : Expr = rstmt.child(0)
-            if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
-                if sdef.children.len().gt(0) {
-                    ref sbody : Expr = sdef.child(0)
-                    for e_fi : Expr in sbody.children {
-                        ref field : Expr = e_fi
-                        if field.node_type.is(NodeType.Decl) {
-                            ref mut fd : Declaration = get_payload(field.node_type)
-                            if is_null(fd.field_struct_def).not() {
-                                ref ftype_name : Str = fd.explicit_type
-                                if ftype_name.len().gt(0) {
-                                    ref new_fsd : Expr = scope.get_struct(ftype_name)
-                                    if is_null(new_fsd).not() {
-                                        fd.field_struct_def = new_fsd
-                                    }
-                                }
+            if sdef.node_type.is(NodeType.StructDef) {
+                ref mut sdd : StructDef = get_payload(sdef.node_type)
+                for fd : Declaration in sdd.fields {
+                    if is_null(fd.field_struct_def).not() {
+                        ref ftype_name : Str = fd.explicit_type
+                        if ftype_name.len().gt(0) {
+                            ref new_fsd : Expr = scope.get_struct(ftype_name)
+                            if is_null(new_fsd).not() {
+                                fd.field_struct_def = new_fsd
                             }
                         }
                     }
