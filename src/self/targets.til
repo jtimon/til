@@ -109,7 +109,7 @@ default_lang_for_target := func(target: Target) returns Lang {
 
 is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
     // TIL is always supported (for debugging)
-    if lang.eq(Lang.TIL) { return true }
+    if lang.is(Lang.TIL) { return true }
     return default_lang_for_target(target).eq(lang)
 }
 
@@ -163,7 +163,7 @@ clang_warning_flags := func() returns Str {
 }
 
 toolchain_extra_args := func(target: Target, compiler: Str) returns Str {
-    if target.eq(Target.TempleosX86) {
+    if target.is(Target.TempleosX86) {
         panic(__LOC__, "HolyC doesn't support these flags")
     }
     prefix := target_prefix_args(target)

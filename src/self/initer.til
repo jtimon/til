@@ -245,9 +245,9 @@ generate_missing_struct_clones_and_deletes := proc(program: Expr, scope: TypeSco
                 ref fd : Declaration = d_j
                 field_names.push(own fd.name.clone())
                 mut ref_flag : I32 = 0
-                if fd.own_type.eq(OwnType.Ref) {
+                if fd.own_type.is(OwnType.Ref) {
                     ref_flag = 1
-                } else if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
+                } else if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).is(TilType.FuncPtr)) {
                     ref_flag = 1
                 }
                 field_refs.push(own ref_flag)
@@ -314,12 +314,12 @@ generate_missing_struct_clones_and_deletes := proc(program: Expr, scope: TypeSco
             del_field_owns := Vec.new("Bool", Bool.size())
             for d_j : Declaration in sdd.fields {
                 ref fd : Declaration = d_j
-                if fd.own_type.eq(OwnType.Ref) { continue }
-                if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
+                if fd.own_type.is(OwnType.Ref) { continue }
+                if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).is(TilType.FuncPtr)) {
                     continue
                 }
                 del_field_names.push(own fd.name.clone())
-                if fd.own_type.eq(OwnType.Own) {
+                if fd.own_type.is(OwnType.Own) {
                     del_field_owns.push(own true)
                 } else {
                     del_field_owns.push(own false)
@@ -498,7 +498,7 @@ generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
 
         ref vtype : Str = variant_types.get(j)
         if vtype.len().gt(0) {
-            is_funcsig := type_from_name_init(vtype, scope).eq(TilType.FuncPtr)
+            is_funcsig := type_from_name_init(vtype, scope).is(TilType.FuncPtr)
 
             mut iv2 := Expr.new(NodeType.Ident("is"), line, col)
             mut other_id := Expr.new(NodeType.Ident("other"), line, col)
@@ -610,7 +610,7 @@ generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U3
             ref vtype : Str = variant_types.get(j)
             if vtype.len().eq(0) { continue }
             if vtype.eq("Dynamic") { continue }
-            if type_from_name_init(vtype, scope).eq(TilType.FuncPtr) { continue }
+            if type_from_name_init(vtype, scope).is(TilType.FuncPtr) { continue }
 
             mut tiv := Expr.new(NodeType.Ident("is"), line, col)
             mut self_id := Expr.new(NodeType.Ident("self"), line, col)
@@ -699,7 +699,7 @@ generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U3
             is_call.add_child(own tvr)
 
             mut then_body := Expr.new(NodeType.Body, line, col)
-            if vtype.len().gt(0).and(type_from_name_init(vtype, scope).eq(TilType.FuncPtr)) {
+            if vtype.len().gt(0).and(type_from_name_init(vtype, scope).is(TilType.FuncPtr)) {
                 ret_text := format(vn, "(func)")
                 mut ret_str := Expr.new(NodeType.LiteralStr(ret_text), line, col)
                 mut ret := Expr.new(NodeType.Return, line, col)
@@ -1031,7 +1031,7 @@ register_top_level_values := proc(program: Expr, scope: TypeScope) {
             ref sdecl : Declaration = get_payload(stmt.node_type)
             if sdecl.explicit_type.len().eq(0) {
                 ref rhs_name : Str = get_payload(rhs.node_type)
-                if type_from_name_init(rhs_name, scope).eq(TilType.Unknown).not() {
+                if type_from_name_init(rhs_name, scope).is(TilType.Unknown).not() {
                     continue
                 }
             }
@@ -1039,7 +1039,7 @@ register_top_level_values := proc(program: Expr, scope: TypeScope) {
 
         mut t := TilType.Unknown
         if infer_top_level_decl_type(stmt, scope, t).not() { continue }
-        if t.eq(TilType.Unknown) { continue }
+        if t.is(TilType.Unknown) { continue }
 
         ref sdecl : Declaration = get_payload(stmt.node_type)
         scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -1106,7 +1106,7 @@ register_function_definitions := proc(program: Expr, scope: TypeScope) {
         scope.set(sdecl.name, rt, ft, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
         fb.func_def = stmt.child(0)
-        if ft.eq(FuncType.ExtFunc).or(ft.eq(FuncType.ExtProc)) {
+        if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
             fb.is_builtin = true
         }
     }
@@ -1564,7 +1564,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
         mut fsz : I32 = 0
         mut falign : I32 = 0
 
-        if fd.own_type.eq(OwnType.Shallow).not() {
+        if fd.own_type.is(OwnType.Shallow).not() {
             fsz = 8
             falign = 8
 
@@ -1649,7 +1649,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
             else if ftype.eq("I32") { fsz = 4; falign = 4 }
             else if ftype.eq("U32") { fsz = 4; falign = 4 }
             else if ftype.eq("Bool") { fsz = 1; falign = 1 }
-            else if type_from_name_init(ftype, scope).eq(TilType.FuncPtr) { fsz = 8; falign = 8 }
+            else if type_from_name_init(ftype, scope).is(TilType.FuncPtr) { fsz = 8; falign = 8 }
             else {
                 ref nested_def : Expr = scope.get_struct(ftype)
                 if is_null(nested_def).not().and(nested_def.node_type.is(NodeType.EnumDef)) {
@@ -1695,7 +1695,7 @@ type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) 
     if ftype.eq("U32") { sz = 4; al = 4; return }
     if ftype.eq("Bool") { sz = 1; al = 1; return }
     if ftype.eq("Dynamic") { sz = 8; al = 8; return }
-    if type_from_name_init(ftype, scope).eq(TilType.FuncPtr) { sz = 8; al = 8; return }
+    if type_from_name_init(ftype, scope).is(TilType.FuncPtr) { sz = 8; al = 8; return }
     ref nested : Expr = scope.get_struct(ftype)
     if is_null(nested) { sz = 8; al = 8; return }
     if nested.node_type.is(NodeType.StructDef) {

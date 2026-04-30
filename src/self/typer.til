@@ -220,7 +220,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
             }
         }
         ref pp2 : Declaration = fdef_data.params.get(pi)
-        pown := pp2.own_type.eq(OwnType.Own)
+        pown := pp2.own_type.is(OwnType.Own)
         ref arg : Expr = e.child(ci)
         if pown {
             if get_own_arg(e, ci).not() {
@@ -234,7 +234,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
                 sf_ab := scope.find(get_payload(arg.node_type))
                 if sf_ab.is(ScopeFind.Found) {
                     ref ab : TypeBinding = get_payload(sf_ab)
-                    if ab.own_type.eq(OwnType.Ref) {
+                    if ab.own_type.is(OwnType.Ref) {
                         type_error(arg, "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy")
                     }
                 }
@@ -245,7 +245,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
                 type_error(arg, "cannot pass null to 'own' parameter")
             }
         }
-        if pp2.own_type.eq(OwnType.Shallow) {
+        if pp2.own_type.is(OwnType.Shallow) {
             if arg.node_type.is(NodeType.LiteralNull) {
                 type_error(arg, "cannot pass null to 'shallow' parameter")
             }
@@ -346,8 +346,8 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
         if fi.gte(e.children.len().sub(1)) { break }
         ref fld_decl : Declaration = ctor_sdd.fields.get(fi)
         ai := fi.add(1).to_i64().to_i32()
-        if fld_decl.own_type.eq(OwnType.Ref) { continue }
-        if fld_decl.own_type.eq(OwnType.Own).not() {
+        if fld_decl.own_type.is(OwnType.Ref) { continue }
+        if fld_decl.own_type.is(OwnType.Own).not() {
             if type_ctor_consumes(fld_decl.til_type).not() { continue }
         }
         set_own_arg(e, ai.to_i64().to_usize())
@@ -990,7 +990,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             for i in 1..e.children.len() {
                 if i.sub(1).gte(np) { break }
                 ref pp : Declaration = ns_fdef4.params.get(i.sub(1))
-                pown := pp.own_type.eq(OwnType.Own)
+                pown := pp.own_type.is(OwnType.Own)
                 ref arg : Expr = e.child(i)
                 if pown {
                     if get_own_arg(e, i).not() {
@@ -1004,7 +1004,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                         sf_ab := scope.find(get_payload(arg.node_type))
                         if sf_ab.is(ScopeFind.Found) {
                             ref ab : TypeBinding = get_payload(sf_ab)
-                            if ab.own_type.eq(OwnType.Ref) {
+                            if ab.own_type.is(OwnType.Ref) {
                                 type_error(arg, "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy")
                             }
                         }
@@ -1015,7 +1015,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                         type_error(arg, "cannot pass null to 'own' parameter")
                     }
                 }
-                if pp.own_type.eq(OwnType.Shallow) {
+                if pp.own_type.is(OwnType.Shallow) {
                     if arg.node_type.is(NodeType.LiteralNull) {
                         type_error(arg, "cannot pass null to 'shallow' parameter")
                     }
@@ -1131,7 +1131,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         for v : Expr in body.children {
             if v.node_type.is(NodeType.Decl) {
                 ref dd : Declaration = get_payload(v.node_type)
-                if dd.explicit_type.len().gt(0).and(dd.own_type.eq(OwnType.Ref)) {
+                if dd.explicit_type.len().gt(0).and(dd.own_type.is(OwnType.Ref)) {
                     type_error(v, "ref payloads in tagged enum variants are not supported")
                 }
             }
@@ -1236,7 +1236,7 @@ infer_func_sig_expr := proc(scope: TypeScope, mut expr: Expr) {
 
 check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr) {
     ref fdef : FunctionDef = get_payload(expr.node_type)
-    if fdef.return_own_type.eq(OwnType.Ref).not() { return }
+    if fdef.return_own_type.is(OwnType.Ref).not() { return }
     ref body : Expr = expr.child(0)
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Return).not() { continue }
@@ -1291,8 +1291,8 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             type_error(expr, "undefined type '".concat(ptn).concat("'"))
         }
         pmut := param.is_mut
-        pown := param.own_type.eq(OwnType.Own)
-        pshallow := param.own_type.eq(OwnType.Shallow)
+        pown := param.own_type.is(OwnType.Own)
+        pshallow := param.own_type.is(OwnType.Shallow)
         if pshallow {
             is_scalar := pt.is(TilType.I64)
             .or(pt.is(TilType.U8))
@@ -1334,7 +1334,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     mut in_func_val := 0.to_i32()
     if is_func { in_func_val = 1 }
     mut returns_ref_val := 0.to_i32()
-    if fdef.return_own_type.eq(OwnType.Ref) { returns_ref_val = 1 }
+    if fdef.return_own_type.is(OwnType.Ref) { returns_ref_val = 1 }
     infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
     if is_macro.and(fdef.return_type.len().eq(0)) {
         type_error(expr, "macro must declare a return type")
@@ -1383,7 +1383,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
             sf := scope.find(get_payload(stmt.child(0).node_type))
             if sf.is(ScopeFind.Found) {
                 ref b : TypeBinding = get_payload(sf)
-                if b.own_type.eq(OwnType.Ref).and(b.is_alias.not()).and(b.is_param.not()) {
+                if b.own_type.is(OwnType.Ref).and(b.is_alias.not()).and(b.is_param.not()) {
                     type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'")
                 }
             }
@@ -1392,7 +1392,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
             sf := scope.find(get_payload(stmt.child(0).node_type))
             if sf.is(ScopeFind.Found) {
                 ref b : TypeBinding = get_payload(sf)
-                if b.own_type.eq(OwnType.Ref).and(b.is_alias).or(b.is_param.and(b.own_type.eq(OwnType.Own).not())) {
+                if b.own_type.is(OwnType.Ref).and(b.is_alias).or(b.is_param.and(b.own_type.is(OwnType.Own).not())) {
                     tname := type_to_name(stmt.til_type)
                     if tname.len().gt(0) {
                         mc := make_clone_call(tname, stmt.til_type, stmt.child(0), stmt)
@@ -1550,7 +1550,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
         type_error(stmt, "field assignment on non-struct value")
     }
     stmt.til_type = TilType.None
-    if fa_own_type(stmt, scope).eq(OwnType.Ref).not().and(
+    if fa_own_type(stmt, scope).is(OwnType.Ref).not().and(
         rhs.node_type.is(NodeType.Ident).or(
             rhs.node_type.is(NodeType.FieldAccess).and(
                 rhs.til_type.is(TilType.Struct).or(
@@ -1732,7 +1732,7 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
             type_error(val, "integer literal ".concat(get_payload(val.node_type)).concat(" out of range for ").concat(type_to_name(declared)))
         }
         val.til_type = declared
-    } else if val.node_type.is(NodeType.LiteralNull).and(sdecl.own_type.eq(OwnType.Ref).not()) {
+    } else if val.node_type.is(NodeType.LiteralNull).and(sdecl.own_type.is(OwnType.Ref).not()) {
         type_error(stmt, "null can only be assigned to 'ref' declarations")
     } else if can_implicit_usize_coerce(val.til_type, declared, sdecl.explicit_type).not()
     .and(val.til_type.is(declared).not())
@@ -1786,7 +1786,7 @@ infer_decl_untyped_value := proc(mut stmt: Expr) {
 finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_body: I32) {
     ref mut sdecl : Declaration = get_payload(stmt.node_type)
     ref mut rhs : Expr = stmt.child(0)
-    if in_type_body.eq(0).and(sdecl.own_type.eq(OwnType.Own)) {
+    if in_type_body.eq(0).and(sdecl.own_type.is(OwnType.Own)) {
         if sdecl.is_mut {
             type_error(stmt, "no need for 'own' on mutable local '".concat(sdecl.name).concat("'; write 'mut ").concat(sdecl.name).concat(" := ...'"))
         } else {
@@ -1821,7 +1821,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
             }
         }
     }
-    if sdecl.own_type.eq(OwnType.Ref) {
+    if sdecl.own_type.is(OwnType.Ref) {
         decl_b.own_type = OwnType.Ref
         if expr_is_ref_decl_source(rhs, scope).not() {
             type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable")
@@ -1834,13 +1834,13 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
             }
         }
     }
-    if sdecl.own_type.eq(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
+    if sdecl.own_type.is(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
         type_error(stmt, "cannot own result of ref-returning function; use 'ref' or Type.clone()")
     }
-    if sdecl.own_type.eq(OwnType.Ref).not().and(sdecl.is_mut.not()).and(stmt.til_type.is(TilType.FuncPtr).not()).and(rhs.node_type.is(NodeType.Ident)) {
+    if sdecl.own_type.is(OwnType.Ref).not().and(sdecl.is_mut.not()).and(stmt.til_type.is(TilType.FuncPtr).not()).and(rhs.node_type.is(NodeType.Ident)) {
         ref rb : TypeBinding = scope.get_binding(get_payload(rhs.node_type))
         if is_null(rb).not() {
-            if rb.is_mut.not().and(rb.own_type.eq(OwnType.Own).not()).and(rb.own_type.eq(OwnType.Ref).not().or(rb.is_alias)).and(rb.is_param.not()) {
+            if rb.is_mut.not().and(rb.own_type.is(OwnType.Own).not()).and(rb.own_type.is(OwnType.Ref).not().or(rb.is_alias)).and(rb.is_param.not()) {
                 sdecl.own_type = OwnType.Ref
                 decl_b.own_type = OwnType.Ref
                 decl_b.is_alias = true
@@ -1852,7 +1852,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
             rhs.til_type.is(TilType.Struct).or(rhs.til_type.is(TilType.Enum))
         )
     ) {
-        if sdecl.own_type.eq(OwnType.Ref).not() {
+        if sdecl.own_type.is(OwnType.Ref).not() {
             tname := type_to_name(stmt.til_type)
             if tname.len().gt(0) {
                 mc := make_clone_call(tname, stmt.til_type, rhs, stmt)
@@ -2432,7 +2432,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     mut wbody := Expr.new(NodeType.Body, line, col)
 
     mut forin_own := OwnType.Shallow
-    if get_def.return_own_type.eq(OwnType.Ref) { forin_own = OwnType.Ref }
+    if get_def.return_own_type.is(OwnType.Ref) { forin_own = OwnType.Ref }
     mut elem_decl := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), own_type = forin_own, is_mut = forin_data_c.is_mut)), line, col)
     mut col_ident_get := Expr.new(NodeType.Ident(col_name.clone()), line, col)
     mut idx_ident_get := Expr.new(NodeType.Ident(idx_name.clone()), line, col)
@@ -2678,7 +2678,7 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     mut is_ref_target := false
     if sf_assign.is(ScopeFind.Found) {
         ref ab : TypeBinding = get_payload(sf_assign)
-        if ab.own_type.eq(OwnType.Ref).and(ab.is_param.not()) { is_ref_target = true }
+        if ab.own_type.is(OwnType.Ref).and(ab.is_param.not()) { is_ref_target = true }
     }
     if is_ref_target.not() {
         if rhs.node_type.is(NodeType.Ident).or(
@@ -3017,7 +3017,7 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     field_acc.add_child(own field_assign.child(0).clone())
     call.add_child(own field_acc)
 
-    mut cf_lit := Expr.new(NodeType.LiteralBool(field_own_type.eq(OwnType.Own)), field_assign.line, field_assign.col)
+    mut cf_lit := Expr.new(NodeType.LiteralBool(field_own_type.is(OwnType.Own)), field_assign.line, field_assign.col)
     cf_lit.til_type = TilType.Bool
     call.add_child(own cf_lit)
 
@@ -3499,12 +3499,12 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
                 fld_own = h_fd.own_type
                 field_type = h_fd.til_type
             }
-            if fld_own.eq(OwnType.Own).not() {
+            if fld_own.is(OwnType.Own).not() {
                 if field_type.is(TilType.Struct).or(field_type.is(TilType.Enum)) {
                     continue
                 }
             }
-            slot_is_own = fld_own.eq(OwnType.Own)
+            slot_is_own = fld_own.is(OwnType.Own)
         } else {
             slot_is_own = get_own_arg(expr, i)
         }
@@ -3564,7 +3564,7 @@ hoist_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
 hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     hoist_expr(stmt.child(1), hoisted, scope)
     mut fa_hoist := true
-    if fa_own_type(stmt, scope).eq(OwnType.Shallow) {
+    if fa_own_type(stmt, scope).is(OwnType.Shallow) {
         rhs_type := stmt.child(1).til_type
         if rhs_type.is(TilType.Struct).or(rhs_type.is(TilType.Enum)) {
             fa_hoist = false
@@ -3967,7 +3967,7 @@ check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow B
     for i in 0..fd.params.len() {
         if i.add(1).gte(fcall.children.len()) { return false }
         ref p : Declaration = fd.params.get(i)
-        if p.own_type.eq(OwnType.Own) {
+        if p.own_type.is(OwnType.Own) {
             ref arg : Expr = fcall.child(i.add(1))
             if arg.node_type.is(NodeType.Ident) {
                 ref _ai : Str = get_payload(arg.node_type)
@@ -3997,8 +3997,8 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
                         ref arg : Expr = fcall.child(arg_idx)
                         if arg.node_type.is(NodeType.Ident) {
                             ref _an : Str = get_payload(arg.node_type)
-                            if _an.eq(var_name).and(fld_decl.own_type.eq(OwnType.Ref).not()) {
-                                if fld_decl.own_type.eq(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
+                            if _an.eq(var_name).and(fld_decl.own_type.is(OwnType.Ref).not()) {
+                                if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
                                     return true
                                 }
                             }
@@ -4041,7 +4041,7 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
 expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool {
     if e.node_type.is(NodeType.FuncDef) { return false }
     if fcall_has_own_arg(e, var_name, scope) { return true }
-    if e.node_type.is(NodeType.FieldAssign).and(fa_own_type(e, scope).eq(OwnType.Shallow).not()) {
+    if e.node_type.is(NodeType.FieldAssign).and(fa_own_type(e, scope).is(OwnType.Shallow).not()) {
         if e.children.len().gt(1) {
             if e.child(1).node_type.is(NodeType.Ident) {
                 ref _ei : Str = get_payload(e.child(1).node_type)
@@ -4064,7 +4064,7 @@ expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
         sf := scope.find(id)
         if sf.is(ScopeFind.Found) {
             ref b : TypeBinding = get_payload(sf)
-            if b.own_type.eq(OwnType.Ref).or(b.is_param) { return true }
+            if b.own_type.is(OwnType.Ref).or(b.is_param) { return true }
             // Owned compound locals are pointers in C -- valid borrow source
             if b.type.is(TilType.Struct).or(b.type.is(TilType.Enum)) { return true }
         }
@@ -4106,8 +4106,8 @@ expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns shallow Bool 
 }
 
 field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns shallow Bool {
-    if fa_own_type(stmt, scope).eq(OwnType.Ref) { return false }
-    if fa_own_type(stmt, scope).eq(OwnType.Shallow).not() { return true }
+    if fa_own_type(stmt, scope).is(OwnType.Ref) { return false }
+    if fa_own_type(stmt, scope).is(OwnType.Shallow).not() { return true }
     ft := stmt.child(1).til_type
     if ft.is(TilType.Struct).or(ft.is(TilType.Enum)) { return true }
     return false
@@ -4117,7 +4117,7 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow B
     for d : Expr in stmts {
         if d.node_type.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(d.node_type)
-            if dd.own_type.eq(OwnType.Ref).and(d.children.len().gt(0)) {
+            if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
                 if d.child(0).node_type.is(NodeType.Ident) {
                     ref _di : Str = get_payload(d.child(0).node_type)
                     if _di.eq(name) {
@@ -4133,7 +4133,7 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow B
 collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
     for i in 0..scope.bindings.len() {
         ref b : TypeBinding = Map.val_ptr(scope.bindings, i)
-        if b.is_param.and(b.own_type.eq(OwnType.Own).not()) { continue }
+        if b.is_param.and(b.own_type.is(OwnType.Own).not()) { continue }
         if is_null(b.struct_def).not() { continue }
         if is_null(b.func_def).not() { continue }
 
@@ -4186,7 +4186,7 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
                 }
             }
         }
-        if b.own_type.eq(OwnType.Ref) { skip_scope_delete = true }
+        if b.own_type.is(OwnType.Ref) { skip_scope_delete = true }
 
         mut li := LocalInfo()
         li.name = b.name
@@ -4195,7 +4195,7 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
         li.last_use = last_use
         li.own_transfer = own_transfer
         li.skip_scope_delete = skip_scope_delete
-        li.is_heap = b.own_type.eq(OwnType.Own).and(b.is_param.not())
+        li.is_heap = b.own_type.is(OwnType.Own).and(b.is_param.not())
         locals_vec.push(own li)
     }
 }
@@ -4208,7 +4208,7 @@ extend_ref_local_lifetimes := proc(mut body: Expr, mut locals: Vec) {
             ref mut stmt : Expr = body.child(i)
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             ref dd : Declaration = get_payload(stmt.node_type)
-            if dd.own_type.eq(OwnType.Ref).not() { continue }
+            if dd.own_type.is(OwnType.Ref).not() { continue }
             ref mut rhs : Expr = stmt.child(0)
 
             mut ref_last := -1.to_i32()
@@ -4442,7 +4442,7 @@ promote_own_transferred_locals := proc(mut body: Expr, mut locals: Vec) {
         ref stmt : Expr = body.child(local.decl_index.to_i64().to_u32())
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref mut dd : Declaration = get_payload(stmt.node_type)
-        if dd.own_type.eq(OwnType.Ref) { continue }
+        if dd.own_type.is(OwnType.Ref) { continue }
         is_struct := local.type.is(TilType.Struct)
         if local.own_transfer.lt(0.to_i32()).and(is_struct.not()) { continue }
         dd.own_type = OwnType.Own
@@ -4515,7 +4515,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
         if is_null(cb).not() {
             if is_null(cb.func_def) { return 0.to_i32() }
             ref _cfd : FunctionDef = get_payload(cb.func_def.node_type)
-            return _cfd.return_own_type.eq(OwnType.Ref)
+            return _cfd.return_own_type.is(OwnType.Ref)
         }
         return 0.to_i32()
     }
@@ -4529,7 +4529,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
             if fd.name.eq(_cfa) {
                 if is_null(fd.default_value).not().and(fd.default_value.node_type.is(NodeType.FuncDef)) {
                     ref _ffd : FunctionDef = get_payload(fd.default_value.node_type)
-                    return _ffd.return_own_type.eq(OwnType.Ref)
+                    return _ffd.return_own_type.is(OwnType.Ref)
                 }
             }
         }

@@ -280,7 +280,7 @@ scavenge_visited := func(core_program: Expr, program: Expr, mode: Mode, shallow 
                 if stmt.child(0).node_type.is(NodeType.FuncDef) {
                     switch stmt.child(0).node_type {
                     case NodeType.FuncDef(fdef):
-                        if fdef.func_type.eq(FuncType.Test) {
+                        if fdef.func_type.is(FuncType.Test) {
                             switch stmt.node_type {
                             case NodeType.Decl(d):
                                 vec_push_str(worklist, d.name)

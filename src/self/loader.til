@@ -381,7 +381,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                 if stmt.node_type.is(NodeType.Decl) {
                     if stmt.children.len().gt(0).and(stmt.child(0).node_type.is(NodeType.FuncDef)) {
                         ref fdef : FunctionDef = get_payload(stmt.child(0).node_type)
-                        if fdef.func_type.eq(FuncType.Test) {
+                        if fdef.func_type.is(FuncType.Test) {
                             ref d : Declaration = get_payload(stmt.node_type)
                             vec_push_str(worklist, d.name)
                         }

@@ -449,7 +449,7 @@ if pos.add(1).lt(src_len) {
         }
     }
     two := lookup_two_char(c, c2)
-    if two.eq(TokenType.Eof).not() {
+    if two.is(TokenType.Eof).not() {
         tokens.push(own Token(type = two,
             text = src.substr(start, 2).clone(),
             line = line.clone(), col = col.clone()))
@@ -460,7 +460,7 @@ if pos.add(1).lt(src_len) {
 
 // Single-character tokens
 single := lookup_single_char(c)
-if single.eq(TokenType.Eof).not() {
+if single.is(TokenType.Eof).not() {
     tokens.push(own Token(type = single,
         text = src.substr(start, 1).clone(),
         line = line.clone(), col = col.clone()))

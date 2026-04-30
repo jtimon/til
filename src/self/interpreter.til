@@ -809,7 +809,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         ref func_def : Expr = deref(fn_ptr)
 
         // FuncPtr field: stored function may be ext_func from another type
-        if callee_expr.til_type.eq(TilType.FuncPtr) {
+        if callee_expr.til_type.is(TilType.FuncPtr) {
             ref fp_fdef : FunctionDef = get_payload(func_def.node_type)
             if fp_fdef.func_type.is(FuncType.ExtFunc).or(fp_fdef.func_type.is(FuncType.ExtProc)) {
                 for ki in 0..ns_fields.len() {
@@ -1000,7 +1000,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     ref fdef2 : FunctionDef = get_payload(func_def2.node_type)
     if fdef2.params.len().gt(0).and(e.children.len().gt(1)) {
         ref first_param : Declaration = fdef2.params.get(0)
-        if first_param.own_type.eq(OwnType.Own) {
+        if first_param.own_type.is(OwnType.Own) {
             ref first_arg : Expr = e.child(1)
             if first_arg.node_type.is(NodeType.Ident) {
                 ref fa_ident : Str = get_payload(first_arg.node_type)

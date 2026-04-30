@@ -22,7 +22,7 @@ peek := func(p: Parser) returns ref Token {
 
 advance := proc(mut p: Parser) returns ref Token {
     ref t : Token = p.tokens.get(p.pos)
-    if t.type.eq(TokenType.Eof).not() {
+    if t.type.is(TokenType.Eof).not() {
         p.pos = p.pos.add(1)
     }
     return t
@@ -227,7 +227,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             expect_token(p, TokenType.Colon)
             if check(p, TokenType.DotDotDot) {
                 advance(p) // consume '...'
-                if own_type.eq(OwnType.Ref).not().or(is_mut) {
+                if own_type.is(OwnType.Ref).not().or(is_mut) {
                     panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                         ": kwargs parameter cannot be own/mut/shallow")
                 }
@@ -243,9 +243,9 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 param_decl.explicit_type = "DynMap"
             } else if check(p, TokenType.DotDot) {
                 advance(p)
-                if own_type.eq(OwnType.Own) { panic(__LOC__, "variadic param cannot be 'own'") }
+                if own_type.is(OwnType.Own) { panic(__LOC__, "variadic param cannot be 'own'") }
                 if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
-                if own_type.eq(OwnType.Shallow) { panic(__LOC__, "variadic param cannot be 'shallow'") }
+                if own_type.is(OwnType.Shallow) { panic(__LOC__, "variadic param cannot be 'shallow'") }
                 if fd.variadic_index.neq(-1.to_i32()) { panic(__LOC__, "only one variadic param allowed") }
                 if fd.kwargs_index.neq(-1.to_i32()) {
                     panic(__LOC__, "cannot combine variadic and kwargs in the same function")
@@ -309,7 +309,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         // followed by `= (names) { body }`. Wires the names into the
         // FuncSig-typed params and parses the body, producing a fully
         // formed FuncDef Expr usable anywhere a FuncDef literal is.
-        if ft.eq(FuncType.Func).not().and(ft.eq(FuncType.Proc).not()) {
+        if ft.is(FuncType.Func).not().and(ft.is(FuncType.Proc).not()) {
             panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
                 ": ", func_type_name(ft), " cannot use FuncSig form")
         }
@@ -337,7 +337,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         def.add_child(own parse_block(p))
     } else {
         // Bodyless = FuncSig type definition (only for func/proc)
-        if ft.eq(FuncType.Func).not().and(ft.eq(FuncType.Proc).not()) {
+        if ft.is(FuncType.Func).not().and(ft.is(FuncType.Proc).not()) {
             panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
                 ": ", func_type_name(ft), " requires a body")
         }
@@ -501,7 +501,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
         if check(p, TokenType.Ident) {
             if p.pos.add(1).lt(p.tokens.len()) {
                 ref next_tok : Token = p.tokens.get(p.pos.add(1))
-                if next_tok.type.eq(TokenType.Eq) {
+                if next_tok.type.is(TokenType.Eq) {
                     na_line := peek_line(p)
                     na_col := peek_col(p)
                     aname := expect_text(p, TokenType.Ident)
@@ -557,21 +557,21 @@ parse_primary := proc(mut p: Parser) returns Expr {
     mut e := Expr.new(NodeType.Body, 0, 0) // placeholder
     mut e_set := false
 
-    if t.type.eq(TokenType.StringTok) {
+    if t.type.is(TokenType.StringTok) {
         advance(p)
         e = Expr.new(NodeType.LiteralStr(t.text.clone()), t_line, t_col)
         e_set = true
     }
-    if e_set.not().and(t.type.eq(TokenType.Number)) {
+    if e_set.not().and(t.type.is(TokenType.Number)) {
         advance(p)
         e = Expr.new(NodeType.LiteralNum(t.text.clone()), t_line, t_col)
         e_set = true
     }
     // Unary minus: -N (literal) desugars to 0.sub(N), -expr desugars to expr.neg()
-    if e_set.not().and(t.type.eq(TokenType.Minus)) {
+    if e_set.not().and(t.type.is(TokenType.Minus)) {
         if p.pos.add(1).lt(p.tokens.len()) {
             ref next_tok : Token = p.tokens.get(p.pos.add(1))
-            if next_tok.type.eq(TokenType.Number) {
+            if next_tok.type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
                 mut zero := Expr.new(NodeType.LiteralNum("0".clone()), t_line, t_col)
@@ -595,7 +595,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             }
         }
     }
-    if e_set.not().and(t.type.eq(TokenType.Char)) {
+    if e_set.not().and(t.type.is(TokenType.Char)) {
         advance(p)
         // Parse char literal to byte value
         ch := t.text
@@ -618,17 +618,17 @@ parse_primary := proc(mut p: Parser) returns Expr {
         e.til_type = TilType.U8
         e_set = true
     }
-    if e_set.not().and(t.type.eq(TokenType.KwTrue).or(t.type.eq(TokenType.KwFalse))) {
+    if e_set.not().and(t.type.is(TokenType.KwTrue).or(t.type.is(TokenType.KwFalse))) {
         advance(p)
-        e = Expr.new(NodeType.LiteralBool(t.type.eq(TokenType.KwTrue)), t_line, t_col)
+        e = Expr.new(NodeType.LiteralBool(t.type.is(TokenType.KwTrue)), t_line, t_col)
         e_set = true
     }
-    if e_set.not().and(t.type.eq(TokenType.KwNull)) {
+    if e_set.not().and(t.type.is(TokenType.KwNull)) {
         advance(p)
         e = Expr.new(NodeType.LiteralNull, t_line, t_col)
         e_set = true
     }
-    if e_set.not().and(t.type.eq(TokenType.Ident)) {
+    if e_set.not().and(t.type.is(TokenType.Ident)) {
         advance(p)
         name := t.text.clone()
         // Compile-time directives
@@ -652,15 +652,15 @@ parse_primary := proc(mut p: Parser) returns Expr {
             e_set = true
         }
     }
-    if e_set.not().and(t.type.eq(TokenType.KwFunc).or(t.type.eq(TokenType.KwProc))
-        .or(t.type.eq(TokenType.KwTest)).or(t.type.eq(TokenType.KwMacro))
-        .or(t.type.eq(TokenType.KwExtFunc)).or(t.type.eq(TokenType.KwExtProc))) {
+    if e_set.not().and(t.type.is(TokenType.KwFunc).or(t.type.is(TokenType.KwProc))
+        .or(t.type.is(TokenType.KwTest)).or(t.type.is(TokenType.KwMacro))
+        .or(t.type.is(TokenType.KwExtFunc)).or(t.type.is(TokenType.KwExtProc))) {
             return parse_func_def(p)
         }
-    if e_set.not().and(t.type.eq(TokenType.KwStruct)) {
+    if e_set.not().and(t.type.is(TokenType.KwStruct)) {
         return parse_struct_def(p, "")
     }
-    if e_set.not().and(t.type.eq(TokenType.KwExtStruct)) {
+    if e_set.not().and(t.type.is(TokenType.KwExtStruct)) {
         advance(p)
         mut tag := "@anon"
         if check(p, TokenType.LParen) {
@@ -672,10 +672,10 @@ parse_primary := proc(mut p: Parser) returns Expr {
         }
         return parse_struct_def(p, tag)
     }
-    if e_set.not().and(t.type.eq(TokenType.KwEnum)) {
+    if e_set.not().and(t.type.is(TokenType.KwEnum)) {
         return parse_enum_def(p)
     }
-    if e_set.not().and(t.type.eq(TokenType.LBrace)) {
+    if e_set.not().and(t.type.is(TokenType.LBrace)) {
         advance(p)
         mut first := parse_expression(p)
         if check(p, TokenType.Colon) {
@@ -705,7 +705,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         e_set = true
     }
     // Grouping parentheses: (expr)
-    if e_set.not().and(t.type.eq(TokenType.LParen)) {
+    if e_set.not().and(t.type.is(TokenType.LParen)) {
         advance(p) // consume '('
         e = parse_expression(p)
         expect_token(p, TokenType.RParen)
@@ -735,7 +735,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
                 if check(p, TokenType.Ident) {
                     if p.pos.add(1).lt(p.tokens.len()) {
                         ref nt : Token = p.tokens.get(p.pos.add(1))
-                        if nt.type.eq(TokenType.Eq) {
+                        if nt.type.is(TokenType.Eq) {
                             na_line := peek_line(p)
                             na_col := peek_col(p)
                             aname := expect_text(p, TokenType.Ident)
@@ -795,8 +795,8 @@ parse_multiplicative := proc(mut p: Parser) returns Expr {
         op_col := peek_col(p)
         ref op : Token = advance(p)
         mut method := "mul"
-        if op.type.eq(TokenType.Slash) { method = "div" }
-        if op.type.eq(TokenType.Percent) { method = "mod" }
+        if op.type.is(TokenType.Slash) { method = "div" }
+        if op.type.is(TokenType.Percent) { method = "mod" }
         mut rhs := parse_primary(p)
         e = make_binop_call(e, method, op_line, op_col, rhs)
     }
@@ -811,7 +811,7 @@ parse_additive := proc(mut p: Parser) returns Expr {
         op_col := peek_col(p)
         ref op : Token = advance(p)
         mut method := "add"
-        if op.type.eq(TokenType.Minus) { method = "sub" }
+        if op.type.is(TokenType.Minus) { method = "sub" }
         mut rhs := parse_multiplicative(p)
         e = make_binop_call(e, method, op_line, op_col, rhs)
     }
@@ -828,11 +828,11 @@ parse_comparison := proc(mut p: Parser) returns Expr {
         op_col := peek_col(p)
         ref op : Token = advance(p)
         mut method := "eq"
-        if op.type.eq(TokenType.Neq) { method = "neq" }
-        else if op.type.eq(TokenType.Lt) { method = "lt" }
-        else if op.type.eq(TokenType.LtEq) { method = "lte" }
-        else if op.type.eq(TokenType.Gt) { method = "gt" }
-        else if op.type.eq(TokenType.GtEq) { method = "gte" }
+        if op.type.is(TokenType.Neq) { method = "neq" }
+        else if op.type.is(TokenType.Lt) { method = "lt" }
+        else if op.type.is(TokenType.LtEq) { method = "lte" }
+        else if op.type.is(TokenType.Gt) { method = "gt" }
+        else if op.type.is(TokenType.GtEq) { method = "gte" }
         mut rhs := parse_additive(p)
         e = make_binop_call(e, method, op_line, op_col, rhs)
     }
@@ -1055,7 +1055,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 if check(p, TokenType.Ident) {
                     if p.pos.add(1).lt(p.tokens.len()) {
                         ref nt : Token = p.tokens.get(p.pos.add(1))
-                        if nt.type.eq(TokenType.Eq) {
+                        if nt.type.is(TokenType.Eq) {
                             na_line := peek_line(p)
                             na_col := peek_col(p)
                             aname := expect_text(p, TokenType.Ident)
@@ -1170,10 +1170,10 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     t_col := peek_col(p)
     ref t : Token = peek(p)
 
-    if t.type.eq(TokenType.Ident) {
+    if t.type.is(TokenType.Ident) {
         return parse_statement_ident(p, false, OwnType.Shallow)
     }
-    if t.type.eq(TokenType.KwRef) {
+    if t.type.is(TokenType.KwRef) {
         advance(p)
         mut ref_mut := false
         if check(p, TokenType.KwMut) { advance(p); ref_mut = true }
@@ -1194,16 +1194,16 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         decl.add_child(own parse_expression(p))
         return decl
     }
-    if t.type.eq(TokenType.KwMut) {
+    if t.type.is(TokenType.KwMut) {
         advance(p)
         return parse_statement_ident(p, true, OwnType.Shallow)
     }
-    if t.type.eq(TokenType.KwShallow) {
+    if t.type.is(TokenType.KwShallow) {
         advance(p)
         panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
             ": locals cannot use 'shallow'; locals are owned by default")
     }
-    if t.type.eq(TokenType.KwReturn) {
+    if t.type.is(TokenType.KwReturn) {
         advance(p)
         mut ret := Expr.new(NodeType.Return, t_line, t_col)
         if check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
@@ -1211,7 +1211,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         }
         return ret
     }
-    if t.type.eq(TokenType.KwIf) {
+    if t.type.is(TokenType.KwIf) {
         advance(p)
         mut node := Expr.new(NodeType.If, t_line, t_col)
         node.add_child(own parse_expression(p))
@@ -1230,17 +1230,17 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         }
         return node
     }
-    if t.type.eq(TokenType.StringTok).or(t.type.eq(TokenType.Number))
-    .or(t.type.eq(TokenType.KwTrue)).or(t.type.eq(TokenType.KwFalse))
-    .or(t.type.eq(TokenType.KwNull)).or(t.type.eq(TokenType.LParen))
-    .or(t.type.eq(TokenType.Minus)) {
+    if t.type.is(TokenType.StringTok).or(t.type.is(TokenType.Number))
+    .or(t.type.is(TokenType.KwTrue)).or(t.type.is(TokenType.KwFalse))
+    .or(t.type.is(TokenType.KwNull)).or(t.type.is(TokenType.LParen))
+    .or(t.type.is(TokenType.Minus)) {
         return parse_expression(p)
     }
-    if t.type.eq(TokenType.LBrace) {
+    if t.type.is(TokenType.LBrace) {
         advance(p)
         return parse_block(p)
     }
-    if t.type.eq(TokenType.KwWhile) {
+    if t.type.is(TokenType.KwWhile) {
         advance(p)
         mut node := Expr.new(NodeType.While, t_line, t_col)
         node.add_child(own parse_expression(p))
@@ -1248,7 +1248,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         node.add_child(own parse_block(p))
         return node
     }
-    if t.type.eq(TokenType.KwFor) {
+    if t.type.is(TokenType.KwFor) {
         advance(p)
         mut for_is_mut := false
         if check(p, TokenType.KwMut) {
@@ -1269,7 +1269,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         node.add_child(own parse_block(p))
         return node
     }
-    if t.type.eq(TokenType.KwSwitch) {
+    if t.type.is(TokenType.KwSwitch) {
         advance(p)
         mut node := Expr.new(NodeType.Switch, t_line, t_col)
         node.add_child(own parse_expression(p))
@@ -1291,7 +1291,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.RBrace)
         return node
     }
-    if t.type.eq(TokenType.KwOwn) {
+    if t.type.is(TokenType.KwOwn) {
         advance(p)
         if check(p, TokenType.Ident).or(check(p, TokenType.KwMut)) {
             mut own_mut := false
@@ -1299,7 +1299,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
             if check(p, TokenType.Ident) {
                 if p.pos.add(1).lt(p.tokens.len()) {
                     ref nt : Token = p.tokens.get(p.pos.add(1))
-                    if nt.type.eq(TokenType.ColonEq).or(nt.type.eq(TokenType.Colon)) {
+                    if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon)) {
                         return parse_statement_ident(p, own_mut, OwnType.Own)
                     }
                 }
@@ -1322,11 +1322,11 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         }
         return expr
     }
-    if t.type.eq(TokenType.KwBreak) {
+    if t.type.is(TokenType.KwBreak) {
         advance(p)
         return Expr.new(NodeType.Break, t_line, t_col)
     }
-    if t.type.eq(TokenType.KwContinue) {
+    if t.type.is(TokenType.KwContinue) {
         advance(p)
         return Expr.new(NodeType.Continue, t_line, t_col)
     }

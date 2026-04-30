@@ -436,7 +436,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context) {
         if rhs.node_type.is(NodeType.EnumDef) { continue }
         ref dd : Declaration = get_payload(stmt.node_type)
         if dd.is_mut { continue }
-        if dd.own_type.eq(OwnType.Ref) { continue }
+        if dd.own_type.is(OwnType.Ref) { continue }
         track_literal(scope, dd.name, rhs)
     }
 }
