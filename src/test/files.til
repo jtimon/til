@@ -16,7 +16,7 @@ test_file_write_and_read := test() {
 
 test_file_read_all := test() {
     path := "tmp/_test_file_read.txt"
-    writefile(path, "abc123")
+    File.writefile(path, "abc123")
 
     f := File.new(path, false)
     content := f.read_all()
@@ -34,6 +34,6 @@ test_file_multiple_writes := test() {
     }
     f.close()
 
-    content := readfile(path)
+    content := File.readfile(path)
     assert_eq_str(__LOC__, content, "0 1 2 3 4 ")
 }

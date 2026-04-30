@@ -17,7 +17,7 @@ import("../lib/fonts.til")
 LOGO_CODEPOINT := 84
 
 main := proc(src: Str, dest: Str) {
-    svg := readfile(src)
+    svg := File.readfile(src)
 
     check_color_count(svg)
     check_viewbox(svg)

@@ -249,7 +249,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                 status := check_cmd_status(slot.pid)
                 if status.neq(-1) {
                     ref t : Test = tests.get(slot.test_idx)
-                    runner_out := readfile(t.outfile)
+                    runner_out := File.readfile(t.outfile)
 
                     // Find RESULT line
                     mut result_line := ""
@@ -405,7 +405,7 @@ main := proc(args: ..Str) {
 
     // === 2 FFI tests ===
     ffi_exp := "gen/out/expected/ffi.out"
-    writefile(ffi_exp, "hello world".concat(NL).concat("hello universe").concat(NL))
+    File.writefile(ffi_exp, "hello world".concat(NL).concat("hello universe").concat(NL))
     add_single(tests, "ffi_interp", "ffi", 0, ffi_exp,
                asan_safe_cmd(til_bin.concat(" interpret src/examples/ffi/ext_module.til"), til_bin))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
@@ -433,39 +433,39 @@ main := proc(args: ..Str) {
     // === 24 CLI tests (12 cases × interpret + run) ===
     exp := "gen/out/expected/"
 
-    writefile(exp.concat("cli_args_hello.out"), "hello".concat(NL).concat("world").concat(NL))
+    File.writefile(exp.concat("cli_args_hello.out"), "hello".concat(NL).concat("world").concat(NL))
     add_cli_pair(tests, "cli_args_hello", "src/examples/cli_args.til",
                  "hello world", 0, exp.concat("cli_args_hello.out"), til_bin)
 
-    writefile(exp.concat("cli_args_empty.out"), "")
+    File.writefile(exp.concat("cli_args_empty.out"), "")
     add_cli_pair(tests, "cli_args_empty", "src/examples/cli_args.til",
                  "", 0, exp.concat("cli_args_empty.out"), til_bin)
 
-    writefile(exp.concat("cli_typed_alice42.out"), "alice 42".concat(NL))
+    File.writefile(exp.concat("cli_typed_alice42.out"), "alice 42".concat(NL))
     add_cli_pair(tests, "cli_typed_alice42", "src/examples/cli_typed.til",
                  "alice 42", 0, exp.concat("cli_typed_alice42.out"), til_bin)
 
-    writefile(exp.concat("hello_cli.out"), "Hello World!".concat(NL))
+    File.writefile(exp.concat("hello_cli.out"), "Hello World!".concat(NL))
     add_cli_pair(tests, "hello_cli", "src/examples/hello_cli.til",
                  "", 0, exp.concat("hello_cli.out"), til_bin)
 
-    writefile(exp.concat("variadic_add.out"), "60".concat(NL))
+    File.writefile(exp.concat("variadic_add.out"), "60".concat(NL))
     add_cli_pair(tests, "variadic_add", "src/examples/cli_variadic_i64.til",
                  "add 10 20 30", 0, exp.concat("variadic_add.out"), til_bin)
 
-    writefile(exp.concat("variadic_mul.out"), "24".concat(NL))
+    File.writefile(exp.concat("variadic_mul.out"), "24".concat(NL))
     add_cli_pair(tests, "variadic_mul", "src/examples/cli_variadic_i64.til",
                  "mul 2 3 4", 0, exp.concat("variadic_mul.out"), til_bin)
 
-    writefile(exp.concat("variadic_add0.out"), "0".concat(NL))
+    File.writefile(exp.concat("variadic_add0.out"), "0".concat(NL))
     add_cli_pair(tests, "variadic_add0", "src/examples/cli_variadic_i64.til",
                  "add", 0, exp.concat("variadic_add0.out"), til_bin)
 
-    writefile(exp.concat("variadic_bool_f.out"), "false".concat(NL))
+    File.writefile(exp.concat("variadic_bool_f.out"), "false".concat(NL))
     add_cli_pair(tests, "variadic_bool_f", "src/examples/cli_variadic_bool.til",
                  "true true false", 0, exp.concat("variadic_bool_f.out"), til_bin)
 
-    writefile(exp.concat("variadic_bool_t.out"), "true".concat(NL))
+    File.writefile(exp.concat("variadic_bool_t.out"), "true".concat(NL))
     add_cli_pair(tests, "variadic_bool_t", "src/examples/cli_variadic_bool.til",
                  "true true", 0, exp.concat("variadic_bool_t.out"), til_bin)
 
@@ -598,9 +598,9 @@ main := proc(args: ..Str) {
     test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total", NL,
                        "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,500000,900000,300000,1700000", NL,
                        "def5678,1890,3900,1510,190,1680,1950,4500,32,32,520000,880000,320000,1720000", NL)
-    writefile("tmp/_test_plot.csv", test_csv)
+    File.writefile("tmp/_test_plot.csv", test_csv)
     run(PLOT.concat(" tmp/_test_plot.csv tmp/_test_plot.svg 0"))
-    plot_svg := readfile("tmp/_test_plot.svg")
+    plot_svg := File.readfile("tmp/_test_plot.svg")
     mut plot_ok := 1
     if count_matches(plot_svg, "<svg").eq(0) {
         println("FAIL: plot.til missing <svg tag")
@@ -656,7 +656,7 @@ main := proc(args: ..Str) {
     // --- Benchmark CSV logging ---
 
     run("git rev-parse --short HEAD > tmp/_commit_hash")
-    commit := readfile("tmp/_commit_hash").replace(NL, "")
+    commit := File.readfile("tmp/_commit_hash").replace(NL, "")
 
     // gen/benchmark.csv — mode tests only (not tracked)
     run("mkdir -p gen")
@@ -677,7 +677,7 @@ main := proc(args: ..Str) {
         }
         bi = bi.add(1)
     }
-    writefile("gen/benchmark.csv", bench)
+    File.writefile("gen/benchmark.csv", bench)
 
     // doc/totals.csv — all test totals (skip on failure)
     if fail.eq(0) {
@@ -694,7 +694,7 @@ main := proc(args: ..Str) {
                               total_mem_total.to_str())
 
         totals_path := "doc/totals.csv"
-        existing := readfile(totals_path)
+        existing := File.readfile(totals_path)
         mut totals_content := ""
         lines := existing.split(NL)
         mut last_data_idx := lines.len().sub(1)
@@ -726,7 +726,7 @@ main := proc(args: ..Str) {
             }
         }
         totals_content = totals_content.concat(totals_line).concat(NL)
-        writefile(totals_path, totals_content)
+        File.writefile(totals_path, totals_content)
 
         run(PLOT.concat(" doc/totals.csv img/totals.svg 10 --no-x-labels"))
         println("Updated doc/totals.csv and img/totals.svg")

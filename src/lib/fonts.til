@@ -566,5 +566,5 @@ build_ttf := proc(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
 write_ttf := proc(segments: Vec, codepoint: I64, dest_path: Str) {
     glyph := build_glyph(segments)
     ttf := build_ttf(glyph, codepoint, EM_SIZE)
-    writefile(dest_path, ttf)
+    File.writefile(dest_path, ttf)
 }

@@ -397,7 +397,7 @@ h_exit := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
 h_readfile := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     path := eval_expr(s, e.child(1))
-    content := readfile(str_view(path))
+    content := File.readfile(str_view(path))
     r = make_str_value(content.c_str, content.count)
     return true
 }
@@ -405,7 +405,7 @@ h_readfile := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 h_writefile := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     path := eval_expr(s, e.child(1))
     content := eval_expr(s, e.child(2))
-    writefile(str_view(path), str_view(content))
+    File.writefile(str_view(path), str_view(content))
     r = val_none()
     return true
 }
@@ -645,8 +645,8 @@ dispatch_init := proc() {
     reg_dispatch("dyn_call_ret", h_dyn_call)
     reg_dispatch("dyn_has_method", h_dyn_has_method)
     reg_dispatch("dyn_fn", h_dyn_fn)
-    reg_dispatch("readfile", h_readfile)
-    reg_dispatch("writefile", h_writefile)
+    reg_dispatch("File_readfile", h_readfile)
+    reg_dispatch("File_writefile", h_writefile)
     reg_dispatch("spawn_cmd", h_spawn_cmd)
     reg_dispatch("check_cmd_status", h_check_cmd_status)
     reg_dispatch("sleep", h_sleep)

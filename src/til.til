@@ -173,7 +173,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
         combined = combined.concat(accum)
         if accum.len().gt(0) { combined = combined.concat("\n") }
         combined = combined.concat(block)
-        writefile(tmp_path, combined)
+        File.writefile(tmp_path, combined)
 
         // In-process typecheck: lets us look at the typed AST and decide
         // whether the user's input is a value-producing expression worth
@@ -204,7 +204,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
             combined = combined.concat(accum)
             if accum.len().gt(0) { combined = combined.concat("\n") }
             combined = combined.concat(block_eff)
-            writefile(tmp_path, combined)
+            File.writefile(tmp_path, combined)
 
             if repl_should_wrap(peek_ast, user_merged) {
                 block_eff = "println((".concat(block).concat(").to_str())")
@@ -214,7 +214,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
                 combined = combined.concat(accum)
                 if accum.len().gt(0) { combined = combined.concat("\n") }
                 combined = combined.concat(block_eff)
-                writefile(tmp_path, combined)
+                File.writefile(tmp_path, combined)
             }
 
             // Run subprocess til interpret on the (possibly wrapped) source.
@@ -225,7 +225,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
             // combined program is re-run from scratch each turn, prior side
             // effects (println output, etc.) replay; we hide them by
             // comparing against prev_out.
-            full_out := readfile(out_path)
+            full_out := File.readfile(out_path)
             mut new_chunk := ""
             if prev_out.len().lt(full_out.len()) {
                 prefix_match := full_out.starts_with(prev_out)

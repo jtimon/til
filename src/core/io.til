@@ -1,8 +1,6 @@
 print_single := ext_proc(s: Str) {}
 eprint_single := ext_proc(s: Str) {}
 print_flush := ext_proc() {}
-readfile := ext_func(path: Str) returns Str {}
-writefile := ext_proc(path: Str, content: Str) {}
 in_read_line := ext_proc(mut line: Str) returns shallow Bool {}
 
 /// Print strings to stdout followed by a newline.
@@ -32,6 +30,9 @@ File := struct {
     mut is_write := false
 
 namespace:
+    readfile := ext_func(path: Str) returns Str {}
+    writefile := ext_proc(path: Str, content: Str) {}
+
     new := func(path: Str, shallow is_write: Bool) returns File {
         ref h : Dynamic = cfile_open(path, is_write)
         return File(handle = h, is_write = is_write)

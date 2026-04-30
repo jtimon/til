@@ -369,11 +369,11 @@ Bool *cli_parse_bool(const char *s) {
 // --- System primitives ---
 // These use the codegen Str layout: { U8 *c_str, U64 count, U64 cap }.
 
-Str *readfile(Str *path) {
+Str *File_readfile(Str *path) {
     char *p = dup_n((char *)path->c_str, path->count);
     FILE *f = fopen(p, "rb");
     if (!f) {
-        fprintf(stderr, "readfile: could not open '%s'\n", p);
+        fprintf(stderr, "File.readfile: could not open '%s'\n", p);
         free(p);
         exit(1);
     }
@@ -391,11 +391,11 @@ Str *readfile(Str *path) {
     return s;
 }
 
-void writefile(Str *path, Str *content) {
+void File_writefile(Str *path, Str *content) {
     char *p = dup_n((char *)path->c_str, path->count);
     FILE *f = fopen(p, "wb");
     if (!f) {
-        fprintf(stderr, "writefile: could not open '%s'\n", p);
+        fprintf(stderr, "File.writefile: could not open '%s'\n", p);
         free(p);
         exit(1);
     }
