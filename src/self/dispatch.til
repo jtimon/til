@@ -883,6 +883,19 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
     return false
 }
 
+ffi_decode_scalar := proc(rtype: Str, p: Dynamic, mut result: Value) returns shallow Bool {
+    if rtype.eq("I64")        { ref rv : I64 = p;   result = val_i64(rv);            return true }
+    else if rtype.eq("U8")    { ref rv : U8 = p;    result = val_u8(rv.to_i64());    return true }
+    else if rtype.eq("I16")   { ref rv : I16 = p;   result = val_i16(rv.to_i64());   return true }
+    else if rtype.eq("I32")   { ref rv : I32 = p;   result = val_i32(rv.to_i64());   return true }
+    else if rtype.eq("U32")   { ref rv : U32 = p;   result = val_u32(rv.to_i64());   return true }
+    else if rtype.eq("U64")   { ref rv : U64 = p;   result = val_u64(rv);            return true }
+    else if rtype.eq("USize") { ref rv : U32 = p;   result = val_u32(rv.to_i64());   return true }
+    else if rtype.eq("F32")   { ref rv : F32 = p;   result = val_f32(rv);            return true }
+    else if rtype.eq("Bool")  { ref rv : Bool = p;  result = val_bool(rv);           return true }
+    return false
+}
+
 ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
     if ffi_loaded.not() { return false }
     if ffi_map.has(name).not() { return false }
@@ -1014,42 +1027,24 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     } else if is_null(ret_sdef).not() {
         result = make_struct_value(fe.return_type, ret_sdef, ret_buf, false)
     } else if fe.return_is_shallow {
-        ref rtype : Str = fe.return_type
-        if rtype.eq("I64") { ref rv : I64 = to_ptr(raw); result = val_i64(rv) }
-        else if rtype.eq("U8") { ref rv : U8 = to_ptr(raw); result = val_u8(rv.to_i64()) }
-        else if rtype.eq("I16") { ref rv : I16 = to_ptr(raw); result = val_i16(rv.to_i64()) }
-        else if rtype.eq("I32") { ref rv : I32 = to_ptr(raw); result = val_i32(rv.to_i64()) }
-        else if rtype.eq("U32") { ref rv : U32 = to_ptr(raw); result = val_u32(rv.to_i64()) }
-        else if rtype.eq("U64") { ref rv : U64 = to_ptr(raw); result = val_u64(rv) }
-        else if rtype.eq("USize") { ref rv : U32 = to_ptr(raw); result = val_u32(rv.to_i64()) }
-        else if rtype.eq("F32") { ref rv : F32 = to_ptr(raw); result = val_f32(rv) }
-        else if rtype.eq("Bool") { ref rv : Bool = to_ptr(raw); result = val_bool(rv) }
-        else { result = val_none() }
+        if ffi_decode_scalar(fe.return_type, to_ptr(raw), result).not() {
+            result = val_none()
+        }
     } else {
         ref rtype : Str = fe.return_type
         ref raw_ptr : Dynamic = deref(raw)
         if rtype.eq("Str") {
             ref sp : ExtStr = raw_ptr
             result = make_str_value_own(sp.data, sp.count)
-        } else if rtype.eq("I64") { ref rv : I64 = raw_ptr; result = val_i64(rv) }
-        else if rtype.eq("U8") { ref rv : U8 = raw_ptr; result = val_u8(rv.to_i64()) }
-        else if rtype.eq("I16") { ref rv : I16 = raw_ptr; result = val_i16(rv.to_i64()) }
-        else if rtype.eq("I32") { ref rv : I32 = raw_ptr; result = val_i32(rv.to_i64()) }
-        else if rtype.eq("U32") { ref rv : U32 = raw_ptr; result = val_u32(rv.to_i64()) }
-        else if rtype.eq("U64") { ref rv : U64 = raw_ptr; result = val_u64(rv) }
-        else if rtype.eq("USize") { ref rv : U32 = raw_ptr; result = val_u32(rv.to_i64()) }
-        else if rtype.eq("F32") { ref rv : F32 = raw_ptr; result = val_f32(rv) }
-        else if rtype.eq("Bool") { ref rv : Bool = raw_ptr; result = val_bool(rv) }
-        else if rtype.eq("Dynamic") { result = Value.Ptr(raw_ptr) }
-        else {
-            // Struct return
-            if ffi_struct_defs.has(fe.return_type) {
-                ref sdef_ptr : Dynamic = ffi_struct_defs.get(fe.return_type)
-                ref sdef : Expr = deref(sdef_ptr)
-                result = make_struct_value(fe.return_type, sdef, raw_ptr, false)
-            } else {
-                result = val_none()
-            }
+        } else if rtype.eq("Dynamic") {
+            result = Value.Ptr(raw_ptr)
+        } else if ffi_decode_scalar(rtype, raw_ptr, result) {
+        } else if ffi_struct_defs.has(fe.return_type) {
+            ref sdef_ptr : Dynamic = ffi_struct_defs.get(fe.return_type)
+            ref sdef : Expr = deref(sdef_ptr)
+            result = make_struct_value(fe.return_type, sdef, raw_ptr, false)
+        } else {
+            result = val_none()
         }
     }
     free(own args)

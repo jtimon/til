@@ -1618,6 +1618,7 @@ I32 get_elem_size(Scope * s, Str * type_name, Expr * src);
 Bool h_array(Scope * s, Expr * e, Value * r);
 Bool h_vec(Scope * s, Expr * e, Value * r);
 Bool enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result);
+Bool ffi_decode_scalar(Str * rtype, void * p, Value * result);
 Bool ext_dispatch_ffi(Str * name, Scope * scope, Expr * e, Value * result);
 Bool ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result);
 void ffi_register(Str * name, void * fn, Expr * fdef);
