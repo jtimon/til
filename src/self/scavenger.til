@@ -320,33 +320,26 @@ scavenge_visited := func(core_program: Expr, program: Expr, mode: Mode, shallow 
             ref decl : Expr = program.child(idx)
             if is_struct_or_enum(decl) {
                 ref bfs_tdef : Expr = decl.child(0)
-                if bfs_tdef.node_type.is(NodeType.StructDef) {
-                    switch bfs_tdef.node_type {
-                    case NodeType.StructDef(bfs_sdd):
-                        for bfs_fd : Declaration in bfs_sdd.fields {
-                            if is_null(bfs_fd.default_value).not() {
-                                collect_refs(bfs_fd.default_value, worklist)
-                            }
-                            if bfs_fd.explicit_type.len().gt(0) {
-                                vec_push_str(worklist, bfs_fd.explicit_type)
-                            }
+                switch bfs_tdef.node_type {
+                case NodeType.StructDef(bfs_sdd):
+                    for bfs_fd : Declaration in bfs_sdd.fields {
+                        if is_null(bfs_fd.default_value).not() {
+                            collect_refs(bfs_fd.default_value, worklist)
                         }
-                    case:
-                        UNREACHABLE(__LOC__)
-                    }
-                } else {
-                    switch bfs_tdef.node_type {
-                    case NodeType.EnumDef(bfs_edd):
-                        for j in 0..bfs_edd.variants.len() {
-                            idx_e := j.to_i64()
-                            if bfs_edd.payload_types.has(idx_e) {
-                                ref pt_e : Str = bfs_edd.payload_types.get(idx_e)
-                                vec_push_str(worklist, pt_e)
-                            }
+                        if bfs_fd.explicit_type.len().gt(0) {
+                            vec_push_str(worklist, bfs_fd.explicit_type)
                         }
-                    case:
-                        UNREACHABLE(__LOC__)
                     }
+                case NodeType.EnumDef(bfs_edd):
+                    for j in 0..bfs_edd.variants.len() {
+                        idx_e := j.to_i64()
+                        if bfs_edd.payload_types.has(idx_e) {
+                            ref pt_e : Str = bfs_edd.payload_types.get(idx_e)
+                            vec_push_str(worklist, pt_e)
+                        }
+                    }
+                case:
+                    UNREACHABLE(__LOC__)
                 }
                 push_qn(worklist, name, "delete")
                 push_qn(worklist, name, "clone")
@@ -365,33 +358,26 @@ scavenge_visited := func(core_program: Expr, program: Expr, mode: Mode, shallow 
             ref decl : Expr = core_program.child(idx)
             if is_struct_or_enum(decl) {
                 ref bfs_tdef2 : Expr = decl.child(0)
-                if bfs_tdef2.node_type.is(NodeType.StructDef) {
-                    switch bfs_tdef2.node_type {
-                    case NodeType.StructDef(bfs_sdd2):
-                        for bfs_fd2 : Declaration in bfs_sdd2.fields {
-                            if is_null(bfs_fd2.default_value).not() {
-                                collect_refs(bfs_fd2.default_value, worklist)
-                            }
-                            if bfs_fd2.explicit_type.len().gt(0) {
-                                vec_push_str(worklist, bfs_fd2.explicit_type)
-                            }
+                switch bfs_tdef2.node_type {
+                case NodeType.StructDef(bfs_sdd2):
+                    for bfs_fd2 : Declaration in bfs_sdd2.fields {
+                        if is_null(bfs_fd2.default_value).not() {
+                            collect_refs(bfs_fd2.default_value, worklist)
                         }
-                    case:
-                        UNREACHABLE(__LOC__)
-                    }
-                } else {
-                    switch bfs_tdef2.node_type {
-                    case NodeType.EnumDef(bfs_edd2):
-                        for j in 0..bfs_edd2.variants.len() {
-                            idx_e2 := j.to_i64()
-                            if bfs_edd2.payload_types.has(idx_e2) {
-                                ref pt_e2 : Str = bfs_edd2.payload_types.get(idx_e2)
-                                vec_push_str(worklist, pt_e2)
-                            }
+                        if bfs_fd2.explicit_type.len().gt(0) {
+                            vec_push_str(worklist, bfs_fd2.explicit_type)
                         }
-                    case:
-                        UNREACHABLE(__LOC__)
                     }
+                case NodeType.EnumDef(bfs_edd2):
+                    for j in 0..bfs_edd2.variants.len() {
+                        idx_e2 := j.to_i64()
+                        if bfs_edd2.payload_types.has(idx_e2) {
+                            ref pt_e2 : Str = bfs_edd2.payload_types.get(idx_e2)
+                            vec_push_str(worklist, pt_e2)
+                        }
+                    }
+                case:
+                    UNREACHABLE(__LOC__)
                 }
                 push_qn(worklist, name, "delete")
                 push_qn(worklist, name, "clone")

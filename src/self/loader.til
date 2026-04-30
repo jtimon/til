@@ -419,8 +419,8 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
             ref decl : Expr = iu.ast.child(dr.idx)
             if is_struct_or_enum(decl) {
                 ref bfs_tdef : Expr = decl.child(0)
-                if bfs_tdef.node_type.is(NodeType.StructDef) {
-                    ref bfs_sdd : StructDef = get_payload(bfs_tdef.node_type)
+                switch bfs_tdef.node_type {
+                case NodeType.StructDef(bfs_sdd):
                     for bfs_fd : Declaration in bfs_sdd.fields {
                         if is_null(bfs_fd.default_value).not() {
                             collect_refs(bfs_fd.default_value, worklist)
@@ -429,8 +429,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                             vec_push_str(worklist, bfs_fd.explicit_type)
                         }
                     }
-                } else {
-                    ref bfs_edd : EnumDef = get_payload(bfs_tdef.node_type)
+                case NodeType.EnumDef(bfs_edd):
                     for j in 0..bfs_edd.variants.len() {
                         idx_e := j.to_i64()
                         if bfs_edd.payload_types.has(idx_e) {
@@ -438,6 +437,8 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                             vec_push_str(worklist, pt_e)
                         }
                     }
+                case:
+                    UNREACHABLE(__LOC__)
                 }
                 push_qn(worklist, name, "delete")
                 push_qn(worklist, name, "clone")
@@ -457,8 +458,8 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
             ref decl : Expr = iu.ast.child(dr.idx)
             if is_struct_or_enum(decl) {
                 ref bfs_tdef2 : Expr = decl.child(0)
-                if bfs_tdef2.node_type.is(NodeType.StructDef) {
-                    ref bfs_sdd2 : StructDef = get_payload(bfs_tdef2.node_type)
+                switch bfs_tdef2.node_type {
+                case NodeType.StructDef(bfs_sdd2):
                     for bfs_fd2 : Declaration in bfs_sdd2.fields {
                         if is_null(bfs_fd2.default_value).not() {
                             collect_refs(bfs_fd2.default_value, worklist)
@@ -467,8 +468,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                             vec_push_str(worklist, bfs_fd2.explicit_type)
                         }
                     }
-                } else {
-                    ref bfs_edd2 : EnumDef = get_payload(bfs_tdef2.node_type)
+                case NodeType.EnumDef(bfs_edd2):
                     for j in 0..bfs_edd2.variants.len() {
                         idx_e2 := j.to_i64()
                         if bfs_edd2.payload_types.has(idx_e2) {
@@ -476,6 +476,8 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                             vec_push_str(worklist, pt_e2)
                         }
                     }
+                case:
+                    UNREACHABLE(__LOC__)
                 }
                 push_qn(worklist, name, "delete")
                 push_qn(worklist, name, "clone")
