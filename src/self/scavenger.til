@@ -7,13 +7,14 @@ mut gc_strs := Vec.new("Str", Str.size())
 scav_fa_is_ns := func(e: Expr) returns shallow Bool {
     if e.children.len().eq(0) { return false }
     ref obj : Expr = e.child(0)
-    if obj.node_type.is(NodeType.Ident) {
+    switch obj.node_type {
+    case NodeType.Ident(id):
         if til_type_name(obj.til_type).eq("StructDef").or(til_type_name(obj.til_type).eq("EnumDef")) {
             return true
         }
         // Also check: if ident name matches struct_name, it's a type reference
-        ref id : Str = get_payload(obj.node_type)
         if til_type_name(obj.til_type).len().gt(0).and(til_type_name(obj.til_type).eq(id)) { return true }
+    case:
     }
     return false
 }
@@ -95,10 +96,20 @@ collect_refs := func(e: Expr, mut refs: Vec) {
             if e.child(0).node_type.is(NodeType.FieldAccess) {
                 if scav_fa_is_ns(e.child(0)) {
                     ref fa : Expr = e.child(0)
-                    ref type_name : Str = get_payload(fa.child(0).node_type)
-                    ref method : Str = get_payload(fa.node_type)
-                    vec_push_str(refs, type_name)
-                    push_qn(refs, type_name, method)
+                    switch fa.child(0).node_type {
+                    case NodeType.Ident(type_name):
+                        switch fa.node_type {
+                        case NodeType.FieldAccess(method):
+                            vec_push_str(refs, type_name)
+                            push_qn(refs, type_name, method)
+                        case:
+                            UNREACHABLE(__LOC__)
+                            return
+                        }
+                    case:
+                        UNREACHABLE(__LOC__)
+                        return
+                    }
                     // Recurse into args (skip callee -- already handled)
                     for i in 1..e.children.len() {
                         collect_refs(e.child(i), refs)
@@ -110,11 +121,15 @@ collect_refs := func(e: Expr, mut refs: Vec) {
         // array()/vec() builtins need Array/Vec constructor methods
         if e.children.len().gte(2) {
             if e.child(0).node_type.is(NodeType.Ident) {
-                ref cn : Str = get_payload(e.child(0).node_type)
-                if cn.eq("array") {
-                    push_builtin_methods(refs, "Array", "new", "set", "delete")
-                } else if cn.eq("vec") {
-                    push_builtin_methods(refs, "Vec", "new", "push", "delete")
+                switch e.child(0).node_type {
+                case NodeType.Ident(cn):
+                    if cn.eq("array") {
+                        push_builtin_methods(refs, "Array", "new", "set", "delete")
+                    } else if cn.eq("vec") {
+                        push_builtin_methods(refs, "Vec", "new", "push", "delete")
+                    }
+                case:
+                    UNREACHABLE(__LOC__)
                 }
             }
         }
@@ -136,17 +151,25 @@ collect_refs := func(e: Expr, mut refs: Vec) {
     case NodeType.FieldAccess(field_name):
         if scav_fa_is_ns(e) {
             if e.child(0).node_type.is(NodeType.Ident) {
-                ref type_name : Str = get_payload(e.child(0).node_type)
-                vec_push_str(refs, type_name)
-                push_qn(refs, type_name, field_name)
+                switch e.child(0).node_type {
+                case NodeType.Ident(type_name):
+                    vec_push_str(refs, type_name)
+                    push_qn(refs, type_name, field_name)
+                case:
+                    UNREACHABLE(__LOC__)
+                }
             }
         }
     case NodeType.FieldAssign(field_name):
         if scav_fa_is_ns(e) {
             if e.child(0).node_type.is(NodeType.Ident) {
-                ref type_name : Str = get_payload(e.child(0).node_type)
-                vec_push_str(refs, type_name)
-                push_qn(refs, type_name, field_name)
+                switch e.child(0).node_type {
+                case NodeType.Ident(type_name):
+                    vec_push_str(refs, type_name)
+                    push_qn(refs, type_name, field_name)
+                case:
+                    UNREACHABLE(__LOC__)
+                }
             }
         }
     case NodeType.Decl(decl):
@@ -157,8 +180,8 @@ collect_refs := func(e: Expr, mut refs: Vec) {
     }
 
     // Also traverse sdd.fields for structs
-    if e.node_type.is(NodeType.StructDef) {
-        ref cr_sdd : StructDef = get_payload(e.node_type)
+    switch e.node_type {
+    case NodeType.StructDef(cr_sdd):
         for cr_fd : Declaration in cr_sdd.fields {
             if is_null(cr_fd.default_value).not() {
                 collect_refs(cr_fd.default_value, refs)
@@ -167,6 +190,7 @@ collect_refs := func(e: Expr, mut refs: Vec) {
                 vec_push_str(refs, cr_fd.explicit_type)
             }
         }
+    case:
     }
     // Also traverse ns_decls entries (not in Expr children tree)
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
@@ -223,18 +247,20 @@ scavenge_visited := func(core_program: Expr, program: Expr, mode: Mode, shallow 
     if is_null(core_program).not() {
         for i in 0..core_program.children.len() {
             ref stmt : Expr = core_program.child(i)
-            if stmt.node_type.is(NodeType.Decl) {
-                ref decl : Declaration = get_payload(stmt.node_type)
+            switch stmt.node_type {
+            case NodeType.Decl(decl):
                 core_top.set(own decl.name.clone(), own i.clone())
+            case:
             }
         }
     }
     mut top := Map.new("Str", Str.size(), "U32", U32.size())
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
-        if stmt.node_type.is(NodeType.Decl) {
-            ref decl : Declaration = get_payload(stmt.node_type)
+        switch stmt.node_type {
+        case NodeType.Decl(decl):
             top.set(own decl.name.clone(), own i.clone())
+        case:
         }
     }
 
@@ -252,10 +278,18 @@ scavenge_visited := func(core_program: Expr, program: Expr, mode: Mode, shallow 
         for stmt : Expr in program.children {
             if stmt.node_type.is(NodeType.Decl) {
                 if stmt.child(0).node_type.is(NodeType.FuncDef) {
-                    ref fdef : FunctionDef = get_payload(stmt.child(0).node_type)
-                    if fdef.func_type.eq(FuncType.Test) {
-                        ref d : Declaration = get_payload(stmt.node_type)
-                        vec_push_str(worklist, d.name)
+                    switch stmt.child(0).node_type {
+                    case NodeType.FuncDef(fdef):
+                        if fdef.func_type.eq(FuncType.Test) {
+                            switch stmt.node_type {
+                            case NodeType.Decl(d):
+                                vec_push_str(worklist, d.name)
+                            case:
+                                UNREACHABLE(__LOC__)
+                            }
+                        }
+                    case:
+                        UNREACHABLE(__LOC__)
                     }
                 }
                 if is_def(stmt) { continue }
@@ -287,14 +321,18 @@ scavenge_visited := func(core_program: Expr, program: Expr, mode: Mode, shallow 
             if is_struct_or_enum(decl) {
                 ref bfs_tdef : Expr = decl.child(0)
                 if bfs_tdef.node_type.is(NodeType.StructDef) {
-                    ref bfs_sdd : StructDef = get_payload(bfs_tdef.node_type)
-                    for bfs_fd : Declaration in bfs_sdd.fields {
-                        if is_null(bfs_fd.default_value).not() {
-                            collect_refs(bfs_fd.default_value, worklist)
+                    switch bfs_tdef.node_type {
+                    case NodeType.StructDef(bfs_sdd):
+                        for bfs_fd : Declaration in bfs_sdd.fields {
+                            if is_null(bfs_fd.default_value).not() {
+                                collect_refs(bfs_fd.default_value, worklist)
+                            }
+                            if bfs_fd.explicit_type.len().gt(0) {
+                                vec_push_str(worklist, bfs_fd.explicit_type)
+                            }
                         }
-                        if bfs_fd.explicit_type.len().gt(0) {
-                            vec_push_str(worklist, bfs_fd.explicit_type)
-                        }
+                    case:
+                        UNREACHABLE(__LOC__)
                     }
                 } else {
                     ref body : Expr = decl_body(decl)
@@ -320,14 +358,18 @@ scavenge_visited := func(core_program: Expr, program: Expr, mode: Mode, shallow 
             if is_struct_or_enum(decl) {
                 ref bfs_tdef2 : Expr = decl.child(0)
                 if bfs_tdef2.node_type.is(NodeType.StructDef) {
-                    ref bfs_sdd2 : StructDef = get_payload(bfs_tdef2.node_type)
-                    for bfs_fd2 : Declaration in bfs_sdd2.fields {
-                        if is_null(bfs_fd2.default_value).not() {
-                            collect_refs(bfs_fd2.default_value, worklist)
+                    switch bfs_tdef2.node_type {
+                    case NodeType.StructDef(bfs_sdd2):
+                        for bfs_fd2 : Declaration in bfs_sdd2.fields {
+                            if is_null(bfs_fd2.default_value).not() {
+                                collect_refs(bfs_fd2.default_value, worklist)
+                            }
+                            if bfs_fd2.explicit_type.len().gt(0) {
+                                vec_push_str(worklist, bfs_fd2.explicit_type)
+                            }
                         }
-                        if bfs_fd2.explicit_type.len().gt(0) {
-                            vec_push_str(worklist, bfs_fd2.explicit_type)
-                        }
+                    case:
+                        UNREACHABLE(__LOC__)
                     }
                 } else {
                     ref body : Expr = decl_body(decl)
@@ -375,12 +417,14 @@ scavenge_filter := proc(mut program: Expr, visited: Set) {
     memset(pm, 0, pn)
     for i in 0..pn {
         ref stmt : Expr = program.child(i)
-        if stmt.node_type.is(NodeType.Decl) {
-            if is_def(stmt) {
-                ref d : Declaration = get_payload(stmt.node_type)
+        if is_def(stmt) {
+            switch stmt.node_type {
+            case NodeType.Decl(d):
                 if visited.has(d.name).not() {
                     memset(ptr_add(pm, i), 1, 1)
                 }
+            case:
+                UNREACHABLE(__LOC__)
             }
         }
     }
@@ -388,23 +432,26 @@ scavenge_filter := proc(mut program: Expr, visited: Set) {
     free(own pm)
 
     for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
         if is_struct_or_enum(stmt).not() { continue }
-        ref sdecl : Declaration = get_payload(stmt.node_type)
-        ref scv_ns2 : Vec = def_ns_decls(stmt.child(0))
-        scv_nn2 := scv_ns2.len()
-        if scv_nn2.gt(0) {
-            scv_nm2 : Dynamic = malloc(scv_nn2)
-            memset(scv_nm2, 0, scv_nn2)
-            for j in 0..scv_nn2 {
-                ref nsd : Declaration = scv_ns2.get(j)
-                scv_qn2 := qualified_name(sdecl.name, nsd.name)
-                if visited.has(scv_qn2).not() {
-                    memset(ptr_add(scv_nm2, j), 1, 1)
+        switch stmt.node_type {
+        case NodeType.Decl(sdecl):
+            ref scv_ns2 : Vec = def_ns_decls(stmt.child(0))
+            scv_nn2 := scv_ns2.len()
+            if scv_nn2.gt(0) {
+                scv_nm2 : Dynamic = malloc(scv_nn2)
+                memset(scv_nm2, 0, scv_nn2)
+                for j in 0..scv_nn2 {
+                    ref nsd : Declaration = scv_ns2.get(j)
+                    scv_qn2 := qualified_name(sdecl.name, nsd.name)
+                    if visited.has(scv_qn2).not() {
+                        memset(ptr_add(scv_nm2, j), 1, 1)
+                    }
                 }
+                children_filter(scv_ns2, scv_nm2, scv_nn2)
+                free(own scv_nm2)
             }
-            children_filter(scv_ns2, scv_nm2, scv_nn2)
-            free(own scv_nm2)
+        case:
+            UNREACHABLE(__LOC__)
         }
     }
 }
