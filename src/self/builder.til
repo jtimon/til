@@ -984,19 +984,19 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
 
 emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
     emit_indent(f, depth)
-    if e.node_type.is(NodeType.Decl) {
+    switch e.node_type {
+    case NodeType.Decl:
         emit_stmt_decl(f, e, depth)
-    } else if e.node_type.is(NodeType.Assign) {
-        ref ad : AssignData = get_payload(e.node_type)
+    case NodeType.Assign(ad):
         aname := ad.name
         ref rhs : Expr = e.child(0)
         if is_ref_local(aname) {
             mut do_rebind := false
-            if rhs.node_type.is(NodeType.FieldAccess) {
-                do_rebind = true
-            } else if rhs.node_type.is(NodeType.Ident) {
-                ref rhs_ident : Str = get_payload(rhs.node_type)
+            switch rhs.node_type {
+            case NodeType.FieldAccess: do_rebind = true
+            case NodeType.Ident(rhs_ident):
                 if is_stack_local(rhs_ident).not() { do_rebind = true }
+            case:
             }
             if do_rebind {
                 f.write_str(aname); f.write_str(" = ")
@@ -1048,9 +1048,8 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
             }
             f.write_str(";\n")
         }
-    } else if e.node_type.is(NodeType.FieldAssign) {
+    case NodeType.FieldAssign(fname):
         ref obj : Expr = e.child(0)
-        ref fname : Str = get_payload(e.node_type)
         ref rhs_fa : Expr = e.child(1)
         if rhs_fa.node_type.is(NodeType.FCall).and(builder_fa_is_ptr(e).not()).and(builder_fa_is_ns(e).not()) {
             if fcall_is_shallow_return(rhs_fa) {
@@ -1079,7 +1078,7 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
             }
             f.write_str(";\n")
         }
-    } else if e.node_type.is(NodeType.FCall) {
+    case NodeType.FCall:
         if e.children.len().gt(0).and(e.child(0).node_type.is(NodeType.FieldAccess)) {
             ref del_name : Str = get_payload(e.child(0).node_type)
             if del_name.eq("delete").and(e.children.len().gte(2)) {
@@ -1099,21 +1098,22 @@ emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
             }
         }
         emit_expr(f, e, depth); f.write_str(";\n")
-    } else if e.node_type.is(NodeType.Return) {
+    case NodeType.Return:
         emit_stmt_return(f, e, depth)
-    } else if e.node_type.is(NodeType.Body) {
+    case NodeType.Body:
         f.write_str("{\n"); emit_body_scoped(f, e, depth.add(1.to_i32())); emit_indent(f, depth); f.write_str("}\n")
-    } else if e.node_type.is(NodeType.If) {
+    case NodeType.If:
         f.write_str("if ("); emit_deref(f, e.child(0), depth); f.write_str(") {\n")
         emit_body_scoped(f, e.child(1), depth.add(1.to_i32())); emit_indent(f, depth)
         if e.children.len().gt(2) { f.write_str("} else {\n"); emit_body_scoped(f, e.child(2), depth.add(1.to_i32())); emit_indent(f, depth) }
         f.write_str("}\n")
-    } else if e.node_type.is(NodeType.While) {
+    case NodeType.While:
         f.write_str("while ("); emit_deref(f, e.child(0), depth); f.write_str(") {\n")
         emit_body_scoped(f, e.child(1), depth.add(1.to_i32())); emit_indent(f, depth); f.write_str("}\n")
-    } else if e.node_type.is(NodeType.Break) { f.write_str("break;\n")
-    } else if e.node_type.is(NodeType.Continue) { f.write_str("continue;\n")
-    } else { f.write_str("/* TODO: unknown stmt type */\n") }
+    case NodeType.Break: f.write_str("break;\n")
+    case NodeType.Continue: f.write_str("continue;\n")
+    case: f.write_str("/* TODO: unknown stmt type */\n")
+    }
 }
 
 emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
@@ -1171,23 +1171,20 @@ emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, shallow depth: I32)
 }
 
 emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
-    if e.node_type.is(NodeType.LiteralStr) {
-        ref s : Str = get_payload(e.node_type)
+    switch e.node_type {
+    case NodeType.LiteralStr(s):
         f.write_str("Str_lit(\"")
         f.write_str(s)
         f.write_str("\", ")
         emit_u64(f, s.len().to_i64().to_u64())
         f.write_str("ULL)")
-    } else if e.node_type.is(NodeType.LiteralNum) {
-        ref num : Str = get_payload(e.node_type)
+    case NodeType.LiteralNum(num):
         f.write_str(num)
-    } else if e.node_type.is(NodeType.LiteralBool) {
-        ref b : Bool = get_payload(e.node_type)
+    case NodeType.LiteralBool(b):
         if b { emit_i32(f, 1.to_i32()) } else { emit_i32(f, 0.to_i32()) }
-    } else if e.node_type.is(NodeType.LiteralNull) {
+    case NodeType.LiteralNull:
         f.write_str("NULL")
-    } else if e.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(e.node_type)
+    case NodeType.Ident(ident):
         if e.til_type.eq(TilType.FuncPtr) {
             f.write_str("(void *)")
             fc := func_to_c(ident)
@@ -1195,7 +1192,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
         } else {
             f.write_str(ident)
         }
-    } else if e.node_type.is(NodeType.FCall) {
+    case NodeType.FCall:
         ref callee : Expr = e.child(0)
         // Indirect call through FuncSig-typed struct field
         if callee.node_type.is(NodeType.FieldAccess) {
@@ -1331,9 +1328,8 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             }
             f.write_str(")")
         }
-    } else if e.node_type.is(NodeType.FieldAccess) {
+    case NodeType.FieldAccess(fname):
         ref obj : Expr = e.child(0)
-        ref fname : Str = get_payload(e.node_type)
         if builder_fa_is_ns(e) {
             obj_sname := til_type_name(obj.til_type)
             if e.til_type.is(TilType.Enum) {
@@ -1354,7 +1350,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             if use_dot_access(obj) { f.write_str(".") } else { f.write_str("->") }
             f.write_str(fname)
         }
-    } else {
+    case:
         f.write_str("/* TODO: unknown expr type */")
     }
 }
@@ -1635,8 +1631,8 @@ emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
 }
 
 emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) {
-    if e.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(e.node_type)
+    switch e.node_type {
+    case NodeType.Ident(ident):
         if is_shallow_param(ident).or(is_stack_local(ident)).or(is_value_global(ident)) {
             if is_own {
                 ref mut ctype : Str = get_stack_local_ctype(ident)
@@ -1652,10 +1648,10 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
                 f.write_str("&")
                 f.write_str(ident)
             }
-        } else if e.node_type.is(NodeType.Ident) {
+        } else {
             emit_expr(f, e, depth)
         }
-    } else if e.node_type.is(NodeType.FCall) {
+    case NodeType.FCall:
         e_sname := til_type_name(e.til_type)
         if e_sname.len().gt(0).and(e.children.len().gt(0)) {
             if e.child(0).node_type.is(NodeType.Ident) {
@@ -1681,15 +1677,14 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
             }
         }
         emit_expr(f, e, depth)
-    } else if e.node_type.is(NodeType.LiteralStr) {
+    case NodeType.LiteralStr:
         emit_expr(f, e, depth)
-    } else if e.node_type.is(NodeType.FieldAccess) {
+    case NodeType.FieldAccess(fname):
         if builder_fa_is_ptr(e) {
             emit_expr(f, e, depth)
         } else if builder_fa_is_ns(e).and(e.til_type.is(TilType.Enum)) {
             if is_own {
                 ref obj : Expr = e.child(0)
-                ref fname : Str = get_payload(e.node_type)
                 obj_sname := til_type_name(obj.til_type)
                 f.write_str("({ ")
                 f.write_str(obj_sname)
@@ -1711,9 +1706,9 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
             f.write_str("&")
             emit_expr(f, e, depth)
         }
-    } else if e.node_type.is(NodeType.LiteralNull) {
+    case NodeType.LiteralNull:
         f.write_str("NULL")
-    } else {
+    case:
         ctype := c_type_name(e.til_type, til_type_name(e.til_type))
         f.write_str("&(")
         f.write_str(ctype)
