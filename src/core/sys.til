@@ -31,7 +31,7 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     tmpf := "tmp/_run_cmd_out"
     pid := spawn_cmd(cmd.concat(" > ").concat(tmpf).concat(" 2>&1"))
     ec := wait_cmd(pid)
-    content := readfile(tmpf)
+    content := File.readfile(tmpf)
     // Copy content data into output (transfer ownership via memcpy)
     memcpy(output, content, Str.size())
     free(own content)

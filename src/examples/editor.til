@@ -20,7 +20,7 @@ main := proc(args: ..Str) {
 
     // Load file or start with one empty line
     if filename.len().gt(0) {
-        content := readfile(filename)
+        content := File.readfile(filename)
         if content.len().gt(0) {
             parts := content.split("\n")
             for p : Str in parts {
@@ -68,7 +68,7 @@ main := proc(args: ..Str) {
             }
             if filename.len().gt(0) {
                 content := join(lines, "\n")
-                writefile(filename, content)
+                File.writefile(filename, content)
                 dirty = false
                 status_msg = "Saved!"
                 status_timer = 2000
@@ -81,7 +81,7 @@ main := proc(args: ..Str) {
             if path.len().gt(0) {
                 filename = path
                 mut new_lines := Vec.new("Str", Str.size())
-                content := readfile(filename)
+                content := File.readfile(filename)
                 if content.len().gt(0) {
                     parts := content.split("\n")
                     for p : Str in parts {

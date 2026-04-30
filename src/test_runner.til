@@ -149,11 +149,11 @@ main := proc(args: ..Str) {
         mut has_ref := 0
 
         if en_interp.eq(1).and(interp_ok.eq(1)) {
-            ref_out = readfile(interp_outfile)
+            ref_out = File.readfile(interp_outfile)
             has_ref = 1
         }
         if en_run.eq(1).and(run_ok.eq(1)) {
-            run_out := readfile(run_outfile)
+            run_out := File.readfile(run_outfile)
             if has_ref.eq(0) {
                 ref_out = run_out
                 has_ref = 1
@@ -238,8 +238,8 @@ main := proc(args: ..Str) {
         }
 
         if ok.eq(1).and(has_expected.eq(1)) {
-            actual := readfile(outfile)
-            expected := readfile(expected_out_file)
+            actual := File.readfile(outfile)
+            expected := File.readfile(expected_out_file)
             if actual.neq(expected) {
                 println("FAIL: ", label, " output mismatch")
                 ok = 0
@@ -290,7 +290,7 @@ main := proc(args: ..Str) {
         ms := phase.ms
         mem := phase.mem
 
-        actual_out := readfile(outfile)
+        actual_out := File.readfile(outfile)
         actual_count := count_matches(actual_out, needle)
 
         mut ok := 1

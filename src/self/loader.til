@@ -140,7 +140,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
             // path strings that get embedded in the AST / generated C, so the
             // boot/ files don't carry absolute paths.
             disp := display_path(abs, cwd)
-            source := readfile(abs)
+            source := File.readfile(abs)
             tokens := tokenize(source, disp)
             mut sub_mode := ""
             sub_ast := parse(tokens, disp.clone(), sub_mode)
@@ -600,7 +600,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     }
 
     // Load core.til
-    core_source := readfile(core_path)
+    core_source := File.readfile(core_path)
     core_tokens := tokenize(core_source, core_disp)
     mut core_mode_str := ""
     core_ast := parse(core_tokens, core_disp.clone(), core_mode_str)
@@ -631,7 +631,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 
 
     // Load user file
-    source := readfile(path)
+    source := File.readfile(path)
     tokens := tokenize(source, path)
     mut mode_str := ""
     user_ast := parse(tokens, path.clone(), mode_str)
@@ -674,7 +674,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     if auto_import.len().gt(0) {
         mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
         mode_disp = display_path(mode_til_path, cwd)
-        mode_source := readfile(mode_til_path)
+        mode_source := File.readfile(mode_til_path)
         mode_tokens := tokenize(mode_source, mode_disp)
         mut mode_mode := ""
         mode_ast := parse(mode_tokens, mode_disp, mode_mode)

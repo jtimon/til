@@ -224,8 +224,8 @@ U64 *cli_parse_u64(const char *s);
 Bool *cli_parse_bool(const char *s);
 
 // System primitives
-Str *readfile(Str *path);
-void writefile(Str *path, Str *content);
+Str *File_readfile(Str *path);
+void File_writefile(Str *path, Str *content);
 I64 *spawn_cmd(Str *cmd);
 I64 check_cmd_status(I64 pid);
 void sleep_ms(I64 ms);

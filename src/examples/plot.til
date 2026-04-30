@@ -365,7 +365,7 @@ generate_svg := proc(rows: Vec, show_x_labels: Bool = true, show_y_labels: Bool 
 
 // Generate SVG chart from CSV file. last_n = 0 means all points.
 plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: Bool = true, show_y_labels: Bool = true) {
-    content := readfile(csv_path)
+    content := File.readfile(csv_path)
     all_rows := parse_csv(content)
 
     mut rows := Vec.new("Row", Row.size())
@@ -390,7 +390,7 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: B
     }
 
     svg := generate_svg(rows, show_x_labels, show_y_labels)
-    writefile(svg_path, svg)
+    File.writefile(svg_path, svg)
 }
 
 main := proc(args: ..Str) {
