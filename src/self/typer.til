@@ -2114,14 +2114,24 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         }
     }
 
-    tp := type_prefix(sw_expr.til_type)
-    sw_name := "_sw_".concat(tp).concat("_").concat(hoist_counter.to_str())
-    hoist_counter.inc()
+    mut sw_name := ""
+    mut hoist_sw_expr := true
+    if sw_expr.node_type.is(NodeType.Ident) {
+        ref ident_name : Str = get_payload(sw_expr.node_type)
+        sw_name = ident_name.clone()
+        hoist_sw_expr = false
+    } else {
+        tp := type_prefix(sw_expr.til_type)
+        sw_name = "_sw_".concat(tp).concat("_").concat(hoist_counter.to_str())
+        hoist_counter.inc()
+    }
 
     mut block := Expr.new(NodeType.Body, stmt.line, stmt.col)
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
-    decl.add_child(own sw_expr.clone())
-    block.add_child(own decl)
+    if hoist_sw_expr {
+        mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
+        decl.add_child(own sw_expr.clone())
+        block.add_child(own decl)
+    }
 
     mut first_if := Expr.new(NodeType.Body, stmt.line, stmt.col)
     mut has_first_if := false
