@@ -40,19 +40,12 @@ til_type_name_c := func(t: TilType) returns Str {
 // Extract the struct/enum/custom name carried in a TilType's payload.
 // Returns empty Str for any other variant.
 til_type_name := func(t: TilType) returns Str {
-    if t.is(TilType.Struct) {
-        ref s : Str = get_payload(t)
-        return s.clone()
+    switch t {
+    case TilType.Struct(s): return s.clone()
+    case TilType.Enum(s):   return s.clone()
+    case TilType.Custom(s): return s.clone()
+    case: return ""
     }
-    if t.is(TilType.Enum) {
-        ref s : Str = get_payload(t)
-        return s.clone()
-    }
-    if t.is(TilType.Custom) {
-        ref s : Str = get_payload(t)
-        return s.clone()
-    }
-    return ""
 }
 
 // --- FuncType enum ---

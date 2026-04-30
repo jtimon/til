@@ -1059,28 +1059,21 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
 }
 
 infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
-    if expr.node_type.is(NodeType.LiteralStr)
-    .or(expr.node_type.is(NodeType.LiteralNum))
-    .or(expr.node_type.is(NodeType.LiteralBool))
-    .or(expr.node_type.is(NodeType.LiteralNull)) {
-        infer_literal_expr(expr)
-    } else if expr.node_type.is(NodeType.Ident) {
-        infer_ident_expr(scope, expr)
-    } else if expr.node_type.is(NodeType.FuncDef) {
-        infer_func_def_expr(scope, expr, ctx)
-    } else if expr.node_type.is(NodeType.StructDef).or(expr.node_type.is(NodeType.EnumDef)) {
-        infer_type_def_expr(scope, expr, ctx)
-    } else if expr.node_type.is(NodeType.FCall) {
-        infer_fcall_expr(scope, expr, in_func, ctx)
-    } else if expr.node_type.is(NodeType.FieldAccess) {
-        infer_field_access_expr(scope, expr, in_func, ctx)
-    } else if expr.node_type.is(NodeType.MapLit) {
-        infer_map_lit_expr(scope, expr, in_func, ctx)
-    } else if expr.node_type.is(NodeType.SetLit) {
-        infer_set_lit_expr(scope, expr, in_func, ctx)
-    } else if expr.node_type.is(NodeType.NamedArg) {
-        infer_named_arg_expr(scope, expr, in_func, ctx)
-    } else {
+    switch expr.node_type {
+    case NodeType.LiteralStr:  infer_literal_expr(expr)
+    case NodeType.LiteralNum:  infer_literal_expr(expr)
+    case NodeType.LiteralBool: infer_literal_expr(expr)
+    case NodeType.LiteralNull: infer_literal_expr(expr)
+    case NodeType.Ident:       infer_ident_expr(scope, expr)
+    case NodeType.FuncDef:     infer_func_def_expr(scope, expr, ctx)
+    case NodeType.StructDef:   infer_type_def_expr(scope, expr, ctx)
+    case NodeType.EnumDef:     infer_type_def_expr(scope, expr, ctx)
+    case NodeType.FCall:       infer_fcall_expr(scope, expr, in_func, ctx)
+    case NodeType.FieldAccess: infer_field_access_expr(scope, expr, in_func, ctx)
+    case NodeType.MapLit:      infer_map_lit_expr(scope, expr, in_func, ctx)
+    case NodeType.SetLit:      infer_set_lit_expr(scope, expr, in_func, ctx)
+    case NodeType.NamedArg:    infer_named_arg_expr(scope, expr, in_func, ctx)
+    case:
         expr.til_type = TilType.Unknown
     }
 }
@@ -1724,11 +1717,12 @@ infer_decl_type_alias_passthrough := proc(scope: TypeScope, mut stmt: Expr) retu
 infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
     ref mut sdecl : Declaration = get_payload(stmt.node_type)
     mut declared := stmt.til_type
-    if declared.is(TilType.Unknown) {
+    switch declared {
+    case TilType.Unknown:
         declared = type_from_name(sdecl.explicit_type, scope)
-    } else if declared.is(TilType.Custom) {
-        ref cname : Str = get_payload(declared)
+    case TilType.Custom(cname):
         declared = type_from_name(cname, scope)
+    case:
     }
     ref mut val : Expr = stmt.child(0)
     if declared.is(TilType.Unknown) {

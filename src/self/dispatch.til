@@ -191,100 +191,48 @@ ffi_init_struct_defs_append := proc(program: Expr) {
 }
 
 value_to_i64 := func(v: Value) returns I64 {
-    if v.is(Value.Int) {
-        ref x : I64 = get_payload(v)
-        return x.clone()
-    }
-    if v.is(Value.Byte) {
-        ref x : U8 = get_payload(v)
-        return x.to_u64().to_i64()
-    }
-    if v.is(Value.Short) {
-        ref x : I16 = get_payload(v)
-        return x.to_i64()
-    }
-    if v.is(Value.Int32) {
-        ref x : I32 = get_payload(v)
-        return x.to_i64()
-    }
-    if v.is(Value.Uint32) {
-        ref x : U32 = get_payload(v)
-        return x.to_i64()
-    }
-    if v.is(Value.Uint64) {
-        ref x : U64 = get_payload(v)
-        return x.to_i64()
-    }
-    if v.is(Value.Boolean) {
-        ref x : Bool = get_payload(v)
+    switch v {
+    case Value.Int(x):     return x.clone()
+    case Value.Byte(x):    return x.to_u64().to_i64()
+    case Value.Short(x):   return x.to_i64()
+    case Value.Int32(x):   return x.to_i64()
+    case Value.Uint32(x):  return x.to_i64()
+    case Value.Uint64(x):  return x.to_i64()
+    case Value.Boolean(x):
         if x { return 1 }
         return 0
+    case: return 0
     }
-    return 0
 }
 
 value_to_u64 := func(v: Value) returns U64 {
-    if v.is(Value.Int) {
-        ref x : I64 = get_payload(v)
-        return x.to_u64()
-    }
-    if v.is(Value.Byte) {
-        ref x : U8 = get_payload(v)
-        return x.to_u64()
-    }
-    if v.is(Value.Short) {
-        ref x : I16 = get_payload(v)
-        return x.to_i64().to_u64()
-    }
-    if v.is(Value.Int32) {
-        ref x : I32 = get_payload(v)
-        return x.to_i64().to_u64()
-    }
-    if v.is(Value.Uint32) {
-        ref x : U32 = get_payload(v)
-        return x.to_u64()
-    }
-    if v.is(Value.Uint64) {
-        ref x : U64 = get_payload(v)
-        return x.clone()
-    }
-    if v.is(Value.Boolean) {
-        ref x : Bool = get_payload(v)
+    switch v {
+    case Value.Int(x):     return x.to_u64()
+    case Value.Byte(x):    return x.to_u64()
+    case Value.Short(x):   return x.to_i64().to_u64()
+    case Value.Int32(x):   return x.to_i64().to_u64()
+    case Value.Uint32(x):  return x.to_u64()
+    case Value.Uint64(x):  return x.clone()
+    case Value.Boolean(x):
         if x { return 1 }
         return 0
+    case: return 0
     }
-    return 0
 }
 
 value_to_f32 := func(v: Value) returns F32 {
     switch v {
-    case Value.Int:
-        ref x : I64 = get_payload(v)
-        return x.to_f32()
-    case Value.Byte:
-        ref x : U8 = get_payload(v)
-        return x.to_u64().to_i64().to_f32()
-    case Value.Short:
-        ref x : I16 = get_payload(v)
-        return x.to_i64().to_f32()
-    case Value.Int32:
-        ref x : I32 = get_payload(v)
-        return x.to_i64().to_f32()
-    case Value.Uint32:
-        ref x : U32 = get_payload(v)
-        return x.to_i64().to_f32()
-    case Value.Uint64:
-        ref x : U64 = get_payload(v)
-        return x.to_i64().to_f32()
-    case Value.Float:
-        ref x : F32 = get_payload(v)
-        return x.clone()
-    case Value.Boolean:
-        ref x : Bool = get_payload(v)
+    case Value.Int(x):     return x.to_f32()
+    case Value.Byte(x):    return x.to_u64().to_i64().to_f32()
+    case Value.Short(x):   return x.to_i64().to_f32()
+    case Value.Int32(x):   return x.to_i64().to_f32()
+    case Value.Uint32(x):  return x.to_i64().to_f32()
+    case Value.Uint64(x):  return x.to_i64().to_f32()
+    case Value.Float(x):   return x.clone()
+    case Value.Boolean(x):
         if x { return 1.to_f32() }
         return 0.to_f32()
-    case:
-        return 0.to_f32()
+    case: return 0.to_f32()
     }
 }
 
@@ -336,21 +284,19 @@ h_Bool_and := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     b := eval_arg(s, e.child(2))
     mut av := false
     mut bv := false
-    if a.is(Value.Boolean) {
-        ref _av : Bool = get_payload(a)
-        av = _av
-    } else if a.is(Value.Ptr) {
-        ref pv : Dynamic = get_payload(a)
+    switch a {
+    case Value.Boolean(_av): av = _av
+    case Value.Ptr(pv):
         ref _av : Bool = deref(pv)
         av = _av
+    case:
     }
-    if b.is(Value.Boolean) {
-        ref _bv : Bool = get_payload(b)
-        bv = _bv
-    } else if b.is(Value.Ptr) {
-        ref pv : Dynamic = get_payload(b)
+    switch b {
+    case Value.Boolean(_bv): bv = _bv
+    case Value.Ptr(pv):
         ref _bv : Bool = deref(pv)
         bv = _bv
+    case:
     }
     r = val_bool(and(av, bv))
     return true
@@ -361,21 +307,19 @@ h_Bool_or := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     b := eval_arg(s, e.child(2))
     mut av := false
     mut bv := false
-    if a.is(Value.Boolean) {
-        ref _av : Bool = get_payload(a)
-        av = _av
-    } else if a.is(Value.Ptr) {
-        ref pv : Dynamic = get_payload(a)
+    switch a {
+    case Value.Boolean(_av): av = _av
+    case Value.Ptr(pv):
         ref _av : Bool = deref(pv)
         av = _av
+    case:
     }
-    if b.is(Value.Boolean) {
-        ref _bv : Bool = get_payload(b)
-        bv = _bv
-    } else if b.is(Value.Ptr) {
-        ref pv : Dynamic = get_payload(b)
+    switch b {
+    case Value.Boolean(_bv): bv = _bv
+    case Value.Ptr(pv):
         ref _bv : Bool = deref(pv)
         bv = _bv
+    case:
     }
     r = val_bool(or(av, bv))
     return true
@@ -384,13 +328,12 @@ h_Bool_or := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 h_Bool_not := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     v := eval_arg(s, e.child(1))
     mut bv := false
-    if v.is(Value.Boolean) {
-        ref _bv : Bool = get_payload(v)
-        bv = _bv
-    } else if v.is(Value.Ptr) {
-        ref pv : Dynamic = get_payload(v)
+    switch v {
+    case Value.Boolean(_bv): bv = _bv
+    case Value.Ptr(pv):
         ref _bv : Bool = deref(pv)
         bv = _bv
+    case:
     }
     r = val_bool(not(bv))
     return true
@@ -475,19 +418,16 @@ h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
 val_to_ptr := func(v: Value) returns ref Dynamic {
     switch v {
-    case Value.Ptr:     return get_payload(v)
-    case Value.Int:     return get_payload(v)
-    case Value.Byte:    return get_payload(v)
-    case Value.Short:   return get_payload(v)
-    case Value.Int32:   return get_payload(v)
-    case Value.Uint32:  return get_payload(v)
-    case Value.Float:   return get_payload(v)
-    case Value.Boolean: return get_payload(v)
-    case Value.Struct:
-        ref x : StructInstance = get_payload(v)
-        return x.data
-    case:
-        return NULL
+    case Value.Ptr(p):     return p
+    case Value.Int(p):     return p
+    case Value.Byte(p):    return p
+    case Value.Short(p):   return p
+    case Value.Int32(p):   return p
+    case Value.Uint32(p):  return p
+    case Value.Float(p):   return p
+    case Value.Boolean(p): return p
+    case Value.Struct(x):  return x.data
+    case: return NULL
     }
 }
 
@@ -1015,40 +955,22 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
         } else {
             // Deep: pass heap-allocated pointer (FFI callee may free it)
             ref mut dp : Dynamic = NULL
-            if v.is(Value.Int) {
-                dp = malloc(8)
-                memcpy(dp, get_payload(v), 8)
-            } else if v.is(Value.Byte) {
-                dp = malloc(1)
-                memcpy(dp, get_payload(v), 1)
-            } else if v.is(Value.Short) {
-                dp = malloc(2)
-                memcpy(dp, get_payload(v), 2)
-            } else if v.is(Value.Int32) {
-                dp = malloc(4)
-                memcpy(dp, get_payload(v), 4)
-            } else if v.is(Value.Uint32) {
-                dp = malloc(4)
-                memcpy(dp, get_payload(v), 4)
-            } else if v.is(Value.Uint64) {
-                dp = malloc(8)
-                memcpy(dp, get_payload(v), 8)
-            } else if v.is(Value.Float) {
-                dp = malloc(4)
-                memcpy(dp, get_payload(v), 4)
-            } else if v.is(Value.Boolean) {
-                dp = malloc(1)
-                memcpy(dp, get_payload(v), 1)
-            } else if v.is(Value.Ptr) {
-                ref pv : Dynamic = get_payload(v)
+            switch v {
+            case Value.Int(p):     dp = malloc(8); memcpy(dp, p, 8)
+            case Value.Byte(p):    dp = malloc(1); memcpy(dp, p, 1)
+            case Value.Short(p):   dp = malloc(2); memcpy(dp, p, 2)
+            case Value.Int32(p):   dp = malloc(4); memcpy(dp, p, 4)
+            case Value.Uint32(p):  dp = malloc(4); memcpy(dp, p, 4)
+            case Value.Uint64(p):  dp = malloc(8); memcpy(dp, p, 8)
+            case Value.Float(p):   dp = malloc(4); memcpy(dp, p, 4)
+            case Value.Boolean(p): dp = malloc(1); memcpy(dp, p, 1)
+            case Value.Ptr(pv):
                 write_ptr(ptr_add(args, i.to_u64().mul(8)), deref(pv))
-            } else if v.is(Value.Struct) {
-                ref si : StructInstance = get_payload(v)
+            case Value.Struct(si):
                 write_ptr(ptr_add(args, i.to_u64().mul(8)), si.data)
-            } else if v.is(Value.Enum) {
-                ref ei : EnumInstance = get_payload(v)
+            case Value.Enum(ei):
                 write_ptr(ptr_add(args, i.to_u64().mul(8)), ei.data)
-            } else {
+            case:
                 write_ptr(ptr_add(args, i.to_u64().mul(8)), NULL)
             }
             if is_null(dp).not() {

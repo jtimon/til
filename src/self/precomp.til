@@ -190,8 +190,8 @@ try_fast_fold_call := proc(scope: Scope, fcall: Expr) returns ref Expr {
     if fcall.children.len().eq(1).not() { return NULL }
     ref _fc_callee : Expr = fcall.child(0)
     ref mut _fc_fp : Dynamic = NULL
-    if _fc_callee.node_type.is(NodeType.Ident) {
-        ref _ci : Str = get_payload(_fc_callee.node_type)
+    switch _fc_callee.node_type {
+    case NodeType.Ident(_ci):
         ref _cell : Cell = scope_get(scope, _ci)
         if is_null(_cell).not() {
             if is(_cell.val, Value.Func) {
@@ -201,12 +201,11 @@ try_fast_fold_call := proc(scope: Scope, fcall: Expr) returns ref Expr {
         // Fall back to namespace lookup for typer-flattened callees
         // (`Str_size()` instead of `Str.size()`).
         if is_null(_fc_fp) { _fc_fp = ns_lookup_flat(_ci) }
-    } else if _fc_callee.node_type.is(NodeType.FieldAccess) {
+    case NodeType.FieldAccess(_mn):
         if _fc_callee.children.len().gt(0) {
             ref _recv : Expr = _fc_callee.child(0)
             if _recv.node_type.is(NodeType.Ident) {
                 ref _sn : Str = get_payload(_recv.node_type)
-                ref _mn : Str = get_payload(_fc_callee.node_type)
                 ref _nv : Value = ns_get(_sn, _mn)
                 if is_null(_nv).not() {
                     if is(_nv, Value.Func) {
@@ -215,6 +214,7 @@ try_fast_fold_call := proc(scope: Scope, fcall: Expr) returns ref Expr {
                 }
             }
         }
+    case:
     }
     if is_null(_fc_fp) { return NULL }
     ref _fc_fdef : Expr = deref(_fc_fp)
@@ -236,8 +236,8 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
 
     // Check if the function body references unknown globals
     ref callee : Expr = fcall.child(0)
-    if callee.node_type.is(NodeType.Ident) {
-        ref callee_ident : Str = get_payload(callee.node_type)
+    switch callee.node_type {
+    case NodeType.Ident(callee_ident):
         ref fn_cell : Cell = scope_get(scope, callee_ident)
         if is_null(fn_cell).not() {
             // TODO(#155): switch to fn_cell.val.is(Value.Func) once the
@@ -255,10 +255,9 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                 }
             }
         }
-    } else if callee.node_type.is(NodeType.FieldAccess) {
+    case NodeType.FieldAccess(mname):
         ref recv : Expr = callee.child(0)
         ref sname : Str = get_payload(recv.node_type)
-        ref mname : Str = get_payload(callee.node_type)
         ref ns_val : Value = ns_get(sname, mname)
         if is_null(ns_val).not() {
             if is(ns_val, Value.Func) {
@@ -273,6 +272,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                 }
             }
         }
+    case:
     }
 
     // Build a call with literal args for the interpreter
@@ -454,9 +454,9 @@ precomp_scan_names := proc(prog: Expr) {
                     funcs.add(own dd.name.clone())
                 }
             }
-            if stmt.child(0).node_type.is(NodeType.StructDef) {
+            switch stmt.child(0).node_type {
+            case NodeType.StructDef(sdd_data):
                 ref sdd : Declaration = get_payload(stmt.node_type)
-                ref sdd_data : StructDef = get_payload(stmt.child(0).node_type)
                 for d_j : Declaration in sdd_data.ns_decls {
                     ref fdd : Declaration = d_j
                     ref fdef : Expr = fdd.default_value
@@ -471,9 +471,8 @@ precomp_scan_names := proc(prog: Expr) {
                         }
                     }
                 }
-            } else if stmt.child(0).node_type.is(NodeType.EnumDef) {
+            case NodeType.EnumDef(pc_edd):
                 ref sdd : Declaration = get_payload(stmt.node_type)
-                ref pc_edd : EnumDef = get_payload(stmt.child(0).node_type)
                 for d_j : Declaration in pc_edd.ns_decls {
                     ref nsd : Declaration = d_j
                     if is_null(nsd.default_value) { continue }
@@ -488,6 +487,7 @@ precomp_scan_names := proc(prog: Expr) {
                         }
                     }
                 }
+            case:
             }
         }
     }

@@ -1111,21 +1111,18 @@ widen_numeric := func(v: Value, ptype: Str) returns Value {
     mut ival : I64 = 0
     mut uval : U64 = 0
     mut is_unsigned := false
-    if v.is(Value.Byte) {
-        ref bv : U8 = get_payload(v)
+    switch v {
+    case Value.Byte(bv):
         uval = bv.to_u64()
         is_unsigned = true
-    } else if v.is(Value.Short) {
-        ref sv : I16 = get_payload(v)
+    case Value.Short(sv):
         ival = sv.to_i64()
-    } else if v.is(Value.Int32) {
-        ref iv : I32 = get_payload(v)
+    case Value.Int32(iv):
         ival = iv.to_i64()
-    } else if v.is(Value.Uint32) {
-        ref uv : U32 = get_payload(v)
+    case Value.Uint32(uv):
         uval = uv.to_u64()
         is_unsigned = true
-    } else {
+    case:
         return shallow_copy_value(v)
     }
     if is_unsigned.not() { uval = ival.to_u64() }

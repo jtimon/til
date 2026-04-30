@@ -86,10 +86,10 @@ push_builtin_methods := func(mut v: Vec, builtin_name: Str, m1: Str, m2: Str, m3
 collect_refs := func(e: Expr, mut refs: Vec) {
     if is_null(e) { return }
 
-    if e.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(e.node_type)
+    switch e.node_type {
+    case NodeType.Ident(ident):
         vec_push_str(refs, ident)
-    } else if e.node_type.is(NodeType.FCall) {
+    case NodeType.FCall:
         // Check for namespace method call: Type.method(args...)
         if e.children.len().gt(0) {
             if e.child(0).node_type.is(NodeType.FieldAccess) {
@@ -118,8 +118,7 @@ collect_refs := func(e: Expr, mut refs: Vec) {
                 }
             }
         }
-    } else if e.node_type.is(NodeType.FuncDef) {
-        ref fdef : FunctionDef = get_payload(e.node_type)
+    case NodeType.FuncDef(fdef):
         for p : Declaration in fdef.params {
             if p.explicit_type.len().gt(0) {
                 vec_push_str(refs, p.explicit_type)
@@ -134,29 +133,27 @@ collect_refs := func(e: Expr, mut refs: Vec) {
         if fdef.return_type.len().gt(0) {
             vec_push_str(refs, fdef.return_type)
         }
-    } else if e.node_type.is(NodeType.FieldAccess) {
+    case NodeType.FieldAccess(field_name):
         if scav_fa_is_ns(e) {
             if e.child(0).node_type.is(NodeType.Ident) {
                 ref type_name : Str = get_payload(e.child(0).node_type)
-                ref field_name : Str = get_payload(e.node_type)
                 vec_push_str(refs, type_name)
                 push_qn(refs, type_name, field_name)
             }
         }
-    } else if e.node_type.is(NodeType.FieldAssign) {
+    case NodeType.FieldAssign(field_name):
         if scav_fa_is_ns(e) {
             if e.child(0).node_type.is(NodeType.Ident) {
                 ref type_name : Str = get_payload(e.child(0).node_type)
-                ref field_name : Str = get_payload(e.node_type)
                 vec_push_str(refs, type_name)
                 push_qn(refs, type_name, field_name)
             }
         }
-    } else if e.node_type.is(NodeType.Decl) {
-        ref decl : Declaration = get_payload(e.node_type)
+    case NodeType.Decl(decl):
         if decl.explicit_type.len().gt(0) {
             vec_push_str(refs, decl.explicit_type)
         }
+    case:
     }
 
     // Also traverse sdd.fields for structs

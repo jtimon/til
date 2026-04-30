@@ -339,17 +339,17 @@ fcall_is_shallow_return := func(fcall: Expr) returns shallow Bool {
 fcall_returns_dynamic := func(fcall: Expr) returns shallow Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     ref callee_node : Expr = fcall.child(0)
-    if callee_node.node_type.is(NodeType.FieldAccess) {
+    switch callee_node.node_type {
+    case NodeType.FieldAccess(mname):
         sname := til_type_name(callee_node.child(0).til_type)
-        ref mname : Str = get_payload(callee_node.node_type)
         if sname.len().eq(0) { return false }
         flat := sname.concat("_").concat(mname)
         return callee_returns_dynamic(flat)
-    } else if callee_node.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(callee_node.node_type)
+    case NodeType.Ident(ident):
         return callee_returns_dynamic(ident)
+    case:
+        return false
     }
-    return false
 }
 
 til_type_to_c := func(shallow t: TilType) returns Str {
@@ -631,16 +631,16 @@ resolve_callee_name := ext_func(fcall: Expr) returns Str {}
 
 resolve_callee_name := func(fcall: Expr) returns Str {
     ref callee_node : Expr = fcall.child(0)
-    if callee_node.node_type.is(NodeType.FieldAccess) {
+    switch callee_node.node_type {
+    case NodeType.FieldAccess(mname):
         sname := til_type_name(callee_node.child(0).til_type)
-        ref mname : Str = get_payload(callee_node.node_type)
         if sname.len().eq(0) { return "" }
         return sname.concat("_").concat(mname)
-    } else if callee_node.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(callee_node.node_type)
+    case NodeType.Ident(ident):
         return ident.clone()
+    case:
+        return ""
     }
-    return ""
 }
 
 callee_return_ctype := func(callee_name: Str) returns Str {
@@ -1604,32 +1604,33 @@ emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
             f.write_str("(void *)")
             emit_expr(f, e, depth)
         }
-    } else if e.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(e.node_type)
-        if is_shallow_param(ident).or(is_stack_local(ident)).or(is_value_global(ident)) {
-            emit_expr(f, e, depth)
-        } else {
-            f.write_str("DEREF(")
-            emit_expr(f, e, depth)
-            f.write_str(")")
-        }
-    } else if e.node_type.is(NodeType.LiteralStr) {
-        ref s : Str = get_payload(e.node_type)
-        f.write_str("(Str){.c_str=(U8*)\"")
-        f.write_str(s)
-        f.write_str("\", .count=")
-        emit_u64(f, s.len().to_i64().to_u64())
-        f.write_str("ULL, .cap=TIL_CAP_LIT}")
-    } else if e.node_type.is(NodeType.FieldAccess) {
-        if builder_fa_is_ns(e).and(e.til_type.is(TilType.Enum)) {
-            f.write_str("(*")
-            emit_expr(f, e, depth)
-            f.write_str(")")
-        } else {
-            emit_expr(f, e, depth)
-        }
     } else {
-        emit_expr(f, e, depth)
+        switch e.node_type {
+        case NodeType.Ident(ident):
+            if is_shallow_param(ident).or(is_stack_local(ident)).or(is_value_global(ident)) {
+                emit_expr(f, e, depth)
+            } else {
+                f.write_str("DEREF(")
+                emit_expr(f, e, depth)
+                f.write_str(")")
+            }
+        case NodeType.LiteralStr(s):
+            f.write_str("(Str){.c_str=(U8*)\"")
+            f.write_str(s)
+            f.write_str("\", .count=")
+            emit_u64(f, s.len().to_i64().to_u64())
+            f.write_str("ULL, .cap=TIL_CAP_LIT}")
+        case NodeType.FieldAccess:
+            if builder_fa_is_ns(e).and(e.til_type.is(TilType.Enum)) {
+                f.write_str("(*")
+                emit_expr(f, e, depth)
+                f.write_str(")")
+            } else {
+                emit_expr(f, e, depth)
+            }
+        case:
+            emit_expr(f, e, depth)
+        }
     }
 }
 

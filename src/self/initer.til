@@ -1605,10 +1605,10 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                     else if def_val.node_type.is(NodeType.FCall) {
                         if def_val.children.len().gt(0) {
                             ref callee : Expr = def_val.child(0)
-                            if callee.node_type.is(NodeType.Ident) {
-                                ref _ft : Str = get_payload(callee.node_type)
+                            switch callee.node_type {
+                            case NodeType.Ident(_ft):
                                 ftype = _ft
-                            } else if callee.node_type.is(NodeType.FieldAccess) {
+                            case NodeType.FieldAccess:
                                 if callee.children.len().gt(0) {
                                     ref type_node : Expr = callee.child(0)
                                     if type_node.node_type.is(NodeType.Ident) {
@@ -1616,6 +1616,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                                         ftype = _ft
                                     }
                                 }
+                            case:
                             }
                         }
                     } else if def_val.node_type.is(NodeType.FieldAccess) {
