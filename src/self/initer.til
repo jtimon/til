@@ -2017,30 +2017,128 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
     context_enter_file(ctx, path)
     initer_path = ctx.path.clone()
     mut errors : I32 = 0
-    errors = errors.add(register_struct_definitions(program, scope))
-    register_funcsig_aliases(program, scope)
-    errors = errors.add(register_enums_and_generate_nonclone_methods(program, scope))
-    register_type_aliases(program, scope)
-    register_function_definitions(program, scope)
-    register_top_level_values(program, scope)
+
+    // Single AST walk: register every type name in scope (struct, enum,
+    // funcsig) and bucket each remaining Decl's index for post-walk work.
+    // Enum non-clone methods need scope to be populated before they can
+    // generate eq/delete/to_str, so we delay them until after the walk.
+    enum_idxs := Vec.new("U32", U32.size())
+    alias_idxs := Vec.new("U32", U32.size())
+    func_idxs := Vec.new("U32", U32.size())
+    value_idxs := Vec.new("U32", U32.size())
+    for i in 0..program.children.len() {
+        ref stmt : Expr = program.child(i)
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        ref rhs : Expr = stmt.child(0)
+        if rhs.node_type.is(NodeType.StructDef) {
+            errors = errors.add(register_struct_def_for_stmt(stmt, scope))
+        } else if rhs.node_type.is(NodeType.EnumDef) {
+            errors = errors.add(register_enum_def_for_stmt(stmt, scope))
+            enum_idxs.push(own i)
+        } else if rhs.node_type.is(NodeType.FuncDef) {
+            if rhs.children.len().eq(0) {
+                register_funcsig_alias_for_stmt(stmt, scope)
+            } else {
+                func_idxs.push(own i)
+            }
+        } else if rhs.node_type.is(NodeType.Ident) {
+            alias_idxs.push(own i)
+        } else {
+            value_idxs.push(own i)
+        }
+    }
+
+    // All type names are now in scope. Process the collected lists.
+    for ei : U32 in enum_idxs {
+        gen_enum_nonclone_methods_for_stmt(program.child(ei), scope)
+    }
+    for ai : U32 in alias_idxs {
+        register_type_alias_for_stmt(program.child(ai), scope)
+    }
+    for fi : U32 in func_idxs {
+        register_function_def_for_stmt(program.child(fi), scope)
+    }
+    for vi : U32 in value_idxs {
+        register_top_level_value_for_stmt(program.child(vi), scope)
+    }
+
+    Vec.delete(own enum_idxs, false)
+    Vec.delete(own alias_idxs, false)
+    Vec.delete(own func_idxs, false)
+    Vec.delete(own value_idxs, false)
     return errors
 }
 
 // Run the global init steps that require a full program view.
 init_declarations_global := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
-    // One walk: struct method gen + enum clone gen. Enum register+nonclone
-    // methods already ran per-unit; only clones were deferred to global.
-    for stmt : Expr in program.children {
-        gen_struct_clone_delete_for_stmt(stmt, scope)
-        gen_missing_enum_clone_for_stmt(stmt)
+
+    // Single AST walk: bucket struct and enum decls for post-walk work,
+    // and bucket func/value decls in case global generation steps added
+    // new ones (size/derived methods) that need to be registered.
+    struct_idxs := Vec.new("U32", U32.size())
+    enum_idxs := Vec.new("U32", U32.size())
+    func_idxs := Vec.new("U32", U32.size())
+    value_idxs := Vec.new("U32", U32.size())
+    for i in 0..program.children.len() {
+        ref stmt : Expr = program.child(i)
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        ref rhs : Expr = stmt.child(0)
+        if rhs.node_type.is(NodeType.StructDef) {
+            struct_idxs.push(own i)
+        } else if rhs.node_type.is(NodeType.EnumDef) {
+            enum_idxs.push(own i)
+        } else if rhs.node_type.is(NodeType.FuncDef) {
+            if rhs.children.len().gt(0) {
+                func_idxs.push(own i)
+            }
+        } else if rhs.node_type.is(NodeType.Ident).not() {
+            value_idxs.push(own i)
+        }
     }
-    compute_all_struct_layouts(program, scope)
-    generate_size_methods(program, scope)
-    generate_derived_methods(program)
-    // Global generation steps add new function/value decls; register them now.
-    register_function_definitions(program, scope)
-    register_top_level_values(program, scope)
+
+    // Method generation: clone+delete for structs, clone for enums.
+    // Enum non-clone methods already ran per-unit.
+    for si : U32 in struct_idxs {
+        gen_struct_clone_delete_for_stmt(program.child(si), scope)
+    }
+    for ei : U32 in enum_idxs {
+        gen_missing_enum_clone_for_stmt(program.child(ei))
+    }
+    // Layouts.
+    for si : U32 in struct_idxs {
+        compute_struct_layout(program.child(si).child(0), scope)
+    }
+    for ei : U32 in enum_idxs {
+        compute_enum_layout(program.child(ei).child(0), scope)
+    }
+    // Size + cmp/unity derived methods.
+    for si : U32 in struct_idxs {
+        ref stmt : Expr = program.child(si)
+        gen_struct_size_method_for_stmt(stmt)
+        gen_cmp_derived_for_stmt(stmt)
+        gen_unity_derived_for_stmt(stmt)
+    }
+    for ei : U32 in enum_idxs {
+        ref stmt : Expr = program.child(ei)
+        gen_enum_size_method_for_stmt(stmt, scope)
+        gen_cmp_derived_for_stmt(stmt)
+        gen_unity_derived_for_stmt(stmt)
+    }
+    // Re-register function/value decls -- new ones may have been generated
+    // above (size methods etc) but those go into ns_decls, not program.children.
+    // Still re-register here to mirror the original ordering.
+    for fi : U32 in func_idxs {
+        register_function_def_for_stmt(program.child(fi), scope)
+    }
+    for vi : U32 in value_idxs {
+        register_top_level_value_for_stmt(program.child(vi), scope)
+    }
+
+    Vec.delete(own struct_idxs, false)
+    Vec.delete(own enum_idxs, false)
+    Vec.delete(own func_idxs, false)
+    Vec.delete(own value_idxs, false)
     return errors
 }
 
