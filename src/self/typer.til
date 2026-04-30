@@ -1915,7 +1915,17 @@ mark_switch_case_covered_variant := proc(switch_enum_def: Expr, mut covered_vari
     }
 }
 
-make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_name: Str, shallow sw_line: U32, shallow sw_col: U32) returns Expr {
+is_simple_lvalue_expr := func(e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.Ident) { return true }
+    if e.node_type.is(NodeType.FieldAccess) {
+        if e.children.len().eq(1) {
+            return is_simple_lvalue_expr(e.child(0))
+        }
+    }
+    return false
+}
+
+make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr {
     mut condition := Expr.new(NodeType.Body, sw_line, sw_col)
     mut has_condition := false
     if match_expr.node_type.is(NodeType.FCall) {
@@ -1930,14 +1940,14 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 ref start_expr : Expr = match_expr.child(1)
                                 ref end_expr : Expr = match_expr.child(2)
 
-                                mut sw1 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col)
+                                mut sw1 := sw_ref.clone()
                                 mut gte_acc := Expr.new(NodeType.FieldAccess("gte"), sw_line, sw_col)
                                 gte_acc.add_child(own sw1)
                                 mut gte_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
                                 gte_call.add_child(own gte_acc)
                                 gte_call.add_child(own start_expr.clone())
 
-                                mut sw2 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col)
+                                mut sw2 := sw_ref.clone()
                                 mut lte_acc := Expr.new(NodeType.FieldAccess("lte"), sw_line, sw_col)
                                 lte_acc.add_child(own sw2)
                                 mut lte_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
@@ -1978,7 +1988,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                     }
                                     if payload_type.len().gt(0) {
                                         mut iv_id := Expr.new(NodeType.Ident("is"), sw_line, sw_col)
-                                        mut sw_id := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col)
+                                        mut sw_id := sw_ref.clone()
                                         mut vtype_id := Expr.new(NodeType.Ident(type_name.clone()), sw_line, sw_col)
                                         mut vref := Expr.new(NodeType.FieldAccess(variant_name.clone()), sw_line, sw_col)
                                         vref.add_child(own vtype_id)
@@ -1988,7 +1998,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         condition.add_child(own vref)
 
                                         mut gp_ident := Expr.new(NodeType.Ident("get_payload"), sw_line, sw_col)
-                                        mut sw_id2 := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col)
+                                        mut sw_id2 := sw_ref.clone()
                                         mut get_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
                                         get_call.add_child(own gp_ident)
                                         get_call.add_child(own sw_id2)
@@ -2031,7 +2041,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                         }
                         if payload_type.len().gt(0) {
                             mut iv_id := Expr.new(NodeType.Ident("is"), sw_line, sw_col)
-                            mut sw_id := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col)
+                            mut sw_id := sw_ref.clone()
                             mut vtype_id := Expr.new(NodeType.Ident(type_name.clone()), sw_line, sw_col)
                             mut vref := Expr.new(NodeType.FieldAccess(variant_name.clone()), sw_line, sw_col)
                             vref.add_child(own vtype_id)
@@ -2048,7 +2058,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
     }
 
     if has_condition.not() {
-        mut sw_ident := Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col)
+        mut sw_ident := sw_ref.clone()
         mut eq_access := Expr.new(NodeType.FieldAccess("eq"), sw_line, sw_col)
         eq_access.add_child(own sw_ident)
         condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
@@ -2114,23 +2124,18 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         }
     }
 
-    mut sw_name := ""
-    mut hoist_sw_expr := true
-    if sw_expr.node_type.is(NodeType.Ident) {
-        ref ident_name : Str = get_payload(sw_expr.node_type)
-        sw_name = ident_name.clone()
-        hoist_sw_expr = false
+    mut sw_ref := Expr.new(NodeType.LiteralNull, sw_line, sw_col)
+    mut block := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    if is_simple_lvalue_expr(sw_expr) {
+        sw_ref = sw_expr.clone()
     } else {
         tp := type_prefix(sw_expr.til_type)
-        sw_name = "_sw_".concat(tp).concat("_").concat(hoist_counter.to_str())
+        sw_name := "_sw_".concat(tp).concat("_").concat(hoist_counter.to_str())
         hoist_counter.inc()
-    }
-
-    mut block := Expr.new(NodeType.Body, stmt.line, stmt.col)
-    if hoist_sw_expr {
         mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
         decl.add_child(own sw_expr.clone())
         block.add_child(own decl)
+        sw_ref = Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col)
     }
 
     mut first_if := Expr.new(NodeType.Body, stmt.line, stmt.col)
@@ -2152,7 +2157,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
             ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
             mark_switch_case_covered_variant(switch_enum_def, covered_variants, n_variants, sw_expr, match_expr)
         }
-        condition := make_switch_case_condition(scope, case_body, match_expr, sw_name, sw_line, sw_col)
+        condition := make_switch_case_condition(scope, case_body, match_expr, sw_ref, sw_line, sw_col)
 
         mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
         if_node.add_child(own condition)
