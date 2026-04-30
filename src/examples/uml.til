@@ -229,25 +229,28 @@ extract_types_from_file := proc(path: Str) returns Vec {
     label := file_label(path)
 
     for stmt : Expr in ast.children {
-        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            ref dd : Declaration = get_payload(stmt.node_type)
-            ref rhs : Expr = stmt.child(0)
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if stmt.children.len().gt(0) {
+                ref rhs : Expr = stmt.child(0)
 
-            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                body_lines := extract_body_lines(lines, rhs.line)
-                mut rendered_lines := body_lines
-                mut kind := "StructDef"
-                if rhs.node_type.is(NodeType.EnumDef) {
-                    kind = "EnumDef"
-                    rendered_lines = split_enum_variants(body_lines)
+                if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                    body_lines := extract_body_lines(lines, rhs.line)
+                    mut rendered_lines := body_lines
+                    mut kind := "StructDef"
+                    if rhs.node_type.is(NodeType.EnumDef) {
+                        kind = "EnumDef"
+                        rendered_lines = split_enum_variants(body_lines)
+                    }
+                    out.push(own UmlType(
+                        file = label.clone(),
+                        name = dd.name.clone(),
+                        kind = kind.clone(),
+                        lines = rendered_lines
+                    ))
                 }
-                out.push(own UmlType(
-                    file = label.clone(),
-                    name = dd.name.clone(),
-                    kind = kind.clone(),
-                    lines = rendered_lines
-                ))
             }
+        case:
         }
     }
 
