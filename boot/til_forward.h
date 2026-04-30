@@ -959,6 +959,7 @@ I64 * wait_cmd(I64 * pid);
 I64 * run_cmd(Str * output, Array * args);
 void panic(Str * loc_str, Array * parts);
 void TODO(Str * loc_str, Array * parts);
+void UNREACHABLE(Str * loc_str);
 Bool TokenType_is(TokenType * self, TokenType * other);
 Bool TokenType_eq(TokenType * self, TokenType * other);
 void TokenType_delete(TokenType * self, Bool * call_free);

@@ -473,8 +473,14 @@ def_ns_decls := func(sdef: Expr) returns ref Vec {
 // --- Enum helpers ---
 
 enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
-    ref edd : EnumDef = get_payload(enum_def.node_type)
-    return edd.payload_types.len().gt(0)
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        return edd.payload_types.len().gt(0)
+    case:
+        // Should be unreachable; return to satisfy C -Wreturn-type.
+        UNREACHABLE(__LOC__)
+        return false
+    }
 }
 
 enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
