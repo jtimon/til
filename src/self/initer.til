@@ -172,196 +172,222 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
 }
 
 register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
-    ref sdecl : Declaration = get_payload(stmt.node_type)
-    sname := sdecl.name
+    if stmt.node_type.is(NodeType.Decl).not() { return 0.to_i32() }
+    if stmt.child(0).node_type.is(NodeType.StructDef).not() { return 0.to_i32() }
 
-    existing_find := scope.find(sname)
-    if existing_find.is(ScopeFind.Found) {
-        ref existing_payload : Dynamic = get_payload(existing_find)
-        ref existing : TypeBinding = existing_payload
-        if is_null(existing.struct_def).not() {
-            println(
-                initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                ": error: struct '", sname, "' already declared at ",
-                existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
-            )
-            return 1.to_i32()
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        sname := sdecl.name
+
+        existing_find := scope.find(sname)
+        switch existing_find {
+        case ScopeFind.Found(existing):
+            if is_null(existing.struct_def).not() {
+                println(
+                    initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                    ": error: struct '", sname, "' already declared at ",
+                    existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
+                )
+                return 1.to_i32()
+            }
+        case:
         }
+
+        mut builtin_type := TilType.Struct(sname.clone())
+        mut is_builtin := false
+        if sname.eq("I64") { builtin_type = TilType.I64; is_builtin = true }
+        else if sname.eq("U8") { builtin_type = TilType.U8; is_builtin = true }
+        else if sname.eq("I16") { builtin_type = TilType.I16; is_builtin = true }
+        else if sname.eq("I32") { builtin_type = TilType.I32; is_builtin = true }
+        else if sname.eq("U32") { builtin_type = TilType.U32; is_builtin = true }
+        else if sname.eq("U64") { builtin_type = TilType.U64; is_builtin = true }
+        else if sname.eq("USize") { builtin_type = TilType.U32; is_builtin = true }
+        else if sname.eq("Str") { is_builtin = false }
+        else if sname.eq("Bool") { builtin_type = TilType.Bool; is_builtin = true }
+        else if sname.eq("StructDef") { is_builtin = false }
+        else if sname.eq("FunctionDef") { is_builtin = false }
+        else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
+
+        scope.set(sname, builtin_type, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+        ref mut b : TypeBinding = scope.get_binding(sname)
+        b.struct_def = stmt.child(0)
+        b.is_builtin = is_builtin
+        return 0.to_i32()
+    case:
+        UNREACHABLE(__LOC__)
+        return 0.to_i32()
     }
+}
 
-    mut builtin_type := TilType.Struct(sname.clone())
-    mut is_builtin := false
-    if sname.eq("I64") { builtin_type = TilType.I64; is_builtin = true }
-    else if sname.eq("U8") { builtin_type = TilType.U8; is_builtin = true }
-    else if sname.eq("I16") { builtin_type = TilType.I16; is_builtin = true }
-    else if sname.eq("I32") { builtin_type = TilType.I32; is_builtin = true }
-    else if sname.eq("U32") { builtin_type = TilType.U32; is_builtin = true }
-    else if sname.eq("U64") { builtin_type = TilType.U64; is_builtin = true }
-    else if sname.eq("USize") { builtin_type = TilType.U32; is_builtin = true }
-    else if sname.eq("Str") { is_builtin = false }
-    else if sname.eq("Bool") { builtin_type = TilType.Bool; is_builtin = true }
-    else if sname.eq("StructDef") { is_builtin = false }
-    else if sname.eq("FunctionDef") { is_builtin = false }
-    else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
-
-    scope.set(sname, builtin_type, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
-    ref mut b : TypeBinding = scope.get_binding(sname)
-    b.struct_def = stmt.child(0)
-    b.is_builtin = is_builtin
-    return 0.to_i32()
+register_struct_definitions := proc(program: Expr, scope: TypeScope) returns shallow I32 {
+    mut errors : I32 = 0
+    for stmt : Expr in program.children {
+        errors = errors.add(register_struct_def_for_stmt(stmt, scope))
+    }
+    return errors
 }
 
 gen_struct_clone_delete_for_stmt := proc(stmt: Expr, scope: TypeScope) {
-    ref sdecl : Declaration = get_payload(stmt.node_type)
-    sname := sdecl.name
+    if stmt.node_type.is(NodeType.Decl).not() { return }
+    if stmt.child(0).node_type.is(NodeType.StructDef).not() { return }
+
+    mut sname := ""
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        sname = sdecl.name
+    case:
+        UNREACHABLE(__LOC__)
+        return
+    }
     if sname.eq("Dynamic") { return }
 
     ref sdef : Expr = stmt.child(0)
-    ref sdd : StructDef = get_payload(sdef.node_type)
-
-    mut has_clone := false
-    mut has_delete := false
-    for d_j : Declaration in sdd.ns_decls {
-        ref fd : Declaration = d_j
-        if fd.name.eq("clone") { has_clone = true }
-        if fd.name.eq("delete") { has_delete = true }
-    }
-
-    if has_clone.not() {
-        field_names := Vec.new("Str", Str.size())
-        field_refs := Vec.new("I32", I32.size())
-        for d_j : Declaration in sdd.fields {
+    switch sdef.node_type {
+    case NodeType.StructDef(sdd):
+        mut has_clone := false
+        mut has_delete := false
+        for d_j : Declaration in sdd.ns_decls {
             ref fd : Declaration = d_j
-            field_names.push(own fd.name.clone())
-            mut ref_flag : I32 = 0
-            if fd.own_type.eq(OwnType.Ref) {
-                ref_flag = 1
-            } else if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
-                ref_flag = 1
-            }
-            field_refs.push(own ref_flag)
+            if fd.name.eq("clone") { has_clone = true }
+            if fd.name.eq("delete") { has_delete = true }
         }
 
-        mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-        if field_names.len().eq(0) {
-            mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-            mut ctor_name := Expr.new(NodeType.Ident(sname.clone()), stmt.line, stmt.col)
-            ctor.add_child(own ctor_name)
+        if has_clone.not() {
+            field_names := Vec.new("Str", Str.size())
+            field_refs := Vec.new("I32", I32.size())
+            for d_j : Declaration in sdd.fields {
+                ref fd : Declaration = d_j
+                field_names.push(own fd.name.clone())
+                mut ref_flag : I32 = 0
+                if fd.own_type.eq(OwnType.Ref) {
+                    ref_flag = 1
+                } else if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
+                    ref_flag = 1
+                }
+                field_refs.push(own ref_flag)
+            }
 
-            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
-            ret.add_child(own ctor)
-            func_body.add_child(own ret)
-        } else {
-            mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-            mut ctor_name := Expr.new(NodeType.Ident(sname.clone()), stmt.line, stmt.col)
-            ctor.add_child(own ctor_name)
+            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+            if field_names.len().eq(0) {
+                mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                mut ctor_name := Expr.new(NodeType.Ident(sname.clone()), stmt.line, stmt.col)
+                ctor.add_child(own ctor_name)
 
-            for j in 0..field_names.len() {
-                ref fname : Str = field_names.get(j)
-                ref fref : I32 = field_refs.get(j)
+                mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
+                ret.add_child(own ctor)
+                func_body.add_child(own ret)
+            } else {
+                mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                mut ctor_name := Expr.new(NodeType.Ident(sname.clone()), stmt.line, stmt.col)
+                ctor.add_child(own ctor_name)
 
+                for j in 0..field_names.len() {
+                    ref fname : Str = field_names.get(j)
+                    ref fref : I32 = field_refs.get(j)
+
+                    mut self_id := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
+                    mut field_acc := Expr.new(NodeType.FieldAccess(fname.clone()), stmt.line, stmt.col)
+                    field_acc.add_child(own self_id)
+
+                    mut named := Expr.new(NodeType.NamedArg(fname.clone()), stmt.line, stmt.col)
+                    if fref.eq(1) {
+                        named.add_child(own field_acc)
+                    } else {
+                        mut clone_acc := Expr.new(NodeType.FieldAccess("clone"), stmt.line, stmt.col)
+                        clone_acc.add_child(own field_acc)
+                        mut clone_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                        clone_call.add_child(own clone_acc)
+                        named.add_child(own clone_call)
+                    }
+                    ctor.add_child(own named)
+                }
+
+                mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
+                ret.add_child(own ctor)
+                func_body.add_child(own ret)
+            }
+
+            mut func_decl := FunctionDef()
+            func_decl.func_type = FuncType.Func
+            mut self_pname := "self"
+            if field_names.len().eq(0) { self_pname = "_self" }
+            func_decl.params.push(own Declaration(name = self_pname, explicit_type = sname.clone(), own_type = OwnType.Ref))
+            func_decl.return_type = sname.clone()
+            func_decl.variadic_index = -1.to_i32()
+            func_decl.kwargs_index = -1.to_i32()
+
+            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
+            func_def.add_child(own func_body)
+
+            sdd.ns_decls.push(own Declaration(name = "clone", default_value = func_def))
+        }
+
+        if has_delete.not() {
+            del_field_names := Vec.new("Str", Str.size())
+            del_field_owns := Vec.new("Bool", Bool.size())
+            for d_j : Declaration in sdd.fields {
+                ref fd : Declaration = d_j
+                if fd.own_type.eq(OwnType.Ref) { continue }
+                if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
+                    continue
+                }
+                del_field_names.push(own fd.name.clone())
+                if fd.own_type.eq(OwnType.Own) {
+                    del_field_owns.push(own true)
+                } else {
+                    del_field_owns.push(own false)
+                }
+            }
+
+            mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+            for j in 0..del_field_names.len() {
+                ref fname : Str = del_field_names.get(j)
+                ref fown : Bool = del_field_owns.get(j)
                 mut self_id := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
                 mut field_acc := Expr.new(NodeType.FieldAccess(fname.clone()), stmt.line, stmt.col)
                 field_acc.add_child(own self_id)
 
-                mut named := Expr.new(NodeType.NamedArg(fname.clone()), stmt.line, stmt.col)
-                if fref.eq(1) {
-                    named.add_child(own field_acc)
-                } else {
-                    mut clone_acc := Expr.new(NodeType.FieldAccess("clone"), stmt.line, stmt.col)
-                    clone_acc.add_child(own field_acc)
-                    mut clone_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-                    clone_call.add_child(own clone_acc)
-                    named.add_child(own clone_call)
-                }
-                ctor.add_child(own named)
+                mut del_acc := Expr.new(NodeType.FieldAccess("delete"), stmt.line, stmt.col)
+                del_acc.add_child(own field_acc)
+                mut del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                set_own_arg(del_call, 0) // signal UFCS own for self arg
+                del_call.add_child(own del_acc)
+
+                mut cf_lit := Expr.new(NodeType.LiteralBool(fown), stmt.line, stmt.col)
+                del_call.add_child(own cf_lit)
+                proc_body.add_child(own del_call)
             }
 
-            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
-            ret.add_child(own ctor)
-            func_body.add_child(own ret)
+            mut cond := Expr.new(NodeType.Ident("call_free"), stmt.line, stmt.col)
+            mut then_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+            mut free_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+            mut free_id := Expr.new(NodeType.Ident("free"), stmt.line, stmt.col)
+            free_call.add_child(own free_id)
+            mut self_arg := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
+            set_own_arg(free_call, free_call.children.len())
+            free_call.add_child(own self_arg)
+            then_body.add_child(own free_call)
+            mut if_node := Expr.new(NodeType.If, stmt.line, stmt.col)
+            if_node.add_child(own cond)
+            if_node.add_child(own then_body)
+            proc_body.add_child(own if_node)
+
+            mut default_true := Expr.new(NodeType.LiteralBool(true), stmt.line, stmt.col)
+
+            mut proc_decl := FunctionDef()
+            proc_decl.func_type = FuncType.Func
+            proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), own_type = OwnType.Own))
+            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", own_type = OwnType.Ref, default_value = default_true.clone()))
+            proc_decl.variadic_index = -1.to_i32()
+            proc_decl.kwargs_index = -1.to_i32()
+
+            mut proc_def := Expr.new(NodeType.FuncDef(proc_decl), stmt.line, stmt.col)
+            proc_def.add_child(own proc_body)
+
+            sdd.ns_decls.push(own Declaration(name = "delete", default_value = proc_def))
         }
-
-        mut func_decl := FunctionDef()
-        func_decl.func_type = FuncType.Func
-        mut self_pname := "self"
-        if field_names.len().eq(0) { self_pname = "_self" }
-        func_decl.params.push(own Declaration(name = self_pname, explicit_type = sname.clone(), own_type = OwnType.Ref))
-        func_decl.return_type = sname.clone()
-        func_decl.variadic_index = -1.to_i32()
-        func_decl.kwargs_index = -1.to_i32()
-
-        mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
-        func_def.add_child(own func_body)
-
-        ref mut cl_sdd : StructDef = get_payload(sdef.node_type)
-        cl_sdd.ns_decls.push(own Declaration(name = "clone", default_value = func_def))
-    }
-
-    if has_delete.not() {
-        del_field_names := Vec.new("Str", Str.size())
-        del_field_owns := Vec.new("Bool", Bool.size())
-        for d_j : Declaration in sdd.fields {
-            ref fd : Declaration = d_j
-            if fd.own_type.eq(OwnType.Ref) { continue }
-            if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
-                continue
-            }
-            del_field_names.push(own fd.name.clone())
-            if fd.own_type.eq(OwnType.Own) {
-                del_field_owns.push(own true)
-            } else {
-                del_field_owns.push(own false)
-            }
-        }
-
-        mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-        for j in 0..del_field_names.len() {
-            ref fname : Str = del_field_names.get(j)
-            ref fown : Bool = del_field_owns.get(j)
-            mut self_id := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
-            mut field_acc := Expr.new(NodeType.FieldAccess(fname.clone()), stmt.line, stmt.col)
-            field_acc.add_child(own self_id)
-
-            mut del_acc := Expr.new(NodeType.FieldAccess("delete"), stmt.line, stmt.col)
-            del_acc.add_child(own field_acc)
-            mut del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-            set_own_arg(del_call, 0) // signal UFCS own for self arg
-            del_call.add_child(own del_acc)
-
-            mut cf_lit := Expr.new(NodeType.LiteralBool(fown), stmt.line, stmt.col)
-            del_call.add_child(own cf_lit)
-            proc_body.add_child(own del_call)
-        }
-
-        mut cond := Expr.new(NodeType.Ident("call_free"), stmt.line, stmt.col)
-        mut then_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-        mut free_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        mut free_id := Expr.new(NodeType.Ident("free"), stmt.line, stmt.col)
-        free_call.add_child(own free_id)
-        mut self_arg := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
-        set_own_arg(free_call, free_call.children.len())
-        free_call.add_child(own self_arg)
-        then_body.add_child(own free_call)
-        mut if_node := Expr.new(NodeType.If, stmt.line, stmt.col)
-        if_node.add_child(own cond)
-        if_node.add_child(own then_body)
-        proc_body.add_child(own if_node)
-
-        mut default_true := Expr.new(NodeType.LiteralBool(true), stmt.line, stmt.col)
-
-        mut proc_decl := FunctionDef()
-        proc_decl.func_type = FuncType.Func
-        proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), own_type = OwnType.Own))
-        proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", own_type = OwnType.Ref, default_value = default_true.clone()))
-        proc_decl.variadic_index = -1.to_i32()
-        proc_decl.kwargs_index = -1.to_i32()
-
-        mut proc_def := Expr.new(NodeType.FuncDef(proc_decl), stmt.line, stmt.col)
-        proc_def.add_child(own proc_body)
-
-        ref mut del_sdd : StructDef = get_payload(sdef.node_type)
-        del_sdd.ns_decls.push(own Declaration(name = "delete", default_value = proc_def))
+    case:
+        UNREACHABLE(__LOC__)
     }
 }
 
@@ -372,74 +398,87 @@ generate_missing_struct_clones_and_deletes := proc(program: Expr, scope: TypeSco
 }
 
 register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
-    ref edecl : Declaration = get_payload(stmt.node_type)
-    ename := edecl.name
+    switch stmt.node_type {
+    case NodeType.Decl(edecl):
+        ename := edecl.name
 
-    existing_find := scope.find(ename)
-    if existing_find.is(ScopeFind.Found) {
-        ref existing_payload : Dynamic = get_payload(existing_find)
-        ref existing : TypeBinding = existing_payload
-        if is_null(existing.struct_def).not() {
-            println(
-                initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                ": error: enum '", ename, "' already declared at ",
-                existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
-            )
-            return 1
+        existing_find := scope.find(ename)
+        switch existing_find {
+        case ScopeFind.Found(existing):
+            if is_null(existing.struct_def).not() {
+                println(
+                    initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                    ": error: enum '", ename, "' already declared at ",
+                    existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
+                )
+                return 1
+            }
+        case:
         }
-    }
 
-    scope.set(ename, TilType.Enum(ename.clone()), FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
-    ref mut b : TypeBinding = scope.get_binding(ename)
-    b.struct_def = stmt.child(0)
-    return 0
+        scope.set(ename, TilType.Enum(ename.clone()), FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+        ref mut b : TypeBinding = scope.get_binding(ename)
+        b.struct_def = stmt.child(0)
+        return 0
+    case:
+        UNREACHABLE(__LOC__)
+        return 0
+    }
 }
 
 collect_enum_variants := proc(enum_def: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool) {
-    ref edd : EnumDef = get_payload(enum_def.node_type)
-    has_payloads = edd.payload_types.len().gt(0)
-    for j in 0..edd.variants.len() {
-        ref vn : Str = edd.variants.get(j)
-        variant_names.push(own vn.clone())
-        idx := j.to_i64()
-        if edd.payload_types.has(idx) {
-            ref pt : Str = edd.payload_types.get(idx)
-            variant_types.push(own pt.clone())
-        } else {
-            variant_types.push(own "".clone())
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        has_payloads = edd.payload_types.len().gt(0)
+        for j in 0..edd.variants.len() {
+            ref vn : Str = edd.variants.get(j)
+            variant_names.push(own vn.clone())
+            idx := j.to_i64()
+            if edd.payload_types.has(idx) {
+                ref pt : Str = edd.payload_types.get(idx)
+                variant_types.push(own pt.clone())
+            } else {
+                variant_types.push(own "".clone())
+            }
         }
+    case:
+        UNREACHABLE(__LOC__)
     }
 }
 
 generate_enum_variant_constructors := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
-    ref mut evc_edd : EnumDef = get_payload(enum_def.node_type)
-    if has_payloads.not() {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(evc_edd):
+        if has_payloads.not() {
+            for j in 0..variant_names.len() {
+                ref vname : Str = variant_names.get(j)
+                mut lit := Expr.new(NodeType.LiteralNum(j.to_str()), line, col)
+                evc_edd.ns_decls.push(own Declaration(name = vname.clone(), default_value = lit))
+            }
+            return
+        }
+
         for j in 0..variant_names.len() {
+            mut func_decl := FunctionDef()
+            func_decl.func_type = FuncType.ExtFunc
+            ref vtype : Str = variant_types.get(j)
+            if vtype.len().gt(0) {
+                param := Declaration(name = "val", explicit_type = vtype.clone(), own_type = OwnType.Ref)
+                func_decl.params.push(own param)
+            }
+            func_decl.return_type = ename.clone()
+            func_decl.variadic_index = -1.to_i32()
+            func_decl.kwargs_index = -1.to_i32()
+
+            mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col)
+            mut func_body := Expr.new(NodeType.Body, line, col)
+            func_def.add_child(own func_body)
+
             ref vname : Str = variant_names.get(j)
-            mut lit := Expr.new(NodeType.LiteralNum(j.to_str()), line, col)
-            evc_edd.ns_decls.push(own Declaration(name = vname.clone(), default_value = lit))
+            evc_edd.ns_decls.push(own Declaration(name = vname.clone(), default_value = func_def))
         }
-        return
-    }
-
-    for j in 0..variant_names.len() {
-        mut func_decl := FunctionDef()
-        func_decl.func_type = FuncType.ExtFunc
-        ref vtype : Str = variant_types.get(j)
-        if vtype.len().gt(0) {
-            param := Declaration(name = "val", explicit_type = vtype.clone(), own_type = OwnType.Ref)
-            func_decl.params.push(own param)
-        }
-        func_decl.return_type = ename.clone()
-        func_decl.variadic_index = -1.to_i32()
-        func_decl.kwargs_index = -1.to_i32()
-
-        mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col)
-        mut func_body := Expr.new(NodeType.Body, line, col)
-        func_def.add_child(own func_body)
-
-        ref vname : Str = variant_names.get(j)
-        evc_edd.ns_decls.push(own Declaration(name = vname.clone(), default_value = func_def))
+    case:
+        UNREACHABLE(__LOC__)
     }
 }
 
@@ -470,8 +509,12 @@ generate_enum_is_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
     mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col)
     func_def.add_child(own func_body)
 
-    ref mut eis_edd : EnumDef = get_payload(enum_def.node_type)
-    eis_edd.ns_decls.push(own Declaration(name = "is", default_value = func_def))
+    switch enum_def.node_type {
+    case NodeType.EnumDef(eis_edd):
+        eis_edd.ns_decls.push(own Declaration(name = "is", default_value = func_def))
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }
 
 generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
@@ -592,8 +635,12 @@ generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
 
-    ref mut eeq_edd : EnumDef = get_payload(enum_def.node_type)
-    eeq_edd.ns_decls.push(own Declaration(name = "eq", default_value = fdef))
+    switch enum_def.node_type {
+    case NodeType.EnumDef(eeq_edd):
+        eeq_edd.ns_decls.push(own Declaration(name = "eq", default_value = fdef))
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }
 
 generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
@@ -671,8 +718,12 @@ generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U3
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own proc_body)
 
-    ref mut edel_edd : EnumDef = get_payload(enum_def.node_type)
-    edel_edd.ns_decls.push(own Declaration(name = "delete", default_value = fdef))
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edel_edd):
+        edel_edd.ns_decls.push(own Declaration(name = "delete", default_value = fdef))
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }
 
 generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
@@ -783,8 +834,12 @@ generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U3
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
 
-    ref mut ets_edd : EnumDef = get_payload(enum_def.node_type)
-    ets_edd.ns_decls.push(own Declaration(name = "to_str", default_value = fdef))
+    switch enum_def.node_type {
+    case NodeType.EnumDef(ets_edd):
+        ets_edd.ns_decls.push(own Declaration(name = "to_str", default_value = fdef))
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }
 
 generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32, shallow col: I32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
@@ -882,17 +937,32 @@ generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line.to_i64().to_u32(), col.to_i64().to_u32())
     fdef.add_child(own func_body)
 
-    ref mut ecl_edd2 : EnumDef = get_payload(enum_def.node_type)
-    ecl_edd2.ns_decls.push(own Declaration(name = "clone", default_value = fdef))
+    switch enum_def.node_type {
+    case NodeType.EnumDef(ecl_edd2):
+        ecl_edd2.ns_decls.push(own Declaration(name = "clone", default_value = fdef))
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }
 
 register_enum_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
+    if stmt.node_type.is(NodeType.Decl).not() { return 0.to_i32() }
+    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return 0.to_i32() }
     return register_enum_definition(stmt, scope)
 }
 
 gen_enum_nonclone_methods_for_stmt := proc(stmt: Expr, scope: TypeScope) {
-    ref edecl : Declaration = get_payload(stmt.node_type)
-    ename := edecl.name
+    if stmt.node_type.is(NodeType.Decl).not() { return }
+    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
+
+    mut ename := ""
+    switch stmt.node_type {
+    case NodeType.Decl(edecl):
+        ename = edecl.name
+    case:
+        UNREACHABLE(__LOC__)
+        return
+    }
     line := stmt.line
     col := stmt.col
 
@@ -906,13 +976,17 @@ gen_enum_nonclone_methods_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     mut has_eq := false
     mut has_delete := false
     mut has_to_str := false
-    ref ens_edd : EnumDef = get_payload(stmt.child(0).node_type)
-    for d_j : Declaration in ens_edd.ns_decls {
-        ref fdecl : Declaration = d_j
-        if fdecl.name.eq("is") { has_is = true }
-        if fdecl.name.eq("eq") { has_eq = true }
-        if fdecl.name.eq("delete") { has_delete = true }
-        if fdecl.name.eq("to_str") { has_to_str = true }
+    switch stmt.child(0).node_type {
+    case NodeType.EnumDef(ens_edd):
+        for d_j : Declaration in ens_edd.ns_decls {
+            ref fdecl : Declaration = d_j
+            if fdecl.name.eq("is") { has_is = true }
+            if fdecl.name.eq("eq") { has_eq = true }
+            if fdecl.name.eq("delete") { has_delete = true }
+            if fdecl.name.eq("to_str") { has_to_str = true }
+        }
+    case:
+        UNREACHABLE(__LOC__)
     }
 
     if has_is.not() {
@@ -932,19 +1006,47 @@ gen_enum_nonclone_methods_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     Vec.delete(own variant_types, false)
 }
 
+register_enum_and_gen_nonclone_methods_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
+    reg_errors := register_enum_def_for_stmt(stmt, scope)
+    if reg_errors.gt(0) { return reg_errors }
+    gen_enum_nonclone_methods_for_stmt(stmt, scope)
+    return 0.to_i32()
+}
+
+register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeScope) returns shallow I32 {
+    mut errors : I32 = 0
+    for stmt : Expr in program.children {
+        errors = errors.add(register_enum_and_gen_nonclone_methods_for_stmt(stmt, scope))
+    }
+    return errors
+}
+
 gen_missing_enum_clone_for_stmt := proc(stmt: Expr) {
-    ref edecl : Declaration = get_payload(stmt.node_type)
-    ename := edecl.name
+    if stmt.node_type.is(NodeType.Decl).not() { return }
+    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
+
+    mut ename := ""
+    switch stmt.node_type {
+    case NodeType.Decl(edecl):
+        ename = edecl.name
+    case:
+        UNREACHABLE(__LOC__)
+        return
+    }
     line := stmt.line
     col := stmt.col
     mut has_clone := false
-    ref ecl_edd : EnumDef = get_payload(stmt.child(0).node_type)
-    for d_j : Declaration in ecl_edd.ns_decls {
-        ref fdecl : Declaration = d_j
-        if fdecl.name.eq("clone") {
-            has_clone = true
-            break
+    switch stmt.child(0).node_type {
+    case NodeType.EnumDef(ecl_edd):
+        for d_j : Declaration in ecl_edd.ns_decls {
+            ref fdecl : Declaration = d_j
+            if fdecl.name.eq("clone") {
+                has_clone = true
+                break
+            }
         }
+    case:
+        UNREACHABLE(__LOC__)
     }
     if has_clone.not() {
         variant_names := Vec.new("Str", Str.size())
@@ -957,148 +1059,271 @@ gen_missing_enum_clone_for_stmt := proc(stmt: Expr) {
     }
 }
 
+generate_missing_enum_clones := proc(program: Expr) {
+    for stmt : Expr in program.children {
+        gen_missing_enum_clone_for_stmt(stmt)
+    }
+}
+
 register_funcsig_alias_for_stmt := proc(stmt: Expr, scope: TypeScope) {
-    ref sdecl : Declaration = get_payload(stmt.node_type)
-    scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
-    ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
-    fb.func_def = stmt.child(0)
+    if is_func_decl(stmt).not() { return }
+    if stmt.child(0).children.len().neq(0) { return }
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+        ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+        fb.func_def = stmt.child(0)
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
+    for stmt : Expr in program.children {
+        register_funcsig_alias_for_stmt(stmt, scope)
+    }
 }
 
 register_type_alias_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
     ref rhs : Expr = stmt.child(0)
-    ref target_name : Str = get_payload(rhs.node_type)
-    find := scope.find(target_name)
-    if find.is(ScopeFind.Found).not() { return }
-    ref target_payload : Dynamic = get_payload(find)
-    ref target : TypeBinding = target_payload
-    if is_null(target.struct_def).and(target.is_builtin.not()) {
-        if is_null(target.func_def) {
-            return
-        }
-        if target.func_def.children.len().neq(0) {
-            return
-        }
+    mut target_name := ""
+    switch rhs.node_type {
+    case NodeType.Ident(tn):
+        target_name = tn
+    case:
+        return
     }
-    ref sdecl : Declaration = get_payload(stmt.node_type)
-    if scope.find(sdecl.name).is(ScopeFind.Found) { return }
-    scope.set(sdecl.name, target.type, target.func_type, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
-    ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
-    ab.struct_def = target.struct_def
-    ab.func_def = target.func_def
-    ab.is_builtin = target.is_builtin
-    ab.is_type_alias = true
-    if is_null(target.alias_target) {
-        ab.alias_target = target_name
-    } else {
-        ab.alias_target = target.alias_target
+    find := scope.find(target_name)
+    switch find {
+    case ScopeFind.Found(target):
+        if is_null(target.struct_def).and(target.is_builtin.not()) {
+            if is_null(target.func_def) {
+                return
+            }
+            if target.func_def.children.len().neq(0) {
+                return
+            }
+        }
+        switch stmt.node_type {
+        case NodeType.Decl(sdecl):
+            if scope.find(sdecl.name).is(ScopeFind.Found) { return }
+            scope.set(sdecl.name, target.type, target.func_type, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
+            ab.struct_def = target.struct_def
+            ab.func_def = target.func_def
+            ab.is_builtin = target.is_builtin
+            ab.is_type_alias = true
+            if is_null(target.alias_target) {
+                ab.alias_target = target_name
+            } else {
+                ab.alias_target = target.alias_target
+            }
+        case:
+            UNREACHABLE(__LOC__)
+        }
+    case:
+    }
+}
+
+register_type_aliases := proc(program: Expr, scope: TypeScope) {
+    for stmt : Expr in program.children {
+        register_type_alias_for_stmt(stmt, scope)
     }
 }
 
 register_top_level_value_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
+    ref rhs : Expr = stmt.child(0)
+    if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
+        return
+    }
+    if rhs.node_type.is(NodeType.Ident) {
+        switch stmt.node_type {
+        case NodeType.Decl(sdecl0):
+            if sdecl0.explicit_type.len().eq(0) {
+                switch rhs.node_type {
+                case NodeType.Ident(rhs_name):
+                    if type_from_name_init(rhs_name, scope).eq(TilType.Unknown).not() {
+                        return
+                    }
+                case:
+                }
+            }
+        case:
+        }
+    }
+
     mut t := TilType.Unknown
     if infer_top_level_decl_type(stmt, scope, t).not() { return }
     if t.eq(TilType.Unknown) { return }
 
-    ref sdecl : Declaration = get_payload(stmt.node_type)
-    scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+register_top_level_values := proc(program: Expr, scope: TypeScope) {
+    for stmt : Expr in program.children {
+        register_top_level_value_for_stmt(stmt, scope)
+    }
 }
 
 register_function_def_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
-    ref sdecl : Declaration = get_payload(stmt.node_type)
+    if def.node_type.is(NodeType.FuncDef).not() { return }
 
-    if sdecl.explicit_type.len().gt(0) {
-        fs_find := scope.find(sdecl.explicit_type)
-        if fs_find.is(ScopeFind.Found) {
-            ref fs_payload : Dynamic = get_payload(fs_find)
-            ref fsb : TypeBinding = fs_payload
-            if is_null(fsb.func_def).not() {
-                if fsb.func_def.children.len().eq(0) {
-                    ref mut fdef : FunctionDef = get_payload(def.node_type)
-                    ref sig : Expr = fsb.func_def
-                    ref sigdef : FunctionDef = get_payload(sig.node_type)
-                    if fdef.params.len().neq(sigdef.params.len()) {
-                        panic(
-                            __LOC__,
-                            initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                            ": error: '", sdecl.name, "' expects ", fdef.params.len().to_str(),
-                            " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.params.len().to_str(),
-                        )
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        if def.children.len().eq(0) {
+            scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+            fb.func_def = stmt.child(0)
+            return
+        }
+
+        if sdecl.explicit_type.len().gt(0) {
+            fs_find := scope.find(sdecl.explicit_type)
+            switch fs_find {
+            case ScopeFind.Found(fsb):
+                if is_null(fsb.func_def).not() {
+                    if fsb.func_def.children.len().eq(0) {
+                        ref sig : Expr = fsb.func_def
+                        switch def.node_type {
+                        case NodeType.FuncDef(fdef):
+                            switch sig.node_type {
+                            case NodeType.FuncDef(sigdef):
+                                if fdef.params.len().neq(sigdef.params.len()) {
+                                    panic(
+                                        __LOC__,
+                                        initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                                        ": error: '", sdecl.name, "' expects ", fdef.params.len().to_str(),
+                                        " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.params.len().to_str(),
+                                    )
+                                }
+                                fdef.func_type = sigdef.func_type
+                                for j in 0..sigdef.params.len() {
+                                    ref mut dp : Declaration = fdef.params.get(j)
+                                    ref sp : Declaration = sigdef.params.get(j)
+                                    dp.explicit_type = sp.explicit_type
+                                    dp.is_mut = sp.is_mut
+                                    dp.own_type = sp.own_type
+                                }
+                                fdef.return_type = sigdef.return_type
+                                fdef.return_own_type = sigdef.return_own_type
+                                sdecl.explicit_type = ""
+                            case:
+                                UNREACHABLE(__LOC__)
+                            }
+                        case:
+                            UNREACHABLE(__LOC__)
+                        }
                     }
-                    fdef.func_type = sigdef.func_type
-                    for j in 0..sigdef.params.len() {
-                        ref mut dp : Declaration = fdef.params.get(j)
-                        ref sp : Declaration = sigdef.params.get(j)
-                        dp.explicit_type = sp.explicit_type
-                        dp.is_mut = sp.is_mut
-                        dp.own_type = sp.own_type
-                    }
-                    fdef.return_type = sigdef.return_type
-                    fdef.return_own_type = sigdef.return_own_type
-                    sdecl.explicit_type = ""
                 }
+            case:
             }
         }
+
+        switch def.node_type {
+        case NodeType.FuncDef(fdef):
+            ft := fdef.func_type
+            mut rt := TilType.None
+            if fdef.return_type.len().gt(0) {
+                rt = type_from_name_init(fdef.return_type, scope)
+            }
+            scope.set(sdecl.name, rt, ft, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+            fb.func_def = stmt.child(0)
+            if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
+                fb.is_builtin = true
+            }
+        case:
+            UNREACHABLE(__LOC__)
+        }
+    case:
+        UNREACHABLE(__LOC__)
     }
+}
 
-    ref fdef : FunctionDef = get_payload(def.node_type)
-    ft := fdef.func_type
-
-    mut rt := TilType.None
-    if fdef.return_type.len().gt(0) {
-        rt = type_from_name_init(fdef.return_type, scope)
-    }
-
-    scope.set(sdecl.name, rt, ft, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
-    ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
-    fb.func_def = stmt.child(0)
-    if ft.eq(FuncType.ExtFunc).or(ft.eq(FuncType.ExtProc)) {
-        fb.is_builtin = true
+register_function_definitions := proc(program: Expr, scope: TypeScope) {
+    for stmt : Expr in program.children {
+        register_function_def_for_stmt(stmt, scope)
     }
 }
 
 gen_struct_size_method_for_stmt := proc(stmt: Expr) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
-    ref sdecl : Declaration = get_payload(stmt.node_type)
-    sname := sdecl.name
-    if sname.eq("Dynamic") { return }
-    ref struct_meta : StructDef = get_payload(def.node_type)
-    mut has_size := false
-    for d_j : Declaration in struct_meta.ns_decls {
-        ref fd : Declaration = d_j
-        if fd.name.eq("size") {
-            has_size = true
-            break
-        }
+    if def.node_type.is(NodeType.StructDef).not() { return }
+
+    mut sname := ""
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        sname = sdecl.name
+    case:
+        UNREACHABLE(__LOC__)
+        return
     }
-    if has_size { return }
+    if sname.eq("Dynamic") { return }
+    switch def.node_type {
+    case NodeType.StructDef(sz_sdd):
+        mut has_size := false
+        for d_j : Declaration in sz_sdd.ns_decls {
+            ref fd : Declaration = d_j
+            if fd.name.eq("size") {
+                has_size = true
+                break
+            }
+        }
+        if has_size { return }
 
-    sz_text := struct_meta.total_struct_size.to_str()
+        sz_text := sz_sdd.total_struct_size.to_str()
 
-    mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-    mut size_expr := Expr.new(NodeType.LiteralNum(sz_text.clone()), stmt.line, stmt.col)
-    mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
-    ret.add_child(own size_expr)
-    func_body.add_child(own ret)
+        mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+        mut size_expr := Expr.new(NodeType.LiteralNum(sz_text.clone()), stmt.line, stmt.col)
+        mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
+        ret.add_child(own size_expr)
+        func_body.add_child(own ret)
 
-    mut func_decl := FunctionDef()
-    func_decl.func_type = FuncType.Func
-    func_decl.return_type = "USize"
-    func_decl.return_own_type = OwnType.Shallow
-    func_decl.variadic_index = -1.to_i32()
-    func_decl.kwargs_index = -1.to_i32()
+        mut func_decl := FunctionDef()
+        func_decl.func_type = FuncType.Func
+        func_decl.return_type = "USize"
+        func_decl.return_own_type = OwnType.Shallow
+        func_decl.variadic_index = -1.to_i32()
+        func_decl.kwargs_index = -1.to_i32()
 
-    mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
-    func_def.add_child(own func_body)
+        mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
+        func_def.add_child(own func_body)
 
-    ref mut sz_sdd : StructDef = get_payload(def.node_type)
-    sz_sdd.ns_decls.push(own Declaration(name = "size", default_value = func_def))
+        sz_sdd.ns_decls.push(own Declaration(name = "size", default_value = func_def))
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+generate_struct_size_methods := proc(program: Expr) {
+    for stmt : Expr in program.children {
+        gen_struct_size_method_for_stmt(stmt)
+    }
 }
 
 gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
-    ref sdecl : Declaration = get_payload(stmt.node_type)
-    sname := sdecl.name
+    if def.node_type.is(NodeType.EnumDef).not() { return }
+
+    mut sname := ""
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        sname = sdecl.name
+    case:
+        UNREACHABLE(__LOC__)
+        return
+    }
     if sname.eq("Dynamic") { return }
     mut has_size := false
     ref size_ns : Vec = def_ns_decls(def)
@@ -1129,14 +1354,32 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
     func_def.add_child(own func_body)
 
-    ref mut esz_edd : EnumDef = get_payload(def.node_type)
-    esz_edd.ns_decls.push(own Declaration(name = "size", default_value = func_def))
+    switch def.node_type {
+    case NodeType.EnumDef(esz_edd):
+        esz_edd.ns_decls.push(own Declaration(name = "size", default_value = func_def))
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+generate_enum_size_methods := proc(program: Expr, scope: TypeScope) {
+    for stmt : Expr in program.children {
+        gen_enum_size_method_for_stmt(stmt, scope)
+    }
 }
 
 gen_unity_derived_for_stmt := proc(stmt: Expr) {
+    if is_struct_or_enum(stmt).not() { return }
     ref def : Expr = stmt.child(0)
-    ref sdecl : Declaration = get_payload(stmt.node_type)
-    sname := sdecl.name
+
+    mut sname := ""
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        sname = sdecl.name
+    case:
+        UNREACHABLE(__LOC__)
+        return
+    }
     if sname.eq("Dynamic") { return }
 
     mut has_add := false
@@ -1199,20 +1442,40 @@ gen_unity_derived_for_stmt := proc(stmt: Expr) {
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own proc_body)
 
-        if def.node_type.is(NodeType.StructDef) {
-            ref mut un_sdd : StructDef = get_payload(def.node_type)
+        switch def.node_type {
+        case NodeType.StructDef(un_sdd):
             un_sdd.ns_decls.push(own Declaration(name = method.clone(), default_value = func_def))
-        } else {
-            ref mut eu_edd : EnumDef = get_payload(def.node_type)
+        case NodeType.EnumDef(eu_edd):
             eu_edd.ns_decls.push(own Declaration(name = method.clone(), default_value = func_def))
+        case:
+            UNREACHABLE(__LOC__)
         }
     }
 }
 
+generate_unity_derived_methods := proc(program: Expr) {
+    for stmt : Expr in program.children {
+        gen_unity_derived_for_stmt(stmt)
+    }
+}
+
+generate_size_methods := proc(program: Expr, scope: TypeScope) {
+    generate_struct_size_methods(program)
+    generate_enum_size_methods(program, scope)
+}
+
 gen_cmp_derived_for_stmt := proc(stmt: Expr) {
+    if is_struct_or_enum(stmt).not() { return }
     ref def : Expr = stmt.child(0)
-    ref sdecl : Declaration = get_payload(stmt.node_type)
-    sname := sdecl.name
+
+    mut sname := ""
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        sname = sdecl.name
+    case:
+        UNREACHABLE(__LOC__)
+        return
+    }
     if sname.eq("Dynamic") { return }
 
     mut has_cmp := false
@@ -1265,12 +1528,13 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_decl.kwargs_index = -1.to_i32()
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
-        if def.node_type.is(NodeType.StructDef) {
-            ref mut cmp_sdd : StructDef = get_payload(def.node_type)
+        switch def.node_type {
+        case NodeType.StructDef(cmp_sdd):
             cmp_sdd.ns_decls.push(own Declaration(name = "eq", default_value = func_def))
-        } else {
-            ref mut ec_edd : EnumDef = get_payload(def.node_type)
+        case NodeType.EnumDef(ec_edd):
             ec_edd.ns_decls.push(own Declaration(name = "eq", default_value = func_def))
+        case:
+            UNREACHABLE(__LOC__)
         }
     }
 
@@ -1310,12 +1574,13 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_decl.kwargs_index = -1.to_i32()
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
-        if def.node_type.is(NodeType.StructDef) {
-            ref mut cmp_sdd : StructDef = get_payload(def.node_type)
+        switch def.node_type {
+        case NodeType.StructDef(cmp_sdd):
             cmp_sdd.ns_decls.push(own Declaration(name = "lt", default_value = func_def))
-        } else {
-            ref mut ec_edd : EnumDef = get_payload(def.node_type)
+        case NodeType.EnumDef(ec_edd):
             ec_edd.ns_decls.push(own Declaration(name = "lt", default_value = func_def))
+        case:
+            UNREACHABLE(__LOC__)
         }
     }
 
@@ -1349,12 +1614,13 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_decl.kwargs_index = -1.to_i32()
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
-        if def.node_type.is(NodeType.StructDef) {
-            ref mut cmp_sdd : StructDef = get_payload(def.node_type)
+        switch def.node_type {
+        case NodeType.StructDef(cmp_sdd):
             cmp_sdd.ns_decls.push(own Declaration(name = "gt", default_value = func_def))
-        } else {
-            ref mut ec_edd : EnumDef = get_payload(def.node_type)
+        case NodeType.EnumDef(ec_edd):
             ec_edd.ns_decls.push(own Declaration(name = "gt", default_value = func_def))
+        case:
+            UNREACHABLE(__LOC__)
         }
     }
 
@@ -1386,12 +1652,13 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_decl.kwargs_index = -1.to_i32()
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
-        if def.node_type.is(NodeType.StructDef) {
-            ref mut cmp_sdd : StructDef = get_payload(def.node_type)
+        switch def.node_type {
+        case NodeType.StructDef(cmp_sdd):
             cmp_sdd.ns_decls.push(own Declaration(name = "neq", default_value = func_def))
-        } else {
-            ref mut ec_edd : EnumDef = get_payload(def.node_type)
+        case NodeType.EnumDef(ec_edd):
             ec_edd.ns_decls.push(own Declaration(name = "neq", default_value = func_def))
+        case:
+            UNREACHABLE(__LOC__)
         }
     }
 
@@ -1423,12 +1690,13 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_decl.kwargs_index = -1.to_i32()
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
-        if def.node_type.is(NodeType.StructDef) {
-            ref mut cmp_sdd : StructDef = get_payload(def.node_type)
+        switch def.node_type {
+        case NodeType.StructDef(cmp_sdd):
             cmp_sdd.ns_decls.push(own Declaration(name = "lte", default_value = func_def))
-        } else {
-            ref mut ec_edd : EnumDef = get_payload(def.node_type)
+        case NodeType.EnumDef(ec_edd):
             ec_edd.ns_decls.push(own Declaration(name = "lte", default_value = func_def))
+        case:
+            UNREACHABLE(__LOC__)
         }
     }
 
@@ -1460,142 +1728,165 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
         func_decl.kwargs_index = -1.to_i32()
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
-        if def.node_type.is(NodeType.StructDef) {
-            ref mut cmp_sdd : StructDef = get_payload(def.node_type)
+        switch def.node_type {
+        case NodeType.StructDef(cmp_sdd):
             cmp_sdd.ns_decls.push(own Declaration(name = "gte", default_value = func_def))
-        } else {
-            ref mut ec_edd : EnumDef = get_payload(def.node_type)
+        case NodeType.EnumDef(ec_edd):
             ec_edd.ns_decls.push(own Declaration(name = "gte", default_value = func_def))
+        case:
+            UNREACHABLE(__LOC__)
         }
     }
 }
 
+generate_cmp_derived_methods := proc(program: Expr) {
+    for stmt : Expr in program.children {
+        gen_cmp_derived_for_stmt(stmt)
+    }
+}
+
+generate_derived_methods := proc(program: Expr) {
+    generate_cmp_derived_methods(program)
+    generate_unity_derived_methods(program)
+}
+
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
-    ref mut struct_meta : StructDef = get_payload(struct_def.node_type)
-    if struct_meta.total_struct_size.gt(0) { return }
+    switch struct_def.node_type {
+    case NodeType.StructDef(struct_meta):
+        if struct_meta.total_struct_size.gt(0) { return }
 
-    mut offset : I32 = 0
-    mut max_align : I32 = 1
+        mut offset : I32 = 0
+        mut max_align : I32 = 1
 
-    for mut fd : Declaration in struct_meta.fields {
-        mut fsz : I32 = 0
-        mut falign : I32 = 0
+        for mut fd : Declaration in struct_meta.fields {
+            mut fsz : I32 = 0
+            mut falign : I32 = 0
 
-        if fd.own_type.eq(OwnType.Shallow).not() {
-            fsz = 8
-            falign = 8
+            if fd.own_type.eq(OwnType.Shallow).not() {
+                fsz = 8
+                falign = 8
 
-            mut ftype := fd.explicit_type
-            if ftype.len().eq(0) {
-                if is_null(fd.default_value).not() {
-                    ref def_val : Expr = fd.default_value
-                    if def_val.node_type.is(NodeType.FCall) {
-                        if def_val.children.len().gt(0) {
-                            ref callee : Expr = def_val.child(0)
-                            if callee.node_type.is(NodeType.Ident) {
-                                ref _ft : Str = get_payload(callee.node_type)
-                                ftype = _ft
-                            }
-                        }
-                    }
-                    if ftype.len().gt(0) { fd.explicit_type = ftype }
-                }
-            }
-
-            if ftype.len().gt(0) {
-                if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I16").not()).and(ftype.eq("I32").not()).and(ftype.eq("U32").not()).and(ftype.eq("Bool").not()) {
-                    ref nested_def : Expr = scope.get_struct(ftype)
-                    if is_null(nested_def).not() {
-                        fd.field_struct_def = nested_def
-                    }
-                }
-            }
-        } else {
-            mut ftype := fd.explicit_type
-            if ftype.len().eq(0) {
-                if is_null(fd.default_value).not() {
-                    ref def_val : Expr = fd.default_value
-                    if def_val.node_type.is(NodeType.LiteralNum) { ftype = "I64" }
-                    else if def_val.node_type.is(NodeType.LiteralStr) { ftype = "Str" }
-                    else if def_val.node_type.is(NodeType.LiteralBool) { ftype = "Bool" }
-                    else if til_type_name(def_val.til_type).len().gt(0) { ftype = til_type_name(def_val.til_type) }
-                    else if def_val.node_type.is(NodeType.FCall) {
-                        if def_val.children.len().gt(0) {
-                            ref callee : Expr = def_val.child(0)
-                            switch callee.node_type {
-                            case NodeType.Ident(_ft):
-                                ftype = _ft
-                            case NodeType.FieldAccess:
-                                if callee.children.len().gt(0) {
-                                    ref type_node : Expr = callee.child(0)
-                                    if type_node.node_type.is(NodeType.Ident) {
-                                        ref _ft : Str = get_payload(type_node.node_type)
-                                        ftype = _ft
-                                    }
+                mut ftype := fd.explicit_type
+                if ftype.len().eq(0) {
+                    if is_null(fd.default_value).not() {
+                        ref def_val : Expr = fd.default_value
+                        if def_val.node_type.is(NodeType.FCall) {
+                            if def_val.children.len().gt(0) {
+                                ref callee : Expr = def_val.child(0)
+                                switch callee.node_type {
+                                case NodeType.Ident(_ft):
+                                    ftype = _ft
+                                case:
                                 }
-                            case:
                             }
                         }
-                    } else if def_val.node_type.is(NodeType.FieldAccess) {
-                        if def_val.children.len().gt(0) {
-                            ref type_node : Expr = def_val.child(0)
-                            if type_node.node_type.is(NodeType.Ident) {
-                                ref _ft : Str = get_payload(type_node.node_type)
-                                ftype = _ft
-                            }
+                        if ftype.len().gt(0) { fd.explicit_type = ftype }
+                    }
+                }
+
+                if ftype.len().gt(0) {
+                    if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I16").not()).and(ftype.eq("I32").not()).and(ftype.eq("U32").not()).and(ftype.eq("Bool").not()) {
+                        ref nested_def : Expr = scope.get_struct(ftype)
+                        if is_null(nested_def).not() {
+                            fd.field_struct_def = nested_def
                         }
                     }
-                    if ftype.len().gt(0) { fd.explicit_type = ftype }
+                }
+            } else {
+                mut ftype := fd.explicit_type
+                if ftype.len().eq(0) {
+                    if is_null(fd.default_value).not() {
+                        ref def_val : Expr = fd.default_value
+                        if def_val.node_type.is(NodeType.LiteralNum) { ftype = "I64" }
+                        else if def_val.node_type.is(NodeType.LiteralStr) { ftype = "Str" }
+                        else if def_val.node_type.is(NodeType.LiteralBool) { ftype = "Bool" }
+                        else if til_type_name(def_val.til_type).len().gt(0) { ftype = til_type_name(def_val.til_type) }
+                        else if def_val.node_type.is(NodeType.FCall) {
+                            if def_val.children.len().gt(0) {
+                                ref callee : Expr = def_val.child(0)
+                                switch callee.node_type {
+                                case NodeType.Ident(_ft):
+                                    ftype = _ft
+                                case NodeType.FieldAccess:
+                                    if callee.children.len().gt(0) {
+                                        ref type_node : Expr = callee.child(0)
+                                        switch type_node.node_type {
+                                        case NodeType.Ident(_ft):
+                                            ftype = _ft
+                                        case:
+                                        }
+                                    }
+                                case:
+                                }
+                            }
+                        } else if def_val.node_type.is(NodeType.FieldAccess) {
+                            if def_val.children.len().gt(0) {
+                                ref type_node : Expr = def_val.child(0)
+                                switch type_node.node_type {
+                                case NodeType.Ident(_ft):
+                                    ftype = _ft
+                                case:
+                                }
+                            }
+                        }
+                        if ftype.len().gt(0) { fd.explicit_type = ftype }
+                    }
+                }
+
+                ref ab : TypeBinding = scope.get_binding(ftype)
+                if is_null(ab).not() {
+                    if ab.is_type_alias {
+                        if is_null(ab.alias_target).not() {
+                            ftype = ab.alias_target
+                            fd.explicit_type = ftype
+                        }
+                    }
+                }
+
+                if ftype.len().eq(0) { fsz = 8; falign = 8 }
+                else if ftype.eq("I64") { fsz = 8; falign = 8 }
+                else if ftype.eq("U8") { fsz = 1; falign = 1 }
+                else if ftype.eq("I16") { fsz = 2; falign = 2 }
+                else if ftype.eq("I32") { fsz = 4; falign = 4 }
+                else if ftype.eq("U32") { fsz = 4; falign = 4 }
+                else if ftype.eq("Bool") { fsz = 1; falign = 1 }
+                else if type_from_name_init(ftype, scope).is(TilType.FuncPtr) { fsz = 8; falign = 8 }
+                else {
+                    ref nested_def : Expr = scope.get_struct(ftype)
+                    if is_null(nested_def).not().and(nested_def.node_type.is(NodeType.EnumDef)) {
+                        fsz = compute_enum_layout(nested_def, scope)
+                        if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
+                        fd.field_struct_def = nested_def
+                    } else if is_null(nested_def).not() {
+                        compute_struct_layout(nested_def, scope)
+                        switch nested_def.node_type {
+                        case NodeType.StructDef(nested_meta):
+                            fsz = nested_meta.total_struct_size
+                        case:
+                            UNREACHABLE(__LOC__)
+                        }
+                        falign = 8
+                        fd.field_struct_def = nested_def
+                    } else {
+                        fsz = 8
+                        falign = 8
+                    }
                 }
             }
 
-            ref ab : TypeBinding = scope.get_binding(ftype)
-            if is_null(ab).not() {
-                if ab.is_type_alias {
-                    if is_null(ab.alias_target).not() {
-                        ftype = ab.alias_target
-                        fd.explicit_type = ftype
-                    }
-                }
-            }
-
-            if ftype.len().eq(0) { fsz = 8; falign = 8 }
-            else if ftype.eq("I64") { fsz = 8; falign = 8 }
-            else if ftype.eq("U8") { fsz = 1; falign = 1 }
-            else if ftype.eq("I16") { fsz = 2; falign = 2 }
-            else if ftype.eq("I32") { fsz = 4; falign = 4 }
-            else if ftype.eq("U32") { fsz = 4; falign = 4 }
-            else if ftype.eq("Bool") { fsz = 1; falign = 1 }
-            else if type_from_name_init(ftype, scope).eq(TilType.FuncPtr) { fsz = 8; falign = 8 }
-            else {
-                ref nested_def : Expr = scope.get_struct(ftype)
-                if is_null(nested_def).not().and(nested_def.node_type.is(NodeType.EnumDef)) {
-                    fsz = compute_enum_layout(nested_def, scope)
-                    if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
-                    fd.field_struct_def = nested_def
-                } else if is_null(nested_def).not() {
-                    compute_struct_layout(nested_def, scope)
-                    ref nested_meta : StructDef = get_payload(nested_def.node_type)
-                    fsz = nested_meta.total_struct_size
-                    falign = 8
-                    fd.field_struct_def = nested_def
-                } else {
-                    fsz = 8
-                    falign = 8
-                }
-            }
+            offset = align_up(offset, falign)
+            fd.field_offset = offset
+            fd.field_size = fsz
+            if falign.gt(max_align) { max_align = falign }
+            offset = offset.add(fsz)
         }
 
-        offset = align_up(offset, falign)
-        fd.field_offset = offset
-        fd.field_size = fsz
-        if falign.gt(max_align) { max_align = falign }
-        offset = offset.add(fsz)
-    }
-
-    struct_meta.total_struct_size = align_up(offset, max_align)
-    if struct_meta.total_struct_size.eq(0) {
-        struct_meta.total_struct_size = 1
+        struct_meta.total_struct_size = align_up(offset, max_align)
+        if struct_meta.total_struct_size.eq(0) {
+            struct_meta.total_struct_size = 1
+        }
+    case:
+        UNREACHABLE(__LOC__)
     }
 }
 
@@ -1612,50 +1903,75 @@ type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) 
     if ftype.eq("U32") { sz = 4; al = 4; return }
     if ftype.eq("Bool") { sz = 1; al = 1; return }
     if ftype.eq("Dynamic") { sz = 8; al = 8; return }
-    if type_from_name_init(ftype, scope).eq(TilType.FuncPtr) { sz = 8; al = 8; return }
+    if type_from_name_init(ftype, scope).is(TilType.FuncPtr) { sz = 8; al = 8; return }
     ref nested : Expr = scope.get_struct(ftype)
     if is_null(nested) { sz = 8; al = 8; return }
-    if nested.node_type.is(NodeType.StructDef) {
+    switch nested.node_type {
+    case NodeType.StructDef(_nm):
         compute_struct_layout(nested, scope)
-        ref _nm : StructDef = get_payload(nested.node_type)
         sz = _nm.total_struct_size
         al = 8
-        return
-    }
-    if nested.node_type.is(NodeType.EnumDef) {
+    case NodeType.EnumDef:
         sz = compute_enum_layout(nested, scope)
         al = 8
-        return
+    case:
+        sz = 8
+        al = 8
     }
-    sz = 8
-    al = 8
 }
 
 compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns shallow I32 {
-    ref mut edd : EnumDef = get_payload(enum_def.node_type)
-    if edd.total_enum_size.gt(0) { return edd.total_enum_size }
-    // Set sentinel before recursing to break self-referential cycles.
-    edd.total_enum_size = 4
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        if edd.total_enum_size.gt(0) { return edd.total_enum_size }
+        // Set sentinel before recursing to break self-referential cycles.
+        edd.total_enum_size = 4
 
-    mut max_payload_size : I32 = 0
-    mut max_payload_align : I32 = 4
-    for vi in 0..edd.variants.len() {
-        vt := enum_variant_type(enum_def, vi.to_i64().to_i32())
-        if vt.len().eq(0) { continue }
-        mut psz : I32 = 0
-        mut palign : I32 = 0
-        type_size_align(vt, scope, psz, palign)
-        if psz.gt(max_payload_size) { max_payload_size = psz }
-        if palign.gt(max_payload_align) { max_payload_align = palign }
+        mut max_payload_size : I32 = 0
+        mut max_payload_align : I32 = 4
+        for vi in 0..edd.variants.len() {
+            vt := enum_variant_type(enum_def, vi.to_i64().to_i32())
+            if vt.len().eq(0) { continue }
+            mut psz : I32 = 0
+            mut palign : I32 = 0
+            type_size_align(vt, scope, psz, palign)
+            if psz.gt(max_payload_size) { max_payload_size = psz }
+            if palign.gt(max_payload_align) { max_payload_align = palign }
+        }
+        mut total : I32 = 4
+        if max_payload_size.gt(0) {
+            total = align_up(4, max_payload_align)
+            total = total.add(max_payload_size)
+        }
+        total = align_up(total, max_payload_align)
+        edd.total_enum_size = total
+        return total
+    case:
+        UNREACHABLE(__LOC__)
+        return 0.to_i32()
     }
-    mut total : I32 = 4
-    if max_payload_size.gt(0) {
-        total = align_up(4, max_payload_align)
-        total = total.add(max_payload_size)
+}
+
+compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
+        mut sname := ""
+        switch stmt.node_type {
+        case NodeType.Decl(_sd):
+            sname = _sd.name
+        case:
+            UNREACHABLE(__LOC__)
+            continue
+        }
+        if sname.eq("Dynamic") { continue }
+        compute_struct_layout(stmt.child(0), scope)
     }
-    total = align_up(total, max_payload_align)
-    edd.total_enum_size = total
-    return total
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+        compute_enum_layout(stmt.child(0), scope)
+    }
 }
 
 // Re-resolve field_struct_def pointers after hoisting (cloning) invalidates them.
@@ -1663,18 +1979,22 @@ resolve_field_struct_defs := proc(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
-        ref mut sdd : StructDef = get_payload(stmt.child(0).node_type)
-        for mut fd : Declaration in sdd.fields {
-            if fd.explicit_type.len().gt(0) {
-                ftype := fd.explicit_type
-                if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I16").not())
-                .and(ftype.eq("I32").not()).and(ftype.eq("U32").not()).and(ftype.eq("Bool").not()) {
-                    ref nested_def : Expr = scope.get_struct(ftype)
-                    if is_null(nested_def).not() {
-                        fd.field_struct_def = nested_def
+        switch stmt.child(0).node_type {
+        case NodeType.StructDef(sdd):
+            for mut fd : Declaration in sdd.fields {
+                if fd.explicit_type.len().gt(0) {
+                    ftype := fd.explicit_type
+                    if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I16").not())
+                    .and(ftype.eq("I32").not()).and(ftype.eq("U32").not()).and(ftype.eq("Bool").not()) {
+                        ref nested_def : Expr = scope.get_struct(ftype)
+                        if is_null(nested_def).not() {
+                            fd.field_struct_def = nested_def
+                        }
                     }
                 }
             }
+        case:
+            UNREACHABLE(__LOC__)
         }
     }
 }
@@ -1683,12 +2003,13 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
     ref rhs : Expr = stmt.child(0)
     out_type = TilType.Unknown
 
-    if stmt.node_type.is(NodeType.Decl) {
-        ref dd : Declaration = get_payload(stmt.node_type)
+    switch stmt.node_type {
+    case NodeType.Decl(dd):
         if dd.explicit_type.len().gt(0) {
             out_type = type_from_name_init(dd.explicit_type, scope)
             return out_type.is(TilType.Unknown).not()
         }
+    case:
     }
 
     switch rhs.node_type {
@@ -1730,35 +2051,34 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         return false
     case NodeType.FCall:
         ref callee : Expr = rhs.child(0)
-        if til_type_name(rhs.til_type).len().gt(0).and(callee.node_type.is(NodeType.Ident)) {
-            ref cn : Str = get_payload(callee.node_type)
-            if cn.eq(til_type_name(rhs.til_type)) {
+        switch callee.node_type {
+        case NodeType.Ident(cn):
+            if til_type_name(rhs.til_type).len().gt(0).and(cn.eq(til_type_name(rhs.til_type))) {
                 out_type = TilType.Struct(til_type_name(rhs.til_type))
                 return true
             }
-        }
-        mut init_ns2 := false
-        if callee.node_type.is(NodeType.FieldAccess).and(callee.children.len().gt(0)) {
-            ref _io2 : Expr = callee.child(0)
-            if _io2.node_type.is(NodeType.Ident) {
-                if til_type_name(_io2.til_type).eq("StructDef").or(til_type_name(_io2.til_type).eq("EnumDef")) {
-                    init_ns2 = true
-                }
-            }
-        }
-        if callee.node_type.is(NodeType.FieldAccess).and(init_ns2)
-        .and(til_type_name(rhs.til_type).len().gt(0)).and(rhs.til_type.is(TilType.Enum)) {
-            out_type = TilType.Enum(til_type_name(rhs.til_type))
-            return true
-        }
-        if callee.node_type.is(NodeType.Ident) {
-            ref fn_name : Str = get_payload(callee.node_type)
-            ref fb : TypeBinding = scope.get_binding(fn_name)
+            ref fb : TypeBinding = scope.get_binding(cn)
             if is_null(fb) { return false }
             out_type = fb.type
             return out_type.is(TilType.Unknown).not()
+        case NodeType.FieldAccess:
+            mut init_ns2 := false
+            if callee.children.len().gt(0) {
+                ref _io2 : Expr = callee.child(0)
+                if _io2.node_type.is(NodeType.Ident) {
+                    if til_type_name(_io2.til_type).eq("StructDef").or(til_type_name(_io2.til_type).eq("EnumDef")) {
+                        init_ns2 = true
+                    }
+                }
+            }
+            if init_ns2.and(til_type_name(rhs.til_type).len().gt(0)).and(rhs.til_type.is(TilType.Enum)) {
+                out_type = TilType.Enum(til_type_name(rhs.til_type))
+                return true
+            }
+            return false
+        case:
+            return false
         }
-        return false
     case:
         return false
     }
@@ -1766,53 +2086,92 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
 
 init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
+    // Legacy merged init runs with per-statement modes; keep empty path.
     initer_path = ""
 
-    // Pass 1: register every type name (struct, enum, funcsig). Subsequent
-    // operations (aliases, function defs, layouts, methods, values) need the
-    // full set of type names to be in scope.
-    for stmt : Expr in program.children {
+    // Single AST walk: register every type name in scope and bucket each Decl
+    // into the list it needs. All cross-decl work (alias resolution, struct
+    // layouts, size/derived/method generation, function-def and top-level
+    // value registration) runs after the walk over the collected lists --
+    // not over program.children -- so we never re-traverse the AST. We
+    // store indices into program.children rather than the Expr nodes
+    // themselves so the lists don't need to own the AST.
+    struct_idxs := Vec.new("U32", U32.size())
+    enum_idxs := Vec.new("U32", U32.size())
+    alias_idxs := Vec.new("U32", U32.size())
+    func_idxs := Vec.new("U32", U32.size())
+    value_idxs := Vec.new("U32", U32.size())
+    for i in 0..program.children.len() {
+        ref stmt : Expr = program.child(i)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.StructDef) {
             errors = errors.add(register_struct_def_for_stmt(stmt, scope))
+            struct_idxs.push(own i)
         } else if rhs.node_type.is(NodeType.EnumDef) {
             errors = errors.add(register_enum_def_for_stmt(stmt, scope))
-        } else if rhs.node_type.is(NodeType.FuncDef).and(rhs.children.len().eq(0)) {
-            register_funcsig_alias_for_stmt(stmt, scope)
-        }
-    }
-
-    // Pass 2: per-stmt dispatch. All work for a given Decl runs inline,
-    // no Vec buffering. compute_struct_layout / compute_enum_layout
-    // recurse for forward type refs and are idempotent (cached size).
-    for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        ref rhs : Expr = stmt.child(0)
-        if rhs.node_type.is(NodeType.StructDef) {
-            gen_struct_clone_delete_for_stmt(stmt, scope)
-            compute_struct_layout(stmt.child(0), scope)
-            gen_struct_size_method_for_stmt(stmt)
-            gen_cmp_derived_for_stmt(stmt)
-            gen_unity_derived_for_stmt(stmt)
-        } else if rhs.node_type.is(NodeType.EnumDef) {
-            gen_enum_nonclone_methods_for_stmt(stmt, scope)
-            gen_missing_enum_clone_for_stmt(stmt)
-            compute_enum_layout(stmt.child(0), scope)
-            gen_enum_size_method_for_stmt(stmt, scope)
-            gen_cmp_derived_for_stmt(stmt)
-            gen_unity_derived_for_stmt(stmt)
+            enum_idxs.push(own i)
         } else if rhs.node_type.is(NodeType.FuncDef) {
-            if rhs.children.len().gt(0) {
-                register_function_def_for_stmt(stmt, scope)
+            if rhs.children.len().eq(0) {
+                register_funcsig_alias_for_stmt(stmt, scope)
+            } else {
+                func_idxs.push(own i)
             }
         } else if rhs.node_type.is(NodeType.Ident) {
-            register_type_alias_for_stmt(stmt, scope)
+            alias_idxs.push(own i)
         } else {
-            register_top_level_value_for_stmt(stmt, scope)
+            value_idxs.push(own i)
         }
     }
 
+    // All type names are now in scope. Process the collected lists.
+    for ei : U32 in enum_idxs {
+        ref stmt : Expr = program.child(ei)
+        gen_enum_nonclone_methods_for_stmt(stmt, scope)
+        gen_missing_enum_clone_for_stmt(stmt)
+    }
+    for si : U32 in struct_idxs {
+        ref stmt : Expr = program.child(si)
+        gen_struct_clone_delete_for_stmt(stmt, scope)
+    }
+    for ai : U32 in alias_idxs {
+        ref stmt : Expr = program.child(ai)
+        register_type_alias_for_stmt(stmt, scope)
+    }
+    for si : U32 in struct_idxs {
+        ref stmt : Expr = program.child(si)
+        compute_struct_layout(stmt.child(0), scope)
+    }
+    for ei : U32 in enum_idxs {
+        ref stmt : Expr = program.child(ei)
+        compute_enum_layout(stmt.child(0), scope)
+    }
+    for si : U32 in struct_idxs {
+        ref stmt : Expr = program.child(si)
+        gen_struct_size_method_for_stmt(stmt)
+        gen_cmp_derived_for_stmt(stmt)
+        gen_unity_derived_for_stmt(stmt)
+    }
+    for ei : U32 in enum_idxs {
+        ref stmt : Expr = program.child(ei)
+        gen_enum_size_method_for_stmt(stmt, scope)
+        gen_cmp_derived_for_stmt(stmt)
+        gen_unity_derived_for_stmt(stmt)
+    }
+    for fi : U32 in func_idxs {
+        ref stmt : Expr = program.child(fi)
+        register_function_def_for_stmt(stmt, scope)
+    }
+    for vi : U32 in value_idxs {
+        ref stmt : Expr = program.child(vi)
+        register_top_level_value_for_stmt(stmt, scope)
+    }
+
+    Vec.delete(own struct_idxs, false)
+    Vec.delete(own enum_idxs, false)
+    Vec.delete(own alias_idxs, false)
+    Vec.delete(own func_idxs, false)
+    Vec.delete(own value_idxs, false)
     return errors
 }
 
@@ -1823,37 +2182,54 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
     initer_path = ctx.path.clone()
     mut errors : I32 = 0
 
-    // Pass 1: register every type name (struct, enum, funcsig).
-    for stmt : Expr in program.children {
+    // Single AST walk: register every type name in scope (struct, enum,
+    // funcsig) and bucket each remaining Decl's index for post-walk work.
+    // Enum non-clone methods need scope to be populated before they can
+    // generate eq/delete/to_str, so we delay them until after the walk.
+    enum_idxs := Vec.new("U32", U32.size())
+    alias_idxs := Vec.new("U32", U32.size())
+    func_idxs := Vec.new("U32", U32.size())
+    value_idxs := Vec.new("U32", U32.size())
+    for i in 0..program.children.len() {
+        ref stmt : Expr = program.child(i)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.StructDef) {
             errors = errors.add(register_struct_def_for_stmt(stmt, scope))
         } else if rhs.node_type.is(NodeType.EnumDef) {
             errors = errors.add(register_enum_def_for_stmt(stmt, scope))
-        } else if rhs.node_type.is(NodeType.FuncDef).and(rhs.children.len().eq(0)) {
-            register_funcsig_alias_for_stmt(stmt, scope)
-        }
-    }
-
-    // Pass 2: enum non-clone methods, aliases, function defs, values.
-    // Layout / size / derived methods are deferred to init_declarations_global.
-    for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        ref rhs : Expr = stmt.child(0)
-        if rhs.node_type.is(NodeType.EnumDef) {
-            gen_enum_nonclone_methods_for_stmt(stmt, scope)
+            enum_idxs.push(own i)
         } else if rhs.node_type.is(NodeType.FuncDef) {
-            if rhs.children.len().gt(0) {
-                register_function_def_for_stmt(stmt, scope)
+            if rhs.children.len().eq(0) {
+                register_funcsig_alias_for_stmt(stmt, scope)
+            } else {
+                func_idxs.push(own i)
             }
         } else if rhs.node_type.is(NodeType.Ident) {
-            register_type_alias_for_stmt(stmt, scope)
-        } else if rhs.node_type.is(NodeType.StructDef).not() {
-            register_top_level_value_for_stmt(stmt, scope)
+            alias_idxs.push(own i)
+        } else {
+            value_idxs.push(own i)
         }
     }
 
+    // All type names are now in scope. Process the collected lists.
+    for ei : U32 in enum_idxs {
+        gen_enum_nonclone_methods_for_stmt(program.child(ei), scope)
+    }
+    for ai : U32 in alias_idxs {
+        register_type_alias_for_stmt(program.child(ai), scope)
+    }
+    for fi : U32 in func_idxs {
+        register_function_def_for_stmt(program.child(fi), scope)
+    }
+    for vi : U32 in value_idxs {
+        register_top_level_value_for_stmt(program.child(vi), scope)
+    }
+
+    Vec.delete(own enum_idxs, false)
+    Vec.delete(own alias_idxs, false)
+    Vec.delete(own func_idxs, false)
+    Vec.delete(own value_idxs, false)
     return errors
 }
 
@@ -1861,33 +2237,72 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
 init_declarations_global := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
 
-    // Single walk: per Decl, dispatch on rhs type and run all the per-stmt
-    // work inline. compute_struct_layout / compute_enum_layout recurse for
-    // forward refs and are idempotent.
-    for stmt : Expr in program.children {
+    // Single AST walk: bucket struct and enum decls for post-walk work,
+    // and bucket func/value decls in case global generation steps added
+    // new ones (size/derived methods) that need to be registered.
+    struct_idxs := Vec.new("U32", U32.size())
+    enum_idxs := Vec.new("U32", U32.size())
+    func_idxs := Vec.new("U32", U32.size())
+    value_idxs := Vec.new("U32", U32.size())
+    for i in 0..program.children.len() {
+        ref stmt : Expr = program.child(i)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.StructDef) {
-            gen_struct_clone_delete_for_stmt(stmt, scope)
-            compute_struct_layout(stmt.child(0), scope)
-            gen_struct_size_method_for_stmt(stmt)
-            gen_cmp_derived_for_stmt(stmt)
-            gen_unity_derived_for_stmt(stmt)
+            struct_idxs.push(own i)
         } else if rhs.node_type.is(NodeType.EnumDef) {
-            gen_missing_enum_clone_for_stmt(stmt)
-            compute_enum_layout(stmt.child(0), scope)
-            gen_enum_size_method_for_stmt(stmt, scope)
-            gen_cmp_derived_for_stmt(stmt)
-            gen_unity_derived_for_stmt(stmt)
+            enum_idxs.push(own i)
         } else if rhs.node_type.is(NodeType.FuncDef) {
             if rhs.children.len().gt(0) {
-                register_function_def_for_stmt(stmt, scope)
+                func_idxs.push(own i)
             }
         } else if rhs.node_type.is(NodeType.Ident).not() {
-            register_top_level_value_for_stmt(stmt, scope)
+            value_idxs.push(own i)
         }
     }
 
+    // Method generation: clone+delete for structs, clone for enums.
+    // Enum non-clone methods already ran per-unit.
+    for si : U32 in struct_idxs {
+        gen_struct_clone_delete_for_stmt(program.child(si), scope)
+    }
+    for ei : U32 in enum_idxs {
+        gen_missing_enum_clone_for_stmt(program.child(ei))
+    }
+    // Layouts.
+    for si : U32 in struct_idxs {
+        compute_struct_layout(program.child(si).child(0), scope)
+    }
+    for ei : U32 in enum_idxs {
+        compute_enum_layout(program.child(ei).child(0), scope)
+    }
+    // Size + cmp/unity derived methods.
+    for si : U32 in struct_idxs {
+        ref stmt : Expr = program.child(si)
+        gen_struct_size_method_for_stmt(stmt)
+        gen_cmp_derived_for_stmt(stmt)
+        gen_unity_derived_for_stmt(stmt)
+    }
+    for ei : U32 in enum_idxs {
+        ref stmt : Expr = program.child(ei)
+        gen_enum_size_method_for_stmt(stmt, scope)
+        gen_cmp_derived_for_stmt(stmt)
+        gen_unity_derived_for_stmt(stmt)
+    }
+    // Re-register function/value decls -- new ones may have been generated
+    // above (size methods etc) but those go into ns_decls, not program.children.
+    // Still re-register here to mirror the original ordering.
+    for fi : U32 in func_idxs {
+        register_function_def_for_stmt(program.child(fi), scope)
+    }
+    for vi : U32 in value_idxs {
+        register_top_level_value_for_stmt(program.child(vi), scope)
+    }
+
+    Vec.delete(own struct_idxs, false)
+    Vec.delete(own enum_idxs, false)
+    Vec.delete(own func_idxs, false)
+    Vec.delete(own value_idxs, false)
     return errors
 }
 
