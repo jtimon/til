@@ -484,20 +484,30 @@ enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
 }
 
 enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
-    ref edd : EnumDef = get_payload(enum_def.node_type)
-    for i in 0..edd.variants.len() {
-        ref vn : Str = edd.variants.get(i)
-        if vn.eq(variant_name) { return i.to_i64().to_i32() }
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        for i in 0..edd.variants.len() {
+            ref vn : Str = edd.variants.get(i)
+            if vn.eq(variant_name) { return i.to_i64().to_i32() }
+        }
+        return -1.to_i32()
+    case:
+        UNREACHABLE(__LOC__)
+        return -1.to_i32()
     }
-    return -1.to_i32()
 }
 
 enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
-    ref edd : EnumDef = get_payload(enum_def.node_type)
-    idx := tag.to_i64()
-    if edd.payload_types.has(idx) {
-        ref pt : Str = edd.payload_types.get(idx)
-        return pt.clone()
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        idx := tag.to_i64()
+        if edd.payload_types.has(idx) {
+            ref pt : Str = edd.payload_types.get(idx)
+            return pt.clone()
+        }
+        return ""
+    case:
+        UNREACHABLE(__LOC__)
+        return ""
     }
-    return ""
 }

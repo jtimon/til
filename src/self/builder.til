@@ -1954,42 +1954,46 @@ emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr) {
 }
 
 emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
-    ref edd : EnumDef = get_payload(enum_def.node_type)
-    hp := enum_has_payloads(enum_def)
-    if hp.not() {
-        // Simple enum
-        for vn : Str in edd.variants {
-            f.write(name); f.write(" *"); f.write(name); f.write("_"); f.write(vn); f.write("() {\n")
-            f.write("    "); f.write(name); f.write(" *r = malloc(sizeof("); f.write(name); f.write("));\n")
-            f.write("    *r = ("); f.write(name); f.write("){ .tag = "); f.write(name); f.write("_TAG_"); f.write(vn); f.write(" };\n")
-            f.write("    return r;\n"); f.write("}\n")
-        }
-    } else {
-        // Payload enum
-        for i in 0..edd.variants.len() {
-            ref vn : Str = edd.variants.get(i)
-            vt := enum_variant_type(enum_def, i.to_i64().to_i32())
-            if vt.len().eq(0) {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        hp := enum_has_payloads(enum_def)
+        if hp.not() {
+            // Simple enum
+            for vn : Str in edd.variants {
                 f.write(name); f.write(" *"); f.write(name); f.write("_"); f.write(vn); f.write("() {\n")
                 f.write("    "); f.write(name); f.write(" *r = malloc(sizeof("); f.write(name); f.write("));\n")
-                f.write("    r->tag = "); f.write(name); f.write("_TAG_"); f.write(vn); f.write(";\n")
+                f.write("    *r = ("); f.write(name); f.write("){ .tag = "); f.write(name); f.write("_TAG_"); f.write(vn); f.write(" };\n")
                 f.write("    return r;\n"); f.write("}\n")
-                continue
             }
-            ptype := type_name_to_c(vt)
-            f.write(name); f.write(" *"); f.write(name); f.write("_"); f.write(vn); f.write("("); f.write(ptype); f.write(" val) {\n")
-            f.write("    "); f.write(name); f.write(" *r = malloc(sizeof("); f.write(name); f.write("));\n")
-            f.write("    r->tag = "); f.write(name); f.write("_TAG_"); f.write(vn); f.write(";\n")
-            if is_primitive_type(vt) {
-                f.write("    r->data."); f.write(vn); f.write(" = *val;\n")
-            } else if is_funcsig_type(vt).or(vt.eq("Dynamic")) {
-                f.write("    r->data."); f.write(vn); f.write(" = val;\n")
-            } else {
-                tnc := type_name_to_c(vt)
-                f.write("    { "); f.write(tnc); f.write(" _tmp = "); f.write(vt); f.write("_clone(val); r->data."); f.write(vn); f.write(" = *_tmp; free(_tmp); }\n")
+        } else {
+            // Payload enum
+            for i in 0..edd.variants.len() {
+                ref vn : Str = edd.variants.get(i)
+                vt := enum_variant_type(enum_def, i.to_i64().to_i32())
+                if vt.len().eq(0) {
+                    f.write(name); f.write(" *"); f.write(name); f.write("_"); f.write(vn); f.write("() {\n")
+                    f.write("    "); f.write(name); f.write(" *r = malloc(sizeof("); f.write(name); f.write("));\n")
+                    f.write("    r->tag = "); f.write(name); f.write("_TAG_"); f.write(vn); f.write(";\n")
+                    f.write("    return r;\n"); f.write("}\n")
+                    continue
+                }
+                ptype := type_name_to_c(vt)
+                f.write(name); f.write(" *"); f.write(name); f.write("_"); f.write(vn); f.write("("); f.write(ptype); f.write(" val) {\n")
+                f.write("    "); f.write(name); f.write(" *r = malloc(sizeof("); f.write(name); f.write("));\n")
+                f.write("    r->tag = "); f.write(name); f.write("_TAG_"); f.write(vn); f.write(";\n")
+                if is_primitive_type(vt) {
+                    f.write("    r->data."); f.write(vn); f.write(" = *val;\n")
+                } else if is_funcsig_type(vt).or(vt.eq("Dynamic")) {
+                    f.write("    r->data."); f.write(vn); f.write(" = val;\n")
+                } else {
+                    tnc := type_name_to_c(vt)
+                    f.write("    { "); f.write(tnc); f.write(" _tmp = "); f.write(vt); f.write("_clone(val); r->data."); f.write(vn); f.write(" = *_tmp; free(_tmp); }\n")
+                }
+                f.write("    return r;\n"); f.write("}\n")
             }
-            f.write("    return r;\n"); f.write("}\n")
         }
+    case:
+        UNREACHABLE(__LOC__)
     }
     // Namespace methods from ns_decls
     ref _ens : Vec = def_ns_decls(enum_def)
@@ -2001,19 +2005,22 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
 }
 
 emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr) {
-    ref edd : EnumDef = get_payload(enum_def.node_type)
-    hp := enum_has_payloads(enum_def)
     f.write("struct "); f.write(ename); f.write(" {\n")
     f.write("    "); f.write(ename); f.write("_tag tag;\n")
-    if hp {
+    if enum_has_payloads(enum_def) {
         f.write("    union {\n")
-        for j in 0..edd.variants.len() {
-            ref vn : Str = edd.variants.get(j)
-            vt := enum_variant_type(enum_def, j.to_i64().to_i32())
-            if vt.len().gt(0) {
-                tnv := type_name_to_c_value(vt)
-                f.write("        "); f.write(tnv); f.write(" "); f.write(vn); f.write(";\n")
+        switch enum_def.node_type {
+        case NodeType.EnumDef(edd):
+            for j in 0..edd.variants.len() {
+                ref vn : Str = edd.variants.get(j)
+                vt := enum_variant_type(enum_def, j.to_i64().to_i32())
+                if vt.len().gt(0) {
+                    tnv := type_name_to_c_value(vt)
+                    f.write("        "); f.write(tnv); f.write(" "); f.write(vn); f.write(";\n")
+                }
             }
+        case:
+            UNREACHABLE(__LOC__)
         }
         f.write("    } data;\n")
     }
