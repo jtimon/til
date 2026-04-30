@@ -141,7 +141,7 @@ try_ufcs_rewrite := proc(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
     for i in 1..e.children.len() {
         new_children.push(own e.child(i).clone())
     }
-    e.children = new_children
+    e.children.move_from(new_children)
     return true
 }
 
@@ -336,7 +336,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
         ref filled_arg : Expr = get_payload(slot_arg)
         new_ch.push(own filled_arg.clone())
     }
-    e.children = new_ch
+    e.children.move_from(new_ch)
     for i in 1..e.children.len() {
         if e.child(i).til_type.is(TilType.Unknown) {
             infer_expr(scope, e.child(i), in_func, ctx)
@@ -465,7 +465,7 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
             new_ch.push(own filled_arg.clone())
         }
     }
-    e.children = new_ch
+    e.children.move_from(new_ch)
 }
 
 // Validate a single argument against its parameter's type. Narrows
@@ -823,7 +823,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         for i in 1..e.children.len() {
             new_children.push(own e.child(i).clone())
         }
-        e.children = new_children
+        e.children.move_from(new_children)
         ref mut fa2 : Expr = e.child(0)
         ref _m2 : Str = get_payload(fa2.node_type)
         method = _m2
@@ -918,7 +918,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             ref filled_arg : Expr = get_payload(slot_arg)
             new_ch.push(own filled_arg.clone())
         }
-        e.children = new_ch
+        e.children.move_from(new_ch)
     }
     for i in 1..e.children.len() {
         infer_expr(scope, e.child(i), in_func, ctx)
