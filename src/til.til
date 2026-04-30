@@ -80,7 +80,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
 // Two pieces of info:
 //   - peek_ast: the freshly parsed user input; tells us the user's intent
 //     (FCall vs Decl vs control flow). Statement-level forms never wrap.
-//   - typed_ast: the full lp.ast after typecheck; the LAST child's til_type
+//   - typed_ast: the merged user AST after typecheck; the LAST child's til_type
 //     tells us if the user's expression returns a value. The typer hoists
 //     value-producing FCalls into synthetic `_t_TYPE_N := <expr>` Decls,
 //     but the Decl's til_type is still the expression's type, so the
