@@ -241,7 +241,12 @@ eval_arg := proc(s: Scope, e: Expr) returns Value {
     if v.is(Value.Ptr).not().or(e.til_type.is(TilType.Dynamic)) {
         return v
     }
-    ref p : Dynamic = get_payload(v)
+    // v is Value.Ptr holding a slot pointer (e.g. from Vec.get returning
+    // ref Dynamic). get_payload(v) yields the address of the payload field
+    // -- we still need to deref it to reach the actual slot before
+    // reinterpreting as a typed value.
+    ref pv : Dynamic = get_payload(v)
+    ref p : Dynamic = deref(pv)
     switch e.til_type {
     case TilType.I64:
         ref x : I64 = p

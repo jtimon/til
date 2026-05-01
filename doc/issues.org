@@ -1630,52 +1630,7 @@
   Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
   (it's useful for other things), but containers no longer use it.
 
-* [0/42] Post
-** OPEN #166 Bool values in Vec<Bool> mis-read via UFCS chain
-   Symptom:
-
-   Reading a ~Bool~ out of ~Vec("Bool", ...)~ via a chained UFCS
-   expression (no intermediate ~ref~ binding) returns ~true~ regardless
-   of the stored value. Same access via ~ref~ binding works.
-
-   Repro (against a fresh ~bin/til interpret~):
-
-   #+begin_src til
-   v := vec("Bool", true, false)
-   // Broken: chained UFCS on Dynamic receiver
-   assert(__LOC__, v.get(1).not())                  // panics
-   assert(__LOC__, true.and(v.get(1)).not())        // panics
-   // Works: explicit ref binding narrows first
-   ref f : Bool = v.get(1)
-   assert(__LOC__, f.not())                         // ok
-   #+end_src
-
-   Discovered while reorganizing ~src/test/misc.til~ -- the original
-   ~test_dynamic_narrowing~ had a TODO comment about this exact path
-   ("Bool values in Vec don't round-trip correctly (false->true)").
-   The TODO survived the move into ~src/test/dynamic.til~; this issue
-   replaces it with a tracked ticket.
-
-   Likely area:
-
-   The ~Vec.get~ return is ~Dynamic~. The ref-binding path narrows
-   through ~reinterpret_ptr_value~ (or equivalent) before the value is
-   read, so the byte-level access is correct. The chained-UFCS path
-   resolves ~and~/~or~/~not~ as top-level functions (they're not
-   namespace methods on ~Bool~ because of the receiver type at the call
-   site), and the Dynamic-to-Bool narrowing on the receiver appears to
-   read the wrong representation -- consistent with reading a wider
-   word and treating any non-zero byte as true, rather than honoring
-   the stored ~U8~/~Bool~ size.
-
-   Acceptance:
-
-   - Add a ~test_bool_vec_get_chain~ test that asserts both
-     ~v.get(0)~ (stored ~true~) and ~v.get(1)~ (stored ~false~)
-     round-trip correctly through chained ~and~/~or~/~not~ calls.
-   - The TODO line in ~src/test/dynamic.til:test_dynamic_narrowing~
-     should be removed (or upgraded into the new test) once fixed.
-
+* [0/41] Post
 ** OPEN #164 Diagnose `mut` qualifiers that are never used to write
    After #161 the typer rejects `ref mut x : T = src` when `src` is
    immutable. The simplest way to fix the existing chain-walker

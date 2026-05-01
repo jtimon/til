@@ -90,11 +90,32 @@ test_dynamic_narrowing := test() {
     assert_eq(__LOC__, 34.add(my_vec.get(0)), 44)
     // Chaining with typed start: 0.add(Dynamic) returns I64, chain continues
     assert_eq(__LOC__, 0.add(my_vec.get(0)).add(my_vec.get(1)).add(my_vec.get(2)), 60)
-    // Top-level UFCS on Dynamic receiver: and/or/not are unique top-level functions
-    my_bvec := vec("Bool", true, false)
-    assert(__LOC__, my_bvec.get(0).and(my_bvec.get(0)))
-    assert(__LOC__, my_bvec.get(1).or(my_bvec.get(0)))
-    // TODO(#166): my_bvec.get(1).not() -- Bool values in Vec don't round-trip via chained UFCS (false->true)
+}
+
+// #166 regression: Bool values in Vec must round-trip correctly through
+// chained UFCS calls to top-level and/or/not. Before the fix the
+// interpreter's eval_arg narrowing read the low byte of the slot pointer
+// instead of dereferencing it, so v.get(i) always looked like true.
+test_bool_vec_get_chain := test() {
+    v := vec("Bool", true, false)
+    // ref-binding path (already worked pre-fix; keep as a baseline)
+    ref t0 : Bool = v.get(0)
+    ref f0 : Bool = v.get(1)
+    assert(__LOC__, t0)
+    assert(__LOC__, f0.not())
+    // Chained UFCS on Dynamic receiver: not()
+    assert(__LOC__, v.get(0).not().not())
+    assert(__LOC__, v.get(1).not())
+    // Chained UFCS on Dynamic receiver: and()
+    assert(__LOC__, v.get(0).and(v.get(0)))
+    assert(__LOC__, v.get(0).and(v.get(1)).not())
+    assert(__LOC__, v.get(1).and(v.get(0)).not())
+    assert(__LOC__, v.get(1).and(v.get(1)).not())
+    // Chained UFCS on Dynamic receiver: or()
+    assert(__LOC__, v.get(0).or(v.get(0)))
+    assert(__LOC__, v.get(0).or(v.get(1)))
+    assert(__LOC__, v.get(1).or(v.get(0)))
+    assert(__LOC__, v.get(1).or(v.get(1)).not())
 }
 
 test_dynamic_local := test() {

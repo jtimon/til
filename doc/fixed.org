@@ -1,5 +1,36 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #166 Bool values in Vec<Bool> mis-read via UFCS chain
+  Reading a ~Bool~ out of ~Vec("Bool", ...)~ via a chained UFCS
+  expression (no intermediate ~ref~ binding) was returning the wrong
+  value when running under ~bin/til interpret~. The compiled path
+  (~bin/til run~) was unaffected.
+
+  Root cause was in ~eval_arg~ (src/self/dispatch.til), the helper
+  ~h_Bool_and~/~or~/~not~ use to narrow a ~Dynamic~ receiver coming
+  out of ~Vec.get~. The narrowing did:
+
+      ref p : Dynamic = get_payload(v)
+      ref x : Bool    = p
+
+  ~get_payload(v)~ returns the address of the payload field inside the
+  ~Value~ enum, not the slot pointer it holds. Without an intermediate
+  ~deref~, ~ref x : Bool = p~ aliased the low byte of the slot pointer
+  itself instead of the byte at the slot, so a stored ~false~ read
+  back as whatever low bits the heap address happened to carry --
+  almost always non-zero, hence the "always true" symptom. The ref-
+  binding path was unaffected because ~reinterpret_ptr_value~ already
+  does ~ref p : Dynamic = deref(pv)~ before the cast.
+
+  Fix: deref ~pv~ in ~eval_arg~ before the per-type reinterpret. The
+  same path covers I64/U8/I16/I32/U32/U64/F32/Struct (Str), but in
+  practice only the Bool case was reachable, since ~eval_arg~ is only
+  called from the and/or/not handlers.
+
+  Test: ~test_bool_vec_get_chain~ in ~src/test/dynamic.til~ checks
+  both stored ~true~ and stored ~false~ round-tripping through
+  chained ~not~, ~and~, and ~or~ calls.
+
 * FIXED #161 ref mut accepts a non-mut ref source (mutability laundering)
   The typer used to allow `ref mut y : T = x` even when `x` was an
   immutable ref local or a non-mut function parameter, silently
