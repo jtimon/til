@@ -22,7 +22,6 @@ DynCallInfo := struct {
 // codegen, so helpers can iterate per-file ASTs without building merged views.
 mut codegen_lp_slot : Dynamic = 0
 ref mut current_fdef : Expr = NULL
-mut struct_bodies := Map.new("Str", Str.size(), "Dynamic", I64.size())
 mut func_defs := Map.new("Str", Str.size(), "Dynamic", I64.size())
 mut struct_def_exprs := Map.new("Str", Str.size(), "Dynamic", I64.size())
 mut script_globals := Set.new("Str", Str.size())
@@ -178,11 +177,6 @@ is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
         if decl.name.substr(0, 3).eq("_t_") { return false }
     }
     return true
-}
-
-find_struct_body := func(name: Str) returns ref Expr {
-    if struct_bodies.has(name).not() { return NULL }
-    return deref(struct_bodies.get(name))
 }
 
 find_struct_def := func(name: Str) returns ref Expr {
@@ -3496,10 +3490,6 @@ register_lookups_prog := func(prog: Expr) {
             ref rhs : Expr = stmt.child(0)
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                 ref dd : Declaration = get_payload(stmt.node_type)
-                ref body : Expr = rhs.child(0)
-                v : Dynamic = malloc(I64.size())
-                write_ptr(v, body)
-                struct_bodies.set(own dd.name.clone(), own v)
                 _sdv : Dynamic = malloc(I64.size())
                 write_ptr(_sdv, rhs)
                 struct_def_exprs.set(own dd.name.clone(), own _sdv)
@@ -3540,7 +3530,6 @@ register_lookups_prog := func(prog: Expr) {
 // #135: can't use for prog_idx in 0..2 with ref mut prog here because
 // the clone bug makes stored pointers point to cloned nodes
 build_register_lookups := func(core_program: Expr, program: Expr) {
-    struct_bodies = Map.new("Str", Str.size(), "Dynamic", I64.size())
     struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     stack_locals = Set.new("Str", Str.size())
@@ -3552,7 +3541,6 @@ build_register_lookups := func(core_program: Expr, program: Expr) {
 }
 
 build_register_lookups_lp := func() {
-    struct_bodies = Map.new("Str", Str.size(), "Dynamic", I64.size())
     struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     stack_locals = Set.new("Str", Str.size())
@@ -4778,8 +4766,6 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     }
 
     f.close()
-    own struct_bodies.delete()
-    struct_bodies = Map.new("Str", Str.size(), "Dynamic", I64.size())
     own func_defs.delete()
     func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     own stack_locals.delete()

@@ -1779,7 +1779,6 @@ extern Map known;
 extern Vec gc_strs;
 extern void * codegen_lp_slot;
 extern Expr *current_fdef;
-extern Map struct_bodies;
 extern Map func_defs;
 extern Map struct_def_exprs;
 extern Set script_globals;

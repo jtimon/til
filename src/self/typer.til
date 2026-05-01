@@ -1355,7 +1355,6 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         }
     case:
     }
-    infer_body(inner, expr.child(0), 0, 0, 0, 0, 1, ctx)
     // Type-check ns_decls (stored directly by parser, not via body)
     ref tc_ns : Vec = def_ns_decls(expr)
     for tc_nd : Declaration in tc_ns {

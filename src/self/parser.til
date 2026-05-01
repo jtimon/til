@@ -378,7 +378,6 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     }
     expect_token(p, TokenType.LBrace)
 
-    mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
     mut in_namespace := false
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
         // Phase 1: discard doc comments inside struct bodies (no attachment yet)
@@ -444,7 +443,6 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
         }
     }
     expect_token(p, TokenType.RBrace)
-    def.add_child(own body)
     return def
 }
 
@@ -457,7 +455,6 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     mut def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
     expect_token(p, TokenType.LBrace)
 
-    mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
     mut in_namespace := false
     mut variant_idx : I64 = 0
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
@@ -515,7 +512,6 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
         }
     }
     expect_token(p, TokenType.RBrace)
-    def.add_child(own body)
     return def
 }
 
