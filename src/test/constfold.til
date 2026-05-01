@@ -1,0 +1,61 @@
+mode test
+
+// Compile-time constant folding for pure func / ext_func calls with
+// comptime args. Adapted from rstil's src/test/constfold.til.
+
+double_il := func(x: I64) returns I64 { return x.mul(2) }
+add_il := func(a: I64, b: I64) returns I64 { return a.add(b) }
+sub_il := func(a: I64, b: I64) returns I64 { return a.sub(b) }
+mul_il := func(a: I64, b: I64) returns I64 { return a.mul(b) }
+concat_str := func(a: Str, b: Str) returns Str { return a.concat(b) }
+
+// Test 1: Simple arithmetic
+test_simple_add := test() {
+    result := add_il(1, 2)
+    assert_eq(__LOC__, result, 3)
+}
+
+// Test 2: Nested arithmetic
+test_nested_arithmetic := test() {
+    result := mul_il(add_il(1, 2), sub_il(10, 5))
+    assert_eq(__LOC__, result, 15)
+}
+
+// Test 3: Deeply nested
+test_deeply_nested := test() {
+    result := add_il(mul_il(2, 3), mul_il(4, 5))
+    assert_eq(__LOC__, result, 26)
+}
+
+// Test 4: lolalalo -- recursive func with comptime args. Generates the
+// 4-syllable permutation poem at compile time. Inspired by
+// rstil/src/examples/lolalalo.til. Uses a top-level `poem` so the
+// recursion doesn't need first-class nested funcs.
+
+poem := func(depth: I64, current: Str, s1: Str, s2: Str) returns Str {
+    if depth.eq(4) {
+        return current.concat("\n")
+    }
+    mut result := ""
+    result = result.concat(poem(depth.add(1), current.concat(s1), s1, s2))
+    result = result.concat(poem(depth.add(1), current.concat(s2), s1, s2))
+    if depth.eq(2) {
+        result = result.concat(poem(depth.add(1), current.concat("lei"), s1, s2))
+    }
+    return result
+}
+
+make_poem := func(s1: Str, s2: Str) returns Str {
+    return poem(0, "", s1, s2)
+}
+
+test_lolalalo := test() {
+    lo_la := make_poem("lo", "la")
+    la_lo := make_poem("la", "lo")
+    // "lolalolo" appears as one of the 4-syllable permutations in lo_la
+    assert(__LOC__, lo_la.contains("lolalolo"))
+    assert(__LOC__, la_lo.contains("lalalala"))
+    // "lei" appears at depth 2 in both
+    assert(__LOC__, lo_la.contains("lolei"))
+    assert(__LOC__, la_lo.contains("lalei"))
+}

@@ -266,6 +266,11 @@ precomp_imported := proc(mut lp: LoadedProgram) {
         ffi_init_struct_defs_append(iu.ast)
         ffi_init_scan_program(iu.ast)
     }
+    // Mark FFI loaded so ext_dispatch_ffi will dispatch the entries we
+    // just registered. Built-in ext_funcs (I64_add etc.) are statically
+    // linked, so no .so needs dlopen'ing for precomp's eval-based fold
+    // to call them.
+    ffi_loaded = true
 
     // 3) Fold calls in every file
     known = Map.new("Str", Str.size(), "Value", Value.size())
@@ -274,14 +279,14 @@ precomp_imported := proc(mut lp: LoadedProgram) {
             ref u : ProgramUnit = lp.core_units.get(i)
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             context_enter_file(lp.ctx, u.path)
-            process_body(global, iu.ast, lp.ctx)
+            process_body(global, iu.ast, lp.ctx, true)
         }
     }
     for i in 0..lp.units.len() {
         ref u : ProgramUnit = lp.units.get(i)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         context_enter_file(lp.ctx, u.path)
-        process_body(global, iu.ast, lp.ctx)
+        process_body(global, iu.ast, lp.ctx, true)
     }
 
     // Cleanup

@@ -95,6 +95,7 @@ bin/tests: bin/til $(CORE) $(SELF) src/tests.til
 
 test: bin/til bin/test_runner bin/plot bin/tests
 	xvfb-run --auto-servernum bin/tests $(if $(J),-j$(J))
+	cp gen/til/constfold.c src/test/constfold.c
 
 test_asan: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
 	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan $(if $(J),-j$(J))

@@ -420,9 +420,12 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             if obj.is(Value.Struct) {
                 ref si : StructInstance = get_payload(obj)
                 sname = si.struct_name
-            } else {
+            } else if e.child(0).node_type.is(NodeType.Ident) {
                 ref ident : Str = get_payload(e.child(0).node_type)
                 sname = ident
+            } else {
+                // Primitive receiver (LiteralNum I64, etc.).
+                sname = til_type_name_c(e.child(0).til_type)
             }
             ref nsv : Value = ns_get(sname, fname)
             if is_null(nsv).not() {
@@ -860,7 +863,16 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                     }
                 }
             }
-            sn := til_type_name(callee_expr.child(0).til_type)
+            mut sn := til_type_name(callee_expr.child(0).til_type)
+            // til_type_name returns "" for primitives. For ext_func
+            // dispatch on a primitive receiver (e.g. `0.sub(1)` ->
+            // `I64_sub(0, 1)`), fall back to til_type_name_c.
+            if sn.is_empty() {
+                tn := til_type_name_c(callee_expr.child(0).til_type)
+                if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
+                    sn = tn
+                }
+            }
             ref fn_name : Str = get_payload(callee_expr.node_type)
             // If the receiver type is unknown (eg Dynamic), fall back to the
             // unqualified top-level name. This is required for and/or/not.
@@ -890,6 +902,10 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             if arg_expr.node_type.is(NodeType.Ident) {
                 ref arg_ident : Str = get_payload(arg_expr.node_type)
                 ref arg_cell : Cell = scope_get(scope, arg_ident)
+                if is_null(arg_cell) {
+                    interp_error(arg_expr, "undefined variable '".concat(arg_ident).concat("'"))
+                    exit(1.to_i32())
+                }
                 if arg_cell.val.is(Value.Ptr).and(param.explicit_type.len().gt(0)) {
                     mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, scope)
                     arg = widen_numeric(arg, param.explicit_type)
@@ -974,6 +990,10 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                 if arg.node_type.is(NodeType.Ident) {
                     ref arg_ident : Str = get_payload(arg.node_type)
                     ref src : Cell = scope_get(scope, arg_ident)
+                    if is_null(src) {
+                        interp_error(arg, "undefined variable '".concat(arg_ident).concat("'"))
+                        exit(1.to_i32())
+                    }
                     val = shallow_copy_value(src.val)
                     if get_own_arg(e, arg_idx).and(val.is(Value.Func).not()) {
                         src.val = val_none()
@@ -1031,6 +1051,10 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         if arg_expr.node_type.is(NodeType.Ident) {
             ref arg_ident : Str = get_payload(arg_expr.node_type)
             ref arg_cell : Cell = scope_get(scope, arg_ident)
+            if is_null(arg_cell) {
+                interp_error(arg_expr, "undefined variable '".concat(arg_ident).concat("'"))
+                exit(1.to_i32())
+            }
             if needs_widen(arg_cell.val, param.explicit_type) {
                 mut arg := arg_cell.val.clone()
                 arg = widen_numeric(arg, param.explicit_type)
@@ -1279,6 +1303,12 @@ interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
     if obj_expr.node_type.is(NodeType.Ident) {
         ref ident : Str = get_payload(obj_expr.node_type)
         return interp_fa_is_ns_inner(scope, e, ident)
+    }
+    // Primitive receivers (`0.sub(1)`, recv = LiteralNum I64): til_type_name
+    // returns "" for I64/U8/etc, fall back to til_type_name_c.
+    tn := til_type_name_c(obj_expr.til_type)
+    if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
+        return interp_fa_is_ns_inner(scope, e, tn)
     }
     return false
 }

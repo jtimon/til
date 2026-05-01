@@ -13,6 +13,68 @@ precomp_has_func := func(name: Str) returns shallow Bool {
     return funcs.has(name)
 }
 
+// Side-effecting names that mustn't be invoked at compile time.
+// Mirrors rstil's hardcoded exit/malloc list, plus the I/O / FFI /
+// environment-dependent ext_funcs that til core ships.
+is_side_effecting_name := func(name: Str) returns shallow Bool {
+    if name.eq("exit")        { return true }
+    if name.eq("panic")       { return true }
+    if name.eq("TODO")        { return true }
+    if name.eq("UNREACHABLE") { return true }
+    if name.eq("malloc") { return true }
+    if name.eq("calloc") { return true }
+    if name.eq("realloc") { return true }
+    if name.eq("free")   { return true }
+    if name.eq("memcpy") { return true }
+    if name.eq("memmove") { return true }
+    if name.eq("memset") { return true }
+    if name.eq("read_ptr")  { return true }
+    if name.eq("write_ptr") { return true }
+    if name.eq("ptr_add")   { return true }
+    if name.eq("ptr_eq")    { return true }
+    if name.eq("to_ptr")    { return true }
+    if name.eq("deref")     { return true }
+    if name.eq("readfile")  { return true }
+    if name.eq("writefile") { return true }
+    if name.eq("print_single") { return true }
+    if name.eq("eprint_single") { return true }
+    if name.eq("print_flush") { return true }
+    if name.eq("println") { return true }
+    if name.eq("print")  { return true }
+    if name.eq("in_read_line") { return true }
+    if name.eq("cfile_open") { return true }
+    if name.eq("cfile_close") { return true }
+    if name.eq("cfile_read_all") { return true }
+    if name.eq("cfile_write_str") { return true }
+    if name.eq("file_mtime") { return true }
+    if name.eq("unlink_path") { return true }
+    if name.eq("spawn_cmd") { return true }
+    if name.eq("wait_cmd")  { return true }
+    if name.eq("run_cmd")   { return true }
+    if name.eq("system_cmd") { return true }
+    if name.eq("check_cmd_status") { return true }
+    if name.eq("sleep_ms") { return true }
+    if name.eq("clock_ms") { return true }
+    if name.eq("get_thread_count") { return true }
+    if name.eq("peak_rss_bytes") { return true }
+    if name.eq("current_rss_bytes") { return true }
+    if name.eq("process_id") { return true }
+    if name.eq("get_bin_dir") { return true }
+    if name.eq("get_cwd_str") { return true }
+    if name.eq("ffi_global_symbol") { return true }
+    if name.eq("ffi_user_symbol") { return true }
+    if name.eq("ffi_load_global_lib") { return true }
+    if name.eq("ffi_open_user_so") { return true }
+    if name.eq("ffi_close_user_so") { return true }
+    if name.eq("ffi_alloc_cif") { return true }
+    if name.eq("ffi_prep_cif") { return true }
+    if name.eq("ffi_call") { return true }
+    if name.eq("dlopen") { return true }
+    if name.eq("dlsym") { return true }
+    if name.eq("dlclose") { return true }
+    return false
+}
+
 value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
     switch val {
     case Value.Int(x):
@@ -39,10 +101,12 @@ value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
         mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
         e.til_type = TilType.U64
         return e
-    case Value.Float(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = TilType.F32
-        return e
+    case Value.Float(_x):
+        // F32 to_str uses %g and can emit scientific notation
+        // ("6.28318e+06") that doesn't round-trip through Str.to_f32.
+        // Don't fold F32-returning calls until we have a faithful F32
+        // literal representation in the AST.
+        return NULL
     case Value.Struct(si):
         if si.to_str().eq("Str") {
             sv := str_view(val)
@@ -104,20 +168,71 @@ is_known := func(e: Expr, mut out: Value) returns shallow Bool {
     }
 }
 
-func_uses_unknown_globals := func(e: Expr, func_def: Expr, precomp_scope: Scope) returns shallow Bool {
+// Walk `body` looking for a local Decl named `name`. Used to recognise
+// typer-hoisted temps and other body-locals so func_uses_unknown_globals
+// can skip flagging them as unknown globals.
+body_has_local := proc(body: Expr, name: Str) returns shallow Bool {
+    if body.node_type.is(NodeType.Decl) {
+        ref dd : Declaration = get_payload(body.node_type)
+        if dd.name.eq(name) { return true }
+    }
+    if body.node_type.is(NodeType.FuncDef) { return false }
+    for c : Expr in body.children {
+        if body_has_local(c, name) { return true }
+    }
+    return false
+}
+
+// `lenient`: when true, body-local Decl names (typer-hoisted temps,
+// user-named locals) are NOT flagged as unknown -- the interpreter will
+// see them when it walks the body. When false (master's behaviour),
+// any Ident not in params/known/scope is unknown, which keeps macro
+// fold from forcing eval into a body whose hoisted temps the eval
+// scope can't see.
+func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool) returns shallow Bool {
     if e.node_type.is(NodeType.FuncDef) { return false }
     if e.node_type.is(NodeType.Ident) {
         ref name : Str = get_payload(e.node_type)
+        // Side-effecting names are "unknown" for fold purposes: their
+        // bodies aren't, but invoking them at compile time would kill
+        // or corrupt the build.
+        if is_side_effecting_name(name) { return true }
+        // `clone`/`delete`/`concat`/`substr`/`format` allocate or free heap
+        // memory and trigger destructor runs that read top-level constants
+        // (e.g. Str.delete reads CAP_VIEW) precomp's scope doesn't have.
+        if name.eq("clone") { return true }
+        if name.eq("delete") { return true }
+        if name.eq("concat") { return true }
+        if name.eq("substr") { return true }
+        if name.eq("format") { return true }
         ref fd : FunctionDef = get_payload(func_def.node_type)
         for p : Declaration in fd.params {
             if p.name.eq(name) { return false }
         }
         if known.has(name) { return false }
         if is_null(scope_get(precomp_scope, name)).not() { return false }
+        if lenient.and(body_has_local(body_root, name)) { return false }
         return true
     }
+    // Assign carries the LHS name as the node payload, not as an Ident
+    // child. If the LHS isn't a body-local, the function mutates a
+    // global -- never fold (eval would crash on missing bindings, or
+    // worse, silently mutate precomp's interpreter scope).
+    if e.node_type.is(NodeType.Assign) {
+        ref aname : Str = get_payload(e.node_type)
+        if body_has_local(body_root, aname).not() { return true }
+    }
+    // FieldAccess: detect `.clone()` / `.delete()` / etc on values where
+    // the FA is the callee of an enclosing FCall. Same heap-cleanup risk.
+    if e.node_type.is(NodeType.FieldAccess) {
+        ref mname : Str = get_payload(e.node_type)
+        if mname.eq("clone") { return true }
+        if mname.eq("delete") { return true }
+        if mname.eq("concat") { return true }
+        if mname.eq("substr") { return true }
+    }
     for e_ci : Expr in e.children {
-        if func_uses_unknown_globals(e_ci, func_def, precomp_scope) { return true }
+        if func_uses_unknown_globals(e_ci, func_def, precomp_scope, body_root, lenient) { return true }
     }
     return false
 }
@@ -184,6 +299,23 @@ ns_lookup_flat := func(name: Str) returns shallow Dynamic {
     return NULL
 }
 
+// For a FieldAccess callee like `recv.method`, derive the type name
+// to dispatch on. If recv is an Ident that names a struct/enum (e.g.
+// `Str.size`), use the Ident text. Otherwise fall back to recv.til_type
+// so method calls on values (`x.add(y)` where x: I64) still resolve.
+fa_recv_type_name := func(callee: Expr) returns Str {
+    if callee.children.len().eq(0) { return "" }
+    ref recv : Expr = callee.child(0)
+    if recv.node_type.is(NodeType.Ident) {
+        ref ident : Str = get_payload(recv.node_type)
+        // If the Ident names a known type (`Str`/`I64`/...), use it.
+        // Otherwise it's a value and we fall back to its til_type.
+        ref _probe : Value = ns_get(ident, "size")
+        if is_null(_probe).not() { return ident.clone() }
+    }
+    return til_type_name_c(recv.til_type)
+}
+
 // Fast path: if the callee is a nullary function whose body trivially
 // returns a literal, return a heap-allocated clone of that literal.
 try_fast_fold_call := func(scope: Scope, fcall: Expr) returns ref Expr {
@@ -203,9 +335,8 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr) returns ref Expr {
         if is_null(_fc_fp) { _fc_fp = ns_lookup_flat(_ci) }
     case NodeType.FieldAccess(_mn):
         if _fc_callee.children.len().gt(0) {
-            ref _recv : Expr = _fc_callee.child(0)
-            if _recv.node_type.is(NodeType.Ident) {
-                ref _sn : Str = get_payload(_recv.node_type)
+            _sn := fa_recv_type_name(_fc_callee)
+            if _sn.is_empty().not() {
                 ref _nv : Value = ns_get(_sn, _mn)
                 if is_null(_nv).not() {
                     if is(_nv, Value.Func) {
@@ -234,45 +365,69 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     ref _fast : Expr = try_fast_fold_call(scope, fcall)
     if is_null(_fast).not() { return _fast }
 
-    // Check if the function body references unknown globals
     ref callee : Expr = fcall.child(0)
+    // Resolve fdef once so we can reject ref-returning funcs (results
+    // are aliases not standalone values; for ext_funcs this also covers
+    // env-dependent dlsym-style pointers that get truncated when
+    // materialised back into a literal).
+    ref mut fp : Dynamic = NULL
     switch callee.node_type {
     case NodeType.Ident(callee_ident):
+        // Block direct calls to side-effecting names (exit, malloc, panic,
+        // clock_ms, ffi_global_symbol, ...).
+        if is_side_effecting_name(callee_ident) { return NULL }
         ref fn_cell : Cell = scope_get(scope, callee_ident)
         if is_null(fn_cell).not() {
-            // TODO(#155): switch to fn_cell.val.is(Value.Func) once the
-            // typer infers the Value enum type for Cell.val (currently
-            // resolves to 'unknown', so UFCS has nothing to dispatch on).
-            if is(fn_cell.val, Value.Func) {
-                ref fptr : Dynamic = get_payload(fn_cell.val)
-                ref fdef : Expr = deref(fptr)
-                if fdef.node_type.is(NodeType.FuncDef) {
-                    if fdef.children.len().gt(0) {
-                        if func_uses_unknown_globals(fdef.child(0), fdef, scope) {
-                            return NULL
-                        }
-                    }
-                }
-            }
+            if is(fn_cell.val, Value.Func) { fp = get_payload(fn_cell.val) }
         }
     case NodeType.FieldAccess(mname):
-        ref recv : Expr = callee.child(0)
-        ref sname : Str = get_payload(recv.node_type)
-        ref ns_val : Value = ns_get(sname, mname)
-        if is_null(ns_val).not() {
-            if is(ns_val, Value.Func) {
-                ref fptr : Dynamic = get_payload(ns_val)
-                ref fdef : Expr = deref(fptr)
-                if fdef.node_type.is(NodeType.FuncDef) {
-                    if fdef.children.len().gt(0) {
-                        if func_uses_unknown_globals(fdef.child(0), fdef, scope) {
-                            return NULL
-                        }
-                    }
+        // FieldAccess on an Ident value receiver: the interpreter needs
+        // a binding to look up. If the Ident isn't a type name (Str/I64...)
+        // and isn't a known constant, bail.
+        if callee.children.len().gt(0) {
+            ref recv : Expr = callee.child(0)
+            if recv.node_type.is(NodeType.Ident) {
+                ref _ri : Str = get_payload(recv.node_type)
+                ref _probe : Value = ns_get(_ri, "size")
+                if is_null(_probe) {
+                    if known.has(_ri).not() { return NULL }
+                }
+            }
+            sname := fa_recv_type_name(callee)
+            if sname.is_empty().not() {
+                ref ns_val : Value = ns_get(sname, mname)
+                if is_null(ns_val).not() {
+                    if is(ns_val, Value.Func) { fp = get_payload(ns_val) }
                 }
             }
         }
     case:
+    }
+    if is_null(fp).not() {
+        ref fdef : Expr = deref(fp)
+        if fdef.node_type.is(NodeType.FuncDef) {
+            ref _fd : FunctionDef = get_payload(fdef.node_type)
+            // Folding a ref-returning func would bake the compile-time
+            // alias into the AST. For ext_funcs it would also dlsym at
+            // compile time and truncate the static address to scalar.
+            if _fd.return_own_type.eq(OwnType.Ref) { return NULL }
+            // Don't directly fold ext_funcs. Many user ext_funcs aren't
+            // dispatchable at precomp time (their .so isn't dlopen'd) and
+            // dispatching them would invoke runtime FFI with broken state.
+            // Built-in arithmetic ops (I64_add etc.) are still invokable
+            // when reached transitively through a user func body.
+            if _fd.func_type.is(FuncType.ExtFunc) { return NULL }
+            if fdef.children.len().gt(0) {
+                // Macros use the strict body check (master's behaviour):
+                // any unknown Ident bails before the args check, which
+                // is what keeps `macro_add(N, 5)` from forcing eval.
+                // Funcs use the lenient check that skips body-locals
+                // (typer-hoisted temps), so non-trivial bodies can fold.
+                if func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), require_known.not()) {
+                    return NULL
+                }
+            }
+        }
     }
 
     // Build a call with literal args for the interpreter
@@ -300,19 +455,17 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     // Evaluate the call using the interpreter
     result := eval_expr(scope, ec)
 
-    // Check if result is convertible to AST (value_to_expr returns NULL otherwise)
+    // Value.Float intentionally excluded: F32_to_str -> %g can yield
+    // scientific notation that doesn't round-trip through Str.to_f32.
+    // Value.Struct(Str) intentionally excluded: folded strings can carry
+    // NULs/non-ASCII that don't round-trip through a C source literal.
     mut can_convert := result.is(Value.Int)
     .or(result.is(Value.Byte))
     .or(result.is(Value.Short))
     .or(result.is(Value.Int32))
     .or(result.is(Value.Uint32))
     .or(result.is(Value.Uint64))
-    .or(result.is(Value.Float))
     .or(result.is(Value.Boolean))
-    if can_convert.not().and(result.is(Value.Struct)) {
-        ref si : StructInstance = get_payload(result)
-        if si.to_str().eq("Str") { can_convert = true }
-    }
     if can_convert.not() {
         if require_known {
             panic(
@@ -324,8 +477,14 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         return NULL
     }
 
-    // Convert result to AST -- guaranteed non-NULL, safe to bind owned
+    // value_to_expr can still return NULL (e.g. Value.Struct non-Str).
     mut lit_local := value_to_expr(result, fcall)
+    if is_null(lit_local) { return NULL }
+    // Preserve fcall.til_type. value_to_expr derives til_type from the
+    // runtime Value variant (Uint32 -> U32), but the original fcall might
+    // have been typed as USize/U64/... at typer time. Surrounding code
+    // (re-typing, codegen) expects the original til_type.
+    lit_local.til_type = fcall.til_type
     heap : Dynamic = malloc(Expr.size().to_u64())
     memcpy(heap, lit_local, Expr.size())
     memset(lit_local, 0, Expr.size())
@@ -350,10 +509,8 @@ is_macro_call := func(e: Expr) returns shallow Bool {
         return precomp_has_macro(get_payload(callee.node_type))
     }
     if callee.node_type.is(NodeType.FieldAccess) {
-        if callee.children.len().eq(0) { return false }
-        ref recv : Expr = callee.child(0)
-        if recv.node_type.is(NodeType.Ident).not() { return false }
-        ref sname : Str = get_payload(recv.node_type)
+        sname := fa_recv_type_name(callee)
+        if sname.is_empty() { return false }
         ref mname : Str = get_payload(callee.node_type)
         qname := sname.concat("_").concat(mname)
         return precomp_has_macro(qname)
@@ -369,10 +526,8 @@ is_func_call := func(e: Expr) returns shallow Bool {
         return precomp_has_func(get_payload(callee.node_type))
     }
     if callee.node_type.is(NodeType.FieldAccess) {
-        if callee.children.len().eq(0) { return false }
-        ref recv : Expr = callee.child(0)
-        if recv.node_type.is(NodeType.Ident).not() { return false }
-        ref sname : Str = get_payload(recv.node_type)
+        sname := fa_recv_type_name(callee)
+        if sname.is_empty() { return false }
         ref mname : Str = get_payload(callee.node_type)
         qname := sname.concat("_").concat(mname)
         return precomp_has_func(qname)
@@ -382,10 +537,9 @@ is_func_call := func(e: Expr) returns shallow Bool {
 
 // Uniform fold: walk the subtree rooted at `e` and replace every FCall
 // child whose callee is a known macro or pure func with its folded
-// literal. Macros are forced (require_known); funcs use the trivial-
-// literal-return fast path because the eval-based path still trips a
-// pre-existing interpreter use-after-free outside the narrow contexts
-// the old code allowed.
+// literal. Macros are forced (require_known); funcs try the fast path
+// first, then the eval-based path for direct Ident callees (so
+// `add(1, 2)` -> `3` works -- rstil-style).
 fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
     for i in 0..e.children.len() {
         ref child : Expr = e.child(i)
@@ -396,13 +550,46 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                 if is_null(lit).not() { e.children.set(i, own lit.clone()) }
             } else if is_func_call(child) {
                 ref lit : Expr = try_fast_fold_call(scope, child)
-                if is_null(lit).not() { e.children.set(i, own lit.clone()) }
+                if is_null(lit).not() {
+                    e.children.set(i, own lit.clone())
+                } else if e.node_type.is(NodeType.Body).not() {
+                    // Only fold FCalls inside expression contexts (parent
+                    // isn't Body). Statement-level FCalls have meaningful
+                    // side effects that fold would silently discard.
+                    if child.children.len().gt(0) {
+                        ref _cc : Expr = child.child(0)
+                        // Only fold Ident-callee FCalls. FA-callee folds
+                        // (method calls) require precomp-scope bindings
+                        // for the receiver that we can't always provide.
+                        if _cc.node_type.is(NodeType.Ident) {
+                            ref lit2 : Expr = try_eval_call(scope, child, false, ctx)
+                            if is_null(lit2).not() { e.children.set(i, own lit2.clone()) }
+                        }
+                    }
+                }
+            }
+        }
+        // Forward-track typer-hoisted temp Decls (`_t_*`) with literal
+        // rhs so siblings can fold calls through them. The hoister
+        // numbers temps program-globally, so `_t_*` names are unique
+        // across sibling bodies. User-named locals are intentionally
+        // NOT tracked: shared names (`x`, `result`, `i`) across sibling
+        // bodies would let one body's value bleed into another's fold
+        // via the global `known` Map. (rstil avoids this with a scope
+        // stack; til doesn't have one.)
+        if child.node_type.is(NodeType.Decl) {
+            ref dd : Declaration = get_payload(child.node_type)
+            if dd.is_mut.not()
+            .and(dd.own_type.eq(OwnType.Ref).not())
+            .and(dd.name.starts_with("_t_"))
+            .and(child.children.len().gt(0)) {
+                track_literal(scope, dd.name, child.child(0))
             }
         }
     }
 }
 
-process_body := proc(scope: Scope, body: Expr, ctx: Context) {
+process_body := proc(scope: Scope, body: Expr, ctx: Context, shallow at_global: Bool) {
     fold_subtree(scope, body, ctx)
     // Namespace method bodies live in StructDef/EnumDef ns_decls, not in
     // the body tree, so fold_subtree never reaches them. Walk them here.
@@ -421,19 +608,24 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context) {
             }
         }
     }
-    // Track top-level Decl literals so future Idents see them as known.
-    // Recurse into FuncDef bodies. Mut Decls aren't constants. Ref Decls
-    // bind a location, not a value. Struct/Enum/FuncDef Decls aren't values.
+    // Track Decl literals so future Idents see them as known. Recurse
+    // into FuncDef bodies. Only track at top-level (at_global) -- inside
+    // function bodies, user-named locals (`x`, `result`, `i`) collide
+    // across siblings, and a global `known` Map would let one body's
+    // value bleed into another's fold. fold_subtree handles `_t_*`
+    // typer-hoisted temps directly during its walk (they're program-
+    // unique by counter, so they don't collide).
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.FuncDef) {
-            if rhs.children.len().gt(0) { process_body(scope, decl_body(stmt), ctx) }
+            if rhs.children.len().gt(0) { process_body(scope, decl_body(stmt), ctx, false) }
             continue
         }
         if rhs.node_type.is(NodeType.StructDef) { continue }
         if rhs.node_type.is(NodeType.EnumDef) { continue }
+        if at_global.not() { continue }
         ref dd : Declaration = get_payload(stmt.node_type)
         if dd.is_mut { continue }
         if dd.own_type.is(OwnType.Ref) { continue }
@@ -541,8 +733,8 @@ precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
 
     // 3. Fold calls in both core and user programs.
     known = Map.new("Str", Str.size(), "Value", Value.size())
-    if is_null(core_program).not() { process_body(global, core_program, ctx) }
-    process_body(global, program, ctx)
+    if is_null(core_program).not() { process_body(global, core_program, ctx, true) }
+    process_body(global, program, ctx, true)
 
     // Cleanup
     Map.delete(own known, false)
