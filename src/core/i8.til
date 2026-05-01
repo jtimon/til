@@ -1,5 +1,11 @@
 mode lib
 
+import("bool.til")
+import("dyn.til")
+import("i64.til")
+import("str.til")
+import("u64.til")
+
 I8 := struct {
 namespace:
     to_i64 := ext_func(shallow val: I8) returns shallow I64 {}

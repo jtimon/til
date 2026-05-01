@@ -1,6 +1,9 @@
 mode lib
 
-
+import("bool.til")
+import("dyn.til")
+import("i64.til")
+import("str.til")
 import("vec.til")
 
 /// Hash map from typed keys to typed values.

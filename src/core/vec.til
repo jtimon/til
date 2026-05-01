@@ -1,5 +1,10 @@
 mode lib
 
+import("bool.til")
+import("dyn.til")
+import("str.til")
+import("u8.til")
+
 vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}
 
 /// Dynamic array of typed elements.

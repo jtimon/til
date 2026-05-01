@@ -1,5 +1,12 @@
 mode lib
 
+import("bool.til")
+import("dyn.til")
+import("i64.til")
+import("str.til")
+import("u32.til")
+import("u64.til")
+
 /// Signed 32-bit integer.
 I32 := struct {
 namespace:

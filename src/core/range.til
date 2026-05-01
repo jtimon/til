@@ -1,3 +1,8 @@
+mode lib
+
+import("bool.til")
+import("u64.til")
+
 /// Integer interval from start (inclusive) to end (exclusive).
 Range := struct {
     start : U64 = 0

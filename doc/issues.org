@@ -4,7 +4,7 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/15] Pre
+* [0/14] Pre
 ** OPEN #172 Add test_runner regen mode for expected outputs
    Symptom:
 
@@ -289,7 +289,7 @@
       stripping ~type_from_name_init~ from
       ~register_function_def_for_stmt~ and ~infer_top_level_decl_type~.
 
-   2. [BLOCKED ON #162] Move ~gen_struct_clone_delete_for_stmt~,
+   2. Move ~gen_struct_clone_delete_for_stmt~,
       ~gen_enum_nonclone_methods_for_stmt~,
       ~gen_missing_enum_clone_for_stmt~,
       ~gen_struct_size_method_for_stmt~,
@@ -300,26 +300,22 @@
       bindings, so subsequent phases see no difference vs. user-written
       methods.
 
-      Attempted as a smallest-possible-step (move just the two
+      Earlier attempt (before ~#162~ landed) moved just the two
       scope-free generators ~gen_cmp_derived_for_stmt~ and
-      ~gen_unity_derived_for_stmt~ to ~infer_decl_stmt~ before
-      ~infer_expr~ walks ns_decls). Fails with ~no method 'lt' for
-      type 'U32'~ on ~ast.til:431~ et al -- ~ast.til~ is imported
-      before ~u32.til~ in core.til, and its function bodies call
-      ~U32.lt~. Today's ~init_declarations_global~ runs before any
-      typer visit, so derived methods exist regardless of file order;
-      moving synthesis into typer-time makes the typer's per-file
-      visit order load-bearing. The typer's ~type_file~ already does
-      recursion-with-memo, so once ~#162~ adds explicit per-file
-      imports the recursion produces a topo sort and step 2 unblocks
-      cleanly. No separate sort algorithm required.
+      ~gen_unity_derived_for_stmt~ into ~infer_decl_stmt~ before
+      ~infer_expr~ walks ns_decls. Failed with ~no method 'lt' for
+      type 'U32'~ on ~ast.til:431~ et al because ~ast.til~ was
+      typer-visited before ~u32.til~. Now that ~#162~ has added
+      per-file imports (e.g. ~ast.til~ explicitly imports ~u32.til~),
+      ~type_file~'s recursion produces the right topo order and the
+      same move should work cleanly. The earlier attempt is the
+      starting sketch.
 
-      Sub-finding: ~gen_cmp_derived_for_stmt~ and
-      ~gen_unity_derived_for_stmt~ are already scope-free pure AST
-      transforms (they read only the struct's own ~ns_decls~). Moving
-      them is purely architectural; they don't violate ~#165~'s spirit
-      where they live. The actual prize for step 2 is
-      ~gen_struct_clone_delete~ and ~gen_enum_nonclone_methods~,
+      Sub-finding from that attempt: ~gen_cmp_derived_for_stmt~ and
+      ~gen_unity_derived_for_stmt~ are scope-free pure AST transforms
+      (they read only the struct's own ~ns_decls~). Moving them is
+      purely architectural. The actual scope-using prize for step 2
+      is ~gen_struct_clone_delete~ and ~gen_enum_nonclone_methods~,
       which use scope to detect FuncPtr fields.
 
    3. Replace ~compute_struct_layout~ + ~compute_enum_layout~ with a
@@ -380,11 +376,11 @@
      that infrastructure and removes the last excuse to keep the
      pre-extracted import list.
    - ~#162~ Core files should import semantic dependencies explicitly
-     -- becomes the actual prerequisite for step 2 (not the other way
-     around): typer-time methodgen needs ~type_file~'s recursion to
-     produce a topo sort, which requires per-file imports to declare
-     the dependency edges. til already has ~type_file~ recursion +
-     ~ctx.imports_typer_done~; no separate sort algorithm needed.
+     -- FIXED. Per-file imports for every ~src/core/*.til~ now declare
+     the dependency edges that ~type_file~'s recursion uses to produce
+     a topological visit order. Step 2 can now move method synthesis
+     into the typer's per-decl visit without hitting the
+     ~ast.til~->U32 wall.
    - ~#116~ Imported files are parsed in isolation -- same root-cause
      family (cross-file visibility vs. phase ordering).
 
@@ -406,63 +402,6 @@
    WIP branch:
 
    - wip/per-file-import-init-type-prep (commit 957ab1a99)
-
-** OPEN #162 Core files should import semantic dependencies explicitly
-   We still rely on ~src/core/core.til~ import order for some dependencies.
-   This is fragile and makes refactors (like changing Map internals) break in
-   non-obvious ways.
-
-   Goal:
-
-   - Each ~src/core/*.til~ file should explicitly ~import("...")~ the other core
-     files it depends on.
-   - Then ~src/core/core.til~ can be ordered consistently (alphabetically is
-     fine) without encoding hidden dependency order.
-
-   Status:
-
-   - ~src/core/core.til~ alphabetized (the "order consistently" bullet).
-     Today's machinery does not depend on core.til's order at all:
-     ~init_file~ recursively registers every name in scope across every
-     imported file before the typer runs anywhere, so cross-file references
-     resolve regardless of where the importing file appears in core.til's
-     list. Alphabetizing is therefore a no-op on the build today.
-   - The wedged ~USize := U32~ position that originally motivated this
-     issue was a separate problem (alias registration silently dropped on
-     NotFound), already addressed in #165 step 1.
-
-   Remaining: per-file explicit imports.
-
-   - Each ~src/core/*.til~ file still needs to add ~import("...")~ for
-     the types it actually uses. Today this works without explicit
-     imports because ~init_declarations_global~ runs across every file
-     before any typer work; cross-file references thus see a fully
-     populated scope.
-   - This becomes a real constraint the moment ~#165~ step 2 lands
-     (move method synthesis from ~init_declarations_global~ into the
-     typer's per-decl visit). At that point, file A's typer visit must
-     come after file B's whenever A calls auto-generated methods on a
-     B-typed value, and that ordering is exactly what per-file imports
-     give us via the existing ~init_file~ / ~type_file~ recursion.
-   - Concrete example that bit this directly: today
-     ~src/core/ast.til~ has function bodies calling ~U32.lt~ on
-     ~Expr.line~, but no ~import("u32.til")~. With ~gen_cmp_derived~
-     still in init_declarations_global the typer sees ~U32.lt~
-     regardless of order; with it moved to typer-time the build breaks
-     at ast.til:431 unless ast.til imports u32.til (or the recursion
-     reaches u32.til through some other dep).
-   - Short list of dependencies that need to be added (not exhaustive --
-     full audit is part of the work):
-     - ~src/core/map.til~ depends on ~vec.til~.
-     - ~src/core/dyn_map.til~ depends on ~map.til~ and ~tuple.til~.
-     - ~src/core/ast.til~ depends on ~bool~, ~str~, ~vec~, ~map~,
-       ~dyn~, ~u8~, ~u32~, ~u64~, ~i32~, ~i64~ (everything its struct
-       fields and function bodies reference).
-     - ~src/core/str.til~ uses ~Vec~ in ~Str.split~; ~src/core/vec.til~
-       uses ~Str~ in error messages and elem-type fields. Real cycle --
-       resolve by picking one direction (likely ~vec~ imports ~str~,
-       and ~str.til~ uses ~Vec~ via builtin name resolution rather
-       than explicit import) or by extracting the shared bit.
 
 ** OPEN #158 One pass per phase across the whole pipeline
    Each phase listed in doc/pipeline.org (lex, parse,

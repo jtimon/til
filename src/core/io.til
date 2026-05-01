@@ -1,3 +1,10 @@
+mode lib
+
+import("bool.til")
+import("dyn.til")
+import("str.til")
+import("u8.til")
+
 print_single := ext_proc(s: Str) {}
 eprint_single := ext_proc(s: Str) {}
 print_flush := ext_proc() {}

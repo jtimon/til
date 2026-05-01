@@ -1,5 +1,16 @@
 mode lib
 
+import("bool.til")
+import("dyn.til")
+import("i32.til")
+import("i64.til")
+import("map.til")
+import("str.til")
+import("u32.til")
+import("u64.til")
+import("u8.til")
+import("vec.til")
+
 // builtin types
 
 // --- TilType enum ---
@@ -469,7 +480,6 @@ decl_body := func(stmt: Expr) returns ref Expr {
     ref body : Expr = stmt.child(0).child(0)
     return body
 }
-
 
 def_ns_decls := func(sdef: Expr) returns ref Vec {
     switch sdef.node_type {

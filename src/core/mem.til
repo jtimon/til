@@ -1,3 +1,10 @@
+mode lib
+
+import("bool.til")
+import("dyn.til")
+import("i32.til")
+import("u64.til")
+
 free := ext_func(own elem: Dynamic) {}
 is_null := ext_func(p: Dynamic) returns shallow Bool {}
 malloc := ext_func(shallow count: U64) returns Dynamic {}

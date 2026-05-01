@@ -1,5 +1,9 @@
 mode pura
 
+import("bool.til")
+import("i64.til")
+import("str.til")
+
 exit := ext_func(shallow code: I64) {}
 
 panic := func(loc_str: Str, parts: ..Str) {

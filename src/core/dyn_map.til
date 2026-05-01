@@ -1,6 +1,9 @@
 mode lib
 
+import("bool.til")
+import("dyn.til")
 import("map.til")
+import("str.til")
 import("tuple.til")
 
 /// String-keyed map of dynamically-typed values.

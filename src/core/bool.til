@@ -1,5 +1,8 @@
 mode lib
 
+import("i64.til")
+import("str.til")
+
 and := ext_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
 or := ext_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
 not := ext_func(shallow a: Bool) returns shallow Bool {}

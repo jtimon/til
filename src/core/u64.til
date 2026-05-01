@@ -1,5 +1,10 @@
 mode lib
 
+import("bool.til")
+import("dyn.til")
+import("i64.til")
+import("str.til")
+
 /// Unsigned 64-bit integer.
 U64 := struct {
 namespace:
