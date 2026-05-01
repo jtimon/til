@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 168
+# NEXT_ISSUE: 169
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -1630,7 +1630,100 @@
   Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
   (it's useful for other things), but containers no longer use it.
 
-* [0/42] Post
+* [0/43] Post
+** OPEN #168 Typer: reject ~ref~ bindings initialized from owned values
+   Background:
+
+   The leaks closed for ~FCallData.fn_sig~ in ~src/self/typer.til~
+   (under #109) all had the same shape:
+
+   #+begin_src til
+       ref mut fn_sig : Expr = NULL
+       ...
+       fcd.fn_sig = src.clone()
+   #+end_src
+
+   ~src.clone()~ returns an owned heap allocation. ~ref~ is a
+   non-owning pointer slot. Storing the owned value into a ~ref~
+   slot leaves the allocation with no owner: the auto-generated
+   delete skips ~ref~ fields, the function's stack frame holds no
+   handle, and the heap copy leaks. In every shape of this pattern
+   -- decls, assignments, struct field defaults, ref-typed
+   function returns -- the predicate is the same: a ~ref~ binding
+   cannot legally hold an owned value. If the caller wanted
+   ownership they would have written ~own~; if they wanted a
+   borrow they would not have produced an owned value to begin
+   with.
+
+   Plan:
+
+   Have the typer reject ~ref~ / ~ref mut~ bindings whose
+   initializer is an owned value, growing the rule incrementally
+   so each step lands, surfaces its own audit, and informs the
+   next. The issue stays open until the user decides the rule is
+   broad enough.
+
+   Incremental steps (each is its own commit):
+
+   1. ~ref X := Y.clone()~ in a local decl. Most mechanical case:
+      look at the ~Decl~ initializer, if it is an ~NodeType.FCall~
+      whose callee child is ~NodeType.FieldAccess("clone")~,
+      emit a ~type_error~. No existing source is expected to use
+      this shape after #109's bucket of ~fn_sig~ clones; if any
+      remain they are bugs in the same class.
+
+   2. Generalize the predicate from "literal ~.clone()~" to "any
+      FCall whose callee returns ~OwnType.Own~". Constructors
+      (~Foo()~), ~take_*~ helpers, factory funcs, etc. The typer
+      already tracks ~return_own_type~; the new piece is per-
+      callsite resolution through ~Ident~ / ~FieldAccess~ /
+      namespace-method shapes (similar logic to the
+      ~callee_returns_shallow~-style helpers in builder.til,
+      hoistable into a typer helper).
+
+   3. Apply the rule to struct field defaults:
+      ~ref mut x : T = Y.clone()~ as a struct field declaration.
+      Same predicate, but the check site is the parser/initer
+      pass that records ~Declaration.default_value~, not the
+      typer's local-decl path. Same audit afterwards.
+
+   4. Apply the rule to assignments: ~ref_lvalue = X.clone()~
+      (and the generalized owned RHS). Harder than decls because
+      the typer must resolve the lvalue's declared ~own_type~
+      from scope rather than reading it off the ~Decl~ node.
+      This is the shape that originally bit ~FCallData.fn_sig~,
+      so it is the highest-value step -- worth keeping as a
+      named step rather than folding into one of the earlier
+      ones.
+
+   5. Apply the rule to ref-typed function returns:
+      ~func f() returns ref T { return Y.clone() }~. The
+      returned value has nowhere to live in the caller. Check
+      site is the ~Return~-statement inference path, gated on
+      the enclosing func's declared ~return_own_type == Ref~.
+
+   6. Codebase audit pass after each step lands: run the typer
+      over every ~src/**/*.til~ file, fix any new violation the
+      step surfaced (or open a follow-up issue if a violation
+      reveals a deeper structural fix). Some violations will be
+      genuine bugs in the same class as #109; others may be
+      false positives that the predicate needs to refine away.
+
+   Notes:
+
+   - Suggested error message: "ref binding cannot be initialized
+     from an owned value (~.clone()~ / constructor / function
+     returning ~own~) -- use ~own~ to keep the value, or borrow
+     the source directly". Each step refines what counts as
+     "owned value".
+
+   - Each step's acceptance: the typer rejects every shape it
+     covers, existing tests still pass, and a new typer error
+     test pins the diagnostic for the new shape.
+
+   - More steps may be added as the audit surfaces patterns; the
+     list above is a starting point, not a closed catalog.
+
 ** OPEN #167 Follow-ups from #166: eval_arg / dispatch.til cleanup
    While fixing #166 (~deref slot pointer in eval_arg before
    reinterpret~) a few smaller follow-ups surfaced in the same
