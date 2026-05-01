@@ -216,7 +216,7 @@ test_payload_enum_field_mut := test() {
     assert_eq(__LOC__, d.y, 8)
 }
 
-# --- switch on enums (moved from misc.til) ---
+# --- switch on enums ---
 
 test_switch_enum := test() {
     mut result := ""
