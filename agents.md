@@ -117,30 +117,32 @@ Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
 ## Rebasing (remote sessions)
 
 When rebasing a feature branch on top of origin/master, do NOT abort on
-conflicts in automatically generated files (boot/*, doc/totals.csv,
-img/totals.svg). Those files are regenerated from source, so it's safe
-to accept whatever master has for them. The full procedure is:
+conflicts in automatically generated files (boot/*). Those files are
+regenerated from source, so it's safe to accept whatever master has for
+them. Remote sessions don't commit doc/totals.csv or img/totals.svg, so
+those files don't enter rebase conflicts.
+
+The base procedure is:
 
 1. `git fetch origin master`
 2. `git rebase origin/master`
-3. On conflicts in generated files, accept master's version:
-   `git checkout --ours boot/til.c boot/til_forward.h doc/totals.csv img/totals.svg`
-   then `git add` those files and `git rebase --continue`.
-   Do NOT --ours source files (src/**, .github/**, Makefile, CLAUDE.md, etc);
-   resolve those manually.
-4. After the rebase finishes: `git reset --soft HEAD~1` to un-commit but
-   keep all your changes staged.
-5. Revert totals files to master's version so `make test` regenerates
-   them cleanly on top of the new codebase:
-   `git checkout HEAD -- doc/totals.csv img/totals.svg`
-6. `make clean && make test`
-7. `git add -A && git commit ...` with regenerated files included:
-   boot/* always; doc/totals.csv and img/totals.svg only on local
-   agents. Remote agents must discard totals before committing
-   (`git restore doc/totals.csv img/totals.svg`) -- see the Commits
-   section above.
-8. `git push -u origin <branch>` (force-push only if the user explicitly
-   authorized it; otherwise ask first).
+3. If the rebase completes cleanly: done. Just push.
+4. If conflicts ONLY in generated files (boot/*):
+   a. `git checkout --ours boot/til.c boot/til_forward.h` (and any other
+      conflicted boot/ files), then `git add` them and
+      `git rebase --continue`.
+   b. After rebase finishes, soft-reset and regenerate so the boot/
+      artifacts match the rebased source: `git reset --soft HEAD~1`,
+      `make clean && make test`, then re-stage and commit. Discard totals
+      with `git restore doc/totals.csv img/totals.svg` before committing.
+   c. Push (force-with-lease since history was rewritten).
+5. If source files (src/**, .github/**, Makefile, CLAUDE.md, etc.) have
+   conflicts: resolve them manually. Do NOT `--ours` source files.
+   After resolution, regenerating boot/ is recommended (`make clean &&
+   make test`) so the boot artifacts match the resolved source.
+
+Soft-reset + regenerate is only required when (4) the rebase produced
+boot/* conflicts; a clean rebase needs no soft-reset on remote sessions.
 
 NEVER `git rebase --abort` on conflicts in generated files alone. Only
 abort if a source-file conflict is genuinely unresolvable.
