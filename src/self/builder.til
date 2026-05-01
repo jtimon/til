@@ -66,11 +66,65 @@ is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns shallow Bool {
     return false
 }
 
+// Maps local FuncPtr name -> resolved FuncDef Expr pointer, captured at
+// emit_stmt_decl for the FuncPtr branch. Lets fcall_fn_sig recover the
+// signature at the eventual call site, since the original typer scope
+// (where the binding lived) is gone by emit time. Saved/restored across
+// emit_func_def alongside the rest of the per-function builder state.
+mut local_fn_sigs := Map.new("Str", Str.size(), "Dynamic", I64.size())
+
+resolve_local_fn_sig := func(name: Str) returns ref Expr {
+    if local_fn_sigs.has(name).not() { return NULL }
+    return deref(local_fn_sigs.get(name))
+}
+
 fcall_fn_sig := func(fcall: Expr) returns ref Expr {
     if is_null(fcall) { return NULL }
-    switch fcall.node_type {
-    case NodeType.FCall(fcd):
-        return fcd.fn_sig
+    if fcall.node_type.is(NodeType.FCall).not() { return NULL }
+    if fcall.children.len().eq(0) { return NULL }
+    ref callee : Expr = fcall.child(0)
+    // Only FuncPtr-typed callees go through the indirect-call emit path, so
+    // this is the only shape that actually needs an answer. Other callees
+    // (struct constructors, regular func calls) have null fn_sig today.
+    if callee.til_type.is(TilType.FuncPtr).not() { return NULL }
+    ref s : TypeScope = codegen_lp().ctx.scope
+    ref via_scope : Expr = resolve_fn_sig(fcall, s)
+    if is_null(via_scope).not() { return via_scope }
+    // resolve_fn_sig only sees globals + struct fields. The remaining FuncPtr
+    // shapes are params and locals of the function currently being emitted;
+    // their bindings lived in a transient func_scope that is gone by now.
+    switch callee.node_type {
+    case NodeType.Ident(name):
+        // Fallback 1: FuncPtr param of the current function. The param's
+        // explicit_type is the FuncSig alias name (always a global binding).
+        if is_null(current_fdef).not() {
+            switch current_fdef.node_type {
+            case NodeType.FuncDef(cur_fd):
+                for p : Declaration in cur_fd.params {
+                    if p.name.eq(name).not() { continue }
+                    if p.explicit_type.len().eq(0) { return NULL }
+                    sf := s.find(p.explicit_type)
+                    switch sf {
+                    case ScopeFind.Found(ftb):
+                        if is_null(ftb.func_def) { return NULL }
+                        if ftb.func_def.children.len().neq(0) { return NULL }
+                        return ftb.func_def
+                    case:
+                    }
+                    return NULL
+                }
+            case:
+            }
+        }
+        // Fallback 2: local FuncPtr decl whose signature was captured at
+        // emit_stmt_decl time.
+        ref via_local : Expr = resolve_local_fn_sig(name)
+        if is_null(via_local).not() { return via_local }
+        // Fallback 3: the Ident itself is a known global function name used
+        // as a FuncPtr value (e.g. an inlined ref to a top-level func).
+        ref via_global : Expr = find_callee_fdef(name)
+        if is_null(via_global).not() { return via_global }
+        return NULL
     case:
         return NULL
     }
@@ -823,6 +877,46 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
     ref dd : Declaration = get_payload(e.node_type)
     if e.children.len().eq(0) { return }
     ref rhs : Expr = e.child(0)
+    // For any FuncPtr-typed decl (own, ref, or value), capture the local's
+    // signature so fcall_fn_sig can recover it at the eventual call site.
+    // The original typer scope where `dd` lived is gone by emit time, so we
+    // pin the FuncDef pointer here while we still have access to the rhs.
+    if e.til_type.is(TilType.FuncPtr) {
+        ref decl_scope : TypeScope = codegen_lp().ctx.scope
+        ref mut decl_sig : Expr = NULL
+        switch rhs.node_type {
+        case NodeType.Ident(rhs_name):
+            decl_sig = find_callee_fdef(rhs_name)
+            if is_null(decl_sig) {
+                sf := decl_scope.find(rhs_name)
+                switch sf {
+                case ScopeFind.Found(b):
+                    if is_null(b.func_def).not() { decl_sig = b.func_def }
+                case:
+                }
+            }
+        case NodeType.FCall:
+            decl_sig = resolve_fn_sig(rhs, decl_scope)
+        case:
+        }
+        // If no rhs-based resolution worked, fall back to the decl's
+        // explicit_type (the declared FuncSig alias name).
+        if is_null(decl_sig).and(dd.explicit_type.len().gt(0)) {
+            sf := decl_scope.find(dd.explicit_type)
+            switch sf {
+            case ScopeFind.Found(b):
+                if is_null(b.func_def).not() {
+                    if b.func_def.children.len().eq(0) { decl_sig = b.func_def }
+                }
+            case:
+            }
+        }
+        if is_null(decl_sig).not() {
+            sig_buf : Dynamic = malloc(I64.size())
+            write_ptr(sig_buf, decl_sig)
+            local_fn_sigs.set(own dd.name.clone(), own sig_buf)
+        }
+    }
     if e.til_type.is(TilType.FuncPtr).and(dd.own_type.is(OwnType.Ref).not()).and(rhs.node_type.is(NodeType.FuncDef).not()) {
         mut ct := "void *"
         mut is_typedef := false
@@ -1908,15 +2002,16 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                 }
             }
         }
-        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals
+        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals; saved_lfo := local_fn_sigs
         stack_locals = Set.new("Str", Str.size()); stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
         unsafe_to_hoist = Set.new("Str", Str.size()); ref_locals = Set.new("Str", Str.size())
+        local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
         collect_unsafe_to_hoist(body)
         in_main_func = true
         emit_body(f, body, 1.to_i32())
         in_main_func = false
-        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
-        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
+        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete(); own local_fn_sigs.delete()
+        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl; local_fn_sigs = saved_lfo
         f.write("    return 0;\n")
         f.write("}\n")
     } else {
@@ -1932,13 +2027,14 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         }
         in_func_def = true
         current_fdef = func_def
-        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals
+        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals; saved_lfo := local_fn_sigs
         stack_locals = Set.new("Str", Str.size()); stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
         unsafe_to_hoist = Set.new("Str", Str.size()); ref_locals = Set.new("Str", Str.size())
+        local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
         collect_unsafe_to_hoist(body)
         emit_body(f, body, 1.to_i32())
-        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
-        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
+        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete(); own local_fn_sigs.delete()
+        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl; local_fn_sigs = saved_lfo
         in_func_def = false
         f.write("}\n")
     }

@@ -107,7 +107,6 @@ FCallData := struct {
     mut kwargs_count : USize = 0
     mut is_splat := false
     mut own_args : U64 = 0
-    ref mut fn_sig : Expr = NULL
 namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
         return a.variadic_index.eq(b.variadic_index)

@@ -169,6 +169,72 @@ try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
     return true
 }
 
+// Resolve the FunctionDef Expr that describes the callee signature for an
+// FCall, by walking the AST + scope rather than reading a cached field.
+// Mirrors the four FuncPtr-indirect cases the typer used to handle:
+//   1/2. callee is FieldAccess on a struct whose field has a FuncSig type
+//   3.   callee is an Ident bound to a FuncPtr local/param
+//   4.   callee is an Ident for a regular func that returns a FuncSig
+// Returns NULL when the binding is not in `scope` (e.g. param/local at
+// builder time after func_scope was destroyed). Callers that need to
+// resolve those cases must layer their own fallback on top.
+resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
+    if is_null(fcall) { return NULL }
+    if fcall.node_type.is(NodeType.FCall).not() { return NULL }
+    if fcall.children.len().eq(0) { return NULL }
+    ref callee : Expr = fcall.child(0)
+    switch callee.node_type {
+    case NodeType.Ident(name):
+        ref cb : TypeBinding = scope.get_binding(name)
+        if is_null(cb) { return NULL }
+        if cb.type.is(TilType.FuncPtr).not() { return NULL }
+        if is_null(cb.func_def) { return NULL }
+        if cb.func_type.is(FuncType.None) {
+            return cb.func_def
+        }
+        switch cb.func_def.node_type {
+        case NodeType.FuncDef(cb_fdef):
+            if cb_fdef.return_type.len().eq(0) { return NULL }
+            sf := scope.find(cb_fdef.return_type)
+            switch sf {
+            case ScopeFind.Found(rsb):
+                if is_null(rsb.func_def) { return NULL }
+                if rsb.func_def.children.len().neq(0) { return NULL }
+                return rsb.func_def
+            case:
+            }
+        case:
+        }
+        return NULL
+    case NodeType.FieldAccess(method):
+        if callee.children.len().eq(0) { return NULL }
+        ref obj : Expr = callee.child(0)
+        sname := til_type_name(obj.til_type)
+        if sname.len().eq(0) { return NULL }
+        ref sdef : Expr = scope.get_struct(sname)
+        if is_null(sdef) { return NULL }
+        switch sdef.node_type {
+        case NodeType.StructDef(sdd):
+            for fd : Declaration in sdd.fields {
+                if fd.name.eq(method).not() { continue }
+                if fd.explicit_type.len().eq(0) { continue }
+                sf := scope.find(fd.explicit_type)
+                switch sf {
+                case ScopeFind.Found(ftb):
+                    if is_null(ftb.func_def) { return NULL }
+                    if ftb.func_def.children.len().neq(0) { return NULL }
+                    return ftb.func_def
+                case:
+                }
+            }
+        case:
+        }
+        return NULL
+    case:
+        return NULL
+    }
+}
+
 infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, shallow in_func: I32, ctx: Context) returns shallow Bool {
     if is_null(sdef).or(obj.til_type.is(TilType.Struct).not().and(obj.til_type.is(TilType.Enum).not())) { return false }
     switch sdef.node_type {
@@ -181,12 +247,6 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
             case ScopeFind.Found(ftb):
                 if is_null(ftb.func_def).or(ftb.func_def.children.len().neq(0)) { continue }
                 fa.til_type = TilType.FuncPtr
-                switch e.node_type {
-                case NodeType.FCall(_fcd1):
-                    _fcd1.fn_sig = ftb.func_def
-                case:
-                    UNREACHABLE(__LOC__)
-                }
                 ref sig : Expr = ftb.func_def
                 mut nargs : U32 = e.children.len()
                 nargs = nargs.sub(1)
@@ -200,12 +260,6 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
                         if ai.gte(sig_fdef.params.len()) { break }
                         infer_expr(scope, e.child(ai.add(1)), in_func, ctx)
                         ai = ai.add(1)
-                    }
-                    switch e.node_type {
-                    case NodeType.FCall(_fcd2):
-                        _fcd2.fn_sig = sig
-                    case:
-                        UNREACHABLE(__LOC__)
                     }
                     if sig_fdef.return_type.len().gt(0) {
                         e.til_type = type_from_name(sig_fdef.return_type, scope)
@@ -731,14 +785,6 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                 ref callee0 : Expr = e.child(0)
                 callee0.til_type = TilType.FuncPtr
                 if is_null(callee_bind.func_def).not() {
-                    switch e.node_type {
-                    case NodeType.FCall(_fcd3):
-                        _fcd3.fn_sig = callee_bind.func_def
-                    case:
-                        UNREACHABLE(__LOC__)
-                    }
-                }
-                if is_null(callee_bind.func_def).not() {
                     switch callee_bind.func_def.node_type {
                     case NodeType.FuncDef(cb_fdef):
                         if cb_fdef.return_type.len().gt(0) {
@@ -798,34 +844,6 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     // fn_type (from binding.type) already carries the name payload via
     // TilType.Struct(name) or TilType.Enum(name) when registered, so
     // no additional struct_name assignment is needed.
-    if fn_type.is(TilType.FuncPtr) {
-        if is_null(callee_bind).not() {
-            if is_null(callee_bind.func_def).not() {
-                switch callee_bind.func_def.node_type {
-                case NodeType.FuncDef(cb_fdef3):
-                    if cb_fdef3.return_type.len().gt(0) {
-                        sf_rsb := scope.find(cb_fdef3.return_type)
-                        switch sf_rsb {
-                        case ScopeFind.Found(rsb):
-                            if is_null(rsb.func_def).not() {
-                                if rsb.func_def.children.len().eq(0) {
-                                    switch e.node_type {
-                                    case NodeType.FCall(_fcd4):
-                                        _fcd4.fn_sig = rsb.func_def
-                                    case:
-                                        UNREACHABLE(__LOC__)
-                                    }
-                                }
-                            }
-                        case:
-                        }
-                    }
-                case:
-                    UNREACHABLE(__LOC__)
-                }
-            }
-        }
-    }
     ref cur_mode : Mode = ctx.mode
     mut debug_exempt := false
     if cur_mode.debug_prints {
@@ -2063,9 +2081,10 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
                 if is_null(src).not() {
                     if is_null(src.func_def).not() { decl_b.func_def = src.func_def }
                 }
-            case NodeType.FCall(_rfc):
-                if is_null(_rfc.fn_sig).not() {
-                    decl_b.func_def = _rfc.fn_sig
+            case NodeType.FCall:
+                ref rfc_sig : Expr = resolve_fn_sig(rhs, scope)
+                if is_null(rfc_sig).not() {
+                    decl_b.func_def = rfc_sig
                 }
             case:
             }

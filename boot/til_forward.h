@@ -299,7 +299,6 @@ typedef struct FCallData {
     U32 kwargs_count;
     Bool is_splat;
     U64 own_args;
-    Expr *fn_sig;
 } FCallData;
 
 
@@ -1094,6 +1093,7 @@ void type_error(Expr * e, Str * msg);
 void type_error_at(Str * path, U32 line, U32 col, Str * msg);
 Expr * find_namespace_func(Expr * sdef, Str * method);
 Bool try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * method, Str * type_name);
+Expr * resolve_fn_sig(Expr * fcall, TypeScope * scope);
 Bool infer_func_ptr_field_call(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Expr * sdef, Str * method, I32 in_func, Context * ctx);
 void validate_fcall_own_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind);
 Bool infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
@@ -1318,6 +1318,7 @@ LoadedProgram * codegen_lp(void);
 void codegen_set_lp(LoadedProgram * lp);
 void codegen_clear_lp(void);
 Bool is_dyn_call_name(Str * name, Bool * has_ret);
+Expr * resolve_local_fn_sig(Str * name);
 Expr * fcall_fn_sig(Expr * fcall);
 Bool is_stack_local(Str * name);
 Bool is_value_global(Str * name);
@@ -1794,6 +1795,7 @@ extern Set stack_locals;
 extern Map stack_local_types;
 extern Set unsafe_to_hoist;
 extern Set ref_locals;
+extern Map local_fn_sigs;
 extern Str interp_path;
 extern Bool has_return;
 extern Bool has_break;

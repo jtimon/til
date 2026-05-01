@@ -134,7 +134,6 @@
 *** mut kwargs_count : USize = 0
 *** mut is_splat := false
 *** mut own_args : U64 = 0
-*** ref mut fn_sig : Expr = NULL
 ** StructDef: StructDef
 *** mut total_struct_size : I32 = 0
 *** mut fields := Vec.new("Declaration", Declaration.size())
