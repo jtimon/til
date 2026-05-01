@@ -94,7 +94,7 @@ test_dynamic_narrowing := test() {
     my_bvec := vec("Bool", true, false)
     assert(__LOC__, my_bvec.get(0).and(my_bvec.get(0)))
     assert(__LOC__, my_bvec.get(1).or(my_bvec.get(0)))
-    // TODO: my_bvec.get(1).not() -- Bool values in Vec don't round-trip correctly (false->true)
+    // TODO(#166): my_bvec.get(1).not() -- Bool values in Vec don't round-trip via chained UFCS (false->true)
 }
 
 test_dynamic_local := test() {

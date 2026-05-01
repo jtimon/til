@@ -30,3 +30,20 @@ test_vec2_inc_dec := test() {
     assert_eq(__LOC__, v.x, 3)
     assert_eq(__LOC__, v.y, 5)
 }
+
+// Auto-generated lt/gt/lte/gte/eq/neq from a user-defined cmp.
+// Vec2 above defines cmp; the comparison ops below are all derived.
+test_vec2_cmp_derived := test() {
+    a := Vec2(x = 1, y = 2)
+    b := Vec2(x = 1, y = 5)
+    c := Vec2(x = 1, y = 2)
+
+    assert(__LOC__, a.lt(b))
+    assert(__LOC__, b.gt(a))
+    assert(__LOC__, a.lte(c))
+    assert(__LOC__, a.gte(c))
+    assert(__LOC__, a.lte(b))
+    assert(__LOC__, b.gte(a))
+    assert(__LOC__, a.eq(c))
+    assert(__LOC__, a.neq(b))
+}

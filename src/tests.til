@@ -375,7 +375,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/arrays.til", flags)
     add_mode(tests, "src/test/sets.til", flags)
     add_mode(tests, "src/test/maps.til", flags)
-    add_mode(tests, "src/test/bug150.til", flags)
+    add_mode(tests, "src/test/regression.til", flags)
     add_mode(tests, "src/test/globals.til", flags)
     add_mode(tests, "src/test/globals_cli.til", flags)
     add_mode(tests, "src/test/directives.til", flags)

@@ -385,3 +385,16 @@ test_switch_range_boundary := test() {
     }
     assert(__LOC__, result)
 }
+
+// `break` inside a switch case should exit the enclosing loop, not the
+// switch (til has no fallthrough, so cases don't need their own break)
+test_switch_break_in_loop := test() {
+    mut total := 0
+    for i in 0..10 {
+        switch i {
+        case 5: break
+        case: total = total.add(1)
+        }
+    }
+    assert_eq(__LOC__, total, 5)
+}

@@ -1,0 +1,63 @@
+mode test
+
+// Regression tests. Add new entries as bugs are fixed; one test per
+// bug, named `bug<N>`. Top-level decls (structs, enums, maps) live in
+// this file too -- prefix them with `Bug<N>` to avoid future
+// collisions as more entries accumulate.
+
+// --- #47: cross-namespace method calls -------------------------------
+//
+// Original bug: redeclaring I64 as ext_struct silently overwrote the
+// core definition. Fix: struct/enum redeclaration now produces an
+// error. This regression covers cross-namespace calls (calling methods
+// from one type's namespace inside another type's namespace).
+
+Bug47Helper := struct {
+    val : I64 = 0
+namespace:
+    make := func(n: I64) returns Bug47Helper {
+        return Bug47Helper(val = n)
+    }
+}
+
+Bug47Wrapper := struct {
+    data : Bug47Helper = Bug47Helper()
+namespace:
+    from_int := func(n: I64) returns Bug47Wrapper {
+        // Cross-namespace call: Bug47Helper.make from Bug47Wrapper's namespace
+        h := Bug47Helper.make(n)
+        return Bug47Wrapper(data = h)
+    }
+}
+
+bug47 := test() {
+    // Cross-namespace call between user-defined structs
+    w := Bug47Wrapper.from_int(42)
+    assert_eq(__LOC__, w.data.val, 42)
+    // Cross-namespace call into a core type's namespace
+    s := Str.with_capacity(10)
+    assert_eq_str(__LOC__, s, "")
+}
+
+// --- #150 / #153: module-level enum-valued Map literal ---------------
+//
+// #150: scavenger dropped top-level init statements in test mode (so
+// Map.set got pruned) and emit_as_ptr passed a stack compound literal
+// to Map.set's own val param (so the internal free() hit a non-heap
+// pointer and the binary aborted during teardown).
+// #153: reinterpret_ptr_value hardcoded enum tag to 0, so
+// `ref va : E = m.get("a")` always read back tag 0 in the interpreter.
+
+Bug150E := enum { A, B, C }
+
+Bug150M := {
+    "a": Bug150E.A,
+    "b": Bug150E.B
+}
+
+bug150 := test() {
+    ref va : Bug150E = Bug150M.get("a")
+    assert(__LOC__, va.eq(Bug150E.A))
+    ref vb : Bug150E = Bug150M.get("b")
+    assert(__LOC__, vb.eq(Bug150E.B))
+}
