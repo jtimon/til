@@ -4031,6 +4031,7 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
     old.move_from(body.children)
 
     mut new_ch := Vec.new("Expr", Expr.size())
+    mut any_hoisted := false
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
         if is_compile_directive(stmt) { continue }
@@ -4054,12 +4055,13 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
             // NodeType.While: skip condition -- hoisting changes loop semantics
         }
 
+        if hoisted.len().gt(0) { any_hoisted = true }
         new_ch.append(own hoisted)
         new_ch.push_take(old, i)
     }
 
     body.children.move_from(new_ch)
-    reregister_scope_defs(body, scope)
+    if any_hoisted { reregister_scope_defs(body, scope) }
 }
 
 insert_field_deletes := func(mut body: Expr, scope: TypeScope) {
