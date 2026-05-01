@@ -3779,11 +3779,17 @@ desugar_set_literals := proc(mut body: Expr, mut scope: TypeScope) {
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
-        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.child(0).node_type.is(NodeType.SetLit)) {
-            if desugar_set_literal_decl(stmt, new_ch, scope).not() {
-                new_ch.push_take(old, i)
+        // Nested ifs: .and() is eager so a chained variant would call
+        // stmt.child(0) on stmts with empty children (e.g. break/continue).
+        mut handled := false
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            if stmt.child(0).node_type.is(NodeType.SetLit) {
+                if desugar_set_literal_decl(stmt, new_ch, scope) {
+                    handled = true
+                }
             }
-        } else {
+        }
+        if handled.not() {
             new_ch.push_take(old, i)
         }
     }
@@ -3809,11 +3815,15 @@ desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
-        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.child(0).node_type.is(NodeType.MapLit)) {
-            if desugar_map_literal_decl(stmt, new_ch, scope).not() {
-                new_ch.push_take(old, i)
+        mut handled := false
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            if stmt.child(0).node_type.is(NodeType.MapLit) {
+                if desugar_map_literal_decl(stmt, new_ch, scope) {
+                    handled = true
+                }
             }
-        } else {
+        }
+        if handled.not() {
             new_ch.push_take(old, i)
         }
     }
