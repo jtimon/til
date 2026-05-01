@@ -300,3 +300,9 @@ useless_proc := proc(_x: I64) {
     return
 }
 useless_proc(1)
+
+// #168 step 1: ref binding cannot be initialized from .clone()
+TerrCloneRefSrc := struct { mut field := 0 }
+terr_clone_ref_src := TerrCloneRefSrc(field=1)
+ref terr_clone_ref : TerrCloneRefSrc = terr_clone_ref_src.clone()
+ref mut terr_clone_ref_mut : TerrCloneRefSrc = terr_clone_ref_src.clone()

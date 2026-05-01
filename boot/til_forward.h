@@ -1094,6 +1094,7 @@ void type_error_at(Str * path, U32 line, U32 col, Str * msg);
 Expr * find_namespace_func(Expr * sdef, Str * method);
 Bool try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * method, Str * type_name);
 Expr * resolve_fn_sig(Expr * fcall, TypeScope * scope);
+void check_ref_decl_owned_init(Expr * stmt);
 Bool infer_func_ptr_field_call(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Expr * sdef, Str * method, I32 in_func, Context * ctx);
 void validate_fcall_own_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind);
 Bool infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);

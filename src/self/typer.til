@@ -235,6 +235,30 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
     }
 }
 
+// #168 step 1: ref bindings cannot be initialized from .clone() -- the
+// value would be heap-allocated with no owner. Narrow check: matches a
+// literal `.clone()` callee in a Decl whose own_type is Ref. Future
+// steps generalize the predicate (any owned-returning fcall) and broaden
+// the surface (struct field defaults, assignments, ref-typed returns).
+check_ref_decl_owned_init := proc(stmt: Expr) {
+    if stmt.children.len().eq(0) { return }
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        if sdecl.own_type.is(OwnType.Ref).not() { return }
+        ref rhs : Expr = stmt.child(0)
+        if rhs.node_type.is(NodeType.FCall).not() { return }
+        if rhs.children.len().eq(0) { return }
+        ref callee : Expr = rhs.child(0)
+        switch callee.node_type {
+        case NodeType.FieldAccess(method):
+            if method.eq("clone").not() { return }
+            type_error(stmt, "ref binding '".concat(sdecl.name).concat("' cannot be initialized from .clone() -- use 'own' to keep the value, or borrow the source directly"))
+        case:
+        }
+    case:
+    }
+}
+
 infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, shallow in_func: I32, ctx: Context) returns shallow Bool {
     if is_null(sdef).or(obj.til_type.is(TilType.Struct).not().and(obj.til_type.is(TilType.Enum).not())) { return false }
     switch sdef.node_type {
@@ -2180,6 +2204,7 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
     case:
         UNREACHABLE(__LOC__)
     }
+    check_ref_decl_owned_init(stmt)
     finalize_decl_binding(scope, stmt, in_type_body)
 }
 

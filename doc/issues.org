@@ -1934,12 +1934,27 @@
 
    Incremental steps (each is its own commit):
 
-   1. ~ref X := Y.clone()~ in a local decl. Most mechanical case:
-      look at the ~Decl~ initializer, if it is an ~NodeType.FCall~
-      whose callee child is ~NodeType.FieldAccess("clone")~,
-      emit a ~type_error~. No existing source is expected to use
-      this shape after #109's bucket of ~fn_sig~ clones; if any
-      remain they are bugs in the same class.
+   1. [DONE] ~ref X := Y.clone()~ in a local decl. Implemented as
+      ~check_ref_decl_owned_init~ in ~src/self/typer.til~, called
+      from ~infer_decl_stmt~ before ~finalize_decl_binding~. The
+      audit confirmed no existing source uses the pattern (#109
+      cleaned up ~fn_sig~'s clones already). Discoveries:
+
+      - The new rule overlaps with the existing "'ref' declaration
+        requires null, a ref-returning function, or ref/param
+        variable" check -- both fire on a violating decl. They are
+        complementary (the existing rule names the legal RHS
+        shapes, the new rule names the specific anti-pattern), so
+        the typer emits both diagnostics. Future refactors might
+        merge or order them, but this is not blocking.
+
+      - Step 4 (assignments) is the hard case that originally bit
+        ~FCallData.fn_sig~: the offending sites in #109 were
+        ~_fcd.fn_sig = src.clone()~ assignments inside the
+        ~ref mut fn_sig : Expr = NULL~ field, not local decls.
+        Step 1's mechanical check would not have caught any of
+        them. Steps 2 and 4 are where the rule starts paying off
+        for the original motivating bug class.
 
    2. Generalize the predicate from "literal ~.clone()~" to "any
       FCall whose callee returns ~OwnType.Own~". Constructors
