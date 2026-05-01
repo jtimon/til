@@ -1,10 +1,176 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 165
+# NEXT_ISSUE: 166
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/14] Pre
+* [0/15] Pre
+** OPEN #165 Declaration order should not matter inside a file or across imports
+   Symptom:
+
+   ~src/core/core.til~ contains the alias ~USize := U32~ wedged between two
+   groups of ~import("...")~ calls. Moving that single line either to the
+   top of the file (before the imports) or to the bottom (after every
+   import) breaks the build. Today the only "safe" position is right after
+   ~import("u32.til")~ and before ~import("i64.til")~. That is forward-
+   declaration discipline by another name. til is supposed to have an init
+   pass precisely so source order does not matter.
+
+   Why this still happens (analysis):
+
+   - The loader pre-extracts ~import("...")~ calls from each file's AST
+     (see ~extract_imports~ in ~src/self/loader.til:97~) and builds an
+     import list per file.
+   - ~init_file~ (~src/self/initer.til:2319~) recurses into the dep list
+     first, then runs ~init_declarations_unit~ on the importing file.
+     The dep list is iterated in source order.
+   - Sibling imports inside the same file are therefore order-sensitive:
+     ~core.til~ relies on ~u32.til~ being init'd before any later code
+     that mentions ~U32~. The ~USize := U32~ alias only works because it
+     sits between ~import("u32.til")~ and the next group; if it moves
+     above ~u32.til~, ~scope.find("U32")~ in
+     ~register_type_alias_for_stmt~ (~src/self/initer.til:1097~) returns
+     ~ScopeFind.NotFound~ and the alias is silently dropped (or produces a
+     downstream type error). If it moves below, then ~i64.til~ /
+     ~range.til~ / ~bool.til~ / ~mem.til~ / ... are init'd before USize is
+     in scope, so any of their decls that reference USize through derived
+     methods (size methods, ~for~ desugaring against ~Vec.len()~, etc.)
+     resolve USize as ~TilType.Unknown~ at init time.
+   - Even within a single file, ~init_declarations_unit~ does the AST walk
+     in source order: ~register_struct_def_for_stmt~ runs for struct decls
+     immediately during the walk, but alias decls (~NodeType.Ident~ on the
+     RHS) are bucketed and processed only after the walk. That asymmetry
+     means a struct that mentions an alias defined later in the same file
+     sees ~Unknown~ during ~register_struct_def_for_stmt~ /
+     ~gen_struct_clone_delete_for_stmt~ / ~compute_struct_layout~ -- those
+     all read types via ~type_from_name_init~ before any alias bucket
+     drains.
+
+   Root cause in one line:
+
+   ~initer.til~ does three jobs at once -- declaration indexing, struct
+   layout computation, and clone/delete/size/eq/to_str method synthesis --
+   and the last two need scope-resolved types, which forces the first
+   into a load-bearing source order. The init pass is supposed to be
+   pure name indexing; everything that needs to know "what is the type of
+   X?" belongs in the typer.
+
+   Architectural goal:
+
+   - Make declaration order inside a single file and across imports
+     irrelevant by moving every type-resolving job out of initer and
+     into typer, in line with #158 (one pass per phase). Initer keeps a
+     single AST walk per file that registers names by kind (struct,
+     enum, func, alias, value); typer keeps its existing walk and folds
+     in method synthesis and layout computation while it has full scope.
+     No new phase. Net pass count goes from "init + sub-walks-of-init +
+     typer" to "init + typer".
+
+   How later phases see auto-generated methods:
+
+   - When typer visits a struct decl it: type-checks fields, synthesizes
+     any missing ~clone~ / ~delete~ / ~size~ / ~eq~ / ~to_str~ methods
+     into ~ns_decls~, type-checks their bodies in the same recursion,
+     registers ~Type.method~ in scope (the same ~scope.set~ that initer
+     would have called), and writes the layout into
+     ~Context.struct_layouts~. After the visit, the Context looks
+     identical to one in which the methods had been hand-written and
+     initer had registered them. Precomp / scavenger / builder look up
+     ~Type.clone~ in scope and never need to know whether the user wrote
+     it or the typer synthesized it -- Context is the cross-phase memo,
+     same pattern #147 calls out as one of rstil's wins.
+
+   How rstil informs the design (~../rstil/~):
+
+   - rstil's ~init.rs:init_context~ walks each file's body once and, on
+     hitting ~import("path")~, recurses via
+     ~init_import_declarations~ at that point in the walk. Imports and
+     local declarations interleave in source order; ~imports_init_done~
+     handles cycles and re-imports. There is no separately pre-computed
+     import list driving a different order than the AST itself.
+   - rstil's ~preinit~ phase synthesizes ~clone~ / ~delete~ as a pure
+     AST-to-AST rewrite using only field shape (mut?, primitive name?,
+     FuncSig?). til does not need this as a separate phase: typer
+     already knows field types and is the natural home, so we collapse
+     it in rather than introducing a third pass.
+   - In rstil, init never asks "what is the type of X?". That is what
+     makes USize position irrelevant. til adopts the same rule but
+     keeps two passes total instead of three.
+
+   Plan (incremental, smallest landable steps first; each lands green):
+
+   1. Strip every ~type_from_name_init~ call out of ~initer.til~.
+      ~register_struct_def_for_stmt~, ~register_enum_def_for_stmt~,
+      ~register_type_alias_for_stmt~, ~register_function_def_for_stmt~
+      and ~register_top_level_value_for_stmt~ should record names and
+      shapes only. The alias case stores the target name as a Str on
+      the binding without resolving it; the typer dereferences on use.
+      After this step, initer is one walk per file with no scope-typed
+      reads.
+
+   2. Move ~gen_struct_clone_delete_for_stmt~,
+      ~gen_enum_nonclone_methods_for_stmt~,
+      ~gen_missing_enum_clone_for_stmt~,
+      ~gen_struct_size_method_for_stmt~,
+      ~gen_enum_size_method_for_stmt~, ~gen_cmp_derived_for_stmt~ and
+      ~gen_unity_derived_for_stmt~ into the typer's struct/enum visit.
+      The typer pushes synthesized methods into ~ns_decls~ and calls
+      the same ~scope.set~ initer would have called for ~Type.method~
+      bindings, so subsequent phases see no difference vs. user-written
+      methods.
+
+   3. Replace ~compute_struct_layout~ + ~compute_enum_layout~ with a
+      ~Context.struct_layouts~ map populated by the typer on first
+      visit (subsumes ~#147~ steps 3-4: ~Declaration.field_offset~,
+      ~field_size~, ~field_struct_def~ and
+      ~StructDefData.total_struct_size~ all migrate to that Context
+      side table).
+
+   4. Drop ~init_declarations_global~ entirely. Once steps 1-3 land,
+      every job it does (layouts, size methods, derived methods, late
+      func/value re-registration) lives inside the typer's per-decl
+      visit. Initer is one driver and one walk per file.
+
+   5. Replace ~extract_imports~ + the pre-built ~iu.imports~ list with
+      rstil-style in-walk recursion. ~init_file~ becomes ~init_body~:
+      walk the AST in source order, and on ~import("...")~ FCalls
+      recurse through ~ctx.imports_init_done~. Removes the second
+      source of ordering (sibling import order driven by
+      extract_imports rather than the AST itself) and is a
+      precondition for circular imports (see ~#163~).
+
+   6. Alphabetize ~src/core/core.til~'s imports and put ~USize := U32~
+      wherever (its own file, top of core.til, anywhere). Add
+      regression tests covering both directions: (a) two files where
+      the importer declares ~MyAlias := U32~ and an importee struct
+      uses ~MyAlias~ in a field type; (b) USize-style alias declared
+      above every ~import("...")~ in the importing file. Both must
+      build.
+
+   Validation:
+
+   - After each step, ~make clean && make test~ must pass.
+   - The two regression tests in step 6 must pass after step 5 lands
+     and continue to pass on every subsequent commit.
+
+   Related issues:
+
+   - ~#158~ One pass per phase across the whole pipeline -- this issue
+     is the forcing function for initer: collapse three jobs into one
+     walk by moving the type-dependent two into typer.
+   - ~#147~ AST/Context redesign: lessons from rstil -- step 3 is
+     literally that issue's steps 3-4 (~Context.struct_layouts~).
+     Step 1's "store alias target as Str, resolve in typer" mirrors
+     that issue's ~explicit_type -> til_type + struct_name~ split.
+   - ~#163~ Per-file AST/import graph + ~Context.path~ -- step 5 reuses
+     that infrastructure and removes the last excuse to keep the
+     pre-extracted import list.
+   - ~#162~ Core files should import semantic dependencies explicitly
+     -- becomes trivial after step 6: alphabetical ~core.til~ stops
+     being a problem because order is no longer load-bearing.
+   - ~#116~ Imported files are parsed in isolation -- same root-cause
+     family (cross-file visibility vs. phase ordering).
+
 ** OPEN #163 Per-file AST/import graph + Context.path (prep for removing Expr.path)
    Goals:
 
