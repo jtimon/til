@@ -2963,8 +2963,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         i.inc()
     }
-    if owns_scope.neq(0) { desugar_set_literals(body, scope) }
-    if owns_scope.neq(0) { desugar_map_literals(body, scope) }
+    if owns_scope.neq(0) { desugar_body_literals(body, scope) }
     if owns_scope.neq(0) { desugar_variadic_calls(body, scope) }
     if owns_scope.neq(0) { desugar_kwargs_calls(body, scope) }
     if owns_scope.neq(0) { hoist_fcall_args(body, scope) }
@@ -2979,8 +2978,7 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         i.inc()
     }
-    if owns_scope.neq(0) { desugar_set_literals(body, scope) }
-    if owns_scope.neq(0) { desugar_map_literals(body, scope) }
+    if owns_scope.neq(0) { desugar_body_literals(body, scope) }
     if owns_scope.neq(0) { desugar_variadic_calls(body, scope) }
     if owns_scope.neq(0) { desugar_kwargs_calls(body, scope) }
     if owns_scope.neq(0) { hoist_fcall_args(body, scope) }
@@ -3760,54 +3758,23 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     return true
 }
 
-desugar_set_literals := proc(mut body: Expr, mut scope: TypeScope) {
-    // Quick check: any SetLit decls?
+// Combine desugar_set_literals and desugar_map_literals: both filter on
+// Decl + SetLit/MapLit rhs at the body's top level, both rebuild
+// body.children, and both end with reregister_scope_defs (which is O(N*K)
+// over body decls and scope bindings). Sharing the prefilter, rebuild,
+// and reregister halves that cost when both transformations apply, and
+// drops one walk + one reregister even when only one applies.
+desugar_body_literals := proc(mut body: Expr, mut scope: TypeScope) {
     mut has_set_lit := false
-    for stmt : Expr in body.children {
-        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.child(0).node_type.is(NodeType.SetLit) {
-                has_set_lit = true
-                break
-            }
-        }
-    }
-    if has_set_lit.not() { return }
-
-    mut old := Vec.new("Expr", Expr.size())
-    old.move_from(body.children)
-
-    mut new_ch := Vec.new("Expr", Expr.size())
-    for i in 0..old.len() {
-        ref stmt : Expr = old.get(i)
-        // Nested ifs: .and() is eager so a chained variant would call
-        // stmt.child(0) on stmts with empty children (e.g. break/continue).
-        mut handled := false
-        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.child(0).node_type.is(NodeType.SetLit) {
-                if desugar_set_literal_decl(stmt, new_ch, scope) {
-                    handled = true
-                }
-            }
-        }
-        if handled.not() {
-            new_ch.push_take(old, i)
-        }
-    }
-    body.children.move_from(new_ch)
-    reregister_scope_defs(body, scope)
-}
-
-desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
     mut has_map_lit := false
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.child(0).node_type.is(NodeType.MapLit) {
-                has_map_lit = true
-                break
-            }
+            ref rhs : Expr = stmt.child(0)
+            if rhs.node_type.is(NodeType.SetLit) { has_set_lit = true }
+            if rhs.node_type.is(NodeType.MapLit) { has_map_lit = true }
         }
     }
-    if has_map_lit.not() { return }
+    if has_set_lit.not().and(has_map_lit.not()) { return }
 
     mut old := Vec.new("Expr", Expr.size())
     old.move_from(body.children)
@@ -3815,9 +3782,16 @@ desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
+        // Nested ifs: .and() is eager (#117/#169) so a chained variant
+        // would call stmt.child(0) on stmts with empty children.
         mut handled := false
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.child(0).node_type.is(NodeType.MapLit) {
+            ref rhs : Expr = stmt.child(0)
+            if has_set_lit.and(rhs.node_type.is(NodeType.SetLit)) {
+                if desugar_set_literal_decl(stmt, new_ch, scope) {
+                    handled = true
+                }
+            } else if has_map_lit.and(rhs.node_type.is(NodeType.MapLit)) {
                 if desugar_map_literal_decl(stmt, new_ch, scope) {
                     handled = true
                 }
