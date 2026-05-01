@@ -209,3 +209,179 @@ test_reassign_multi := test() {
     s = "d"
     assert_eq_str(__LOC__, s, "d")
 }
+
+# --- switch ---
+
+test_switch_i64 := test() {
+    mut result := 0
+    switch 2 {
+    case 1: result = 10
+    case 2: result = 20
+    case 3: result = 30
+    case: result = 99
+    }
+    assert_eq(__LOC__, result, 20)
+
+    // Default case
+    switch 99 {
+    case 1: result = 10
+    case: result = -1
+    }
+    assert_eq(__LOC__, result, -1)
+}
+
+test_switch_str := test() {
+    mut result := ""
+    switch "bob" {
+    case "alice": result = "a"
+    case "bob": result = "b"
+    case: result = "?"
+    }
+    assert_eq_str(__LOC__, result, "b")
+}
+
+test_switch_char := test() {
+    mut result := 0
+    switch 'b' {
+    case 'a': result = 1
+    case 'b': result = 2
+    case 'c': result = 3
+    }
+    assert_eq(__LOC__, result, 2)
+}
+
+test_switch_bool := test() {
+    mut result := 0
+    switch true {
+    case true: result = 1
+    case false: result = 2
+    }
+    assert_eq(__LOC__, result, 1)
+}
+
+test_switch_default_only := test() {
+    mut result := 0
+    switch 42 {
+    case: result = 99
+    }
+    assert_eq(__LOC__, result, 99)
+}
+
+test_switch_no_default := test() {
+    mut result := 0
+    switch 1 {
+    case 1: result = 10
+    case 2: result = 20
+    }
+    assert_eq(__LOC__, result, 10)
+
+    // No match, no default -- nothing happens
+    result = 0
+    switch 5 {
+    case 1: result = 10
+    }
+    assert_eq(__LOC__, result, 0)
+}
+
+test_switch_nested := test() {
+    mut result := 0
+    switch 1 {
+    case 1:
+        switch "a" {
+        case "a": result = 11
+        case "b": result = 12
+        }
+    case 2: result = 20
+    }
+    assert_eq(__LOC__, result, 11)
+}
+
+test_switch_in_loop := test() {
+    // break inside switch body should exit enclosing loop, not the switch
+    mut total := 0
+    for i in 0..10 {
+        switch i.mod(3) {
+        case 0: total = total.add(i)
+        case 1: total = total.add(1)
+        case: total = total.add(0)
+        }
+    }
+    // i=0: +0, i=1: +1, i=2: +0, i=3: +3, i=4: +1, i=5: +0, i=6: +6, i=7: +1, i=8: +0, i=9: +9
+    assert_eq(__LOC__, total, 21)
+}
+
+test_switch_multi_stmt := test() {
+    mut a := 0
+    mut b := 0
+    switch 2 {
+    case 1:
+        a = 1
+        b = 10
+    case 2:
+        a = 2
+        b = 20
+    case:
+        a = 0
+        b = 0
+    }
+    assert_eq(__LOC__, a, 2)
+    assert_eq(__LOC__, b, 20)
+}
+
+// Phase 2: Range cases
+test_switch_range_i64 := test() {
+    mut result := ""
+    switch 5 {
+    case 0..3: result = "low"
+    case 4..7: result = "mid"
+    case 8..10: result = "high"
+    case: result = "other"
+    }
+    assert_eq_str(__LOC__, result, "mid")
+}
+
+test_switch_range_char := test() {
+    mut result := ""
+    switch 'e' {
+    case 'a'..'z': result = "lower"
+    case 'A'..'Z': result = "upper"
+    case '0'..'9': result = "digit"
+    case: result = "other"
+    }
+    assert_eq_str(__LOC__, result, "lower")
+}
+
+test_switch_range_mixed := test() {
+    // Mix ranges, exact values, and default
+    mut result := 0
+    switch 5 {
+    case 0: result = 1
+    case 1..4: result = 2
+    case 5: result = 3
+    case 6..9: result = 4
+    case: result = 5
+    }
+    assert_eq(__LOC__, result, 3)
+}
+
+test_switch_range_boundary := test() {
+    // Inclusive: end value should match
+    mut result := false
+    switch 'z' {
+    case 'a'..'z': result = true
+    }
+    assert(__LOC__, result)
+
+    result = false
+    switch '9' {
+    case '0'..'9': result = true
+    }
+    assert(__LOC__, result)
+
+    // Start value should also match
+    result = false
+    switch 'a' {
+    case 'a'..'z': result = true
+    }
+    assert(__LOC__, result)
+}

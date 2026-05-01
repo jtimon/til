@@ -1,0 +1,18 @@
+mode test
+
+test_loc_directives := test() {
+    // __LOC__ returns "file:line:col" string
+    loc := __LOC__
+    expect(__LOC__, loc.find("directives.til").neq(-1), "__LOC__ contains filename")
+
+    // __FILE__ returns file path string
+    expect(__LOC__, __FILE__.find("directives.til").neq(-1), "__FILE__ contains filename")
+
+    // __LINE__ returns I64
+    line := __LINE__
+    assert_eq(__LOC__, line, 12)
+
+    // __COL__ returns I64
+    col := __COL__
+    assert_eq(__LOC__, col, 12)
+}

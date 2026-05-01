@@ -83,3 +83,38 @@ test_ref_dynamic_from_struct := test() {
     assert_eq(__LOC__, p2.x, 10)
     assert_eq(__LOC__, p2.y, 20)
 }
+
+# --- NULL literal + ref struct fields ---
+
+test_null_ref_local := test() {
+    // ref local can be NULL
+    ref x : I64 = NULL
+    accept_null(x)
+}
+
+accept_null := func(x: I64) {
+    // borrowed param can receive NULL
+    assert(__LOC__, is_null(x))
+}
+
+test_null_borrowed_arg := test() {
+    accept_null(NULL)
+}
+
+RefNode := struct {
+    value := 0
+    ref mut next : RefNode = NULL
+}
+
+test_ref_struct_field := test() {
+    a := RefNode(value = 10)
+    b := RefNode(value = 20)
+    a.next = b
+    assert_eq(__LOC__, a.value, 10)
+    assert_eq(__LOC__, a.next.value, 20)
+
+    // clone copies the pointer (not deep clone)
+    c := a.clone()
+    assert_eq(__LOC__, c.value, 10)
+    assert_eq(__LOC__, c.next.value, 20)
+}

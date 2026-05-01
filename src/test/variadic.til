@@ -1,0 +1,30 @@
+mode test
+
+// variadic args
+variadic_sum := func(nums: ..I64) returns I64 {
+    mut total := 0
+    for n : I64 in nums {
+        total = total.add(n)
+    }
+    return total
+}
+
+test_variadic := test() {
+    assert_eq(__LOC__, variadic_sum(1, 2, 3), 6)
+    assert_eq(__LOC__, variadic_sum(10), 10)
+    assert_eq(__LOC__, variadic_sum(), 0)
+}
+
+// proc-based variadic test (not constant-foldable)
+variadic_print := proc(nums: ..I64) {
+    for i in 0..nums.len() {
+        ref n: I64 = nums.get(i)
+        print(n.to_str())
+        if i.lt(nums.len().sub(1)) { print(",") }
+    }
+    println("")
+}
+
+test_variadic_proc := test() {
+    variadic_print(10, 20, 30)
+}
