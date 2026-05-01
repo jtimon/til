@@ -463,170 +463,197 @@
    rstil (the previous Rust implementation, at ~../rstil~) was slower and
    leakier than current til, but several of its architectural choices around
    the AST and Context were cleaner than what til carries today. This issue
-   catalogs the ideas worth stealing. It is broader than ~#130~ (which tracks
-   field-by-field Expr payload shrinking); this issue is about the root
-   pattern: rstil uses ~Context~ as a cross-pass memo, til uses AST fields.
+   catalogs the ideas worth stealing.
 
-*** Key shape differences
+   Root pattern: the AST should be the result of parsing, not a database for
+   later phases. rstil keeps cross-phase facts in ~Context~; til grew AST
+   fields whenever a pass needed to remember something. Three concrete
+   anti-patterns follow from that:
 
-   | Struct      | til (current)                                       | rstil                                                 |
-   |-------------+-----------------------------------------------------+-------------------------------------------------------|
-   | ~Expr~      | 7 fields: data, til_type, struct_name, children,    | 4 fields: node_type, params, line, col                |
-   |             | line, col, path                                     |                                                       |
-   | ~Declaration~ | 8 fields: name, explicit_type:Str, is_mut,        | 5 fields: name, value_type:ValueType, is_mut,         |
-   |             | is_namespace, own_type, field_offset:I32,           | is_own:Bool, default_value:Option<Expr>               |
-   |             | field_size:I32, field_struct_def:*Expr              |                                                       |
-   | ~Context~   | 3 fields: mode, path_modes, scope                   | ~18 fields: scope_stack, imported_asts,               |
-   |             |                                                     | imports_{init,typer,precomp,eval}_done Sets,          |
-   |             |                                                     | anon_{struct,enum,func}_counter + maps,               |
-   |             |                                                     | precomp state, temp_enum_payload                      |
+   1. *AST-as-cache*: typer/initer write derived facts onto ~Expr~,
+      ~Declaration~, ~FCallData~, ~StructDef~, ~EnumDef~ for later phases
+      to read. The parse tree stops being immutable after parse.
+   2. *Dangerous refs into the AST*: ~ref mut .. : Expr = NULL~ fields
+      stitched onto AST nodes (and onto ~TypeBinding~) point into the
+      parse tree from outside. When a pass rebuilds a body via
+      clone-and-filter the refs go stale; surviving them depends on every
+      pass agreeing not to drop the original node. Owned ~Expr~ fields or
+      lookup-by-name in ~Context~ are safer.
+   3. *Per-phase state without a home*: pre-rebase, til had no
+      ~imports_*_done~ memos, no precomp side-table; whether an import got
+      re-walked depended on incidental control flow elsewhere. Per-phase
+      Sets in ~Context~ (rstil pattern) make it explicit.
 
-*** Root observation: Context vs AST as cache
+*** Status
 
-   rstil's Expr is small because Context carries everything derived or
-   cross-pass. til grew Expr and Declaration fields whenever a pass needed
-   to remember something -- layout results live on Declaration, type-check
-   results live on Expr, call-site resolution lives on FCallData. This is
-   why til's Expr is 7 fields to rstil's 4, and why Declaration is 8 to 5.
+   Done since this issue opened (referenced commits, in landing order):
 
-   til's ~Context~ (src/self/modes.til:19) currently holds only Mode/path
-   routing and a TypeScope. Everything else that crosses passes is pushed
-   onto AST nodes.
+   - Step 1 -- ~FieldDef~ removed; ~StructDefData.fields~ became
+     ~Vec<Declaration>~ with ~default_value~ on Declaration.
+   - Step 2 -- ~Param~ unified with ~Declaration~ (commit ~54bc3eb~).
+     ~FunctionDef.params~ is ~Vec<Declaration>~; ~param_defaults~ map
+     gone; ~NodeType.NoDefaultArg~ marks args without a default;
+     ~FunctionDef.nparam~ removed (~b6db2b5~).
+   - Step 6 -- ~Declaration.is_namespace~ removed; ~StructDef.ns_decls~
+     and ~EnumDef.ns_decls~ split out (commits ~e4041d5~, ~c2c7d10~ and
+     the ~#149~ ns_decls migration series).
+   - Step 9 -- ~Expr.path~ removed (commits ~2bd5698~, ~b789e8e~,
+     ~fe34205~). ~Expr.new~ no longer takes a path argument; diagnostics
+     take ~path~ as a parameter instead.
+   - Renames -- ~Expr.data~ became ~Expr.node_type~ (~0274556~);
+     ~StructDefData~ became ~StructDef~ (~c6de727~); ~EnumDef~ grew a
+     payload struct (~5346d34~) so it stops being a bare variant.
+   - Context enrichment landed:
+     ~Context.path~, ~Context.imported~ (Map path -> ImportUnit),
+     ~imports_init_done~ / ~imports_typer_done~ / ~imports_precomp_done~ /
+     ~imports_eval_done~ Sets (commits ~716b127~, ~4e2a1fa~, ~2b664c8~).
+   - Per-file unit drivers across loader/init/typer/precomp/scavenger/
+     builder/interpreter (commits ~cb83f28~, ~2e8dd0e~, ~150a4c5~,
+     ~c6cfca2~, ~0a4c734~, ~1b3d98c~, ~6f910e1~, ~cc2edbc~). The merged
+     AST stops being the canonical view for those phases.
+   - Step 10 -- subsumed by ~#61~ Lambdas (now FIXED). The
+     anon_func_counter machinery materialized through the lambda lifting
+     pass; no separate Context fields are needed.
+   - ~Declaration.til_type~ added and synced with ~explicit_type~ at
+     every set site (~5f822fc~, ~8e72cd3~) -- step 5 prep.
 
-*** Declaration redesign (three biggest wins)
+   Partial:
 
-   **** ~explicit_type: Str~ -> ~til_type: TilType~ + ~struct_name: Str~
+   - Step 5 -- ~Declaration.til_type~ exists and stays in sync, but the
+     ~204~ ~explicit_type~ read sites still drive type classification.
+     Migrate readers to ~til_type~, then drop ~explicit_type~.
+   - Step 8 -- FuncSig/FuncDef split tracked under ~#58~. Lambdas (~#61~)
+     already lift FuncSig-form expressions, so the type-level shape
+     exists in flight; the ~FunctionDef~ struct in ~core/ast.til~ still
+     mixes sig and body.
 
-   Today ~explicit_type~ is read 107 times across 10 files. Every read
-   does a scope lookup to resolve "is this a primitive, struct, or enum?".
-   rstil resolves type classification once in init phase by using a typed
-   enum (~ValueType~: TFunction, TType, TCustom(String), TMulti(String)).
+   Not started (the substantive work that remains):
 
-   For til: parser sets ~til_type = TilType.Unknown~ and ~struct_name =
-   "MyStruct"~ for user-defined annotations; initer promotes ~til_type~ to
-   ~TilType.Struct~ / ~TilType.Enum~ by scope lookup. Later passes read
-   the classification directly without re-resolving.
+   - Step 3 -- ~Context.struct_layouts~. ~#165~ step 3 explicitly calls
+     this out as a sub-goal of the rstil-style declaration-order-free
+     init.
+   - Step 4 -- remove ~Declaration.field_offset~ /
+     ~field_size~ / ~field_struct_def~ and ~StructDef.total_struct_size~
+     / ~EnumDef.total_enum_size~. Blocked on step 3.
+   - Step 7 -- shrink ~FCallData~ from 7 fields to ~{does_throw,
+     is_bang}~ (rstil ~FCallInfo~ shape). Variadic / kwargs / splat /
+     own_args / fn_sig are typer resolution artifacts.
+   - Step 11 (stretch) -- ~Expr.til_type~ to a Context side table.
 
-   **** ~is_namespace: Bool~ removal
+*** Current shapes (verified against ~src/core/ast.til~ + ~src/self/initer.til~ + ~src/self/modes.til~)
 
-   Today ~ast.til:337~, ~:351~, ~:367~ all filter by
-   ~decl.is_namespace.not()~ when iterating struct/enum bodies. rstil keeps
-   namespace members in a separate ~NamespaceDef~ struct on ~StructDef~
-   / ~EnumDef~. til can do the same by splitting ~StructDefData.fields~
-   into ~fields~ + ~ns_fields~ (and matching for enum body layout).
-   Iteration loses the filter; parser routes members by ~namespace:~
-   section at parse time.
+   | Struct       | til (now)                                                                                                              | rstil                                                          |
+   |--------------+------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------|
+   | ~Expr~       | 5 fields: ~node_type, til_type, children, line, col~                                                                   | 4 fields: ~node_type, params, line, col~                       |
+   | ~Declaration~ | 10 fields: ~name, doc, explicit_type, is_mut, own_type, til_type, field_offset, field_size, field_struct_def, default_value~ | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
+   | ~Context~    | 10 fields: ~mode, path, path_modes, imported, imports_init_done, imports_typer_done, imports_precomp_done, imports_eval_done, scope, is_repl~ | ~19 fields: mode_def, path, scope_stack, temp_enum_payload, imported_asts, imported_modes, imports_*_done x4 Sets, current_precomp_func, precomp_forin_counter, precomputed_heap_values, anon_{struct,enum,func}_counter, anon_{struct,enum}_decls, anon_func_map |
+   | ~FCallData~  | 7 fields: ~variadic_index, variadic_count, kwargs_index, kwargs_count, is_splat, own_args, fn_sig (ref Expr)~          | 2 fields: ~does_throw, is_bang~                                |
+   | ~StructDef~  | 4 fields: ~total_struct_size, fields, ns_decls, c_tag~                                                                 | 3 fields: ~members, default_values, ns~                        |
+   | ~EnumDef~    | 4 fields: ~ns_decls, variants, payload_types, total_enum_size~                                                         | 3 fields: ~variants, methods, ns~                              |
 
-   **** ~field_offset~ / ~field_size~ / ~field_struct_def~ removal
+*** Anti-pattern catalog (the remaining work, organized)
 
-   These LAYOUT-COMPUTATION fields are set by ~initer.til:1676-1677~ (and
-   field_struct_def at ~:1661, :1667~) and read by ~interpreter.til:39,
-   698-700, 1416, 1466-1480~. They do not belong on an AST node -- they
-   are a per-struct-type fact, not per-declaration syntax. rstil computes
-   layout in ~EvalHeap~ on demand; til's natural home is a
-   ~Context.struct_layouts: Map<Str, StructLayout>~ keyed by struct name.
-   ~StructDefData.total_struct_size~ moves to the same place (this
-   subsumes the ~#130~ "total_struct_size duplicates offset/size" item).
+   **** Layout cache on AST nodes (steps 3-4)
 
-   After these three changes, Declaration becomes ~{name, til_type,
-   struct_name, is_mut, own_type, default_value}~ -- six fields, pure AST.
+   ~Declaration.field_offset : I32~, ~field_size : I32~,
+   ~field_struct_def : ref mut Expr~ are set by initer's
+   ~compute_struct_layout~ (~src/self/initer.til~) and read across
+   ~src/self/dispatch.til~, ~interpreter.til~, ~typer.til~,
+   ~builder.til~ -- ~46 sites. ~StructDef.total_struct_size~ and
+   ~EnumDef.total_enum_size~ duplicate the same info at the type level.
 
-*** Context enrichment (rstil patterns)
+   These are per-struct-type facts, not per-declaration syntax. rstil
+   computes layout on demand in ~EvalHeap~. The til-shaped fix is
+   ~Context.struct_layouts : Map<Str, StructLayout>~, populated by the
+   typer's per-decl visit (see ~#165~ step 3).
 
-   Fields rstil's Context has and til could add:
+   **** FCallData resolution artifacts (step 7)
 
-   - ~struct_layouts: Map<Str, StructLayout>~ -- removes three Declaration
-     fields plus ~StructDefData.total_struct_size~
-   - ~anon_{struct,enum,func}_counter~ + ~anon_func_map~ keyed by
-     "path:line:col" -- infrastructure for inline anonymous types (see
-     ~#61~, ~#93~)
-   - ~imports_{init,typer,precomp,eval}_done~ Sets -- explicit per-pass
-     memo of which imported files have been walked (relates to ~#116~,
-     ~#66~)
-   - ~precomp~ state (forin counter, precomputed_heap_values) -- would
-     make precomp.til side effects explicit instead of scattered
+   Of the 7 fields on ~FCallData~, only would-be ~does_throw~ /
+   ~is_bang~ are parse facts. ~variadic_index~, ~variadic_count~,
+   ~kwargs_index~, ~kwargs_count~, ~is_splat~, ~own_args~, ~fn_sig~ are
+   all written by the typer. Two paths forward:
 
-*** Incremental actionable steps (each independently landable)
+   - Move them to a ~Context.fcall_resolution : Map<Expr-id,
+     FCallResolution>~ side table.
+   - Or compute on demand during desugar from the resolved
+     ~FunctionDef~ (rstil's approach).
 
-   Ordered smallest to largest:
+   ~fn_sig~ is also one of the dangerous-refs cases below.
 
-   1. [DONE] Move ~FieldDef.default_value~ into ~Declaration.default_value~,
-      delete ~FieldDef~. ~StructDefData.fields: Vec<FieldDef>~ becomes
-      ~Vec<Declaration>~. Pure refactor affecting parser + initer +
-      codegen.
+   **** explicit_type / til_type duplication (step 5 finish)
 
-   2. [DONE] Unify ~Param~ with ~Declaration~ and delete
-      ~FunctionDef.param_defaults~. ~FunctionDef.params~ becomes
-      ~Vec<Declaration>~; the per-param default lives in
-      ~Declaration.default_value~ (now an owned ~Expr~, not a borrowed
-      ref). Added ~NodeType.NoDefaultArg~ as the marker used for args
-      without a default. ~Param~ struct and ~.ptype~ field are gone;
-      all readers use ~Declaration.explicit_type~.
+   ~Declaration~ now carries both ~explicit_type : Str~ and
+   ~til_type : TilType~ kept in sync at write sites (~5f822fc~). 204
+   read sites across ~src/self/*~ still pivot on ~explicit_type~. The
+   plan: migrate readers to ~til_type~, then delete ~explicit_type~.
 
-   3. Add ~Context.struct_layouts: Map<Str, StructLayout>~. Populate
-      from the existing ~compute_struct_layout~ in ~initer.til:1682~;
-      keep the Declaration fields populated during transition for
-      backward-compatible reads.
+   **** Expr.til_type per-node cache (step 11, stretch)
 
-   4. Remove ~Declaration.field_offset~, ~field_size~,
-      ~field_struct_def~, and ~StructDefData.total_struct_size~. All
-      reads switch to ~Context.struct_layouts.get(struct_name)~.
+   Hundreds of write/read sites across all phases. Worth doing only if
+   the AST becomes immutable-after-typer; otherwise new desugar nodes
+   need fresh entries and the bookkeeping defeats the savings. ~#158~
+   (one pass per phase) and ~#146~ (single typer walk) are the
+   prerequisites.
 
-   5. Replace ~Declaration.explicit_type: Str~ with
-      ~(til_type: TilType, struct_name: Str)~. Initer promotes
-      ~til_type~ from Unknown to Struct/Enum via scope resolution. 107
-      read sites, each converted mechanically.
+   **** Dangerous ~ref mut .. : Expr = NULL~ refs (cross-cutting)
 
-   6. Remove ~Declaration.is_namespace~. Split ~StructDefData.fields~
-      into ~fields~ + ~ns_fields~; parser routes members based on
-      ~namespace:~ section.
+   Raw refs into the parse tree, scattered across structs that outlive
+   or pre-date the nodes they point at. When any pass clones-and-filters
+   ~body.children~ the refs can dangle. Catalog:
 
-   7. Shrink ~FCallData~ by dropping ~variadic_index~, ~variadic_count~,
-      ~kwargs_index~, ~kwargs_count~. They are set at ~typer.til:467,
-      :475~ and reset at ~:3505, :3580-3581, :3633, :3739~ within a
-      single pass. Compute on-demand during desugar from the resolved
-      ~FunctionDef~.
+   - ~Declaration.field_struct_def~ (~src/core/ast.til:71~) -- points at
+     a nested struct/enum AST node. Replace with a name + lookup in
+     ~Context.struct_layouts~ once steps 3-4 land.
+   - ~FCallData.fn_sig~ (~src/core/ast.til:99~) -- points at the
+     resolved callee. Replace with the callee's name + scope lookup,
+     which is what every reader does anyway after dereferencing.
+   - ~TypeBinding.struct_def~, ~TypeBinding.func_def~
+     (~src/self/initer.til:18-19~) -- these live in ~scope.bindings~,
+     not on the AST, but they reference into the AST and have the same
+     dangling-on-rebuild risk. Same fix: store name + look up the
+     authoritative payload via ~scope.get_struct~ /
+     ~scope.lookup_func~.
+   - Various ~ref mut current_*_def : Expr = NULL~ in
+     ~typer.til~ / ~builder.til~ / ~interpreter.til~ -- these are
+     thread-local-style state during a walk; less risky than the struct
+     fields but they encode "current X" implicitly instead of through
+     Context.
 
-   8. FunctionDef sig/def split -- already covered in ~#58~ (based on
-      rstil's first_class.org). This issue's value here is noting that
-      rstil already built it: ~FuncSig~ = params+return types only,
-      ~FuncDef~ = sig + arg names + body. Listed here for completeness.
-
-   9. Remove ~Expr.path~. DONE.
-
-   10. Add ~Context.anon_func_counter~ + ~anon_func_map~ for inline
-       anonymous funcs. Enables ~#61~ cleanly.
-
-   11. (Stretch) Move ~Expr.til_type~ and ~Expr.struct_name~ into a
-       Context side table keyed by Expr identity. Only worth it if
-       desugar becomes immutable-after-typer -- otherwise new nodes
-       need fresh entries and the bookkeeping defeats the savings.
-
-*** Things til does better than rstil (honest balance)
+*** Things til does better than rstil (honest balance, kept)
 
    - ~OwnType~ 3-way enum (Own/Ref/Shallow) beats rstil's two bools
-     (is_own/is_ref).
-   - Tagged-union ~NodeType~ with per-variant payload types
-     (~ast.til:152~) is cleaner than rstil's manually-unrolled match
-     arms.
-   - ~FCallData.own_args~ U64 bitmask avoids tree restructuring that
+     (~is_own~/~is_ref~).
+   - Tagged-union ~NodeType~ with per-variant payload types is cleaner
+     than rstil's manually-unrolled match arms; recent ~switch~
+     destructuring migrations (~ae8b4ec~, ~b96bd5e~, ~57696a4~,
+     ~ab843fe~ and friends) make this even nicer to read.
+   - ~FCallData.own_args~ U64 bitmask avoids the tree restructuring
      rstil's ~OwnArg~ wrapper node forces.
+   - Per-file ~ImportUnit~ + ~Context.imports_*_done~ Sets mirror
+     rstil's design without rstil's ~Ptr~+~malloc~+~memcpy~ Box<Expr>
+     dance.
    - ~#130~ itself: rstil had no ongoing simplification tracking.
 
 *** Related issues
 
    - ~#130~ AST/Expr representation cleanup -- field-level, ongoing
    - ~#58~ First-class functions: FuncSig/FuncDef hierarchy -- subsumes
-     step 8 above
-   - ~#61~ Lambdas: anonymous inline functions -- benefits from step 10
-   - ~#93~ Local struct/enum/function definitions -- same machinery
-   - ~#116~ Imported files are parsed in isolation -- touches import
-     tracking state
-   - ~#66~ Better imports: qualified namespaces -- touches same
-   - ~#136~ Precomp doesn't fold namespace method calls -- touches
-     namespace routing
+     step 8
+   - ~#93~ Local struct/enum/function definitions
+   - ~#116~ Imported files are parsed in isolation -- touched by the
+     ~Context.imported~ + per-file unit work that already landed
+   - ~#66~ Better imports: qualified namespaces
+   - ~#136~ Precomp doesn't fold namespace method calls
    - ~#146~ Unify typer desugar/insert passes into a single walk --
-     orthogonal but overlaps the desugar-phase scope
+     prerequisite for step 11
+   - ~#158~ One pass per phase across the whole pipeline -- broader
+     successor to ~#146~; layout migration (steps 3-4) fits inside it
+   - ~#162~ Core files should import semantic dependencies explicitly
+   - ~#163~ Per-file AST/import graph + Context.path -- step 9 closure
+     work and the home for any remaining merged-AST removal
+   - ~#165~ Declaration order should not matter (rstil-style init) --
+     step 3 of ~#165~ is exactly step 3 of this issue
 
 ** OPEN #146 Unify typer desugar/insert passes into a single walk
    ~infer_body~ in typer.til (lines 2489-2495) runs 7 separate passes in
