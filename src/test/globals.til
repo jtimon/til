@@ -26,7 +26,7 @@ assert(__LOC__, f().eq(42))
 g()
 h()
 
-inc := proc() {
+inc := func() {
     counter = counter.add(1)
 }
 
@@ -49,7 +49,7 @@ DeleteOnOverwrite := struct {
     mut id := 0
     namespace:
     mut delete_count := 0
-    delete := proc(own self: DeleteOnOverwrite, call_free: Bool = true) {
+    delete := func(own self: DeleteOnOverwrite, call_free: Bool = true) {
         DeleteOnOverwrite.delete_count = DeleteOnOverwrite.delete_count.add(1)
         if call_free { free(own self) }
     }

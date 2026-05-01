@@ -12,11 +12,11 @@ Mode := struct {
     mut debug_prints := false
 }
 
-context_register_path_mode := proc(mut ctx: Context, path: Str, mode: Mode) {
+context_register_path_mode := func(mut ctx: Context, path: Str, mode: Mode) {
     ctx.path_modes.set(own path.clone(), own mode.clone())
 }
 
-context_set_mode_from_path := proc(mut ctx: Context, path: Str) {
+context_set_mode_from_path := func(mut ctx: Context, path: Str) {
     if ctx.path_modes.has(path).not() {
         panic(__LOC__, "missing mode for path '", path, "'")
     }
@@ -25,7 +25,7 @@ context_set_mode_from_path := proc(mut ctx: Context, path: Str) {
 }
 
 // Set ctx.path and ctx.mode for work in a file.
-context_enter_file := proc(mut ctx: Context, path: Str) {
+context_enter_file := func(mut ctx: Context, path: Str) {
     ctx.path = path.clone()
     context_set_mode_from_path(ctx, path)
 }

@@ -17,7 +17,7 @@ h := proc() {
     println(y.to_str())
 }
 
-inc := proc() {
+inc := func() {
     counter = counter.add(1)
 }
 

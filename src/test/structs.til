@@ -240,7 +240,7 @@ DeleteCustom := struct {
     mut id := 0
     namespace:
     mut delete_count := 0
-    delete := proc(own self: DeleteCustom, call_free: Bool = true) {
+    delete := func(own self: DeleteCustom, call_free: Bool = true) {
         DeleteCustom.delete_count = DeleteCustom.delete_count.add(1)
         if call_free { free(own self) }
     }

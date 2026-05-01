@@ -12,7 +12,7 @@ fn_negate := func(n: I64) returns I64 {
     return 0.sub(n)
 }
 
-greet := proc(mut x: I64) {
+greet := func(mut x: I64) {
     x = x.add(100)
 }
 
@@ -24,7 +24,7 @@ apply2 := func(f: Fn(I64, I64) returns I64, a: I64, b: I64) returns I64 {
     return f(a, b)
 }
 
-mutate := proc(f: Fn(mut I64), mut x: I64) {
+mutate := func(f: Fn(mut I64), mut x: I64) {
     f(x)
 }
 
@@ -95,9 +95,9 @@ test_funcsig_unary := test() {
     assert_eq(__LOC__, apply_unary(fn_negate, 5), -5)
 }
 
-Mutator := proc(mut I64)
+Mutator := func(mut I64)
 
-apply_mutator := proc(f: Mutator, mut x: I64) {
+apply_mutator := func(f: Mutator, mut x: I64) {
     f(x)
 }
 
@@ -117,7 +117,7 @@ negate_sig : func(I64) returns I64 = (x) {
     return 0.sub(x)
 }
 
-greet_sig : proc(mut I64) = (x) {
+greet_sig : func(mut I64) = (x) {
     x = x.add(100)
 }
 

@@ -508,7 +508,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     return visited
 }
 
-scavenge_imported := proc(mut lp: LoadedProgram) {
+scavenge_imported := func(mut lp: LoadedProgram) {
     visited := scavenge_visited_imported(lp)
 
     if lp.skip_core.not() {
@@ -528,7 +528,7 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
 
 // Scan program AST for link()/link_c() directives; fill link_flags,
 // include_flags, link_c_paths on the given LoadedProgram.
-extract_link_info := proc(mut lp: LoadedProgram) {
+extract_link_info := func(mut lp: LoadedProgram) {
     // Remove link()/link_c() directives in-place from every user file so the
     // interpreter never evaluates them.
     for ui in 0..lp.units.len() {
@@ -809,7 +809,7 @@ decl_kind := func(stmt: Expr) returns Str {
 // 0x01/0x02 are control characters that won't appear in identifiers or
 // /// doc text, so they make safe field/record separators that
 // __doc_parse_into__ in core/doc.til scans for at startup.
-append_packed_entry := proc(mut packed: Str, name: Str, value: Str) {
+append_packed_entry := func(mut packed: Str, name: Str, value: Str) {
     packed.push_str(name)
     packed.push_str(Str.from_byte(1.to_u8()))
     packed.push_str(value)
@@ -819,7 +819,7 @@ append_packed_entry := proc(mut packed: Str, name: Str, value: Str) {
 // Walk a Body's top-level Decls. For each Decl append a kind entry into
 // `kinds` (always) and a doc entry into `docs` if Declaration.doc is
 // non-empty. Both blobs use 0x01 as field-sep and 0x02 as record-sep.
-collect_decl_packed := proc(body: Expr, mut kinds: Str, mut docs: Str) {
+collect_decl_packed := func(body: Expr, mut kinds: Str, mut docs: Str) {
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.node_type)
@@ -859,7 +859,7 @@ packed_capacity := func(body: Expr) returns USize {
 // stays roughly constant regardless of program size. The synthesized
 // call uses core_ast's first decl path so error messages point into
 // core rather than at user line numbers.
-synthesize_doc_registry := proc(core_ast: Expr, user_ast: Expr, mut out_body: Expr) {
+synthesize_doc_registry := func(core_ast: Expr, user_ast: Expr, mut out_body: Expr) {
     cap := packed_capacity(core_ast).add(packed_capacity(user_ast)).add(8.to_usize())
     mut packed_kinds := Str.with_capacity(cap)
     mut packed_docs := Str.with_capacity(cap)
@@ -879,7 +879,7 @@ synthesize_doc_registry := proc(core_ast: Expr, user_ast: Expr, mut out_body: Ex
 // Build a single source-level __doc_init__("...", "...") line for use by the
 // REPL. We keep docs REPL-only for now: normal loader pipelines do not
 // synthesize doc init calls.
-doc_init_src_line := proc(core_ast: Expr, user_ast: Expr) returns Str {
+doc_init_src_line := func(core_ast: Expr, user_ast: Expr) returns Str {
     cap := packed_capacity(core_ast).add(packed_capacity(user_ast)).add(8.to_usize())
     mut packed_kinds := Str.with_capacity(cap)
     mut packed_docs := Str.with_capacity(cap)
@@ -895,7 +895,7 @@ doc_init_src_line := proc(core_ast: Expr, user_ast: Expr) returns Str {
 }
 
 // Append -l flag to the link_flags carried on lp.
-loaded_add_lflag := proc(mut lp: LoadedProgram, lib: Str) {
+loaded_add_lflag := func(mut lp: LoadedProgram, lib: Str) {
     lp.link_flags = lp.link_flags.concat(" -l").concat(lib)
 }
 

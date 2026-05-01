@@ -43,7 +43,7 @@ test_greet := proc() {
 
 // --- struct tests ---
 
-test_instantiation := proc() {
+test_instantiation := func() {
     p := Pair()
     assert_eq(__LOC__, p.a, 0)
     assert_eq(__LOC__, p.b, 0)
@@ -52,14 +52,14 @@ test_instantiation := proc() {
     assert_eq(__LOC__, p2.b, 7)
 }
 
-test_field_mutation := proc() {
+test_field_mutation := func() {
     p := Pair(a=1, b=2)
     p.a = 10
     assert_eq(__LOC__, p.a, 10)
     assert_eq(__LOC__, p.b, 2)
 }
 
-test_ext_methods := proc() {
+test_ext_methods := func() {
     p := Pair(a=3, b=7)
     assert_eq(__LOC__, p.sum(), 10)
     q := p.swap()
@@ -67,7 +67,7 @@ test_ext_methods := proc() {
     assert_eq(__LOC__, q.b, 3)
 }
 
-test_mixed_methods := proc() {
+test_mixed_methods := func() {
     p := Pair(a=3, b=7)
     assert_eq(__LOC__, p.double_sum(), 20)
     assert(__LOC__, p.is_equal().not())
@@ -84,7 +84,7 @@ test_mixed_methods := proc() {
     assert_eq(__LOC__, r.sum(), 30)
 }
 
-test_clone := proc() {
+test_clone := func() {
     p := Pair(a=3, b=7)
     q := p.clone()
     assert_eq(__LOC__, q.a, 3)
@@ -94,7 +94,7 @@ test_clone := proc() {
     assert_eq(__LOC__, q.a, 99)
 }
 
-test_delete := proc() {
+test_delete := func() {
     p := Pair(a=1, b=2)
     Pair.delete(own p)
 }
@@ -110,7 +110,7 @@ add_points := ext_func(a: Point, b: Point) returns Point {}
 // Variadic ext_func
 sum_all := ext_func(nums: ..I64) returns I64 {}
 
-test_add_points := proc() {
+test_add_points := func() {
     a := Point(x=1, y=2)
     b := Point(x=3, y=4)
     c := add_points(a, b)
@@ -118,7 +118,7 @@ test_add_points := proc() {
     assert_eq(__LOC__, c.y, 6)
 }
 
-test_variadic := proc() {
+test_variadic := func() {
     assert_eq(__LOC__, sum_all(10, 20, 30), 60)
     assert_eq(__LOC__, sum_all(1, 2, 3, 4, 5), 15)
     assert_eq(__LOC__, sum_all(42), 42)

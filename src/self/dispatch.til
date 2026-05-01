@@ -107,7 +107,7 @@ ffi_dlsym := func(name: Str) returns ref U8 {
     return ffi_global_symbol(name)
 }
 
-ffi_init_link_libs := proc(link_flags: Str) {
+ffi_init_link_libs := func(link_flags: Str) {
     if is_null(link_flags) {
         return
     }
@@ -168,13 +168,13 @@ ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_
     return 0
 }
 
-ffi_init_struct_defs := proc(program: Expr) {
+ffi_init_struct_defs := func(program: Expr) {
     ffi_struct_defs = Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
     ffi_init_struct_defs_append(program)
 }
 
 // Append struct defs found in program into ffi_struct_defs (does not reset).
-ffi_init_struct_defs_append := proc(program: Expr) {
+ffi_init_struct_defs_append := func(program: Expr) {
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) {
             continue
@@ -477,12 +477,12 @@ h_file_mtime := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
-h_clock_ms := proc(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
+h_clock_ms := func(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
     r = val_i64(clock_ms())
     return true
 }
 
-h_get_thread_count := proc(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
+h_get_thread_count := func(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
     r = val_i64(get_thread_count())
     return true
 }
@@ -613,13 +613,13 @@ h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
 DispatchFn := proc(Scope, Expr, mut Value) returns shallow Bool
 
-reg_dispatch := proc(name: Str, handler: DispatchFn) {
+reg_dispatch := func(name: Str, handler: DispatchFn) {
     v : Dynamic = malloc(8)
     write_ptr(v, handler)
     dispatch_map.set(own name.clone(), own v)
 }
 
-dispatch_init := proc() {
+dispatch_init := func() {
     dispatch_map = Map.new("Str", Str.size(), "Dynamic", I64.size())
     reg_dispatch("print_single", h_print_single)
     reg_dispatch("print_flush", h_print_flush)
@@ -660,7 +660,7 @@ dispatch_init := proc() {
     dispatch_inited = true
 }
 
-ext_dispatch_builtin := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
+ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
     if dispatch_map.has(name) {
         ref fp : DispatchFn = to_ptr(dispatch_map.get(name))
         return fp(scope, e, result)
@@ -883,7 +883,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
     return false
 }
 
-ffi_decode_scalar := proc(rtype: Str, p: Dynamic, mut result: Value) returns shallow Bool {
+ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value) returns shallow Bool {
     if rtype.eq("I64")        { ref rv : I64 = p;   result = val_i64(rv);            return true }
     else if rtype.eq("U8")    { ref rv : U8 = p;    result = val_u8(rv.to_i64());    return true }
     else if rtype.eq("I16")   { ref rv : I16 = p;   result = val_i16(rv.to_i64());   return true }
@@ -1058,7 +1058,7 @@ ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     if ext_dispatch_builtin(name, scope, e, result) { return true }
     return ext_dispatch_ffi(name, scope, e, result)
 }
-ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
+ffi_register := func(name: Str, fn: Dynamic, fdef: Expr) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         np := fd.params.len()
@@ -1122,7 +1122,8 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
     }
 }
 
-ffi_init_scan_program := proc(program: Expr) {
+
+ffi_init_scan_program := func(program: Expr) {
     if ffi_map_inited.not() {
         ffi_map = Map.new("Str", Str.size(), "FFIEntry", FFIEntry.size())
         ffi_map_inited = true

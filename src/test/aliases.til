@@ -252,7 +252,7 @@ MyVec := struct {
     mut count : MySize = 0
     namespace:
     len := func(self: MyVec) returns MySize { return self.count }
-    inc := proc(mut self: MyVec) { self.count = self.count.add(1) }
+    inc := func(mut self: MyVec) { self.count = self.count.add(1) }
 }
 
 test_alias_in_struct_methods := test() {

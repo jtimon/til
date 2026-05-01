@@ -294,3 +294,9 @@ NsUnqualified := namespace {
     mut urmom := 69
     get := func() returns I64 { return urmom }
 }
+
+// proc without any proc/ext_proc calls should be a func
+useless_proc := proc(_x: I64) {
+    return
+}
+useless_proc(1)

@@ -45,7 +45,7 @@ file_label := func(path: Str) returns Str {
     return label.strip_suffix(".til")
 }
 
-ordered_paths := proc() returns Vec {
+ordered_paths := func() returns Vec {
     mut paths := Vec.new("Str", Str.size())
     paths.push(own "src/self/lexer.til".clone())
     paths.push(own "src/core/ast.til".clone())
@@ -94,7 +94,7 @@ count_char := func(s: Str, ch: U8) returns I64 {
     return n
 }
 
-extract_body_lines := proc(lines: Vec, shallow start_line: U32) returns Vec {
+extract_body_lines := func(lines: Vec, shallow start_line: U32) returns Vec {
     mut out := Vec.new("Str", Str.size())
     mut started := false
     mut stop_collect := false
@@ -279,7 +279,7 @@ collect_types := proc(paths: Vec) returns Vec {
     return out
 }
 
-collect_panels := proc(paths: Vec, types: Vec) returns Vec {
+collect_panels := func(paths: Vec, types: Vec) returns Vec {
     mut out := Vec.new("UmlPanel", UmlPanel.size())
     mut i : USize = 0
     while i.lt(paths.len()) {
@@ -300,7 +300,7 @@ collect_panels := proc(paths: Vec, types: Vec) returns Vec {
     return out
 }
 
-generate_org := proc(paths: Vec, types: Vec) returns Str {
+generate_org := func(paths: Vec, types: Vec) returns Str {
     mut out := ""
     mut i : USize = 0
     while i.lt(paths.len()) {
@@ -412,7 +412,7 @@ panel_h := func(p: UmlPanel) returns I64 {
     return h.add(PANEL_PAD_Y)
 }
 
-generate_svg := proc(panels: Vec) returns Str {
+generate_svg := func(panels: Vec) returns Str {
     mut total_w := PAGE_PAD_X
     mut max_h := 0
     mut i : USize = 0

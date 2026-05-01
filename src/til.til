@@ -356,7 +356,7 @@ parse_args := proc(args: Array) returns CliArgs {
 
 // Split trailing args (after the source path) into -l flags (appended to
 // lp.link_flags) and user argv (returned).
-collect_user_argv := proc(mut lp: LoadedProgram, args: Array, shallow start_idx: USize) returns Vec {
+collect_user_argv := func(mut lp: LoadedProgram, args: Array, shallow start_idx: USize) returns Vec {
     mut user_argv := Vec.new("Str", Str.size())
     mut ai := start_idx
     while ai.lt(args.len()) {

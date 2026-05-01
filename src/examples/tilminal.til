@@ -1,10 +1,10 @@
 mode gui
 
-push_line := proc(lines: Vec, text: Str) {
+push_line := func(lines: Vec, text: Str) {
     lines.push(own text.clone())
 }
 
-push_output := proc(lines: Vec, output: Str) {
+push_output := func(lines: Vec, output: Str) {
     if output.len().eq(0) {
         push_line(lines, "")
         return

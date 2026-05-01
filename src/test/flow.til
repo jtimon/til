@@ -192,7 +192,7 @@ test_reassign_str := test() {
     assert_eq_str(__LOC__, s, "world")
 }
 
-reassign_clone_helper := proc(x: Str) {
+reassign_clone_helper := func(x: Str) {
     mut s := "hello"
     s = x
     assert_eq_str(__LOC__, s, "from_arg")

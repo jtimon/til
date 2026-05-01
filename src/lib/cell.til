@@ -4,12 +4,12 @@ mode lib
 // Supports life-like rules via born/survive neighbor count arrays
 
 // Create a new grid of cols*rows cells (all dead/0)
-ca_new_grid := proc(cols: I64, rows: I64) returns Array {
+ca_new_grid := func(cols: I64, rows: I64) returns Array {
     return Array.new("I64", 8, cols.mul(rows).to_usize())
 }
 
 // Clear all cells to 0
-ca_clear_grid := proc(mut grid: Array, total: I64) {
+ca_clear_grid := func(mut grid: Array, total: I64) {
     mut i := 0
     while i.lt(total) {
         grid.set(i.to_usize(), own 0)
@@ -56,7 +56,7 @@ ca_in_set := func(mut arr: Array, len: I64, val: I64) returns Bool {
 // Step: compute next generation using life-like born/survive rules
 // born = array of neighbor counts where dead cell becomes alive
 // survive = array of neighbor counts where live cell stays alive
-ca_step := proc(mut grid: Array, mut next: Array, cols: I64, rows: I64,
+ca_step := func(mut grid: Array, mut next: Array, cols: I64, rows: I64,
                 mut born: Array, born_len: I64, mut survive: Array, survive_len: I64) {
     total := cols.mul(rows)
     mut i := 0
@@ -81,7 +81,7 @@ ca_step := proc(mut grid: Array, mut next: Array, cols: I64, rows: I64,
 }
 
 // Copy next grid into grid (swap buffers)
-ca_swap := proc(mut grid: Array, mut next: Array, total: I64) {
+ca_swap := func(mut grid: Array, mut next: Array, total: I64) {
     mut i := 0
     while i.lt(total) {
         ref nval : I64 = next.get(i.to_usize())

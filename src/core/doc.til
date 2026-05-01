@@ -17,7 +17,7 @@ mut __til_kinds_blob__ := ""
 
 /// Loader-emitted entry point that hands the packed registry blobs to
 /// the runtime. Not intended for direct user calls.
-__doc_init__ := proc(kinds_data: Str, docs_data: Str) {
+__doc_init__ := func(kinds_data: Str, docs_data: Str) {
     __til_kinds_blob__ = kinds_data.clone()
     __til_docs_blob__ = docs_data.clone()
 }
@@ -96,5 +96,5 @@ help := proc(name: Str) {
 // __doc_register__ / __kind_register__ FCalls. Once boot is regenerated
 // from the new loader, only __doc_init__ is emitted and these are
 // unused. Removable next bootstrap cycle.
-__doc_register__ := proc(_name: Str, _text: Str) {}
-__kind_register__ := proc(_name: Str, _kind: Str) {}
+__doc_register__ := func(_name: Str, _text: Str) {}
+__kind_register__ := func(_name: Str, _kind: Str) {}

@@ -83,7 +83,7 @@ namespace:
         if is_null(b).not() { return b.is_mut }
         return false
     }
-    set := proc(mut self: TypeScope, name: Str, type: TilType,
+    set := func(mut self: TypeScope, name: Str, type: TilType,
         shallow func_type: FuncType, shallow is_mut: Bool,
         path: Str,
         shallow line: U32, shallow col: U32,
@@ -227,7 +227,7 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
     return errors
 }
 
-gen_struct_clone_delete_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.child(0).node_type.is(NodeType.StructDef).not() { return }
 
@@ -391,7 +391,7 @@ gen_struct_clone_delete_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     }
 }
 
-generate_missing_struct_clones_and_deletes := proc(program: Expr, scope: TypeScope) {
+generate_missing_struct_clones_and_deletes := func(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
         gen_struct_clone_delete_for_stmt(stmt, scope)
     }
@@ -426,7 +426,7 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
     }
 }
 
-collect_enum_variants := proc(enum_def: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool) {
+collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool) {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         has_payloads = edd.payload_types.len().gt(0)
@@ -446,7 +446,7 @@ collect_enum_variants := proc(enum_def: Expr, mut variant_names: Vec, mut varian
     }
 }
 
-generate_enum_variant_constructors := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
     switch enum_def.node_type {
     case NodeType.EnumDef(evc_edd):
         if has_payloads.not() {
@@ -482,7 +482,7 @@ generate_enum_variant_constructors := proc(enum_def: Expr, ename: Str, shallow l
     }
 }
 
-generate_enum_is_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32) {
+generate_enum_is_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     mut is_id := Expr.new(NodeType.Ident("is"), line, col)
     mut self_id := Expr.new(NodeType.Ident("self"), line, col)
@@ -517,7 +517,7 @@ generate_enum_is_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
     }
 }
 
-generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
+generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names.get(j)
@@ -643,7 +643,7 @@ generate_enum_eq_method := proc(enum_def: Expr, ename: Str, shallow line: U32, s
     }
 }
 
-generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
     mut proc_body := Expr.new(NodeType.Body, line, col)
     if has_payloads {
         for j in 0..variant_names.len() {
@@ -726,7 +726,7 @@ generate_enum_delete_method := proc(enum_def: Expr, ename: Str, shallow line: U3
     }
 }
 
-generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names.get(j)
@@ -842,7 +842,7 @@ generate_enum_to_str_method := proc(enum_def: Expr, ename: Str, shallow line: U3
     }
 }
 
-generate_enum_clone_method := proc(enum_def: Expr, ename: Str, shallow line: I32, shallow col: I32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32, shallow col: I32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
     mut func_body := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32())
     for j in 0..variant_names.len() {
         ref vname : Str = variant_names.get(j)
@@ -951,7 +951,7 @@ register_enum_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow
     return register_enum_definition(stmt, scope)
 }
 
-gen_enum_nonclone_methods_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
 
@@ -1021,7 +1021,7 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
     return errors
 }
 
-gen_missing_enum_clone_for_stmt := proc(stmt: Expr) {
+gen_missing_enum_clone_for_stmt := func(stmt: Expr) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
 
@@ -1059,13 +1059,13 @@ gen_missing_enum_clone_for_stmt := proc(stmt: Expr) {
     }
 }
 
-generate_missing_enum_clones := proc(program: Expr) {
+generate_missing_enum_clones := func(program: Expr) {
     for stmt : Expr in program.children {
         gen_missing_enum_clone_for_stmt(stmt)
     }
 }
 
-register_funcsig_alias_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+register_funcsig_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if is_func_decl(stmt).not() { return }
     if stmt.child(0).children.len().neq(0) { return }
     switch stmt.node_type {
@@ -1078,13 +1078,13 @@ register_funcsig_alias_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     }
 }
 
-register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
+register_funcsig_aliases := func(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
         register_funcsig_alias_for_stmt(stmt, scope)
     }
 }
 
-register_type_alias_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+register_type_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref rhs : Expr = stmt.child(0)
     mut target_name := ""
@@ -1126,13 +1126,13 @@ register_type_alias_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     }
 }
 
-register_type_aliases := proc(program: Expr, scope: TypeScope) {
+register_type_aliases := func(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
         register_type_alias_for_stmt(stmt, scope)
     }
 }
 
-register_top_level_value_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+register_top_level_value_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref rhs : Expr = stmt.child(0)
     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
@@ -1166,13 +1166,13 @@ register_top_level_value_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     }
 }
 
-register_top_level_values := proc(program: Expr, scope: TypeScope) {
+register_top_level_values := func(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
         register_top_level_value_for_stmt(stmt, scope)
     }
 }
 
-register_function_def_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
     if def.node_type.is(NodeType.FuncDef).not() { return }
@@ -1251,13 +1251,13 @@ register_function_def_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     }
 }
 
-register_function_definitions := proc(program: Expr, scope: TypeScope) {
+register_function_definitions := func(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
         register_function_def_for_stmt(stmt, scope)
     }
 }
 
-gen_struct_size_method_for_stmt := proc(stmt: Expr) {
+gen_struct_size_method_for_stmt := func(stmt: Expr) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
     if def.node_type.is(NodeType.StructDef).not() { return }
@@ -1307,7 +1307,7 @@ gen_struct_size_method_for_stmt := proc(stmt: Expr) {
     }
 }
 
-generate_struct_size_methods := proc(program: Expr) {
+generate_struct_size_methods := func(program: Expr) {
     for stmt : Expr in program.children {
         gen_struct_size_method_for_stmt(stmt)
     }
@@ -1370,7 +1370,7 @@ generate_enum_size_methods := proc(program: Expr, scope: TypeScope) {
     }
 }
 
-gen_unity_derived_for_stmt := proc(stmt: Expr) {
+gen_unity_derived_for_stmt := func(stmt: Expr) {
     if is_struct_or_enum(stmt).not() { return }
     ref def : Expr = stmt.child(0)
 
@@ -1455,7 +1455,7 @@ gen_unity_derived_for_stmt := proc(stmt: Expr) {
     }
 }
 
-generate_unity_derived_methods := proc(program: Expr) {
+generate_unity_derived_methods := func(program: Expr) {
     for stmt : Expr in program.children {
         gen_unity_derived_for_stmt(stmt)
     }
@@ -1466,7 +1466,7 @@ generate_size_methods := proc(program: Expr, scope: TypeScope) {
     generate_enum_size_methods(program, scope)
 }
 
-gen_cmp_derived_for_stmt := proc(stmt: Expr) {
+gen_cmp_derived_for_stmt := func(stmt: Expr) {
     if is_struct_or_enum(stmt).not() { return }
     ref def : Expr = stmt.child(0)
 
@@ -1741,13 +1741,13 @@ gen_cmp_derived_for_stmt := proc(stmt: Expr) {
     }
 }
 
-generate_cmp_derived_methods := proc(program: Expr) {
+generate_cmp_derived_methods := func(program: Expr) {
     for stmt : Expr in program.children {
         gen_cmp_derived_for_stmt(stmt)
     }
 }
 
-generate_derived_methods := proc(program: Expr) {
+generate_derived_methods := func(program: Expr) {
     generate_cmp_derived_methods(program)
     generate_unity_derived_methods(program)
 }
@@ -1984,7 +1984,7 @@ compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
 }
 
 // Re-resolve field_struct_def pointers after hoisting (cloning) invalidates them.
-resolve_field_struct_defs := proc(program: Expr, scope: TypeScope) {
+resolve_field_struct_defs := func(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }

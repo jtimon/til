@@ -154,7 +154,7 @@ print_test_result := proc(t: Test) {
 
 // --- Registration helpers ---
 
-add_mode := proc(tests: Vec, file: Str, flags: Str) {
+add_mode := func(tests: Vec, file: Str, flags: Str) {
     bn := test_basename(file)
     tests.push(own Test(
         label = file.clone(),
@@ -166,7 +166,7 @@ add_mode := proc(tests: Vec, file: Str, flags: Str) {
     ))
 }
 
-add_single := proc(tests: Vec, label: Str, category: Str,
+add_single := func(tests: Vec, label: Str, category: Str,
                    expected_exit: I64, expected_out: Str, cmd_suffix: Str) {
     mut runner_cmd := RUNNER.concat(" single ").concat(label).concat(" ").concat(expected_exit.to_str())
     if expected_out.len().gt(0) {
@@ -182,7 +182,7 @@ add_single := proc(tests: Vec, label: Str, category: Str,
     ))
 }
 
-add_count := proc(tests: Vec, label: Str, category: Str,
+add_count := func(tests: Vec, label: Str, category: Str,
                   needle: Str, expected_count: I64, cmd_suffix: Str) {
     runner_cmd := RUNNER.concat(" count ").concat(label).concat(" '").concat(needle).concat("' ").concat(expected_count.to_str()).concat(" -- ").concat(cmd_suffix)
     tests.push(own Test(
@@ -194,7 +194,7 @@ add_count := proc(tests: Vec, label: Str, category: Str,
     ))
 }
 
-add_cli_pair := proc(tests: Vec, name: Str, file: Str,
+add_cli_pair := func(tests: Vec, name: Str, file: Str,
                      cli_args: Str, expected_exit: I64, expected_out: Str,
                      til: Str) {
     mut cmd_i := til.concat(" interpret ").concat(file)
@@ -412,7 +412,7 @@ main := proc(args: ..Str) {
                asan_safe_cmd(til_bin.concat(" run src/examples/ffi/ext_module.til"), til_bin))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 61,
+    add_count(tests, "typer_errors", "typer", "error:", 67,
               asan_safe_cmd(til_bin.concat(" interpret src/test/typer_errors.til"), til_bin))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,

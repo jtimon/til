@@ -127,7 +127,7 @@ staff_y := func(diat_idx: I64, octave: I64) returns I64 {
     return STAFF_BASE_Y.to_i64().sub(diat_idx.sub(2).add(octave.mul(7)).mul(STAFF_SP.to_i64()))
 }
 
-start_scale := proc(mut playing: Bool, mut play_idx: USize, mut play_timer: I64) {
+start_scale := func(mut playing: Bool, mut play_idx: USize, mut play_timer: I64) {
     playing = true
     play_idx = 0
     play_timer = 300
@@ -198,7 +198,7 @@ draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc:
     draw_text_font(fnt, nn, dnx.sub(NOTE_R.to_i64()), LABEL_Y.to_i64(), FONT_SM.to_i64(), 1, 180, 180, 180, 255)
 }
 
-recompute_scale := proc(sel_diatonic: USize, sel_accidental: I64, sel_mode: USize,
+recompute_scale := func(sel_diatonic: USize, sel_accidental: I64, sel_mode: USize,
                         mut sc_chrom: Array, mut sc_diat: Array, mut sc_oct: Array,
                         mut sc_acc: Array, mut sc_freq: Array, mut sc_triad: Array) {
     ref nat_c : USize = NATURALS.get(sel_diatonic)

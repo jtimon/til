@@ -413,7 +413,7 @@ test_null_ref_local := test() {
     accept_null(x)
 }
 
-accept_null := proc(x: I64) {
+accept_null := func(x: I64) {
     // borrowed param can receive NULL
     assert(__LOC__, is_null(x))
 }
