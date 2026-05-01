@@ -238,20 +238,13 @@ value_to_f32 := func(v: Value) returns F32 {
 
 // Narrow a Value coming out of an arg expression for the and/or/not
 // builtin handlers. Only Bool is exercised today (those are the only
-// callers, and the typer narrows their args to Bool). If a Value.Ptr
-// slot pointer comes through with a typed til_type, deref it before
-// reinterpreting -- get_payload yields the address of the payload
-// field, not the slot it holds.
+// callers, and the typer narrows their args to Bool). The narrowing
+// itself is delegated to ~reinterpret_ptr_value~ so the ref-binding
+// path and this dispatch path can't drift apart again (#166, #167.1).
 eval_arg := proc(s: Scope, e: Expr) returns Value {
     v := eval_expr(s, e)
-    if v.is(Value.Ptr).not().or(e.til_type.is(TilType.Dynamic)) {
-        return v
-    }
-    if e.til_type.is(TilType.Bool) {
-        ref pv : Dynamic = get_payload(v)
-        ref p : Dynamic = deref(pv)
-        ref x : Bool = p
-        return val_bool(x)
+    if v.is(Value.Ptr).and(e.til_type.is(TilType.Bool)) {
+        return reinterpret_ptr_value(v, "Bool", s)
     }
     return v
 }

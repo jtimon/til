@@ -99,6 +99,10 @@ Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
   after the commit, otherwise the stop hook will block the session.
 - Use `make test` before every commit (skip when only documentation changed)
 - Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
+- Do NOT start commit message subjects with `#` (e.g. "#167 Foo"). Lead with
+  a word and reference the issue number inline ("Issue #167: foo" or
+  "Foo (#167)"). Lines beginning with `#` are comments in git's commit
+  message buffer and get stripped by some tools.
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
 - Force-pushing to your own assigned feature branch (e.g. `claude/...`) is
   pre-authorized -- do NOT ask for confirmation. Use
