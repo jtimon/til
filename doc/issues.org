@@ -1059,6 +1059,98 @@
    | ~StructDef~  | 4 fields: ~total_struct_size, fields, ns_decls, c_tag~                                                                 | 3 fields: ~members, default_values, ns~                        |
    | ~EnumDef~    | 4 fields: ~ns_decls, variants, payload_types, total_enum_size~                                                         | 3 fields: ~variants, methods, ns~                              |
 
+*** Audit (read/write site counts, master = ~2ca9261~)
+
+   **** Dangerous ~ref mut .. : Expr = NULL~ refs
+
+   | Field                              | Writes | Reads | Notes                                                                                  |
+   |------------------------------------+--------+-------+----------------------------------------------------------------------------------------|
+   | ~Declaration.field_struct_def~     |      5 |   ~20 | initer x4 + typer x1 writes; reads in interpreter (~16), dispatch (2), loader (2), typer (1) |
+   | ~FCallData.fn_sig~                 |      4 |     5 | typer self-writes; reads: builder x3, typer x2 (one round-trips back to ~decl_b.func_def~)   |
+   | ~TypeBinding.struct_def~           |      6 |   ~30 | initer + typer write; reads spread across initer/typer/interpreter/dispatch                  |
+   | ~TypeBinding.func_def~             |    ~14 |   ~50 | most reads in typer (callee resolution); initer also reads heavily                           |
+
+   Two pieces of empirical evidence the dangling-ref hazard is real:
+
+   - ~src/self/loader.til:958-969~ defines and calls
+     ~resolve_field_struct_defs~ -- a defensive AST walk after hoisting
+     to /re-resolve/ ~field_struct_def~ pointers because cloning the
+     AST invalidated them.
+   - ~src/self/typer.til:2593-2608~ does the same thing
+     (~reregister_field_struct_defs~) after typer rebuilds.
+
+   And one round-trip pathology:
+
+   - ~typer.til:1825~ assigns ~decl_b.func_def = _rfc.fn_sig~ -- one
+     dangerous ref feeds another. Killing ~fn_sig~ (5 reads) cuts this
+     thread by half; killing ~TypeBinding.func_def~ closes it.
+
+   First-move ranking (smallest -> biggest):
+
+   1. *fn_sig* (5 read sites, 4 write sites; readers have ~scope~ at
+      hand and the callee name in ~fcall.child(0)~). Replacement:
+      ~scope.lookup_func(callee_name)~. Doesn't need new Context
+      machinery; mostly proves the "name + lookup" pattern.
+   2. *Declaration.field_struct_def* (~20 reads). Forces step 3
+      (~Context.struct_layouts~) + step 4. Biggest architectural payoff
+      because it also kills ~resolve_field_struct_defs~ /
+      ~reregister_field_struct_defs~ defensive walks. Needs an
+      ~enum_layouts~ map alongside (current state already has
+      ~EnumDef.total_enum_size~ matched against
+      ~StructDef.total_struct_size~).
+   3. *TypeBinding.struct_def* / *TypeBinding.func_def* (~80 reads
+      combined). Largest scope. Discipline: store the name on the
+      binding, look up via ~scope.get_struct(name)~ /
+      ~scope.lookup_func(name)~ at read time. Needed to fully purge
+      AST refs from the scope layer.
+
+   **** ~Expr.til_type~ reads/writes by phase
+
+   | File             | Reads | Writes | Role                                              |
+   |------------------+-------+--------+---------------------------------------------------|
+   | ~typer.til~      |   236 |    123 | self-consumption: propagates types up; rewrites   |
+   | ~builder.til~    |    97 |      0 | pure consumer; pivots on ~is(TilType.X)~          |
+   | ~interpreter.til~ |    22 |      0 | pure consumer                                     |
+   | ~precomp.til~    |    14 |     11 | writes when synthesizing literals during folding  |
+   | ~initer.til~     |    16 |      7 | writes during synthesized helper generation       |
+   | ~parser.til~     |    12 |     11 | initial writes for literals + resolved Decls      |
+   | ~dispatch.til~   |     5 |      2 |                                                   |
+   | ~scavenger.til~  |     2 |      0 |                                                   |
+   | ~ast.til~        |     2 |      0 | helpers                                           |
+   |------------------+-------+--------+---------------------------------------------------|
+   | TOTAL            |   406 |    154 |                                                   |
+
+   Read characterization:
+
+   - Most non-typer reads are simple pivots: ~e.til_type.is(TilType.Struct)~,
+     ~til_type_name(e.til_type)~, ~til_type_to_c(e.til_type)~. They
+     want a concrete ~TilType~ value, not a re-derivation walk.
+   - Builder + interpreter together: 119 reads, *zero* writes. They're
+     pure consumers running after typer.
+   - Writes outside typer: literals (parser/precomp -- trivially
+     re-derivable from ~node_type~), and a few synthesized-node writes
+     in initer/precomp where the synthesizer already knows the type.
+
+   Implications for removal:
+
+   - *Pure re-derivation* in hot paths (path 2 from earlier): the
+     builder reads ~til_type~ ~97 times during code emission. Each
+     read becoming a scope walk is a real cost. Probably not viable
+     without caching.
+   - *Side table* (path 1, step 11): needs Expr identity (til has none
+     today) + AST stable after typer (~#146~ / ~#158~). Without those,
+     desugar rebuilds drift the table.
+   - *Hybrid*: keep ~til_type~ on selected node types where consumers
+     pivot on it (FCall return type, FieldAccess result type, Ident
+     resolved type). Trim the ~Expr~ field into a NodeType-payload
+     thing for those cases. Smaller win, less invasive.
+
+   Bottom line: ~Expr.til_type~ removal is blocked on either a node-id
+   story or a hybrid restructuring. Dangerous refs (~fn_sig~ first,
+   then ~field_struct_def~) are the actionable next moves and also
+   help leak reduction (cloners no longer need to keep referenced
+   nodes live just for the ref).
+
 *** Anti-pattern catalog (the remaining work, organized)
 
    **** Layout cache on AST nodes (steps 3-4)
