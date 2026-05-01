@@ -128,3 +128,21 @@ test_dynamic_local := test() {
     buf : Dynamic = malloc(4)
     assert(__LOC__, is_null(buf).not())
 }
+
+test_dyn_size_of := test() {
+    sz_i64 : USize = dyn_size_of("I64")
+    sz_u8 : USize = dyn_size_of("U8")
+    sz_str : USize = dyn_size_of("Str")
+
+    assert_eq(__LOC__, sz_i64.to_i64(), 8)
+    assert_eq(__LOC__, sz_u8.to_i64(), 1)
+    assert_eq(__LOC__, sz_str.to_i64(), 16)
+
+    elem_type : Str = "I64"
+    via_var : USize = dyn_size_of(elem_type)
+    assert_eq(__LOC__, via_var.to_i64(), 8)
+
+    via_size : USize = dyn_size_of("I64")
+    via_method : USize = I64.size()
+    assert_eq(__LOC__, via_size.to_i64(), via_method.to_i64())
+}

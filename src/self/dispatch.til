@@ -426,6 +426,14 @@ h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
+h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name_val := eval_expr(s, e.child(1))
+    type_name := str_view(type_name_val)
+    sz := get_elem_size(s, type_name, e)
+    r = val_u32(sz.to_i64())
+    return true
+}
+
 h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     pidv := eval_expr(s, e.child(1))
     ref pid : I64 = get_payload(pidv)
@@ -615,6 +623,7 @@ dispatch_init := func() {
     reg_dispatch("dyn_call_ret", h_dyn_call)
     reg_dispatch("dyn_has_method", h_dyn_has_method)
     reg_dispatch("dyn_fn", h_dyn_fn)
+    reg_dispatch("dyn_size_of", h_dyn_size_of)
     reg_dispatch("File_readfile", h_readfile)
     reg_dispatch("File_writefile", h_writefile)
     reg_dispatch("spawn_cmd", h_spawn_cmd)

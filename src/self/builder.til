@@ -1319,6 +1319,10 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 emit_as_ptr(f, method_arg, depth, false)
             }
             f.write(")")
+        } else if name.eq("dyn_size_of") {
+            f.write("dyn_size_of(")
+            emit_as_ptr(f, e.child(1), depth, false)
+            f.write(")")
         } else if name.eq("array").or(name.eq("vec")) {
             ref elem_type : Str = get_payload(e.child(1).node_type)
             count := e.children.len().sub(2).to_i64().to_i32()
@@ -3957,6 +3961,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
         }
     }
     f.write("void *dyn_fn(Str *type_name, Str *method);\n")
+    f.write("U32 dyn_size_of(Str *type_name);\n")
     f.write("\n")
     own dyn_methods.delete()
 
@@ -4169,6 +4174,34 @@ emit_dyn_fn_wrappers := proc(f: File) {
         }
     }
     f.write("    fprintf(stderr, \"dyn_fn: unknown %s.%s\\n\", (char*)type_name->c_str, (char*)method->c_str);\n")
+    f.write("    exit(1);\n")
+    f.write("}\n\n")
+}
+
+emit_dyn_size_of_body := proc(f: File) {
+    ref lp : LoadedProgram = codegen_lp()
+    f.write("U32 dyn_size_of(Str *type_name) {\n    (void)type_name;\n")
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                if is_struct_or_enum(stmt).not() { continue }
+                ref dd : Declaration = get_payload(stmt.node_type)
+                tlen := dd.name.len().to_i64().to_u64()
+                f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) return sizeof("); f.write(dd.name); f.write(");\n")
+            }
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for stmt : Expr in iu.ast.children {
+            if is_struct_or_enum(stmt).not() { continue }
+            ref dd : Declaration = get_payload(stmt.node_type)
+            tlen := dd.name.len().to_i64().to_u64()
+            f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) return sizeof("); f.write(dd.name); f.write(");\n")
+        }
+    }
+    f.write("    fprintf(stderr, \"dyn_size_of: unknown type %.*s\\n\", (int)type_name->count, (char*)type_name->c_str);\n")
     f.write("    exit(1);\n")
     f.write("}\n\n")
 }
@@ -4739,6 +4772,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     emit_dyn_call_bodies(f)
     emit_dyn_fn_wrappers(f)
     emit_dyn_has_bodies(f)
+    emit_dyn_size_of_body(f)
     emit_collection_helpers(f)
 
     if run_tests {
