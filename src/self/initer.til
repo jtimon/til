@@ -1094,20 +1094,20 @@ register_type_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
     case:
         return
     }
-    find := scope.find(target_name)
-    switch find {
-    case ScopeFind.Found(target):
-        if is_null(target.struct_def).and(target.is_builtin.not()) {
-            if is_null(target.func_def) {
-                return
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        if scope.find(sdecl.name).is(ScopeFind.Found) { return }
+        find := scope.find(target_name)
+        switch find {
+        case ScopeFind.Found(target):
+            if is_null(target.struct_def).and(target.is_builtin.not()) {
+                if is_null(target.func_def) {
+                    return
+                }
+                if target.func_def.children.len().neq(0) {
+                    return
+                }
             }
-            if target.func_def.children.len().neq(0) {
-                return
-            }
-        }
-        switch stmt.node_type {
-        case NodeType.Decl(sdecl):
-            if scope.find(sdecl.name).is(ScopeFind.Found) { return }
             scope.set(sdecl.name, target.type, target.func_type, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
             ab.struct_def = target.struct_def
@@ -1120,9 +1120,21 @@ register_type_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
                 ab.alias_target = target.alias_target
             }
         case:
-            UNREACHABLE(__LOC__)
+            // Target not in scope yet. Only register when the target name is a
+            // builtin primitive (e.g. `USize := U32` declared above u32.til's
+            // import). User-defined types and value bindings are left to the
+            // existing path so we don't accidentally treat a value alias like
+            // `ref x : T = some_local` as a type alias. #165.
+            til_type := til_type_from_explicit_type(target_name)
+            if til_type.is(TilType.Unknown) { return }
+            if til_type.is(TilType.Custom) { return }
+            scope.set(sdecl.name, til_type, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
+            ab.is_type_alias = true
+            ab.alias_target = target_name
         }
     case:
+        UNREACHABLE(__LOC__)
     }
 }
 
