@@ -1700,6 +1700,29 @@
   collected between passes.  Fixing that is a typer-side question
   (prune dropped nodes) and not in the current bucket list.
 
+  2026-05-01 ASAN observation -- import order effect:
+
+  Alphabetizing core.til's import list (commit 9d0b82d) caused a large
+  drop in the per-test ASAN baseline for ~bin/til_asan interpret
+  src/test/strings.til~:
+
+  | before alphabetize | 819,166 bytes / 82,762 allocs |
+  | after alphabetize  | 432,243 bytes / 47,318 allocs |
+  | delta              | -47.3% bytes / -42.8% allocs  |
+
+  The commit makes no logic changes -- only the order of ~import(...)~
+  lines in core.til changes.  The drop is real and large.  Likely
+  explanation: the alphabetized order changes the sequence in which
+  core modules are initialized and deinitialized during interpretation.
+  A different teardown order may cause more owned values to be freed
+  before program exit rather than after.  This has NOT been attributed
+  to a specific code path.
+
+  To investigate: run ASAN with ~malloc_context_size=64~ on both
+  orderings and diff the leak reports to find which allocation sites
+  disappeared.  That should identify which module's initialization
+  is now running its cleanup in a better order.
+
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via
   ~dyn_call~, which does a linear scan of if/memcmp chains every time.
