@@ -558,6 +558,106 @@
    handful of edge cases; final ~_oa~ wraps on module-global delete
    paths.
 
+** OPEN #136 Precomp doesn't fold pure function calls
+   Reopened: an earlier "fix" landed (Vec.move_from / Vec.push_take work,
+   originally in fixed.org) but didn't address the original issue --
+   ~add(1, 2)~ at compile time still reaches runtime. The current
+   precomp eval-fold (commit 4b4c2e2) folds simple integer arithmetic
+   but bails on the more interesting cases. Goal is rstil parity:
+   src/test/constfold.til ~test_lolalalo~ should compile to a constant
+   string the same way rstil's does.
+
+   Status:
+   - Folds: ~test_simple_add~ -> ~result = 3~,
+     ~test_nested_arithmetic~ -> ~15~, ~test_deeply_nested~ -> ~26~.
+   - Does NOT fold: ~test_lolalalo~ -- ~make_poem(...)~ stays as a
+     runtime call. The ~lolalolo~ / ~lalei~ strings the test asserts on
+     are computed at runtime, not at compile time.
+
+   Bails / exceptions added in src/self/precomp.til (none of these are
+   in rstil; remove one by one until ~test_lolalalo~ folds and the rest
+   of the suite still passes):
+
+   1. ~try_eval_call~ bails when ~_fd.func_type.is(FuncType.ExtFunc)~.
+      Workaround for user .so not dlopen'd at precomp time. Built-in
+      ext_funcs (I64_add etc.) are statically linked and *would* be
+      dispatchable; this bail is a sledgehammer over a finer-grained
+      "is this ext_func resolvable right now?" check.
+
+   2. ~try_eval_call~ FA-callee path bails when the receiver Ident
+      isn't a registered struct namespace and isn't a known constant
+      (~known.has(_ri).not()~). Excludes value-receiver method calls
+      (~p.diff()~) from fold attempts.
+
+   3. ~func_uses_unknown_globals~ flags any Ident named
+      ~clone~/~delete~/~concat~/~substr~/~format~ as "unknown",
+      bailing the whole fold. Workaround for precomp's interpreter
+      scope not having top-level constants like ~CAP_VIEW~ that
+      ~Str.delete~ reads on scope exit. Same check on FieldAccess
+      method names. This is what blocks ~make_poem~ from folding --
+      its body is built around ~concat~.
+
+   4. ~func_uses_unknown_globals~ flags Assign nodes whose LHS isn't
+      a body-local. Workaround for funcs like
+      ~build_register_funcsig_names_lp~ where folding would silently
+      mutate precomp's interpreter scope (or panic when the global
+      isn't bound there).
+
+   5. ~try_eval_call~ bails when ~_fd.return_own_type.eq(OwnType.Ref)~.
+      Avoids baking compile-time aliases / dlsym-truncated pointers
+      into the AST.
+
+   6. ~fold_subtree~ skips eval-fold when the parent is ~NodeType.Body~
+      (statement-level FCalls). Replacing them with a literal silently
+      discards side effects (~test_add_points()~ at top level was the
+      first casualty when this wasn't gated).
+
+   7. ~fold_subtree~ skips eval-fold when the FCall callee isn't an
+      ~NodeType.Ident~. Disables FA-callee folds entirely. Method
+      calls like ~x.add(y)~ that the typer leaves as
+      ~FA(x, add)~ never fold; only ~add(x, y)~-shaped flat calls do.
+
+   8. ~value_to_expr~ returns NULL for ~Value.Float~. ~F32_to_str~
+      uses ~%g~ which can yield ~6.28318e+06~ that doesn't round-trip
+      through ~Str.to_f32~. Until the AST has a faithful F32 literal
+      repr, F32-returning calls can't fold.
+
+   9. ~value_to_expr~ returns NULL for ~Value.Struct(non-Str)~.
+      Folded Strs themselves can also carry NULs / non-ASCII that
+      don't round-trip through a C source literal -- so
+      ~try_eval_call~ also drops ~Value.Struct~ from its
+      ~can_convert~ list. This is what blocks any string-returning
+      func from folding even when the call is otherwise safe.
+
+   10. ~fold_subtree~ tracks Decl literals only when the name starts
+       with ~_t_~ (typer-hoisted temps). User-named locals
+       (~x~, ~result~, ~i~) deliberately not tracked because the
+       global ~known~ Map would let one body's value bleed into
+       another's fold. rstil avoids this with a scope stack; til
+       doesn't have one.
+
+   11. ~process_body~ tracks top-level Decl literals only when
+       ~at_global~ (outermost call), so nested function bodies don't
+       pollute the global ~known~ map.
+
+   12. ~try_eval_call~ ~can_convert~ list excludes ~Value.Float~ and
+       ~Value.Struct~ explicitly (mirrors items 8 and 9 at the call
+       site).
+
+   13. ~is_side_effecting_name~ hard-codes a list of ~exit~ /
+       ~malloc~ / ~println~ / ~ffi_*~ / ~dlopen~ / ... names. rstil
+       has its own version of this list; ours has drifted as I added
+       names whenever a fold blew up. Worth re-checking against
+       rstil and pruning to the minimum set that's actually unsafe
+       to invoke at compile time.
+
+   Pre-existing fix that landed earlier (kept; not part of the
+   precomp work): ~Vec.move_from~ / ~Vec.push_take~ in src/core/vec.til
+   for in-place body.children rebuilds in the typer desugar passes.
+   Reduced the ASAN footprint and unblocked further work, but doesn't
+   touch precomp at all. Related: #146 (unify desugar/insert passes),
+   #109 (ASAN leaks).
+
 ** OPEN #130 AST / ~Expr~ representation cleanup
   The current AST shape is confusing and duplicates state in ways that make
   parser and ownership bugs harder to reason about.
