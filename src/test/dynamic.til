@@ -96,6 +96,12 @@ test_dynamic_narrowing := test() {
 // chained UFCS calls to top-level and/or/not. Before the fix the
 // interpreter's eval_arg narrowing read the low byte of the slot pointer
 // instead of dereferencing it, so v.get(i) always looked like true.
+//
+// Contract: chained UFCS narrows Dynamic via eval_arg in dispatch.til.
+// Any container whose get() returns ref Dynamic flows through the same
+// path (Array.get, Map.get, Set.contains, ...) -- this Vec test is
+// representative; per-container regressions belong in those containers'
+// own tests, not here.
 test_bool_vec_get_chain := test() {
     v := vec("Bool", true, false)
     // ref-binding path (already worked pre-fix; keep as a baseline)
