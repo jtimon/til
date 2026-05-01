@@ -2964,8 +2964,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
         i.inc()
     }
     if owns_scope.neq(0) { desugar_body_literals(body, scope) }
-    if owns_scope.neq(0) { desugar_variadic_calls(body, scope) }
-    if owns_scope.neq(0) { desugar_kwargs_calls(body, scope) }
+    if owns_scope.neq(0) { desugar_body_calls(body, scope) }
     if owns_scope.neq(0) { hoist_fcall_args(body, scope) }
     insert_field_deletes(body, scope)
     insert_free_calls(body, scope, owns_scope)
@@ -2979,8 +2978,7 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
         i.inc()
     }
     if owns_scope.neq(0) { desugar_body_literals(body, scope) }
-    if owns_scope.neq(0) { desugar_variadic_calls(body, scope) }
-    if owns_scope.neq(0) { desugar_kwargs_calls(body, scope) }
+    if owns_scope.neq(0) { desugar_body_calls(body, scope) }
     if owns_scope.neq(0) { hoist_fcall_args(body, scope) }
     insert_field_deletes(body, scope)
     insert_free_calls(body, scope, owns_scope)
@@ -4147,15 +4145,26 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
     }
 }
 
-desugar_variadic_calls := func(mut body: Expr, mut scope: TypeScope) {
+// Combine desugar_variadic_calls and desugar_kwargs_calls. Same shape
+// as desugar_body_literals: shared prefilter, shared rebuild, single
+// reregister_scope_defs at the end. A stmt can contain BOTH a variadic
+// fcall and a kwargs fcall (rare, but legal -- e.g. f(1, 2, k=v)
+// where 1,2 are variadic and k=v is kwargs); we apply variadic first
+// then kwargs to the same stmt before pushing, matching the original
+// sequential order so the kwargs pass sees the variadic-rewritten
+// fcall.
+desugar_body_calls := func(mut body: Expr, mut scope: TypeScope) {
     mut has_variadic := false
+    mut has_kwargs := false
     for e_i : Expr in body.children {
-        if is_null(find_variadic_fcall(e_i)).not() {
-            has_variadic = true
-            break
+        if has_variadic.not() {
+            if is_null(find_variadic_fcall(e_i)).not() { has_variadic = true }
+        }
+        if has_kwargs.not() {
+            if is_null(find_kwargs_fcall(e_i)).not() { has_kwargs = true }
         }
     }
-    if has_variadic.not() { return }
+    if has_variadic.not().and(has_kwargs.not()) { return }
 
     mut old := Vec.new("Expr", Expr.size())
     old.move_from(body.children)
@@ -4163,47 +4172,61 @@ desugar_variadic_calls := func(mut body: Expr, mut scope: TypeScope) {
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
-        ref fcall : Expr = find_variadic_fcall(stmt)
-        if is_null(fcall) {
-            new_ch.push_take(old, i)
-            continue
-        }
-        mut vi : I32 = 0
-        mut vc : U32 = 0
-        switch fcall.node_type {
-        case NodeType.FCall(fcall_data):
-            vi = fcall_data.variadic_index
-            vc = fcall_data.variadic_count
-        case:
-            UNREACHABLE(__LOC__)
-        }
-        line := fcall.line
-        col := fcall.col
 
-        ref elem_type : Str = resolve_variadic_elem_type(fcall, scope)
-        if is_null(elem_type) {
-            new_ch.push_take(old, i)
-            continue
-        }
-
-        if desugar_pure_splat_variadic_call(fcall) {
-            new_ch.push_take(old, i)
-            continue
-        }
-
-        va_name := "_va_Array_".concat(va_counter.to_i64().to_str())
-        va_counter.inc()
-        mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
-
-        scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, line, col, false, OwnType.Own)
-
-        new_ch.push(own va_decl)
-
-        for j in 0..vc {
-            new_ch.push(own build_variadic_array_set(fcall, scope, va_name, vi, j))
+        if has_variadic {
+            ref fcall : Expr = find_variadic_fcall(stmt)
+            if is_null(fcall).not() {
+                mut vi : I32 = 0
+                mut vc : U32 = 0
+                switch fcall.node_type {
+                case NodeType.FCall(fcall_data):
+                    vi = fcall_data.variadic_index
+                    vc = fcall_data.variadic_count
+                case:
+                    UNREACHABLE(__LOC__)
+                }
+                line := fcall.line
+                col := fcall.col
+                ref elem_type : Str = resolve_variadic_elem_type(fcall, scope)
+                if is_null(elem_type).not().and(desugar_pure_splat_variadic_call(fcall).not()) {
+                    va_name := "_va_Array_".concat(va_counter.to_i64().to_str())
+                    va_counter.inc()
+                    mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
+                    scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, line, col, false, OwnType.Own)
+                    new_ch.push(own va_decl)
+                    for j in 0..vc {
+                        new_ch.push(own build_variadic_array_set(fcall, scope, va_name, vi, j))
+                    }
+                    rewrite_variadic_fcall_args(fcall, va_name)
+                }
+            }
         }
 
-        rewrite_variadic_fcall_args(fcall, va_name)
+        if has_kwargs {
+            ref fcall : Expr = find_kwargs_fcall(stmt)
+            if is_null(fcall).not() {
+                mut ki : I32 = 0
+                mut kc : U32 = 0
+                switch fcall.node_type {
+                case NodeType.FCall(fcd):
+                    ki = fcd.kwargs_index
+                    kc = fcd.kwargs_count
+                case:
+                    UNREACHABLE(__LOC__)
+                }
+                kw_name := "_kw".concat(kw_counter.to_str())
+                kw_counter.inc()
+                kw_decl := build_kwargs_dynmap_decl(fcall, kw_name)
+                scope.set(kw_name, TilType.Struct("DynMap".clone()), FuncType.None, false, typer_path, fcall.line, fcall.col, false, OwnType.Shallow)
+                new_ch.push(own kw_decl)
+                for j in 0..kc {
+                    ref named_arg : Expr = fcall.child(ki.add(j.to_i64().to_i32()).to_i64().to_usize())
+                    new_ch.push(own build_kwargs_dynmap_set(fcall, scope, kw_name, named_arg))
+                }
+                rewrite_kwargs_fcall_args(fcall, kw_name)
+            }
+        }
+
         new_ch.push_take(old, i)
     }
     body.children.move_from(new_ch)
@@ -4296,58 +4319,6 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr) returns shallow Bool {
         UNREACHABLE(__LOC__)
         return false
     }
-}
-
-desugar_kwargs_calls := func(mut body: Expr, mut scope: TypeScope) {
-    mut has_kwargs := false
-    for e_i : Expr in body.children {
-        if is_null(find_kwargs_fcall(e_i)).not() {
-            has_kwargs = true
-            break
-        }
-    }
-    if has_kwargs.not() { return }
-
-    mut old := Vec.new("Expr", Expr.size())
-    old.move_from(body.children)
-
-    mut new_ch := Vec.new("Expr", Expr.size())
-    for i in 0..old.len() {
-        ref stmt : Expr = old.get(i)
-        ref fcall : Expr = find_kwargs_fcall(stmt)
-        if is_null(fcall) {
-            new_ch.push_take(old, i)
-            continue
-        }
-        mut ki : I32 = 0
-        mut kc : U32 = 0
-        switch fcall.node_type {
-        case NodeType.FCall(fcd):
-            ki = fcd.kwargs_index
-            kc = fcd.kwargs_count
-        case:
-            UNREACHABLE(__LOC__)
-        }
-
-        kw_name := "_kw".concat(kw_counter.to_str())
-        kw_counter.inc()
-
-        kw_decl := build_kwargs_dynmap_decl(fcall, kw_name)
-
-        scope.set(kw_name, TilType.Struct("DynMap".clone()), FuncType.None, false, typer_path, fcall.line, fcall.col, false, OwnType.Shallow)
-
-        new_ch.push(own kw_decl)
-
-        for j in 0..kc {
-            ref named_arg : Expr = fcall.child(ki.add(j.to_i64().to_i32()).to_i64().to_usize())
-            new_ch.push(own build_kwargs_dynmap_set(fcall, scope, kw_name, named_arg))
-        }
-
-        rewrite_kwargs_fcall_args(fcall, kw_name)
-        new_ch.push_take(old, i)
-    }
-    body.children.move_from(new_ch)
-    reregister_scope_defs(body, scope)
 }
 
 rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
