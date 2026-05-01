@@ -203,7 +203,7 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
                     }
                     switch e.node_type {
                     case NodeType.FCall(_fcd2):
-                        _fcd2.fn_sig = sig.clone()
+                        _fcd2.fn_sig = sig
                     case:
                         UNREACHABLE(__LOC__)
                     }
@@ -733,7 +733,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                 if is_null(callee_bind.func_def).not() {
                     switch e.node_type {
                     case NodeType.FCall(_fcd3):
-                        _fcd3.fn_sig = callee_bind.func_def.clone()
+                        _fcd3.fn_sig = callee_bind.func_def
                     case:
                         UNREACHABLE(__LOC__)
                     }
@@ -811,7 +811,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                                 if rsb.func_def.children.len().eq(0) {
                                     switch e.node_type {
                                     case NodeType.FCall(_fcd4):
-                                        _fcd4.fn_sig = rsb.func_def.clone()
+                                        _fcd4.fn_sig = rsb.func_def
                                     case:
                                         UNREACHABLE(__LOC__)
                                     }
