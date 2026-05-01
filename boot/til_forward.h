@@ -1757,6 +1757,8 @@ extern I32 hoist_counter;
 extern I32 va_counter;
 extern I32 kw_counter;
 extern I32 errors;
+extern I32 proc_calls_count;
+extern I32 proc_def_depth;
 extern Str current_type_name;
 extern Expr *current_struct_def;
 extern Str I64Name;

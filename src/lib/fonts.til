@@ -125,7 +125,7 @@ ON_CURVE := 1
 
 // Assemble a single simple glyph from a Vec<Segment> produced by svg.til.
 // All coords are emitted as I16 deltas (no short flags).
-build_glyph := proc(segments: Vec) returns Glyph {
+build_glyph := func(segments: Vec) returns Glyph {
     xs := Vec.new("I64", I64.size())
     ys := Vec.new("I64", I64.size())
     on_curve := Vec.new("I64", I64.size())
@@ -444,7 +444,7 @@ padded_len := func(n: USize) returns USize {
 
 // Build a TTF in memory, given the single logo Glyph and a codepoint.
 // The advance width is the em-square size (fills one em horizontally).
-build_ttf := proc(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
+build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
     advance := units_per_em
 
     // Tables (unpadded) in alphabetical-tag order.

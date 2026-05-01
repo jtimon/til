@@ -501,7 +501,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
 
 // Reinterpret a Value.Ptr to the appropriate scalar/struct/enum Value
 // based on a type name. Used by eval_call (param binding) and eval_body (ref decl).
-reinterpret_ptr_value := proc(val: Value, type_name: Str, scope: Scope) returns Value {
+reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns Value {
     if val.is(Value.Ptr).not() { return shallow_copy_value(val) }
     ref pv : Dynamic = get_payload(val)
     ref p : Dynamic = deref(pv)
@@ -1056,7 +1056,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     return result
 }
 
-free_value := proc(shallow v: Value) {
+free_value := func(shallow v: Value) {
     if v.is(Value.Struct) {
         ref si : StructInstance = get_payload(v)
         if si.borrowed.not() {
@@ -1161,7 +1161,7 @@ scope_get := func(mut s: Scope, name: Str) returns ref Cell {
 scope_new := func(parent: Scope) returns Scope {
     return Scope(parent = parent)
 }
-scope_set_owned := proc(mut s: Scope, name: Str, val: Value) {
+scope_set_owned := func(mut s: Scope, name: Str, val: Value) {
     if s.bindings.has(name) {
         ref b : Binding = s.bindings.get(name)
         free_value(b.cell.val)
@@ -1184,7 +1184,7 @@ scope_set_owned := proc(mut s: Scope, name: Str, val: Value) {
     s.bindings.set(own k, own v)
 }
 
-scope_set_borrowed := proc(mut s: Scope, name: Str, cell: Cell) {
+scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
     k : Dynamic = malloc(Str.size().to_u64())
     memcpy(k, name, Str.size().to_u64())
     memcpy(ptr_add(k, 12), CAP_VIEW, U32.size().to_u64())
@@ -1195,7 +1195,7 @@ scope_set_borrowed := proc(mut s: Scope, name: Str, cell: Cell) {
     // cell_is_local = false (already zeroed by memset)
     s.bindings.set(own k, own v)
 }
-scope_free := proc(own s: Scope) {
+scope_free := func(own s: Scope) {
     for i in 0..s.bindings.len() {
         ref b : Binding = Map.val_ptr(s.bindings, i)
         if b.cell_is_local {
@@ -1283,7 +1283,7 @@ interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
     return false
 }
 
-value_to_buf := proc(dest: Dynamic, val: Value, type_name: Str) {
+value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     if type_name.eq("I64") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 8); return }
     if type_name.eq("U8") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 1); return }
     if type_name.eq("I16") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 2); return }
@@ -1306,7 +1306,7 @@ value_to_buf := proc(dest: Dynamic, val: Value, type_name: Str) {
     }
 }
 
-build_argv_array := proc(argv: Vec, shallow offset: U32, shallow count: U32, elem_type: Str) returns shallow Value {
+build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, elem_type: Str) returns shallow Value {
     esz := elem_size_for_type(elem_type)
     mut alloc_count := count
     if alloc_count.eq(0) { alloc_count = 1 }
@@ -1384,7 +1384,7 @@ ns_get := func(sname: Str, fname: Str) returns ref Value {
     return v
 }
 
-ns_set := proc(sname: Str, fname: Str, shallow val: Value) {
+ns_set := func(sname: Str, fname: Str, shallow val: Value) {
     qn := ns_qname(sname, fname)
     mut vcopy := val
     ns_fields.set(own qn, own vcopy)
@@ -1496,7 +1496,7 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
     return val_i64(fi)
 }
 
-write_field := proc(mut inst: StructInstance, dd: Declaration, val: Value) {
+write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
     ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
     fsz := dd.field_size
     if dd.own_type.is(OwnType.Own) {
@@ -1557,7 +1557,7 @@ write_field := proc(mut inst: StructInstance, dd: Declaration, val: Value) {
     }
 }
 
-interpret_register_defs := proc(mut global: Scope, prog: Expr) {
+interpret_register_defs := func(mut global: Scope, prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).node_type.is(NodeType.FuncDef)
@@ -1574,7 +1574,7 @@ interpret_register_defs := proc(mut global: Scope, prog: Expr) {
     }
 }
 
-interpret_register_aliases := proc(mut global: Scope, prog: Expr) {
+interpret_register_aliases := func(mut global: Scope, prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
         else if stmt.til_type.is(TilType.None).not() { }
@@ -1603,7 +1603,7 @@ interpret_register_aliases := proc(mut global: Scope, prog: Expr) {
     }
 }
 
-interpret_copy_alias_ns := proc(prog: Expr, global: Scope) {
+interpret_copy_alias_ns := func(prog: Expr, global: Scope) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
         else if stmt.til_type.is(TilType.None).not() { }

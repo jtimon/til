@@ -20,7 +20,7 @@ peek := func(p: Parser) returns ref Token {
     return t
 }
 
-advance := proc(mut p: Parser) returns ref Token {
+advance := func(mut p: Parser) returns ref Token {
     ref t : Token = p.tokens.get(p.pos)
     if t.type.is(TokenType.Eof).not() {
         p.pos = p.pos.add(1)
@@ -32,7 +32,7 @@ check := func(p: Parser, type: TokenType) returns shallow Bool {
     return peek(p).type.eq(type)
 }
 
-expect_token := proc(mut p: Parser, type: TokenType) returns ref Token {
+expect_token := func(mut p: Parser, type: TokenType) returns ref Token {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
         panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),
@@ -42,7 +42,7 @@ expect_token := proc(mut p: Parser, type: TokenType) returns ref Token {
 }
 
 // Like expect but returns the text of the consumed token
-expect_text := proc(mut p: Parser, type: TokenType) returns Str {
+expect_text := func(mut p: Parser, type: TokenType) returns Str {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
         panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),
@@ -82,7 +82,7 @@ til_type_from_explicit_type := func(name: Str) returns TilType {
 // Generates a synthetic type name (e.g. "_Fn_I64_I64_ret_Bool"), creates a
 // bodyless FuncDef Decl, stores it in p.fn_sig_decls, and returns the name.
 // Returns "" if not followed by '(' (bare "Fn" type).
-parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) returns Str {
+parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U32) returns Str {
     if check(p, TokenType.LParen).not() {
         return ""
     }
@@ -151,7 +151,7 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
 // return the expression unchanged. Used at every FCall argument position
 // so existing fn_ptr machinery picks the lambda up as a regular named
 // function. Bodyless FuncDefs (FuncSig types) are passed through.
-maybe_lift_lambda := proc(mut p: Parser, own e: Expr) returns Expr {
+maybe_lift_lambda := func(mut p: Parser, own e: Expr) returns Expr {
     if e.node_type.is(NodeType.FuncDef).not() { return e }
     if e.children.len().eq(0) { return e }
     lname := "_lambda_".concat(p.lambda_decls.len().to_i64().to_str())
@@ -578,7 +578,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
 }
 
 // make_binop_call: helper to desugar a OP b -> a.method(b)
-make_binop_call := proc(lhs: Expr, method: Str, shallow op_line: U32, shallow op_col: U32, rhs: Expr) returns Expr {
+make_binop_call := func(lhs: Expr, method: Str, shallow op_line: U32, shallow op_col: U32, rhs: Expr) returns Expr {
     mut callee := Expr.new(NodeType.FieldAccess(method), op_line, op_col)
     Expr.add_child(callee, own lhs.clone())
     mut call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
@@ -1183,7 +1183,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
 // Consume any leading DocComment tokens, accumulating their text into
 // p.pending_doc (joined with '\n'). The next call to parse_statement
 // attaches and clears the accumulator.
-drain_doc_comments := proc(mut p: Parser) {
+drain_doc_comments := func(mut p: Parser) {
     while check(p, TokenType.DocComment) {
         ref t : Token = peek(p)
         if p.pending_doc.is_empty() {

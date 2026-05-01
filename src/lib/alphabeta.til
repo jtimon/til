@@ -8,7 +8,7 @@ AB_INF := 100000
 MAX_BOARD := 4096
 
 Heuristic := func(Dynamic) returns I64
-NextBoardsFn := proc(Dynamic) returns Vec
+NextBoardsFn := func(Dynamic) returns Vec
 
 default_heuristic : Heuristic = (_board) { return 0 }
 default_next_boards : NextBoardsFn = (_board) { return Vec.new("Board", Board.size()) }

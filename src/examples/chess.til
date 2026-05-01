@@ -59,7 +59,7 @@ piece_type := func(piece: I64) returns I64 {
 }
 
 // Copy board from src to dst
-copy_board := proc(mut dst: Array, mut src: Array) {
+copy_board := func(mut dst: Array, mut src: Array) {
     mut i := 0
     while i.lt(64) {
         ref v : I64 = src.get(i.to_u32())
@@ -208,7 +208,7 @@ in_check := func(mut board: Array, side: I64) returns Bool {
 
 // Try a move on a temp board and check if own king is in check
 // Returns true if the move leaves the player in check (illegal)
-move_leaves_in_check := proc(mut board: Array, mut tmp: Array, from: I64, to: I64, side: I64) returns Bool {
+move_leaves_in_check := func(mut board: Array, mut tmp: Array, from: I64, to: I64, side: I64) returns Bool {
     copy_board(tmp, board)
     ref p : I64 = tmp.get(from.to_u32())
     pv := p.clone()
@@ -233,7 +233,7 @@ move_leaves_in_check := proc(mut board: Array, mut tmp: Array, from: I64, to: I6
 
 // Generate valid moves for a piece at position idx
 // Stores destination squares in moves array, returns count
-gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
+gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                    mut moves: Array, ep_col: I64,
                    mut castle_flags: Array) returns I64 {
     ref piece : I64 = board.get(idx.to_u32())
@@ -492,7 +492,7 @@ gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
 }
 
 // Check if side has any legal moves
-has_legal_moves := proc(mut board: Array, mut tmp: Array, side: I64,
+has_legal_moves := func(mut board: Array, mut tmp: Array, side: I64,
                          mut moves: Array, ep_col: I64,
                          mut castle_flags: Array) returns Bool {
     mut i := 0
@@ -508,7 +508,7 @@ has_legal_moves := proc(mut board: Array, mut tmp: Array, side: I64,
 }
 
 // Execute a move on the board, update castle flags, return new ep_col
-execute_move := proc(mut board: Array, from: I64, to: I64, side: I64,
+execute_move := func(mut board: Array, from: I64, to: I64, side: I64,
                       mut castle_flags: Array) returns I64 {
     ref mp : I64 = board.get(from.to_u32())
     mpv := mp.clone()
@@ -574,7 +574,7 @@ execute_move := proc(mut board: Array, from: I64, to: I64, side: I64,
 }
 
 // Copy castle flags
-copy_cf := proc(mut dst: Array, mut src: Array) {
+copy_cf := func(mut dst: Array, mut src: Array) {
     mut i := 0
     while i.lt(6) {
         ref v : I64 = src.get(i.to_u32())
@@ -589,7 +589,7 @@ board_get_i64 := func(b: Board, i: I64) returns ref I64 {
     return v
 }
 
-board_set_i64 := proc(mut b: Board, i: I64, shallow val: I64) {
+board_set_i64 := func(mut b: Board, i: I64, shallow val: I64) {
     memcpy(ptr_add(b.data.data, i.mul(8).to_u64()), val, 8)
 }
 
@@ -599,7 +599,7 @@ CHESS_IDX_SIDE := 64
 CHESS_IDX_EP := 65
 CHESS_IDX_CF := 66
 
-chess_pack := proc(mut b: Board, mut cells: Array, side: I64, ep_col: I64, mut cf: Array) {
+chess_pack := func(mut b: Board, mut cells: Array, side: I64, ep_col: I64, mut cf: Array) {
     mut i := 0
     while i.lt(64) {
         ref v : I64 = cells.get(i.to_u32())

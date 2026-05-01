@@ -50,12 +50,12 @@ codegen_lp := func() returns ref LoadedProgram {
     return lp
 }
 
-codegen_set_lp := proc(lp: LoadedProgram) {
+codegen_set_lp := func(lp: LoadedProgram) {
     // Store pointer to stack-owned lp; valid for duration of build.
     codegen_lp_slot = to_ptr(lp)
 }
 
-codegen_clear_lp := proc() {
+codegen_clear_lp := func() {
     codegen_lp_slot = NULL
 }
 
@@ -3390,7 +3390,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     return 0.to_i32()
 }
 
-register_funcsig_prog := proc(prog: Expr) {
+register_funcsig_prog := func(prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl) {
             ref rhs : Expr = stmt.child(0)
@@ -3444,7 +3444,7 @@ emit_global_inits := proc(f: File) {
     }
 }
 
-build_register_funcsig_names := proc(core_program: Expr, program: Expr) {
+build_register_funcsig_names := func(core_program: Expr, program: Expr) {
     funcsig_names = Set.new("Str", Str.size())
     has_funcsig_names = true
     for prog_idx in 0..2 {
@@ -3474,7 +3474,7 @@ build_register_funcsig_names := proc(core_program: Expr, program: Expr) {
     }
 }
 
-build_register_funcsig_names_lp := proc() {
+build_register_funcsig_names_lp := func() {
     funcsig_names = Set.new("Str", Str.size())
     has_funcsig_names = true
     ref lp : LoadedProgram = codegen_lp()
@@ -3490,7 +3490,7 @@ build_register_funcsig_names_lp := proc() {
     }
 }
 
-register_lookups_prog := proc(prog: Expr) {
+register_lookups_prog := func(prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl) {
             ref rhs : Expr = stmt.child(0)
@@ -3539,7 +3539,7 @@ register_lookups_prog := proc(prog: Expr) {
 
 // #135: can't use for prog_idx in 0..2 with ref mut prog here because
 // the clone bug makes stored pointers point to cloned nodes
-build_register_lookups := proc(core_program: Expr, program: Expr) {
+build_register_lookups := func(core_program: Expr, program: Expr) {
     struct_bodies = Map.new("Str", Str.size(), "Dynamic", I64.size())
     struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
@@ -3551,7 +3551,7 @@ build_register_lookups := proc(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
-build_register_lookups_lp := proc() {
+build_register_lookups_lp := func() {
     struct_bodies = Map.new("Str", Str.size(), "Dynamic", I64.size())
     struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
@@ -4833,7 +4833,7 @@ derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
     return paths
 }
 
-make_build_dirs := proc(paths: BuildPaths) {
+make_build_dirs := func(paths: BuildPaths) {
     if paths.do_lib {
         system_cmd("mkdir -p gen/til gen/lib")
     } else {

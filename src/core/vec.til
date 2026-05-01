@@ -132,7 +132,7 @@ namespace:
                    elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 
-    set := proc(mut self: Vec, i: USize, own val: Dynamic) {
+    set := func(mut self: Vec, i: USize, own val: Dynamic) {
         if i.gte(self.count) {
             panic(__LOC__, "Vec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
@@ -143,7 +143,7 @@ namespace:
     // Move bytes of src[i] into self (push). Source slot is zeroed so that
     // src's eventual elem_delete on it is a no-op (relies on the same
     // count==0/data==NULL convention used by take_children and Vec.delete).
-    push_take := proc(mut self: Vec, mut src: Vec, shallow i: USize) {
+    push_take := func(mut self: Vec, mut src: Vec, shallow i: USize) {
         if i.gte(src.count) {
             panic(__LOC__, "Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }

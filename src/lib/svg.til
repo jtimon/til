@@ -58,7 +58,7 @@ count_colors := func(svg: Str) returns I64 {
 }
 
 // Panic if the SVG uses more than 2 colours (transparent + one fill).
-check_color_count := proc(svg: Str) {
+check_color_count := func(svg: Str) {
     n := count_colors(svg)
     if n.gt(2) {
         panic(__LOC__, "svg uses ", n.to_str(), " colours (max 2 supported)")
@@ -76,7 +76,7 @@ VIEWBOX_H := 1024
 // em-space size. Chosen so em_x = raw_path_x (the path values span ~0..10240).
 EM_SIZE := 10240
 
-check_group_transform := proc(svg: Str) {
+check_group_transform := func(svg: Str) {
     needle := "transform=\""
     pos := svg.find(needle)
     if pos.lt(0) {
@@ -92,7 +92,7 @@ check_group_transform := proc(svg: Str) {
     }
 }
 
-check_viewbox := proc(svg: Str) {
+check_viewbox := func(svg: Str) {
     needle := "viewBox=\""
     pos := svg.find(needle)
     if pos.lt(0) { panic(__LOC__, "expected viewBox attribute") }
@@ -152,7 +152,7 @@ skip_ws := func(d: Str, shallow i: USize) returns USize {
 
 // Parse one signed integer starting at or after position `i`. The new index
 // is written back through `out_idx`. Panics if no digits are found.
-parse_int := proc(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
+parse_int := func(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
     mut j := skip_ws(d, i)
     mut neg := false
     if j.lt(d.len()) {
@@ -196,7 +196,7 @@ parse_int := proc(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
 //   q1 = (3*P1 - P0)/2    first control point
 //   q2 = (3*P2 - P3)/2    second control point
 //   m  = (q1 + q2)/2      shared on-curve midpoint
-parse_path_d := proc(d: Str, mut segments: Vec) {
+parse_path_d := func(d: Str, mut segments: Vec) {
     mut i : USize = skip_ws(d, 0)
     mut cur_x : I64 = 0
     mut cur_y : I64 = 0

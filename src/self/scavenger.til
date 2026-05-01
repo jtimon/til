@@ -29,7 +29,7 @@ gc_str := func(own s: Str) returns ref Str {
     return result
 }
 
-gc_free_all := proc() {
+gc_free_all := func() {
     gc_strs = Vec.new("Str", Str.size())
 }
 
@@ -38,7 +38,7 @@ vec_push_str := func(mut v: Vec, s: Str) {
 }
 
 // Raw memcpy into Vec slot without calling element destructor
-children_write := proc(mut v: Vec, shallow dst: I64, shallow src: I64) {
+children_write := func(mut v: Vec, shallow dst: I64, shallow src: I64) {
     d := dst.to_usize()
     s := src.to_usize()
     memcpy(ptr_add(v.data, d.mul(v.elem_size)), ptr_add(v.data, s.mul(v.elem_size)), v.elem_size)
@@ -46,7 +46,7 @@ children_write := proc(mut v: Vec, shallow dst: I64, shallow src: I64) {
 
 // Compact+delete: mark dropped indices in a bool buffer, delete them,
 // then compact kept elements forward.
-children_filter := proc(mut v: Vec, marks: Dynamic, shallow n: USize) {
+children_filter := func(mut v: Vec, marks: Dynamic, shallow n: USize) {
     // Delete marked elements and zero their bytes
     mut i : USize = 0
     while i.lt(n) {
@@ -210,7 +210,7 @@ collect_refs := func(e: Expr, mut refs: Vec) {
 
 // Filter top-level declarations and namespace methods in-place using a
 // precomputed visited set.
-scavenge_filter := proc(mut program: Expr, visited: Set) {
+scavenge_filter := func(mut program: Expr, visited: Set) {
     pn := program.children.len()
     pm : Dynamic = malloc(pn)
     memset(pm, 0, pn)

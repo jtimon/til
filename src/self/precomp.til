@@ -186,7 +186,7 @@ ns_lookup_flat := func(name: Str) returns shallow Dynamic {
 
 // Fast path: if the callee is a nullary function whose body trivially
 // returns a literal, return a heap-allocated clone of that literal.
-try_fast_fold_call := proc(scope: Scope, fcall: Expr) returns ref Expr {
+try_fast_fold_call := func(scope: Scope, fcall: Expr) returns ref Expr {
     if fcall.children.len().eq(1).not() { return NULL }
     ref _fc_callee : Expr = fcall.child(0)
     ref mut _fc_fp : Dynamic = NULL
@@ -333,7 +333,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     return heap_lit
 }
 
-track_literal := proc(scope: Scope, name: Str, rhs: Expr) {
+track_literal := func(scope: Scope, name: Str, rhs: Expr) {
     mut v := val_none()
     if is_known(rhs, v) {
         mut vcopy := v
@@ -441,7 +441,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context) {
     }
 }
 
-precomp_scan_names := proc(prog: Expr) {
+precomp_scan_names := func(prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).node_type.is(NodeType.FuncDef) {
@@ -493,7 +493,7 @@ precomp_scan_names := proc(prog: Expr) {
     }
 }
 
-precomp_register_defs := proc(mut global: Scope, prog: Expr) {
+precomp_register_defs := func(mut global: Scope, prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).node_type.is(NodeType.FuncDef)

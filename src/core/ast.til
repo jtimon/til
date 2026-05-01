@@ -107,7 +107,7 @@ namespace:
     to_str := func(_self: FCallData) returns Str { return "FCall" }
 }
 
-set_own_arg := proc(mut fcall: Expr, shallow arg_index: USize) {
+set_own_arg := func(mut fcall: Expr, shallow arg_index: USize) {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
         mut bit : U64 = 1
@@ -223,13 +223,13 @@ namespace:
         self.error(path, msg)
         println("  note: this is a bug in the language, please report it")
     }
-    add_child := proc(mut self: Expr, own child: Expr) {
+    add_child := func(mut self: Expr, own child: Expr) {
         self.children.push(own child)
     }
-    push_child_clone := proc(mut self: Expr, child: Expr) {
+    push_child_clone := func(mut self: Expr, child: Expr) {
         self.children.push(own child.clone())
     }
-    take_children := proc(mut self: Expr, mut other: Expr) {
+    take_children := func(mut self: Expr, mut other: Expr) {
         // Append other's children into self via raw memcpy (no cloning).
         // Zeroes other's count so it no longer owns the moved items.
         if other.children.count.eq(0) { return }

@@ -49,6 +49,8 @@ mut hoist_counter : I32 = 0
 mut va_counter : I32 = 0
 mut kw_counter : I32 = 0
 mut errors : I32 = 0
+mut proc_calls_count : I32 = 0
+mut proc_def_depth : I32 = 0
 mut current_type_name := ""
 ref mut current_struct_def : Expr = NULL
 I64Name := "I64"
@@ -97,7 +99,7 @@ find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
     return NULL
 }
 
-try_ufcs_rewrite := proc(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str) returns shallow Bool {
+try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str) returns shallow Bool {
     ref top : TypeBinding = scope.get_binding(method)
     mut ufcs_match : I32 = 0
     if is_null(top).not() {
@@ -713,9 +715,15 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
         if in_func.neq(0) {
             callee_ft := scope.get_func_type(name)
             if callee_ft.is(FuncType.Proc).or(callee_ft.is(FuncType.ExtProc)) {
+                proc_calls_count = proc_calls_count.add(1.to_i32())
                 if debug_exempt.not() {
                     type_error(e, "func cannot call proc '".concat(name).concat("'"))
                 }
+            }
+        } else if proc_def_depth.gt(0) {
+            callee_ft2 := scope.get_func_type(name)
+            if callee_ft2.is(FuncType.Proc).or(callee_ft2.is(FuncType.ExtProc)) {
+                proc_calls_count = proc_calls_count.add(1.to_i32())
             }
         }
     }
@@ -848,6 +856,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         type_error(e, format("no namespace function '", method, "'"))
         e.til_type = TilType.Unknown
         return true
+    }
+    if proc_def_depth.gt(0).or(in_func.neq(0)) {
+        ref ns_fdef0 : FunctionDef = get_payload(ns_func2.node_type)
+        if ns_fdef0.func_type.is(FuncType.Proc).or(ns_fdef0.func_type.is(FuncType.ExtProc)) {
+            proc_calls_count = proc_calls_count.add(1.to_i32())
+        }
     }
     // Ensure obj3 carries the resolved struct type so the interpreter can
     // extract the parent type name via til_type_name for dispatch.
@@ -1208,7 +1222,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     current_struct_def = saved_struct_def
 }
 
-infer_func_sig_expr := proc(scope: TypeScope, mut expr: Expr) {
+infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
     ref mut fdef : FunctionDef = get_payload(expr.node_type)
     if fdef.return_type.len().gt(0) {
         return_type_name := fdef.return_type.clone()
@@ -1326,7 +1340,20 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     if is_func { in_func_val = 1 }
     mut returns_ref_val := 0.to_i32()
     if fdef.return_own_type.is(OwnType.Ref) { returns_ref_val = 1 }
+    is_proc := fdef.func_type.is(FuncType.Proc)
+    saved_proc_calls := proc_calls_count
+    if is_proc {
+        proc_calls_count = 0.to_i32()
+        proc_def_depth = proc_def_depth.add(1.to_i32())
+    }
     infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
+    if is_proc {
+        if proc_calls_count.eq(0) {
+            type_error(expr, "proc has no proc/ext_proc calls; should be a func")
+        }
+        proc_calls_count = saved_proc_calls
+        proc_def_depth = proc_def_depth.sub(1.to_i32())
+    }
     if is_macro.and(fdef.return_type.len().eq(0)) {
         type_error(expr, "macro must declare a return type")
     }
@@ -1692,7 +1719,7 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
     return true
 }
 
-infer_decl_type_alias_passthrough := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
+infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
     if stmt.child(0).node_type.is(NodeType.Ident).not() { return false }
     ref mut sdecl : Declaration = get_payload(stmt.node_type)
     ref alias_b : TypeBinding = scope.get_binding(sdecl.name)
@@ -1876,7 +1903,7 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
     finalize_decl_binding(scope, stmt, in_type_body)
 }
 
-mark_switch_case_covered_variant := proc(switch_enum_def: Expr, mut covered_variants: Vec, shallow n_variants: I32, sw_expr: Expr, match_expr: Expr) {
+mark_switch_case_covered_variant := func(switch_enum_def: Expr, mut covered_variants: Vec, shallow n_variants: I32, sw_expr: Expr, match_expr: Expr) {
     if is_null(switch_enum_def).or(covered_variants.len().eq(0)) { return }
     mut covered_variant_name := ""
     if match_expr.node_type.is(NodeType.FieldAccess) {
@@ -2070,7 +2097,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
     return condition
 }
 
-replace_switch_stmt_with_block := proc(mut body: Expr, shallow stmt_idx: U32, mut block: Expr) {
+replace_switch_stmt_with_block := func(mut body: Expr, shallow stmt_idx: U32, mut block: Expr) {
     body.children.set(stmt_idx, own block.clone())
 }
 
@@ -2208,7 +2235,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     replace_switch_stmt_with_block(body, stmt_idx, block)
 }
 
-replace_body_stmt_with_block := proc(mut body: Expr, shallow stmt_idx: U32, mut block: Expr) {
+replace_body_stmt_with_block := func(mut body: Expr, shallow stmt_idx: U32, mut block: Expr) {
     body.children.set(stmt_idx, own block.clone())
 }
 
@@ -2523,7 +2550,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
     }
 }
 
-reregister_scope_defs := proc(body: Expr, scope: TypeScope) {
+reregister_scope_defs := func(body: Expr, scope: TypeScope) {
     for rstmt : Expr in body.children {
         if rstmt.node_type.is(NodeType.Decl).and(rstmt.children.len().gt(0)) {
             ref rdecl : Declaration = get_payload(rstmt.node_type)
@@ -2566,7 +2593,7 @@ reregister_scope_defs := proc(body: Expr, scope: TypeScope) {
     reregister_field_struct_defs(body, scope)
 }
 
-reregister_field_struct_defs := proc(body: Expr, scope: TypeScope) {
+reregister_field_struct_defs := func(body: Expr, scope: TypeScope) {
     for rstmt : Expr in body.children {
         if rstmt.node_type.is(NodeType.Decl).and(rstmt.children.len().gt(0)) {
             ref sdef : Expr = rstmt.child(0)
@@ -3033,7 +3060,7 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     return call
 }
 
-make_delete_call := proc(var_name: Str, shallow type: TilType, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
+make_delete_call := func(var_name: Str, shallow type: TilType, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
     tname := type_to_name(type)
     if tname.len().eq(0) { return NULL }
 
@@ -3102,7 +3129,7 @@ build_kwargs_dynmap_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     return kw_decl
 }
 
-build_kwargs_dynmap_set := proc(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr) returns Expr {
+build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr) returns Expr {
     ref key_name : Str = get_payload(named_arg.node_type)
     ref val : Expr = named_arg.child(0)
     mut set_call := make_ns_call("DynMap", "set", TilType.None, fcall)
@@ -3160,7 +3187,7 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
     return va_decl
 }
 
-build_variadic_array_set := proc(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr {
+build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr {
     mut set_call := make_ns_call("Array", "set", TilType.None, fcall)
 
     mut self_id := Expr.new(NodeType.Ident(va_name.clone()), fcall.line, fcall.col)
@@ -3398,7 +3425,7 @@ desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
     reregister_scope_defs(body, scope)
 }
 
-hoist_param_swap_assign := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+hoist_param_swap_assign := func(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     sf := scope.find(get_payload(stmt.node_type))
     if sf.is(ScopeFind.Found).not() { return }
     ref ab : TypeBinding = get_payload(sf)
@@ -3635,7 +3662,7 @@ hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
     reregister_scope_defs(body, scope)
 }
 
-insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
+insert_field_deletes := func(mut body: Expr, scope: TypeScope) {
     mut needs_delete := false
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.FieldAssign) {
@@ -3673,7 +3700,7 @@ insert_field_deletes := proc(mut body: Expr, scope: TypeScope) {
     reregister_scope_defs(body, scope)
 }
 
-rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
+rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
     ref mut fcall_data : FCallData = get_payload(fcall.node_type)
     vi := fcall_data.variadic_index
     vc := fcall_data.variadic_count
@@ -3731,7 +3758,7 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
     fcall_data.variadic_count = 0.to_u32()
 }
 
-desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
+desugar_variadic_calls := func(mut body: Expr, mut scope: TypeScope) {
     mut has_variadic := false
     for e_i : Expr in body.children {
         if is_null(find_variadic_fcall(e_i)).not() {
@@ -3833,7 +3860,7 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
 
 // Returns true if it rewrote fcall in place. Caller is responsible for
 // pushing the (now mutated) stmt into new_ch.
-desugar_pure_splat_variadic_call := proc(mut fcall: Expr) returns shallow Bool {
+desugar_pure_splat_variadic_call := func(mut fcall: Expr) returns shallow Bool {
     ref fcd : FCallData = get_payload(fcall.node_type)
     vi := fcd.variadic_index
     vc := fcd.variadic_count
@@ -3865,7 +3892,7 @@ desugar_pure_splat_variadic_call := proc(mut fcall: Expr) returns shallow Bool {
     return true
 }
 
-desugar_kwargs_calls := proc(mut body: Expr, mut scope: TypeScope) {
+desugar_kwargs_calls := func(mut body: Expr, mut scope: TypeScope) {
     mut has_kwargs := false
     for e_i : Expr in body.children {
         if is_null(find_kwargs_fcall(e_i)).not() {
@@ -3911,7 +3938,7 @@ desugar_kwargs_calls := proc(mut body: Expr, mut scope: TypeScope) {
     reregister_scope_defs(body, scope)
 }
 
-rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
+rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
     ref mut fcd : FCallData = get_payload(fcall.node_type)
     ki := fcd.kwargs_index
     kc := fcd.kwargs_count
@@ -4139,7 +4166,7 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow B
     return false
 }
 
-collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
+collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
     for i in 0..scope.bindings.len() {
         ref b : TypeBinding = Map.val_ptr(scope.bindings, i)
         if b.is_param.and(b.own_type.is(OwnType.Own).not()) { continue }
@@ -4209,7 +4236,7 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
     }
 }
 
-extend_ref_local_lifetimes := proc(mut body: Expr, mut locals: Vec) {
+extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec) {
     mut ref_changed := true
     while ref_changed {
         ref_changed = false
@@ -4371,7 +4398,7 @@ insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx
     }
 }
 
-insert_exit_deletes_into_stmt := proc(stmt: Expr, body_stmts: Vec, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec) {
+insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec) {
     if stmt.node_type.is(NodeType.Return).not() {
         if stmt.node_type.is(NodeType.Break).not() {
             if stmt.node_type.is(NodeType.Continue).not() { return }
@@ -4398,7 +4425,7 @@ insert_exit_deletes_into_stmt := proc(stmt: Expr, body_stmts: Vec, mut locals: V
     }
 }
 
-insert_post_stmt_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec) {
+insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
@@ -4422,7 +4449,7 @@ insert_post_stmt_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
     }
 }
 
-insert_assign_delete := proc(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
+insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
     if stmt.node_type.is(NodeType.Assign).not() { return }
     ref mut ad : AssignData = get_payload(stmt.node_type)
     vname := ad.name
@@ -4445,7 +4472,7 @@ insert_assign_delete := proc(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
     }
 }
 
-promote_own_transferred_locals := proc(mut body: Expr, mut locals: Vec) {
+promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
     for local : LocalInfo in locals {
         if local.decl_index.lt(0.to_i32()) { continue }
         ref stmt : Expr = body.child(local.decl_index.to_i64().to_u32())
@@ -4491,7 +4518,7 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     reregister_scope_defs(body, scope)
 }
 
-infer_literal_expr := proc(mut expr: Expr) {
+infer_literal_expr := func(mut expr: Expr) {
     switch expr.node_type {
     case NodeType.LiteralStr:
         expr.til_type = TilType.Struct("Str".clone())
@@ -4507,7 +4534,7 @@ infer_literal_expr := proc(mut expr: Expr) {
     }
 }
 
-narrow_dynamic := proc(mut expr: Expr, target: TilType) {
+narrow_dynamic := func(mut expr: Expr, target: TilType) {
     if expr.til_type.is(TilType.Dynamic).not() { return }
     if target.is(TilType.Dynamic) { return }
     if target.is(TilType.Unknown) { return }

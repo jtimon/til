@@ -19,11 +19,11 @@ test_scope := test() {
     assert_eq(__LOC__, outer, 1)
 }
 
-fn_inc := proc(mut x: I64) {
+fn_inc := func(mut x: I64) {
     x = I64.add(x, 1)
 }
 
-fn_swap := proc(mut a: I64, mut b: I64) {
+fn_swap := func(mut a: I64, mut b: I64) {
     tmp := a
     a = b
     b = tmp

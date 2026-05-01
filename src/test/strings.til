@@ -248,7 +248,7 @@ test_join := test() {
 }
 
 // mut param concat — reproduces use-after-free bug
-greet := proc(mut out: Str) {
+greet := func(mut out: Str) {
     out = out.concat(" world")
 }
 

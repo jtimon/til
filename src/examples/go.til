@@ -21,7 +21,7 @@ BOARD_G := 179
 BOARD_B := 92
 
 // Copy board
-copy_board := proc(mut dst: Array, mut src: Array, total: I64) {
+copy_board := func(mut dst: Array, mut src: Array, total: I64) {
     mut i := 0
     while i.lt(total) {
         ref v : I64 = src.get(i.to_u32())
@@ -43,7 +43,7 @@ boards_equal := func(mut a: Array, mut b: Array, total: I64) returns Bool {
 }
 
 // Clear array to 0
-clear_arr := proc(mut arr: Array, total: I64) {
+clear_arr := func(mut arr: Array, total: I64) {
     mut i := 0
     while i.lt(total) {
         arr.set(i.to_u32(), own 0)
@@ -54,7 +54,7 @@ clear_arr := proc(mut arr: Array, total: I64) {
 // Count liberties of group containing stone at idx
 // Uses visited and lib_seen arrays (caller must clear them first)
 // Returns number of unique liberties
-count_liberties := proc(mut board: Array, mut visited: Array, mut lib_seen: Array,
+count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Array,
                          mut stk: Vec, idx: I64, size: I64, color: I64) returns I64 {
     mut libs := 0
     stk.push(own idx.clone())
@@ -155,7 +155,7 @@ count_liberties := proc(mut board: Array, mut visited: Array, mut lib_seen: Arra
 
 // Remove group containing stone at idx, returns stones removed
 // Caller must clear visited before calling
-remove_group := proc(mut board: Array, mut visited: Array, mut stk: Vec,
+remove_group := func(mut board: Array, mut visited: Array, mut stk: Vec,
                       idx: I64, size: I64, color: I64) returns I64 {
     mut removed := 0
     stk.push(own idx.clone())
@@ -228,7 +228,7 @@ remove_group := proc(mut board: Array, mut visited: Array, mut stk: Vec,
 // Try placing a stone on tmp_board (copy of board). Returns captures, or -1 if illegal.
 // Does NOT modify board — caller must copy tmp to board if legal.
 // ko_board is the board state from before the last move (for ko detection).
-try_place := proc(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
+try_place := func(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
                    mut stk: Vec, idx: I64, size: I64, color: I64,
                    mut ko_board: Array, has_ko: Bool) returns I64 {
     total := size.mul(size)
@@ -336,11 +336,11 @@ board_get_i64 := func(b: Board, i: I64) returns ref I64 {
     return v
 }
 
-board_set_i64 := proc(mut b: Board, i: I64, shallow val: I64) {
+board_set_i64 := func(mut b: Board, i: I64, shallow val: I64) {
     memcpy(ptr_add(b.data.data, i.mul(8).to_u64()), val, 8)
 }
 
-go_pack := proc(mut b: Board, mut cells: Array, side: I64, size: I64,
+go_pack := func(mut b: Board, mut cells: Array, side: I64, size: I64,
                  mut ko_board: Array, has_ko: Bool) {
     total := size.mul(size)
     mut i := 0
@@ -432,7 +432,7 @@ ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards)
 
 // Score the game using Chinese rules (area scoring)
 // Returns black_score * 10000 + white_score
-score_game := proc(mut board: Array, mut visited: Array, mut stk: Vec,
+score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
                     size: I64) returns I64 {
     total := size.mul(size)
     clear_arr(visited, total)
