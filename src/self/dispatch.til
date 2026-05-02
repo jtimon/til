@@ -503,8 +503,9 @@ field_ffi_type := func(dd: Declaration) returns ref ffi_type {
     if dd.explicit_type.eq("USize") { return ffi_type_uint32_ref() }
     if dd.explicit_type.eq("F32")   { return ffi_type_float_ref() }
     if dd.explicit_type.eq("Bool")  { return ffi_type_uint8_ref() }
-    if is_null(dd.field_struct_def).not() {
-        return build_struct_ffi_type(dd.field_struct_def)
+    if ffi_struct_defs.has(dd.explicit_type) {
+        ref box : ExprPtrBox = ffi_struct_defs.get(dd.explicit_type)
+        return build_struct_ffi_type(box.ptr)
     }
     return ffi_type_sint64_ref()
 }
