@@ -64,7 +64,18 @@ static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r
 // vs stdlib.h can cause compile errors). Provide stable wrappers instead.
 I32 til_setenv(U8 *name, U8 *value, I32 overwrite)
 {
+#ifdef _WIN32
+    // setenv is not portable to Windows; use Win32 environment APIs.
+    if (!overwrite) {
+        // If the variable exists, do nothing.
+        DWORD len = GetEnvironmentVariableA((const char *)name, NULL, 0);
+        if (len > 0) return 0;
+    }
+    if (SetEnvironmentVariableA((const char *)name, (const char *)value)) return 0;
+    return 1;
+#else
     return (I32)setenv((const char *)name, (const char *)value, overwrite);
+#endif
 }
 
 // I64 clone
