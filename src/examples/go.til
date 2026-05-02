@@ -9,7 +9,7 @@ import("../lib/alphabeta.til")
 // Board sizes: 9x9, 13x13, 19x19
 
 WINDOW_WIDTH := 800
-WINDOW_HEIGHT := 860
+WINDOW_HEIGHT := 880
 FPS := 60
 FONT_SZ := 20
 FONT_LG := 40
@@ -446,7 +446,7 @@ go_next_boards : NextBoardsFn = (b) {
     return result
 }
 
-ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards)
+ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards, depth = 2)
 
 // Score the game using Chinese rules (area scoring)
 // Returns black_score * 10000 + white_score
@@ -669,7 +669,7 @@ main := proc() {
         margin := 40
         cell_size := WINDOW_WIDTH.sub(margin.mul(2)).div(board_size.sub(1))
         board_px := margin
-        board_py := 60
+        board_py := 80
         stone_r := cell_size.mul(4).div(10)
 
         // --- AI MOVE (alpha-beta search) ---

@@ -340,7 +340,7 @@ checkers_next_boards : NextBoardsFn = (b) {
     return result
 }
 
-ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards, depth = 5)
+ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards, depth = 3)
 
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "checkers")

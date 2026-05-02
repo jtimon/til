@@ -713,7 +713,7 @@ chess_next_boards : NextBoardsFn = (b) {
     return result
 }
 
-ai := AlphaBeta(h = chess_heuristic, nexts = chess_next_boards, depth = 3)
+ai := AlphaBeta(h = chess_heuristic, nexts = chess_next_boards, depth = 2)
 
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "chess")
