@@ -364,18 +364,26 @@
    Status (high level):
 
    - Original concrete symptom (USize := U32 only worked wedged between
-     u32.til and i64.til imports) is FIXED. ~USize := U32~ now lives at
-     the top of core.til; c4b8064 made the alias-NotFound case
-     permissive for builtin primitives, ce0a584 moved the alias.
-   - core.til is alphabetized; per-file explicit imports landed across
-     all src/core/*.til (see fixed.org #162).
+     u32.til and i64.til imports) is FIXED. ~USize := U32~ now lives in
+     its own file ~src/core/usize.til~; c4b8064 made the alias-NotFound
+     case permissive for builtin primitives, ce0a584 moved the alias.
+   - core.til is alphabetized and is now a pure import list; per-file
+     explicit imports landed across all src/core/*.til (see fixed.org
+     #162).
+   - Step 6 regression tests landed in src/test/forward_refs.til
+     (~test_alias_top_of_file~, ~test_alias_bottom_of_file~).
+     Cross-file forward refs (alias declared in importer, used by
+     importee) intentionally not tested -- future feature, not a
+     current contract.
+   - Step 2 BLOCKED on a structural Vec/Str cycle -- see step 2 and
+     issue #174.
+   - Step 1 finish BLOCKED on Custom-vs-Struct typer equality -- see
+     step 1 below; needs a typer-side normalization or a post-init
+     sweep before more registration helpers can drop their scope reads.
    - What remains is architectural: keep going on "init = pure name
      indexing, typer = type-aware work" so initer never reads scope
-     for type resolution. Step 2 of the original plan is BLOCKED on a
-     structural cycle (Vec/Str), see step 2 below.
-   - Lower-priority next leverage points: step 1 finish (user-defined
-     aliases + scope-stripping in two more registration helpers),
-     step 6 regression tests (cheap, document the contract).
+     for type resolution. The cleanup is real, but the original
+     concrete user-visible bug is closed.
 
    Symptom (historical, kept for context):
 
@@ -495,6 +503,50 @@
       stripping ~type_from_name_init~ from
       ~register_function_def_for_stmt~ and ~infer_top_level_decl_type~.
 
+      Attempted swap (post #162): replace
+      ~type_from_name_init(fdef.return_type, scope)~ at
+      register_function_def_for_stmt:1250 with the scope-free
+      ~til_type_from_explicit_type(fdef.return_type)~. Broke the
+      build with 281 type errors of the shape:
+
+      #+begin_example
+      ./src/self/interpreter.til:1067:13: error: 'arg' assignment type mismatch
+      ./src/self/interpreter.til:1068:29: error: argument type mismatch for 's': expected Scope, got Scope
+      #+end_example
+
+      Diagnosis: ~type_from_name_init~ resolves a name like ~Scope~
+      to ~TilType.Struct("Scope")~ by checking
+      ~scope.get_struct(name)~. ~til_type_from_explicit_type~ has
+      no scope, so it returns ~TilType.Custom("Scope")~ for any
+      non-primitive name. The typer's equality check then sees
+      ~TilType.Struct("Scope")~ (from the function call site, which
+      went through type_from_name) versus ~TilType.Custom("Scope")~
+      (from the function's binding.type, written by initer) and
+      treats them as different variants.
+
+      Three real options to unblock:
+
+      a) Teach the typer's equality predicate (~til_type_eq~ or
+         ~.eq~ on TilType) to treat ~Custom(name)~ and
+         ~Struct(name)~/~Enum(name)~ as equal when the name resolves
+         to a struct/enum in the surrounding scope. Cleanest but
+         invasive -- has to be applied at every eq call site, or
+         better, in a single normalization helper used everywhere.
+      b) Add a post-init normalization sweep that walks every
+         binding written by initer and resolves ~Custom(name)~ to
+         the proper ~Struct/Enum~ variant once scope is fully
+         populated. Adds a small pass, but localized.
+      c) Give in and let initer keep ~type_from_name_init~ for
+         function return types and explicit type annotations. The
+         "init has no scope reads" goal applies only to
+         declaration-shape bookkeeping, not to type-token
+         resolution. Cosmetic step 1 finish.
+
+      Same diagnosis applies to ~infer_top_level_decl_type~ and to
+      extending the alias NotFound case to ~Custom~ targets -- both
+      end up writing ~Custom(name)~ into bindings that other code
+      compares against ~Struct(name)~.
+
    2. [BLOCKED ON CYCLES] Move ~gen_struct_clone_delete_for_stmt~,
       ~gen_enum_nonclone_methods_for_stmt~,
       ~gen_missing_enum_clone_for_stmt~,
@@ -595,7 +647,15 @@
       alias declared above every ~import("...")~ in the importing
       file. Both must build.
 
-      Done: ~core.til~ alphabetized; ~USize := U32~ at the top.
+      Done:
+      - ~src/core/core.til~ alphabetized; it is now a pure import
+        list with no top-level decls.
+      - ~USize := U32~ moved into its own ~src/core/usize.til~.
+      - Scenario (b) regression tests landed in
+        src/test/forward_refs.til as ~test_alias_top_of_file~ and
+        ~test_alias_bottom_of_file~ (covers builtin-primitive alias
+        at top of a file and after the struct that uses it).
+
       Discovery: alphabetizing was a no-op on the build because
       today's machinery (init_file recursion + init_declarations_global)
       registers every name in scope before typer runs anywhere, so
@@ -603,8 +663,11 @@
       step 2 lands -- then per-file imports (#162) become the
       load-bearing structure, not core.til's order.
 
-      Still TODO: regression tests (a) and (b). They can land any
-      time but become genuinely meaningful only after step 2.
+      Still TODO: scenario (a) cross-file regression test. Today
+      this case does not work (alias declared in importer is not
+      visible during importee's init/typer because importer is
+      processed last). Lands meaningfully once step 5 (rstil-style
+      in-walk imports) makes cross-file forward refs viable.
 
    Validation:
 
