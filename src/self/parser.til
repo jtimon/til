@@ -797,7 +797,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             e = access
         }
     }
-    // Postfix ++ / --: expr++ desugars to expr.inc(), expr-- to expr.dec()
+    // Postfix ++ / --: expr++ desugars to expr++, expr-- to expr--
     if check(p, TokenType.PlusPlus) {
         pp_line := peek_line(p)
         pp_col := peek_col(p)

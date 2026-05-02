@@ -257,7 +257,7 @@ MyVec := struct {
 
 test_alias_in_struct_methods := test() {
     mut v := MyVec()
-    v.inc()
-    v.inc()
+    v++
+    v++
     assert_eq(__LOC__, v.len().to_i64(), 2)
 }

@@ -106,12 +106,12 @@ mut typer_path := ""
 
 type_error := proc(e: Expr, msg: Str) {
     e.error(typer_path, msg)
-    errors.inc()
+    errors++
 }
 
 type_error_at := proc(path: Str, shallow line: U32, shallow col: U32, msg: Str) {
     println(path, ":", line.to_str(), ":", col.to_str(), ": error: ", msg)
-    errors.inc()
+    errors++
 }
 
 find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
@@ -1848,7 +1848,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         col := cond.col
         ref body : Expr = stmt.child(1)
         wname := "_wcond_Bool_".concat(hoist_counter.to_str())
-        hoist_counter.inc()
+        hoist_counter++
 
         mut decl := Expr.new(NodeType.Decl(Declaration(name = wname.clone())), line, col)
         decl.til_type = TilType.Bool
@@ -2501,7 +2501,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     } else {
         tp := type_prefix(sw_expr.til_type)
         sw_name := "_sw_".concat(tp).concat("_").concat(hoist_counter.to_str())
-        hoist_counter.inc()
+        hoist_counter++
         mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
         decl.add_child(own sw_expr.clone())
         block.add_child(own decl)
@@ -2671,7 +2671,7 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
     line := stmt.line
     col := stmt.col
     counter := hoist_counter
-    hoist_counter.inc()
+    hoist_counter++
 
     end_name := "_re_".concat(elem_type).concat("_").concat(counter.to_str())
     cur_name := "_rc_".concat(elem_type).concat("_").concat(counter.to_str())
@@ -2810,7 +2810,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     col := stmt.col
 
     counter := hoist_counter
-    hoist_counter.inc()
+    hoist_counter++
     col_name := "_fc_".concat(type_name).concat("_").concat(counter.to_str())
     idx_name := "_fi_USize_".concat(counter.to_str())
 
@@ -3005,7 +3005,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
             context_set_mode_from_path(ctx, typer_path)
         }
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
-        i.inc()
+        i++
     }
     if owns_scope.neq(0) { desugar_body_literals(body, scope) }
     if owns_scope.neq(0) { desugar_body_calls(body, scope) }
@@ -3019,7 +3019,7 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
     mut i := 0.to_u32()
     while i.lt(body.children.len().to_i64().to_u32()) {
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
-        i.inc()
+        i++
     }
     if owns_scope.neq(0) { desugar_body_literals(body, scope) }
     if owns_scope.neq(0) { desugar_body_calls(body, scope) }
@@ -4234,7 +4234,7 @@ desugar_body_calls := func(mut body: Expr, mut scope: TypeScope) {
                 ref elem_type : Str = resolve_variadic_elem_type(fcall, scope)
                 if is_null(elem_type).not().and(desugar_pure_splat_variadic_call(fcall).not()) {
                     va_name := "_va_Array_".concat(va_counter.to_i64().to_str())
-                    va_counter.inc()
+                    va_counter++
                     mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
                     scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, line, col, false, OwnType.Own)
                     new_ch.push(own va_decl)
@@ -4259,7 +4259,7 @@ desugar_body_calls := func(mut body: Expr, mut scope: TypeScope) {
                     UNREACHABLE(__LOC__)
                 }
                 kw_name := "_kw".concat(kw_counter.to_str())
-                kw_counter.inc()
+                kw_counter++
                 kw_decl := build_kwargs_dynmap_decl(fcall, kw_name)
                 scope.set(kw_name, TilType.Struct("DynMap".clone()), FuncType.None, false, typer_path, fcall.line, fcall.col, false, OwnType.Shallow)
                 new_ch.push(own kw_decl)
@@ -5058,7 +5058,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
 hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow is_own: Bool) returns Expr {
     tp := type_prefix(val.til_type)
     tname := "_t_".concat(tp).concat("_").concat(hoist_counter.to_i64().to_str())
-    hoist_counter.inc()
+    hoist_counter++
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), val.line, val.col)
     decl.til_type = val.til_type

@@ -1030,9 +1030,9 @@
       _end : T = end
       mut _cur : T = start
       if _cur.lte(_end) {
-          while _cur.lt(_end) { i : T = _cur; _cur.inc(); body }
+          while _cur.lt(_end) { i : T = _cur; _cur++; body }
       } else {
-          while _cur.gt(_end) { i : T = _cur; _cur.dec(); body }
+          while _cur.gt(_end) { i : T = _cur; _cur--; body }
       }
   }
   #+end_src
