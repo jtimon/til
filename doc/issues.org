@@ -2370,14 +2370,36 @@
        remaining audit work is verifying no new module-scope
        ~ref mut Expr = NULL~ globals slipped in. Deferred.
 
-   2. Generalize the predicate from "literal ~.clone()~" to "any
-      FCall whose callee returns ~OwnType.Own~". Constructors
-      (~Foo()~), ~take_*~ helpers, factory funcs, etc. The typer
-      already tracks ~return_own_type~; the new piece is per-
-      callsite resolution through ~Ident~ / ~FieldAccess~ /
-      namespace-method shapes (similar logic to the
-      ~callee_returns_shallow~-style helpers in builder.til,
-      hoistable into a typer helper).
+   2. [DONE] Generalised the predicate from "literal ~.clone()~"
+      to "any FCall whose callee returns ~OwnType.Own~".
+      Implementation: new ~fcall_returns_own(fcall, scope)~ helper
+      in ~src/self/typer.til~ that mirrors ~fcall_returns_ref~ for
+      the OwnType.Own predicate. Recognised callee shapes:
+      - ~Ident("foo")~ -> scope binding's ~func_def.return_own_type~
+      - ~Ident("Foo")~ where Foo is a registered struct/enum
+        type -> treated as a constructor call (returns owned)
+      - ~Type.method(...)~ -> namespace lookup on the type's def
+      - ~obj.method(...)~ -> namespace lookup on the receiver's
+        type def
+
+      ~check_ref_decl_owned_init~ now uses the helper instead of
+      pattern-matching ~FieldAccess("clone")~. The diagnostic
+      broadens to mention "an owned value (.clone() / constructor
+      / function returning own)".
+
+      Audit: zero new violations on top of step 1's clean state.
+      Regression test in ~typer_errors.til~ pins both the
+      constructor and func-returning-own shapes; count bumped to
+      81 (2 new test cases x 2 errors each: the new rule plus the
+      pre-existing "ref decl requires null/ref-returning fn/ref
+      var" check).
+
+      Known limitation (deferred): enum variant constructors like
+      ~Color.Red(payload)~ are FCalls with callee
+      ~FieldAccess("Red")~ on Ident("Color"). The current
+      FieldAccess case looks for namespace methods, not variants,
+      so variant constructors are not yet caught. Worth a small
+      follow-up if it surfaces.
 
    3. Apply the rule to struct field defaults:
       ~ref mut x : T = Y.clone()~ as a struct field declaration.

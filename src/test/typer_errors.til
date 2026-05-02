@@ -307,6 +307,13 @@ terr_clone_ref_src := TerrCloneRefSrc(field=1)
 ref terr_clone_ref : TerrCloneRefSrc = terr_clone_ref_src.clone()
 ref mut terr_clone_ref_mut : TerrCloneRefSrc = terr_clone_ref_src.clone()
 
+// #168 step 2: predicate generalised from literal `.clone()` to any
+// FCall whose callee returns OwnType.Own. Catches struct constructors,
+// factory funcs, and any user func declared `returns own ...`.
+ref terr_step2_ctor : TerrCloneRefSrc = TerrCloneRefSrc(field=2)
+terr_make_owned_str := func() returns Str { return "owned" }
+ref terr_step2_func : Str = terr_make_owned_str()
+
 // #168 step 1b: ref local cannot be initialized to NULL.
 // Module-scope and field defaults are still allowed (conservative).
 terr_null_ref_local_fn := func() returns I64 {

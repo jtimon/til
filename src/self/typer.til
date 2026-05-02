@@ -235,26 +235,83 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
     }
 }
 
-// #168 step 1: ref bindings cannot be initialized from .clone() -- the
-// value would be heap-allocated with no owner. Narrow check: matches a
-// literal `.clone()` callee in a Decl whose own_type is Ref. Future
-// steps generalize the predicate (any owned-returning fcall) and broaden
-// the surface (struct field defaults, assignments, ref-typed returns).
-check_ref_decl_owned_init := proc(stmt: Expr) {
+// #168 step 2: resolve an FCall's callee to its declared `return_own_type`,
+// or NULL if not resolvable. Mirrors the shape of `fcall_returns_ref` for
+// the OwnType.Own predicate. Recognised callee shapes:
+//   - Ident("foo")     -> scope binding's func_def.return_own_type
+//   - Type.method(...) -> namespace lookup on the type's def
+//   - obj.method(...)  -> namespace lookup on the receiver's type def
+fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns shallow Bool {
+    if fcall.node_type.is(NodeType.FCall).not() { return false }
+    if fcall.children.len().eq(0) { return false }
+    ref callee : Expr = fcall.child(0)
+    switch callee.node_type {
+    case NodeType.Ident(_cn):
+        // Struct/enum constructor: `Foo(...)` where Foo is a registered
+        // struct/enum type. The result is a freshly-constructed owned value.
+        ref ctor_sdef : Expr = scope.get_struct(_cn)
+        if is_null(ctor_sdef).not() { return true }
+        ref cb : TypeBinding = scope.get_binding(_cn)
+        if is_null(cb) { return false }
+        if is_null(cb.func_def) { return false }
+        switch cb.func_def.node_type {
+        case NodeType.FuncDef(_cfd):
+            return _cfd.return_own_type.is(OwnType.Own)
+        case:
+        }
+        return false
+    case NodeType.FieldAccess(_cfa):
+        // Type-name dispatch: Type.method(args). Receiver Ident is the type.
+        if fa_is_ns(callee, scope) {
+            switch callee.child(0).node_type {
+            case NodeType.Ident(_cti):
+                ref sdef : Expr = scope.get_struct(_cti)
+                ref method : Expr = find_namespace_func(sdef, _cfa)
+                if is_null(method) { return false }
+                switch method.node_type {
+                case NodeType.FuncDef(_ffd):
+                    return _ffd.return_own_type.is(OwnType.Own)
+                case:
+                }
+                return false
+            case:
+            }
+        }
+        // UFCS / instance method: obj.method(args). Resolve via receiver's type.
+        if callee.children.len().gt(0) {
+            ref obj : Expr = callee.child(0)
+            sname := til_type_name(obj.til_type)
+            if sname.len().eq(0) { return false }
+            ref sdef : Expr = scope.get_struct(sname)
+            ref method : Expr = find_namespace_func(sdef, _cfa)
+            if is_null(method) { return false }
+            switch method.node_type {
+            case NodeType.FuncDef(_ffd):
+                return _ffd.return_own_type.is(OwnType.Own)
+            case:
+            }
+        }
+        return false
+    case:
+    }
+    return false
+}
+
+// #168 step 1+2: ref bindings cannot be initialized from an owned value --
+// the value would be heap-allocated with no owner. Step 1 caught literal
+// `.clone()`; step 2 generalises to any FCall whose callee returns
+// `OwnType.Own` (constructors, take_* helpers, factory funcs, etc.).
+// Future steps broaden the surface (struct field defaults, assignments,
+// ref-typed returns).
+check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope) {
     if stmt.children.len().eq(0) { return }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         if sdecl.own_type.is(OwnType.Ref).not() { return }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.FCall).not() { return }
-        if rhs.children.len().eq(0) { return }
-        ref callee : Expr = rhs.child(0)
-        switch callee.node_type {
-        case NodeType.FieldAccess(method):
-            if method.eq("clone").not() { return }
-            type_error(stmt, "ref binding '".concat(sdecl.name).concat("' cannot be initialized from .clone() -- use 'own' to keep the value, or borrow the source directly"))
-        case:
-        }
+        if fcall_returns_own(rhs, scope).not() { return }
+        type_error(stmt, "ref binding '".concat(sdecl.name).concat("' cannot be initialized from an owned value (.clone() / constructor / function returning own) -- use 'own' to keep the value, or borrow the source directly"))
     case:
     }
 }
@@ -2229,7 +2286,7 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
     case:
         UNREACHABLE(__LOC__)
     }
-    check_ref_decl_owned_init(stmt)
+    check_ref_decl_owned_init(stmt, scope)
     check_ref_local_null_init(stmt, in_func)
     finalize_decl_binding(scope, stmt, in_type_body)
 }
