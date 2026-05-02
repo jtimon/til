@@ -1702,7 +1702,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
                     ref dd : Declaration = get_payload(stmt.node_type)
                     test_count = test_count.add(1)
                     test_scope := scope_new(global)
-                    eval_body(test_scope, decl_body(stmt))
+                    eval_body(test_scope, stmt.child(0).child(0))
                     if has_return {
                         return_value = return_value.clone()
                     }
@@ -1904,7 +1904,7 @@ interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) re
                         test_count = test_count.add(1)
                         test_scope := scope_new(global)
                         interp_path = lp.path.clone()
-                        eval_body(test_scope, decl_body(stmt))
+                        eval_body(test_scope, stmt.child(0).child(0))
                         if has_return {
                             return_value = return_value.clone()
                         }

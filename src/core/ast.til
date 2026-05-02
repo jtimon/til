@@ -474,12 +474,6 @@ is_def := func(stmt: Expr) returns shallow Bool {
     .or(def.node_type.is(NodeType.EnumDef))
 }
 
-// For a struct/enum decl stmt, return the body Expr (child(0).child(0)).
-decl_body := func(stmt: Expr) returns ref Expr {
-    ref body : Expr = stmt.child(0).child(0)
-    return body
-}
-
 def_ns_decls := func(sdef: Expr) returns ref Vec {
     switch sdef.node_type {
     case NodeType.StructDef(sd):
