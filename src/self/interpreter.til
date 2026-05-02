@@ -667,15 +667,12 @@ eval_body := proc(scope: Scope, mut body: Expr) {
         } else if stmt.node_type.is(NodeType.FieldAssign) {
             ref val_expr : Expr = stmt.child(1)
             mut val := val_none()
-            ref mut move_src : Cell = NULL
-            if val_expr.til_type.is(TilType.Dynamic) {
-                if val_expr.node_type.is(NodeType.Ident) {
-                    ref vi : Str = get_payload(val_expr.node_type)
-                    move_src = scope_get(scope, vi)
-                    val = shallow_copy_value(move_src.val)
-                }
+            ref move_src : Cell = field_assign_dyn_move_src(scope, val_expr)
+            if is_null(move_src).not() {
+                val = shallow_copy_value(move_src.val)
+            } else {
+                val = eval_expr(scope, val_expr)
             }
-            if is_null(move_src) { val = eval_expr(scope, val_expr) }
             ref fname : Str = get_payload(stmt.node_type)
             if interp_fa_is_ns(scope, stmt) {
                 obj := eval_expr(scope, stmt.child(0))
@@ -1294,6 +1291,17 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
         }
     }
     return false
+}
+
+// For FieldAssign rhs: when the value is a Dynamic Ident, return the
+// source Cell so the caller can shallow-copy its value (move semantics
+// for Dynamic). Returns NULL when the rhs isn't an Ident or isn't
+// Dynamic, signalling "evaluate the expression normally".
+field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref Cell {
+    if val_expr.til_type.is(TilType.Dynamic).not() { return NULL }
+    if val_expr.node_type.is(NodeType.Ident).not() { return NULL }
+    ref vi : Str = get_payload(val_expr.node_type)
+    return scope_get(scope, vi)
 }
 
 interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {

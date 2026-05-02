@@ -321,7 +321,7 @@ fa_recv_type_name := func(callee: Expr) returns Str {
 try_fast_fold_call := func(scope: Scope, fcall: Expr) returns ref Expr {
     if fcall.children.len().eq(1).not() { return NULL }
     ref _fc_callee : Expr = fcall.child(0)
-    ref mut _fc_fp : Dynamic = NULL
+    mut _fc_fp : Dynamic = 0
     switch _fc_callee.node_type {
     case NodeType.Ident(_ci):
         ref _cell : Cell = scope_get(scope, _ci)
@@ -370,7 +370,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     // are aliases not standalone values; for ext_funcs this also covers
     // env-dependent dlsym-style pointers that get truncated when
     // materialised back into a literal).
-    ref mut fp : Dynamic = NULL
+    mut fp : Dynamic = 0
     switch callee.node_type {
     case NodeType.Ident(callee_ident):
         // Block direct calls to side-effecting names (exit, malloc, panic,

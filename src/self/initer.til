@@ -47,8 +47,7 @@ namespace:
             ref pb : TypeBinding = self.parent.get_binding(name)
             return pb
         }
-        ref none : TypeBinding = NULL
-        return none
+        return NULL
     }
     find := func(self: TypeScope, name: Str) returns ScopeFind {
         ref b : TypeBinding = self.get_binding(name)
@@ -75,8 +74,7 @@ namespace:
         if is_null(self.parent).not() {
             return self.parent.get_struct(name)
         }
-        ref none : Expr = NULL
-        return none
+        return NULL
     }
     is_mut := func(self: TypeScope, name: Str) returns shallow Bool {
         ref b : TypeBinding = self.get_binding(name)

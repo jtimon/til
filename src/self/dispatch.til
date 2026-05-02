@@ -824,7 +824,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
             has_payload := vtype.len().gt(0)
             if has_payload {
                 payload := eval_expr(scope, e.child(1))
-                ref mut pdata : Dynamic = NULL
+                mut pdata : Dynamic = 0
                 mut psz : I32 = 0
                 switch payload {
                 case Value.Int(x):     pdata = to_ptr(x); psz = 8.to_i32()
@@ -873,6 +873,17 @@ ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value) returns sha
     else if rtype.eq("F32")   { ref rv : F32 = p;   result = val_f32(rv);            return true }
     else if rtype.eq("Bool")  { ref rv : Bool = p;  result = val_bool(rv);           return true }
     return false
+}
+
+// Look up the StructDef Expr for fe's shallow-struct return type, or
+// NULL if the return type isn't a known shallow struct.
+ffi_call_ret_struct_def := func(fe: FFIEntry) returns ref Expr {
+    if fe.return_is_shallow.not() { return NULL }
+    if is_null(fe.return_type) { return NULL }
+    if ffi_cif_rtype_is_struct(fe.cif).not() { return NULL }
+    if ffi_struct_defs.has(fe.return_type).not() { return NULL }
+    ref sdef_ptr : Dynamic = ffi_struct_defs.get(fe.return_type)
+    return deref(sdef_ptr)
 }
 
 ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
@@ -951,7 +962,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
             }
         } else {
             // Deep: pass heap-allocated pointer (FFI callee may free it)
-            ref mut dp : Dynamic = NULL
+            mut dp : Dynamic = 0
             switch v {
             case Value.Int(p):     dp = malloc(8); memcpy(dp, p, 8)
             case Value.Byte(p):    dp = malloc(1); memcpy(dp, p, 1)
@@ -978,20 +989,11 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     }
 
     // Check if return is a shallow struct
-    ref mut ret_sdef : Expr = NULL
-    if fe.return_is_shallow.and(is_null(fe.return_type).not()) {
-        if ffi_cif_rtype_is_struct(fe.cif) {
-            if ffi_struct_defs.has(fe.return_type) {
-                ref sdef_ptr : Dynamic = ffi_struct_defs.get(fe.return_type)
-                ref rs : Expr = deref(sdef_ptr)
-                ret_sdef = rs
-            }
-        }
-    }
+    ref ret_sdef : Expr = ffi_call_ret_struct_def(fe)
 
     // raw: 16-byte buffer for return value
     raw : Dynamic = calloc(1, 16)
-    ref mut ret_buf : Dynamic = NULL
+    mut ret_buf : Dynamic = 0
     if is_null(ret_sdef).not() {
         ref sdd : StructDef = get_payload(ret_sdef.node_type)
         ret_buf = malloc(sdd.total_struct_size.to_i64().to_usize())
@@ -1045,7 +1047,7 @@ ffi_register := func(name: Str, fn: Dynamic, fdef: Expr) {
         if alloc_np.eq(0) { alloc_np = 1 }
         // Build ffi_type* array (each element is a pointer = 8 bytes)
         atypes : Dynamic = malloc(alloc_np.to_u64().mul(8))
-        ref mut pshallows : Dynamic = NULL
+        mut pshallows : Dynamic = 0
         mut has_shallow := false
         for k in 0..np {
             ref pk : Declaration = fd.params.get(k)

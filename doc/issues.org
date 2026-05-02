@@ -2220,6 +2220,79 @@
         them. Steps 2 and 4 are where the rule starts paying off
         for the original motivating bug class.
 
+   1b. [DONE] Reject ~ref X := NULL~ / ~ref mut X := NULL~ in
+       function-body locals. Conservative scope: only inside
+       function bodies (gate
+       ~in_func.eq(0).and(proc_def_depth.eq(0))~ returns early).
+       Module-scope globals and struct/namespace field defaults
+       remain allowed -- the global migration is its own audit
+       (see "Globals open question" below).
+
+       Implementation:
+       - ~check_ref_local_null_init(stmt, in_func)~ in
+         ~src/self/typer.til~, called from ~infer_decl_stmt~
+         alongside ~check_ref_decl_owned_init~. Same shape as
+         step 1's helper.
+       - Diagnostic: "ref local 'X' cannot be initialized to
+         NULL -- borrow the source directly, or use a non-ref
+         shape (own/mut + sentinel)".
+       - Regression test in ~src/test/typer_errors.til~; count
+         bumped to 77.
+
+       Audit (initially 21, grew to 26 as master moved) clustered
+       into 5 patterns. All fixed in this commit:
+
+       a. ~ref mut X : Dynamic = NULL~ -> ~mut X : Dynamic = 0~.
+          ~Dynamic~ is just a void* in C, the ref is structural
+          theatre. 6 sites: ~precomp.til:324~/~373~,
+          ~dispatch.til:827~/~954~/~994~/~1048~. Mechanical
+          1-line per site.
+
+       b. ~ref X : T = NULL; return X~ as a "return NULL" shim.
+          2 sites in ~initer.til:50~/~:78~. Fixed by replacing
+          with ~return NULL~ directly (the language allows it for
+          ref-typed returns).
+
+       c. ~ref mut prog : Expr = NULL; if prog_idx.eq(0) { prog = core_program }
+          else { prog = program }~ as a 2-iteration loop. 6 sites
+          in ~builder.til~. Fixed by extracting per-prog helpers
+          (~emit_funcsig_typedefs_prog~,
+          ~emit_header_forward_decls_prog~,
+          ~emit_header_func_fwds_prog~,
+          ~emit_header_global_decls_prog~,
+          ~emit_monolithic_header_func_decls_prog~) and calling
+          each once for ~core_program~ and once for ~program~.
+          ~build_register_funcsig_names~ now reuses the existing
+          ~register_funcsig_prog~ helper.
+
+       d. ~ref mut X : Expr = NULL; if cond { X = scope.get_struct(name) }~.
+          6 sites (typer + builder ~method_fdef~). Fixed by
+          calling ~scope.get_struct~ unconditionally (returns
+          NULL for empty/missing names) or, in the
+          ~method_fdef~ case, switching to the existing
+          ~find_namespace_func~ helper. ~hoist_sdef~ needed an
+          ~is_ctor_call~ Bool to keep the gating semantics.
+
+       e. ~ref mut X : Expr = NULL; switch ... { case A: X = a; case B: X = b }~.
+          6 sites. Fixed by extracting per-site helpers that do
+          the case analysis and return ~ref T~ or NULL:
+          ~type_def_struct_def_for~ (typer ~current_struct_def~),
+          ~find_namespace_func(sdef, "len"/"get")~ (typer for-in
+          loop),
+          ~resolve_decl_fn_sig~ (builder ~decl_sig~ -- replaces
+          inline resolution in ~emit_stmt_decl~),
+          ~field_assign_dyn_move_src~ (interpreter
+          ~FieldAssign~), ~ffi_call_ret_struct_def~ (dispatch
+          ~ret_sdef~), and removing the dead-code intermediate
+          ~null_expr~ ref in ~typer.til:infer_type_def_expr~.
+
+       Globals open question: the conservative rule above leaves
+       module-scope ~ref mut X : T = NULL~ allowed. til's current
+       code uses the ~mut X : Dynamic = 0~ shape for the registry
+       pattern (~codegen_lp_slot~ et al), so after this step the
+       remaining audit work is verifying no new module-scope
+       ~ref mut Expr = NULL~ globals slipped in. Deferred.
+
    2. Generalize the predicate from "literal ~.clone()~" to "any
       FCall whose callee returns ~OwnType.Own~". Constructors
       (~Foo()~), ~take_*~ helpers, factory funcs, etc. The typer

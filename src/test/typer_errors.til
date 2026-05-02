@@ -306,3 +306,14 @@ TerrCloneRefSrc := struct { mut field := 0 }
 terr_clone_ref_src := TerrCloneRefSrc(field=1)
 ref terr_clone_ref : TerrCloneRefSrc = terr_clone_ref_src.clone()
 ref mut terr_clone_ref_mut : TerrCloneRefSrc = terr_clone_ref_src.clone()
+
+// #168 step 1b: ref local cannot be initialized to NULL.
+// Module-scope and field defaults are still allowed (conservative).
+terr_null_ref_local_fn := func() returns I64 {
+    ref leaked_null : I64 = NULL
+    ref mut leaked_null_mut : I64 = NULL
+    if is_null(leaked_null) { return 0 }
+    if is_null(leaked_null_mut) { return 0 }
+    return 1
+}
+terr_null_ref_local_fn()
