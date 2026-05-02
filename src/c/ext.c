@@ -57,6 +57,15 @@ __attribute__((unused)) static F32 *new_f32(F32 v) { F32 *r = malloc(sizeof(F32)
 static U64 *new_u64(U64 v) { U64 *r = malloc(sizeof(U64)); *r = v; return r; }
 static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r; }
 
+// --- Small libc wrappers ---
+
+// Avoid declaring libc symbols directly in generated C (signature mismatches
+// vs stdlib.h can cause compile errors). Provide stable wrappers instead.
+I32 til_setenv(U8 *name, U8 *value, I32 overwrite)
+{
+    return (I32)setenv((const char *)name, (const char *)value, overwrite);
+}
+
 // I64 clone
 I64 I64_clone(I64 *v) { return *v; }
 

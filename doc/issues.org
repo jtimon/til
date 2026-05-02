@@ -1,10 +1,45 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 176
+# NEXT_ISSUE: 177
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/17] Pre
+** OPEN #176 FFI: support const char* params (avoid libc prototype conflicts)
+   Symptom:
+
+   - Declaring libc functions like ~setenv~ as ~ext_func~ in Til can fail C
+     compilation with "conflicting types" because generated code emits a
+     prototype that does not match system headers.
+
+   Root cause:
+
+   - Per ~doc/qualifiers.org~, til qualifiers currently do not generate C
+     ~const~ qualifiers at all. Non-~mut~ args still emit ~Type *arg~, not
+     ~const Type *arg~.
+   - libc headers declare many APIs with ~const char *~ (e.g. ~setenv~). If til
+     codegen also emits a prototype for the same symbol but without ~const~ (or
+     with a different pointer base type like ~U8 *~), the C compiler rejects it
+     as a conflicting declaration.
+
+   Current workaround:
+
+   - Provide a thin wrapper in ~src/c/ext.c~ (e.g. ~til_setenv~) and bind that
+     from Til instead of binding libc ~setenv~ directly.
+
+   Desired fix:
+
+   - Add const-correct C emission:
+     - When an argument is non-~mut~, emit ~const Type *~ where safe.
+     - Provide an escape hatch for APIs that legitimately mutate through a
+       borrowed pointer.
+   - Extend FFI/type mapping to cover common C string pointer shapes:
+     - ~const char *~ and ~char *~ (distinct from ~U8 *~ / ~I8 *~).
+   - Reduce collisions with system headers:
+     - Either avoid emitting prototypes for known libc symbols when the correct
+       header is present, or ensure emitted prototypes exactly match the libc
+       signature.
+
 ** OPEN #175 Switch case-binding leaks when hoisted into a ~mut Str~ (or similar owned local)
    Surfaced while doing the switch destructure refactor of
    ~src/self/typer.til~. The pattern:

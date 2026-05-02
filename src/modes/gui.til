@@ -53,6 +53,9 @@ Font := struct {
 // Math FFI (from libm)
 sinf := ext_func(shallow x: F32) returns shallow F32 {}
 
+// libc wrappers (implemented in src/c/ext.c)
+til_setenv := ext_func(name: U8, value: U8, shallow overwrite: I32) returns shallow I32 {}
+
 // Raylib audio FFI (struct by value via shallow)
 LoadSoundFromWave := ext_func(shallow wave: Wave) returns shallow Sound {}
 PlaySound := ext_proc(shallow sound: Sound) {}
@@ -67,6 +70,7 @@ MeasureTextEx := ext_func(shallow font: Font, text: U8, shallow fontSize: F32, s
 
 // Direct raylib FFI declarations
 InitWindow := ext_proc(shallow w: I32, shallow h: I32, title: U8) {}
+IsWindowReady := ext_func() returns shallow Bool {}
 WindowShouldClose := ext_func() returns shallow Bool {}
 BeginDrawing := ext_proc() {}
 EndDrawing := ext_proc() {}
@@ -195,6 +199,15 @@ color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) re
 // Backward-compatible snake_case API
 init_window := proc(w: I64, h: I64, title: Str) {
     InitWindow(w.to_i32(), h.to_i32(), title.c_str)
+
+    if IsWindowReady().not() {
+        // Fallback: force Mesa+llvmpipe when the default GLX vendor fails.
+        // overwrite=0 means user-supplied env vars win.
+        til_setenv("__GLX_VENDOR_LIBRARY_NAME".c_str, "mesa".c_str, 0)
+        til_setenv("LIBGL_ALWAYS_SOFTWARE".c_str, "1".c_str, 0)
+        til_setenv("MESA_LOADER_DRIVER_OVERRIDE".c_str, "llvmpipe".c_str, 0)
+        InitWindow(w.to_i32(), h.to_i32(), title.c_str)
+    }
 }
 window_should_close := func() returns Bool {
     return WindowShouldClose()
