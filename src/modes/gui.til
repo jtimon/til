@@ -53,7 +53,6 @@ Font := struct {
 // Math FFI (from libm)
 sinf := ext_func(shallow x: F32) returns shallow F32 {}
 
-
 // Raylib audio FFI (struct by value via shallow)
 LoadSoundFromWave := ext_func(shallow wave: Wave) returns shallow Sound {}
 PlaySound := ext_proc(shallow sound: Sound) {}

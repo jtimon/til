@@ -4976,31 +4976,6 @@ cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Tar
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
     if result.eq(0) { result = compile_ast(lp, paths, target, cc_override) }
-
-    // GUI binaries can fail to create a GLX context on some multi-GPU GLVND
-    // setups unless the GLX vendor is pinned (mesa works reliably via llvmpipe).
-    // We generate a small launcher script in bin/<name> that sets env vars and
-    // execs the real binary at bin/<name>.bin.
-    if result.eq(0).and(paths.do_lib.not()) {
-        if lp.cur_mode.auto_import.eq("gui").and(custom_bin.len().eq(0)) {
-            real_bin := paths.bin_path.concat(".bin")
-            result = system_cmd("mv ".concat(paths.bin_path).concat(" ").concat(real_bin))
-            if result.eq(0) {
-                f := File.new(paths.bin_path, true)
-                f.write("#!/bin/sh\n")
-                f.write("export __GLX_VENDOR_LIBRARY_NAME=mesa\n")
-                f.write("export LIBGL_ALWAYS_SOFTWARE=1\n")
-                f.write("export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe\n")
-                f.write("DIR=$(dirname \"$0\")\n")
-                f.write("exec \"$DIR/")
-                f.write(paths.name)
-                f.write(".bin\" \"$@\"\n")
-                f.close()
-                result = system_cmd("chmod +x ".concat(paths.bin_path))
-            }
-        }
-    }
-
     if result.eq(0).and(paths.do_lib) {
         print_translate_success(paths)
         println("Generated: gen/lib/lib".concat(paths.name).concat(".so"))
@@ -5017,27 +4992,6 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
     if result.eq(0) { result = compile_ast(lp, paths, target, cc_override) }
-
-    if result.eq(0).and(paths.do_lib.not()) {
-        if lp.cur_mode.auto_import.eq("gui").and(custom_bin.len().eq(0)) {
-            real_bin := paths.bin_path.concat(".bin")
-            result = system_cmd("mv ".concat(paths.bin_path).concat(" ").concat(real_bin))
-            if result.eq(0) {
-                f := File.new(paths.bin_path, true)
-                f.write("#!/bin/sh\n")
-                f.write("export __GLX_VENDOR_LIBRARY_NAME=mesa\n")
-                f.write("export LIBGL_ALWAYS_SOFTWARE=1\n")
-                f.write("export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe\n")
-                f.write("DIR=$(dirname \"$0\")\n")
-                f.write("exec \"$DIR/")
-                f.write(paths.name)
-                f.write(".bin\" \"$@\"\n")
-                f.close()
-                result = system_cmd("chmod +x ".concat(paths.bin_path))
-            }
-        }
-    }
-
     if result.eq(0) {
         mut cmd := paths.bin_path
         for uarg : Str in user_argv {
