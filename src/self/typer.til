@@ -361,7 +361,7 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
                 switch sig.node_type {
                 case NodeType.FuncDef(sig_fdef):
                     if nargs.neq(sig_fdef.params.len()) {
-                        type_error(e, "function pointer field '".concat(method).concat("' expects ").concat(sig_fdef.params.len().to_i64().to_str()).concat(" args, got ").concat(nargs.to_i64().to_str()))
+                        type_error(e, "function pointer field '".concat(method).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()))
                     }
                     mut ai : U32 = 0
                     while ai.lt(nargs) {
@@ -668,7 +668,7 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
         }
         if vi.lt(0) {
             if pos_idx.gt(max_pos) {
-                type_error(e, format("too many arguments: expected ", nparam.to_i64().to_str(), ", got ", pos_idx.to_i64().to_str()))
+                type_error(e, format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()))
             }
         }
         mut new_ch := Vec.new("Expr", Expr.size())
@@ -914,7 +914,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                         mut nargs : U32 = e.children.len()
                         nargs = nargs.sub(1)
                         if nargs.neq(sig_fdef.params.len()) {
-                            type_error(e, "function pointer '".concat(name).concat("' expects ").concat(sig_fdef.params.len().to_i64().to_str()).concat(" args, got ").concat(nargs.to_i64().to_str()))
+                            type_error(e, "function pointer '".concat(name).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()))
                         }
                         mut ai : U32 = 0
                         while ai.lt(nargs) {
@@ -936,7 +936,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                                 continue
                             }
                             if arg.til_type.is(expected).not() {
-                                type_error(e, "function pointer '".concat(name).concat("' param ").concat(ai.add(1).to_i64().to_str()).concat(": expected ").concat(expected_name).concat(", got ").concat(type_to_name(arg.til_type)))
+                                type_error(e, "function pointer '".concat(name).concat("' param ").concat(ai.add(1).to_str()).concat(": expected ").concat(expected_name).concat(", got ").concat(type_to_name(arg.til_type)))
                             }
                             ai = ai.add(1)
                         }
@@ -1181,7 +1181,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             }
         }
         if pos_idx.gt(np) {
-            type_error(e, format("too many arguments: expected ", np.to_i64().to_str(), ", got ", pos_idx.to_i64().to_str()))
+            type_error(e, format("too many arguments: expected ", np.to_str(), ", got ", pos_idx.to_str()))
         }
         mut new_ch := Vec.new("Expr", Expr.size())
         ref callee : Expr = e.child(0)
@@ -3711,7 +3711,7 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
     mut sz := make_ns_call(elem_type, "size", usize_type(scope), fcall)
     new_call.add_child(own sz)
 
-    cap_str := vc.to_i64().to_str()
+    cap_str := vc.to_str()
     mut cap := Expr.new(NodeType.LiteralNum(cap_str.clone()), fcall.line, fcall.col)
     cap.til_type = usize_type(scope)
     new_call.add_child(own cap)
@@ -3736,7 +3736,7 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
     self_id.til_type = TilType.Struct("Array".clone())
     set_call.add_child(own self_id)
 
-    idx_str := j.to_i64().to_str()
+    idx_str := j.to_str()
     mut idx := Expr.new(NodeType.LiteralNum(idx_str.clone()), fcall.line, fcall.col)
     idx.til_type = usize_type(scope)
     set_call.add_child(own idx)
@@ -3953,7 +3953,7 @@ process_call_desugars := func(mut stmt: Expr, mut new_ch: Vec, mut scope: TypeSc
             col := fcall.col
             ref elem_type : Str = resolve_variadic_elem_type(fcall, scope)
             if is_null(elem_type).not().and(desugar_pure_splat_variadic_call(fcall).not()) {
-                va_name := "_va_Array_".concat(va_counter.to_i64().to_str())
+                va_name := "_va_Array_".concat(va_counter.to_str())
                 va_counter++
                 mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
                 scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, line, col, false, OwnType.Own)
@@ -5215,7 +5215,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
 
 hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow is_own: Bool) returns Expr {
     tp := type_prefix(val.til_type)
-    tname := "_t_".concat(tp).concat("_").concat(hoist_counter.to_i64().to_str())
+    tname := "_t_".concat(tp).concat("_").concat(hoist_counter.to_str())
     hoist_counter++
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), val.line, val.col)

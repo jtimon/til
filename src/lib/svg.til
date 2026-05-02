@@ -170,7 +170,7 @@ parse_int := func(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
         j = j.add(1)
     }
     if digits.eq(0) {
-        panic(__LOC__, "expected integer in path data at byte ", j.to_i64().to_str())
+        panic(__LOC__, "expected integer in path data at byte ", j.to_str())
     }
     if neg { val = 0.sub(val) }
     out_idx = j

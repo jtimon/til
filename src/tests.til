@@ -650,7 +650,7 @@ main := proc(args: ..Str) {
     println("Plot test:    ", ms_to_str(plot_ms))
     println("Build tests:  ", ms_to_str(build_ms))
     println("Wall-clock:   ", ms_to_str(wall_ms))
-    println("Passed:       ", total_passed.to_i64().to_str(), "/", total_tests.to_i64().to_str())
+    println("Passed:       ", total_passed.to_str(), "/", total_tests.to_str())
     println("")
 
     if fail.eq(0) {
@@ -691,7 +691,7 @@ main := proc(args: ..Str) {
                               total_compile_ms.to_str(), ",", total_run_ms.to_str(), ",",
                               ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
                               cli_ms.to_str(), ",", wall_ms.to_str(), ",",
-                              total_passed.to_i64().to_str(), ",", total_tests.to_i64().to_str(), ",",
+                              total_passed.to_str(), ",", total_tests.to_str(), ",",
                               total_mem_inte.to_str(), ",",
                               total_mem_comp.to_str(), ",",
                               total_mem_run.to_str(), ",",

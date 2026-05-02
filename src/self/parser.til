@@ -154,7 +154,7 @@ parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U32) r
 maybe_lift_lambda := func(mut p: Parser, own e: Expr) returns Expr {
     if e.node_type.is(NodeType.FuncDef).not() { return e }
     if e.children.len().eq(0) { return e }
-    lname := "_lambda_".concat(p.lambda_decls.len().to_i64().to_str())
+    lname := "_lambda_".concat(p.lambda_decls.len().to_str())
     line := e.line
     col := e.col
     mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone())), line, col)
@@ -329,7 +329,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 pn := expect_text(p, TokenType.Ident)
                 if pi.gte(sfd.params.len()) {
                     panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                        ": too many param names for FuncSig form (got more than ", sfd.params.len().to_i64().to_str(), ")")
+                        ": too many param names for FuncSig form (got more than ", sfd.params.len().to_str(), ")")
                 }
                 ref pp : Declaration = sfd.params.get(pi)
                 pp.name = pn.clone()
@@ -339,7 +339,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             expect_token(p, TokenType.RParen)
             if pi.lt(sfd.params.len()) {
                 panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                    ": FuncSig form expects ", sfd.params.len().to_i64().to_str(), " param names, got ", pi.to_i64().to_str())
+                    ": FuncSig form expects ", sfd.params.len().to_str(), " param names, got ", pi.to_str())
             }
         case:
             UNREACHABLE(__LOC__)
