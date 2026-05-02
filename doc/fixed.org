@@ -1,5 +1,49 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #175 Switch case-binding leaks when hoisted into a ~mut Str~ (or similar owned local)
+  The pattern that leaked:
+
+  #+begin_src til
+  mut fname := ""
+  switch e.node_type {
+  case NodeType.FieldAccess(fn):
+      fname = fn
+  case NodeType.FieldAssign(fn):
+      fname = fn
+  }
+  ... use fname ...
+  #+end_src
+
+  After switch desugaring the leaky assignment is ~fname = fn~ inside
+  an ~if~ body, where ~fn~ is a ~ref Str~ borrow and ~fname~ is a
+  ~mut Str~ owned local in the enclosing function scope.
+
+  Root cause: ~insert_assign_delete~ only emitted destructors for
+  assignments to locals declared in the *current* scope. The leaky
+  assignment lives inside a nested ~if~/switch-case body, while the
+  ~mut Str~ slot is owned by the enclosing function -- so no
+  destructor was ever scheduled, and the previous ~""~ leaked when
+  ~fname~ was overwritten.
+
+  Fix (~src/self/typer.til~ ~infer_assign_stmt~): when the assignment
+  RHS is wrapped in a ~clone~ call (the existing path for ~Ident~ /
+  ~FieldAccess~ to a ~Struct~/~Enum~) and the target binding lives in
+  an outer *function-local* scope (not a module global), set
+  ~AssignData.save_old_delete = true~ on the assign node. The codegen
+  in ~src/self/builder.til~ already emits the right "free old, store
+  new" sequence based on whether the target is a hoisted stack local
+  or a heap pointer.
+
+  Module/global variables are excluded on purpose -- a number of
+  ~src/self/builder.til~ helpers use a manual save / replace /
+  ~own X.delete()~ / restore idiom on global Set state (~stack_locals~,
+  ~unsafe_to_hoist~, etc.), and auto-deleting the saved-then-restored
+  value would double-free.
+
+  ~TypeScope~ already walks parents on lookup, so the new
+  ~assign_target_is_func_local~ helper just checks whether the binding
+  is found at any non-root scope.
+
 * FIXED #162 Core files should import semantic dependencies explicitly
   Closed in two parts:
 
