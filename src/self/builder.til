@@ -583,11 +583,11 @@ type_name_to_c_value := func(name: Str) returns Str {
 }
 
 emit_u64 := proc(f: File, shallow v: U64) {
-    f.write(v.to_i64().to_str())
+    f.write(v.to_str())
 }
 
 emit_i32 := proc(f: File, shallow v: I32) {
-    f.write(v.to_i64().to_str())
+    f.write(v.to_str())
 }
 
 emit_indent := proc(f: File, shallow depth: I32) {
@@ -1468,7 +1468,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             f.write(" = malloc(sizeof(")
             f.write(ctype)
             f.write(")); ")
-            tmp := "_sc".concat(id.to_i64().to_str())
+            tmp := "_sc".concat(id.to_str())
             emit_ctor_fields(f, tmp, e, depth)
             f.write(" _sc")
             emit_i32(f, id)
@@ -1573,7 +1573,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                             ct := c_type_name(arg.til_type, arg_sname)
                             ctor_seq = ctor_seq.add(1.to_i32())
                             id := ctor_seq
-                            tmp := "_cs".concat(id.to_i64().to_str())
+                            tmp := "_cs".concat(id.to_str())
                             f.write(ct)
                             f.write(" *")
                             f.write(tmp)
@@ -1619,7 +1619,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                         ct := c_type_name(arg.til_type, arg_sname2)
                         ctor_seq = ctor_seq.add(1.to_i32())
                         id := ctor_seq
-                        tmp := "_cs".concat(id.to_i64().to_str())
+                        tmp := "_cs".concat(id.to_str())
                         f.write(ct)
                         f.write(" *")
                         f.write(tmp)
@@ -1844,7 +1844,7 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
                     f.write(" = malloc(sizeof(")
                     f.write(ctype)
                     f.write(")); ")
-                    tmp := "_sc".concat(id.to_i64().to_str())
+                    tmp := "_sc".concat(id.to_str())
                     emit_ctor_fields(f, tmp, e, depth)
                     f.write(" _sc")
                     emit_i32(f, id)
@@ -3462,7 +3462,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
         for fi in 0..files.len() {
             ref file : Str = files.get(fi)
             if file.len().eq(0) { continue }
-            user_obj := c_dir.concat("/user_").concat(fi.to_i64().to_str()).concat(".o")
+            user_obj := c_dir.concat("/user_").concat(fi.to_str()).concat(".o")
 
             // Skip -include forward.h for src/c/ files
             mut fwd_flag := " -include ".concat(fwd_path)

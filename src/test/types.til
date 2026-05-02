@@ -30,7 +30,7 @@ test_u8 := test() {
     assert_eq_str(__LOC__, a.add(b).to_str(), "255")
     assert_eq_str(__LOC__, a.add(b).add(b).to_str(), "54")
     assert_eq_str(__LOC__, a.sub(b).to_str(), "145")
-    assert_eq_str(__LOC__, a.to_i64().to_str(), "200")
+    assert_eq_str(__LOC__, a.to_str(), "200")
     assert(__LOC__, a.gt(b))
     assert(__LOC__, a.eq(a))
     c : U8 = 42
@@ -55,12 +55,12 @@ takes_i64 := func(shallow n: I64) returns shallow I64 { return n }
 test_implicit_widen := test() {
     // U32 → U64 widening
     a : U32 = 42
-    assert_eq_str(__LOC__, takes_u64(a).to_i64().to_str(), "42")
+    assert_eq_str(__LOC__, takes_u64(a).to_str(), "42")
     // U32 → I64 widening
     assert_eq(__LOC__, takes_i64(a), 42)
     // U8 → U64 widening
     b : U8 = 200
-    assert_eq_str(__LOC__, takes_u64(b).to_i64().to_str(), "200")
+    assert_eq_str(__LOC__, takes_u64(b).to_str(), "200")
 }
 
 test_format := test() {

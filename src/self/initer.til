@@ -1354,7 +1354,7 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     }
     if has_size { return }
 
-    sz_text := compute_enum_layout(def, scope).to_i64().to_str()
+    sz_text := compute_enum_layout(def, scope).to_str()
 
     mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
     mut size_expr := Expr.new(NodeType.LiteralNum(sz_text.clone()), stmt.line, stmt.col)
