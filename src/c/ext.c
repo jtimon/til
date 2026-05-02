@@ -26,6 +26,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
+#include <errno.h>
 #include <dlfcn.h>
 #endif
 
@@ -618,9 +619,14 @@ I64 *spawn_cmd(Str *cmd) {
 I64 check_cmd_status(I64 pid) {
     I32 status;
     pid_t result = waitpid((pid_t)pid, &status, WNOHANG);
-    if (result == 0) return -1;
+    if (result == 0) return -1;  // still running
+    if (result < 0) {
+        // Treat waitpid errors as a hard failure so the runner doesn't spin.
+        return 127;
+    }
     if (WIFEXITED(status)) return WEXITSTATUS(status);
-    return -1;
+    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+    return 127;
 }
 
 void sleep_ms(I64 ms) {
