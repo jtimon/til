@@ -3008,8 +3008,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
         i++
     }
     if owns_scope.neq(0) { desugar_body(body, scope) }
-    if owns_scope.neq(0) { hoist_fcall_args(body, scope) }
-    insert_field_deletes(body, scope)
+    hoist_and_insert_field_deletes(body, scope, owns_scope)
     insert_free_calls(body, scope, owns_scope)
 }
 
@@ -3021,8 +3020,7 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
         i++
     }
     if owns_scope.neq(0) { desugar_body(body, scope) }
-    if owns_scope.neq(0) { hoist_fcall_args(body, scope) }
-    insert_field_deletes(body, scope)
+    hoist_and_insert_field_deletes(body, scope, owns_scope)
     insert_free_calls(body, scope, owns_scope)
 }
 
@@ -4146,45 +4144,25 @@ hoist_stmt_fcall := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
     }
 }
 
-hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
-    mut old := Vec.new("Expr", Expr.size())
-    old.move_from(body.children)
-
-    mut new_ch := Vec.new("Expr", Expr.size())
-    mut any_hoisted := false
-    for i in 0..old.len() {
-        ref stmt : Expr = old.get(i)
-        if is_compile_directive(stmt) { continue }
-        mut hoisted := Vec.new("Expr", Expr.size())
-
-        switch stmt.node_type {
-        case NodeType.Decl:
-            hoist_decl_rhs(stmt, hoisted, scope)
-        case NodeType.FCall:
-            hoist_stmt_fcall(stmt, hoisted, scope)
-        case NodeType.Return:
-            hoist_return_expr(stmt, hoisted, scope)
-        case NodeType.Assign:
-            hoist_assign_rhs(stmt, hoisted, scope)
-            hoist_param_swap_assign(stmt, hoisted, scope)
-        case NodeType.FieldAssign:
-            hoist_field_assign_rhs(stmt, hoisted, scope)
-        case NodeType.If:
-            hoist_if_cond(stmt, hoisted, scope)
-        case:
-            // NodeType.While: skip condition -- hoisting changes loop semantics
-        }
-
-        if hoisted.len().gt(0) { any_hoisted = true }
-        new_ch.append(own hoisted)
-        new_ch.push_take(old, i)
-    }
-
-    body.children.move_from(new_ch)
-    if any_hoisted { reregister_scope_defs(body, scope) }
-}
-
-insert_field_deletes := func(mut body: Expr, scope: TypeScope) {
+// Combine hoist_fcall_args and insert_field_deletes into one body walk.
+// Both ran back-to-back over the same body.children, both used the
+// prepend-N-then-push-stmt shape, and both ended with a conditional
+// reregister_scope_defs. Merging halves the walks/move-outs and avoids
+// running reregister twice when only one of the two actually changed
+// anything.
+//
+// owns_scope gates only the hoist half: hoisting registers temp Decls
+// in scope so the body must own a scope. insert_field_deletes runs
+// unconditionally (just like its standalone predecessor) because it
+// doesn't introduce new scope bindings.
+//
+// Order within a single stmt mirrors the original sequential semantics:
+// hoist's temp Decls come first, then (for FieldAssign with a non-trivial
+// owned rhs type) the synthesized delete call, then the (possibly
+// rewritten) stmt itself.
+hoist_and_insert_field_deletes := proc(mut body: Expr, mut scope: TypeScope, shallow do_hoist: I32) {
+    // insert_field_deletes-style prefilter: cheaper to walk once than to
+    // pay the rebuild when nothing needs deleting AND no hoist is allowed.
     mut needs_delete := false
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.FieldAssign) {
@@ -4197,29 +4175,63 @@ insert_field_deletes := func(mut body: Expr, scope: TypeScope) {
             }
         }
     }
-    if needs_delete.not() { return }
+    if do_hoist.eq(0).and(needs_delete.not()) { return }
 
     mut old := Vec.new("Expr", Expr.size())
     old.move_from(body.children)
 
     mut new_ch := Vec.new("Expr", Expr.size())
+    mut any_hoisted := false
+    mut any_field_deleted := false
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
         if is_compile_directive(stmt) { continue }
-        if stmt.node_type.is(NodeType.FieldAssign) {
+
+        // hoist_fcall_args: per-stmt dispatch, hoisted temps go first.
+        if do_hoist.neq(0) {
+            mut hoisted := Vec.new("Expr", Expr.size())
+            switch stmt.node_type {
+            case NodeType.Decl:
+                hoist_decl_rhs(stmt, hoisted, scope)
+            case NodeType.FCall:
+                hoist_stmt_fcall(stmt, hoisted, scope)
+            case NodeType.Return:
+                hoist_return_expr(stmt, hoisted, scope)
+            case NodeType.Assign:
+                hoist_assign_rhs(stmt, hoisted, scope)
+                hoist_param_swap_assign(stmt, hoisted, scope)
+            case NodeType.FieldAssign:
+                hoist_field_assign_rhs(stmt, hoisted, scope)
+            case NodeType.If:
+                hoist_if_cond(stmt, hoisted, scope)
+            case:
+                // NodeType.While: skip condition -- hoisting changes loop semantics
+            }
+            if hoisted.len().gt(0) { any_hoisted = true }
+            new_ch.append(own hoisted)
+        }
+
+        // insert_field_deletes: prepend the delete call before the
+        // FieldAssign stmt (after any hoisted temps).
+        if needs_delete.and(stmt.node_type.is(NodeType.FieldAssign)) {
             fot := fa_own_type(stmt, scope)
             if field_assign_needs_delete(stmt, scope) {
                 ref rhs : Expr = stmt.child(1)
                 if type_to_name(rhs.til_type).len().gt(0) {
                     del := make_field_delete(stmt, fot)
                     new_ch.push(own del)
+                    any_field_deleted = true
                 }
             }
         }
+
         new_ch.push_take(old, i)
     }
+
     body.children.move_from(new_ch)
-    reregister_scope_defs(body, scope)
+    if any_hoisted.or(any_field_deleted) {
+        reregister_scope_defs(body, scope)
+    }
 }
 
 rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
