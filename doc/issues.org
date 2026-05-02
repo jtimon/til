@@ -1,10 +1,60 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 175
+# NEXT_ISSUE: 176
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/16] Pre
+* [0/17] Pre
+** OPEN #175 Switch case-binding leaks when hoisted into a ~mut Str~ (or similar owned local)
+   Surfaced while doing the switch destructure refactor of
+   ~src/self/typer.til~. The pattern:
+
+   #+begin_src til
+   mut fname := ""
+   switch e.node_type {
+   case NodeType.FieldAccess(fn):
+       fname = fn
+   case NodeType.FieldAssign(fn):
+       fname = fn
+   }
+   ... use fname ...
+   #+end_src
+
+   leaks ~474KB~ across a self-host run when applied at ~22 sites (vs
+   the original ~ref fname : Str = get_payload(e.node_type)~ which
+   borrows with zero allocations).
+
+   Where the leak comes from after the switch is desugared:
+
+   #+begin_src til
+   mut fname := ""                                 # owns ""
+   if e.node_type.is(NodeType.FieldAccess) {
+       ref fn : Str = get_payload(e.node_type)     # borrow, OwnType.Ref
+       fname = fn                                  # <-- leak
+   }
+   #+end_src
+
+   Two related bugs surface in that last assignment:
+
+   1. The empty ~""~ that ~fname~ previously owned is overwritten
+      without its destructor running, so it leaks.
+   2. Assigning a ~ref Str~ into a ~mut Str~ slot either clones (and
+      that clone is then never freed at function exit) or aliases (and
+      the destructor skips it to avoid double-free). Either way leaks.
+
+   Same shape will hit any switch case-binding promoted to a ~mut~
+   local of an owned type (Str, Vec, Map, etc.), so the fix is on the
+   assignment side, not in switch desugaring itself.
+
+   Workaround used today: keep the case-bound name inside the case
+   body, or fall back to ~ref X : T = get_payload(...)~ for dual-variant
+   helpers (FieldAccess/FieldAssign). The latter is what
+   ~src/self/typer.til~ currently does at ~22 sites that would
+   otherwise hoist into a ~mut Str~.
+
+   Belongs under #109 (memory leak cleanup); see also #135 (~ref mut~
+   assignment clones instead of pointer-copying).
+
 ** WIP #173 Vec.new(Expr) syntax: copy rstil's runtime-type-name trick
    Goal:
 
@@ -1549,7 +1599,9 @@
   compiler allocations and remaining ownership/error-path issues.
   The stack-local work from ~#50~ is already landed, which should make
   the remaining leak buckets smaller and easier to isolate.
-  See also ~#135~ (ref mut assignment clones instead of pointer copy).
+  See also ~#135~ (ref mut assignment clones instead of pointer copy)
+  and ~#175~ (assigning a ref/borrowed Str into a ~mut Str~ slot
+  leaks the previous value and the new clone).
 
   End goal (from #110, now absorbed here): switch ~make test~ to always
   use ~bin/til_asan~ once leaks are under control.
