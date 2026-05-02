@@ -492,6 +492,11 @@ main := proc(args: ..Str) {
                       .concat("src/examples/svg2ttf.til ")
                       .concat("img/logo.svg tmp/svg2ttf_fail.ttf"))
 
+    // uml: smoke check that previously lived as `bin/til run src/examples/uml.til`
+    // in the Makefile. Compiled-run only; categorised as "build".
+    add_single(tests, "uml_run", "build", 0, "",
+               til_bin.concat(" run -o bin/c/uml -c gen/c/uml.c src/examples/uml.til"))
+
     // === library mode checks ===
     add_single(tests, "pure_build", "library", 0, "",
                asan_safe_cmd(til_bin.concat(" build src/test/pure.til"), til_bin))
