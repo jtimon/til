@@ -269,7 +269,7 @@ ref mut cached_vec_name : Str = NULL
 
 // --- Namespace fields (static struct fields) ---
 mut ns_fields := Map.new("Str", Str.size(), "Value", Value.size())
-mut ns_keys := Vec.new("Dynamic", Dynamic.size())
+mut ns_keys := Vec.new("Dynamic")
 
 val_none := func() returns shallow Value {
     return Value.None
@@ -1369,7 +1369,7 @@ mut ns_inited := false
 interpreter_init_ns := proc(mut global: Scope, program: Expr) {
     if ns_inited.not() {
         ns_fields = Map.new("Str", Str.size(), "Value", Value.size())
-        ns_keys = Vec.new("Dynamic", Dynamic.size())
+        ns_keys = Vec.new("Dynamic")
         ns_inited = true
     }
     for stmt : Expr in program.children {

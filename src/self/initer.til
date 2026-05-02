@@ -112,7 +112,7 @@ namespace:
 ImportUnit := struct {
     mut mode := Mode()
     own mut ast := Expr.new(NodeType.Body, 0, 0)
-    mut imports := Vec.new("Str", Str.size())
+    mut imports := Vec.new("Str")
 }
 
 Context := struct {
@@ -253,8 +253,8 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
         }
 
         if has_clone.not() {
-            field_names := Vec.new("Str", Str.size())
-            field_refs := Vec.new("I32", I32.size())
+            field_names := Vec.new("Str")
+            field_refs := Vec.new("I32")
             for d_j : Declaration in sdd.fields {
                 ref fd : Declaration = d_j
                 field_names.push(own fd.name.clone())
@@ -323,8 +323,8 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
         }
 
         if has_delete.not() {
-            del_field_names := Vec.new("Str", Str.size())
-            del_field_owns := Vec.new("Bool", Bool.size())
+            del_field_names := Vec.new("Str")
+            del_field_owns := Vec.new("Bool")
             for d_j : Declaration in sdd.fields {
                 ref fd : Declaration = d_j
                 if fd.own_type.eq(OwnType.Ref) { continue }
@@ -966,8 +966,8 @@ gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     line := stmt.line
     col := stmt.col
 
-    variant_names := Vec.new("Str", Str.size())
-    variant_types := Vec.new("Str", Str.size())
+    variant_names := Vec.new("Str")
+    variant_types := Vec.new("Str")
     mut has_payloads := false
     collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
     generate_enum_variant_constructors(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads)
@@ -1049,8 +1049,8 @@ gen_missing_enum_clone_for_stmt := func(stmt: Expr) {
         UNREACHABLE(__LOC__)
     }
     if has_clone.not() {
-        variant_names := Vec.new("Str", Str.size())
-        variant_types := Vec.new("Str", Str.size())
+        variant_names := Vec.new("Str")
+        variant_types := Vec.new("Str")
         mut has_payloads := false
         collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
         generate_enum_clone_method(stmt.child(0), ename, line.to_i64().to_i32(), col.to_i64().to_i32(), variant_names, variant_types, has_payloads)
@@ -2117,11 +2117,11 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     // not over program.children -- so we never re-traverse the AST. We
     // store indices into program.children rather than the Expr nodes
     // themselves so the lists don't need to own the AST.
-    struct_idxs := Vec.new("U32", U32.size())
-    enum_idxs := Vec.new("U32", U32.size())
-    alias_idxs := Vec.new("U32", U32.size())
-    func_idxs := Vec.new("U32", U32.size())
-    value_idxs := Vec.new("U32", U32.size())
+    struct_idxs := Vec.new("U32")
+    enum_idxs := Vec.new("U32")
+    alias_idxs := Vec.new("U32")
+    func_idxs := Vec.new("U32")
+    value_idxs := Vec.new("U32")
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -2207,10 +2207,10 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
     // funcsig) and bucket each remaining Decl's index for post-walk work.
     // Enum non-clone methods need scope to be populated before they can
     // generate eq/delete/to_str, so we delay them until after the walk.
-    enum_idxs := Vec.new("U32", U32.size())
-    alias_idxs := Vec.new("U32", U32.size())
-    func_idxs := Vec.new("U32", U32.size())
-    value_idxs := Vec.new("U32", U32.size())
+    enum_idxs := Vec.new("U32")
+    alias_idxs := Vec.new("U32")
+    func_idxs := Vec.new("U32")
+    value_idxs := Vec.new("U32")
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -2261,10 +2261,10 @@ init_declarations_global := proc(program: Expr, scope: TypeScope) returns shallo
     // Single AST walk: bucket struct and enum decls for post-walk work,
     // and bucket func/value decls in case global generation steps added
     // new ones (size/derived methods) that need to be registered.
-    struct_idxs := Vec.new("U32", U32.size())
-    enum_idxs := Vec.new("U32", U32.size())
-    func_idxs := Vec.new("U32", U32.size())
-    value_idxs := Vec.new("U32", U32.size())
+    struct_idxs := Vec.new("U32")
+    enum_idxs := Vec.new("U32")
+    func_idxs := Vec.new("U32")
+    value_idxs := Vec.new("U32")
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.node_type.is(NodeType.Decl).not() { continue }

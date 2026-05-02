@@ -297,7 +297,7 @@ checkers_next_boards : NextBoardsFn = (b) {
         ci = ci.add(1)
     }
     side := checkers_unpack_side(cb)
-    result := Vec.new("Board", Board.size())
+    result := Vec.new("Board")
     mut tmp_m := Array.new("I64", 8, 64)
     mut tmp_j := Array.new("I64", 8, 64)
     must_cap := has_any_captures(cells, side, tmp_m, tmp_j)

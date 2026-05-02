@@ -8,13 +8,13 @@ import("vec.til")
 
 /// Hash map from typed keys to typed values.
 Map := struct {
-    mut keys := Vec.new("Dynamic", Dynamic.size())
-    mut values := Vec.new("Dynamic", Dynamic.size())
+    mut keys := Vec.new("Dynamic")
+    mut values := Vec.new("Dynamic")
 
     mut key_cmp : CmpFn = default_cmp
 
 namespace:
-    new := func(key_type: Str, key_size: USize, val_type: Str, val_size: USize) returns Map {
+    new := func(key_type: Str, _key_size: USize, val_type: Str, _val_size: USize) returns Map {
         if key_type.is_empty() { panic(__LOC__, "Map.new: key_type required") }
         if dyn_has_method(key_type, "cmp").not() {
             panic(__LOC__, "Map.new: type ", key_type, " must implement cmp")
@@ -23,8 +23,8 @@ namespace:
             panic(__LOC__, "Map.new: val_type required")
         }
         mut m := Map()
-        m.keys = Vec.new(key_type, key_size)
-        m.values = Vec.new(val_type, val_size)
+        m.keys = Vec.new(key_type)
+        m.values = Vec.new(val_type)
         m.key_cmp = dyn_fn(key_type, "cmp")
         return m
     }

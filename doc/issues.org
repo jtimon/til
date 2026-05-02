@@ -5,15 +5,17 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/16] Pre
-** WIP #173 Vec.new(Expr) syntax: copy rstil's runtime-type-name trick
+** WIP #173 Vec.new(Type) syntax: copy rstil's runtime-type-name trick
    Goal:
 
    - Replace ~Vec.new("Foo", Foo.size())~ with ~Vec.new(Foo)~ across
-     the codebase (and similarly for Map/Set/Array/List/Tuple).
-   - Mirrors the rstil trick where the codegen converts a type
-     identifier passed to a ~Type~-typed parameter into a string
-     literal at the call site, and runtime size is looked up via a
-     generated ~til_size_of(name)~ switch.
+     the codebase, and ~Map.new("K", K.size(), "V", V.size())~ with
+     ~Map.new(K, V)~ (similarly for Array/Set/List, plus Tuple
+     fields that pass ~T.size()~).
+   - Mirrors the rstil trick where a type identifier passed at the
+     call site is converted to a runtime "type" value (in rstil it's
+     a ~const char*~ behind a ~Type~ pseudo-type). Runtime size is
+     looked up via a generated dispatch switch.
 
    Plan (incremental commits):
 
@@ -22,26 +24,60 @@
       Interpreter handler reuses ~get_elem_size~. Codegen emits a
       ~U32 dyn_size_of(Str *)~ function with a ~memcmp~ switch over
       every struct/enum returning ~sizeof(<TypeName>)~.
-   2. [ ] Slim ~Vec.new~ to a single ~elem_type: Str~ arg and call
-      ~dyn_size_of~ internally. Rewrite all ~Vec.new~ callsites
-      (~50 sites).
+   2a. [X] Switch ~emit_dyn_size_of_body~ from ~sizeof(<TypeName>)~ to
+      ~<TypeName>_size()~ so types whose C ~sizeof~ does not match
+      their TIL convention work too (e.g. ~Dynamic~: ~sizeof~ is 1
+      since it's just ~struct{char _;}~ in C, but TIL's
+      ~Dynamic.size()~ returns 8). Detects the size method's
+      shallow/non-shallow return convention from the AST and emits
+      either ~T_size()~ or ~{ U32 *_p = T_size(); U32 _v = *_p;
+      free(_p); return _v; }~. Slim ~Vec.new~ to call ~dyn_size_of~
+      internally (with a transitional second ~_ignored_size~ arg so
+      the existing ~vec_of_X~ codegen in til_boot keeps working) and
+      a hardcoded ~Dynamic~ branch (so step-1 ~bin/til~, compiled by
+      the old til_boot, doesn't crash on its own startup before the
+      regenerated boot ships the new ~emit_dyn_size_of_body~).
+      Rewrite all ~Vec.new~ callsites from
+      ~Vec.new("Foo", Foo.size())~ to ~Vec.new("Foo")~ (~50 sites).
+   2b. [ ] After this commit lands and boot regenerates: drop the
+      ~_ignored_size~ param from ~Vec.new~, drop the ~Dynamic~
+      hardcode (now redundant), and update
+      ~emit_collection_helpers~ to emit a 1-arg ~Vec_new~ call.
    3. [ ] Same treatment for ~Array.new~, ~Map.new~, ~Set.new~,
       ~List.new~, and any ~Tuple~ fields that pass ~T.size()~.
-   4. [ ] Add ~dyn_type_to_str(T)~ ext_func: at the call site, the
-      codegen converts the type identifier ~T~ to the string literal
-      ~"T"~. Special-cased in the typer like ~dyn_call~ requires its
-      method arg to be a literal.
-   5. [ ] Rewrite all ~Vec.new("Foo")~ callsites to ~Vec.new(Foo)~
-      and equivalents for the other collections. End state: no
-      ~T.size()~ noise at any callsite, no string-literal type names
-      either.
+      Callsites now read ~Map.new("K", "V")~ etc.
+   4. [ ] Identifier-as-type sugar: when a type identifier is passed
+      where a constructor like ~Vec.new~/~Map.new~ expects its
+      type-name arg, the parser/typer/codegen converts the
+      identifier to the corresponding string literal at the call
+      site. Probably implemented by introducing a ~dyn_type_to_str(T)~
+      builtin that the typer special-cases (like ~dyn_call~ requiring
+      its method arg to be literal), and either expanding the
+      collection constructors to accept identifiers directly or
+      desugaring ~Vec.new(Str)~ -> ~Vec.new(dyn_type_to_str(Str))~.
+   5. [ ] Rewrite all callsites to use the identifier syntax:
+      ~Vec.new(Str)~, ~Map.new(Str, Expr)~, ~Array.new(Foo, n)~,
+      etc. End state: no ~T.size()~ noise, no string-literal type
+      names at the user-facing callsite. Internally the value is
+      still an interned ~Str~/~const char*~ for now.
+
+   Future work (separate issue, not in this plan):
+
+   - Migrate the runtime currency for type names from ~Str~ to
+     ~TilType~ (the AST enum) so ~dyn_size_of~, ~Vec.elem_type~,
+     etc. carry a structured ~TilType~ value rather than a string.
+     Closer to rstil's design (rstil's ~Type~ pseudo-type is just a
+     ~const char*~ today; using ~TilType~ instead would be an
+     improvement on rstil). Out of scope here because it touches the
+     typer's value-type machinery and every container's
+     elem_type/key_type/val_type field. The user-facing
+     ~Vec.new(Str)~ syntax from step 5 remains; only the internals
+     change.
 
    Not in scope:
 
-   - We're not introducing rstil's string-based ~Type~ pseudo-type or
-     renaming the existing ~TilType~ enum. The two ~dyn_*~ helpers
-     fit the codebase's existing dispatch pattern and avoid touching
-     the typer's value-type machinery.
+   - We're not renaming the existing ~TilType~ enum to ~Type~ in
+     this issue.
 
    Side issue uncovered (may be subsumed by master's #165):
 

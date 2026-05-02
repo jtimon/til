@@ -257,7 +257,7 @@ lookup_keyword := func(word: Str) returns TokenType {
 // char pointer. Token.text is a copied Str instead of pointer+len.
 
 tokenize := proc(src: Str, path: Str) returns Vec {
-    mut tokens := Vec.new("Token", Token.size())
+    mut tokens := Vec.new("Token")
     mut pos : USize = 0
     mut line : U32 = 1
     mut line_start : USize = 0

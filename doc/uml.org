@@ -122,7 +122,7 @@
 *** own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
 ** FunctionDef: StructDef
 *** mut func_type := FuncType.Func
-*** mut params := Vec.new("Declaration", Declaration.size())
+*** mut params := Vec.new("Declaration")
 *** mut return_type := ""
 *** mut variadic_index : I32 = -1.to_i32()
 *** mut kwargs_index : I32 = -1.to_i32()
@@ -136,12 +136,12 @@
 *** mut own_args : U64 = 0
 ** StructDef: StructDef
 *** mut total_struct_size : I32 = 0
-*** mut fields := Vec.new("Declaration", Declaration.size())
-*** mut ns_decls := Vec.new("Declaration", Declaration.size())
+*** mut fields := Vec.new("Declaration")
+*** mut ns_decls := Vec.new("Declaration")
 *** mut c_tag := ""
 ** EnumDef: StructDef
-*** mut ns_decls := Vec.new("Declaration", Declaration.size())
-*** mut variants := Vec.new("Str", Str.size())
+*** mut ns_decls := Vec.new("Declaration")
+*** mut variants := Vec.new("Str")
 *** mut payload_types := Map.new("I64", I64.size(), "Str", Str.size())
 *** mut total_enum_size : I32 = 0
 ** AssignData: StructDef
@@ -180,16 +180,16 @@
 ** Expr: StructDef
 *** mut node_type := NodeType.Body
 *** mut til_type := TilType.Unknown
-*** mut children := Vec.new("Expr", Expr.size())
+*** mut children := Vec.new("Expr")
 *** mut line : U32 = 0
 *** mut col : U32 = 0
 * parser
 ** Parser: StructDef
-*** mut tokens := Vec.new("Token", Token.size())
+*** mut tokens := Vec.new("Token")
 *** mut pos : USize = 0
 *** mut path := ""
-*** mut fn_sig_decls := Vec.new("Expr", Expr.size())
-*** mut lambda_decls := Vec.new("Expr", Expr.size())
+*** mut fn_sig_decls := Vec.new("Expr")
+*** mut lambda_decls := Vec.new("Expr")
 *** mut pending_doc := ""
 * initer
 ** TypeBinding: StructDef
@@ -218,7 +218,7 @@
 ** ImportUnit: StructDef
 *** mut mode := Mode()
 *** own mut ast := Expr.new(NodeType.Body, 0, 0)
-*** mut imports := Vec.new("Str", Str.size())
+*** mut imports := Vec.new("Str")
 ** Context: StructDef
 *** mut mode := Mode()
 *** mut path := ""

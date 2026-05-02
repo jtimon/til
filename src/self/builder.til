@@ -2197,7 +2197,7 @@ emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr) {
 }
 
 topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
-    mut indices := Vec.new("U32", U32.size())
+    mut indices := Vec.new("U32")
     for i in 0..prog.children.len() {
         ref stmt : Expr = prog.child(i)
         if stmt.node_type.is(NodeType.Decl) {
@@ -2288,7 +2288,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
     ref lp : LoadedProgram = codegen_lp()
     // Vec<Dynamic> stores raw pointers (8-byte values). Each push takes an
     // allocated 8-byte temp, copies the pointer bytes, then frees the temp.
-    mut items := Vec.new("Dynamic", I64.size())
+    mut items := Vec.new("Dynamic")
     // Collect pointers to all struct/enum decl statements in stable order.
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -4030,7 +4030,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     f.write("\n")
 
     // Forward declarations for dyn_call dispatch functions
-    mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
+    mut dyn_methods := Vec.new("DynCallInfo")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4093,7 +4093,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     }
     mut dyn_has_ret := "Bool *"
     if dyn_has_shallow { dyn_has_ret = "Bool" }
-    mut has_methods := Vec.new("Str", Str.size())
+    mut has_methods := Vec.new("Str")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4111,7 +4111,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     own has_methods.delete()
 
     // Forward declarations for array/vec builtin helpers
-    mut coll_infos := Vec.new("CollectionInfo", CollectionInfo.size())
+    mut coll_infos := Vec.new("CollectionInfo")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4274,6 +4274,43 @@ emit_dyn_fn_wrappers := proc(f: File) {
     f.write("}\n\n")
 }
 
+// Find the user-defined `size` namespace function for a struct/enum decl, if any.
+// Returns NULL if size is auto-generated (treated as shallow).
+find_size_method := func(stmt: Expr) returns ref Expr {
+    if stmt.children.len().eq(0) { return NULL }
+    ref def : Expr = stmt.child(0)
+    ref ns : Vec = def_ns_decls(def)
+    for nsd : Declaration in ns {
+        if nsd.name.eq("size") {
+            if is_null(nsd.default_value).not() {
+                if nsd.default_value.node_type.is(NodeType.FuncDef) {
+                    return nsd.default_value
+                }
+            }
+        }
+    }
+    return NULL
+}
+
+emit_dyn_size_of_branch := proc(f: File, stmt: Expr) {
+    ref dd : Declaration = get_payload(stmt.node_type)
+    tlen := dd.name.len().to_i64().to_u64()
+    f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) ")
+    // Detect calling convention of T_size(): shallow returns U32 by value,
+    // non-shallow returns U32* (heap-allocated, caller must free).
+    ref size_fdef : Expr = find_size_method(stmt)
+    mut is_shallow := true
+    if is_null(size_fdef).not() {
+        ref fd : FunctionDef = get_payload(size_fdef.node_type)
+        is_shallow = fd.return_own_type.is(OwnType.Shallow)
+    }
+    if is_shallow {
+        f.write("return "); f.write(dd.name); f.write("_size();\n")
+    } else {
+        f.write("{ U32 *_p = "); f.write(dd.name); f.write("_size(); U32 _v = *_p; free(_p); return _v; }\n")
+    }
+}
+
 emit_dyn_size_of_body := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
     f.write("U32 dyn_size_of(Str *type_name) {\n    (void)type_name;\n")
@@ -4282,9 +4319,7 @@ emit_dyn_size_of_body := proc(f: File) {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {
                 if is_struct_or_enum(stmt).not() { continue }
-                ref dd : Declaration = get_payload(stmt.node_type)
-                tlen := dd.name.len().to_i64().to_u64()
-                f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) return sizeof("); f.write(dd.name); f.write(");\n")
+                emit_dyn_size_of_branch(f, stmt)
             }
         }
     }
@@ -4292,9 +4327,7 @@ emit_dyn_size_of_body := proc(f: File) {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for stmt : Expr in iu.ast.children {
             if is_struct_or_enum(stmt).not() { continue }
-            ref dd : Declaration = get_payload(stmt.node_type)
-            tlen := dd.name.len().to_i64().to_u64()
-            f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) return sizeof("); f.write(dd.name); f.write(");\n")
+            emit_dyn_size_of_branch(f, stmt)
         }
     }
     f.write("    fprintf(stderr, \"dyn_size_of: unknown type %.*s\\n\", (int)type_name->count, (char*)type_name->c_str);\n")
@@ -4304,7 +4337,7 @@ emit_dyn_size_of_body := proc(f: File) {
 
 emit_dyn_call_bodies := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
-    mut dyn_methods := Vec.new("DynCallInfo", DynCallInfo.size())
+    mut dyn_methods := Vec.new("DynCallInfo")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4504,7 +4537,7 @@ emit_dyn_has_bodies := proc(f: File) {
     }
     mut dyn_has_ret := "Bool *"
     if dyn_has_shallow { dyn_has_ret = "Bool" }
-    mut has_methods := Vec.new("Str", Str.size())
+    mut has_methods := Vec.new("Str")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4568,7 +4601,7 @@ emit_dyn_has_bodies := proc(f: File) {
 
 emit_collection_helpers := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
-    mut coll_infos := Vec.new("CollectionInfo", CollectionInfo.size())
+    mut coll_infos := Vec.new("CollectionInfo")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4584,8 +4617,8 @@ emit_collection_helpers := proc(f: File) {
         et_len := et.len().to_i64().to_u64()
         if ci.is_vec.neq(0) {
             f.write("Vec *vec_of_"); f.write(et); f.write("(int count, ...) {\n")
-            f.write("    USize _esz = sizeof("); f.write(et); f.write(");\n")
-            f.write("    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
+            // Pass 0 for the transitional _ignored_size second arg (#173 step 2b drops it).
+            f.write("    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){0});\n")
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
             cn := et.concat("_clone")

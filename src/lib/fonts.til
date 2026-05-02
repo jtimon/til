@@ -126,10 +126,10 @@ ON_CURVE := 1
 // Assemble a single simple glyph from a Vec<Segment> produced by svg.til.
 // All coords are emitted as I16 deltas (no short flags).
 build_glyph := func(segments: Vec) returns Glyph {
-    xs := Vec.new("I64", I64.size())
-    ys := Vec.new("I64", I64.size())
-    on_curve := Vec.new("I64", I64.size())
-    contour_ends := Vec.new("I64", I64.size())
+    xs := Vec.new("I64")
+    ys := Vec.new("I64")
+    on_curve := Vec.new("I64")
+    contour_ends := Vec.new("I64")
 
     mut contour_open := false
     for seg : Segment in segments {
@@ -238,7 +238,7 @@ build_glyph := func(segments: Vec) returns Glyph {
 
 // Max power of 2 <= n, as (value, log2).
 pow2_le := func(n: I64) returns Vec {
-    out := Vec.new("I64", I64.size())
+    out := Vec.new("I64")
     mut v := 1
     mut log := 0
     while v.mul(2).lte(n) {
@@ -395,7 +395,7 @@ NameRec := struct {
 }
 
 build_name := func() returns Str {
-    recs := Vec.new("NameRec", NameRec.size())
+    recs := Vec.new("NameRec")
     recs.push(own NameRec(name_id = 1, text = "TIL Logo"))
     recs.push(own NameRec(name_id = 2, text = "Regular"))
     recs.push(own NameRec(name_id = 3, text = "TIL-Logo-1.0"))
@@ -459,7 +459,7 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
     name := build_name()
     post := build_post()
 
-    tags := Vec.new("Str", Str.size())
+    tags := Vec.new("Str")
     tags.push(own "cmap")
     tags.push(own "glyf")
     tags.push(own "head")
@@ -470,7 +470,7 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
     tags.push(own "name")
     tags.push(own "post")
 
-    blobs := Vec.new("Str", Str.size())
+    blobs := Vec.new("Str")
     blobs.push(own cmap.clone())
     blobs.push(own glyf.clone())
     blobs.push(own head.clone())
@@ -492,8 +492,8 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
     // Compute offsets.
     table_record_size := 16
     offset_table_size := 12.add(num_tables.mul(table_record_size))
-    offsets := Vec.new("I64", I64.size())
-    lengths := Vec.new("I64", I64.size())
+    offsets := Vec.new("I64")
+    lengths := Vec.new("I64")
     mut cur : I64 = offset_table_size
     for blob : Str in blobs {
         offsets.push(own cur.clone())
@@ -513,7 +513,7 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
 
     // Record table offset within the offset table for each entry, so we can
     // patch the checksums once the file is laid out.
-    record_checksum_offsets := Vec.new("I64", I64.size())
+    record_checksum_offsets := Vec.new("I64")
     mut ri : USize = 0
     while ri.lt(tags.len()) {
         ref tag : Str = tags.get(ri)

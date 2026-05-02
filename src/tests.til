@@ -352,7 +352,7 @@ main := proc(args: ..Str) {
     // Create output directories
     run("mkdir -p gen/out/interp gen/out/run gen/out/results gen/out/single gen/out/expected")
 
-    tests := Vec.new("Test", Test.size())
+    tests := Vec.new("Test")
     flags := mode_flags(en_interp, en_run)
 
     // === 35 mode tests ===

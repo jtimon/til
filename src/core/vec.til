@@ -18,14 +18,26 @@ Vec := struct {
     elem_delete : DeleteFn = default_delete
 
 namespace:
-    new := func(elem_type: Str, elem_size: USize) returns Vec {
+    // Second arg is transitional: bin/til_boot from HEAD still emits 2-arg
+    // vec_of_X codegen. Once boot regenerates with this commit's
+    // emit_collection_helpers (1-arg), the second arg can be dropped (#173 step 2b).
+    new := func(elem_type: Str, _ignored_size: USize = 0) returns Vec {
         if elem_type.is_empty() {
             panic(__LOC__, "Vec.new: elem_type required")
         }
+        // til_boot from HEAD generates a buggy dyn_size_of("Dynamic") via
+        // sizeof(Dynamic) == 1, but TIL convention says 8 (pointer-sized).
+        // Hardcode here so the step-1 bin/til (compiled by the old til_boot)
+        // doesn't crash on its own startup. After boot regenerates with the
+        // new emit_dyn_size_of_body that uses T_size() instead of sizeof,
+        // dyn_size_of("Dynamic") returns 8 correctly and this branch becomes
+        // redundant but harmless. (#173 step 2b will clean up.)
         if elem_type.eq("Dynamic") {
+            elem_size : USize = 8
             return Vec(data = malloc(elem_size), cap = 1,
                        elem_size = elem_size, elem_type = elem_type.clone())
         }
+        elem_size : USize = dyn_size_of(elem_type)
         return Vec(data = malloc(elem_size), cap = 1,
                    elem_size = elem_size, elem_type = elem_type.clone(),
                    elem_clone = dyn_fn(elem_type, "clone"),

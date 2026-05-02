@@ -5,11 +5,11 @@ import("lexer.til")
 // --- Parser state ---
 
 Parser := struct {
-    mut tokens := Vec.new("Token", Token.size())
+    mut tokens := Vec.new("Token")
     mut pos : USize = 0
     mut path := ""
-    mut fn_sig_decls := Vec.new("Expr", Expr.size())
-    mut lambda_decls := Vec.new("Expr", Expr.size())
+    mut fn_sig_decls := Vec.new("Expr")
+    mut lambda_decls := Vec.new("Expr")
     // Accumulates the text of leading /// doc comments. Cleared by
     // parse_statement after attaching to the next NodeType.Decl.
     mut pending_doc := ""
@@ -89,8 +89,8 @@ parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U32) r
     advance(p) // consume '('
 
     // Parse parameter types: [mut] Type, [mut] Type, ...
-    mut ptypes := Vec.new("Str", Str.size())
-    mut pmuts := Vec.new("Bool", Bool.size())
+    mut ptypes := Vec.new("Str")
+    mut pmuts := Vec.new("Bool")
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         mut is_mut := false
         if check(p, TokenType.KwMut) { advance(p); is_mut = true }
@@ -1028,7 +1028,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             if is_fsf {
                 // Parse (name1, name2, ...) as param names
                 expect_token(p, TokenType.LParen)
-                mut pnames := Vec.new("Str", Str.size())
+                mut pnames := Vec.new("Str")
                 while check(p, TokenType.RParen).not() {
                     pn := expect_text(p, TokenType.Ident)
                     pnames.push(own pn)
