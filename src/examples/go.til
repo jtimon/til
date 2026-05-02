@@ -26,7 +26,7 @@ copy_board := func(mut dst: Array, mut src: Array, total: I64) {
     while i.lt(total) {
         ref v : I64 = src.get(i.to_u32())
         dst.set(i.to_u32(), own v.clone())
-        i = i.add(1)
+        i++
     }
 }
 
@@ -37,7 +37,7 @@ boards_equal := func(mut a: Array, mut b: Array, total: I64) returns Bool {
         ref va : I64 = a.get(i.to_u32())
         ref vb : I64 = b.get(i.to_u32())
         if va.neq(vb) { return false }
-        i = i.add(1)
+        i++
     }
     return true
 }
@@ -47,7 +47,7 @@ clear_arr := func(mut arr: Array, total: I64) {
     mut i := 0
     while i.lt(total) {
         arr.set(i.to_u32(), own 0)
-        i = i.add(1)
+        i++
     }
 }
 
@@ -82,7 +82,7 @@ count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Arra
                         ref ls : I64 = lib_seen.get(ni.to_u32())
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
-                            libs = libs.add(1)
+                            libs++
                         }
                     }
                 }
@@ -102,7 +102,7 @@ count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Arra
                         ref ls : I64 = lib_seen.get(ni.to_u32())
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
-                            libs = libs.add(1)
+                            libs++
                         }
                     }
                 }
@@ -122,7 +122,7 @@ count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Arra
                         ref ls : I64 = lib_seen.get(ni.to_u32())
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
-                            libs = libs.add(1)
+                            libs++
                         }
                     }
                 }
@@ -142,7 +142,7 @@ count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Arra
                         ref ls : I64 = lib_seen.get(ni.to_u32())
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
-                            libs = libs.add(1)
+                            libs++
                         }
                     }
                 }
@@ -167,7 +167,7 @@ remove_group := func(mut board: Array, mut visited: Array, mut stk: Vec,
         stk.count = stk.count.sub(1)
 
         board.set(cur.to_u32(), own 0)
-        removed = removed.add(1)
+        removed++
 
         cr := cur.div(size)
         cc := cur.mod(size)
@@ -347,7 +347,7 @@ go_pack := func(mut b: Board, mut cells: Array, side: I64, size: I64,
     while i.lt(total) {
         ref v : I64 = cells.get(i.to_u32())
         board_set_i64(b, i, v)
-        i = i.add(1)
+        i++
     }
     board_set_i64(b, MAX_CELLS, side)
     board_set_i64(b, GO_IDX_SIZE, size)
@@ -358,7 +358,7 @@ go_pack := func(mut b: Board, mut cells: Array, side: I64, size: I64,
     while i.lt(total) {
         ref v : I64 = ko_board.get(i.to_u32())
         board_set_i64(b, GO_IDX_KO.add(i), v)
-        i = i.add(1)
+        i++
     }
 }
 
@@ -384,9 +384,9 @@ go_heuristic : Heuristic = (b) {
     mut i := 0
     while i.lt(total) {
         ref p : I64 = board_get_i64(gb, i)
-        if p.eq(side) { score = score.add(1) }
-        if p.eq(opp) { score = score.sub(1) }
-        i = i.add(1)
+        if p.eq(side) { score++ }
+        if p.eq(opp) { score-- }
+        i++
     }
     return score
 }
@@ -403,7 +403,7 @@ go_next_boards : NextBoardsFn = (b) {
     while ci.lt(total) {
         cells.set(ci.to_u32(), own board_get_i64(gb, ci).clone())
         ko_cells.set(ci.to_u32(), own board_get_i64(gb, GO_IDX_KO.add(ci)).clone())
-        ci = ci.add(1)
+        ci++
     }
     result := Vec.new("Board", Board.size())
     mut i := 0
@@ -423,7 +423,7 @@ go_next_boards : NextBoardsFn = (b) {
                 result.push(own nb)
             }
         }
-        i = i.add(1)
+        i++
     }
     return result
 }
@@ -444,9 +444,9 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
     mut i := 0
     while i.lt(total) {
         ref p : I64 = board.get(i.to_u32())
-        if p.eq(1) { black_score = black_score.add(1) }
-        if p.eq(2) { white_score = white_score.add(1) }
-        i = i.add(1)
+        if p.eq(1) { black_score++ }
+        if p.eq(2) { white_score++ }
+        i++
     }
 
     // Flood fill empty regions to assign territory
@@ -467,7 +467,7 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
                 cur := top_ref
                 stk.count = stk.count.sub(1)
 
-                region_size = region_size.add(1)
+                region_size++
                 cr := cur.div(size)
                 cc := cur.mod(size)
 
@@ -545,7 +545,7 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
                 white_score = white_score.add(region_size)
             }
         }
-        i = i.add(1)
+        i++
     }
 
     return black_score.mul(10000).add(white_score)
@@ -639,7 +639,7 @@ main := proc() {
 
                 // AI move (alpha-beta search)
                 if vs_ai.eq(2).and(turn.eq(2)).and(game_over.not()) {
-                    ai_timer = ai_timer.add(1)
+                    ai_timer++
                     if ai_timer.gt(20) {
                         ai_timer = 0
 
@@ -665,7 +665,7 @@ main := proc() {
                                     ai_moved = true
                                 }
                             }
-                            sq = sq.add(1)
+                            sq++
                         }
 
                         if ai_moved {
@@ -679,10 +679,10 @@ main := proc() {
                             last_move = best_move
                             pass_count = 0
                             turn = 1
-                            move_num = move_num.add(1)
+                            move_num++
                         } else {
                             // AI passes
-                            pass_count = pass_count.add(1)
+                            pass_count++
                             has_ko = false
                             last_move = -1
                             turn = 1
@@ -704,7 +704,7 @@ main := proc() {
                     if is_human {
                         // Pass with P
                         if is_key_pressed(80) {
-                            pass_count = pass_count.add(1)
+                            pass_count++
                             has_ko = false
                             last_move = -1
                             if turn.eq(1) { turn = 2 } else { turn = 1 }
@@ -740,7 +740,7 @@ main := proc() {
                                     }
                                     last_move = idx
                                     pass_count = 0
-                                    move_num = move_num.add(1)
+                                    move_num++
                                     if turn.eq(1) { turn = 2 } else { turn = 1 }
                                 }
                             }
@@ -767,7 +767,7 @@ main := proc() {
                     // Vertical
                     vx := board_px.add(gi.mul(cell_size))
                     draw_rectangle(vx, board_py, 1, grid_span, 40, 30, 10, 255)
-                    gi = gi.add(1)
+                    gi++
                 }
 
                 // Star points (hoshi)
@@ -817,7 +817,7 @@ main := proc() {
                     ry := board_py.add(ci.mul(cell_size)).sub(6)
                     draw_text(row_num, board_px.sub(margin.div(2)).sub(10), ry, 14, 80, 60, 30, 255)
                     draw_text(row_num, board_px.add(grid_span).add(margin.div(2)).sub(4), ry, 14, 80, 60, 30, 255)
-                    ci = ci.add(1)
+                    ci++
                 }
 
                 // Stones
@@ -847,7 +847,7 @@ main := proc() {
                             }
                         }
                     }
-                    si = si.add(1)
+                    si++
                 }
 
                 // Hover indicator

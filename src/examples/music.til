@@ -235,7 +235,7 @@ recompute_scale := func(sel_diatonic: USize, sel_accidental: I64, sel_mode: USiz
             prev_diat = diat_pos
             diat_pos = diat_pos.add(1).mod(7)
             if diat_pos.lt(prev_diat) {
-                diat_oct = diat_oct.add(1)
+                diat_oct++
             }
         }
     }
@@ -410,7 +410,7 @@ main := proc() {
                 if play_idx.lt(8) {
                     ref pf : I64 = sc_freq.get(play_idx)
                     play_note(pf, clicked_note, clicked_timer, play_idx.to_i64())
-                    play_idx = play_idx.add(1)
+                    play_idx++
                 } else {
                     playing = false
                 }

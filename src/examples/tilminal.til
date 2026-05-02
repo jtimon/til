@@ -113,8 +113,8 @@ main := proc(args: ..Str) {
             if row.gte(max_lines) { break }
             ref line : Str = lines.get(i)
             draw_text(line, pad_x, pad_y.add(row.mul(line_h)), 16, 220, 220, 220, 255)
-            row = row.add(1)
-            i = i.add(1)
+            row++
+            i++
         }
 
         prompt := "$ ".concat(input)

@@ -46,7 +46,7 @@ scan_fills := func(svg: Str) returns Vec {
                 if found.not() { fills.push(own val.clone()) }
             }
         }
-        i = i.add(1)
+        i++
     }
     return fills
 }
@@ -121,7 +121,7 @@ extract_paths := func(svg: Str) returns Vec {
             normalized := val.replace(Str.from_byte(10.to_u8()), " ")
             out.push(own normalized.clone())
         }
-        i = i.add(1)
+        i++
     }
     return out
 }
@@ -145,7 +145,7 @@ skip_ws := func(d: Str, shallow i: USize) returns USize {
     while j.lt(d.len()) {
         ref b : U8 = d.byte_at(j)
         if is_ws(b).not() { break }
-        j = j.add(1)
+        j++
     }
     return j
 }
@@ -157,8 +157,8 @@ parse_int := func(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
     mut neg := false
     if j.lt(d.len()) {
         ref b : U8 = d.byte_at(j)
-        if b.eq('-') { neg = true; j = j.add(1) }
-        else if b.eq('+') { j = j.add(1) }
+        if b.eq('-') { neg = true; j++ }
+        else if b.eq('+') { j++ }
     }
     mut val : I64 = 0
     mut digits := 0
@@ -166,8 +166,8 @@ parse_int := func(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
         ref b : U8 = d.byte_at(j)
         if is_digit_ch(b).not() { break }
         val = val.mul(10).add(b.to_i64().sub(48))
-        digits = digits.add(1)
-        j = j.add(1)
+        digits++
+        j++
     }
     if digits.eq(0) {
         panic(__LOC__, "expected integer in path data at byte ", j.to_i64().to_str())
@@ -211,7 +211,7 @@ parse_path_d := func(d: Str, mut segments: Vec) {
         mut cmd : U8 = last_cmd
         if is_cmd_ch(first) {
             cmd = first
-            i = i.add(1)
+            i++
             i = skip_ws(d, i)
         }
         if cmd.eq(0.to_u8()) {

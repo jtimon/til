@@ -101,7 +101,7 @@ gen_captures := proc(mut board: Array, idx: I64, side: I64,
             if is_opp(mid_p, side).and(land_p.eq(0)) {
                 moves.set(count.to_u64(), own land_idx.clone())
                 jumped.set(count.to_u64(), own mid_idx.clone())
-                count = count.add(1)
+                count++
             }
         }
     }
@@ -141,7 +141,7 @@ gen_simple_moves := proc(mut board: Array, idx: I64, side: I64,
                 ref dp : I64 = board.get(dest.to_u64())
                 if dp.eq(0) {
                     moves.set(count.to_u64(), own dest.clone())
-                    count = count.add(1)
+                    count++
                 }
             }
         }
@@ -209,7 +209,7 @@ execute_move := proc(mut board: Array, from: I64, to: I64, jumped_idx: I64) retu
 count_pieces := func(mut board: Array, side: I64) returns I64 {
     mut count := 0
     for p : I64 in board {
-        if is_side(p, side) { count = count.add(1) }
+        if is_side(p, side) { count++ }
     }
     return count
 }
@@ -230,7 +230,7 @@ checkers_pack := proc(mut b: Board, mut cells: Array, side: I64) {
     while i.lt(64) {
         ref v : I64 = cells.get(i.to_u32())
         board_set_i64(b, i, v)
-        i = i.add(1)
+        i++
     }
     board_set_i64(b, 64, side)
 }
@@ -246,9 +246,9 @@ checkers_heuristic : Heuristic = (b) {
     mut score := 0
     for i in 0..64 {
         ref p : I64 = board_get_i64(cb, i.to_i64())
-        if p.eq(1) { score = score.add(1) }
+        if p.eq(1) { score++ }
         if p.eq(2) { score = score.add(3) }
-        if p.eq(3) { score = score.sub(1) }
+        if p.eq(3) { score-- }
         if p.eq(4) { score = score.sub(3) }
     }
     if side.eq(2) { return 0.sub(score) }
@@ -294,7 +294,7 @@ checkers_next_boards : NextBoardsFn = (b) {
     mut ci := 0
     while ci.lt(64) {
         cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
-        ci = ci.add(1)
+        ci++
     }
     side := checkers_unpack_side(cb)
     result := Vec.new("Board", Board.size())
@@ -394,7 +394,7 @@ main := proc() {
 
             // AI move
             if vs_ai.eq(2).and(turn.eq(2)).and(game_over.eq(0)) {
-                ai_timer = ai_timer.add(1)
+                ai_timer++
                 if ai_timer.gt(20) {
                     ai_timer = 0
 
@@ -426,7 +426,7 @@ main := proc() {
                             ref orig : I64 = board.get(multi_jump_idx.to_u64())
                             orig_val := orig.clone()
                             new_piece := execute_move(board, multi_jump_idx, bd_val, bj_val)
-                            black_caps = black_caps.add(1)
+                            black_caps++
 
                             // Check for more jumps
                             mut was_promoted := false
@@ -472,7 +472,7 @@ main := proc() {
                                         ai_pieces.set(ai_total.to_u64(), own sq.to_i64().clone())
                                         ai_dests.set(ai_total.to_u64(), own md.clone())
                                         ai_jumps.set(ai_total.to_u64(), own jd.clone())
-                                        ai_total = ai_total.add(1)
+                                        ai_total++
                                     }
                                 } else {
                                     mc := gen_simple_moves(board, sq.to_i64(), 2, tmp_moves)
@@ -481,7 +481,7 @@ main := proc() {
                                         ai_pieces.set(ai_total.to_u64(), own sq.to_i64().clone())
                                         ai_dests.set(ai_total.to_u64(), own md.clone())
                                         ai_jumps.set(ai_total.to_u64(), own -1)
-                                        ai_total = ai_total.add(1)
+                                        ai_total++
                                     }
                                 }
                             }
@@ -524,7 +524,7 @@ main := proc() {
                             orig_val := orig.clone()
                             new_piece := execute_move(board, from_val, to_val, jmp_val)
                             if jmp_val.gte(0) {
-                                black_caps = black_caps.add(1)
+                                black_caps++
                             }
 
                             // Check for multi-jump
@@ -597,9 +597,9 @@ main := proc() {
                                         orig_val := orig.clone()
                                         new_piece := execute_move(board, multi_jump_idx, click_idx, jmp_val)
                                         if turn.eq(1) {
-                                            red_caps = red_caps.add(1)
+                                            red_caps++
                                         } else {
-                                            black_caps = black_caps.add(1)
+                                            black_caps++
                                         }
 
                                         // Check for more jumps
@@ -654,9 +654,9 @@ main := proc() {
                                     new_piece := execute_move(board, selected, click_idx, jmp_val)
                                     if jmp_val.gte(0) {
                                         if turn.eq(1) {
-                                            red_caps = red_caps.add(1)
+                                            red_caps++
                                         } else {
-                                            black_caps = black_caps.add(1)
+                                            black_caps++
                                         }
                                     }
 

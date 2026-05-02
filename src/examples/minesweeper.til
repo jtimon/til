@@ -38,7 +38,7 @@ main := proc() {
                 mines.set(ri_u, own 0)
                 counts.set(ri_u, own 0)
                 state.set(ri_u, own 0)
-                ri = ri.add(1)
+                ri++
             }
             game_over = false
             game_won = false
@@ -74,7 +74,7 @@ main := proc() {
                                     if diff_y.lt(0) { diff_y = 0.sub(diff_y) }
                                     if diff_x.gt(1).or(diff_y.gt(1)) {
                                         mines.set(pos_u, own 1)
-                                        placed = placed.add(1)
+                                        placed++
                                     }
                                 }
                             }
@@ -96,16 +96,16 @@ main := proc() {
                                                 ni_u : USize = ni.to_usize()
                                                 ref nm : I64 = mines.get(ni_u)
                                                 if nm.eq(1) {
-                                                    cnt = cnt.add(1)
+                                                    cnt++
                                                 }
                                             }
-                                            nx = nx.add(1)
+                                            nx++
                                         }
-                                        ny = ny.add(1)
+                                        ny++
                                     }
                                     counts.set(ci_u, own cnt)
                                 }
-                                ci = ci.add(1)
+                                ci++
                             }
                         }
 
@@ -121,7 +121,7 @@ main := proc() {
                                 if rm.eq(1) {
                                     state.set(ri2_u, own 1)
                                 }
-                                ri2 = ri2.add(1)
+                                ri2++
                             }
                         } else {
                             // Flood fill reveal
@@ -153,9 +153,9 @@ main := proc() {
                                                         stack.push(own ni)
                                                     }
                                                 }
-                                                px = px.add(1)
+                                                px++
                                             }
-                                            py = py.add(1)
+                                            py++
                                         }
                                     }
                                 }
@@ -165,7 +165,7 @@ main := proc() {
                             mut revealed := 0
                             for ws : I64 in state {
                                 if ws.eq(1) {
-                                    revealed = revealed.add(1)
+                                    revealed++
                                 }
                             }
                             if revealed.eq(total.sub(num_mines)) {
@@ -186,11 +186,11 @@ main := proc() {
                     ref st : I64 = state.get(idx_u)
                     if st.eq(0) {
                         state.set(idx_u, own 2)
-                        flags = flags.add(1)
+                        flags++
                     } else {
                         if st.eq(2) {
                             state.set(idx_u, own 0)
-                            flags = flags.sub(1)
+                            flags--
                         }
                     }
                 }
@@ -258,7 +258,7 @@ main := proc() {
                     }
                 }
             }
-            di = di.add(1)
+            di++
         }
 
         end_drawing()

@@ -364,7 +364,7 @@ collect_user_argv := func(mut lp: LoadedProgram, args: Array, shallow start_idx:
         if arg.starts_with("-l") {
             mut lib := arg.substr(2, arg.len())
             if lib.len().eq(0).and(ai.add(1).lt(args.len())) {
-                ai = ai.add(1)
+                ai++
                 ref next_arg : Str = args.get(ai)
                 lib = next_arg.clone()
             }
@@ -372,7 +372,7 @@ collect_user_argv := func(mut lp: LoadedProgram, args: Array, shallow start_idx:
         } else {
             user_argv.push(own arg.clone())
         }
-        ai = ai.add(1)
+        ai++
     }
     return user_argv
 }

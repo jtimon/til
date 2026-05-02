@@ -106,12 +106,12 @@ mut typer_path := ""
 
 type_error := proc(e: Expr, msg: Str) {
     e.error(typer_path, msg)
-    errors.inc()
+    errors++
 }
 
 type_error_at := proc(path: Str, shallow line: U32, shallow col: U32, msg: Str) {
     println(path, ":", line.to_str(), ":", col.to_str(), ": error: ", msg)
-    errors.inc()
+    errors++
 }
 
 find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
@@ -273,7 +273,7 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
                 fa.til_type = TilType.FuncPtr
                 ref sig : Expr = ftb.func_def
                 mut nargs : U32 = e.children.len()
-                nargs = nargs.sub(1)
+                nargs--
                 switch sig.node_type {
                 case NodeType.FuncDef(sig_fdef):
                     if nargs.neq(sig_fdef.params.len()) {
@@ -283,7 +283,7 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
                     while ai.lt(nargs) {
                         if ai.gte(sig_fdef.params.len()) { break }
                         infer_expr(scope, e.child(ai.add(1)), in_func, ctx)
-                        ai = ai.add(1)
+                        ai++
                     }
                     if sig_fdef.return_type.len().gt(0) {
                         e.til_type = type_from_name(sig_fdef.return_type, scope)
@@ -336,14 +336,14 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
             if fvi.gte(0) {
                 if pi.to_i64().to_i32().eq(fvi) {
                     ci = ci.add(fvc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
             if fkwi.gte(0) {
                 if pi.to_i64().to_i32().eq(fkwi) {
                     ci = ci.add(fkc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
@@ -381,8 +381,8 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
                     type_error(arg, "cannot pass null to 'shallow' parameter")
                 }
             }
-            ci = ci.add(1)
-            pi = pi.add(1)
+            ci++
+            pi++
         }
     case:
         UNREACHABLE(__LOC__)
@@ -562,7 +562,7 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
                 } else if pos_idx.lt(nparam) {
                     new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
                 }
-                pos_idx = pos_idx.add(1)
+                pos_idx++
             }
         }
         for i in 0..nparam {
@@ -580,7 +580,7 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
         }
         mut max_pos : U32 = nparam
         if kwi.gte(0) {
-            max_pos = max_pos.sub(1)
+            max_pos--
         }
         if vi.lt(0) {
             if pos_idx.gt(max_pos) {
@@ -708,22 +708,22 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                         narrow_dynamic(e.child(ci.add(vk)), vptype)
                     }
                     ci = ci.add(fvc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
             if fkwi.gte(0) {
                 if pi.to_i64().to_i32().eq(fkwi) {
                     ci = ci.add(fkc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
             ref param1 : Declaration = fdef_data.params.get(pi)
             ref ptype : Str = param1.explicit_type
             narrow_dynamic(e.child(ci), type_from_name(ptype, scope))
-            ci = ci.add(1)
-            pi = pi.add(1)
+            ci++
+            pi++
         }
         ci = 1
         pi = 0
@@ -749,33 +749,33 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                         }
                     }
                     ci = ci.add(fvc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
             if fkwi.gte(0) {
                 if pi.to_i64().to_i32().eq(fkwi) {
                     ci = ci.add(fkc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
             ref param2 : Declaration = fdef_data.params.get(pi)
             ref ptype_name : Str = param2.explicit_type
             if ptype_name.len().eq(0) {
-                ci = ci.add(1)
-                pi = pi.add(1)
+                ci++
+                pi++
                 continue
             }
             ptype := type_from_name(ptype_name, scope)
             if ptype.is(TilType.Dynamic) {
-                ci = ci.add(1)
-                pi = pi.add(1)
+                ci++
+                pi++
                 continue
             }
             validate_fcall_arg(e.child(ci), ptype, ptype_name, param2.name)
-            ci = ci.add(1)
-            pi = pi.add(1)
+            ci++
+            pi++
         }
     case:
         UNREACHABLE(__LOC__)
@@ -828,7 +828,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                     switch sig.node_type {
                     case NodeType.FuncDef(sig_fdef):
                         mut nargs : U32 = e.children.len()
-                        nargs = nargs.sub(1)
+                        nargs--
                         if nargs.neq(sig_fdef.params.len()) {
                             type_error(e, "function pointer '".concat(name).concat("' expects ").concat(sig_fdef.params.len().to_i64().to_str()).concat(" args, got ").concat(nargs.to_i64().to_str()))
                         }
@@ -839,22 +839,22 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                             ref expected_param : Declaration = sig_fdef.params.get(ai)
                             ref expected_name : Str = expected_param.explicit_type
                             if expected_name.len().eq(0) {
-                                ai = ai.add(1)
+                                ai++
                                 continue
                             }
                             expected := type_from_name(expected_name, scope)
                             if expected.is(TilType.Unknown).or(expected.is(TilType.Dynamic)) {
-                                ai = ai.add(1)
+                                ai++
                                 continue
                             }
                             if arg.til_type.is(TilType.Dynamic) {
-                                ai = ai.add(1)
+                                ai++
                                 continue
                             }
                             if arg.til_type.is(expected).not() {
                                 type_error(e, "function pointer '".concat(name).concat("' param ").concat(ai.add(1).to_i64().to_str()).concat(": expected ").concat(expected_name).concat(", got ").concat(type_to_name(arg.til_type)))
                             }
-                            ai = ai.add(1)
+                            ai++
                         }
                     case:
                         UNREACHABLE(__LOC__)
@@ -1088,7 +1088,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                 if pos_idx.lt(np) {
                     new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
                 }
-                pos_idx = pos_idx.add(1)
+                pos_idx++
             }
         }
         for i in 0..np {
@@ -1848,7 +1848,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         col := cond.col
         ref body : Expr = stmt.child(1)
         wname := "_wcond_Bool_".concat(hoist_counter.to_str())
-        hoist_counter.inc()
+        hoist_counter++
 
         mut decl := Expr.new(NodeType.Decl(Declaration(name = wname.clone())), line, col)
         decl.til_type = TilType.Bool
@@ -2501,7 +2501,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     } else {
         tp := type_prefix(sw_expr.til_type)
         sw_name := "_sw_".concat(tp).concat("_").concat(hoist_counter.to_str())
-        hoist_counter.inc()
+        hoist_counter++
         mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
         decl.add_child(own sw_expr.clone())
         block.add_child(own decl)
@@ -2671,7 +2671,7 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
     line := stmt.line
     col := stmt.col
     counter := hoist_counter
-    hoist_counter.inc()
+    hoist_counter++
 
     end_name := "_re_".concat(elem_type).concat("_").concat(counter.to_str())
     cur_name := "_rc_".concat(elem_type).concat("_").concat(counter.to_str())
@@ -2810,7 +2810,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     col := stmt.col
 
     counter := hoist_counter
-    hoist_counter.inc()
+    hoist_counter++
     col_name := "_fc_".concat(type_name).concat("_").concat(counter.to_str())
     idx_name := "_fi_USize_".concat(counter.to_str())
 
@@ -2913,12 +2913,12 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
         infer_while_stmt(scope, stmt, in_func, returns_ref, ctx)
     case NodeType.Switch:
         infer_switch_stmt(scope, body, i, in_func, ctx)
-        i = i.sub(1)
+        i--
     case NodeType.ForIn:
         if desugar_for_in_range_stmt(scope, body, i, in_func, ctx) {
-            i = i.sub(1)
+            i--
         } else if desugar_for_in_collection_stmt(scope, body, i, in_func, ctx) {
-            i = i.sub(1)
+            i--
         }
     case:
         stmt.til_type = TilType.None
@@ -3005,7 +3005,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
             context_set_mode_from_path(ctx, typer_path)
         }
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
-        i.inc()
+        i++
     }
     if owns_scope.neq(0) { desugar_body_literals(body, scope) }
     if owns_scope.neq(0) { desugar_body_calls(body, scope) }
@@ -3019,7 +3019,7 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
     mut i := 0.to_u32()
     while i.lt(body.children.len().to_i64().to_u32()) {
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
-        i.inc()
+        i++
     }
     if owns_scope.neq(0) { desugar_body_literals(body, scope) }
     if owns_scope.neq(0) { desugar_body_calls(body, scope) }
@@ -3926,7 +3926,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
         mut hoist_fi := fi
         if is_null(hoist_sdef).not() {
         if hoist_sdef.node_type.is(NodeType.StructDef) {
-            fi = fi.add(1)
+            fi++
         }
         }
         if arg.node_type.is(NodeType.FCall).not() {
@@ -4234,7 +4234,7 @@ desugar_body_calls := func(mut body: Expr, mut scope: TypeScope) {
                 ref elem_type : Str = resolve_variadic_elem_type(fcall, scope)
                 if is_null(elem_type).not().and(desugar_pure_splat_variadic_call(fcall).not()) {
                     va_name := "_va_Array_".concat(va_counter.to_i64().to_str())
-                    va_counter.inc()
+                    va_counter++
                     mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
                     scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, line, col, false, OwnType.Own)
                     new_ch.push(own va_decl)
@@ -4259,7 +4259,7 @@ desugar_body_calls := func(mut body: Expr, mut scope: TypeScope) {
                     UNREACHABLE(__LOC__)
                 }
                 kw_name := "_kw".concat(kw_counter.to_str())
-                kw_counter.inc()
+                kw_counter++
                 kw_decl := build_kwargs_dynmap_decl(fcall, kw_name)
                 scope.set(kw_name, TilType.Struct("DynMap".clone()), FuncType.None, false, typer_path, fcall.line, fcall.col, false, OwnType.Shallow)
                 new_ch.push(own kw_decl)
@@ -5058,7 +5058,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
 hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow is_own: Bool) returns Expr {
     tp := type_prefix(val.til_type)
     tname := "_t_".concat(tp).concat("_").concat(hoist_counter.to_i64().to_str())
-    hoist_counter.inc()
+    hoist_counter++
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), val.line, val.col)
     decl.til_type = val.til_type

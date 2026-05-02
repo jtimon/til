@@ -105,7 +105,7 @@ main := proc(args: ..Str) {
             // Up
             if is_key_pressed(265) {
                 if cursor_y.gt(0) {
-                    cursor_y = cursor_y.sub(1)
+                    cursor_y--
                     ref line : Str = lines.get(cursor_y.to_u32())
                     if cursor_x.gt(line.len().to_i64()) {
                         cursor_x = line.len().to_i64()
@@ -116,7 +116,7 @@ main := proc(args: ..Str) {
         if is_key_pressed(264) {
             // Down
             if cursor_y.lt(lines.len().to_i64().sub(1)) {
-                cursor_y = cursor_y.add(1)
+                cursor_y++
                 ref line : Str = lines.get(cursor_y.to_u32())
                 if cursor_x.gt(line.len().to_i64()) {
                     cursor_x = line.len().to_i64()
@@ -126,10 +126,10 @@ main := proc(args: ..Str) {
         if is_key_pressed(263) {
             // Left
             if cursor_x.gt(0) {
-                cursor_x = cursor_x.sub(1)
+                cursor_x--
             } else {
                 if cursor_y.gt(0) {
-                    cursor_y = cursor_y.sub(1)
+                    cursor_y--
                     ref line : Str = lines.get(cursor_y.to_u32())
                     cursor_x = line.len().to_i64()
                 }
@@ -139,10 +139,10 @@ main := proc(args: ..Str) {
             // Right
             ref cur_line : Str = lines.get(cursor_y.to_u32())
             if cursor_x.lt(cur_line.len().to_i64()) {
-                cursor_x = cursor_x.add(1)
+                cursor_x++
             } else {
                 if cursor_y.lt(lines.len().to_i64().sub(1)) {
-                    cursor_y = cursor_y.add(1)
+                    cursor_y++
                     cursor_x = 0
                 }
             }
@@ -178,10 +178,10 @@ main := proc(args: ..Str) {
                         ref l : Str = lines.get(i)
                         new_lines.push(own l.clone())
                     }
-                    i = i.add(1)
+                    i++
                 }
                 lines = new_lines
-                cursor_y = cursor_y.add(1)
+                cursor_y++
                 cursor_x = 0
                 dirty = true
             }
@@ -204,10 +204,10 @@ main := proc(args: ..Str) {
                         ref l : Str = lines.get(i)
                         new_lines.push(own l.clone())
                     }
-                    i = i.add(1)
+                    i++
                 }
                 lines = new_lines
-                cursor_x = cursor_x.sub(1)
+                cursor_x--
                 dirty = true
             } else {
                 if cursor_y.gt(0) {
@@ -228,10 +228,10 @@ main := proc(args: ..Str) {
                                 new_lines.push(own l.clone())
                             }
                         }
-                        i = i.add(1)
+                        i++
                     }
                     lines = new_lines
-                    cursor_y = cursor_y.sub(1)
+                    cursor_y--
                     cursor_x = new_x
                     dirty = true
                 }
@@ -256,7 +256,7 @@ main := proc(args: ..Str) {
                         ref l : Str = lines.get(i)
                         new_lines.push(own l.clone())
                     }
-                    i = i.add(1)
+                    i++
                 }
                 lines = new_lines
                 dirty = true
@@ -277,7 +277,7 @@ main := proc(args: ..Str) {
                                 new_lines.push(own l.clone())
                             }
                         }
-                        i = i.add(1)
+                        i++
                     }
                     lines = new_lines
                     dirty = true
@@ -305,10 +305,10 @@ main := proc(args: ..Str) {
                             ref l : Str = lines.get(i)
                             new_lines.push(own l.clone())
                         }
-                        i = i.add(1)
+                        i++
                     }
                     lines = new_lines
-                    cursor_x = cursor_x.add(1)
+                    cursor_x++
                     dirty = true
                 }
                 ch = get_char_pressed()
@@ -356,7 +356,7 @@ main := proc(args: ..Str) {
                     draw_rectangle(cx, cy, 2, line_h, 255, 200, 0, 255)
                 }
             }
-            row = row.add(1)
+            row++
         }
 
         // Status bar

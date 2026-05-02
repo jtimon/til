@@ -7,7 +7,7 @@ main := proc() {
     mut y := 0
     while window_should_close().not() {
         x = x.add(2)
-        y = y.add(1)
+        y++
         begin_drawing()
         clear_background(0, 0, 0, 255)
         draw_rectangle(x, y, 50, 50, 230, 41, 55, 255)

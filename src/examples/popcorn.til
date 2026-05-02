@@ -48,7 +48,7 @@ main := proc(args: ..Str) {
                     if freq.gt(0) {
                         play_tone(freq, note_dur)
                     }
-                    note_idx = note_idx.add(1)
+                    note_idx++
                 } else {
                     done = true
                 }

@@ -58,10 +58,10 @@ main := proc() {
 
         // Simulation step
         if running {
-            frame = frame.add(1)
+            frame++
             if frame.gte(speed) {
                 frame = 0
-                generation = generation.add(1)
+                generation++
                 ca_step(grid, next, cols, rows, born, 1, survive, 2)
                 ca_swap(grid, next, total)
             }
@@ -97,7 +97,7 @@ main := proc() {
                 draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 30, 30, 30, 255)
             }
 
-            di = di.add(1)
+            di++
         }
 
         end_drawing()

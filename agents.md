@@ -81,6 +81,42 @@ literals, commit messages, and documentation. No Unicode arrows,
 bullets, em-dashes, or fancy quotes. til's lexer cannot parse Unicode.
 Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
 
+## Increment / Decrement
+
+Prefer postfix `++` / `--` over the explicit method/assign forms:
+
+```til
+// Before:
+pos = pos.add(1)
+counter = counter.sub(1)
+errors.inc()
+i.dec()
+
+// After:
+pos++
+counter--
+errors++
+i--
+```
+
+Do NOT rewrite these cases:
+
+```til
+// inc/dec definitions in src/core/*.til -- rewriting causes infinite
+// recursion since `++` desugars to `.inc()`:
+inc := func(mut self: I32) { self = self.add(1) }
+dec := func(mut self: I32) { self = self.sub(1) }
+
+// Chained calls -- `++` is a statement-level postfix, not an expression
+// that returns a value, so `x++.mod(N)` does not parse / behave the
+// same as `x = x.add(1).mod(N)`:
+sel = sel.add(1).mod(NUM_FONTS)
+ev_head = ev_head.add(1).mod(MAX_NOTES.to_i64())
+
+// Comments documenting the desugaring (e.g. src/self/parser.til:800):
+// Postfix ++ / --: expr++ desugars to expr.inc(), expr-- to expr.dec()
+```
+
 ## Commits
 
 - Always include ALL modified files in commits.

@@ -13,7 +13,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     while start.lte(haystack.len().sub(needle.len())) {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(-1) { return count }
-        count = count.add(1)
+        count++
         pos_u : USize = pos.to_usize()
         start = start.add(pos_u).add(needle.len())
     }
@@ -71,7 +71,7 @@ parse_kv := func(line: Str, key: Str) returns I64 {
     start := pos_u.add(needle.len())
     mut end := start
     while end.lt(line.len()).and(line.get(end).neq(' ')).and(line.get(end).neq(10)) {
-        end = end.add(1)
+        end++
     }
     return line.substr(start, end.sub(start)).to_i64()
 }
@@ -224,7 +224,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
     mut si : USize = 0
     while si.lt(j) {
         slots.set(si, own Slot())
-        si = si.add(1)
+        si++
     }
 
     // Spawn initial batch
@@ -235,9 +235,9 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
         start := clock_ms()
         pid := spawn_cmd(cmd)
         slots.set(si, own Slot(test_idx = next, pid = pid, start_ms = start))
-        active = active.add(1)
-        next = next.add(1)
-        si = si.add(1)
+        active++
+        next++
+        si++
     }
 
     // Poll loop
@@ -291,12 +291,12 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                             if ln.starts_with("FAIL").or(ln.starts_with("MISMATCH")) {
                                 println(ln)
                             }
-                            li = li.add(1)
+                            li++
                         }
                         fail = 1
                     }
 
-                    active = active.sub(1)
+                    active--
                     slot.pid = 0
 
                     if next.lt(tests.len()) {
@@ -305,12 +305,12 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                         start := clock_ms()
                         pid := spawn_cmd(cmd)
                         slots.set(i, own Slot(test_idx = next, pid = pid, start_ms = start))
-                        active = active.add(1)
-                        next = next.add(1)
+                        active++
+                        next++
                     }
                 }
             }
-            i = i.add(1)
+            i++
         }
         if active.gt(0) {
             sleep_ms(10)
@@ -340,11 +340,11 @@ main := proc(args: ..Str) {
         if arg.eq("-no-run") { en_run = 0 }
         if arg.eq("--no-gui") { en_gui = 0 }
         if arg.eq("--til-bin").and(i.add(1).lt(args.len())) {
-            i = i.add(1)
+            i++
             ref val : Str = args.get(i)
             til_bin = val.clone()
         }
-        i = i.add(1)
+        i++
     }
 
     mut fail := 0
@@ -554,7 +554,7 @@ main := proc(args: ..Str) {
         ref t : Test = tests.get(pi)
         switch t.kind {
         case TestKind.Mode(md):
-            mode_total = mode_total.add(1)
+            mode_total++
             if t.has_interp.eq(1) {
                 total_interp_ms = total_interp_ms.add(md.interp_ms)
                 total_mem_inte = total_mem_inte.add(md.interp_mem)
@@ -565,10 +565,10 @@ main := proc(args: ..Str) {
                 total_mem_comp = total_mem_comp.add(md.compile_mem)
                 total_mem_run = total_mem_run.add(md.run_mem)
             }
-            if t.ok.eq(1) { mode_passed = mode_passed.add(1) }
+            if t.ok.eq(1) { mode_passed++ }
         case:
         }
-        pi = pi.add(1)
+        pi++
     }
 
     // --- Section totals from non-mode tests ---
@@ -584,15 +584,15 @@ main := proc(args: ..Str) {
     while pi.lt(tests.len()) {
         ref t : Test = tests.get(pi)
         if t.kind.is(TestKind.Mode).not() {
-            other_total = other_total.add(1)
-            if t.ok.eq(1) { other_passed = other_passed.add(1) }
+            other_total++
+            if t.ok.eq(1) { other_passed++ }
             if t.category.eq("ffi") { ffi_ms = ffi_ms.add(t.ms) }
             if t.category.eq("typer") { typer_ms = typer_ms.add(t.ms) }
             if t.category.eq("cli") { cli_ms = cli_ms.add(t.ms) }
             if t.category.eq("build") { build_ms = build_ms.add(t.ms) }
             if t.category.eq("build") { build_mem = build_mem.add(t.mem) }
         }
-        pi = pi.add(1)
+        pi++
     }
 
     // --- Plot test (stays sequential) ---
@@ -678,7 +678,7 @@ main := proc(args: ..Str) {
                                   bmd.run_ok.to_str(), NL))
         case:
         }
-        bi = bi.add(1)
+        bi++
     }
     File.writefile("gen/benchmark.csv", bench)
 
@@ -704,7 +704,7 @@ main := proc(args: ..Str) {
         while last_data_idx.gt(0) {
             ref last_line : Str = lines.get(last_data_idx)
             if last_line.len().gt(0) { break }
-            last_data_idx = last_data_idx.sub(1)
+            last_data_idx--
         }
         if last_data_idx.gt(0) {
             ref last_data : Str = lines.get(last_data_idx)
@@ -714,7 +714,7 @@ main := proc(args: ..Str) {
                 while li.lt(last_data_idx) {
                     ref ln : Str = lines.get(li)
                     totals_content = totals_content.concat(ln).concat(NL)
-                    li = li.add(1)
+                    li++
                 }
             } else {
                 totals_content = existing

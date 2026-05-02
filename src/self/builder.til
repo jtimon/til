@@ -1533,7 +1533,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                     fld_own = dd.own_type
                     field_type = dd.til_type
                     fname = dd.name
-                    fi = fi.add(1)
+                    fi++
                 }
             }
         }
@@ -2258,7 +2258,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
             emitted.add(own sname.clone())
             mut t_val := true
             done.set(ei, own t_val)
-            remaining = remaining.sub(1)
+            remaining--
             progress = true
         }
         if progress.not() {
@@ -2369,7 +2369,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
             emitted.add(own sname.clone())
             mut t_val := true
             done.set(ei, own t_val)
-            remaining = remaining.sub(1)
+            remaining--
             progress = true
         }
         if progress.not() {
@@ -2701,7 +2701,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
             } else {
                 f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("();\n")
             }
-            hdr_vi = hdr_vi.add(1)
+            hdr_vi++
         }
     }
     f.write("\n")
@@ -2809,7 +2809,7 @@ emit_header_defs_and_funcs_lp := proc(f: File) {
                 } else {
                     f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("();\n")
                 }
-                hdr_vi = hdr_vi.add(1)
+                hdr_vi++
             }
         }
     }
@@ -2995,7 +2995,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
                     f.write("    "); f.write(bind_vn)
                     if bind_vt.len().gt(0) { f.write(": "); f.write(bind_vt) }
                     f.write(",\n")
-                    bind_vi = bind_vi.add(1)
+                    bind_vi++
                 }
                 emit_binding_ns_methods(f, rhs)
                 f.write("}\n\n")
@@ -3148,7 +3148,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                 for ct_vn : Str in ct_edd.variants {
                     f.write(dd.name); f.write("_TAG_"); f.write(ct_vn)
                     f.write(" = "); f.write(tag.to_str()); f.write("\n")
-                    tag = tag.add(1)
+                    tag++
                 }
 
                 // Emit union if has payloads
@@ -3163,7 +3163,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                             f.write(type_name_to_ctypes_param(ct_vt, false))
                             f.write("),\n")
                         }
-                        ct_vi = ct_vi.add(1)
+                        ct_vi++
                     }
                     f.write("    ]\n")
                 }
@@ -3326,7 +3326,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                     f.write("_lib."); f.write(sname); f.write("_"); f.write(py_vn)
                     f.write(".restype = ctypes.POINTER("); f.write(sname); f.write(")\n\n")
                 }
-                py_vi = py_vi.add(1)
+                py_vi++
             }
         }
     }
@@ -3745,7 +3745,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
             } else {
                 f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("();\n")
             }
-            hdr_vi = hdr_vi.add(1)
+            hdr_vi++
         }
     }
 }
@@ -3870,7 +3870,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
                 } else {
                     f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("();\n")
                 }
-                hdr_vi = hdr_vi.add(1)
+                hdr_vi++
             }
         }
     }
@@ -3982,7 +3982,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
                     } else {
                         f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(shdr_vn); f.write("();\n")
                     }
-                    shdr_vi = shdr_vi.add(1)
+                    shdr_vi++
                 }
             }
         }
@@ -4023,7 +4023,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
                 } else {
                     f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(shdr_vn); f.write("();\n")
                 }
-                shdr_vi = shdr_vi.add(1)
+                shdr_vi++
             }
         }
     }

@@ -188,7 +188,7 @@ namespace:
             }
             pos_u : USize = pos.to_usize()
             start = start.add(pos_u).add(from.count)
-            matches = matches.add(1)
+            matches++
         }
         if matches.eq(0) { return self.clone() }
         removed := matches.mul(from.count)
@@ -317,7 +317,7 @@ namespace:
                 start = pos.add(delim.len())
                 pos = start
             } else {
-                pos = pos.add(1)
+                pos++
             }
         }
         parts.push(own self.substr(start, self.len().sub(start)).clone())

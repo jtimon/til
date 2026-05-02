@@ -160,7 +160,7 @@ main := proc() {
                 ev_end.set(ev_head.to_u32(), own -1)
                 ev_head = ev_head.add(1).mod(MAX_NOTES.to_i64())
                 if ev_count.lt(MAX_NOTES.to_i64()) {
-                    ev_count = ev_count.add(1)
+                    ev_count++
                 }
             }
             // Just released

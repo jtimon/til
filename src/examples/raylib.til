@@ -31,7 +31,7 @@ mut x := 0
 mut y := 0
 while WindowShouldClose().not() {
     x = x.add(2)
-    y = y.add(1)
+    y++
     BeginDrawing()
     ClearBackground(black)
     DrawRectangle(x.to_i32(), y.to_i32(), 50, 50, red)

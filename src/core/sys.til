@@ -32,7 +32,7 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
         } else {
             cmd = arg.clone()
         }
-        i = i.add(1)
+        i++
     }
     tmpf := "tmp/_run_cmd_out"
     pid := spawn_cmd(cmd.concat(" > ").concat(tmpf).concat(" 2>&1"))

@@ -66,7 +66,7 @@ trim_ws := func(s: Str) returns Str {
     while start.lt(s.len()) {
         ref c : U8 = s.get(start)
         if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')) {
-            start = start.add(1)
+            start++
         } else {
             break
         }
@@ -75,7 +75,7 @@ trim_ws := func(s: Str) returns Str {
     while end.gt(start) {
         ref c : U8 = s.get(end.sub(1))
         if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')) {
-            end = end.sub(1)
+            end--
         } else {
             break
         }
@@ -88,8 +88,8 @@ count_char := func(s: Str, ch: U8) returns I64 {
     mut i : USize = 0
     while i.lt(s.len()) {
         ref c : U8 = s.get(i)
-        if c.eq(ch) { n = n.add(1) }
-        i = i.add(1)
+        if c.eq(ch) { n++ }
+        i++
     }
     return n
 }
@@ -107,7 +107,7 @@ extract_body_lines := func(lines: Vec, shallow start_line: U32) returns Vec {
         if started.not() {
             brace_pos := raw.find("{")
             if brace_pos.eq(-1) {
-                i = i.add(1)
+                i++
                 continue
             }
             started = true
@@ -123,7 +123,7 @@ extract_body_lines := func(lines: Vec, shallow start_line: U32) returns Vec {
             }
             depth = depth.add(count_char(trailing, '{')).sub(count_char(trailing, '}'))
             if depth.lte(0) { break }
-            i = i.add(1)
+            i++
             continue
         }
 
@@ -138,7 +138,7 @@ extract_body_lines := func(lines: Vec, shallow start_line: U32) returns Vec {
 
         depth = depth.add(count_char(raw, '{')).sub(count_char(raw, '}'))
         if depth.lte(0) { break }
-        i = i.add(1)
+        i++
     }
 
     return out
@@ -153,7 +153,7 @@ join_lines := func(lines: Vec) returns Str {
             out = out.concat(" ")
         }
         out = out.concat(line)
-        i = i.add(1)
+        i++
     }
     return out
 }
@@ -191,10 +191,10 @@ split_enum_variants := proc(lines: Vec) returns Vec {
 
         switch tok.type {
         case TokenType.LParen:
-            paren_depth = paren_depth.add(1)
+            paren_depth++
             current = append_token_text(current, tok)
         case TokenType.RParen:
-            paren_depth = paren_depth.sub(1)
+            paren_depth--
             current = append_token_text(current, tok)
         case TokenType.Comma:
             if paren_depth.eq(0) {
@@ -272,9 +272,9 @@ collect_types := proc(paths: Vec) returns Vec {
         while j.lt(file_types.len()) {
             ref t : UmlType = file_types.get(j)
             out.push(own t.clone())
-            j = j.add(1)
+            j++
         }
-        i = i.add(1)
+        i++
     }
     return out
 }
@@ -292,10 +292,10 @@ collect_panels := func(paths: Vec, types: Vec) returns Vec {
             if t.file.eq(label) {
                 panel.types.push(own t.clone())
             }
-            j = j.add(1)
+            j++
         }
         out.push(own panel)
-        i = i.add(1)
+        i++
     }
     return out
 }
@@ -316,12 +316,12 @@ generate_org := func(paths: Vec, types: Vec) returns Str {
                 while k.lt(t.lines.len()) {
                     ref line : Str = t.lines.get(k)
                     out = out.concat("*** ").concat(line).concat(NL)
-                    k = k.add(1)
+                    k++
                 }
             }
-            j = j.add(1)
+            j++
         }
-        i = i.add(1)
+        i++
     }
     return out
 }
@@ -407,7 +407,7 @@ panel_h := func(p: UmlPanel) returns I64 {
             h = h.add(BOX_GAP_Y)
         }
         h = h.add(box_h(t))
-        i = i.add(1)
+        i++
     }
     return h.add(PANEL_PAD_Y)
 }
@@ -425,7 +425,7 @@ generate_svg := func(panels: Vec) returns Str {
             total_w = total_w.add(PANEL_GAP_X)
         }
         if h.gt(max_h) { max_h = h }
-        i = i.add(1)
+        i++
     }
     total_w = total_w.add(PAGE_PAD_X)
     total_h := PAGE_PAD_Y.add(max_h).add(PAGE_PAD_Y)
@@ -486,13 +486,13 @@ generate_svg := func(panels: Vec) returns Str {
                 ref line : Str = t.lines.get(k)
                 line_y := box_y.add(BOX_PAD_Y).add(HEADER_H).add(ROW_H).add(k.to_i64().mul(ROW_H))
                 svg = svg.concat("  ").concat(svg_text(box_x.add(BOX_PAD_X), line_y, "line", xml_escape(line)))
-                k = k.add(1)
+                k++
             }
             box_y = box_y.add(h).add(BOX_GAP_Y)
-            j = j.add(1)
+            j++
         }
         panel_x = panel_x.add(pw).add(PANEL_GAP_X)
-        i = i.add(1)
+        i++
     }
 
     svg = svg.concat("</svg>").concat(NL)

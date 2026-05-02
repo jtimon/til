@@ -333,7 +333,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 }
                 ref pp : Declaration = sfd.params.get(pi)
                 pp.name = pn.clone()
-                pi = pi.add(1)
+                pi++
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect_token(p, TokenType.RParen)
@@ -507,7 +507,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             case:
                 UNREACHABLE(__LOC__)
             }
-            variant_idx = variant_idx.add(1)
+            variant_idx++
             if check(p, TokenType.Comma) { advance(p) }
         }
     }

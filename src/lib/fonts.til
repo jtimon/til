@@ -84,7 +84,7 @@ sum_u32_be := func(buf: Str, offset: USize, length: USize) returns I64 {
                 byte_val = b.to_i64()
             }
             word = word.mul(256).add(byte_val)
-            j = j.add(1)
+            j++
         }
         sum = sum.add(word)
         if sum.gte(4294967296) { sum = sum.sub(4294967296) }
@@ -101,7 +101,7 @@ utf16be_ascii := func(s: Str) returns Str {
         ref b : U8 = s.byte_at(i)
         w_u8(out, 0.to_u8())
         w_u8(out, b)
-        i = i.add(1)
+        i++
     }
     return out
 }
@@ -184,7 +184,7 @@ build_glyph := func(segments: Vec) returns Glyph {
         if xv.gt(xmx) { xmx = xv.clone() }
         if yv.lt(ymn) { ymn = yv.clone() }
         if yv.gt(ymx) { ymx = yv.clone() }
-        k = k.add(1)
+        k++
     }
 
     // Emit simple-glyph bytes.
@@ -243,7 +243,7 @@ pow2_le := func(n: I64) returns Vec {
     mut log := 0
     while v.mul(2).lte(n) {
         v = v.mul(2)
-        log = log.add(1)
+        log++
     }
     out.push(own v.clone())
     out.push(own log.clone())
@@ -524,7 +524,7 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
         w_u32(file, 0)                   // checksum (patched below)
         w_u32(file, off)
         w_u32(file, ln)
-        ri = ri.add(1)
+        ri++
     }
 
     // Write padded tables and record their absolute offsets.
@@ -535,7 +535,7 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
         if rem.gt(0) {
             pad : USize = 4.to_usize().sub(rem)
             mut pi : USize = 0
-            while pi.lt(pad) { w_u8(file, 0.to_u8()); pi = pi.add(1) }
+            while pi.lt(pad) { w_u8(file, 0.to_u8()); pi++ }
         }
     }
 
@@ -548,7 +548,7 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
         cs := sum_u32_be(file, off.to_usize(), padded_len(ln.to_usize()))
         ref rec_off : I64 = record_checksum_offsets.get(ti)
         patch_u32(file, rec_off.to_usize(), cs)
-        ti = ti.add(1)
+        ti++
     }
 
     // Compute the whole-file checksum and patch head.checkSumAdjustment.

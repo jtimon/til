@@ -13,7 +13,7 @@ ca_clear_grid := func(mut grid: Array, total: I64) {
     mut i := 0
     while i.lt(total) {
         grid.set(i.to_usize(), own 0)
-        i = i.add(1)
+        i++
     }
 }
 
@@ -32,12 +32,12 @@ ca_count_neighbors := func(mut grid: Array, idx: I64, cols: I64, rows: I64) retu
                 ni := wy.mul(cols).add(wx)
                 ref nv : I64 = grid.get(ni.to_usize())
                 if nv.eq(1) {
-                    count = count.add(1)
+                    count++
                 }
             }
-            nx = nx.add(1)
+            nx++
         }
-        ny = ny.add(1)
+        ny++
     }
     return count
 }
@@ -48,7 +48,7 @@ ca_in_set := func(mut arr: Array, len: I64, val: I64) returns Bool {
     while i.lt(len) {
         ref v : I64 = arr.get(i.to_usize())
         if v.eq(val) { return true }
-        i = i.add(1)
+        i++
     }
     return false
 }
@@ -76,7 +76,7 @@ ca_step := func(mut grid: Array, mut next: Array, cols: I64, rows: I64,
                 next.set(i.to_usize(), own 0)
             }
         }
-        i = i.add(1)
+        i++
     }
 }
 
@@ -86,6 +86,6 @@ ca_swap := func(mut grid: Array, mut next: Array, total: I64) {
     while i.lt(total) {
         ref nval : I64 = next.get(i.to_usize())
         grid.set(i.to_usize(), own nval.clone())
-        i = i.add(1)
+        i++
     }
 }

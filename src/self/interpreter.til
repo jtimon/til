@@ -356,16 +356,16 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             if ch.eq(92) {
                 if i.add(1).lt(raw.count.to_u64()) {
                     ref next : U8 = raw.byte_at(i.add(1).to_i64().to_usize())
-                    if next.eq(110) { memset(ptr_add(buf, j), 10.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(116) { memset(ptr_add(buf, j), 9.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(92) { memset(ptr_add(buf, j), 92.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(34) { memset(ptr_add(buf, j), 34.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(48) { memset(ptr_add(buf, j), 0.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(110) { memset(ptr_add(buf, j), 10.to_i32(), 1); j++; i = i.add(2); continue }
+                    if next.eq(116) { memset(ptr_add(buf, j), 9.to_i32(), 1); j++; i = i.add(2); continue }
+                    if next.eq(92) { memset(ptr_add(buf, j), 92.to_i32(), 1); j++; i = i.add(2); continue }
+                    if next.eq(34) { memset(ptr_add(buf, j), 34.to_i32(), 1); j++; i = i.add(2); continue }
+                    if next.eq(48) { memset(ptr_add(buf, j), 0.to_i32(), 1); j++; i = i.add(2); continue }
                 }
             }
             memcpy(ptr_add(buf, j), ptr_add(raw.c_str, i.to_i64().to_usize().to_u64()), 1)
-            j = j.add(1)
-            i = i.add(1)
+            j++
+            i++
         }
         memset(ptr_add(buf, j), 0.to_i32(), 1)
         v := make_str_value(buf, j)
@@ -985,7 +985,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             mut arg_idx : U32 = 1
             for fdd : Declaration in sdd.fields {
                 ref arg : Expr = e.child(arg_idx)
-                arg_idx = arg_idx.add(1)
+                arg_idx++
                 mut val := val_none()
                 if arg.node_type.is(NodeType.Ident) {
                     ref arg_ident : Str = get_payload(arg.node_type)
@@ -1700,14 +1700,14 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
                 ref fd : FunctionDef = get_payload(stmt.child(0).node_type)
                 if fd.func_type.is(FuncType.Test) {
                     ref dd : Declaration = get_payload(stmt.node_type)
-                    test_count = test_count.add(1)
+                    test_count++
                     test_scope := scope_new(global)
                     eval_body(test_scope, decl_body(stmt))
                     if has_return {
                         return_value = return_value.clone()
                     }
                     scope_free(own test_scope)
-                    pass_count = pass_count.add(1)
+                    pass_count++
                     eprint_single("  pass: ")
                     eprint_single(dd.name)
                     eprint_single("\n")
@@ -1778,7 +1778,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
                     ref arg_s : Str = user_argv.get(argi.to_i64().to_usize())
                     v := parse_cli_arg(arg_s, param.explicit_type)
                     scope_set_owned(main_scope, param.name, v)
-                    argi = argi.add(1)
+                    argi++
                 }
             }
         } else if user_argc.gt(0) {
@@ -1901,7 +1901,7 @@ interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) re
                     ref fd : FunctionDef = get_payload(stmt.child(0).node_type)
                     if fd.func_type.is(FuncType.Test) {
                         ref dd : Declaration = get_payload(stmt.node_type)
-                        test_count = test_count.add(1)
+                        test_count++
                         test_scope := scope_new(global)
                         interp_path = lp.path.clone()
                         eval_body(test_scope, decl_body(stmt))
@@ -1909,7 +1909,7 @@ interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) re
                             return_value = return_value.clone()
                         }
                         scope_free(own test_scope)
-                        pass_count = pass_count.add(1)
+                        pass_count++
                         eprint_single("  pass: ")
                         eprint_single(dd.name)
                         eprint_single("\n")
@@ -1980,7 +1980,7 @@ interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) re
                     ref arg_s : Str = user_argv.get(argi.to_i64().to_usize())
                     v := parse_cli_arg(arg_s, param.explicit_type)
                     scope_set_owned(main_scope, param.name, v)
-                    argi = argi.add(1)
+                    argi++
                 }
             }
         } else if user_argc.gt(0) {

@@ -64,7 +64,7 @@ copy_board := func(mut dst: Array, mut src: Array) {
     while i.lt(64) {
         ref v : I64 = src.get(i.to_u32())
         dst.set(i.to_u32(), own v.clone())
-        i = i.add(1)
+        i++
     }
 }
 
@@ -84,7 +84,7 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
             knight_piece := by_side.mul(6).add(2)
             if p.eq(knight_piece) { return true }
         }
-        ki = ki.add(1)
+        ki++
     }
 
     // Check king attacks (adjacent squares)
@@ -101,9 +101,9 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
                     if p.eq(king_piece) { return true }
                 }
             }
-            kkj = kkj.add(1)
+            kkj++
         }
-        kki = kki.add(1)
+        kki++
     }
 
     // Check pawn attacks
@@ -116,7 +116,7 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
     // A white pawn at (r+1, c+-1) attacks (r,c) — white pawns move up, attack diag up
     // A black pawn at (r-1, c+-1) attacks (r,c) — black pawns move down, attack diag down
     mut pawn_src_r := r.add(1)
-    if by_side.eq(1) { pawn_src_r = r.sub(1) }
+    if by_side.eq(1) { pawn_src_r-- }
     if pawn_src_r.gte(0).and(pawn_src_r.lt(8)) {
         if c.sub(1).gte(0) {
             ref pl : I64 = board.get(pawn_src_r.mul(8).add(c.sub(1)).to_u32())
@@ -152,7 +152,7 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
                 sc = sc.add(sdc)
             }
         }
-        di = di.add(1)
+        di++
     }
 
     // Check bishop/queen attacks (diagonals)
@@ -178,7 +178,7 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
                 bc = bc.add(bdc)
             }
         }
-        bi = bi.add(1)
+        bi++
     }
 
     return false
@@ -191,7 +191,7 @@ find_king := func(mut board: Array, side: I64) returns I64 {
     while i.lt(64) {
         ref p : I64 = board.get(i.to_u32())
         if p.eq(king_piece) { return i }
-        i = i.add(1)
+        i++
     }
     return -1
 }
@@ -258,7 +258,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
             if fp.eq(0) {
                 if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(c), side).not() {
                     moves.set(count.to_u32(), own nr.mul(8).add(c))
-                    count = count.add(1)
+                    count++
                 }
                 // Forward two from start
                 if r.eq(start_row) {
@@ -267,7 +267,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                     if fp2.eq(0) {
                         if move_leaves_in_check(board, tmp, idx, nr2.mul(8).add(c), side).not() {
                             moves.set(count.to_u32(), own nr2.mul(8).add(c))
-                            count = count.add(1)
+                            count++
                         }
                     }
                 }
@@ -309,7 +309,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                             }
                             if ok {
                                 moves.set(count.to_u32(), own nr.mul(8).add(nc))
-                                count = count.add(1)
+                                count++
                             }
                         }
                     }
@@ -334,11 +334,11 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                 if is_side(dp, side).not() {
                     if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side).not() {
                         moves.set(count.to_u32(), own nr.mul(8).add(nc))
-                        count = count.add(1)
+                        count++
                     }
                 }
             }
-            ki = ki.add(1)
+            ki++
         }
     }
 
@@ -357,13 +357,13 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                 if sp.eq(0) {
                     if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
                         moves.set(count.to_u32(), own sr.mul(8).add(sc))
-                        count = count.add(1)
+                        count++
                     }
                 } else {
                     if is_side(sp, side).not() {
                         if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
                             moves.set(count.to_u32(), own sr.mul(8).add(sc))
-                            count = count.add(1)
+                            count++
                         }
                     }
                     // Blocked
@@ -375,7 +375,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                     sc = sc.add(sdc)
                 }
             }
-            di = di.add(1)
+            di++
         }
     }
 
@@ -394,13 +394,13 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                 if sp.eq(0) {
                     if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
                         moves.set(count.to_u32(), own sr.mul(8).add(sc))
-                        count = count.add(1)
+                        count++
                     }
                 } else {
                     if is_side(sp, side).not() {
                         if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
                             moves.set(count.to_u32(), own sr.mul(8).add(sc))
-                            count = count.add(1)
+                            count++
                         }
                     }
                     sr = 99
@@ -411,7 +411,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                     sc = sc.add(sdc)
                 }
             }
-            di = di.add(1)
+            di++
         }
     }
 
@@ -429,14 +429,14 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                         if is_side(dp, side).not() {
                             if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side).not() {
                                 moves.set(count.to_u32(), own nr.mul(8).add(nc))
-                                count = count.add(1)
+                                count++
                             }
                         }
                     }
                 }
-                kkj = kkj.add(1)
+                kkj++
             }
-            kki = kki.add(1)
+            kki++
         }
 
         // Castling
@@ -464,7 +464,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                         if sq5.eq(0).and(sq6.eq(0)).and(sq7.eq(rook_piece)) {
                             if is_attacked(board, r, 5, opp).not().and(is_attacked(board, r, 6, opp).not()) {
                                 moves.set(count.to_u32(), own r.mul(8).add(6))
-                                count = count.add(1)
+                                count++
                             }
                         }
                     }
@@ -479,7 +479,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                         if sq3.eq(0).and(sq2.eq(0)).and(sq1.eq(0)).and(sq0.eq(rook_piece)) {
                             if is_attacked(board, r, 3, opp).not().and(is_attacked(board, r, 2, opp).not()) {
                                 moves.set(count.to_u32(), own r.mul(8).add(2))
-                                count = count.add(1)
+                                count++
                             }
                         }
                     }
@@ -502,7 +502,7 @@ has_legal_moves := func(mut board: Array, mut tmp: Array, side: I64,
             mc := gen_moves(board, tmp, i, side, moves, ep_col, castle_flags)
             if mc.gt(0) { return true }
         }
-        i = i.add(1)
+        i++
     }
     return false
 }
@@ -579,7 +579,7 @@ copy_cf := func(mut dst: Array, mut src: Array) {
     while i.lt(6) {
         ref v : I64 = src.get(i.to_u32())
         dst.set(i.to_u32(), own v.clone())
-        i = i.add(1)
+        i++
     }
 }
 
@@ -604,7 +604,7 @@ chess_pack := func(mut b: Board, mut cells: Array, side: I64, ep_col: I64, mut c
     while i.lt(64) {
         ref v : I64 = cells.get(i.to_u32())
         board_set_i64(b, i, v)
-        i = i.add(1)
+        i++
     }
     board_set_i64(b, CHESS_IDX_SIDE, side)
     board_set_i64(b, CHESS_IDX_EP, ep_col)
@@ -612,7 +612,7 @@ chess_pack := func(mut b: Board, mut cells: Array, side: I64, ep_col: I64, mut c
     while i.lt(6) {
         ref v : I64 = cf.get(i.to_u32())
         board_set_i64(b, CHESS_IDX_CF.add(i), v)
-        i = i.add(1)
+        i++
     }
 }
 
@@ -629,7 +629,7 @@ chess_unpack_cf := func(b: Board) returns Array {
     mut i := 0
     while i.lt(6) {
         cf.set(i.to_u32(), own board_get_i64(b, CHESS_IDX_CF.add(i)).clone())
-        i = i.add(1)
+        i++
     }
     return cf
 }
@@ -651,7 +651,7 @@ chess_heuristic : Heuristic = (b) {
             ref w : I64 = WEIGHTS.get(p.sub(6).to_u32())
             score = score.sub(w)
         }
-        i = i.add(1)
+        i++
     }
     if side.eq(1) { return 0.sub(score) }
     return score
@@ -664,7 +664,7 @@ chess_next_boards : NextBoardsFn = (b) {
     mut ci := 0
     while ci.lt(64) {
         cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
-        ci = ci.add(1)
+        ci++
     }
     side := chess_unpack_side(cb)
     ep_col := chess_unpack_ep(cb)
@@ -689,10 +689,10 @@ chess_next_boards : NextBoardsFn = (b) {
                 mut nb := Board()
                 chess_pack(nb, child_cells, opp, child_ep, child_cf)
                 result.push(own nb)
-                j = j.add(1)
+                j++
             }
         }
-        i = i.add(1)
+        i++
     }
     // Empty result for checkmate/stalemate — heuristic handles via in_check
     return result
@@ -729,12 +729,12 @@ main := proc() {
     while i.lt(64) {
         ref init_p : I64 = INIT_BOARD.get(i.to_u32())
         board.set(i.to_u32(), own init_p.clone())
-        i = i.add(1)
+        i++
     }
     i = 0
     while i.lt(6) {
         castle_flags.set(i.to_u32(), own 0)
-        i = i.add(1)
+        i++
     }
 
     while window_should_close().not() {
@@ -765,12 +765,12 @@ main := proc() {
                 while i.lt(64) {
                     ref init_p : I64 = INIT_BOARD.get(i.to_u32())
                     board.set(i.to_u32(), own init_p.clone())
-                    i = i.add(1)
+                    i++
                 }
                 i = 0
                 while i.lt(6) {
                     castle_flags.set(i.to_u32(), own 0)
-                    i = i.add(1)
+                    i++
                 }
                 turn = 0
                 selected = -1
@@ -784,7 +784,7 @@ main := proc() {
 
             // AI move (alpha-beta search)
             if vs_ai.eq(2).and(turn.eq(1)).and(game_over.eq(0)) {
-                ai_timer = ai_timer.add(1)
+                ai_timer++
                 if ai_timer.gt(30) {
                     ai_timer = 0
                     // Collect all legal moves for black
@@ -803,11 +803,11 @@ main := proc() {
                                 ref md : I64 = ai_moves.get(mj.to_u32())
                                 ai_pieces.set(ai_total.to_u32(), own sq.clone())
                                 ai_dests.set(ai_total.to_u32(), own md.clone())
-                                ai_total = ai_total.add(1)
-                                mj = mj.add(1)
+                                ai_total++
+                                mj++
                             }
                         }
-                        sq = sq.add(1)
+                        sq++
                     }
 
                     if ai_total.gt(0) {
@@ -836,7 +836,7 @@ main := proc() {
                                 best_score = score
                                 best_idx = mi
                             }
-                            mi = mi.add(1)
+                            mi++
                         }
 
                         // Play the best move
@@ -890,7 +890,7 @@ main := proc() {
                                 if vm.eq(click_idx) {
                                     is_valid = true
                                 }
-                                vi = vi.add(1)
+                                vi++
                             }
 
                             if is_valid {
@@ -1077,7 +1077,7 @@ main := proc() {
                                 draw_rectangle(px.add(CELL).sub(12), py.add(CELL).sub(12), 12, 12, 200, 50, 50, 180)
                             }
                         }
-                        vi = vi.add(1)
+                        vi++
                     }
 
                     // Draw piece
@@ -1097,9 +1097,9 @@ main := proc() {
                         draw_text(pname, px.add(CELL.div(2)).sub(12), py.add(CELL.div(2)).sub(16), 36, pr, pg, pb, 255)
                     }
 
-                    dc = dc.add(1)
+                    dc++
                 }
-                dr = dr.add(1)
+                dr++
             }
 
             // Rank labels (1-8)
@@ -1107,7 +1107,7 @@ main := proc() {
             while ri.lt(8) {
                 label := 8.sub(ri).to_str()
                 draw_text(label, WINDOW_WIDTH.sub(20), ri.mul(CELL).add(BOARD_Y).add(CELL.div(2)).sub(8), 16, 100, 100, 100, 255)
-                ri = ri.add(1)
+                ri++
             }
 
             // File labels (a-h)
@@ -1116,7 +1116,7 @@ main := proc() {
             while fi.lt(8) {
                 ref fl : Str = FILE_LABELS.get(fi.to_u32())
                 draw_text(fl, fi.mul(CELL).add(CELL.div(2)).sub(4), BOARD_Y.add(CELL.mul(8)).add(5), 16, 100, 100, 100, 255)
-                fi = fi.add(1)
+                fi++
             }
 
             // Captured pieces area - bottom

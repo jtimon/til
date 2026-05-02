@@ -55,7 +55,7 @@ children_filter := func(mut v: Vec, marks: Dynamic, shallow n: USize) {
             v.elem_delete(ptr_add(v.data, i.mul(v.elem_size)), false)
             memset(ptr_add(v.data, i.mul(v.elem_size)), 0, v.elem_size)
         }
-        i = i.add(1)
+        i++
     }
     // Compact: move kept elements forward
     mut w : USize = 0
@@ -66,9 +66,9 @@ children_filter := func(mut v: Vec, marks: Dynamic, shallow n: USize) {
             if w.neq(r) {
                 memcpy(ptr_add(v.data, w.mul(v.elem_size)), ptr_add(v.data, r.mul(v.elem_size)), v.elem_size)
             }
-            w = w.add(1)
+            w++
         }
-        r = r.add(1)
+        r++
     }
     v.count = w
 }

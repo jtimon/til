@@ -63,7 +63,7 @@ dir_of := func(abs: Str) returns Str {
     if abs.len().eq(0) { return "." }
     mut last_slash := abs.len().sub(1)
     while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
-        last_slash = last_slash.sub(1)
+        last_slash--
     }
     return str_left(abs, last_slash)
 }
@@ -414,7 +414,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     mut cursor : U32 = 0
     while cursor.lt(worklist.len()) {
         name := Str.clone(worklist.get(cursor))
-        cursor = cursor.add(1)
+        cursor++
         if visited.has(name) { continue }
         visited.add(own name.clone())
 
