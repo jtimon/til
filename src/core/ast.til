@@ -22,6 +22,41 @@ TilType := enum {
     Enum: Str, EnumDef,
     FuncDef, FuncPtr, Dynamic,
     Custom: Str,
+namespace:
+    // #165 step 1: treat Custom(x) as equal to Struct(x) or Enum(x).
+    // initer's registration helpers can write Custom(name) without
+    // resolving against scope; typer lookups that return Struct/Enum
+    // still compare equal. Uses .is() throughout (tag-only) because
+    // ~switch~ on an enum desugars to recursive ~eq~ calls.
+    eq := func(a: TilType, b: TilType) returns shallow Bool {
+        // Named-payload group: Custom, Struct, Enum compare equal across
+        // variants iff their name payloads match.
+        a_named := a.is(TilType.Custom).or(a.is(TilType.Struct)).or(a.is(TilType.Enum))
+        b_named := b.is(TilType.Custom).or(b.is(TilType.Struct)).or(b.is(TilType.Enum))
+        if a_named.and(b_named) {
+            ref an : Str = get_payload(a)
+            ref bn : Str = get_payload(b)
+            return an.eq(bn)
+        }
+        if a_named.or(b_named) { return false }
+        // Non-payloaded variants: tag equality.
+        if a.is(TilType.Unknown)   { return b.is(TilType.Unknown) }
+        if a.is(TilType.None)      { return b.is(TilType.None) }
+        if a.is(TilType.I64)       { return b.is(TilType.I64) }
+        if a.is(TilType.U8)        { return b.is(TilType.U8) }
+        if a.is(TilType.I16)       { return b.is(TilType.I16) }
+        if a.is(TilType.I32)       { return b.is(TilType.I32) }
+        if a.is(TilType.U32)       { return b.is(TilType.U32) }
+        if a.is(TilType.U64)       { return b.is(TilType.U64) }
+        if a.is(TilType.F32)       { return b.is(TilType.F32) }
+        if a.is(TilType.Bool)      { return b.is(TilType.Bool) }
+        if a.is(TilType.StructDef) { return b.is(TilType.StructDef) }
+        if a.is(TilType.EnumDef)   { return b.is(TilType.EnumDef) }
+        if a.is(TilType.FuncDef)   { return b.is(TilType.FuncDef) }
+        if a.is(TilType.FuncPtr)   { return b.is(TilType.FuncPtr) }
+        if a.is(TilType.Dynamic)   { return b.is(TilType.Dynamic) }
+        return false
+    }
 }
 
 til_type_name_c := func(t: TilType) returns Str {

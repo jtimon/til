@@ -1118,11 +1118,14 @@ register_type_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
                 ab.alias_target = target.alias_target
             }
         case:
-            // Target not in scope yet. Only register when the target name is a
-            // builtin primitive (e.g. `USize := U32` declared above u32.til's
-            // import). User-defined types and value bindings are left to the
-            // existing path so we don't accidentally treat a value alias like
-            // `ref x : T = some_local` as a type alias. #165.
+            // Target not in scope yet. Only register when the target name
+            // is a builtin primitive (e.g. `USize := U32` declared above
+            // u32.til's import). Extending this to user-defined types
+            // (Custom) is unsafe because we cannot tell at this point
+            // whether the target is a type, a value, or an ALL_CAPS
+            // constant (CamelCase heuristic doesn't work). The Found
+            // arm above handles user-defined types when the target file
+            // was already init'd. #165.
             til_type := til_type_from_explicit_type(target_name)
             if til_type.is(TilType.Unknown) { return }
             if til_type.is(TilType.Custom) { return }
@@ -1245,7 +1248,10 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
             ft := fdef.func_type
             mut rt := TilType.None
             if fdef.return_type.len().gt(0) {
-                rt = type_from_name_init(fdef.return_type, scope)
+                // #165 step 1: scope-free. Custom(name) for user types;
+                // normalize_scope_bindings (called after init) resolves
+                // these to Struct/Enum once scope is populated.
+                rt = til_type_from_explicit_type(fdef.return_type)
             }
             scope.set(sdecl.name, rt, ft, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
@@ -2008,7 +2014,9 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
     switch stmt.node_type {
     case NodeType.Decl(dd):
         if dd.explicit_type.len().gt(0) {
-            out_type = type_from_name_init(dd.explicit_type, scope)
+            // #165 step 1: scope-free. normalize_scope_bindings resolves
+            // any Custom(name) it produces after init has finished.
+            out_type = til_type_from_explicit_type(dd.explicit_type)
             return out_type.is(TilType.Unknown).not()
         }
     case:

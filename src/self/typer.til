@@ -3045,6 +3045,31 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
 }
 
 // Type-check a single file unit. Caller must have registered a mode for path.
+// #165 step 1: post-init normalization sweep.
+//
+// Initer's registration helpers store user-defined-type names as
+// ~TilType.Custom(name)~ via the scope-free ~til_type_from_explicit_type~,
+// so they don't have to read scope. This sweep -- run after every file's
+// init has completed but before type_check -- walks the global bindings
+// and replaces ~Custom(name)~ with ~Struct(name)~ or ~Enum(name)~ when
+// the name resolves to a real struct/enum. Bindings whose type does
+// not resolve are left as ~Custom~ and surface as undefined-symbol
+// errors during type_check (same as today).
+normalize_scope_bindings := func(scope: TypeScope) {
+    for bi in 0..scope.bindings.len() {
+        ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+        if b.type.is(TilType.Custom).not() { continue }
+        ref name : Str = get_payload(b.type)
+        ref sdef : Expr = scope.get_struct(name)
+        if is_null(sdef) { continue }
+        if sdef.node_type.is(NodeType.EnumDef) {
+            b.type = TilType.Enum(name.clone())
+        } else {
+            b.type = TilType.Struct(name.clone())
+        }
+    }
+}
+
 type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
     errors = 0.to_i32()
     context_enter_file(ctx, path)
@@ -3422,6 +3447,13 @@ type_prefix := func(t: TilType) returns Str {
         if s.len().gt(0) { return s.clone() }
         return "compound"
     case TilType.Enum(s):
+        if s.len().gt(0) { return s.clone() }
+        return "compound"
+    case TilType.Custom(s):
+        // #165 step 1: Custom(name) is the unresolved form of
+        // Struct(name)/Enum(name). Treat them the same here so type
+        // comparisons (e.g. argument-type checks) see a consistent
+        // prefix string.
         if s.len().gt(0) { return s.clone() }
         return "compound"
     case: return "v"
