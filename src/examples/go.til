@@ -20,6 +20,24 @@ BOARD_R := 220
 BOARD_G := 179
 BOARD_B := 92
 
+// Header buttons (radio + restart) layout
+RADIO_Y := 15
+BTN_H := 30
+BTN_PAD_X := 10
+BTN_PAD_Y := 5
+COLOR_BTN_W := 60
+MODE_BTN_W := 40
+SIZE_BTN_W := 60
+RESTART_BTN_W := 90
+COLOR_X := 10
+MODE_X := 140
+SIZE_X := 230
+RESTART_X := 420
+
+COLOR_LABELS := array("Str", "White", "Black")
+MODE_LABELS := array("Str", "1P", "2P")
+SIZE_LABELS := array("Str", "9x9", "13x13", "19x19")
+
 // Copy board
 copy_board := func(mut dst: Array, mut src: Array, total: I64) {
     mut i := 0
@@ -563,10 +581,19 @@ main := proc() {
     mut lib_seen := Array.new("I64", 8, MAX_CELLS.to_u32())
     mut stk := Vec.new("I64", 8)
 
+    // Radio button state (only applied on restart / initial start)
+    mut sel_color := 1   // 0=white, 1=black (default black for go)
+    mut sel_2p := 0      // 0=1P, 1=2P
+    mut sel_size := 2    // 0=9x9, 1=13x13, 2=19x19
+
+    // Active game settings (set on restart/init from radio state)
+    mut human_color := 1  // 1=black, 2=white
+    mut ai_color := 2
+    mut vs_ai := 2        // 1=2P, 2=AI
+    mut board_size := 19
+
     // Game state
-    mut board_size := 0
-    mut vs_ai := 0
-    mut turn := 1
+    mut turn := 1         // 1=black, 2=white (black always moves first in go)
     mut pass_count := 0
     mut game_over := false
     mut black_caps := 0
@@ -578,31 +605,50 @@ main := proc() {
     mut has_ko := false
     mut move_num := 0
 
+    // Initialize default game (clear arrays)
+    init_total := board_size.mul(board_size)
+    clear_arr(board, init_total)
+    clear_arr(ko_board, init_total)
+
     while window_should_close().not() {
-        // --- SIZE MENU ---
-        if board_size.eq(0) {
-            if is_key_pressed(57) { board_size = 9 }
-            if is_key_pressed(51) { board_size = 13 }
-            if is_key_pressed(49) { board_size = 19 }
-
-            begin_drawing()
-            clear_background(30, 30, 30, 255)
-            draw_text("GO / WEIQI / BADUK", WINDOW_WIDTH.div(2).sub(180), 150, FONT_LG, 255, 255, 255, 255)
-            draw_text("press 9:  9x9  board", WINDOW_WIDTH.div(2).sub(110), 260, FONT_SZ, 200, 200, 200, 255)
-            draw_text("press 3:  13x13 board", WINDOW_WIDTH.div(2).sub(116), 300, FONT_SZ, 200, 200, 200, 255)
-            draw_text("press 1:  19x19 board", WINDOW_WIDTH.div(2).sub(116), 340, FONT_SZ, 200, 200, 200, 255)
-            end_drawing()
-        } else {
-            if vs_ai.eq(0) {
-                // --- MODE MENU ---
-                if is_key_pressed(49) { vs_ai = 1 }
-                if is_key_pressed(50) { vs_ai = 2 }
-
-                if vs_ai.gt(0) {
-                    // Initialize board
-                    total := board_size.mul(board_size)
-                    clear_arr(board, total)
-                    clear_arr(ko_board, total)
+        // --- INPUT: radio buttons & restart ---
+        if is_mouse_button_pressed(0) {
+            raw_mx := get_mouse_x()
+            raw_my := get_mouse_y()
+            if raw_my.gte(RADIO_Y).and(raw_my.lt(RADIO_Y.add(BTN_H))) {
+                // Color radio (White / Black)
+                if raw_mx.gte(COLOR_X).and(raw_mx.lt(COLOR_X.add(COLOR_BTN_W.mul(2)))) {
+                    sel_color = raw_mx.sub(COLOR_X).div(COLOR_BTN_W)
+                }
+                // Mode radio (1P / 2P)
+                if raw_mx.gte(MODE_X).and(raw_mx.lt(MODE_X.add(MODE_BTN_W.mul(2)))) {
+                    sel_2p = raw_mx.sub(MODE_X).div(MODE_BTN_W)
+                }
+                // Size radio (9x9 / 13x13 / 19x19)
+                if raw_mx.gte(SIZE_X).and(raw_mx.lt(SIZE_X.add(SIZE_BTN_W.mul(3)))) {
+                    sel_size = raw_mx.sub(SIZE_X).div(SIZE_BTN_W)
+                }
+                // Restart button: apply radio settings + reset board
+                if raw_mx.gte(RESTART_X).and(raw_mx.lt(RESTART_X.add(RESTART_BTN_W))) {
+                    if sel_color.eq(0) {
+                        human_color = 2
+                    } else {
+                        human_color = 1
+                    }
+                    ai_color = 3.sub(human_color)
+                    if sel_2p.eq(0) { vs_ai = 2 } else { vs_ai = 1 }
+                    if sel_size.eq(0) {
+                        board_size = 9
+                    } else {
+                        if sel_size.eq(1) {
+                            board_size = 13
+                        } else {
+                            board_size = 19
+                        }
+                    }
+                    rt := board_size.mul(board_size)
+                    clear_arr(board, rt)
+                    clear_arr(ko_board, rt)
                     turn = 1
                     pass_count = 0
                     game_over = false
@@ -615,311 +661,348 @@ main := proc() {
                     has_ko = false
                     move_num = 0
                 }
-
-                begin_drawing()
-                clear_background(30, 30, 30, 255)
-                draw_text(format(board_size.to_str(), "x", board_size.to_str()), WINDOW_WIDTH.div(2).sub(40), 200, FONT_LG, 255, 255, 255, 255)
-                draw_text("press 1: two players", WINDOW_WIDTH.div(2).sub(110), 300, FONT_SZ, 200, 200, 200, 255)
-                draw_text("press 2: vs computer (you=black)", WINDOW_WIDTH.div(2).sub(170), 340, FONT_SZ, 200, 200, 200, 255)
-                end_drawing()
-            } else {
-                // --- GAME ---
-                total := board_size.mul(board_size)
-                margin := 40
-                cell_size := WINDOW_WIDTH.sub(margin.mul(2)).div(board_size.sub(1))
-                board_px := margin
-                board_py := 60
-                stone_r := cell_size.mul(4).div(10)
-
-                // Restart
-                if is_key_pressed(82) {
-                    board_size = 0
-                    vs_ai = 0
-                }
-
-                // AI move (alpha-beta search)
-                if vs_ai.eq(2).and(turn.eq(2)).and(game_over.not()) {
-                    ai_timer = ai_timer.add(1)
-                    if ai_timer.gt(20) {
-                        ai_timer = 0
-
-                        // Try each empty intersection, evaluate with alpha-beta
-                        mut best_move := -1
-                        mut best_score := 0.sub(AB_INF)
-                        mut ai_moved := false
-
-                        mut sq := 0
-                        while sq.lt(total) {
-                            ref ap : I64 = board.get(sq.to_u32())
-                            if ap.eq(0) {
-                                copy_board(tmp_board, board, total)
-                                cap := try_place(tmp_board, visited, lib_seen, stk, sq, board_size, 2, ko_board, has_ko)
-                                if cap.gte(0) {
-                                    mut child_b := Board()
-                                    go_pack(child_b, tmp_board, 1, board_size, board, true)
-                                    score := 0.sub(ai.search(child_b))
-                                    if score.gt(best_score).or(best_move.lt(0)) {
-                                        best_score = score
-                                        best_move = sq
-                                    }
-                                    ai_moved = true
-                                }
-                            }
-                            sq = sq.add(1)
-                        }
-
-                        if ai_moved {
-                            // Play the best move
-                            copy_board(tmp_board, board, total)
-                            cap := try_place(tmp_board, visited, lib_seen, stk, best_move, board_size, 2, ko_board, has_ko)
-                            copy_board(ko_board, board, total)
-                            copy_board(board, tmp_board, total)
-                            has_ko = true
-                            white_caps = white_caps.add(cap)
-                            last_move = best_move
-                            pass_count = 0
-                            turn = 1
-                            move_num = move_num.add(1)
-                        } else {
-                            // AI passes
-                            pass_count = pass_count.add(1)
-                            has_ko = false
-                            last_move = -1
-                            turn = 1
-                            if pass_count.gte(2) {
-                                game_over = true
-                                scores := score_game(board, visited, stk, board_size)
-                                black_score = scores.div(10000)
-                                white_score = scores.mod(10000)
-                            }
-                        }
-                    }
-                }
-
-                // Human input
-                if game_over.not() {
-                    mut is_human := true
-                    if vs_ai.eq(2).and(turn.eq(2)) { is_human = false }
-
-                    if is_human {
-                        // Pass with P
-                        if is_key_pressed(80) {
-                            pass_count = pass_count.add(1)
-                            has_ko = false
-                            last_move = -1
-                            if turn.eq(1) { turn = 2 } else { turn = 1 }
-                            if pass_count.gte(2) {
-                                game_over = true
-                                scores := score_game(board, visited, stk, board_size)
-                                black_score = scores.div(10000)
-                                white_score = scores.mod(10000)
-                            }
-                        }
-
-                        // Click to place
-                        if is_mouse_button_pressed(0) {
-                            mx := get_mouse_x().sub(board_px)
-                            my := get_mouse_y().sub(board_py)
-                            half := cell_size.div(2)
-                            col := mx.add(half).div(cell_size)
-                            row := my.add(half).div(cell_size)
-
-                            if row.gte(0).and(row.lt(board_size)).and(col.gte(0)).and(col.lt(board_size)) {
-                                idx := row.mul(board_size).add(col)
-                                copy_board(tmp_board, board, total)
-                                cap := try_place(tmp_board, visited, lib_seen, stk, idx, board_size, turn, ko_board, has_ko)
-                                if cap.gte(0) {
-                                    // Legal move
-                                    copy_board(ko_board, board, total)
-                                    copy_board(board, tmp_board, total)
-                                    has_ko = true
-                                    if turn.eq(1) {
-                                        black_caps = black_caps.add(cap)
-                                    } else {
-                                        white_caps = white_caps.add(cap)
-                                    }
-                                    last_move = idx
-                                    pass_count = 0
-                                    move_num = move_num.add(1)
-                                    if turn.eq(1) { turn = 2 } else { turn = 1 }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // --- DRAW ---
-                begin_drawing()
-                clear_background(30, 30, 30, 255)
-
-                // Board background
-                grid_span := cell_size.mul(board_size.sub(1))
-                draw_rectangle(board_px.sub(margin.div(2)), board_py.sub(margin.div(2)),
-                               grid_span.add(margin), grid_span.add(margin),
-                               BOARD_R, BOARD_G, BOARD_B, 255)
-
-                // Grid lines
-                mut gi := 0
-                while gi.lt(board_size) {
-                    // Horizontal
-                    hy := board_py.add(gi.mul(cell_size))
-                    draw_rectangle(board_px, hy, grid_span, 1, 40, 30, 10, 255)
-                    // Vertical
-                    vx := board_px.add(gi.mul(cell_size))
-                    draw_rectangle(vx, board_py, 1, grid_span, 40, 30, 10, 255)
-                    gi = gi.add(1)
-                }
-
-                // Star points (hoshi)
-                if board_size.eq(9) {
-                    HOSHI := array("I64", 2, 2, 2, 6, 4, 4, 6, 2, 6, 6)
-                    mut hi := 0
-                    while hi.lt(10) {
-                        ref hr : I64 = HOSHI.get(hi.to_u32())
-                        ref hc : I64 = HOSHI.get(hi.add(1).to_u32())
-                        draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
-                        hi = hi.add(2)
-                    }
-                }
-                if board_size.eq(13) {
-                    HOSHI := array("I64", 3, 3, 3, 9, 6, 6, 9, 3, 9, 9)
-                    mut hi := 0
-                    while hi.lt(10) {
-                        ref hr : I64 = HOSHI.get(hi.to_u32())
-                        ref hc : I64 = HOSHI.get(hi.add(1).to_u32())
-                        draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
-                        hi = hi.add(2)
-                    }
-                }
-                if board_size.eq(19) {
-                    HOSHI := array("I64", 3, 3, 3, 9, 3, 15, 9, 3, 9, 9, 9, 15, 15, 3, 15, 9, 15, 15)
-                    mut hi := 0
-                    while hi.lt(18) {
-                        ref hr : I64 = HOSHI.get(hi.to_u32())
-                        ref hc : I64 = HOSHI.get(hi.add(1).to_u32())
-                        draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
-                        hi = hi.add(2)
-                    }
-                }
-
-                // Coordinate labels
-                COL_LABELS := array("Str", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")
-                mut ci := 0
-                while ci.lt(board_size) {
-                    ref cl : Str = COL_LABELS.get(ci.to_u32())
-                    lx := board_px.add(ci.mul(cell_size)).sub(4)
-                    // Top
-                    draw_text(cl, lx, board_py.sub(margin.div(2)).sub(6), 14, 80, 60, 30, 255)
-                    // Bottom
-                    draw_text(cl, lx, board_py.add(grid_span).add(margin.div(2)).sub(6), 14, 80, 60, 30, 255)
-                    // Row number (Go counts from bottom)
-                    row_num := board_size.sub(ci).to_str()
-                    ry := board_py.add(ci.mul(cell_size)).sub(6)
-                    draw_text(row_num, board_px.sub(margin.div(2)).sub(10), ry, 14, 80, 60, 30, 255)
-                    draw_text(row_num, board_px.add(grid_span).add(margin.div(2)).sub(4), ry, 14, 80, 60, 30, 255)
-                    ci = ci.add(1)
-                }
-
-                // Stones
-                mut si := 0
-                while si.lt(total) {
-                    ref sp : I64 = board.get(si.to_u32())
-                    if sp.neq(0) {
-                        sr := si.div(board_size)
-                        sc := si.mod(board_size)
-                        sx := board_px.add(sc.mul(cell_size))
-                        sy := board_py.add(sr.mul(cell_size))
-
-                        if sp.eq(1) {
-                            draw_circle(sx, sy, stone_r, 10, 10, 10, 255)
-                            draw_circle(sx.sub(stone_r.div(4)), sy.sub(stone_r.div(4)), stone_r.div(3), 60, 60, 60, 120)
-                        } else {
-                            draw_circle(sx, sy, stone_r, 230, 230, 230, 255)
-                            draw_circle(sx.sub(stone_r.div(4)), sy.sub(stone_r.div(4)), stone_r.div(3), 255, 255, 255, 120)
-                        }
-
-                        // Mark last move
-                        if si.eq(last_move) {
-                            if sp.eq(1) {
-                                draw_circle(sx, sy, 4, 255, 255, 255, 255)
-                            } else {
-                                draw_circle(sx, sy, 4, 10, 10, 10, 255)
-                            }
-                        }
-                    }
-                    si = si.add(1)
-                }
-
-                // Hover indicator
-                if game_over.not() {
-                    mut show_hover := true
-                    if vs_ai.eq(2).and(turn.eq(2)) { show_hover = false }
-                    if show_hover {
-                        mx := get_mouse_x().sub(board_px)
-                        my := get_mouse_y().sub(board_py)
-                        half := cell_size.div(2)
-                        hcol := mx.add(half).div(cell_size)
-                        hrow := my.add(half).div(cell_size)
-                        if hrow.gte(0).and(hrow.lt(board_size)).and(hcol.gte(0)).and(hcol.lt(board_size)) {
-                            hidx := hrow.mul(board_size).add(hcol)
-                            ref hp : I64 = board.get(hidx.to_u32())
-                            if hp.eq(0) {
-                                hx := board_px.add(hcol.mul(cell_size))
-                                hy := board_py.add(hrow.mul(cell_size))
-                                if turn.eq(1) {
-                                    draw_circle(hx, hy, stone_r, 30, 30, 30, 100)
-                                } else {
-                                    draw_circle(hx, hy, stone_r, 220, 220, 220, 100)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Status bar
-                status_y := board_py.add(grid_span).add(margin).add(10)
-
-                if game_over {
-                    // Komi: 6.5 points for white
-                    bsx10 := black_score.mul(10)
-                    wsx10 := white_score.mul(10).add(65)
-                    bs_str := format("Black: ", black_score.to_str(), ".0")
-                    ws_int := wsx10.div(10)
-                    ws_frac := wsx10.mod(10)
-                    ws_str := format("  White: ", ws_int.to_str(), ".", ws_frac.to_str(), " (komi 6.5)")
-                    draw_text(bs_str, 10, status_y, FONT_SZ, 255, 255, 255, 255)
-                    draw_text(ws_str, 160, status_y, FONT_SZ, 200, 200, 200, 255)
-                    if bsx10.gt(wsx10) {
-                        draw_text("Black wins!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
-                    } else {
-                        if bsx10.eq(wsx10) {
-                            draw_text("Draw!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
-                        } else {
-                            draw_text("White wins!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
-                        }
-                    }
-                } else {
-                    if turn.eq(1) {
-                        draw_text("Black to play", 10, status_y, FONT_SZ, 255, 255, 255, 255)
-                    } else {
-                        draw_text("White to play", 10, status_y, FONT_SZ, 200, 200, 200, 255)
-                    }
-                    cap_str := format("captures  B:", black_caps.to_str(), "  W:", white_caps.to_str(), "  move:", move_num.to_str())
-                    draw_text(cap_str, 10, status_y.add(25), 16, 150, 150, 150, 255)
-                }
-
-                draw_text("P=pass  R=menu", WINDOW_WIDTH.sub(170), status_y, 16, 100, 100, 100, 255)
-
-                if vs_ai.eq(1) {
-                    draw_text("2 players", WINDOW_WIDTH.sub(120), 10, 16, 100, 100, 100, 255)
-                } else {
-                    draw_text("vs computer", WINDOW_WIDTH.sub(130), 10, 16, 100, 100, 100, 255)
-                }
-                draw_text(format(board_size.to_str(), "x", board_size.to_str()), WINDOW_WIDTH.sub(130), 30, 16, 100, 100, 100, 255)
-
-                end_drawing()
             }
         }
+
+        // --- LAYOUT (depends on board_size, recomputed after possible restart) ---
+        total := board_size.mul(board_size)
+        margin := 40
+        cell_size := WINDOW_WIDTH.sub(margin.mul(2)).div(board_size.sub(1))
+        board_px := margin
+        board_py := 60
+        stone_r := cell_size.mul(4).div(10)
+
+        // --- AI MOVE (alpha-beta search) ---
+        if vs_ai.eq(2).and(turn.eq(ai_color)).and(game_over.not()) {
+            ai_timer = ai_timer.add(1)
+            if ai_timer.gt(20) {
+                ai_timer = 0
+
+                mut best_move := -1
+                mut best_score := 0.sub(AB_INF)
+                mut ai_moved := false
+
+                mut sq := 0
+                while sq.lt(total) {
+                    ref ap : I64 = board.get(sq.to_u32())
+                    if ap.eq(0) {
+                        copy_board(tmp_board, board, total)
+                        cap := try_place(tmp_board, visited, lib_seen, stk, sq, board_size, ai_color, ko_board, has_ko)
+                        if cap.gte(0) {
+                            mut child_b := Board()
+                            go_pack(child_b, tmp_board, human_color, board_size, board, true)
+                            score := 0.sub(ai.search(child_b))
+                            if score.gt(best_score).or(best_move.lt(0)) {
+                                best_score = score
+                                best_move = sq
+                            }
+                            ai_moved = true
+                        }
+                    }
+                    sq = sq.add(1)
+                }
+
+                if ai_moved {
+                    copy_board(tmp_board, board, total)
+                    cap := try_place(tmp_board, visited, lib_seen, stk, best_move, board_size, ai_color, ko_board, has_ko)
+                    copy_board(ko_board, board, total)
+                    copy_board(board, tmp_board, total)
+                    has_ko = true
+                    if ai_color.eq(1) {
+                        black_caps = black_caps.add(cap)
+                    } else {
+                        white_caps = white_caps.add(cap)
+                    }
+                    last_move = best_move
+                    pass_count = 0
+                    turn = human_color
+                    move_num = move_num.add(1)
+                } else {
+                    // AI passes
+                    pass_count = pass_count.add(1)
+                    has_ko = false
+                    last_move = -1
+                    turn = human_color
+                    if pass_count.gte(2) {
+                        game_over = true
+                        scores := score_game(board, visited, stk, board_size)
+                        black_score = scores.div(10000)
+                        white_score = scores.mod(10000)
+                    }
+                }
+            }
+        }
+
+        // --- HUMAN INPUT ---
+        if game_over.not() {
+            mut is_human := true
+            if vs_ai.eq(2).and(turn.eq(ai_color)) { is_human = false }
+
+            if is_human {
+                // Pass with P
+                if is_key_pressed(80) {
+                    pass_count = pass_count.add(1)
+                    has_ko = false
+                    last_move = -1
+                    if turn.eq(1) { turn = 2 } else { turn = 1 }
+                    if pass_count.gte(2) {
+                        game_over = true
+                        scores := score_game(board, visited, stk, board_size)
+                        black_score = scores.div(10000)
+                        white_score = scores.mod(10000)
+                    }
+                }
+
+                // Click to place (board area only, not radio row)
+                if is_mouse_button_pressed(0) {
+                    raw_my := get_mouse_y()
+                    if raw_my.gte(board_py) {
+                        mx := get_mouse_x().sub(board_px)
+                        my := raw_my.sub(board_py)
+                        half := cell_size.div(2)
+                        col := mx.add(half).div(cell_size)
+                        row := my.add(half).div(cell_size)
+
+                        if row.gte(0).and(row.lt(board_size)).and(col.gte(0)).and(col.lt(board_size)) {
+                            idx := row.mul(board_size).add(col)
+                            copy_board(tmp_board, board, total)
+                            cap := try_place(tmp_board, visited, lib_seen, stk, idx, board_size, turn, ko_board, has_ko)
+                            if cap.gte(0) {
+                                copy_board(ko_board, board, total)
+                                copy_board(board, tmp_board, total)
+                                has_ko = true
+                                if turn.eq(1) {
+                                    black_caps = black_caps.add(cap)
+                                } else {
+                                    white_caps = white_caps.add(cap)
+                                }
+                                last_move = idx
+                                pass_count = 0
+                                move_num = move_num.add(1)
+                                if turn.eq(1) { turn = 2 } else { turn = 1 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- DRAW ---
+        begin_drawing()
+        clear_background(30, 30, 30, 255)
+
+        // Board background
+        grid_span := cell_size.mul(board_size.sub(1))
+        draw_rectangle(board_px.sub(margin.div(2)), board_py.sub(margin.div(2)),
+                       grid_span.add(margin), grid_span.add(margin),
+                       BOARD_R, BOARD_G, BOARD_B, 255)
+
+        // Grid lines
+        mut gi := 0
+        while gi.lt(board_size) {
+            hy := board_py.add(gi.mul(cell_size))
+            draw_rectangle(board_px, hy, grid_span, 1, 40, 30, 10, 255)
+            vx := board_px.add(gi.mul(cell_size))
+            draw_rectangle(vx, board_py, 1, grid_span, 40, 30, 10, 255)
+            gi = gi.add(1)
+        }
+
+        // Star points (hoshi)
+        if board_size.eq(9) {
+            HOSHI := array("I64", 2, 2, 2, 6, 4, 4, 6, 2, 6, 6)
+            mut hi := 0
+            while hi.lt(10) {
+                ref hr : I64 = HOSHI.get(hi.to_u32())
+                ref hc : I64 = HOSHI.get(hi.add(1).to_u32())
+                draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
+                hi = hi.add(2)
+            }
+        }
+        if board_size.eq(13) {
+            HOSHI := array("I64", 3, 3, 3, 9, 6, 6, 9, 3, 9, 9)
+            mut hi := 0
+            while hi.lt(10) {
+                ref hr : I64 = HOSHI.get(hi.to_u32())
+                ref hc : I64 = HOSHI.get(hi.add(1).to_u32())
+                draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
+                hi = hi.add(2)
+            }
+        }
+        if board_size.eq(19) {
+            HOSHI := array("I64", 3, 3, 3, 9, 3, 15, 9, 3, 9, 9, 9, 15, 15, 3, 15, 9, 15, 15)
+            mut hi := 0
+            while hi.lt(18) {
+                ref hr : I64 = HOSHI.get(hi.to_u32())
+                ref hc : I64 = HOSHI.get(hi.add(1).to_u32())
+                draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
+                hi = hi.add(2)
+            }
+        }
+
+        // Coordinate labels
+        COL_LABELS := array("Str", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")
+        mut ci := 0
+        while ci.lt(board_size) {
+            ref cl : Str = COL_LABELS.get(ci.to_u32())
+            lx := board_px.add(ci.mul(cell_size)).sub(4)
+            draw_text(cl, lx, board_py.sub(margin.div(2)).sub(6), 14, 80, 60, 30, 255)
+            draw_text(cl, lx, board_py.add(grid_span).add(margin.div(2)).sub(6), 14, 80, 60, 30, 255)
+            row_num := board_size.sub(ci).to_str()
+            ry := board_py.add(ci.mul(cell_size)).sub(6)
+            draw_text(row_num, board_px.sub(margin.div(2)).sub(10), ry, 14, 80, 60, 30, 255)
+            draw_text(row_num, board_px.add(grid_span).add(margin.div(2)).sub(4), ry, 14, 80, 60, 30, 255)
+            ci = ci.add(1)
+        }
+
+        // Stones
+        mut si := 0
+        while si.lt(total) {
+            ref sp : I64 = board.get(si.to_u32())
+            if sp.neq(0) {
+                sr := si.div(board_size)
+                sc := si.mod(board_size)
+                sx := board_px.add(sc.mul(cell_size))
+                sy := board_py.add(sr.mul(cell_size))
+
+                if sp.eq(1) {
+                    draw_circle(sx, sy, stone_r, 10, 10, 10, 255)
+                    draw_circle(sx.sub(stone_r.div(4)), sy.sub(stone_r.div(4)), stone_r.div(3), 60, 60, 60, 120)
+                } else {
+                    draw_circle(sx, sy, stone_r, 230, 230, 230, 255)
+                    draw_circle(sx.sub(stone_r.div(4)), sy.sub(stone_r.div(4)), stone_r.div(3), 255, 255, 255, 120)
+                }
+
+                if si.eq(last_move) {
+                    if sp.eq(1) {
+                        draw_circle(sx, sy, 4, 255, 255, 255, 255)
+                    } else {
+                        draw_circle(sx, sy, 4, 10, 10, 10, 255)
+                    }
+                }
+            }
+            si = si.add(1)
+        }
+
+        // Hover indicator
+        if game_over.not() {
+            mut show_hover := true
+            if vs_ai.eq(2).and(turn.eq(ai_color)) { show_hover = false }
+            if show_hover {
+                raw_my := get_mouse_y()
+                if raw_my.gte(board_py) {
+                    mx := get_mouse_x().sub(board_px)
+                    my := raw_my.sub(board_py)
+                    half := cell_size.div(2)
+                    hcol := mx.add(half).div(cell_size)
+                    hrow := my.add(half).div(cell_size)
+                    if hrow.gte(0).and(hrow.lt(board_size)).and(hcol.gte(0)).and(hcol.lt(board_size)) {
+                        hidx := hrow.mul(board_size).add(hcol)
+                        ref hp : I64 = board.get(hidx.to_u32())
+                        if hp.eq(0) {
+                            hx := board_px.add(hcol.mul(cell_size))
+                            hy := board_py.add(hrow.mul(cell_size))
+                            if turn.eq(1) {
+                                draw_circle(hx, hy, stone_r, 30, 30, 30, 100)
+                            } else {
+                                draw_circle(hx, hy, stone_r, 220, 220, 220, 100)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- HEADER BUTTONS: color radio + mode radio + size radio + restart ---
+        // Color radio
+        mut bi := 0
+        while bi.lt(2) {
+            cx := COLOR_X.add(bi.mul(COLOR_BTN_W))
+            mut br := 40
+            mut bg := 40
+            mut bb := 40
+            if bi.eq(sel_color) {
+                br = 0
+                bg = 150
+                bb = 155
+            }
+            draw_rectangle(cx, RADIO_Y, COLOR_BTN_W.sub(2), BTN_H.sub(2), br, bg, bb, 255)
+            ref clabel : Str = COLOR_LABELS.get(bi.to_u32())
+            draw_text(clabel, cx.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
+            bi = bi.add(1)
+        }
+        // Mode radio
+        bi = 0
+        while bi.lt(2) {
+            mxp := MODE_X.add(bi.mul(MODE_BTN_W))
+            mut mr := 40
+            mut mg := 40
+            mut mb := 40
+            if bi.eq(sel_2p) {
+                mr = 0
+                mg = 150
+                mb = 155
+            }
+            draw_rectangle(mxp, RADIO_Y, MODE_BTN_W.sub(2), BTN_H.sub(2), mr, mg, mb, 255)
+            ref mlabel : Str = MODE_LABELS.get(bi.to_u32())
+            draw_text(mlabel, mxp.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
+            bi = bi.add(1)
+        }
+        // Size radio
+        bi = 0
+        while bi.lt(3) {
+            sxp := SIZE_X.add(bi.mul(SIZE_BTN_W))
+            mut sr := 40
+            mut sg := 40
+            mut sb := 40
+            if bi.eq(sel_size) {
+                sr = 0
+                sg = 150
+                sb = 155
+            }
+            draw_rectangle(sxp, RADIO_Y, SIZE_BTN_W.sub(2), BTN_H.sub(2), sr, sg, sb, 255)
+            ref slabel : Str = SIZE_LABELS.get(bi.to_u32())
+            draw_text(slabel, sxp.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
+            bi = bi.add(1)
+        }
+        // Restart button (always-on color, distinct from radios)
+        draw_rectangle(RESTART_X, RADIO_Y, RESTART_BTN_W.sub(2), BTN_H.sub(2), 130, 70, 30, 255)
+        draw_text("Restart", RESTART_X.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 240, 240, 240, 255)
+
+        // Status bar
+        status_y := board_py.add(grid_span).add(margin).add(10)
+
+        if game_over {
+            // Komi: 6.5 points for white
+            bsx10 := black_score.mul(10)
+            wsx10 := white_score.mul(10).add(65)
+            bs_str := format("Black: ", black_score.to_str(), ".0")
+            ws_int := wsx10.div(10)
+            ws_frac := wsx10.mod(10)
+            ws_str := format("  White: ", ws_int.to_str(), ".", ws_frac.to_str(), " (komi 6.5)")
+            draw_text(bs_str, 10, status_y, FONT_SZ, 255, 255, 255, 255)
+            draw_text(ws_str, 160, status_y, FONT_SZ, 200, 200, 200, 255)
+            if bsx10.gt(wsx10) {
+                draw_text("Black wins!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
+            } else {
+                if bsx10.eq(wsx10) {
+                    draw_text("Draw!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
+                } else {
+                    draw_text("White wins!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
+                }
+            }
+        } else {
+            if turn.eq(1) {
+                draw_text("Black to play", 10, status_y, FONT_SZ, 255, 255, 255, 255)
+            } else {
+                draw_text("White to play", 10, status_y, FONT_SZ, 200, 200, 200, 255)
+            }
+            cap_str := format("captures  B:", black_caps.to_str(), "  W:", white_caps.to_str(), "  move:", move_num.to_str())
+            draw_text(cap_str, 10, status_y.add(25), 16, 150, 150, 150, 255)
+        }
+
+        draw_text("P=pass", WINDOW_WIDTH.sub(80), status_y, 16, 100, 100, 100, 255)
+
+        end_drawing()
     }
 
     close_window()

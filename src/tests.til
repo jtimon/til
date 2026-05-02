@@ -509,6 +509,7 @@ main := proc(args: ..Str) {
     // === build tests (build + run with timeout) ===
     if en_gui.eq(1) {
         gui_files := array("Str",
+            "src/examples/checkers.til",
             "src/examples/chess.til",
             "src/examples/editor.til",
             "src/examples/font_test.til",

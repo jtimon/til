@@ -14,6 +14,21 @@ BOARD_Y := 80
 FONT_SZ := 20
 FONT_LG := 40
 
+// Header buttons (radio + restart) layout
+RADIO_Y := 40
+BTN_H := 30
+BTN_PAD_X := 10
+BTN_PAD_Y := 5
+COLOR_BTN_W := 70
+MODE_BTN_W := 45
+RESTART_BTN_W := 90
+COLOR_X := 10
+MODE_X := 160
+RESTART_X := 260
+
+COLOR_LABELS := array("Str", "White", "Black")
+MODE_LABELS := array("Str", "1P", "2P")
+
 // Piece encoding: 0=empty
 // White: 1=pawn 2=knight 3=bishop 4=rook 5=queen 6=king
 // Black: 7=pawn 8=knight 9=bishop 10=rook 11=queen 12=king
@@ -715,16 +730,24 @@ main := proc() {
     // Castle flags: [wk, wra, wrh, bk, bra, brh] (0=not moved, 1=moved)
     mut castle_flags := Array.new("I64", 8, 6)
 
+    // Radio button state (only applied on restart / initial start)
+    mut sel_color := 0  // 0=white, 1=black (human's side in 1P)
+    mut sel_2p := 0     // 0=1P, 1=2P
+
+    // Active game settings (set on restart/init from radio state)
+    mut human_side := 0
+    mut ai_side := 1
+    mut vs_ai := 2      // 1=2P, 2=vs AI
+
     // Game state
     mut turn := 0       // 0=white, 1=black
     mut selected := -1 // selected square index (-1 = none)
     mut game_over := 0  // 0=playing, 1=checkmate, 2=stalemate
     mut winner := -1
     mut ep_col := -1   // en passant target column (-1 = none)
-    mut vs_ai := 0      // 0=menu, 1=two player, 2=vs AI (player is white)
     mut ai_timer := 0
 
-    // Initialize board
+    // Initialize board with defaults
     mut i := 0
     while i.lt(64) {
         ref init_p : I64 = INIT_BOARD.get(i.to_u32())
@@ -738,143 +761,140 @@ main := proc() {
     }
 
     while window_should_close().not() {
-        // --- MENU MODE ---
-        if vs_ai.eq(0) {
-            if is_key_pressed(49) {
-                // 1 = Two Players
-                vs_ai = 1
-            }
-            if is_key_pressed(50) {
-                // 2 = vs AI
-                vs_ai = 2
-            }
-
-            begin_drawing()
-            clear_background(30, 30, 30, 255)
-            draw_text("CHESS", WINDOW_WIDTH.div(2).sub(60), 200, FONT_LG, 255, 255, 255, 255)
-            draw_text("press 1: two players", WINDOW_WIDTH.div(2).sub(110), 300, FONT_SZ, 200, 200, 200, 255)
-            draw_text("press 2: vs computer", WINDOW_WIDTH.div(2).sub(110), 340, FONT_SZ, 200, 200, 200, 255)
-            end_drawing()
-        } else {
-            // --- GAME MODE ---
-
-            // Restart
-            if is_key_pressed(82) {
-                // R = restart to menu
-                i = 0
-                while i.lt(64) {
-                    ref init_p : I64 = INIT_BOARD.get(i.to_u32())
-                    board.set(i.to_u32(), own init_p.clone())
-                    i = i.add(1)
+        // --- INPUT: radio buttons & restart ---
+        if is_mouse_button_pressed(0) {
+            raw_mx := get_mouse_x()
+            raw_my := get_mouse_y()
+            if raw_my.gte(RADIO_Y).and(raw_my.lt(RADIO_Y.add(BTN_H))) {
+                // Color radio (White / Black)
+                if raw_mx.gte(COLOR_X).and(raw_mx.lt(COLOR_X.add(COLOR_BTN_W.mul(2)))) {
+                    sel_color = raw_mx.sub(COLOR_X).div(COLOR_BTN_W)
                 }
-                i = 0
-                while i.lt(6) {
-                    castle_flags.set(i.to_u32(), own 0)
-                    i = i.add(1)
+                // Mode radio (1P / 2P)
+                if raw_mx.gte(MODE_X).and(raw_mx.lt(MODE_X.add(MODE_BTN_W.mul(2)))) {
+                    sel_2p = raw_mx.sub(MODE_X).div(MODE_BTN_W)
                 }
-                turn = 0
-                selected = -1
-                valid_count = 0
-                game_over = 0
-                winner = -1
-                ep_col = -1
-                vs_ai = 0
-                ai_timer = 0
-            }
-
-            // AI move (alpha-beta search)
-            if vs_ai.eq(2).and(turn.eq(1)).and(game_over.eq(0)) {
-                ai_timer = ai_timer.add(1)
-                if ai_timer.gt(30) {
+                // Restart button: apply radio settings + reset board
+                if raw_mx.gte(RESTART_X).and(raw_mx.lt(RESTART_X.add(RESTART_BTN_W))) {
+                    human_side = sel_color
+                    ai_side = 1.sub(sel_color)
+                    if sel_2p.eq(0) { vs_ai = 2 } else { vs_ai = 1 }
+                    mut ri := 0
+                    while ri.lt(64) {
+                        ref init_p : I64 = INIT_BOARD.get(ri.to_u32())
+                        board.set(ri.to_u32(), own init_p.clone())
+                        ri = ri.add(1)
+                    }
+                    ri = 0
+                    while ri.lt(6) {
+                        castle_flags.set(ri.to_u32(), own 0)
+                        ri = ri.add(1)
+                    }
+                    turn = 0
+                    selected = -1
+                    valid_count = 0
+                    game_over = 0
+                    winner = -1
+                    ep_col = -1
                     ai_timer = 0
-                    // Collect all legal moves for black
-                    mut ai_pieces := Array.new("I64", 8, 64)
-                    mut ai_dests := Array.new("I64", 8, 64)
-                    mut ai_total := 0
-                    mut ai_moves := Array.new("I64", 8, 64)
+                }
+            }
+        }
 
-                    mut sq := 0
-                    while sq.lt(64) {
-                        ref ap : I64 = board.get(sq.to_u32())
-                        if is_black(ap) {
-                            mc := gen_moves(board, tmp_board, sq, 1, ai_moves, ep_col, castle_flags)
-                            mut mj := 0
-                            while mj.lt(mc) {
-                                ref md : I64 = ai_moves.get(mj.to_u32())
-                                ai_pieces.set(ai_total.to_u32(), own sq.clone())
-                                ai_dests.set(ai_total.to_u32(), own md.clone())
-                                ai_total = ai_total.add(1)
-                                mj = mj.add(1)
-                            }
+        // --- AI MOVE ---
+        if vs_ai.eq(2).and(turn.eq(ai_side)).and(game_over.eq(0)) {
+            ai_timer = ai_timer.add(1)
+            if ai_timer.gt(30) {
+                ai_timer = 0
+                mut ai_pieces := Array.new("I64", 8, 64)
+                mut ai_dests := Array.new("I64", 8, 64)
+                mut ai_total := 0
+                mut ai_moves := Array.new("I64", 8, 64)
+
+                mut sq := 0
+                while sq.lt(64) {
+                    ref ap : I64 = board.get(sq.to_u32())
+                    if is_side(ap, ai_side) {
+                        mc := gen_moves(board, tmp_board, sq, ai_side, ai_moves, ep_col, castle_flags)
+                        mut mj := 0
+                        while mj.lt(mc) {
+                            ref md : I64 = ai_moves.get(mj.to_u32())
+                            ai_pieces.set(ai_total.to_u32(), own sq.clone())
+                            ai_dests.set(ai_total.to_u32(), own md.clone())
+                            ai_total = ai_total.add(1)
+                            mj = mj.add(1)
                         }
-                        sq = sq.add(1)
+                    }
+                    sq = sq.add(1)
+                }
+
+                if ai_total.gt(0) {
+                    mut best_idx := 0
+                    mut best_score := 0.sub(AB_INF)
+
+                    mut mi := 0
+                    while mi.lt(ai_total) {
+                        ref from_sq : I64 = ai_pieces.get(mi.to_u32())
+                        ref to_sq : I64 = ai_dests.get(mi.to_u32())
+                        from_val := from_sq.clone()
+                        to_val := to_sq.clone()
+
+                        mut child := Array.new("I64", 8, 64)
+                        copy_board(child, board)
+                        mut child_cf := Array.new("I64", 8, 6)
+                        copy_cf(child_cf, castle_flags)
+
+                        child_ep := execute_move(child, from_val, to_val, ai_side, child_cf)
+
+                        mut child_b := Board()
+                        chess_pack(child_b, child, human_side, child_ep, child_cf)
+                        score := 0.sub(ai.search(child_b))
+
+                        if score.gt(best_score) {
+                            best_score = score
+                            best_idx = mi
+                        }
+                        mi = mi.add(1)
                     }
 
-                    if ai_total.gt(0) {
-                        mut best_idx := 0
-                        mut best_score := 0.sub(AB_INF)
+                    // Play the best move
+                    ref best_from : I64 = ai_pieces.get(best_idx.to_u32())
+                    ref best_to : I64 = ai_dests.get(best_idx.to_u32())
+                    from_val := best_from.clone()
+                    to_val := best_to.clone()
 
-                        mut mi := 0
-                        while mi.lt(ai_total) {
-                            ref from_sq : I64 = ai_pieces.get(mi.to_u32())
-                            ref to_sq : I64 = ai_dests.get(mi.to_u32())
-                            from_val := from_sq.clone()
-                            to_val := to_sq.clone()
+                    ep_col = execute_move(board, from_val, to_val, ai_side, castle_flags)
 
-                            mut child := Array.new("I64", 8, 64)
-                            copy_board(child, board)
-                            mut child_cf := Array.new("I64", 8, 6)
-                            copy_cf(child_cf, castle_flags)
+                    // Switch turn
+                    turn = human_side
+                    selected = -1
+                    valid_count = 0
 
-                            child_ep := execute_move(child, from_val, to_val, 1, child_cf)
-
-                            mut child_b := Board()
-                            chess_pack(child_b, child, 0, child_ep, child_cf)
-                            score := 0.sub(ai.search(child_b))
-
-                            if score.gt(best_score) {
-                                best_score = score
-                                best_idx = mi
-                            }
-                            mi = mi.add(1)
-                        }
-
-                        // Play the best move
-                        ref best_from : I64 = ai_pieces.get(best_idx.to_u32())
-                        ref best_to : I64 = ai_dests.get(best_idx.to_u32())
-                        from_val := best_from.clone()
-                        to_val := best_to.clone()
-
-                        ep_col = execute_move(board, from_val, to_val, 1, castle_flags)
-
-                        // Switch turn
-                        turn = 0
-                        selected = -1
-                        valid_count = 0
-
-                        // Check for checkmate/stalemate
-                        if has_legal_moves(board, tmp_board, 0, valid_moves, ep_col, castle_flags).not() {
-                            if in_check(board, 0) {
-                                game_over = 1
-                                winner = 1
-                            } else {
-                                game_over = 2
-                            }
+                    // Check for checkmate/stalemate
+                    if has_legal_moves(board, tmp_board, human_side, valid_moves, ep_col, castle_flags).not() {
+                        if in_check(board, human_side) {
+                            game_over = 1
+                            winner = ai_side
+                        } else {
+                            game_over = 2
                         }
                     }
                 }
             }
+        }
 
-            // Human input
-            if game_over.eq(0) {
-                mut is_human_turn := true
-                if vs_ai.eq(2).and(turn.eq(1)) {
-                    is_human_turn = false
-                }
+        // --- HUMAN INPUT ---
+        if game_over.eq(0) {
+            mut is_human_turn := true
+            if vs_ai.eq(2).and(turn.eq(ai_side)) {
+                is_human_turn = false
+            }
 
-                if is_human_turn.and(is_mouse_button_pressed(0)) {
+            if is_human_turn.and(is_mouse_button_pressed(0)) {
+                raw_my := get_mouse_y()
+                if raw_my.gte(BOARD_Y) {
                     mx := get_mouse_x()
-                    my := get_mouse_y().sub(BOARD_Y)
+                    my := raw_my.sub(BOARD_Y)
                     click_c := mx.div(CELL)
                     click_r := my.div(CELL)
 
@@ -997,133 +1017,164 @@ main := proc() {
                     }
                 }
             }
-
-            // --- DRAW ---
-            begin_drawing()
-            clear_background(30, 30, 30, 255)
-
-            // Status bar
-            if game_over.eq(0) {
-                if turn.eq(0) {
-                    draw_text("White to move", 10, 10, FONT_SZ, 255, 255, 255, 255)
-                } else {
-                    draw_text("Black to move", 10, 10, FONT_SZ, 180, 180, 180, 255)
-                }
-                if in_check(board, turn) {
-                    draw_text("CHECK!", 250, 10, FONT_SZ, 230, 41, 55, 255)
-                }
-            } else {
-                if game_over.eq(1) {
-                    if winner.eq(0) {
-                        draw_text("CHECKMATE! White wins!", 10, 10, FONT_SZ, 255, 255, 0, 255)
-                    } else {
-                        draw_text("CHECKMATE! Black wins!", 10, 10, FONT_SZ, 255, 255, 0, 255)
-                    }
-                } else {
-                    draw_text("STALEMATE! Draw!", 10, 10, FONT_SZ, 200, 200, 0, 255)
-                }
-            }
-
-            // Mode indicator
-            if vs_ai.eq(1) {
-                draw_text("2 players", WINDOW_WIDTH.sub(130), 10, FONT_SZ, 100, 100, 100, 255)
-            } else {
-                draw_text("vs computer", WINDOW_WIDTH.sub(150), 10, FONT_SZ, 100, 100, 100, 255)
-            }
-            draw_text("R=menu", WINDOW_WIDTH.sub(130), 40, 16, 100, 100, 100, 255)
-
-            // Draw board
-            mut dr := 0
-            while dr.lt(8) {
-                mut dc := 0
-                while dc.lt(8) {
-                    px := dc.mul(CELL)
-                    py := dr.mul(CELL).add(BOARD_Y)
-
-                    // Square color (light/dark)
-                    mut sq_r := 238
-                    mut sq_g := 238
-                    mut sq_b := 210
-                    if dr.add(dc).mod(2).eq(1) {
-                        sq_r = 118
-                        sq_g = 150
-                        sq_b = 86
-                    }
-
-                    // Highlight selected square
-                    idx := dr.mul(8).add(dc)
-                    if idx.eq(selected) {
-                        sq_r = 186
-                        sq_g = 202
-                        sq_b = 68
-                    }
-
-                    draw_rectangle(px, py, CELL, CELL, sq_r, sq_g, sq_b, 255)
-
-                    // Draw valid move indicators
-                    mut vi := 0
-                    while vi.lt(valid_count) {
-                        ref vm : I64 = valid_moves.get(vi.to_u32())
-                        if vm.eq(idx) {
-                            ref dp : I64 = board.get(idx.to_u32())
-                            if dp.eq(0) {
-                                // Empty square: small dot
-                                draw_circle(px.add(CELL.div(2)), py.add(CELL.div(2)), 8, 100, 100, 100, 128)
-                            } else {
-                                // Capture: corner markers
-                                draw_rectangle(px, py, 12, 12, 200, 50, 50, 180)
-                                draw_rectangle(px.add(CELL).sub(12), py, 12, 12, 200, 50, 50, 180)
-                                draw_rectangle(px, py.add(CELL).sub(12), 12, 12, 200, 50, 50, 180)
-                                draw_rectangle(px.add(CELL).sub(12), py.add(CELL).sub(12), 12, 12, 200, 50, 50, 180)
-                            }
-                        }
-                        vi = vi.add(1)
-                    }
-
-                    // Draw piece
-                    ref piece : I64 = board.get(idx.to_u32())
-                    if piece.neq(0) {
-                        ref pname : Str = PIECE_NAMES.get(piece.to_u32())
-                        // White pieces: white text, black pieces: dark text
-                        mut pr := 40
-                        mut pg := 40
-                        mut pb := 40
-                        if is_white(piece) {
-                            pr = 255
-                            pg = 255
-                            pb = 255
-                        }
-                        // Draw piece letter centered in cell
-                        draw_text(pname, px.add(CELL.div(2)).sub(12), py.add(CELL.div(2)).sub(16), 36, pr, pg, pb, 255)
-                    }
-
-                    dc = dc.add(1)
-                }
-                dr = dr.add(1)
-            }
-
-            // Rank labels (1-8)
-            mut ri := 0
-            while ri.lt(8) {
-                label := 8.sub(ri).to_str()
-                draw_text(label, WINDOW_WIDTH.sub(20), ri.mul(CELL).add(BOARD_Y).add(CELL.div(2)).sub(8), 16, 100, 100, 100, 255)
-                ri = ri.add(1)
-            }
-
-            // File labels (a-h)
-            FILE_LABELS := array("Str", "a", "b", "c", "d", "e", "f", "g", "h")
-            mut fi := 0
-            while fi.lt(8) {
-                ref fl : Str = FILE_LABELS.get(fi.to_u32())
-                draw_text(fl, fi.mul(CELL).add(CELL.div(2)).sub(4), BOARD_Y.add(CELL.mul(8)).add(5), 16, 100, 100, 100, 255)
-                fi = fi.add(1)
-            }
-
-            // Captured pieces area - bottom
-            draw_text("click a piece to select, click destination to move", 10, WINDOW_HEIGHT.sub(30), 14, 80, 80, 80, 255)
-
-            end_drawing()
         }
+
+        // --- DRAW ---
+        begin_drawing()
+        clear_background(30, 30, 30, 255)
+
+        // Status bar
+        if game_over.eq(0) {
+            if turn.eq(0) {
+                draw_text("White to move", 10, 10, FONT_SZ, 255, 255, 255, 255)
+            } else {
+                draw_text("Black to move", 10, 10, FONT_SZ, 180, 180, 180, 255)
+            }
+            if in_check(board, turn) {
+                draw_text("CHECK!", 250, 10, FONT_SZ, 230, 41, 55, 255)
+            }
+        } else {
+            if game_over.eq(1) {
+                if winner.eq(0) {
+                    draw_text("CHECKMATE! White wins!", 10, 10, FONT_SZ, 255, 255, 0, 255)
+                } else {
+                    draw_text("CHECKMATE! Black wins!", 10, 10, FONT_SZ, 255, 255, 0, 255)
+                }
+            } else {
+                draw_text("STALEMATE! Draw!", 10, 10, FONT_SZ, 200, 200, 0, 255)
+            }
+        }
+
+        // --- HEADER BUTTONS: color radio + mode radio + restart ---
+        // Color radio
+        mut bi := 0
+        while bi.lt(2) {
+            cx := COLOR_X.add(bi.mul(COLOR_BTN_W))
+            mut br := 40
+            mut bg := 40
+            mut bb := 40
+            if bi.eq(sel_color) {
+                br = 0
+                bg = 150
+                bb = 155
+            }
+            draw_rectangle(cx, RADIO_Y, COLOR_BTN_W.sub(2), BTN_H.sub(2), br, bg, bb, 255)
+            ref clabel : Str = COLOR_LABELS.get(bi.to_u32())
+            draw_text(clabel, cx.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
+            bi = bi.add(1)
+        }
+        // Mode radio
+        bi = 0
+        while bi.lt(2) {
+            mxp := MODE_X.add(bi.mul(MODE_BTN_W))
+            mut mr := 40
+            mut mg := 40
+            mut mb := 40
+            if bi.eq(sel_2p) {
+                mr = 0
+                mg = 150
+                mb = 155
+            }
+            draw_rectangle(mxp, RADIO_Y, MODE_BTN_W.sub(2), BTN_H.sub(2), mr, mg, mb, 255)
+            ref mlabel : Str = MODE_LABELS.get(bi.to_u32())
+            draw_text(mlabel, mxp.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
+            bi = bi.add(1)
+        }
+        // Restart button (always-on color, distinct from radios)
+        draw_rectangle(RESTART_X, RADIO_Y, RESTART_BTN_W.sub(2), BTN_H.sub(2), 130, 70, 30, 255)
+        draw_text("Restart", RESTART_X.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 240, 240, 240, 255)
+
+        // Draw board
+        mut dr := 0
+        while dr.lt(8) {
+            mut dc := 0
+            while dc.lt(8) {
+                px := dc.mul(CELL)
+                py := dr.mul(CELL).add(BOARD_Y)
+
+                // Square color (light/dark)
+                mut sq_r := 238
+                mut sq_g := 238
+                mut sq_b := 210
+                if dr.add(dc).mod(2).eq(1) {
+                    sq_r = 118
+                    sq_g = 150
+                    sq_b = 86
+                }
+
+                // Highlight selected square
+                idx := dr.mul(8).add(dc)
+                if idx.eq(selected) {
+                    sq_r = 186
+                    sq_g = 202
+                    sq_b = 68
+                }
+
+                draw_rectangle(px, py, CELL, CELL, sq_r, sq_g, sq_b, 255)
+
+                // Draw valid move indicators
+                mut vi := 0
+                while vi.lt(valid_count) {
+                    ref vm : I64 = valid_moves.get(vi.to_u32())
+                    if vm.eq(idx) {
+                        ref dp : I64 = board.get(idx.to_u32())
+                        if dp.eq(0) {
+                            // Empty square: small dot
+                            draw_circle(px.add(CELL.div(2)), py.add(CELL.div(2)), 8, 100, 100, 100, 128)
+                        } else {
+                            // Capture: corner markers
+                            draw_rectangle(px, py, 12, 12, 200, 50, 50, 180)
+                            draw_rectangle(px.add(CELL).sub(12), py, 12, 12, 200, 50, 50, 180)
+                            draw_rectangle(px, py.add(CELL).sub(12), 12, 12, 200, 50, 50, 180)
+                            draw_rectangle(px.add(CELL).sub(12), py.add(CELL).sub(12), 12, 12, 200, 50, 50, 180)
+                        }
+                    }
+                    vi = vi.add(1)
+                }
+
+                // Draw piece
+                ref piece : I64 = board.get(idx.to_u32())
+                if piece.neq(0) {
+                    ref pname : Str = PIECE_NAMES.get(piece.to_u32())
+                    // White pieces: white text, black pieces: dark text
+                    mut pr := 40
+                    mut pg := 40
+                    mut pb := 40
+                    if is_white(piece) {
+                        pr = 255
+                        pg = 255
+                        pb = 255
+                    }
+                    // Draw piece letter centered in cell
+                    draw_text(pname, px.add(CELL.div(2)).sub(12), py.add(CELL.div(2)).sub(16), 36, pr, pg, pb, 255)
+                }
+
+                dc = dc.add(1)
+            }
+            dr = dr.add(1)
+        }
+
+        // Rank labels (1-8)
+        mut ri := 0
+        while ri.lt(8) {
+            label := 8.sub(ri).to_str()
+            draw_text(label, WINDOW_WIDTH.sub(20), ri.mul(CELL).add(BOARD_Y).add(CELL.div(2)).sub(8), 16, 100, 100, 100, 255)
+            ri = ri.add(1)
+        }
+
+        // File labels (a-h)
+        FILE_LABELS := array("Str", "a", "b", "c", "d", "e", "f", "g", "h")
+        mut fi := 0
+        while fi.lt(8) {
+            ref fl : Str = FILE_LABELS.get(fi.to_u32())
+            draw_text(fl, fi.mul(CELL).add(CELL.div(2)).sub(4), BOARD_Y.add(CELL.mul(8)).add(5), 16, 100, 100, 100, 255)
+            fi = fi.add(1)
+        }
+
+        // Captured pieces area - bottom
+        draw_text("click a piece to select, click destination to move", 10, WINDOW_HEIGHT.sub(30), 14, 80, 80, 80, 255)
+
+        end_drawing()
     }
 
     close_window()
