@@ -8,7 +8,9 @@
 # bin/til_boot  Built from last commit via git (boot/ + src/c/ from HEAD).
 #               Completely isolated from uncommitted changes. Always safe.
 # bin/til       Built by til_boot from ALL current sources (.til + src/c/).
-#               Both .til and C changes take effect immediately.
+#               Most .til and C changes take effect immediately. Emit-side
+#               changes (e.g. new auto-gen methods) need a preparation
+#               commit -- see doc/self.org.
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
@@ -60,7 +62,6 @@ bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) lib/libffi/.built
 
 bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
 	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til_boot build -o bin/til src/til.til
-	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til build -o bin/til src/til.til
 	cp gen/til/til.c gen/til/til.h gen/til/til_forward.h boot/ 2>/dev/null || true
 	bin/til run src/examples/uml.til
 
