@@ -1323,6 +1323,7 @@ Expr * resolve_local_fn_sig(Str * name);
 Expr * resolve_decl_fn_sig(Expr * rhs, Declaration * dd, TypeScope * scope);
 Expr * fcall_fn_sig(Expr * fcall);
 Bool is_stack_local(Str * name);
+Bool is_current_func_param(Str * name);
 Bool is_value_global(Str * name);
 Bool is_ref_global(Str * name);
 Bool is_ref_local(Str * name);

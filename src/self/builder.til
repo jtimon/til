@@ -166,13 +166,28 @@ is_stack_local := func(name: Str) returns shallow Bool {
     return stack_locals.has(name)
 }
 
+is_current_func_param := func(name: Str) returns shallow Bool {
+    if is_null(current_fdef) { return false }
+    switch current_fdef.node_type {
+    case NodeType.FuncDef(fd):
+        for p : Declaration in fd.params {
+            if p.name.eq(name) { return true }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
 is_value_global := func(name: Str) returns shallow Bool {
     if has_script_globals.not() { return false }
+    if is_current_func_param(name) { return false }
     return script_globals.has(name)
 }
 
 is_ref_global := func(name: Str) returns shallow Bool {
     if has_ref_globals.not() { return false }
+    if is_current_func_param(name) { return false }
     return ref_globals.has(name)
 }
 
