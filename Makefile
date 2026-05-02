@@ -63,7 +63,6 @@ bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) lib/libffi/.built
 bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
 	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til_boot build -o bin/til src/til.til
 	cp gen/til/til.c gen/til/til.h gen/til/til_forward.h boot/ 2>/dev/null || true
-	bin/til run src/examples/uml.til
 
 # --- ASAN build (for memory debugging) ---
 
