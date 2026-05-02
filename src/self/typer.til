@@ -3158,9 +3158,30 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
             if tname.len().gt(0) {
                 mc := make_clone_call(tname, rhs.til_type, rhs, stmt)
                 stmt.children.set(0, own mc)
+                if scope.bindings.has(aname).not() {
+                    if existing.is(TilType.Struct).or(existing.is(TilType.Enum)) {
+                        if assign_target_is_func_local(scope, aname) {
+                            switch stmt.node_type {
+                            case NodeType.Assign(adata2):
+                                adata2.save_old_delete = true
+                            case:
+                            }
+                            stmt.til_type = existing.clone()
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+assign_target_is_func_local := func(mut scope: TypeScope, name: Str) returns shallow Bool {
+    ref mut s : TypeScope = scope
+    while is_null(s).not() {
+        if is_null(s.parent).not().and(s.bindings.has(name)) { return true }
+        s = s.parent
+    }
+    return false
 }
 
 is_numeric_type := func(t: TilType) returns shallow Bool {
