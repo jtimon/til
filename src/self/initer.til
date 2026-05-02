@@ -1467,12 +1467,6 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
     }
 }
 
-generate_unity_derived_methods := func(program: Expr) {
-    for stmt : Expr in program.children {
-        gen_unity_derived_for_stmt(stmt)
-    }
-}
-
 generate_size_methods := proc(program: Expr, scope: TypeScope) {
     generate_struct_size_methods(program)
     generate_enum_size_methods(program, scope)
@@ -1751,17 +1745,6 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
             UNREACHABLE(__LOC__)
         }
     }
-}
-
-generate_cmp_derived_methods := func(program: Expr) {
-    for stmt : Expr in program.children {
-        gen_cmp_derived_for_stmt(stmt)
-    }
-}
-
-generate_derived_methods := func(program: Expr) {
-    generate_cmp_derived_methods(program)
-    generate_unity_derived_methods(program)
 }
 
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
