@@ -1,0 +1,11 @@
+mode lib
+
+// USize is a target-width unsigned integer alias used by all collection
+// types for indices, lengths, capacities, and sizes. Currently it maps
+// to U32 (32-bit, supports collections up to ~4 billion elements).
+// Lives in its own file so any code can `import("usize.til")` directly
+// rather than relying on transitive visibility through core.til.
+
+import("u32.til")
+
+USize := U32

@@ -1,7 +1,5 @@
 mode lib
 
-USize := U32
-
 import("array.til")
 import("ast.til")
 import("bool.til")
@@ -24,4 +22,5 @@ import("tuple.til")
 import("u32.til")
 import("u64.til")
 import("u8.til")
+import("usize.til")
 import("vec.til")

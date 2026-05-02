@@ -52,3 +52,44 @@ test_forward_struct := test() {
     assert_eq(__LOC__, p.x, 3)
     assert_eq(__LOC__, p.y, 7)
 }
+
+// #165: type alias to a builtin primitive declared at the very top of the
+// file -- before any usage. Pinned by c4b8064 (alias NotFound case
+// registers when target is a builtin primitive). Mirrors the USize := U32
+// pattern in src/core/usize.til.
+FwdAliasTop := U32
+
+FwdAliasTopHolder := struct {
+    mut count : FwdAliasTop = 0.to_u32()
+namespace:
+    inc := func(mut self: FwdAliasTopHolder) {
+        self.count = self.count.add(1.to_u32())
+    }
+}
+
+test_alias_top_of_file := test() {
+    mut h := FwdAliasTopHolder()
+    h.inc()
+    h.inc()
+    h.inc()
+    assert_eq(__LOC__, h.count.to_i64(), 3)
+}
+
+// #165: type alias declared *after* a struct that uses it as a field type.
+// In-file source order should not matter for type aliases to builtin
+// primitives.
+FwdAliasBottomHolder := struct {
+    mut value : FwdAliasBottom = 0.to_u32()
+namespace:
+    set := func(mut self: FwdAliasBottomHolder, v: FwdAliasBottom) {
+        self.value = v
+    }
+}
+
+FwdAliasBottom := U32
+
+test_alias_bottom_of_file := test() {
+    mut h := FwdAliasBottomHolder()
+    h.set(42.to_u32())
+    assert_eq(__LOC__, h.value.to_i64(), 42)
+}

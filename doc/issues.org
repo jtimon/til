@@ -1,10 +1,10 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 174
+# NEXT_ISSUE: 175
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/15] Pre
+* [0/16] Pre
 ** WIP #173 Vec.new(Expr) syntax: copy rstil's runtime-type-name trick
    Goal:
 
@@ -54,6 +54,95 @@
      declaration with the other ~dyn_*~ funcs. Master's #165
      ("Declaration order should not matter") looks like the same
      family.
+** OPEN #174 Container types create cyclic dependencies that block typer-time methodgen
+   Symptom:
+
+   ~src/core/vec.til~ stores ~Str elem_type~ as a struct field and calls
+   ~Str.eq~ inside ~Vec.append~. ~src/core/str.til~'s ~Str.split~
+   returns ~Vec~ and uses I64-derived methods (~lt~, ~neq~). Each side
+   of the pair references the other, so ~init_file~ /
+   ~type_file~'s recursion-with-memo enters them in a cycle: whichever
+   side is processed second finds the first in
+   ~ctx.imports_typer_done~ but with its body type-check still
+   in flight, so the first's struct decl has not been visited yet.
+
+   Why this matters:
+
+   Today this is invisible because all auto-generated methods (cmp,
+   unity, size, clone, delete, eq, to_str) are synthesized by
+   ~init_declarations_global~ before any typer work runs, in a
+   pre-typer global pass. The cycle is in the data, but the global
+   pass papers over it.
+
+   The cycle becomes a hard blocker the moment we try to move method
+   synthesis into the typer's per-decl visit -- which is what
+   ~#165~ step 2 wants. Concrete failure (second attempt at #165
+   step 2):
+
+   #+begin_example
+   ./src/core/vec.til:25:22: error: no method 'eq' for type 'Str'
+   ./src/core/vec.til:49:71: error: no method 'eq' for type 'Str'
+   ./src/core/str.til:55:18: error: no method 'neq' for type 'I64'
+   ./src/core/str.til:254:18: error: no method 'lt' for type 'I64'
+   #+end_example
+
+   When typer enters Vec via Str's recursion, Vec's body checks before
+   Str's struct decl has been visited; Str.eq doesn't exist yet.
+   Symmetric for the other direction.
+
+   How rstil avoids it:
+
+   rstil's ~Vec~ stores a ~Ptr~ (with ~elem_size~ + ~elem_type~ as a
+   C string pointer to the type name), never a ~Str~. ~Str.split~ in
+   rstil also returns a ~Vec~, but ~Vec~'s body never calls back into
+   ~Str~ methods, so the cycle is not closed. til's ~Vec~ design
+   forces the closure.
+
+   Affected pairs (audit):
+
+   - ~Vec~ <-> ~Str~ (Vec.append calls Str.eq; Str.split returns Vec).
+   - ~Str~ <-> ~I64~ via derived methods (Str's body uses I64.lt /
+     I64.neq; I64's auto-generated to_str returns Str).
+   - ~Bool~ <-> ~I64~ via derived methods (Bool.cmp returns I64;
+     I64.eq, .lt, etc. return Bool).
+   - Probably more: ~Map~, ~Set~, ~Tuple~, ~DynMap~ all reference
+     other container/primitive types in their bodies.
+
+   Three real options to break the cycle:
+
+   1. Restructure til's collection types to mirror rstil. ~Vec~,
+      ~Map~, ~Set~, ~Tuple~, ~DynMap~ store ~Ptr~ (or equivalent)
+      instead of ~Str~ for ~elem_type~. Big work; touches every
+      container plus every caller using ~elem_type~ as ~Str~.
+   2. Two-sweep typer over each file. First sweep across all files
+      visits struct/enum decls and synthesizes methods; second sweep
+      type-checks function bodies. Same cycle, but methods exist by
+      the time any body checks. Adds a sub-walk inside the typer
+      driver -- arguably "still one pass per phase" since both
+      sub-walks are typer work.
+   3. Lazy on-demand synthesis. When typer encounters ~X.method()~
+      and ~method~ is missing from ~X~'s ~ns_decls~, eagerly call
+      the relevant ~gen_*~ for ~X~'s struct decl. Closest to rstil's
+      spirit (synthesis localized at use site) but adds bookkeeping
+      for "is this struct already swept?".
+
+   Until one of these lands, all method generators stay in
+   ~init_declarations_global~ (or its successor by another name).
+   The scope-free generators (cmp, unity, size) could move to a
+   clearly-named pre-typer pass without changing semantics, but
+   that is cosmetic.
+
+   Related issues:
+
+   - ~#165~ step 2 -- the immediate consumer of this cycle finding.
+     Cannot move method generators into typer until one of the three
+     options above is in place.
+   - ~#147~ step 3 (~Context.struct_layouts~) -- scope-using layout
+     work has the same cycle constraint at the data-structure level
+     (Vec's layout depends on Str's size; Str's layout depends on
+     Vec's size for its split-return field type? probably).
+   - ~#158~ "one pass per phase" -- the global pre-typer pass is
+     part of why initer is not yet "one walk per file".
 
 ** OPEN #172 Add test_runner regen mode for expected outputs
    Symptom:
@@ -222,15 +311,32 @@
    children.
 
 ** OPEN #165 Declaration order should not matter inside a file or across imports
-   Symptom:
+   Status (high level):
 
-   ~src/core/core.til~ contains the alias ~USize := U32~ wedged between two
-   groups of ~import("...")~ calls. Moving that single line either to the
-   top of the file (before the imports) or to the bottom (after every
-   import) breaks the build. Today the only "safe" position is right after
-   ~import("u32.til")~ and before ~import("i64.til")~. That is forward-
-   declaration discipline by another name. til is supposed to have an init
-   pass precisely so source order does not matter.
+   - Original concrete symptom (USize := U32 only worked wedged between
+     u32.til and i64.til imports) is FIXED. ~USize := U32~ now lives at
+     the top of core.til; c4b8064 made the alias-NotFound case
+     permissive for builtin primitives, ce0a584 moved the alias.
+   - core.til is alphabetized; per-file explicit imports landed across
+     all src/core/*.til (see fixed.org #162).
+   - What remains is architectural: keep going on "init = pure name
+     indexing, typer = type-aware work" so initer never reads scope
+     for type resolution. Step 2 of the original plan is BLOCKED on a
+     structural cycle (Vec/Str), see step 2 below.
+   - Lower-priority next leverage points: step 1 finish (user-defined
+     aliases + scope-stripping in two more registration helpers),
+     step 6 regression tests (cheap, document the contract).
+
+   Symptom (historical, kept for context):
+
+   ~src/core/core.til~ contained the alias ~USize := U32~ wedged
+   between two groups of ~import("...")~ calls. Moving that single
+   line either to the top of the file (before the imports) or to the
+   bottom (after every import) broke the build. The only "safe"
+   position was right after ~import("u32.til")~ and before
+   ~import("i64.til")~. That was forward-declaration discipline by
+   another name. til is supposed to have an init pass precisely so
+   source order does not matter.
 
    Why this still happens (analysis):
 
@@ -339,7 +445,7 @@
       stripping ~type_from_name_init~ from
       ~register_function_def_for_stmt~ and ~infer_top_level_decl_type~.
 
-   2. Move ~gen_struct_clone_delete_for_stmt~,
+   2. [BLOCKED ON CYCLES] Move ~gen_struct_clone_delete_for_stmt~,
       ~gen_enum_nonclone_methods_for_stmt~,
       ~gen_missing_enum_clone_for_stmt~,
       ~gen_struct_size_method_for_stmt~,
@@ -350,23 +456,66 @@
       bindings, so subsequent phases see no difference vs. user-written
       methods.
 
-      Earlier attempt (before ~#162~ landed) moved just the two
-      scope-free generators ~gen_cmp_derived_for_stmt~ and
-      ~gen_unity_derived_for_stmt~ into ~infer_decl_stmt~ before
-      ~infer_expr~ walks ns_decls. Failed with ~no method 'lt' for
-      type 'U32'~ on ~ast.til:431~ et al because ~ast.til~ was
-      typer-visited before ~u32.til~. Now that ~#162~ has added
-      per-file imports (e.g. ~ast.til~ explicitly imports ~u32.til~),
-      ~type_file~'s recursion produces the right topo order and the
-      same move should work cleanly. The earlier attempt is the
-      starting sketch.
+      First attempt (pre #162): moved scope-free
+      ~gen_cmp_derived_for_stmt~ and ~gen_unity_derived_for_stmt~ into
+      ~infer_decl_stmt~ before ~infer_expr~ walks ns_decls. Failed with
+      ~no method 'lt' for type 'U32'~ on ~ast.til:431~ because
+      ~ast.til~ was typer-visited before ~u32.til~. Diagnosed as a
+      cross-file ordering problem and parked behind ~#162~.
 
-      Sub-finding from that attempt: ~gen_cmp_derived_for_stmt~ and
+      Second attempt (post #162): same change, expecting per-file
+      imports to topo-order the typer's recursion. New failures:
+
+      #+begin_example
+      ./src/core/vec.til:25:22: error: no method 'eq' for type 'Str'
+      ./src/core/vec.til:49:71: error: no method 'eq' for type 'Str'
+      ./src/core/str.til:55:18: error: no method 'neq' for type 'I64'
+      ./src/core/str.til:254:18: error: no method 'lt' for type 'I64'
+      #+end_example
+
+      Diagnosis: ~vec.til~ has a ~Str elem_type~ field and calls
+      ~Str.eq~ in ~Vec.append~; ~str.til~'s ~Str.split~ returns ~Vec~
+      and uses I64-derived methods. Both directions are in
+      ~ctx.imports_typer_done~ as soon as ~type_file~ enters them, but
+      ~type_check_unit~ on the second visitor runs while the first is
+      still mid-recursion -- so the first's auto-generated methods
+      don't exist yet when the second's bodies type-check.
+
+      This is a real cycle, not an ordering bug. Per-file imports
+      don't solve it; rstil avoids it by *design* -- rstil's ~Vec~
+      stores a ~Ptr~ with ~elem_size~ + ~elem_type~ as a C string
+      pointer, never a ~Str~. til's ~Vec~ stores ~Str elem_type~,
+      which forces the cycle.
+
+      Three real options for unblocking step 2:
+
+      a) Restructure til's collection types (~Vec~, ~Map~, ~Set~,
+         ~Tuple~, ~DynMap~) to match rstil's ~Ptr~-based design. Big
+         work; touches every container.
+      b) Two-sweep typer: first sweep across all files visits
+         struct/enum decls only and synthesizes methods; second sweep
+         type-checks function bodies. Same cyclic Vec/Str shape, but
+         the methods exist by the time any body is checked. Adds a
+         walk inside the typer driver -- arguably still "one pass per
+         phase" since both sub-walks are typer work.
+      c) Lazy on-demand synthesis: when the typer encounters
+         ~X.method()~ and ~method~ is missing from ~X~'s ~ns_decls~,
+         eagerly call the relevant ~gen_*~ for ~X~'s struct decl.
+         Closest to rstil's spirit (synthesis localized at use site)
+         but adds bookkeeping for "is this struct already swept?".
+
+      Until one of those lands, all method generators stay in
+      ~init_declarations_global~ (or its successor name). The
+      scope-free ones (cmp, unity, size) could move out of
+      ~init_declarations_global~ into a clearly-named pre-typer pass
+      without changing semantics, but that is cosmetic.
+
+      Sub-finding from the attempts: ~gen_cmp_derived_for_stmt~ and
       ~gen_unity_derived_for_stmt~ are scope-free pure AST transforms
-      (they read only the struct's own ~ns_decls~). Moving them is
-      purely architectural. The actual scope-using prize for step 2
-      is ~gen_struct_clone_delete~ and ~gen_enum_nonclone_methods~,
-      which use scope to detect FuncPtr fields.
+      (they read only the struct's own ~ns_decls~). The actual
+      scope-using prize for step 2 is ~gen_struct_clone_delete~ and
+      ~gen_enum_nonclone_methods~ -- and those have the same cycle
+      problem because ~Vec.delete~ calls ~Str.delete~.
 
    3. Replace ~compute_struct_layout~ + ~compute_enum_layout~ with a
       ~Context.struct_layouts~ map populated by the typer on first
