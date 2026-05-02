@@ -2,7 +2,18 @@
 
 ## Decision Making
 
-NEVER take decisions without the user's explicit approval. When you encounter a choice — architecture, naming, file structure, approach, workaround, anything — STOP and present the options to the user. Do not pick one and run with it. Do not "just try something". Do not rationalize a choice after the fact. ASK FIRST, ACT SECOND. Every single time.
+Do not stall the user with questions.
+
+Default behavior: make the smallest safe change that addresses the reported problem, verify it, and report back.
+
+Ask for explicit approval only when a decision materially changes one of these:
+
+- External behavior or UX (new flags, different defaults, different output, backward compatibility)
+- Public APIs or file layout that downstream users might rely on
+- Significant scope, refactors, or performance tradeoffs
+- Risky/destructive operations (deleting data, rewriting history, force-push to shared branches)
+
+If you need information to reproduce a bug, gather it by running commands and reading logs first. Only ask the user when a required fact cannot be obtained from the repo or environment.
 
 ## Following Orders
 
