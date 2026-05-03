@@ -3427,7 +3427,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     return 0.to_i32()
 }
 
-compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str) returns shallow I32 {
+compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str) returns shallow I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -3484,14 +3484,20 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     // mingw silently ignores it but clangs error out, so only add for non-Windows.
     mut dyn_flag := " -rdynamic"
     if target.is(Target.WindowsX64) { dyn_flag = "" }
-    // Windows FFI / peak_rss helpers in ext.c call GetProcessMemoryInfo and
-    // EnumProcessModules from psapi.
-    mut plat_libs := ""
-    if target.is(Target.WindowsX64) { plat_libs = " -lpsapi" }
+
+    // Per-target system + ffi + (gui) link flags. Tables live in
+    // src/self/targets.til (system_libs), src/self/dispatch.til (ffi),
+    // and src/modes/gui.til (gui). mode_auto_import is "gui" iff the
+    // program declared mode gui.
+    sys_libs := target_system_libs(target)
+    ffi_lib  := target_ffi_lib(target)
+    mut gui_part := ""
+    if mode_auto_import.eq("gui") { gui_part = " ".concat(target_gui_libs(target)) }
 
     cmd := compiler.concat(extra).concat(" -Werror -g").concat(dyn_flag).concat(" -I").concat(ext_dir)
     .concat(" -o ").concat(bin_path).concat(" ").concat(c_path)
-    .concat(" ").concat(ext_c_path).concat(user_part).concat(lf).concat(plat_libs)
+    .concat(" ").concat(ext_c_path).concat(user_part).concat(lf)
+    .concat(" ").concat(ffi_lib).concat(gui_part).concat(" ").concat(sys_libs)
 
     result := system_cmd(cmd)
     if result.neq(0) {
@@ -4971,7 +4977,7 @@ compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_ove
     if paths.do_lib {
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override)
     }
-    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override)
+    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import)
 }
 
 cmd_translate := proc(lp: LoadedProgram, custom_c: Str) returns shallow I32 {
