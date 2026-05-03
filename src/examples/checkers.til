@@ -22,12 +22,15 @@ RADIO_Y := 40
 BTN_H := 30
 BTN_PAD_X := 10
 BTN_PAD_Y := 5
-COLOR_BTN_W := 70
-MODE_BTN_W := 45
+RESTART_X := 10
 RESTART_BTN_W := 90
-COLOR_X := 10
-MODE_X := 160
-RESTART_X := 260
+COLOR_X := 110
+COLOR_BTN_W := 70
+MODE_X := 260
+MODE_BTN_W := 45
+DIFF_LABEL_X := 360
+DIFF_X := 480
+DIFF_BTN_W := 30
 
 COLOR_LABELS := array("Str", "Red", "Black")
 MODE_LABELS := array("Str", "1P", "2P")
@@ -340,11 +343,12 @@ checkers_next_boards : NextBoardsFn = (b) {
     return result
 }
 
-ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards, depth = 3)
-
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "checkers")
     set_target_fps(FPS)
+
+    // AI (depth applied on Restart from sel_difficulty)
+    mut ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards, depth = 1)
 
     mut board := Array.new("I64", 8, 64)
     mut tmp_moves := Array.new("I64", 8, 64)
@@ -353,6 +357,7 @@ main := proc() {
     // Radio button state (only applied on restart / initial start)
     mut sel_color := 1  // 0=red, 1=black (default black so AI starts as red)
     mut sel_2p := 0     // 0=1P, 1=2P
+    mut sel_difficulty := 1  // 1..5, mapped to alpha-beta depth on Restart
 
     // Active game settings (set on restart/init from radio state)
     mut human_side := 2  // 1=red, 2=black
@@ -381,20 +386,12 @@ main := proc() {
     }
 
     while window_should_close().not() {
-        // --- INPUT: radio buttons & restart ---
+        // --- INPUT: restart + radio buttons ---
         if is_mouse_button_pressed(0) {
             raw_mx := get_mouse_x()
             raw_my := get_mouse_y()
             if raw_my.gte(RADIO_Y).and(raw_my.lt(RADIO_Y.add(BTN_H))) {
-                // Color radio (Red / Black)
-                if raw_mx.gte(COLOR_X).and(raw_mx.lt(COLOR_X.add(COLOR_BTN_W.mul(2)))) {
-                    sel_color = raw_mx.sub(COLOR_X).div(COLOR_BTN_W)
-                }
-                // Mode radio (1P / 2P)
-                if raw_mx.gte(MODE_X).and(raw_mx.lt(MODE_X.add(MODE_BTN_W.mul(2)))) {
-                    sel_2p = raw_mx.sub(MODE_X).div(MODE_BTN_W)
-                }
-                // Restart button: apply radio settings + reset board
+                // Restart button (leftmost): apply radio settings + reset board
                 if raw_mx.gte(RESTART_X).and(raw_mx.lt(RESTART_X.add(RESTART_BTN_W))) {
                     if sel_color.eq(0) {
                         human_side = 1
@@ -403,6 +400,7 @@ main := proc() {
                     }
                     ai_side = 3.sub(human_side)
                     if sel_2p.eq(0) { vs_ai = 2 } else { vs_ai = 1 }
+                    ai.depth = sel_difficulty
                     mut ri := 0
                     while ri.lt(64) {
                         ref init_p : I64 = INIT_BOARD.get(ri.to_u32())
@@ -418,6 +416,20 @@ main := proc() {
                     multi_jump_idx = -1
                     red_caps = 0
                     black_caps = 0
+                }
+                // Color radio (Red / Black)
+                if raw_mx.gte(COLOR_X).and(raw_mx.lt(COLOR_X.add(COLOR_BTN_W.mul(2)))) {
+                    sel_color = raw_mx.sub(COLOR_X).div(COLOR_BTN_W)
+                }
+                // Mode radio (1P / 2P)
+                if raw_mx.gte(MODE_X).and(raw_mx.lt(MODE_X.add(MODE_BTN_W.mul(2)))) {
+                    sel_2p = raw_mx.sub(MODE_X).div(MODE_BTN_W)
+                }
+                // Difficulty radio (1..5, only when 1P selected)
+                if sel_2p.eq(0) {
+                    if raw_mx.gte(DIFF_X).and(raw_mx.lt(DIFF_X.add(DIFF_BTN_W.mul(5)))) {
+                        sel_difficulty = raw_mx.sub(DIFF_X).div(DIFF_BTN_W).add(1)
+                    }
                 }
             }
         }
@@ -809,7 +821,11 @@ main := proc() {
             }
         }
 
-        // --- HEADER BUTTONS: color radio + mode radio + restart ---
+        // --- HEADER BUTTONS: restart (leftmost) + color + mode + difficulty (1P only) ---
+        // Restart button (always-on color, distinct from radios)
+        draw_rectangle(RESTART_X, RADIO_Y, RESTART_BTN_W.sub(2), BTN_H.sub(2), 130, 70, 30, 255)
+        draw_text("Restart", RESTART_X.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 240, 240, 240, 255)
+
         // Color radio
         mut bi := 0
         while bi.lt(2) {
@@ -844,9 +860,26 @@ main := proc() {
             draw_text(mlabel, mxp.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
             bi = bi.add(1)
         }
-        // Restart button (always-on color, distinct from radios)
-        draw_rectangle(RESTART_X, RADIO_Y, RESTART_BTN_W.sub(2), BTN_H.sub(2), 130, 70, 30, 255)
-        draw_text("Restart", RESTART_X.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 240, 240, 240, 255)
+        // Difficulty label + 5 buttons (only when 1P selected)
+        if sel_2p.eq(0) {
+            draw_text("Difficulty", DIFF_LABEL_X, RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 200, 200, 200, 255)
+            bi = 0
+            while bi.lt(5) {
+                diff_val := bi.add(1)
+                dx := DIFF_X.add(bi.mul(DIFF_BTN_W))
+                mut dr := 40
+                mut dg := 40
+                mut db := 40
+                if diff_val.eq(sel_difficulty) {
+                    dr = 0
+                    dg = 150
+                    db = 155
+                }
+                draw_rectangle(dx, RADIO_Y, DIFF_BTN_W.sub(2), BTN_H.sub(2), dr, dg, db, 255)
+                draw_text(diff_val.to_str(), dx.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
+                bi = bi.add(1)
+            }
+        }
 
         // Draw board
         mut dr := 0

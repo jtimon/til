@@ -25,14 +25,17 @@ RADIO_Y := 15
 BTN_H := 30
 BTN_PAD_X := 10
 BTN_PAD_Y := 5
-COLOR_BTN_W := 60
-MODE_BTN_W := 40
-SIZE_BTN_W := 60
+RESTART_X := 10
 RESTART_BTN_W := 90
-COLOR_X := 10
-MODE_X := 140
-SIZE_X := 230
-RESTART_X := 420
+COLOR_X := 110
+COLOR_BTN_W := 60
+MODE_X := 240
+MODE_BTN_W := 40
+SIZE_X := 330
+SIZE_BTN_W := 65
+DIFF_LABEL_X := 535
+DIFF_X := 665
+DIFF_BTN_W := 25
 
 COLOR_LABELS := array("Str", "White", "Black")
 MODE_LABELS := array("Str", "1P", "2P")
@@ -446,8 +449,6 @@ go_next_boards : NextBoardsFn = (b) {
     return result
 }
 
-ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards, depth = 2)
-
 // Score the game using Chinese rules (area scoring)
 // Returns black_score * 10000 + white_score
 score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
@@ -573,6 +574,9 @@ main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "go")
     set_target_fps(FPS)
 
+    // AI (depth applied on Restart from sel_difficulty)
+    mut ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards, depth = 1)
+
     // Shared work arrays
     mut board := Array.new("I64", 8, MAX_CELLS.to_u32())
     mut tmp_board := Array.new("I64", 8, MAX_CELLS.to_u32())
@@ -585,6 +589,7 @@ main := proc() {
     mut sel_color := 0   // 0=white, 1=black (default white so AI starts as black)
     mut sel_2p := 0      // 0=1P, 1=2P
     mut sel_size := 2    // 0=9x9, 1=13x13, 2=19x19
+    mut sel_difficulty := 1  // 1..5, mapped to alpha-beta depth on Restart
 
     // Active game settings (set on restart/init from radio state)
     mut human_color := 2  // 1=black, 2=white
@@ -611,24 +616,12 @@ main := proc() {
     clear_arr(ko_board, init_total)
 
     while window_should_close().not() {
-        // --- INPUT: radio buttons & restart ---
+        // --- INPUT: restart + radio buttons ---
         if is_mouse_button_pressed(0) {
             raw_mx := get_mouse_x()
             raw_my := get_mouse_y()
             if raw_my.gte(RADIO_Y).and(raw_my.lt(RADIO_Y.add(BTN_H))) {
-                // Color radio (White / Black)
-                if raw_mx.gte(COLOR_X).and(raw_mx.lt(COLOR_X.add(COLOR_BTN_W.mul(2)))) {
-                    sel_color = raw_mx.sub(COLOR_X).div(COLOR_BTN_W)
-                }
-                // Mode radio (1P / 2P)
-                if raw_mx.gte(MODE_X).and(raw_mx.lt(MODE_X.add(MODE_BTN_W.mul(2)))) {
-                    sel_2p = raw_mx.sub(MODE_X).div(MODE_BTN_W)
-                }
-                // Size radio (9x9 / 13x13 / 19x19)
-                if raw_mx.gte(SIZE_X).and(raw_mx.lt(SIZE_X.add(SIZE_BTN_W.mul(3)))) {
-                    sel_size = raw_mx.sub(SIZE_X).div(SIZE_BTN_W)
-                }
-                // Restart button: apply radio settings + reset board
+                // Restart button (leftmost): apply radio settings + reset board
                 if raw_mx.gte(RESTART_X).and(raw_mx.lt(RESTART_X.add(RESTART_BTN_W))) {
                     if sel_color.eq(0) {
                         human_color = 2
@@ -646,6 +639,7 @@ main := proc() {
                             board_size = 19
                         }
                     }
+                    ai.depth = sel_difficulty
                     rt := board_size.mul(board_size)
                     clear_arr(board, rt)
                     clear_arr(ko_board, rt)
@@ -660,6 +654,24 @@ main := proc() {
                     last_move = -1
                     has_ko = false
                     move_num = 0
+                }
+                // Color radio (White / Black)
+                if raw_mx.gte(COLOR_X).and(raw_mx.lt(COLOR_X.add(COLOR_BTN_W.mul(2)))) {
+                    sel_color = raw_mx.sub(COLOR_X).div(COLOR_BTN_W)
+                }
+                // Mode radio (1P / 2P)
+                if raw_mx.gte(MODE_X).and(raw_mx.lt(MODE_X.add(MODE_BTN_W.mul(2)))) {
+                    sel_2p = raw_mx.sub(MODE_X).div(MODE_BTN_W)
+                }
+                // Size radio (9x9 / 13x13 / 19x19)
+                if raw_mx.gte(SIZE_X).and(raw_mx.lt(SIZE_X.add(SIZE_BTN_W.mul(3)))) {
+                    sel_size = raw_mx.sub(SIZE_X).div(SIZE_BTN_W)
+                }
+                // Difficulty radio (1..5, only when 1P selected)
+                if sel_2p.eq(0) {
+                    if raw_mx.gte(DIFF_X).and(raw_mx.lt(DIFF_X.add(DIFF_BTN_W.mul(5)))) {
+                        sel_difficulty = raw_mx.sub(DIFF_X).div(DIFF_BTN_W).add(1)
+                    }
                 }
             }
         }
@@ -913,7 +925,11 @@ main := proc() {
             }
         }
 
-        // --- HEADER BUTTONS: color radio + mode radio + size radio + restart ---
+        // --- HEADER BUTTONS: restart (leftmost) + color + mode + size + difficulty (1P only) ---
+        // Restart button (always-on color, distinct from radios)
+        draw_rectangle(RESTART_X, RADIO_Y, RESTART_BTN_W.sub(2), BTN_H.sub(2), 130, 70, 30, 255)
+        draw_text("Restart", RESTART_X.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 240, 240, 240, 255)
+
         // Color radio
         mut bi := 0
         while bi.lt(2) {
@@ -965,9 +981,26 @@ main := proc() {
             draw_text(slabel, sxp.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
             bi = bi.add(1)
         }
-        // Restart button (always-on color, distinct from radios)
-        draw_rectangle(RESTART_X, RADIO_Y, RESTART_BTN_W.sub(2), BTN_H.sub(2), 130, 70, 30, 255)
-        draw_text("Restart", RESTART_X.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 240, 240, 240, 255)
+        // Difficulty label + 5 buttons (only when 1P selected)
+        if sel_2p.eq(0) {
+            draw_text("Difficulty", DIFF_LABEL_X, RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 200, 200, 200, 255)
+            bi = 0
+            while bi.lt(5) {
+                diff_val := bi.add(1)
+                dx := DIFF_X.add(bi.mul(DIFF_BTN_W))
+                mut dr := 40
+                mut dg := 40
+                mut db := 40
+                if diff_val.eq(sel_difficulty) {
+                    dr = 0
+                    dg = 150
+                    db = 155
+                }
+                draw_rectangle(dx, RADIO_Y, DIFF_BTN_W.sub(2), BTN_H.sub(2), dr, dg, db, 255)
+                draw_text(diff_val.to_str(), dx.add(BTN_PAD_X.div(2)), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
+                bi = bi.add(1)
+            }
+        }
 
         // Status bar
         status_y := board_py.add(grid_span).add(margin).add(10)
