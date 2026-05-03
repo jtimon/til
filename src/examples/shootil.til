@@ -5,7 +5,10 @@ mode gui
 //   WASD/arrows + mouse  -- move and look (Quake-style)
 //   F11                  -- toggle fullscreen anywhere
 //   M                    -- open/close the in-game menu
+//   G                    -- toggle god mode (free flight)
 //   ESC                  -- exit
+// God mode frees you from the floor; look up + W to fly.
+// Exiting god mode resets camera to initial position.
 // Menu (game pauses, cursor freed):
 //   Up/Down or W/S       -- move selection
 //   Enter                -- toggle Fullscreen / Quit
@@ -25,6 +28,7 @@ KEY_ESCAPE := 256
 KEY_ENTER := 257
 KEY_A := 65
 KEY_D := 68
+KEY_G := 71
 KEY_M := 77
 KEY_S := 83
 KEY_W := 87
@@ -105,6 +109,9 @@ main := proc() {
 
     mut menu_open := false
     mut menu_sel := 0
+    mut god_mode := false
+    init_pos := camera.position
+    init_target := camera.target
 
     while window_should_close().not() {
         if is_key_pressed(KEY_ESCAPE) { break }
@@ -128,6 +135,23 @@ main := proc() {
         // survive a fullscreen toggle.
         if is_key_pressed(KEY_F11) {
             ToggleFullscreen()
+        }
+
+        if menu_open.not() {
+            if is_key_pressed(KEY_G) {
+                if god_mode {
+                    god_mode = false
+                    camera = Camera3D(
+                        position = init_pos,
+                        target = init_target,
+                        up = v3(0, 1, 0),
+                        fovy = camera.fovy,
+                        projection = camera.projection
+                    )
+                } else {
+                    god_mode = true
+                }
+            }
         }
 
         if menu_open {
@@ -164,18 +188,34 @@ main := proc() {
         } else {
             mut fwd := zero_f
             mut strafe := zero_f
-            if is_key_down(KEY_W).or(is_key_down(KEY_UP))    { fwd = MOVE_STEP }
-            if is_key_down(KEY_S).or(is_key_down(KEY_DOWN))  { fwd = neg_step }
+            mut vertical := zero_f
+            if is_key_down(KEY_W)    { fwd = MOVE_STEP }
+            if is_key_down(KEY_S)    { fwd = neg_step }
             if is_key_down(KEY_D).or(is_key_down(KEY_RIGHT)) { strafe = MOVE_STEP }
             if is_key_down(KEY_A).or(is_key_down(KEY_LEFT))  { strafe = neg_step }
+            if god_mode {
+                if is_key_down(KEY_UP)   { vertical = MOVE_STEP }
+                if is_key_down(KEY_DOWN) { vertical = neg_step }
+            } else {
+                if is_key_down(KEY_UP)   { fwd = MOVE_STEP }
+                if is_key_down(KEY_DOWN) { fwd = neg_step }
+            }
 
             mouse := GetMouseDelta()
             yaw := mouse.x.mul(MOUSE_SENS)
             pitch := mouse.y.mul(MOUSE_SENS)
-
-            movement := Vector3(x = fwd, y = strafe, z = zero_f)
             rotation := Vector3(x = yaw, y = pitch, z = zero_f)
-            UpdateCameraPro(camera, movement, rotation, zero_f)
+
+            if god_mode {
+                // Rotation only; movement handled with full-3D helpers below.
+                UpdateCameraPro(camera, Vector3(x = zero_f, y = zero_f, z = zero_f), rotation, zero_f)
+                CameraMoveForward(camera, fwd, false)
+                CameraMoveRight(camera, strafe, false)
+                CameraMoveUp(camera, vertical)
+            } else {
+                movement := Vector3(x = fwd, y = strafe, z = zero_f)
+                UpdateCameraPro(camera, movement, rotation, zero_f)
+            }
         }
 
         begin_drawing()
@@ -198,7 +238,12 @@ main := proc() {
         DrawFPS(10.to_i32(), 10.to_i32())
         if menu_open.not() {
             sw := get_screen_width()
-            draw_text("M: menu", sw.sub(160), 10, 20, 180, 180, 180, 255)
+            if god_mode {
+                draw_text("G: normal", sw.sub(180), 10, 20, 180, 180, 180, 255)
+            } else {
+                draw_text("G: god mode", sw.sub(180), 10, 20, 180, 180, 180, 255)
+            }
+            draw_text("M: menu", sw.sub(180), 32, 20, 180, 180, 180, 255)
         }
 
         if menu_open {

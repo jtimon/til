@@ -128,3 +128,6 @@ DisableCursor := ext_proc() {}
 EnableCursor := ext_proc() {}
 GetMouseDelta := ext_func() returns shallow Vector2 {}
 UpdateCameraPro := ext_proc(camera: Camera3D, shallow movement: Vector3, shallow rotation: Vector3, shallow zoom: F32) {}
+CameraMoveForward := ext_proc(camera: Camera3D, shallow distance: F32, shallow move_in_world_plane: Bool) {}
+CameraMoveRight := ext_proc(camera: Camera3D, shallow distance: F32, shallow move_in_world_plane: Bool) {}
+CameraMoveUp := ext_proc(camera: Camera3D, shallow distance: F32) {}
