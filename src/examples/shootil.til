@@ -120,13 +120,21 @@ main := proc() {
     mut fps_idx : USize = 2
     ref initial_fps : I64 = fps_values.get(fps_idx)
     set_target_fps(initial_fps.clone())
+    // Drain the initial mouse-delta spike: once before DisableCursor
+    // (consumes the cursor-jump from GLFW's default (0,0) assumption)
+    // and once after (consumes the jump caused by locking cursor to center).
+    // Raylib issue #4654.
+    GetMouseDelta()
     DisableCursor()
+    GetMouseDelta()
 
     // Simulate pressing G twice + a dummy frame to match the manual
     // god-mode toggle that happens mid-gameplay.
     TODO_remove_this_work_around()
     BeginDrawing()
     EndDrawing()
+    // Drain mouse delta accumulated during the dummy draw cycle.
+    GetMouseDelta()
 
     cube_size := v3(2, 2, 2)
     cube_positions := array("Vector3",
@@ -219,6 +227,7 @@ main := proc() {
             if is_key_pressed(KEY_G) {
                 if god_mode {
                     exit_god_mode()
+                    print_cam("god->normal")
                 } else {
                     enter_god_mode()
                 }
@@ -273,8 +282,15 @@ main := proc() {
             }
 
             mouse := GetMouseDelta()
-            yaw := mouse.x.mul(MOUSE_SENS)
-            pitch := mouse.y.mul(MOUSE_SENS)
+            mut yaw := zero_f
+            mut pitch := zero_f
+            // Skip frames where the delta magnitude exceeds a sane
+            // threshold (Raylib/GLFW initial cursor-jump, issue #4654).
+            delta_mag := mouse.x * mouse.x + mouse.y * mouse.y
+            if delta_mag < 10000.to_f32() {
+                yaw = mouse.x.mul(MOUSE_SENS)
+                pitch = mouse.y.mul(MOUSE_SENS)
+            }
             rotation := Vector3(x = yaw, y = pitch, z = zero_f)
 
             if god_mode {
