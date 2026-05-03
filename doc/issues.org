@@ -2414,7 +2414,7 @@
   Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
   (it's useful for other things), but containers no longer use it.
 
-* [0/43] Post
+* [0/42] Post
 ** OPEN #177 Migrate module-scope ~ref mut X : T = NULL~ thread-local-style globals
    Background:
 
@@ -2483,82 +2483,6 @@
      module-scope ~ref mut X : T = NULL~ once no violations
      remain.
    - 96/96 tests still pass.
-
-** OPEN #167 Follow-ups from #166: eval_arg / dispatch.til cleanup
-   While fixing #166 (~deref slot pointer in eval_arg before
-   reinterpret~) a few smaller follow-ups surfaced in the same
-   neighbourhood. None of them is a correctness bug today; they're
-   the things that made #166 plausible in the first place and would
-   make a similar bug easy to slip in again. Grouped here so they
-   land (or get rejected) together.
-
-   1. Consolidate the three Dynamic-to-typed-Value narrowing paths.
-      The interpreter currently does this in three places with
-      three slightly different implementations:
-
-      - ~eval_arg~ in ~src/self/dispatch.til~ (Bool only,
-        post-#166).
-      - ~reinterpret_ptr_value~ in ~src/self/interpreter.til~
-        (full primitive table + Str/Struct/Enum/Func, used by
-        ref-binding and param binding).
-      - Per-type blocks inside ~ext_dispatch_ffi~ in
-        ~src/self/dispatch.til~ (raw-bytes form, writes into the
-        FFI args buffer rather than building a ~Value~).
-
-      #166 was exactly this drift: pre-fix, two of the three did
-      the ~deref(pv)~ step and the third didn't. Goal: collapse
-      to a single helper. ~reinterpret_ptr_value~ is the natural
-      canonical impl; the FFI path can either call it and memcpy
-      the resulting ~Value~'s payload, or both can share a
-      lower-level "slot ptr + type-name -> bytes" helper if the
-      transient-~Value~ allocation cost matters. Acceptance: only
-      one place in the interpreter knows how to do this narrowing,
-      all three call sites delegate, all existing tests pass.
-
-   2. Rename ~eval_arg~ to reflect what it actually does. After
-      #166 dropped the unreachable arms it does exactly one job:
-      narrow a ~Value.Ptr~ slot pointer to ~Value.Boolean~ when
-      ~til_type == Bool~, and pass everything else through.
-      Three callers, all of them ~h_Bool_and~/~or~/~not~. The
-      generic name is misleading. Either rename to
-      ~eval_bool_arg~ / ~narrow_bool_arg~, or inline into the
-      three handlers (each picks up ~5 lines, which kills the
-      abstraction). Probably moot if (1) lands -- the helper
-      goes away.
-
-   3. Panic instead of silently defaulting to ~false~ in
-      ~h_Bool_and~/~or~/~not~. All three have an empty ~case:~
-      in their ~switch v { ... }~ that leaves the local
-      ~av~/~bv~ at ~false~. If anything other than
-      ~Value.Boolean~ / ~Value.Ptr~ flows through (future cast
-      bug, unexpected ~Value.None~, miscompiled FFI returning a
-      ~Value.Int~, ...) the handler returns a wrong-but-plausible
-      result instead of failing loudly. #166 wasn't this kind of
-      bug, but a quiet ~false~ is exactly the symptom that makes
-      the next bug like #166 hard to diagnose. Replace with
-      ~panic(__LOC__, ...)~ citing the unexpected variant tag.
-
-   4. Cover the Dynamic-~til_type~ early-return in ~eval_arg~.
-      ~test_bool_vec_get_chain~ pins the narrowing branch (where
-      the typer has narrowed the arg's ~til_type~ to ~Bool~ via
-      ~not~/~and~/~or~'s param type). The other branch -- when
-      ~e.til_type~ is still ~TilType.Dynamic~ at call time and
-      ~eval_arg~ returns ~v~ unchanged -- isn't pinned. The
-      ~Value.Ptr~ arm of ~h_Bool_and~/~or~/~not~ then derefs the
-      slot directly. That's correct today but unwitnessed.
-      Add a step (or sibling test) that forces a ~Dynamic~
-      receiver, e.g.:
-
-      #+begin_src til
-      v := vec("Bool", true, false)
-      x : Dynamic = v.get(1)
-      assert(__LOC__, x.not())
-      #+end_src
-
-      The exact form depends on what the typer does with a
-      ~Dynamic~ local at the call site -- if it re-narrows on
-      param type the test devolves into the existing case, and a
-      ~Dynamic~ param shape is needed instead.
 
 ** OPEN #164 Diagnose `mut` qualifiers that are never used to write
    After #161 the typer rejects `ref mut x : T = src` when `src` is
