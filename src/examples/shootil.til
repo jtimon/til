@@ -99,13 +99,14 @@ main := proc() {
 
     floor_pos := v3(0, 0, 0)
     floor_size := Vector2(x = 50.to_f32(), y = 50.to_f32())
+    floor_half := floor_size.x / 2.to_f32()
 
     teal := color(0, 200, 210, 255)
     white := color(255, 255, 255, 255)
     black := color(0, 0, 0, 255)
 
     zero_f := 0.to_f32()
-    neg_step := zero_f.sub(MOVE_STEP)
+    neg_step := zero_f - MOVE_STEP
 
     mut menu_open := false
     mut menu_sel := 0
@@ -215,6 +216,21 @@ main := proc() {
             } else {
                 movement := Vector3(x = fwd, y = strafe, z = zero_f)
                 UpdateCameraPro(camera, movement, rotation, zero_f)
+                // Clamp to floor bounds.
+                mut px := camera.position.x
+                mut pz := camera.position.z
+                neg_half := zero_f - floor_half
+                if px < neg_half { px = neg_half }
+                if px > floor_half { px = floor_half }
+                if pz < neg_half { pz = neg_half }
+                if pz > floor_half { pz = floor_half }
+                camera = Camera3D(
+                    position = Vector3(x = px, y = camera.position.y, z = pz),
+                    target = camera.target,
+                    up = camera.up,
+                    fovy = camera.fovy,
+                    projection = camera.projection
+                )
             }
         }
 
