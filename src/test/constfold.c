@@ -1326,7 +1326,7 @@ void Vec_append(Vec * self, Vec * other) {
         (void)_t_Str_174;
         Array_set(_va_Array_1, &_t_U32_173, _t_Str_174);
         ;
-        Str *_t_Str_175 = Str_lit("./src/core/vec.til:50:19", 24ULL);
+        Str *_t_Str_175 = Str_lit("./src/core/vec.til:52:19", 24ULL);
         (void)_t_Str_175;
         panic(_t_Str_175, _va_Array_1);
         Str_delete(_t_Str_175, &(Bool){1});
@@ -1436,7 +1436,7 @@ void Vec_move_from(Vec * self, Vec * other) {
         (void)_t_Str_199;
         Array_set(_va_Array_2, &_t_U32_198, _t_Str_199);
         ;
-        Str *_t_Str_200 = Str_lit("./src/core/vec.til:77:19", 24ULL);
+        Str *_t_Str_200 = Str_lit("./src/core/vec.til:79:19", 24ULL);
         (void)_t_Str_200;
         panic(_t_Str_200, _va_Array_2);
         Str_delete(_t_Str_200, &(Bool){1});
@@ -1629,7 +1629,7 @@ void * Vec_get(Vec * self, U32 * i) {
         (void)_t_Str_246;
         Array_set(_va_Array_3, &_t_U32_245, _t_Str_246);
         ;
-        Str *_t_Str_247 = Str_lit("./src/core/vec.til:102:19", 25ULL);
+        Str *_t_Str_247 = Str_lit("./src/core/vec.til:106:19", 25ULL);
         (void)_t_Str_247;
         panic(_t_Str_247, _va_Array_3);
         Str_delete(_t_Str_247, &(Bool){1});
@@ -1668,7 +1668,7 @@ void * Vec_pop(Vec * self) {
         (void)_t_Str_255;
         Array_set(_va_Array_4, &_t_U32_254, _t_Str_255);
         ;
-        Str *_t_Str_256 = Str_lit("./src/core/vec.til:109:19", 25ULL);
+        Str *_t_Str_256 = Str_lit("./src/core/vec.til:113:19", 25ULL);
         (void)_t_Str_256;
         panic(_t_Str_256, _va_Array_4);
         Str_delete(_t_Str_256, &(Bool){1});
@@ -1742,7 +1742,7 @@ Vec * Vec_take_prefix(Vec * self, U32 * n) {
         (void)_t_Str_275;
         Array_set(_va_Array_5, &_t_U32_274, _t_Str_275);
         ;
-        Str *_t_Str_276 = Str_lit("./src/core/vec.til:120:19", 25ULL);
+        Str *_t_Str_276 = Str_lit("./src/core/vec.til:124:19", 25ULL);
         (void)_t_Str_276;
         panic(_t_Str_276, _va_Array_5);
         Str_delete(_t_Str_276, &(Bool){1});
@@ -1864,7 +1864,7 @@ void Vec_set(Vec * self, U32 * i, void * val) {
         (void)_t_Str_304;
         Array_set(_va_Array_6, &_t_U32_303, _t_Str_304);
         ;
-        Str *_t_Str_305 = Str_lit("./src/core/vec.til:142:19", 25ULL);
+        Str *_t_Str_305 = Str_lit("./src/core/vec.til:146:19", 25ULL);
         (void)_t_Str_305;
         panic(_t_Str_305, _va_Array_6);
         Str_delete(_t_Str_305, &(Bool){1});
@@ -1927,7 +1927,7 @@ void Vec_push_take(Vec * self, Vec * src, U32 i) {
         (void)_t_Str_321;
         Array_set(_va_Array_7, &_t_U32_320, _t_Str_321);
         ;
-        Str *_t_Str_322 = Str_lit("./src/core/vec.til:153:19", 25ULL);
+        Str *_t_Str_322 = Str_lit("./src/core/vec.til:157:19", 25ULL);
         (void)_t_Str_322;
         panic(_t_Str_322, _va_Array_7);
         Str_delete(_t_Str_322, &(Bool){1});
@@ -1965,7 +1965,7 @@ void Vec_push_take(Vec * self, Vec * src, U32 i) {
         (void)_t_Str_327;
         Array_set(_va_Array_8, &_t_U32_326, _t_Str_327);
         ;
-        Str *_t_Str_328 = Str_lit("./src/core/vec.til:156:19", 25ULL);
+        Str *_t_Str_328 = Str_lit("./src/core/vec.til:160:19", 25ULL);
         (void)_t_Str_328;
         panic(_t_Str_328, _va_Array_8);
         Str_delete(_t_Str_328, &(Bool){1});

@@ -34,6 +34,8 @@ namespace:
 
     len := func(self: Vec) returns shallow USize { return self.count }
 
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: Vec, own val: Dynamic) {
         if self.count.eq(self.cap) {
             new_cap := self.cap.mul(2)
@@ -97,6 +99,8 @@ namespace:
         other.count = 0
     }
 
+    /// Return a reference to the element at index `i`. Panics if `i` is
+    /// out of bounds. The reference is valid until the next mutation.
     get := func(self: Vec, i: USize) returns ref Dynamic {
         if i.gte(self.count) {
             panic(__LOC__, "Vec.get: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
