@@ -1,12 +1,14 @@
 mode gui
 
 // Basic 3D shooter prototype: a single white cube in a black void,
-// camera moves with WASD or arrow keys (no mouse look yet).
+// camera moves with WASD or arrow keys, mouse controls yaw/pitch
+// (Quake-style mouse-look, cursor captured via DisableCursor).
 
 WINDOW_W := 1024
 WINDOW_H := 768
 FPS := 60
 MOVE_STEP := 1.to_f32().div(10.to_f32())
+MOUSE_SENS := 5.to_f32().div(100.to_f32())
 
 // Raylib key codes
 KEY_RIGHT := 262
@@ -21,6 +23,7 @@ KEY_W := 87
 main := proc() {
     init_window(WINDOW_W, WINDOW_H, "shootil")
     set_target_fps(FPS)
+    DisableCursor()
 
     mut camera := Camera3D(
         position = Vector3(x = 0.to_f32(), y = 1.to_f32(), z = 5.to_f32()),
@@ -40,17 +43,20 @@ main := proc() {
     neg_step := zero_f.sub(MOVE_STEP)
 
     while window_should_close().not() {
-        mut dx := zero_f
-        mut dz := zero_f
-        if is_key_down(KEY_W).or(is_key_down(KEY_UP))       { dz = neg_step }
-        if is_key_down(KEY_S).or(is_key_down(KEY_DOWN))     { dz = MOVE_STEP }
-        if is_key_down(KEY_A).or(is_key_down(KEY_LEFT))     { dx = neg_step }
-        if is_key_down(KEY_D).or(is_key_down(KEY_RIGHT))    { dx = MOVE_STEP }
+        mut fwd := zero_f
+        mut strafe := zero_f
+        if is_key_down(KEY_W).or(is_key_down(KEY_UP))       { fwd = MOVE_STEP }
+        if is_key_down(KEY_S).or(is_key_down(KEY_DOWN))     { fwd = neg_step }
+        if is_key_down(KEY_D).or(is_key_down(KEY_RIGHT))    { strafe = MOVE_STEP }
+        if is_key_down(KEY_A).or(is_key_down(KEY_LEFT))     { strafe = neg_step }
 
-        camera.position.x = camera.position.x.add(dx)
-        camera.position.z = camera.position.z.add(dz)
-        camera.target.x   = camera.target.x.add(dx)
-        camera.target.z   = camera.target.z.add(dz)
+        mouse := GetMouseDelta()
+        yaw := mouse.x.mul(MOUSE_SENS)
+        pitch := mouse.y.mul(MOUSE_SENS)
+
+        movement := Vector3(x = fwd, y = strafe, z = zero_f)
+        rotation := Vector3(x = yaw, y = pitch, z = zero_f)
+        UpdateCameraPro(camera, movement, rotation, zero_f)
 
         begin_drawing()
         ClearBackground(black)
@@ -60,5 +66,6 @@ main := proc() {
         EndMode3D()
         end_drawing()
     }
+    EnableCursor()
     close_window()
 }

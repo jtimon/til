@@ -118,3 +118,9 @@ DrawCube := ext_proc(shallow position: Vector3, shallow w: F32, shallow h: F32, 
 DrawCubeV := ext_proc(shallow position: Vector3, shallow size: Vector3, shallow color: U32) {}
 DrawCubeWires := ext_proc(shallow position: Vector3, shallow w: F32, shallow h: F32, shallow l: F32, shallow color: U32) {}
 DrawCubeWiresV := ext_proc(shallow position: Vector3, shallow size: Vector3, shallow color: U32) {}
+
+// Cursor + mouse-look
+DisableCursor := ext_proc() {}
+EnableCursor := ext_proc() {}
+GetMouseDelta := ext_func() returns shallow Vector2 {}
+UpdateCameraPro := ext_proc(camera: Camera3D, shallow movement: Vector3, shallow rotation: Vector3, shallow zoom: F32) {}
