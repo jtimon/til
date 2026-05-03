@@ -1,8 +1,28 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 182
+# NEXT_ISSUE: 183
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
+
+* OPEN #182 Support ~/** */~ block doc comments (in addition to ~///~)
+
+  Currently only Rust-style ~///~ line doc comments are parsed.
+  Support C-style ~/** ... */~ block comments as an alternative
+  for multi-paragraph documentation. The parser already drains
+  ~///~ via ~drain_doc_comments~; adding ~/** */~ would require
+  lexer recognition of the open/close tokens and a similar drain
+  in the parser.
+
+  Relevant precedent: the rstil prototype (../rstil/) had this
+  working. Key design decisions:
+
+  - How to handle nesting (~/** /* */ */~ vs ~/** /** */ */~)
+  - Whether ~/** */~ joins lines same as ~///~ (with ~\n~) or
+    preserves the raw block text including newlines
+  - Whether to strip the leading ~*~ on continuation lines
+    (Javadoc convention: ~/**\n * line\n */~)
+  - Interaction with ~///~: should consecutive ~///~ and
+    ~/** */~ on the same decl merge or compete?
 
 * OPEN #181 Declared-type inference for literal expressions
 
