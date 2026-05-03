@@ -51,6 +51,17 @@ draw_menu_item := proc(text: Str, x: I64, y: I64, selected: Bool) {
     }
 }
 
+half := func(size: Vector3) returns Vector3 {
+    return Vector3(x = size.x / 2, y = size.y / 2, z = size.z / 2)
+}
+crate_bb := func(pos: Vector3, sz: Vector3) returns BoundingBox {
+    h := half(sz)
+    return BoundingBox(
+        min = Vector3(x = pos.x - h.x, y = pos.y - h.y, z = pos.z - h.z),
+        max = Vector3(x = pos.x + h.x, y = pos.y + h.y, z = pos.z + h.z)
+    )
+}
+
 main := proc() {
     set_config_flags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED)
     init_window(WINDOW_W, WINDOW_H, "shootil")
@@ -100,6 +111,25 @@ main := proc() {
     floor_pos := v3(0, 0, 0)
     floor_size := Vector2(x = 50.to_f32(), y = 50.to_f32())
     floor_half := floor_size.x / 2.to_f32()
+
+    // Build AABBs for collision detection.
+    total_boxes := cube_positions.len().add(tall_positions.len()).add(small_positions.len())
+    aabbs := Array.new("BoundingBox", BoundingBox.size(), total_boxes)
+    mut bi : USize = 0
+    for pos : Vector3 in cube_positions {
+        aabbs.set(bi, own crate_bb(pos, cube_size))
+        bi = bi.add(1)
+    }
+    for pos : Vector3 in tall_positions {
+        aabbs.set(bi, own crate_bb(pos, tall_size))
+        bi = bi.add(1)
+    }
+    for pos : Vector3 in small_positions {
+        aabbs.set(bi, own crate_bb(pos, small_size))
+        bi = bi.add(1)
+    }
+
+    cam_radius := 1.to_f32() / 2.to_f32()
 
     teal := color(0, 200, 210, 255)
     white := color(255, 255, 255, 255)
@@ -214,23 +244,37 @@ main := proc() {
                 CameraMoveRight(camera, strafe, false)
                 CameraMoveUp(camera, vertical)
             } else {
+                old_px := camera.position.x
+                old_py := camera.position.y
+                old_pz := camera.position.z
+
                 movement := Vector3(x = fwd, y = strafe, z = zero_f)
                 UpdateCameraPro(camera, movement, rotation, zero_f)
-                // Clamp to floor bounds.
-                mut px := camera.position.x
-                mut pz := camera.position.z
-                neg_half := zero_f - floor_half
-                if px < neg_half { px = neg_half }
-                if px > floor_half { px = floor_half }
-                if pz < neg_half { pz = neg_half }
-                if pz > floor_half { pz = floor_half }
-                camera = Camera3D(
-                    position = Vector3(x = px, y = camera.position.y, z = pz),
-                    target = camera.target,
-                    up = camera.up,
-                    fovy = camera.fovy,
-                    projection = camera.projection
-                )
+
+                // Wall and box collision check.
+                mut hit := false
+                nf := zero_f - floor_half
+                if camera.position.x - cam_radius < nf { hit = true }
+                if camera.position.x + cam_radius > floor_half { hit = true }
+                if camera.position.z - cam_radius < nf { hit = true }
+                if camera.position.z + cam_radius > floor_half { hit = true }
+                if hit.not() {
+                    mut i : USize = 0
+                    while i.lt(aabbs.len()) {
+                        ref bb : BoundingBox = aabbs.get(i)
+                        if CheckCollisionBoxSphere(bb, camera.position, cam_radius) {
+                            hit = true
+                            break
+                        }
+                        i = i.add(1)
+                    }
+                }
+
+                if hit {
+                    camera.position.x = old_px
+                    camera.position.y = old_py
+                    camera.position.z = old_pz
+                }
             }
         }
 

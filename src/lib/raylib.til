@@ -131,3 +131,11 @@ UpdateCameraPro := ext_proc(camera: Camera3D, shallow movement: Vector3, shallow
 CameraMoveForward := ext_proc(camera: Camera3D, shallow distance: F32, shallow move_in_world_plane: Bool) {}
 CameraMoveRight := ext_proc(camera: Camera3D, shallow distance: F32, shallow move_in_world_plane: Bool) {}
 CameraMoveUp := ext_proc(camera: Camera3D, shallow distance: F32) {}
+
+// BoundingBox: { Vector3 min, Vector3 max }
+BoundingBox := struct {
+    min : Vector3 = Vector3()
+    max : Vector3 = Vector3()
+}
+
+CheckCollisionBoxSphere := ext_func(shallow box: BoundingBox, shallow center: Vector3, shallow radius: F32) returns shallow Bool {}
