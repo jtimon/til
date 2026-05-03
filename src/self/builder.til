@@ -3485,10 +3485,23 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     mut dyn_flag := " -rdynamic"
     if target.is(Target.WindowsX64) { dyn_flag = "" }
 
-    // Per-target system + ffi + (gui) link flags. Tables live in
-    // src/self/targets.til (system_libs), src/self/dispatch.til (ffi),
-    // and src/modes/gui.til (gui). mode_auto_import is "gui" iff the
-    // program declared mode gui.
+    // For Windows cross-compile, rewrite link_flags inherited from
+    // src/lib/{raylib,libffi,tinyfd}.til. Their link() directives carry
+    // hardcoded Linux paths and POSIX-only -l flags; mingw doesn't ship
+    // -ldl/-lrt and can't load Linux ELF .a files. The Windows variants
+    // are added via target_gui_libs / target_ffi_lib / target_system_libs
+    // below, so it's safe to strip the Linux ones here.
+    if target.is(Target.WindowsX64) {
+        lf = lf.replace(" -ldl", "")
+        lf = lf.replace(" -lrt", "")
+        lf = lf.replace(" lib/raylib/src/libraylib.a", "")
+        lf = lf.replace(" lib/tinyfiledialogs/libtinyfd.a", "")
+        lf = lf.replace(" lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
+    }
+
+    // Per-target system + ffi + (gui) link flags. Tables in
+    // src/self/targets.til. mode_auto_import is "gui" iff the program
+    // declared mode gui.
     sys_libs := target_system_libs(target)
     ffi_lib  := target_ffi_lib(target)
     mut gui_part := ""
