@@ -27,8 +27,11 @@ namespace:
     }
     search_ab := proc(self: AlphaBeta, board: Board, depth: I64,
                     alpha: I64, beta: I64) returns I64 {
+        if depth.eq(0) {
+            return self.h(board)
+        }
         children := self.nexts(board)
-        if depth.eq(0).or(children.len().eq(0)) {
+        if children.len().eq(0) {
             return self.h(board)
         }
         mut best := 0.sub(AB_INF)
