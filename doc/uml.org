@@ -204,7 +204,7 @@
 *** mut own_type := OwnType.Shallow
 *** mut is_alias := false
 *** mut is_type_alias := false
-*** ref mut alias_target : Str = NULL
+*** mut alias_target := ""
 *** ref mut struct_def : Expr = NULL
 *** ref mut func_def : Expr = NULL
 *** mut is_builtin := false

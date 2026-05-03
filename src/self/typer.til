@@ -316,6 +316,32 @@ check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope) {
     }
 }
 
+// #168 step 3: struct field defaults follow the same predicate -- a
+// `ref` field cannot have an owned-RHS default. NULL is still allowed
+// (forced exception for ref fields, since the type doesn't yet have
+// an instance to borrow from at default-value time).
+check_ref_field_owned_default := proc(fd: Declaration, scope: TypeScope) {
+    if fd.own_type.is(OwnType.Ref).not() { return }
+    if is_null(fd.default_value) { return }
+    if fd.default_value.node_type.is(NodeType.NoDefaultArg) { return }
+    if fd.default_value.node_type.is(NodeType.LiteralNull) { return }
+    if fd.default_value.node_type.is(NodeType.FCall).not() { return }
+    if fcall_returns_own(fd.default_value, scope).not() { return }
+    type_error(fd.default_value, "ref field '".concat(fd.name).concat("' default cannot be an owned value (.clone() / constructor / function returning own) -- use NULL or change the field to 'own'"))
+}
+
+// #168 step 4: assignments to ref-typed lvalues follow the same
+// predicate. Catches the original FCallData.fn_sig motivating case
+// (`fcd.fn_sig = src.clone()` where fn_sig was `ref mut Expr = NULL`).
+// Caller passes the resolved target name (just for the diagnostic) and
+// the rhs Expr; the predicate is the same as steps 1-3.
+check_ref_assign_owned_rhs := proc(stmt: Expr, target_name: Str, rhs: Expr, scope: TypeScope) {
+    if rhs.node_type.is(NodeType.FCall).not() { return }
+    if fcall_returns_own(rhs, scope).not() { return }
+    type_error(stmt, "ref target '".concat(target_name).concat("' cannot be assigned an owned value (.clone() / constructor / function returning own) -- borrow the source directly, or change the target to 'own'/'mut'")
+    )
+}
+
 // #168 step 1b: ref locals cannot be initialized to NULL. A `ref` slot
 // initialized to NULL is structurally an uninitialized borrow; every
 // legitimate use is rewritable as the borrow at the point you actually
@@ -1434,6 +1460,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         for fd : Declaration in tc_sdd.fields {
             if is_null(fd.default_value).not().and(fd.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
                 infer_expr(inner, fd.default_value, 0, ctx)
+                check_ref_field_owned_default(fd, inner)
             }
             if fd.explicit_type.len().gt(0) {
                 fd.til_type = type_from_name(fd.explicit_type, inner)
@@ -1720,6 +1747,13 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                 }
             case:
             }
+        } else {
+            // #168 step 5: a ref-typed function cannot return an owned value
+            // -- the heap allocation has nowhere to live in the caller.
+            ref ret_expr : Expr = stmt.child(0)
+            if ret_expr.node_type.is(NodeType.FCall).and(fcall_returns_own(ret_expr, scope)) {
+                type_error(stmt, "ref-typed function cannot return an owned value (.clone() / constructor / function returning own) -- return a borrow source directly, or change the signature to return owned")
+            }
         }
     } else {
         stmt.til_type = TilType.None
@@ -1831,6 +1865,9 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                         found = true
                         if fld.is_mut.not() {
                             type_error(stmt, "cannot assign to immutable field '".concat(fname).concat("'"))
+                        }
+                        if fld.own_type.is(OwnType.Ref) {
+                            check_ref_assign_owned_rhs(stmt, fname, rhs, scope)
                         }
                         mut handled_lit := false
                         switch rhs.node_type {
@@ -3030,14 +3067,14 @@ reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                         }
                     }
                 }
-                if is_null(rb.alias_target).not() {
+                if rb.alias_target.is_empty().not() {
                     switch rstmt.child(0).node_type {
                     case NodeType.Ident(target_name):
-                        ref old_at : Str = rb.alias_target
+                        old_at := rb.alias_target.clone()
                         rb.alias_target = target_name.clone()
                         for bi in 0..scope.bindings.len() {
                             ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
-                            if ptr_eq(b, rb).not().and(ptr_eq(b.alias_target, old_at)) {
+                            if ptr_eq(b, rb).not().and(b.alias_target.eq(old_at)) {
                                 b.alias_target = target_name.clone()
                             }
                         }
@@ -3204,6 +3241,9 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     case ScopeFind.Found(ab):
         if ab.own_type.is(OwnType.Ref).and(ab.is_param.not()) { is_ref_target = true }
     case:
+    }
+    if is_ref_target {
+        check_ref_assign_owned_rhs(stmt, aname, rhs, scope)
     }
     if is_ref_target.not() {
         if rhs.node_type.is(NodeType.Ident).or(
@@ -3386,7 +3426,7 @@ resolve_type_alias := func(scope: TypeScope, name: Str) returns ref Str {
     ref b : TypeBinding = scope.get_binding(name)
     if is_null(b).not() {
         if b.is_type_alias {
-            if is_null(b.alias_target).not() { return b.alias_target }
+            if b.alias_target.is_empty().not() { return b.alias_target }
         }
     }
     return name

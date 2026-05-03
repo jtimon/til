@@ -761,6 +761,16 @@ get_stack_local_ctype := func(name: Str) returns ref Str {
     return NULL
 }
 
+// Resolve an Ident's C type name to an owned Str: the recorded
+// stack-local type if any, otherwise derived from the Expr's til_type.
+// Replaces the previous `ref mut ctype : Str = NULL; if is_null { ctype
+// = c_type_name(...) }` shape that leaked an owned Str into a ref slot.
+resolve_ident_ctype := func(ident: Str, ttype: TilType, sname: Str) returns Str {
+    ref existing : Str = get_stack_local_ctype(ident)
+    if is_null(existing).not() { return existing.clone() }
+    return c_type_name(ttype, sname)
+}
+
 resolve_callee_name := ext_func(fcall: Expr) returns Str {}
 
 resolve_callee_name := func(fcall: Expr) returns Str {
@@ -1812,8 +1822,7 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
     case NodeType.Ident(ident):
         if is_shallow_param(ident).or(is_stack_local(ident)).or(is_value_global(ident)) {
             if is_own {
-                ref mut ctype : Str = get_stack_local_ctype(ident)
-                if is_null(ctype) { ctype = c_type_name(e.til_type, til_type_name(e.til_type)) }
+                ctype := resolve_ident_ctype(ident, e.til_type, til_type_name(e.til_type))
                 f.write("({ ")
                 f.write(ctype)
                 f.write(" *_oa = malloc(sizeof(")

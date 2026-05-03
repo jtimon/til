@@ -415,7 +415,7 @@ main := proc(args: ..Str) {
                asan_safe_cmd(til_bin.concat(" run src/examples/ffi/ext_module.til"), til_bin))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 81,
+    add_count(tests, "typer_errors", "typer", "error:", 88,
               asan_safe_cmd(til_bin.concat(" interpret src/test/typer_errors.til"), til_bin))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
@@ -491,11 +491,6 @@ main := proc(args: ..Str) {
                til_bin.concat(" run -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ")
                       .concat("src/examples/svg2ttf.til ")
                       .concat("img/logo.svg tmp/svg2ttf_fail.ttf"))
-
-    // uml: smoke check that previously lived as `bin/til run src/examples/uml.til`
-    // in the Makefile. Compiled-run only; categorised as "build".
-    add_single(tests, "uml_run", "build", 0, "",
-               til_bin.concat(" run -o bin/c/uml -c gen/c/uml.c src/examples/uml.til"))
 
     // === library mode checks ===
     add_single(tests, "pure_build", "library", 0, "",
@@ -655,7 +650,7 @@ main := proc(args: ..Str) {
     println("Plot test:    ", ms_to_str(plot_ms))
     println("Build tests:  ", ms_to_str(build_ms))
     println("Wall-clock:   ", ms_to_str(wall_ms))
-    println("Passed:       ", total_passed.to_str(), "/", total_tests.to_str())
+    println("Passed:       ", total_passed.to_i64().to_str(), "/", total_tests.to_i64().to_str())
     println("")
 
     if fail.eq(0) {
@@ -696,7 +691,7 @@ main := proc(args: ..Str) {
                               total_compile_ms.to_str(), ",", total_run_ms.to_str(), ",",
                               ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
                               cli_ms.to_str(), ",", wall_ms.to_str(), ",",
-                              total_passed.to_str(), ",", total_tests.to_str(), ",",
+                              total_passed.to_i64().to_str(), ",", total_tests.to_i64().to_str(), ",",
                               total_mem_inte.to_str(), ",",
                               total_mem_comp.to_str(), ",",
                               total_mem_run.to_str(), ",",

@@ -314,6 +314,41 @@ ref terr_step2_ctor : TerrCloneRefSrc = TerrCloneRefSrc(field=2)
 terr_make_owned_str := func() returns Str { return "owned" }
 ref terr_step2_func : Str = terr_make_owned_str()
 
+// #168 step 5: ref-typed function cannot return an owned value.
+terr_step5_bad_ret := func(f: TerrCloneRefSrc) returns ref TerrCloneRefSrc {
+    return f.clone()
+}
+
+// #168 step 3: ref struct field default cannot be an owned value.
+// NULL stays allowed (forced exception for ref fields).
+TerrStep3 := struct {
+    ref mut bad_field : TerrCloneRefSrc = TerrCloneRefSrc(field=3)
+    ref mut ok_field : TerrCloneRefSrc = NULL
+}
+
+// #168 step 2 follow-up: enum variant constructors are caught too,
+// because the initer registers each variant as a namespace decl with
+// a FuncDef whose default return_own_type is Own.
+TerrStep2Enum := enum { TerrPayload: I64, TerrEmpty }
+ref terr_step2_enum : TerrStep2Enum = TerrStep2Enum.TerrPayload(5)
+
+// #168 step 4: assignment to a ref-typed lvalue cannot accept an owned
+// RHS. Catches both plain Assign and FieldAssign shapes.
+TerrStep4Field := struct {
+    ref mut data : Str = NULL
+namespace:
+    set_clone := func(mut self: TerrStep4Field, src: Str) returns I64 {
+        self.data = src.clone()
+        return 0
+    }
+}
+terr_step4_assign := func() returns I64 {
+    ref mut x : Str = "borrow"
+    x = "fresh".clone()
+    return 0
+}
+terr_step4_assign()
+
 // #168 step 1b: ref local cannot be initialized to NULL.
 // Module-scope and field defaults are still allowed (conservative).
 terr_null_ref_local_fn := func() returns I64 {

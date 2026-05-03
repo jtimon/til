@@ -14,7 +14,7 @@ TypeBinding := struct {
     mut own_type := OwnType.Shallow
     mut is_alias := false
     mut is_type_alias := false
-    ref mut alias_target : Str = NULL
+    mut alias_target := ""
     ref mut struct_def : Expr = NULL
     ref mut func_def : Expr = NULL
     mut is_builtin := false
@@ -1112,7 +1112,7 @@ register_type_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
             ab.func_def = target.func_def
             ab.is_builtin = target.is_builtin
             ab.is_type_alias = true
-            if is_null(target.alias_target) {
+            if target.alias_target.is_empty() {
                 ab.alias_target = target_name
             } else {
                 ab.alias_target = target.alias_target
@@ -1843,7 +1843,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                 ref ab : TypeBinding = scope.get_binding(ftype)
                 if is_null(ab).not() {
                     if ab.is_type_alias {
-                        if is_null(ab.alias_target).not() {
+                        if ab.alias_target.is_empty().not() {
                             ftype = ab.alias_target
                             fd.explicit_type = ftype
                             fd.til_type = til_type_from_explicit_type(fd.explicit_type)

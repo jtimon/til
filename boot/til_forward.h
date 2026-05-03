@@ -356,7 +356,7 @@ typedef struct TypeBinding {
     OwnType own_type;
     Bool is_alias;
     Bool is_type_alias;
-    Str *alias_target;
+    Str alias_target;
     Expr *struct_def;
     Expr *func_def;
     Bool is_builtin;
@@ -1095,6 +1095,8 @@ Bool try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * 
 Expr * resolve_fn_sig(Expr * fcall, TypeScope * scope);
 Bool fcall_returns_own(Expr * fcall, TypeScope * scope);
 void check_ref_decl_owned_init(Expr * stmt, TypeScope * scope);
+void check_ref_field_owned_default(Declaration * fd, TypeScope * scope);
+void check_ref_assign_owned_rhs(Expr * stmt, Str * target_name, Expr * rhs, TypeScope * scope);
 void check_ref_local_null_init(Expr * stmt, I32 in_func);
 Bool infer_func_ptr_field_call(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Expr * sdef, Str * method, I32 in_func, Context * ctx);
 void validate_fcall_own_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind);
@@ -1367,6 +1369,7 @@ void collect_dyn_methods(Expr * e, Vec * methods);
 void collect_collection_builtins(Expr * e, Vec * infos);
 void emit_field(File * f, Str * var, Str * field);
 Str * get_stack_local_ctype(Str * name);
+Str * resolve_ident_ctype(Str * ident, TilType * ttype, Str * sname);
 Str * resolve_callee_name(Expr * fcall);
 Str * resolve_callee_name(Expr * fcall);
 Str * callee_return_ctype(Str * callee_name);
