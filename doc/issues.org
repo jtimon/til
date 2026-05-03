@@ -1,10 +1,104 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 178
+# NEXT_ISSUE: 179
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/16] Pre
+* [0/17] Pre
+** OPEN #178 Context-shared symbol table (rstil-style)
+   Background:
+
+   til today scatters per-phase symbol bookkeeping across module-
+   global state. Each phase invents its own keying, lifetime, and
+   storage shape; later phases cannot consult what earlier phases
+   resolved without either re-resolving from the AST or threading
+   the missing data on AST-side cache fields.
+
+   The worked example is ~local_fn_sigs~ in ~src/self/builder.til~
+   (added when ~FCallData.fn_sig~ was dropped in #147 step 7's
+   first cleanup). The typer resolves a FuncPtr local/param's
+   signature in a transient ~func_scope~ that dies at function
+   exit; the builder cannot re-ask the same scope, so the builder
+   pins the resolution into a per-function map of its own.
+
+   Other examples in builder.til alone:
+   ~func_defs~, ~struct_def_exprs~, ~script_globals~,
+   ~ref_globals~, ~funcsig_names~, ~stack_locals~,
+   ~stack_local_types~, ~unsafe_to_hoist~, ~ref_locals~,
+   ~current_fdef~. Each is set/cleared at known points; nothing
+   ties them together as "the symbol table for this build run".
+
+   rstil consolidates this into a single ~Context~ struct
+   (~src/rs/init.rs~) carrying:
+   - a ~scope_stack: Vec<ScopeFrame>~ where each frame has
+     separate maps for ~symbols~, ~funcs~, ~enums~, ~structs~,
+     ~heap_index~
+   - per-function tracking that persists across the function:
+     ~function_locals~, ~used_symbols~, ~consumed_symbols~,
+     ~borrowed_args~, etc.
+   - cross-phase tracking: ~imports_init_done~,
+     ~imports_typer_done~, ~imports_precomp_done~,
+     ~imports_eval_done~
+   - desugar caches that survive into emit:
+     ~anon_struct_decls~, ~anon_func_map~,
+     ~precomputed_heap_values~
+
+   Goal:
+
+   Add a ~Context.symbols~-style table (or set of tables) that
+   the typer fills in, that later phases (precomp, scavenger,
+   builder, interpreter) read and slightly extend. The shape need
+   not match rstil byte-for-byte -- til's ~ref~ discipline lets
+   us share more aggressively than rstil's clone-heavy code does.
+   Caveat from rstil: it clones too much. Port the structure (one
+   Context, named tables, phase-marker sets), not the cloning
+   aggressiveness.
+
+   Open design questions (resolve incrementally):
+
+   1. What goes in. Start with the cases the existing module-
+      globals already cover: function definitions, struct/enum
+      definitions, registered FuncSig aliases, per-function
+      scopes (the missing piece that ~local_fn_sigs~ works
+      around).
+   2. Lifetime model. rstil's ~ScopeStack~ has a Vec frames
+      pushed/popped during typing; the frames die when the typer
+      exits a function. til needs SOME of that frame's contents
+      to persist into the builder phase (the bug class motivating
+      this issue). Options: keep the typer scope alive past its
+      walk (store completed func-scopes in Context, keyed by
+      function name); or distill the build-phase-relevant slice
+      into a separate persistent table while typing.
+   3. Migration order. Existing per-phase globals can be
+      replaced one at a time. Recommended start: the ones whose
+      absence forced builder-side workarounds
+      (~local_fn_sigs~), then the per-function caches in
+      builder.til, then the typer's ~current_*_def~ thread-
+      locals.
+   4. Boundary with #147 step 7's "Dangerous ~ref mut ..
+      : Expr = NULL~" catalog. Many of those entries
+      (~TypeBinding.func_def~, ~Declaration.field_struct_def~,
+      etc.) point at the same kind of typer-resolved data this
+      issue would centralise. Migrating each catalog entry into
+      Context-backed lookup is the natural unification.
+   5. Boundary with #177 (module-scope ~ref mut~ globals).
+      Several of the 8 sites in #177 are exactly the kind of
+      "thread-local-style cache" Context could absorb.
+      ~current_fdef~ and ~current_struct_def~ become Context
+      fields; the ~cached_*_def~/~_name~ entries become
+      Context-owned lookup tables. Resolving #177 may end up
+      being a side effect of this issue rather than a separate
+      track.
+
+   Acceptance:
+
+   - At least one builder-side workaround (start with
+     ~local_fn_sigs~) replaced by a Context-backed lookup that
+     the typer populates and the builder consults directly.
+   - 96/96 tests still pass; ASAN baseline does not regress.
+   - A documented pattern for adding the next table, so the
+     migration of additional sites is mechanical.
+
 ** OPEN #176 FFI: support const char* params (avoid libc prototype conflicts)
    Symptom:
 
