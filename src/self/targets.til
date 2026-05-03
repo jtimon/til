@@ -183,6 +183,26 @@ executable_extension := func(target: Target) returns Str {
     }
 }
 
+// CRT/system libraries always linked for this target. POSIX needs
+// dl + rt + m + pthread; Windows ext.c uses GetProcessMemoryInfo /
+// EnumProcessModules from psapi; mingw's CRT provides the rest inline.
+// Per-feature platform tables (libffi, GUI) live next to the code that
+// owns them: target_ffi_lib() in dispatch.til, target_gui_libs() in
+// src/modes/gui.til.
+target_system_libs := func(target: Target) returns Str {
+    switch target {
+    case Target.LinuxX64:     return "-ldl -lrt -lm -lpthread"
+    case Target.LinuxArm64:   return "-ldl -lrt -lm -lpthread"
+    case Target.LinuxRiscv64: return "-ldl -lrt -lm -lpthread"
+    case Target.WindowsX64:   return "-lpsapi"
+    case Target.MacosX64:     return "-lm -lpthread"
+    case Target.MacosArm64:   return "-lm -lpthread"
+    case Target.Wasm32:       return ""
+    case Target.TempleosX86:  return ""
+    }
+    return ""
+}
+
 // ---------- Detect current platform
 
 detect_current_target := proc() returns Target {
