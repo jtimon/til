@@ -2317,6 +2317,22 @@ init_declarations_global := proc(program: Expr, scope: TypeScope) returns shallo
 }
 
 // rstil-style init: recursively init imports then this file.
+// Count ~import("...")~ FCalls at the top level of `body`. Used by step 5
+// to distinguish mode auto-imports (prepended to iu.imports by the loader)
+// from explicit imports that appear in the source AST.
+count_ast_imports := func(body: Expr) returns shallow USize {
+    mut n : USize = 0.to_u32()
+    for stmt : Expr in body.children {
+        if stmt.node_type.is(NodeType.FCall).not() { continue }
+        if stmt.children.len().neq(2) { continue }
+        if stmt.child(0).node_type.is(NodeType.Ident).not() { continue }
+        if stmt.child(1).node_type.is(NodeType.LiteralStr).not() { continue }
+        ref id : Str = get_payload(stmt.child(0).node_type)
+        if id.eq("import") { n = n.add(1.to_u32()) }
+    }
+    return n
+}
+
 init_file := proc(path: Str, ctx: Context) returns shallow I32 {
     if ctx.imports_init_done.has(path) {
         return 0.to_i32()
@@ -2325,9 +2341,28 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
 
     ref iu : ImportUnit = ctx.imported.get(path)
 
-    // Process imports first.
-    for dep : Str in iu.imports {
+    // Walk the AST in source order and recurse on each ~import("...")~ FCall.
+    // iu.imports is kept as a side table that maps the i-th import FCall to
+    // its resolved disp path. The loader prepends mode auto-imports (e.g.
+    // `mode gui` -> gui.til) ahead of the AST-extracted imports, so process
+    // those leading entries first before walking. #165 step 5.
+    ast_count : USize = count_ast_imports(iu.ast)
+    auto_count : USize = iu.imports.len().sub(ast_count)
+    for i in 0..auto_count {
+        ref dep : Str = iu.imports.get(i)
         init_file(dep, ctx)
+    }
+    mut import_idx : USize = auto_count
+    for stmt : Expr in iu.ast.children {
+        if stmt.node_type.is(NodeType.FCall).not() { continue }
+        if stmt.children.len().neq(2) { continue }
+        if stmt.child(0).node_type.is(NodeType.Ident).not() { continue }
+        if stmt.child(1).node_type.is(NodeType.LiteralStr).not() { continue }
+        ref id : Str = get_payload(stmt.child(0).node_type)
+        if id.eq("import").not() { continue }
+        ref dep : Str = iu.imports.get(import_idx)
+        init_file(dep, ctx)
+        import_idx = import_idx.add(1.to_u32())
     }
 
     ctx.mode = iu.mode.clone()

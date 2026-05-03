@@ -3182,11 +3182,29 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
 
     ref iu : ImportUnit = ctx.imported.get(path)
 
-    // Process imports first; accumulate their error counts so failures in
-    // imported files reach the loader's post-typer check.
-    mut total : I32 = 0
-    for dep : Str in iu.imports {
+    // Walk the AST in source order; recurse on each ~import("...")~ FCall.
+    // iu.imports stays as a source-ordered side table for path resolution.
+    // Loader-prepended mode auto-imports (e.g. mode gui -> gui.til) come
+    // first in iu.imports without a matching AST FCall, so process those
+    // leading entries before the walk. #165 step 5.
+    mut total : I32 = 0.to_i32()
+    ast_count : USize = count_ast_imports(iu.ast)
+    auto_count : USize = iu.imports.len().sub(ast_count)
+    for i in 0..auto_count {
+        ref dep : Str = iu.imports.get(i)
         total = total.add(type_file(dep, ctx))
+    }
+    mut import_idx : USize = auto_count
+    for stmt : Expr in iu.ast.children {
+        if stmt.node_type.is(NodeType.FCall).not() { continue }
+        if stmt.children.len().neq(2) { continue }
+        if stmt.child(0).node_type.is(NodeType.Ident).not() { continue }
+        if stmt.child(1).node_type.is(NodeType.LiteralStr).not() { continue }
+        ref id : Str = get_payload(stmt.child(0).node_type)
+        if id.eq("import").not() { continue }
+        ref dep : Str = iu.imports.get(import_idx)
+        total = total.add(type_file(dep, ctx))
+        import_idx = import_idx.add(1.to_u32())
     }
 
     ctx.mode = iu.mode.clone()
