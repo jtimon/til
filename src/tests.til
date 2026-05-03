@@ -387,6 +387,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/booleans.til", flags)
     add_mode(tests, "src/test/imports.til", flags)
     add_mode(tests, "src/test/import_diamond.til", flags)
+    add_mode(tests, "src/test/priv.til", flags)
     add_mode(tests, "src/test/aliases.til", flags)
     add_mode(tests, "src/test/loops.til", flags)
     add_mode(tests, "src/test/splat.til", flags)
@@ -426,6 +427,9 @@ main := proc(args: ..Str) {
     add_count(tests, "qualifier_returns_own_error", "parser",
               "returns are owned by default", 1,
               asan_safe_cmd(til_bin.concat(" interpret src/test/qualifier_returns_own_error.til"), til_bin))
+    add_count(tests, "priv_error", "typer",
+              "is private to", 1,
+              asan_safe_cmd(til_bin.concat(" interpret src/test/priv_error.til"), til_bin))
     add_count(tests, "enum_switch_missing_case_interp", "typer",
               "non-exhaustive switch on enum", 2,
               asan_safe_cmd(til_bin.concat(" interpret src/test/enum_switch_missing_case.til"), til_bin))

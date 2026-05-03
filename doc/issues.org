@@ -5,7 +5,7 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/18] Pre
-** OPEN #179 priv keyword: opt-out visibility (public by default, opposite of Rust)
+** WIP #179 priv keyword: opt-out visibility (public by default, opposite of Rust)
    Goal:
 
    - Add a ~priv~ keyword for visibility in til. Unlike Rust, where
@@ -25,7 +25,7 @@
 
    Plan (incremental commits):
 
-   1. [ ] Standalone functions in imported files. Allow ~priv~ as a
+   1. [X] Standalone functions in imported files. Allow ~priv~ as a
       prefix on top-level function/proc declarations:
           priv helper := func(x: I64) returns I64 { return x.add(1) }
       The typer must reject any cross-file reference to ~helper~ with

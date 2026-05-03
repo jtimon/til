@@ -1341,6 +1341,19 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     return true
 }
 
+// Issue #179 step 1: cross-file priv check for standalone funcs.
+// Idempotent per binding: a failing call site can be visited twice
+// (e.g. via FieldAccess receiver re-walks), so we track whether the
+// error has already been reported and emit at most one diagnostic.
+check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
+    if is_null(b) { return }
+    if b.is_priv.not() { return }
+    if b.path.eq(typer_path) { return }
+    if b.priv_err_reported { return }
+    type_error(e, "'".concat(name).concat("' is private to '").concat(b.path).concat("'"))
+    b.priv_err_reported = true
+}
+
 infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) {
     if e.child(0).node_type.is(NodeType.FieldAccess) {
         if infer_field_access_fcall(scope, e, in_func, ctx) { return }
@@ -1363,6 +1376,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
     ref mut callee_bind : TypeBinding = scope.get_binding(name)
     if is_null(callee_bind).not() {
         callee_bind.used = true
+        check_priv_access(e, name, callee_bind)
         if is_null(callee_bind.func_def).not() {
             desugar_user_func_fcall_args(e, name, callee_bind)
         }
@@ -2091,6 +2105,7 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
             scope.set(sdecl.name, rt, fdef.func_type, false, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
+            fb.is_priv = sdecl.is_priv
             if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)) {
                 fb.is_builtin = true
             }

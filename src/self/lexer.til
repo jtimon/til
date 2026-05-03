@@ -43,6 +43,7 @@ TokenType := enum {
     KwReturn, KwThrow, KwCatch,
     KwBreak, KwContinue, KwDefer,
     KwTrue, KwFalse, KwNull,
+    KwPriv,
 
     // Error tokens
     Error,
@@ -153,6 +154,7 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.KwTrue: return "true"
     case TokenType.KwFalse: return "false"
     case TokenType.KwNull: return "NULL"
+    case TokenType.KwPriv: return "priv"
     case TokenType.Error: return "error"
     case: return "?"
     }
@@ -248,6 +250,7 @@ lookup_keyword := func(word: Str) returns TokenType {
     case "true": return TokenType.KwTrue
     case "false": return TokenType.KwFalse
     case "NULL": return TokenType.KwNull
+    case "priv": return TokenType.KwPriv
     case: return TokenType.Ident
     }
 }

@@ -7,6 +7,8 @@ TypeBinding := struct {
     mut type := TilType.Unknown
     mut func_type := FuncType.None
     mut is_mut := false
+    mut is_priv := false
+    mut priv_err_reported := false
     mut path := ""
     mut line : U32 = 0
     mut col : U32 = 0
@@ -91,9 +93,11 @@ namespace:
                 b.type = type
                 b.func_type = func_type
                 b.is_mut = is_mut
-                b.path = path.clone()
-                b.line = line
-                b.col = col
+                // path/line/col are declaration-site identity. Don't
+                // overwrite them on re-registration: init_declarations_global
+                // re-runs across all units with a stale initer_path and
+                // would otherwise relocate priv bindings to the wrong file
+                // (issue #179 step 1 cross-file check needs the original).
                 b.is_param = is_param
                 b.own_type = own_type
                 return
@@ -1205,6 +1209,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
             scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
+            fb.is_priv = sdecl.is_priv
             return
         }
 
@@ -1265,6 +1270,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
             scope.set(sdecl.name, rt, ft, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
+            fb.is_priv = sdecl.is_priv
             if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
                 fb.is_builtin = true
             }

@@ -154,6 +154,7 @@ typedef enum {
     TokenType_TAG_KwTrue,
     TokenType_TAG_KwFalse,
     TokenType_TAG_KwNull,
+    TokenType_TAG_KwPriv,
     TokenType_TAG_Error
 } TokenType_tag;
 typedef struct TokenType TokenType;
@@ -283,6 +284,7 @@ typedef struct Declaration {
     Str doc;
     Str explicit_type;
     Bool is_mut;
+    Bool is_priv;
     OwnType own_type;
     TilType til_type;
     I32 field_offset;
@@ -349,6 +351,8 @@ typedef struct TypeBinding {
     TilType type;
     FuncType func_type;
     Bool is_mut;
+    Bool is_priv;
+    Bool priv_err_reported;
     Str path;
     U32 line;
     U32 col;
@@ -1109,6 +1113,7 @@ void infer_and_validate_fcall_args(TypeScope * scope, Expr * e, TypeBinding * ca
 void resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, I32 in_func, Context * ctx);
 Str * obj_method_type_name(Expr * obj);
 Bool infer_field_access_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
+void check_priv_access(Expr * e, Str * name, TypeBinding * b);
 void infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void infer_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void infer_ident_expr(TypeScope * scope, Expr * expr);
@@ -1731,6 +1736,7 @@ TokenType *TokenType_KwDefer();
 TokenType *TokenType_KwTrue();
 TokenType *TokenType_KwFalse();
 TokenType *TokenType_KwNull();
+TokenType *TokenType_KwPriv();
 TokenType *TokenType_Error();
 Bool ScopeFind_eq(ScopeFind *, ScopeFind *);
 ScopeFind *ScopeFind_NotFound();

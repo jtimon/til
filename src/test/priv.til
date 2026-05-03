@@ -1,0 +1,17 @@
+mode test
+import("priv_helper.til")
+
+// Same-file priv is fine; importer can call the public add_one which
+// internally uses priv internal_inc inside priv_helper.til.
+test_priv_indirect := test() {
+    assert_eq(__LOC__, add_one(40), 42)
+}
+
+// Same-file priv: a priv helper used from the same file works.
+priv local_double := func(x: I64) returns I64 {
+    return x.add(x)
+}
+
+test_priv_same_file := test() {
+    assert_eq(__LOC__, local_double(21), 42)
+}

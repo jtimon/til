@@ -1,0 +1,7 @@
+mode script
+import("priv_helper.til")
+
+// Negative test: cross-file reference to a priv standalone func must error.
+main := proc() {
+    println(internal_inc(1).to_str())
+}

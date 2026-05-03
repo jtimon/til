@@ -1,0 +1,11 @@
+mode lib
+
+// Public: visible to importers.
+add_one := func(x: I64) returns I64 {
+    return x.add(internal_inc(1))
+}
+
+// Private to this file: cross-file references must error.
+priv internal_inc := func(x: I64) returns I64 {
+    return x.add(1)
+}
