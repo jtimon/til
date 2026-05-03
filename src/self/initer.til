@@ -127,6 +127,15 @@ Context := struct {
 
     mut scope := TypeScope()
     mut is_repl := false
+
+    // #178 first table: per-function-emission cache of FuncPtr local
+    // signatures, populated by the builder when it emits a FuncPtr-typed
+    // decl, read back when fcall_fn_sig needs to resolve a FuncPtr local
+    // call. Currently swapped at emit_func_def boundaries to scope it
+    // per emission. The eventual rstil-style direction is to populate
+    // this from the typer (keyed by function name) so the builder reads
+    // without a per-emit reset; this commit only moves the storage.
+    mut local_fn_sigs := Map.new("Str", Str.size(), "Dynamic", I64.size())
 }
 
 align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {

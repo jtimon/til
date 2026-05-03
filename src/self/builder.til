@@ -66,16 +66,14 @@ is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns shallow Bool {
     return false
 }
 
-// Maps local FuncPtr name -> resolved FuncDef Expr pointer, captured at
-// emit_stmt_decl for the FuncPtr branch. Lets fcall_fn_sig recover the
-// signature at the eventual call site, since the original typer scope
-// (where the binding lived) is gone by emit time. Saved/restored across
-// emit_func_def alongside the rest of the per-function builder state.
-mut local_fn_sigs := Map.new("Str", Str.size(), "Dynamic", I64.size())
-
+// Per-function-emission cache of FuncPtr local signatures, populated at
+// emit_stmt_decl and read back by fcall_fn_sig when a FuncPtr local is
+// called. Lives on Context (#178 first table); the builder swaps it at
+// emit_func_def boundaries to scope it per emission.
 resolve_local_fn_sig := func(name: Str) returns ref Expr {
-    if local_fn_sigs.has(name).not() { return NULL }
-    return deref(local_fn_sigs.get(name))
+    ref m : Map = codegen_lp().ctx.local_fn_sigs
+    if m.has(name).not() { return NULL }
+    return deref(m.get(name))
 }
 
 // Resolve the FuncDef Expr that backs a FuncPtr-typed Decl, by looking
@@ -943,7 +941,8 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
         if is_null(decl_sig).not() {
             sig_buf : Dynamic = malloc(I64.size())
             write_ptr(sig_buf, decl_sig)
-            local_fn_sigs.set(own dd.name.clone(), own sig_buf)
+            ref mut m : Map = codegen_lp().ctx.local_fn_sigs
+            m.set(own dd.name.clone(), own sig_buf)
         }
     }
     if e.til_type.is(TilType.FuncPtr).and(dd.own_type.is(OwnType.Ref).not()).and(rhs.node_type.is(NodeType.FuncDef).not()) {
@@ -2030,16 +2029,17 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                 }
             }
         }
-        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals; saved_lfo := local_fn_sigs
+        ref mut lp : LoadedProgram = codegen_lp()
+        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals
         stack_locals = Set.new("Str", Str.size()); stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
         unsafe_to_hoist = Set.new("Str", Str.size()); ref_locals = Set.new("Str", Str.size())
-        local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+        lp.ctx.local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
         collect_unsafe_to_hoist(body)
         in_main_func = true
         emit_body(f, body, 1.to_i32())
         in_main_func = false
-        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete(); own local_fn_sigs.delete()
-        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl; local_fn_sigs = saved_lfo
+        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
+        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
         f.write("    return 0;\n")
         f.write("}\n")
     } else {
@@ -2055,14 +2055,15 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         }
         in_func_def = true
         current_fdef = func_def
-        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals; saved_lfo := local_fn_sigs
+        ref mut lp : LoadedProgram = codegen_lp()
+        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals
         stack_locals = Set.new("Str", Str.size()); stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
         unsafe_to_hoist = Set.new("Str", Str.size()); ref_locals = Set.new("Str", Str.size())
-        local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+        lp.ctx.local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
         collect_unsafe_to_hoist(body)
         emit_body(f, body, 1.to_i32())
-        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete(); own local_fn_sigs.delete()
-        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl; local_fn_sigs = saved_lfo
+        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
+        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
         in_func_def = false
         f.write("}\n")
     }

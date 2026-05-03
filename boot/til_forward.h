@@ -643,6 +643,7 @@ typedef struct Context {
     Set imports_eval_done;
     TypeScope scope;
     Bool is_repl;
+    Map local_fn_sigs;
 } Context;
 
 
@@ -1809,7 +1810,6 @@ extern Set stack_locals;
 extern Map stack_local_types;
 extern Set unsafe_to_hoist;
 extern Set ref_locals;
-extern Map local_fn_sigs;
 extern Str interp_path;
 extern Bool has_return;
 extern Bool has_break;
