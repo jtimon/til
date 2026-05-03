@@ -234,6 +234,7 @@ I64 clock_ms(void);
 I64 get_thread_count(void);
 U64 peak_rss_bytes(void);
 U64 current_rss_bytes(I64 pid);
+Str *host_os(void);
 USize c_str_len(U8 *s);
 Bool ptr_eq(void *a, void *b);
 void eprint_single(Str *s);

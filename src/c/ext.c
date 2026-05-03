@@ -577,6 +577,23 @@ Str *get_bin_dir(void) {
     return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
 }
 
+// Returns the OS family the running .exe is on. Mirrors target_to_str() OS
+// segments so til source can compare against "linux" / "windows" / "macos" /
+// "wasm" / "templeos". This is the host, not the build target.
+Str *host_os(void) {
+#if defined(_WIN32)
+    return Str_clone(&(Str){.c_str = (U8*)"windows", .count = 7, .cap = CAP_LIT});
+#elif defined(__APPLE__)
+    return Str_clone(&(Str){.c_str = (U8*)"macos", .count = 5, .cap = CAP_LIT});
+#elif defined(__linux__)
+    return Str_clone(&(Str){.c_str = (U8*)"linux", .count = 5, .cap = CAP_LIT});
+#elif defined(__wasm__) || defined(__wasm32__)
+    return Str_clone(&(Str){.c_str = (U8*)"wasm", .count = 4, .cap = CAP_LIT});
+#else
+    return Str_clone(&(Str){.c_str = (U8*)"unknown", .count = 7, .cap = CAP_LIT});
+#endif
+}
+
 #ifdef _WIN32
 I64 *spawn_cmd(Str *cmd) {
     char *c = malloc(cmd->count + 1);
