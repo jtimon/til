@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all clean test test_asan test_nogui help
+.PHONY: all clean test test_asan test_nogui build_win help
 
 all: bin/til
 
@@ -102,6 +102,15 @@ test_asan: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
 
 test_nogui: bin/til bin/test_runner bin/plot bin/tests
 	bin/tests --no-gui $(if $(J),-j$(J))
+
+# --- Windows cross-compilation ---
+
+WIN_EXAMPLES := $(patsubst src/examples/%.til,bin/%.exe,$(wildcard src/examples/*.til))
+
+build_win: $(WIN_EXAMPLES)
+
+bin/%.exe: src/examples/%.til bin/til
+	bin/til build --target=windows-x64 $<
 
 # --- Utilities ---
 
