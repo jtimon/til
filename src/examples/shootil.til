@@ -75,6 +75,24 @@ main := proc() {
         v3(-4, 1, -8),
     )
 
+    tall_size := v3(2, 4, 2)
+    tall_positions := array("Vector3",
+        v3(5, 2, -5),
+        v3(-9, 2, -4),
+        v3(0, 2, -12),
+    )
+
+    small_s := 1.to_f32()
+    small_y := small_s.div(2.to_f32())
+    small_size := Vector3(x = small_s, y = small_s, z = small_s)
+    small_positions := array("Vector3",
+        Vector3(x = 2.to_f32(),  y = small_y, z = -1.to_f32()),
+        Vector3(x = -3.to_f32(), y = small_y, z = -4.to_f32()),
+        Vector3(x = 10.to_f32(), y = small_y, z = -8.to_f32()),
+        Vector3(x = -6.to_f32(), y = small_y, z = -12.to_f32()),
+        Vector3(x = 7.to_f32(),  y = small_y, z = -14.to_f32()),
+    )
+
     floor_pos := v3(0, 0, 0)
     floor_size := Vector2(x = 50.to_f32(), y = 50.to_f32())
 
@@ -167,6 +185,14 @@ main := proc() {
         for pos : Vector3 in cube_positions {
             DrawCubeV(pos, cube_size, teal)
             DrawCubeWiresV(pos, cube_size, black)
+        }
+        for pos : Vector3 in tall_positions {
+            DrawCubeV(pos, tall_size, teal)
+            DrawCubeWiresV(pos, tall_size, black)
+        }
+        for pos : Vector3 in small_positions {
+            DrawCubeV(pos, small_size, teal)
+            DrawCubeWiresV(pos, small_size, black)
         }
         EndMode3D()
         DrawFPS(10.to_i32(), 10.to_i32())
