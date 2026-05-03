@@ -92,6 +92,8 @@ GetRandomValue := ext_func(shallow min: I32, shallow max: I32) returns shallow I
 GetMouseX := ext_func() returns shallow I32 {}
 GetMouseY := ext_func() returns shallow I32 {}
 GetCharPressed := ext_func() returns shallow I32 {}
+GetFPS := ext_func() returns shallow I32 {}
+DrawFPS := ext_proc(shallow x: I32, shallow y: I32) {}
 InitAudioDevice := ext_proc() {}
 CloseAudioDevice := ext_proc() {}
 

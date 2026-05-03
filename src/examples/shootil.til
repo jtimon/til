@@ -25,7 +25,9 @@ v3 := func(x: I64, y: I64, z: I64) returns Vector3 {
 }
 
 main := proc() {
+    set_config_flags(FLAG_WINDOW_RESIZABLE)
     init_window(WINDOW_W, WINDOW_H, "shootil")
+    set_window_min_size(640, 480)
     set_target_fps(FPS)
     DisableCursor()
 
@@ -83,6 +85,7 @@ main := proc() {
             DrawCubeWiresV(pos, cube_size, black)
         }
         EndMode3D()
+        DrawFPS(10.to_i32(), 10.to_i32())
         end_drawing()
     }
     EnableCursor()
