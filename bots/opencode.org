@@ -79,6 +79,22 @@ to avoid re-discovering the same things.
 - Non-REPL pipelines (~til interpret/build/run/test/translate~) do NOT
   populate the doc registry; ~help()~ only works in the REPL.
 
+** Doc vs docgen changes
+- *Doc change*: modifications to documentation-only files (e.g.
+  ~doc/issues.org~, ~bots/*.org~, ~README~). These do NOT affect the
+  binary or boot files. Commit with ~Doc: ~ prefix, skip ~make test~.
+- *Docgen change*: adding or modifying ~///~ doc comments in core
+  library files (~src/core/vec.til~, etc.). These ARE embedded into
+  ~boot/til.c~ during bootstrap because the lexer copies them into
+  the AST and the boot snapshot includes the full AST text. So even
+  a one-line ~///~ comment forces a full ~make clean && make test~
+  cycle (~13s wall, ~300s CPU). This is tracked as issue #183.
+- *Source change*: any code change to ~.til~ files. Always requires
+  ~make clean && make test~ + ASAN before committing.
+- File change to ~src/test/repl_help.sh~ or ~src/tests.til~ that only
+  adds/removes a test registration line: test-only, still requires
+  make test but may skip ASAN if no core code changed.
+
 ** git
 - ~git reset --soft HEAD~1~ keeps changes in worktree; followed by
   ~git checkout HEAD -- doc/totals.csv img/totals.svg~ to discard
