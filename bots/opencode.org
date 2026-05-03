@@ -1,0 +1,72 @@
+* opencode memory file
+
+Tips and conventions learned from past sessions.  Loaded each session
+to avoid re-discovering the same things.
+
+** General til knowledge
+- ~mode test~ is required for test files (not ~mode gui~).
+- ~mode test~ provides ~assert(__LOC__, cond)~ and ~assert_eq(__LOC__, a, b)~.
+- Float equality goes through ~a.eq(b)~ on F32; there is no ~assert_eq_f32~.
+- Forward references work: functions can reference globals declared later.
+- ~func()~ with no explicit return type works; the compiler infers it.
+- ~proc~ is for side-effect-only procedures; ~func~ is for value-returning functions.
+  Default to ~func~ unless the compiler tells you otherwise.
+- ~format(...)~ takes ~..Str~ variadic but the til compiler may not expand
+  variadics inside ~proc~ bodies correctly.  Use ~print~/~println~ chains
+  instead of ~format~ when in a ~proc~, or test it first.
+
+** til operators and desugaring
+- ~x / y~ desugars to ~x.div(y)~ via UFCS.  F32 division works:
+  ~1.to_f32() / 2~ == 0.5.
+- ~1 / 2~ with both I64 stays I64 (integer division -> 0).
+- Unary ~-~ desugars to ~.neg()~.  F32 has no ~.neg~ method, so ~-floor_half~
+  does not work.  Use ~0 - x~ instead.
+- ~<~, ~>~, ~<=~, ~>=~ desugar to ~.lt()~, ~.gt()~, etc.
+- ~x | y~ is bitwise OR (for U32 flags like ~FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED~).
+
+** til float literals
+- There are no float literals like ~0.5~.  Use ~1.to_f32() / 2.to_f32()~ instead.
+- ~0.5.to_f32()~ panics at build time (~Str.to_i64: invalid char in '0.5'~).
+
+** Struct fields and mutation
+- Struct fields CAN be mutated: ~camera.position.x = new_x~ works.
+- ~Array.new("Type", Type.size(), count)~ creates an Array.
+- ~Array.set(idx, own val)~ — note the ~own~ keyword (required for owned params).
+- Arrays do NOT have a ~.push()~ method.
+- Trailing commas are allowed and encouraged on multi-line constructors.
+
+** GUI / Raylib
+- ~UpdateCameraPro~ hard-codes ~moveInWorldPlane=true~.  For 3D flight,
+  use ~CameraMoveForward~ with ~moveInWorldPlane=false~.
+- ~GetMouseDelta()~ accumulates movement from before window creation.
+  Call it once before the game loop (after ~DisableCursor~) to drain the
+  initial spike, otherwise frame 1 sees a huge delta and the camera
+  jumps.
+- ~CheckCollisionBoxSphere~ is the standard AABB-vs-sphere test.
+- ~xvfb-run --auto-servernum timeout N bin/prog~ runs GUI programs
+  headlessly for testing.  Use ~stdbuf -oL~ to force line-buffered
+  stdout if output is missing.
+
+** Build & debug workflow
+- Use ~tmp/~ for ad-hoc test files.
+- Run with ~bin/til run tmp/test.til > tmp/test.log 2>&1~.
+- Look at generated C in ~gen/til/<name>.c~ to understand desugaring.
+- ~make > /dev/null 2>&1~ to build ~bin/til~ (needed after translation).
+- ~bin/til build~ does translate + C compile; ~bin/til translate~ does
+  just the til->C step (faster iteration).
+- ~systemd-run --user --scope -p MemoryMax=64G make clean && make test~
+  prevents OOM from memory leaks during full test suite.
+
+** Conventions
+- UPPERCASE for module-level constants (~INIT_POS~, ~KEY_W~, ~MENU_*~).
+- snake_case for functions/variables.
+- Trailing commas on multi-line constructors/arrays.
+- Module-level ~mut~ globals for shared mutable state (e.g. ~mut camera := ...~).
+
+** git
+- ~git reset --soft HEAD~1~ keeps changes in worktree; followed by
+  ~git checkout HEAD -- doc/totals.csv img/totals.svg~ to discard
+  auto-generated totals.
+- Never commit without being asked.
+- Doc-only commits: prefix with ~Doc: ~.
+- ~git reflog~ recovers accidentally dropped commits.
