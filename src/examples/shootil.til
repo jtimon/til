@@ -32,6 +32,7 @@ KEY_G := 71
 KEY_M := 77
 KEY_S := 83
 KEY_W := 87
+KEY_SPACE := 32
 KEY_F11 := 300
 
 MENU_FULLSCREEN := 0
@@ -193,6 +194,14 @@ main := proc() {
     zero_f := 0.to_f32()
     neg_step := zero_f - MOVE_STEP
 
+    // Physics constants.
+    JUMP_SPEED : F32 = 3.to_f32() / 10.to_f32()   // 0.3
+    GRAVITY : F32 = 1.to_f32() / 100.to_f32()      // 0.01 per frame
+
+    mut vel_y := zero_f
+    mut on_ground := false
+    mut jump_held := false
+
     mut menu_open := false
     mut menu_sel := 0
 
@@ -284,8 +293,6 @@ main := proc() {
             mouse := GetMouseDelta()
             mut yaw := zero_f
             mut pitch := zero_f
-            // Skip frames where the delta magnitude exceeds a sane
-            // threshold (Raylib/GLFW initial cursor-jump, issue #4654).
             delta_mag := mouse.x * mouse.x + mouse.y * mouse.y
             if delta_mag < 10000.to_f32() {
                 yaw = mouse.x.mul(MOUSE_SENS)
@@ -294,18 +301,47 @@ main := proc() {
             rotation := Vector3(x = yaw, y = pitch, z = zero_f)
 
             if god_mode {
-                // Rotation only; movement handled with full-3D helpers below.
                 UpdateCameraPro(camera, Vector3(x = zero_f, y = zero_f, z = zero_f), rotation, zero_f)
                 CameraMoveForward(camera, fwd, false)
                 CameraMoveRight(camera, strafe, false)
                 CameraMoveUp(camera, vertical)
             } else {
+                // Gravity.
+                vel_y = vel_y - GRAVITY
+
+                // Jump: space or right mouse.
+                if is_key_pressed(KEY_SPACE) {
+                    if on_ground.and(jump_held.not()) {
+                        vel_y = JUMP_SPEED
+                        on_ground = false
+                        jump_held = true
+                    }
+                } else {
+                    jump_held = false
+                }
+
                 old_px := camera.position.x
                 old_py := camera.position.y
                 old_pz := camera.position.z
 
+                // Horizontal movement via UpdateCameraPro.
                 movement := Vector3(x = fwd, y = strafe, z = zero_f)
                 UpdateCameraPro(camera, movement, rotation, zero_f)
+
+                // Apply vertical velocity.
+                // TODO: CameraMoveUp would preserve look angle (moves both
+                // position and target together).  Currently only position.y
+                // changes, tilting the view downward during a jump.
+                camera.position.y = camera.position.y + vel_y
+
+                // Ground check.
+                if camera.position.y <= 1.to_f32() {
+                    camera.position.y = 1.to_f32()
+                    vel_y = zero_f
+                    on_ground = true
+                } else {
+                    on_ground = false
+                }
 
                 // Wall and box collision check.
                 mut hit := false
