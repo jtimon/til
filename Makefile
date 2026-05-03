@@ -105,11 +105,39 @@ test_nogui: bin/til bin/test_runner bin/plot bin/tests
 
 # --- Windows cross-compilation ---
 
-WIN_EXAMPLES := $(patsubst src/examples/%.til,bin/%.exe,$(wildcard src/examples/*.til))
+# Mingw-cross builds of raylib + tinyfd. Linux native builds stay in
+# lib/raylib/src/libraylib.a / lib/tinyfiledialogs/libtinyfd.a; the
+# Windows variants land alongside with -win64 suffixes. raylib's
+# Makefile builds .o files in its own src/ dir, so we copy the sources
+# into tmp/raylib-win/ first to avoid clobbering Linux .o files.
+RAYLIB_WIN_LIB := lib/raylib/src/libraylib-win64.a
+TINYFD_WIN_LIB := lib/tinyfiledialogs/libtinyfd-win64.a
 
-build_win: $(WIN_EXAMPLES)
+$(RAYLIB_WIN_LIB):
+	rm -rf tmp/raylib-win
+	mkdir -p tmp/raylib-win
+	cp -r lib/raylib/src/. tmp/raylib-win/
+	$(MAKE) -C tmp/raylib-win clean
+	$(MAKE) -C tmp/raylib-win \
+	  PLATFORM=PLATFORM_DESKTOP PLATFORM_OS=WINDOWS \
+	  CC=x86_64-w64-mingw32-gcc AR=x86_64-w64-mingw32-ar \
+	  RAYLIB_LIB_NAME=raylib-win64 RAYLIB_RELEASE_PATH=.
+	cp tmp/raylib-win/libraylib-win64.a $@
 
-bin/%.exe: src/examples/%.til bin/til
+$(TINYFD_WIN_LIB):
+	mkdir -p tmp
+	x86_64-w64-mingw32-gcc -c -o tmp/tinyfiledialogs-win.o lib/tinyfiledialogs/tinyfiledialogs.c
+	x86_64-w64-mingw32-ar rcs $@ tmp/tinyfiledialogs-win.o
+
+# raylib.til is a "direct raylib FFI" demo with hardcoded Linux link()
+# paths -- it deliberately doesn't use mode gui. Excluded from the
+# cross-compile sweep; the other 24 examples cover the Windows build.
+WIN_EXAMPLES_SRC := $(filter-out src/examples/raylib.til,$(wildcard src/examples/*.til))
+WIN_EXAMPLES := $(patsubst src/examples/%.til,bin/%.exe,$(WIN_EXAMPLES_SRC))
+
+build_win: $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB) $(WIN_EXAMPLES)
+
+bin/%.exe: src/examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 	bin/til build --target=windows-x64 $<
 
 # --- Utilities ---
