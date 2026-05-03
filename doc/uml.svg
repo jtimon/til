@@ -306,42 +306,28 @@
   <text x="2876" y="452" class="line">mut til_path := &quot;&quot;</text>
   <text x="2876" y="470" class="line">mut py_path := &quot;&quot;</text>
   <text x="2876" y="488" class="line">mut do_lib := false</text>
-  <rect x="3184" y="24" width="340" height="844" rx="14" ry="14" class="panel"/>
+  <rect x="3184" y="24" width="340" height="536" rx="14" ry="14" class="panel"/>
   <text x="3204" y="62" class="panel-label">dispatch</text>
   <rect x="3204" y="88" width="220" height="100" rx="10" ry="10" class="box"/>
   <text x="3218" y="126" class="title">ExtStr: StructDef</text>
   <text x="3218" y="144" class="line">ref mut data : U8 = NULL</text>
   <text x="3218" y="162" class="line">mut count : U64 = 0</text>
   <text x="3218" y="180" class="line">mut cap : U64 = 0</text>
-  <rect x="3204" y="206" width="292" height="118" rx="10" ry="10" class="box"/>
-  <text x="3218" y="244" class="title">ffi_type: StructDef</text>
-  <text x="3218" y="262" class="line">mut size : USize = 0</text>
-  <text x="3218" y="280" class="line">mut alignment : I16 = 0</text>
-  <text x="3218" y="298" class="line">mut type : I16 = 0</text>
-  <text x="3218" y="316" class="line">ref mut elements : Dynamic = NULL</text>
-  <rect x="3204" y="342" width="300" height="154" rx="10" ry="10" class="box"/>
-  <text x="3218" y="380" class="title">ffi_cif: StructDef</text>
-  <text x="3218" y="398" class="line">mut abi : I32 = 0</text>
-  <text x="3218" y="416" class="line">mut nargs : U32 = 0</text>
-  <text x="3218" y="434" class="line">ref mut arg_types : Dynamic = NULL</text>
-  <text x="3218" y="452" class="line">ref mut rtype : Dynamic = NULL</text>
-  <text x="3218" y="470" class="line">mut bytes : U32 = 0</text>
-  <text x="3218" y="488" class="line">mut flags : U32 = 0</text>
-  <rect x="3204" y="514" width="300" height="172" rx="10" ry="10" class="box"/>
-  <text x="3218" y="552" class="title">FFIEntry: StructDef</text>
-  <text x="3218" y="570" class="line">ref mut fn : U8 = NULL</text>
-  <text x="3218" y="588" class="line">ref mut return_type : Str = NULL</text>
-  <text x="3218" y="606" class="line">mut nparam : I32 = 0</text>
-  <text x="3218" y="624" class="line">ref mut param_shallows : U8 = NULL</text>
-  <text x="3218" y="642" class="line">mut return_is_shallow := false</text>
-  <text x="3218" y="660" class="line">ref mut cif : ffi_cif = NULL</text>
-  <text x="3218" y="678" class="line">ref mut arg_types : Dynamic = NULL</text>
-  <rect x="3204" y="704" width="228" height="64" rx="10" ry="10" class="box"/>
-  <text x="3218" y="742" class="title">ExprPtrBox: StructDef</text>
-  <text x="3218" y="760" class="line">ref mut ptr : Expr = NULL</text>
-  <rect x="3204" y="786" width="260" height="64" rx="10" ry="10" class="box"/>
-  <text x="3218" y="824" class="title">FFITypePtrBox: StructDef</text>
-  <text x="3218" y="842" class="line">ref mut ptr : ffi_type = NULL</text>
+  <rect x="3204" y="206" width="300" height="172" rx="10" ry="10" class="box"/>
+  <text x="3218" y="244" class="title">FFIEntry: StructDef</text>
+  <text x="3218" y="262" class="line">ref mut fn : U8 = NULL</text>
+  <text x="3218" y="280" class="line">ref mut return_type : Str = NULL</text>
+  <text x="3218" y="298" class="line">mut nparam : I32 = 0</text>
+  <text x="3218" y="316" class="line">ref mut param_shallows : U8 = NULL</text>
+  <text x="3218" y="334" class="line">mut return_is_shallow := false</text>
+  <text x="3218" y="352" class="line">ref mut cif : ffi_cif = NULL</text>
+  <text x="3218" y="370" class="line">ref mut arg_types : Dynamic = NULL</text>
+  <rect x="3204" y="396" width="228" height="64" rx="10" ry="10" class="box"/>
+  <text x="3218" y="434" class="title">ExprPtrBox: StructDef</text>
+  <text x="3218" y="452" class="line">ref mut ptr : Expr = NULL</text>
+  <rect x="3204" y="478" width="260" height="64" rx="10" ry="10" class="box"/>
+  <text x="3218" y="516" class="title">FFITypePtrBox: StructDef</text>
+  <text x="3218" y="534" class="line">ref mut ptr : ffi_type = NULL</text>
   <rect x="3558" y="24" width="620" height="934" rx="14" ry="14" class="panel"/>
   <text x="3578" y="62" class="panel-label">interpreter</text>
   <rect x="3578" y="88" width="284" height="118" rx="10" ry="10" class="box"/>

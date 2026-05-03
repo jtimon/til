@@ -687,15 +687,27 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         ref mode_mode_def : Mode = require_mode(mode_disp, mode_mode)
         context_register_path_mode(ctx, mode_disp, mode_mode_def)
 
+        // Resolve the auto-import file's own imports (mirrors core.til).
+        mode_imports := extract_imports(mode_ast)
+        mode_dir := bin_dir.concat("/src/modes")
+        if mode_imports.len().gt(0) {
+            err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
+                units, lib_dir, ctx, "", cwd)
+            if err.gt(0) {
+                panic(__LOC__, "failed to resolve mode auto-import imports")
+            }
+        }
+
         // Mode auto-import import unit.
         mut mode_iu := ImportUnit(mode = mode_mode_def.clone())
         mode_iu.ast.take_children(mode_ast)
-        mode_iu.imports = Vec.new("Str", Str.size())
+        mode_iu.imports = resolve_import_disps(mode_imports, mode_dir, lib_dir, cwd)
         ctx.imported.set(own mode_disp.clone(), own mode_iu)
 
         // Mode auto-import unit.
         mut mode_unit := ProgramUnit(path = mode_disp.clone(), mode = mode_mode_def.clone())
-        mode_unit.imports = Vec.new("Str", Str.size())
+        ref miu : ImportUnit = ctx.imported.get(mode_disp)
+        mode_unit.imports = miu.imports.clone()
         units.push(own mode_unit)
 
     }

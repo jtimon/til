@@ -1,0 +1,8 @@
+mode lib
+
+// tinyfiledialogs FFI bindings (lib/tinyfiledialogs/, the external C library).
+
+link("lib/tinyfiledialogs/libtinyfd.a")
+
+tinyfd_saveFileDialog := ext_func(title: U8, defaultPathAndFile: U8, shallow numOfFilterPatterns: I32, shallow filterPatterns: I64, shallow singleFilterDescription: I64) returns ref U8 {}
+tinyfd_openFileDialog := ext_func(title: U8, defaultPathAndFile: U8, shallow numOfFilterPatterns: I32, shallow filterPatterns: I64, shallow singleFilterDescription: I64, shallow allowMultipleSelects: I32) returns ref U8 {}

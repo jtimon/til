@@ -17,14 +17,10 @@ import("self/loader.til")
 import("self/builder.til")
 import("self/interpreter.til")
 import("self/dispatch.til")
+import("lib/raylib.til")
+import("lib/tinyfd.til")
 
 link("dl")
-link("lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
-link("lib/raylib/src/libraylib.a")
-link("m")
-link("pthread")
-link("rt")
-link("lib/tinyfiledialogs/libtinyfd.a")
 
 // --- External C bridges ---
 

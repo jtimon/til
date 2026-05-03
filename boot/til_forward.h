@@ -220,8 +220,8 @@ typedef struct Value Value;
 typedef struct Cell Cell;
 typedef struct Binding Binding;
 typedef struct Scope Scope;
-typedef struct ExtStr ExtStr;
 typedef struct _ffi_type ffi_type;
+typedef struct ExtStr ExtStr;
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
@@ -482,13 +482,6 @@ typedef struct Binding {
 } Binding;
 
 
-typedef struct ExtStr {
-    U8 *data;
-    U64 count;
-    U64 cap;
-} ExtStr;
-
-
 typedef struct _ffi_type {
     U32 size;
     I16 alignment;
@@ -505,6 +498,13 @@ typedef struct {
     U32 bytes;
     U32 flags;
 } ffi_cif;
+
+
+typedef struct ExtStr {
+    U8 *data;
+    U64 count;
+    U64 cap;
+} ExtStr;
 
 
 typedef struct FFIEntry {
@@ -1549,15 +1549,17 @@ void interpret_register_aliases(Scope * global, Expr * prog);
 void interpret_copy_alias_ns(Expr * prog, Scope * global);
 I32 interpret_units(LoadedProgram * lp, Vec * user_argv, Str * fwd_path);
 I32 cmd_interpret(LoadedProgram * lp, Vec * user_argv);
-ExtStr * ExtStr_clone(ExtStr * self);
-void ExtStr_delete(ExtStr * self, Bool * call_free);
-U32 ExtStr_size(void);
 ffi_type * ffi_type_clone(ffi_type * self);
 void ffi_type_delete(ffi_type * self, Bool * call_free);
 U32 ffi_type_size(void);
 ffi_cif * ffi_cif_clone(ffi_cif * self);
 void ffi_cif_delete(ffi_cif * self, Bool * call_free);
 U32 ffi_cif_size(void);
+I32 ffi_prep_cif(ffi_cif * cif, I32 abi, U32 nargs, ffi_type * rtype, void * atypes);
+void ffi_call(ffi_cif * cif, void * fn, void * rvalue, void * avalue);
+ExtStr * ExtStr_clone(ExtStr * self);
+void ExtStr_delete(ExtStr * self, Bool * call_free);
+U32 ExtStr_size(void);
 FFIEntry * FFIEntry_clone(FFIEntry * self);
 void FFIEntry_delete(FFIEntry * self, Bool * call_free);
 U32 FFIEntry_size(void);
@@ -1577,8 +1579,6 @@ ffi_type * ffi_type_uint32_ref(void);
 ffi_type * ffi_type_uint64_ref(void);
 ffi_type * ffi_type_float_ref(void);
 ffi_type * ffi_type_void_ref(void);
-I32 ffi_prep_cif(ffi_cif * cif, I32 abi, U32 nargs, ffi_type * rtype, void * atypes);
-void ffi_call(ffi_cif * cif, void * fn, void * rvalue, void * avalue);
 void * ffi_alloc_cif(void);
 Bool ffi_cif_rtype_is_struct(ffi_cif * cif);
 Bool ffi_load_global_lib(Str * soname);

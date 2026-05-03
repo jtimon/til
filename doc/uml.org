@@ -266,18 +266,6 @@
 *** ref mut data : U8 = NULL
 *** mut count : U64 = 0
 *** mut cap : U64 = 0
-** ffi_type: StructDef
-*** mut size : USize = 0
-*** mut alignment : I16 = 0
-*** mut type : I16 = 0
-*** ref mut elements : Dynamic = NULL
-** ffi_cif: StructDef
-*** mut abi : I32 = 0
-*** mut nargs : U32 = 0
-*** ref mut arg_types : Dynamic = NULL
-*** ref mut rtype : Dynamic = NULL
-*** mut bytes : U32 = 0
-*** mut flags : U32 = 0
 ** FFIEntry: StructDef
 *** ref mut fn : U8 = NULL
 *** ref mut return_type : Str = NULL

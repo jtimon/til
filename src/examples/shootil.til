@@ -1,0 +1,64 @@
+mode gui
+
+// Basic 3D shooter prototype: a single white cube in a black void,
+// camera moves with WASD or arrow keys (no mouse look yet).
+
+WINDOW_W := 1024
+WINDOW_H := 768
+FPS := 60
+MOVE_STEP := 1.to_f32().div(10.to_f32())
+
+// Raylib key codes
+KEY_RIGHT := 262
+KEY_LEFT := 263
+KEY_DOWN := 264
+KEY_UP := 265
+KEY_A := 65
+KEY_D := 68
+KEY_S := 83
+KEY_W := 87
+
+main := proc() {
+    init_window(WINDOW_W, WINDOW_H, "shootil")
+    set_target_fps(FPS)
+
+    mut camera := Camera3D(
+        position = Vector3(x = 0.to_f32(), y = 1.to_f32(), z = 5.to_f32()),
+        target = Vector3(x = 0.to_f32(), y = 1.to_f32(), z = 0.to_f32()),
+        up = Vector3(x = 0.to_f32(), y = 1.to_f32(), z = 0.to_f32()),
+        fovy = 60.to_f32(),
+        projection = 0.to_i32()
+    )
+
+    cube_pos := Vector3(x = 0.to_f32(), y = 1.to_f32(), z = 0.to_f32())
+    cube_size := Vector3(x = 2.to_f32(), y = 2.to_f32(), z = 2.to_f32())
+
+    white := color(255, 255, 255, 255)
+    black := color(0, 0, 0, 255)
+
+    zero_f := 0.to_f32()
+    neg_step := zero_f.sub(MOVE_STEP)
+
+    while window_should_close().not() {
+        mut dx := zero_f
+        mut dz := zero_f
+        if is_key_down(KEY_W).or(is_key_down(KEY_UP))       { dz = neg_step }
+        if is_key_down(KEY_S).or(is_key_down(KEY_DOWN))     { dz = MOVE_STEP }
+        if is_key_down(KEY_A).or(is_key_down(KEY_LEFT))     { dx = neg_step }
+        if is_key_down(KEY_D).or(is_key_down(KEY_RIGHT))    { dx = MOVE_STEP }
+
+        camera.position.x = camera.position.x.add(dx)
+        camera.position.z = camera.position.z.add(dz)
+        camera.target.x   = camera.target.x.add(dx)
+        camera.target.z   = camera.target.z.add(dz)
+
+        begin_drawing()
+        ClearBackground(black)
+        BeginMode3D(camera)
+        DrawCubeV(cube_pos, cube_size, white)
+        DrawCubeWiresV(cube_pos, cube_size, black)
+        EndMode3D()
+        end_drawing()
+    }
+    close_window()
+}

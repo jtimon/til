@@ -524,6 +524,7 @@ main := proc(args: ..Str) {
             "src/examples/music.til",
             "src/examples/piano.til",
             "src/examples/popcorn.til",
+            "src/examples/shootil.til",
             "src/examples/snake.til",
             "src/examples/tilminal.til",
         )
