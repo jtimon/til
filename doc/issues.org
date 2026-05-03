@@ -360,11 +360,30 @@
      Cross-file forward refs (alias declared in importer, used by
      importee) intentionally not tested -- future feature, not a
      current contract.
+   - Step 1 finish landed (c5fa48a): two more registration helpers in
+     initer.til (~register_function_def_for_stmt~,
+     ~infer_top_level_decl_type~) now use the scope-free
+     ~til_type_from_explicit_type~. Custom-vs-Struct equivalence is
+     handled by a custom ~TilType.eq~ override in ast.til, a
+     ~Custom(s)~ case in ~type_prefix~, and a
+     ~normalize_scope_bindings~ sweep that runs once between
+     ~init_declarations_global~ and the first ~type_file~. The alias
+     ~NotFound~ extension to user-defined types was NOT done -- a
+     CamelCase heuristic was tried and rejected (til intentionally
+     has no compiler-level case sensitivity).
    - Step 2 BLOCKED on a structural Vec/Str cycle -- see step 2 and
      issue #174.
-   - Step 1 finish BLOCKED on Custom-vs-Struct typer equality -- see
-     step 1 below; needs a typer-side normalization or a post-init
-     sweep before more registration helpers can drop their scope reads.
+   - Step 5 PARTIAL (this commit): ~init_file~ and ~type_file~ now
+     walk ~iu.ast.children~ in source order and recurse on each
+     ~import("...")~ FCall, with ~iu.imports~ kept as a side table
+     for path resolution. Mode auto-imports (e.g. ~mode gui~ ->
+     ~gui.til~) are handled by recursing into the leading
+     ~iu.imports.len() - count_ast_imports(iu.ast)~ entries before
+     the walk. ~extract_imports~ and the ~iu.imports~ list itself
+     still live; dropping them entirely needs a path resolver in
+     initer/typer.
+   - Step 3 (~Context.struct_layouts~) and step 4 (drop
+     ~init_declarations_global~) gate on cycle work in #174.
    - What remains is architectural: keep going on "init = pure name
      indexing, typer = type-aware work" so initer never reads scope
      for type resolution. The cleanup is real, but the original
@@ -464,7 +483,7 @@
 
    Plan (incremental, smallest landable steps first; each lands green):
 
-   1. [PARTIAL] Strip every ~type_from_name_init~ call out of
+   1. [MOSTLY DONE] Strip every ~type_from_name_init~ call out of
       ~initer.til~. ~register_struct_def_for_stmt~,
       ~register_enum_def_for_stmt~, ~register_type_alias_for_stmt~,
       ~register_function_def_for_stmt~ and
@@ -480,57 +499,34 @@
       ~til_type_from_explicit_type(target)~ returns a non-Custom
       TilType (so ~USize := U32~ works wherever it is in the file).
       ce0a584 moved ~USize := U32~ to the top of core.til to validate
-      end-to-end. Boot regenerated identically -- the alias resolves
-      to U32 throughout codegen regardless of position.
+      end-to-end.
 
-      Still TODO: the same NotFound-permissive treatment for
-      user-defined type aliases (target is ~TilType.Custom~), and
-      stripping ~type_from_name_init~ from
-      ~register_function_def_for_stmt~ and ~infer_top_level_decl_type~.
+      Done in c5fa48a: ~register_function_def_for_stmt~ and
+      ~infer_top_level_decl_type~ now use the scope-free
+      ~til_type_from_explicit_type~ for function return types and
+      explicit type annotations. To make ~Custom(name)~ written by
+      these helpers compare equal to ~Struct(name)~/~Enum(name)~
+      written elsewhere in the typer:
 
-      Attempted swap (post #162): replace
-      ~type_from_name_init(fdef.return_type, scope)~ at
-      register_function_def_for_stmt:1250 with the scope-free
-      ~til_type_from_explicit_type(fdef.return_type)~. Broke the
-      build with 281 type errors of the shape:
+      - ast.til adds a custom ~TilType.eq~ that treats Custom <->
+        Struct/Enum as equal when names match. Uses ~.is()~ throughout
+        (tag-only) because switch-on-enum desugars to recursive eq.
+      - typer.til ~type_prefix~ gets a ~Custom(s)~ case that returns
+        the name (matching Struct/Enum behavior).
+      - typer.til ~normalize_scope_bindings~ walks the global scope
+        once after init and rewrites any binding with type
+        ~Custom(name)~ to ~Struct(name)~ or ~Enum(name)~ when scope
+        resolves the name. Loader calls it between
+        ~init_declarations_global~ and the first ~type_file~.
 
-      #+begin_example
-      ./src/self/interpreter.til:1067:13: error: 'arg' assignment type mismatch
-      ./src/self/interpreter.til:1068:29: error: argument type mismatch for 's': expected Scope, got Scope
-      #+end_example
-
-      Diagnosis: ~type_from_name_init~ resolves a name like ~Scope~
-      to ~TilType.Struct("Scope")~ by checking
-      ~scope.get_struct(name)~. ~til_type_from_explicit_type~ has
-      no scope, so it returns ~TilType.Custom("Scope")~ for any
-      non-primitive name. The typer's equality check then sees
-      ~TilType.Struct("Scope")~ (from the function call site, which
-      went through type_from_name) versus ~TilType.Custom("Scope")~
-      (from the function's binding.type, written by initer) and
-      treats them as different variants.
-
-      Three real options to unblock:
-
-      a) Teach the typer's equality predicate (~til_type_eq~ or
-         ~.eq~ on TilType) to treat ~Custom(name)~ and
-         ~Struct(name)~/~Enum(name)~ as equal when the name resolves
-         to a struct/enum in the surrounding scope. Cleanest but
-         invasive -- has to be applied at every eq call site, or
-         better, in a single normalization helper used everywhere.
-      b) Add a post-init normalization sweep that walks every
-         binding written by initer and resolves ~Custom(name)~ to
-         the proper ~Struct/Enum~ variant once scope is fully
-         populated. Adds a small pass, but localized.
-      c) Give in and let initer keep ~type_from_name_init~ for
-         function return types and explicit type annotations. The
-         "init has no scope reads" goal applies only to
-         declaration-shape bookkeeping, not to type-token
-         resolution. Cosmetic step 1 finish.
-
-      Same diagnosis applies to ~infer_top_level_decl_type~ and to
-      extending the alias NotFound case to ~Custom~ targets -- both
-      end up writing ~Custom(name)~ into bindings that other code
-      compares against ~Struct(name)~.
+      Did NOT land: NotFound-permissive registration for user-defined
+      type aliases. The CamelCase-vs-snake_case heuristic to
+      distinguish type aliases from value aliases was rejected -- til
+      intentionally has no compiler-level case sensitivity, and
+      ALL_CAPS value constants like ~NOTE_ROW_Y : U64 = GAP~ break
+      any first-letter heuristic. The Found arm in
+      ~register_type_alias~ already handles user-defined type aliases
+      when the target file is init'd before the alias file.
 
    2. [BLOCKED ON CYCLES] Move ~gen_struct_clone_delete_for_stmt~,
       ~gen_enum_nonclone_methods_for_stmt~,
@@ -616,13 +612,40 @@
       func/value re-registration) lives inside the typer's per-decl
       visit. Initer is one driver and one walk per file.
 
-   5. Replace ~extract_imports~ + the pre-built ~iu.imports~ list with
-      rstil-style in-walk recursion. ~init_file~ becomes ~init_body~:
-      walk the AST in source order, and on ~import("...")~ FCalls
-      recurse through ~ctx.imports_init_done~. Removes the second
-      source of ordering (sibling import order driven by
-      extract_imports rather than the AST itself) and is a
+   5. [PARTIAL] Replace ~extract_imports~ + the pre-built ~iu.imports~
+      list with rstil-style in-walk recursion. ~init_file~ becomes
+      ~init_body~: walk the AST in source order, and on
+      ~import("...")~ FCalls recurse through ~ctx.imports_init_done~.
+      Removes the second source of ordering (sibling import order
+      driven by extract_imports rather than the AST itself) and is a
       precondition for circular imports (see ~#163~).
+
+      Done in this commit: ~init_file~ and ~type_file~ now walk
+      ~iu.ast.children~ in source order and recurse on each
+      ~import("...")~ FCall. ~iu.imports~ is kept as a side table
+      that maps the i-th import FCall to its resolved disp path.
+
+      Mode auto-imports (e.g. ~mode gui~ -> ~gui.til~) are prepended
+      to ~iu.imports~ by the loader without a matching AST FCall.
+      The walk handles them by computing
+      ~auto_count = iu.imports.len() - count_ast_imports(iu.ast)~
+      and recursing into the leading ~auto_count~ entries before the
+      AST walk. Without this, files like ~src/examples/snake.til~
+      (mode gui, zero explicit imports) silently dropped the gui.til
+      auto-import; the regression surfaced as 13 GUI build failures
+      with errors like ~snake.til:253:96: field access on non-struct~
+      (gen_struct_clone_delete generated ~Sound_clone~ with
+      ~unknown expr type~ placeholders because ~Sound~ from gui.til
+      was never registered).
+
+      Still TODO: drop ~extract_imports~ and ~iu.imports~ entirely.
+      That requires a path resolver in initer/typer that maps a raw
+      ~import("vec.til")~ literal to its canonical disp path at
+      walk time, which needs the importing file's directory + lib_dir
+      + cwd from the loader. The loader still uses extract_imports
+      to drive its parse-time recursion. This commit is the spirit
+      of step 5 (AST-driven ordering) without the full mechanical
+      drop.
 
    6. [PARTIAL] Alphabetize ~src/core/core.til~'s imports and put
       ~USize := U32~ wherever (its own file, top of core.til,

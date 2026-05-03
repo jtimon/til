@@ -1067,6 +1067,7 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
 I32 init_declarations(Expr * program, TypeScope * scope);
 I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 init_declarations_global(Expr * program, TypeScope * scope);
+U32 count_ast_imports(Expr * body);
 I32 init_file(Str * path, Context * ctx);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);
