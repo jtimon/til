@@ -77,9 +77,10 @@ namespace:
                     }
                     continue
                 }
-                if is_null(dd.field_struct_def).not() {
-                    if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
-                        if enum_has_payloads(dd.field_struct_def) {
+                ref clone_lookup : Expr = lookup_interp_type_def(ftype)
+                if is_null(clone_lookup).not() {
+                    if clone_lookup.node_type.is(NodeType.EnumDef) {
+                        if enum_has_payloads(clone_lookup) {
                             ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_i64().to_u64()))
                             if is_null(ei_ref).not() {
                                 ref ei : EnumInstance = ei_ref
@@ -93,12 +94,9 @@ namespace:
                             continue
                         }
                     }
-                }
-                if is_null(dd.field_struct_def).not() {
-                    if dd.field_struct_def.node_type.is(NodeType.EnumDef).not() {
-                        ref nested : Expr = dd.field_struct_def
-                        ref nested_sdef : StructDef = get_payload(nested.node_type)
-                        mut tmp := StructInstance(struct_name = ftype, struct_def = nested, data = ptr_add(self.data, foff.to_i64().to_u64()), borrowed = true)
+                    if clone_lookup.node_type.is(NodeType.StructDef) {
+                        ref nested_sdef : StructDef = get_payload(clone_lookup.node_type)
+                        mut tmp := StructInstance(struct_name = ftype, struct_def = clone_lookup, data = ptr_add(self.data, foff.to_i64().to_u64()), borrowed = true)
                         mut cloned := tmp.clone()
                         tmp.data = NULL
                         memcpy(ptr_add(dst_data, foff.to_i64().to_u64()), cloned.data, nested_sdef.total_struct_size.to_i64().to_u64())
