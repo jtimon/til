@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 184
+# NEXT_ISSUE: 185
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -72,7 +72,158 @@
    }
    #+end_src
 
-* [0/17] Pre
+* [0/18] Pre
+** OPEN #184 Finish the bare ~get_payload~ -> switch destructure refactor
+   Goal: remove the remaining bare ~get_payload(...)~ calls in the
+   self-host and replace them with idiomatic switch destructuring,
+   so payload extraction is type-safe and the payload reads are
+   colocated with the variant tag check.
+
+   Pattern to apply:
+
+   #+begin_src til
+   // before
+   if e.node_type.is(NodeType.Decl) {
+       ref d : Declaration = get_payload(e.node_type)
+       ... use d ...
+   }
+   // after
+   switch e.node_type {
+   case NodeType.Decl(d):
+       ... use d ...
+   case:
+   }
+   #+end_src
+
+   And the bare-binding form:
+
+   #+begin_src til
+   // before
+   ref d : Declaration = get_payload(stmt.node_type)
+   // after
+   switch stmt.node_type {
+   case NodeType.Decl(d):
+       ... rest of function body ...
+   case:
+       UNREACHABLE(__LOC__)
+   }
+   #+end_src
+
+*** Current state (after master ~3a04f57~)
+
+    Files done (no remaining bare ~get_payload~):
+    - ~src/core/ast.til~
+    - ~src/tests.til~
+    - ~src/self/parser.til~
+    - ~src/self/typer.til~ (modulo 1 leftover at ~typer.til:1042~)
+    - ~src/self/scavenger.til~
+    - ~src/self/dispatch.til~ (most sites; a few remain)
+    - ~src/self/builder.til~ (most sites; many remain)
+    - ~src/self/precomp.til~ (most sites; some remain)
+    - ~src/self/loader.til~ (most sites; some remain)
+    - ~src/self/fonts.til~, ~src/examples/uml.til~
+
+    Remaining bare ~get_payload~ sites (call counts include
+    ~Ident("get_payload")~ AST construction, which stays):
+    - ~src/self/builder.til~: 151
+    - ~src/self/interpreter.til~: 124 (next file to tackle)
+    - ~src/self/dispatch.til~: 38
+    - ~src/self/precomp.til~: 28
+    - ~src/self/loader.til~: 10
+    - ~src/self/initer.til~: 5 (all ~Ident("get_payload")~ AST
+      construction -- effectively done)
+    - ~src/self/typer.til~: 2 (1 real bare site + 1
+      ~Ident("get_payload")~)
+    - ~src/core/dyn.til~: 1 (the ~ext_func~ declaration itself)
+
+*** ~.is~ vs ~.eq~ on enum tags
+
+    Style rule that fell out of this work:
+
+    - ~x.is(Variant)~ is the right call for tag-only checks. It
+      compiles to a bare tag compare.
+    - ~x.eq(Variant)~ is payload-aware deep equality. Using it for
+      tag-only checks is misleading and can be more expensive.
+
+    Most ~x.eq(Variant)~ sites in the self-host have already been
+    rewritten to ~x.is(Variant)~. A handful of ~OwnType~ / ~TilType~
+    / ~FuncType~ ~.eq~ usages remain in ~src/self/initer.til~ and
+    ~src/self/precomp.til~; those are tag-only enums so the two
+    operators are functionally equivalent, but they should still
+    flip to ~.is~ for consistency.
+
+*** Patterns we deliberately keep as bare ~get_payload~
+
+    Switch destructure is not a strict win in every case. Keep the
+    bare form when:
+
+    1. The case-bound payload would need to be reassigned through
+       the same pointer (e.g. mutating ~own_args~ on an ~FCall~
+       payload across multiple switch arms).
+    2. A short helper handles two variants that share the same
+       payload type (e.g. ~FieldAccess~ + ~FieldAssign~ both carry
+       ~Str~). Switch destructure forces either two arms with
+       duplicated bodies or a hoist into a ~mut Str~ -- and the
+       hoist leaks (see #175).
+    3. Inside ~Ident("get_payload")~ AST construction, where the
+       ~"get_payload"~ string is just a literal in generated code,
+       not a real call.
+
+*** Lessons learned (for future similar work)
+
+    1. *Verify "X is broken" claims empirically before believing
+       them.* The session-summary note that said "switch on owned
+       ~Value~ types or ~self~ inside ~Value.clone~ causes issues
+       (recursive codegen, ownership)" was wrong: ~Value.to_str~
+       was already using ~switch self~ in the same file, and
+       converting ~Value.eq~ and ~Value.clone~ to switch built and
+       passed all tests. Don't carry forward folklore from a
+       compacted summary -- run the experiment.
+
+    2. *Read the actual switch desugar before reasoning about it.*
+       In ~src/self/typer.til:make_switch_case_condition~, a case
+       with a payload binding desugars to:
+
+       #+begin_src til
+       if X.is(Variant) {
+           ref binding : payload_type = get_payload(X)   // OwnType.Ref
+           ... case body ...
+       }
+       #+end_src
+
+       The case-binding is a borrow (~OwnType.Ref~), zero
+       allocation. If something around the switch leaks, the leak
+       is on the surrounding code's side, not the desugar (this is
+       what #175 captures: ~mut X := ""; X = case_bound_str~ leaks
+       both the ~""~ and the new ref-to-mut clone).
+
+    3. *Don't hoist case-bound names into ~mut Str~ locals.* When
+       the case-bound value needs to outlive the switch, prefer
+       either keeping the work inside the case body, or using a
+       single bare ~ref X : T = get_payload(...)~ (option (2)
+       above). The ~mut hoist~ pattern is a #175 leak.
+
+    4. *Trust but verify session-summary file lists.* When a
+       summary says "all sites in file X converted", grep before
+       you commit. Some sites get missed; the typer.til squash
+       still left one bare ~get_payload~ at line 1042 that nobody
+       caught for two rebases.
+
+    5. *Use ~UNREACHABLE(__LOC__)~ in default arms.* When the
+       switch is genuinely exhaustive over the variants the code
+       expects, the catch-all ~case:~ should be ~UNREACHABLE(__LOC__)~.
+       Skipping it makes the next maintainer wonder if a real
+       fallthrough is intended.
+
+    6. *Prefer rebase over cherry-pick when integrating with
+       master.* Cherry-pick rewrites authorship and ordering, which
+       complicates "is my work merged or not" questions later. The
+       answer is almost always "rebase".
+
+    Belongs under #109 (memory leak cleanup) only insofar as #175
+    blocks the most aggressive form of this refactor on dual-variant
+    helpers.
+
 ** WIP #179 priv keyword: opt-out visibility (public by default, opposite of Rust)
    Goal:
 
