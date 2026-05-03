@@ -118,6 +118,7 @@ DrawCube := ext_proc(shallow position: Vector3, shallow w: F32, shallow h: F32, 
 DrawCubeV := ext_proc(shallow position: Vector3, shallow size: Vector3, shallow color: U32) {}
 DrawCubeWires := ext_proc(shallow position: Vector3, shallow w: F32, shallow h: F32, shallow l: F32, shallow color: U32) {}
 DrawCubeWiresV := ext_proc(shallow position: Vector3, shallow size: Vector3, shallow color: U32) {}
+DrawPlane := ext_proc(shallow center: Vector3, shallow size: Vector2, shallow color: U32) {}
 
 // Cursor + mouse-look
 DisableCursor := ext_proc() {}
