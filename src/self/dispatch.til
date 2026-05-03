@@ -887,6 +887,52 @@ ffi_call_ret_struct_def := func(fe: FFIEntry) returns ref Expr {
     return deref(sdef_ptr)
 }
 
+// Map a shallow ffi_type pointer to its TIL type_name (as understood by
+// reinterpret_ptr_value) and its byte size. Returns false for ffi_types
+// that don't correspond to a primitive shallow value (struct/pointer/etc.,
+// caller falls back to the Ptr-default path).
+ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool {
+    if ptr_eq(atype, ffi_type_sint64_ref()) { type_name = "I64"; size = 8.to_i32(); return true }
+    if ptr_eq(atype, ffi_type_uint8_ref())  { type_name = "U8";  size = 1.to_i32(); return true }
+    if ptr_eq(atype, ffi_type_sint16_ref()) { type_name = "I16"; size = 2.to_i32(); return true }
+    if ptr_eq(atype, ffi_type_sint32_ref()) { type_name = "I32"; size = 4.to_i32(); return true }
+    if ptr_eq(atype, ffi_type_uint32_ref()) { type_name = "U32"; size = 4.to_i32(); return true }
+    if ptr_eq(atype, ffi_type_uint64_ref()) { type_name = "U64"; size = 8.to_i32(); return true }
+    if ptr_eq(atype, ffi_type_float_ref())  { type_name = "F32"; size = 4.to_i32(); return true }
+    return false
+}
+
+// Write a shallow primitive arg into the FFI args buffer at `dst`.
+// Returns false if `atype` isn't a known primitive (caller falls back to
+// the Ptr-default path).
+//
+// For Value.Ptr args (slot pointers from Vec/Array/Map.get etc.) the
+// narrowing is delegated to reinterpret_ptr_value -- the same helper
+// ref bindings, param binding, and eval_arg use -- so the four paths
+// can't drift apart and re-introduce #166 on the FFI side.
+//
+// Non-Ptr args go through value_to_f32 (cross-kind I64->F32 needs a real
+// numeric conversion) or value_to_u64 (all integer-shaped ffi_types,
+// truncated by memcpy'ing only `size` bytes -- equivalent to the old
+// to_i16/to_u8/etc. casts on x86-64 little-endian).
+ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic) returns shallow Bool {
+    mut tn := ""
+    mut sz : I32 = 0.to_i32()
+    if ffi_shallow_type_info(atype, tn, sz).not() { return false }
+    if v.is(Value.Ptr) {
+        narrowed := reinterpret_ptr_value(v, tn, scope)
+        ref payload : Dynamic = val_to_ptr(narrowed)
+        memcpy(dst, payload, sz.to_i64().to_u64())
+    } else if tn.eq("F32") {
+        mut tmp : F32 = value_to_f32(v)
+        memcpy(dst, tmp, 4)
+    } else {
+        mut tmp : U64 = value_to_u64(v)
+        memcpy(dst, tmp, sz.to_i64().to_u64())
+    }
+    return true
+}
+
 ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
     if ffi_loaded.not() { return false }
     if ffi_map.has(name).not() { return false }
@@ -915,51 +961,17 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
             } else {
                 ref at : Dynamic = ptr_add(fe.arg_types, i.to_u64().mul(8))
                 ref atype : Dynamic = deref(at)
-                if ptr_eq(atype, ffi_type_sint64_ref()) {
-                    mut tmp : I64 = 0
-                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I64 = deref(pv); tmp = iv }
-                    else { tmp = value_to_i64(v) }
-                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 8)
-                } else if ptr_eq(atype, ffi_type_uint8_ref()) {
-                    mut tmp : U8 = 0
-                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U8 = deref(pv); tmp = iv }
-                    else { tmp = value_to_u64(v).to_i64().to_u8() }
-                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 1)
-                } else if ptr_eq(atype, ffi_type_sint16_ref()) {
-                    mut tmp : I16 = 0
-                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I16 = deref(pv); tmp = iv }
-                    else { tmp = value_to_i64(v).to_i16() }
-                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 2)
-                } else if ptr_eq(atype, ffi_type_sint32_ref()) {
-                    mut tmp : I32 = 0
-                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : I32 = deref(pv); tmp = iv }
-                    else { tmp = value_to_i64(v).to_i32() }
-                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 4)
-                } else if ptr_eq(atype, ffi_type_uint32_ref()) {
-                    mut tmp : U32 = 0
-                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U32 = deref(pv); tmp = iv }
-                    else { tmp = value_to_u64(v).to_i64().to_u32() }
-                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 4)
-                } else if ptr_eq(atype, ffi_type_uint64_ref()) {
-                    mut tmp : U64 = 0
-                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : U64 = deref(pv); tmp = iv }
-                    else { tmp = value_to_u64(v) }
-                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 8)
-                } else if ptr_eq(atype, ffi_type_float_ref()) {
-                    mut tmp : F32 = 0.to_f32()
-                    if v.is(Value.Ptr) { ref pv : Dynamic = get_payload(v); ref iv : F32 = deref(pv); tmp = iv }
-                    else { tmp = value_to_f32(v) }
-                    memcpy(ptr_add(args, i.to_u64().mul(8)), tmp, 4)
-                } else {
+                ref dst : Dynamic = ptr_add(args, i.to_u64().mul(8))
+                if ffi_write_shallow_arg(scope, v, atype, dst).not() {
                     // Default: Ptr value
                     if v.is(Value.Ptr) {
                         ref pv : Dynamic = get_payload(v)
-                        write_ptr(ptr_add(args, i.to_u64().mul(8)), deref(pv))
+                        write_ptr(dst, deref(pv))
                     } else {
-                        write_ptr(ptr_add(args, i.to_u64().mul(8)), NULL)
+                        write_ptr(dst, NULL)
                     }
                 }
-                write_ptr(ptr_add(arg_ptrs, i.to_u64().mul(8)), ptr_add(args, i.to_u64().mul(8)))
+                write_ptr(ptr_add(arg_ptrs, i.to_u64().mul(8)), dst)
             }
         } else {
             // Deep: pass heap-allocated pointer (FFI callee may free it)
