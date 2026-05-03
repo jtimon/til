@@ -129,6 +129,21 @@ test_dynamic_local := test() {
     assert(__LOC__, is_null(buf).not())
 }
 
+// #180 regression: `ref x : Dynamic = some_ptr_value` must keep the
+// Value.Ptr in x's cell rather than wrapping it into a Value.Struct of
+// type "Dynamic" (which the generic StructDef lookup in
+// reinterpret_ptr_value would do without an explicit early-return for
+// "Dynamic"). Re-narrowing a Dynamic ref to Bool exercises both the
+// ref-decl path and the subsequent reinterpret -- pre-fix the second
+// reinterpret saw a Value.Struct and bailed via shallow_copy_value, so
+// the byte at the slot was never read.
+test_dynamic_ref_keeps_ptr := test() {
+    v := vec("Bool", true, false)
+    ref x : Dynamic = v.get(1)
+    ref b : Bool = x
+    assert(__LOC__, b.not())
+}
+
 test_dyn_size_of := test() {
     sz_i64 : USize = dyn_size_of("I64")
     sz_u8 : USize = dyn_size_of("U8")

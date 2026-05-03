@@ -519,6 +519,13 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns 
     ref p : Dynamic = deref(pv)
     if is_null(p) { return shallow_copy_value(val) }
     if type_name.len().eq(0) { return shallow_copy_value(val) }
+    // Dynamic is a void-pointer type; the slot pointer IS the value, no
+    // narrowing needed. Without this early-return the generic StructDef
+    // lookup below would match Dynamic (registered as StructDef in
+    // src/core/dyn.til) and wrap the Ptr into a Value.Struct, which
+    // breaks downstream code that expects ref-Dynamic bindings to stay
+    // as Value.Ptr (#180).
+    if type_name.eq("Dynamic") { return shallow_copy_value(val) }
     if type_name.eq("I64") { ref v : I64 = p; return val_i64(v) }
     if type_name.eq("U8") { ref v : U8 = p; return val_u8(v.to_i64()) }
     if type_name.eq("I16") { ref v : I16 = p; return val_i16(v.to_i64()) }
