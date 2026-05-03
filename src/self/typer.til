@@ -76,7 +76,6 @@ mut errors : I32 = 0
 mut proc_calls_count : I32 = 0
 mut proc_def_depth : I32 = 0
 mut current_type_name := ""
-ref mut current_struct_def : Expr = NULL
 I64Name := "I64"
 U8Name := "U8"
 I16Name := "I16"
@@ -1455,19 +1454,8 @@ infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I3
     expr.til_type = TilType.Struct("Set".clone())
 }
 
-// Returns expr if it's a Struct/Enum def, otherwise NULL. Used by
-// infer_type_def_expr to pick the value of `current_struct_def` for
-// the recursive walk.
-type_def_struct_def_for := func(expr: Expr) returns ref Expr {
-    if expr.node_type.is(NodeType.StructDef) { return expr }
-    if expr.node_type.is(NodeType.EnumDef)   { return expr }
-    return NULL
-}
-
 infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     expr.til_type = TilType.None
-    ref saved_struct_def : Expr = current_struct_def
-    current_struct_def = type_def_struct_def_for(expr)
     inner := TypeScope(parent = scope)
     switch expr.node_type {
     case NodeType.StructDef(tc_sdd):
@@ -1545,7 +1533,6 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         }
     }
     TypeScope.delete(own inner)
-    current_struct_def = saved_struct_def
 }
 
 infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {

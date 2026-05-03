@@ -21,22 +21,9 @@ DynCallInfo := struct {
 // Points at the LoadedProgram passed to cmd_build/cmd_run for the duration of
 // codegen, so helpers can iterate per-file ASTs without building merged views.
 mut codegen_lp_slot : Dynamic = 0
-ref mut current_fdef : Expr = NULL
-mut func_defs := Map.new("Str", Str.size(), "Dynamic", I64.size())
-mut struct_def_exprs := Map.new("Str", Str.size(), "Dynamic", I64.size())
-mut script_globals := Set.new("Str", Str.size())
-mut has_script_globals := false
-mut ref_globals := Set.new("Str", Str.size())
-mut has_ref_globals := false
 mut in_func_def := false
 mut in_main_func := false
-mut funcsig_names := Set.new("Str", Str.size())
-mut has_funcsig_names := false
 mut ctor_seq : I32 = 0
-mut stack_locals := Set.new("Str", Str.size())
-mut stack_local_types := Map.new("Str", Str.size(), "Str", Str.size())
-mut unsafe_to_hoist := Set.new("Str", Str.size())
-mut ref_locals := Set.new("Str", Str.size())
 
 codegen_lp := func() returns ref LoadedProgram {
     if is_null(codegen_lp_slot) {
@@ -127,8 +114,9 @@ fcall_fn_sig := func(fcall: Expr) returns ref Expr {
     case NodeType.Ident(name):
         // Fallback 1: FuncPtr param of the current function. The param's
         // explicit_type is the FuncSig alias name (always a global binding).
-        if is_null(current_fdef).not() {
-            switch current_fdef.node_type {
+        ref cf1 : Expr = codegen_lp().ctx.current_fdef
+        if is_null(cf1).not() {
+            switch cf1.node_type {
             case NodeType.FuncDef(cur_fd):
                 for p : Declaration in cur_fd.params {
                     if p.name.eq(name).not() { continue }
@@ -161,12 +149,13 @@ fcall_fn_sig := func(fcall: Expr) returns ref Expr {
 }
 
 is_stack_local := func(name: Str) returns shallow Bool {
-    return stack_locals.has(name)
+    return codegen_lp().ctx.stack_locals.has(name)
 }
 
 is_current_func_param := func(name: Str) returns shallow Bool {
-    if is_null(current_fdef) { return false }
-    switch current_fdef.node_type {
+    ref cf : Expr = codegen_lp().ctx.current_fdef
+    if is_null(cf) { return false }
+    switch cf.node_type {
     case NodeType.FuncDef(fd):
         for p : Declaration in fd.params {
             if p.name.eq(name) { return true }
@@ -178,19 +167,17 @@ is_current_func_param := func(name: Str) returns shallow Bool {
 }
 
 is_value_global := func(name: Str) returns shallow Bool {
-    if has_script_globals.not() { return false }
     if is_current_func_param(name) { return false }
-    return script_globals.has(name)
+    return codegen_lp().ctx.script_globals.has(name)
 }
 
 is_ref_global := func(name: Str) returns shallow Bool {
-    if has_ref_globals.not() { return false }
     if is_current_func_param(name) { return false }
-    return ref_globals.has(name)
+    return codegen_lp().ctx.ref_globals.has(name)
 }
 
 is_ref_local := func(name: Str) returns shallow Bool {
-    if ref_locals.has(name) { return true }
+    if codegen_lp().ctx.ref_locals.has(name) { return true }
     return is_ref_global(name)
 }
 
@@ -220,8 +207,7 @@ is_primitive_type := func(name: Str) returns shallow Bool {
 }
 
 is_funcsig_type := func(name: Str) returns shallow Bool {
-    if has_funcsig_names.not() { return false }
-    return funcsig_names.has(name)
+    return codegen_lp().ctx.funcsig_names.has(name)
 }
 
 is_ext_h_type := func(name: Str) returns shallow Bool {
@@ -279,13 +265,15 @@ is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
 }
 
 find_struct_def := func(name: Str) returns ref Expr {
-    if struct_def_exprs.has(name).not() { return NULL }
-    return deref(struct_def_exprs.get(name))
+    ref m : Map = codegen_lp().ctx.struct_def_exprs
+    if m.has(name).not() { return NULL }
+    return deref(m.get(name))
 }
 
 find_callee_fdef := func(name: Str) returns ref Expr {
-    if func_defs.has(name).not() { return NULL }
-    return deref(func_defs.get(name))
+    ref m : Map = codegen_lp().ctx.func_defs
+    if m.has(name).not() { return NULL }
+    return deref(m.get(name))
 }
 
 fa_struct_name := func(e: Expr) returns Str {
@@ -358,8 +346,9 @@ builder_fa_is_ns := func(e: Expr) returns shallow Bool {
 }
 
 is_shallow_param := func(name: Str) returns shallow Bool {
-    if is_null(current_fdef) { return false }
-    switch current_fdef.node_type {
+    ref cf : Expr = codegen_lp().ctx.current_fdef
+    if is_null(cf) { return false }
+    switch cf.node_type {
     case NodeType.FuncDef(fd):
         for p : Declaration in fd.params {
             if p.own_type.is(OwnType.Shallow) {
@@ -556,9 +545,7 @@ type_name_to_c := func(name: Str) returns Str {
     if name.eq("Bool") { return "Bool *" }
     if name.eq("Dynamic") { return "void *" }
     if name.eq("Fn") { return "void *" }
-    if has_funcsig_names {
-        if funcsig_names.has(name) { return name.clone() }
-    }
+    if codegen_lp().ctx.funcsig_names.has(name) { return name.clone() }
     return name.concat(" *")
 }
 
@@ -574,9 +561,7 @@ type_name_to_c_value := func(name: Str) returns Str {
     if name.eq("Bool") { return "Bool" }
     if name.eq("Dynamic") { return "void *" }
     if name.eq("Fn") { return "void *" }
-    if has_funcsig_names {
-        if funcsig_names.has(name) { return name.clone() }
-    }
+    if codegen_lp().ctx.funcsig_names.has(name) { return name.clone() }
     return name.clone()
 }
 
@@ -752,8 +737,9 @@ emit_field := proc(f: File, var: Str, field: Str) {
 }
 
 get_stack_local_ctype := func(name: Str) returns ref Str {
-    if stack_local_types.has(name) {
-        ref p : Str = stack_local_types.get(name)
+    ref m : Map = codegen_lp().ctx.stack_local_types
+    if m.has(name) {
+        ref p : Str = m.get(name)
         return p
     }
     return NULL
@@ -806,6 +792,7 @@ fcall_return_ctype := func(fcall: Expr) returns Str {
 
 check_fcall_mut_args := proc(e: Expr) {
     if is_null(e) { return }
+    ref mut lp : LoadedProgram = codegen_lp()
     if e.node_type.is(NodeType.FCall) {
         ref mut fdef : Expr = fcall_fn_sig(e)
         if is_null(fdef) {
@@ -826,7 +813,7 @@ check_fcall_mut_args := proc(e: Expr) {
                                 ref arg : Expr = e.child(a)
                                 if arg.node_type.is(NodeType.Ident) {
                                     ref arg_name : Str = get_payload(arg.node_type)
-                                    unsafe_to_hoist.add(own arg_name.clone())
+                                    lp.ctx.unsafe_to_hoist.add(own arg_name.clone())
                                 }
                             }
                         }
@@ -842,6 +829,7 @@ check_fcall_mut_args := proc(e: Expr) {
 }
 
 collect_unsafe_to_hoist := proc(body: Expr) {
+    ref mut lp : LoadedProgram = codegen_lp()
     for stmt : Expr in body.children {
         check_fcall_mut_args(stmt)
         if stmt.node_type.is(NodeType.Decl) {
@@ -850,7 +838,7 @@ collect_unsafe_to_hoist := proc(body: Expr) {
                 ref rhs : Expr = stmt.child(0)
                 if rhs.node_type.is(NodeType.Ident) {
                     ref rhs_name : Str = get_payload(rhs.node_type)
-                    unsafe_to_hoist.add(own rhs_name.clone())
+                    lp.ctx.unsafe_to_hoist.add(own rhs_name.clone())
                 }
                 if rhs.node_type.is(NodeType.FCall) {
                     callee := resolve_callee_name(rhs)
@@ -864,7 +852,7 @@ collect_unsafe_to_hoist := proc(body: Expr) {
                                         ref arg : Expr = rhs.child(a)
                                         if arg.node_type.is(NodeType.Ident) {
                                             ref arg_name : Str = get_payload(arg.node_type)
-                                            unsafe_to_hoist.add(own arg_name.clone())
+                                            lp.ctx.unsafe_to_hoist.add(own arg_name.clone())
                                         }
                                     }
                                 }
@@ -932,6 +920,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
     ref dd : Declaration = get_payload(e.node_type)
     if e.children.len().eq(0) { return }
     ref rhs : Expr = e.child(0)
+    ref mut lp : LoadedProgram = codegen_lp()
     // For any FuncPtr-typed decl (own, ref, or value), capture the local's
     // signature so fcall_fn_sig can recover it at the eventual call site.
     // The original typer scope where `dd` lived is gone by emit time, so we
@@ -969,7 +958,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
     } else {
         if dd.own_type.is(OwnType.Ref) {
             is_rg := is_ref_global(dd.name).and(in_func_def.not())
-            if is_rg.not() { ref_locals.add(own dd.name.clone()) }
+            if is_rg.not() { lp.ctx.ref_locals.add(own dd.name.clone()) }
             ctype := resolve_decl_ctype(e.til_type, rhs.til_type, dd.explicit_type)
             if is_rg { f.write(dd.name); f.write(" = ") }
             else { f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ") }
@@ -1023,22 +1012,22 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                         if htype.len().eq(0) { htype = ctype.clone() }
                         f.write(htype); f.write(" "); f.write(dd.name); f.write(" = ")
                         emit_expr(f, rhs, depth); f.write(";\n")
-                        stack_locals.add(own dd.name.clone())
-                        stack_local_types.set(own dd.name.clone(), own htype.clone())
+                        lp.ctx.stack_locals.add(own dd.name.clone())
+                        lp.ctx.stack_local_types.set(own dd.name.clone(), own htype.clone())
                     } else if can_hoist.and(rhs.node_type.is(NodeType.FCall)) {
                         mut htype := fcall_return_ctype(rhs)
                         if htype.len().eq(0) { htype = ctype.clone() }
                         f.write(htype); f.write(" "); f.write(dd.name); f.write("; { "); f.write(htype); f.write(" *_hp = ("); f.write(htype); f.write(" *)")
                         emit_expr(f, rhs, depth)
                         f.write("; "); f.write(dd.name); f.write(" = *_hp; free(_hp); }\n")
-                        stack_locals.add(own dd.name.clone())
-                        stack_local_types.set(own dd.name.clone(), own htype.clone())
+                        lp.ctx.stack_locals.add(own dd.name.clone())
+                        lp.ctx.stack_local_types.set(own dd.name.clone(), own htype.clone())
                     } else if can_hoist {
                         f.write(ctype); f.write(" "); f.write(dd.name); f.write("; { "); f.write(ctype); f.write(" *_hp = ("); f.write(ctype); f.write(" *)")
                         emit_expr(f, rhs, depth)
                         f.write("; "); f.write(dd.name); f.write(" = *_hp; free(_hp); }\n")
-                        stack_locals.add(own dd.name.clone())
-                        stack_local_types.set(own dd.name.clone(), own ctype.clone())
+                        lp.ctx.stack_locals.add(own dd.name.clone())
+                        lp.ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
                         if is_global { f.write(dd.name); f.write(" = ") }
                         else { f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ") }
@@ -1050,8 +1039,8 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                     } else if can_hoist {
                         f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = ")
                         emit_deref(f, rhs, depth); f.write(";\n")
-                        stack_locals.add(own dd.name.clone())
-                        stack_local_types.set(own dd.name.clone(), own ctype.clone())
+                        lp.ctx.stack_locals.add(own dd.name.clone())
+                        lp.ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
                         f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = malloc(sizeof("); f.write(ctype); f.write("));\n")
                         emit_indent(f, depth)
@@ -1064,8 +1053,9 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
     }
 }
 emit_return_ctype := func(rv: Expr) returns Str {
-    if is_null(current_fdef).not() {
-        switch current_fdef.node_type {
+    ref cf : Expr = codegen_lp().ctx.current_fdef
+    if is_null(cf).not() {
+        switch cf.node_type {
         case NodeType.FuncDef(fd):
             if fd.return_type.len().gt(0) { return type_name_to_c_value(fd.return_type) }
         case:
@@ -1102,8 +1092,9 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
             }
         }
         // Ref return
-        if is_null(current_fdef).not() {
-            switch current_fdef.node_type {
+        ref cf2 : Expr = codegen_lp().ctx.current_fdef
+        if is_null(cf2).not() {
+            switch cf2.node_type {
             case NodeType.FuncDef(fd):
                 if fd.return_own_type.is(OwnType.Ref) {
                     f.write("return "); emit_as_ptr(f, rv, depth, false); f.write(";\n"); return
@@ -1128,8 +1119,9 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
         } else if rv.node_type.is(NodeType.Ident) {
             ref rv_name : Str = get_payload(rv.node_type)
             mut is_shallow_ret := false
-            if is_null(current_fdef).not() {
-                switch current_fdef.node_type {
+            ref cf3 : Expr = codegen_lp().ctx.current_fdef
+            if is_null(cf3).not() {
+                switch cf3.node_type {
                 case NodeType.FuncDef(fd):
                     is_shallow_ret = fd.return_own_type.is(OwnType.Shallow)
                 case:
@@ -1759,13 +1751,12 @@ emit_ns_inits := proc(f: File, shallow depth: I32) {
 }
 
 emit_body_scoped := proc(f: File, body: Expr, shallow depth: I32) {
-    saved_sl := stack_locals.clone()
-    saved_rl := ref_locals.clone()
+    ref mut lp : LoadedProgram = codegen_lp()
+    saved_sl := lp.ctx.stack_locals.clone()
+    saved_rl := lp.ctx.ref_locals.clone()
     emit_body(f, body, depth)
-    own stack_locals.delete()
-    own ref_locals.delete()
-    stack_locals = saved_sl
-    ref_locals = saved_rl
+    lp.ctx.stack_locals = saved_sl
+    lp.ctx.ref_locals = saved_rl
 }
 
 emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
@@ -1960,7 +1951,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
             }
         }
         emit_ns_inits(f, 1.to_i32())
-        if has_script_globals {
+        if codegen_lp().ctx.script_globals.len().gt(0) {
             ref lp : LoadedProgram = codegen_lp()
             if lp.skip_core.not() {
                 for u : ProgramUnit in lp.core_units {
@@ -2030,16 +2021,15 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
             }
         }
         ref mut lp : LoadedProgram = codegen_lp()
-        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals
-        stack_locals = Set.new("Str", Str.size()); stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
-        unsafe_to_hoist = Set.new("Str", Str.size()); ref_locals = Set.new("Str", Str.size())
+        lp.ctx.stack_locals = Set.new("Str", Str.size())
+        lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
+        lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
+        lp.ctx.ref_locals = Set.new("Str", Str.size())
         lp.ctx.local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
         collect_unsafe_to_hoist(body)
         in_main_func = true
         emit_body(f, body, 1.to_i32())
         in_main_func = false
-        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
-        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
         f.write("    return 0;\n")
         f.write("}\n")
     } else {
@@ -2054,16 +2044,15 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
             f.write("    (void)"); f.write(p.name); f.write(";\n")
         }
         in_func_def = true
-        current_fdef = func_def
         ref mut lp : LoadedProgram = codegen_lp()
-        saved_sl := stack_locals; saved_slt := stack_local_types; saved_uth := unsafe_to_hoist; saved_rl := ref_locals
-        stack_locals = Set.new("Str", Str.size()); stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
-        unsafe_to_hoist = Set.new("Str", Str.size()); ref_locals = Set.new("Str", Str.size())
+        lp.ctx.current_fdef = func_def
+        lp.ctx.stack_locals = Set.new("Str", Str.size())
+        lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
+        lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
+        lp.ctx.ref_locals = Set.new("Str", Str.size())
         lp.ctx.local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
         collect_unsafe_to_hoist(body)
         emit_body(f, body, 1.to_i32())
-        own stack_locals.delete(); own stack_local_types.delete(); own unsafe_to_hoist.delete(); own ref_locals.delete()
-        stack_locals = saved_sl; stack_local_types = saved_slt; unsafe_to_hoist = saved_uth; ref_locals = saved_rl
         in_func_def = false
         f.write("}\n")
     }
@@ -3513,21 +3502,22 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
 }
 
 register_funcsig_prog := func(prog: Expr) {
+    ref mut lp : LoadedProgram = codegen_lp()
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl) {
             ref rhs : Expr = stmt.child(0)
             if rhs.node_type.is(NodeType.FuncDef) {
                 if rhs.children.len().eq(0) {
                     ref dd : Declaration = get_payload(stmt.node_type)
-                    funcsig_names.add(own dd.name.clone())
+                    lp.ctx.funcsig_names.add(own dd.name.clone())
                 }
             }
             if stmt.til_type.is(TilType.None) {
                 if rhs.node_type.is(NodeType.Ident) {
                     ref rhs_name : Str = get_payload(rhs.node_type)
-                    if funcsig_names.has(rhs_name) {
+                    if lp.ctx.funcsig_names.has(rhs_name) {
                         ref dd : Declaration = get_payload(stmt.node_type)
-                        funcsig_names.add(own dd.name.clone())
+                        lp.ctx.funcsig_names.add(own dd.name.clone())
                     }
                 }
             }
@@ -3552,7 +3542,7 @@ emit_global_inits_prog := proc(f: File, prog: Expr) {
 }
 
 emit_global_inits := proc(f: File) {
-    if has_script_globals.not() { return }
+    if codegen_lp().ctx.script_globals.len().eq(0) { return }
     ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -3567,16 +3557,15 @@ emit_global_inits := proc(f: File) {
 }
 
 build_register_funcsig_names := func(core_program: Expr, program: Expr) {
-    funcsig_names = Set.new("Str", Str.size())
-    has_funcsig_names = true
+    ref mut lp : LoadedProgram = codegen_lp()
+    lp.ctx.funcsig_names = Set.new("Str", Str.size())
     if is_null(core_program).not() { register_funcsig_prog(core_program) }
     if is_null(program).not()      { register_funcsig_prog(program) }
 }
 
 build_register_funcsig_names_lp := func() {
-    funcsig_names = Set.new("Str", Str.size())
-    has_funcsig_names = true
-    ref lp : LoadedProgram = codegen_lp()
+    ref mut lp : LoadedProgram = codegen_lp()
+    lp.ctx.funcsig_names = Set.new("Str", Str.size())
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -3590,6 +3579,7 @@ build_register_funcsig_names_lp := func() {
 }
 
 register_lookups_prog := func(prog: Expr) {
+    ref mut lp : LoadedProgram = codegen_lp()
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl) {
             ref rhs : Expr = stmt.child(0)
@@ -3597,7 +3587,7 @@ register_lookups_prog := func(prog: Expr) {
                 ref dd : Declaration = get_payload(stmt.node_type)
                 _sdv : Dynamic = malloc(I64.size())
                 write_ptr(_sdv, rhs)
-                struct_def_exprs.set(own dd.name.clone(), own _sdv)
+                lp.ctx.struct_def_exprs.set(own dd.name.clone(), own _sdv)
                 // Register ns_decls methods into func_defs
                 ref rl_ns : Vec = def_ns_decls(rhs)
                 for d_j : Declaration in rl_ns {
@@ -3605,10 +3595,10 @@ register_lookups_prog := func(prog: Expr) {
                     if is_null(nsd.default_value) { continue }
                     if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                     key := dd.name.concat("_").concat(nsd.name)
-                    if func_defs.has(key) { continue }
+                    if lp.ctx.func_defs.has(key) { continue }
                     fv : Dynamic = malloc(I64.size())
                     write_ptr(fv, nsd.default_value)
-                    func_defs.set(own key, own fv)
+                    lp.ctx.func_defs.set(own key, own fv)
                     if nsd.default_value.children.len().gt(0) {
                         ref fbody : Expr = nsd.default_value.child(0)
                         for nested : Expr in fbody.children {
@@ -3617,7 +3607,7 @@ register_lookups_prog := func(prog: Expr) {
                             ref nd : Declaration = get_payload(nested.node_type)
                             nv : Dynamic = malloc(I64.size())
                             write_ptr(nv, nfdef)
-                            func_defs.set(own nd.name.clone(), own nv)
+                            lp.ctx.func_defs.set(own nd.name.clone(), own nv)
                         }
                     }
                 }
@@ -3626,7 +3616,7 @@ register_lookups_prog := func(prog: Expr) {
                 ref dd2 : Declaration = get_payload(stmt.node_type)
                 fv2 : Dynamic = malloc(I64.size())
                 write_ptr(fv2, rhs)
-                func_defs.set(own dd2.name.clone(), own fv2)
+                lp.ctx.func_defs.set(own dd2.name.clone(), own fv2)
             }
         }
     }
@@ -3635,25 +3625,26 @@ register_lookups_prog := func(prog: Expr) {
 // #135: can't use for prog_idx in 0..2 with ref mut prog here because
 // the clone bug makes stored pointers point to cloned nodes
 build_register_lookups := func(core_program: Expr, program: Expr) {
-    struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
-    func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
-    stack_locals = Set.new("Str", Str.size())
-    stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
-    unsafe_to_hoist = Set.new("Str", Str.size())
-    ref_locals = Set.new("Str", Str.size())
+    ref mut lp : LoadedProgram = codegen_lp()
+    lp.ctx.struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    lp.ctx.func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    lp.ctx.stack_locals = Set.new("Str", Str.size())
+    lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
+    lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
+    lp.ctx.ref_locals = Set.new("Str", Str.size())
     if is_null(core_program).not() { register_lookups_prog(core_program) }
     register_lookups_prog(program)
 }
 
 build_register_lookups_lp := func() {
-    struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
-    func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
-    stack_locals = Set.new("Str", Str.size())
-    stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
-    unsafe_to_hoist = Set.new("Str", Str.size())
-    ref_locals = Set.new("Str", Str.size())
+    ref mut lp : LoadedProgram = codegen_lp()
+    lp.ctx.struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    lp.ctx.func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    lp.ctx.stack_locals = Set.new("Str", Str.size())
+    lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
+    lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
+    lp.ctx.ref_locals = Set.new("Str", Str.size())
 
-    ref lp : LoadedProgram = codegen_lp()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4609,11 +4600,9 @@ emit_collection_helpers := proc(f: File) {
 }
 
 emit_global_declarations := proc(f: File) {
-    script_globals = Set.new("Str", Str.size())
-    has_script_globals = true
-    ref_globals = Set.new("Str", Str.size())
-    has_ref_globals = true
-    ref lp : LoadedProgram = codegen_lp()
+    ref mut lp : LoadedProgram = codegen_lp()
+    lp.ctx.script_globals = Set.new("Str", Str.size())
+    lp.ctx.ref_globals = Set.new("Str", Str.size())
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4624,10 +4613,10 @@ emit_global_declarations := proc(f: File) {
                 ref dd : Declaration = get_payload(stmt.node_type)
                 if dd.own_type.is(OwnType.Ref) {
                     f.write(ctype); f.write(" *"); f.write(dd.name); f.write(";\n")
-                    ref_globals.add(own dd.name.clone())
+                    lp.ctx.ref_globals.add(own dd.name.clone())
                 } else {
                     f.write(ctype); f.write(" "); f.write(dd.name); f.write(";\n")
-                    script_globals.add(own dd.name.clone())
+                    lp.ctx.script_globals.add(own dd.name.clone())
                 }
             }
         }
@@ -4641,10 +4630,10 @@ emit_global_declarations := proc(f: File) {
             ref dd : Declaration = get_payload(stmt.node_type)
             if dd.own_type.is(OwnType.Ref) {
                 f.write(ctype); f.write(" *"); f.write(dd.name); f.write(";\n")
-                ref_globals.add(own dd.name.clone())
+                lp.ctx.ref_globals.add(own dd.name.clone())
             } else {
                 f.write(ctype); f.write(" "); f.write(dd.name); f.write(";\n")
-                script_globals.add(own dd.name.clone())
+                lp.ctx.script_globals.add(own dd.name.clone())
             }
         }
     }
@@ -4679,8 +4668,8 @@ emit_test_main := proc(f: File, program: Expr) {
 emit_script_main := proc(f: File) {
     f.write("int main(void) {\n")
     emit_ns_inits(f, 1)
-    unsafe_to_hoist = Set.new("Str", Str.size())
-    ref lp : LoadedProgram = codegen_lp()
+    ref mut lp : LoadedProgram = codegen_lp()
+    lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
     // Collect hoist restrictions across all user units.
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4714,8 +4703,8 @@ emit_script_main := proc(f: File) {
     }
     f.write("    return 0;\n")
     f.write("}\n")
-    own script_globals.delete()
-    has_script_globals = false
+    ref mut lp_after : LoadedProgram = codegen_lp()
+    lp_after.ctx.script_globals = Set.new("Str", Str.size())
 }
 
 emit_function_bodies := proc(f: File, mode: Mode) {
@@ -4864,7 +4853,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     if run_tests.not() {
         if is_script.not() {
             if is_lib {
-                if has_script_globals { emit_lib_init(f) }
+                if codegen_lp().ctx.script_globals.len().gt(0) { emit_lib_init(f) }
             }
         }
     }
@@ -4879,14 +4868,11 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     }
 
     f.close()
-    own func_defs.delete()
-    func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
-    own stack_locals.delete()
-    stack_locals = Set.new("Str", Str.size())
-    own stack_local_types.delete()
-    stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
-    own unsafe_to_hoist.delete()
-    unsafe_to_hoist = Set.new("Str", Str.size())
+    ref mut lp_end : LoadedProgram = codegen_lp()
+    lp_end.ctx.func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
+    lp_end.ctx.stack_locals = Set.new("Str", Str.size())
+    lp_end.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
+    lp_end.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
     return 0.to_i32()
 }
 

@@ -140,6 +140,24 @@ Context := struct {
     // this from the typer (keyed by function name) so the builder reads
     // without a per-emit reset; this commit only moves the storage.
     mut local_fn_sigs := Map.new("Str", Str.size(), "Dynamic", I64.size())
+
+    // #178 builder lookup tables migrated from module-globals. Populated
+    // at build registration time, read throughout codegen.
+    mut func_defs := Map.new("Str", Str.size(), "Dynamic", I64.size())
+    mut struct_def_exprs := Map.new("Str", Str.size(), "Dynamic", I64.size())
+    mut funcsig_names := Set.new("Str", Str.size())
+    mut script_globals := Set.new("Str", Str.size())
+    mut ref_globals := Set.new("Str", Str.size())
+
+    // #178 builder per-function transients. The builder resets these on
+    // entering each function body and reads them throughout that body's
+    // emission. emit_func_def is not actually recursive (the typer lifts
+    // nested funcs to top level), so a per-emit reset is sufficient.
+    mut stack_locals := Set.new("Str", Str.size())
+    mut stack_local_types := Map.new("Str", Str.size(), "Str", Str.size())
+    mut unsafe_to_hoist := Set.new("Str", Str.size())
+    mut ref_locals := Set.new("Str", Str.size())
+    ref mut current_fdef : Expr = NULL
 }
 
 align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {
