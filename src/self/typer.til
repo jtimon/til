@@ -341,29 +341,27 @@ check_ref_assign_owned_rhs := proc(stmt: Expr, target_name: Str, rhs: Expr, scop
     )
 }
 
-// #168 step 1b: ref locals cannot be initialized to NULL. A `ref` slot
-// initialized to NULL is structurally an uninitialized borrow; every
-// legitimate use is rewritable as the borrow at the point you actually
-// have it, or as a sentinel value.
+// #168 step 1b / #177: ref bindings cannot be initialized to NULL. A
+// `ref` slot initialized to NULL is structurally an uninitialized
+// borrow; every legitimate use is rewritable as the borrow at the
+// point you actually have it, as a sentinel value, or as a Context
+// field on a longer-lived owner.
 //
-// Allowed exceptions (this conservative version): struct/namespace field
-// defaults (where the parent type doesn't yet have an instance to point
-// at) and module-scope globals (the registry pattern; til today uses
-// `mut X : Dynamic = 0` for that role rather than `ref mut X = NULL`,
-// so module-scope cleanup is its own audit, deferred).
+// Allowed exception: struct/namespace field defaults (where the
+// parent type doesn't yet have an instance to point at).
 //
-// Gate: inside any function body. Mirrors the typer's existing
-// `proc_def_depth.gt(0).or(in_func.neq(0))` test at typer.til:1067 --
-// `in_func` is only set for funcs, procs use proc_def_depth instead.
-check_ref_local_null_init := proc(stmt: Expr, shallow in_func: I32) {
-    if in_func.eq(0).and(proc_def_depth.eq(0)) { return }
+// Module-scope globals were the original conservative carve-out; the
+// 8 remaining sites flagged in #177 (interpreter cached_*_def/_name,
+// builder current_fdef, typer current_struct_def) all migrated to
+// Context fields. Module scope now enforces the same rule as locals.
+check_ref_local_null_init := proc(stmt: Expr) {
     if stmt.children.len().eq(0) { return }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         if sdecl.own_type.is(OwnType.Ref).not() { return }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.LiteralNull).not() { return }
-        type_error(stmt, "ref local '".concat(sdecl.name).concat("' cannot be initialized to NULL -- borrow the source directly, or use a non-ref shape (own/mut + sentinel)"))
+        type_error(stmt, "ref binding '".concat(sdecl.name).concat("' cannot be initialized to NULL -- borrow the source directly, or use a non-ref shape (own/mut + sentinel)"))
     case:
     }
 }
@@ -2326,7 +2324,7 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
         UNREACHABLE(__LOC__)
     }
     check_ref_decl_owned_init(stmt, scope)
-    check_ref_local_null_init(stmt, in_func)
+    check_ref_local_null_init(stmt)
     finalize_decl_binding(scope, stmt, in_type_body)
 }
 

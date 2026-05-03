@@ -85,12 +85,10 @@ test_ref_dynamic_from_struct := test() {
 }
 
 # --- NULL literal + ref struct fields ---
-
-test_null_ref_local := test() {
-    // ref local can be NULL
-    ref x : I64 = NULL
-    accept_null(x)
-}
+# (test_null_ref_local removed: #177 closed the loophole that let test()
+# bodies initialize a ref binding to NULL. Same rule as #168 step 1b for
+# func bodies. NULL ref-binding init now fails uniformly at module scope,
+# in func/proc bodies, in test() bodies, and in macros.)
 
 accept_null := func(x: I64) {
     // borrowed param can receive NULL

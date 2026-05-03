@@ -2320,7 +2320,7 @@
   Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
   (it's useful for other things), but containers no longer use it.
 
-* [0/43] Post
+* [0/42] Post
 ** OPEN #180 reinterpret_ptr_value wraps Dynamic slot pointers into Value.Struct
    ~reinterpret_ptr_value~ in ~src/self/interpreter.til~, given a
    ~Value.Ptr~ and ~type_name = "Dynamic"~, falls through the
@@ -2377,75 +2377,6 @@
    - All existing tests still pass (this is the audit point: any
      site that did rely on the Struct-wrap needs to migrate to
      the ~Value.Ptr~ encoding).
-
-** OPEN #177 Migrate module-scope ~ref mut X : T = NULL~ thread-local-style globals
-   Background:
-
-   The conservative form of #168 leaves module-scope
-   ~ref mut X : T = NULL~ allowed. The audit run during #168
-   step 4 surfaced 8 sites, all "thread-local-style" caches that
-   get populated/swapped during a processing pass:
-
-   - ~src/self/interpreter.til:263-268~ -- six entries:
-     ~cached_str_def~, ~cached_str_name~, ~cached_array_def~,
-     ~cached_array_name~, ~cached_vec_def~, ~cached_vec_name~.
-     Lazy caches resolved on first lookup of well-known core
-     types.
-   - ~src/self/builder.til:24~ -- ~current_fdef~ set in
-     ~emit_func_def~ at entry, used by helpers like
-     ~is_shallow_param~ and ~fcall_fn_sig~'s param fallback.
-     Never restored on exit (next ~emit_func_def~ overwrites).
-   - ~src/self/typer.til:79~ -- ~current_struct_def~ saved/
-     restored around ~infer_type_def_expr~'s recursive walk via
-     ~type_def_struct_def_for~.
-
-   Why migrate:
-
-   They are the same shape as the bugs #168 catches in
-   function-body locals (~ref~ slot whose semantics are "borrowed
-   pointer that may be unset"). Allowing them at module scope is
-   pragmatic but inconsistent: any of them could in principle be
-   re-bound to a clone-result by a future contributor, and the
-   typer would not flag it. Closing this gap makes the language
-   invariant uniform across scopes.
-
-   Why not migrate (the current state):
-
-   - Their declared types are concrete (~Expr~, ~Str~), not
-     ~Dynamic~. A direct migration to ~mut X : Dynamic = 0~
-     (the existing registry pattern, e.g. ~codegen_lp_slot~)
-     would lose the type information.
-   - They survive the full processing pass and are read back
-     many times. The cost of a value-copy per write (in an
-     ~own~ refactor) is unmeasured but plausibly nonzero in a
-     hot path like ~current_fdef~ accesses.
-   - Their semantics are explicitly "borrowed pointer to an
-     AST node that lives elsewhere"; ~ref mut~ + NULL is the
-     most direct encoding.
-
-   Migration options to consider per site:
-
-   1. ~mut X : Dynamic = 0~ + ~to_ptr~/~deref~ at use sites
-      (matches ~codegen_lp_slot~). Loses static type, gains
-      uniformity.
-   2. Keep ~ref mut~ but add a typed sentinel "empty" value
-      (e.g. a global ~empty_expr~ pointing at a real but
-      meaningless Expr; never NULL). The is_null checks become
-      ~ptr_eq(X, empty_expr)~. Preserves type, requires a
-      sentinel per type.
-   3. Move into a struct field on a longer-lived owner (the
-      builder/typer/interpreter's "state" struct, or
-      Context). Enables proper auto-clone/delete handling but
-      requires the host struct to exist first.
-
-   Acceptance:
-
-   - All 8 sites migrated to a uniform shape (or a small set of
-     shapes, with each site's choice justified inline).
-   - The conservative #168 rule extended to also reject
-     module-scope ~ref mut X : T = NULL~ once no violations
-     remain.
-   - 96/96 tests still pass.
 
 ** OPEN #164 Diagnose `mut` qualifiers that are never used to write
    After #161 the typer rejects `ref mut x : T = src` when `src` is

@@ -349,8 +349,10 @@ terr_step4_assign := func() returns I64 {
 }
 terr_step4_assign()
 
-// #168 step 1b: ref local cannot be initialized to NULL.
-// Module-scope and field defaults are still allowed (conservative).
+// #168 step 1b / #177: ref bindings cannot be initialized to NULL.
+// Field defaults remain allowed (the parent type doesn't yet have an
+// instance to point at). Func/proc/test/macro bodies AND module scope
+// are now uniformly rejected.
 terr_null_ref_local_fn := func() returns I64 {
     ref leaked_null : I64 = NULL
     ref mut leaked_null_mut : I64 = NULL
@@ -359,3 +361,8 @@ terr_null_ref_local_fn := func() returns I64 {
     return 1
 }
 terr_null_ref_local_fn()
+
+// #177: same rule applies at module scope (was the conservative
+// carve-out before the cached_*_def migration).
+ref terr_module_null : I64 = NULL
+ref mut terr_module_null_mut : I64 = NULL

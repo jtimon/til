@@ -199,6 +199,10 @@ LoadedProgram := struct {
 // Precomp across per-file units (rstil-style): fold macros/pure funcs in the
 // canonical ASTs stored in lp.ctx.imported.
 precomp_imported := proc(mut lp: LoadedProgram) {
+    // Make codegen_lp() available so dispatch handlers (h_array, h_vec)
+    // and helpers like make_str_value can read shared Context fields
+    // (cached_str/array/vec_def) populated by interpreter_init_ns below.
+    codegen_set_lp(lp)
     // 1) Collect macro and pure func names across all files
     macros = Set.new("Str", Str.size())
     funcs = Set.new("Str", Str.size())
@@ -219,6 +223,7 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     if macros.count.eq(0).and(funcs.count.eq(0)) {
         Set.delete(own macros, false)
         Set.delete(own funcs, false)
+        codegen_clear_lp()
         return
     }
 
@@ -240,13 +245,13 @@ precomp_imported := proc(mut lp: LoadedProgram) {
         for i in 0..lp.core_units.len() {
             ref u : ProgramUnit = lp.core_units.get(i)
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            interpreter_init_ns(global, iu.ast)
+            interpreter_init_ns(lp.ctx, global, iu.ast)
         }
     }
     for i in 0..lp.units.len() {
         ref u : ProgramUnit = lp.units.get(i)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        interpreter_init_ns(global, iu.ast)
+        interpreter_init_ns(lp.ctx, global, iu.ast)
     }
 
     // 2b) Init FFI for the interpreter used by precomp.
@@ -294,6 +299,7 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     scope_free(own global)
     Set.delete(own macros, false)
     Set.delete(own funcs, false)
+    codegen_clear_lp()
 }
 
 // Scavenge across per-file units (rstil-style): compute a single visited set

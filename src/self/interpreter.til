@@ -259,13 +259,10 @@ mut has_break := false
 mut has_continue := false
 mut return_value := Value.None
 
-// --- Cached struct defs for C-side construction ---
-ref mut cached_str_def : Expr = NULL
-ref mut cached_str_name : Str = NULL
-ref mut cached_array_def : Expr = NULL
-ref mut cached_array_name : Str = NULL
-ref mut cached_vec_def : Expr = NULL
-ref mut cached_vec_name : Str = NULL
+// Cached struct defs for C-side construction live on Context
+// (cached_str_def/_name, cached_array_def/_name, cached_vec_def/_name).
+// Populated during interpret_register_struct_defs; read here through
+// codegen_lp().ctx.cached_*.
 
 // --- Namespace fields (static struct fields) ---
 mut ns_fields := Map.new("Str", Str.size(), "Value", Value.size())
@@ -1366,27 +1363,28 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
         v := parse_cli_arg(s, elem_type)
         value_to_buf(ptr_add(data, i.to_u64().mul(esz.to_i64().to_u64())), v, elem_type)
     }
-    ref asd : StructDef = get_payload(cached_array_def.node_type)
+    ref lp : LoadedProgram = codegen_lp()
+    ref asd : StructDef = get_payload(lp.ctx.cached_array_def.node_type)
     inst_data : Dynamic = calloc(1, asd.total_struct_size.to_i64().to_u64())
-    mut tmp := StructInstance(struct_name = cached_array_name, struct_def = cached_array_def, data = to_ptr(inst_data), borrowed = true)
-    ref ba_data_d : Declaration = find_field_decl(cached_array_def, "data")
+    mut tmp := StructInstance(struct_name = lp.ctx.cached_array_name, struct_def = lp.ctx.cached_array_def, data = to_ptr(inst_data), borrowed = true)
+    ref ba_data_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "data")
     write_field(tmp, ba_data_d, Value.Ptr(data))
-    ref ba_cap_d : Declaration = find_field_decl(cached_array_def, "cap")
+    ref ba_cap_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "cap")
     write_field(tmp, ba_cap_d, val_u32(count.to_i64()))
-    ref ba_esz_d : Declaration = find_field_decl(cached_array_def, "elem_size")
+    ref ba_esz_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_size")
     write_field(tmp, ba_esz_d, val_u32(esz.to_i64()))
-    ref ba_et_d : Declaration = find_field_decl(cached_array_def, "elem_type")
+    ref ba_et_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_type")
     write_field(tmp, ba_et_d, make_str_value(elem_type.c_str, elem_type.count.to_u64()))
     ref clone_fn : Value = ns_get(elem_type, "clone")
-    if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(cached_array_def, "elem_clone"); write_field(tmp, ba_ec_d, shallow_copy_value(clone_fn)) }
+    if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_clone"); write_field(tmp, ba_ec_d, shallow_copy_value(clone_fn)) }
     ref delete_fn : Value = ns_get(elem_type, "delete")
-    if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(cached_array_def, "elem_delete"); write_field(tmp, ba_ed_d, shallow_copy_value(delete_fn)) }
+    if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_delete"); write_field(tmp, ba_ed_d, shallow_copy_value(delete_fn)) }
     tmp.data = NULL
-    return make_struct_value(cached_array_name, cached_array_def, to_ptr(inst_data), false)
+    return make_struct_value(lp.ctx.cached_array_name, lp.ctx.cached_array_def, to_ptr(inst_data), false)
 }
 
 mut ns_inited := false
-interpreter_init_ns := proc(mut global: Scope, program: Expr) {
+interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) {
     if ns_inited.not() {
         ns_fields = Map.new("Str", Str.size(), "Value", Value.size())
         ns_keys = Vec.new("Dynamic", Dynamic.size())
@@ -1401,9 +1399,9 @@ interpreter_init_ns := proc(mut global: Scope, program: Expr) {
             if sdef.node_type.is(NodeType.EnumDef).not() { continue }
         }
         if sdef.node_type.is(NodeType.StructDef) {
-            if dd.name.eq("Str") { cached_str_def = sdef; cached_str_name = dd.name }
-            if dd.name.eq("Array") { cached_array_def = sdef; cached_array_name = dd.name }
-            if dd.name.eq("Vec") { cached_vec_def = sdef; cached_vec_name = dd.name }
+            if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
+            if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
+            if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.child(0); ctx.cached_vec_name   = dd.name }
         }
         // Register every struct/enum AST in the comprehensive type-def map
         // so readers can replace Declaration.field_struct_def with a name lookup.
@@ -1455,7 +1453,8 @@ make_str_value := func(data: Dynamic, shallow len: U64) returns shallow Value {
     ref mut count_slot : U32 = ptr_add(inst_data, 8)
     count_slot = len.to_i64().to_i32().to_u32()
     memcpy(ptr_add(inst_data, 12), CAP_LIT, U32.size().to_u64())
-    return make_struct_value(cached_str_name, cached_str_def, inst_data, false)
+    ref lp : LoadedProgram = codegen_lp()
+    return make_struct_value(lp.ctx.cached_str_name, lp.ctx.cached_str_def, inst_data, false)
 }
 
 make_str_value_own := func(data: Dynamic, shallow len: U64) returns shallow Value {
@@ -1464,7 +1463,8 @@ make_str_value_own := func(data: Dynamic, shallow len: U64) returns shallow Valu
     ref mut count_slot : U32 = ptr_add(inst_data, 8)
     count_slot = len.to_i64().to_i32().to_u32()
     memcpy(ptr_add(inst_data, 12), count_slot, U32.size().to_u64())
-    return make_struct_value(cached_str_name, cached_str_def, inst_data, false)
+    ref lp : LoadedProgram = codegen_lp()
+    return make_struct_value(lp.ctx.cached_str_name, lp.ctx.cached_str_def, inst_data, false)
 }
 str_view := func(shallow v: Value) returns shallow Str {
     ref si : StructInstance = get_payload(v)
@@ -1700,6 +1700,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     if is_null(core_program).not() { ffi_init_scan_program(core_program) }
 
     global := scope_new(NULL)
+    mut ctx := Context()
 
     // Pre-register func/struct/enum definitions
     if is_null(core_program).not() { interpret_register_defs(global, core_program) }
@@ -1710,8 +1711,8 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     interpret_register_aliases(global, program)
 
     // Initialize namespace fields
-    if is_null(core_program).not() { interpreter_init_ns(global, core_program) }
-    interpreter_init_ns(global, program)
+    if is_null(core_program).not() { interpreter_init_ns(ctx, global, core_program) }
+    interpreter_init_ns(ctx, global, program)
 
     // Copy namespace entries for type aliases
     if is_null(core_program).not() { interpret_copy_alias_ns(core_program, global) }
@@ -1832,6 +1833,9 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
 // ASTs stored in lp.ctx.imported, but preserves the original overall
 // registration/eval ordering.
 interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns shallow I32 {
+    // Ensure codegen_lp() is available throughout interpretation so
+    // interpreter helpers can read shared Context fields (#177/#178).
+    codegen_set_lp(lp)
     // Ensure builtin dispatch table is initialized deterministically.
     if dispatch_inited.not() { dispatch_init() }
 
@@ -1886,12 +1890,12 @@ interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) re
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            interpreter_init_ns(global, iu.ast)
+            interpreter_init_ns(lp.ctx, global, iu.ast)
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        interpreter_init_ns(global, iu.ast)
+        interpreter_init_ns(lp.ctx, global, iu.ast)
     }
 
     // 4) Copy namespace entries for type aliases
@@ -2027,6 +2031,7 @@ interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) re
     scope_free(own global)
     ffi_cleanup()
     ns_inited = false
+    codegen_clear_lp()
     return 0.to_i32()
 }
 

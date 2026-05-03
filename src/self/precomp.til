@@ -721,8 +721,8 @@ precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     global := scope_new(NULL)
     if is_null(core_program).not() { precomp_register_defs(global, core_program) }
     precomp_register_defs(global, program)
-    if is_null(core_program).not() { interpreter_init_ns(global, core_program) }
-    interpreter_init_ns(global, program)
+    if is_null(core_program).not() { interpreter_init_ns(ctx, global, core_program) }
+    interpreter_init_ns(ctx, global, program)
 
     // 2b. Init FFI
     ffi_init(program, NULL, NULL, NULL, NULL)

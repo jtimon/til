@@ -158,6 +158,17 @@ Context := struct {
     mut unsafe_to_hoist := Set.new("Str", Str.size())
     mut ref_locals := Set.new("Str", Str.size())
     ref mut current_fdef : Expr = NULL
+
+    // #177 interpreter caches for well-known core types, populated during
+    // interpret_register_defs by interpret_register_struct_defs and read
+    // back by make_str_value / build_array_from_argv. These were the
+    // remaining six module-scope ref-mut + NULL globals after #178.
+    ref mut cached_str_def : Expr = NULL
+    ref mut cached_str_name : Str = NULL
+    ref mut cached_array_def : Expr = NULL
+    ref mut cached_array_name : Str = NULL
+    ref mut cached_vec_def : Expr = NULL
+    ref mut cached_vec_name : Str = NULL
 }
 
 align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {
