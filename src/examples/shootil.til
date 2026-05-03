@@ -58,7 +58,28 @@ crate_bb := func(pos: Vector3, sz: Vector3) returns BoundingBox {
     h := half(sz)
     return BoundingBox(
         min = Vector3(x = pos.x - h.x, y = pos.y - h.y, z = pos.z - h.z),
-        max = Vector3(x = pos.x + h.x, y = pos.y + h.y, z = pos.z + h.z)
+        max = Vector3(x = pos.x + h.x, y = pos.y + h.y, z = pos.z + h.z),
+    )
+}
+
+INIT_POS := v3(0, 1, 5)
+INIT_TARGET := v3(0, 1, 0)
+
+mut camera := Camera3D(
+    position = INIT_POS,
+    target = INIT_TARGET,
+    up = v3(0, 1, 0),
+    fovy = 60.to_f32(),
+    projection = 0.to_i32(),
+)
+
+reset_camera := func() {
+    camera = Camera3D(
+        position = INIT_POS,
+        target = INIT_TARGET,
+        up = v3(0, 1, 0),
+        fovy = camera.fovy,
+        projection = camera.projection,
     )
 }
 
@@ -68,18 +89,13 @@ main := proc() {
     set_window_min_size(640, 480)
 
     fps_values := array("I64", 30, 60, 120, 144, 240, 300, 480, 600)
-    mut fps_idx : USize = 5
+    mut fps_idx : USize = 2
     ref initial_fps : I64 = fps_values.get(fps_idx)
     set_target_fps(initial_fps.clone())
     DisableCursor()
 
-    mut camera := Camera3D(
-        position = v3(0, 1, 5),
-        target = v3(0, 1, 0),
-        up = v3(0, 1, 0),
-        fovy = 60.to_f32(),
-        projection = 0.to_i32()
-    )
+    // Reconstruct camera so initial view matches god-mode reset.
+    reset_camera()
 
     cube_size := v3(2, 2, 2)
     cube_positions := array("Vector3",
@@ -141,8 +157,6 @@ main := proc() {
     mut menu_open := false
     mut menu_sel := 0
     mut god_mode := false
-    init_pos := camera.position
-    init_target := camera.target
 
     while window_should_close().not() {
         if is_key_pressed(KEY_ESCAPE) { break }
@@ -172,13 +186,7 @@ main := proc() {
             if is_key_pressed(KEY_G) {
                 if god_mode {
                     god_mode = false
-                    camera = Camera3D(
-                        position = init_pos,
-                        target = init_target,
-                        up = v3(0, 1, 0),
-                        fovy = camera.fovy,
-                        projection = camera.projection
-                    )
+                    reset_camera()
                 } else {
                     god_mode = true
                 }
