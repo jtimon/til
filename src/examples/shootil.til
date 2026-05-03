@@ -336,10 +336,7 @@ main := proc() {
                 UpdateCameraPro(camera, movement, rotation, zero_f)
 
                 // Apply vertical velocity.
-                // TODO: CameraMoveUp would preserve look angle (moves both
-                // position and target together).  Currently only position.y
-                // changes, tilting the view downward during a jump.
-                camera.position.y = camera.position.y + vel_y
+                CameraMoveUp(camera, vel_y)
 
                 // Ground check.
                 if camera.position.y <= 1.to_f32() {
