@@ -1,18 +1,25 @@
 mode gui
 
 // 3D shooter prototype: teal cubes scattered on a white floor in a black void.
-// Starts at 300 FPS. Controls:
+// Starts at 120 FPS. Controls:
 //   WASD/arrows + mouse  -- move and look (Quake-style)
-//   F11                  -- toggle fullscreen anywhere
-//   M                    -- open/close the in-game menu
-//   G                    -- toggle god mode (free flight)
-//   ESC                  -- exit
+//   Space                 -- jump (with gravity + ground check)
+//   F11                   -- toggle fullscreen anywhere
+//   M                     -- open/close the in-game menu
+//   G                     -- toggle god mode (free flight)
+//   ESC                   -- exit
 // God mode frees you from the floor; look up + W to fly.
 // Exiting god mode resets camera to initial position.
 // Menu (game pauses, cursor freed):
-//   Up/Down or W/S       -- move selection
-//   Enter                -- toggle Fullscreen / Quit
-//   Left/Right or A/D    -- step the FPS value (no Enter needed)
+//   Up/Down or W/S        -- move selection
+//   Enter                 -- toggle Fullscreen / Quit
+//   Left/Right or A/D     -- step the FPS value (no Enter needed)
+//
+// TODO: strafe-jumping -- add horizontal velocity tracking + air
+// acceleration so holding left/right while jumping builds speed
+// (Quake-2-style PM_Accelerate).
+// TODO: CameraMoveUp should replace manual position.y update so the
+// look angle is preserved during jumps (currently tilts downward).
 
 WINDOW_W := 1024
 WINDOW_H := 768
