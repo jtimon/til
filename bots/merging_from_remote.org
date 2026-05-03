@@ -1,0 +1,54 @@
+* Procedure for merging a commit from a remote branch
+
+When the user says "next commit, same procedure", follow these steps:
+
+** Step 1 -- identify HEAD
+#+begin_src shell
+git log --oneline -5
+#+end_src
+
+** Step 2 -- capture commit message + stat
+#+begin_src shell
+git show HASH --format="%B" --no-patch
+git show HASH --stat
+#+end_src
+
+** Step 3 -- read diff of non-boot files, give deep review
+#+begin_src shell
+git show HASH --no-color -- <non-boot files>
+#+end_src
+
+** Step 4 -- soft reset + revert totals
+Soft reset discards the top commit but keeps its changes in the worktree,
+allowing you to re-commit after regenerating boot artifacts. The totals
+files are auto-generated and must be discarded.
+#+begin_src shell
+git reset --soft HEAD~1 && git checkout HEAD -- doc/totals.csv img/totals.svg
+#+end_src
+
+** Step 5 -- full test suite
+Run under systemd-run to limit memory (prevents OOM from memory leaks).
+#+begin_src shell
+systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/build.log 2>&1 && make test >> tmp/build.log 2>&1'
+#+end_src
+
+** Step 6 -- ASAN leak check (both interpret and translate paths)
+Build the ASAN binary:
+#+begin_src shell
+make bin/til_asan > tmp/asan_build.log 2>&1
+#+end_src
+
+Check interpreted mode:
+#+begin_src shell
+ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret src/test/strings.til > tmp/asan_interpret.log 2>&1; grep "SUMMARY" tmp/asan_interpret.log
+#+end_src
+
+Check compiled (translate) mode:
+#+begin_src shell
+ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate src/test/strings.til > tmp/asan_translate.log 2>&1; grep "SUMMARY" tmp/asan_translate.log
+#+end_src
+
+** Step 7 -- commit with exact original message + appended Co-Authored-By line
+#+begin_src shell
+git add -A && git commit -m "..."
+#+end_src
