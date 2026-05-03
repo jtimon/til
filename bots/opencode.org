@@ -63,6 +63,22 @@ to avoid re-discovering the same things.
 - Trailing commas on multi-line constructors/arrays.
 - Module-level ~mut~ globals for shared mutable state (e.g. ~mut camera := ...~).
 
+** REPL usage and help()
+- Pipe REPL input via a tmp file: ~printf 'cmd1\ncmd2\nexit(0)\n' > tmp/repl_input && cat tmp/repl_input | bin/til~
+  Always include ~exit(0)~ as the last line to terminate cleanly.
+  The REPL exits on EOF; ~exit(0)~ runs in the subprocess and just makes
+  the turn complete before the pipe closes.
+- ~help("name")~ prints /// doc comment + kind/signature/info. Works
+  for top-level decls, struct/enum members (qualified: ~"Vec.push"~),
+  and user-defined variables (shows inferred type like ~x is a I64~).
+  Undefined symbols print ~undefined symbol: <name>~.
+- REPL turns are slow (~80s each on this host) because ~doc_init_src_line~
+  rebuilds the full info blob per turn. Keep piped tests minimal.
+- ~printf '...' > tmp/repl_input && cat tmp/repl_input | bin/til~
+  is the correct pattern, NOT ~printf '...' | bin/til~ (EOF timing).
+- Non-REPL pipelines (~til interpret/build/run/test/translate~) do NOT
+  populate the doc registry; ~help()~ only works in the REPL.
+
 ** git
 - ~git reset --soft HEAD~1~ keeps changes in worktree; followed by
   ~git checkout HEAD -- doc/totals.csv img/totals.svg~ to discard
