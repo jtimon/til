@@ -78,6 +78,7 @@ GetScreenWidth := ext_func() returns shallow I32 {}
 GetScreenHeight := ext_func() returns shallow I32 {}
 GetFrameTime := ext_func() returns shallow F32 {}
 SetConfigFlags := ext_proc(shallow flags: U32) {}
+SetExitKey := ext_proc(shallow key: I32) {}
 IsWindowResized := ext_func() returns shallow Bool {}
 SetWindowMinSize := ext_proc(shallow w: I32, shallow h: I32) {}
 SetWindowMaxSize := ext_proc(shallow w: I32, shallow h: I32) {}

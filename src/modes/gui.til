@@ -148,6 +148,7 @@ FLAG_WINDOW_RESIZABLE : U32 = 4
 FLAG_WINDOW_MAXIMIZED : U32 = 1024
 
 set_config_flags := proc(flags: U32) { SetConfigFlags(flags) }
+set_exit_key := proc(key: I64) { SetExitKey(key.to_i32()) }
 is_window_resized := func() returns Bool { return IsWindowResized() }
 set_window_min_size := proc(w: I64, h: I64) { SetWindowMinSize(w.to_i32(), h.to_i32()) }
 set_window_max_size := proc(w: I64, h: I64) { SetWindowMaxSize(w.to_i32(), h.to_i32()) }

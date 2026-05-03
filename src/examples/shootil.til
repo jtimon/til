@@ -1,11 +1,18 @@
 mode gui
 
 // 3D shooter prototype: teal cubes scattered on a white floor in a black void.
-// WASD/arrows move, mouse looks (Quake-style, cursor captured), ESC exits.
+// Starts at 300 FPS. Controls:
+//   WASD/arrows + mouse  -- move and look (Quake-style)
+//   F11                  -- toggle fullscreen anywhere
+//   M                    -- open/close the in-game menu
+//   ESC                  -- exit
+// Menu (game pauses, cursor freed):
+//   Up/Down or W/S       -- move selection
+//   Enter                -- toggle Fullscreen / Quit
+//   Left/Right or A/D    -- step the FPS value (no Enter needed)
 
 WINDOW_W := 1024
 WINDOW_H := 768
-FPS := 60
 MOVE_STEP := 1.to_f32().div(10.to_f32())
 MOUSE_SENS := 5.to_f32().div(100.to_f32())
 
@@ -15,20 +22,40 @@ KEY_LEFT := 263
 KEY_DOWN := 264
 KEY_UP := 265
 KEY_ESCAPE := 256
+KEY_ENTER := 257
 KEY_A := 65
 KEY_D := 68
+KEY_M := 77
 KEY_S := 83
 KEY_W := 87
+KEY_F11 := 300
+
+MENU_FULLSCREEN := 0
+MENU_FPS := 1
+MENU_QUIT := 2
+MENU_COUNT := 3
 
 v3 := func(x: I64, y: I64, z: I64) returns Vector3 {
     return Vector3(x = x.to_f32(), y = y.to_f32(), z = z.to_f32())
+}
+
+draw_menu_item := proc(text: Str, x: I64, y: I64, selected: Bool) {
+    if selected {
+        draw_text(text, x, y, 28, 0, 200, 210, 255)
+    } else {
+        draw_text(text, x, y, 28, 255, 255, 255, 255)
+    }
 }
 
 main := proc() {
     set_config_flags(FLAG_WINDOW_RESIZABLE)
     init_window(WINDOW_W, WINDOW_H, "shootil")
     set_window_min_size(640, 480)
-    set_target_fps(FPS)
+
+    fps_values := array("I64", 30, 60, 120, 144, 240, 300, 480, 600)
+    mut fps_idx : USize = 5
+    ref initial_fps : I64 = fps_values.get(fps_idx)
+    set_target_fps(initial_fps.clone())
     DisableCursor()
 
     mut camera := Camera3D(
@@ -58,23 +85,80 @@ main := proc() {
     zero_f := 0.to_f32()
     neg_step := zero_f.sub(MOVE_STEP)
 
+    mut menu_open := false
+    mut menu_sel := 0
+
     while window_should_close().not() {
         if is_key_pressed(KEY_ESCAPE) { break }
 
-        mut fwd := zero_f
-        mut strafe := zero_f
-        if is_key_down(KEY_W).or(is_key_down(KEY_UP))       { fwd = MOVE_STEP }
-        if is_key_down(KEY_S).or(is_key_down(KEY_DOWN))     { fwd = neg_step }
-        if is_key_down(KEY_D).or(is_key_down(KEY_RIGHT))    { strafe = MOVE_STEP }
-        if is_key_down(KEY_A).or(is_key_down(KEY_LEFT))     { strafe = neg_step }
+        // TODO: ESC does not work for toggling the menu because Raylib
+        // defaults SetExitKey(KEY_ESCAPE), which makes window_should_close()
+        // return true on the next frame.  set_exit_key(0) could fix this
+        // but it regresses the build (the raylib binding is new and untested).
+        if is_key_pressed(KEY_M) {
+            if menu_open {
+                menu_open = false
+                DisableCursor()
+            } else {
+                menu_open = true
+                EnableCursor()
+            }
+        }
 
-        mouse := GetMouseDelta()
-        yaw := mouse.x.mul(MOUSE_SENS)
-        pitch := mouse.y.mul(MOUSE_SENS)
+        // TODO: fullscreen is broken -- ToggleFullscreen() during gameplay
+        // causes visual artifacts.  The disable-cursor state also does not
+        // survive a fullscreen toggle.
+        if is_key_pressed(KEY_F11) {
+            ToggleFullscreen()
+        }
 
-        movement := Vector3(x = fwd, y = strafe, z = zero_f)
-        rotation := Vector3(x = yaw, y = pitch, z = zero_f)
-        UpdateCameraPro(camera, movement, rotation, zero_f)
+        if menu_open {
+            if is_key_pressed(KEY_UP).or(is_key_pressed(KEY_W)) {
+                menu_sel = menu_sel.sub(1).add(MENU_COUNT).mod(MENU_COUNT)
+            }
+            if is_key_pressed(KEY_DOWN).or(is_key_pressed(KEY_S)) {
+                menu_sel = menu_sel.add(1).mod(MENU_COUNT)
+            }
+            if is_key_pressed(KEY_ENTER) {
+                if menu_sel.eq(MENU_FULLSCREEN) {
+                    ToggleFullscreen()
+                }
+                if menu_sel.eq(MENU_QUIT) {
+                    break
+                }
+            }
+            if menu_sel.eq(MENU_FPS) {
+                if is_key_pressed(KEY_LEFT).or(is_key_pressed(KEY_A)) {
+                    if fps_idx.gt(0) {
+                        fps_idx = fps_idx.sub(1)
+                        ref f : I64 = fps_values.get(fps_idx)
+                        set_target_fps(f.clone())
+                    }
+                }
+                if is_key_pressed(KEY_RIGHT).or(is_key_pressed(KEY_D)) {
+                    if fps_idx.lt(fps_values.len().sub(1)) {
+                        fps_idx = fps_idx.add(1)
+                        ref f : I64 = fps_values.get(fps_idx)
+                        set_target_fps(f.clone())
+                    }
+                }
+            }
+        } else {
+            mut fwd := zero_f
+            mut strafe := zero_f
+            if is_key_down(KEY_W).or(is_key_down(KEY_UP))    { fwd = MOVE_STEP }
+            if is_key_down(KEY_S).or(is_key_down(KEY_DOWN))  { fwd = neg_step }
+            if is_key_down(KEY_D).or(is_key_down(KEY_RIGHT)) { strafe = MOVE_STEP }
+            if is_key_down(KEY_A).or(is_key_down(KEY_LEFT))  { strafe = neg_step }
+
+            mouse := GetMouseDelta()
+            yaw := mouse.x.mul(MOUSE_SENS)
+            pitch := mouse.y.mul(MOUSE_SENS)
+
+            movement := Vector3(x = fwd, y = strafe, z = zero_f)
+            rotation := Vector3(x = yaw, y = pitch, z = zero_f)
+            UpdateCameraPro(camera, movement, rotation, zero_f)
+        }
 
         begin_drawing()
         ClearBackground(black)
@@ -86,6 +170,25 @@ main := proc() {
         }
         EndMode3D()
         DrawFPS(10.to_i32(), 10.to_i32())
+        if menu_open.not() {
+            sw := get_screen_width()
+            draw_text("M: menu", sw.sub(160), 10, 20, 180, 180, 180, 255)
+        }
+
+        if menu_open {
+            sw := get_screen_width()
+            sh := get_screen_height()
+            draw_rectangle(0, 0, sw, sh, 0, 0, 0, 180)
+            draw_text("MENU", sw.div(2).sub(50), sh.div(2).sub(160), 36, 255, 255, 255, 255)
+            base_x := sw.div(2).sub(180)
+            base_y := sh.div(2).sub(60)
+            ref cf : I64 = fps_values.get(fps_idx)
+            fps_label := format("FPS: ", cf.to_str())
+            draw_menu_item("Toggle Fullscreen (F11)", base_x, base_y, menu_sel.eq(MENU_FULLSCREEN))
+            draw_menu_item(fps_label, base_x, base_y.add(50), menu_sel.eq(MENU_FPS))
+            draw_menu_item("Quit", base_x, base_y.add(100), menu_sel.eq(MENU_QUIT))
+            draw_text("M: close   Enter: select   Left/Right: change FPS", base_x.sub(40), base_y.add(180), 18, 180, 180, 180, 255)
+        }
         end_drawing()
     }
     EnableCursor()
