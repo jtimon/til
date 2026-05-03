@@ -83,6 +83,34 @@ reset_camera := func() {
     )
 }
 
+priv print_cam := proc(label: Str) {
+    print(label)
+    print(" pos=(")
+    print(camera.position.x.to_str())
+    print(",")
+    print(camera.position.y.to_str())
+    print(",")
+    print(camera.position.z.to_str())
+    print(") target=(")
+    print(camera.target.x.to_str())
+    print(",")
+    print(camera.target.y.to_str())
+    print(",")
+    print(camera.target.z.to_str())
+    println(")")
+}
+
+enter_god_mode := func() { god_mode = true }
+
+exit_god_mode := func() { god_mode = false; reset_camera() }
+
+TODO_remove_this_work_around := func() {
+    enter_god_mode()
+    exit_god_mode()
+}
+
+mut god_mode := false
+
 main := proc() {
     set_config_flags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED)
     init_window(WINDOW_W, WINDOW_H, "shootil")
@@ -94,8 +122,11 @@ main := proc() {
     set_target_fps(initial_fps.clone())
     DisableCursor()
 
-    // Reconstruct camera so initial view matches god-mode reset.
-    reset_camera()
+    // Simulate pressing G twice + a dummy frame to match the manual
+    // god-mode toggle that happens mid-gameplay.
+    TODO_remove_this_work_around()
+    BeginDrawing()
+    EndDrawing()
 
     cube_size := v3(2, 2, 2)
     cube_positions := array("Vector3",
@@ -156,7 +187,6 @@ main := proc() {
 
     mut menu_open := false
     mut menu_sel := 0
-    mut god_mode := false
 
     while window_should_close().not() {
         if is_key_pressed(KEY_ESCAPE) { break }
@@ -168,7 +198,10 @@ main := proc() {
         if is_key_pressed(KEY_M) {
             if menu_open {
                 menu_open = false
-                DisableCursor()
+    DisableCursor()
+
+    // Drain the initial mouse-delta spike (accumulated before window creation).
+    GetMouseDelta()
             } else {
                 menu_open = true
                 EnableCursor()
@@ -185,10 +218,9 @@ main := proc() {
         if menu_open.not() {
             if is_key_pressed(KEY_G) {
                 if god_mode {
-                    god_mode = false
-                    reset_camera()
+                    exit_god_mode()
                 } else {
-                    god_mode = true
+                    enter_god_mode()
                 }
             }
         }
@@ -307,26 +339,26 @@ main := proc() {
         if menu_open.not() {
             sw := get_screen_width()
             if god_mode {
-                draw_text("G: normal", sw.sub(180), 10, 20, 180, 180, 180, 255)
+                draw_text("G: normal", sw - 180, 10, 20, 180, 180, 180, 255)
             } else {
-                draw_text("G: god mode", sw.sub(180), 10, 20, 180, 180, 180, 255)
+                draw_text("G: god mode", sw - 180, 10, 20, 180, 180, 180, 255)
             }
-            draw_text("M: menu", sw.sub(180), 32, 20, 180, 180, 180, 255)
+            draw_text("M: menu", sw - 180, 32, 20, 180, 180, 180, 255)
         }
 
         if menu_open {
             sw := get_screen_width()
             sh := get_screen_height()
             draw_rectangle(0, 0, sw, sh, 0, 0, 0, 180)
-            draw_text("MENU", sw.div(2).sub(50), sh.div(2).sub(160), 36, 255, 255, 255, 255)
-            base_x := sw.div(2).sub(180)
-            base_y := sh.div(2).sub(60)
+            draw_text("MENU", sw / 2 - 50, sh / 2 - 160, 36, 255, 255, 255, 255)
+            base_x := sw / 2 - 180
+            base_y := sh / 2 - 60
             ref cf : I64 = fps_values.get(fps_idx)
             fps_label := format("FPS: ", cf.to_str())
             draw_menu_item("Toggle Fullscreen (F11)", base_x, base_y, menu_sel.eq(MENU_FULLSCREEN))
-            draw_menu_item(fps_label, base_x, base_y.add(50), menu_sel.eq(MENU_FPS))
-            draw_menu_item("Quit", base_x, base_y.add(100), menu_sel.eq(MENU_QUIT))
-            draw_text("M: close   Enter: select   Left/Right: change FPS", base_x.sub(40), base_y.add(180), 18, 180, 180, 180, 255)
+            draw_menu_item(fps_label, base_x, base_y + 50, menu_sel.eq(MENU_FPS))
+            draw_menu_item("Quit", base_x, base_y + 100, menu_sel.eq(MENU_QUIT))
+            draw_text("M: close   Enter: select   Left/Right: change FPS", base_x - 40, base_y + 180, 18, 180, 180, 180, 255)
         }
         end_drawing()
     }
