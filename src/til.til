@@ -45,28 +45,50 @@ repl_read_line := proc(mode_name: Str) returns Str {
 // count instead of panicking, so the REPL can decide what to do.
 // Mirrors the first half of `prepare_program` (loader.til).
 repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
+    // Mirrors prepare_program's init+type pipeline (loader.til) so the
+    // REPL sees the same scope and types as a regular `til interpret`
+    // run, but returns the type-error count instead of exit(1)-ing so
+    // we can fall back to letting the subprocess re-print errors.
     lp.ctx.scope = TypeScope()
+
     if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
+        ref core_root : ProgramUnit = lp.core_units.get(lp.core_units.len().sub(1))
+        init_file(core_root.path, lp.ctx)
+    }
+    ref user_root : ProgramUnit = lp.units.get(lp.units.len().sub(1))
+    init_file(user_root.path, lp.ctx)
+
+    // Global init: methods/layouts later phases assume exist.
+    if lp.skip_core.not() {
+        for i in 0..lp.core_units.len() {
+            ref u : ProgramUnit = lp.core_units.get(i)
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            init_declarations(iu.ast, lp.ctx.scope)
+            lp.ctx.mode = iu.mode.clone()
+            context_enter_file(lp.ctx, u.path)
+            init_declarations_global(iu.ast, lp.ctx.scope)
         }
     }
-    for u : ProgramUnit in lp.units {
+    for i in 0..lp.units.len() {
+        ref u : ProgramUnit = lp.units.get(i)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        init_declarations(iu.ast, lp.ctx.scope)
+        lp.ctx.mode = iu.mode.clone()
+        context_enter_file(lp.ctx, u.path)
+        init_declarations_global(iu.ast, lp.ctx.scope)
     }
+    if lp.units.len().gt(0) {
+        ref last : ProgramUnit = lp.units.get(lp.units.len().sub(1))
+        context_enter_file(lp.ctx, last.path)
+    }
+
+    // Resolve TilType.Custom(name) bindings now that every name is in scope.
+    normalize_scope_bindings(lp.ctx.scope)
+
     mut errs : I32 = 0
     if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            errs = errs.add(type_check(iu.ast, lp.ctx.scope, lp.ctx))
-        }
+        ref core_root2 : ProgramUnit = lp.core_units.get(lp.core_units.len().sub(1))
+        errs = errs.add(type_file(core_root2.path, lp.ctx))
     }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        errs = errs.add(type_check(iu.ast, lp.ctx.scope, lp.ctx))
-    }
+    errs = errs.add(type_file(user_root.path, lp.ctx))
     return errs
 }
 
@@ -196,7 +218,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
                 ref iu : ImportUnit = typed_lp.ctx.imported.get(u.path)
                 for stmt : Expr in iu.ast.children { user_merged.add_child(own stmt.clone()) }
             }
-            combined = combined.concat(doc_init_src_line(core_merged, user_merged))
+            combined = combined.concat(doc_init_src_line(core_merged, user_merged, typed_lp.ctx.scope))
             combined = combined.concat(accum)
             if accum.len().gt(0) { combined = combined.concat("\n") }
             combined = combined.concat(block_eff)
@@ -206,7 +228,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
                 block_eff = "println((".concat(block).concat(").to_str())")
                 combined = ""
                 combined = combined.concat("mode ").concat(mode_str).concat("\n")
-                combined = combined.concat(doc_init_src_line(core_merged, user_merged))
+                combined = combined.concat(doc_init_src_line(core_merged, user_merged, typed_lp.ctx.scope))
                 combined = combined.concat(accum)
                 if accum.len().gt(0) { combined = combined.concat("\n") }
                 combined = combined.concat(block_eff)

@@ -378,14 +378,24 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     }
     expect_token(p, TokenType.LBrace)
 
+    // Save outer pending_doc so a /// run inside the struct body doesn't
+    // leak past `}` to whatever statement follows. Inner /// accumulate
+    // into pending_doc and attach to the next field or namespace decl.
+    saved_doc := p.pending_doc.clone()
+    p.pending_doc = ""
+
     mut in_namespace := false
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
-        // Phase 1: discard doc comments inside struct bodies (no attachment yet)
-        if check(p, TokenType.DocComment) { advance(p); continue }
+        if check(p, TokenType.DocComment) {
+            drain_doc_comments(p)
+            continue
+        }
         if check(p, TokenType.KwNamespace) {
             advance(p)
             expect_token(p, TokenType.Colon)
             in_namespace = true
+            // Discard any pending /// before the namespace marker.
+            p.pending_doc = ""
             continue
         }
         if in_namespace {
@@ -402,10 +412,13 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
                 ns_explicit_type = expect_text(p, TokenType.Ident)
                 expect_token(p, TokenType.Eq)
             }
+            ns_doc := p.pending_doc.clone()
+            p.pending_doc = ""
             mut ns_value := parse_expression(p)
             mut ns_dd := Declaration(name = ns_name,
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
                 til_type = til_type_from_explicit_type(ns_explicit_type),
+                doc = ns_doc,
                 default_value = ns_value)
             switch def.node_type {
             case NodeType.StructDef(sdd):
@@ -429,10 +442,13 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             } else {
                 expect_token(p, TokenType.ColonEq)
             }
+            f_doc := p.pending_doc.clone()
+            p.pending_doc = ""
             mut f_value := maybe_lift_lambda(p, own parse_expression(p))
             mut f_dd := Declaration(name = f_name, is_mut = f_is_mut,
                 own_type = f_own_type, explicit_type = f_explicit_type,
                 til_type = til_type_from_explicit_type(f_explicit_type),
+                doc = f_doc,
                 default_value = f_value)
             switch def.node_type {
             case NodeType.StructDef(sdd):
@@ -443,6 +459,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
         }
     }
     expect_token(p, TokenType.RBrace)
+    p.pending_doc = saved_doc.clone()
     return def
 }
 
@@ -455,15 +472,21 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     mut def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
     expect_token(p, TokenType.LBrace)
 
+    saved_doc := p.pending_doc.clone()
+    p.pending_doc = ""
+
     mut in_namespace := false
     mut variant_idx : I64 = 0
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
-        // Phase 1: discard doc comments inside enum bodies (no attachment yet)
-        if check(p, TokenType.DocComment) { advance(p); continue }
+        if check(p, TokenType.DocComment) {
+            drain_doc_comments(p)
+            continue
+        }
         if check(p, TokenType.KwNamespace) {
             advance(p)
             expect_token(p, TokenType.Colon)
             in_namespace = true
+            p.pending_doc = ""
             continue
         }
         if in_namespace {
@@ -479,10 +502,13 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
                 ns_explicit_type = expect_text(p, TokenType.Ident)
                 expect_token(p, TokenType.Eq)
             }
+            ns_doc := p.pending_doc.clone()
+            p.pending_doc = ""
             mut ns_value := parse_expression(p)
             mut ns_dd := Declaration(name = ns_name,
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
                 til_type = til_type_from_explicit_type(ns_explicit_type),
+                doc = ns_doc,
                 default_value = ns_value)
             switch def.node_type {
             case NodeType.EnumDef(edd):
@@ -491,7 +517,11 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
                 UNREACHABLE(__LOC__)
             }
         } else {
-            // Variant: bare identifier or Variant: Type, comma-separated
+            // Variant: bare identifier or Variant: Type, comma-separated.
+            // Variant docs aren't yet stored (variants are a Vec<Str>);
+            // discard any leading /// so it doesn't bleed into the next
+            // ns_decl.
+            p.pending_doc = ""
             vname := expect_text(p, TokenType.Ident)
             mut vtype := ""
             if check(p, TokenType.Colon) {
@@ -512,6 +542,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
         }
     }
     expect_token(p, TokenType.RBrace)
+    p.pending_doc = saved_doc.clone()
     return def
 }
 

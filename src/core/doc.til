@@ -15,14 +15,16 @@ import("u8.til")
 /// Encoded as `name<0x01>doc<0x02>...`. Use help(name) for lookup.
 mut __til_docs_blob__ := ""
 
-/// Packed runtime registry of declaration kinds collected by the loader.
-/// Encoded as `name<0x01>kind<0x02>...`. Use help(name) for lookup.
-mut __til_kinds_blob__ := ""
+/// Packed runtime registry of human-readable info strings (kind +
+/// signature/fields/methods/var type) for every top-level Decl and
+/// struct/enum member. Encoded as `name<0x01>info<0x02>...`. Use
+/// help(name) for lookup.
+mut __til_info_blob__ := ""
 
 /// Loader-emitted entry point that hands the packed registry blobs to
 /// the runtime. Not intended for direct user calls.
-__doc_init__ := func(kinds_data: Str, docs_data: Str) {
-    __til_kinds_blob__ = kinds_data.clone()
+__doc_init__ := func(info_data: Str, docs_data: Str) {
+    __til_info_blob__ = info_data.clone()
     __til_docs_blob__ = docs_data.clone()
 }
 
@@ -64,9 +66,10 @@ __til_has_doc__ := func(name: Str) returns shallow Bool {
     return __doc_lookup__(__til_docs_blob__, name).is_empty().not()
 }
 
-/// True iff the named declaration is registered with a kind label.
-__til_has_kind__ := func(name: Str) returns shallow Bool {
-    return __doc_lookup__(__til_kinds_blob__, name).is_empty().not()
+/// True iff the named declaration is registered with a kind/signature
+/// info string.
+__til_has_info__ := func(name: Str) returns shallow Bool {
+    return __doc_lookup__(__til_info_blob__, name).is_empty().not()
 }
 
 /// Get the registered /// doc comment for a declaration, or "" if none.
@@ -74,25 +77,26 @@ __til_get_doc__ := func(name: Str) returns Str {
     return __doc_lookup__(__til_docs_blob__, name)
 }
 
-/// Get the registered kind label for a declaration, or "" if not found.
-__til_get_kind__ := func(name: Str) returns Str {
-    return __doc_lookup__(__til_kinds_blob__, name)
+/// Get the registered info string for a declaration, or "" if not found.
+__til_get_info__ := func(name: Str) returns Str {
+    return __doc_lookup__(__til_info_blob__, name)
 }
 
-/// Print the doc comment attached to a top-level declaration.
-/// If the name exists but has no doc, print its kind. If the name is
-/// not declared at all, print "undefined symbol: <name>".
+/// Print the doc comment and the kind/signature info for a top-level
+/// declaration or struct/enum member (`Type.method`). When both are
+/// registered, print the doc first then the info. If neither is
+/// registered print "undefined symbol: <name>".
 help := proc(name: Str) {
     doc := __til_get_doc__(name)
+    info := __til_get_info__(name)
     if doc.is_empty().not() {
         println(doc)
+    }
+    if info.is_empty().not() {
+        println(info)
         return
     }
-    kind := __til_get_kind__(name)
-    if kind.is_empty().not() {
-        println(name, " is a ", kind, " (no documentation)")
-        return
-    }
+    if doc.is_empty().not() { return }
     println("undefined symbol: ", name)
 }
 

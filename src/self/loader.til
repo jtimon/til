@@ -814,24 +814,32 @@ func_kind := func(ft: FuncType) returns Str {
     }
 }
 
-// Classify a top-level Decl by its RHS (first child) NodeType. Returns
-// "struct", "enum", "func", "proc", "test", "macro", "ext_func",
-// "ext_proc", or "var" for plain value declarations.
-decl_kind := func(stmt: Expr) returns Str {
-    if stmt.children.len().eq(0) { return "var" }
-    ref rhs : Expr = stmt.children.get(0)
-    switch rhs.node_type {
-    case NodeType.StructDef: return "struct"
-    case NodeType.EnumDef:   return "enum"
-    case NodeType.FuncDef(fd): return func_kind(fd.func_type)
-    case: return "var"
+// User-facing TilType name for help() info strings. "" for Unknown/None.
+til_type_user := func(t: TilType) returns Str {
+    switch t {
+    case TilType.I64:       return "I64"
+    case TilType.U8:        return "U8"
+    case TilType.I16:       return "I16"
+    case TilType.I32:       return "I32"
+    case TilType.U32:       return "U32"
+    case TilType.U64:       return "U64"
+    case TilType.F32:       return "F32"
+    case TilType.Bool:      return "Bool"
+    case TilType.Struct(name):    return name.clone()
+    case TilType.StructDef:       return "StructDef"
+    case TilType.Enum(name):      return name.clone()
+    case TilType.EnumDef:         return "EnumDef"
+    case TilType.FuncDef:         return "FunctionDef"
+    case TilType.FuncPtr:         return "Fn"
+    case TilType.Dynamic:         return "Dynamic"
+    case TilType.Custom(name):    return name.clone()
+    case: return ""
     }
 }
 
-// Append "name<0x01>value<0x02>" to packed for one Decl. The byte values
-// 0x01/0x02 are control characters that won't appear in identifiers or
-// /// doc text, so they make safe field/record separators that
-// __doc_parse_into__ in core/doc.til scans for at startup.
+// Append "name<0x01>value<0x02>" to packed. 0x01/0x02 are control bytes
+// that won't appear in identifiers or /// doc text, so they make safe
+// field/record separators for __doc_lookup__ in core/doc.til.
 append_packed_entry := func(mut packed: Str, name: Str, value: Str) {
     packed.push_str(name)
     packed.push_str(Str.from_byte(1.to_u8()))
@@ -839,82 +847,352 @@ append_packed_entry := func(mut packed: Str, name: Str, value: Str) {
     packed.push_str(Str.from_byte(2.to_u8()))
 }
 
-// Walk a Body's top-level Decls. For each Decl append a kind entry into
-// `kinds` (always) and a doc entry into `docs` if Declaration.doc is
-// non-empty. Both blobs use 0x01 as field-sep and 0x02 as record-sep.
-collect_decl_packed := func(body: Expr, mut kinds: Str, mut docs: Str) {
+// Append "[own |ref |shallow ][mut ]" prefix for d, omitting whichever
+// ownership the surrounding context already implies.
+append_qualifier_prefix := func(mut out: Str, d: Declaration, default_own: OwnType) {
+    if d.own_type.is(default_own).not() {
+        switch d.own_type {
+        case OwnType.Own:     out.push_str("own ")
+        case OwnType.Ref:     out.push_str("ref ")
+        case OwnType.Shallow: out.push_str("shallow ")
+        }
+    }
+    if d.is_mut { out.push_str("mut ") }
+}
+
+// Append "(p1: T1, name: ..TN)" plus optional " returns [shallow|ref ]T".
+append_fn_signature := func(mut out: Str, fd: FunctionDef) {
+    out.push_str("(")
+    var_idx_i64 : I64 = fd.variadic_index.to_i64()
+    for i in 0..fd.params.len() {
+        if i.gt(0) { out.push_str(", ") }
+        ref p : Declaration = fd.params.get(i)
+        is_variadic := i.to_i64().eq(var_idx_i64)
+        if is_variadic.not() { append_qualifier_prefix(out, p, OwnType.Ref) }
+        out.push_str(p.name)
+        if p.explicit_type.len().gt(0) {
+            out.push_str(": ")
+            if is_variadic { out.push_str("..") }
+            out.push_str(p.explicit_type)
+        }
+    }
+    out.push_str(")")
+    if fd.return_type.len().gt(0) {
+        out.push_str(" returns ")
+        switch fd.return_own_type {
+        case OwnType.Shallow: out.push_str("shallow ")
+        case OwnType.Ref:     out.push_str("ref ")
+        case OwnType.Own:
+        }
+        out.push_str(fd.return_type)
+    }
+}
+
+// Append "<indent>/// <line>\n" for each line of doc.
+append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
+    if doc.is_empty() { return }
+    mut start : USize = 0
+    for i in 0..doc.len() {
+        ref c : U8 = doc.byte_at(i)
+        if c.eq(10.to_u8()) {
+            out.push_str(indent)
+            out.push_str("/// ")
+            if i.gt(start) { out.push_str(doc.substr(start, i.sub(start))) }
+            out.push_str("\n")
+            start = i.add(1)
+        }
+    }
+    out.push_str(indent)
+    out.push_str("/// ")
+    if start.lt(doc.len()) { out.push_str(doc.substr(start, doc.len().sub(start))) }
+    out.push_str("\n")
+}
+
+// Append "    [own |ref |shallow ][mut ]name : Type" for a struct field.
+append_field_indented := func(mut out: Str, d: Declaration) {
+    append_doc_lines_indented(out, d.doc, "    ")
+    out.push_str("    ")
+    append_qualifier_prefix(out, d, OwnType.Shallow)
+    out.push_str(d.name)
+    if d.explicit_type.len().gt(0) {
+        out.push_str(" : ")
+        out.push_str(d.explicit_type)
+    }
+}
+
+// Append "    [kind ]name(sig) returns T" for a namespace method.
+append_ns_method_indented := func(mut out: Str, d: Declaration) {
+    append_doc_lines_indented(out, d.doc, "    ")
+    out.push_str("    ")
+    if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
+        ref fd : FunctionDef = get_payload(d.default_value.node_type)
+        out.push_str(func_kind(fd.func_type))
+        out.push_str(" ")
+        out.push_str(d.name)
+        append_fn_signature(out, fd)
+    } else {
+        out.push_str(d.name)
+        if d.explicit_type.len().gt(0) {
+            out.push_str(" : ")
+            out.push_str(d.explicit_type)
+        }
+    }
+}
+
+format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) returns Str {
+    mut t := dd.til_type.clone()
+    if t.is(TilType.Unknown) { t = scope.get_type(name) }
+    type_str := til_type_user(t)
+    if type_str.is_empty().not() {
+        return name.concat(" is a ").concat(type_str)
+    }
+    if dd.explicit_type.len().gt(0) {
+        return name.concat(" is a ").concat(dd.explicit_type)
+    }
+    return name.clone()
+}
+
+format_func_info := func(name: Str, fd: FunctionDef) returns Str {
+    mut cap : USize = name.len().add(fd.return_type.len()).add(64.to_usize())
+    for j in 0..fd.params.len() {
+        ref p : Declaration = fd.params.get(j)
+        cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+    }
+    mut out := Str.with_capacity(cap)
+    out.push_str(func_kind(fd.func_type))
+    out.push_str(" ")
+    out.push_str(name)
+    append_fn_signature(out, fd)
+    return out
+}
+
+format_struct_info := func(name: Str, sdef: StructDef) returns Str {
+    mut cap : USize = name.len().add(128.to_usize())
+    for i in 0..sdef.fields.len() {
+        ref f : Declaration = sdef.fields.get(i)
+        cap = cap.add(f.name.len()).add(f.explicit_type.len()).add(f.doc.len().mul(2.to_usize())).add(128.to_usize())
+    }
+    for i in 0..sdef.ns_decls.len() {
+        ref d : Declaration = sdef.ns_decls.get(i)
+        cap = cap.add(d.name.len()).add(d.doc.len().mul(2.to_usize())).add(192.to_usize())
+        if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
+            ref fd : FunctionDef = get_payload(d.default_value.node_type)
+            cap = cap.add(fd.return_type.len()).add(48.to_usize())
+            for j in 0..fd.params.len() {
+                ref p : Declaration = fd.params.get(j)
+                cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+            }
+        }
+    }
+    cap = cap.mul(2.to_usize())
+    mut out := Str.with_capacity(cap)
+    out.push_str("struct ")
+    out.push_str(name)
+    out.push_str(" {")
+    for i in 0..sdef.fields.len() {
+        ref f : Declaration = sdef.fields.get(i)
+        out.push_str("\n")
+        append_field_indented(out, f)
+    }
+    if sdef.ns_decls.len().gt(0) {
+        out.push_str("\nnamespace:")
+        for i in 0..sdef.ns_decls.len() {
+            ref d : Declaration = sdef.ns_decls.get(i)
+            out.push_str("\n")
+            append_ns_method_indented(out, d)
+        }
+    }
+    out.push_str("\n}")
+    return out
+}
+
+format_enum_info := func(name: Str, edef: EnumDef) returns Str {
+    mut cap : USize = name.len().add(128.to_usize())
+    for i in 0..edef.variants.len() {
+        ref v : Str = edef.variants.get(i)
+        cap = cap.add(v.len()).add(96.to_usize())
+    }
+    for i in 0..edef.ns_decls.len() {
+        ref d : Declaration = edef.ns_decls.get(i)
+        cap = cap.add(d.name.len()).add(d.doc.len().mul(2.to_usize())).add(192.to_usize())
+        if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
+            ref fd : FunctionDef = get_payload(d.default_value.node_type)
+            cap = cap.add(fd.return_type.len()).add(48.to_usize())
+            for j in 0..fd.params.len() {
+                ref p : Declaration = fd.params.get(j)
+                cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+            }
+        }
+    }
+    cap = cap.mul(2.to_usize())
+    mut out := Str.with_capacity(cap)
+    out.push_str("enum ")
+    out.push_str(name)
+    out.push_str(" {")
+    for i in 0..edef.variants.len() {
+        ref v : Str = edef.variants.get(i)
+        out.push_str("\n    ")
+        out.push_str(v)
+        if edef.payload_types.has(i.to_i64()) {
+            ref pt : Str = edef.payload_types.get(i.to_i64())
+            out.push_str(": ")
+            out.push_str(pt)
+        }
+    }
+    if edef.ns_decls.len().gt(0) {
+        out.push_str("\nnamespace:")
+        for i in 0..edef.ns_decls.len() {
+            ref d : Declaration = edef.ns_decls.get(i)
+            out.push_str("\n")
+            append_ns_method_indented(out, d)
+        }
+    }
+    out.push_str("\n}")
+    return out
+}
+
+// Build the rich info string for a top-level Decl.
+format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
+    if stmt.node_type.is(NodeType.Decl).not() { return "" }
+    ref dd : Declaration = get_payload(stmt.node_type)
+    if stmt.children.len().eq(0) {
+        return format_var_info(dd.name, dd, scope)
+    }
+    ref rhs : Expr = stmt.children.get(0)
+    switch rhs.node_type {
+    case NodeType.StructDef(sdef): return format_struct_info(dd.name, sdef)
+    case NodeType.EnumDef(edef):   return format_enum_info(dd.name, edef)
+    case NodeType.FuncDef(fd):     return format_func_info(dd.name, fd)
+    case:                          return format_var_info(dd.name, dd, scope)
+    }
+    return format_var_info(dd.name, dd, scope)
+}
+
+// Append "Type.method" qualified entry for a single namespace method.
+collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: Str, mut docs: Str) {
+    qual := type_name.concat(".").concat(d.name)
+    mut info_cap : USize = qual.len().add(64.to_usize())
+    if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
+        ref fd : FunctionDef = get_payload(d.default_value.node_type)
+        info_cap = info_cap.add(fd.return_type.len()).add(48.to_usize())
+        for j in 0..fd.params.len() {
+            ref p : Declaration = fd.params.get(j)
+            info_cap = info_cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+        }
+    } else {
+        info_cap = info_cap.add(d.explicit_type.len()).add(8.to_usize())
+    }
+    mut method_info := Str.with_capacity(info_cap)
+    if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
+        ref fd : FunctionDef = get_payload(d.default_value.node_type)
+        method_info.push_str(func_kind(fd.func_type))
+        method_info.push_str(" ")
+        method_info.push_str(qual)
+        append_fn_signature(method_info, fd)
+    } else {
+        method_info.push_str("member ")
+        method_info.push_str(qual)
+        if d.explicit_type.len().gt(0) {
+            method_info.push_str(" : ")
+            method_info.push_str(d.explicit_type)
+        }
+    }
+    append_packed_entry(info, qual, method_info)
+    if d.doc.is_empty().not() {
+        append_packed_entry(docs, qual, d.doc)
+    }
+}
+
+// Register "Type.field" entries for each struct field, plus "Type.method"
+// entries for each namespace method.
+collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info: Str, mut docs: Str) {
+    for i in 0..sdef.fields.len() {
+        ref f : Declaration = sdef.fields.get(i)
+        qual := type_name.concat(".").concat(f.name)
+        mut field_info := Str.with_capacity(qual.len().add(f.explicit_type.len()).add(64.to_usize()))
+        field_info.push_str("field ")
+        append_qualifier_prefix(field_info, f, OwnType.Shallow)
+        field_info.push_str(qual)
+        if f.explicit_type.len().gt(0) {
+            field_info.push_str(" : ")
+            field_info.push_str(f.explicit_type)
+        }
+        append_packed_entry(info, qual, field_info)
+        if f.doc.is_empty().not() {
+            append_packed_entry(docs, qual, f.doc)
+        }
+    }
+    for i in 0..sdef.ns_decls.len() {
+        ref d : Declaration = sdef.ns_decls.get(i)
+        collect_member_method_packed(type_name, d, info, docs)
+    }
+}
+
+// Register "Type.Variant" entries for each enum variant, plus
+// "Type.method" entries for each namespace method.
+collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str) {
+    for i in 0..edef.variants.len() {
+        ref v : Str = edef.variants.get(i)
+        qual := type_name.concat(".").concat(v)
+        mut variant_info := Str.with_capacity(qual.len().add(64.to_usize()))
+        variant_info.push_str("variant ")
+        variant_info.push_str(qual)
+        if edef.payload_types.has(i.to_i64()) {
+            ref pt : Str = edef.payload_types.get(i.to_i64())
+            variant_info.push_str(": ")
+            variant_info.push_str(pt)
+        }
+        append_packed_entry(info, qual, variant_info)
+    }
+    for i in 0..edef.ns_decls.len() {
+        ref d : Declaration = edef.ns_decls.get(i)
+        collect_member_method_packed(type_name, d, info, docs)
+    }
+}
+
+// Walk a Body's top-level Decls. For each Decl append (name, info) into
+// `info` and (name, doc) into `docs` if Declaration.doc is non-empty.
+// Struct/enum members are also registered under qualified names.
+collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut docs: Str) {
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.node_type)
-            append_packed_entry(kinds, dd.name, decl_kind(stmt))
+            entry_info := format_decl_info(stmt, scope)
+            if entry_info.is_empty().not() {
+                append_packed_entry(info, dd.name, entry_info)
+            }
             if dd.doc.is_empty().not() {
                 append_packed_entry(docs, dd.name, dd.doc)
             }
-        }
-    }
-}
-
-// Estimate the packed-blob capacity for a Body's top-level Decls so
-// we can allocate the Str once instead of growing on every concat.
-// Each entry needs: name + 0x01 + value + 0x02. We over-estimate value
-// length with a small constant for kinds (longest "ext_proc" = 8 bytes)
-// and use the actual doc length when present.
-packed_capacity := func(body: Expr) returns USize {
-    mut kinds_cap : USize = 0
-    mut docs_cap : USize = 0
-    for stmt : Expr in body.children {
-        if stmt.node_type.is(NodeType.Decl) {
-            ref dd : Declaration = get_payload(stmt.node_type)
-            kinds_cap = kinds_cap.add(dd.name.len()).add(10.to_usize())
-            if dd.doc.is_empty().not() {
-                docs_cap = docs_cap.add(dd.name.len()).add(dd.doc.len()).add(2.to_usize())
+            if stmt.children.len().gt(0) {
+                ref rhs : Expr = stmt.children.get(0)
+                if rhs.node_type.is(NodeType.StructDef) {
+                    ref sdef : StructDef = get_payload(rhs.node_type)
+                    collect_struct_members_packed(dd.name, sdef, info, docs)
+                } else if rhs.node_type.is(NodeType.EnumDef) {
+                    ref edef : EnumDef = get_payload(rhs.node_type)
+                    collect_enum_members_packed(dd.name, edef, info, docs)
+                }
             }
         }
     }
-    return kinds_cap.add(docs_cap)
 }
 
-// Build a single __doc_init__(packed_kinds, packed_docs) FCall and add
-// it to out_body. The blobs encode every top-level Decl in core_ast and
-// user_ast as `name\x01value\x02...` records; doc.til parses them once
-// at startup. This collapses what would otherwise be 100+ per-decl
-// FCalls into a single call so typer/precomp/scavenger/evaluator cost
-// stays roughly constant regardless of program size. The synthesized
-// call uses core_ast's first decl path so error messages point into
-// core rather than at user line numbers.
-synthesize_doc_registry := func(core_ast: Expr, user_ast: Expr, mut out_body: Expr) {
-    cap := packed_capacity(core_ast).add(packed_capacity(user_ast)).add(8.to_usize())
-    mut packed_kinds := Str.with_capacity(cap)
+// Build a single source-level __doc_init__("...", "...") line for use by
+// the REPL. Non-REPL pipelines don't synthesize doc init calls. `scope`
+// carries inferred types so e.g. `a := 1` shows up as "a is a I64".
+doc_init_src_line := func(core_ast: Expr, user_ast: Expr, scope: TypeScope) returns Str {
+    cap : USize = 262144.to_usize()
+    mut packed_info := Str.with_capacity(cap)
     mut packed_docs := Str.with_capacity(cap)
+    collect_decl_packed(core_ast, scope, packed_info, packed_docs)
+    collect_decl_packed(user_ast, scope, packed_info, packed_docs)
 
-    collect_decl_packed(core_ast, packed_kinds, packed_docs)
-    collect_decl_packed(user_ast, packed_kinds, packed_docs)
+    if packed_info.is_empty().and(packed_docs.is_empty()) { return "" }
 
-    if packed_kinds.is_empty().and(packed_docs.is_empty()) { return }
-
-    // Use stable line/col (0,0) for the synthesized FCall.
-    syn_line : U32 = 0.to_u32()
-    syn_col : U32 = 0.to_u32()
-
-    out_body.add_child(own make_register_call("__doc_init__", packed_kinds, packed_docs, syn_line, syn_col))
-}
-
-// Build a single source-level __doc_init__("...", "...") line for use by the
-// REPL. We keep docs REPL-only for now: normal loader pipelines do not
-// synthesize doc init calls.
-doc_init_src_line := func(core_ast: Expr, user_ast: Expr) returns Str {
-    cap := packed_capacity(core_ast).add(packed_capacity(user_ast)).add(8.to_usize())
-    mut packed_kinds := Str.with_capacity(cap)
-    mut packed_docs := Str.with_capacity(cap)
-
-    collect_decl_packed(core_ast, packed_kinds, packed_docs)
-    collect_decl_packed(user_ast, packed_kinds, packed_docs)
-
-    if packed_kinds.is_empty().and(packed_docs.is_empty()) { return "" }
-
-    esc_kinds := escape_doc_for_literal_str(packed_kinds)
+    esc_info := escape_doc_for_literal_str(packed_info)
     esc_docs := escape_doc_for_literal_str(packed_docs)
-    return "__doc_init__(\"".concat(esc_kinds).concat("\", \"").concat(esc_docs).concat("\")\n")
+    return "__doc_init__(\"".concat(esc_info).concat("\", \"").concat(esc_docs).concat("\")\n")
 }
 
 // Append -l flag to the link_flags carried on lp.
