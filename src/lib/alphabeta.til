@@ -5,7 +5,7 @@ mode lib
 // Board is a generic data blob — each game defines its own layout.
 
 AB_INF := 100000
-MAX_BOARD := 4096
+MAX_BOARD := 8192
 
 Heuristic := func(Dynamic) returns I64
 NextBoardsFn := func(Dynamic) returns Vec

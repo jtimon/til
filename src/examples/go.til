@@ -9,7 +9,7 @@ import("../lib/alphabeta.til")
 // Board sizes: 9x9, 13x13, 19x19
 
 WINDOW_WIDTH := 800
-WINDOW_HEIGHT := 880
+WINDOW_HEIGHT := 920
 FPS := 60
 FONT_SZ := 20
 FONT_LG := 40
@@ -582,13 +582,13 @@ main := proc() {
     mut stk := Vec.new("I64", 8)
 
     // Radio button state (only applied on restart / initial start)
-    mut sel_color := 1   // 0=white, 1=black (default black for go)
+    mut sel_color := 0   // 0=white, 1=black (default white so AI starts as black)
     mut sel_2p := 0      // 0=1P, 1=2P
     mut sel_size := 2    // 0=9x9, 1=13x13, 2=19x19
 
     // Active game settings (set on restart/init from radio state)
-    mut human_color := 1  // 1=black, 2=white
-    mut ai_color := 2
+    mut human_color := 2  // 1=black, 2=white
+    mut ai_color := 1
     mut vs_ai := 2        // 1=2P, 2=AI
     mut board_size := 19
 
@@ -669,7 +669,7 @@ main := proc() {
         margin := 40
         cell_size := WINDOW_WIDTH.sub(margin.mul(2)).div(board_size.sub(1))
         board_px := margin
-        board_py := 80
+        board_py := 100
         stone_r := cell_size.mul(4).div(10)
 
         // --- AI MOVE (alpha-beta search) ---
@@ -791,10 +791,11 @@ main := proc() {
         begin_drawing()
         clear_background(30, 30, 30, 255)
 
-        // Board background
+        // Board background: extend full window width and cover top/bottom
+        // label rows so coordinate text isn't drawn over the dark window bg.
         grid_span := cell_size.mul(board_size.sub(1))
-        draw_rectangle(board_px.sub(margin.div(2)), board_py.sub(margin.div(2)),
-                       grid_span.add(margin), grid_span.add(margin),
+        draw_rectangle(0, board_py.sub(margin),
+                       WINDOW_WIDTH, grid_span.add(margin.mul(2)),
                        BOARD_R, BOARD_G, BOARD_B, 255)
 
         // Grid lines

@@ -351,12 +351,12 @@ main := proc() {
     mut tmp_jumped := Array.new("I64", 8, 64)
 
     // Radio button state (only applied on restart / initial start)
-    mut sel_color := 0  // 0=red, 1=black (human's side in 1P)
+    mut sel_color := 1  // 0=red, 1=black (default black so AI starts as red)
     mut sel_2p := 0     // 0=1P, 1=2P
 
     // Active game settings (set on restart/init from radio state)
-    mut human_side := 1  // 1=red, 2=black
-    mut ai_side := 2
+    mut human_side := 2  // 1=red, 2=black
+    mut ai_side := 1
     mut vs_ai := 2       // 1=2P, 2=vs AI
 
     // Game state
