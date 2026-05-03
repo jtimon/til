@@ -317,7 +317,7 @@ main := proc() {
                 vel_y = vel_y - GRAVITY
 
                 // Jump: space or right mouse.
-                if is_key_pressed(KEY_SPACE) {
+                if is_key_pressed(KEY_SPACE).or(is_mouse_button_pressed(1)) {
                     if on_ground.and(jump_held.not()) {
                         vel_y = JUMP_SPEED
                         on_ground = false
