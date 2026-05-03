@@ -271,6 +271,18 @@ ref mut cached_vec_name : Str = NULL
 mut ns_fields := Map.new("Str", Str.size(), "Value", Value.size())
 mut ns_keys := Vec.new("Dynamic", Dynamic.size())
 
+// --- Type-def registry: maps struct/enum names to their AST def Expr.
+// Populated by interpreter_init_ns from every struct/enum decl seen in core+user
+// programs. Replaces dangerous Declaration.field_struct_def reads at use sites.
+// (#147 anti-pattern catalog: layout cache on AST nodes / dangerous refs.)
+mut interp_type_defs := Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
+
+lookup_interp_type_def := func(name: Str) returns ref Expr {
+    if interp_type_defs.has(name).not() { return NULL }
+    ref box : ExprPtrBox = interp_type_defs.get(name)
+    return box.ptr
+}
+
 val_none := func() returns shallow Value {
     return Value.None
 }
@@ -1393,6 +1405,12 @@ interpreter_init_ns := proc(mut global: Scope, program: Expr) {
             if dd.name.eq("Array") { cached_array_def = sdef; cached_array_name = dd.name }
             if dd.name.eq("Vec") { cached_vec_def = sdef; cached_vec_name = dd.name }
         }
+        // Register every struct/enum AST in the comprehensive type-def map
+        // so readers can replace Declaration.field_struct_def with a name lookup.
+        // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
+        // AST gets rebuilt later in the run.
+        td_box := ExprPtrBox(ptr = sdef)
+        interp_type_defs.set(own dd.name.clone(), own td_box)
         ref ien_ns : Vec = def_ns_decls(sdef)
         for d_j : Declaration in ien_ns {
             ref nsd : Declaration = d_j
@@ -1501,9 +1519,10 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
     if ftype.eq("F32") { ref v : F32 = ptr; return val_f32(v) }
     if ftype.eq("Bool") { ref v : Bool = ptr; return val_bool(v) }
     // Enum field
-    if is_null(dd.field_struct_def).not() {
-        if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
-            ref edef : Expr = dd.field_struct_def
+    ref edef_lookup : Expr = lookup_interp_type_def(ftype)
+    if is_null(edef_lookup).not() {
+        if edef_lookup.node_type.is(NodeType.EnumDef) {
+            ref edef : Expr = edef_lookup
             if enum_has_payloads(edef) {
                 ref ei : EnumInstance = deref(ptr)
                 if is_null(ei) { return val_enum_simple(ftype, 0.to_i32()) }
@@ -1519,8 +1538,11 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
         }
     }
     // Inline struct
-    if is_null(dd.field_struct_def).not() {
-        return make_struct_value(ftype, dd.field_struct_def, ptr, true)
+    ref sdef3 : Expr = lookup_interp_type_def(ftype)
+    if is_null(sdef3).not() {
+        if sdef3.node_type.is(NodeType.StructDef) {
+            return make_struct_value(ftype, sdef3, ptr, true)
+        }
     }
     // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
     ref ptr2 : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
