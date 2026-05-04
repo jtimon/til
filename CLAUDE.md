@@ -1,1 +1,1 @@
-agents.md
+bots/bots.org

@@ -1,1 +1,1 @@
-../bots/bots.org
+bots/bots.org
