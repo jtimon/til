@@ -958,7 +958,15 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
     } else {
         if dd.own_type.is(OwnType.Ref) {
             is_rg := is_ref_global(dd.name).and(in_func_def.not())
-            if is_rg.not() { lp.ctx.ref_locals.add(own dd.name.clone()) }
+            if is_rg.not() {
+                lp.ctx.ref_locals.add(own dd.name.clone())
+                // #185: track ref-Dynamic locals so emit_deref can typed-
+                // cast at use sites where narrow_dynamic has retyped the
+                // Ident to a concrete primitive.
+                if dd.explicit_type.eq("Dynamic") {
+                    lp.ctx.ref_dyn_locals.add(own dd.name.clone())
+                }
+            }
             ctype := resolve_decl_ctype(e.til_type, rhs.til_type, dd.explicit_type)
             if is_rg { f.write(dd.name); f.write(" = ") }
             else { f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ") }
@@ -1754,9 +1762,11 @@ emit_body_scoped := proc(f: File, body: Expr, shallow depth: I32) {
     ref mut lp : LoadedProgram = codegen_lp()
     saved_sl := lp.ctx.stack_locals.clone()
     saved_rl := lp.ctx.ref_locals.clone()
+    saved_rdl := lp.ctx.ref_dyn_locals.clone()
     emit_body(f, body, depth)
     lp.ctx.stack_locals = saved_sl
     lp.ctx.ref_locals = saved_rl
+    lp.ctx.ref_dyn_locals = saved_rdl
 }
 
 emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
@@ -1782,6 +1792,17 @@ emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
         case NodeType.Ident(ident):
             if is_shallow_param(ident).or(is_stack_local(ident)).or(is_value_global(ident)) {
                 emit_expr(f, e, depth)
+            } else if codegen_lp().ctx.ref_dyn_locals.has(ident) {
+                // #185: ident is a ref-Dynamic local but the typer's
+                // narrow_dynamic has retyped this use to a concrete
+                // primitive. Emit a typed cast so DEREF doesn't try to
+                // dereference a `void *` (which is invalid C).
+                ctype := til_type_to_c(e.til_type)
+                f.write("DEREF((")
+                f.write(ctype)
+                f.write(" *)")
+                emit_expr(f, e, depth)
+                f.write(")")
             } else {
                 f.write("DEREF(")
                 emit_expr(f, e, depth)
@@ -2025,6 +2046,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
         lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
         lp.ctx.ref_locals = Set.new("Str", Str.size())
+        lp.ctx.ref_dyn_locals = Set.new("Str", Str.size())
         lp.ctx.local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
         collect_unsafe_to_hoist(body)
         in_main_func = true
@@ -2050,6 +2072,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
         lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
         lp.ctx.ref_locals = Set.new("Str", Str.size())
+        lp.ctx.ref_dyn_locals = Set.new("Str", Str.size())
         lp.ctx.local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
         collect_unsafe_to_hoist(body)
         emit_body(f, body, 1.to_i32())
@@ -3651,6 +3674,7 @@ build_register_lookups := func(core_program: Expr, program: Expr) {
     lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
     lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
     lp.ctx.ref_locals = Set.new("Str", Str.size())
+    lp.ctx.ref_dyn_locals = Set.new("Str", Str.size())
     if is_null(core_program).not() { register_lookups_prog(core_program) }
     register_lookups_prog(program)
 }
@@ -3663,6 +3687,7 @@ build_register_lookups_lp := func() {
     lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
     lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
     lp.ctx.ref_locals = Set.new("Str", Str.size())
+    lp.ctx.ref_dyn_locals = Set.new("Str", Str.size())
 
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {

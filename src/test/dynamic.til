@@ -144,6 +144,32 @@ test_dynamic_ref_keeps_ptr := test() {
     assert(__LOC__, b.not())
 }
 
+// #185 regression: ref-Dynamic locals fed directly into typed-primitive
+// call sites used to compile to `DEREF(x)` on a `void *`, which is
+// invalid C. The typer's narrow_dynamic retypes the Ident to the param
+// type (Bool/U8/etc.); emit_deref now typed-casts via the ref_dyn_locals
+// set instead of falling into the generic ref-local path.
+test_bool_dyn_arg_chain := test() {
+    v := vec("Bool", true, false)
+    ref x : Dynamic = v.get(1)
+    ref y : Dynamic = v.get(0)
+    // Top-level Bool helpers via UFCS receiver (Dynamic-typed receiver).
+    assert(__LOC__, x.not())
+    assert(__LOC__, y.not().not())
+    // Top-level Bool helpers via positional Dynamic arg.
+    assert(__LOC__, and(y, y))
+    assert(__LOC__, or(x, y))
+    assert(__LOC__, and(x, y).not())
+}
+
+test_u8_dyn_arg := test() {
+    v := vec("U8", 1.to_u8(), 2.to_u8(), 3.to_u8())
+    ref x : Dynamic = v.get(1)
+    y : U8 = 10.to_u8()
+    // Mixed typed/Dynamic args to a typed-primitive method.
+    assert_eq(__LOC__, y.add(x).to_i64(), 12)
+}
+
 test_dyn_size_of := test() {
     sz_i64 : USize = dyn_size_of("I64")
     sz_u8 : USize = dyn_size_of("U8")
