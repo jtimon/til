@@ -5003,10 +5003,10 @@ check_use_after_own_transfer := proc(body: Expr, mut locals: Vec) {
 }
 
 insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: Bool) {
-    // Quick check: any returns/breaks/continues or nested if/while?
+    // Quick check: any returns/breaks/continues or nested if/while/body?
     mut needs_scan := false
     for s : Expr in body.children {
-        if s.node_type.is(NodeType.Return).or(s.node_type.is(NodeType.If)).or(s.node_type.is(NodeType.While)) {
+        if s.node_type.is(NodeType.Return).or(s.node_type.is(NodeType.If)).or(s.node_type.is(NodeType.While)).or(s.node_type.is(NodeType.Body)) {
             needs_scan = true
             break
         }
@@ -5031,6 +5031,9 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: 
         }
         if stmt.node_type.is(NodeType.While) {
             insert_exit_deletes(stmt.child(1), live, true)
+        }
+        if stmt.node_type.is(NodeType.Body) {
+            insert_exit_deletes(stmt, live, return_only)
         }
         if stmt.node_type.is(NodeType.Return).or(return_only.not().and(stmt.node_type.is(NodeType.Break).or(stmt.node_type.is(NodeType.Continue)))) {
             for local : LocalInfo in live {
