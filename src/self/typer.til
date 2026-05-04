@@ -4306,23 +4306,41 @@ process_call_desugars := func(mut stmt: Expr, mut new_ch: Vec, mut scope: TypeSc
             line := fcall.line
             col := fcall.col
             ref elem_type : Str = resolve_variadic_elem_type(fcall, scope)
-            if is_null(elem_type).not().and(desugar_pure_splat_variadic_call(fcall).not()) {
-                va_name := "_va_Array_".concat(va_counter.to_str())
-                va_counter++
-                mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
-                scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, line, col, false, OwnType.Own)
-                new_ch.push(own va_decl)
-                for j in 0..vc {
-                    mut setter := build_variadic_array_set(fcall, scope, va_name, vi, j)
-                    // The setter's value can itself be a variadic fcall
-                    // (e.g. println(say(true, false, true)) where say is a
-                    // user-defined variadic). Desugar nested calls before
-                    // pushing the setter so the Array_set arg is the
-                    // rewritten fcall, not the raw one. Issue #186.
-                    process_call_desugars(setter, new_ch, scope, has_variadic, has_kwargs)
-                    new_ch.push(own setter)
+            mut did_work := false
+            if is_null(elem_type).not() {
+                if desugar_pure_splat_variadic_call(fcall) {
+                    did_work = true
+                } else {
+                    va_name := "_va_Array_".concat(va_counter.to_str())
+                    va_counter++
+                    mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
+                    scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, line, col, false, OwnType.Own)
+                    new_ch.push(own va_decl)
+                    for j in 0..vc {
+                        mut setter := build_variadic_array_set(fcall, scope, va_name, vi, j)
+                        // The setter's value can itself be a variadic fcall
+                        // (e.g. println(say(true, false, true)) where say is a
+                        // user-defined variadic). Desugar nested calls before
+                        // pushing the setter so the Array_set arg is the
+                        // rewritten fcall, not the raw one. Issue #186.
+                        process_call_desugars(setter, new_ch, scope, has_variadic, has_kwargs)
+                        new_ch.push(own setter)
+                    }
+                    rewrite_variadic_fcall_args(fcall, va_name)
+                    did_work = true
                 }
-                rewrite_variadic_fcall_args(fcall, va_name)
+            }
+            if did_work {
+                // find_variadic_fcall returns only the first match in
+                // the AST walk, so a stmt with SIBLING variadic fcalls
+                // (e.g. add2(sum(1,2), sum(3,4)) where add2 is regular
+                // but sum is variadic) would only get the first one
+                // desugared. After mutating variadic_index to -1 on
+                // the matched fcall, recurse on stmt to catch any
+                // remaining siblings (and any kwargs fcalls we'd
+                // otherwise miss by returning).
+                process_call_desugars(stmt, new_ch, scope, has_variadic, has_kwargs)
+                return
             }
         }
     }
@@ -4358,6 +4376,10 @@ process_call_desugars := func(mut stmt: Expr, mut new_ch: Vec, mut scope: TypeSc
                 new_ch.push(own setter)
             }
             rewrite_kwargs_fcall_args(fcall, kw_name)
+            // Same sibling-handling shape as the variadic block above:
+            // catch any remaining sibling kwargs fcalls in stmt.
+            process_call_desugars(stmt, new_ch, scope, has_variadic, has_kwargs)
+            return
         }
     }
 }

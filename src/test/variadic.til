@@ -102,3 +102,21 @@ bug186_variadic_nested_in_variadic := test() {
     // call: pass the result of one variadic into another variadic.
     assert_eq_str(__LOC__, variadic_concat(say_flags(true, false), say_flags(true)), "TFT")
 }
+
+// Sibling-position variant of #186 / #188: when a stmt contains
+// multiple SIBLING variadic fcalls (i.e. peers in the same arg list,
+// not nested inside one another), find_variadic_fcall returned only
+// the first one in DFS order. The first got desugared into _va_Array_0
+// + Array.set..., the rest stayed raw and gcc rejected them. The
+// containing call doesn't have to be variadic itself for this to bite.
+// Fix: after rewriting a variadic fcall, recurse process_call_desugars
+// on stmt to catch any remaining sibling variadic fcalls.
+add2_i64 := func(a: I64, b: I64) returns I64 { return a.add(b) }
+
+bug189_sibling_variadic := test() {
+    // add2_i64 is regular but takes two variadic-call results -- two
+    // SIBLINGS in the same arg list.
+    assert_eq(__LOC__, add2_i64(variadic_sum(1, 2), variadic_sum(3, 4)), 10)
+    // Mixed: a sibling variadic alongside a raw arg.
+    assert_eq(__LOC__, add2_i64(variadic_sum(1, 2, 3), 100), 106)
+}

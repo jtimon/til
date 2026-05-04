@@ -72,3 +72,18 @@ bug188_kwargs_variadic_mixed := test() {
     // + DynMap.set wrap.
     assert_eq_str(__LOC__, bug188_join("hi ", greet("Y", prefix = "Mr")), "hi Mr Y")
 }
+
+// Sibling-position variant of #186 / #188 on the kwargs path: a stmt
+// with multiple SIBLING kwargs fcalls (peers in the same arg list,
+// not nested) used to get only the first one desugared because
+// find_kwargs_fcall returns the first match. Fix: after rewriting
+// a kwargs fcall, recurse process_call_desugars on stmt.
+bug189_pair := func(a: Str, b: Str) returns Str {
+    return a.clone().concat("|").concat(b)
+}
+
+bug189_sibling_kwargs := test() {
+    // bug189_pair is regular but takes two greet-with-kwargs results --
+    // two SIBLINGS in the same arg list.
+    assert_eq_str(__LOC__, bug189_pair(greet("X", prefix = "Mr"), greet("Y", prefix = "Ms")), "Mr X|Ms Y")
+}
