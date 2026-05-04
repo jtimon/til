@@ -4118,7 +4118,14 @@ process_call_desugars := func(mut stmt: Expr, mut new_ch: Vec, mut scope: TypeSc
                 scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, line, col, false, OwnType.Own)
                 new_ch.push(own va_decl)
                 for j in 0..vc {
-                    new_ch.push(own build_variadic_array_set(fcall, scope, va_name, vi, j))
+                    mut setter := build_variadic_array_set(fcall, scope, va_name, vi, j)
+                    // The setter's value can itself be a variadic fcall
+                    // (e.g. println(say(true, false, true)) where say is a
+                    // user-defined variadic). Desugar nested calls before
+                    // pushing the setter so the Array_set arg is the
+                    // rewritten fcall, not the raw one. Issue #186.
+                    process_call_desugars(setter, new_ch, scope, has_variadic, has_kwargs)
+                    new_ch.push(own setter)
                 }
                 rewrite_variadic_fcall_args(fcall, va_name)
             }

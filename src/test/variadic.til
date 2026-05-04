@@ -75,3 +75,20 @@ test_variadic_with_positional := test() {
     assert_eq(__LOC__, prefix_sum(100), 100)
     assert_eq(__LOC__, prefix_sum(0, 5), 5)
 }
+
+// Issue #186: a user-defined variadic call nested inside another
+// variadic call (println). Before the fix the outer desugar wrapped
+// only println's args into an Array, leaving the inner say(...) with
+// raw args -- gcc rejected the call as "too many arguments".
+say_flags := func(bools: ..Bool) returns Str {
+    mut out := ""
+    for b : Bool in bools { if b { out = out.concat("T") } else { out = out.concat("F") } }
+    return out
+}
+
+test_variadic_nested_in_variadic := test() {
+    assert_eq_str(__LOC__, say_flags(true, false, true), "TFT")
+    // Nested user-defined variadic inside a variadic Str.concat-style
+    // call: pass the result of one variadic into another variadic.
+    assert_eq_str(__LOC__, variadic_concat(say_flags(true, false), say_flags(true)), "TFT")
+}

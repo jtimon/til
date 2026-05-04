@@ -1,5 +1,31 @@
 # Fixed issues moved from issues.org.
 
+  ~Array.set~ value args -- was never desugared, so the builder
+  emitted the raw arg list when generating the call to ~say~.
+
+  Standalone variadic calls (~x := say(true, false, true)~) and
+  variadic calls from inside ~test()~ bodies worked because they
+  weren't nested inside another variadic fcall; only the
+  nested-variadic-in-variadic shape hit the bug.
+
+  Fix: in ~process_call_desugars~, after building each
+  ~Array.set~ setter for the outer variadic call, recursively
+  invoke ~process_call_desugars~ on the setter so any nested
+  variadic fcall (e.g. ~say(...)~) inside the setter's value arg
+  gets its own ~Array.new~/~Array.set~ wrap and rewrite before
+  the setter is pushed into ~new_ch~.
+
+  Regression test ~test_variadic_nested_in_variadic~ in
+  ~src/test/variadic.til~ plus ~bug186~ in
+  ~src/test/regression.til~ exercise both shapes: a user-defined
+  variadic returning ~Str~, and the result of one variadic call
+  passed as variadic args to another variadic call. The original
+  CLI repro (~println(say(true, false, true))~) and the #185
+  follow-up shape with ~ref Dynamic~ args
+  (~println(say(x, y, x))~ where ~x~, ~y~ are ~ref Dynamic~ from
+  ~vec~) both compile and run cleanly under ~bin/til run~ and
+  ~bin/til interpret~.
+
 * FIXED #179 priv keyword: opt-out visibility (public by default, opposite of Rust)
    Goal:
 
