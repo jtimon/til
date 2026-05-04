@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 186
+# NEXT_ISSUE: 187
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -2569,7 +2569,85 @@
   Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
   (it's useful for other things), but containers no longer use it.
 
-* [0/41] Post
+* [0/42] Post
+** OPEN #186 User-defined variadic funcs: codegen emits raw args instead of Array wrap
+   Calls to a user-defined variadic ~func~/~proc~ with literal args
+   (or any non-Array args) generate C that passes each arg
+   individually instead of wrapping them into the ~Array~ the
+   variadic param expects. The forward declaration matches the
+   function definition (single ~Array *~ param), so gcc rejects the
+   call with "too many arguments to function".
+
+   Repro:
+
+   #+begin_src til
+   mode cli
+   say := func(bools: ..Bool) returns Str {
+       mut out := ""
+       for b : Bool in bools { if b { out = out.concat("T") } }
+       return out
+   }
+   main := proc() { println(say(true, false, true)) }
+   #+end_src
+
+   Generated C (relevant lines):
+
+   #+begin_src c
+   Str * say(Array * bools);                            // forward decl
+   Str * say(Array * bools) { ... }                     // definition
+   Str *_t = say(_t_Bool_A, &_t_Bool_B, &_t_Bool_C);    // call -- BAD
+   #+end_src
+
+   gcc:
+
+   : error: too many arguments to function 'say'
+
+   Note also the inconsistent arg shape: the first Bool is passed
+   by value, the next two by pointer. Both are wrong; the call
+   should be wrapping into an Array via ~Array_new~ + ~Array_set~,
+   the same way the codegen already does for ~println~ (line
+   ~1167~ of the generated C creates ~_va_Array_0~ correctly for
+   the println call -- the wrap pattern exists, it just isn't
+   reached for the user-defined callee).
+
+   Surfaced during the #185 follow-up investigation while probing
+   variadic shapes with ~ref Dynamic~ locals. Initially looked
+   like a #185 regression; isolated by replacing the Dynamic args
+   with plain literals (~say(true, false, true)~) and seeing the
+   same gcc error -- so the bug is independent of #185 and
+   pre-existing.
+
+   Why ~mode test~ variadic tests pass: ~test_variadic~ in
+   ~src/test/variadic.til~ uses ~variadic_sum(1, 2, 3)~ from a
+   ~test()~ body; that path apparently does wrap correctly. The
+   bug is specific to non-test contexts (or specific to the
+   particular call-site shape -- audit needed).
+
+   Likely area: ~src/self/builder.til~, the FCall codegen branch
+   for user-defined functions (line ~1492-1508~, around
+   ~// User-defined function call~). For variadic params it
+   should detect the variadic position and emit the
+   ~Array_new~/~Array_set~ wrap before the call (the same pattern
+   used for ~println~/~print~ and the other ext variadics). The
+   typer side likely already records the variadic position via
+   ~FCallData.variadic_index~/~variadic_count~; the builder has
+   to act on it for user-defined callees too.
+
+   Acceptance:
+
+   - Repro above compiles and prints ~"TT"~ in both
+     ~bin/til run~ and ~bin/til interpret~.
+   - A regression test in ~src/test/variadic.til~ exercises a
+     user-defined variadic func from a non-test context (via
+     ~mode test~ shape that wraps the call inside an ordinary
+     ~test()~ but invokes the variadic via a top-level helper
+     proc, or via a CLI-style runner).
+   - Existing variadic tests still pass.
+   - The pre-existing #185 ~ref Dynamic~ shapes feeding variadic
+     args (~say(x, y, x)~ where x,y are ~ref Dynamic~) also
+     compile -- the typed-cast path from #185 should compose
+     naturally once the wrap is in place.
+
 ** OPEN #164 Diagnose `mut` qualifiers that are never used to write
    After #161 the typer rejects `ref mut x : T = src` when `src` is
    immutable. The simplest way to fix the existing chain-walker
