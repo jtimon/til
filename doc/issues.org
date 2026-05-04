@@ -121,7 +121,7 @@
     - ~src/self/builder.til~ (most sites; many remain)
     - ~src/self/precomp.til~ (most sites; some remain)
     - ~src/self/loader.til~ (most sites; some remain)
-    - ~src/self/fonts.til~, ~src/examples/uml.til~
+    - ~src/self/fonts.til~, ~examples/uml.til~
 
     Remaining bare ~get_payload~ sites (call counts include
     ~Ident("get_payload")~ AST construction, which stays):
@@ -906,7 +906,7 @@
       The walk handles them by computing
       ~auto_count = iu.imports.len() - count_ast_imports(iu.ast)~
       and recursing into the leading ~auto_count~ entries before the
-      AST walk. Without this, files like ~src/examples/snake.til~
+      AST walk. Without this, files like ~examples/snake.til~
       (mode gui, zero explicit imports) silently dropped the gui.til
       auto-import; the regression surfaced as 13 GUI build failures
       with errors like ~snake.til:253:96: field access on non-struct~
@@ -2245,9 +2245,9 @@
   |                                              |  39,361  |  26,514  | -32.6% allocs |
   | translate src/test/strings.til               | 906,802  | 509,942  | -43.8% bytes  |
   |                                              |  65,174  |  37,142  | -43.0% allocs |
-  | interpret src/examples/hello_pure.til        | 583,428  | 283,736  | -51.4% bytes  |
+  | interpret examples/hello_pure.til        | 583,428  | 283,736  | -51.4% bytes  |
   |                                              |  42,077  |  22,121  | -47.4% allocs |
-  | interpret src/examples/cli_args.til hello w  | 548,701  | 329,474  | -40.0% bytes  |
+  | interpret examples/cli_args.til hello w  | 548,701  | 329,474  | -40.0% bytes  |
   |                                              |  40,307  |  26,339  | -34.7% allocs |
 
   Note: without ~malloc_context_size=64~ the same cli_args run reports
@@ -2407,9 +2407,9 @@
   | interpret tmp/empty.til                      | 557,737  | 407,706  | -26.9% bytes  |
   |                                              |  40,292  |  30,476  | -24.4% allocs |
   | build tmp/empty.til                          | 555,XXX  | 405,427  | -27% bytes    |
-  | interpret src/examples/hello_pure.til        | 610,754  | 519,833  | -14.9% bytes  |
+  | interpret examples/hello_pure.til        | 610,754  | 519,833  | -14.9% bytes  |
   |                                              |  44,024  |  37,872  | -14.0% allocs |
-  | interpret src/examples/cli_args.til hello w  | 608,XXX  | 415,099  | -32% bytes    |
+  | interpret examples/cli_args.til hello w  | 608,XXX  | 415,099  | -32% bytes    |
   | translate src/test/strings.til               | 495,728  | 528,308  | +6.6% bytes   |
   |                                              |  36,009  |  37,943  | +5.4% allocs  |
 
@@ -2599,7 +2599,7 @@
 
 ** OPEN #159 Show the til logo as a single character in the REPL prompt
    We have ~fonts/til_logo.ttf~ (generated from ~img/logo-transparent.svg~
-   by ~src/examples/svg2ttf.til~) with the logo mapped to codepoint
+   by ~examples/svg2ttf.til~) with the logo mapped to codepoint
    ~'T'~ (0x54).  The goal: replace the REPL prompt's ~til[mode]>~
    (in ~src/til.til~ ~repl_read_line~) with ~<logo>[mode]>~ where
    ~<logo>~ is the single glyph rendered from ~til_logo.ttf~.
@@ -2637,10 +2637,10 @@
       install step.  Users without the font see a box; everyone
       else sees the logo.  Low effort, limited reach.
 
-   2. Ship a small ~src/examples/tilminal.til~-hosted REPL that
+   2. Ship a small ~examples/tilminal.til~-hosted REPL that
       loads ~fonts/til_logo.ttf~ via raylib and draws the prompt
       glyph plus user input.  Higher effort but no install step.
-      A natural follow-up to ~src/examples/tilminal.til~.
+      A natural follow-up to ~examples/tilminal.til~.
 
    3. Wait until til grows Unicode string support, pick a Private
       Use Area codepoint, and ship the font as a first-class asset
@@ -2872,7 +2872,7 @@
   - Add ~wasm32~ and ~templeos-x86~ CI jobs mirroring the existing
     cross-compile pattern: ubuntu-latest + ~clang~ (wasm32) or
     HolyC toolchain (templeos-x86), cross-compile a
-    ~src/examples/hello_script.til~ and verify the output format
+    ~examples/hello_script.til~ and verify the output format
     (~file~ says ~WebAssembly~ for wasm32; TempleOS ~.BIN~ format
     for templeos-x86).
   - For templeos-x86, ~lang~ must switch to ~Lang.HolyC~ via
@@ -3162,7 +3162,7 @@
   editor + window manager + terminal + session manager + git client.
   Like emacs but in til, with raylib rendering.
 
-  Existing: ~src/examples/editor.til~ -- text editing with file save/open
+  Existing: ~examples/editor.til~ -- text editing with file save/open
   via tinyfiledialogs (#69 fixed). Ctrl+S saves (dialog if new file),
   Ctrl+O opens file dialog.
 
@@ -4181,7 +4181,7 @@
    Can test from Linux using Wine as a first step before touching a
    real Windows machine.
 ** OPEN #24 Music scale viewer: ongoing improvements
-  GUI music theory learning tool (src/examples/music.til). Uses mode gui
+  GUI music theory learning tool (examples/music.til). Uses mode gui
   (raylib). Click note + mode buttons to see/hear scales on pentagram.
   Click individual notes on staff to play them.
 

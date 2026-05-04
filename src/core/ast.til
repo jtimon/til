@@ -15,6 +15,8 @@ import("vec.til")
 
 // --- TilType enum ---
 
+/// Type representation for the til compiler. Carries payload for named
+/// types (Struct/Enum/Custom) and is tag-only for builtins.
 TilType := enum {
     Unknown, None,
     I64, U8, I16, I32, U32, U64, F32, Bool,
@@ -23,6 +25,8 @@ TilType := enum {
     FuncDef, FuncPtr, Dynamic,
     Custom: Str,
 namespace:
+    /// Compare two TilTypes. Named-payload variants (Struct/Enum/Custom)
+    /// compare equal regardless of variant if their name payloads match.
     // #165 step 1: treat Custom(x) as equal to Struct(x) or Enum(x).
     // initer's registration helpers can write Custom(name) without
     // resolving against scope; typer lookups that return Struct/Enum
@@ -95,16 +99,19 @@ til_type_name := func(t: TilType) returns Str {
 }
 
 // --- FuncType enum ---
+/// Classifies a til function declaration: func, proc, test, macro, or external.
 FuncType := enum {
     None, Func, Proc, Test, Macro, ExtFunc, ExtProc,
 }
 
+/// Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).
 OwnType := enum {
     Own, Ref, Shallow,
 }
 
 // --- Declaration struct ---
 
+/// Variable/field/parameter declaration node.
 Declaration := struct {
     mut name := ""
     mut doc := ""
@@ -123,6 +130,7 @@ namespace:
 }
 
 // --- FunctionDef struct ---
+/// Function signature metadata: params, return type, variadic info.
 FunctionDef := struct {
     mut func_type := FuncType.Func
     mut params := Vec.new("Declaration", Declaration.size())
@@ -136,6 +144,7 @@ namespace:
 }
 
 // --- FCall payload struct ---
+/// Per-callsite data for function calls: variadic/kwargs counts, own_args bitmap.
 FCallData := struct {
     mut variadic_index : I32 = -1.to_i32()
     mut variadic_count : USize = 0
@@ -176,6 +185,7 @@ get_own_arg := func(fcall: Expr, shallow arg_index: USize) returns shallow Bool 
     }
 }
 
+/// Struct definition: field declarations, namespace methods, total size.
 StructDef : StructDef = struct {
     mut total_struct_size : I32 = 0
     mut fields := Vec.new("Declaration", Declaration.size())
@@ -188,6 +198,7 @@ namespace:
     to_str := func(_self: StructDef) returns Str { return "StructDef" }
 }
 
+/// Enum definition: variants, payload types, namespace methods.
 EnumDef : StructDef = struct {
     mut ns_decls := Vec.new("Declaration", Declaration.size())
     mut variants := Vec.new("Str", Str.size())
@@ -202,6 +213,7 @@ namespace:
 
 // --- NodeType payload enum (25 variants) ---
 
+/// Payload for assignment nodes: which name is being assigned to.
 AssignData := struct {
     mut name := ""
     mut save_old_delete := false
@@ -210,6 +222,7 @@ namespace:
     to_str := func(self: AssignData) returns Str { return self.name }
 }
 
+/// Payload for `for name in range` loop nodes.
 ForInData := struct {
     mut name := ""
     mut is_mut := false
@@ -218,6 +231,7 @@ namespace:
     to_str := func(self: ForInData) returns Str { return self.name }
 }
 
+/// AST node kind. Each variant carries an optional payload (struct, string, bool).
 NodeType := enum {
     Body,
     LiteralStr: Str,
@@ -249,6 +263,7 @@ NodeType := enum {
 
 // --- Expr struct ---
 
+/// AST expression node with line/col, type, children, and node-specific payload.
 Expr := struct {
     mut node_type := NodeType.Body
     mut til_type := TilType.Unknown
@@ -257,27 +272,31 @@ Expr := struct {
     mut col : U32 = 0
 
 namespace:
-    // Diagnostics: Expr tracks line/col; caller supplies file path.
+    /// Print a diagnostic error with file path and source location.
     error := proc(self: Expr, path: Str, msg: Str) {
         println(path, ":", self.line.to_str(), ":", self.col.to_str(), ": error: ", msg)
     }
+    /// Like error() but adds "not implemented yet" note.
     todo_error := proc(self: Expr, path: Str, msg: Str) {
         self.error(path, msg)
         println("  note: this language feature is not implemented yet")
     }
+    /// Like error() but adds "bug in the language" note.
     lang_error := proc(self: Expr, path: Str, msg: Str) {
         self.error(path, msg)
         println("  note: this is a bug in the language, please report it")
     }
+    /// Take ownership of `child` and append it to the children list.
     add_child := func(mut self: Expr, own child: Expr) {
         self.children.push(own child)
     }
+    /// Clone `child` and append the clone to the children list.
     push_child_clone := func(mut self: Expr, child: Expr) {
         self.children.push(own child.clone())
     }
+    /// Append other's children into self via raw memcpy (no cloning).
+    /// Zeroes other's count so it no longer owns the moved items.
     take_children := func(mut self: Expr, mut other: Expr) {
-        // Append other's children into self via raw memcpy (no cloning).
-        // Zeroes other's count so it no longer owns the moved items.
         if other.children.count.eq(0) { return }
         needed := self.children.count.add(other.children.count)
         if needed.gt(self.children.cap) {
@@ -294,10 +313,12 @@ namespace:
         other.children.count = 0
         other.children.data = NULL
     }
+    /// Shortcut to get a ref to the i-th child of `parent`.
     child := func(parent: Expr, i: USize) returns ref Expr {
         ref c : Expr = parent.children.get(i)
         return c
     }
+    /// Create a new Expr with the given node_type and source location.
     new := func(data: NodeType, shallow line: U32, shallow col: U32) returns Expr {
         mut out := Expr(node_type = data.clone(), line = line, col = col)
         switch out.node_type {

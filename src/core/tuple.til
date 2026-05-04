@@ -16,12 +16,14 @@ Tuple := struct {
     mut type_sizes := Vec.new("U32", USize.size())
 
 namespace:
+    /// Create an empty Tuple.
     new := func() returns Tuple {
         return Tuple(data = malloc(8), cap = 8)
     }
 
     len := func(self: Tuple) returns USize { return self.type_names.len() }
 
+    /// Append a value of the given type and size. `val` is owned.
     push := func(mut self: Tuple, elem_type: Str, elem_size: USize, own val: Dynamic) {
         new_total := self.total_size.add(elem_size)
         if new_total.gt(self.cap) {
@@ -39,6 +41,7 @@ namespace:
         self.total_size = new_total
     }
 
+    /// Ref to element at index `i`. Panics if out of bounds.
     get := func(self: Tuple, i: USize) returns ref Dynamic {
         if i.gte(self.type_names.len()) {
             panic(__LOC__, "Tuple.get: index ", i.to_str(), " out of bounds (len ", self.type_names.len().to_str(), ")")
@@ -51,10 +54,12 @@ namespace:
         return ptr_add(self.data, offset)
     }
 
+    /// Type name of the element at index `i`.
     type_at := func(self: Tuple, i: USize) returns ref Str {
         return self.type_names.get(i)
     }
 
+    /// Byte size of the element at index `i`.
     size_at := func(self: Tuple, i: USize) returns ref USize {
         return self.type_sizes.get(i)
     }

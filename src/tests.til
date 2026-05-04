@@ -411,9 +411,9 @@ main := proc(args: ..Str) {
     ffi_exp := "gen/out/expected/ffi.out"
     File.writefile(ffi_exp, "hello world".concat(NL).concat("hello universe").concat(NL))
     add_single(tests, "ffi_interp", "ffi", 0, ffi_exp,
-               asan_safe_cmd(til_bin.concat(" interpret src/examples/ffi/ext_module.til"), til_bin))
+               asan_safe_cmd(til_bin.concat(" interpret examples/ffi/ext_module.til"), til_bin))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
-               asan_safe_cmd(til_bin.concat(" run src/examples/ffi/ext_module.til"), til_bin))
+               asan_safe_cmd(til_bin.concat(" run examples/ffi/ext_module.til"), til_bin))
 
     // === parser / typer diagnostics ===
     add_count(tests, "typer_errors", "typer", "error:", 90,
@@ -456,45 +456,45 @@ main := proc(args: ..Str) {
     exp := "gen/out/expected/"
 
     File.writefile(exp.concat("cli_args_hello.out"), "hello".concat(NL).concat("world").concat(NL))
-    add_cli_pair(tests, "cli_args_hello", "src/examples/cli_args.til",
+    add_cli_pair(tests, "cli_args_hello", "examples/cli_args.til",
                  "hello world", 0, exp.concat("cli_args_hello.out"), til_bin)
 
     File.writefile(exp.concat("cli_args_empty.out"), "")
-    add_cli_pair(tests, "cli_args_empty", "src/examples/cli_args.til",
+    add_cli_pair(tests, "cli_args_empty", "examples/cli_args.til",
                  "", 0, exp.concat("cli_args_empty.out"), til_bin)
 
     File.writefile(exp.concat("cli_typed_alice42.out"), "alice 42".concat(NL))
-    add_cli_pair(tests, "cli_typed_alice42", "src/examples/cli_typed.til",
+    add_cli_pair(tests, "cli_typed_alice42", "examples/cli_typed.til",
                  "alice 42", 0, exp.concat("cli_typed_alice42.out"), til_bin)
 
     File.writefile(exp.concat("hello_cli.out"), "Hello World!".concat(NL))
-    add_cli_pair(tests, "hello_cli", "src/examples/hello_cli.til",
+    add_cli_pair(tests, "hello_cli", "examples/hello_cli.til",
                  "", 0, exp.concat("hello_cli.out"), til_bin)
 
     File.writefile(exp.concat("variadic_add.out"), "60".concat(NL))
-    add_cli_pair(tests, "variadic_add", "src/examples/cli_variadic_i64.til",
+    add_cli_pair(tests, "variadic_add", "examples/cli_variadic_i64.til",
                  "add 10 20 30", 0, exp.concat("variadic_add.out"), til_bin)
 
     File.writefile(exp.concat("variadic_mul.out"), "24".concat(NL))
-    add_cli_pair(tests, "variadic_mul", "src/examples/cli_variadic_i64.til",
+    add_cli_pair(tests, "variadic_mul", "examples/cli_variadic_i64.til",
                  "mul 2 3 4", 0, exp.concat("variadic_mul.out"), til_bin)
 
     File.writefile(exp.concat("variadic_add0.out"), "0".concat(NL))
-    add_cli_pair(tests, "variadic_add0", "src/examples/cli_variadic_i64.til",
+    add_cli_pair(tests, "variadic_add0", "examples/cli_variadic_i64.til",
                  "add", 0, exp.concat("variadic_add0.out"), til_bin)
 
     File.writefile(exp.concat("variadic_bool_f.out"), "false".concat(NL))
-    add_cli_pair(tests, "variadic_bool_f", "src/examples/cli_variadic_bool.til",
+    add_cli_pair(tests, "variadic_bool_f", "examples/cli_variadic_bool.til",
                  "true true false", 0, exp.concat("variadic_bool_f.out"), til_bin)
 
     File.writefile(exp.concat("variadic_bool_t.out"), "true".concat(NL))
-    add_cli_pair(tests, "variadic_bool_t", "src/examples/cli_variadic_bool.til",
+    add_cli_pair(tests, "variadic_bool_t", "examples/cli_variadic_bool.til",
                  "true true", 0, exp.concat("variadic_bool_t.out"), til_bin)
 
     // Error cases (exit=1, no output check)
-    add_cli_pair(tests, "cli_typed_err1", "src/examples/cli_typed.til", "alice", 1, "", til_bin)
-    add_cli_pair(tests, "cli_typed_err2", "src/examples/cli_typed.til", "a b c", 1, "", til_bin)
-    add_cli_pair(tests, "hello_cli_err", "src/examples/hello_cli.til", "extra", 1, "", til_bin)
+    add_cli_pair(tests, "cli_typed_err1", "examples/cli_typed.til", "alice", 1, "", til_bin)
+    add_cli_pair(tests, "cli_typed_err2", "examples/cli_typed.til", "a b c", 1, "", til_bin)
+    add_cli_pair(tests, "hello_cli_err", "examples/hello_cli.til", "extra", 1, "", til_bin)
 
     // svg2ttf: transparent 2-colour logo produces fonts/til_logo.ttf (exit=0);
     // the full-colour logo panics with "too many colours" (exit=1).
@@ -504,11 +504,11 @@ main := proc(args: ..Str) {
     run("mkdir -p fonts")
     add_single(tests, "svg2ttf_ok", "build", 0, "",
                til_bin.concat(" run -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ")
-                      .concat("src/examples/svg2ttf.til ")
+                      .concat("examples/svg2ttf.til ")
                       .concat("img/logo-transparent.svg fonts/til_logo.ttf"))
     add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
                til_bin.concat(" run -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ")
-                      .concat("src/examples/svg2ttf.til ")
+                      .concat("examples/svg2ttf.til ")
                       .concat("img/logo.svg tmp/svg2ttf_fail.ttf"))
 
     // === library mode checks ===
@@ -528,20 +528,20 @@ main := proc(args: ..Str) {
     // === build tests (build + run with timeout) ===
     if en_gui.eq(1) {
         gui_files := array("Str",
-            "src/examples/checkers.til",
-            "src/examples/chess.til",
-            "src/examples/editor.til",
-            "src/examples/font_test.til",
-            "src/examples/game_of_life.til",
-            "src/examples/go.til",
-            "src/examples/gui_hello.til",
-            "src/examples/minesweeper.til",
-            "src/examples/music.til",
-            "src/examples/piano.til",
-            "src/examples/popcorn.til",
-            "src/examples/shootil.til",
-            "src/examples/snake.til",
-            "src/examples/tilminal.til",
+            "examples/checkers.til",
+            "examples/chess.til",
+            "examples/editor.til",
+            "examples/font_test.til",
+            "examples/game_of_life.til",
+            "examples/go.til",
+            "examples/gui_hello.til",
+            "examples/minesweeper.til",
+            "examples/music.til",
+            "examples/piano.til",
+            "examples/popcorn.til",
+            "examples/shootil.til",
+            "examples/snake.til",
+            "examples/tilminal.til",
         )
         for gf : Str in gui_files {
             bn := test_basename(gf)

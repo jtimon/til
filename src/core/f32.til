@@ -9,6 +9,7 @@ F32 := struct {
 namespace:
     to_i64 := ext_func(shallow val: F32) returns shallow I64 {}
     to_str := ext_func(shallow val: F32) returns Str {}
+    /// Convert from I64 to F32.
     from_i64 := func(val: I64) returns F32 {
         F32_from_i64_ext := ext_func(val: I64) returns shallow F32 {}
         return F32_from_i64_ext(val)

@@ -18,6 +18,7 @@ Vec := struct {
     elem_delete : DeleteFn = default_delete
 
 namespace:
+    /// Create a new empty Vec for elements of the given type and size.
     new := func(elem_type: Str, elem_size: USize) returns Vec {
         if elem_type.is_empty() {
             panic(__LOC__, "Vec.new: elem_type required")
@@ -47,6 +48,8 @@ namespace:
         self.count = self.count.add(1)
     }
 
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
     append := func(mut self: Vec, own other: Vec) {
         if self.elem_size.eq(other.elem_size).not().or(self.elem_type.eq(other.elem_type).not()) {
             panic(__LOC__, "Vec.append: incompatible vecs")
@@ -68,12 +71,12 @@ namespace:
         other.count = 0
     }
 
-    // Replace self's contents with other's via memcpy (no per-elem clone).
-    // Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    // Takes `mut` (not `own`) so caller retains ownership of other; its
-    // natural scope-end auto-delete frees other.data. Setting other.count = 0
-    // prevents that auto-delete from re-running elem_delete on items whose
-    // bytes were moved into self.
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
     move_from := func(mut self: Vec, mut other: Vec) {
         if self.elem_size.eq(other.elem_size).not().or(self.elem_type.eq(other.elem_type).not()) {
             panic(__LOC__, "Vec.move_from: incompatible vecs")
@@ -108,6 +111,8 @@ namespace:
         return ptr_add(self.data, i.mul(self.elem_size))
     }
 
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
     pop := func(mut self: Vec) returns Dynamic {
         if self.count.eq(0) {
             panic(__LOC__, "Vec.pop: empty vec")
@@ -119,6 +124,8 @@ namespace:
         return out
     }
 
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
     take_prefix := func(mut self: Vec, n: USize) returns Vec {
         if n.gt(self.count) {
             panic(__LOC__, "Vec.take_prefix: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
@@ -141,6 +148,8 @@ namespace:
                    elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
     set := func(mut self: Vec, i: USize, own val: Dynamic) {
         if i.gte(self.count) {
             panic(__LOC__, "Vec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
@@ -149,9 +158,9 @@ namespace:
         free(own val)
     }
 
-    // Move bytes of src[i] into self (push). Source slot is zeroed so that
-    // src's eventual elem_delete on it is a no-op (relies on the same
-    // count==0/data==NULL convention used by take_children and Vec.delete).
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
     push_take := func(mut self: Vec, mut src: Vec, shallow i: USize) {
         if i.gte(src.count) {
             panic(__LOC__, "Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
@@ -170,6 +179,8 @@ namespace:
         self.count = self.count.add(1)
     }
 
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
     delete := func(own self: Vec, call_free: Bool = true) {
         if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
             for i in 0..self.count {
@@ -183,6 +194,7 @@ namespace:
         if call_free { free(own self) }
     }
 
+    /// Deep-copy the Vec and all its elements via elem_clone.
     clone := func(self: Vec) returns Vec {
         new_data : Dynamic = malloc(self.cap.mul(self.elem_size))
         if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {

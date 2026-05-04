@@ -10,10 +10,12 @@ not := ext_func(shallow a: Bool) returns shallow Bool {}
 /// Boolean value: true or false.
 Bool : StructDef = struct {
 namespace:
+    /// Return "true" or "false".
     to_str := func(b: Bool) returns Str {
         if b { return "true" } else { return "false" }
     }
     eq := ext_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
+    /// Comparison: false < true. Returns 0, -1, or 1.
     cmp := func(a: Bool, b: Bool) returns I64 {
         if a.eq(b) { return 0 }
         if b { return -1 }

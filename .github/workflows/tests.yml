@@ -20,7 +20,7 @@ jobs:
         run: make test
       - name: Test target build
         run: |
-          ./bin/til build --target=linux-x64 -o bin/hello_script_x64 src/examples/hello_script.til
+          ./bin/til build --target=linux-x64 -o bin/hello_script_x64 examples/hello_script.til
           file bin/hello_script_x64 | grep -q "x86-64"
           ./bin/hello_script_x64
 
@@ -37,7 +37,7 @@ jobs:
         run: make
       - name: Cross-compile for linux-arm64
         run: |
-          ./bin/til build --target=linux-arm64 -o bin/hello_script_arm64 src/examples/hello_script.til
+          ./bin/til build --target=linux-arm64 -o bin/hello_script_arm64 examples/hello_script.til
           file bin/hello_script_arm64 | grep -q "aarch64"
 
   linux-riscv64:
@@ -53,7 +53,7 @@ jobs:
         run: make
       - name: Cross-compile for linux-riscv64
         run: |
-          ./bin/til build --target=linux-riscv64 -o bin/hello_script_riscv64 src/examples/hello_script.til
+          ./bin/til build --target=linux-riscv64 -o bin/hello_script_riscv64 examples/hello_script.til
           file bin/hello_script_riscv64 | grep -q "RISC-V"
 
   windows-x64-build:
@@ -69,7 +69,7 @@ jobs:
         run: make
       - name: Cross-compile for windows-x64
         run: |
-          ./bin/til build --target=windows-x64 -o bin/hello_script.exe src/examples/hello_script.til
+          ./bin/til build --target=windows-x64 -o bin/hello_script.exe examples/hello_script.til
           file bin/hello_script.exe | grep -q "PE32+"
       - name: Upload .exe artifact
         uses: actions/upload-artifact@v4

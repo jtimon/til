@@ -14,6 +14,8 @@ Map := struct {
     mut key_cmp : CmpFn = default_cmp
 
 namespace:
+    /// Create an empty Map. Both key_type and val_type must be non-empty;
+    /// key_type must implement `cmp`.
     new := func(key_type: Str, key_size: USize, val_type: Str, val_size: USize) returns Map {
         if key_type.is_empty() { panic(__LOC__, "Map.new: key_type required") }
         if dyn_has_method(key_type, "cmp").not() {
@@ -31,16 +33,17 @@ namespace:
 
     len := func(self: Map) returns USize { return self.keys.count }
 
-    // Get a ref to the key slot at index i.
+    /// Ref to the key slot at sorted index `i`.
     key_ptr := func(self: Map, i: USize) returns ref Dynamic {
         return self.keys.get(i)
     }
 
-    // Get a ref to the value slot at index i.
+    /// Ref to the value slot at sorted index `i`.
     val_ptr := func(self: Map, i: USize) returns ref Dynamic {
         return self.values.get(i)
     }
 
+    /// True if a value exists for the given key.
     has := func(self: Map, key: Dynamic) returns shallow Bool {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
@@ -56,6 +59,7 @@ namespace:
         return false
     }
 
+    /// Return a ref to the value for `key`. Panics if not found.
     get := func(self: Map, key: Dynamic) returns ref Dynamic {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
@@ -72,6 +76,7 @@ namespace:
         return to_ptr(self.values.data)
     }
 
+    /// Insert or overwrite the value for `key`. Both key and val are owned.
     set := func(mut self: Map, own key: Dynamic, own val: Dynamic) {
         mut lo : USize = 0
         mut hi : USize = self.keys.count

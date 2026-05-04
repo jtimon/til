@@ -97,6 +97,36 @@ help := proc(name: Str) {
         return
     }
     if doc.is_empty().not() { return }
+    if name.ends_with(".clone") {
+        println("Deep-copy the value and its owned resources.")
+        println(info)
+        return
+    }
+    if name.ends_with(".delete") {
+        println("Free owned resources. Set call_free=false to skip freeing the struct allocation.")
+        println(info)
+        return
+    }
+    if name.ends_with(".len") {
+        println("Number of semantic elements in the collection.")
+        println(info)
+        return
+    }
+    if name.ends_with(".size") {
+        println("Byte size of the type.")
+        println(info)
+        return
+    }
+    if name.ends_with(".inc") {
+        println("Increment by 1 (what `++` desugars to).")
+        println(info)
+        return
+    }
+    if name.ends_with(".dec") {
+        println("Decrement by 1 (what `--` desugars to).")
+        println(info)
+        return
+    }
     println("undefined symbol: ", name)
 }
 

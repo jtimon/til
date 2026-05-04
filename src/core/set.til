@@ -18,6 +18,7 @@ Set := struct {
     elem_cmp : CmpFn = default_cmp
 
 namespace:
+    /// Create an empty Set. elem_type must implement `cmp`.
     new := func(elem_type: Str, elem_size: USize) returns Set {
         if elem_type.is_empty() { panic(__LOC__, "Set.new: elem_type required") }
         if dyn_has_method(elem_type, "cmp").not() {
@@ -32,6 +33,7 @@ namespace:
 
     len := func(self: Set) returns USize { return self.count }
 
+    /// True if the set contains an element equal to `val`.
     has := func(self: Set, val: Dynamic) returns shallow Bool {
         mut lo : USize = 0
         mut hi := self.count
@@ -48,6 +50,8 @@ namespace:
         return false
     }
 
+    /// Insert `val` into the set (sorted order). If an equal element
+    /// already exists, `val` is dropped. `val` is owned.
     add := func(mut self: Set, own val: Dynamic) {
         mut lo : USize = 0
         mut hi := self.count

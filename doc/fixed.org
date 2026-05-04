@@ -2386,7 +2386,7 @@
   gui.c is set as the companion .c file. If the user also has their own
   companion .c, both are compiled together (space-separated in cc command).
 
-  Files: src/modes/gui.til, src/modes/gui.c, src/examples/gui_hello.til.
+  Files: src/modes/gui.til, src/modes/gui.c, examples/gui_hello.til.
   Works in both `bin/ctil run` and `bin/ctil interpret`.
 
 * FIXED #8 Variadic args for funcs, procs, and macros
@@ -2434,8 +2434,8 @@
   doesn't match natural C conventions (int, const char *). External libraries
   still require wrapper .c files. See #23 (shallow keyword) for the fix.
 
-  Tests: src/examples/ffi/ext_module.til (both interpret and codegen).
-  Demo: src/examples/raylib.til + raylib.c (raylib via FFI, both modes).
+  Tests: examples/ffi/ext_module.til (both interpret and codegen).
+  Demo: examples/raylib.til + raylib.c (raylib via FFI, both modes).
 
 * FIXED #20 Dynamic arg narrowing
   Dynamic values can be passed where a concrete type is expected.
@@ -2595,7 +2595,7 @@
    | src/c/ast.h        | Removed TIL_TYPE_STR                              |
    | src/c/initer.c     | Str as regular struct, size() from fields          |
    | src/c/precomp.c    | Str as TIL_TYPE_STRUCT                            |
-   | src/examples/ffi/greet.c | Updated to use til_Str                      |
+   | examples/ffi/greet.c | Updated to use til_Str                      |
    | src/test/vecs.til  | Updated size expectations                         |
    | tests.sh           | Added arrays.til to test list                     |
 

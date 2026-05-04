@@ -11,6 +11,7 @@ DynMap := struct {
     mut items := Map.new("Str", Str.size(), "Tuple", Tuple.size())
 
 namespace:
+    /// Create an empty DynMap.
     new := func() returns DynMap {
         return DynMap()
     }
@@ -19,26 +20,31 @@ namespace:
         return self.items.len()
     }
 
+    /// True if `key` exists in the map.
     has := func(self: DynMap, key: Str) returns shallow Bool {
         return self.items.has(key)
     }
 
+    /// Insert or overwrite `key` with typed value. Key and val are owned.
     set := func(mut self: DynMap, own key: Str, elem_type: Str, elem_size: USize, own val: Dynamic) {
         mut tup := Tuple.new()
         tup.push(elem_type, elem_size, own val)
         self.items.set(own key, own tup)
     }
 
+    /// Ref to the value stored under `key`. Panics if not found.
     get := func(self: DynMap, key: Str) returns ref Dynamic {
         ref tup : Tuple = self.items.get(key)
         return tup.get(0)
     }
 
+    /// Type name of the value stored under `key`.
     type_at := func(self: DynMap, key: Str) returns ref Str {
         ref tup : Tuple = self.items.get(key)
         return tup.type_at(0)
     }
 
+    /// Byte size of the value stored under `key`.
     size_at := func(self: DynMap, key: Str) returns ref USize {
         ref tup : Tuple = self.items.get(key)
         return tup.size_at(0)

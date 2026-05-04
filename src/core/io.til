@@ -32,6 +32,7 @@ cfile_close := ext_proc(handle: Dynamic) {}
 cfile_write_str := ext_proc(handle: Dynamic, s: Str) {}
 cfile_read_all := ext_func(handle: Dynamic) returns Str {}
 
+/// File handle for reading or writing on disk.
 File := struct {
     ref mut handle : U8 = NULL
     mut is_write := false
@@ -40,11 +41,13 @@ namespace:
     readfile := ext_func(path: Str) returns Str {}
     writefile := ext_proc(path: Str, content: Str) {}
 
+    /// Open a file at `path` for reading or writing.
     new := func(path: Str, shallow is_write: Bool) returns File {
         ref h : Dynamic = cfile_open(path, is_write)
         return File(handle = h, is_write = is_write)
     }
 
+    /// Write a string to the file. Panics if not opened for writing.
     write := proc(self: File, s: Str) {
         if self.is_write.not() {
             panic(__LOC__, "File.write: file not opened for writing")
@@ -52,6 +55,7 @@ namespace:
         cfile_write_str(self.handle, s)
     }
 
+    /// Read the entire file contents into a Str. Panics if opened for writing.
     read_all := func(self: File) returns Str {
         if self.is_write {
             panic(__LOC__, "File.read_all: file opened for writing")
@@ -59,6 +63,7 @@ namespace:
         return cfile_read_all(self.handle)
     }
 
+    /// Close the file handle. Sets handle to NULL afterwards.
     close := proc(mut self: File) {
         cfile_close(self.handle)
         self.handle = NULL

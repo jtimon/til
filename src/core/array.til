@@ -17,6 +17,7 @@ Array := struct {
     elem_delete : DeleteFn = default_delete
 
 namespace:
+    /// Create a zero-initialized Array with the given element type and capacity.
     new := func(elem_type: Str, elem_size: USize, cap: USize) returns Array {
         if elem_type.is_empty() { panic(__LOC__, "Array.new: elem_type required") }
         return Array(data = calloc(cap, elem_size), cap = cap,
@@ -27,6 +28,7 @@ namespace:
 
     len := func(self: Array) returns USize { return self.cap }
 
+    /// Ref to the element at index `i`. Panics if out of bounds.
     get := func(self: Array, i: USize) returns ref Dynamic {
         if i.gte(self.cap) {
             panic(__LOC__, "Array.get: index ", i.to_str(),
@@ -35,6 +37,7 @@ namespace:
         return ptr_add(self.data, i.mul(self.elem_size))
     }
 
+    /// Overwrite the element at index `i`. Drops the old value. `val` is owned.
     set := func(self: Array, i: USize, own val: Dynamic) {
         if i.gte(self.cap) {
             panic(__LOC__, "Array.set: index ", i.to_str(),

@@ -85,8 +85,8 @@ bin/til_debug: bin/til
 bin/test_runner: bin/til $(CORE) $(SELF) src/test_runner.til
 	bin/til build src/test_runner.til
 
-bin/plot: bin/til $(CORE) $(SELF) src/examples/plot.til
-	bin/til build src/examples/plot.til
+bin/plot: bin/til $(CORE) $(SELF) examples/plot.til
+	bin/til build examples/plot.til
 
 bin/tests: bin/til $(CORE) $(SELF) src/tests.til
 	bin/til build src/tests.til
@@ -132,12 +132,12 @@ $(TINYFD_WIN_LIB):
 # raylib.til is a "direct raylib FFI" demo with hardcoded Linux link()
 # paths -- it deliberately doesn't use mode gui. Excluded from the
 # cross-compile sweep; the other 24 examples cover the Windows build.
-WIN_EXAMPLES_SRC := $(filter-out src/examples/raylib.til,$(wildcard src/examples/*.til))
-WIN_EXAMPLES := $(patsubst src/examples/%.til,bin/%.exe,$(WIN_EXAMPLES_SRC))
+WIN_EXAMPLES_SRC := $(filter-out examples/raylib.til,$(wildcard examples/*.til))
+WIN_EXAMPLES := $(patsubst examples/%.til,bin/%.exe,$(WIN_EXAMPLES_SRC))
 
 build_win: $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB) $(WIN_EXAMPLES)
 
-bin/%.exe: src/examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
+bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 	bin/til build --target=windows-x64 $<
 
 # --- Utilities ---
