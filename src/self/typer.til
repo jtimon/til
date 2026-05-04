@@ -3284,12 +3284,34 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                                 adata2.save_old_delete = true
                             case:
                             }
-                            stmt.til_type = existing.clone()
                         }
                     }
                 }
             }
+        } else if rhs_is_clone_fcall(rhs).and(
+            existing.is(TilType.Struct).or(existing.is(TilType.Enum))
+        ) {
+            if scope.bindings.has(aname).not().and(assign_target_is_func_local(scope, aname)) {
+                switch stmt.node_type {
+                case NodeType.Assign(adata3):
+                    adata3.save_old_delete = true
+                case:
+                }
+            }
         }
+    }
+}
+
+rhs_is_clone_fcall := func(rhs: Expr) returns shallow Bool {
+    if rhs.node_type.is(NodeType.FCall).not() { return false }
+    if rhs.children.len().lt(1) { return false }
+    ref callee : Expr = rhs.child(0)
+    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
+    switch callee.node_type {
+    case NodeType.FieldAccess(method):
+        return method.eq("clone")
+    case:
+        return false
     }
 }
 

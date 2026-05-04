@@ -1965,12 +1965,60 @@
   compiler allocations and remaining ownership/error-path issues.
   The stack-local work from ~#50~ is already landed, which should make
   the remaining leak buckets smaller and easier to isolate.
-  See also ~#135~ (ref mut assignment clones instead of pointer copy)
-  and ~#175~ (assigning a ref/borrowed Str into a ~mut Str~ slot
-  leaks the previous value and the new clone).
+  See also ~#135~ (ref mut assignment clones instead of pointer copy).
+  ~#175~ is fixed (in fixed.org); a couple of related typer leak
+  categories from that line of work are now closed (see "2026-05 #175
+  series" below).
 
   End goal (from #110, now absorbed here): switch ~make test~ to always
   use ~bin/til_asan~ once leaks are under control.
+
+  *** 2026-05 #175 series progress
+
+  Per-test ASAN baseline used: ~bin/til_asan interpret examples/cli_args.til hello world~.
+
+  - Pre-fix master (commit 9079323):
+    ~335026 byte(s) leaked in 44123 allocation(s)~
+
+  - After commit 4f10e0d (~Typer: insert exit-deletes through nested
+    Body blocks~): ~187094 byte(s) / 25252 allocations~
+    -- ~-44% bytes / -43% allocations~ vs pre-fix.
+    Root: ~insert_exit_deletes~ recurses into nested ~Body~ stmts so
+    desugared switches' sentinels (~_sw_NodeType_*~ etc.) get freed
+    before deeply-nested early returns.
+
+  - After the ~#175~ follow-up that extends ~save_old_delete~ to
+    user-written ~T.clone(...)~ FCalls (this commit, single-pass; the
+    actual delta materializes on the next commit's self-host
+    rebuild): local 2nd-pass measurement shows
+    ~134086 byte(s) / 23248 allocations~
+    -- ~-28% bytes / -8% allocations~ vs the previous step.
+    Root: ~mut X := ""; X = Y.clone()~ in ~extend_ref_local_lifetimes~
+    and similar sites was missed by the original #175 fix because
+    ~rhs~ is an FCall (already-clone), not the auto-clone-wrapped
+    ~Ident~/~FieldAccess~ shape. ~rhs_is_clone_fcall~ widens the
+    trigger.
+
+  Cumulative for #175 series vs pre-fix:
+    ~-200940 bytes (-60%) / -20875 allocations (-47%)~
+
+  Next leak buckets to attack (in rough size order on the new
+  baseline):
+    1. ~FieldAssign~ to owned Struct/Enum-typed fields with no
+       old-value cleanup (~obj.til_type = X.clone()~ shape, ~162
+       sites in ~src/self/~). Systemic; needs careful builder.til
+       changes plus opt-in flag from typer to avoid double-frees on
+       move-semantics sites.
+    2. Module-global Set save/restore idiom in ~src/self/builder.til~
+       (~stack_locals~, ~ref_locals~, ~unsafe_to_hoist~, ...). Today
+       these are excluded from #175's ~save_old_delete~ trigger.
+       Refactoring the idiom would let the global exclusion in
+       ~assign_target_is_func_local~ go away.
+    3. Program-scope locals not freed at process exit (currently
+       ~skip_scope_delete~ in ~collect_scope_locals~ at program
+       scope). Requires deciding whether script-mode globals get
+       cleaned up on exit -- mostly cosmetic for non-CLI runs but
+       trips ASAN on every script invocation.
 
   Current state after the #111 fix:
   - full-suite ASAN now gets well into ~bin/tests~ before hitting the memory
