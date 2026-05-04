@@ -1,0 +1,18 @@
+mode script
+
+// Issue #187 step 1: each priv top-level decl below is unused in
+// this file. The typer must flag every one with "unused priv ...;
+// remove 'priv' to expose it".
+
+priv unused_helper := func(x: I64) returns I64 { return x }
+
+priv UnusedStruct := struct {
+    mut value := 0
+}
+
+priv UnusedEnum := enum { A, B }
+
+priv UNUSED_GLOBAL := 42
+priv mut unused_counter := 0
+
+main := proc() { println("ok") }

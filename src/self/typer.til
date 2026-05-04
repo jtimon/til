@@ -511,6 +511,16 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
 infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, shallow in_func: I32, ctx: Context) returns shallow Bool {
     ref sdef : Expr = scope.get_struct(name)
     if is_null(sdef) { return false }
+    // #187 step 1: mark the struct binding as used so a priv struct
+    // that is only ever instantiated (no namespace method calls) is
+    // not misreported as dead. Skip when current_type_name matches
+    // the struct itself: that's an internal constructor inside the
+    // struct's own auto-generated or user-written ns methods, which
+    // does not count as "used externally".
+    if current_type_name.eq(name).not() {
+        ref mut sb_used : TypeBinding = scope.get_binding(name)
+        if is_null(sb_used).not() { sb_used.used = true }
+    }
     sf_sb := scope.find(name)
     switch sf_sb {
     case ScopeFind.Found(sb):
@@ -1441,7 +1451,14 @@ infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
         expr.til_type = type
         ref mut ib : TypeBinding = scope.get_binding(id_name)
         if is_null(ib).not() {
-            ib.used = true
+            // #187 step 1: skip "used" marking when we're inside the
+            // ident's own type namespace. Auto-generated clone/delete/
+            // variant-constructor bodies reference the parent type by
+            // name; counting those would mask a genuinely unused priv
+            // type. External Ident references still mark it used.
+            if current_type_name.eq(id_name).not() {
+                ib.used = true
+            }
             check_priv_access(expr, id_name, ib)
             if is_null(ib.func_def).not() {
                 expr.til_type = TilType.FuncPtr
@@ -1748,6 +1765,35 @@ check_unused_locals := proc(scope: TypeScope, path: Str) {
         if b.used { continue }
         type_error_at(path, b.line, b.col, "unused variable '".concat(b.name).concat("'"))
     }
+}
+
+// Issue #187 step 1: top-level priv items (funcs, structs, enums,
+// globals) are file-local by construction. If nothing in the
+// declaring file references one, it is dead code -- no importer can
+// possibly reach it. Flag and suggest removing 'priv' to expose it.
+// Returns the number of errors emitted so the loader can fold the
+// count into its overall type_errors total.
+check_unused_priv_top_level := proc(scope: TypeScope) returns shallow I32 {
+    mut found : I32 = 0
+    for bi in 0..scope.bindings.len() {
+        ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+        if b.is_priv.not() { continue }
+        if b.is_builtin { continue }
+        if b.used { continue }
+        if b.name.len().eq(0) { continue }
+        if b.name.starts_with("_") { continue }
+        mut kind := "value"
+        if is_null(b.func_def).not() { kind = "func" }
+        if is_null(b.struct_def).not() {
+            if b.struct_def.node_type.is(NodeType.EnumDef) { kind = "enum" }
+            else { kind = "struct" }
+        }
+        type_error_at(b.path, b.line, b.col,
+            "unused priv ".concat(kind).concat(" '").concat(b.name)
+                .concat("'; remove 'priv' to expose it"))
+        found = found.add(1.to_i32())
+    }
+    return found
 }
 
 infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context) {

@@ -1144,6 +1144,7 @@ void check_ref_function_returns(TypeScope * func_scope, Expr * expr);
 void infer_func_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void check_unused_params(TypeScope * func_scope, Expr * expr);
 void check_unused_locals(TypeScope * scope, Str * path);
+I32 check_unused_priv_top_level(TypeScope * scope);
 void infer_return_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref, Context * ctx);
 void infer_if_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void infer_field_access_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);

@@ -1265,6 +1265,9 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
         type_errors = type_errors.add(type_file(core_root2.path, lp.ctx))
     }
     type_errors = type_errors.add(type_file(user_root.path, lp.ctx))
+    // Issue #187 step 1: priv top-level decls that nothing in the
+    // file references are dead code -- no importer can reach them.
+    type_errors = type_errors.add(check_unused_priv_top_level(lp.ctx.scope))
     if type_errors.gt(0) {
         println(type_errors.to_str(), " type error(s) found")
         exit(1)
