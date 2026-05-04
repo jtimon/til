@@ -437,18 +437,6 @@ main := proc(args: ..Str) {
               "non-exhaustive switch on enum", 2,
               asan_safe_cmd(til_bin.concat(" build src/test/enum_switch_missing_case.til"), til_bin))
 
-    // === REPL smoke test for #157 Phase 1 ===
-    // help() docs are REPL-only; pipe one help() call into bin/til via a
-    // tiny shell script and count the expected core doc text.
-    add_count(tests, "repl_help", "cli",
-              "Print strings to stdout followed by a newline.", 1,
-              "sh src/test/repl_help.sh")
-
-    // === til doc <path> smoke test for #157 Phase 2 ===
-    add_count(tests, "doc_cmd", "cli",
-              "doc_cmd_ok", 1,
-              "sh src/test/doc_cmd.sh")
-
     // === 24 CLI tests (12 cases × interpret + run) ===
     exp := "gen/out/expected/"
 

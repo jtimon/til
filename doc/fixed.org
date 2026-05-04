@@ -107,9 +107,15 @@
     ~init_declarations_global~ -> ~normalize_scope_bindings~ ->
     ~type_file~) so the REPL's typed AST stays in sync with what
     ~til interpret~ sees.
-  - Tests: ~src/test/repl_help.sh~ smoke test (pipes
-    ~help("println")~ into ~bin/til~ and counts the expected core
-    doc text), wired into ~src/tests.til~.
+  - On-demand smoke test: ~src/test/repl_help.til~ (a TIL ~mode cli~
+    script) pipes ~help("println")~ into ~bin/til~, captures the
+    output, and asserts the expected core doc text appears. Wired
+    via the ~make test_repl_help~ Makefile target -- NOT into
+    ~make test~. Spawning ~bin/til~ + a subprocess ~til interpret~
+    for a single help() turn costs 30-80 s of wall time depending
+    on the host (the longest single test by far), so the cost
+    would dominate ~make test~. Run on demand alongside changes
+    that touch the REPL or doc registry.
 
 ** Phase 1 follow-up -- speed up ~doc_init_src_line~
 
@@ -121,9 +127,10 @@
   only walks the user units. ~src/self/loader.til~ now exports
   ~build_doc_init_line(packed_info, packed_docs)~ so the REPL can
   stitch cached core + fresh user blobs without re-walking core.
-  The single-turn ~repl_help~ test still pays the cache-fill cost
-  on its only turn, but the marginal cost of additional REPL turns
-  is now negligible.
+  The fix amortizes well over many turns but the first turn still
+  pays the cache-fill cost, which is why the single-turn
+  ~repl_help~ smoke test was eventually pulled too (see Phase 1
+  Tests bullet above).
 
 ** Phase 2 -- ~til doc <path>~ generator
 
@@ -155,11 +162,16 @@
   ~src/til.til~: dispatch ~doc~ before ~prepare_program~ via
   ~init_and_type_program~ + ~cmd_doc~; usage banner.
 
-  Smoke test: ~src/test/doc_cmd.sh~ runs ~til doc src/til.til~
-  (the self-host source itself) and greps the generated tree
-  under ~doc/gen/~ for a few known doc strings and signatures
-  (~src/core/set.org~, ~src/core/vec.org~, ~src/self/parser.org~,
-  ~src/til.org~).
+  Workflow: ~make doc~ regenerates ~doc/gen/~ on demand. Not wired
+  into ~make test~ -- a full doc gen on ~src/til.til~ runs the
+  init+typer pipeline end-to-end and adds ~1 minute of wall time,
+  which would dominate the test suite. The first version of this
+  fix DID wire a ~doc_cmd~ smoke test through ~src/test/doc_cmd.sh~
+  but it pushed totals.csv up by ~60 s, so it was pulled out and
+  replaced with the ~doc~ Makefile target. Refresh ~doc/gen/~
+  alongside notable doc-affecting changes; the ~.gitignore~
+  exception (~!doc/gen/~) lets the generated tree be tracked
+  despite the ~gen/~ rule.
 
 ** Out of scope (still)
 
