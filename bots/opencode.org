@@ -50,9 +50,9 @@ to avoid re-discovering the same things.
 ** ASAN leak baseline and delta tracking
 - Every merge-commit procedure includes ASAN leak checks. The point is
   to report the *delta* from the known baseline, not whether leaks exist.
-- Current baseline (commit 5b815d82d, 2026-05-04):
-  - interpret: 370,197 bytes / 56,230 allocs
-  - translate: 341,570 bytes / 45,352 allocs
+- Current baseline (commit 18f600bef, 2026-05-04):
+  - interpret: 326,879 bytes / 51,796 allocs
+  - translate: 185,135 bytes / 25,260 allocs
 - Report delta as: "interpret +N% / -N%, translate +N% / -N%". A 0%
   delta means no change from baseline. A positive delta means the commit
   increased leaks; the user decides whether to keep or reject.
