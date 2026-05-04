@@ -206,7 +206,6 @@ main := proc() {
     GRAVITY : F32 = 1.to_f32() / 100.to_f32()      // 0.01 per frame
 
     mut vel_y := zero_f
-    mut on_ground := false
     mut jump_held := false
 
     mut menu_open := false
@@ -313,29 +312,10 @@ main := proc() {
                 CameraMoveRight(camera, strafe, false)
                 CameraMoveUp(camera, vertical)
             } else {
-                // Gravity and vertical movement.
-                if on_ground {
-                    vel_y = zero_f
-                    camera.position.y = 1.to_f32()
-                } else {
-                    vel_y = vel_y - GRAVITY
-                    camera.position.y = camera.position.y + vel_y
-                    camera.target.y = camera.target.y + vel_y
-                    if camera.position.y <= 1.to_f32() {
-                        // Snap both equally to preserve look angle.
-                        snap := 1.to_f32() - camera.position.y
-                        camera.position.y = 1.to_f32()
-                        camera.target.y = camera.target.y + snap
-                        vel_y = zero_f
-                        on_ground = true
-                    }
-                }
-
                 // Jump: space or right mouse.
                 if is_key_pressed(KEY_SPACE).or(is_mouse_button_pressed(1)) {
-                    if on_ground.and(jump_held.not()) {
+                    if vel_y.eq(zero_f).and(jump_held.not()) {
                         vel_y = JUMP_SPEED
-                        on_ground = false
                         jump_held = true
                     }
                 } else {
@@ -350,6 +330,21 @@ main := proc() {
                 movement := Vector3(x = fwd, y = strafe, z = zero_f)
                 UpdateCameraPro(camera, movement, rotation, zero_f)
 
+                // Gravity.
+                vel_y = vel_y - GRAVITY
+                camera.position.y = camera.position.y + vel_y
+                camera.target.y = camera.target.y + vel_y
+
+                // Floor check: white floor at y=0, camera eye at y=1.
+                // Treat it like the top of a flat box.
+                ffloor := 1.to_f32()
+                if camera.position.y <= ffloor {
+                    snap := ffloor - camera.position.y
+                    camera.position.y = ffloor
+                    camera.target.y = camera.target.y + snap
+                    vel_y = zero_f
+                }
+
                 // Wall and box collision check.
                 mut hit := false
                 nf := zero_f - floor_half
@@ -362,8 +357,16 @@ main := proc() {
                     while i.lt(aabbs.len()) {
                         ref bb : BoundingBox = aabbs.get(i)
                         if CheckCollisionBoxSphere(bb, camera.position, cam_radius) {
-                            hit = true
-                            break
+                            // If above the box, land on top.
+                            if camera.position.y >= bb.max.y - cam_radius {
+                                snap := bb.max.y + cam_radius - camera.position.y
+                                camera.position.y = camera.position.y + snap
+                                camera.target.y = camera.target.y + snap
+                                vel_y = zero_f
+                            } else {
+                                hit = true
+                                break
+                            }
                         }
                         i = i.add(1)
                     }
