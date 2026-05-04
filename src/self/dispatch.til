@@ -49,11 +49,11 @@ ffi_reset := proc() {
     ffi_struct_defs = Map.new("Str", Str.size(), "Dynamic", Dynamic.size())
 }
 
-ffi_type_pointer_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_pointer")) }
-ffi_type_sint64_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint64")) }
+priv ffi_type_pointer_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_pointer")) }
+priv ffi_type_sint64_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint64")) }
 ffi_type_uint8_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_uint8")) }
 ffi_type_sint16_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint16")) }
-ffi_type_sint32_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint32")) }
+priv ffi_type_sint32_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint32")) }
 ffi_type_uint32_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_uint32")) }
 ffi_type_uint64_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_uint64")) }
 ffi_type_float_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_float")) }
@@ -169,21 +169,6 @@ ffi_init_struct_defs_append := func(program: Expr) {
     }
 }
 
-value_to_i64 := func(v: Value) returns I64 {
-    switch v {
-    case Value.Int(x):     return x.clone()
-    case Value.Byte(x):    return x.to_u64().to_i64()
-    case Value.Short(x):   return x.to_i64()
-    case Value.Int32(x):   return x.to_i64()
-    case Value.Uint32(x):  return x.to_i64()
-    case Value.Uint64(x):  return x.to_i64()
-    case Value.Boolean(x):
-        if x { return 1 }
-        return 0
-    case: return 0
-    }
-}
-
 value_to_u64 := func(v: Value) returns U64 {
     switch v {
     case Value.Int(x):     return x.to_u64()
@@ -199,7 +184,7 @@ value_to_u64 := func(v: Value) returns U64 {
     }
 }
 
-value_to_f32 := func(v: Value) returns F32 {
+priv value_to_f32 := func(v: Value) returns F32 {
     switch v {
     case Value.Int(x):     return x.to_f32()
     case Value.Byte(x):    return x.to_u64().to_i64().to_f32()
@@ -286,7 +271,7 @@ h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
-h_print_single := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+priv h_print_single := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     arg := eval_expr(s, e.child(1))
     print_single(str_view(arg))
     r = val_none()
@@ -418,7 +403,7 @@ h_cfile_open := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
 // type_name -> ffi_type. Inverse mapping in ffi_shallow_type_info; keep
 // the two in sync if a new shallow primitive type lands.
-shallow_ffi_type := func(type_name: Str) returns ref ffi_type {
+priv shallow_ffi_type := func(type_name: Str) returns ref ffi_type {
     if type_name.eq("I64")   { return ffi_type_sint64_ref() }
     if type_name.eq("U8")    { return ffi_type_uint8_ref() }
     if type_name.eq("I16")   { return ffi_type_sint16_ref() }
@@ -641,7 +626,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
     return value_to_u64(result).to_i64().to_i32()
 }
 
-h_array := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+priv h_array := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     type_name_val := eval_expr(s, e.child(1))
     type_name := str_view(type_name_val)
     count := e.children.len().sub(2)

@@ -240,7 +240,7 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
 // If the function body is a trivially literal-returning shape, return a
 // reference to that literal Expr. Handles both `return <lit>` and the
 // typer-hoisted `_t := <lit>; return _t` form. Returns NULL otherwise.
-extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
+priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
     if fdef.children.len().eq(0) { return NULL }
     ref body : Expr = fdef.child(0)
     n := body.children.len()

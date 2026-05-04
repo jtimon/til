@@ -178,7 +178,7 @@ Context := struct {
     ref mut cached_vec_name : Str = NULL
 }
 
-align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {
+priv align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {
     return offset.add(align).sub(1).and(align.sub(1).xor(-1.to_i32()))
 }
 
@@ -265,14 +265,6 @@ register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shall
         UNREACHABLE(__LOC__)
         return 0.to_i32()
     }
-}
-
-register_struct_definitions := proc(program: Expr, scope: TypeScope) returns shallow I32 {
-    mut errors : I32 = 0
-    for stmt : Expr in program.children {
-        errors = errors.add(register_struct_def_for_stmt(stmt, scope))
-    }
-    return errors
 }
 
 gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
@@ -495,7 +487,7 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec, mut varian
     }
 }
 
-generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
     switch enum_def.node_type {
     case NodeType.EnumDef(evc_edd):
         if has_payloads.not() {
@@ -531,7 +523,7 @@ generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shallow l
     }
 }
 
-generate_enum_is_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32) {
+priv generate_enum_is_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     mut is_id := Expr.new(NodeType.Ident("is"), line, col)
     mut self_id := Expr.new(NodeType.Ident("self"), line, col)

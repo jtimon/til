@@ -15,7 +15,7 @@ Parser := struct {
     mut pending_doc := ""
 }
 
-peek := func(p: Parser) returns ref Token {
+priv peek := func(p: Parser) returns ref Token {
     ref t : Token = p.tokens.get(p.pos)
     return t
 }
@@ -82,7 +82,7 @@ til_type_from_explicit_type := func(name: Str) returns TilType {
 // Generates a synthetic type name (e.g. "_Fn_I64_I64_ret_Bool"), creates a
 // bodyless FuncDef Decl, stores it in p.fn_sig_decls, and returns the name.
 // Returns "" if not followed by '(' (bare "Fn" type).
-parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U32) returns Str {
+priv parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U32) returns Str {
     if check(p, TokenType.LParen).not() {
         return ""
     }
@@ -151,7 +151,7 @@ parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U32) r
 // return the expression unchanged. Used at every FCall argument position
 // so existing fn_ptr machinery picks the lambda up as a regular named
 // function. Bodyless FuncDefs (FuncSig types) are passed through.
-maybe_lift_lambda := func(mut p: Parser, own e: Expr) returns Expr {
+priv maybe_lift_lambda := func(mut p: Parser, own e: Expr) returns Expr {
     if e.node_type.is(NodeType.FuncDef).not() { return e }
     if e.children.len().eq(0) { return e }
     lname := "_lambda_".concat(p.lambda_decls.len().to_str())
@@ -164,7 +164,7 @@ maybe_lift_lambda := func(mut p: Parser, own e: Expr) returns Expr {
 }
 
 // parse_block: expects '{' already consumed, reads statements until '}'
-parse_block := proc(mut p: Parser) returns Expr {
+priv parse_block := proc(mut p: Parser) returns Expr {
     // Save outer pending_doc so the surrounding Decl's leading /// survives
     // the block parse. Inner /// inside the block accumulate into pending_doc
     // and are attached to the next inner Decl by parse_statement; any
@@ -863,7 +863,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
 }
 
 // parse_multiplicative: * / % (highest precedence binary operators)
-parse_multiplicative := proc(mut p: Parser) returns Expr {
+priv parse_multiplicative := proc(mut p: Parser) returns Expr {
     mut e := parse_primary(p)
     while check(p, TokenType.Star).or(check(p, TokenType.Slash)).or(check(p, TokenType.Percent)) {
         op_line := peek_line(p)
@@ -1232,7 +1232,7 @@ drain_doc_comments := func(mut p: Parser) {
     }
 }
 
-parse_statement := proc(mut p: Parser) returns Expr {
+priv parse_statement := proc(mut p: Parser) returns Expr {
     drain_doc_comments(p)
     mut is_priv := false
     priv_line := peek_line(p)

@@ -47,7 +47,7 @@ codegen_clear_lp := func() {
 
 // --- Leaf functions ---
 
-is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns shallow Bool {
+priv is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns shallow Bool {
     if name.eq("dyn_call") { has_ret = false; return true }
     if name.eq("dyn_call_ret") { has_ret = true; return true }
     return false
@@ -57,7 +57,7 @@ is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns shallow Bool {
 // emit_stmt_decl and read back by fcall_fn_sig when a FuncPtr local is
 // called. Lives on Context (#178 first table); the builder swaps it at
 // emit_func_def boundaries to scope it per emission.
-resolve_local_fn_sig := func(name: Str) returns ref Expr {
+priv resolve_local_fn_sig := func(name: Str) returns ref Expr {
     ref m : Map = codegen_lp().ctx.local_fn_sigs
     if m.has(name).not() { return NULL }
     return deref(m.get(name))
@@ -148,11 +148,11 @@ fcall_fn_sig := func(fcall: Expr) returns ref Expr {
     }
 }
 
-is_stack_local := func(name: Str) returns shallow Bool {
+priv is_stack_local := func(name: Str) returns shallow Bool {
     return codegen_lp().ctx.stack_locals.has(name)
 }
 
-is_current_func_param := func(name: Str) returns shallow Bool {
+priv is_current_func_param := func(name: Str) returns shallow Bool {
     ref cf : Expr = codegen_lp().ctx.current_fdef
     if is_null(cf) { return false }
     switch cf.node_type {
@@ -166,7 +166,7 @@ is_current_func_param := func(name: Str) returns shallow Bool {
     }
 }
 
-is_value_global := func(name: Str) returns shallow Bool {
+priv is_value_global := func(name: Str) returns shallow Bool {
     if is_current_func_param(name) { return false }
     return codegen_lp().ctx.script_globals.has(name)
 }
@@ -264,13 +264,13 @@ is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
     return true
 }
 
-find_struct_def := func(name: Str) returns ref Expr {
+priv find_struct_def := func(name: Str) returns ref Expr {
     ref m : Map = codegen_lp().ctx.struct_def_exprs
     if m.has(name).not() { return NULL }
     return deref(m.get(name))
 }
 
-find_callee_fdef := func(name: Str) returns ref Expr {
+priv find_callee_fdef := func(name: Str) returns ref Expr {
     ref m : Map = codegen_lp().ctx.func_defs
     if m.has(name).not() { return NULL }
     return deref(m.get(name))
@@ -429,7 +429,7 @@ callee_param_is_own := func(callee_name: Str, shallow arg_index: U32) returns sh
     }
 }
 
-fcall_is_shallow_return := func(fcall: Expr) returns shallow Bool {
+priv fcall_is_shallow_return := func(fcall: Expr) returns shallow Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     ref callee : Expr = fcall.child(0)
     switch callee.node_type {
@@ -469,7 +469,7 @@ fcall_returns_dynamic := func(fcall: Expr) returns shallow Bool {
     }
 }
 
-til_type_to_c := func(shallow t: TilType) returns Str {
+priv til_type_to_c := func(shallow t: TilType) returns Str {
     switch t {
     case TilType.I64:     return "I64"
     case TilType.U8:      return "U8"
@@ -573,7 +573,7 @@ emit_i32 := proc(f: File, shallow v: I32) {
     f.write(v.to_str())
 }
 
-emit_indent := proc(f: File, shallow depth: I32) {
+priv emit_indent := proc(f: File, shallow depth: I32) {
     for _ : I32 in 0..depth {
         f.write("    ")
     }
@@ -639,7 +639,7 @@ emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool) {
     }
 }
 
-collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
+priv collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
     if is_null(e) { return }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gt(0) {
@@ -1156,7 +1156,7 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
     }
 }
 
-emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
+priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
     emit_indent(f, depth)
     switch e.node_type {
     case NodeType.Decl:
@@ -1541,7 +1541,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
     }
 }
 
-emit_body := proc(f: File, body: Expr, shallow depth: I32) {
+priv emit_body := proc(f: File, body: Expr, shallow depth: I32) {
     for e_i : Expr in body.children {
         emit_stmt(f, e_i, depth)
     }
@@ -1769,7 +1769,7 @@ emit_body_scoped := proc(f: File, body: Expr, shallow depth: I32) {
     lp.ctx.ref_dyn_locals = saved_rdl
 }
 
-emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
+priv emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
     if e.til_type.is(TilType.Dynamic) {
         emit_expr(f, e, depth)
     } else if e.til_type.is(TilType.FuncPtr) {
@@ -2448,7 +2448,7 @@ func_return_ctype := func(fd: FunctionDef) returns Str {
     return type_name_to_c(fd.return_type)
 }
 
-emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr) {
+priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         ret := func_return_ctype(fd)
@@ -4982,7 +4982,7 @@ make_build_dirs := func(paths: BuildPaths) {
     }
 }
 
-translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow I32 {
+priv translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow I32 {
     codegen_set_lp(lp)
     mut result := build_forward_header_lp(paths.fwd_path)
     if result.eq(0) {

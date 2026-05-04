@@ -108,7 +108,7 @@ CtorArg := enum {
 // Active file path for diagnostics (Expr no longer stores path).
 mut typer_path := ""
 
-type_error := proc(e: Expr, msg: Str) {
+priv type_error := proc(e: Expr, msg: Str) {
     e.error(typer_path, msg)
     errors++
 }
@@ -1402,7 +1402,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
 // Idempotent per binding: a failing call site can be visited twice
 // (e.g. via FieldAccess receiver re-walks), so we track whether the
 // error has already been reported and emit at most one diagnostic.
-check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
+priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
     if is_null(b) { return }
     if b.is_priv.not() { return }
     if b.path.eq(typer_path) { return }
@@ -1455,7 +1455,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
     return
 }
 
-infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
+priv infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
     switch expr.node_type {
     case NodeType.LiteralStr:  infer_literal_expr(expr)
     case NodeType.LiteralNum:  infer_literal_expr(expr)
@@ -3614,8 +3614,16 @@ type_from_name := func(name: Str, scope: TypeScope) returns TilType {
     if name.eq("Fn")        { return TilType.FuncPtr }
     if name.eq("Dynamic")   { return TilType.Dynamic }
     if is_null(scope).not() {
-        ref b : TypeBinding = scope.get_binding(name)
+        ref mut b : TypeBinding = scope.get_binding(name)
         if is_null(b).not() {
+            // #187: explicit type annotations (e.g. ~ref x : Foo = ...~,
+            // function param/return types) count as a use of the named
+            // type. Same gate as the Ident path -- skip when we're inside
+            // the type's own namespace to keep auto-gen body references
+            // from masking a genuinely unused priv type.
+            if auto_gen_depth.eq(0).and(current_type_name.eq(name).not()) {
+                b.used = true
+            }
             if b.is_builtin {
                 if is_null(b.struct_def).not() { return b.type }
             }
@@ -3729,7 +3737,7 @@ expr_used_in_nested_func := func(e: Expr, name: Str) returns shallow Bool {
     return false
 }
 
-find_variadic_fcall := func(e: Expr) returns ref Expr {
+priv find_variadic_fcall := func(e: Expr) returns ref Expr {
     if is_null(e) { return NULL }
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
@@ -4366,7 +4374,7 @@ process_call_desugars := func(mut stmt: Expr, mut new_ch: Vec, mut scope: TypeSc
 // per-stmt temp_ch, applies the call desugars to each result stmt, and
 // then transfers them to new_ch. Stmts that aren't set/map decls go
 // through the same call-desugar path before being pushed.
-desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
+priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
     mut has_set_lit := false
     mut has_map_lit := false
     mut has_variadic := false

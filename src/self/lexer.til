@@ -63,11 +63,11 @@ Token := struct {
 // --- Character helpers ---
 // Replaces C's isdigit(), isalpha() from <ctype.h>
 
-is_digit := func(c: U8) returns Bool {
+priv is_digit := func(c: U8) returns Bool {
     return c.gte('0').and(c.lte('9'))
 }
 
-is_alpha := func(c: U8) returns Bool {
+priv is_alpha := func(c: U8) returns Bool {
     return c.gte('a').and(c.lte('z'))
     .or(c.gte('A').and(c.lte('Z')))
     .or(c.eq('_'))
@@ -166,7 +166,7 @@ tok_name := func(type: TokenType) returns Str {
 // Using a func avoids the mut-reassign-then-clone pattern that leaked
 // one TokenType heap allocation per case.
 
-lookup_single_char := func(c: U8) returns shallow TokenType {
+priv lookup_single_char := func(c: U8) returns shallow TokenType {
     switch c {
     case '(': return TokenType.LParen
     case ')': return TokenType.RParen
@@ -214,7 +214,7 @@ lookup_two_char := func(c: U8, c2: U8) returns shallow TokenType {
 // C version uses Keyword struct + static array with memcmp loop.
 // til version uses switch on Str — functionally equivalent.
 
-lookup_keyword := func(word: Str) returns TokenType {
+priv lookup_keyword := func(word: Str) returns TokenType {
     switch word {
     case "mut": return TokenType.KwMut
     case "own": return TokenType.KwOwn

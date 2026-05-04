@@ -1434,7 +1434,7 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) 
     }
 }
 
-ns_qname := func(sname: Str, fname: Str) returns Str {
+priv ns_qname := func(sname: Str, fname: Str) returns Str {
     return sname.concat(".").concat(fname)
 }
 
@@ -1839,7 +1839,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
 // Per-file interpreter entrypoint (rstil-style): uses the canonical per-file
 // ASTs stored in lp.ctx.imported, but preserves the original overall
 // registration/eval ordering.
-interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns shallow I32 {
+priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns shallow I32 {
     // Ensure codegen_lp() is available throughout interpretation so
     // interpreter helpers can read shared Context fields (#177/#178).
     codegen_set_lp(lp)

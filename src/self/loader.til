@@ -14,13 +14,13 @@ realpath_str := ext_func(path: Str) returns Str {}
 // --- Leaf helpers ---
 
 // Owned copy of first n bytes of s (substr returns a view, this returns a clone)
-str_left := func(s: Str, n: USize) returns Str {
+priv str_left := func(s: Str, n: USize) returns Str {
     if n.eq(0) { return "" }
     if n.gte(s.len()) { return s.clone() }
     return s.substr(0, n).clone()
 }
 
-normalize_mode_name := func(mode_name: Str) returns Str {
+priv normalize_mode_name := func(mode_name: Str) returns Str {
     if mode_name.len().gt(0) {
         return mode_name.clone()
     }
@@ -41,7 +41,7 @@ display_path := func(p: Str, cwd: Str) returns Str {
     return "./".concat(rel)
 }
 
-require_mode := func(path: Str, mode_name: Str) returns ref Mode {
+priv require_mode := func(path: Str, mode_name: Str) returns ref Mode {
     ref resolved : Mode = mode_resolve(mode_name)
     if is_null(resolved) {
         panic(__LOC__, path, ": unknown mode '", mode_name, "'")
@@ -789,24 +789,6 @@ escape_doc_for_literal_str := func(raw: Str) returns Str {
         }
     }
     return out
-}
-
-// Build a synthetic FCall(callee, name_arg, payload_arg) expression. Used
-// for __doc_init__(packed_kinds, packed_docs). Both payloads are
-// escape-encoded so non-printable bytes round-trip through both the
-// interpreter and the C compiler.
-make_register_call := func(callee_name: Str, name: Str, payload: Str,
-        shallow line: U32, shallow col: U32) returns Expr {
-    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
-    mut callee := Expr.new(NodeType.Ident(callee_name.clone()), line, col)
-    call.add_child(own callee)
-    esc_name := escape_doc_for_literal_str(name)
-    esc_payload := escape_doc_for_literal_str(payload)
-    mut name_arg := Expr.new(NodeType.LiteralStr(esc_name.clone()), line, col)
-    call.add_child(own name_arg)
-    mut payload_arg := Expr.new(NodeType.LiteralStr(esc_payload.clone()), line, col)
-    call.add_child(own payload_arg)
-    return call
 }
 
 // Classify a top-level Decl's FuncType into a kind string.

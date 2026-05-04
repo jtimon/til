@@ -182,3 +182,33 @@ stack-owned for locals.
 
     - Cross-file violation: ~error: 'X' is private to '<decl-file>'~
     - In-struct violation:  ~error: 'Type.member' is private to its struct~
+    - Unused priv item (issue #187): a ~priv~ declaration that no
+      code in its declaring file references is dead code -- no
+      importer can possibly reach it, since the priv keyword
+      blocks that. The typer flags it and suggests removing the
+      keyword:
+
+      | Kind                  | Diagnostic                                                       |
+      |-----------------------+------------------------------------------------------------------|
+      | top-level func        | ~error: unused priv func 'X'; remove 'priv' to expose it~        |
+      | top-level struct      | ~error: unused priv struct 'X'; remove 'priv' to expose it~      |
+      | top-level enum        | ~error: unused priv enum 'X'; remove 'priv' to expose it~        |
+      | top-level value       | ~error: unused priv value 'X'; remove 'priv' to expose it~       |
+      | struct field          | ~error: unused priv field 'Foo.x'; remove 'priv' to expose it~   |
+      | namespace member      | ~error: unused priv ns member 'Foo.f'; remove 'priv' to expose it~ |
+
+      The escape hatch from #86 (~_~-prefixed names skip the
+      check) still applies, but the recommended fix is "remove
+      priv" rather than "rename to _": hiding-by-default doesn't
+      fit a type or function name. If you genuinely want to keep
+      a dead helper as scaffolding, prefer ~_~-prefix; if you
+      want it exposed to importers, drop the ~priv~.
+
+      Auto-generated bodies (clone / delete / size / enum
+      eq / to_str / variant constructors) do *not* count as
+      uses for this check. Without that gate, every priv field
+      and ns member would always look "used" because the
+      auto-gen clone reads every field by name. ~FunctionDef~
+      carries an ~auto_generated~ flag set by initer's helpers;
+      the typer tracks ~auto_gen_depth~ around such bodies and
+      skips "mark used" sets while inside one.
