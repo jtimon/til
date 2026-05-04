@@ -62,73 +62,10 @@ bug150 := test() {
     assert(__LOC__, vb.eq(Bug150E.B))
 }
 
-// --- #185: ref-Dynamic local narrowed by narrow_dynamic emits bad C --
-//
-// Bug: a `ref X : Dynamic = ...` local, when fed directly into a
-// typed-primitive call site (e.g. not(x), y.add(x)), used to compile
-// to DEREF(x) on a void * -- invalid C. The typer's narrow_dynamic
-// retypes the Ident to the param's primitive type (Bool/U8/etc.), so
-// emit_deref no longer saw a Dynamic and fell into the generic
-// ref-local branch which emits *x; but x's declared C type is
-// void *, so gcc rejected the deref. Worked fine in interpret mode.
-// Fix: track ref-Dynamic locals in Context.ref_dyn_locals so
-// emit_deref can emit DEREF((PrimT *)x) -- a typed cast through the
-// narrowed primitive type.
-
-bug185 := test() {
-    // Bool via UFCS receiver (Dynamic-typed receiver).
-    bv := vec("Bool", true, false)
-    ref bx : Dynamic = bv.get(1)
-    ref by : Dynamic = bv.get(0)
-    assert(__LOC__, bx.not())
-    assert(__LOC__, by.not().not())
-    // Bool via positional Dynamic arg into a top-level helper.
-    assert(__LOC__, and(by, by))
-    assert(__LOC__, or(bx, by))
-    assert(__LOC__, and(bx, by).not())
-    // U8: mixed typed/Dynamic args into a typed-primitive method.
-    uv := vec("U8", 1.to_u8(), 2.to_u8(), 3.to_u8())
-    ref ux : Dynamic = uv.get(1)
-    uy : U8 = 10.to_u8()
-    assert_eq(__LOC__, uy.add(ux).to_i64(), 12)
-}
-
-// --- #186: nested variadic fcall not desugared into Array wrap -------
-//
-// Bug: a user-defined variadic call nested inside another variadic
-// call (e.g. println(say(true, false, true))) was left with raw args
-// because the typer's process_call_desugars only desugared the first
-// variadic fcall returned by find_variadic_fcall per stmt -- the
-// outer one. The inner say(...) survived inside one of the outer
-// Array.set value args, so the builder emitted say(_t_Bool_A,
-// &_t_Bool_B, &_t_Bool_C) and gcc rejected the call ("too many
-// arguments to function 'say'"). Standalone variadic calls and
-// variadic calls from inside test() bodies escaped the bug because
-// they weren't nested. Fix: recurse process_call_desugars on each
-// emitted Array.set setter so nested variadic fcalls inside its
-// value arg get their own Array.new + Array.set wrap and rewrite.
-
-bug186_say := func(bools: ..Bool) returns Str {
-    mut out := ""
-    for b : Bool in bools { if b { out = out.concat("T") } else { out = out.concat("F") } }
-    return out
-}
-
-bug186_concat := func(parts: ..Str) returns Str {
-    mut result := ""
-    for i in 0..parts.len() {
-        ref p : Str = parts.get(i)
-        result = result.concat(p)
-    }
-    return result
-}
-
-bug186 := test() {
-    // Nested user-defined variadic inside a variadic Str.concat-style
-    // call: pass the result of one variadic into another variadic.
-    assert_eq_str(__LOC__, bug186_concat(bug186_say(true, false), bug186_say(true)), "TFT")
-    // The CLI repro shape: variadic returning Str fed into println --
-    // exercised here by composing through another variadic so the
-    // nested-variadic-in-variadic codepath is hit inside test() too.
-    assert_eq_str(__LOC__, bug186_concat(bug186_say(true, false, true)), "TFT")
-}
+// Tests for #185 (ref-Dynamic narrowed into typed-primitive call sites)
+// live in src/test/dynamic.til as bug185_bool_dyn_arg_chain and
+// bug185_u8_dyn_arg -- the test relies on dynamic.til's vec/Dynamic
+// shapes. Tests for #186 (nested variadic-in-variadic) live in
+// src/test/variadic.til as bug186_variadic_nested_in_variadic.
+// Tests for #188 (nested kwargs-in-kwargs) live in
+// src/test/kwargs.til as bug188_kwargs_nested_in_kwargs.

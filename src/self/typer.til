@@ -4184,7 +4184,16 @@ process_call_desugars := func(mut stmt: Expr, mut new_ch: Vec, mut scope: TypeSc
             new_ch.push(own kw_decl)
             for j in 0..kc {
                 ref named_arg : Expr = fcall.child(ki.add(j.to_i64().to_i32()).to_i64().to_usize())
-                new_ch.push(own build_kwargs_dynmap_set(fcall, scope, kw_name, named_arg))
+                mut setter := build_kwargs_dynmap_set(fcall, scope, kw_name, named_arg)
+                // The setter's value can itself be a kwargs (or
+                // variadic) fcall -- e.g.
+                //     greet("World", prefix = make_str(greeting = "Hi"))
+                // The outer kwargs desugar leaves the inner make_str
+                // call inside one of these DynMap.set value args; if
+                // we don't recurse, the builder emits the raw kwargs
+                // call. Issue #188 (twin of #186 on the kwargs path).
+                process_call_desugars(setter, new_ch, scope, has_variadic, has_kwargs)
+                new_ch.push(own setter)
             }
             rewrite_kwargs_fcall_args(fcall, kw_name)
         }

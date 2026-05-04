@@ -33,3 +33,18 @@ test_kwargs_str := test() {
     assert_eq_str(__LOC__, greet("World"), "World")
     assert_eq_str(__LOC__, greet("World", prefix = "Hello"), "Hello World")
 }
+
+// #188: a kwargs fcall nested inside another kwargs fcall (e.g.
+// greet("W", prefix = make_str(greeting = "Hi"))) used to leave the
+// inner make_str(greeting = "Hi") raw inside the outer DynMap.set
+// value arg, because the typer's process_call_desugars only desugared
+// the first kwargs fcall returned by find_kwargs_fcall per stmt --
+// the outer one. The builder then emitted the raw kwargs call and
+// gcc rejected the args. Twin of #186 on the kwargs path. Fix:
+// recurse process_call_desugars on each emitted DynMap.set setter so
+// nested kwargs fcalls inside its value arg get their own DynMap.new
+// + DynMap.set wrap and rewrite.
+
+bug188_kwargs_nested_in_kwargs := test() {
+    assert_eq_str(__LOC__, greet("World", prefix = greet("Hi")), "Hi World")
+}

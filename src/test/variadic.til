@@ -96,7 +96,7 @@ say_flags := func(bools: ..Bool) returns Str {
     return out
 }
 
-test_variadic_nested_in_variadic := test() {
+bug186_variadic_nested_in_variadic := test() {
     assert_eq_str(__LOC__, say_flags(true, false, true), "TFT")
     // Nested user-defined variadic inside a variadic Str.concat-style
     // call: pass the result of one variadic into another variadic.
