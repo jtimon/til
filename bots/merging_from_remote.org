@@ -55,6 +55,30 @@ Run under systemd-run to limit memory (prevents OOM from memory leaks).
 systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/build.log 2>&1 && make test >> tmp/build.log 2>&1'
 #+end_src
 
+*** "Two-pass: " commits
+    If the commit subject starts with "Two-pass: ", the author shipped
+    boot artifacts produced by running the new compiler against itself
+    (see doc/self.org). The merger MUST regenerate via ~make
+    test_two_pass~ instead of ~make test~ so the committed boot/til.c
+    matches the self-applied output rather than the pass-1 output.
+    #+begin_src shell
+    systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/build.log 2>&1 && make test_two_pass >> tmp/build.log 2>&1'
+    #+end_src
+
+*** Staged migrations (loader/parser contract changes)
+    Some series can NOT be reviewed as a single rebased branch: e.g. a
+    change to the import-path contract requires one commit that extends
+    the loader, merged into master, BEFORE the follow-up commit that
+    relies on the new form can be authored or built. If a feature
+    branch ships both at once, ~git rebase~ + soft-reset + regen will
+    fail at pass 1 of the second commit because til_boot was built
+    from the unmerged transitional state.
+    Merge each commit on its own pass through this procedure: process
+    the transitional commit first (single-pass ~make test~), push to
+    master, then ask the remote agent to rebase the next commit on top
+    and submit it for a fresh review. See doc/self.org for the full
+    rationale.
+
 ** Step 6 -- ASAN leak check (both interpret and translate paths)
 Build the ASAN binary:
 #+begin_src shell

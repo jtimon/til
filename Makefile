@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all clean test test_asan test_nogui test_repl_help build_win doc help tmp
+.PHONY: all clean test test_asan test_nogui test_repl_help test_two_pass build_win doc help tmp two_pass
 
 all: bin/til
 
@@ -64,6 +64,21 @@ bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
 	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til_boot build -o bin/til src/til.til
 	cp gen/til/til.c gen/til/til.h gen/til/til_forward.h boot/ 2>/dev/null || true
 
+# --- Two-pass build ---
+#
+# Pass 1 (the bin/til prerequisite) compiles current sources with til_boot
+# from HEAD. Pass 2 reruns the build using the freshly-compiled bin/til so
+# the resulting boot/til.c reflects the new compiler self-applied. Use this
+# when a single commit must ship both an emit-side change and the boot
+# artifacts that change would produce when applied to itself; without
+# two_pass the same outcome takes two commits (preparation + use, see
+# doc/self.org). Commits relying on this target MUST be prefixed
+# "Two-pass: " so the local merger reproduces the same regen procedure
+# (see bots/merging_from_remote.org).
+two_pass: bin/til
+	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til build -o bin/til src/til.til
+	cp gen/til/til.c gen/til/til.h gen/til/til_forward.h boot/ 2>/dev/null || true
+
 # --- ASAN build (for memory debugging) ---
 
 bin/til_asan: bin/til
@@ -96,6 +111,14 @@ bin/tests: bin/til $(CORE) $(SELF) src/tests.til
 test: bin/til bin/test_runner bin/plot bin/tests
 	xvfb-run --auto-servernum bin/tests $(if $(J),-j$(J))
 	cp gen/til/constfold.c src/test/constfold.c
+
+# Two-pass equivalent of `make test`. Runs pass 2 first so bin/til reflects
+# the self-applied compiler before tests build dependents from it. Use this
+# when committing a "Two-pass: " change (see doc/self.org and the Makefile
+# header comment on the two_pass target).
+test_two_pass:
+	$(MAKE) two_pass
+	$(MAKE) test
 
 test_asan: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
 	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan $(if $(J),-j$(J))
@@ -168,10 +191,12 @@ bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 # --- Utilities ---
 
 help:
-	echo "make          Build bin/til + regenerate boot/"
-	echo "make test     Build + run tests"
-	echo "make doc      Regenerate doc/gen/ from current sources"
-	echo "make clean    Remove build artifacts"
+	echo "make                Build bin/til + regenerate boot/"
+	echo "make test           Build + run tests"
+	echo "make two_pass       Build, then rebuild with the fresh bin/til"
+	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
+	echo "make doc            Regenerate doc/gen/ from current sources"
+	echo "make clean          Remove build artifacts"
 	echo ""
 	echo "bin/til_boot  From last commit (git). Always works."
 	echo "bin/til       From current sources. May break."
