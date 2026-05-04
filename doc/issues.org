@@ -252,7 +252,7 @@
       allowing same-file callers to use it normally. Add a positive
       test (priv helper used inside its own file) and a negative test
       (importer references the priv helper -> error).
-   2. [ ] Structs. ~priv Foo := struct { ... }~ hides the type name
+   2. [X] Structs. ~priv Foo := struct { ... }~ hides the type name
       from other files, so they can neither construct ~Foo~ nor
       mention it in a signature. Same rule on the constructor and the
       type's namespace methods follow as a consequence.

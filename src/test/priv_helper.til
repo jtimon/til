@@ -9,3 +9,18 @@ add_one := func(x: I64) returns I64 {
 priv internal_inc := func(x: I64) returns I64 {
     return x.add(1)
 }
+
+// #179 step 2: a priv struct -- type name hidden from other files.
+priv Secret := struct {
+    mut value := 0
+namespace:
+    show := func(self: Secret) returns I64 { return self.value }
+}
+
+// Public factory that returns a value derived from the priv struct.
+// Same-file usage of Secret is fine; the returned I64 carries no
+// reference to the hidden type.
+make_secret := func(v: I64) returns I64 {
+    s := Secret(value = v)
+    return s.show()
+}

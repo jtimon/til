@@ -428,7 +428,7 @@ main := proc(args: ..Str) {
               "returns are owned by default", 1,
               asan_safe_cmd(til_bin.concat(" interpret src/test/qualifier_returns_own_error.til"), til_bin))
     add_count(tests, "priv_error", "typer",
-              "is private to", 1,
+              "is private to", 3,
               asan_safe_cmd(til_bin.concat(" interpret src/test/priv_error.til"), til_bin))
     add_count(tests, "enum_switch_missing_case_interp", "typer",
               "non-exhaustive switch on enum", 2,

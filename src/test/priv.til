@@ -15,3 +15,23 @@ priv local_double := func(x: I64) returns I64 {
 test_priv_same_file := test() {
     assert_eq(__LOC__, local_double(21), 42)
 }
+
+// #179 step 2: same-file priv struct works (construct + method call).
+priv LocalSecret := struct {
+    mut value := 0
+namespace:
+    doubled := func(self: LocalSecret) returns I64 {
+        return self.value.add(self.value)
+    }
+}
+
+test_priv_struct_same_file := test() {
+    s := LocalSecret(value = 21)
+    assert_eq(__LOC__, s.doubled(), 42)
+}
+
+// Importer can use the public make_secret which internally
+// constructs a priv Secret in priv_helper.til.
+test_priv_struct_indirect := test() {
+    assert_eq(__LOC__, make_secret(99), 99)
+}

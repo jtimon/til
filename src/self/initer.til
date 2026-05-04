@@ -259,6 +259,7 @@ register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shall
         ref mut b : TypeBinding = scope.get_binding(sname)
         b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
+        b.is_priv = sdecl.is_priv
         return 0.to_i32()
     case:
         UNREACHABLE(__LOC__)

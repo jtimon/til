@@ -1,7 +1,13 @@
 mode script
 import("priv_helper.til")
 
-// Negative test: cross-file reference to a priv standalone func must error.
+// Negative tests: cross-file references to priv items must error.
 main := proc() {
+    // Step 1: priv standalone func.
     println(internal_inc(1).to_str())
+    // Step 2: priv struct constructor.
+    s := Secret(value = 1)
+    println(s.show().to_str())
+    // Step 2: priv struct method via type-name namespace call.
+    println(Secret.show(s).to_str())
 }

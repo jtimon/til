@@ -1235,18 +1235,19 @@ parse_statement := proc(mut p: Parser) returns Expr {
     if is_priv {
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            // Step 1 of #179: only standalone func/proc decls are
-            // allowed to carry priv. Reject anything else loudly so
-            // future steps (structs, enums, fields, globals) opt in
-            // explicitly rather than silently accepting the keyword.
-            mut is_func := false
+            // #179 steps 1-2: priv is allowed on standalone func/proc
+            // decls and on struct decls. Future steps (enums, fields,
+            // globals) opt in explicitly rather than silently accepting
+            // the keyword.
+            mut allowed := false
             if stmt.children.len().gt(0) {
                 ref body : Expr = stmt.child(0)
-                if body.node_type.is(NodeType.FuncDef) { is_func = true }
+                if body.node_type.is(NodeType.FuncDef) { allowed = true }
+                if body.node_type.is(NodeType.StructDef) { allowed = true }
             }
-            if is_func.not() {
+            if allowed.not() {
                 panic(__LOC__, p.path, ":", priv_line.to_str(), ":", priv_col.to_str(),
-                    ": error: 'priv' is only supported on top-level func/proc declarations")
+                    ": error: 'priv' is only supported on top-level func/proc/struct declarations")
             }
             dd.is_priv = true
         case:
