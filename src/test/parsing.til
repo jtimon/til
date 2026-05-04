@@ -1,8 +1,8 @@
 mode script
 
-import("../self/lexer.til")
-import("../self/ast.til")
-import("../self/parser.til")
+import("../self/lexer")
+import("../self/ast")
+import("../self/parser")
 
 // Helper: tokenize + parse
 parse_src := proc(src: Str) returns Expr {

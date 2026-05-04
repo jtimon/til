@@ -1,8 +1,8 @@
 mode lib
 
-import("bool.til")
-import("i64.til")
-import("str.til")
+import("bool")
+import("i64")
+import("str")
 
 /// 32-bit floating-point number.
 F32 := struct {

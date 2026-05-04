@@ -1,15 +1,15 @@
 mode lib
 
-import("bool.til")
-import("dyn.til")
-import("i32.til")
-import("i64.til")
-import("map.til")
-import("str.til")
-import("u32.til")
-import("u64.til")
-import("u8.til")
-import("vec.til")
+import("bool")
+import("dyn")
+import("i32")
+import("i64")
+import("map")
+import("str")
+import("u32")
+import("u64")
+import("u8")
+import("vec")
 
 // builtin types
 

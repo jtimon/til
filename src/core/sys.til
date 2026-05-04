@@ -1,8 +1,8 @@
 mode lib
 
-import("i64.til")
-import("str.til")
-import("u64.til")
+import("i64")
+import("str")
+import("u64")
 
 // System primitives
 spawn_cmd := ext_proc(cmd: Str) returns I64 {}

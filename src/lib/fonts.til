@@ -7,7 +7,7 @@ mode lib
 // All numeric fields are big-endian. Glyph coordinates are 16-bit signed
 // integer font units; default em-square size is 10240 (see svg.til).
 
-import("svg.til")
+import("svg")
 
 // --- Primitive writers ---
 

@@ -1,12 +1,12 @@
 mode lib
 
-import("bool.til")
-import("dyn.til")
-import("f32.til")
-import("i32.til")
-import("i64.til")
-import("u8.til")
-import("vec.til")
+import("bool")
+import("dyn")
+import("f32")
+import("i32")
+import("i64")
+import("u8")
+import("vec")
 
 CAP_LIT : USize = -1.to_usize()
 CAP_VIEW : USize = -2.to_usize()

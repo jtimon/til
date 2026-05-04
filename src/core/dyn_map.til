@@ -1,10 +1,10 @@
 mode lib
 
-import("bool.til")
-import("dyn.til")
-import("map.til")
-import("str.til")
-import("tuple.til")
+import("bool")
+import("dyn")
+import("map")
+import("str")
+import("tuple")
 
 /// String-keyed map of dynamically-typed values.
 DynMap := struct {

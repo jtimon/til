@@ -1,14 +1,14 @@
 mode lib
 
-import("bool.til")
-import("dyn.til")
-import("f32.til")
-import("i16.til")
-import("i32.til")
-import("str.til")
-import("u32.til")
-import("u64.til")
-import("u8.til")
+import("bool")
+import("dyn")
+import("f32")
+import("i16")
+import("i32")
+import("str")
+import("u32")
+import("u64")
+import("u8")
 
 /// Signed 64-bit integer.
 I64 : StructDef = struct {

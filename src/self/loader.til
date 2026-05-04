@@ -1,11 +1,11 @@
 mode lib
 
-import("parser.til")
-import("modes.til")
-import("initer.til")
-import("typer.til")
-import("precomp.til")
-import("scavenger.til")
+import("parser")
+import("modes")
+import("initer")
+import("typer")
+import("precomp")
+import("scavenger")
 
 // --- External C bridges used by the loader ---
 
@@ -94,8 +94,8 @@ resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd
 
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
 // The .til suffix is appended internally; paths already ending in ".til" are
-// accepted as-is during this transitional commit.
-extract_imports := func(body: Expr) returns Vec {
+// rejected with a helpful error suggesting the bare-name form.
+extract_imports := func(body: Expr, path: Str) returns Vec {
     mut paths := Vec.new("Str", Str.size())
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
@@ -105,10 +105,12 @@ extract_imports := func(body: Expr) returns Vec {
                 if _c0id.eq("import") {
                     ref p : Str = get_payload(stmt.child(1).node_type)
                     if p.ends_with(".til") {
-                        paths.push(own p.clone())
-                    } else {
-                        paths.push(own p.concat(".til"))
+                        bare := p.strip_suffix(".til")
+                        loc := path.concat(":").concat(stmt.line.to_str()).concat(":").concat(stmt.col.to_str())
+                        panic(loc, "import path must not end in '.til' (got \"", p,
+                            "\"); use import(\"", bare, "\") instead")
                     }
+                    paths.push(own p.concat(".til"))
                 }
             }
         }
@@ -152,7 +154,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
             sub_mode = normalize_mode_name(sub_mode)
             ref sub_mode_def : Mode = require_mode(disp, sub_mode)
             context_register_path_mode(ctx, disp, sub_mode_def)
-            sub_imports := extract_imports(sub_ast)
+            sub_imports := extract_imports(sub_ast, disp)
 
             // Get imported file's directory for recursive resolution
             sub_dir := dir_of(abs)
@@ -635,7 +637,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 
     // Resolve core imports
     core_units := Vec.new("ProgramUnit", ProgramUnit.size())
-    core_imports := extract_imports(core_ast)
+    core_imports := extract_imports(core_ast, core_disp)
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
@@ -651,7 +653,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     tokens := tokenize(source, path)
     mut mode_str := ""
     user_ast := parse(tokens, path.clone(), mode_str)
-    imports := extract_imports(user_ast)
+    imports := extract_imports(user_ast, path)
     mode_str = normalize_mode_name(mode_str)
     ref mut cur_mode : Mode = require_mode(path, mode_str)
     context_register_path_mode(ctx, path, cur_mode)
@@ -699,7 +701,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         context_register_path_mode(ctx, mode_disp, mode_mode_def)
 
         // Resolve the auto-import file's own imports (mirrors core.til).
-        mode_imports := extract_imports(mode_ast)
+        mode_imports := extract_imports(mode_ast, mode_disp)
         mode_dir := bin_dir.concat("/src/modes")
         if mode_imports.len().gt(0) {
             err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,

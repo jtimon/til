@@ -1,6 +1,6 @@
 mode lib
 
-import("initer.til")
+import("initer")
 
 Mode := struct {
     mut needs_main := false

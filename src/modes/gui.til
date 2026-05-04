@@ -1,7 +1,7 @@
 mode lib
 
-import("../lib/raylib.til")
-import("../lib/tinyfd.til")
+import("../lib/raylib")
+import("../lib/tinyfd")
 
 link("dl")
 

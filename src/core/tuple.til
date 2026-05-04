@@ -1,11 +1,11 @@
 mode lib
 
-import("bool.til")
-import("dyn.til")
-import("str.til")
-import("u32.til")
-import("u8.til")
-import("vec.til")
+import("bool")
+import("dyn")
+import("str")
+import("u32")
+import("u8")
+import("vec")
 
 /// Heterogeneous sequence of values with mixed types.
 Tuple := struct {

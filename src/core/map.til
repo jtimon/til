@@ -1,10 +1,10 @@
 mode lib
 
-import("bool.til")
-import("dyn.til")
-import("i64.til")
-import("str.til")
-import("vec.til")
+import("bool")
+import("dyn")
+import("i64")
+import("str")
+import("vec")
 
 /// Hash map from typed keys to typed values.
 Map := struct {

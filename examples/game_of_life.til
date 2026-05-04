@@ -1,5 +1,5 @@
 mode gui
-import("../lib/cell.til")
+import("../lib/cell")
 
 // Conway's Game of Life — B3/S23
 // Born with exactly 3 neighbors, survive with 2 or 3

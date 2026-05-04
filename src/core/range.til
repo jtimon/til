@@ -1,7 +1,7 @@
 mode lib
 
-import("bool.til")
-import("u64.til")
+import("bool")
+import("u64")
 
 /// Integer interval from start (inclusive) to end (exclusive).
 Range := struct {

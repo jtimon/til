@@ -1,6 +1,6 @@
 mode script
 
-import("../self/lexer.til")
+import("../self/lexer")
 
 check_tok := proc(tokens: Vec, i: USize, expected_type: TokenType, expected_text: Str) {
     ref t : Token = tokens.get(i)

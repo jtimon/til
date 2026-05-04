@@ -1,5 +1,5 @@
 mode gui
-import("../lib/alphabeta.til")
+import("../lib/alphabeta")
 
 // Checkers (Draughts)
 // 2-player or 1-player vs AI (alpha-beta search)

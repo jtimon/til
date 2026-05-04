@@ -1,9 +1,9 @@
 mode cli
 
-import("../core/io.til")
-import("../core/ast.til")
-import("../self/lexer.til")
-import("../self/parser.til")
+import("../core/io")
+import("../core/ast")
+import("../self/lexer")
+import("../self/parser")
 
 NL := Str.from_byte(10)
 Q := Str.from_byte(34)

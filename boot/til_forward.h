@@ -1284,7 +1284,7 @@ ProgramUnit * ProgramUnit_clone(ProgramUnit * self);
 void ProgramUnit_delete(ProgramUnit * self, Bool * call_free);
 U32 ProgramUnit_size(void);
 Vec * resolve_import_disps(Vec * import_paths, Str * base_dir, Str * lib_dir, Str * cwd);
-Vec * extract_imports(Expr * body);
+Vec * extract_imports(Expr * body, Str * path);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 void LoadedProgram_delete(LoadedProgram * self, Bool * call_free);

@@ -1,6 +1,6 @@
 mode lib
 
-import("../lib/libffi.til")
+import("../lib/libffi")
 
 ExtStr := struct {
     ref mut data : U8 = NULL

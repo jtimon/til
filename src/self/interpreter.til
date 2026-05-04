@@ -1,7 +1,7 @@
 mode lib
 
-import("loader.til")
-import("builder.til")
+import("loader")
+import("builder")
 
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 

@@ -1,10 +1,10 @@
 mode lib
 
-import("bool.til")
-import("dyn.til")
-import("i64.til")
-import("str.til")
-import("u64.til")
+import("bool")
+import("dyn")
+import("i64")
+import("str")
+import("u64")
 
 /// Signed 16-bit integer.
 I16 := struct {
