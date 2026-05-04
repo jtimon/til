@@ -1,0 +1,81 @@
+# priority: low
+** OPEN #57 First-class enums: EnumDef as values
+
+:DEPENDENCIES: [[./58.org][#58]]
+  Based on rstil/doc/first_class.org. Enum definitions as first-class values
+  that can be passed to functions, returned from macros, and stored in
+  collections.
+
+*** Passing enum types as arguments
+
+   #+begin_src til
+   // A function that works with any enum
+   print_variants := func(E: enum) {
+       // iterate over variants (requires reflection)
+   }
+   #+end_src
+
+   Open question: what can you DO with a generic enum? Iterate variants?
+   This is really reflection/metaprogramming territory.
+
+*** Anonymous enums
+
+   #+begin_src til
+   // Inline enum type as variable
+   result : enum { Ok: I64, Err: Str } = Ok(42)
+
+   // Inline enum as argument to macro
+   count_variants := macro(T: Type) returns I64 {
+       def := enum_def_of(type_as_str(T))
+       return def.variants.len()
+   }
+   expect(__LOC__, 3, count_variants(enum { Red, Green, Blue }))
+   expect(__LOC__, 2, count_variants(enum { None, Some: I64 }))
+   #+end_src
+
+*** Returning enums from functions (macros)
+
+   #+begin_src til
+   // Macro that generates an enum with methods
+   make_result := macro(T: Type, E: Type) returns Type {
+       return enum {
+           Ok: T,
+           Err: E,
+
+       namespace:
+           ok := func(v: T) returns MyResult { return MyResult.Ok(v) }
+       }
+   }
+   MyResult := make_result(I64, Str)
+   #+end_src
+
+*** Storing in collections
+
+   Enum definitions are values, so they can be stored:
+
+   #+begin_src til
+   // Vec of enum instances (same type, different values)
+   mut dirs := Vec.new(Direction)
+   dirs.push(own Direction.North)
+   dirs.push(own Direction.South)
+
+   // Vec of enum *definitions* (different types stored in same Vec)
+   mut defs := Vec.new(EnumDef)
+   defs.push(own enum_def_of("Direction"))
+   defs.push(own enum_def_of("Shape"))
+
+   // Anonymous enum literal pushed directly
+   defs.push(own enum { Red, Green, Blue })
+   #+end_src
+
+*** Comparison
+
+   | Language   | Enum with data                         | Anonymous sum types?         |
+   |------------+----------------------------------------+------------------------------|
+   | Rust       | ~enum Shape { Circle(f64) }~           | No                           |
+   | Swift      | ~enum Shape { case circle(Double) }~   | No                           |
+   | TypeScript | N/A (union types instead)              | Yes: ~number \vert string~   |
+   | Haskell    | ~data Shape = Circle Double~           | No (but easy to define)      |
+   | Zig        | ~const E = union(enum) { }~            | No                           |
+   | TIL        | ~enum { Circle: I64 }~                 | Yes (inline args)            |
+

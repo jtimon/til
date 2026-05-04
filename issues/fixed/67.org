@@ -1,0 +1,16 @@
+** #67 For-in range should coerce literal 0 to match the end type
+  Added implicit numeric widening: smaller integer types are automatically
+  promoted to larger ones when passed as function arguments. Safe widenings:
+  U8→U16/U32/U64/I16/I32/I64, U16→U32/U64/I32/I64, U32→U64/I64,
+  I16→I32/I64, I32→I64. No signed→unsigned, no narrowing.
+
+  Changes:
+  - typer.c: added can_implicit_widen() check in both arg validation loops
+    (namespace functions and regular functions)
+  - interpreter.c: added widen_numeric() and needs_widen() helpers to
+    convert values at function call sites (both ident and expression args)
+  - Tests: loops.til (for-in range with U32 count), types.til (explicit
+    widening tests for U32→U64, U32→I64, U8→U64)
+
+  ~for i in 0..count~ where count is U32 now works without manual conversion.
+

@@ -1,0 +1,10 @@
+NEXT_ISSUE: 190
+
+1. Create a new file in issues/open/ with the next number, e.g. issues/open/189.org
+2. First line: "# priority: high" or "# priority: low"
+3. Then: "** OPEN #189 Title" followed by the issue body
+4. Increment NEXT_ISSUE above
+5. To start work: change OPEN -> WIP in the title line (no directory move needed)
+6. When fixed:  git mv issues/open/NNN.org issues/fixed/NNN.org
+7. When cancelled: git mv issues/open/NNN.org issues/cancelled/NNN.org
+8. Run: bin/til interpret examples/issues.til  (regenerates issues/summary.org, updates NEXT_ISSUE)

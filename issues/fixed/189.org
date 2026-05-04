@@ -1,0 +1,44 @@
+** #189 Sibling variadic / kwargs fcalls in the same stmt left undesugared
+  Sibling-position variant of [[./186.org][#186]] / #188.
+  ~find_variadic_fcall~ and ~find_kwargs_fcall~ both return the
+  first match in DFS order. ~process_call_desugars~ in
+  [[file:../../src/self/typer.til][src/self/typer.til]] called each finder once per stmt, desugared
+  the returned fcall, and stopped. With nested calls the [[./186.org][#186]] /
+  [[./188.org][#188]] fix recursed on the emitted setters, but two SIBLINGS in
+  the same arg list were never co-located in any setter, so only
+  the first sibling got desugared. The second (and any further
+  siblings) stayed raw and gcc rejected them with shape errors
+  like ~too many arguments to function 'sum'~ or
+  ~incompatible pointer type~.
+
+  Concrete repro:
+
+  #+begin_src til
+  mode cli
+  sum := func(nums: ..I64) returns I64 {
+      mut t := 0
+      for n : I64 in nums { t = t.add(n) }
+      return t
+  }
+  add2 := func(a: I64, b: I64) returns I64 { return a.add(b) }
+  main := proc() { println(add2(sum(1, 2), sum(3, 4)).to_str()) }
+  #+end_src
+
+  Pre-fix: gcc rejected the second ~sum(3, 4)~ as having too many
+  arguments. Post-fix: prints ~10~ in both ~bin/til run~ and
+  ~bin/til interpret~. The containing call doesn't have to be
+  variadic itself for the bug to bite; ~add2~ here is regular.
+
+  Fix: same shape as [[./186.org][#186]] / [[./188.org][#188]] -- after rewriting a
+  variadic / kwargs fcall (and recursing on its setters), recurse
+  ~process_call_desugars~ on the stmt itself to catch any
+  remaining sibling variadic / kwargs fcalls. Track ~did_work~
+  explicitly in the variadic branch to avoid an infinite loop on
+  the (unreachable in practice) ~elem_type~-null edge case.
+
+  Regression tests: ~bug189_sibling_variadic~ in
+  [[file:../../src/test/variadic.til][src/test/variadic.til]] (regular outer over two variadic
+  siblings, plus mixed sibling + raw arg) and
+  ~bug189_sibling_kwargs~ in [[file:../../src/test/kwargs.til][src/test/kwargs.til]] (regular outer
+  over two kwargs siblings). All 100 tests pass.
+

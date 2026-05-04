@@ -1,0 +1,97 @@
+** #168 Typer: reject ~ref~ bindings initialized from owned values
+  Problem:
+
+  The leaks closed for ~FCallData.fn_sig~ in [[./109.org][#109]] had the same
+  shape as a class of bugs the typer didn't know how to flag:
+
+  #+begin_src til
+  ref mut fn_sig : Expr = NULL
+  ...
+  fcd.fn_sig = src.clone()
+  #+end_src
+
+  ~src.clone()~ returns an owned heap allocation. ~ref~ is a
+  non-owning pointer slot. Storing the owned value into a ~ref~
+  slot leaves the allocation with no owner: the auto-generated
+  delete skips ~ref~ fields, the function's stack frame holds no
+  handle, and the heap copy leaks. The same anti-pattern can
+  appear in decl initialisers, NULL-init refs, struct field
+  defaults, assignments, and ref-typed function returns -- the
+  predicate is the same in all five surfaces.
+
+  Fix:
+
+  Added typer-side checks across all five surfaces, growing the
+  rule incrementally so each step's audit could surface and fix
+  any latent violations:
+
+  - Step 1 (~check_ref_decl_owned_init~): reject literal
+    ~ref X := Y.clone()~ in local decls. Audit confirmed no
+    existing source uses the pattern ([[./109.org][#109]] had cleaned up
+    ~fn_sig~'s clones).
+
+  - Step 1b (~check_ref_local_null_init~): reject
+    ~ref X := NULL~ / ~ref mut X := NULL~ in function-body
+    locals. NULL is forced for struct/namespace field defaults
+    and remains allowed at module scope (registry pattern).
+    Audit found 26 violations, all fixed across 5 mechanical
+    patterns:
+    - 6x ~ref mut X : Dynamic = NULL~ -> ~mut X : Dynamic = 0~
+      (~Dynamic~ is just void*, the ref was structural theatre)
+    - 2x ~ref X : T = NULL; return X~ shims -> ~return NULL~
+    - 6x ~ref mut prog : Expr = NULL~ in 2-iteration loops in
+      builder.til -> per-prog helpers
+      (~emit_funcsig_typedefs_prog~,
+      ~emit_header_forward_decls_prog~, etc.)
+    - 6x ~if cond { X = scope.get_struct(name) }~ -> call
+      unconditionally (NULL-on-miss semantics already exist), or
+      switch to ~find_namespace_func~
+    - 6x case-analysis assignments -> per-site resolver helpers
+      returning ~ref T~ or NULL
+      (~type_def_struct_def_for~, ~resolve_decl_fn_sig~,
+      ~field_assign_dyn_move_src~, ~ffi_call_ret_struct_def~)
+
+  - Step 2 (~fcall_returns_own~): generalised the predicate
+    from literal ~.clone()~ to any FCall whose callee returns
+    ~OwnType.Own~. Recognised callee shapes: Ident-as-func,
+    Ident-as-constructor (registered struct/enum), namespace
+    dispatch ~Type.method(...)~, UFCS ~obj.method(...)~. Enum
+    variant constructors caught for free since the initer
+    registers each variant as a ns_decl whose default_value is
+    its constructor FuncDef.
+
+  - Step 3 (~check_ref_field_owned_default~): same predicate
+    applied to struct field defaults at
+    ~infer_type_def_expr~. NULL defaults still allowed for
+    ~ref~ fields (forced exception -- the parent type doesn't
+    yet have an instance to point at).
+
+  - Step 4 (~check_ref_assign_owned_rhs~): same predicate
+    applied to ~Assign~ and ~FieldAssign~ statements. This is
+    the shape that originally bit ~FCallData.fn_sig~. Audit
+    surfaced 2 latent leaks of exactly that class, both fixed:
+    - ~TypeBinding.alias_target~ migrated from
+      ~ref mut Str = NULL~ to ~mut alias_target := ""~; updated
+      ~is_null~ -> ~is_empty~ checks; replaced ~ptr_eq~ alias-
+      chain comparison with ~.eq()~ on captured-by-clone old
+      value.
+    - ~ctype~ local in ~emit_as_ptr~ refactored to a
+      ~resolve_ident_ctype~ helper returning an owned Str.
+
+  - Step 5: ref-typed function returns. Extra branch in
+    ~infer_return_stmt~ when ~returns_ref != 0~ and the return
+    expression is an FCall returning own.
+
+  Tests: regression cases in [[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] for
+  every shape; ~typer_errors~ count went from 71 to 88. 96/96
+  pass.
+
+  Globals open question (deferred outside this issue): 8
+  module-scope ~ref mut X : T = NULL~ sites remain (six
+  ~cached_*_def~/~_name~ in interpreter.til, ~current_fdef~ in
+  builder.til, ~current_struct_def~ in typer.til). These are
+  thread-local-style caches that get swapped during a
+  processing pass; migrating them to a uniform shape touches
+  the broader "Context-shared symbol table" direction and is
+  tracked separately.
+

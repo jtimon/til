@@ -1,0 +1,11 @@
+** #16 Imports: multi-file programs
+  import "path.til" syntax loads declarations from other files into the
+  program scope. Flat include with dedup (realpath + Set), cycle detection
+  with clear error chain, companion .c file accumulation for FFI.
+
+  Path resolution: relative to importing file, then src/lib/ (standard
+  library). Imported files cannot declare mode. Zero downstream changes
+  — init, typer, precomp, scavenger, codegen, interpreter all untouched.
+
+  Tests: src/test/imports.til, src/test/import_diamond.til (+ helpers).
+

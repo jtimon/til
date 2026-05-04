@@ -1,17 +1,5 @@
-# Cancelled issues -- no longer relevant.
-
-** CANCELLED #134 Re-enable precomp constant-folding for compound types
-  Moot: removing the guard in try_eval_call (precomp.c) no longer crashes.
-  All 88 tests pass without it -- the underlying clone_value issue was
-  fixed by other changes.
-
-** CANCELLED #103 Typer: allow ref mut on enum get_* methods
-  Moot after #105: all ~get_X()~ methods replaced by generic
-  ~get_payload()~ ext_func, which is already recognized as
-  ref-returning by the typer. The problem no longer exists.
-
-** CANCELLED #122 Mode-sensitive type checks should be per module
-  Resolved by per-module mode tracking infrastructure. See also #116
+** #122 Mode-sensitive type checks should be per module
+Resolved by per-module mode tracking infrastructure. See also #116
   for the remaining parse-time isolation issue.
 
   The problem was that the typer used a single global ~current_mode~
@@ -38,7 +26,3 @@
   ~is_pure~ restriction at typer.til:1141) now read the correctly
   switched mode via ~context_mode(ctx)~.
 
-** CANCELLED #62 Investigate: ctil-i slower than til-i -- til.til divergence?
-  ctil.c was replaced by til.til (#12). The performance comparison
-  between ctil-i and til-i is no longer relevant since ctil.c no
-  longer exists.

@@ -1,0 +1,9 @@
+** #126 Auto-generated enum delete now recurses into payload-owned data
+  ~generate_enum_delete_method~ in [[file:../../src/self/initer.til][src/self/initer.til]] now:
+  - iterates all variants and checks which is active via ~is_variant()~
+  - calls ~PayloadType.delete(get_payload(self), false)~ for owning variants
+  - filters out ~Dynamic~ and ~FuncPtr~ types (not directly owning)
+  This was the dominant leak source identified in [[./109.org][#109]] ASAN investigation.
+  The clone side ([[./128.org][#128]]) is still open -- auto-generated clone does not
+  deep-clone managed payloads.
+

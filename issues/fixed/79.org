@@ -1,0 +1,7 @@
+** #79 Type aliases in FuncPtr typedef signatures
+  Bodyless FuncDefs (FuncPtr typedefs like ~DistanceFn~, ~CloneFn~)
+  were breaking early in the typer before reaching alias resolution.
+  Added resolution for return type and param types in the early-exit
+  path. ~DistanceFn := func(Dynamic, Dynamic) returns USize~ now
+  correctly resolves ~USize~ to ~U64~ in generated C.
+

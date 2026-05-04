@@ -1,0 +1,11 @@
+# priority: low
+** OPEN #90 Til libraries: avoid symbol conflicts between independent libs
+
+When two til libraries are linked into the same C program, they both
+  define Vec, Map, Str, etc. from core.til. With ~--allow-multiple-definition~
+  this works but is fragile. Proper solution: compile core.til into a
+  shared ~libcoretil.a~ that all til libraries link against, or use
+  namespaced symbols (e.g. ~_til_Vec_push~). Not urgent — current
+  approach works for the compiler itself. Only matters when til is used
+  as a library language by external C programs.
+

@@ -1,0 +1,29 @@
+# priority: low
+** OPEN #164 Diagnose `mut` qualifiers that are never used to write
+
+After [[./161.org][#161]] the typer rejects `ref mut x : T = src` when `src` is
+   immutable. The simplest way to fix the existing chain-walker
+   patterns (cursors that only rebind themselves to walk a chain, like
+   `scope_get` in src/self/interpreter.til, `extend_ref_local_lifetimes`
+   in src/self/typer.til, and `eval_body`'s nested-FieldAssign walker)
+   is to mark the source param as `mut` so the cursor's `ref mut` is
+   legal. That's a small lie: the param is declared writable but the
+   body never writes through it.
+
+   Goal: have the typer warn (later, error) when a `mut` param or
+   `mut` / `ref mut` local is declared but never used as a write
+   target -- neither `x = ...`, nor `x.f = ...`, nor passed as the
+   `mut`/`own` argument of a callee that writes through it. Then the
+   chain-walker params can drop the `mut` qualifier without losing
+   the laundering check.
+
+   Notes:
+
+   - Rebind-only cursors (`x = x.next`) currently require `ref mut`,
+     which forces the source to be mut. A separate language-level
+     fix would be to distinguish "rebindable local pointer" from
+     "write-through ref mut" so a chain walker doesn't need to lie
+     about its source. Worth considering when picking up this issue.
+   - The diagnostic should ignore `_`-prefixed names (consistent
+     with [[./86.org][#86]] unused-local handling).
+

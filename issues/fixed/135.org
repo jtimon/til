@@ -1,0 +1,10 @@
+** #135 ref mut assignment clones instead of pointer copy
+  Converted two ~ref mut~ "nullable pointer" variables to ~mut~ with
+  explicit boolean flags, eliminating unnecessary clone calls:
+  - ~type_name~ in ~infer_field_access_fcall~: ~ref mut : Str = NULL~ ->
+    ~mut type_name := ""~ with ~has_type_name~ flag
+  - ~first_if~ in ~infer_switch_stmt~: ~ref mut : Expr = NULL~ ->
+    ~mut first_if := Expr.new(...)~ with ~has_first_if~ flag
+  Also fixed ~is_null(type_name)~ checks to use ~has_type_name~ and
+  ~type_name.len().gt(0)~ for the UFCS resolution path.
+

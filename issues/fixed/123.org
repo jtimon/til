@@ -1,0 +1,50 @@
+** #123 variadic-call double-free across forward references
+
+  Original symptom (the surface bug that opened the issue):
+  - ~bin/til ast small.til~ aborted with ~double free or corruption (fasttop)~.
+  - ASAN trace pointed at ~Array_delete~ from ~ast_print~, with the
+    variadic ~Array~ temp built for ~print(...)~ getting deleted twice.
+
+  That call site was sidestepped earlier on master by:
+  - ~31a492c~ Run ast command before ~prepare_program~, on the raw
+    parsed AST (no desugar/typer pass, no variadic temp).
+  - ~86d99d2~ ~Expr.to_str~-based ast formatter (no ~print(...)~
+    inside ~ast_print~ at all).
+
+  Underlying typer bug (still live after those commits):
+  - The parser left variadic params with the default
+    ~own_type = OwnType.Shallow~. The typer promoted them to
+    ~OwnType.Own~ only when ~infer_func_def_expr~ ran on the variadic
+    function's own body ([[file:../../src/self/typer.til:1306-1307][src/self/typer.til:1306-1307]]).
+  - Because ~core.til~ imports ~ast.til~ (line 9) before ~io.til~
+    (line 23), ~Expr.error~'s body was type-checked while
+    ~println~'s param ~own_type~ was still ~Shallow~. ~check_own_args~
+    then failed to mark ~_va_Array_NN~ as own-transferred, and the
+    cleanup pass emitted a redundant ~Array_delete(_va_Array_NN,
+    &(Bool){1})~ after the ~println(...)~ call. ~println~ already
+    deleted ~parts->data~, so the post-call ~Array_delete~ was a
+    heap-use-after-free.
+  - Symmetric path for kwargs was already correct: the parser branch
+    at [[file:../../src/self/parser.til:210][src/self/parser.til:210]] sets ~param_decl.own_type =
+    OwnType.Own~ explicitly. The variadic branch right below didn't.
+
+  Real fix:
+  - [[file:../../src/self/parser.til:224][src/self/parser.til:224]]: variadic param ~own_type~ is now set to
+    ~OwnType.Own~ at parse time, mirroring the kwargs branch. Variadic
+    params are then born with the right ownership annotation, and
+    forward references see the correct value regardless of file load
+    order. The typer's mid-flight mutation at
+    [[file:../../src/self/typer.til:1306-1307][src/self/typer.til:1306-1307]] becomes a no-op for variadic params
+    but is left untouched (still needed for kwargs / the
+    func_scope.set side).
+
+  Verified:
+  - 4-line repro (~Expr.new(...).error("...")~), built with
+    ~bin/til build~ and the resulting C compiled with
+    ~-fsanitize=address~: previously crashed with
+    ~heap-use-after-free in U32_lt~; now exits 0.
+  - ~Expr_error~ in ~gen/til/repro.c~ no longer ends with
+    ~Array_delete(_va_Array_NN, &(Bool){1})~ after ~println(...)~.
+  - ~make clean && make test~ passes 89/89 with the regenerated
+    boot/.
+

@@ -1,0 +1,65 @@
+** #178 Context-shared symbol table (rstil-style)
+  Goal: collapse til's scattered per-phase symbol/cache module-globals
+  into a single ~Context~ struct ([[file:../../src/self/initer.til][src/self/initer.til]]), matching
+  rstil's ~Context~ in spirit. The bug-class motivating this is the
+  ~FCallData.fn_sig~ leak family: phase A resolves something into a
+  transient scope, phase B (the builder) needs the same data but
+  can't reach back into A's scope, so each phase invents its own
+  side-table keyed differently.
+
+  Done in this issue:
+
+  Step 1 -- ~local_fn_sigs~ moved from builder module-global into
+  ~Context.local_fn_sigs~. This was the worked example: the missing
+  table that [[./147.org][#147]] step 7 had to invent on the builder side. It is
+  now read/written through ~codegen_lp().ctx.local_fn_sigs~.
+
+  Step 2 -- five builder lookup tables migrated:
+  ~func_defs~, ~struct_def_exprs~, ~funcsig_names~,
+  ~script_globals~, ~ref_globals~. These are populated during build
+  registration and consulted throughout codegen.
+
+  Step 3 -- five per-function transients migrated:
+  ~stack_locals~, ~stack_local_types~, ~unsafe_to_hoist~,
+  ~ref_locals~, ~current_fdef~. Reset on entering each function
+  body; saved/restored where ~emit_body_scoped~ needs to nest. The
+  save/restore is now field-reassignment (til's auto-cleanup handles
+  the old map), not explicit ~delete~ + reassign.
+
+  Step 4 -- ~current_struct_def~ removed from typer.til. Listed in
+  [[./177.org][#177]] as a ~ref mut X : Expr = NULL~ thread-local-style global to
+  migrate; turned out to be set but never read, so removal IS the
+  migration.
+
+  Pattern documented inline in ~Context~ struct:
+  [[file:../../src/self/initer.til:116-157][src/self/initer.til:116-157]]. Each field group has a comment
+  explaining who fills it and who reads it. Adding the next table is
+  mechanical: declare a field on ~Context~, set/read via
+  ~codegen_lp().ctx.X~ in expression context or
+  ~ref mut lp = codegen_lp(); lp.ctx.X.method(...)~ in statement
+  context. The latter form works around a parser limitation where
+  chained method calls cannot start a statement.
+
+  Acceptance:
+  - ~local_fn_sigs~ replaced by a Context-backed lookup -- done.
+  - 96/96 tests still pass -- verified.
+  - ASAN baseline does not regress -- verified
+    (slightly improved: -953 bytes, -175 allocations on
+    ~translate src/test/strings.til~).
+  - Documented pattern for adding the next table -- inline comments
+    in ~Context~ field declarations.
+
+  Out of scope (left for follow-ups):
+  - ~in_func_def~/~in_main_func~/~ctor_seq~ in builder.til. Plain
+    boolean/counter emission state, not a symbol/cache table.
+  - Interpreter caches (~interp_type_defs~, ~cached_str_def~ et al
+    in interpreter.til). These would also benefit from Context
+    placement; the blocker is that interpreter helpers like
+    ~make_str_value~ don't have ~lp~ threaded through. Migrating
+    them is a separate (mechanical) refactor that should set
+    ~codegen_lp_slot~ at ~interpret_units~ entry and read through
+    ~codegen_lp().ctx.X~. Tracked under #177.
+  - ~current_type_name~, hoist/va/kw counters, and other typer
+    module-globals. Same mechanical migration; pattern is now in
+    place.
+

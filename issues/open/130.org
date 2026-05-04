@@ -1,0 +1,93 @@
+# priority: high
+** OPEN #130 AST / ~Expr~ representation cleanup
+
+The current AST shape is confusing and duplicates state in ways that make
+  parser and ownership bugs harder to reason about.
+
+  Current pressure points:
+  - ~ExprData~ is still acting as a giant catch-all payload enum
+  - node-kind-specific data is split between ~Expr~, ~ExprData~, and
+    sometimes child lists
+  - that makes ownership/lifetime of payload pointers much harder to see
+  - parser code is forced into fragile payload-rebuild patterns around
+    ~ExprData.FuncDef~, ~Decl~, and related nodes
+
+  Intended direction:
+  - move toward a clearer node model where node-kind payload data lives in
+    the node-kind payload itself
+  - keep structural subexpressions in children, instead of duplicating
+    state between children and payload structs
+  - reduce the amount of duplicated / mirrored metadata spread across
+    ~Expr~ and embedded payload structs
+
+  Expected payoff:
+  - simpler parser code
+  - fewer use-after-free / stale-payload bugs during AST rewrites
+  - easier future cleanup of clone/delete semantics around AST nodes
+
+  Done so far:
+  - DONE Declaration: ~is_ref~ + ~is_own~ bools -> ~own_type: OwnType~ enum
+  - DONE Expr: ~is_own_field~ + ~is_ref_field~ bools -> ~field_own_type: OwnType~
+  - DONE TypeBinding: ~is_own~ + ~is_ref~ bools -> ~own_type: OwnType~
+  - DONE Parser/typer/builder locals: all ~is_own~/~is_ref~/~is_shallow~ bools
+    replaced with ~OwnType~ variables
+  - DONE ~FCallData.is_proc~: removed (always false, never read)
+  - DONE ~TypeBinding.is_proc: I32~ -> ~func_type: FuncType~ with ~FuncType.None~
+  - DONE ~Expr.fn_sig~ moved to ~FCallData.fn_sig~ (single source of truth)
+  - DONE Expr: ~is_ns_field~ removed (look up ~Declaration.is_namespace~ instead)
+  - DONE Expr: ~field_own_type~ removed (look up ~Declaration.own_type~ instead)
+  - DONE Expr: ~save_old_delete~ moved to ~AssignData~ payload
+  - DONE Expr: ~is_splat~ moved to ~FCallData.is_splat~
+  - DONE Expr: ~is_own_arg~ moved to ~FCallData.own_args~ U64 bitmask
+  - DONE Expr: ~is_core~ removed (core and user ASTs kept separate)
+  - DONE Expr: ~variadic_index/count~, ~kwargs_index/count~ removed
+    (duplicated in ~FCallData~, never used on Expr)
+  - DONE Ghost fields ~is_ext~, ~total_struct_size~ removed from Expr
+
+  Remaining opportunities:
+  - ~StructDefData.total_struct_size~: duplicates per-field offset/size
+    data. See ~[[./147.org][#147]]~ for the broader proposal to move struct layout off
+    the AST entirely into a ~Context.struct_layouts~ map.
+
+  See ~[[./147.org][#147]]~ for broader Context/Declaration redesign ideas drawn from
+  rstil; this issue stays focused on field-by-field Expr payload
+  shrinking.
+
+  Ideas from rstil comparison (rstil's Expr is just 4 fields: node_type,
+  params, line, col -- all payload lives in NodeType variants).
+
+  til's Expr is now down to 6 fields: ~data~, ~til_type~, ~struct_name~,
+  ~children~, ~line~, ~col~. The remaining gap to rstil's 4-field shape is
+  type-checker outputs (~til_type~, ~struct_name~).
+
+  Expr-level bloat still present:
+  - ~Expr.til_type~ and ~Expr.struct_name~: type-checker outputs, not
+    parser outputs. rstil has neither on Expr. Could live in a side table
+    or TypeBinding instead of bloating every node.
+  - (removed) ~Expr.path~: DONE. Path is tracked per-file (Context.path)
+    instead of stored on every node.
+
+  Payload struct bloat still present:
+  - ~Declaration.field_offset~ / ~field_size~ / ~field_struct_def~: struct
+    layout computation results. rstil's Declaration has none of them --
+    layout is computed during evaluation. Moving these to a separate
+    struct-layout table makes Declaration a pure AST node.
+  - ~FCallData~: rstil's equivalent (~FCallInfo~) is just ~{does_throw,
+    is_bang}~ -- two bools. til's ~variadic_index~ / ~variadic_count~ /
+    ~kwargs_index~ / ~kwargs_count~ / ~is_splat~ / ~own_args~ / ~fn_sig~
+    are all resolution artifacts. Could shrink FCallData to throw/bang
+    flags if variadic resolution moves to a later phase.
+  - ~FunctionDef~ sig/def split: rstil cleanly separates ~FuncSig~
+    (type-level: arg types, return types, throw types) from ~FuncDef~
+    (instance-level: arg names, body). til's ~FunctionDef~ mixes both.
+    Splitting could simplify function type checking and make func
+    signatures first-class without carrying bodies around.
+
+  rstil ideas already DONE:
+  - ~Expr.is_own_arg~ -> ~FCallData.own_args~ U64 bitmask (rstil uses
+    an OwnArg NodeType wrapper; til's bitmask avoids tree restructuring)
+  - ~Expr.fn_sig~ -> ~FCallData.fn_sig~ (call-site signature lives in
+    the call-site payload)
+  - ~Expr.is_splat~ -> ~FCallData.is_splat~
+  - ~Expr.save_old_delete~ -> ~AssignData.save_old_delete~
+

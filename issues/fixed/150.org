@@ -1,0 +1,34 @@
+** #150 Enum-valued Map literal crashed in compiled mode
+
+  Module-level ~M := { "a": E.A, "b": E.B }~ (with ~E~ a user enum)
+  compiled cleanly, ran the test body, then aborted with
+  ~free(): invalid pointer~ during teardown when the map deleted the
+  enum values.
+
+  Two independent bugs stacked:
+
+  1. Scavenger ([[file:../../src/self/scavenger.til][src/self/scavenger.til]]) in ~mode test~ only seeded
+     the worklist with test-function names, not with top-level
+     initializer statements. The Map-literal desugar produced
+     ~Map.set(M, own "a", own E.A)~ at module scope, but
+     ~Map.set~ was never reachable from the seed, so the namespace
+     method got pruned from the core AST. The resulting
+     ~gen/til/*_forward.h~ was missing ~Map_set~ (and ~_has~, ~_len~)
+     and C compilation failed once the generator emitted the call
+     anyway. Fix: in ~run_tests~ seed, also ~collect_refs~ on every
+     non-def top-level statement, matching the ~is_cli~ and default
+     branches.
+
+  2. In [[file:../../src/self/builder.til][src/self/builder.til]] ~emit_as_ptr~, a bare namespace enum
+     constructor (e.g. ~E.A~) was always lowered to a compound-literal
+     pointer ~&(E){.tag = E_TAG_A}~ regardless of the ~is_own~ flag.
+     That pointer has automatic storage, but ~Map.set~'s
+     ~own val: Dynamic~ path ends with ~free(val)~, so the
+     compiled binary freed a non-heap pointer during teardown. Fix:
+     when ~is_own~ is true for such a FieldAccess, emit the
+     malloc+compound-literal pattern ~({ E *_oa = malloc(sizeof(E));
+     *_oa = (E){.tag = E_TAG_A}; _oa; })~.
+
+  The regression test [[file:../../src/test/bug150.til][src/test/bug150.til]] covers both this crash
+  and [[./153.org][#153]] on the default interpret + run registration.
+

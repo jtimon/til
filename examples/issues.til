@@ -1,0 +1,201 @@
+mode cli
+
+import("../core/io")
+import("../core/sys")
+import("../core/str")
+import("../core/vec")
+import("../core/i64")
+
+NL := Str.from_byte(10)
+
+run := proc(cmd: Str) returns I64 {
+    pid := spawn_cmd(cmd)
+    return wait_cmd(pid)
+}
+
+list_dir := proc(dir: Str) returns Vec {
+    mut files := Vec.new("Str", Str.size())
+    tmpf := "tmp/_issues_ls"
+    mut cmd := "ls ".concat(dir).concat(" > ").concat(tmpf).concat(" 2>/dev/null")
+    run(cmd)
+    content := File.readfile(tmpf)
+    if content.is_empty() { return files }
+    names := content.split(NL)
+    for fi in 0..names.len() {
+        ref fname : Str = names.get(fi)
+        if fname.is_empty() { continue }
+        if fname.ends_with(".org").not() { continue }
+        files.push(own fname.clone())
+    }
+    return files
+}
+
+issue_num := func(fname: Str) returns I64 {
+    return fname.substr(0, fname.len().sub(4)).to_i64()
+}
+
+max_num_in := func(names: Vec) returns I64 {
+    mut m : I64 = 0
+    for fi in 0..names.len() {
+        ref fname : Str = names.get(fi)
+        n := issue_num(fname)
+        if n.gt(m) { m = n }
+    }
+    return m
+}
+
+// Parse an issue file and return {priority_marker, is_wip, link}
+// Returns "H\nlink" or "HW\nlink" or "L\nlink" or "LW\nlink"
+parse_issue := func(fname: Str) returns Str {
+    path := "issues/open/".concat(fname)
+    raw_content := File.readfile(path)
+    content := raw_content.clone()
+
+    nl1 := content.find(NL)
+    if nl1.lt(0) { return "" }
+    nl1u : USize = nl1.to_usize()
+    first_line := content.substr(0, nl1u)
+    is_high := first_line.find("high").gte(0)
+
+    after_first := content.substr(nl1u.add(1), content.len().sub(nl1u).sub(1))
+    nl2 := after_first.find(NL)
+    if nl2.lt(0) { return "" }
+    nl2u : USize = nl2.to_usize()
+    title := after_first.substr(0, nl2u)
+    title_owned := title.clone()
+
+    hash_pos := title_owned.find("#")
+    if hash_pos.lt(0) { return "" }
+    hp : USize = hash_pos.to_usize()
+    mut num_end := hp.add(1)
+    while num_end.lt(title_owned.len()) {
+        ref ch : U8 = title_owned.get(num_end)
+        if ch.eq('0').or(ch.eq('1')).or(ch.eq('2')).or(ch.eq('3'))
+            .or(ch.eq('4')).or(ch.eq('5')).or(ch.eq('6')).or(ch.eq('7'))
+            .or(ch.eq('8')).or(ch.eq('9'))
+        {
+            num_end = num_end.add(1)
+        } else {
+            break
+        }
+    }
+    num_str := title_owned.substr(hp, num_end.sub(hp))
+    after_num := title_owned.substr(num_end, title_owned.len().sub(num_end))
+    num_str_own := num_str.clone()
+    after_num_own := after_num.clone()
+
+    is_wip := title_owned.find("** WIP").gte(0)
+    link := format("*** [[./open/", fname, "][", num_str_own, "]]", after_num_own)
+
+    mut tag := "H"
+    if is_high.not() { tag = "L" }
+    if is_wip { tag = format(tag, "W") }
+    return format(tag, NL, link)
+}
+
+main := proc() {
+    files := list_dir("issues/open")
+    fixed := list_dir("issues/fixed")
+    cancelled := list_dir("issues/cancelled")
+
+    // Find max issue number
+    mut max_num : I64 = max_num_in(files)
+    fmax := max_num_in(fixed)
+    if fmax.gt(max_num) { max_num = fmax }
+    cmax := max_num_in(cancelled)
+    if cmax.gt(max_num) { max_num = cmax }
+
+    // Build entry lines
+    mut entries := Vec.new("Str", Str.size())
+    for fi in 0..files.len() {
+        ref fname : Str = files.get(fi)
+        line := parse_issue(fname)
+        if line.is_empty().not() {
+            entries.push(own line)
+        }
+    }
+
+    // Build summary.org manually
+    mut s := ""
+    s = s.concat("* Open").concat(NL)
+
+    // Open High
+    s = s.concat("** High").concat(NL)
+    for ei in 0..entries.len() {
+        ref entry : Str = entries.get(ei)
+        nl_pos := entry.find(NL)
+        if nl_pos.lt(0) { continue }
+        nlp : USize = nl_pos.to_usize()
+        tag := entry.substr(0, nlp)
+        link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
+        if tag.eq("H") { s = s.concat(link).concat(NL) }
+    }
+
+    // Open Medium
+    s = s.concat("** Medium").concat(NL)
+
+    // Open Low
+    s = s.concat("** Low").concat(NL)
+    for ei in 0..entries.len() {
+        ref entry : Str = entries.get(ei)
+        nl_pos := entry.find(NL)
+        if nl_pos.lt(0) { continue }
+        nlp : USize = nl_pos.to_usize()
+        tag := entry.substr(0, nlp)
+        link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
+        if tag.eq("L") { s = s.concat(link).concat(NL) }
+    }
+
+    // WIP
+    s = s.concat(NL).concat("* WIP").concat(NL)
+
+    // WIP High
+    s = s.concat("** High").concat(NL)
+    for ei in 0..entries.len() {
+        ref entry : Str = entries.get(ei)
+        nl_pos := entry.find(NL)
+        if nl_pos.lt(0) { continue }
+        nlp : USize = nl_pos.to_usize()
+        tag := entry.substr(0, nlp)
+        link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
+        if tag.eq("HW") { s = s.concat(link).concat(NL) }
+    }
+
+    // WIP Medium
+    s = s.concat("** Medium").concat(NL)
+
+    // WIP Low
+    s = s.concat("** Low").concat(NL)
+    for ei in 0..entries.len() {
+        ref entry : Str = entries.get(ei)
+        nl_pos := entry.find(NL)
+        if nl_pos.lt(0) { continue }
+        nlp : USize = nl_pos.to_usize()
+        tag := entry.substr(0, nlp)
+        link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
+        if tag.eq("LW") { s = s.concat(link).concat(NL) }
+    }
+
+    File.writefile("issues/summary.org", s)
+    println("Generated: issues/summary.org")
+
+    // Update process.org
+    next_num := max_num.add(1)
+    process_content := File.readfile("issues/process.org")
+    next_marker := "NEXT_ISSUE: "
+    marker_pos := process_content.find(next_marker)
+    if marker_pos.gte(0) {
+        marker_pos_u : USize = marker_pos.to_usize()
+        before := process_content.substr(0, marker_pos_u.add(next_marker.len()))
+        rest_start := marker_pos_u.add(next_marker.len())
+        rest := process_content.substr(rest_start, process_content.len().sub(rest_start))
+        end_nl := rest.find(NL)
+        mut updated := before.concat(next_num.to_str())
+        if end_nl.gte(0) {
+            end_nl_u : USize = end_nl.to_usize()
+            updated = updated.concat(rest.substr(end_nl_u, rest.len().sub(end_nl_u)))
+        }
+        File.writefile("issues/process.org", updated)
+        println("Updated: issues/process.org (NEXT_ISSUE: ", next_num.to_str(), ")")
+    }
+}

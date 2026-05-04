@@ -1,0 +1,74 @@
+# priority: low
+** OPEN #156 Improve til-mode indentation rules
+
+Commit ~6b441819~ ("Indentation: apply current til-mode
+  indentation rules") re-indented [[file:../../src/self/*.til][src/self/*.til]] with emacs'
+  til-mode and produced some results that read as unusual compared
+  to mainstream languages.  A few patterns worth revisiting:
+
+  - Continuation arguments of a multi-line function/proc signature
+    indent to column 4 from the start of the line, instead of
+    aligning with the first arg after the opening paren.  Example
+    from [[file:../../src/self/loader.til][src/self/loader.til]] before 6b44181:
+    #+begin_src til
+    resolve_imports := proc(import_paths: Vec, base_dir: Str,
+                            mut resolved_set: Set, mut stack: Vec,
+                            mut merged: Vec, lib_dir: Str,
+                            mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
+        for i in 0..import_paths.len() {
+            ...
+        }
+    }
+    #+end_src
+    After 6b44181:
+    #+begin_src til
+    resolve_imports := proc(import_paths: Vec, base_dir: Str,
+        mut resolved_set: Set, mut stack: Vec,
+        mut merged: Vec, lib_dir: Str,
+        mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
+            for i in 0..import_paths.len() {
+                ...
+            }
+        }
+    #+end_src
+    The function body is now at 8-space indent (two levels past the
+    signature) rather than the usual 4.  Most mainstream languages
+    put the body one level past the signature line's column of
+    definition, regardless of how many continuation lines the
+    signature spans.
+
+  - Chained method calls on a continuation line drop from
+    continuation-indent to align with the outer expression's column
+    — compare the ~.and(...)~ in ~extract_imports~ before and after
+    6b44181:
+    #+begin_src til
+    // before
+    if stmt.child(0).data.is(NodeType.Ident)
+        .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
+    // after
+    if stmt.child(0).data.is(NodeType.Ident)
+    .and(stmt.child(1).data.is(NodeType.LiteralStr)) {
+    #+end_src
+    The ~.and(...)~ at column 0 looks like a top-level form at a
+    glance, not a continuation of the previous line's expression.
+
+  Proposed rules to consider (exact choices open to discussion):
+  - Signature bodies indent one level past the column of the
+    function/proc NAME (~resolve_imports~ above), not past the deepest
+    signature continuation.
+  - Continuation args align with the first arg after the opening
+    paren when that column is reasonable (< 60); otherwise fall
+    back to a 4-space hang indent.
+  - Chained-method continuation lines indent relative to the base
+    expression of the chain, so the leading ~.~ is visually offset
+    from the outer statement indent.
+
+  Out of scope for this issue: revisit whether til should have any
+  indentation enforcement at all beyond editor guidance.  til's lexer
+  is whitespace-insensitive.
+
+  References:
+  - Commit ~6b441819~ applied the current rules in bulk.
+  - Emacs til-mode lives in ~editor/~ (the exact mechanism should
+    be linked here when someone tackles this issue).
+

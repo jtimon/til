@@ -1,0 +1,9 @@
+** #111 TypeScope / ScopeFind ASAN use-after-free
+  The original deterministic ASAN use-after-free in the self-hosted
+  type-scope lookup path is fixed. Root cause: generated switch lowering
+  took a payload pointer from a ~ScopeFind.Found(b)~ wrapper, then freed
+  the wrapper before using ~b.struct_def~. Fix: added borrowed
+  ~TypeScope.get_binding()~ helper and switched hot lookup paths to use it.
+  ~make test_asan~ now gets well into ~bin/tests~ instead of crashing early.
+  Remaining memory pressure (leak volume, not crashes) tracked under #109.
+

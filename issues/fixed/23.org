@@ -1,0 +1,24 @@
+** #23 shallow keyword: direct C calling convention for ext_func/ext_proc
+  Per-parameter ~shallow~ annotation on ext_func/ext_proc params tells the
+  FFI to pass C values instead of til pointers.
+
+  Example: ~malloc := ext_func(shallow count: I64) returns Dynamic {}~
+  FFI passes int64_t by value, returns void* — no wrapper .c file needed.
+
+  Implementation:
+  - Parser: ~shallow~ keyword before param name in ext_func/ext_proc
+  - AST: per-param ~param_shallows~ bool array on func_def
+  - Typer: validates shallow only on scalar types (I64, U8, I16, I32, U32,
+    Bool) and Dynamic
+  - dispatch.c: dereferences values before FFI call for shallow params,
+    uses ffi_type_sint64/uint8/etc. instead of ffi_type_pointer
+  - builder.c: emits direct C types for shallow params
+  - Auto-FFI: ffi_init scans all ext_func/ext_proc declarations, uses
+    ~dlsym(RTLD_DEFAULT, name)~ to find C library functions without
+    needing a companion .c file. Silently skips functions not found
+    (handled by dispatch_map). Processes ~link("lib")~ directives via
+    ~dlopen("libNAME.so", RTLD_NOW | RTLD_GLOBAL)~.
+  - Dynamic return type: FFI dispatch wraps void* returns as VAL_PTR
+  - Companion .c files eliminated for standard C library calls (malloc,
+    calloc, realloc, memcpy, memmove now go through auto-FFI)
+

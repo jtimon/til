@@ -1,0 +1,82 @@
+# priority: low
+** OPEN #56 First-class structs: StructDef as values
+
+:DEPENDENCIES: [[./58.org][#58]]
+  Based on rstil/doc/first_class.org. Struct definitions as first-class
+  values that can be passed to functions, returned from macros, and stored
+  in collections.
+
+*** Passing struct types as arguments (templates/generics)
+
+   #+begin_src til
+   // A function that takes a struct type and returns an instance
+   make_default := func(T: struct) returns T {
+       return T()  // call default constructor
+   }
+
+   p := make_default(Point)  // Point(x=0, y=0)
+   #+end_src
+
+   Open question: is ~T: struct~ the right syntax for "any struct type"?
+   Or should it be ~T: Type~ for any type?
+
+*** Anonymous structs (struct literals as values)
+
+   #+begin_src til
+   // Create a value with an anonymous struct type
+   p := struct { x: I64 = 10, y: I64 = 20 }
+
+   // Instantiate an anonymous struct
+   p := struct { mut x := 0 }(x = 10)
+   #+end_src
+
+*** Returning struct types from functions (macros)
+
+   #+begin_src til
+   // Already works via macros:
+   make_point := macro() returns Type {
+       return struct { mut x: I64 = 0, mut y: I64 = 0 }
+   }
+   Point := make_point()
+
+   // With namespace: keyword, macros return complete types with methods:
+   make_point := macro() returns Type {
+       return struct {
+           mut x: I64 = 0
+           mut y: I64 = 0
+
+       namespace:
+           origin := func() returns Point { return Point() }
+       }
+   }
+   #+end_src
+
+*** Storing in collections
+
+   Struct definitions are values, so they can be stored:
+
+   #+begin_src til
+   // Vec of struct instances (same type, different values)
+   mut points := Vec.new(Point)
+   points.push(own Point(x=10, y=20))
+   points.push(own Point(x=30, y=40))
+
+   // Vec of struct *definitions* (different types stored in same Vec)
+   mut defs := Vec.new(StructDef)
+   defs.push(own struct_def_of("Point"))
+   defs.push(own struct_def_of("Color"))
+
+   // Anonymous struct literal pushed directly
+   defs.push(own struct { mut x: I64 = 0, mut y: I64 = 0 })
+   #+end_src
+
+*** Comparison
+
+   | Language   | Struct literal syntax     | Anonymous structs?              |
+   |------------+---------------------------+---------------------------------|
+   | Rust       | ~Point { x: 10, y: 20 }~ | No (tuples only)                |
+   | Go         | ~Point{X: 10, Y: 20}~    | Yes: ~struct{X int}{10}~        |
+   | TypeScript | ~{ x: 10, y: 20 }~       | Yes (object literals)           |
+   | Zig        | ~.{ .x = 10, .y = 20 }~  | Yes (anonymous structs)         |
+   | TIL        | ~Point(x=10, y=20)~      | Yes: ~struct{mut x := 0}(x=10)~ |
+

@@ -1,0 +1,38 @@
+** #43 Remove --allow-multiple-definition linker workaround
+  The ~-Wl,--allow-multiple-definition~ flag is gone from both
+  ~compile_c~ and ~compile_lib~ in [[file:../../src/self/builder.til][src/self/builder.til]]. Programs
+  now link cleanly; any real duplicate-symbol conflict surfaces as a
+  linker error instead of being silently masked.
+
+  Root cause and fixes applied:
+  - ~src/til.til~ used ~link_c("src/c/ext.c")~, but every compile
+    already links ~ext.c~ via ~ext_c_path~ in ~compile_c~. The
+    explicit ~link_c~ was redundant and caused ~ext.c~ to be compiled
+    twice into the same binary (duplicate symbols). Removed.
+  - [[file:../../src/c/ext.c][src/c/ext.c]] defined three plain C functions (~F32_from_i64~,
+    ~U64_from_i64~, ~U64_to_str~) whose names collide with the C
+    functions the builder generates for the matching core ~U64~/~F32~
+    namespace methods. The plain versions were dead or only reachable
+    via an internal wrapper. Removed the plain definitions and inlined
+    ~U64_to_str~'s body into ~U64_to_str_ext~. [[file:../../src/c/ext.h][src/c/ext.h]] updated
+    accordingly.
+  - With ~link_c~ gone from ~til.til~, the scavenger now runs on
+    ~til.til~ itself (previously skipped, per ~loader.til:354~). Two
+    adjustments were needed:
+    - [[file:../../src/self/scavenger.til][src/self/scavenger.til]]: the BFS used ~if top.has(name) ...
+      else if core_top.has(name) ...~, so an ~ext_func~/~ext_proc~
+      shim in a user file would shadow the real core definition and
+      the scavenger would never walk the core body, dropping the
+      referenced ~lte~/~gte~/~inc~/~dec~/... methods and helpers.
+      Changed the ~else if~ to a second independent ~if~ so both
+      user and core bodies are walked.
+    - [[file:../../src/self/loader.til][src/self/loader.til]]: removed the ~ast_print := ext_proc(...){}~
+      shim that duplicated the core definition in [[file:../../src/core/ast.til][src/core/ast.til]].
+      The shim pre-dated the scavenger fix and was the only user-side
+      shadow of a core function; without it the scavenger correctly
+      reaches ~ast_print~ from ~core_top~.
+
+  Follow-up commit drops ~--allow-multiple-definition~ from the
+  Makefile's ~LD_FLAGS~ as well, now that HEAD carries the clean
+  [[file:../../src/c/ext.c][src/c/ext.c]] and the regenerated ~boot/til.c~.
+

@@ -1,0 +1,8 @@
+** #144 Remove clone-and-assign in typer desugar passes
+  The typer's desugar passes (insert_free_calls, desugar_variadic_calls,
+  etc.) rebuilt body.children via body.children = new_ch. The generated
+  C did Vec_delete + Vec_clone + Vec_delete for each pass, plus the loop
+  body did new_ch.push(own stmt.clone()) -- a deep Expr.clone() per kept
+  statement -- and the final reassignment did another Vec_clone of the
+  whole new_ch into body.children.
+

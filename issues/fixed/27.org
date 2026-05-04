@@ -1,0 +1,29 @@
+** #27 Test functions and mode test
+  New function kind: test (FUNC_TEST). Like proc but auto-run by
+  runtime, cannot be called manually, root-scope only, no params,
+  no return type. Typer enforces all constraints.
+
+  mode test: decls_only=yes, needs_main=no. Runtime auto-runs all
+  test functions in declaration order, reports pass/fail.
+
+  bin/ctil test: universal test execution on any file regardless of
+  mode. Ignores main/top-level statements, runs only test functions.
+
+  Renamed core.til `test` proc to `expect` to free the keyword.
+
+  Limitations of mode test (decls_only):
+  - Top-level non-decl statements are not executed in codegen mode
+    (scavenger may also remove them). Move workaround refs into tests.
+  - Top-level constant initializers (N := 10) are not run in codegen,
+    causing NULL dereferences. Move constants inside test functions.
+  - Imported top-level constants have the same issue. Tests that depend
+    on imported constants (e.g. import_diamond.til) must stay mode script.
+
+  Files kept as mode script/cli for specific reasons:
+  - typer_errors.til: deliberately triggers type errors, not runnable
+  - globals.til: tests script-mode global variable behavior
+  - globals_cli.til: tests CLI-mode globals
+  - import_diamond.til: uses imported top-level constant (SHARED_VAL)
+  - lexing.til: large file (500+ lines) with full tokenizer impl
+  - parsing.til: large file (1000+ lines) with full parser impl
+

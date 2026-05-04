@@ -1,0 +1,70 @@
+# priority: high
+** OPEN #158 One pass per phase across the whole pipeline
+
+Each phase listed in doc/pipeline.org (lex, parse,
+   init_declarations, type_check, precomp, scavenge, interpret /
+   build) should walk the AST exactly once. At each statement, all
+   the work that phase needs to do should happen before moving on.
+
+   Today this is not true. Concrete evidence read directly from the
+   source:
+
+   - ~tokenize~ (src/self/lexer.til:259) -- single pass over the
+     source string. OK.
+
+   - ~parse~ (src/self/parser.til:1319) -- single pass over the
+     token stream. OK. After the main loop it appends pre-collected
+     ~fn_sig_decls~ and ~lambda_decls~ -- no extra AST walks.
+
+   - ~init_declarations~ (src/self/initer.til:1870-1887) calls 12
+     separate sub-procs, each taking ~program~ and walking it:
+       register_struct_definitions, register_funcsig_aliases,
+       generate_missing_struct_clones, generate_missing_struct_deletes,
+       register_enums_and_generate_nonclone_methods,
+       generate_missing_enum_clones, register_type_aliases,
+       compute_all_struct_layouts, generate_size_methods,
+       generate_derived_methods, register_function_definitions,
+       register_top_level_values.
+
+   - ~type_check~ -> ~infer_body~ runs 7 sub-passes per body
+     (already covered in [[./146.org][#146]]): desugar_set_literals,
+     desugar_map_literals, desugar_variadic_calls,
+     desugar_kwargs_calls, hoist_fcall_args, insert_field_deletes,
+     insert_free_calls.
+
+   - ~precomp~ (src/self/precomp.til:506) has 3 numbered sub-passes
+     (collect names, set up scope, fold calls).
+
+   - ~scavenge~ (src/self/scavenger.til:212) has 5 numbered
+     sub-passes (build top maps, seed worklist, BFS, filter
+     top-level decls, filter ns methods).
+
+   - ~interpret~ (src/self/interpreter.til:1622) walks core and user
+     programs through 5 sub-procs each before evaluation:
+     ~ffi_init_scan_program~, ~interpret_register_defs~,
+     ~interpret_register_aliases~, ~interpreter_init_ns~,
+     ~interpret_copy_alias_ns~, then ~eval_body~. So core/user are
+     each walked ~6 times before execution.
+
+   - ~build~ (src/self/builder.til:3617-3699) calls roughly a dozen
+     emit_* helpers, each walking core and user programs:
+     build_register_lookups, build_register_funcsig_names,
+     emit_monolithic_header, emit_ext_func_declarations,
+     emit_all_forward_declarations, emit_global_declarations,
+     emit_function_bodies, emit_dyn_call_bodies,
+     emit_dyn_fn_wrappers, emit_dyn_has_bodies,
+     emit_collection_helpers, plus emit_test_main /
+     emit_script_main / emit_lib_init at the end.
+
+   What I want: one pass per phase. Not one pass for some sub-passes
+   inside the typer ([[./146.org][#146]]'s scope). Every phase: lexer, parser,
+   initer, typer, precomp, scavenger, builder, interpreter -- one
+   walk over the AST (or token stream / source for lexer/parser).
+
+   Related:
+   - [[./146.org][#146]] -- partial step inside the typer only: merge the
+     desugar/insert sub-passes
+   - [[./144.org][#144]] -- per-pass clone-and-assign that this would also
+     eliminate
+   - [[./109.org][#109]] -- the leaks dominated by these repeated rebuilds
+

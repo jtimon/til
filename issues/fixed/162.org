@@ -1,0 +1,29 @@
+** #162 Core files should import semantic dependencies explicitly
+  Closed in two parts:
+
+  1. Alphabetize [[file:../../src/core/core.til][src/core/core.til]]'s import list. Today's machinery
+     does not depend on core.til's order at all (init_file recursion
+     registers every name in scope across every imported file before
+     the typer runs anywhere), so this was a no-op on the build. The
+     wedged ~USize := U32~ position that originally motivated the
+     issue was a separate problem -- alias registration silently
+     dropped on NotFound -- already addressed in [[./165.org][#165]] step 1
+     (c4b8064).
+
+  2. Per-file explicit imports for every [[file:../../src/core/*.til][src/core/*.til]]. Each file
+     now lists ~import("...")~ for the type-defining files it
+     references (numeric primitives, Bool, Str, Dynamic, collection
+     types, ast). Cycles between ~vec.til~ and ~str.til~,
+     ~bool.til~ and ~i64.til~, ~dyn.til~ and many others are tolerated
+     by ~init_file~'s recursion-with-memo (`ctx.imports_init_done`):
+     the second visitor returns immediately, the first proceeds with
+     its own decls. Build remains green and deterministic.
+
+  This is a real prerequisite for ~[[./165.org][#165]]~ step 2 (move method synthesis
+  from ~init_declarations_global~ into the typer's per-decl visit):
+  once that lands, the typer's ~type_file~ recursion uses these
+  per-file imports to produce a topo sort, so file A's typer visit
+  comes after file B's whenever A references auto-generated methods
+  on B-typed values. til already has ~type_file~ + ~ctx.imports_typer_done~,
+  so no separate sort algorithm is needed -- just the explicit edges.
+

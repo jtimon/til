@@ -1,0 +1,32 @@
+** #161 ref mut accepts a non-mut ref source (mutability laundering)
+  The typer used to allow `ref mut y : T = x` even when `x` was an
+  immutable ref local or a non-mut function parameter, silently
+  laundering away the const-ness of `x` and letting the body mutate
+  it through `y`. This defeated the whole point of distinguishing
+  `ref` from `ref mut`: an immutable arg passed by reference could
+  be turned into a writable alias inside the callee, making the
+  function's signature a lie.
+
+  Fix in [[file:../../src/self/typer.til][src/self/typer.til]] (~infer_decl_typed_value~): when
+  ~sdecl.own_type == OwnType.Ref~ and ~sdecl.is_mut~, additionally
+  walk the rhs and reject if it's an Ident bound to a non-mut
+  binding (covers both immutable ref locals and non-mut params).
+  Owning locals declared without `mut` are also rejected, so an
+  immutable owning local can no longer be re-aliased as `ref mut`
+  either. New error: ~'ref mut' cannot bind to an immutable source;
+  declare the source as 'mut' or 'ref mut'~.
+
+  Existing chain-walker patterns in src/self/typer.til
+  (~extend_ref_local_lifetimes~) and src/self/interpreter.til
+  (~scope_get~, ~eval_body~'s nested-FieldAssign walker) used the
+  laundering to maintain a rebindable cursor over an immutable
+  source. They were updated to declare their source params /
+  iter vars as ~mut~ so the cursor's ~ref mut~ is legal. This is
+  a small lie -- the bodies don't actually write through the param
+  -- and is tracked by [[./164.org][#164]] (warn/error on ~mut~ qualifiers that
+  are never used to write).
+
+  Regression tests added in [[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] for both
+  laundering cases (immutable ref local and non-mut param). Count
+  in ~src/tests.til~ bumped from 59 to 61.
+

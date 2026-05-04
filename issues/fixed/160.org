@@ -1,0 +1,33 @@
+** #160 for-in collection: support `for mut x : T in coll`
+  The parser previously rejected `for mut x : T in coll` with
+  `expected 'identifier', found 'mut'`. The form is now accepted.
+
+  ~ref~ is implicit in collection for-in loops: when ~get()~ returns
+  ~ref~, the synthesised element decl already gets ~own_type = Ref~.
+  ~for mut x : T in coll~ keeps that and additionally marks the
+  binding mutable, which is exactly what the ~ref mut x : T = d_x~
+  alias workaround did. No separate ~for ref mut~ keyword is needed.
+
+  Changes:
+
+  - [[file:../../src/core/ast.til][src/core/ast.til]]: introduced ~ForInData~ struct (name, is_mut)
+    and switched ~NodeType.ForIn~ from ~Str~ payload to ~ForInData~.
+    Updated ~node_head_str~ and ~ast_print~ to render the ~mut~
+    modifier.
+
+  - [[file:../../src/self/parser.til][src/self/parser.til]]: ~for~ statement parser now accepts an
+    optional ~mut~ before the iteration variable.
+
+  - [[file:../../src/self/typer.til][src/self/typer.til]]: ~desugar_for_in_collection_stmt~ propagates
+    ~is_mut~ onto the synthesised element ~Decl~ (the existing
+    ~own_type = Ref~ behaviour is unchanged).
+    ~desugar_for_in_range_stmt~ propagates ~is_mut~ to the
+    per-iteration variable.
+
+  - [[file:../../src/self/initer.til][src/self/initer.til]]: migrated the two ~ref mut x : T = d_x~
+    alias workarounds in ~compute_struct_layout~ and
+    ~resolve_field_struct_defs~ to ~for mut fd : Declaration in ...~.
+
+  Tests in [[file:../../src/test/loops.til][src/test/loops.til]]: ~test_for_in_mut_collection~,
+  ~test_for_in_mut_range~.
+

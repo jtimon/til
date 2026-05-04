@@ -1,0 +1,24 @@
+# priority: high
+** OPEN #125 Enum payload method generation should not assume ~eq~/~to_str~
+
+Related to ~[[./102.org][#102]]~, but separate: even if structs later auto-generate
+  ~eq~ and ~to_str~, enum auto-generation still needs a clear rule for
+  payload variants.
+
+  Right now payload enums auto-generate:
+  - ~eq~ by calling payload ~.eq(...)~
+  - ~to_str~ by calling payload ~.to_str()~
+
+  That fails for payload types like ~Expr~, which currently do not expose
+  those methods, even though the enum itself may still be useful for
+  internal compiler bookkeeping.
+
+  Example that currently fails during self-hosting:
+  - ~CtorArg := enum { Unfilled, Filled: Expr }~
+
+  Open design question:
+  - should enums auto-generate ~eq~/~to_str~ only when all payload types
+    support them?
+  - should those methods be skipped entirely unless explicitly requested?
+  - should payload and non-payload enums follow different defaults?
+

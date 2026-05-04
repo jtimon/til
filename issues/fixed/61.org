@@ -1,0 +1,31 @@
+** #61 Lambdas: anonymous inline functions
+
+  Anonymous FuncDef literals (lambdas without captures) now work
+  anywhere a FuncSig-typed value is expected.
+
+  Parser lifts every anonymous FuncDef literal at an "argument" or
+  "value" position into a hidden top-level ~_lambda_<N>~ declaration
+  and replaces the original expression with an Ident referring to the
+  lifted name. Existing fn_ptr machinery ([[./14.org][#14]]) then treats the lambda
+  as a regular named function -- no typer, builder, or interpreter
+  changes needed. See ~maybe_lift_lambda~ in src/self/parser.til.
+
+  Lifted positions:
+  - Positional FCall arg: ~apply(func(...) { ... }, 3, 4)~
+  - Named FCall arg: ~apply(op = func(...) { ... }, x = 4)~
+  - UFCS method-call arg (positional and named): ~obj.m(func(...) { ... })~
+  - RHS of FuncSig-typed declaration: ~f : UnaryOp = func(...) { ... }~
+  - Struct field default value: ~Handler := struct { mut on_click : BinaryOp = func(...) { ... } }~
+  - Struct constructor named arg: ~Handler(on_click = func(...) { ... })~
+
+  FuncSig form lambdas (type separated from param names) also work:
+  ~parse_func_def~ accepts the ~= (names) { body }~ continuation after
+  a bodyless ~func(Types) returns T~, producing a complete FuncDef Expr.
+  - ~apply(func(I64) returns I64 = (x) { return x.mul(2) }, 5)~
+  - ~f : BinaryOp = func(I64, I64) returns I64 = (a, b) { return a.sub(b) }~
+
+  Tests: src/test/first_class.til (13 tests, both interpret and run).
+
+  No captures -- pure lambdas only. Closures (captures) are #54.
+  Storing function pointers in collections is tracked under #58.
+

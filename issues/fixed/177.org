@@ -1,0 +1,62 @@
+** #177 Migrate module-scope ~ref mut X : T = NULL~ thread-local-style globals
+  Closed in tandem with [[./178.org][#178]]: the worked-example sites all migrated
+  to ~Context~ fields, and the typer rule now rejects the pattern at
+  module scope too (was previously a conservative carve-out).
+
+  Migrations done (8 sites total):
+
+  - [[file:../../src/self/builder.til:24][src/self/builder.til:24]] -- ~current_fdef~: moved into
+    ~Context.current_fdef~ as part of [[./178.org][#178]] step 3 (per-function
+    transients).
+  - [[file:../../src/self/typer.til:79][src/self/typer.til:79]] -- ~current_struct_def~: removed in
+    [[./178.org][#178]] step 4 (set but never read; removal IS the migration).
+  - [[file:../../src/self/interpreter.til:263-268][src/self/interpreter.til:263-268]] -- six entries
+    (~cached_str_def~, ~cached_str_name~, ~cached_array_def~,
+    ~cached_array_name~, ~cached_vec_def~, ~cached_vec_name~):
+    moved into ~Context.cached_*~ fields (option 3 from the
+    issue: "Move into a struct field on a longer-lived owner").
+
+  Plumbing the interpreter migration required:
+
+  - ~interpreter_init_ns~ now takes ~ctx: Context~ as its first
+    parameter (was implicit module-global). All callers
+    (precomp.til, loader.til, the legacy ~interpret~ entry,
+    ~interpret_units~) updated.
+  - ~codegen_set_lp(lp)~ called at the top of ~precomp_imported~
+    (loader.til) and ~interpret_units~ (interpreter.til) so that
+    the dispatch handlers ~h_array~/~h_vec~ in dispatch.til and
+    ~make_str_value~/~make_str_value_own~/~build_argv_array~ in
+    interpreter.til can read ~codegen_lp().ctx.cached_*~. Cleared
+    on exit.
+
+  Typer rule extension:
+
+  - ~check_ref_local_null_init~ no longer gates on
+    ~in_func.eq(0).and(proc_def_depth.eq(0))~. It now applies
+    uniformly: module scope, func/proc bodies, test/macro bodies.
+    The function/error message renamed from "ref local" to "ref
+    binding" to reflect the broader scope.
+  - The old ~test_null_ref_local~ in [[file:../../src/test/ref.til][src/test/ref.til]] relied on
+    the gate's accidental looseness for ~test()~ bodies; removed
+    (with a one-line breadcrumb pointing at [[./177.org][#177]]). Two new
+    negative cases added in [[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] for
+    module-scope ~ref/~ref mut~ NULL inits, bumping the expected
+    error count from 88 to 90.
+
+  Workaround for til's typer ownership-transfer rule:
+
+  - ~lp.ctx.cached_str_def = sdef~ (where ~sdef~ is a ~ref Expr~
+    local) trips ~expr_transfers_own~'s "FieldAssign of an Ident
+    on a non-shallow field is a transfer" rule, even though both
+    sides are borrowed. Workaround: assign ~stmt.child(0)~
+    directly instead of going through the local. Worth revisiting
+    that rule -- it's stricter than necessary for ref-to-ref
+    field assignments -- but out of scope here.
+
+  Acceptance:
+  - All 8 sites migrated -- done.
+  - Conservative [[./168.org][#168]] rule extended to module scope -- done.
+  - 99/99 tests still pass -- verified.
+  - ASAN baseline does not regress (improved by ~3895 bytes /
+    345 allocations on translate src/test/strings.til).
+

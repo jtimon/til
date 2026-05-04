@@ -1,0 +1,52 @@
+# priority: high
+** WIP #173 Vec.new(Expr) syntax: copy rstil's runtime-type-name trick
+
+Goal:
+
+   - Replace ~Vec.new("Foo", Foo.size())~ with ~Vec.new(Foo)~ across
+     the codebase (and similarly for Map/Set/Array/List/Tuple).
+   - Mirrors the rstil trick where the codegen converts a type
+     identifier passed to a ~Type~-typed parameter into a string
+     literal at the call site, and runtime size is looked up via a
+     generated ~til_size_of(name)~ switch.
+
+   Plan (incremental commits):
+
+   1. [X] Add ~dyn_size_of(type_name: Str) returns USize~ as a new
+      ext_func, paralleling ~dyn_call~/~dyn_fn~/~dyn_has_method~.
+      Interpreter handler reuses ~get_elem_size~. Codegen emits a
+      ~U32 dyn_size_of(Str *)~ function with a ~memcmp~ switch over
+      every struct/enum returning ~sizeof(<TypeName>)~.
+   2. [ ] Slim ~Vec.new~ to a single ~elem_type: Str~ arg and call
+      ~dyn_size_of~ internally. Rewrite all ~Vec.new~ callsites
+      (~50 sites).
+   3. [ ] Same treatment for ~Array.new~, ~Map.new~, ~Set.new~,
+      ~List.new~, and any ~Tuple~ fields that pass ~T.size()~.
+   4. [ ] Add ~dyn_type_to_str(T)~ ext_func: at the call site, the
+      codegen converts the type identifier ~T~ to the string literal
+      ~"T"~. Special-cased in the typer like ~dyn_call~ requires its
+      method arg to be a literal.
+   5. [ ] Rewrite all ~Vec.new("Foo")~ callsites to ~Vec.new(Foo)~
+      and equivalents for the other collections. End state: no
+      ~T.size()~ noise at any callsite, no string-literal type names
+      either.
+
+   Not in scope:
+
+   - We're not introducing rstil's string-based ~Type~ pseudo-type or
+     renaming the existing ~TilType~ enum. The two ~dyn_*~ helpers
+     fit the codebase's existing dispatch pattern and avoid touching
+     the typer's value-type machinery.
+
+   Side issue uncovered (may be subsumed by master's [[./165.org][#165]]):
+
+   - When the ~dyn_size_of~ ext_func declaration was placed at the
+     bottom of [[file:../../src/core/dyn.til][src/core/dyn.til]] (after the ~CloneFn~/~DeleteFn~/...
+     ~default_clone~/... block), an unrelated assert in
+     ~misc.til~'s ~Bool.and()~ chain would fail. Reproducible only
+     with this exact name + that exact position; renaming at the
+     same position passed. Workaround in step 1: place the
+     declaration with the other ~dyn_*~ funcs. Master's [[./165.org][#165]]
+     ("Declaration order should not matter") looks like the same
+     family.
+

@@ -1,0 +1,5 @@
+** #134 Re-enable precomp constant-folding for compound types
+Moot: removing the guard in try_eval_call (precomp.c) no longer crashes.
+  All 88 tests pass without it -- the underlying clone_value issue was
+  fixed by other changes.
+

@@ -1,0 +1,56 @@
+** #0 Complete basic memory management before extending pointer semantics
+  Memory management is now fully automatic. The user never calls free or
+  delete explicitly — ASAP destruction and typer-inserted clone/delete handle
+  everything. No shallow copies, no leaks, in both interpreter and builder.
+
+  What was done:
+
+** FIXED Eliminate shallow copies: typer-inserted clone calls
+   The typer inserts Type.clone(x) at all 4 copy sites when the value is
+   a NODE_IDENT:
+
+   | Operation              | Status |
+   | Declaration (y := x)   | FIXED  |
+   | Assignment (y = x)     | FIXED  |
+   | Field assign (o.f = x) | FIXED  |
+   | Struct construction    | FIXED  |
+
+   Works for all types — primitives via core.til clone, user structs via
+   auto-generated clone. Interpreter uses move semantics (transfer ownership,
+   null source cell) instead of deep copy. builder uses pointer-assign for
+   compound types, deref-assign for scalars.
+
+   Struct constructors use field-by-field assignment (emit_ctor_fields)
+   instead of compound literals. Inline compound fields use deref + free-wrapper
+   to avoid sharing internal pointers with hoisted temps.
+
+   Interpreter clone_value made properly recursive: own fields recursively
+   call clone_value instead of shallow one-level-deep memcpy+strndup. Inline
+   struct fields (e.g. Vec inside a parent struct) are now recursively
+   deep-cloned via temporary StructInstance + clone_value, matching the
+   builder's Type_clone() calls in emit_ctor_fields. Previously only Str
+   and enum fields were deep-cloned; all other inline/own structs were
+   shallow-copied, causing use-after-free when internal heap pointers
+   (like Vec's elem_type.c_str) were shared between copies.
+
+** FIXED Reassignment frees old value
+   Typer inserts Type.delete(own var) before compound-type variable reassignment.
+   Typer inserts Type.delete(obj.field, call_free) before field reassignment:
+   call_free=true for own fields, call_free=false for inline compound fields.
+   Interpreter also calls free_value before overwriting (handles scalars).
+   builder evaluates RHS before freeing old value to prevent reading freed
+   memory when RHS references the same variable (e.g. counter = counter.add(1)).
+
+** FIXED Custom clone/delete: user-defined override for auto-generated
+   The initer checks for existing clone/delete in the struct namespace before
+   auto-generating. If the user defines their own, the initer skips generation.
+
+** FIXED Use-after-own error: catch transferred variables at compile time
+   The typer detects use of a variable after ownership transfer via `own` and
+   suggests the fix: own x.clone().
+
+** FIXED ASAP edge cases
+   - if/else branches: works correctly (last_use set to if statement index).
+   - while loops: return triggers parent-scope cleanup, break/continue don't.
+   - Closures: deferred (not yet supported).
+

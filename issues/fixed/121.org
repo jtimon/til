@@ -1,0 +1,27 @@
+** #121 Kwargs heterogeneous storage no longer relies on raw Map values
+  The old kwargs lowering built:
+
+  - ~Map.new("Str", Str.size(), "", MaxType.size())~
+
+  and used the empty ~val_type~ as a heterogeneous raw-storage escape
+  hatch. That stopped working once ~[[./120.org][#120]]~ made empty explicit types
+  illegal.
+
+  What changed:
+  - added a dedicated ~DynMap~ core container
+  - ~DynMap~ is currently a Str-keyed heterogeneous map implemented over
+    ~Map(Str, Tuple)~
+  - each stored value is wrapped as a one-element ~Tuple~
+  - ~DynMap.get(...)~ unwraps that tuple, so user code still uses:
+    - ~opts.has("x")~
+    - ~opts.get("prefix")~
+  - kwargs parameters now parse and lower as ~DynMap~, not ~Map~
+  - ~desugar_kwargs_calls~ now builds ~DynMap.new()~ plus
+    ~DynMap.set(key, type_name, type_size, value)~
+  - [[file:../../src/test/kwargs.til][src/test/kwargs.til]] and its test-harness entry were restored
+
+  Result:
+  - kwargs no longer depend on the old empty-~val_type~ raw-map escape
+    hatch
+  - heterogeneous kwargs storage is explicit again and test-covered
+

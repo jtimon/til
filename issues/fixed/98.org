@@ -1,0 +1,6 @@
+** #98 Allow funcs without return type
+  Removed the "func must declare a return type" restriction from
+  typer.c. Funcs can now be void (like procs) while keeping the
+  purity guarantee (no side effects). Macros still require a return
+  type.
+

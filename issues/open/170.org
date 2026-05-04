@@ -1,0 +1,34 @@
+# priority: high
+** OPEN #170 All-or-nothing caching for translate/build/run
+
+Symptom:
+
+   ~bin/til build~ / ~bin/til run~ redo expensive work even when the
+   output binary is already up-to-date for the current source tree.
+   This makes test harnesses that invoke many small ~build/run~ actions
+   much slower than they need to be.
+
+   Target behavior:
+
+   Go-style coarse caching (all-or-nothing):
+
+   - If the output binary exists and all transitive dependencies are
+     older than it, skip translate/build entirely.
+   - ~run~ still runs the binary; it just avoids rebuilding first.
+   - A flag like ~--force-rebuild~ bypasses the cache.
+
+   Sketch:
+
+   - Implement ~collect_all_deps(path)~ for a given .til file:
+     - the main file
+     - its transitive ~import("...")~ deps
+     - implicitly loaded core file(s)
+     - mode imports
+   - Implement ~needs_rebuild(output_path, deps)~ using ~file_mtime~.
+   - Wire the check into ~til build~ and ~til run~.
+
+   Open question:
+
+   - Should ~til translate~ always regenerate output (current rstil
+     behavior), or should it also be cacheable under the same mechanism?
+

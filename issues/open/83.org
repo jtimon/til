@@ -1,0 +1,39 @@
+# priority: low
+** OPEN #83 tiled: editor, window manager, terminal and more
+
+Mode gui application. The TempleOS-inspired everything-in-one-app:
+  editor + window manager + terminal + session manager + git client.
+  Like emacs but in til, with raylib rendering.
+
+  Existing: [[file:../../examples/editor.til][examples/editor.til]] -- text editing with file save/open
+  via tinyfiledialogs ([[./69.org][#69]] fixed). Ctrl+S saves (dialog if new file),
+  Ctrl+O opens file dialog.
+
+  Components (ongoing, like [[./24.org][#24]] music.til -- may have no end):
+
+*** Editor (emacs/vim hybrid)
+    Text editing with keybindings. Syntax highlighting for .til files.
+    Multiple buffers/tabs. File save/open via tinyfiledialogs.
+
+*** Git client (magit/egg replacement)
+    Status, diff, stage, commit, log — all from within tiled.
+    No more switching to terminal for git operations.
+    Replaces the emacs egg/magit workflow.
+
+*** Window manager (i3-style tiling)
+    Split panes, tiling layout. Run editor + terminal + git side by
+    side in one raylib window. Keyboard-driven, no mouse required.
+
+*** Terminal emulator
+    Run shell commands, see output. Replaces tmux/terminal tabs.
+    Combined with the window manager, this is the full desktop
+    environment inside one til program.
+
+*** Session manager
+    Save/restore window layouts, open files, terminal state.
+    Like tmux sessions but integrated.
+
+*** Themes
+    tiled uses ~mode theme~ ([[./84.org][#84]]) for its own color scheme. Gets
+    theme support for free once [[./84.org][#84]] is implemented.
+

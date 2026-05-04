@@ -1,0 +1,9 @@
+** #26 Mode struct: eliminate string-based mode checks
+  Replaced ad-hoc strcmp/Str_eq_c mode checks across 5 files with a
+  Mode struct in modes.h with properties: name, needs_main, decls_only,
+  auto_import. All backends receive const Mode* instead of Str*.
+
+  Adding a new mode now means one struct definition in modes.h instead
+  of touching every backend file. auto_import field generalizes the
+  gui.til/gui.c loading pattern to any mode.
+

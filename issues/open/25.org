@@ -1,0 +1,101 @@
+# priority: low
+** OPEN #25 Support for the 4 main operative systems
+
+:DEPENDENCIES: [[./12.org][#12]]
+  til currently only builds and runs on GNU/Linux. Should support the 4
+  main operative systems, in priority order:
+  1. GNU/Linux/BSD (current, done)
+  2. TempleOS
+  3. macOS
+  4. Windows
+
+  This is not just "til builds natively on each OS." The goal is full
+  cross-compilation: build a til binary for any target from any host.
+  The matrix is 3×4 + 1×1 = 13 combinations: Linux, macOS, and Windows
+  can each target all 4 platforms, but TempleOS as a host only targets
+  itself (cross-compiling from TempleOS would mean replacing gcc/clang,
+  which is out of scope).
+
+  ctil (the C bootstrap compiler) stays Linux-only. Once til is
+  self-hosting ([[./12.org][#12]]), til replaces ctil and handles all platforms.
+  Bootstrap path: ctil on Linux compiles self-hosted til → til can
+  then cross-compile itself and any .til program to any target.
+
+  The C codegen path helps: emit C + invoke the target's C compiler
+  works for most POSIX targets. But TempleOS breaks this pattern
+  (no C compiler), requiring a dedicated HolyC codegen backend.
+
+  The builder must select the appropriate codegen backend per target.
+
+  Common areas affected across platforms:
+  - Build system (builder that selects backend per target)
+  - FFI / dlsym (platform-specific dynamic loading)
+  - System primitives (spawn_cmd, readfile, etc. — POSIX vs platform APIs)
+  - GUI mode (raylib on POSIX/Windows, native primitives on TempleOS)
+  - Audio (miniaudio on POSIX/Windows, native on TempleOS)
+
+*** TempleOS
+   :DEPENDENCIES: [[./12.org][#12]]
+   The most interesting and challenging target. TempleOS has no C compiler,
+   no POSIX, no libc — just HolyC and its own kernel/graphics/audio APIs.
+
+   Requires a new holybuilder backend that emits HolyC instead of C.
+   HolyC is C-like enough that the translation should be mostly mechanical
+   (similar types, similar control flow), but differences in calling
+   conventions, memory management, and string handling will need attention.
+
+   For mode gui: raylib doesn't exist on TempleOS, so we need to recreate
+   raylib's interface using TempleOS graphics primitives (GrBlot, GrLine,
+   GrRect, etc.) and audio primitives. This is likely easier than most
+   people would expect — TempleOS has direct framebuffer access and simple
+   audio APIs, and raylib's 2D API surface is not that large. The hard
+   part is the impedance mismatch (TempleOS is cooperative multitasking,
+   640x480 16-color default, etc.), not the drawing primitives themselves.
+
+   Running the same mode gui program (e.g. music.til) on both GNU/Linux
+   via raylib AND TempleOS via native HolyC primitives would be a serious
+   language flex — proving til programs are truly platform-independent.
+
+   For mode server: TempleOS docker containers could be extremely small
+   (no libc, no userland, minimal kernel), making til a compelling choice
+   for lightweight server deployments on TempleOS-based containers.
+
+   Self-hosting ([[./12.org][#12]]) is a hard dependency: TempleOS has no C compiler,
+   so til must be able to compile itself to bring its own compiler onto
+   the platform. There's no way to cross-compile C for TempleOS from Linux.
+
+   Can test from Linux using QEMU with a TempleOS VM image. Copy til
+   files in via a virtual disk, run them, capture output. This is the
+   standard way to develop for TempleOS from a modern host.
+
+*** macOS
+   Closest to the current GNU/Linux target. All C code (ext.c,
+   dispatch.c) is already POSIX-portable — fork, execl, waitpid, dlopen,
+   dlsym all work the same on macOS. No cross-compilation needed: ship
+   source, user runs `make` with clang natively.
+
+   Makefile changes needed:
+   - `-ldl` not needed on macOS (dlopen is in libc)
+   - `-lffi` needs `brew install libffi` + Homebrew `-I`/`-L` paths
+   - `-rdynamic` works with clang
+   - Platform detection to conditionally apply the above
+
+   Runtime differences:
+   - `.dylib` instead of `.so` for dynamic libraries (mode gui, FFI)
+   - Homebrew paths for raylib headers and libs
+
+   No `#ifdef __APPLE__` needed in the C source itself — only in the
+   Makefile and possibly in the codegen output (linker flags when
+   compiling .til programs that use mode gui).
+
+*** Windows
+   Furthest from POSIX, but possibly dying — don't wait for self-hosting.
+   Options: MSVC, MinGW, or cross-compile with zig cc. Dynamic loading
+   via LoadLibrary/GetProcAddress instead of dlopen/dlsym. Process
+   spawning via CreateProcess instead of fork/exec. raylib supports
+   Windows natively, so mode gui should work once the build system
+   handles .dll and Windows linking.
+
+   Can test from Linux using Wine as a first step before touching a
+   real Windows machine.
+

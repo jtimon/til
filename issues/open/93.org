@@ -1,0 +1,8 @@
+# priority: low
+** OPEN #93 Local struct, enum, and function definitions
+
+Struct, enum, and function definitions inside function bodies don't
+  work — the builder emits them at file scope but the generated C
+  references them before their declaration. Currently all type
+  definitions must be at top level.
+

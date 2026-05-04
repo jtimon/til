@@ -1,0 +1,136 @@
+** #5 Pointers, Vec, Array, native Str: C-level memory and dynamic structures
+  :DEPENDENCIES: [[./2.org][#2]] [[./3.org][#3]]
+  Evolved from 4 pointer primitives into a full inline-value memory model.
+  Dynamic structs (Vec, Array) store values inline in raw buffers via memcpy.
+  Str became a native til struct (was ext_struct with hidden fields and C
+  methods). Auto-generated clone/delete/size work for all types, including
+  structs with own fields pointing to raw buffers.
+
+** Phase 1: Pointer primitives and Vec
+
+*** FIXED Pointer primitives (ext_func)
+    Added to core.til, implemented in ext.c, dispatch.c handles interpreter:
+
+    malloc := ext_func(count: I64) returns Dynamic {}
+    realloc := ext_func(own buf: Dynamic, count: I64) returns Dynamic {}
+    ptr_add := ext_func(buf: Dynamic, offset: I64) returns ref Dynamic {}
+    memcpy := ext_proc(dest: Dynamic, src: Dynamic, len: I64) {}
+    free := ext_proc(own val: Dynamic) {}
+
+    Inline value model: memcpy copies raw bytes into buffers, ptr_add returns
+    a pointer into the buffer (pure arithmetic, no indirection). Values live
+    directly in buffers — no shallow pointer copies.
+
+    Interpreter: VAL_PTR holds raw void* (same as codegen). h_malloc returns
+    calloc, h_ptr_add does (char*)buf + offset, h_memcpy calls C memcpy,
+    h_free calls C free. val_to_ptr() helper extracts void* from any Value.
+
+*** FIXED Dynamic as a real type
+    builder: TIL_TYPE_DYNAMIC → "void *". emit_as_ptr/emit_deref skip
+    indirection for Dynamic. typer: numeric 0 accepted for Dynamic (null).
+
+*** FIXED Parser: ref with explicit type annotation
+    ref name : Type = expr (explicit type for Dynamic reinterpretation).
+
+*** FIXED Type.size() auto-generation
+    Computed from fields in initer.c: own/pointer fields = 8 bytes, inline
+    primitives = their size, inline structs = recursive sum. Str.size() = 16
+    (8-byte pointer + 8-byte I64). Vec.size() = 48 (6 fields × 8).
+
+*** FIXED Vec and Array structs in core.til
+    Vec: growable dynamic array. Array: fixed-size with typed element storage.
+    Both use memcpy+free to move values inline into raw buffers.
+    dyn_call1/dyn_call2/dyn_call1_ret/dyn_call2_ret for type-erased method
+    dispatch (clone, delete) on buffer elements.
+
+    Vec.push: memcpy(dest, val, elem_size); free(own val)
+    Vec.get: returns ptr_add(data, i * elem_size) as ref Dynamic
+    Vec.delete: dyn_call2(elem_type, "delete", ptr_add(...), false) per element
+    Vec.clone: dyn_call1_ret(elem_type, "clone", ...) + memcpy per element
+
+*** FIXED dyn_call dispatch (4 variants)
+    dyn_call1, dyn_call2, dyn_call1_ret, dyn_call2_ret — ext_func wrappers
+    for type-erased method calls. Interpreter builds synthetic AST call nodes.
+    Codegen emits static dispatch functions with if-chains matching type name
+    strings (memcmp on til_Str fields).
+
+** Phase 2: Native Str (was ext_struct)
+
+*** FIXED Str as native struct in core.til
+    Replaced ext_struct (hidden fields, all C methods) with a regular struct:
+
+    Str := struct {
+        own data : U8 = 0
+        cap := 0
+        namespace:
+        new, len, char_at, eq, concat, clone, delete, to_str,
+        substr, contains, starts_with, ends_with
+    }
+
+    All methods implemented in til using ptr_add, memcpy, malloc, free.
+    String literals remain special syntax that constructs Str instances.
+
+*** FIXED I64.to_str and U8.to_str in til
+    Replaced C ext_funcs with pure til implementations. I64.to_str builds
+    digit string via repeated div/mod, allocates buffer, fills with memcpy.
+
+*** FIXED Removed TIL_TYPE_STR from type system
+    Str is now TIL_TYPE_STRUCT with struct_name="Str" everywhere:
+    ast.h (removed enum value), typer.c, initer.c, precomp.c, builder.c.
+
+*** FIXED Interpreter: VAL_STR kept as runtime representation
+    Str values use VAL_STR wrapping compiler-internal Str struct (same
+    pointer+cap layout). Str() constructor intercepts struct instantiation
+    to create VAL_STR from data (VAL_PTR/VAL_U8) + cap args. Field access
+    on VAL_STR: .data → VAL_PTR, .cap → VAL_I64.
+
+    VAL_PTR → VAL_STR reinterpretation at function call boundaries: when
+    dyn_call passes ptr_add result to Str.delete/clone, the VAL_PTR is
+    reinterpreted as VAL_STR based on param type annotation. Handles both
+    ident args (borrowed cells) and expression args.
+
+*** FIXED Codegen: til_Str typedef in ext.h
+    til_Str { til_U8 *data; til_I64 cap } defined in ext.h so FFI code
+    can use it. Generated C file skips emitting Str typedef (ext.h provides).
+    String literals emit til_Str_lit("...", cap) helper. println/print/format
+    emit static helpers with __attribute__((unused)).
+
+*** FIXED Codegen: forward declaration ordering
+    Split emit_struct_def into emit_struct_typedef + emit_struct_funcs.
+    Generated C file order: all struct typedefs → string helpers → all
+    function bodies (struct namespace + enum + top-level) → dyn_call
+    dispatch → main. Prevents incomplete-type errors from cross-struct
+    references.
+
+*** FIXED Typer: own fields skip auto-clone in constructors
+    Str(data = buf, cap = n) — the data field is own, so the typer must
+    NOT insert clone (which would copy 1 byte instead of moving the whole
+    buffer pointer). Constructor args for own fields are marked is_own_arg
+    and use move semantics.
+
+*** FIXED FFI updated for til_Str
+    greet.c uses til_Str * (includes ext.h) instead of compiler-internal
+    Str *. Ext_func forward declarations in generated code use
+    type_name_to_c() for proper til_ prefixed types.
+
+** Preparation renames (commit 80263df)
+   alloc→malloc, Str.len→cap, Vec.len→count, Array.len→cap,
+   len() methods return cap/count fields. size() computed from fields.
+
+** Files modified (cumulative)
+   | File               | Action                                            |
+   | src/core/core.til  | Str native struct, I64/U8.to_str in til, Vec/Array use memcpy |
+   | src/c/ext.h        | til_Str typedef, updated declarations             |
+   | src/c/ext.c        | Removed Str/I64_to_str/U8_to_str funcs, added memcpy/ptr_add |
+   | src/c/interpreter.h | Raw void* in Value union (PtrInst removed)       |
+   | src/c/interpreter.c | Str() constructor, VAL_STR field access, PTR→STR reinterpret |
+   | src/c/dispatch.c   | Raw pointer handlers, dyn_call, removed Str handlers |
+   | src/c/typer.c      | TIL_TYPE_STR→STRUCT, own field clone skip         |
+   | src/c/builder.c   | Split struct typedef/funcs, til_Str_lit, forward decl ordering |
+   | src/c/ast.h        | Removed TIL_TYPE_STR                              |
+   | src/c/initer.c     | Str as regular struct, size() from fields          |
+   | src/c/precomp.c    | Str as TIL_TYPE_STRUCT                            |
+   | examples/ffi/greet.c | Updated to use til_Str                      |
+   | src/test/vecs.til  | Updated size expectations                         |
+   | tests.sh           | Added arrays.til to test list                     |
+

@@ -1,0 +1,56 @@
+** #187 Unused-decl check for ~priv~ items (#86 follow-up)
+   Background:
+
+   - Issue [[./86.org][#86]] made unused function parameters and unused local
+     variables type errors, with the ~_~-prefix escape hatch.
+   - That check deliberately skipped top-level functions, structs,
+     enums, fields, and namespace methods: a public symbol can be
+     "unused" inside its own file but consumed by an importer, so
+     flagging it would be wrong.
+   - Issue [[./179.org][#179]] added the ~priv~ keyword. A ~priv~ symbol is
+     guaranteed file-local. If a priv item is unused in its file,
+     it is dead code -- nothing else can possibly reference it.
+
+   Resolution:
+
+   - Extend the unused-decl check to ~priv~-marked items. The
+     diagnostic suggests *removing the ~priv~ keyword* (making the
+     item public) rather than the ~_~ prefix used for parameters --
+     hiding-by-default doesn't fit a type or function name.
+
+   1. [X] Top-level priv funcs / structs / enums / globals. New
+      ~check_unused_priv_top_level~ walks ~scope.bindings~ after
+      ~type_file~ completes. Wired from ~prepare_program~. Errors
+      with ~unused priv <kind> 'X'; remove 'priv' to expose it~.
+   2. [X] Priv struct fields. ~Declaration~ gained a ~mut used~
+      flag; the typer's field-access / field-assign /
+      constructor-named-arg paths set it (gated on
+      ~auto_gen_depth == 0~ so initer's auto-emitted
+      clone/delete/size bodies don't mask genuinely unused
+      fields). New ~check_unused_priv_members_in_program~ walks
+      every ~StructDef.fields~ entry per ImportUnit.
+   3. [X] Priv namespace methods. Same ~Declaration.used~ flag,
+      same gating on ~auto_gen_depth~. Marked used by
+      ~mark_ns_member_used~ from ~infer_field_access_fcall~.
+      ~check_unused_priv_members_in_program~ also walks
+      ~StructDef.ns_decls~ / ~EnumDef.ns_decls~.
+
+   Auto-gen distinction:
+
+   - ~FunctionDef~ gained ~mut auto_generated := false~. All 17
+     auto-gen sites in [[file:../../src/self/initer.til][src/self/initer.til]] (clone/delete/size,
+     enum eq/to_str/is_<variant>/variant constructors, etc.) now
+     set ~auto_generated = true~. The typer's
+     ~infer_func_def_expr~ increments ~auto_gen_depth~ on entry
+     and decrements on exit; the field/ns "mark used" sites
+     consult that depth so boilerplate references inside
+     auto-emitted bodies do not mask real unused-ness.
+
+   Tests:
+
+   - [[file:../../src/test/priv_unused_error.til][src/test/priv_unused_error.til]] extended with
+     ~StructWithUnusedField~ (unused priv field) and
+     ~StructWithUnusedNs~ (unused priv ns method). The count
+     test in ~src/tests.til~ rises from 5 to 7
+     "unused priv" matches.
+

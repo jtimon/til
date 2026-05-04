@@ -1,0 +1,28 @@
+# priority: high
+** OPEN #171 Stop hardcoding expected output strings in tests.til; use golden/cache files with diffs
+
+Symptom:
+
+   ~src/tests.til~ writes a few expected output files by hardcoding
+   strings into ~gen/out/expected/*.out~ on every run (e.g. "hello world",
+   CLI example outputs). This is ad-hoc and makes it harder to scale
+   output-checked tests.
+
+   Additionally, ~bin/test_runner~ reports "output mismatch" without a
+   unified diff, which makes failures slower to debug.
+
+   Target behavior:
+
+   - Expected outputs live as deterministic files (goldens or cached
+     fixtures).
+   - On mismatch, the harness writes an "actual" output file and prints
+     a unified diff (~diff -u expected actual~).
+   - Remove the hardcoded ~File.writefile(...)~ fixture generation from
+     ~src/tests.til~.
+
+   Open question:
+
+   - Should expected output files be treated as disposable cache under
+     ~gen/out/~ (auto-generate when missing), or as reviewed artifacts
+     (missing expected is a failure unless ~regen~ is invoked)?
+

@@ -1,0 +1,7 @@
+** #129 Runtime Value instance payload fields now own their data
+  Both ~StructInstance.data~ and ~EnumInstance.data~ in
+  [[file:../../src/self/interpreter.til][src/self/interpreter.til]] are now declared as ~own mut data : U8 = 0~
+  (owned storage) instead of the old ~ref mut data : U8 = NULL~ (borrowed).
+  This makes the runtime instance wrappers explicitly own their payload
+  buffers. Related runtime lifecycle cleanup continues under [[./127.org][#127]] and #109.
+

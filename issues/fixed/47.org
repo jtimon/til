@@ -1,0 +1,24 @@
+** #47 Struct/enum redeclaration silently overwrites — now errors
+  *Original bug:* ~init_declarations~ Pass 1 in initer.c unconditionally
+  set ~b->struct_def = expr_child(stmt, 0)~, so a second struct/ext_struct
+  with the same name replaced the first. When user code wrote
+  ~I64 := ext_struct { ... }~, it overwrote the core I64 definition
+  (losing eq, add, sub, etc.). Same pattern in typer.c.
+
+  *Fix:* Added redeclaration checks in both initer.c and typer.c:
+  - initer.c ~init_declarations~ Pass 1 (structs) and Pass 2 (enums):
+    before ~tscope_set~, check if a binding with ~struct_def~ already
+    exists. If so, emit error with both locations and skip.
+  - typer.c struct/enum registration: before ~tscope_set~, check if
+    existing binding has a different ~struct_def~ pointer. If so,
+    emit type error with both locations.
+  - ctil.c: now checks ~init_declarations~ return value and exits
+    on errors (previously return value was ignored).
+
+  *Files changed:*
+  - [[file:../../src/c/initer.c][src/c/initer.c]] — redeclaration checks for structs and enums
+  - [[file:../../src/c/typer.c][src/c/typer.c]] — redeclaration check (defense in depth)
+  - ~src/ctil.c~ — check init_declarations return value
+  - [[file:../../src/test/test_47.til][src/test/test_47.til]] — updated to test cross-namespace calls
+    (without redeclaration)
+

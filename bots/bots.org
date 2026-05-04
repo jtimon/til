@@ -62,9 +62,13 @@ due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
 
 ## Issue Tracking
 
-- Issues are tracked in `doc/issues.org`, not GitHub issues (no `gh` CLI)
-- New issues go at the top, numbered from NEXT_ISSUE
-- Fixed issues are moved to `doc/fixed.org`
+- Issues live in `issues/open/`, one file per issue (e.g. `issues/open/189.org`).
+- Each file starts with `# priority: high` or `# priority: low`, then `** OPEN #NNN Title`.
+- Process and NEXT_ISSUE counter are in `issues/process.org`.
+- New issues go at the top of their priority, numbered from NEXT_ISSUE.
+- When work starts, change OPEN -> WIP in the title line.
+- Fixed issues move to `issues/fixed/`, cancelled to `issues/cancelled/`.
+- Run `bin/til interpret examples/issues.til` to regenerate `issues/summary.org`.
 
 ## Build Output
 

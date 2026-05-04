@@ -1,0 +1,64 @@
+# priority: high
+** OPEN #143 Avoid unnecessary heap round-trips for Expr construction
+
+~Expr.new~ itself constructs on the stack, but the generated C for
+   callers that store the result does a heap round-trip: the return value
+   is heap-allocated, copied to the stack, then freed (~Expr x = *_hp;
+   free(_hp)~). Similarly, ~try_eval_call~ in precomp.til allocates
+   folded constants on the heap via ~malloc~ + ~memcpy~ just to return
+   them. Could be avoided if the codegen supported returning structs by
+   value without the heap detour.
+
+   Progress (args side):
+   - Commit 4392524: typer's ~hoist_to_temp~ now takes ~is_own~; when
+     a hoisted arg flows into an own parameter slot the synthesized
+     temp's Declaration is marked ~own_type = Own~, so the builder's
+     existing own-local path emits it directly on the heap and skips
+     the stack-then-~_oa~-malloc-copy wrap at the call site.
+   - Commit 8e8763a: ~insert_free_calls~ in typer.til now runs a
+     ~promote_own_transferred_locals~ step after
+     ~collect_scope_locals~: user-declared locals with
+     ~own_transfer >= 0~ get their Decl's ~own_type~ flipped to Own,
+     so they're emitted as heap pointers too.
+   - This commit: early-exit deletes emitted by ~insert_exit_deletes~
+     now use ~arg_is_own=false, call_free=false~ instead of
+     ~true, true~. The ~live~ filter ensures these deletes only fire
+     for Shallow (stack) locals that haven't been promoted, so
+     ~call_free=false~ is the right semantic (fields cleaned, stack
+     container left alone for the frame to unwind). With the own bit
+     cleared, emit_as_ptr no longer wraps the arg in the ~_oa~ malloc.
+
+   - Commit 1f42959: variadic desugar's ~_va_Array_N~ temp now carries
+     ~own_type = Own~ on both the Declaration and the scope binding,
+     so the builder emits the Array directly on the heap and the
+     variadic call site stops wrapping it in ~_oa~.
+   - This commit: hoisted temps for compound (Struct/Enum) types get
+     promoted to ~own_type = Own~ unconditionally (not just when they
+     flow into an own arg slot). ~LocalInfo~ gains an ~is_heap~ bool,
+     populated in ~collect_scope_locals~ and updated in
+     ~promote_own_transferred_locals~. The five ~make_delete_call~
+     sites in ~insert_free_calls~ (early-exit / nested / post-stmt /
+     scope-end / assign-replace) now pass ~arg_is_own = is_heap,
+     call_free = is_heap~, so heap locals are properly freed at exit
+     and stack locals stay borrow-style. Eliminates the ~Expr x =
+     *_hp; free(_hp)~ return round-trip for hoisted compound temps
+     (the main pattern called out in the issue body).
+
+   - This commit: ~promote_own_transferred_locals~ also promotes any
+     user local of ~Struct~ type (even when ~own_transfer < 0~), so
+     ~mut x := Str_lit("...")~ etc. are emitted as ~Str *x = ...~
+     directly and skip the ~Str x; { Str *_hp = ...; x = *_hp;
+     free(_hp); }~ round-trip. ~Enum~-typed user locals are NOT
+     promoted: doing so trips an interpreter-mode regression in
+     ~Token.Num(42).to_str()~ (returns ~Num(0)~) where the FFI path
+     for ~get_payload~ on a heap-promoted enum local mishandles the
+     payload. Compiled-C run mode is fine. Investigation deferred.
+
+   ~_oa = malloc~ wrap sites in boot/til.c: 2472 (pre-fix) -> 26.
+   ~_hp = ~ return round-trip sites in boot/til.c: 7909 (pre-fix) -> 381.
+
+   Still TODO: remaining ~_hp~ round-trips for non-Struct compound
+   user locals (Enum, blocked on the interp regression above) and a
+   handful of edge cases; final ~_oa~ wraps on module-global delete
+   paths.
+

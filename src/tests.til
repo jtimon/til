@@ -497,7 +497,7 @@ main := proc(args: ..Str) {
     add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
                til_bin.concat(" run -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ")
                       .concat("examples/svg2ttf.til ")
-                      .concat("img/logo.svg tmp/svg2ttf_fail.ttf"))
+                       .concat("img/logo.svg tmp/svg2ttf_fail.ttf"))
 
     // === library mode checks ===
     add_single(tests, "pure_build", "library", 0, "",

@@ -1,0 +1,77 @@
+** #1 builder/interpreter consistency: eliminate unnecessary special cases
+** FIXED [[./85.org][#85]] C code must use enum structs, not raw tags
+   This one is effectively done as part of the [[./39.org][#39]] bottom-up migration.
+
+   The original blocker was the old handwritten-C parser/AST surface using
+   raw enum-tag APIs like ~check(..., TokenType_TAG_Ident)~ instead of the
+   generated enum-struct form. That parser-era pattern is now gone from
+   ~src/c~.
+
+   What still exists in handwritten C is normal generated-layout use:
+   - reading ~.tag~ on enum structs
+   - switching on generated tag enums
+   - constructing full enum values/structs where needed
+
+   That is not the old [[./85.org][#85]] problem. There are also no handwritten
+   ~typedef enum { ... }~ definitions left in ~src/c~; enum type layout is
+   coming from til/generated headers now.
+
+   So [[./85.org][#85]] is considered fixed by the self-hosting work:
+   - the old raw-tag C API surface is gone
+   - remaining C enum use matches the generated representation
+
+** FIXED [[./119.org][#119]] Struct literals take ownership except for ref fields
+   Struct literals now follow one explicit rule:
+
+   - ~ref~ fields are borrowed
+   - every other field is ownership-taking
+
+   This means struct literals are no longer copy sites. Fresh values
+   such as literals, nested constructors, and defaults still need no
+   clone, but passing a variable into a non-~ref~ field now consumes it
+   and lets the normal use-after-own checks suggest ~.clone()~ when the
+   caller wants to keep using the source.
+
+   What landed:
+   - typer marks constructor args as ownership-taking for ownership-relevant
+     non-~ref~ fields
+   - scalar value fields no longer trigger bogus ownership transfer
+   - builder ctor emission was simplified so it stops inventing clone policy
+     for inline fields
+   - parser/AST helper constructors were adjusted to clone borrowed inputs
+     before storing them into owned fields
+   - the normal suite is green again under this model
+
+   Follow-ups left separate:
+   - ~[[./46.org][#46]]~ still tracks the interpreter-specific ~with_capacity~ regression
+   - ~[[./99.org][#99]]~ still tracks later constructor/new-surface unification
+
+  Two changes to eliminate backend special cases:
+
+  1. Enum eq generated as real til in initer (was ext_func with C in both
+     backends). Uses is_Variant/get_Variant (which stay ext_func) to build
+     if-chain. Also extended is_Variant to simple enums (was payload-only).
+     Removed ~160 lines from builder, ~49 lines from dispatch.
+
+  2. println/print/format replaced with print_single/print_flush pattern.
+     print_single(Str) and print_flush() are simple ext_procs. println/print
+     are real til procs looping over variadic Array. format is real til func
+     using Str.concat loop. Removed special-case call emission, C
+     implementation emission, and interpreter handlers (~90 lines total).
+
+  3. Interpreter shallow copies replaced with deep clones to match builder.
+     The interpreter used raw memcpy in write_field, NODE_FIELD_ASSIGN, and
+     value_to_buf for struct values, sharing internal heap pointers (e.g.
+     Str's c_str) between what should be independent copies. Fixed all three
+     sites to check val.instance->borrowed and call clone_value for borrowed
+     values instead of memcpy. Also made clone_value properly recursive:
+     own fields now recursively call clone_value (was only one level deep
+     with strndup for Str), and inline struct fields (e.g. Vec inside
+     FuncDefData) are now recursively deep-cloned (were previously left as
+     shallow memcpy). This fixed 3 interpreter-only test failures (structs,
+     splat, parsing — all use-after-free crashes from shared c_str pointers).
+
+  Remaining differences (dyn_call, primitive types, struct constructors,
+  ownership tracking, namespace init) are inherent to the execution models
+  and marked as acceptable.
+

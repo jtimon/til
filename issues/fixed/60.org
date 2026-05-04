@@ -1,0 +1,11 @@
+** #60 Trailing commas anywhere they make sense
+  The parser already supported trailing commas in all comma-separated contexts
+  due to the ~if (check(Comma)) advance(p)~ pattern inside
+  ~while (!check(closing_delim))~ loops. No parser changes needed.
+
+  Contexts supported: function call args, func/proc parameter declarations,
+  enum variant declarations, struct constructors, method call args, map/set
+  literals, FuncSig type params.
+
+  Regression test: src/test/trailing.til
+

@@ -1,0 +1,28 @@
+# priority: low
+** OPEN #84 mode theme: cross-editor theme generation
+
+One .til file defines a color theme. The compiler generates all
+  editor formats from it:
+  - .el (emacs)
+  - .vim / .lua (vim/neovim)
+  - .json (vscode)
+  - tiled native ([[./83.org][#83]])
+
+  #+begin_src til
+  mode theme
+  til_dark := {
+      "background": Color(r=30, g=30, b=30),
+      "keyword": "#ff6600",
+      "string": "#33cc33",
+      "error": "#cc0000",
+  }
+  #+end_src
+
+  Existing: ~editor/emacs/til-dark.el~, ~til-light.el~ — current
+  taste in emacs format. These become the reference for generating
+  the til source, then the .el files are generated FROM til.
+
+  Theme designers only need to learn til color map syntax. No elisp,
+  lua, vimscript, json, etc. Independent of tiled — works for any
+  editor, tiled is just one more output target.
+

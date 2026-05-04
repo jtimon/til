@@ -1,0 +1,72 @@
+* Open
+** High
+*** [[./open/109.org][#109]] Fix memory leaks (make test_asan clean)
+*** [[./open/116.org][#116]] Imported files are parsed in isolation
+*** [[./open/124.org][#124]] Raw `Dynamic` ownership should not require explicit `free(...)` in til
+*** [[./open/125.org][#125]] Enum payload method generation should not assume ~eq~/~to_str~
+*** [[./open/127.org][#127]] Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
+*** [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
+*** [[./open/130.org][#130]] AST / ~Expr~ representation cleanup
+*** [[./open/136.org][#136]] Precomp doesn't fold pure function calls
+*** [[./open/143.org][#143]] Avoid unnecessary heap round-trips for Expr construction
+*** [[./open/146.org][#146]] Unify typer desugar/insert passes into a single walk
+*** [[./open/147.org][#147]] AST/Context redesign: lessons from rstil
+*** [[./open/149.org][#149]] Add ns_decls container for namespace-section Decls
+*** [[./open/155.org][#155]] Typer infers ~unknown~ for enum-typed struct field access
+*** [[./open/158.org][#158]] One pass per phase across the whole pipeline
+*** [[./open/163.org][#163]] Per-file AST/import graph + Context.path (prep for removing Expr.path)
+*** [[./open/165.org][#165]] Declaration order should not matter inside a file or across imports
+*** [[./open/169.org][#169]] Typer panics with Vec.get out-of-bounds, suppressing later type errors
+*** [[./open/170.org][#170]] All-or-nothing caching for translate/build/run
+*** [[./open/171.org][#171]] Stop hardcoding expected output strings in tests.til; use golden/cache files with diffs
+*** [[./open/172.org][#172]] Add test_runner regen mode for expected outputs
+*** [[./open/174.org][#174]] Container types create cyclic dependencies that block typer-time methodgen
+*** [[./open/176.org][#176]] FFI: support const char* params (avoid libc prototype conflicts)
+*** [[./open/181.org][#181]] Declared-type inference for literal expressions
+*** [[./open/182.org][#182]] Support ~/** */~ block doc comments (in addition to ~///~)
+*** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
+*** [[./open/184.org][#184]] Finish the bare ~get_payload~ -> switch destructure refactor
+*** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
+** Medium
+** Low
+*** [[./open/101.org][#101]] Deterministic temp variable names in generated C
+*** [[./open/102.org][#102]] Auto-generate eq and to_str for structs
+*** [[./open/114.org][#114]] Source docs + repl help/introspection
+*** [[./open/115.org][#115]] Remove or simplify ~ext_struct~
+*** [[./open/117.org][#117]] Bool and/or do not short-circuit
+*** [[./open/151.org][#151]] 32-bit targets: wasm32 and templeos-x86
+*** [[./open/152.org][#152]] True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
+*** [[./open/154.org][#154]] Typer error for unused imports
+*** [[./open/156.org][#156]] Improve til-mode indentation rules
+*** [[./open/159.org][#159]] Show the til logo as a single character in the REPL prompt
+*** [[./open/164.org][#164]] Diagnose `mut` qualifiers that are never used to write
+*** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
+*** [[./open/25.org][#25]] Support for the 4 main operative systems
+*** [[./open/36.org][#36]] Nested pattern matching in switch
+*** [[./open/42.org][#42]] til install: system-wide library installation
+*** [[./open/51.org][#51]] Add ~til test~ command
+*** [[./open/54.org][#54]] Explicit capture syntax (closures)
+*** [[./open/55.org][#55]] Lambda functions and first-class bodies
+*** [[./open/56.org][#56]] First-class structs: StructDef as values
+*** [[./open/57.org][#57]] First-class enums: EnumDef as values
+*** [[./open/58.org][#58]] First-class functions: Type hierarchy and FuncSig/FuncDef
+*** [[./open/63.org][#63]] User-defined modes
+*** [[./open/66.org][#66]] Better imports: qualified namespaces
+*** [[./open/68.org][#68]] Negative literal support
+*** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
+*** [[./open/78.org][#78]] Scavenger: support programs with link_c/link directives
+*** [[./open/81.org][#81]] UPtr type alias for pointer-sized integers
+*** [[./open/82.org][#82]] POSIX ~--~ end-of-options in til CLI argument parsing
+*** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
+*** [[./open/84.org][#84]] mode theme: cross-editor theme generation
+*** [[./open/87.org][#87]] ~priv~ keyword for private declarations
+*** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
+*** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
+*** [[./open/93.org][#93]] Local struct, enum, and function definitions
+*** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
+
+* WIP
+** High
+*** [[./open/173.org][#173]] Vec.new(Expr) syntax: copy rstil's runtime-type-name trick
+** Medium
+** Low

@@ -1,0 +1,7 @@
+** #49 Audit panic() call sites for correct __LOC__ usage
+  All panic() calls now use __LOC__ as the first argument. Previously,
+  core library files (str.til, vec.til, map.til, set.til, array.til) and
+  self/til.til passed descriptive strings like "Str.get" or "Map.new" as
+  the loc_str parameter instead of __LOC__. The context info was merged
+  into the message string, e.g. panic(__LOC__, "Str.get: index out of bounds").
+

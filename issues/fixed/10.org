@@ -1,0 +1,36 @@
+** #10 REPL: interactive read-eval-print loop
+  ~til repl~ starts an interactive session; ~til~ with no arguments
+  defaults to the REPL (like Python). Entering ~mode X~ restarts the
+  session in that mode, dropping prior declarations.
+
+  What landed:
+  - New ~in_read_line~ ext_proc in [[file:../../src/core/io.til][src/core/io.til]] (implemented in
+    [[file:../../src/c/ext.c][src/c/ext.c]]): takes ~mut line: Str~, returns ~Bool~ (false on
+    EOF), flushes stdout first so prompts are visible.
+  - ~repl~ command wired into ~parse_args~ in ~src/til.til~; the outer
+    driver re-reads lines via ~in_read_line~ and re-runs the
+    accumulated source on every input using the standard pipeline
+    (tokenize -> parse -> init_declarations -> type_check -> precomp
+    -> interpret). Only the output delta vs the previous run is
+    printed, so prior side effects (e.g. ~println~) don't replay to
+    the user.
+  - Mode-switch restart: the peeked parse exposes a top-level ~mode
+    X~ directive; the outer driver reopens the session in that mode.
+  - Prompt is ~til[<mode>]>~. Exit with Ctrl-D (EOF).
+  - ~Context~ gains an ~is_repl~ flag (unused for now; reserved for a
+    future in-process REPL that avoids the subprocess + delta trick).
+
+  Caveats:
+  - Scope is not persisted in-process. A first attempt stored a
+    runtime ~Scope~ in ~Context~ and reused it across inputs, but
+    ~eval_body~ on the full ~core_ast~ made bindings unfindable via
+    ~scope_get~ afterward (still to be investigated). The
+    accumulate-and-re-run approach stays fully consistent with the
+    rest of the compiler.
+  - Each REPL line is one statement. Multi-statement blocks have to
+    fit on one line (e.g. ~MyStruct := struct { mut field := "" }~).
+  - The existing unused-variable SIGSEGV (lone ~a := 1~ crashes
+    during interpret) shows as "Segmentation fault" for that turn;
+    the decl still commits to the accumulated source so later lines
+    that reference ~a~ work.
+

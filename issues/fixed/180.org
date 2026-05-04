@@ -1,0 +1,42 @@
+** #180 reinterpret_ptr_value wraps Dynamic slot pointers into Value.Struct
+  Pre-existing interpreter bug surfaced during the #167.4
+  investigation. ~reinterpret_ptr_value~ in
+  [[file:../../src/self/interpreter.til][src/self/interpreter.til]], given a ~Value.Ptr~ and
+  ~type_name = "Dynamic"~, was falling through the primitive
+  ~type_name.eq("I64")~/etc. checks and hitting the generic
+  ~scope_get(scope, "Dynamic")~ path. ~Dynamic~ is registered as a
+  ~StructDef~ ([[file:../../src/core/dyn.til][src/core/dyn.til]]), so the lookup succeeded and the
+  function called ~make_struct_value("Dynamic", tdef, p, true)~,
+  wrapping the slot pointer into a ~Value.Struct~ of type "Dynamic"
+  -- semantically wrong (Dynamic is a void-pointer type, not a
+  struct) and breaking downstream code that expected ~ref~-Dynamic
+  bindings to stay as ~Value.Ptr~.
+
+  User-visible effect: shapes like
+
+      v := vec("Bool", true, false)
+      ref x : Dynamic = v.get(1)
+      not(x)
+
+  panicked under ~bin/til interpret~ post-[[./167.org][#167]] with
+  "expected Bool argument to and/or/not". Pre-[[./167.org][#167]] the empty
+  ~case:~ in ~h_Bool_*~ silently defaulted to ~false~, so user code
+  saw a wrong-but-plausible boolean rather than a panic. The bug
+  was pre-existing; [[./167.org][#167]] just made it loud.
+
+  Fix: a one-line early-return in ~reinterpret_ptr_value~ for
+  ~type_name.eq("Dynamic")~, alongside the existing
+  ~type_name.len().eq(0)~ guard. The slot pointer IS the value
+  for a Dynamic, so no narrowing is needed; preserving the
+  ~Value.Ptr~ lets the downstream ~eval_body~ ref-decl, ~eval_call~
+  param binding, and ~narrow_bool_arg~ paths handle it uniformly.
+
+  Audit: the three caller sites were checked. None relied on the
+  ~Value.Struct(struct_name = "Dynamic")~ encoding -- no code
+  anywhere in src/self/ or src/c/ matched ~struct_name == "Dynamic"~
+  or otherwise treated a Dynamic-wrapped Struct specially. Master
+  + the fix passes all 99 tests, including a new
+  ~test_dynamic_ref_keeps_ptr~ regression test in
+  [[file:../../src/test/dynamic.til][src/test/dynamic.til]] that exercises both the ref-decl path and
+  the subsequent ~ref Bool = x~ re-narrowing.
+

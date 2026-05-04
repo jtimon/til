@@ -1,0 +1,7 @@
+** #97 Negative identifier expressions: -MY_CONST, -x
+  Unary minus was generalized as part of [[./22.org][#22]]'s operator work
+  (commit a8d2429). Parser now desugars ~-expr~ to ~expr.neg()~ for any
+  expression, so ~-x~, ~-MY_CONST~, ~-(a + b)~, and ~-(-5)~ all parse
+  and type-check correctly. The literal case ~-N~ still desugars to
+  ~0.sub(N)~ as before. Workaround ~0.sub(AB_INF)~ is no longer needed.
+

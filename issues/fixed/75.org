@@ -1,0 +1,8 @@
+** #75 Value-based Expr children + ownership discipline
+  Expr children changed from sizeof(Expr*) to sizeof(Expr).
+  Expr_add_child takes ownership (Vec_push frees child).
+  Expr_child returns borrowed ref into Vec buffer.
+  Real TilType/Declaration/ExprData clone/delete implementations.
+  All callers clone borrowed refs before passing to own parameters.
+  Precomp registers namespace funcs for constant folding.
+

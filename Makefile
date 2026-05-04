@@ -135,6 +135,11 @@ doc: bin/til
 	rm -rf doc/gen
 	bin/til doc src/til.til
 
+# Regenerate issues/summary.org and update NEXT_ISSUE in issues/process.org.
+# Run on demand when issues are added, moved, or changed.
+summary: bin/til
+	bin/til run examples/issues.til
+
 # Shared writable scratch dir for targets that need it (test_repl_help
 # writes the REPL stdin/stdout fixtures there; til_boot copies snapshot
 # sources into tmp/boot/).
@@ -196,6 +201,7 @@ help:
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
 	echo "make doc            Regenerate doc/gen/ from current sources"
+	echo "make summary        Regenerate issues/summary.org"
 	echo "make clean          Remove build artifacts"
 	echo ""
 	echo "bin/til_boot  From last commit (git). Always works."

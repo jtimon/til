@@ -1,0 +1,28 @@
+# priority: high
+** OPEN #128 Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
+
+The delete side of this issue is fixed ([[./126.org][#126]], now in [[../fixed/][issues/fixed/]]):
+  ~generate_enum_delete_method~ recurses into payload-owned data.
+
+  Remaining problem: auto-generated enum ~clone~ does NOT deep-clone
+  managed payloads. In ~generate_enum_clone_method~ (initer.til:668),
+  the payload is declared with ~own_type = OwnType.Ref~ and passed
+  directly to the constructor without calling ~.clone()~. This means
+  the cloned enum shares the same payload data as the original --
+  a shallow copy instead of a deep clone.
+
+  This matters for payload enums carrying managed values like:
+  - ~Str~
+  - structs with owned internals
+  - containers such as ~Vec~
+
+  Verified examples already allowed by the language/tests:
+  - ~Token.Name: Str~
+  - ~Shape.Dot: Point~
+  - ~Shape.Line: Str~
+
+  Desired end state:
+  - auto-generated enum ~clone~ calls ~PayloadType.clone()~ on managed
+    payload data before passing it to the constructor
+  - no double-free or aliasing from cloned enums sharing payload buffers
+

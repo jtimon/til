@@ -1,0 +1,8 @@
+** #52 Flaky parallel test failures
+  Fixed by generalizing the test infrastructure: all tests (mode, FFI,
+  typer, CLI, build) now go through a single blind parallel runner via
+  test_runner.til subcommands (mode, single, count). Each test runs as
+  an isolated subprocess with its own output file. The previous approach
+  of running 4 modes × 32 files caused resource contention; the new
+  runner handles scheduling with a slot-based pool (default j = thread count).
+

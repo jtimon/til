@@ -1,0 +1,6 @@
+** #110 Stack allocation and memory leak roadmap
+  Meta-issue organizing [[./111.org][#111]] and #109. With [[./111.org][#111]] fixed (original UAF gone)
+  and [[./109.org][#109]] as the active leak-reduction tracker, this roadmap is absorbed.
+  The remaining goal (switch ~make test~ to always use ~bin/til_asan~) is
+  now noted in #109.
+

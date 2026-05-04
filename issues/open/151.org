@@ -1,0 +1,37 @@
+# priority: low
+** OPEN #151 32-bit targets: wasm32 and templeos-x86
+
+:DEPENDENCIES: [[./81.org][#81]]
+
+  [[file:../../src/self/targets.til][src/self/targets.til]] already has ~Target.Wasm32~ and
+  ~Target.TempleosX86~ in the enum (mirrored from rstil), with
+  toolchain selection (~clang --target=wasm32~, ~holyc~) and
+  executable extension (~.wasm~, no ext) wired up. Nothing actually
+  builds for these targets because til's generated C assumes 64-bit
+  pointers everywhere (~USize~, raw pointer arithmetic), and the
+  32-bit targets would generate C that's unsound on 32-bit ABIs.
+
+  Depends on [[./81.org][#81]]: once ~UPtr~ is a pointer-sized integer that's
+  ~U64~ on 64-bit targets and ~U32~ on 32-bit ones, the codegen can
+  use ~UPtr~ consistently for anything that must match the target
+  pointer width. That unblocks emitting valid C for wasm32 and
+  templeos-x86.
+
+  Scope once [[./81.org][#81]] lands:
+  - Audit [[file:../../src/self/builder.til][src/self/builder.til]] for places that assume 64-bit
+    pointer arithmetic and replace with ~UPtr~.
+  - Add ~wasm32~ and ~templeos-x86~ CI jobs mirroring the existing
+    cross-compile pattern: ubuntu-latest + ~clang~ (wasm32) or
+    HolyC toolchain (templeos-x86), cross-compile a
+    [[file:../../examples/hello_script.til][examples/hello_script.til]] and verify the output format
+    (~file~ says ~WebAssembly~ for wasm32; TempleOS ~.BIN~ format
+    for templeos-x86).
+  - For templeos-x86, ~lang~ must switch to ~Lang.HolyC~ via
+    ~default_lang_for_target~, which is already the case in
+    ~targets.til~.
+
+  Rstil implemented neither of these targets in CI for the same
+  reason (no UPtr equivalent / HolyC codegen not wired up) -- the
+  enum values exist as placeholders to reserve names and keep the
+  ~--target~ parser honest.
+

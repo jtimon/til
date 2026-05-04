@@ -1,0 +1,9 @@
+** #142 write_field heap-buffer-overflow using val type size instead of field size
+  The interpreter's ~write_field~ used the Value type's size (e.g.
+  ~U64.size() = 8~) when writing to a struct field. But the field's
+  actual size might be smaller (e.g. ~USize = U32 = 4~ bytes), causing
+  memcpy to overflow the struct instance buffer.
+  Fix: use ~dd.field_size~ (the field's declared size) for all scalar
+  memcpy writes. Triggered by ~Str.with_capacity~ writing its USize
+  fields as Uint64 (8 bytes) into 4-byte USize slots.
+

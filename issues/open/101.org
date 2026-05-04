@@ -1,0 +1,19 @@
+# priority: low
+** OPEN #101 Deterministic temp variable names in generated C
+
+:DEPENDENCY_OF: [[./77.org][#77]]
+  The builder/typer generates temp variable names (e.g. ~_t4253~,
+  ~_rc4617~, ~_wcond4618~) using counters that depend on processing
+  order or memory layout, making the output non-deterministic.
+  Two identical ~til build~ runs on the same source can produce
+  different C files (same logic, different temp names).
+
+  This blocks [[./77.org][#77]]: ~til build src/til.til~ must be idempotent --
+  the self-built binary must produce identical output to the
+  bootstrap binary. Without deterministic names, we can't diff
+  generated C to verify correctness.
+
+  Fix: ensure temp variable counters are reset or seeded
+  deterministically per translation unit, so the same input
+  always produces the same output.
+

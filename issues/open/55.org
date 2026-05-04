@@ -1,0 +1,148 @@
+# priority: low
+** OPEN #55 Lambda functions and first-class bodies
+
+:DEPENDENCIES: [[./14.org][#14]] [[./54.org][#54]]
+  Based on rstil/doc/first_class.org. Anonymous inline functions (lambdas)
+  and first-class Body values (blocks as values).
+
+*** Lambda functions (anonymous inline functions)
+
+   Lambda functions are anonymous FuncDef literals passed directly as
+   arguments. Same syntax as named definitions, just without a name:
+
+   #+begin_src til
+   Predicate := func(I64) returns Bool
+   Reducer := func(I64, I64) returns I64
+
+   // filter with inline lambda
+   evens := numbers.filter(func(a: I64) returns Bool { return a.mod(2).eq(0) })
+   // [2, 4]
+
+   // reduce with inline lambda
+   sum := numbers.reduce(0, func(acc: I64, x: I64) returns I64 { return acc.add(x) })
+   // 15
+
+   // FuncSig form lambda (type separated from param names)
+   doubled := numbers.map(func(I64) returns I64 = (a) { return a.mul(2) })
+   #+end_src
+
+*** First-class bodies (blocks as values)
+
+   A Body is a sequence of statements — the simplest unit of executable
+   code. Simpler than a function: no signature, no parameters, no return
+   type. A Body is essentially a zero-argument, void closure.
+
+   #+begin_src til
+   // Store in a variable
+   cleanup := { file.close(); println("done") }
+
+   // Pass as argument
+   run_twice := proc(b: Body) {
+       b()
+       b()
+   }
+   run_twice({ println("hello") })
+
+   // Store in a struct field
+   Task := struct {
+       mut on_complete: Body
+   }
+   t := Task(on_complete = { println("finished") })
+   t.on_complete()
+
+   // Store in a collection
+   steps := Vec.new(Body)
+   steps.push(own { println("step 1") })
+   steps.push(own { println("step 2") })
+   for step : Body in steps {
+       step()
+   }
+   #+end_src
+
+*** Relationship to functions and closures
+
+   | Construct         | Has params | Has return type | Has captures | Has body |
+   |-------------------+------------+-----------------+--------------+----------|
+   | Body              | No         | No              | No*          | Yes      |
+   | func (no closure) | Yes        | Yes             | No           | Yes      |
+   | func (closure)    | Yes        | Yes             | Yes ([[./54.org][#54]])    | Yes      |
+
+   *Without captures ([[./54.org][#54]]), a Body can only access globals. With captures,
+   a Body becomes a zero-argument closure:
+
+   #+begin_src til
+   mut total := 0
+   data := vec("I64", 1, 2, 3)
+
+   // Body with capture list
+   summer : Body = [mut total, data] { for item : I64 in data { total = total.add(item) } }
+   summer()
+   // total is now 6
+   #+end_src
+
+   A Body is to ~proc()~ what a literal is to a named constant — the
+   anonymous, inline version. The distinction is that a Body has no
+   function overhead (no frame push/pop in the interpreter, no C function
+   call in codegen) — it executes in the caller's scope.
+
+*** Use cases
+
+   #+begin_src til
+   // Deferred execution (like Go's defer)
+   cleanup := { file.close() }
+   // ... do work ...
+   cleanup()
+
+   // Callbacks and hooks
+   Widget := struct {
+       mut on_click: Body
+       mut on_hover: Body
+   }
+
+   // Builder patterns
+   with_transaction := proc(db: Database, action: Body) {
+       db.begin()
+       action()
+       db.commit()
+   }
+   with_transaction(db, { db.insert(record1); db.insert(record2) })
+
+   // Test setup/teardown
+   run_test := proc(name: Str, setup: Body, test_body: Body, teardown: Body) {
+       println("Running:", name)
+       setup()
+       test_body()
+       teardown()
+   }
+   #+end_src
+
+*** Scope semantics: inline vs isolated
+
+   Open question: when a Body executes, does it share the caller's scope
+   (like an inlined block) or get its own scope (like a function call)?
+
+   - *Option A: Inline* — shared scope (how bare ~{ }~ blocks work today).
+     Simple, powerful, zero overhead. But passing a Body as argument is
+     weird — which scope does it execute in?
+   - *Option B: Isolated* — own scope, captures only ([[./54.org][#54]]). Safe and
+     predictable for stored/passed bodies. But needs captures to be useful.
+   - *Option C: Both* — bare ~{ }~ blocks are inline (current behavior),
+     Body values (stored, passed, returned) are isolated and require
+     captures. This is probably the right answer.
+
+*** Comparison
+
+   | Language   | Block-as-value          | Notes                              |
+   |------------+-------------------------+------------------------------------|
+   | Ruby       | ~{ ... }~ / ~do...end~  | Blocks and Procs are first-class   |
+   | Smalltalk  | ~[ ... ]~               | Blocks are objects                 |
+   | Swift      | ~{ () -> Void in ... }~ | Closures (always have captures)    |
+   | Kotlin     | ~{ ... }~ (lambda)      | Trailing lambda syntax             |
+   | Rust       | closure only            | No bare blocks as values           |
+   | Go         | ~func() { ... }()~      | Must wrap in function              |
+   | TIL        | ~Body = { ... }~        | Simpler than closure               |
+
+   Ruby is the closest precedent. Ruby blocks can be passed to methods
+   implicitly (~yield~) or explicitly (~&block~), and ~Proc.new~ wraps a
+   block into a first-class value.
+

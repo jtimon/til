@@ -1,0 +1,93 @@
+** #175 Switch case-binding leaks when hoisted into a ~mut Str~ (or similar owned local)
+  The pattern that leaked:
+
+  #+begin_src til
+  mut fname := ""
+  switch e.node_type {
+  case NodeType.FieldAccess(fn):
+      fname = fn
+  case NodeType.FieldAssign(fn):
+      fname = fn
+  }
+  ... use fname ...
+  #+end_src
+
+  After switch desugaring the leaky assignment is ~fname = fn~ inside
+  an ~if~ body, where ~fn~ is a ~ref Str~ borrow and ~fname~ is a
+  ~mut Str~ owned local in the enclosing function scope.
+
+  Root cause: ~insert_assign_delete~ only emitted destructors for
+  assignments to locals declared in the *current* scope. The leaky
+  assignment lives inside a nested ~if~/switch-case body, while the
+  ~mut Str~ slot is owned by the enclosing function -- so no
+  destructor was ever scheduled, and the previous ~""~ leaked when
+  ~fname~ was overwritten.
+
+  Fix ([[file:../../src/self/typer.til][src/self/typer.til]] ~infer_assign_stmt~): when the assignment
+  RHS is wrapped in a ~clone~ call (the existing path for ~Ident~ /
+  ~FieldAccess~ to a ~Struct~/~Enum~) and the target binding lives in
+  an outer *function-local* scope (not a module global), set
+  ~AssignData.save_old_delete = true~ on the assign node. The codegen
+  in [[file:../../src/self/builder.til][src/self/builder.til]] already emits the right "free old, store
+  new" sequence based on whether the target is a hoisted stack local
+  or a heap pointer.
+
+  Module/global variables are excluded on purpose -- a number of
+  [[file:../../src/self/builder.til][src/self/builder.til]] helpers use a manual save / replace /
+  ~own X.delete()~ / restore idiom on global Set state (~stack_locals~,
+  ~unsafe_to_hoist~, etc.), and auto-deleting the saved-then-restored
+  value would double-free.
+
+  ~TypeScope~ already walks parents on lookup, so the new
+  ~assign_target_is_func_local~ helper just checks whether the binding
+  is found at any non-root scope.
+
+  Follow-up: extend the trigger to user-written ~Type.clone(...)~
+  FCalls.
+
+  The original fix only fired for the implicit clone path (~Ident~ /
+  ~FieldAccess~ to a ~Struct~/~Enum~ that the typer auto-wraps in
+  ~Type.clone(...)~). Many sites in the self-host write the clone
+  explicitly, e.g. ~mut dd_name := ""; dd_name = dd.name.clone()~ in
+  ~extend_ref_local_lifetimes~ -- the same leak shape, different
+  surface syntax. Add ~rhs_is_clone_fcall~ to recognise an FCall whose
+  callee is a ~FieldAccess "clone"~, and apply ~save_old_delete~ in
+  the same outer-function-local-target case.
+
+  Also drop the leftover ~stmt.til_type = existing.clone()~ from the
+  original fix: ~infer_assign_stmt~ already sets ~stmt.til_type~ from
+  the rhs, so the explicit clone was redundant and itself leaked
+  (FieldAssign on owned ~til_type~ field overwrites without freeing
+  the old TilType -- that's a separate, broader bug to fix later).
+
+  Numbers (cli_args interpret leak total under bin/til_asan, after a
+  local 2nd self-host pass that bakes the new behavior into bin/til):
+    before: 185521 byte(s) leaked in 25170 allocation(s)
+    after:  134086 byte(s) leaked in 23248 allocation(s)
+    delta:  -51435 bytes (-28%) / -1922 allocations (-8%)
+
+  Cumulative [[./175.org][#175]] progress vs. the master commit just before any of
+  these typer fixes landed:
+    pre-fix:  335026 byte(s) leaked in 44123 allocation(s)
+    today:    134086 byte(s) leaked in 23248 allocation(s)
+    delta:   -200940 bytes (-60%) / -20875 allocations (-47%)
+
+  Follow-up 2: widen the ~else if~ trigger from "rhs is a
+  ~.clone~ FCall" to "rhs is any FCall whose declared return is
+  ~OwnType.Own~". The same [[./175.org][#175]] shape shows up across
+  [[file:../../src/self/parser.til][src/self/parser.til]] as ~mut X := ""; X = expect_text(...)~ inside
+  nested ~if~ blocks (so the target binding is in the outer
+  function-local scope). ~expect_text~ returns ~Str~ owned by default,
+  so the typer's existing ~fcall_returns_own~ predicate -- already
+  used by the ~returns own~ ownership-transfer machinery in
+  ~[[./168.org][#168]]~/~[[./147.org][#147]]~ -- discriminates safely against shallow-return calls.
+
+  Numbers (cli_args interpret leak total under bin/til_asan, this is a
+  Two-pass commit so the delta lands in the same commit):
+    before: 134086 byte(s) leaked in 23248 allocation(s)
+    after:  123684 byte(s) leaked in 21635 allocation(s)
+    delta:  -10402 bytes (-7.8%) / -1613 allocations (-6.9%)
+
+  Cumulative [[./175.org][#175]] series vs pre-fix:
+    -211342 bytes (-63%) / -22488 allocations (-51%)
+

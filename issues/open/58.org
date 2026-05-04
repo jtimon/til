@@ -1,0 +1,192 @@
+# priority: low
+** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
+
+:DEPENDENCIES: [[./14.org][#14]]
+  Based on rstil/doc/first_class.org. Everything in til is a value —
+  functions, structs, enums can all be assigned, passed, returned, and
+  stored. This issue covers the metatype system that makes it work.
+
+*** Type hierarchy
+
+   ~Type~ is the metatype — the type of all type definitions:
+
+   #+begin_src til
+   Type := enum { StructDef, EnumDef, FuncSig, FuncDef }
+   #+end_src
+
+   | Metatype    | Defines                      | Instance example                     |
+   |-------------+------------------------------+--------------------------------------|
+   | ~StructDef~ | Data layout (fields)         | ~p := Point(x=10)~ is a Point        |
+   | ~EnumDef~   | Tagged union (variants)      | ~c := Color.Red~ is a Color          |
+   | ~FuncSig~   | Calling convention (types)   | ~BinaryOp := func(I64, I64) ret I64~ |
+   | ~FuncDef~   | Concrete function (sig+body) | ~add : BinaryOp = (a, b) { ... }~   |
+
+   ~FuncSig~ is a pure type — parameter types, return type, func/proc
+   kind. Parameter *names* are NOT part of the signature, only types.
+
+   ~FuncDef~ is a concrete function definition — it has a ~FuncSig~ (its
+   type) plus argument names, modifiers, and a body. A FuncDef is to its
+   FuncSig what a struct instance is to its StructDef: the signature is
+   the type, the definition is the value.
+
+   Function types are *structural*: two signatures with the same parameter
+   types, return type, and throws are the same type regardless of name.
+
+*** Explicit type annotations (~: Type =~ syntax)
+
+   Separate the type annotation (~:~) from the value assignment (~=~).
+   ~:=~ remains as shorthand for "infer the type":
+
+   #+begin_src til
+   // Explicit type + value
+   x : I64 = 5
+   name : Str = "hello"
+
+   // Type definitions: explicit metatype annotation
+   Point : StructDef = struct { mut x: I64 = 0, mut y: I64 = 0 }
+   Color : EnumDef = enum { Red, Green, Blue }
+   BinaryOp : FuncSig = func(I64, I64) returns I64
+
+   // Inferred (unchanged from today)
+   Point := struct { mut x: I64 = 0, mut y: I64 = 0 }   // infers StructDef
+   Color := enum { Red, Green, Blue }                      // infers EnumDef
+   BinaryOp := func(I64, I64) returns I64                  // infers FuncSig
+   #+end_src
+
+*** Type inference rules
+
+   | Declaration                                                | Inferred type |
+   |------------------------------------------------------------+---------------|
+   | ~x := 5~                                                   | ~I64~         |
+   | ~name := "hello"~                                          | ~Str~         |
+   | ~Point := struct { ... }~                                  | ~StructDef~   |
+   | ~Color := enum { ... }~                                    | ~EnumDef~     |
+   | ~BinaryOp := func(I64, I64) returns I64~                   | ~FuncSig~     |
+   | ~add := func(a: I64, b: I64) returns I64 { return ... }~   | ~FuncDef~     |
+
+   The distinction mirrors struct/enum:
+   - ~Point := struct { ... }~ defines a *type* (infers StructDef)
+   - ~p := Point(x=10)~ creates an *instance* (infers Point)
+   - ~BinaryOp := func(I64, I64) returns I64~ defines a *type* (infers FuncSig)
+   - ~add := func(a: I64, b: I64) returns I64 { ... }~ creates an *instance* (infers FuncDef)
+
+   A bodyless func/proc is a FuncSig (type definition). A bodied func/proc
+   is a FuncDef (value). The presence of a body (and parameter names)
+   distinguishes them.
+
+*** Parameters always require explicit types
+
+   Lambda and named function parameters always require explicit types.
+   ~Dynamic~ and ~Type~ are special parameter types and inferring argument
+   types would create ambiguity. Explicit parameter types also make function
+   signatures self-documenting.
+
+   #+begin_src til
+   // REQUIRED: explicit types in function parameters
+   add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+
+   // NOT ALLOWED: inferred parameter types
+   add := func(a, b) returns I64 { ... }  // error
+   #+end_src
+
+*** FuncSig form vs FuncDef form
+
+   Two equivalent ways to define a function, mirroring the two metatypes.
+   Both produce the same FuncDef value:
+
+   #+begin_src til
+   // 1. FuncDef form: FuncDef literal (type inferred as FuncDef)
+   add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+
+   // 2. FuncSig form: explicit signature as type, names + body as value
+   add : func(I64, I64) returns I64 = (a, b) { return a.add(b) }
+
+   // 3. FuncSig form with named alias
+   add : BinaryOp = (a, b) { return a.add(b) }
+
+   // 4. Explicit FuncDef metatype
+   add : FuncDef = func(a: I64, b: I64) returns I64 { return a.add(b) }
+   #+end_src
+
+   Forms 2 and 3 are the same (with or without a type alias). Form 1 is the
+   FuncDef literal — the parser extracts argument names and body to produce
+   the same internal representation. Form 4 is the explicit-metatype version
+   of form 1.
+
+*** Collections of types
+
+   #+begin_src til
+   Vec.new(BinaryOp)   // Vec of function pointers with the same signature
+   Vec.new(FuncSig)    // Vec of function signatures (different signatures)
+   Vec.new(FuncDef)    // Vec of function definitions (different definitions)
+   Vec.new(StructDef)  // Vec of struct definitions
+   Vec.new(EnumDef)    // Vec of enum definitions
+   Vec.new(Type)       // Vec of any type definition
+   #+end_src
+
+   Storing function pointers in collections currently fails:
+   ~ops.push(own fn_add)~ where ~ops := Vec.new("BinaryOp", ...)~ panics
+   with ~dyn_fn: unknown BinaryOp.clone~. Vec.push assumes values are
+   heap-allocated boxes and calls elem_clone/elem_delete, but a function
+   pointer is a plain value (not a struct). Needs Vec to support
+   FuncSig-typed elements via a dedicated clone/delete path. Moved here
+   from [[./61.org][#61]] (where it appeared as "storing function pointers in
+   collections") since fixing it requires type-hierarchy work, not
+   lambda-lifting changes.
+
+*** Introspection
+
+   First-class types support reflection via the ~func_sig_of~,
+   ~struct_def_of~, ~enum_def_of~ helpers (see rstil/std.meta):
+
+   #+begin_src til
+   sig := func_sig_of("BinaryOp")
+   sig.args.len()             // 2
+   sig.return_types.len()     // 1
+   sig.throw_types.len()      // 0
+   #+end_src
+
+*** Type parameters
+
+   Two-phase plan:
+
+   *Phase now*: ~func(T: Type)~ — no new syntax needed. ~Type~ is already
+   a special parameter type. Macros handle the template use case by
+   executing arbitrary code at compile time (like Jai's comptime, Zig's
+   comptime):
+
+   #+begin_src til
+   // Type as a regular parameter
+   swap := func(T: Type, mut a: T, mut b: T) { ... }
+   swap(I64, x, y)
+
+   Pair := macro(A: Type, B: Type) returns Type {
+       return struct { mut first: A, mut second: B }
+   }
+   IntStr := Pair(I64, Str)
+   #+end_src
+
+   *Phase later*: ~func<T>()~ as sugar that desugars to macro calls.
+   Use ~<>~ for familiarity (Rust, C++, Java):
+
+   #+begin_src til
+   // Sugar (later):
+   swap<T> := func(mut a: T, mut b: T) { ... }
+   swap(x, y)       // T inferred
+   swap<I64>(x, y)  // T explicit
+
+   // Desugars to:
+   swap := func(T: Type, mut a: T, mut b: T) { ... }
+   swap(I64, x, y)
+   #+end_src
+
+*** Unified pattern summary
+
+   | Construct  | Type declaration               | Definition (type = value)              |
+   |------------+--------------------------------+----------------------------------------|
+   | Variable   | ~x : I64~                      | ~x : I64 = 5~ or ~x := 5~             |
+   | Function   | ~F : func(I64) returns I64~    | ~f : func(I64) returns I64 = { ... }~  |
+   | Body       | (no separate type decl)        | ~b : Body = { ... }~ or ~b := { ... }~ |
+   | Struct     | ~S : struct { ... }~           | (struct decl IS the definition)        |
+   | Enum       | ~E : enum { ... }~             | (enum decl IS the definition)          |
+

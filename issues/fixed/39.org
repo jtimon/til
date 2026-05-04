@@ -1,0 +1,5 @@
+** #39 Self-hosting: replace C modules with til (bottom-up)
+  All C interpreter/precomp/dispatch modules translated to til.
+  interpreter.c, precomp.c, dispatch.c removed.
+  Only ext.c (primitives) and pre_141.c (libffi thin wrappers) remain.
+

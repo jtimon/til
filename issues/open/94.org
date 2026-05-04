@@ -1,0 +1,24 @@
+# priority: low
+** OPEN #94 Generic Range: support any type with inc/dec
+
+:DEPENDENCIES: [[./91.org][#91]], [[./100.org][#100]]
+  Range with dynamic element storage and FuncPtr fields for operations.
+  Supports user-defined types like Vec2 with inc/dec/cmp/distance.
+
+  Design: Range stores elem as opaque bytes (own mut elem : U8),
+  with FuncPtr fields (IncFn, CmpFn, CloneFn, DeleteFn, DistanceFn)
+  initialized via dyn_fn in Range.new. len via distance (O(1)),
+  get via inc/dec on cursor.
+
+  Known blockers found during implementation attempt:
+  - Scavenger removes inc/dec/distance + Str from compiled programs
+  - Bootstrap slowdown: core lib for-in (Str.cmp etc) creates
+    heavyweight Range objects instead of simple U64 arithmetic
+  - Builder: Str struct ordering in generated C for pure-mode programs
+  - Interpreter: FuncPtr field calls with mut params may not mutate
+  - Typer: Range.new transform desugars NamedArgs before cloning
+    (inline struct constructors as range operands fail)
+  - [[./79.org][#79]]: type aliases (USize) not resolved in FuncPtr forward decls
+
+  Design documented in ~doc/auto.org~. wip_94 branch has partial impl.
+

@@ -1,0 +1,44 @@
+** #167 Follow-ups from #166: eval_arg / dispatch.til cleanup
+  Closed across three commits (#167.1, #167.B, this one). Net effect:
+  the three Dynamic-to-typed-Value narrowing paths the interpreter had
+  -- ~eval_arg~, ~reinterpret_ptr_value~, and ~ext_dispatch_ffi~'s
+  per-ffi_type ladder -- now all flow through ~reinterpret_ptr_value~,
+  so a future [[./166.org][#166]]-style deref bug can only land in one place instead
+  of silently in one of three.
+
+  1. (#167.1, commit 99d6179) ~eval_arg~ collapsed from a hand-rolled
+     deref + cast to a one-liner that delegates to
+     ~reinterpret_ptr_value~ for the Bool case.
+
+  2. (#167.B, commit 4c07790) ~ext_dispatch_ffi~'s shallow-arg ladder
+     collapsed from a 50-line per-ffi_type if-chain to a one-line
+     helper call. Two new helpers (~ffi_shallow_type_info~,
+     ~ffi_write_shallow_arg~) carry the consolidation; ~Value.Ptr~
+     args narrow via ~reinterpret_ptr_value~ on the way into the FFI
+     args buffer.
+
+  3. (this commit) ~eval_arg~ inlined and deleted; replaced by a tiny
+     ~narrow_bool_arg~ proc inside ~dispatch.til~ that the three
+     ~h_Bool_*~ handlers call directly. The handlers' empty ~case:~
+     branch (which silently defaulted ~av~/~bv~ to ~false~ for any
+     unexpected variant) is gone too: ~narrow_bool_arg~ panics
+     instead, so a future cast/typer bug surfaces loudly rather than
+     producing wrong-but-plausible booleans. Plus a cross-reference
+     comment between ~shallow_ffi_type~ and ~ffi_shallow_type_info~
+     so future shallow-primitive additions don't update only one of
+     the two tables.
+
+  Sub-points .2/.3/.4 from the original issue:
+  - .2 (rename / inline ~eval_arg~): inlined into three handlers,
+    helper deleted.
+  - .3 (panic on unexpected variant in ~h_Bool_*~): done in
+    ~narrow_bool_arg~.
+  - .4 (cover the ~e.til_type == Dynamic~ early-return in
+    ~eval_arg~): structurally moot. The dual-path branching is gone
+    -- ~narrow_bool_arg~ unconditionally calls
+    ~reinterpret_ptr_value~, so there's nothing to test that
+    ~test_bool_vec_get_chain~ doesn't already cover. (A user-level
+    ~ref x : Dynamic = v.get(i); not(x)~ shape exposes a separate
+    pre-existing issue in ~reinterpret_ptr_value~'s ~"Dynamic"~
+    case-handling and isn't part of this fix.)
+

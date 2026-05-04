@@ -1,0 +1,52 @@
+** #185 Codegen: ref-Dynamic locals fail to compile when narrow_dynamic retypes them
+  Sibling bug to [[./180.org][#180]] on the compile-mode side. Surfaced during the
+  [[./180.org][#180]] follow-up investigation: shapes like
+
+      v := vec("Bool", true, false)
+      ref x : Dynamic = v.get(1)
+      not(x)
+
+  worked under ~bin/til interpret~ post-[[./180.org][#180]] but failed to compile
+  under ~bin/til run~ with
+  ~error: dereferencing 'void *' pointer~ on the generated
+  ~not(DEREF(x))~ -- ~DEREF(p)~ expands to ~*p~, and ~*x~ is invalid
+  C when ~x~ is ~void *~.
+
+  Root cause:
+
+  - The typer's ~narrow_dynamic~ ([[file:../../src/self/typer.til:5224][src/self/typer.til:5224]]) retypes
+    a ~Dynamic~ FCall arg's ~til_type~ to the param type at the call
+    site. For ~not(x)~ where ~x~ is a ~ref Dynamic~ local, the Ident
+    ~x~ ends up with ~til_type = Bool~.
+  - At codegen, ~emit_deref~ ([[file:../../src/self/builder.til:1762][src/self/builder.til:1762]]) used the
+    Ident's ~til_type~ to decide what to emit. Seeing ~Bool~ (not
+    ~Dynamic~), it fell into the generic ref-local branch and wrote
+    ~DEREF(x)~ -- which the C compiler then rejected because ~x~'s
+    declared C type is ~void *~.
+
+  Fix: track ref-Dynamic locals in a new ~Context.ref_dyn_locals~
+  Set, populated when ~emit_decl~ sees ~dd.own_type == OwnType.Ref~
+  AND ~dd.explicit_type == "Dynamic"~. ~emit_deref~ checks the set
+  before falling into the generic ref-local branch and, when the
+  Ident's now-narrowed ~til_type~ is a concrete primitive, emits
+  ~DEREF((PrimT *)x)~ instead -- a typed cast that turns the
+  ~void *~ into a ~PrimT *~ before the deref.
+
+  Save/restore points mirror the existing ~ref_locals~ Set
+  (~emit_body_scoped~ + the four full-program reset sites in
+  ~emit_program~ / ~emit_program_to_file~).
+
+  Audit: searched for shapes that previously fell into the bad
+  codegen branch. Only direct primitive-call sites (~not(x)~,
+  ~y.add(x)~) were affected; existing code that uses ~ref X :
+  Dynamic~ either passes the local to ~Dynamic~-typed params or
+  re-narrows via another ~ref~ binding, both of which were
+  unaffected.
+
+  Tests: two new regression tests in [[file:../../src/test/dynamic.til][src/test/dynamic.til]]:
+  ~bug185_bool_dyn_arg_chain~ (UFCS receiver and positional arg into
+  ~not~/~and~/~or~) and ~bug185_u8_dyn_arg~ (mixed typed/Dynamic args
+  into a typed-primitive method ~y.add(x)~). Both fail to compile
+  pre-fix and pass post-fix in both ~run~ and ~interpret~ modes.
+  All 99 tests still pass.
+

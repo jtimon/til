@@ -1,0 +1,81 @@
+# priority: high
+** OPEN #169 Typer panics with Vec.get out-of-bounds, suppressing later type errors
+
+Symptom:
+
+   The end of every ~bin/til translate~ / ~bin/til interpret~ run on
+   [[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] ends with a panic:
+
+   #+begin_example
+   ./src/test/typer_errors.til:295:40: error: undefined symbol 'urmom'
+   ./src/test/typer_errors.til:299:17: error: proc has no proc/ext_proc calls; should be a func
+   ./src/core/vec.til:97:19: panic: Vec.get: index 0 out of bounds (len 0)
+   #+end_example
+
+   The panic is silent in the test infrastructure: the typer_errors test
+   counts ~error:~ lines (currently expected: 67) and the panic comes
+   after they are all printed, so the test still passes -- but every
+   type error that *would* have fired after the panic is suppressed.
+
+   Minimal reproducer (2 lines):
+
+   #+begin_src til
+   break
+   s := {1, 2}
+   #+end_src
+
+   Cause:
+
+   ~desugar_set_literals~ ([[file:../../src/self/typer.til:3782][src/self/typer.til:3782]]) and
+   ~desugar_map_literals~ ([[file:../../src/self/typer.til:3816][src/self/typer.til:3816]]) both use this
+   pattern in their per-stmt loop:
+
+   #+begin_src til
+   if stmt.node_type.is(NodeType.Decl)
+       .and(stmt.children.len().gt(0))
+       .and(stmt.child(0).node_type.is(NodeType.SetLit)) {
+       ...
+   }
+   #+end_src
+
+   ~.and()~ is a regular method on ~Bool~, so both arguments are
+   evaluated eagerly. When ~stmt~ is a ~break~ or ~continue~ (or any
+   stmt with zero children), the third clause calls ~stmt.child(0)~ on
+   an empty ~children~ Vec and ~Vec.get(0)~ panics. The earlier
+   ~stmt.children.len().gt(0)~ check is correct but doesn't guard the
+   later access because it doesn't short-circuit.
+
+   Concrete impact:
+
+   In [[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] the ~break~ at line 145 followed
+   later by SetLit/MapLit decls at lines 210/213 triggers this. The
+   panic happens during the desugar pass, which suppresses at least 4
+   real errors that the file's comments document as expected:
+
+   - ~:123:16: use of 'doomed' after ownership transfer~
+   - ~:142:9: use of 'ctor_name' after ownership transfer~
+   - ~:210:13: map literal: key type 'NoCmp' must implement cmp~
+   - ~:213:13: set literal: element type 'NoCmp' must implement cmp~
+
+   Run those 4 expected cases in isolation and they fire correctly --
+   the panic is the only thing keeping them quiet in the full file.
+
+   Fix:
+
+   Replace the ~.and()~ chain with nested ~if~ in
+   ~desugar_set_literals~ and ~desugar_map_literals~ (and any other
+   place using the same eager-and-guards-a-Vec.get pattern). After
+   the fix, the typer_errors test count needs to be updated (likely
+   to 71).
+
+   This is a concrete crash caused by the broader short-circuit gap
+   tracked in [[./117.org][#117]] (~Bool and/or do not short-circuit~). Fixing [[./117.org][#117]]
+   would prevent this kind of panic by construction. In the
+   meantime, every existing call site that pairs ~.and()~ with a
+   dereference whose safety depends on the earlier clause is a
+   latent crash. The same shape bit ~init_declarations~ during the
+   [[./158.org][#158]] refactor:
+   ~rhs.node_type.is(NodeType.FuncDef).and(rhs.child(0).children.len().eq(0))~
+   crashed because ~rhs.child(0)~ ran for non-FuncDef rhs with no
+   children.
+

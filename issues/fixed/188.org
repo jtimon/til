@@ -1,0 +1,33 @@
+** #188 Nested kwargs fcall not desugared into DynMap wrap
+  Twin of [[./186.org][#186]] on the kwargs path. A kwargs fcall nested inside
+  another kwargs fcall, e.g.
+      greet("World", prefix = make_str(greeting = "Hi"))
+  used to compile to C that passed the inner ~make_str~'s raw
+  named-arg value into the outer call's ~DynMap.set~ position
+  while leaving the inner ~make_str(greeting = "Hi")~ itself
+  unwrapped, so the builder emitted ~make_str(&(Str){...})~
+  against a function expecting ~DynMap *~. gcc rejected it with
+  ~passing argument 1 of 'make_str' from incompatible pointer
+  type~. Standalone kwargs calls and the existing kwargs tests
+  weren't nested, so they didn't hit this.
+
+  Root cause: same shape as #186. ~process_call_desugars~ in
+  [[file:../../src/self/typer.til][src/self/typer.til]] only desugared the first kwargs fcall
+  returned by ~find_kwargs_fcall~ per stmt -- the outer one. Its
+  setters (~DynMap.set(_kw0, "prefix", ...)~) were pushed to
+  ~new_ch~ with the inner kwargs fcall sitting in the value arg,
+  never desugared.
+
+  Fix: after building each ~DynMap.set~ setter for the outer
+  kwargs call, recursively invoke ~process_call_desugars~ on the
+  setter (matching the [[./186.org][#186]] shape on the variadic side) so any
+  nested kwargs (or variadic) fcall inside the setter's value arg
+  gets its own ~DynMap.new~ + ~DynMap.set~ wrap and rewrite
+  before the setter is pushed.
+
+  Regression test ~bug188_kwargs_nested_in_kwargs~ in
+  [[file:../../src/test/kwargs.til][src/test/kwargs.til]] exercises ~greet("World", prefix =
+  greet("Hi"))~ -- the recursive form is the simplest shape that
+  hits the nested-kwargs codepath in test mode. All 100 tests
+  pass under ~make clean && make test~.
+

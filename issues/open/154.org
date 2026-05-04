@@ -1,0 +1,38 @@
+# priority: low
+** OPEN #154 Typer error for unused imports
+
+Follow-up to [[./86.org][#86]] (fixed). Now that unused function parameters and
+  unused local variables are type errors, do the same for unused
+  imports.
+
+  #+begin_src til
+  import("foo.til")              // error: unused import 'foo'
+  import("bar.til") as _bar      // ok: _ prefix suppresses (syntax TBD)
+  #+end_src
+
+  This is a lower priority and a meatier task than params/locals for
+  two reasons:
+  - Imports don't introduce a single named binding the way ~x := 42~
+    does. An ~import("foo.til")~ call brings every public top-level
+    decl from ~foo.til~ into the importing scope; "used" has to mean
+    "any symbol the import pulled in was read", not "a binding named
+    ~foo~ was read".
+  - til has no syntax today for a per-import suppression marker. The
+    ~_~ prefix convention works for named bindings but there's no
+    obvious place to put it on a bare ~import("...")~. Probably needs
+    a new form — e.g. ~import("foo.til") as _name~ — before we can
+    even talk about flagging unused imports.
+
+  Implementation sketch (post design):
+  1. Load/import pipeline records, per import, the set of names it
+     brought into the importing program's top-level scope.
+  2. Typer marks each imported binding as used (same ~used~ flag on
+     ~TypeBinding~ used by [[./86.org][#86]]'s param/local checks) when any of
+     those names is referenced from the importing module.
+  3. After type-checking, iterate imports; if no binding from a given
+     import was marked used and the import didn't opt out via the
+     ~_~ form, emit ~type error: unused import 'path'~.
+
+  Until the syntax for suppressing is decided, prototype behind a
+  flag so the codebase doesn't need a flag day.
+

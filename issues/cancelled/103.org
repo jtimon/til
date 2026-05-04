@@ -1,0 +1,5 @@
+** #103 Typer: allow ref mut on enum get_* methods
+Moot after #105: all ~get_X()~ methods replaced by generic
+  ~get_payload()~ ext_func, which is already recognized as
+  ref-returning by the typer. The problem no longer exists.
+

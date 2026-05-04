@@ -1,0 +1,31 @@
+# priority: high
+** OPEN #172 Add test_runner regen mode for expected outputs
+
+Symptom:
+
+   There is no dedicated workflow to refresh expected output fixtures
+   when behavior changes intentionally. Today, some expected outputs are
+   hardcoded and written by ~src/tests.til~ every run, and the rest of
+   the test suite relies on other invariants (e.g. interp vs run output
+   match).
+
+   Target behavior:
+
+   - Add a ~regen~ mode for the test harness that overwrites expected
+     output fixtures for selected tests (or for all tests).
+   - Make the update explicit ("regen" is opt-in), so expected outputs
+     don't silently drift during normal test runs.
+
+   Open question:
+
+   - Should missing expected output files auto-generate during normal
+     test runs (cache semantics), or should they fail unless ~regen~ is
+     used (reviewed-golden semantics)?
+
+   Sketch:
+
+   Mirror the approach in ~../rstil/src/test_runner.til~:
+
+   - ~test_runner test ...~: compare against expected output
+   - ~test_runner regen ...~: write expected output
+

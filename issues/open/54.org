@@ -1,0 +1,128 @@
+# priority: low
+** OPEN #54 Explicit capture syntax (closures)
+
+:DEPENDENCIES: [[./61.org][#61]]
+  :DEPENDENCIES_OF: [[./12.org][#12]] [[./13.org][#13]]
+  Add syntax for listing captured variables from outer scopes, both for
+  function definitions and anonymous blocks. Based on rstil/doc/first_class.org.
+  Split from [[./17.org][#17]] (global variable access, now fixed).
+
+  Closures = lambdas ([[./61.org][#61]]) + captures. [[./61.org][#61]] provides anonymous inline
+  functions (lambdas); this issue adds the bracket capture list that turns
+  a lambda into a closure by binding outer-scope variables.
+
+  til requires *explicit capture lists* — if a function references an outer
+  variable, it MUST be listed in the capture list. This makes dependencies
+  visible and refactoring mechanical. Inspired by Jai (Jonathan Blow).
+
+*** Capture syntax
+
+   The capture list ~[name1, name2, ...]~ appears after ~returns Type~
+   (or after the parameter list when there is no return type) and before
+   the body in FuncDef form, or after the argument names in FuncSig form:
+
+   #+begin_src til
+   scale := 10
+
+   // FuncDef form: captures after returns, before body
+   f := func(a: I64) returns I64 [scale] { return a.mul(scale) }
+
+   // FuncSig form: captures after argument names
+   f : func(I64) returns I64 = (a) [scale] { return a.mul(scale) }
+
+   // With a named type alias
+   Transformer := func(I64) returns I64
+   f : Transformer = (a) [scale] { return a.mul(scale) }
+   #+end_src
+
+*** Capture modifiers
+
+   Captures follow the same rules as function parameters — no new rules
+   to learn:
+
+   | Capture syntax | Semantics                     | Same as param mode |
+   |----------------+-------------------------------+--------------------|
+   | ~[x]~          | Const by reference (default)  | ~x: T~             |
+   | ~[mut x]~      | Mutable reference             | ~mut x: T~         |
+   | ~[copy x]~     | Deep copy (snapshot)          | ~copy x: T~        |
+   | ~[own x]~      | Ownership transfer (moved in) | ~own x: T~         |
+
+   #+begin_src til
+   mut total := 0
+   data := vec("I64", 1, 2, 3)
+
+   // mut capture: closure can modify total
+   data.for_each(func(x: I64) [mut total] { total = total.add(x) })
+
+   // copy capture: closure gets a snapshot, original unchanged
+   data.map(func(x: I64) returns I64 [copy total] { return x.add(total) })
+
+   // own capture: moves data into the closure, caller can't use it after
+   consume := proc() [own data] { data.clear() }
+   #+end_src
+
+*** Block captures (scope restriction)
+
+   Even without making a function, a capture list on a bare code block
+   limits what it can see — an "insurance policy" that the block only
+   touches specified state:
+
+   #+begin_src til
+   mut total := 0
+   mut count := 0
+   data := vec("I64", 1, 2, 3)
+
+   // Only total and data are accessible inside this block
+   [total, data] {
+       for item : I64 in data {
+           total = total.add(item)
+       }
+   }
+   // count is guaranteed untouched
+   #+end_src
+
+*** Jai-inspired refactoring progression
+
+   Each step is mechanical. The capture list tells you exactly what needs
+   to become a parameter when you promote to a pure function:
+
+   #+begin_src til
+   // Step 1: inline code
+   total = total.add(x)
+
+   // Step 2: block with captures (limit scope, verify dependencies)
+   [total, x] {
+       total = total.add(x)
+   }
+
+   // Step 3: promote to lambda (add params, same captures)
+   adder : func(a: I64) returns I64 = [total] { return total.add(a) }
+
+   // Step 4: promote to pure function (captures become params, no closure)
+   adder := func(a: I64, b: I64) returns I64 { return a.add(b) }
+   #+end_src
+
+*** Why explicit captures
+
+   Implicit captures (Python, JavaScript, Rust) feel magical:
+   - *Reading*: you see ~scale~ and have to hunt for where it's defined.
+     Is it a global? A local three scopes up? A typo for a parameter?
+   - *Refactoring*: extracting a block into a function means figuring out
+     ALL the implicit dependencies. Miss one and it breaks.
+   - *Inlining*: moving a closure back inline means understanding what it
+     captures to know where it can safely go.
+
+   Explicit captures solve all three:
+   - *Reading*: ~[scale]~ tells you exactly what comes from outside.
+   - *Refactoring*: captures become parameters. Mechanical transformation.
+   - *Inlining*: captures tell you exactly what the block depends on.
+
+*** Implementation
+
+   - Parser: recognize ~[name, ...]~ capture list in func defs (after
+     returns Type, before body) and bare blocks (before ~{~)
+   - AST: store capture list on NODE_FUNC_DEF and NODE_BODY
+   - Typer: validate captures exist in outer scope, enforce modifier rules
+   - Interpreter: bind captured variables in call_scope from definition scope
+   - Codegen: emit closure structs or pass captures as hidden parameters
+

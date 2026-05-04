@@ -1,0 +1,13 @@
+# priority: low
+** OPEN #92 Bundle GL headers and linker scripts (zero apt deps)
+
+Bundle Mesa/Khronos GL headers (~lib/gl/include/~) and GNU ld linker
+  scripts (~lib/system/libGL.so~, ~lib/system/libX11.so~) so that
+  ~make test~ works without ~apt install libgl-dev~. Linker scripts
+  redirect ~-lGL~/~-lX11~ to versioned ~.so.1~/~.so.6~ files that
+  exist on any Linux desktop. Builder also needs ~-Llib/system~ for
+  GUI programs built with ~til build~.
+
+  Reference: ~origin/claude/bundle-gl-for-tests-1HDQZ~ has a working
+  implementation (commit 7c6dbe40d).
+

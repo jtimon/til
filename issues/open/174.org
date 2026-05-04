@@ -1,0 +1,92 @@
+# priority: high
+** OPEN #174 Container types create cyclic dependencies that block typer-time methodgen
+
+Symptom:
+
+   [[file:../../src/core/vec.til][src/core/vec.til]] stores ~Str elem_type~ as a struct field and calls
+   ~Str.eq~ inside ~Vec.append~. [[file:../../src/core/str.til][src/core/str.til]]'s ~Str.split~
+   returns ~Vec~ and uses I64-derived methods (~lt~, ~neq~). Each side
+   of the pair references the other, so ~init_file~ /
+   ~type_file~'s recursion-with-memo enters them in a cycle: whichever
+   side is processed second finds the first in
+   ~ctx.imports_typer_done~ but with its body type-check still
+   in flight, so the first's struct decl has not been visited yet.
+
+   Why this matters:
+
+   Today this is invisible because all auto-generated methods (cmp,
+   unity, size, clone, delete, eq, to_str) are synthesized by
+   ~init_declarations_global~ before any typer work runs, in a
+   pre-typer global pass. The cycle is in the data, but the global
+   pass papers over it.
+
+   The cycle becomes a hard blocker the moment we try to move method
+   synthesis into the typer's per-decl visit -- which is what
+   ~[[./165.org][#165]]~ step 2 wants. Concrete failure (second attempt at [[./165.org][#165]]
+   step 2):
+
+   #+begin_example
+   ./src/core/vec.til:25:22: error: no method 'eq' for type 'Str'
+   ./src/core/vec.til:49:71: error: no method 'eq' for type 'Str'
+   ./src/core/str.til:55:18: error: no method 'neq' for type 'I64'
+   ./src/core/str.til:254:18: error: no method 'lt' for type 'I64'
+   #+end_example
+
+   When typer enters Vec via Str's recursion, Vec's body checks before
+   Str's struct decl has been visited; Str.eq doesn't exist yet.
+   Symmetric for the other direction.
+
+   How rstil avoids it:
+
+   rstil's ~Vec~ stores a ~Ptr~ (with ~elem_size~ + ~elem_type~ as a
+   C string pointer to the type name), never a ~Str~. ~Str.split~ in
+   rstil also returns a ~Vec~, but ~Vec~'s body never calls back into
+   ~Str~ methods, so the cycle is not closed. til's ~Vec~ design
+   forces the closure.
+
+   Affected pairs (audit):
+
+   - ~Vec~ <-> ~Str~ (Vec.append calls Str.eq; Str.split returns Vec).
+   - ~Str~ <-> ~I64~ via derived methods (Str's body uses I64.lt /
+     I64.neq; I64's auto-generated to_str returns Str).
+   - ~Bool~ <-> ~I64~ via derived methods (Bool.cmp returns I64;
+     I64.eq, .lt, etc. return Bool).
+   - Probably more: ~Map~, ~Set~, ~Tuple~, ~DynMap~ all reference
+     other container/primitive types in their bodies.
+
+   Three real options to break the cycle:
+
+   1. Restructure til's collection types to mirror rstil. ~Vec~,
+      ~Map~, ~Set~, ~Tuple~, ~DynMap~ store ~Ptr~ (or equivalent)
+      instead of ~Str~ for ~elem_type~. Big work; touches every
+      container plus every caller using ~elem_type~ as ~Str~.
+   2. Two-sweep typer over each file. First sweep across all files
+      visits struct/enum decls and synthesizes methods; second sweep
+      type-checks function bodies. Same cycle, but methods exist by
+      the time any body checks. Adds a sub-walk inside the typer
+      driver -- arguably "still one pass per phase" since both
+      sub-walks are typer work.
+   3. Lazy on-demand synthesis. When typer encounters ~X.method()~
+      and ~method~ is missing from ~X~'s ~ns_decls~, eagerly call
+      the relevant ~gen_*~ for ~X~'s struct decl. Closest to rstil's
+      spirit (synthesis localized at use site) but adds bookkeeping
+      for "is this struct already swept?".
+
+   Until one of these lands, all method generators stay in
+   ~init_declarations_global~ (or its successor by another name).
+   The scope-free generators (cmp, unity, size) could move to a
+   clearly-named pre-typer pass without changing semantics, but
+   that is cosmetic.
+
+   Related issues:
+
+   - ~[[./165.org][#165]]~ step 2 -- the immediate consumer of this cycle finding.
+     Cannot move method generators into typer until one of the three
+     options above is in place.
+   - ~[[./147.org][#147]]~ step 3 (~Context.struct_layouts~) -- scope-using layout
+     work has the same cycle constraint at the data-structure level
+     (Vec's layout depends on Str's size; Str's layout depends on
+     Vec's size for its split-return field type? probably).
+   - ~[[./158.org][#158]]~ "one pass per phase" -- the global pre-typer pass is
+     part of why initer is not yet "one walk per file".
+

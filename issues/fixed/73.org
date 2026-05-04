@@ -1,0 +1,4 @@
+** #73 Replace #ifndef guards with #pragma once
+  All src/c/ headers now use ~#pragma once~ instead of
+  ~#ifndef/#define/#endif~ guards, matching bootstrap convention.
+

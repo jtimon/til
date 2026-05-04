@@ -1,0 +1,39 @@
+** #186 User-defined variadic funcs: codegen emits raw args instead of Array wrap
+  Calls like ~println(say(true, false, true))~ where ~say~ is a
+  user-defined variadic ~func~/~proc~ generated C that passed
+  each variadic arg individually to ~say~ instead of wrapping
+  them into the ~Array~ the variadic param expects. gcc rejected
+  the call with ~too many arguments to function 'say'~.
+
+  Root cause: the typer's variadic-call desugar
+  (~process_call_desugars~ in [[file:../../src/self/typer.til][src/self/typer.til]]) only handled
+  one variadic fcall per stmt -- the first one returned by
+  ~find_variadic_fcall~. For ~println(say(...))~ the outer
+  ~println~ matched first; its args were wrapped into
+  ~_va_Array_0~ via ~Array.new~/~Array.set~, but the inner
+  ~say(true, false, true)~ -- now living inside one of the
+  ~Array.set~ value args -- was never desugared, so the builder
+  emitted the raw arg list when generating the call to ~say~.
+
+  Standalone variadic calls (~x := say(true, false, true)~) and
+  variadic calls from inside ~test()~ bodies worked because they
+  weren't nested inside another variadic fcall; only the
+  nested-variadic-in-variadic shape hit the bug.
+
+  Fix: in ~process_call_desugars~, after building each
+  ~Array.set~ setter for the outer variadic call, recursively
+  invoke ~process_call_desugars~ on the setter so any nested
+  variadic fcall (e.g. ~say(...)~) inside the setter's value arg
+  gets its own ~Array.new~/~Array.set~ wrap and rewrite before
+  the setter is pushed into ~new_ch~.
+
+  Regression test ~bug186_variadic_nested_in_variadic~ in
+  [[file:../../src/test/variadic.til][src/test/variadic.til]] exercises both shapes: a user-defined
+  variadic returning ~Str~, and the result of one variadic call
+  passed as variadic args to another variadic call. The original
+  CLI repro (~println(say(true, false, true))~) and the [[./185.org][#185]]
+  follow-up shape with ~ref Dynamic~ args
+  (~println(say(x, y, x))~ where ~x~, ~y~ are ~ref Dynamic~ from
+  ~vec~) both compile and run cleanly under ~bin/til run~ and
+  ~bin/til interpret~.
+

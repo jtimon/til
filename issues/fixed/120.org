@@ -1,0 +1,20 @@
+** #120 Container constructors reject empty explicit types
+  Landed after ~[[./118.org][#118]]~ made pointer/ref container storage explicit under
+  ~Dynamic~.
+
+  What changed:
+  - ~Vec.new("", ...)~ now panics with
+    ~"Vec.new: elem_type required"~
+  - ~Map.new(..., "", ...)~ now panics with
+    ~"Map.new: val_type required"~
+  - ~Dynamic.size()~ was added and is now used for true
+    pointer/ref-like ~Dynamic~ container storage
+  - container constructors still manually clone stored type-name strings
+    as the temporary workaround tracked by ~[[./119.org][#119]]~
+  - obvious non-pointer container sites were converted to explicit real
+    type names
+  - pointer/ref container sites continue to use explicit ~Dynamic~
+  - AST/fake-AST raw storage that is not ordinary typed construction was
+    normalized to direct raw ~Vec~ struct literals instead of empty-type
+    constructor calls
+

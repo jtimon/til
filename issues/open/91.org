@@ -1,0 +1,102 @@
+# priority: high
+** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
+
+Vec/Map/Set currently dispatch clone/delete by type name string via
+  ~dyn_call~, which does a linear scan of if/memcmp chains every time.
+  Instead, store clone/delete function pointers as fields in the
+  container struct. ~Vec.new("Str", Str.size())~ resolves the function
+  pointers once at construction, then all subsequent clone/delete calls
+  go through the stored pointers directly.
+
+  Proven pattern: ~AlphaBeta~ struct in ~src/lib/alphabeta.til~ uses
+  the same function-pointer-on-struct approach — ~h~ and ~nexts~ fields
+  called via ~self.h(board)~ and ~self.nexts(board)~. All three game
+  examples (checkers, chess, go) use it successfully.
+
+  Design:
+
+  New ext_func to resolve function pointers from type name + method:
+  : dyn_get_fn_ptr := ext_func(type_name: Str, method: Str) returns Dynamic {}
+
+  Vec struct gains function pointer fields:
+  #+begin_src til
+  Vec := struct {
+      own mut data : U8 = 0
+      mut count : USize = 0
+      mut cap : USize = 0
+      elem_size : USize = 0
+      elem_type := ""
+      elem_clone : func(Dynamic) returns Dynamic = default_clone
+      elem_delete : proc(Dynamic, Bool) = default_delete
+  }
+  #+end_src
+
+  Vec.new resolves pointers once at construction:
+  #+begin_src til
+  new := func(elem_type: Str, elem_size: USize) returns Vec {
+      return Vec(
+          data = malloc(elem_size),
+          cap = 1,
+          elem_size = elem_size,
+          elem_type = elem_type,
+          elem_clone = dyn_get_fn_ptr(elem_type, "clone"),
+          elem_delete = dyn_get_fn_ptr(elem_type, "delete"),
+      )
+  }
+  #+end_src
+
+  Container methods use the fields directly:
+  #+begin_src til
+  // Before (dyn_call):
+  dyn_call(self.elem_type, "delete", 2, ptr_add(...), false)
+  own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1, ptr_add(...))
+
+  // After (function pointer):
+  self.elem_delete(ptr_add(...), false)
+  own cloned : Dynamic = self.elem_clone(ptr_add(...))
+  #+end_src
+
+  Same pattern for Map (key_clone, key_delete, key_cmp, val_clone,
+  val_delete), Set (elem_clone, elem_delete, elem_cmp), Array, Tuple.
+
+  No workarounds for syntax issues — if function pointers on structs
+  don't work for some case, fix the blocker first, then come back.
+
+  Done:
+  - ~dyn_fn~ ext_func: resolves function pointer by type+method name
+  - ~dyn_fn~ renamed from ~dyn_get_fn_ptr~ for brevity
+  - Builder generates ~dyn_fn~ dispatch (independent from dyn_call)
+  - Builder generates wrapper functions (~Type_method_dyn~) for methods
+    with shallow params/returns, fixing calling convention mismatch
+  - ~CloneFn~, ~DeleteFn~, ~CmpFn~ type aliases + defaults in core.til
+  - Builder indirect call codegen uses fn_sig for shallow detection
+  - AlphaBeta refactoring (all 3 games) as proof of function pointer
+    pattern on structs
+  - Interpreter blocker FIXED: FuncPtr field calls for ext_funcs
+  - FuncPtr fields added to Vec, Array, Set, Map in core.til
+  - Constructors resolve fn ptrs via ~dyn_fn~ (with is_empty guards
+    for empty elem_type/val_type)
+  - ~dyn_call~ replaced with direct field calls in delete/clone/cmp
+  - C-side handlers (~h_array~, ~h_vec~, ~build_argv_array~) populate
+    FuncPtr fields via ~ns_get~
+  - FuncPtr fields propagated in clone returns
+
+  Tuple still uses ~dyn_call~ (per-element types, different pattern).
+
+  Performance: no measurable improvement. The dyn_call string matching
+  overhead was replaced by larger struct sizes (Vec +16 bytes, Map +40,
+  Set +24, Array +16) which increase memory pressure and cache misses.
+  The tradeoff is roughly neutral -- fewer comparisons but more bytes
+  per container instance throughout the program.
+
+  Decision needed: since no performance improvement was observed, decide
+  whether to:
+  - finish the job (extend to Tuple with per-element FuncPtr vectors)
+  - or revert the whole thing and go back to dyn_call everywhere
+  The architectural benefits (no "unknown type for delete" failures,
+  simpler generated code) may justify keeping it even without a perf win,
+  but the extra struct size is a real cost.
+
+  Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
+  (it's useful for other things), but containers no longer use it.
+
