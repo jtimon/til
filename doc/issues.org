@@ -1904,487 +1904,240 @@
     not just a naming conflict
 
 ** OPEN #109 Fix memory leaks (make test_asan clean)
-  ~make test_asan~ currently OOMs at 64G. Most leaks are from
-  compiler allocations and remaining ownership/error-path issues.
-  The stack-local work from ~#50~ is already landed, which should make
-  the remaining leak buckets smaller and easier to isolate.
-  See also ~#135~ (ref mut assignment clones instead of pointer copy).
-  ~#175~ is fixed (in fixed.org); a couple of related typer leak
-  categories from that line of work are now closed (see "2026-05 #175
-  series" below).
 
-  End goal (from #110, now absorbed here): switch ~make test~ to always
-  use ~bin/til_asan~ once leaks are under control.
+  Status: ~make test_asan~ today fails 19 of 99 tests, all because
+  LSAN reports nonzero leak totals -- not correctness errors. Per-test
+  baselines are down ~68% bytes / ~53% allocations vs the pre-#175
+  state; remaining work is broken into the buckets below.
 
-  *** 2026-05 #175 series progress
+  End goal (from #110, absorbed): switch ~make test~ to ~bin/til_asan~
+  once leaks are at zero.
 
-  Per-test ASAN baseline used: ~bin/til_asan interpret examples/cli_args.til hello world~.
+  Related issues:
+  - ~#175~ (FIXED, fixed.org) -- switch case-binding mut Str leak.
+    Several follow-ups in the 2026-05 #175 series below.
+  - ~#144~ (FIXED) -- clone-and-assign in typer desugar passes.
+  - ~#135~ (FIXED) -- ref-mut assignment cloning instead of pointer copy.
+  - ~#129~ (FIXED) -- StructInstance.data / EnumInstance.data made own.
+  - ~#126~ (FIXED) -- auto-gen enum delete recurses into payload.
+  - ~#127~ (OPEN) -- runtime Value/binding ownership cleanup, Ptr split.
+  - ~#128~ (OPEN) -- auto-gen enum clone shallow for managed payloads.
+  - ~#143~ (OPEN) -- own-arg drop on early-exit deletes.
+  - ~#146~ (OPEN) -- unify typer desugar/insert passes into a single walk.
 
-  - Pre-fix master (commit 9079323):
-    ~335026 byte(s) leaked in 44123 allocation(s)~
+  *** Per-test ASAN baseline (commit ff6ce78)
 
-  - After commit 4f10e0d (~Typer: insert exit-deletes through nested
-    Body blocks~): ~187094 byte(s) / 25252 allocations~
-    -- ~-44% bytes / -43% allocations~ vs pre-fix.
-    Root: ~insert_exit_deletes~ recurses into nested ~Body~ stmts so
-    desugared switches' sentinels (~_sw_NodeType_*~ etc.) get freed
-    before deeply-nested early returns.
+  Use ~bin/til_asan interpret examples/cli_args.til hello world~ as
+  the canonical small end-to-end test (cheap to run, exercises lex /
+  parse / load-core / type-check / interpret):
 
-  - After the ~#175~ follow-up that extends ~save_old_delete~ to
-    user-written ~T.clone(...)~ FCalls (commit 7a2d233, landed via
-    next-commit self-host rebuild): ~134086 byte(s) / 23248 allocations~
-    -- ~-28% bytes / -8% allocations~ vs the previous step.
-    Root: ~mut X := ""; X = Y.clone()~ in ~extend_ref_local_lifetimes~
-    and similar sites was missed by the original #175 fix because
-    ~rhs~ is an FCall (already-clone), not the auto-clone-wrapped
-    ~Ident~/~FieldAccess~ shape.
+  | when                                     | bytes    | allocs |
+  |------------------------------------------+----------+--------|
+  | pre-#175 series (commit 9079323)         | 335,026  | 44,123 |
+  | today (post-ff6ce78)                     | 106,541  | 20,674 |
 
-  - After widening the trigger from ~rhs_is_clone_fcall~ to any FCall
-    whose declared return is ~OwnType.Own~ (this two-pass commit):
-    ~123684 byte(s) / 21635 allocations~
-    -- ~-7.8% bytes / -6.9% allocations~ vs the previous step.
-    Root: ~mut X := ""; X = expect_text(...)~ in ~parse_struct_def~
-    (and many ~parse_*~ siblings) -- same #175 outer-scope shape, but
-    rhs is an arbitrary heap-returning FCall, not specifically a
-    ~.clone~. ~fcall_returns_own~ already exists in the typer to
-    discriminate heap-returning callees from shallow-return ones, so
-    the ~else if~ in ~infer_assign_stmt~ now uses it directly.
+  Drive these to zero. If a fix doesn't move this baseline, the
+  attribution was wrong and the fix is wrong.
 
-  - After freeing the heap wrapper of locals whose ownership was
-    transferred via value-copy to a Shallow struct field (this
-    Two-pass commit): ~106541 byte(s) / 20674 allocations~
-    -- ~-13.9% bytes / -4.4% allocations~ vs the previous step.
-    Root: ~mut name := "" / mut name := f()~ promoted to ~OwnType.Own~
-    (Struct local, so ~promote_own_transferred_locals~ heap-allocates
-    the wrapper); when ownership is then "transferred" via
-    ~Decl(field = name, ...)~ where the receiving field is declared
-    Shallow, the typer set ~own_transfer~ and skipped the local's
-    scope-exit destructor entirely. The constructor only value-copies
-    the inner Str struct into the field, so the field's destructor
-    correctly frees the inner data, but nothing freed the heap
-    wrapper. ~insert_post_stmt_deletes~ now emits ~free(own name)~
-    after the transfer stmt (raw wrapper free, no inner-data delete)
-    when the transfer is to a Shallow field. Other transfer shapes
-    (~free(own X)~, struct constructor with Own/Ref field, etc.)
-    already consume the wrapper, so a new
-    ~transfer_is_shallow_field_value_copy~ predicate gates the emit.
-    Most ~parse_*~ paths in ~src/self/parser.til~ benefit -- 50-66
-    leaks each at 16 bytes/wrapper.
+  Always run ASAN with ~ASAN_OPTIONS=malloc_context_size=64~ when
+  attributing leaks to a source location. Default 30-frame depth
+  truncates AST-clone stacks and over-reports distinct sites.
 
-  Cumulative for #175 series vs pre-fix:
-    ~-228485 bytes (-68%) / -23449 allocations (-53%)~
+  *** 2026-05 #175 series (DONE)
 
-  Next leak buckets to attack (in rough size order on the new
-  baseline):
-    1. ~FieldAssign~ to owned Struct/Enum-typed fields with no
-       old-value cleanup (~obj.til_type = X.clone()~ shape, ~162
-       sites in ~src/self/~). Systemic; needs careful builder.til
-       changes plus opt-in flag from typer to avoid double-frees on
-       move-semantics sites.
-    2. Module-global Set save/restore idiom in ~src/self/builder.til~
-       (~stack_locals~, ~ref_locals~, ~unsafe_to_hoist~, ...). Today
-       these are excluded from #175's ~save_old_delete~ trigger.
-       Refactoring the idiom would let the global exclusion in
-       ~assign_target_is_func_local~ go away.
-    3. Program-scope locals not freed at process exit (currently
-       ~skip_scope_delete~ in ~collect_scope_locals~ at program
-       scope). Requires deciding whether script-mode globals get
-       cleaned up on exit -- mostly cosmetic for non-CLI runs but
-       trips ASAN on every script invocation.
+  All four landed under doc/self.org's two-pass workflow.
 
-  Current state after the #111 fix:
-  - full-suite ASAN now gets well into ~bin/tests~ before hitting the memory
-    limit
-  - the next useful workflow is per-test ~bin/til_asan~ runs from a normal
-    shell, capturing LSAN logs to ~tmp/*.log~, then fixing the biggest leak
-    buckets incrementally
-  Additional source: ~panic()~ calls ~exit(1)~, skipping all
-  ASAP deletion (independent of #50 -- fix by only checking
-  leaks on exit code 0).
+  1. ~Typer: insert exit-deletes through nested Body blocks~ (4f10e0d).
+     ~insert_exit_deletes~ recurses into nested ~NodeType.Body~ stmts
+     so the desugared switch sentinels (~_sw_NodeType_*~ etc.) get
+     freed before deeply-nested early returns. -44% bytes / -43%
+     allocs.
 
-  Current clue after fixing ~#120~:
-  - ASAN got worse instead of better:
-    - old baseline: ~108758 byte(s) leaked in 35508 allocation(s)~
-    - after ~#120~: ~281948 byte(s) leaked in 49543 allocation(s)~
-  - one strong lead from the generated ~til.c~ diff is raw ~Vec~
-    struct-literal construction now cloning empty strings into
-    owned ~elem_type~ fields:
-    - generated pattern: ~kept.elem_type = *Str_clone(Str_lit("", 0))~
-  - that is suspicious because ~Vec.delete~ skips deleting
-    ~elem_type~ when it is empty, so an owned cloned empty string may
-    leak repeatedly
-  - this points back at ~#119~ too: struct-literal ownership/default
-    handling may be forcing unnecessary clones even in raw-storage cases
-  - remaining runtime leak bucket in the ~Value~ path:
-    - ~#128~ auto-generated enum clone in ~initer.til~ is still shallow
-      for managed payloads (delete side fixed via #126, now in fixed.org)
+  2. ~#175 follow-up: extend save_old_delete to user-written .clone()
+     RHS~ (7a2d233). The original #175 fix only fired for the
+     implicit clone path; ~mut X := ""; X = Y.clone()~ in
+     ~extend_ref_local_lifetimes~ and similar sites was missed
+     because ~rhs~ is an FCall, not the auto-clone-wrapped
+     ~Ident~/~FieldAccess~ shape. Also dropped the redundant
+     ~stmt.til_type = existing.clone()~ from the original fix
+     (already set from rhs.til_type). -28% bytes / -8% allocs.
 
-  ASAN investigation results (per-test ~bin/til_asan~ runs):
-  - baseline for ~bin/til_asan translate tmp/hello.til~:
-    ~239725 byte(s) leaked in 42911 allocation(s)~
-  - top leak sites by total bytes:
-    - ~28590 bytes~  ~Str_clone -> ExprData_Ident -> ExprData_clone~
-    - ~26191 bytes~  ~Str_clone -> ExprData_FieldAccess -> ExprData_clone~
-    - ~14672 bytes~  ~Map_clone -> FunctionDef_clone -> ExprData_FuncDef~
-    - ~13280 bytes~  ~Str_clone -> Expr_clone -> Expr_clone~
-    - ~11697 bytes~  ~Str_clone -> Declaration_clone -> ExprData_Decl~
-    - ~4864 bytes~ x7 ~Str_lit -> Map_new/Vec_new -> parse_func_def~
-  - all leak sites trace back to AST clone and parse operations
-  - root cause was: ~ExprData_delete~ was a no-op -- auto-generated enum
-    ~delete~ did not recurse into payload-owned data (fixed in #126)
-  - ~scope_free~ now frees Enum values (9d8a011, #127 partial), but
-    Struct value freeing in scope_free is still unsafe due to aliasing
-    -- see ~#127~
+  3. ~#175 follow-up 2: widen save_old_delete to any FCall returning
+     OwnType.Own~ (064ef0d). ~mut X := ""; X = expect_text(...)~
+     in ~parse_struct_def~ (and many ~parse_*~ siblings) is the
+     same #175 outer-scope shape but rhs is an arbitrary
+     heap-returning FCall. ~fcall_returns_own~ already exists in the
+     typer to discriminate heap-returning callees from shallow-return
+     ones, so the trigger now uses it directly. -7.8% bytes / -6.9%
+     allocs.
 
-  Current state (strings.til translate):
-  - ~320656 byte(s) leaked in 67504 allocation(s)~
-  - previous: ~339165 bytes / 65528 allocs~ (before TypeBinding.name fix)
-  - original baseline: ~417586 byte(s) leaked in 81258 allocation(s)~
-  - total reduction: ~23% bytes from original baseline~
-  - root cause of ~TypeScope_set~ leaks: ~TypeBinding.name~ was declared
-    ~ref mut~ (borrowed) but assigned cloned (owned) strings, so
-    ~TypeBinding_delete~ never freed the name. Fixed by changing to ~mut~.
-  - remaining leak sources (by ASAN #2 caller):
-    - ~965~ ~Vec_clone~ -- AST deep clones
-    - ~845~ ~Expr_clone~ -- AST node clones
-    - ~817~ ~NodeType_Ident~ -- AST construction
-    - ~641~ ~Vec_new~ -- Vec elem_type string clones
-    - ~212~ ~TypeScope_set~ -- scope binding string clones (reduced)
-    - ~168~ ~infer_field_access_fcall~ -- typer string ops
-    - ~164~ ~hoist_to_temp~ -- hoist pass creating temp expressions
-  - most remaining leaks are structural: AST nodes and scope bindings
-    created during compilation that are not fully freed at exit
+  4. ~free the heap wrapper after value-copy ownership transfer to
+     a Shallow struct field~ (ff6ce78). Struct-typed locals are
+     heap-promoted by ~promote_own_transferred_locals~. When
+     ownership is "transferred" via ~Decl(field = name, ...)~ where
+     the receiving field is Shallow, the constructor only
+     value-copies the inner struct; the field's own destructor frees
+     the inner data, but nothing freed the heap wrapper.
+     ~insert_post_stmt_deletes~ now emits ~free(own name)~ after
+     such transfer stmts, gated by a new
+     ~transfer_is_shallow_field_value_copy~ predicate so other
+     transfer shapes (which already consume the wrapper) aren't
+     double-freed. -13.9% bytes / -4.4% allocs.
 
-  ~make test_asan~ results: 68/88 pass (18 LSAN aborts + misc.til + flaky).
-  Per-test ASAN (~bin/til_asan translate strings.til~):
-  ~385K bytes leaked in 81K allocations~ (80K direct, 305K indirect).
-  ASAP deletes DO fire for main locals (ast, core_ast, tokens, scope, ctx).
+  Cumulative for the series:
+  ~-228,485 bytes (-68%) / -23,449 allocations (-53%)~ vs pre-fix
+  baseline.
 
-  Root cause of remaining leaks: ~body.children = new_ch~ in typer passes
-  generates ~Vec_clone(&new_ch)~ because the typer inserts clone for
-  struct field assignments. The deep-clone copies all child Exprs. The
-  original ~new_ch~ (with its owned Exprs) is never freed -- it goes
-  out of scope but ASAP doesn't generate delete for it (same last_use
-  in branch limitation).
+  *** Earlier fixes (DONE, summarised)
 
-  History: a ~swap_children~ primitive was added to avoid the clone,
-  but it had to zero lifecycle metadata (elem_type/elem_clone/
-  elem_delete) on the new children to prevent UAF from
-  ~TypeBinding.func_def~/~struct_def~ borrowed pointers into old
-  children. That side-effect also prevented deep-delete at program
-  exit, causing bigger leaks, so ~swap_children~ was removed in
-  f0150ec. The typer now calls ~reregister_scope_defs~ after each
-  replacement to update scope bindings, and ~take_children~ was fixed
-  to null its source pointer after move.
+  These landed before the 2026-05 #175 series:
 
-  Blocker for moving past clone-and-assign: ~TypeBinding.func_def~ and
-  ~TypeBinding.struct_def~ are ~ref mut~ (borrowed pointers) into AST
-  nodes. When old children are deep-deleted, these pointers dangle.
-  Fixing requires either:
-  a) making TypeBinding store names and look up defs on demand
-  b) or implementing move semantics for Vec field assignment
+  - ~#143~ (partial): drop ~own~-arg wrap on early-exit
+    insert_exit_deletes; cut the ~insert_exit_deletes~ cluster from
+    190K/12K to 51K/3.2K on translate empty.til.
 
-  Related: #144 (clone-and-assign per pass), #146 (7 passes per body).
+  - "Bucket A" (prior commit, name retained for grep): six
+    ~insert_*_deletes~ helpers were doing
+    ~new_ch.push(own del.clone())~ on the already-owned return of
+    ~make_delete_call~ / ~make_field_delete~. Dropping the
+    ~.clone()~ saved -38% bytes / -32% allocs on empty.til.
 
-  Changes landed:
-  - ~src/self/initer.til~ (on master): ~generate_enum_delete_method~
-    now recurses into payload-owned data for each variant, with
-    ~scope~ parameter to filter ~Dynamic~ / ~FuncPtr~ types (#126, fixed)
-  - ~src/c/interpreter.c~: added ~Value_TAG_Struct~ case to
-    ~free_value()~ so non-borrowed struct ~data~ buffers are freed
-    during interpreter value cleanup (forward-decl added)
-  - ~clone_value~ fully translated to til (~Value.clone~ in
-    interpreter.til handles all 13 variants), C version removed (984c8c7)
-  - ~scope_free~ now frees Enum payload data (9d8a011, #127 partial)
-  - return values cloned before scope_free to prevent dangling (9d8a011)
-  - ~#129~ resolved: both ~StructInstance.data~ and ~EnumInstance.data~
-    are now ~own mut data : U8 = 0~ (owned, not borrowed)
+  - "Bucket D" (cf27441): ~LoadedProgram.core_ast~ /
+    ~LoadedProgram.ast~ changed from ~ref mut : Expr = NULL~ to
+    ~own mut := Expr.new(...)~ so the auto-generated
+    ~LoadedProgram.delete~ frees the whole AST. -27% bytes / -25%
+    allocs on empty.til.
 
-  Next steps -- two root causes cover nearly all remaining leaks:
+  - ~#144~: ~e.children = new_ch~ clone-and-assign in typer desugar
+    passes; replaced with ~e.children.move_from(new_ch)~ at the
+    template sites (hoist_fcall_args, insert_free_calls,
+    insert_field_deletes).
 
-  1. ~FCallData.fn_sig~ is ~ref mut~ (borrowed) but assigned clones
-     (lines 168, 638, 713 in typer.til). The auto-generated
-     ~FCallData.delete~ skips it, so the cloned Expr trees leak.
-     Fix: change ~fn_sig~ from ~ref mut : Expr = NULL~ to an owned
-     field. All 4 assignment sites should clone (line 153 already
-     borrows -- change to clone too). Then the auto-generated
-     ~FCallData.clone~ and ~FCallData.delete~ handle it. No manual
-     code, no NULL checks. If it can be NULL it is a ref (borrowed);
-     if it is owned it should not use ref.
+  - ~TypeBinding.name~ changed from ~ref mut~ to ~mut~ so
+    ~TypeBinding_delete~ frees the cloned name.
 
-  2. ~own~ parameter codegen creates a heap copy
-     (~malloc + memcpy + pass pointer~) but the caller's stack
-     original is abandoned without cleanup. Fix: ~own~ arguments
-     should be passed by reference (like ~ref~/~mut~), then the
-     callee (the new owner) is responsible for the delete -- same as
-     if it were a local variable. The typer already inserts ASAP
-     deletes for locals; treating ~own~ params the same way would
-     fix all ~own~-pattern leaks systematically:
-     - ~Vec_append(own hoisted)~ Vec struct leaks
-     - any other ~own~ parameter pattern leaks
-     This is a compiler codegen fix in the typer, not a til source fix.
+  - ~#126~ (FIXED): auto-gen enum delete recurses into payload-owned
+    data per variant.
 
-  Per-phase Expr tracking (~bin/til_asan translate~ on empty main):
+  - ~#129~ (FIXED): ~StructInstance.data~ and ~EnumInstance.data~
+    made ~own mut~.
 
-  | phase            | creates     | deletes     | net      |
-  |------------------+-------------+-------------+----------|
-  | parse            | +30,857     | -19,678     | +11,179  |
-  | init_declarations| +1,062,659  | -1,020,153  | +42,506  |
-  | type_check       | +12         | -12         | 0        |
-  | precomp+scavenge | 0           | -36,687     | -36,687  |
-  | build+cleanup    | 0           | -34         | -34      |
-  | total            |             |             | 16,964   |
+  - ~#127~ (partial): ~scope_free~ frees Enum payload data; return
+    values cloned before scope_free.
 
-  type_check is perfectly balanced (desugaring clone/delete works).
-  The 17K leaked Exprs = 11K parsed core nodes + 42K init-generated
-  minus 37K scavenger cleanup minus 34 final cleanup.
+  - ~Value.clone~ moved fully to til (~src/self/interpreter.til~)
+    handling all 13 variants (984c8c7); C version removed.
 
-  2026-04-21 baseline (on master af74c60, after #143 own-arg drop on
-  early-exit deletes, #113 is_variant->is rename, #86 unused-
-  params/locals):
+  *** Open buckets (rough size order)
 
-  - ~make test_asan~: 71/89 pass before Bucket A fix (this commit),
-    70-71/89 after (misc.til is flaky under LSAN load).  18 stable
-    fails are the usual CLI-arg / variadic / pure- / pura- /
-    hello-cli-build set; all LSAN-triggered, not correctness
-    failures.  Full suite completes without OOM at 64G.
+  1. **FieldAssign auto-delete on owned-typed fields**.
+     ~obj.field = X.clone()~ overwrites the old value of the field
+     without running the field type's destructor. ~162 sites in
+     ~src/self/~ assigned to ~til_type~/~node_type~/etc. Tried the
+     naive "always free old field on FieldAssign" approach this
+     session and it regressed because ~stmt.til_type = existing.clone()~
+     in the same #175 path was itself leaking each TilType clone:
+     so every save_old_delete trigger added a TilType leak. Need an
+     opt-in flag set by the typer (like ~AssignData.save_old_delete~)
+     plus a discriminator for sites that move ownership instead
+     of value-copying.
 
-  Per-operation baseline (ASAN_OPTIONS=malloc_context_size=64),
-  before and after this commit's Bucket A fix:
+  2. **Module-global Set save/restore idiom in
+     ~src/self/builder.til~**.
+     ~saved := X; X = new(); ...; own X.delete(); X = saved~ on
+     ~stack_locals~, ~ref_locals~, ~unsafe_to_hoist~, etc. The
+     #175 fix excludes module-global targets to avoid double-free
+     with this idiom. Refactor the idiom (e.g. wrap in a Saver
+     helper, or move the state into a function-local that gets
+     auto-cleanup) so the global exclusion in
+     ~assign_target_is_func_local~ can go away.
 
-  | scenario                                     | master   | +BucketA | delta         |
-  |----------------------------------------------+----------+----------+---------------|
-  | translate tmp/empty.til                      | 533,833  | 332,224  | -37.8% bytes  |
-  |                                              |  39,363  |  26,600  | -32.4% allocs |
-  | interpret tmp/empty.til                      | 534,291  | 332,653  | -37.7% bytes  |
-  |                                              |  39,390  |  26,625  | -32.4% allocs |
-  | build tmp/empty.til                          | 533,736  | 331,080  | -38.0% bytes  |
-  |                                              |  39,361  |  26,514  | -32.6% allocs |
-  | translate src/test/strings.til               | 906,802  | 509,942  | -43.8% bytes  |
-  |                                              |  65,174  |  37,142  | -43.0% allocs |
-  | interpret examples/hello_pure.til        | 583,428  | 283,736  | -51.4% bytes  |
-  |                                              |  42,077  |  22,121  | -47.4% allocs |
-  | interpret examples/cli_args.til hello w  | 548,701  | 329,474  | -40.0% bytes  |
-  |                                              |  40,307  |  26,339  | -34.7% allocs |
+  3. **Program-scope locals at process exit**.
+     ~collect_scope_locals~ sets ~skip_scope_delete = true~ for
+     locals at the program scope (root TypeScope). For CLI scripts
+     that run to completion this is mostly cosmetic, but it trips
+     ASAN every time. Decide whether to free, or document the
+     filter rule for ASAN runs.
 
-  Note: without ~malloc_context_size=64~ the same cli_args run reports
-  higher (~680K / 48K pre-fix) because ASAN's default 30-frame depth
-  truncates deep AST-clone traces and records multiple stack-distinct
-  entries for what is one logical allocation site.  Always use the
-  deeper context for attribution to be meaningful.
+  4. **AST clone heritage** (top remaining cluster on the
+     post-#175 baseline). Top three current leak sites on
+     ~cli_args interpret~:
+     - ~795 bytes / 159 objects~ Str_clone via Vec_clone via
+       Expr_clone (whole-Vec deep clone of Expr children).
+     - ~544 bytes / 44 objects~  Str_clone via NodeType_Ident via
+       NodeType_clone via Expr_clone (Ident payload clones).
+     - ~448 bytes / 88 objects~  same shape, different sites.
+     These are AST nodes cloned during desugar passes that compound
+     across passes. ~#146~ (single-walk typer) is the umbrella
+     fix. Spot-fixes that helped in the past: drop unnecessary
+     ~.clone()~ calls (Bucket A), ownership transfer instead of
+     deep clone (Bucket D, #144).
 
-  Also note: the strings.til jump from ~627K (previous session) to
-  906K pre-fix is just file-size growth -- commit 2ec72ff added 259
-  lines to src/test/strings.til for the operator-syntax tests.  The
-  empty.til scenarios are the clean trend line.
+  5. **resolve_imports loop-shadowed sub_ast** (Bucket E).
+     ~sub_ast := parse(tokens, ...)~ at ~src/self/loader.til~ around
+     line 126 is shadowed each iteration; its children are cloned
+     into ~merged~ but ~sub_ast~ itself is not deleted before the
+     next iteration. Either fix the typer's ASAP-delete logic for
+     loop-shadowed locals, or add an explicit ~free(own sub_ast)~
+     after the merge.
 
-  Key: translate/interpret/build on an empty program all leak roughly
-  the same.  The leak is almost entirely in the front end (lex + parse
-  + load-core + type-check), not in the interpreter or the C backend.
-  On master-before-this-commit, #143 had already dropped
-  ~insert_exit_deletes~ from 190K/12K to 51K/3.2K by turning off the
-  own-arg wrap on early-exit deletes.
+  6. **TokenType_clone / lookup_keyword in the lexer** (Bucket F).
+     Str clones for keyword/identifier payloads. The token Vec
+     should be freed at the end of parse; audit token lifetime
+     and check for missing ~Vec.delete~ on the tokens Vec.
 
-  Top leak clusters by user frame (first non-container frame), for
-  ~translate tmp/empty.til~ after the Bucket A fix:
+  *** Tried, did not work (or already resolved)
 
-  |  bytes | allocs | sites | site (boot/til.c)                 | .til source       |
-  |--------+--------+-------+-----------------------------------+-------------------|
-  | 49,784 |  3,293 |   257 | hoist_fcall_args:77400            | typer.til:3495    |
-  | 45,392 |  2,837 |   260 | insert_exit_deletes:85719         | typer.til:4204    |
-  | 39,632 |  2,477 |   153 | insert_free_calls:87418           | typer.til:4351    |
-  | 10,475 |    841 |   194 | parse_primary:23439               | parser.til        |
-  |  9,024 |  2,256 |     4 | TokenType_clone:14534             | lexer.til         |
-  |  7,581 |    535 |   172 | infer_field_access_fcall:59654    | typer.til:488     |
-  |  6,448 |    403 |   131 | CtorArg_Filled:52714              | typer.til (UFCS)  |
-  |  5,392 |    337 |   114 | infer_field_access_fcall:58707    | typer.til:137     |
-  |  4,928 |    308 |   105 | hoist_to_temp:87983               | typer.til:4438    |
-  |  4,144 |    259 |    14 | resolve_imports:93999             | loader.til:147    |
-  |  3,884 |    251 |    34 | replace_body_stmt_with_block      | typer.til         |
-  |  3,376 |    844 |     2 | lookup_keyword:19442              | lexer.til         |
-  |  ~3,600 x3 sites        | make_delete_call:73878..73912     | typer.til:2927..  |
+  - ~swap_children~ primitive (removed in f0150ec): aimed to avoid
+    deep clone in clone-and-assign but caused UAF from
+    ~TypeBinding.func_def~/~struct_def~ borrowed pointers into old
+    children. Take_children + reregister_scope_defs was the
+    replacement.
 
-  Root-cause buckets (in descending impact order):
+  - "Bucket C" did_insert gate in ~insert_exit_deletes~: measured no
+    reduction. The clones inside ~new_ch~ when it is dropped without
+    ~move_from~ get freed by the auto ~Vec_delete~ at scope end --
+    they are not the leak. The 45K cluster the trace pointed at was
+    actually retained via ~lp.ast~, fixed by Bucket D. Lesson
+    captured below.
 
-  - Bucket A -- ~.clone()~ on an already-owned return from
-    ~make_delete_call~ / ~make_field_delete~ [FIXED this commit].
-    Both functions return ~Expr~ (owned); callers were doing
-    ~new_ch.push(own del.clone())~, pushing the clone and leaking the
-    original on every iteration.  The 6 sites were typer.til 3550
-    (~insert_field_deletes~), 4200 (~insert_exit_deletes~), 4260
-    (~insert_exit_deletes_into_stmt~), 4278 / 4284
-    (~insert_post_stmt_deletes~), 4305 (~insert_assign_delete~).  Fix
-    was to drop the ~.clone()~ and push ~own del~ directly.  Measured
-    impact: -38% bytes / -32% allocs on empty.til, -51% bytes on
-    hello_pure.til (the extra reduction there comes from downstream
-    passes no longer cloning the leaked del subtrees).
+  - Naive systemic FieldAssign auto-delete (this session): caused
+    regressions because ~stmt.til_type = existing.clone()~ in the
+    #175 fix was a leak source the auto-delete chained through. Item
+    1 of the open buckets above is the careful version.
 
-  - Bucket B -- ~e.children = new_ch~ clone-and-assign pattern.
-    Generates ~Vec *_fa = Vec_clone(&new_ch); e->children = *_fa;~
-    which deep-clones the whole child subtree, then ~Vec_delete(&new_ch)~
-    frees the originals.  Net effect is a giant temporary clone, not
-    a leak by itself; the leak shows up two layers deeper when the
-    cloned subtree is orphaned by later passes.  Remaining sites on
-    current master: typer.til 137, 352, 488, 830, 917.  Templates to
-    copy: ~hoist_fcall_args~ (3520), ~insert_free_calls~ (4351),
-    ~insert_field_deletes~ (3556).  Fix: replace every remaining
-    ~e.children = new_ch~ with ~e.children.move_from(new_ch)~.
-    Related: #144, #135.
+  *** Lessons learned
 
-  - Bucket C -- ~insert_exit_deletes~ clones every stmt into ~new_ch~
-    even when it is not going to install the new Vec.  At typer.til:4204
-    ~new_ch.push(own stmt.clone())~ runs inside the loop unconditionally,
-    then 4206-4208 only call ~move_from~ when
-    ~new_ch.len() != body.child_count()~.  In the common case where no
-    return/break/continue triggered an insert, ~new_ch~ (with a full
-    deep clone of every stmt) is dropped and leaks.  Cluster is 45K
-    bytes / 2.8K allocs / 260 sites after Bucket A fix (was 190K/12K
-    before #143 landed).
-    Fix options:
-    a) track a ~did_insert~ flag; if false, do not bother cloning at
-       all -- leave body unchanged
-    b) or always ~move_from~ -- correct but wasteful
-    Option (a) is strictly better; the function already knows whether
-    it inserted anything (only happens on Return/Break/Continue
-    branches).
+  - **Leak attribution = allocation site, not ownership-loss site.**
+    Bucket C looked like it was caused by a clone inside
+    ~insert_exit_deletes~ but the leak was in ~lp.ast~ retention
+    (Bucket D). When a fix at the attributed site doesn't move the
+    baseline, look one layer up.
 
-  - Bucket D -- ~ref mut~ fields on structs that actually own their
-    pointee.  Existing write-up already identifies ~FCallData.fn_sig~
-    (see "Next steps" #1 below).  Adding to that list from this pass:
-    - ~LoadedProgram.core_ast~ and ~LoadedProgram.ast~ in loader.til
-      (156-157) are ~ref mut : Expr = NULL~ but assigned ~lp.ast = ast~
-      where ~ast~ is a function-local owned ~Expr~ that is never
-      deleted afterwards.  Auto ~LoadedProgram.delete~ skips them, so
-      the entire program AST leaks at exit.  This alone plausibly
-      accounts for most of the ~hoist_to_temp~ / ~parse_primary~ /
-      ~NodeType_FuncDef~ / ~resolve_imports~ clusters -- they are all
-      "AST nodes built during load/type-check that end up reachable
-      only from lp.ast".
-    Fix: change both fields to ~own mut : Expr = NULL~ and let the
-    auto-generated ~LoadedProgram.delete~ free them.  Same sibling fix
-    as the ~FCallData.fn_sig~ one.
+  - **Two-pass workflow** (~make test_two_pass~, "Two-pass:" commit
+    prefix; see ~doc/self.org~). Use whenever a fix changes which
+    delete calls the typer emits. The new emit lands in boot/til.c
+    atomically with the source change.
 
-  - Bucket E -- ~resolve_imports~ never frees ~sub_ast~ between
-    iterations.  ~sub_ast := parse(tokens, ...)~ at loader.til:126 is
-    shadowed on every iteration; its children are cloned into ~merged~
-    at 147 but ~sub_ast~ itself is not deleted before the next
-    iteration overwrites the name.  Even with ASAP deletes, the typer
-    may not be inserting a delete call for ~sub_ast~ at the bottom of
-    the loop body (verify by reading the generated
-    ~resolve_imports~ in ~boot/til.c:93999~ and surrounding).
-    Fix: if the typer is not inserting the delete, add an explicit
-    ~free(own sub_ast)~ once the clones are done; or fix the typer's
-    ASAP-delete logic for loop-shadowed locals.
+  - **Verify the per-test ASAN delta after every commit.** Test
+    pass count alone doesn't tell you whether a leak fix moved the
+    needle. ~bin/til_asan interpret examples/cli_args.til hello
+    world~ is the cheapest signal.
 
-  - Bucket F -- ~TokenType_clone~ / ~lookup_keyword~ in the lexer: 9K
-    + 3.4K bytes / 3,100 allocs total, spread over 6 sites.  These
-    are Str clones for keyword/identifier payloads in tokens.  Tokens
-    live in a Vec returned by ~tokenize~ and are consumed by ~parse~;
-    the Vec should be freed at the end of parse.  Needs an audit of
-    ~tokens~ lifetime in loader.til and the tokenizer -- likely a
-    ~ref mut~ field or a missing ~Vec.delete~ call on the tokens Vec
-    at the end of parse.
+  - **Heap-promoted Struct locals carry two cleanup decisions:**
+    (a) the inner data and (b) the wrapper. The "ownership
+    transferred" tracking handles (a) correctly but used to leave
+    (b) leaking when the transfer was value-copy to a Shallow
+    field. Recently fixed; the same shape may recur in other
+    transfer patterns.
 
-  Fix order for remaining buckets (cheapest -> hardest):
-    1. [DONE, prior commit] Bucket A.
-    2. [INVESTIGATED, not fixed] Bucket C -- the ~did_insert~ gate
-       was implemented and measured as a no-op (identical leak totals
-       before and after).  The clones inside ~new_ch~ when it is
-       dropped without ~move_from~ get deleted by the auto
-       ~Vec_delete~ at scope end; they are NOT leaking.  The 45K
-       cluster attributed to this line is actually from the stmts
-       that DO get move_from'd into body.children, reachable only via
-       ~lp.ast~, and was freed by Bucket D instead.  Lesson: leak
-       attribution points to where memory was allocated, not where
-       ownership was lost.  Don't guess.
-    3. [DONE this commit] Bucket D.  ~LoadedProgram.core_ast~ /
-       ~LoadedProgram.ast~ changed from ~ref mut : Expr = NULL~ to
-       ~own mut := Expr.new(NodeType.Body, 0, 0, "")~, letting auto
-       ~LoadedProgram.delete~ free the whole AST.  Measured impact
-       (see "2026-04-21 bucket D" below).  Trade-off: the assignment
-       ~lp.ast = ast~ goes through the #144 clone-and-assign codegen,
-       so there is a brief peak memory spike during load_program.
-       ~take_children~ was tried as an alternative but gave zero
-       reduction (the memcpy path doesn't engage the LoadedProgram
-       delete cleanup), so ~=~ was kept.
-    4. Bucket B (5 remaining ~e.children = new_ch~ sites).  Blocker
-       is #144 / TypeBinding.func_def aliasing.
-    5. Bucket E / F -- smaller, audit last.
+  - **Import order can move the ASAN baseline by tens of percent**
+    (alphabetizing core.til's imports in 9d0b82d cut strings.til
+    interpret leaks by 47%). Likely a teardown-order effect that
+    causes more owned values to be freed before exit. Never
+    attributed to a specific code path; worth a follow-up if a
+    similar import reorder lands again.
 
-  After each bucket: rerun ~bin/til_asan translate tmp/empty.til~ and
-  record the new baseline.  If a fix does not move the baseline, the
-  attribution is wrong and we should re-examine before committing.
-
-  2026-04-21 bucket D impact (this commit, on master cf27441):
-
-  | scenario                                     | pre-D    | +BucketD | delta         |
-  |----------------------------------------------+----------+----------+---------------|
-  | translate tmp/empty.til                      | 556,374  | 405,043  | -27.2% bytes  |
-  |                                              |  40,203  |  30,298  | -24.6% allocs |
-  | interpret tmp/empty.til                      | 557,737  | 407,706  | -26.9% bytes  |
-  |                                              |  40,292  |  30,476  | -24.4% allocs |
-  | build tmp/empty.til                          | 555,XXX  | 405,427  | -27% bytes    |
-  | interpret examples/hello_pure.til        | 610,754  | 519,833  | -14.9% bytes  |
-  |                                              |  44,024  |  37,872  | -14.0% allocs |
-  | interpret examples/cli_args.til hello w  | 608,XXX  | 415,099  | -32% bytes    |
-  | translate src/test/strings.til               | 495,728  | 528,308  | +6.6% bytes   |
-  |                                              |  36,009  |  37,943  | +5.4% allocs  |
-
-  strings.til regresses because the clone-and-assign on ~lp.ast = ast~
-  (the #144 codegen path) briefly doubles peak memory for the already-
-  large operator-syntax AST.  This is a trade-off with the #144
-  infrastructure, not a bug in the fix.  When #144 is resolved and the
-  typer uses ownership transfer on struct-field assignment, this
-  regression will disappear and strings.til will improve too.
-
-  Cluster table for ~translate tmp/empty.til~ after Bucket D:
-
-  |  bytes | allocs | sites | site (boot/til.c)                 |
-  |--------+--------+-------+-----------------------------------|
-  |140,288 |  8,768 |   568 | insert_exit_deletes               |
-  | 49,595 |  3,275 |   241 | hoist_fcall_args                  |
-  | 33,808 |  2,113 |   143 | insert_free_calls                 |
-  | 15,168 |    948 |     2 | <truncated deep AST clone>        |
-  | 10,491 |    842 |   195 | parse_primary (multiple sites)    |
-  |  9,024 |  2,256 |     4 | TokenType_clone (Bucket F)        |
-  | ~19K   | ~1.2K  | ~610  | make_delete_call (5 internal sites)|
-  |  4,928 |    308 |    91 | hoist_to_temp                     |
-  |  4,144 |    259 |    14 | resolve_imports (Bucket E)        |
-  |  3,376 |    844 |     2 | lookup_keyword (Bucket F)         |
-
-  The insert_exit_deletes / insert_free_calls / hoist_fcall_args trio
-  still dominate.  These are clones that land inside body.children via
-  ~move_from~ and ARE reachable from lp.ast, so Bucket D did free them
-  -- but the leak attribution is by allocation site, so they still
-  show up in this cluster.  The count of LEAKED allocations dropped
-  from 40K -> 30K, which is the real measure.  The remaining 30K are
-  pass-over-pass AST growth (each typer pass adds delete calls, hoist
-  temps, etc) that compound inside lp.ast and don't get garbage-
-  collected between passes.  Fixing that is a typer-side question
-  (prune dropped nodes) and not in the current bucket list.
-
-  2026-05-01 ASAN observation -- import order effect:
-
-  Alphabetizing core.til's import list (commit 9d0b82d) caused a large
-  drop in the per-test ASAN baseline for ~bin/til_asan interpret
-  src/test/strings.til~:
-
-  | before alphabetize | 819,166 bytes / 82,762 allocs |
-  | after alphabetize  | 432,243 bytes / 47,318 allocs |
-  | delta              | -47.3% bytes / -42.8% allocs  |
-
-  The commit makes no logic changes -- only the order of ~import(...)~
-  lines in core.til changes.  The drop is real and large.  Likely
-  explanation: the alphabetized order changes the sequence in which
-  core modules are initialized and deinitialized during interpretation.
-  A different teardown order may cause more owned values to be freed
-  before program exit rather than after.  This has NOT been attributed
-  to a specific code path.
-
-  To investigate: run ASAN with ~malloc_context_size=64~ on both
-  orderings and diff the leak reports to find which allocation sites
-  disappeared.  That should identify which module's initialization
-  is now running its cleanup in a better order.
 
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via
