@@ -875,7 +875,22 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                     if vptype_name.len().gt(0).and(is_splat.not()) {
                         vptype := type_from_name(vptype_name, scope)
                         if vptype.is(TilType.Dynamic).not() {
+                            is_str_va := vptype_name.eq("Str")
                             for vk in 0..fvc {
+                                if is_str_va {
+                                    ref vk_arg : Expr = e.child(ci.add(vk))
+                                    if vk_arg.til_type.is(vptype).not() {
+                                        if vk_arg.til_type.is(TilType.Dynamic).not().and(vk_arg.til_type.is(TilType.Unknown).not()) {
+                                            arg_tname := type_to_name(vk_arg.til_type)
+                                            if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
+                                                if type_has_to_str(scope, arg_tname) {
+                                                    e.children.set(ci.add(vk), own make_to_str_call(arg_tname, vk_arg))
+                                                    continue
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                                 validate_fcall_arg(e.child(ci.add(vk)), vptype, vptype_name, vparam.name)
                             }
                         }
@@ -3570,6 +3585,16 @@ type_has_cmp := func(scope: TypeScope, type_name: Str) returns shallow Bool {
     return false
 }
 
+type_has_to_str := func(scope: TypeScope, type_name: Str) returns shallow Bool {
+    ref sdef : Expr = scope.get_struct(type_name)
+    if is_null(sdef) { return false }
+    ref ts_ns : Vec = def_ns_decls(sdef)
+    for decl : Declaration in ts_ns {
+        if decl.name.eq("to_str") { return true }
+    }
+    return false
+}
+
 expr_contains_fcall := func(e: Expr) returns shallow Bool {
     if e.node_type.is(NodeType.FCall) { return true }
     for e_i : Expr in e.children {
@@ -3789,6 +3814,14 @@ make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: E
     fa.add_child(own type_id)
     call.add_child(own fa)
 
+    call.add_child(own arg.clone())
+    return call
+}
+
+// Wrap `arg` with `T.to_str(arg)`, used to auto-coerce non-Str args
+// passed to a `..Str` variadic param so `print(1+1)` etc. work.
+make_to_str_call := func(type_name: Str, arg: Expr) returns Expr {
+    mut call := make_ns_call(type_name, "to_str", TilType.Struct("Str".clone()), arg)
     call.add_child(own arg.clone())
     return call
 }

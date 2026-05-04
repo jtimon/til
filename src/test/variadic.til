@@ -45,6 +45,16 @@ test_variadic_str := test() {
     assert_eq_str(__LOC__, variadic_concat(), "")
 }
 
+// #157: ..Str varargs auto-wrap non-Str args via T.to_str(). Allows
+// `print(1+1)` etc. to work like Python while keeping types honest --
+// types without a to_str method still error at the typer.
+test_variadic_str_auto_to_str := test() {
+    assert_eq_str(__LOC__, variadic_concat("x=", 42), "x=42")
+    assert_eq_str(__LOC__, variadic_concat(1, "+", 2, "=", 3), "1+2=3")
+    assert_eq_str(__LOC__, variadic_concat(true, " ", false), "true false")
+    assert_eq_str(__LOC__, variadic_concat("ok=", true), "ok=true")
+}
+
 // Variadic Bool
 variadic_all := func(flags: ..Bool) returns Bool {
     for i in 0..flags.len() {
