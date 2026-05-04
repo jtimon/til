@@ -47,6 +47,16 @@ to avoid re-discovering the same things.
   headlessly for testing.  Use ~stdbuf -oL~ to force line-buffered
   stdout if output is missing.
 
+** ASAN leak baseline and delta tracking
+- Every merge-commit procedure includes ASAN leak checks. The point is
+  to report the *delta* from the known baseline, not whether leaks exist.
+- Current baseline (commit 5b815d82d, 2026-05-04):
+  - interpret: 370,197 bytes / 56,230 allocs
+  - translate: 341,570 bytes / 45,352 allocs
+- Report delta as: "interpret +N% / -N%, translate +N% / -N%". A 0%
+  delta means no change from baseline. A positive delta means the commit
+  increased leaks; the user decides whether to keep or reject.
+
 ** Build & debug workflow
 - Use ~tmp/~ for ad-hoc test files.
 - Run with ~bin/til run tmp/test.til > tmp/test.log 2>&1~.
@@ -72,8 +82,9 @@ to avoid re-discovering the same things.
   for top-level decls, struct/enum members (qualified: ~"Vec.push"~),
   and user-defined variables (shows inferred type like ~x is a I64~).
   Undefined symbols print ~undefined symbol: <name>~.
-- REPL turns are slow (~80s each on this host) because ~doc_init_src_line~
-  rebuilds the full info blob per turn. Keep piped tests minimal.
+- REPL turns are slow on the first turn (~80s on this host, core blob
+  cache-fill) but subsequent turns are fast because the core packed
+  info/docs are cached after the first successful typecheck.
 - ~printf '...' > tmp/repl_input && cat tmp/repl_input | bin/til~
   is the correct pattern, NOT ~printf '...' | bin/til~ (EOF timing).
 - Non-REPL pipelines (~til interpret/build/run/test/translate~) do NOT
