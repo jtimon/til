@@ -53,9 +53,73 @@
   If in doubt, run ~make clean && make test~. If it passes, the
   commit stands on its own.
 
+** Two-pass build (single commit alternative)
+
+  When you would otherwise need a preparation commit, running the
+  build twice locally is an alternative: pass 1 compiles current
+  sources with HEAD's til_boot (old emit), pass 2 recompiles using
+  the freshly-built bin/til (new emit). The boot/til.c committed at
+  the end is the result of the new compiler self-applied, exactly
+  the state that two separate commits would have converged to.
+
+  Use ~make two_pass~ for the build, ~make test_two_pass~ for the
+  full test suite. Commits depending on this MUST be prefixed
+  "Two-pass: " so the local merger reproduces the same regen
+  procedure (the merging procedure in
+  ~bots/merging_from_remote.org~ runs ~make test~ by default and
+  needs to switch to ~make test_two_pass~ for these).
+
+  Choosing between the two approaches:
+
+  - Preparation + use commits: each commit verifies independently
+    with ~make test~. Bisect-friendly. Preferred when the change
+    is large or the emit-side logic might want a second look on
+    its own.
+  - Two-pass single commit: more compact history, the change ships
+    atomically. Useful for small self-applied tweaks where the
+    intermediate "logic without users" state is uninteresting.
+
+** Staged migration across master merges
+
+  Some changes are NOT a single emit-side step but a change to the
+  source-level contract that the loader/parser enforces. Example:
+  switching ~import("loader.til")~ to ~import("loader")~ requires
+  the loader to start appending ~.til~ internally AND the call
+  sites to drop the suffix. HEAD's til_boot has the old loader
+  baked in; if a single commit ships both the new loader source
+  and the new bare call sites, HEAD's til_boot rejects the new
+  call sites at parse/resolve time and the build never reaches
+  pass 2 -- ~two_pass~ does not help here because pass 1 itself
+  fails.
+
+  These migrations need a sequence of commits, each one merged to
+  master before the next is authored:
+
+  1. Transitional commit: extend the loader/parser to accept BOTH
+     the old and new forms (e.g. loader strips trailing ~.til~ if
+     present, then appends ~.til~). Call sites stay in the old
+     form so HEAD's til_boot still parses them. ~make clean &&
+     make test~ passes. Merge to master.
+  2. Migration commit: now that master's til_boot understands the
+     new form, update call sites to the new form and (optionally)
+     reject the old form with a clear error. ~make clean && make
+     test~ passes against the master from step 1. Merge to master.
+
+  The remote agent can author commit 2 only after commit 1 has
+  landed on origin/master, because til_boot is built from the last
+  commit on the agent's base. A reviewer rebasing a feature branch
+  that contains BOTH commits at once cannot use the soft-reset +
+  regen recipe -- the intermediate til_boot they need is the one
+  baked into commit 1's boot/til.c, which only exists once commit
+  1 has been merged.
+
 ** Commands
 
   - ~make test~ builds + runs all tests (uses xvfb-run). Commit includes boot/.
+  - ~make two_pass~ builds, then rebuilds with the freshly-built ~bin/til~
+    so ~boot/til.c~ reflects the new compiler self-applied. Use for
+    "Two-pass: "-prefixed commits.
+  - ~make test_two_pass~ ~two_pass~ + run the full test suite.
   - ~make test_asan~ builds + runs tests with ASAN leak detection (~--til-bin bin/til_asan~).
   - ~make test_nogui~ skips GUI build tests (no xvfb needed).
   - ~make bin/til_asan~ ASAN build for memory debugging.
