@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all clean test test_asan test_nogui build_win help
+.PHONY: all clean test test_asan test_nogui test_repl_help build_win doc help tmp
 
 all: bin/til
 
@@ -103,6 +103,31 @@ test_asan: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
 test_nogui: bin/til bin/test_runner bin/plot bin/tests
 	bin/tests --no-gui $(if $(J),-j$(J))
 
+# --- Doc generator (regenerates doc/gen/ from current sources) ---
+
+# Run on demand, not from `make test` -- doc gen on src/til.til runs the
+# full init+typer pipeline and adds ~1 minute of wall time. Commit the
+# refreshed doc/gen/ tree alongside notable doc-affecting changes.
+doc: bin/til
+	rm -rf doc/gen
+	bin/til doc src/til.til
+
+# Shared writable scratch dir for targets that need it (test_repl_help
+# writes the REPL stdin/stdout fixtures there; til_boot copies snapshot
+# sources into tmp/boot/).
+tmp:
+	mkdir -p tmp
+
+# --- REPL help() smoke test ---
+#
+# Pipes a single help() call into bin/til, captures stdout, and verifies
+# the expected core doc text appears. Run on demand because the REPL
+# spawns bin/til + a til interpret subprocess per turn, which dominates
+# `make test` wall time. The test driver itself is a TIL script
+# (mode cli) -- src/test/repl_help.til.
+test_repl_help: bin/til tmp
+	bin/til run src/test/repl_help.til
+
 # --- Windows cross-compilation ---
 
 # Mingw-cross builds of raylib + tinyfd. Linux native builds stay in
@@ -145,6 +170,7 @@ bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 help:
 	echo "make          Build bin/til + regenerate boot/"
 	echo "make test     Build + run tests"
+	echo "make doc      Regenerate doc/gen/ from current sources"
 	echo "make clean    Remove build artifacts"
 	echo ""
 	echo "bin/til_boot  From last commit (git). Always works."
