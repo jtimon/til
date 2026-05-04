@@ -1,0 +1,216 @@
+#+TITLE: src/self/lexer.til
+#+OPTIONS: toc:t
+
+* TokenType
+#+begin_src til
+enum TokenType {
+    Eof
+    LParen
+    RParen
+    LBrace
+    RBrace
+    LBracket
+    RBracket
+    Comma
+    Colon
+    Question
+    Bang
+    Minus
+    Plus
+    Star
+    Slash
+    Percent
+    Ampersand
+    Pipe
+    Caret
+    Dot
+    DotDot
+    DotDotDot
+    Eq
+    EqEq
+    Neq
+    Lt
+    LtEq
+    Gt
+    GtEq
+    PlusPlus
+    MinusMinus
+    ColonEq
+    Ident
+    StringTok
+    Number
+    Char
+    DocComment
+    KwMut
+    KwOwn
+    KwRef
+    KwShallow
+    KwStruct
+    KwEnum
+    KwNamespace
+    KwFunc
+    KwProc
+    KwTest
+    KwMacro
+    KwExtFunc
+    KwExtProc
+    KwExtStruct
+    KwReturns
+    KwThrows
+    KwIf
+    KwElse
+    KwWhile
+    KwFor
+    KwIn
+    KwSwitch
+    KwMatch
+    KwCase
+    KwDefault
+    KwReturn
+    KwThrow
+    KwCatch
+    KwBreak
+    KwContinue
+    KwDefer
+    KwTrue
+    KwFalse
+    KwNull
+    KwPriv
+    Error
+namespace:
+    Eof
+    LParen
+    RParen
+    LBrace
+    RBrace
+    LBracket
+    RBracket
+    Comma
+    Colon
+    Question
+    Bang
+    Minus
+    Plus
+    Star
+    Slash
+    Percent
+    Ampersand
+    Pipe
+    Caret
+    Dot
+    DotDot
+    DotDotDot
+    Eq
+    EqEq
+    Neq
+    Lt
+    LtEq
+    Gt
+    GtEq
+    PlusPlus
+    MinusMinus
+    ColonEq
+    Ident
+    StringTok
+    Number
+    Char
+    DocComment
+    KwMut
+    KwOwn
+    KwRef
+    KwShallow
+    KwStruct
+    KwEnum
+    KwNamespace
+    KwFunc
+    KwProc
+    KwTest
+    KwMacro
+    KwExtFunc
+    KwExtProc
+    KwExtStruct
+    KwReturns
+    KwThrows
+    KwIf
+    KwElse
+    KwWhile
+    KwFor
+    KwIn
+    KwSwitch
+    KwMatch
+    KwCase
+    KwDefault
+    KwReturn
+    KwThrow
+    KwCatch
+    KwBreak
+    KwContinue
+    KwDefer
+    KwTrue
+    KwFalse
+    KwNull
+    KwPriv
+    Error
+    func is(self: TokenType, other: TokenType) returns shallow Bool
+    func eq(self: TokenType, other: TokenType) returns shallow Bool
+    func delete(own self: TokenType, call_free: Bool)
+    func to_str(self: TokenType) returns Str
+    func clone(self: TokenType) returns TokenType
+    func size() returns shallow U32
+}
+#+end_src
+
+* Token
+#+begin_src til
+struct Token {
+    type : TokenType
+    text : Str
+    line : U32
+    col : U32
+namespace:
+    func clone(self: Token) returns Token
+    func delete(own self: Token, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* is_digit
+#+begin_src til
+func is_digit(c: U8) returns Bool
+#+end_src
+
+* is_alpha
+#+begin_src til
+func is_alpha(c: U8) returns Bool
+#+end_src
+
+* is_alnum
+#+begin_src til
+func is_alnum(c: U8) returns Bool
+#+end_src
+
+* tok_name
+#+begin_src til
+func tok_name(type: TokenType) returns Str
+#+end_src
+
+* lookup_single_char
+#+begin_src til
+func lookup_single_char(c: U8) returns shallow TokenType
+#+end_src
+
+* lookup_two_char
+#+begin_src til
+func lookup_two_char(c: U8, c2: U8) returns shallow TokenType
+#+end_src
+
+* lookup_keyword
+#+begin_src til
+func lookup_keyword(word: Str) returns TokenType
+#+end_src
+
+* tokenize
+#+begin_src til
+proc tokenize(src: Str, path: Str) returns Vec
+#+end_src
+

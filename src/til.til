@@ -157,6 +157,15 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
     // delta so we only show new output each turn.
     mut prev_out := ""
 
+    // Cached core info/docs blobs. The core stdlib doesn't change between
+    // REPL turns, so we walk it once on the first successful typecheck and
+    // reuse the resulting packed blobs forever after. This avoids walking
+    // ~400 core ns_decls and rebuilding qualified Type.method entries on
+    // every input -- the dominant cost of the per-turn doc init.
+    mut cached_core_info := ""
+    mut cached_core_docs := ""
+    mut have_core_cache := false
+
     // Keep block Strs alive so parsed AST views don't dangle.
     source_keep := Vec.new("Str", Str.size())
 
@@ -202,23 +211,45 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
 
         mut block_eff := block.clone()
         if typer_errs.eq(0) {
-            // Rebuild combined source with REPL doc registry init.
-            combined = ""
-            combined = combined.concat("mode ").concat(mode_str).concat("\n")
-            // REPL doc registry init uses merged views; keep this local-only.
-            mut core_merged := Expr.new(NodeType.Body, 0, 0)
-            if typed_lp.skip_core.not() {
+            // Cache the core packed blobs on the first successful turn.
+            // Core decls don't change between turns, so we walk once.
+            if have_core_cache.not().and(typed_lp.skip_core.not()) {
+                mut core_merged := Expr.new(NodeType.Body, 0, 0)
                 for u : ProgramUnit in typed_lp.core_units {
                     ref iu : ImportUnit = typed_lp.ctx.imported.get(u.path)
                     for stmt : Expr in iu.ast.children { core_merged.add_child(own stmt.clone()) }
                 }
+                mut tmp_core_info := Str.with_capacity(262144.to_usize())
+                mut tmp_core_docs := Str.with_capacity(262144.to_usize())
+                collect_decl_packed(core_merged, typed_lp.ctx.scope, tmp_core_info, tmp_core_docs)
+                cached_core_info = tmp_core_info.clone()
+                cached_core_docs = tmp_core_docs.clone()
             }
+            have_core_cache = true
+
+            // Build user-only packed blobs every turn (cheap -- only the
+            // user's accumulated decls).
             mut user_merged := Expr.new(NodeType.Body, 0, 0)
             for u : ProgramUnit in typed_lp.units {
                 ref iu : ImportUnit = typed_lp.ctx.imported.get(u.path)
                 for stmt : Expr in iu.ast.children { user_merged.add_child(own stmt.clone()) }
             }
-            combined = combined.concat(doc_init_src_line(core_merged, user_merged, typed_lp.ctx.scope))
+            mut user_info := Str.with_capacity(65536.to_usize())
+            mut user_docs := Str.with_capacity(65536.to_usize())
+            collect_decl_packed(user_merged, typed_lp.ctx.scope, user_info, user_docs)
+
+            // Concatenate cached core + this turn's user. Core comes first
+            // so a user redefining a core name shadows nothing (matches the
+            // pre-cache behaviour where the unified walk emitted core then
+            // user, and __doc_lookup__ returns the first hit).
+            full_info := cached_core_info.concat(user_info)
+            full_docs := cached_core_docs.concat(user_docs)
+            doc_line := build_doc_init_line(full_info, full_docs)
+
+            // Rebuild combined source with REPL doc registry init.
+            combined = ""
+            combined = combined.concat("mode ").concat(mode_str).concat("\n")
+            combined = combined.concat(doc_line)
             combined = combined.concat(accum)
             if accum.len().gt(0) { combined = combined.concat("\n") }
             combined = combined.concat(block_eff)
@@ -228,7 +259,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
                 block_eff = "println((".concat(block).concat(").to_str())")
                 combined = ""
                 combined = combined.concat("mode ").concat(mode_str).concat("\n")
-                combined = combined.concat(doc_init_src_line(core_merged, user_merged, typed_lp.ctx.scope))
+                combined = combined.concat(doc_line)
                 combined = combined.concat(accum)
                 if accum.len().gt(0) { combined = combined.concat("\n") }
                 combined = combined.concat(block_eff)
@@ -292,6 +323,7 @@ usage := proc() {
     println("  build      Compile a .til file to a binary")
     println("  run        Compile and run a .til file")
     println("  test       Run test functions in a .til file")
+    println("  doc        Emit org-mode docs under doc/gen/")
     println("  ast        Print the parsed AST as a Lisp-like S-expression")
     println("  help       Print this message")
 }
@@ -418,6 +450,14 @@ main := proc(args: ..Str) {
     // programs (full pipeline on src/til.til takes minutes).
     if cli.command.eq("ast") {
         cmd_ast(lp)
+        return
+    }
+
+    // `doc` only needs a typed AST; precomp + scavenge are codegen prep.
+    if cli.command.eq("doc") {
+        init_and_type_program(lp, false)
+        result := cmd_doc(lp)
+        if result.neq(0) { exit(result.to_i64()) }
         return
     }
 

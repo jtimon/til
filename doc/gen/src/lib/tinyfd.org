@@ -1,0 +1,13 @@
+#+TITLE: src/lib/tinyfd.til
+#+OPTIONS: toc:t
+
+* tinyfd_saveFileDialog
+#+begin_src til
+ext_func tinyfd_saveFileDialog(title: U8, defaultPathAndFile: U8, shallow numOfFilterPatterns: I32, shallow filterPatterns: I64, shallow singleFilterDescription: I64) returns ref U8
+#+end_src
+
+* tinyfd_openFileDialog
+#+begin_src til
+ext_func tinyfd_openFileDialog(title: U8, defaultPathAndFile: U8, shallow numOfFilterPatterns: I32, shallow filterPatterns: I64, shallow singleFilterDescription: I64, shallow allowMultipleSelects: I32) returns ref U8
+#+end_src
+

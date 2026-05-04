@@ -1,0 +1,8 @@
+#+TITLE: src/core/usize.til
+#+OPTIONS: toc:t
+
+* USize
+#+begin_src til
+USize is a U32
+#+end_src
+

@@ -1,0 +1,164 @@
+#+TITLE: src/self/parser.til
+#+OPTIONS: toc:t
+
+* Parser
+#+begin_src til
+struct Parser {
+    mut tokens : Vec
+    mut pos : U32
+    mut path : Str
+    mut fn_sig_decls : Vec
+    mut lambda_decls : Vec
+    mut pending_doc : Str
+namespace:
+    func clone(self: Parser) returns Parser
+    func delete(own self: Parser, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* peek
+#+begin_src til
+func peek(p: Parser) returns ref Token
+#+end_src
+
+* advance
+#+begin_src til
+func advance(mut p: Parser) returns ref Token
+#+end_src
+
+* check
+#+begin_src til
+func check(p: Parser, type: TokenType) returns shallow Bool
+#+end_src
+
+* expect_token
+#+begin_src til
+func expect_token(mut p: Parser, type: TokenType) returns ref Token
+#+end_src
+
+* expect_text
+#+begin_src til
+func expect_text(mut p: Parser, type: TokenType) returns Str
+#+end_src
+
+* peek_line
+#+begin_src til
+func peek_line(p: Parser) returns shallow U32
+#+end_src
+
+* peek_col
+#+begin_src til
+func peek_col(p: Parser) returns shallow U32
+#+end_src
+
+* til_type_from_explicit_type
+#+begin_src til
+func til_type_from_explicit_type(name: Str) returns TilType
+#+end_src
+
+* parse_fn_signature
+#+begin_src til
+func parse_fn_signature(mut p: Parser, shallow line: U32, shallow col: U32) returns Str
+#+end_src
+
+* maybe_lift_lambda
+#+begin_src til
+func maybe_lift_lambda(mut p: Parser, own e: Expr) returns Expr
+#+end_src
+
+* parse_block
+#+begin_src til
+proc parse_block(mut p: Parser) returns Expr
+#+end_src
+
+* parse_func_def
+#+begin_src til
+proc parse_func_def(mut p: Parser) returns Expr
+#+end_src
+
+* parse_struct_def
+#+begin_src til
+proc parse_struct_def(mut p: Parser, c_tag: Str) returns Expr
+#+end_src
+
+* parse_enum_def
+#+begin_src til
+proc parse_enum_def(mut p: Parser) returns Expr
+#+end_src
+
+* parse_call
+#+begin_src til
+proc parse_call(mut p: Parser, name: Str, shallow call_line: U32, shallow call_col: U32) returns Expr
+#+end_src
+
+* make_binop_call
+#+begin_src til
+func make_binop_call(lhs: Expr, method: Str, shallow op_line: U32, shallow op_col: U32, rhs: Expr) returns Expr
+#+end_src
+
+* parse_primary
+#+begin_src til
+proc parse_primary(mut p: Parser) returns Expr
+#+end_src
+
+* parse_multiplicative
+#+begin_src til
+proc parse_multiplicative(mut p: Parser) returns Expr
+#+end_src
+
+* parse_additive
+#+begin_src til
+proc parse_additive(mut p: Parser) returns Expr
+#+end_src
+
+* parse_comparison
+#+begin_src til
+proc parse_comparison(mut p: Parser) returns Expr
+#+end_src
+
+* parse_bitand
+#+begin_src til
+proc parse_bitand(mut p: Parser) returns Expr
+#+end_src
+
+* parse_bitxor
+#+begin_src til
+proc parse_bitxor(mut p: Parser) returns Expr
+#+end_src
+
+* parse_bitor
+#+begin_src til
+proc parse_bitor(mut p: Parser) returns Expr
+#+end_src
+
+* parse_expression
+#+begin_src til
+proc parse_expression(mut p: Parser) returns Expr
+#+end_src
+
+* parse_statement_ident
+#+begin_src til
+proc parse_statement_ident(mut p: Parser, shallow is_mut: Bool, shallow own_type: OwnType) returns Expr
+#+end_src
+
+* drain_doc_comments
+#+begin_src til
+func drain_doc_comments(mut p: Parser)
+#+end_src
+
+* parse_statement
+#+begin_src til
+proc parse_statement(mut p: Parser) returns Expr
+#+end_src
+
+* parse_statement_body
+#+begin_src til
+proc parse_statement_body(mut p: Parser) returns Expr
+#+end_src
+
+* parse
+#+begin_src til
+proc parse(tokens: Vec, path: Str, mut mode_out: Str) returns Expr
+#+end_src
+

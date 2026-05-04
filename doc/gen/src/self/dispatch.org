@@ -1,0 +1,575 @@
+#+TITLE: src/self/dispatch.til
+#+OPTIONS: toc:t
+
+* ExtStr
+#+begin_src til
+struct ExtStr {
+    ref mut data : U8
+    mut count : U64
+    mut cap : U64
+namespace:
+    func clone(self: ExtStr) returns ExtStr
+    func delete(own self: ExtStr, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* FFIEntry
+#+begin_src til
+struct FFIEntry {
+    ref mut fn : U8
+    ref mut return_type : Str
+    mut nparam : I32
+    ref mut param_shallows : U8
+    mut return_is_shallow : Bool
+    ref mut cif : ffi_cif
+    ref mut arg_types : Dynamic
+namespace:
+    func clone(self: FFIEntry) returns FFIEntry
+    func delete(own self: FFIEntry, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ExprPtrBox
+#+begin_src til
+struct ExprPtrBox {
+    ref mut ptr : Expr
+namespace:
+    func clone(self: ExprPtrBox) returns ExprPtrBox
+    func delete(own self: ExprPtrBox, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* FFITypePtrBox
+#+begin_src til
+struct FFITypePtrBox {
+    ref mut ptr : ffi_type
+namespace:
+    func clone(self: FFITypePtrBox) returns FFITypePtrBox
+    func delete(own self: FFITypePtrBox, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* _t_Str_29999
+#+begin_src til
+_t_Str_29999 is a Str
+#+end_src
+
+* _t_U32_30000
+#+begin_src til
+_t_U32_30000 is a U32
+#+end_src
+
+* _t_Str_30001
+#+begin_src til
+_t_Str_30001 is a Str
+#+end_src
+
+* _t_U32_30002
+#+begin_src til
+_t_U32_30002 is a U32
+#+end_src
+
+* dispatch_map
+#+begin_src til
+dispatch_map is a Map
+#+end_src
+
+* dispatch_inited
+#+begin_src til
+dispatch_inited is a Bool
+#+end_src
+
+* _t_Str_30003
+#+begin_src til
+_t_Str_30003 is a Str
+#+end_src
+
+* _t_U32_30004
+#+begin_src til
+_t_U32_30004 is a U32
+#+end_src
+
+* _t_Str_30005
+#+begin_src til
+_t_Str_30005 is a Str
+#+end_src
+
+* _t_U32_30006
+#+begin_src til
+_t_U32_30006 is a U32
+#+end_src
+
+* ffi_map
+#+begin_src til
+ffi_map is a Map
+#+end_src
+
+* _t_Str_30007
+#+begin_src til
+_t_Str_30007 is a Str
+#+end_src
+
+* _t_U32_30008
+#+begin_src til
+_t_U32_30008 is a U32
+#+end_src
+
+* _t_Str_30009
+#+begin_src til
+_t_Str_30009 is a Str
+#+end_src
+
+* _t_U32_30010
+#+begin_src til
+_t_U32_30010 is a U32
+#+end_src
+
+* ffi_struct_defs
+#+begin_src til
+ffi_struct_defs is a Map
+#+end_src
+
+* ffi_loaded
+#+begin_src til
+ffi_loaded is a Bool
+#+end_src
+
+* _t_Str_30011
+#+begin_src til
+_t_Str_30011 is a Str
+#+end_src
+
+* _t_U32_30012
+#+begin_src til
+_t_U32_30012 is a U32
+#+end_src
+
+* ffi_type_cache
+#+begin_src til
+ffi_type_cache is a Vec
+#+end_src
+
+* ffi_type_cache_inited
+#+begin_src til
+ffi_type_cache_inited is a Bool
+#+end_src
+
+* ffi_reset
+#+begin_src til
+proc ffi_reset()
+#+end_src
+
+* ffi_type_pointer_ref
+#+begin_src til
+func ffi_type_pointer_ref() returns ref ffi_type
+#+end_src
+
+* ffi_type_sint64_ref
+#+begin_src til
+func ffi_type_sint64_ref() returns ref ffi_type
+#+end_src
+
+* ffi_type_uint8_ref
+#+begin_src til
+func ffi_type_uint8_ref() returns ref ffi_type
+#+end_src
+
+* ffi_type_sint16_ref
+#+begin_src til
+func ffi_type_sint16_ref() returns ref ffi_type
+#+end_src
+
+* ffi_type_sint32_ref
+#+begin_src til
+func ffi_type_sint32_ref() returns ref ffi_type
+#+end_src
+
+* ffi_type_uint32_ref
+#+begin_src til
+func ffi_type_uint32_ref() returns ref ffi_type
+#+end_src
+
+* ffi_type_uint64_ref
+#+begin_src til
+func ffi_type_uint64_ref() returns ref ffi_type
+#+end_src
+
+* ffi_type_float_ref
+#+begin_src til
+func ffi_type_float_ref() returns ref ffi_type
+#+end_src
+
+* ffi_type_void_ref
+#+begin_src til
+func ffi_type_void_ref() returns ref ffi_type
+#+end_src
+
+* ffi_alloc_cif
+#+begin_src til
+func ffi_alloc_cif() returns Dynamic
+#+end_src
+
+* ffi_cif_rtype_is_struct
+#+begin_src til
+func ffi_cif_rtype_is_struct(cif: ffi_cif) returns shallow Bool
+#+end_src
+
+* ffi_load_global_lib
+#+begin_src til
+ext_func ffi_load_global_lib(soname: Str) returns shallow Bool
+#+end_src
+
+* ffi_open_user_so
+#+begin_src til
+ext_func ffi_open_user_so(path: Str) returns shallow Bool
+#+end_src
+
+* ffi_close_user_so
+#+begin_src til
+ext_proc ffi_close_user_so()
+#+end_src
+
+* ffi_user_symbol
+#+begin_src til
+ext_func ffi_user_symbol(name: Str) returns ref U8
+#+end_src
+
+* ffi_global_symbol
+#+begin_src til
+ext_func ffi_global_symbol(name: Str) returns ref U8
+#+end_src
+
+* ffi_last_error
+#+begin_src til
+ext_func ffi_last_error() returns Str
+#+end_src
+
+* stderr_print
+#+begin_src til
+ext_func stderr_print(msg: Str) returns shallow I32
+#+end_src
+
+* system_cmd
+#+begin_src til
+ext_func system_cmd(cmd: Str) returns shallow I32
+#+end_src
+
+* unlink_path
+#+begin_src til
+ext_proc unlink_path(path: Str)
+#+end_src
+
+* process_id
+#+begin_src til
+ext_func process_id() returns shallow I32
+#+end_src
+
+* ffi_dlsym
+#+begin_src til
+func ffi_dlsym(name: Str) returns ref U8
+#+end_src
+
+* ffi_init_link_libs
+#+begin_src til
+func ffi_init_link_libs(link_flags: Str)
+#+end_src
+
+* ffi_init_user_so
+#+begin_src til
+func ffi_init_user_so(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns shallow I32
+#+end_src
+
+* ffi_init_struct_defs
+#+begin_src til
+func ffi_init_struct_defs(program: Expr)
+#+end_src
+
+* ffi_init_struct_defs_append
+#+begin_src til
+func ffi_init_struct_defs_append(program: Expr)
+#+end_src
+
+* value_to_i64
+#+begin_src til
+func value_to_i64(v: Value) returns I64
+#+end_src
+
+* value_to_u64
+#+begin_src til
+func value_to_u64(v: Value) returns U64
+#+end_src
+
+* value_to_f32
+#+begin_src til
+func value_to_f32(v: Value) returns F32
+#+end_src
+
+* narrow_bool_arg
+#+begin_src til
+proc narrow_bool_arg(s: Scope, e: Expr) returns Bool
+#+end_src
+
+* h_Bool_and
+#+begin_src til
+proc h_Bool_and(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_Bool_or
+#+begin_src til
+proc h_Bool_or(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_Bool_not
+#+begin_src til
+proc h_Bool_not(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_U8_from_i64
+#+begin_src til
+proc h_U8_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_I16_from_i64
+#+begin_src til
+proc h_I16_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_I32_from_i64
+#+begin_src til
+proc h_I32_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_F32_from_i64
+#+begin_src til
+proc h_F32_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_U32_from_i64
+#+begin_src til
+proc h_U32_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_print_single
+#+begin_src til
+proc h_print_single(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_print_flush
+#+begin_src til
+proc h_print_flush(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_exit
+#+begin_src til
+proc h_exit(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_readfile
+#+begin_src til
+proc h_readfile(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_writefile
+#+begin_src til
+proc h_writefile(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_spawn_cmd
+#+begin_src til
+proc h_spawn_cmd(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* val_to_ptr
+#+begin_src til
+func val_to_ptr(v: Value) returns ref Dynamic
+#+end_src
+
+* h_dyn_has_method
+#+begin_src til
+proc h_dyn_has_method(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_dyn_fn
+#+begin_src til
+proc h_dyn_fn(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_dyn_size_of
+#+begin_src til
+proc h_dyn_size_of(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_check_cmd_status
+#+begin_src til
+proc h_check_cmd_status(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_sleep
+#+begin_src til
+proc h_sleep(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_file_mtime
+#+begin_src til
+proc h_file_mtime(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_clock_ms
+#+begin_src til
+func h_clock_ms(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_get_thread_count
+#+begin_src til
+func h_get_thread_count(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_cfile_open
+#+begin_src til
+proc h_cfile_open(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* shallow_ffi_type
+#+begin_src til
+func shallow_ffi_type(type_name: Str) returns ref ffi_type
+#+end_src
+
+* field_ffi_type
+#+begin_src til
+func field_ffi_type(dd: Declaration) returns ref ffi_type
+#+end_src
+
+* build_struct_ffi_type
+#+begin_src til
+func build_struct_ffi_type(struct_def: Expr) returns ref ffi_type
+#+end_src
+
+* h_free
+#+begin_src til
+proc h_free(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_cfile_close
+#+begin_src til
+proc h_cfile_close(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_cfile_write_str
+#+begin_src til
+proc h_cfile_write_str(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_ptr_add
+#+begin_src til
+proc h_ptr_add(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_cfile_read_all
+#+begin_src til
+proc h_cfile_read_all(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* DispatchFn
+#+begin_src til
+proc DispatchFn(: Scope, : Expr, mut : Value) returns shallow Bool
+#+end_src
+
+* reg_dispatch
+#+begin_src til
+func reg_dispatch(name: Str, handler: DispatchFn)
+#+end_src
+
+* dispatch_init
+#+begin_src til
+func dispatch_init()
+#+end_src
+
+* ext_dispatch_builtin
+#+begin_src til
+func ext_dispatch_builtin(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool
+#+end_src
+
+* h_dyn_call
+#+begin_src til
+proc h_dyn_call(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* get_elem_size
+#+begin_src til
+proc get_elem_size(s: Scope, type_name: Str, src: Expr) returns shallow I32
+#+end_src
+
+* h_array
+#+begin_src til
+proc h_array(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* h_vec
+#+begin_src til
+proc h_vec(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
+* enum_method_dispatch
+#+begin_src til
+proc enum_method_dispatch(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value) returns shallow Bool
+#+end_src
+
+* ffi_decode_scalar
+#+begin_src til
+func ffi_decode_scalar(rtype: Str, p: Dynamic, mut result: Value) returns shallow Bool
+#+end_src
+
+* ffi_call_ret_struct_def
+#+begin_src til
+func ffi_call_ret_struct_def(fe: FFIEntry) returns ref Expr
+#+end_src
+
+* ffi_shallow_type_info
+#+begin_src til
+func ffi_shallow_type_info(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool
+#+end_src
+
+* ffi_write_shallow_arg
+#+begin_src til
+func ffi_write_shallow_arg(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic) returns shallow Bool
+#+end_src
+
+* ext_dispatch_ffi
+#+begin_src til
+proc ext_dispatch_ffi(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool
+#+end_src
+
+* ext_function_dispatch
+#+begin_src til
+proc ext_function_dispatch(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool
+#+end_src
+
+* ffi_register
+#+begin_src til
+func ffi_register(name: Str, fn: Dynamic, fdef: Expr)
+#+end_src
+
+* ffi_init_scan_program
+#+begin_src til
+func ffi_init_scan_program(program: Expr)
+#+end_src
+
+* ffi_map_inited
+#+begin_src til
+ffi_map_inited is a Bool
+#+end_src
+
+* ffi_init
+#+begin_src til
+proc ffi_init(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32
+#+end_src
+
+* ffi_cleanup
+#+begin_src til
+proc ffi_cleanup()
+#+end_src
+

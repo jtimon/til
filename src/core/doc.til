@@ -129,10 +129,3 @@ help := proc(name: Str) {
     }
     println("undefined symbol: ", name)
 }
-
-// Backward-compat stubs for old boot/til.c which synthesizes per-decl
-// __doc_register__ / __kind_register__ FCalls. Once boot is regenerated
-// from the new loader, only __doc_init__ is emitted and these are
-// unused. Removable next bootstrap cycle.
-__doc_register__ := func(_name: Str, _text: Str) {}
-__kind_register__ := func(_name: Str, _kind: Str) {}

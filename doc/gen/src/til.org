@@ -1,0 +1,91 @@
+#+TITLE: src/til.til
+#+OPTIONS: toc:t
+
+* BASE_VERSION
+#+begin_src til
+BASE_VERSION is a Str
+#+end_src
+
+* get_version
+#+begin_src til
+macro get_version() returns shallow Str
+#+end_src
+
+* VERSION
+#+begin_src til
+VERSION is a Str
+#+end_src
+
+* get_bin_dir
+#+begin_src til
+ext_func get_bin_dir() returns Str
+#+end_src
+
+* get_cwd_str
+#+begin_src til
+ext_func get_cwd_str() returns Str
+#+end_src
+
+* repl_read_line
+#+begin_src til
+proc repl_read_line(mode_name: Str) returns Str
+#+end_src
+
+* repl_typecheck
+#+begin_src til
+proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
+#+end_src
+
+* repl_should_wrap
+#+begin_src til
+func repl_should_wrap(peek_ast: Expr, typed_ast: Expr) returns Bool
+#+end_src
+
+* run_repl_session
+#+begin_src til
+proc run_repl_session(mode_name_in: Str, mut next_mode_out: Str)
+#+end_src
+
+* run_repl
+#+begin_src til
+proc run_repl(initial_mode: Str)
+#+end_src
+
+* usage
+#+begin_src til
+proc usage()
+#+end_src
+
+* CliArgs
+#+begin_src til
+struct CliArgs {
+    mut command : Str
+    mut path : Str
+    mut custom_bin : Str
+    mut custom_c : Str
+    mut target_str : Str
+    mut cc : Str
+    mut path_idx : U32
+    mut early_return : Bool
+namespace:
+    func clone(self: CliArgs) returns CliArgs
+    func delete(own self: CliArgs, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* parse_args
+#+begin_src til
+proc parse_args(args: Array) returns CliArgs
+#+end_src
+
+* collect_user_argv
+#+begin_src til
+func collect_user_argv(mut lp: LoadedProgram, args: Array, shallow start_idx: U32) returns Vec
+#+end_src
+
+* main
+#+begin_src til
+proc main(args: ..Str)
+#+end_src
+

@@ -1,0 +1,63 @@
+#+TITLE: src/lib/libffi.til
+#+OPTIONS: toc:t
+
+* ffi_type
+#+begin_src til
+struct ffi_type {
+    mut size : U32
+    mut alignment : I16
+    mut type : I16
+    ref mut elements : Dynamic
+namespace:
+    func clone(self: ffi_type) returns ffi_type
+    func delete(own self: ffi_type, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ffi_cif
+#+begin_src til
+struct ffi_cif {
+    mut abi : I32
+    mut nargs : U32
+    ref mut arg_types : Dynamic
+    ref mut rtype : Dynamic
+    mut bytes : U32
+    mut flags : U32
+namespace:
+    func clone(self: ffi_cif) returns ffi_cif
+    func delete(own self: ffi_cif, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* _t_I64_28391
+#+begin_src til
+_t_I64_28391 is a I64
+#+end_src
+
+* FFI_DEFAULT_ABI
+#+begin_src til
+FFI_DEFAULT_ABI is a I32
+#+end_src
+
+* _t_I64_28392
+#+begin_src til
+_t_I64_28392 is a I64
+#+end_src
+
+* FFI_TYPE_STRUCT
+#+begin_src til
+FFI_TYPE_STRUCT is a I16
+#+end_src
+
+* ffi_prep_cif
+#+begin_src til
+ext_func ffi_prep_cif(cif: ffi_cif, shallow abi: I32, shallow nargs: U32, rtype: ffi_type, atypes: Dynamic) returns shallow I32
+#+end_src
+
+* ffi_call
+#+begin_src til
+ext_proc ffi_call(cif: ffi_cif, fn: Dynamic, rvalue: Dynamic, avalue: Dynamic)
+#+end_src
+

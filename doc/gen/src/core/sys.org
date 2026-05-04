@@ -1,0 +1,58 @@
+#+TITLE: src/core/sys.til
+#+OPTIONS: toc:t
+
+* spawn_cmd
+#+begin_src til
+ext_proc spawn_cmd(cmd: Str) returns I64
+#+end_src
+
+* check_cmd_status
+#+begin_src til
+ext_func check_cmd_status(shallow pid: I64) returns shallow I64
+#+end_src
+
+* sleep_ms
+#+begin_src til
+ext_proc sleep_ms(shallow ms: I64)
+#+end_src
+
+* file_mtime
+#+begin_src til
+ext_func file_mtime(path: Str) returns shallow I64
+#+end_src
+
+* clock_ms
+#+begin_src til
+ext_func clock_ms() returns shallow I64
+#+end_src
+
+* get_thread_count
+#+begin_src til
+ext_func get_thread_count() returns shallow I64
+#+end_src
+
+* peak_rss_bytes
+#+begin_src til
+ext_func peak_rss_bytes() returns shallow U64
+#+end_src
+
+* current_rss_bytes
+#+begin_src til
+ext_func current_rss_bytes(shallow pid: I64) returns shallow U64
+#+end_src
+
+* host_os
+#+begin_src til
+ext_func host_os() returns Str
+#+end_src
+
+* wait_cmd
+#+begin_src til
+proc wait_cmd(pid: I64) returns I64
+#+end_src
+
+* run_cmd
+#+begin_src til
+proc run_cmd(mut output: Str, args: ..Str) returns I64
+#+end_src
+

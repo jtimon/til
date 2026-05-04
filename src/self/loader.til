@@ -1178,6 +1178,15 @@ collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut doc
     }
 }
 
+// Wrap pre-built packed info/docs blobs into a __doc_init__("...","...")
+// source line. Returns "" if both blobs are empty.
+build_doc_init_line := func(packed_info: Str, packed_docs: Str) returns Str {
+    if packed_info.is_empty().and(packed_docs.is_empty()) { return "" }
+    esc_info := escape_doc_for_literal_str(packed_info)
+    esc_docs := escape_doc_for_literal_str(packed_docs)
+    return "__doc_init__(\"".concat(esc_info).concat("\", \"").concat(esc_docs).concat("\")\n")
+}
+
 // Build a single source-level __doc_init__("...", "...") line for use by
 // the REPL. Non-REPL pipelines don't synthesize doc init calls. `scope`
 // carries inferred types so e.g. `a := 1` shows up as "a is a I64".
@@ -1187,12 +1196,7 @@ doc_init_src_line := func(core_ast: Expr, user_ast: Expr, scope: TypeScope) retu
     mut packed_docs := Str.with_capacity(cap)
     collect_decl_packed(core_ast, scope, packed_info, packed_docs)
     collect_decl_packed(user_ast, scope, packed_info, packed_docs)
-
-    if packed_info.is_empty().and(packed_docs.is_empty()) { return "" }
-
-    esc_info := escape_doc_for_literal_str(packed_info)
-    esc_docs := escape_doc_for_literal_str(packed_docs)
-    return "__doc_init__(\"".concat(esc_info).concat("\", \"").concat(esc_docs).concat("\")\n")
+    return build_doc_init_line(packed_info, packed_docs)
 }
 
 // Append -l flag to the link_flags carried on lp.
@@ -1202,7 +1206,10 @@ loaded_add_lflag := func(mut lp: LoadedProgram, lib: Str) {
 
 // Run init/typecheck/precomp/scavenge on the loaded program. Sets
 // lp.run_tests and exits with code 1 if the typer reports any errors.
-prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
+// Run init + typer + field-struct resolution. Stops short of precomp and
+// scavenge so callers that only need a typed AST (e.g. `til doc`) don't pay
+// the codegen-prep cost.
+init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
 
     // Init phase (rstil-style): recursive imports per file.
@@ -1269,6 +1276,10 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         resolve_field_struct_defs(iu.ast, lp.ctx.scope)
     }
+}
+
+prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
+    init_and_type_program(lp, run_tests)
 
     precomp_imported(lp)
 

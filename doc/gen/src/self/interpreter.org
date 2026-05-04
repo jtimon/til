@@ -1,0 +1,495 @@
+#+TITLE: src/self/interpreter.til
+#+OPTIONS: toc:t
+
+* system_cmd
+#+begin_src til
+ext_func system_cmd(cmd: Str) returns shallow I32
+#+end_src
+
+* interp_path
+#+begin_src til
+interp_path is a Str
+#+end_src
+
+* interp_error
+#+begin_src til
+proc interp_error(e: Expr, msg: Str)
+#+end_src
+
+* interp_lang_error
+#+begin_src til
+proc interp_lang_error(e: Expr, msg: Str)
+#+end_src
+
+* StructInstance
+#+begin_src til
+struct StructInstance {
+    ref mut struct_name : Str
+    ref mut struct_def : Expr
+    own mut data : U8
+    mut borrowed : Bool
+namespace:
+    func eq(a: StructInstance, b: StructInstance) returns shallow Bool
+    func to_str(self: StructInstance) returns Str
+    func clone(self: StructInstance) returns StructInstance
+    func delete(own self: StructInstance, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* EnumInstance
+#+begin_src til
+struct EnumInstance {
+    ref mut enum_name : Str
+    ref mut enum_def : Expr
+    own mut data : U8
+    mut data_size : I32
+namespace:
+    func eq(a: EnumInstance, b: EnumInstance) returns shallow Bool
+    func to_str(self: EnumInstance) returns Str
+    func clone(self: EnumInstance) returns EnumInstance
+    func delete(own self: EnumInstance, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Value
+#+begin_src til
+enum Value {
+    None
+    Int: I64
+    Byte: U8
+    Short: I16
+    Int32: I32
+    Uint32: U32
+    Uint64: U64
+    Float: F32
+    Boolean: Bool
+    Func: Dynamic
+    Struct: StructInstance
+    Enum: EnumInstance
+    Ptr: Dynamic
+namespace:
+    func eq(a: Value, b: Value) returns Bool
+    func to_str(self: Value) returns Str
+    func clone(self: Value) returns Value
+    ext_func None() returns Value
+    ext_func Int(val: I64) returns Value
+    ext_func Byte(val: U8) returns Value
+    ext_func Short(val: I16) returns Value
+    ext_func Int32(val: I32) returns Value
+    ext_func Uint32(val: U32) returns Value
+    ext_func Uint64(val: U64) returns Value
+    ext_func Float(val: F32) returns Value
+    ext_func Boolean(val: Bool) returns Value
+    ext_func Func(val: Dynamic) returns Value
+    ext_func Struct(val: StructInstance) returns Value
+    ext_func Enum(val: EnumInstance) returns Value
+    ext_func Ptr(val: Dynamic) returns Value
+    func is(self: Value, other: Value) returns shallow Bool
+    func delete(own self: Value, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Cell
+#+begin_src til
+struct Cell {
+    mut val : Value
+namespace:
+    func clone(self: Cell) returns Cell
+    func delete(own self: Cell, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Binding
+#+begin_src til
+struct Binding {
+    ref mut name : Str
+    ref mut cell : Cell
+    mut cell_is_local : Bool
+namespace:
+    func clone(self: Binding) returns Binding
+    func delete(own self: Binding, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Scope
+#+begin_src til
+struct Scope {
+    mut bindings : Map
+    ref mut parent : Scope
+namespace:
+    func clone(self: Scope) returns Scope
+    func delete(own self: Scope, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* has_return
+#+begin_src til
+has_return is a Bool
+#+end_src
+
+* has_break
+#+begin_src til
+has_break is a Bool
+#+end_src
+
+* has_continue
+#+begin_src til
+has_continue is a Bool
+#+end_src
+
+* return_value
+#+begin_src til
+return_value is a Value
+#+end_src
+
+* _t_Str_28362
+#+begin_src til
+_t_Str_28362 is a Str
+#+end_src
+
+* _t_U32_28363
+#+begin_src til
+_t_U32_28363 is a U32
+#+end_src
+
+* _t_Str_28364
+#+begin_src til
+_t_Str_28364 is a Str
+#+end_src
+
+* _t_U32_28365
+#+begin_src til
+_t_U32_28365 is a U32
+#+end_src
+
+* ns_fields
+#+begin_src til
+ns_fields is a Map
+#+end_src
+
+* _t_Str_28366
+#+begin_src til
+_t_Str_28366 is a Str
+#+end_src
+
+* _t_U32_28367
+#+begin_src til
+_t_U32_28367 is a U32
+#+end_src
+
+* ns_keys
+#+begin_src til
+ns_keys is a Vec
+#+end_src
+
+* _t_Str_28368
+#+begin_src til
+_t_Str_28368 is a Str
+#+end_src
+
+* _t_U32_28369
+#+begin_src til
+_t_U32_28369 is a U32
+#+end_src
+
+* _t_Str_28370
+#+begin_src til
+_t_Str_28370 is a Str
+#+end_src
+
+* _t_U32_28371
+#+begin_src til
+_t_U32_28371 is a U32
+#+end_src
+
+* interp_type_defs
+#+begin_src til
+interp_type_defs is a Map
+#+end_src
+
+* lookup_interp_type_def
+#+begin_src til
+func lookup_interp_type_def(name: Str) returns ref Expr
+#+end_src
+
+* val_none
+#+begin_src til
+func val_none() returns shallow Value
+#+end_src
+
+* val_i64
+#+begin_src til
+func val_i64(shallow v: I64) returns shallow Value
+#+end_src
+
+* val_u8
+#+begin_src til
+func val_u8(shallow v: I64) returns shallow Value
+#+end_src
+
+* val_i16
+#+begin_src til
+func val_i16(shallow v: I64) returns shallow Value
+#+end_src
+
+* val_i32
+#+begin_src til
+func val_i32(shallow v: I64) returns shallow Value
+#+end_src
+
+* val_u32
+#+begin_src til
+func val_u32(shallow v: I64) returns shallow Value
+#+end_src
+
+* val_u64
+#+begin_src til
+func val_u64(shallow v: U64) returns shallow Value
+#+end_src
+
+* val_f32
+#+begin_src til
+func val_f32(shallow v: F32) returns shallow Value
+#+end_src
+
+* val_bool
+#+begin_src til
+func val_bool(shallow v: Bool) returns shallow Value
+#+end_src
+
+* _t_I64_28372
+#+begin_src til
+_t_I64_28372 is a I64
+#+end_src
+
+* ENUM_PAYLOAD_OFFSET
+#+begin_src til
+ENUM_PAYLOAD_OFFSET is a I32
+#+end_src
+
+* val_enum_flat
+#+begin_src til
+func val_enum_flat(enum_name: Str, enum_def: Expr, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32) returns shallow Value
+#+end_src
+
+* val_enum_simple
+#+begin_src til
+func val_enum_simple(enum_name: Str, shallow etag: I32) returns shallow Value
+#+end_src
+
+* elem_size_for_type
+#+begin_src til
+func elem_size_for_type(type_name: Str) returns shallow I32
+#+end_src
+
+* parse_cli_arg
+#+begin_src til
+func parse_cli_arg(s: Str, type_name: Str) returns shallow Value
+#+end_src
+
+* eval_expr
+#+begin_src til
+proc eval_expr(scope: Scope, e: Expr) returns shallow Value
+#+end_src
+
+* reinterpret_ptr_value
+#+begin_src til
+func reinterpret_ptr_value(val: Value, type_name: Str, scope: Scope) returns Value
+#+end_src
+
+* guard_own_param_skip
+#+begin_src til
+func guard_own_param_skip(scope: Scope, e: Expr, func_def: Expr) returns shallow Bool
+#+end_src
+
+* resolve_field_assign_base
+#+begin_src til
+func resolve_field_assign_base(scope: Scope, obj_expr: Expr) returns ref Dynamic
+#+end_src
+
+* resolve_field_assign_sdef
+#+begin_src til
+func resolve_field_assign_sdef(scope: Scope, obj_expr: Expr) returns ref Expr
+#+end_src
+
+* eval_body
+#+begin_src til
+proc eval_body(scope: Scope, mut body: Expr)
+#+end_src
+
+* eval_call
+#+begin_src til
+proc eval_call(scope: Scope, e: Expr) returns shallow Value
+#+end_src
+
+* free_value
+#+begin_src til
+func free_value(shallow v: Value)
+#+end_src
+
+* needs_widen
+#+begin_src til
+func needs_widen(val: Value, ptype: Str) returns shallow Bool
+#+end_src
+
+* shallow_copy_value
+#+begin_src til
+func shallow_copy_value(v: Value) returns shallow Value
+#+end_src
+
+* make_struct_value
+#+begin_src til
+func make_struct_value(sname: Str, sdef: Expr, data: Dynamic, shallow borrowed: Bool) returns shallow Value
+#+end_src
+
+* widen_numeric
+#+begin_src til
+func widen_numeric(v: Value, ptype: Str) returns Value
+#+end_src
+
+* scope_get
+#+begin_src til
+func scope_get(mut s: Scope, name: Str) returns ref Cell
+#+end_src
+
+* scope_new
+#+begin_src til
+func scope_new(parent: Scope) returns Scope
+#+end_src
+
+* scope_set_owned
+#+begin_src til
+func scope_set_owned(mut s: Scope, name: Str, val: Value)
+#+end_src
+
+* scope_set_borrowed
+#+begin_src til
+func scope_set_borrowed(mut s: Scope, name: Str, cell: Cell)
+#+end_src
+
+* scope_free
+#+begin_src til
+func scope_free(own s: Scope)
+#+end_src
+
+* interp_fa_is_ns_inner
+#+begin_src til
+func interp_fa_is_ns_inner(scope: Scope, e: Expr, sname: Str) returns shallow Bool
+#+end_src
+
+* field_assign_dyn_move_src
+#+begin_src til
+func field_assign_dyn_move_src(mut scope: Scope, val_expr: Expr) returns ref Cell
+#+end_src
+
+* interp_fa_is_ns
+#+begin_src til
+func interp_fa_is_ns(scope: Scope, e: Expr) returns shallow Bool
+#+end_src
+
+* value_to_buf
+#+begin_src til
+func value_to_buf(dest: Dynamic, val: Value, type_name: Str)
+#+end_src
+
+* build_argv_array
+#+begin_src til
+func build_argv_array(argv: Vec, shallow offset: U32, shallow count: U32, elem_type: Str) returns shallow Value
+#+end_src
+
+* ns_inited
+#+begin_src til
+ns_inited is a Bool
+#+end_src
+
+* interpreter_init_ns
+#+begin_src til
+proc interpreter_init_ns(mut ctx: Context, mut global: Scope, program: Expr)
+#+end_src
+
+* ns_qname
+#+begin_src til
+func ns_qname(sname: Str, fname: Str) returns Str
+#+end_src
+
+* ns_get
+#+begin_src til
+func ns_get(sname: Str, fname: Str) returns ref Value
+#+end_src
+
+* ns_set
+#+begin_src til
+func ns_set(sname: Str, fname: Str, shallow val: Value)
+#+end_src
+
+* make_str_value
+#+begin_src til
+func make_str_value(data: Dynamic, shallow len: U64) returns shallow Value
+#+end_src
+
+* make_str_value_own
+#+begin_src til
+func make_str_value_own(data: Dynamic, shallow len: U64) returns shallow Value
+#+end_src
+
+* str_view
+#+begin_src til
+func str_view(shallow v: Value) returns shallow Str
+#+end_src
+
+* find_field_decl
+#+begin_src til
+func find_field_decl(struct_def: Expr, fname: Str) returns ref Declaration
+#+end_src
+
+* ENUM_PAYLOAD_OFFSET
+#+begin_src til
+ENUM_PAYLOAD_OFFSET is a I32
+#+end_src
+
+* read_field
+#+begin_src til
+func read_field(inst: StructInstance, dd: Declaration) returns shallow Value
+#+end_src
+
+* write_field
+#+begin_src til
+func write_field(mut inst: StructInstance, dd: Declaration, val: Value)
+#+end_src
+
+* interpret_register_defs
+#+begin_src til
+func interpret_register_defs(mut global: Scope, prog: Expr)
+#+end_src
+
+* interpret_register_aliases
+#+begin_src til
+func interpret_register_aliases(mut global: Scope, prog: Expr)
+#+end_src
+
+* interpret_copy_alias_ns
+#+begin_src til
+func interpret_copy_alias_ns(prog: Expr, global: Scope)
+#+end_src
+
+* interpret
+#+begin_src til
+proc interpret(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32
+#+end_src
+
+* interpret_units
+#+begin_src til
+proc interpret_units(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns shallow I32
+#+end_src
+
+* cmd_interpret
+#+begin_src til
+proc cmd_interpret(lp: LoadedProgram, user_argv: Vec) returns shallow I32
+#+end_src
+

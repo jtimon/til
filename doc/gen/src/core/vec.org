@@ -1,0 +1,62 @@
+#+TITLE: src/core/vec.til
+#+OPTIONS: toc:t
+
+* vec
+#+begin_src til
+ext_func vec(type_name: Str, elements: ..Dynamic) returns Vec
+#+end_src
+
+* Vec
+Dynamic array of typed elements.
+
+#+begin_src til
+struct Vec {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+    elem_size : U32
+    elem_type : Str
+    elem_clone : CloneFn
+    elem_delete : DeleteFn
+namespace:
+    /// Create a new empty Vec for elements of the given type and size.
+    func new(elem_type: Str, elem_size: U32) returns Vec
+    func len(self: Vec) returns shallow U32
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec, own val: Dynamic)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec, own other: Vec)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec, mut other: Vec)
+    /// Return a reference to the element at index `i`. Panics if `i` is
+    /// out of bounds. The reference is valid until the next mutation.
+    func get(self: Vec, i: U32) returns ref Dynamic
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec) returns Dynamic
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec, n: U32) returns Vec
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec, i: U32, own val: Dynamic)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec, mut src: Vec, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec, call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec) returns Vec
+    func size() returns shallow U32
+}
+#+end_src
+

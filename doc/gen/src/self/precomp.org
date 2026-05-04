@@ -1,0 +1,163 @@
+#+TITLE: src/self/precomp.til
+#+OPTIONS: toc:t
+
+* _t_Str_17265
+#+begin_src til
+_t_Str_17265 is a Str
+#+end_src
+
+* _t_U32_17266
+#+begin_src til
+_t_U32_17266 is a U32
+#+end_src
+
+* macros
+#+begin_src til
+macros is a Set
+#+end_src
+
+* _t_Str_17267
+#+begin_src til
+_t_Str_17267 is a Str
+#+end_src
+
+* _t_U32_17268
+#+begin_src til
+_t_U32_17268 is a U32
+#+end_src
+
+* funcs
+#+begin_src til
+funcs is a Set
+#+end_src
+
+* _t_Str_17269
+#+begin_src til
+_t_Str_17269 is a Str
+#+end_src
+
+* _t_U32_17270
+#+begin_src til
+_t_U32_17270 is a U32
+#+end_src
+
+* _t_Str_17271
+#+begin_src til
+_t_Str_17271 is a Str
+#+end_src
+
+* _t_U32_17272
+#+begin_src til
+_t_U32_17272 is a U32
+#+end_src
+
+* known
+#+begin_src til
+known is a Map
+#+end_src
+
+* precomp_has_macro
+#+begin_src til
+func precomp_has_macro(name: Str) returns shallow Bool
+#+end_src
+
+* precomp_has_func
+#+begin_src til
+func precomp_has_func(name: Str) returns shallow Bool
+#+end_src
+
+* is_side_effecting_name
+#+begin_src til
+func is_side_effecting_name(name: Str) returns shallow Bool
+#+end_src
+
+* value_to_expr
+#+begin_src til
+func value_to_expr(shallow val: Value, src: Expr) returns Expr
+#+end_src
+
+* expr_to_value
+#+begin_src til
+func expr_to_value(e: Expr) returns shallow Value
+#+end_src
+
+* is_known
+#+begin_src til
+func is_known(e: Expr, mut out: Value) returns shallow Bool
+#+end_src
+
+* body_has_local
+#+begin_src til
+proc body_has_local(body: Expr, name: Str) returns shallow Bool
+#+end_src
+
+* func_uses_unknown_globals
+#+begin_src til
+proc func_uses_unknown_globals(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool) returns shallow Bool
+#+end_src
+
+* extract_trivial_literal_return
+#+begin_src til
+func extract_trivial_literal_return(fdef: Expr) returns ref Expr
+#+end_src
+
+* ns_lookup_flat
+#+begin_src til
+func ns_lookup_flat(name: Str) returns shallow Dynamic
+#+end_src
+
+* fa_recv_type_name
+#+begin_src til
+func fa_recv_type_name(callee: Expr) returns Str
+#+end_src
+
+* try_fast_fold_call
+#+begin_src til
+func try_fast_fold_call(scope: Scope, fcall: Expr) returns ref Expr
+#+end_src
+
+* try_eval_call
+#+begin_src til
+proc try_eval_call(scope: Scope, fcall: Expr, shallow require_known: Bool, ctx: Context) returns ref Expr
+#+end_src
+
+* track_literal
+#+begin_src til
+func track_literal(scope: Scope, name: Str, rhs: Expr)
+#+end_src
+
+* is_macro_call
+#+begin_src til
+func is_macro_call(e: Expr) returns shallow Bool
+#+end_src
+
+* is_func_call
+#+begin_src til
+func is_func_call(e: Expr) returns shallow Bool
+#+end_src
+
+* fold_subtree
+#+begin_src til
+proc fold_subtree(scope: Scope, mut e: Expr, ctx: Context)
+#+end_src
+
+* process_body
+#+begin_src til
+proc process_body(scope: Scope, body: Expr, ctx: Context, shallow at_global: Bool)
+#+end_src
+
+* precomp_scan_names
+#+begin_src til
+func precomp_scan_names(prog: Expr)
+#+end_src
+
+* precomp_register_defs
+#+begin_src til
+func precomp_register_defs(mut global: Scope, prog: Expr)
+#+end_src
+
+* precomp
+#+begin_src til
+proc precomp(core_program: Expr, program: Expr, ctx: Context)
+#+end_src
+

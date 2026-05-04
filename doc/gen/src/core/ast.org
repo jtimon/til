@@ -1,0 +1,433 @@
+#+TITLE: src/core/ast.til
+#+OPTIONS: toc:t
+
+* TilType
+Type representation for the til compiler. Carries payload for named
+types (Struct/Enum/Custom) and is tag-only for builtins.
+
+#+begin_src til
+enum TilType {
+    Unknown
+    None
+    I64
+    U8
+    I16
+    I32
+    U32
+    U64
+    F32
+    Bool
+    Struct: Str
+    StructDef
+    Enum: Str
+    EnumDef
+    FuncDef
+    FuncPtr
+    Dynamic
+    Custom: Str
+namespace:
+    /// Compare two TilTypes. Named-payload variants (Struct/Enum/Custom)
+    /// compare equal regardless of variant if their name payloads match.
+    func eq(a: TilType, b: TilType) returns shallow Bool
+    ext_func Unknown() returns TilType
+    ext_func None() returns TilType
+    ext_func I64() returns TilType
+    ext_func U8() returns TilType
+    ext_func I16() returns TilType
+    ext_func I32() returns TilType
+    ext_func U32() returns TilType
+    ext_func U64() returns TilType
+    ext_func F32() returns TilType
+    ext_func Bool() returns TilType
+    ext_func Struct(val: Str) returns TilType
+    ext_func StructDef() returns TilType
+    ext_func Enum(val: Str) returns TilType
+    ext_func EnumDef() returns TilType
+    ext_func FuncDef() returns TilType
+    ext_func FuncPtr() returns TilType
+    ext_func Dynamic() returns TilType
+    ext_func Custom(val: Str) returns TilType
+    func is(self: TilType, other: TilType) returns shallow Bool
+    func delete(own self: TilType, call_free: Bool)
+    func to_str(self: TilType) returns Str
+    func clone(self: TilType) returns TilType
+    func size() returns shallow U32
+}
+#+end_src
+
+* til_type_name_c
+#+begin_src til
+func til_type_name_c(t: TilType) returns Str
+#+end_src
+
+* til_type_name
+#+begin_src til
+func til_type_name(t: TilType) returns Str
+#+end_src
+
+* FuncType
+Classifies a til function declaration: func, proc, test, macro, or external.
+
+#+begin_src til
+enum FuncType {
+    None
+    Func
+    Proc
+    Test
+    Macro
+    ExtFunc
+    ExtProc
+namespace:
+    None
+    Func
+    Proc
+    Test
+    Macro
+    ExtFunc
+    ExtProc
+    func is(self: FuncType, other: FuncType) returns shallow Bool
+    func eq(self: FuncType, other: FuncType) returns shallow Bool
+    func delete(own self: FuncType, call_free: Bool)
+    func to_str(self: FuncType) returns Str
+    func clone(self: FuncType) returns FuncType
+    func size() returns shallow U32
+}
+#+end_src
+
+* OwnType
+Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).
+
+#+begin_src til
+enum OwnType {
+    Own
+    Ref
+    Shallow
+namespace:
+    Own
+    Ref
+    Shallow
+    func is(self: OwnType, other: OwnType) returns shallow Bool
+    func eq(self: OwnType, other: OwnType) returns shallow Bool
+    func delete(own self: OwnType, call_free: Bool)
+    func to_str(self: OwnType) returns Str
+    func clone(self: OwnType) returns OwnType
+    func size() returns shallow U32
+}
+#+end_src
+
+* Declaration
+Variable/field/parameter declaration node.
+
+#+begin_src til
+struct Declaration {
+    mut name : Str
+    mut doc : Str
+    mut explicit_type : Str
+    mut is_mut : Bool
+    mut is_priv : Bool
+    mut own_type : OwnType
+    mut til_type : TilType
+    mut field_offset : I32
+    mut field_size : I32
+    ref mut field_struct_def : Expr
+    own mut default_value : Expr
+namespace:
+    func eq(a: Declaration, b: Declaration) returns Bool
+    func to_str(self: Declaration) returns Str
+    func clone(self: Declaration) returns Declaration
+    func delete(own self: Declaration, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* FunctionDef
+Function signature metadata: params, return type, variadic info.
+
+#+begin_src til
+struct FunctionDef {
+    mut func_type : FuncType
+    mut params : Vec
+    mut return_type : Str
+    mut variadic_index : I32
+    mut kwargs_index : I32
+    mut return_own_type : OwnType
+namespace:
+    func eq(a: FunctionDef, b: FunctionDef) returns Bool
+    func to_str(self: FunctionDef) returns Str
+    func clone(self: FunctionDef) returns FunctionDef
+    func delete(own self: FunctionDef, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* FCallData
+Per-callsite data for function calls: variadic/kwargs counts, own_args bitmap.
+
+#+begin_src til
+struct FCallData {
+    mut variadic_index : I32
+    mut variadic_count : U32
+    mut kwargs_index : I32
+    mut kwargs_count : U32
+    mut is_splat : Bool
+    mut own_args : U64
+namespace:
+    func eq(a: FCallData, b: FCallData) returns Bool
+    func to_str(_self: FCallData) returns Str
+    func clone(self: FCallData) returns FCallData
+    func delete(own self: FCallData, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* set_own_arg
+#+begin_src til
+func set_own_arg(mut fcall: Expr, shallow arg_index: U32)
+#+end_src
+
+* get_own_arg
+#+begin_src til
+func get_own_arg(fcall: Expr, shallow arg_index: U32) returns shallow Bool
+#+end_src
+
+* StructDef
+Struct definition: field declarations, namespace methods, total size.
+
+#+begin_src til
+struct StructDef {
+    mut total_struct_size : I32
+    mut fields : Vec
+    mut ns_decls : Vec
+    mut c_tag : Str
+namespace:
+    func eq(a: StructDef, b: StructDef) returns Bool
+    func to_str(_self: StructDef) returns Str
+    func clone(self: StructDef) returns StructDef
+    func delete(own self: StructDef, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* EnumDef
+Enum definition: variants, payload types, namespace methods.
+
+#+begin_src til
+struct EnumDef {
+    mut ns_decls : Vec
+    mut variants : Vec
+    mut payload_types : Map
+    mut total_enum_size : I32
+namespace:
+    func eq(a: EnumDef, b: EnumDef) returns Bool
+    func to_str(_self: EnumDef) returns Str
+    func clone(self: EnumDef) returns EnumDef
+    func delete(own self: EnumDef, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* AssignData
+Payload for assignment nodes: which name is being assigned to.
+
+#+begin_src til
+struct AssignData {
+    mut name : Str
+    mut save_old_delete : Bool
+namespace:
+    func eq(a: AssignData, b: AssignData) returns Bool
+    func to_str(self: AssignData) returns Str
+    func clone(self: AssignData) returns AssignData
+    func delete(own self: AssignData, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ForInData
+Payload for `for name in range` loop nodes.
+
+#+begin_src til
+struct ForInData {
+    mut name : Str
+    mut is_mut : Bool
+namespace:
+    func eq(a: ForInData, b: ForInData) returns Bool
+    func to_str(self: ForInData) returns Str
+    func clone(self: ForInData) returns ForInData
+    func delete(own self: ForInData, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* NodeType
+AST node kind. Each variant carries an optional payload (struct, string, bool).
+
+#+begin_src til
+enum NodeType {
+    Body
+    LiteralStr: Str
+    LiteralNum: Str
+    LiteralBool: Bool
+    LiteralNull
+    Ident: Str
+    Decl: Declaration
+    Assign: AssignData
+    FCall: FCallData
+    FuncDef: FunctionDef
+    StructDef: StructDef
+    EnumDef: EnumDef
+    FieldAccess: Str
+    FieldAssign: Str
+    Return
+    If
+    While
+    ForIn: ForInData
+    NamedArg: Str
+    Break
+    Continue
+    MapLit
+    SetLit
+    Switch
+    Case
+    NoDefaultArg
+namespace:
+    ext_func Body() returns NodeType
+    ext_func LiteralStr(val: Str) returns NodeType
+    ext_func LiteralNum(val: Str) returns NodeType
+    ext_func LiteralBool(val: Bool) returns NodeType
+    ext_func LiteralNull() returns NodeType
+    ext_func Ident(val: Str) returns NodeType
+    ext_func Decl(val: Declaration) returns NodeType
+    ext_func Assign(val: AssignData) returns NodeType
+    ext_func FCall(val: FCallData) returns NodeType
+    ext_func FuncDef(val: FunctionDef) returns NodeType
+    ext_func StructDef(val: StructDef) returns NodeType
+    ext_func EnumDef(val: EnumDef) returns NodeType
+    ext_func FieldAccess(val: Str) returns NodeType
+    ext_func FieldAssign(val: Str) returns NodeType
+    ext_func Return() returns NodeType
+    ext_func If() returns NodeType
+    ext_func While() returns NodeType
+    ext_func ForIn(val: ForInData) returns NodeType
+    ext_func NamedArg(val: Str) returns NodeType
+    ext_func Break() returns NodeType
+    ext_func Continue() returns NodeType
+    ext_func MapLit() returns NodeType
+    ext_func SetLit() returns NodeType
+    ext_func Switch() returns NodeType
+    ext_func Case() returns NodeType
+    ext_func NoDefaultArg() returns NodeType
+    func is(self: NodeType, other: NodeType) returns shallow Bool
+    func eq(self: NodeType, other: NodeType) returns shallow Bool
+    func delete(own self: NodeType, call_free: Bool)
+    func to_str(self: NodeType) returns Str
+    func clone(self: NodeType) returns NodeType
+    func size() returns shallow U32
+}
+#+end_src
+
+* Expr
+AST expression node with line/col, type, children, and node-specific payload.
+
+#+begin_src til
+struct Expr {
+    mut node_type : NodeType
+    mut til_type : TilType
+    mut children : Vec
+    mut line : U32
+    mut col : U32
+namespace:
+    /// Print a diagnostic error with file path and source location.
+    proc error(self: Expr, path: Str, msg: Str)
+    /// Like error() but adds "not implemented yet" note.
+    proc todo_error(self: Expr, path: Str, msg: Str)
+    /// Like error() but adds "bug in the language" note.
+    proc lang_error(self: Expr, path: Str, msg: Str)
+    /// Take ownership of `child` and append it to the children list.
+    func add_child(mut self: Expr, own child: Expr)
+    /// Clone `child` and append the clone to the children list.
+    func push_child_clone(mut self: Expr, child: Expr)
+    /// Append other's children into self via raw memcpy (no cloning).
+    /// Zeroes other's count so it no longer owns the moved items.
+    func take_children(mut self: Expr, mut other: Expr)
+    /// Shortcut to get a ref to the i-th child of `parent`.
+    func child(parent: Expr, i: U32) returns ref Expr
+    /// Create a new Expr with the given node_type and source location.
+    func new(data: NodeType, shallow line: U32, shallow col: U32) returns Expr
+    func eq(_self: Expr, _other: Expr) returns shallow Bool
+    func to_str(self: Expr) returns Str
+    func clone(self: Expr) returns Expr
+    func delete(own self: Expr, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* func_type_pascal
+#+begin_src til
+func func_type_pascal(ft: FuncType) returns Str
+#+end_src
+
+* node_head_str
+#+begin_src til
+func node_head_str(data: NodeType) returns Str
+#+end_src
+
+* expr_to_str_indent
+#+begin_src til
+func expr_to_str_indent(self: Expr, shallow indent: U32) returns Str
+#+end_src
+
+* node_name
+#+begin_src til
+func node_name(data: NodeType) returns Str
+#+end_src
+
+* func_type_name
+#+begin_src til
+func func_type_name(ft: FuncType) returns Str
+#+end_src
+
+* ast_print
+#+begin_src til
+proc ast_print(e: Expr, shallow indent: U32)
+#+end_src
+
+* is_decl_with_child
+#+begin_src til
+func is_decl_with_child(stmt: Expr) returns shallow Bool
+#+end_src
+
+* is_struct_or_enum
+#+begin_src til
+func is_struct_or_enum(stmt: Expr) returns shallow Bool
+#+end_src
+
+* is_func_decl
+#+begin_src til
+func is_func_decl(stmt: Expr) returns shallow Bool
+#+end_src
+
+* is_def
+#+begin_src til
+func is_def(stmt: Expr) returns shallow Bool
+#+end_src
+
+* def_ns_decls
+#+begin_src til
+func def_ns_decls(sdef: Expr) returns ref Vec
+#+end_src
+
+* enum_has_payloads
+#+begin_src til
+func enum_has_payloads(enum_def: Expr) returns shallow Bool
+#+end_src
+
+* enum_variant_tag
+#+begin_src til
+func enum_variant_tag(enum_def: Expr, variant_name: Str) returns I32
+#+end_src
+
+* enum_variant_type
+#+begin_src til
+func enum_variant_type(enum_def: Expr, shallow tag: I32) returns Str
+#+end_src
+

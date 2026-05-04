@@ -1,0 +1,43 @@
+#+TITLE: src/core/exit.til
+#+OPTIONS: toc:t
+
+* exit
+#+begin_src til
+ext_func exit(shallow code: I64)
+#+end_src
+
+* panic
+#+begin_src til
+func panic(loc_str: Str, parts: ..Str)
+#+end_src
+
+* TODO
+#+begin_src til
+func TODO(loc_str: Str, parts: ..Str)
+#+end_src
+
+* UNREACHABLE
+#+begin_src til
+func UNREACHABLE(loc_str: Str)
+#+end_src
+
+* assert
+#+begin_src til
+func assert(loc_str: Str, cond: Bool) returns Bool
+#+end_src
+
+* expect
+#+begin_src til
+func expect(loc_str: Str, cond: Bool, parts: ..Str)
+#+end_src
+
+* assert_eq
+#+begin_src til
+func assert_eq(loc_str: Str, a: I64, b: I64)
+#+end_src
+
+* assert_eq_str
+#+begin_src til
+func assert_eq_str(loc_str: Str, a: Str, b: Str)
+#+end_src
+

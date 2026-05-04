@@ -1,5 +1,6 @@
 bin/
 gen/
+!doc/gen/
 tmp/
 lib/raylib/src/libraylib.a
 lib/libffi/.built

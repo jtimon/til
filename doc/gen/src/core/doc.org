@@ -1,0 +1,73 @@
+#+TITLE: src/core/doc.til
+#+OPTIONS: toc:t
+
+* __til_docs_blob__
+Packed runtime registry of /// doc comments collected by the loader.
+Encoded as `name<0x01>doc<0x02>...`. Use help(name) for lookup.
+
+#+begin_src til
+__til_docs_blob__ is a Str
+#+end_src
+
+* __til_info_blob__
+Packed runtime registry of human-readable info strings (kind +
+signature/fields/methods/var type) for every top-level Decl and
+struct/enum member. Encoded as `name<0x01>info<0x02>...`. Use
+help(name) for lookup.
+
+#+begin_src til
+__til_info_blob__ is a Str
+#+end_src
+
+* __doc_init__
+Loader-emitted entry point that hands the packed registry blobs to
+the runtime. Not intended for direct user calls.
+
+#+begin_src til
+func __doc_init__(info_data: Str, docs_data: Str)
+#+end_src
+
+* __doc_lookup__
+#+begin_src til
+func __doc_lookup__(blob: Str, name: Str) returns Str
+#+end_src
+
+* __til_has_doc__
+True iff the named declaration has a /// doc comment registered.
+
+#+begin_src til
+func __til_has_doc__(name: Str) returns shallow Bool
+#+end_src
+
+* __til_has_info__
+True iff the named declaration is registered with a kind/signature
+info string.
+
+#+begin_src til
+func __til_has_info__(name: Str) returns shallow Bool
+#+end_src
+
+* __til_get_doc__
+Get the registered /// doc comment for a declaration, or "" if none.
+
+#+begin_src til
+func __til_get_doc__(name: Str) returns Str
+#+end_src
+
+* __til_get_info__
+Get the registered info string for a declaration, or "" if not found.
+
+#+begin_src til
+func __til_get_info__(name: Str) returns Str
+#+end_src
+
+* help
+Print the doc comment and the kind/signature info for a top-level
+declaration or struct/enum member (`Type.method`). When both are
+registered, print the doc first then the info. If neither is
+registered print "undefined symbol: <name>".
+
+#+begin_src til
+proc help(name: Str)
+#+end_src
+

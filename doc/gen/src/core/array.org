@@ -1,0 +1,33 @@
+#+TITLE: src/core/array.til
+#+OPTIONS: toc:t
+
+* array
+#+begin_src til
+ext_func array(type_name: Str, elements: ..Dynamic) returns Array
+#+end_src
+
+* Array
+Fixed-capacity array of typed elements.
+
+#+begin_src til
+struct Array {
+    own mut data : U8
+    cap : U32
+    elem_size : U32
+    elem_type : Str
+    elem_clone : CloneFn
+    elem_delete : DeleteFn
+namespace:
+    /// Create a zero-initialized Array with the given element type and capacity.
+    func new(elem_type: Str, elem_size: U32, cap: U32) returns Array
+    func len(self: Array) returns U32
+    /// Ref to the element at index `i`. Panics if out of bounds.
+    func get(self: Array, i: U32) returns ref Dynamic
+    /// Overwrite the element at index `i`. Drops the old value. `val` is owned.
+    func set(self: Array, i: U32, own val: Dynamic)
+    func delete(own self: Array, call_free: Bool)
+    func clone(self: Array) returns Array
+    func size() returns shallow U32
+}
+#+end_src
+

@@ -52,6 +52,124 @@
   pre-fix and pass post-fix in both ~run~ and ~interpret~ modes.
   All 99 tests still pass.
 
+* FIXED #157 Rust-style ~///~ doc comments and ~help()~ builtin
+  Replace the emacs-mode-only ~/** ... */~ doc-comment placeholder with
+  real Rust-style ~///~ doc comments. The text rides through the
+  lexer and parser, lands on ~Declaration.doc~, and is exposed to the
+  user interactively in the REPL via a ~help(name : Str)~ builtin so
+  ~help("Vec")~ prints the registered doc + signature/fields/methods
+  info. Scope reduction: ~help()~ is REPL-only. Non-REPL pipelines
+  (~til interpret/build/run/test/translate~) deliberately do NOT
+  populate the runtime doc registry, so ~help(name)~ from a script or
+  compiled binary always prints "undefined symbol: <name>". Compiled
+  binaries stay lean and source-level browsing happens through Phase
+  2's dedicated ~til doc <path>~ generator.
+
+** Phase 1 -- doc comments + REPL ~help()~ builtin
+
+  - ~editor/til-mode.el~: highlight ~///~ as ~font-lock-doc-face~;
+    drop the legacy ~/** ... */~ regex.
+  - ~src/self/lexer.til~: add ~TokenType.DocComment~. Recognise
+    ~///~, capture the rest of the line (stripped of the leading
+    ~///~ and one optional space), emit one DocComment token per
+    line. Plain ~//~ and ~/* */~ continue to be skipped as before.
+  - ~src/core/ast.til~: add ~mut doc := ""~ to ~Declaration~.
+  - ~src/self/parser.til~: at the top of ~parse_statement~ drain a
+    run of leading DocComment tokens, joining them with ~\n~. After
+    the inner statement parses, if the result is a ~NodeType.Decl~
+    attach the accumulated text to its ~Declaration.doc~. Doc
+    comments that don't precede a Decl are discarded. Inside
+    ~parse_struct_def~ / ~parse_enum_def~ the same drain runs on the
+    namespace blocks so ~Declaration.doc~ is attached to ns_decls
+    and struct fields too.
+  - ~src/core/doc.til~ (new): two packed runtime registries
+    ~__til_docs_blob__~ and ~__til_info_blob__~ encoded as
+    ~name<0x01>value<0x02>...~; ~__doc_init__(info, docs)~ entry
+    point that just stores both blob references; linear-scan
+    ~__doc_lookup__~ helper; ~help(name : Str)~ that prints the
+    doc text and the rich info string (kind + signature for funcs;
+    fields + namespace methods for structs/enums; "<name> is a
+    <Type>" for variables -- inferred type comes from the typer
+    scope).
+  - ~src/core/core.til~: ~import("doc.til")~ so the registries and
+    ~help~ are visible to user code.
+  - ~src/self/loader.til~: ~doc_init_src_line(core_ast, user_ast,
+    scope)~ helper that returns a ~__doc_init__("...", "...")~
+    source line populated with packed blobs built from the typed
+    core+user ASTs. Top-level Decls register under their bare name
+    and struct/enum members register under their qualified name
+    (~Vec.pop~, ~Foo.bar~) so ~help("Vec.pop")~ finds the method's
+    doc and signature. Non-REPL pipelines do not call this.
+  - ~src/til.til~: REPL prepends ~doc_init_src_line~ to each turn's
+    subprocess source so ~help(name)~ resolves against the freshly
+    typed program on every input. ~repl_typecheck~ mirrors master's
+    post-rstil ~prepare_program~ pipeline (~init_file~ ->
+    ~init_declarations_global~ -> ~normalize_scope_bindings~ ->
+    ~type_file~) so the REPL's typed AST stays in sync with what
+    ~til interpret~ sees.
+  - Tests: ~src/test/repl_help.sh~ smoke test (pipes
+    ~help("println")~ into ~bin/til~ and counts the expected core
+    doc text), wired into ~src/tests.til~.
+
+** Phase 1 follow-up -- speed up ~doc_init_src_line~
+
+  The first implementation walked every core ns_decl on every REPL
+  turn, rebuilding a ~30 KB info blob from scratch (~80 s on this
+  host for a single ~help()~ turn). Fix landed: cache the core
+  packed info/docs blobs in ~run_repl_session~ on the first
+  successful typecheck and reuse them forever after; per-turn work
+  only walks the user units. ~src/self/loader.til~ now exports
+  ~build_doc_init_line(packed_info, packed_docs)~ so the REPL can
+  stitch cached core + fresh user blobs without re-walking core.
+  The single-turn ~repl_help~ test still pays the cache-fill cost
+  on its only turn, but the marginal cost of additional REPL turns
+  is now negligible.
+
+** Phase 2 -- ~til doc <path>~ generator
+
+  New top-level subcommand ~til doc <path>~ runs init + typer
+  (skipping precomp + scavenge -- those are codegen prep), then
+  walks each loaded ProgramUnit's typed AST and emits one org-mode
+  page per source file under ~doc/gen/<source-path>.org~. Each
+  page lists every top-level ~Decl~ with its ~///~ doc text (if
+  any) followed by a kind + signature info block (reusing
+  ~format_decl_info~ from Phase 1). Struct/enum bodies render
+  their fields and namespace methods inline, including the
+  field/method-level ~///~ comments.
+
+  Implementation in ~src/self/builder.til~:
+  - ~format_unit_doc_org(unit_path, ast, scope) returns Str~
+    (per-decl chunks accumulated then concatenated; sized
+    correctly so push_str doesn't overflow on big files like
+    ~src/self/initer.til~)
+  - ~til_doc_out_path(unit_path) returns Str~ (strips leading
+    ~./~, ~/foo.til/~ -> ~/foo.org/~)
+  - ~ensure_parent_dir(path)~ -- ~mkdir -p~ for the output dir
+  - ~emit_unit_doc(u, lp)~ + ~cmd_doc(lp) returns I32~
+
+  ~src/self/loader.til~: ~prepare_program~ split into
+  ~init_and_type_program~ (init + typer, used by ~til doc~) plus
+  the existing ~precomp_imported~ + ~scavenge_imported~ tail
+  (used by ~translate~/~build~/~run~/~interpret~/~test~).
+
+  ~src/til.til~: dispatch ~doc~ before ~prepare_program~ via
+  ~init_and_type_program~ + ~cmd_doc~; usage banner.
+
+  Smoke test: ~src/test/doc_cmd.sh~ runs ~til doc src/til.til~
+  (the self-host source itself) and greps the generated tree
+  under ~doc/gen/~ for a few known doc strings and signatures
+  (~src/core/set.org~, ~src/core/vec.org~, ~src/self/parser.org~,
+  ~src/til.org~).
+
+** Out of scope (still)
+
+  - ~help(Vec)~ / ~help(Vec.pop)~ taking the value rather than the
+    name. ~help~ takes a ~Str~ key.
+  - ~//!~ inner doc comments (Rust's module/crate docs).
+  - Cross-linking between docs / type names in rendered output --
+    reader can already navigate org headlines; full cross-ref is a
+    later refinement.
+
 * FIXED #180 reinterpret_ptr_value wraps Dynamic slot pointers into Value.Struct
   Pre-existing interpreter bug surfaced during the #167.4
   investigation. ~reinterpret_ptr_value~ in

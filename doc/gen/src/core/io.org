@@ -1,0 +1,81 @@
+#+TITLE: src/core/io.til
+#+OPTIONS: toc:t
+
+* print_single
+#+begin_src til
+ext_proc print_single(s: Str)
+#+end_src
+
+* eprint_single
+#+begin_src til
+ext_proc eprint_single(s: Str)
+#+end_src
+
+* print_flush
+#+begin_src til
+ext_proc print_flush()
+#+end_src
+
+* in_read_line
+#+begin_src til
+ext_proc in_read_line(mut line: Str) returns shallow Bool
+#+end_src
+
+* println
+Print strings to stdout followed by a newline.
+
+#+begin_src til
+proc println(parts: ..Str)
+#+end_src
+
+* print
+Print strings to stdout without a newline.
+
+#+begin_src til
+proc print(parts: ..Str)
+#+end_src
+
+* cfile_open
+#+begin_src til
+ext_func cfile_open(path: Str, shallow is_write: Bool) returns ref Dynamic
+#+end_src
+
+* cfile_close
+#+begin_src til
+ext_proc cfile_close(handle: Dynamic)
+#+end_src
+
+* cfile_write_str
+#+begin_src til
+ext_proc cfile_write_str(handle: Dynamic, s: Str)
+#+end_src
+
+* cfile_read_all
+#+begin_src til
+ext_func cfile_read_all(handle: Dynamic) returns Str
+#+end_src
+
+* File
+File handle for reading or writing on disk.
+
+#+begin_src til
+struct File {
+    ref mut handle : U8
+    mut is_write : Bool
+namespace:
+    ext_func readfile(path: Str) returns Str
+    ext_proc writefile(path: Str, content: Str)
+    /// Open a file at `path` for reading or writing.
+    func new(path: Str, shallow is_write: Bool) returns File
+    /// Write a string to the file. Panics if not opened for writing.
+    proc write(self: File, s: Str)
+    /// Read the entire file contents into a Str. Panics if opened for writing.
+    func read_all(self: File) returns Str
+    /// Close the file handle. Sets handle to NULL afterwards.
+    proc close(mut self: File)
+    func clone(self: File) returns File
+    func delete(own self: File, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+

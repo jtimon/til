@@ -1,0 +1,32 @@
+#+TITLE: src/core/map.til
+#+OPTIONS: toc:t
+
+* Map
+Hash map from typed keys to typed values.
+
+#+begin_src til
+struct Map {
+    mut keys : Vec
+    mut values : Vec
+    mut key_cmp : CmpFn
+namespace:
+    /// Create an empty Map. Both key_type and val_type must be non-empty;
+    /// key_type must implement `cmp`.
+    func new(key_type: Str, key_size: U32, val_type: Str, val_size: U32) returns Map
+    func len(self: Map) returns U32
+    /// Ref to the key slot at sorted index `i`.
+    func key_ptr(self: Map, i: U32) returns ref Dynamic
+    /// Ref to the value slot at sorted index `i`.
+    func val_ptr(self: Map, i: U32) returns ref Dynamic
+    /// True if a value exists for the given key.
+    func has(self: Map, key: Dynamic) returns shallow Bool
+    /// Return a ref to the value for `key`. Panics if not found.
+    func get(self: Map, key: Dynamic) returns ref Dynamic
+    /// Insert or overwrite the value for `key`. Both key and val are owned.
+    func set(mut self: Map, own key: Dynamic, own val: Dynamic)
+    func delete(own self: Map, call_free: Bool)
+    func clone(self: Map) returns Map
+    func size() returns shallow U32
+}
+#+end_src
+

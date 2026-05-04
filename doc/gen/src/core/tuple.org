@@ -1,0 +1,31 @@
+#+TITLE: src/core/tuple.til
+#+OPTIONS: toc:t
+
+* Tuple
+Heterogeneous sequence of values with mixed types.
+
+#+begin_src til
+struct Tuple {
+    own mut data : U8
+    mut total_size : U32
+    mut cap : U32
+    mut type_names : Vec
+    mut type_sizes : Vec
+namespace:
+    /// Create an empty Tuple.
+    func new() returns Tuple
+    func len(self: Tuple) returns U32
+    /// Append a value of the given type and size. `val` is owned.
+    func push(mut self: Tuple, elem_type: Str, elem_size: U32, own val: Dynamic)
+    /// Ref to element at index `i`. Panics if out of bounds.
+    func get(self: Tuple, i: U32) returns ref Dynamic
+    /// Type name of the element at index `i`.
+    func type_at(self: Tuple, i: U32) returns ref Str
+    /// Byte size of the element at index `i`.
+    func size_at(self: Tuple, i: U32) returns ref U32
+    func delete(own self: Tuple, call_free: Bool)
+    func clone(self: Tuple) returns Tuple
+    func size() returns shallow U32
+}
+#+end_src
+

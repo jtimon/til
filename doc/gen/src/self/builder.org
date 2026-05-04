@@ -1,0 +1,811 @@
+#+TITLE: src/self/builder.til
+#+OPTIONS: toc:t
+
+* system_cmd
+#+begin_src til
+ext_func system_cmd(cmd: Str) returns shallow I32
+#+end_src
+
+* CollectionInfo
+#+begin_src til
+struct CollectionInfo {
+    ref mut type_name : Str
+    mut is_vec : I32
+namespace:
+    func clone(self: CollectionInfo) returns CollectionInfo
+    func delete(own self: CollectionInfo, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* DynCallInfo
+#+begin_src til
+struct DynCallInfo {
+    ref mut method : Str
+    mut nargs : I32
+    mut has_return : Bool
+namespace:
+    func clone(self: DynCallInfo) returns DynCallInfo
+    func delete(own self: DynCallInfo, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* codegen_lp_slot
+#+begin_src til
+codegen_lp_slot is a Dynamic
+#+end_src
+
+* in_func_def
+#+begin_src til
+in_func_def is a Bool
+#+end_src
+
+* in_main_func
+#+begin_src til
+in_main_func is a Bool
+#+end_src
+
+* ctor_seq
+#+begin_src til
+ctor_seq is a I32
+#+end_src
+
+* codegen_lp
+#+begin_src til
+func codegen_lp() returns ref LoadedProgram
+#+end_src
+
+* codegen_set_lp
+#+begin_src til
+func codegen_set_lp(lp: LoadedProgram)
+#+end_src
+
+* codegen_clear_lp
+#+begin_src til
+func codegen_clear_lp()
+#+end_src
+
+* is_dyn_call_name
+#+begin_src til
+func is_dyn_call_name(name: Str, mut has_ret: Bool) returns shallow Bool
+#+end_src
+
+* resolve_local_fn_sig
+#+begin_src til
+func resolve_local_fn_sig(name: Str) returns ref Expr
+#+end_src
+
+* resolve_decl_fn_sig
+#+begin_src til
+func resolve_decl_fn_sig(rhs: Expr, dd: Declaration, scope: TypeScope) returns ref Expr
+#+end_src
+
+* fcall_fn_sig
+#+begin_src til
+func fcall_fn_sig(fcall: Expr) returns ref Expr
+#+end_src
+
+* is_stack_local
+#+begin_src til
+func is_stack_local(name: Str) returns shallow Bool
+#+end_src
+
+* is_current_func_param
+#+begin_src til
+func is_current_func_param(name: Str) returns shallow Bool
+#+end_src
+
+* is_value_global
+#+begin_src til
+func is_value_global(name: Str) returns shallow Bool
+#+end_src
+
+* is_ref_global
+#+begin_src til
+func is_ref_global(name: Str) returns shallow Bool
+#+end_src
+
+* is_ref_local
+#+begin_src til
+func is_ref_local(name: Str) returns shallow Bool
+#+end_src
+
+* use_dot_access
+#+begin_src til
+func use_dot_access(obj: Expr) returns shallow Bool
+#+end_src
+
+* is_primitive_type
+#+begin_src til
+func is_primitive_type(name: Str) returns shallow Bool
+#+end_src
+
+* is_funcsig_type
+#+begin_src til
+func is_funcsig_type(name: Str) returns shallow Bool
+#+end_src
+
+* is_ext_h_type
+#+begin_src til
+func is_ext_h_type(name: Str) returns shallow Bool
+#+end_src
+
+* is_skip_ext_decl
+#+begin_src til
+func is_skip_ext_decl(name: Str) returns shallow Bool
+#+end_src
+
+* is_scalar_method_type
+#+begin_src til
+func is_scalar_method_type(name: Str) returns shallow Bool
+#+end_src
+
+* is_exported_top_level_global
+#+begin_src til
+func is_exported_top_level_global(stmt: Expr) returns shallow Bool
+#+end_src
+
+* find_struct_def
+#+begin_src til
+func find_struct_def(name: Str) returns ref Expr
+#+end_src
+
+* find_callee_fdef
+#+begin_src til
+func find_callee_fdef(name: Str) returns ref Expr
+#+end_src
+
+* fa_struct_name
+#+begin_src til
+func fa_struct_name(e: Expr) returns Str
+#+end_src
+
+* builder_fa_is_ptr
+#+begin_src til
+func builder_fa_is_ptr(e: Expr) returns shallow Bool
+#+end_src
+
+* builder_fa_is_ns
+#+begin_src til
+func builder_fa_is_ns(e: Expr) returns shallow Bool
+#+end_src
+
+* is_shallow_param
+#+begin_src til
+func is_shallow_param(name: Str) returns shallow Bool
+#+end_src
+
+* callee_returns_shallow
+#+begin_src til
+func callee_returns_shallow(callee_name: Str) returns shallow Bool
+#+end_src
+
+* callee_returns_dynamic
+#+begin_src til
+func callee_returns_dynamic(callee_name: Str) returns shallow Bool
+#+end_src
+
+* callee_param_is_shallow
+#+begin_src til
+func callee_param_is_shallow(callee_name: Str, shallow arg_index: U32) returns shallow Bool
+#+end_src
+
+* callee_param_is_usize
+#+begin_src til
+func callee_param_is_usize(callee_name: Str, shallow arg_index: U32) returns shallow Bool
+#+end_src
+
+* callee_param_is_own
+#+begin_src til
+func callee_param_is_own(callee_name: Str, shallow arg_index: U32) returns shallow Bool
+#+end_src
+
+* fcall_is_shallow_return
+#+begin_src til
+func fcall_is_shallow_return(fcall: Expr) returns shallow Bool
+#+end_src
+
+* fcall_returns_dynamic
+#+begin_src til
+func fcall_returns_dynamic(fcall: Expr) returns shallow Bool
+#+end_src
+
+* til_type_to_c
+#+begin_src til
+func til_type_to_c(shallow t: TilType) returns Str
+#+end_src
+
+* extern_decl_ctype
+#+begin_src til
+func extern_decl_ctype(shallow t: TilType, shallow rhs_t: TilType) returns Str
+#+end_src
+
+* resolve_decl_ctype
+#+begin_src til
+func resolve_decl_ctype(shallow t: TilType, shallow rhs_t: TilType, explicit: Str) returns Str
+#+end_src
+
+* c_type_name
+#+begin_src til
+func c_type_name(shallow t: TilType, struct_name: Str) returns Str
+#+end_src
+
+* func_to_c
+#+begin_src til
+func func_to_c(name: Str) returns Str
+#+end_src
+
+* type_name_to_c
+#+begin_src til
+func type_name_to_c(name: Str) returns Str
+#+end_src
+
+* type_name_to_c_value
+#+begin_src til
+func type_name_to_c_value(name: Str) returns Str
+#+end_src
+
+* emit_u64
+#+begin_src til
+proc emit_u64(f: File, shallow v: U64)
+#+end_src
+
+* emit_i32
+#+begin_src til
+proc emit_i32(f: File, shallow v: I32)
+#+end_src
+
+* emit_indent
+#+begin_src til
+proc emit_indent(f: File, shallow depth: I32)
+#+end_src
+
+* emit_til_default
+#+begin_src til
+proc emit_til_default(f: File, shallow t: TilType)
+#+end_src
+
+* callee_return_ctype
+#+begin_src til
+ext_func callee_return_ctype(callee_name: Str) returns Str
+#+end_src
+
+* param_ctype
+#+begin_src til
+func param_ctype(fd: FunctionDef, shallow i: U32) returns Str
+#+end_src
+
+* emit_param_list
+#+begin_src til
+proc emit_param_list(f: File, fdef: Expr, shallow with_names: Bool)
+#+end_src
+
+* collect_dyn_methods
+#+begin_src til
+proc collect_dyn_methods(e: Expr, mut methods: Vec)
+#+end_src
+
+* collect_collection_builtins
+#+begin_src til
+proc collect_collection_builtins(e: Expr, mut infos: Vec)
+#+end_src
+
+* emit_field
+#+begin_src til
+proc emit_field(f: File, var: Str, field: Str)
+#+end_src
+
+* get_stack_local_ctype
+#+begin_src til
+func get_stack_local_ctype(name: Str) returns ref Str
+#+end_src
+
+* resolve_ident_ctype
+#+begin_src til
+func resolve_ident_ctype(ident: Str, ttype: TilType, sname: Str) returns Str
+#+end_src
+
+* resolve_callee_name
+#+begin_src til
+ext_func resolve_callee_name(fcall: Expr) returns Str
+#+end_src
+
+* resolve_callee_name
+#+begin_src til
+func resolve_callee_name(fcall: Expr) returns Str
+#+end_src
+
+* callee_return_ctype
+#+begin_src til
+func callee_return_ctype(callee_name: Str) returns Str
+#+end_src
+
+* fcall_return_ctype
+#+begin_src til
+func fcall_return_ctype(fcall: Expr) returns Str
+#+end_src
+
+* check_fcall_mut_args
+#+begin_src til
+proc check_fcall_mut_args(e: Expr)
+#+end_src
+
+* collect_unsafe_to_hoist
+#+begin_src til
+proc collect_unsafe_to_hoist(body: Expr)
+#+end_src
+
+* collect_dyn_has_methods
+#+begin_src til
+proc collect_dyn_has_methods(e: Expr, mut methods: Vec)
+#+end_src
+
+* emit_stmt_decl
+#+begin_src til
+proc emit_stmt_decl(f: File, e: Expr, shallow depth: I32)
+#+end_src
+
+* emit_return_ctype
+#+begin_src til
+func emit_return_ctype(rv: Expr) returns Str
+#+end_src
+
+* emit_return_box
+#+begin_src til
+proc emit_return_box(f: File, rv: Expr, shallow depth: I32)
+#+end_src
+
+* emit_stmt_return
+#+begin_src til
+proc emit_stmt_return(f: File, e: Expr, shallow depth: I32)
+#+end_src
+
+* emit_stmt
+#+begin_src til
+proc emit_stmt(f: File, e: Expr, shallow depth: I32)
+#+end_src
+
+* emit_fcall_funcptr_cast
+#+begin_src til
+proc emit_fcall_funcptr_cast(f: File, e: Expr, sig: Expr)
+#+end_src
+
+* emit_fcall_funcptr_args
+#+begin_src til
+proc emit_fcall_funcptr_args(f: File, e: Expr, sig: Expr, shallow depth: I32)
+#+end_src
+
+* emit_expr
+#+begin_src til
+proc emit_expr(f: File, e: Expr, shallow depth: I32)
+#+end_src
+
+* emit_body
+#+begin_src til
+proc emit_body(f: File, body: Expr, shallow depth: I32)
+#+end_src
+
+* emit_ctor_fields
+#+begin_src til
+proc emit_ctor_fields(f: File, var: Str, ctor: Expr, shallow depth: I32)
+#+end_src
+
+* emit_ns_inits
+#+begin_src til
+proc emit_ns_inits(f: File, shallow depth: I32)
+#+end_src
+
+* emit_body_scoped
+#+begin_src til
+proc emit_body_scoped(f: File, body: Expr, shallow depth: I32)
+#+end_src
+
+* emit_deref
+#+begin_src til
+proc emit_deref(f: File, e: Expr, shallow depth: I32)
+#+end_src
+
+* emit_as_ptr
+#+begin_src til
+proc emit_as_ptr(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool)
+#+end_src
+
+* emit_usize_ref
+#+begin_src til
+proc emit_usize_ref(f: File, e: Expr, shallow depth: I32)
+#+end_src
+
+* emit_cli_parse_arg
+#+begin_src til
+proc emit_cli_parse_arg(f: File, pname: Str, ptype: Str, shallow argi: I32)
+#+end_src
+
+* emit_func_def
+#+begin_src til
+proc emit_func_def(f: File, name: Str, func_def: Expr, mode: Mode, shallow is_static: Bool)
+#+end_src
+
+* emit_struct_typedef
+#+begin_src til
+proc emit_struct_typedef(f: File, name: Str, struct_def: Expr)
+#+end_src
+
+* emit_ns_method
+#+begin_src til
+proc emit_ns_method(f: File, name: Str, dd_name: Str, fdef: Expr)
+#+end_src
+
+* emit_struct_funcs
+#+begin_src til
+proc emit_struct_funcs(f: File, name: Str, struct_def: Expr)
+#+end_src
+
+* emit_enum_def
+#+begin_src til
+proc emit_enum_def(f: File, name: Str, enum_def: Expr)
+#+end_src
+
+* emit_enum_struct_body
+#+begin_src til
+proc emit_enum_struct_body(f: File, ename: Str, enum_def: Expr)
+#+end_src
+
+* topo_emit_struct_enum_defs
+#+begin_src til
+proc topo_emit_struct_enum_defs(f: File, prog: Expr, mut emitted: Set)
+#+end_src
+
+* topo_emit_struct_enum_defs_lp
+#+begin_src til
+proc topo_emit_struct_enum_defs_lp(f: File, mut emitted: Set)
+#+end_src
+
+* func_return_ctype
+#+begin_src til
+func func_return_ctype(fd: FunctionDef) returns Str
+#+end_src
+
+* emit_func_forward_decl
+#+begin_src til
+proc emit_func_forward_decl(f: File, name: Str, fdef: Expr)
+#+end_src
+
+* emit_funcsig_typedef
+#+begin_src til
+proc emit_funcsig_typedef(f: File, name: Str, fdef: Expr)
+#+end_src
+
+* emit_funcsig_typedefs_prog
+#+begin_src til
+proc emit_funcsig_typedefs_prog(f: File, prog: Expr)
+#+end_src
+
+* emit_funcsig_typedefs
+#+begin_src til
+proc emit_funcsig_typedefs(f: File, core_program: Expr, program: Expr)
+#+end_src
+
+* emit_funcsig_typedefs_lp
+#+begin_src til
+proc emit_funcsig_typedefs_lp(f: File)
+#+end_src
+
+* emit_header_forward_decls_prog
+#+begin_src til
+proc emit_header_forward_decls_prog(f: File, prog: Expr)
+#+end_src
+
+* emit_header_forward_decls
+#+begin_src til
+proc emit_header_forward_decls(f: File, core_program: Expr, program: Expr)
+#+end_src
+
+* emit_header_forward_decls_lp
+#+begin_src til
+proc emit_header_forward_decls_lp(f: File)
+#+end_src
+
+* emit_header_func_fwds_prog
+#+begin_src til
+proc emit_header_func_fwds_prog(f: File, prog: Expr, shallow is_core_pass: Bool)
+#+end_src
+
+* emit_header_defs_and_funcs
+#+begin_src til
+proc emit_header_defs_and_funcs(f: File, core_program: Expr, program: Expr)
+#+end_src
+
+* emit_header_defs_and_funcs_lp
+#+begin_src til
+proc emit_header_defs_and_funcs_lp(f: File)
+#+end_src
+
+* emit_header_global_decls_prog
+#+begin_src til
+proc emit_header_global_decls_prog(f: File, prog: Expr)
+#+end_src
+
+* emit_header_global_decls
+#+begin_src til
+proc emit_header_global_decls(f: File, core_program: Expr, program: Expr)
+#+end_src
+
+* emit_header_global_decls_lp
+#+begin_src til
+proc emit_header_global_decls_lp(f: File)
+#+end_src
+
+* build_forward_header
+#+begin_src til
+proc build_forward_header(core_program: Expr, program: Expr, fwd_path: Str) returns shallow I32
+#+end_src
+
+* build_forward_header_lp
+#+begin_src til
+proc build_forward_header_lp(fwd_path: Str) returns shallow I32
+#+end_src
+
+* build_header
+#+begin_src til
+proc build_header(core_program: Expr, program: Expr, h_path: Str) returns shallow I32
+#+end_src
+
+* build_header_lp
+#+begin_src til
+proc build_header_lp(h_path: Str) returns shallow I32
+#+end_src
+
+* emit_binding_ns_method
+#+begin_src til
+proc emit_binding_ns_method(f: File, fdd_name: Str, fd: FunctionDef, mut has_ns: Bool) returns shallow Bool
+#+end_src
+
+* emit_binding_ns_methods
+#+begin_src til
+proc emit_binding_ns_methods(f: File, def: Expr)
+#+end_src
+
+* build_til_binding
+#+begin_src til
+proc build_til_binding(program: Expr, til_path: Str, lib_name: Str) returns shallow I32
+#+end_src
+
+* type_name_to_ctypes
+#+begin_src til
+func type_name_to_ctypes(name: Str) returns Str
+#+end_src
+
+* type_name_to_ctypes_param
+#+begin_src til
+func type_name_to_ctypes_param(name: Str, shallow is_shallow: Bool) returns Str
+#+end_src
+
+* type_name_to_ctypes_return
+#+begin_src til
+func type_name_to_ctypes_return(name: Str, shallow is_shallow: Bool) returns Str
+#+end_src
+
+* build_python_binding
+#+begin_src til
+proc build_python_binding(program: Expr, py_path: Str, lib_name: Str) returns shallow I32
+#+end_src
+
+* compile_lib
+#+begin_src til
+proc compile_lib(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str) returns shallow I32
+#+end_src
+
+* compile_c
+#+begin_src til
+proc compile_c(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str) returns shallow I32
+#+end_src
+
+* register_funcsig_prog
+#+begin_src til
+func register_funcsig_prog(prog: Expr)
+#+end_src
+
+* emit_global_inits_prog
+#+begin_src til
+proc emit_global_inits_prog(f: File, prog: Expr)
+#+end_src
+
+* emit_global_inits
+#+begin_src til
+proc emit_global_inits(f: File)
+#+end_src
+
+* build_register_funcsig_names
+#+begin_src til
+func build_register_funcsig_names(core_program: Expr, program: Expr)
+#+end_src
+
+* build_register_funcsig_names_lp
+#+begin_src til
+func build_register_funcsig_names_lp()
+#+end_src
+
+* register_lookups_prog
+#+begin_src til
+func register_lookups_prog(prog: Expr)
+#+end_src
+
+* build_register_lookups
+#+begin_src til
+func build_register_lookups(core_program: Expr, program: Expr)
+#+end_src
+
+* build_register_lookups_lp
+#+begin_src til
+func build_register_lookups_lp()
+#+end_src
+
+* emit_monolithic_header_func_decls_prog
+#+begin_src til
+proc emit_monolithic_header_func_decls_prog(f: File, prog: Expr, mode: Mode)
+#+end_src
+
+* emit_monolithic_header
+#+begin_src til
+proc emit_monolithic_header(f: File, core_program: Expr, program: Expr, mode: Mode)
+#+end_src
+
+* emit_monolithic_header_lp
+#+begin_src til
+proc emit_monolithic_header_lp(f: File, mode: Mode)
+#+end_src
+
+* emit_all_forward_declarations
+#+begin_src til
+proc emit_all_forward_declarations(f: File, mode: Mode)
+#+end_src
+
+* emit_dyn_fn_wrapper
+#+begin_src til
+proc emit_dyn_fn_wrapper(f: File, type_name: Str, method_name: Str, fd: FunctionDef)
+#+end_src
+
+* emit_dyn_fn_wrappers
+#+begin_src til
+proc emit_dyn_fn_wrappers(f: File)
+#+end_src
+
+* emit_dyn_size_of_body
+#+begin_src til
+proc emit_dyn_size_of_body(f: File)
+#+end_src
+
+* emit_dyn_call_bodies
+#+begin_src til
+proc emit_dyn_call_bodies(f: File)
+#+end_src
+
+* emit_dyn_has_bodies
+#+begin_src til
+proc emit_dyn_has_bodies(f: File)
+#+end_src
+
+* emit_collection_helpers
+#+begin_src til
+proc emit_collection_helpers(f: File)
+#+end_src
+
+* emit_global_declarations
+#+begin_src til
+proc emit_global_declarations(f: File)
+#+end_src
+
+* emit_test_main
+#+begin_src til
+proc emit_test_main(f: File, program: Expr)
+#+end_src
+
+* emit_script_main
+#+begin_src til
+proc emit_script_main(f: File)
+#+end_src
+
+* emit_function_bodies
+#+begin_src til
+proc emit_function_bodies(f: File, mode: Mode)
+#+end_src
+
+* emit_ext_func_declarations
+#+begin_src til
+proc emit_ext_func_declarations(f: File, program: Expr)
+#+end_src
+
+* emit_lib_init
+#+begin_src til
+proc emit_lib_init(f: File)
+#+end_src
+
+* build
+#+begin_src til
+proc build(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns shallow I32
+#+end_src
+
+* BuildPaths
+#+begin_src til
+struct BuildPaths {
+    mut name : Str
+    mut c_path : Str
+    mut bin_path : Str
+    mut fwd_path : Str
+    mut h_path : Str
+    mut til_path : Str
+    mut py_path : Str
+    mut do_lib : Bool
+namespace:
+    func clone(self: BuildPaths) returns BuildPaths
+    func delete(own self: BuildPaths, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* derive_build_paths
+#+begin_src til
+func derive_build_paths(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns BuildPaths
+#+end_src
+
+* make_build_dirs
+#+begin_src til
+func make_build_dirs(paths: BuildPaths)
+#+end_src
+
+* translate_ast
+#+begin_src til
+proc translate_ast(lp: LoadedProgram, paths: BuildPaths) returns shallow I32
+#+end_src
+
+* print_translate_success
+#+begin_src til
+proc print_translate_success(paths: BuildPaths)
+#+end_src
+
+* compile_ast
+#+begin_src til
+proc compile_ast(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str) returns shallow I32
+#+end_src
+
+* cmd_translate
+#+begin_src til
+proc cmd_translate(lp: LoadedProgram, custom_c: Str) returns shallow I32
+#+end_src
+
+* cmd_build
+#+begin_src til
+proc cmd_build(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str) returns shallow I32
+#+end_src
+
+* cmd_run
+#+begin_src til
+proc cmd_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str) returns shallow I32
+#+end_src
+
+* format_unit_doc_org
+#+begin_src til
+func format_unit_doc_org(unit_path: Str, ast: Expr, scope: TypeScope) returns Str
+#+end_src
+
+* til_doc_out_path
+#+begin_src til
+func til_doc_out_path(unit_path: Str) returns Str
+#+end_src
+
+* ensure_parent_dir
+#+begin_src til
+func ensure_parent_dir(path: Str)
+#+end_src
+
+* emit_unit_doc
+#+begin_src til
+proc emit_unit_doc(u: ProgramUnit, lp: LoadedProgram)
+#+end_src
+
+* cmd_doc
+#+begin_src til
+proc cmd_doc(lp: LoadedProgram) returns shallow I32
+#+end_src
+

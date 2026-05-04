@@ -1,0 +1,78 @@
+#+TITLE: src/core/mem.til
+#+OPTIONS: toc:t
+
+* free
+#+begin_src til
+ext_func free(own elem: Dynamic)
+#+end_src
+
+* is_null
+#+begin_src til
+ext_func is_null(p: Dynamic) returns shallow Bool
+#+end_src
+
+* malloc
+#+begin_src til
+ext_func malloc(shallow count: U64) returns Dynamic
+#+end_src
+
+* calloc
+#+begin_src til
+ext_func calloc(shallow nmemb: U64, shallow size: U64) returns Dynamic
+#+end_src
+
+* realloc
+#+begin_src til
+ext_func realloc(own buf: Dynamic, shallow count: U64) returns Dynamic
+#+end_src
+
+* ptr_add
+#+begin_src til
+ext_func ptr_add(buf: Dynamic, shallow offset: U64) returns ref Dynamic
+#+end_src
+
+* deref
+#+begin_src til
+ext_func deref(slot: Dynamic) returns ref Dynamic
+#+end_src
+
+* write_ptr
+#+begin_src til
+ext_func write_ptr(dest: Dynamic, val: Dynamic)
+#+end_src
+
+* memcpy
+#+begin_src til
+ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: U64)
+#+end_src
+
+* memmove
+#+begin_src til
+ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: U64)
+#+end_src
+
+* memset
+#+begin_src til
+ext_func memset(dest: Dynamic, shallow val: I32, shallow len: U64)
+#+end_src
+
+* ptr_eq
+#+begin_src til
+ext_func ptr_eq(a: Dynamic, b: Dynamic) returns shallow Bool
+#+end_src
+
+* to_ptr
+#+begin_src til
+ext_func to_ptr(a: Dynamic) returns ref Dynamic
+#+end_src
+
+* swap
+#+begin_src til
+func swap(a: Dynamic, b: Dynamic, shallow size: U64)
+#+end_src
+
+* move
+#+begin_src til
+func move(dest: Dynamic, src: Dynamic, shallow size: U64)
+#+end_src
+

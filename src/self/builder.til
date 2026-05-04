@@ -5056,3 +5056,91 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
     }
     return result
 }
+
+// --- til doc <path> -- documentation generator ---
+
+// Walk a single source file's typed AST and render it as an org-mode page.
+// One headline per top-level Decl, with the /// doc text and a kind/signature
+// info block (reusing format_decl_info for the rich rendering).
+format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns Str {
+    mut title := unit_path.clone()
+    if title.starts_with("./") {
+        title = title.substr(2.to_usize(), title.len().sub(2)).clone()
+    }
+    // First pass: render each Decl's chunk separately. format_decl_info
+    // already sizes its returned Str to fit, so we don't need to pre-size
+    // the page buffer here -- chunks are accumulated and concatenated once.
+    chunks := Vec.new("Str", Str.size())
+    mut total : USize = title.len().add(64.to_usize())
+    for stmt : Expr in ast.children {
+        if stmt.node_type.is(NodeType.Decl) {
+            ref dd : Declaration = get_payload(stmt.node_type)
+            info := format_decl_info(stmt, scope)
+            chunk_cap : USize = dd.name.len()
+                .add(dd.doc.len())
+                .add(info.len())
+                .add(64.to_usize())
+            mut chunk := Str.with_capacity(chunk_cap)
+            chunk.push_str("* ")
+            chunk.push_str(dd.name)
+            chunk.push_str("\n")
+            if dd.doc.is_empty().not() {
+                chunk.push_str(dd.doc)
+                if dd.doc.ends_with("\n").not() { chunk.push_str("\n") }
+                chunk.push_str("\n")
+            }
+            if info.is_empty().not() {
+                chunk.push_str("#+begin_src til\n")
+                chunk.push_str(info)
+                if info.ends_with("\n").not() { chunk.push_str("\n") }
+                chunk.push_str("#+end_src\n\n")
+            }
+            total = total.add(chunk.len())
+            chunks.push(own chunk.clone())
+        }
+    }
+    mut buf := Str.with_capacity(total)
+    buf.push_str("#+TITLE: ")
+    buf.push_str(title)
+    buf.push_str("\n#+OPTIONS: toc:t\n\n")
+    for c : Str in chunks { buf.push_str(c) }
+    return buf
+}
+
+// "src/core/vec.til" -> "doc/gen/src/core/vec.org"
+til_doc_out_path := func(unit_path: Str) returns Str {
+    mut name := unit_path.clone()
+    if name.starts_with("./") {
+        name = name.substr(2.to_usize(), name.len().sub(2)).clone()
+    }
+    if name.ends_with(".til") {
+        name = name.substr(0, name.len().sub(4)).clone()
+    }
+    return "doc/gen/".concat(name).concat(".org")
+}
+
+// Ensure the parent directory of `path` exists (mkdir -p).
+ensure_parent_dir := func(path: Str) {
+    last_slash := path.rfind("/")
+    if last_slash.lt(0) { return }
+    last_slash_u : USize = last_slash.to_u32()
+    dir := path.substr(0, last_slash_u).clone()
+    system_cmd("mkdir -p '".concat(dir).concat("'"))
+}
+
+emit_unit_doc := proc(u: ProgramUnit, lp: LoadedProgram) {
+    ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+    out := til_doc_out_path(u.path)
+    ensure_parent_dir(out)
+    page := format_unit_doc_org(u.path, iu.ast, lp.ctx.scope)
+    File.writefile(out, page)
+    println("Generated: ".concat(out))
+}
+
+cmd_doc := proc(lp: LoadedProgram) returns shallow I32 {
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units { emit_unit_doc(u, lp) }
+    }
+    for u : ProgramUnit in lp.units { emit_unit_doc(u, lp) }
+    return 0.to_i32()
+}

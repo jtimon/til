@@ -1,0 +1,73 @@
+#+TITLE: src/self/scavenger.til
+#+OPTIONS: toc:t
+
+* _t_Str_17495
+#+begin_src til
+_t_Str_17495 is a Str
+#+end_src
+
+* _t_U32_17496
+#+begin_src til
+_t_U32_17496 is a U32
+#+end_src
+
+* gc_strs
+#+begin_src til
+gc_strs is a Vec
+#+end_src
+
+* scav_fa_is_ns
+#+begin_src til
+func scav_fa_is_ns(e: Expr) returns shallow Bool
+#+end_src
+
+* qualified_name
+#+begin_src til
+func qualified_name(type_name: Str, method_name: Str) returns Str
+#+end_src
+
+* gc_str
+#+begin_src til
+func gc_str(own s: Str) returns ref Str
+#+end_src
+
+* gc_free_all
+#+begin_src til
+func gc_free_all()
+#+end_src
+
+* vec_push_str
+#+begin_src til
+func vec_push_str(mut v: Vec, s: Str)
+#+end_src
+
+* children_write
+#+begin_src til
+func children_write(mut v: Vec, shallow dst: I64, shallow src: I64)
+#+end_src
+
+* children_filter
+#+begin_src til
+func children_filter(mut v: Vec, marks: Dynamic, shallow n: U32)
+#+end_src
+
+* push_qn
+#+begin_src til
+func push_qn(mut v: Vec, type_name: Str, method: Str)
+#+end_src
+
+* push_builtin_methods
+#+begin_src til
+func push_builtin_methods(mut v: Vec, builtin_name: Str, m1: Str, m2: Str, m3: Str)
+#+end_src
+
+* collect_refs
+#+begin_src til
+func collect_refs(e: Expr, mut refs: Vec)
+#+end_src
+
+* scavenge_filter
+#+begin_src til
+func scavenge_filter(mut program: Expr, visited: Set)
+#+end_src
+

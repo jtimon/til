@@ -1,0 +1,96 @@
+#+TITLE: src/core/dyn.til
+#+OPTIONS: toc:t
+
+* Dynamic
+#+begin_src til
+struct Dynamic {
+namespace:
+    func size() returns U32
+}
+#+end_src
+
+* is
+#+begin_src til
+ext_func is(self: Dynamic, other: Dynamic) returns shallow Bool
+#+end_src
+
+* get_payload
+#+begin_src til
+ext_func get_payload(self: Dynamic) returns ref Dynamic
+#+end_src
+
+* dyn_call
+#+begin_src til
+ext_func dyn_call(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic)
+#+end_src
+
+* dyn_call_ret
+#+begin_src til
+ext_func dyn_call_ret(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic) returns Dynamic
+#+end_src
+
+* dyn_fn
+#+begin_src til
+ext_func dyn_fn(type_name: Str, method: Str) returns Dynamic
+#+end_src
+
+* dyn_size_of
+#+begin_src til
+ext_func dyn_size_of(type_name: Str) returns shallow U32
+#+end_src
+
+* CloneFn
+#+begin_src til
+func CloneFn(: Dynamic) returns Dynamic
+#+end_src
+
+* DeleteFn
+#+begin_src til
+func DeleteFn(: Dynamic, : Bool)
+#+end_src
+
+* CmpFn
+#+begin_src til
+func CmpFn(: Dynamic, : Dynamic) returns I64
+#+end_src
+
+* IncFn
+#+begin_src til
+func IncFn(: Dynamic)
+#+end_src
+
+* DistanceFn
+#+begin_src til
+func DistanceFn(: Dynamic, : Dynamic) returns U32
+#+end_src
+
+* default_clone
+#+begin_src til
+func default_clone(v: Dynamic) returns Dynamic
+#+end_src
+
+* default_delete
+#+begin_src til
+func default_delete(_v: Dynamic, _cf: Bool)
+#+end_src
+
+* default_cmp
+#+begin_src til
+func default_cmp(_a: Dynamic, _b: Dynamic) returns I64
+#+end_src
+
+* default_inc
+#+begin_src til
+func default_inc(_v: Dynamic)
+#+end_src
+
+* default_distance
+#+begin_src til
+func default_distance(_a: Dynamic, _b: Dynamic) returns U32
+#+end_src
+
+* dyn_has_method
+#+begin_src til
+ext_func dyn_has_method(type_name: Str, method: Str) returns shallow Bool
+#+end_src
+

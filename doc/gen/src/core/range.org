@@ -1,0 +1,22 @@
+#+TITLE: src/core/range.til
+#+OPTIONS: toc:t
+
+* Range
+Integer interval from start (inclusive) to end (exclusive).
+
+#+begin_src til
+struct Range {
+    start : U64
+    end : U64
+namespace:
+    /// Create a Range from `start` (inclusive) to `end` (exclusive).
+    func new(shallow start: U64, shallow end: U64) returns Range
+    func len(self: Range) returns U64
+    /// The i-th value in the range (start+i or start-i for reverse).
+    func get(self: Range, shallow i: U64) returns U64
+    func clone(val: Range) returns Range
+    func delete(own self: Range, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+

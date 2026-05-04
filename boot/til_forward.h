@@ -1316,8 +1316,9 @@ void collect_member_method_packed(Str * type_name, Declaration * d, Str * info, 
 void collect_struct_members_packed(Str * type_name, StructDef * sdef, Str * info, Str * docs);
 void collect_enum_members_packed(Str * type_name, EnumDef * edef, Str * info, Str * docs);
 void collect_decl_packed(Expr * body, TypeScope * scope, Str * info, Str * docs);
-Str * doc_init_src_line(Expr * core_ast, Expr * user_ast, TypeScope * scope);
+Str * build_doc_init_line(Str * packed_info, Str * packed_docs);
 void loaded_add_lflag(LoadedProgram * lp, Str * lib);
+void init_and_type_program(LoadedProgram * lp, Bool run_tests);
 void prepare_program(LoadedProgram * lp, Bool run_tests);
 void cmd_ast(LoadedProgram * lp);
 Bool Lang_is(Lang * self, Lang * other);
@@ -1486,6 +1487,11 @@ I32 compile_ast(LoadedProgram * lp, BuildPaths * paths, Target * target, Str * c
 I32 cmd_translate(LoadedProgram * lp, Str * custom_c);
 I32 cmd_build(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override);
 I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv, Target * target, Str * cc_override);
+Str * format_unit_doc_org(Str * unit_path, Expr * ast, TypeScope * scope);
+Str * til_doc_out_path(Str * unit_path);
+void ensure_parent_dir(Str * path);
+void emit_unit_doc(ProgramUnit * u, LoadedProgram * lp);
+I32 cmd_doc(LoadedProgram * lp);
 I32 system_cmd(Str * cmd);
 void interp_error(Expr * e, Str * msg);
 void interp_lang_error(Expr * e, Str * msg);

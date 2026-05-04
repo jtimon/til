@@ -1,0 +1,40 @@
+#+TITLE: src/core/bool.til
+#+OPTIONS: toc:t
+
+* and
+#+begin_src til
+ext_func and(shallow a: Bool, shallow b: Bool) returns shallow Bool
+#+end_src
+
+* or
+#+begin_src til
+ext_func or(shallow a: Bool, shallow b: Bool) returns shallow Bool
+#+end_src
+
+* not
+#+begin_src til
+ext_func not(shallow a: Bool) returns shallow Bool
+#+end_src
+
+* Bool
+Boolean value: true or false.
+
+#+begin_src til
+struct Bool {
+namespace:
+    /// Return "true" or "false".
+    func to_str(b: Bool) returns Str
+    ext_func eq(shallow a: Bool, shallow b: Bool) returns shallow Bool
+    /// Comparison: false < true. Returns 0, -1, or 1.
+    func cmp(a: Bool, b: Bool) returns I64
+    ext_func clone(val: Bool) returns shallow Bool
+    func delete(own self: Bool, call_free: Bool)
+    func size() returns U32
+    func lt(a: Bool, b: Bool) returns shallow Bool
+    func gt(a: Bool, b: Bool) returns shallow Bool
+    func neq(a: Bool, b: Bool) returns shallow Bool
+    func lte(a: Bool, b: Bool) returns shallow Bool
+    func gte(a: Bool, b: Bool) returns shallow Bool
+}
+#+end_src
+

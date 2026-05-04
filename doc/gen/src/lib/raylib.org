@@ -1,0 +1,391 @@
+#+TITLE: src/lib/raylib.til
+#+OPTIONS: toc:t
+
+* Wave
+#+begin_src til
+struct Wave {
+    mut frameCount : U32
+    mut sampleRate : U32
+    mut sampleSize : U32
+    mut channels : U32
+    ref data : U8
+namespace:
+    func clone(self: Wave) returns Wave
+    func delete(own self: Wave, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Sound
+#+begin_src til
+struct Sound {
+    mut stream_buffer : I64
+    mut stream_processor : I64
+    mut stream_sampleRate : U32
+    mut stream_sampleSize : U32
+    mut stream_channels : U32
+    mut frameCount : U32
+namespace:
+    func clone(self: Sound) returns Sound
+    func delete(own self: Sound, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vector2
+#+begin_src til
+struct Vector2 {
+    mut x : F32
+    mut y : F32
+namespace:
+    func clone(self: Vector2) returns Vector2
+    func delete(own self: Vector2, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Font
+#+begin_src til
+struct Font {
+    mut baseSize : I32
+    mut glyphCount : I32
+    mut glyphPadding : I32
+    mut texture_id : U32
+    mut texture_width : I32
+    mut texture_height : I32
+    mut texture_mipmaps : I32
+    mut texture_format : I32
+    ref recs : U8
+    ref glyphs : U8
+namespace:
+    func clone(self: Font) returns Font
+    func delete(own self: Font, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* LoadSoundFromWave
+#+begin_src til
+ext_func LoadSoundFromWave(shallow wave: Wave) returns shallow Sound
+#+end_src
+
+* PlaySound
+#+begin_src til
+ext_proc PlaySound(shallow sound: Sound)
+#+end_src
+
+* UnloadSound
+#+begin_src til
+ext_proc UnloadSound(shallow sound: Sound)
+#+end_src
+
+* StopSound
+#+begin_src til
+ext_proc StopSound(shallow sound: Sound)
+#+end_src
+
+* LoadFontEx
+#+begin_src til
+ext_func LoadFontEx(fileName: U8, shallow fontSize: I32, shallow codepoints: I64, shallow codepointCount: I32) returns shallow Font
+#+end_src
+
+* DrawTextEx
+#+begin_src til
+ext_proc DrawTextEx(shallow font: Font, text: U8, shallow position: Vector2, shallow fontSize: F32, shallow spacing: F32, shallow color: U32)
+#+end_src
+
+* UnloadFont
+#+begin_src til
+ext_proc UnloadFont(shallow font: Font)
+#+end_src
+
+* MeasureTextEx
+#+begin_src til
+ext_func MeasureTextEx(shallow font: Font, text: U8, shallow fontSize: F32, shallow spacing: F32) returns shallow Vector2
+#+end_src
+
+* InitWindow
+#+begin_src til
+ext_proc InitWindow(shallow w: I32, shallow h: I32, title: U8)
+#+end_src
+
+* IsWindowReady
+#+begin_src til
+ext_func IsWindowReady() returns shallow Bool
+#+end_src
+
+* WindowShouldClose
+#+begin_src til
+ext_func WindowShouldClose() returns shallow Bool
+#+end_src
+
+* BeginDrawing
+#+begin_src til
+ext_proc BeginDrawing()
+#+end_src
+
+* EndDrawing
+#+begin_src til
+ext_proc EndDrawing()
+#+end_src
+
+* CloseWindow
+#+begin_src til
+ext_proc CloseWindow()
+#+end_src
+
+* SetTargetFPS
+#+begin_src til
+ext_proc SetTargetFPS(shallow fps: I32)
+#+end_src
+
+* ClearBackground
+#+begin_src til
+ext_proc ClearBackground(shallow color: U32)
+#+end_src
+
+* DrawRectangle
+#+begin_src til
+ext_proc DrawRectangle(shallow x: I32, shallow y: I32, shallow w: I32, shallow h: I32, shallow color: U32)
+#+end_src
+
+* DrawText
+#+begin_src til
+ext_proc DrawText(text: U8, shallow x: I32, shallow y: I32, shallow font_size: I32, shallow color: U32)
+#+end_src
+
+* DrawCircle
+#+begin_src til
+ext_proc DrawCircle(shallow cx: I32, shallow cy: I32, shallow radius: F32, shallow color: U32)
+#+end_src
+
+* GetScreenWidth
+#+begin_src til
+ext_func GetScreenWidth() returns shallow I32
+#+end_src
+
+* GetScreenHeight
+#+begin_src til
+ext_func GetScreenHeight() returns shallow I32
+#+end_src
+
+* GetFrameTime
+#+begin_src til
+ext_func GetFrameTime() returns shallow F32
+#+end_src
+
+* SetConfigFlags
+#+begin_src til
+ext_proc SetConfigFlags(shallow flags: U32)
+#+end_src
+
+* SetExitKey
+#+begin_src til
+ext_proc SetExitKey(shallow key: I32)
+#+end_src
+
+* IsWindowResized
+#+begin_src til
+ext_func IsWindowResized() returns shallow Bool
+#+end_src
+
+* SetWindowMinSize
+#+begin_src til
+ext_proc SetWindowMinSize(shallow w: I32, shallow h: I32)
+#+end_src
+
+* SetWindowMaxSize
+#+begin_src til
+ext_proc SetWindowMaxSize(shallow w: I32, shallow h: I32)
+#+end_src
+
+* MaximizeWindow
+#+begin_src til
+ext_proc MaximizeWindow()
+#+end_src
+
+* ToggleFullscreen
+#+begin_src til
+ext_proc ToggleFullscreen()
+#+end_src
+
+* IsKeyPressed
+#+begin_src til
+ext_func IsKeyPressed(shallow key: I32) returns shallow Bool
+#+end_src
+
+* IsKeyDown
+#+begin_src til
+ext_func IsKeyDown(shallow key: I32) returns shallow Bool
+#+end_src
+
+* IsKeyRepeat
+#+begin_src til
+ext_func IsKeyRepeat(shallow key: I32) returns shallow Bool
+#+end_src
+
+* IsMouseButtonPressed
+#+begin_src til
+ext_func IsMouseButtonPressed(shallow button: I32) returns shallow Bool
+#+end_src
+
+* IsMouseButtonDown
+#+begin_src til
+ext_func IsMouseButtonDown(shallow button: I32) returns shallow Bool
+#+end_src
+
+* GetRandomValue
+#+begin_src til
+ext_func GetRandomValue(shallow min: I32, shallow max: I32) returns shallow I32
+#+end_src
+
+* GetMouseX
+#+begin_src til
+ext_func GetMouseX() returns shallow I32
+#+end_src
+
+* GetMouseY
+#+begin_src til
+ext_func GetMouseY() returns shallow I32
+#+end_src
+
+* GetCharPressed
+#+begin_src til
+ext_func GetCharPressed() returns shallow I32
+#+end_src
+
+* GetFPS
+#+begin_src til
+ext_func GetFPS() returns shallow I32
+#+end_src
+
+* DrawFPS
+#+begin_src til
+ext_proc DrawFPS(shallow x: I32, shallow y: I32)
+#+end_src
+
+* InitAudioDevice
+#+begin_src til
+ext_proc InitAudioDevice()
+#+end_src
+
+* CloseAudioDevice
+#+begin_src til
+ext_proc CloseAudioDevice()
+#+end_src
+
+* Vector3
+#+begin_src til
+struct Vector3 {
+    mut x : F32
+    mut y : F32
+    mut z : F32
+namespace:
+    func clone(self: Vector3) returns Vector3
+    func delete(own self: Vector3, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Camera3D
+#+begin_src til
+struct Camera3D {
+    mut position : Vector3
+    mut target : Vector3
+    mut up : Vector3
+    mut fovy : F32
+    mut projection : I32
+namespace:
+    func clone(self: Camera3D) returns Camera3D
+    func delete(own self: Camera3D, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* BeginMode3D
+#+begin_src til
+ext_proc BeginMode3D(shallow camera: Camera3D)
+#+end_src
+
+* EndMode3D
+#+begin_src til
+ext_proc EndMode3D()
+#+end_src
+
+* DrawCube
+#+begin_src til
+ext_proc DrawCube(shallow position: Vector3, shallow w: F32, shallow h: F32, shallow l: F32, shallow color: U32)
+#+end_src
+
+* DrawCubeV
+#+begin_src til
+ext_proc DrawCubeV(shallow position: Vector3, shallow size: Vector3, shallow color: U32)
+#+end_src
+
+* DrawCubeWires
+#+begin_src til
+ext_proc DrawCubeWires(shallow position: Vector3, shallow w: F32, shallow h: F32, shallow l: F32, shallow color: U32)
+#+end_src
+
+* DrawCubeWiresV
+#+begin_src til
+ext_proc DrawCubeWiresV(shallow position: Vector3, shallow size: Vector3, shallow color: U32)
+#+end_src
+
+* DrawPlane
+#+begin_src til
+ext_proc DrawPlane(shallow center: Vector3, shallow size: Vector2, shallow color: U32)
+#+end_src
+
+* DisableCursor
+#+begin_src til
+ext_proc DisableCursor()
+#+end_src
+
+* EnableCursor
+#+begin_src til
+ext_proc EnableCursor()
+#+end_src
+
+* GetMouseDelta
+#+begin_src til
+ext_func GetMouseDelta() returns shallow Vector2
+#+end_src
+
+* UpdateCameraPro
+#+begin_src til
+ext_proc UpdateCameraPro(camera: Camera3D, shallow movement: Vector3, shallow rotation: Vector3, shallow zoom: F32)
+#+end_src
+
+* CameraMoveForward
+#+begin_src til
+ext_proc CameraMoveForward(camera: Camera3D, shallow distance: F32, shallow move_in_world_plane: Bool)
+#+end_src
+
+* CameraMoveRight
+#+begin_src til
+ext_proc CameraMoveRight(camera: Camera3D, shallow distance: F32, shallow move_in_world_plane: Bool)
+#+end_src
+
+* CameraMoveUp
+#+begin_src til
+ext_proc CameraMoveUp(camera: Camera3D, shallow distance: F32)
+#+end_src
+
+* BoundingBox
+#+begin_src til
+struct BoundingBox {
+    min : Vector3
+    max : Vector3
+namespace:
+    func clone(self: BoundingBox) returns BoundingBox
+    func delete(own self: BoundingBox, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* CheckCollisionBoxSphere
+#+begin_src til
+ext_func CheckCollisionBoxSphere(shallow box: BoundingBox, shallow center: Vector3, shallow radius: F32) returns shallow Bool
+#+end_src
+
