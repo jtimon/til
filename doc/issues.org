@@ -4,74 +4,6 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* OPEN #183 Adding ~///~ comments to core lib files forces full rebuild+test
-
-  Every ~///~ doc comment in a core library file (e.g. ~src/core/vec.til~)
-  gets embedded into ~boot/til.c~ during bootstrap, so the binary
-  changes and a full ~make clean && make test~ cycle is required. For
-  documentation-only changes this is unsustainable -- documenting a
-  single function takes minutes of test suite time.
-
-  Options:
-  - Strip ~///~ comments during boot embed so they don't change the
-    boot C output (doc registry is built at runtime from source, not
-    from boot). Boot only needs the code, not the comments.
-  - Cache the doc blob separately from the boot binary so doc-only
-    changes don't invalidate the boot snapshot.
-  - Add a ~make fast-test~ target that skips the full rebuild and only
-    runs regression tests (the full suite is ~80% build tests that
-    recompile examples irrelevant to a doc change).
-  - In the merging procedure (~bots/merging_from_remote.org~), skip
-    the ~make test~ step when the only non-boot source change is
-    ~///~ comments in core libs (risky: still need to ensure the
-    parser embed didn't break).
-
-* OPEN #182 Support ~/** */~ block doc comments (in addition to ~///~)
-
-  Currently only Rust-style ~///~ line doc comments are parsed.
-  Support C-style ~/** ... */~ block comments as an alternative
-  for multi-paragraph documentation. The parser already drains
-  ~///~ via ~drain_doc_comments~; adding ~/** */~ would require
-  lexer recognition of the open/close tokens and a similar drain
-  in the parser.
-
-  Relevant precedent: the rstil prototype (../rstil/) had this
-  working. Key design decisions:
-
-  - How to handle nesting (~/** /* */ */~ vs ~/** /** */ */~)
-  - Whether ~/** */~ joins lines same as ~///~ (with ~\n~) or
-    preserves the raw block text including newlines
-  - Whether to strip the leading ~*~ on continuation lines
-    (Javadoc convention: ~/**\n * line\n */~)
-  - Interaction with ~///~: should consecutive ~///~ and
-    ~/** */~ on the same decl merge or compete?
-
-* OPEN #181 Declared-type inference for literal expressions
-
-   When a variable is declared with an explicit type annotation, the
-   initialiser expression should be coerced to match:
-
-   #+begin_src til
-   half : F32 = 1 / 2      // should infer F32 context, produce 0.5
-   #+end_src
-
-   Currently ~1 / 2~ stays ~I64~ (integer division -> 0), and the
-   typer rejects it with "declared as F32 but value is I64".  The
-   typer should see the declared type ~F32~ and desugar
-   ~1 / 2~ to ~1.to_f32() / 2~ automatically (or equivalent), without
-   adding an extra compiler pass (see #158, one-pass-per-phase goal).
-
-   Regression test to add to ~src/test/regression.til~ once fixed:
-
-   #+begin_src til
-   test_bug181_declared_type_inference := test() {
-       half : F32 = 1 / 2
-       assert(__LOC__, half.eq(1.to_f32() / 2.to_f32()))
-       inch : F32 = 1 / 10
-       assert(__LOC__, inch.eq(1.to_f32() / 10.to_f32()))
-   }
-   #+end_src
-
 * [0/17] Pre
 ** OPEN #184 Finish the bare ~get_payload~ -> switch destructure refactor
    Goal: remove the remaining bare ~get_payload(...)~ calls in the
@@ -223,6 +155,74 @@
     Belongs under #109 (memory leak cleanup) only insofar as #175
     blocks the most aggressive form of this refactor on dual-variant
     helpers.
+
+** OPEN #182 Support ~/** */~ block doc comments (in addition to ~///~)
+
+  Currently only Rust-style ~///~ line doc comments are parsed.
+  Support C-style ~/** ... */~ block comments as an alternative
+  for multi-paragraph documentation. The parser already drains
+  ~///~ via ~drain_doc_comments~; adding ~/** */~ would require
+  lexer recognition of the open/close tokens and a similar drain
+  in the parser.
+
+  Relevant precedent: the rstil prototype (../rstil/) had this
+  working. Key design decisions:
+
+  - How to handle nesting (~/** /* */ */~ vs ~/** /** */ */~)
+  - Whether ~/** */~ joins lines same as ~///~ (with ~\n~) or
+    preserves the raw block text including newlines
+  - Whether to strip the leading ~*~ on continuation lines
+    (Javadoc convention: ~/**\n * line\n */~)
+  - Interaction with ~///~: should consecutive ~///~ and
+    ~/** */~ on the same decl merge or compete?
+
+** OPEN #183 Adding ~///~ comments to core lib files forces full rebuild+test
+
+  Every ~///~ doc comment in a core library file (e.g. ~src/core/vec.til~)
+  gets embedded into ~boot/til.c~ during bootstrap, so the binary
+  changes and a full ~make clean && make test~ cycle is required. For
+  documentation-only changes this is unsustainable -- documenting a
+  single function takes minutes of test suite time.
+
+  Options:
+  - Strip ~///~ comments during boot embed so they don't change the
+    boot C output (doc registry is built at runtime from source, not
+    from boot). Boot only needs the code, not the comments.
+  - Cache the doc blob separately from the boot binary so doc-only
+    changes don't invalidate the boot snapshot.
+  - Add a ~make fast-test~ target that skips the full rebuild and only
+    runs regression tests (the full suite is ~80% build tests that
+    recompile examples irrelevant to a doc change).
+  - In the merging procedure (~bots/merging_from_remote.org~), skip
+    the ~make test~ step when the only non-boot source change is
+    ~///~ comments in core libs (risky: still need to ensure the
+    parser embed didn't break).
+
+** OPEN #181 Declared-type inference for literal expressions
+
+   When a variable is declared with an explicit type annotation, the
+   initialiser expression should be coerced to match:
+
+   #+begin_src til
+   half : F32 = 1 / 2      // should infer F32 context, produce 0.5
+   #+end_src
+
+   Currently ~1 / 2~ stays ~I64~ (integer division -> 0), and the
+   typer rejects it with "declared as F32 but value is I64".  The
+   typer should see the declared type ~F32~ and desugar
+   ~1 / 2~ to ~1.to_f32() / 2~ automatically (or equivalent), without
+   adding an extra compiler pass (see #158, one-pass-per-phase goal).
+
+   Regression test to add to ~src/test/regression.til~ once fixed:
+
+   #+begin_src til
+   test_bug181_declared_type_inference := test() {
+       half : F32 = 1 / 2
+       assert(__LOC__, half.eq(1.to_f32() / 2.to_f32()))
+       inch : F32 = 1 / 10
+       assert(__LOC__, inch.eq(1.to_f32() / 10.to_f32()))
+   }
+   #+end_src
 
 ** OPEN #176 FFI: support const char* params (avoid libc prototype conflicts)
    Symptom:
