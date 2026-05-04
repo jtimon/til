@@ -87,3 +87,19 @@ bug189_sibling_kwargs := test() {
     // two SIBLINGS in the same arg list.
     assert_eq_str(__LOC__, bug189_pair(greet("X", prefix = "Mr"), greet("Y", prefix = "Ms")), "Mr X|Ms Y")
 }
+
+// Mixed-shape siblings: one sibling is a variadic fcall, the other
+// is a kwargs fcall. The desugar runs the variadic loop first, then
+// the kwargs loop, so each sibling lands in its own pass. Locks in
+// that the two while-loops compose correctly when both shapes
+// appear at sibling position in the same stmt.
+bug189_sibling_mixed_variadic_kwargs := test() {
+    assert_eq_str(__LOC__,
+        bug189_pair(bug188_join("a", "b"), greet("X", prefix = "Mr")),
+        "ab|Mr X")
+    // Reverse arg order so the kwargs sibling appears before the
+    // variadic one in DFS order.
+    assert_eq_str(__LOC__,
+        bug189_pair(greet("X", prefix = "Mr"), bug188_join("a", "b")),
+        "Mr X|ab")
+}
