@@ -313,8 +313,23 @@ main := proc() {
                 CameraMoveRight(camera, strafe, false)
                 CameraMoveUp(camera, vertical)
             } else {
-                // Gravity.
-                vel_y = vel_y - GRAVITY
+                // Gravity and vertical movement.
+                if on_ground {
+                    vel_y = zero_f
+                    camera.position.y = 1.to_f32()
+                } else {
+                    vel_y = vel_y - GRAVITY
+                    camera.position.y = camera.position.y + vel_y
+                    camera.target.y = camera.target.y + vel_y
+                    if camera.position.y <= 1.to_f32() {
+                        // Snap both equally to preserve look angle.
+                        snap := 1.to_f32() - camera.position.y
+                        camera.position.y = 1.to_f32()
+                        camera.target.y = camera.target.y + snap
+                        vel_y = zero_f
+                        on_ground = true
+                    }
+                }
 
                 // Jump: space or right mouse.
                 if is_key_pressed(KEY_SPACE).or(is_mouse_button_pressed(1)) {
@@ -334,18 +349,6 @@ main := proc() {
                 // Horizontal movement via UpdateCameraPro.
                 movement := Vector3(x = fwd, y = strafe, z = zero_f)
                 UpdateCameraPro(camera, movement, rotation, zero_f)
-
-                // Apply vertical velocity.
-                CameraMoveUp(camera, vel_y)
-
-                // Ground check.
-                if camera.position.y <= 1.to_f32() {
-                    camera.position.y = 1.to_f32()
-                    vel_y = zero_f
-                    on_ground = true
-                } else {
-                    on_ground = false
-                }
 
                 // Wall and box collision check.
                 mut hit := false
