@@ -1200,7 +1200,17 @@
    - Step 7 -- shrink ~FCallData~ from 7 fields to ~{does_throw,
      is_bang}~ (rstil ~FCallInfo~ shape). Variadic / kwargs / splat /
      own_args / fn_sig are typer resolution artifacts.
-   - Step 11 (stretch) -- ~Expr.til_type~ to a Context side table.
+   - Step 11 (stretch) -- remove ~Expr.til_type~. Long-term shape is
+     rstil's derive-from-Context+AST (no per-Expr storage, no node
+     IDs); see "Implications for removal" below for the path. Once
+     ~Expr.til_type~ is gone (or absent on Idents specifically),
+     ~narrow_dynamic~ (~src/self/typer.til:5224~) loses its in-place
+     mutation target and would have to hoist a typed Decl instead --
+     which makes the codegen workaround landed in #185
+     (~Context.ref_dyn_locals~ Set + typed-cast branch in
+     ~emit_deref~) deletable. The hoist becomes the only sensible
+     way to narrow a Dynamic-bound Ident once the Ident's type is
+     resolved by binding lookup rather than by a per-Expr field.
 
 *** Current shapes (verified against ~src/core/ast.til~ + ~src/self/initer.til~ + ~src/self/modes.til~)
 
@@ -1291,19 +1301,39 @@
      builder reads ~til_type~ ~97 times during code emission. Each
      read becoming a scope walk is a real cost. Probably not viable
      without caching.
-   - *Side table* (path 1, step 11): needs Expr identity (til has none
-     today) + AST stable after typer (~#146~ / ~#158~). Without those,
-     desugar rebuilds drift the table.
-   - *Hybrid*: keep ~til_type~ on selected node types where consumers
-     pivot on it (FCall return type, FieldAccess result type, Ident
-     resolved type). Trim the ~Expr~ field into a NodeType-payload
-     thing for those cases. Smaller win, less invasive.
+   - *Side table* (path 1, step 11): would require some form of Expr
+     identity to key the table, and til has explicitly decided
+     against adding node IDs / Expr.id. So this path is *off the
+     table*; do not pursue. (rstil also has no Expr identity --
+     ~Expr~ in rstil is ~{node_type, params, line, col}~. It works
+     without a side table by computing types on demand from
+     ~Context~ + AST shape; see below.)
+   - *rstil-style derive-from-context+AST*: rstil's
+     ~init.rs:get_value_type(context, e)~ is a pure function of
+     (Context, Expr) that walks the AST + scope_stack to produce a
+     ~ValueType~. No per-Expr storage, no node IDs. Idents resolve
+     by name lookup in ~scope_stack~; literals are implied by their
+     ~NodeType~ payload; FCall return types come from the resolved
+     callee. Narrowing-as-mutation (~narrow_dynamic~ rewriting
+     ~Expr.til_type~ in place) does not exist there: when til-style
+     narrowing would be needed, rstil either uses an explicit
+     ~.dereference(T, &out)~ (e.g. ~Array.get~ returns ~Ptr~, not a
+     bare ~Dynamic~) or hoists into a typed binding so the lookup
+     returns the narrowed type for the new name.
+   - *Hybrid* (intermediate step toward the rstil pattern): keep
+     ~til_type~ on selected node types where consumers pivot on it
+     (FCall return type, FieldAccess result type, Ident resolved
+     type), and trim the ~Expr~ field into a NodeType-payload thing
+     for those cases. Smaller win, less invasive than full removal,
+     compatible with the no-node-id constraint.
 
-   Bottom line: ~Expr.til_type~ removal is blocked on either a node-id
-   story or a hybrid restructuring. Dangerous refs (~fn_sig~ first,
-   then ~field_struct_def~) are the actionable next moves and also
-   help leak reduction (cloners no longer need to keep referenced
-   nodes live just for the ref).
+   Bottom line: ~Expr.til_type~ removal heads toward the rstil-style
+   "derive from Context + AST" pattern. Hybrid (push ~til_type~ into
+   selected NodeType payloads) is a reasonable intermediate step;
+   full side-table-with-node-id is rejected. Dangerous refs
+   (~fn_sig~ first, then ~field_struct_def~) are the actionable next
+   moves and also help leak reduction (cloners no longer need to
+   keep referenced nodes live just for the ref).
 
 *** Anti-pattern catalog (the remaining work, organized)
 
@@ -1326,12 +1356,13 @@
    Of the 7 fields on ~FCallData~, only would-be ~does_throw~ /
    ~is_bang~ are parse facts. ~variadic_index~, ~variadic_count~,
    ~kwargs_index~, ~kwargs_count~, ~is_splat~, ~own_args~, ~fn_sig~ are
-   all written by the typer. Two paths forward:
+   all written by the typer.
 
-   - Move them to a ~Context.fcall_resolution : Map<Expr-id,
-     FCallResolution>~ side table.
-   - Or compute on demand during desugar from the resolved
-     ~FunctionDef~ (rstil's approach).
+   Path forward: compute on demand during desugar from the resolved
+   ~FunctionDef~ (rstil's approach). A side table keyed on Expr
+   identity (~Map<Expr-id, FCallResolution>~) was considered earlier
+   but rejected for the same reason as the ~Expr.til_type~ side-
+   table option above: til has decided against node IDs.
 
    ~fn_sig~ is also one of the dangerous-refs cases below.
 
