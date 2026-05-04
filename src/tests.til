@@ -199,12 +199,12 @@ add_cli_pair := func(tests: Vec, name: Str, file: Str,
                      til: Str) {
     mut cmd_i := til.concat(" interpret ").concat(file)
     if cli_args.len().gt(0) { cmd_i = cmd_i.concat(" ").concat(cli_args) }
-    add_single(tests, name.concat("_i"), "cli", expected_exit, expected_out, cmd_i)
+    add_single(tests, name.concat("_i"), "cli", expected_exit, expected_out, asan_safe_cmd(cmd_i, til))
     mut cmd_r := til.concat(" run -o bin/c/").concat(name)
         .concat(" -c gen/c/").concat(name).concat(".c ")
         .concat(file)
     if cli_args.len().gt(0) { cmd_r = cmd_r.concat(" ").concat(cli_args) }
-    add_single(tests, name.concat("_r"), "cli", expected_exit, expected_out, cmd_r)
+    add_single(tests, name.concat("_r"), "cli", expected_exit, expected_out, asan_safe_cmd(cmd_r, til))
 }
 
 asan_safe_cmd := func(cmd: Str, til_bin: Str) returns Str {
@@ -484,9 +484,9 @@ main := proc(args: ..Str) {
     // into build_ms rather than cli_ms in totals.
     run("mkdir -p fonts")
     add_single(tests, "svg2ttf_ok", "build", 0, "",
-               til_bin.concat(" run -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ")
+               asan_safe_cmd(til_bin.concat(" run -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ")
                       .concat("src/examples/svg2ttf.til ")
-                      .concat("img/logo-transparent.svg fonts/til_logo.ttf"))
+                      .concat("img/logo-transparent.svg fonts/til_logo.ttf"), til_bin))
     add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
                til_bin.concat(" run -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ")
                       .concat("src/examples/svg2ttf.til ")
