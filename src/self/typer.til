@@ -3318,7 +3318,7 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                     }
                 }
             }
-        } else if rhs_is_clone_fcall(rhs).and(
+        } else if rhs.node_type.is(NodeType.FCall).and(fcall_returns_own(rhs, scope)).and(
             existing.is(TilType.Struct).or(existing.is(TilType.Enum))
         ) {
             if scope.bindings.has(aname).not().and(assign_target_is_func_local(scope, aname)) {

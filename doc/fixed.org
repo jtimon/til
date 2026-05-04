@@ -623,6 +623,25 @@
     today:    134086 byte(s) leaked in 23248 allocation(s)
     delta:   -200940 bytes (-60%) / -20875 allocations (-47%)
 
+  Follow-up 2: widen the ~else if~ trigger from "rhs is a
+  ~.clone~ FCall" to "rhs is any FCall whose declared return is
+  ~OwnType.Own~". The same #175 shape shows up across
+  ~src/self/parser.til~ as ~mut X := ""; X = expect_text(...)~ inside
+  nested ~if~ blocks (so the target binding is in the outer
+  function-local scope). ~expect_text~ returns ~Str~ owned by default,
+  so the typer's existing ~fcall_returns_own~ predicate -- already
+  used by the ~returns own~ ownership-transfer machinery in
+  ~#168~/~#147~ -- discriminates safely against shallow-return calls.
+
+  Numbers (cli_args interpret leak total under bin/til_asan, this is a
+  Two-pass commit so the delta lands in the same commit):
+    before: 134086 byte(s) leaked in 23248 allocation(s)
+    after:  123684 byte(s) leaked in 21635 allocation(s)
+    delta:  -10402 bytes (-7.8%) / -1613 allocations (-6.9%)
+
+  Cumulative #175 series vs pre-fix:
+    -211342 bytes (-63%) / -22488 allocations (-51%)
+
 * FIXED #162 Core files should import semantic dependencies explicitly
   Closed in two parts:
 

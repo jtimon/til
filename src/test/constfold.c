@@ -6064,7 +6064,7 @@ Str * poem(I64 * depth, Str * current, Str * s1, Str * s2) {
         (void)_t_Str_2975;
         ;
         Str_delete(_t_Str_2974, &(Bool){1});
-        result = Str_concat(result, _t_Str_2975);
+        { Str *_old = result; result = Str_concat(result, _t_Str_2975); Str_delete(_old, &(Bool){1}); }
         Str_delete(_t_Str_2975, &(Bool){1});
     }
     ;

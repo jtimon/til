@@ -1931,19 +1931,27 @@
     before deeply-nested early returns.
 
   - After the ~#175~ follow-up that extends ~save_old_delete~ to
-    user-written ~T.clone(...)~ FCalls (this commit, single-pass; the
-    actual delta materializes on the next commit's self-host
-    rebuild): local 2nd-pass measurement shows
-    ~134086 byte(s) / 23248 allocations~
+    user-written ~T.clone(...)~ FCalls (commit 7a2d233, landed via
+    next-commit self-host rebuild): ~134086 byte(s) / 23248 allocations~
     -- ~-28% bytes / -8% allocations~ vs the previous step.
     Root: ~mut X := ""; X = Y.clone()~ in ~extend_ref_local_lifetimes~
     and similar sites was missed by the original #175 fix because
     ~rhs~ is an FCall (already-clone), not the auto-clone-wrapped
-    ~Ident~/~FieldAccess~ shape. ~rhs_is_clone_fcall~ widens the
-    trigger.
+    ~Ident~/~FieldAccess~ shape.
+
+  - After widening the trigger from ~rhs_is_clone_fcall~ to any FCall
+    whose declared return is ~OwnType.Own~ (this two-pass commit):
+    ~123684 byte(s) / 21635 allocations~
+    -- ~-7.8% bytes / -6.9% allocations~ vs the previous step.
+    Root: ~mut X := ""; X = expect_text(...)~ in ~parse_struct_def~
+    (and many ~parse_*~ siblings) -- same #175 outer-scope shape, but
+    rhs is an arbitrary heap-returning FCall, not specifically a
+    ~.clone~. ~fcall_returns_own~ already exists in the typer to
+    discriminate heap-returning callees from shallow-return ones, so
+    the ~else if~ in ~infer_assign_stmt~ now uses it directly.
 
   Cumulative for #175 series vs pre-fix:
-    ~-200940 bytes (-60%) / -20875 allocations (-47%)~
+    ~-211342 bytes (-63%) / -22488 allocations (-51%)~
 
   Next leak buckets to attack (in rough size order on the new
   baseline):
