@@ -1950,8 +1950,29 @@
     discriminate heap-returning callees from shallow-return ones, so
     the ~else if~ in ~infer_assign_stmt~ now uses it directly.
 
+  - After freeing the heap wrapper of locals whose ownership was
+    transferred via value-copy to a Shallow struct field (this
+    Two-pass commit): ~106541 byte(s) / 20674 allocations~
+    -- ~-13.9% bytes / -4.4% allocations~ vs the previous step.
+    Root: ~mut name := "" / mut name := f()~ promoted to ~OwnType.Own~
+    (Struct local, so ~promote_own_transferred_locals~ heap-allocates
+    the wrapper); when ownership is then "transferred" via
+    ~Decl(field = name, ...)~ where the receiving field is declared
+    Shallow, the typer set ~own_transfer~ and skipped the local's
+    scope-exit destructor entirely. The constructor only value-copies
+    the inner Str struct into the field, so the field's destructor
+    correctly frees the inner data, but nothing freed the heap
+    wrapper. ~insert_post_stmt_deletes~ now emits ~free(own name)~
+    after the transfer stmt (raw wrapper free, no inner-data delete)
+    when the transfer is to a Shallow field. Other transfer shapes
+    (~free(own X)~, struct constructor with Own/Ref field, etc.)
+    already consume the wrapper, so a new
+    ~transfer_is_shallow_field_value_copy~ predicate gates the emit.
+    Most ~parse_*~ paths in ~src/self/parser.til~ benefit -- 50-66
+    leaks each at 16 bytes/wrapper.
+
   Cumulative for #175 series vs pre-fix:
-    ~-211342 bytes (-63%) / -22488 allocations (-51%)~
+    ~-228485 bytes (-68%) / -23449 allocations (-53%)~
 
   Next leak buckets to attack (in rough size order on the new
   baseline):

@@ -3878,6 +3878,80 @@ make_delete_call := func(var_name: Str, shallow type: TilType, shallow arg_is_ow
     return call
 }
 
+// True when `e` (or any sub-expression) is a struct constructor FCall of the
+// shape `Type(..., var_name, ...)` where var_name is at the position of a
+// field whose declared own_type is `Shallow`. In that case the constructor
+// emits `dst->field = *var_name`, i.e. value-copies the inner Str/Vec/etc.
+// from var_name's heap wrapper into the field; the field's own destructor
+// will free the inner data when the parent struct is destroyed, but nothing
+// frees var_name's wrapper, so it leaks.
+//
+// This is the exact shape we want `make_free_call` to follow up. Other
+// transfer shapes -- own arg to a function, struct constructor with an Own
+// or Ref field -- already consume the wrapper, so we must NOT emit a free.
+transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool {
+    if is_null(e) { return false }
+    if e.node_type.is(NodeType.FuncDef) { return false }
+    if e.node_type.is(NodeType.FCall) {
+        if e.children.len().gte(2) {
+            fcall_sname := til_type_name(e.til_type)
+            if fcall_sname.len().gt(0) {
+                switch e.child(0).node_type {
+                case NodeType.Ident(_c0s):
+                    if _c0s.eq(fcall_sname) {
+                        ref sdef : Expr = scope.get_struct(fcall_sname)
+                        if is_null(sdef).not() {
+                            switch sdef.node_type {
+                            case NodeType.StructDef(tsv_sdd):
+                                for fi in 0..tsv_sdd.fields.len() {
+                                    ref fld_decl : Declaration = tsv_sdd.fields.get(fi)
+                                    arg_idx := fi.add(1)
+                                    if arg_idx.lt(e.children.len()) {
+                                        ref arg : Expr = e.child(arg_idx)
+                                        switch arg.node_type {
+                                        case NodeType.Ident(_an):
+                                            if _an.eq(var_name).and(fld_decl.own_type.is(OwnType.Shallow)) {
+                                                if type_ctor_consumes(fld_decl.til_type) {
+                                                    return true
+                                                }
+                                            }
+                                        case:
+                                        }
+                                    }
+                                }
+                            case:
+                            }
+                        }
+                    }
+                case:
+                }
+            }
+        }
+    }
+    for ec : Expr in e.children {
+        if transfer_is_shallow_field_value_copy(ec, var_name, scope) { return true }
+    }
+    return false
+}
+
+// `free(own var_name)`: release just the heap wrapper without invoking the
+// type's destructor. Used after value-copy ownership transfer to a Shallow
+// struct field, where the field's own destructor will free the inner data.
+make_free_call := func(var_name: Str, shallow type: TilType, src: Expr) returns Expr {
+    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    call.til_type = TilType.None
+
+    mut callee := Expr.new(NodeType.Ident("free".clone()), src.line, src.col)
+    call.add_child(own callee)
+
+    mut arg := Expr.new(NodeType.Ident(var_name.clone()), src.line, src.col)
+    arg.til_type = type
+    set_own_arg(call, call.children.len())
+    call.add_child(own arg)
+
+    return call
+}
+
 make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: Expr) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.til_type = type
@@ -5340,13 +5414,42 @@ insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: V
     }
 }
 
-insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec) {
+insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
-        if local.own_transfer.gte(0) { continue }
+        if local.own_transfer.gte(0) {
+            // Ownership transferred via value-copy to a Shallow struct field
+            // (e.g. `Decl(name = local, ...)` where Declaration.name has the
+            // default Shallow ownership) leaves the local's heap wrapper
+            // orphaned: the field gets a bit-copy of *local, the field's own
+            // destructor frees the inner data, but nothing frees the wrapper.
+            // Skipping the delete entirely (the previous behavior) leaks the
+            // wrapper. Emit a raw `free(local)` after the transfer stmt to
+            // release the wrapper without touching the inner data.
+            //
+            // This only fires when the transfer is a struct constructor with
+            // the receiving field declared Shallow. Other transfer shapes
+            // (`free(own X)`, `Type.delete(own X, ...)`, `field = X` where the
+            // field is Own/Ref, passing X as `own` arg to a function that
+            // takes ownership of the wrapper) already consume the wrapper, so
+            // adding a `free` here would double-free.
+            if local.is_heap.and(local.type.is(TilType.Struct)) {
+                if local.own_transfer.eq(stmt_idx.to_i64().to_i32()) {
+                    if type_to_name(local.type).len().gt(0) {
+                        if transfer_is_shallow_field_value_copy(stmt, local.name, scope) {
+                            free_call := make_free_call(local.name, local.type, stmt)
+                            if is_null(free_call).not() {
+                                new_ch.push(own free_call)
+                            }
+                        }
+                    }
+                }
+            }
+            continue
+        }
         if local.last_use.eq(stmt_idx.to_i64().to_i32()) {
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
@@ -5429,7 +5532,7 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
         insert_nested_exit_deletes(stmt, locals_vec, i.to_i64().to_u32())
         insert_assign_delete(stmt, locals_vec, new_ch)
         mut post_deletes := Vec.new("Expr", Expr.size())
-        insert_post_stmt_deletes(stmt, locals_vec, i.to_i64().to_u32(), post_deletes)
+        insert_post_stmt_deletes(stmt, locals_vec, i.to_i64().to_u32(), post_deletes, scope)
         new_ch.push_take(old, i)
         new_ch.append(own post_deletes)
     }
