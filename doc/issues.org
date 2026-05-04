@@ -4,59 +4,7 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* [0/18] Pre
-** WIP #187 Unused-decl check for ~priv~ items (#86 follow-up)
-   Background:
-
-   - Issue #86 made unused function parameters and unused local
-     variables type errors, with the ~_~-prefix escape hatch.
-   - That check deliberately skipped top-level functions, structs,
-     enums, fields, and namespace methods: a public symbol can be
-     "unused" inside its own file but consumed by an importer, so
-     flagging it would be wrong.
-   - Issue #179 added the ~priv~ keyword. A ~priv~ symbol is
-     guaranteed file-local. If a priv item is unused in its file,
-     it is dead code -- nothing else can possibly reference it.
-
-   Goal:
-
-   - Extend the unused-decl check to ~priv~-marked items. The
-     suggested fix is *not* to add a ~_~ prefix (that pattern fits
-     parameters where the contract is fixed; it does not fit a
-     type or function name). Instead, the diagnostic should
-     suggest *removing the ~priv~ keyword* -- making the item
-     public. This mirrors Rust's "consider making this pub"
-     suggestion, but inverted to match til's public-by-default
-     model. If the symbol genuinely should not be public, the
-     user can either delete it or rename it with ~_~.
-
-   Plan (incremental commits):
-
-   1. [ ] Top-level priv funcs / structs / enums / globals. They
-      all share the same TypeBinding scope; one ~check_unused_priv~
-      sweep over the global scope after type_check covers all four.
-      Diagnostic: ~error: unused priv 'X'; remove 'priv' to expose
-      it~. Wire from ~prepare_program~ after typer finishes.
-   2. [ ] Priv struct fields. Need per-field use tracking similar
-      to ~TypeBinding.used~ but for ~Declaration~ entries inside
-      ~StructDef.fields~. Mark used on every successful
-      field-access / field-assign / constructor named-arg lookup;
-      flag unused after type_check. Same diagnostic shape:
-      ~error: unused priv field 'Foo.x'; remove 'priv' to expose
-      it~.
-   3. [ ] Priv namespace methods. Same shape as #4 but for
-      entries in ~StructDef.ns_decls~ / ~EnumDef.ns_decls~.
-
-   Not in scope:
-
-   - No check on non-priv top-level items: that would break
-     library files whose API is the whole point.
-   - No ~_~-prefix escape hatch on types/functions. If you want
-     to keep a dead priv item temporarily, the rename to a
-     ~_~-prefixed name is allowed (the existing #86 logic already
-     skips ~_~-prefixed names). The recommended fix in the
-     diagnostic stays "remove priv".
-
+* [0/17] Pre
 ** OPEN #184 Finish the bare ~get_payload~ -> switch destructure refactor
    Goal: remove the remaining bare ~get_payload(...)~ calls in the
    self-host and replace them with idiomatic switch destructuring,

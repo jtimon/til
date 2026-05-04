@@ -76,6 +76,11 @@ mut errors : I32 = 0
 mut proc_calls_count : I32 = 0
 mut proc_def_depth : I32 = 0
 mut current_type_name := ""
+// #187 step 2: nesting depth of auto-generated FuncDef bodies
+// (clone/delete/size/etc emitted by initer). The unused-priv-member
+// check ignores reads inside these so genuinely-unused priv fields
+// and ns methods are not masked by boilerplate references.
+mut auto_gen_depth : I32 = 0
 I64Name := "I64"
 U8Name := "U8"
 I16Name := "I16"
@@ -130,6 +135,18 @@ namespace_member_is_priv := func(sdef: Expr, method: Str) returns shallow Bool {
     ref ns : Vec = def_ns_decls(sdef)
     for fd : Declaration in ns {
         if fd.name.eq(method) { return fd.is_priv }
+    }
+    return false
+}
+
+// #187 step 3: mark a namespace member as used. Skipped while
+// auto_gen_depth > 0 so auto-emitted clone/delete/size don't mask
+// genuinely-unused priv namespace methods.
+mark_ns_member_used := func(sdef: Expr, method: Str) returns shallow Bool {
+    if is_null(sdef) { return false }
+    ref ns : Vec = def_ns_decls(sdef)
+    for fd : Declaration in ns {
+        if fd.name.eq(method) { fd.used = true; return true }
     }
     return false
 }
@@ -576,6 +593,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
                 if slot.gte(0) {
                     ref ctor_fld : Declaration = ctor_sdd.fields.get(slot.to_i64().to_u32())
                     check_member_priv(arg, name, aname, ctor_fld.is_priv)
+                    if auto_gen_depth.eq(0) { ctor_fld.used = true }
                     ref slot_arg : CtorArg = field_vals.get(slot.to_i64().to_u32())
                     if slot_arg.is(CtorArg.Filled) {
                         msg := format("duplicate argument for field '", aname, "'")
@@ -1180,6 +1198,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         return true
     }
     check_member_priv(e, obj3_sname, method, namespace_member_is_priv(sdef2, method))
+    if auto_gen_depth.eq(0) { mark_ns_member_used(sdef2, method) }
     if proc_def_depth.gt(0).or(in_func.neq(0)) {
         ref ns_fdef0 : FunctionDef = get_payload(ns_func2.node_type)
         if ns_fdef0.func_type.is(FuncType.Proc).or(ns_fdef0.func_type.is(FuncType.ExtProc)) {
@@ -1728,7 +1747,13 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             proc_calls_count = 0.to_i32()
             proc_def_depth = proc_def_depth.add(1.to_i32())
         }
+        if fdef.auto_generated {
+            auto_gen_depth = auto_gen_depth.add(1.to_i32())
+        }
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
+        if fdef.auto_generated {
+            auto_gen_depth = auto_gen_depth.sub(1.to_i32())
+        }
         if is_proc {
             if proc_calls_count.eq(0) {
                 type_error(expr, "proc has no proc/ext_proc calls; should be a func")
@@ -1811,6 +1836,58 @@ check_unused_priv_top_level := proc(scope: TypeScope) returns shallow I32 {
     return found
 }
 
+// #187 steps 2-3: priv struct fields and namespace methods that no
+// code in the struct's own namespace ever reads. The typer marks
+// fields/ns_decls used on every successful access (gated on
+// auto_gen_depth == 0 so boilerplate clone/delete don't mask
+// unused decls). After type_check, walk every struct/enum decl in
+// each ImportUnit and flag the leftovers.
+check_unused_priv_members_in_program := proc(program: Expr, path: Str) returns shallow I32 {
+    mut found : I32 = 0
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        ref tdef : Expr = stmt.child(0)
+        if tdef.node_type.is(NodeType.StructDef).not()
+            .and(tdef.node_type.is(NodeType.EnumDef).not()) { continue }
+        mut owner_name := ""
+        switch stmt.node_type {
+        case NodeType.Decl(td_decl):
+            owner_name = td_decl.name.clone()
+        case:
+            UNREACHABLE(__LOC__)
+        }
+        // Field walk (StructDef only).
+        switch tdef.node_type {
+        case NodeType.StructDef(walk_sdd):
+            for fld : Declaration in walk_sdd.fields {
+                if fld.is_priv.not() { continue }
+                if fld.used { continue }
+                if fld.name.len().eq(0) { continue }
+                if fld.name.starts_with("_") { continue }
+                type_error_at(path, tdef.line, tdef.col,
+                    "unused priv field '".concat(owner_name).concat(".").concat(fld.name)
+                        .concat("'; remove 'priv' to expose it"))
+                found = found.add(1.to_i32())
+            }
+        case:
+        }
+        // Namespace walk (both StructDef and EnumDef).
+        ref ns : Vec = def_ns_decls(tdef)
+        for nsd : Declaration in ns {
+            if nsd.is_priv.not() { continue }
+            if nsd.used { continue }
+            if nsd.name.len().eq(0) { continue }
+            if nsd.name.starts_with("_") { continue }
+            type_error_at(path, tdef.line, tdef.col,
+                "unused priv ns member '".concat(owner_name).concat(".").concat(nsd.name)
+                    .concat("'; remove 'priv' to expose it"))
+            found = found.add(1.to_i32())
+        }
+    }
+    return found
+}
+
 infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context) {
     if stmt.children.len().gt(0) {
         infer_expr(scope, stmt.child(0), in_func, ctx)
@@ -1889,6 +1966,7 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
                     if fld.name.eq(fname) {
                         expr.til_type = fld.til_type.clone()
                         check_member_priv(expr, obj_sname, fname, fld.is_priv)
+                        if auto_gen_depth.eq(0) { fld.used = true }
                         found = true
                         break
                     }
@@ -1912,6 +1990,7 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
                             }
                         }
                         check_member_priv(expr, obj_sname, fname, nsd.is_priv)
+                        if auto_gen_depth.eq(0) { nsd.used = true }
                         found = true
                         break
                     }
@@ -1954,6 +2033,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                     if fld.name.eq(fname) {
                         found = true
                         check_member_priv(stmt, obj_sname, fname, fld.is_priv)
+                        if auto_gen_depth.eq(0) { fld.used = true }
                         if fld.is_mut.not() {
                             type_error(stmt, "cannot assign to immutable field '".concat(fname).concat("'"))
                         }

@@ -118,6 +118,7 @@ Declaration := struct {
     mut explicit_type := ""
     mut is_mut := false
     mut is_priv := false
+    mut used := false
     mut own_type := OwnType.Shallow
     mut til_type := TilType.Unknown
     mut field_offset : I32 = 0
@@ -138,6 +139,12 @@ FunctionDef := struct {
     mut variadic_index : I32 = -1.to_i32()
     mut kwargs_index : I32 = -1.to_i32()
     mut return_own_type := OwnType.Own
+    // #187 step 2: set true on FuncDefs emitted by initer's auto-gen
+    // helpers (clone/delete/size/eq/to_str/variant constructors).
+    // The unused-priv-member check skips field/ns reads inside these
+    // bodies so genuinely-unused priv members don't get masked by
+    // boilerplate references.
+    mut auto_generated := false
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type.eq(b.return_type) }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }

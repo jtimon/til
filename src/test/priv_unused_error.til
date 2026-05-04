@@ -15,4 +15,31 @@ priv UnusedEnum := enum { A, B }
 priv UNUSED_GLOBAL := 42
 priv mut unused_counter := 0
 
-main := proc() { println("ok") }
+// #187 step 2: priv struct field that nothing in the struct's own
+// namespace ever reads. The struct itself is non-priv (so the
+// top-level check stays quiet) but the field is dead.
+StructWithUnusedField := struct {
+    mut tag := 0
+    priv mut secret := 0
+namespace:
+    show := func(self: StructWithUnusedField) returns I64 { return self.tag }
+}
+
+// #187 step 3: priv namespace method that no other ns member calls.
+StructWithUnusedNs := struct {
+    mut value := 0
+namespace:
+    public := func(self: StructWithUnusedNs) returns I64 { return self.value }
+    priv unused_helper := func(self: StructWithUnusedNs) returns I64 {
+        return self.value.add(1)
+    }
+}
+
+// Construct + use the wrapper structs so the top-level check stays
+// quiet; the new field/ns checks should still flag the priv members.
+main := proc() {
+    s1 := StructWithUnusedField(tag = 1)
+    println(s1.show().to_str())
+    s2 := StructWithUnusedNs(value = 2)
+    println(s2.public().to_str())
+}

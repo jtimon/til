@@ -1268,6 +1268,21 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     // Issue #187 step 1: priv top-level decls that nothing in the
     // file references are dead code -- no importer can reach them.
     type_errors = type_errors.add(check_unused_priv_top_level(lp.ctx.scope))
+    // Issue #187 steps 2-3: priv struct fields and namespace members
+    // that no code in the struct's own namespace ever reads. Walk
+    // every loaded unit's AST.
+    if lp.skip_core.not() {
+        for ci in 0..lp.core_units.len() {
+            ref cu : ProgramUnit = lp.core_units.get(ci)
+            ref ciu : ImportUnit = lp.ctx.imported.get(cu.path)
+            type_errors = type_errors.add(check_unused_priv_members_in_program(ciu.ast, cu.path))
+        }
+    }
+    for ui in 0..lp.units.len() {
+        ref uu : ProgramUnit = lp.units.get(ui)
+        ref uiu : ImportUnit = lp.ctx.imported.get(uu.path)
+        type_errors = type_errors.add(check_unused_priv_members_in_program(uiu.ast, uu.path))
+    }
     if type_errors.gt(0) {
         println(type_errors.to_str(), " type error(s) found")
         exit(1)

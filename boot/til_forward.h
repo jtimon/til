@@ -285,6 +285,7 @@ typedef struct Declaration {
     Str explicit_type;
     Bool is_mut;
     Bool is_priv;
+    Bool used;
     OwnType own_type;
     TilType til_type;
     I32 field_offset;
@@ -565,6 +566,7 @@ typedef struct FunctionDef {
     I32 variadic_index;
     I32 kwargs_index;
     OwnType return_own_type;
+    Bool auto_generated;
 } FunctionDef;
 
 
@@ -1114,6 +1116,7 @@ void type_error(Expr * e, Str * msg);
 void type_error_at(Str * path, U32 line, U32 col, Str * msg);
 Expr * find_namespace_func(Expr * sdef, Str * method);
 Bool namespace_member_is_priv(Expr * sdef, Str * method);
+Bool mark_ns_member_used(Expr * sdef, Str * method);
 Bool try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * method, Str * type_name);
 Expr * resolve_fn_sig(Expr * fcall, TypeScope * scope);
 Bool fcall_returns_own(Expr * fcall, TypeScope * scope);
@@ -1145,6 +1148,7 @@ void infer_func_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void check_unused_params(TypeScope * func_scope, Expr * expr);
 void check_unused_locals(TypeScope * scope, Str * path);
 I32 check_unused_priv_top_level(TypeScope * scope);
+I32 check_unused_priv_members_in_program(Expr * program, Str * path);
 void infer_return_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref, Context * ctx);
 void infer_if_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void infer_field_access_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
@@ -1825,6 +1829,7 @@ extern I32 errors;
 extern I32 proc_calls_count;
 extern I32 proc_def_depth;
 extern Str current_type_name;
+extern I32 auto_gen_depth;
 extern Str I64Name;
 extern Str U8Name;
 extern Str I16Name;
