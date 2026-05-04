@@ -16,9 +16,14 @@ Ask the questions one at a time.
 If a question can be answered by exploring the repository, explore it
 instead of asking. In particular, before asking, check:
 
-- ~CLAUDE.md~ for project-wide conventions and constraints
+- ~CLAUDE.md~ (a symlink to ~bots/bots.org~) for project-wide
+  conventions and constraints
 - ~doc/self.org~ for the bootstrap and build model
-- ~doc/issues.org~ and ~doc/fixed.org~ for prior art on related work
+- ~issues/process.org~ for the issue-tracking workflow and the
+  current ~NEXT_ISSUE~ counter
+- ~issues/open/~, ~issues/fixed/~, ~issues/cancelled/~ for prior art
+  on related work (one file per issue, e.g. ~issues/open/189.org~);
+  ~issues/summary.org~ for an at-a-glance index
 - ~src/~ for the actual code
 - ~make help~ for available targets
 

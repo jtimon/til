@@ -1,35 +1,45 @@
 ---
 name: to-issues
-description: Break a plan, spec, or PRD into independently-grabbable issues in doc/issues.org using tracer-bullet vertical slices. Use when the user wants to convert a plan into issues, create implementation tickets, or break down work.
+description: Break a plan, spec, or PRD into independently-grabbable issues in issues/open/ using tracer-bullet vertical slices. Use when the user wants to convert a plan into issues, create implementation tickets, or break down work.
 user-invocable: true
 ---
 
 # To issues (til edition)
 
 Break a plan into independently-grabbable issues in til's local issue
-tracker (~doc/issues.org~) using vertical slices (tracer bullets).
+tracker (~issues/~) using vertical slices (tracer bullets).
 
-til does NOT use GitHub issues. The tracker is a single org file:
-~doc/issues.org~. New issues go at the top of their section, numbered
-from the ~NEXT_ISSUE~ counter in the file header. Fixed issues are
-moved to ~doc/fixed.org~. There are no labels and no triage queue.
+til does NOT use GitHub issues. The tracker is a directory of org
+files, one per issue:
+
+- ~issues/open/<n>.org~       -- open and in-progress issues
+- ~issues/fixed/<n>.org~      -- closed-as-fixed
+- ~issues/cancelled/<n>.org~  -- closed-as-cancelled
+- ~issues/process.org~        -- workflow rules and ~NEXT_ISSUE~ counter
+- ~issues/summary.org~        -- regenerated index (do not hand-edit)
+
+Each open issue file starts with a priority line (~# priority: high~ or
+~# priority: low~), then ~** OPEN #<n> Title~, then the body. State
+transitions: edit ~OPEN~ to ~WIP~ in the title line to start work;
+~git mv~ to ~issues/fixed/~ when fixed or ~issues/cancelled/~ when
+cancelled. There are no labels and no triage queue.
 
 ## Process
 
 ### 1. Gather context
 
 Work from whatever is already in the conversation. If the user passes
-an issue reference (e.g. ~#142~), open ~doc/issues.org~ (or
-~doc/fixed.org~ if not present) and read the full issue body and any
-nested headings.
+an issue reference (e.g. ~#142~), open ~issues/open/142.org~ first; if
+not present, try ~issues/fixed/142.org~ then ~issues/cancelled/142.org~.
+Read the full body and any nested headings.
 
 ### 2. Explore the codebase
 
 If you have not already explored the relevant code, do so now. Issue
 titles and bodies should use til's existing vocabulary -- look at
-neighboring issues and at ~src/~ for naming. Respect ~CLAUDE.md~
-conventions and the bootstrap model in ~doc/self.org~ when sequencing
-slices.
+neighbouring issues in ~issues/open/~ and at ~src/~ for naming.
+Respect the conventions in ~CLAUDE.md~ (a symlink to ~bots/bots.org~)
+and the bootstrap model in ~doc/self.org~ when sequencing slices.
 
 ### 3. Draft vertical slices
 
@@ -60,10 +70,9 @@ Present the proposed breakdown as a numbered list. For each slice show:
 
 - *Title*: short descriptive name (ASCII only)
 - *Type*: HITL or AFK
+- *Priority*: ~high~ or ~low~ (default ~low~ unless the user
+  indicates otherwise; HITL slices and blockers tend to be ~high~)
 - *Blocked by*: which other slices in this batch must complete first
-- *Section*: which top-level section of ~doc/issues.org~ it belongs to
-  (~Pre~, ~Post~, or ~Undecided~ -- default to ~Undecided~ unless the
-  user has indicated otherwise)
 
 Ask the user:
 
@@ -71,28 +80,30 @@ Ask the user:
 - Are the dependency relationships correct?
 - Should any slices be merged or split further?
 - Are HITL/AFK markings correct?
-- Which section should each slice go into?
+- Are the priorities right?
 
 Iterate until the user approves the breakdown.
 
-### 5. Publish to doc/issues.org
+### 5. Publish to issues/
 
 For each approved slice:
 
-1. Read the current ~NEXT_ISSUE: <n>~ line in the header of
-   ~doc/issues.org~. Allocate numbers in dependency order (blockers
-   first) so later issues can reference real numbers in *Blocked by*.
-2. Insert the new issue at the TOP of its chosen section, immediately
-   after the section heading line (`* [x/y] Pre`, etc.).
-3. Bump the section's progress counter (`[0/17]` -> `[0/18]`).
-4. Increment ~NEXT_ISSUE~ in the file header by the number of issues
-   added.
+1. Read the current ~NEXT_ISSUE: <n>~ line in ~issues/process.org~.
+   Allocate numbers in dependency order (blockers first) so later
+   issues can reference real numbers in *Blocked by*.
+2. Create ~issues/open/<n>.org~ for each new issue, using the
+   template below. ASCII only, org-mode formatting.
+3. Update ~issues/process.org~: increment ~NEXT_ISSUE~ by the number
+   of issues added.
+4. Do NOT hand-edit ~issues/summary.org~. It is regenerated.
 
-Use the issue template below. ASCII only, org-mode formatting.
+#### Issue file template
 
 #+begin_example
+# priority: high
 ** OPEN #<n> <Title>
-   Goal: <one-line statement of the slice's outcome>
+
+Goal: <one-line statement of the slice's outcome>
 
    *** What to build
        <description of the end-to-end behavior, not layer-by-layer
@@ -104,25 +115,46 @@ Use the issue template below. ASCII only, org-mode formatting.
        - [ ] <criterion 3>
 
    *** Blocked by
-       - #<m> <title>     ;; or "None - can start immediately"
+       - [[file:./<m>.org][#<m> <title>]]    ;; relative org-mode link,
+                                             ;; or "None - can start immediately"
 
    *** Type
        HITL  ;; or AFK
 #+end_example
 
-Do NOT close, rename, or modify any pre-existing parent issue. If the
-plan came from an existing issue, reference it in *Blocked by* (or in
-a *Parent* subsection above *What to build*).
+Notes:
 
-### 6. Verify
+- The first line is ~# priority: high~ or ~# priority: low~ -- no
+  leading whitespace, exactly as shown. ~bin/til interpret
+  examples/issues.til~ parses this header.
+- Cross-references use org-mode links to the sibling file
+  (~[[file:./184.org][#184 ...]]~), as in the existing tree.
+- Do NOT close, rename, or modify any pre-existing parent issue. If
+  the plan came from an existing issue, reference it in *Blocked by*
+  (or in a *Parent* sub-section above *What to build*).
 
-After writing, re-read the modified region of ~doc/issues.org~ to
-confirm:
+### 6. Regenerate the summary
 
-- ~NEXT_ISSUE~ matches the highest issue number you allocated plus one.
-- The section's ~[x/y]~ counter increased by the number of issues you
-  added.
-- Each new issue parses as a top-level ~** OPEN #<n>~ entry.
+After all issue files are written and ~NEXT_ISSUE~ is bumped, run:
+
+#+begin_src sh
+bin/til interpret examples/issues.til
+#+end_src
+
+This regenerates ~issues/summary.org~ and validates ~NEXT_ISSUE~. If
+the binary is not built, run ~make~ first (or skip and let the user
+regenerate -- mention this in your final report).
+
+### 7. Verify
+
+Re-check:
+
+- ~NEXT_ISSUE~ in ~issues/process.org~ matches the highest issue
+  number you allocated plus one.
+- Every new issue is exactly one file in ~issues/open/<n>.org~,
+  starting with ~# priority: ...~ and ~** OPEN #<n> Title~.
+- ~issues/summary.org~ lists each new issue under the right priority
+  bucket (if you ran step 6).
 - ASCII only, no curly quotes, no em-dashes, no bullet glyphs.
 
 Do NOT run ~make test~ as part of this skill: writing issues is a
@@ -132,7 +164,7 @@ with ~Doc:~ per ~CLAUDE.md~.
 ## Adapted from
 
 Matt Pocock's ~to-issues~ skill (https://github.com/mattpocock/skills),
-rewritten so it targets til's local org-mode tracker
-(~doc/issues.org~) instead of GitHub, drops the ~needs-triage~ label
-flow (til has no labels), and respects the bootstrap model when
-slicing work.
+rewritten for til's local org-mode tracker (one file per issue under
+~issues/open/~, ~NEXT_ISSUE~ counter in ~issues/process.org~,
+~bin/til interpret examples/issues.til~ to regenerate the summary)
+instead of the upstream GitHub-issue plus ~needs-triage~ flow.
