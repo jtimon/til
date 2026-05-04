@@ -26,6 +26,29 @@ files are auto-generated and must be discarded.
 git reset --soft HEAD~1 && git checkout HEAD -- doc/totals.csv img/totals.svg
 #+end_src
 
+*** Aborting after soft reset
+    If the user rejects the commit after Step 4 (before re-committing), the
+    soft-reset changes are dirty in the worktree and must be discarded safely.
+    NEVER use ~git reset --hard~ -- that would also destroy the previous
+    commit which was processed correctly.
+
+    Use ~git checkout HEAD~ to restore individual files:
+    #+begin_src shell
+    git checkout HEAD -- Makefile src/tests.til           # modified files
+    git checkout HEAD -- src/test/deleted_file.sh          # deleted files
+    git checkout HEAD -- doc/totals.csv img/totals.svg     # auto-generated
+    #+end_src
+
+    Verify clean with ~git status~ -- output should be empty.
+
+    If you don't know which files are dirty, check with ~git status --short~:
+    - ~M <file>~ means staged modification (restore with ~git checkout HEAD -- <file>~)
+    - ~D <file>~ means staged deletion (restore with ~git checkout HEAD -- <file>~)
+    - ~ M <file>~ means unstaged modification (restore with ~git checkout HEAD -- <file>~)
+
+    Then the previous commit is safely intact at HEAD and the rejected commit
+    is fully discarded.
+
 ** Step 5 -- full test suite
 Run under systemd-run to limit memory (prevents OOM from memory leaks).
 #+begin_src shell
