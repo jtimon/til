@@ -10,4 +10,24 @@ main := proc() {
     println(s.show().to_str())
     // Step 2: priv struct method via type-name namespace call.
     println(Secret.show(s).to_str())
+    // Step 3: priv enum variant access.
+    m := Mood.Happy
+    switch m {
+    case Mood.Happy: println("h")
+    case Mood.Sad:   println("s")
+    case Mood.Bored: println("b")
+    }
+    // Step 4: priv struct field via constructor named arg.
+    b1 := Box(tag = 1, hidden = 9)
+    // Step 4: priv struct field via field access.
+    println(b1.hidden.to_str())
+    // Step 4: priv struct field via field assignment.
+    mut b2 := Box(tag = 2)
+    b2.hidden = 5
+    // Step 5: priv namespace method via UFCS call.
+    Box.bump_hidden(b2)
+    // Step 6: priv top-level global -- direct read.
+    println(MAGIC.to_str())
+    // Step 6: priv top-level mutable global -- direct write.
+    counter = counter.add(1)
 }

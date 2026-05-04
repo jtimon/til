@@ -72,7 +72,7 @@
    }
    #+end_src
 
-* [0/18] Pre
+* [0/17] Pre
 ** OPEN #184 Finish the bare ~get_payload~ -> switch destructure refactor
    Goal: remove the remaining bare ~get_payload(...)~ calls in the
    self-host and replace them with idiomatic switch destructuring,
@@ -223,63 +223,6 @@
     Belongs under #109 (memory leak cleanup) only insofar as #175
     blocks the most aggressive form of this refactor on dual-variant
     helpers.
-
-** WIP #179 priv keyword: opt-out visibility (public by default, opposite of Rust)
-   Goal:
-
-   - Add a ~priv~ keyword for visibility in til. Unlike Rust, where
-     items are private by default and ~pub~ opts in to exposure, til
-     stays public by default and ~priv~ opts out. This keeps the
-     common case (libraries that expose almost everything) noise-free
-     and makes the unusual case (genuinely internal helpers) the one
-     that carries the marker.
-
-   Visibility rule (cross-file only):
-
-   - A ~priv~ item is visible only within the file that declares it.
-     Other files cannot reference it, even if they import the
-     declaring file (directly or transitively). Within the declaring
-     file, ~priv~ has no effect: it is exactly equivalent to the
-     default.
-
-   Plan (incremental commits):
-
-   1. [X] Standalone functions in imported files. Allow ~priv~ as a
-      prefix on top-level function/proc declarations:
-          priv helper := func(x: I64) returns I64 { return x.add(1) }
-      The typer must reject any cross-file reference to ~helper~ with
-      a clear "private to <decl-file>" diagnostic, while still
-      allowing same-file callers to use it normally. Add a positive
-      test (priv helper used inside its own file) and a negative test
-      (importer references the priv helper -> error).
-   2. [X] Structs. ~priv Foo := struct { ... }~ hides the type name
-      from other files, so they can neither construct ~Foo~ nor
-      mention it in a signature. Same rule on the constructor and the
-      type's namespace methods follow as a consequence.
-   3. [ ] Enums. ~priv MyEnum := enum { ... }~ hides the enum type
-      name from other files (variants follow because they are accessed
-      through the type name).
-   4. [ ] Struct fields. ~priv x := 0~ inside a struct body hides the
-      field from code outside the struct's own methods/namespace.
-      Same-file code that is not part of the struct still cannot
-      touch it.
-   5. [ ] Namespace methods. ~priv~ on a function inside a
-      ~namespace:~ block hides it from callers outside the type's
-      methods.
-   6. [ ] Top-level globals (mut/let). Apply the same cross-file rule
-      to non-function top-level declarations.
-   7. [ ] Documentation pass: update doc/qualifiers.org (or a new
-      doc/visibility.org) and README to describe the rule, including
-      the explicit contrast with Rust's pub-by-opt-in model.
-
-   Not in scope:
-
-   - No module/crate-level visibility levels (no ~pub(crate)~, no
-     ~pub(super)~). til's import graph is flat: a thing is either
-     visible to importers or it isn't.
-   - No renaming of existing items. ~priv~ is purely additive and
-     defaults to off.
-   - No effect on builtins, ext_func, ext_proc, or ext_struct.
 
 ** OPEN #176 FFI: support const char* params (avoid libc prototype conflicts)
    Symptom:

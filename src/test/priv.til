@@ -35,3 +35,60 @@ test_priv_struct_same_file := test() {
 test_priv_struct_indirect := test() {
     assert_eq(__LOC__, make_secret(99), 99)
 }
+
+// #179 step 3: same-file priv enum works.
+priv LocalMood := enum { Up, Down }
+
+test_priv_enum_same_file := test() {
+    m := LocalMood.Up
+    mut score := 0
+    switch m {
+    case LocalMood.Up:   score = 1
+    case LocalMood.Down: score = -1
+    }
+    assert_eq(__LOC__, score, 1)
+}
+
+// Importer can use the public mood_score which internally references
+// a priv Mood enum in priv_helper.til.
+test_priv_enum_indirect := test() {
+    assert_eq(__LOC__, mood_score(0), 1)
+    assert_eq(__LOC__, mood_score(1), -1)
+    assert_eq(__LOC__, mood_score(2), 0)
+}
+
+// #179 steps 4-5: public Box has a priv field and a priv namespace
+// method. Public Box methods can use them, importers cannot.
+test_priv_field_indirect := test() {
+    b := make_box(7, 41)
+    assert_eq(__LOC__, b.tag, 7)
+    // hidden_plus_one is public and reads the priv field internally.
+    assert_eq(__LOC__, b.hidden_plus_one(), 42)
+}
+
+test_priv_ns_method_indirect := test() {
+    mut b := make_box(7, 0)
+    // bump_and_show is public; it internally calls the priv
+    // bump_hidden namespace method.
+    assert_eq(__LOC__, b.bump_and_show(), 1)
+    assert_eq(__LOC__, b.bump_and_show(), 2)
+}
+
+// #179 step 6: priv top-level globals.
+priv LOCAL_MAGIC := 99
+priv mut local_counter := 0
+
+test_priv_global_same_file := test() {
+    assert_eq(__LOC__, LOCAL_MAGIC, 99)
+    local_counter = local_counter.add(5)
+    assert_eq(__LOC__, local_counter, 5)
+}
+
+test_priv_global_indirect := test() {
+    // Importer can use the public accessors but not MAGIC/counter
+    // directly.
+    assert_eq(__LOC__, magic_value(), 42)
+    bump_counter()
+    bump_counter()
+    assert_eq(__LOC__, get_counter(), 2)
+}

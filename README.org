@@ -72,6 +72,17 @@ This is more predictable, but sill not completely deterministic. And can be more
 
 ** TODO No need for a borrow checker (unlike Rust)
 
+** Public by default, ~priv~ opts out (opposite of Rust)
+
+   Top-level ~func~/~proc~/~struct~/~enum~/value declarations and
+   struct fields/namespace methods are visible by default. The
+   ~priv~ keyword opts a single declaration out: top-level
+   ~priv~ items are hidden from importers (cross-file rule);
+   ~priv~ struct members are hidden from anything outside the
+   struct's own namespace methods (in-struct rule). See
+   [[file:doc/qualifiers.org][doc/qualifiers.org]] for the full
+   table. Issue #179.
+
 ** TODO ... (like Mojo)
 
 ** TODO ... (like Jai)

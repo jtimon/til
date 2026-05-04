@@ -122,6 +122,18 @@ find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
     return NULL
 }
 
+// Issue #179 step 5: locate a namespace member's Declaration so the
+// caller can read its is_priv flag (find_namespace_func only returns
+// the default_value FuncDef Expr).
+namespace_member_is_priv := func(sdef: Expr, method: Str) returns shallow Bool {
+    if is_null(sdef) { return false }
+    ref ns : Vec = def_ns_decls(sdef)
+    for fd : Declaration in ns {
+        if fd.name.eq(method) { return fd.is_priv }
+    }
+    return false
+}
+
 try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str) returns shallow Bool {
     ref top : TypeBinding = scope.get_binding(method)
     mut ufcs_match : I32 = 0
@@ -552,6 +564,8 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
                     type_error(arg, msg)
                 }
                 if slot.gte(0) {
+                    ref ctor_fld : Declaration = ctor_sdd.fields.get(slot.to_i64().to_u32())
+                    check_member_priv(arg, name, aname, ctor_fld.is_priv)
                     ref slot_arg : CtorArg = field_vals.get(slot.to_i64().to_u32())
                     if slot_arg.is(CtorArg.Filled) {
                         msg := format("duplicate argument for field '", aname, "'")
@@ -1140,6 +1154,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         e.til_type = TilType.Unknown
         return true
     }
+    check_member_priv(e, obj3_sname, method, namespace_member_is_priv(sdef2, method))
     if proc_def_depth.gt(0).or(in_func.neq(0)) {
         ref ns_fdef0 : FunctionDef = get_payload(ns_func2.node_type)
         if ns_fdef0.func_type.is(FuncType.Proc).or(ns_fdef0.func_type.is(FuncType.ExtProc)) {
@@ -1350,6 +1365,17 @@ check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
     if b.priv_err_reported { return }
     type_error(e, "'".concat(name).concat("' is private to '").concat(b.path).concat("'"))
     b.priv_err_reported = true
+}
+
+// Issue #179 steps 4-5: priv check for struct fields and namespace
+// methods. Stricter than top-level priv: priv members are only
+// visible inside the struct's own namespace methods, not just the
+// declaring file. current_type_name == owner_name iff we are
+// type-checking a member body of that struct.
+check_member_priv := proc(mut e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool) {
+    if member_is_priv.not() { return }
+    if current_type_name.eq(owner_name) { return }
+    type_error(e, "'".concat(owner_name).concat(".").concat(member_name).concat("' is private to its struct"))
 }
 
 infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) {
@@ -1801,6 +1827,7 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
                 for fld : Declaration in fa_sdd.fields {
                     if fld.name.eq(fname) {
                         expr.til_type = fld.til_type.clone()
+                        check_member_priv(expr, obj_sname, fname, fld.is_priv)
                         found = true
                         break
                     }
@@ -1823,6 +1850,7 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
                                 expr.til_type = TilType.Enum(obj_sname.clone())
                             }
                         }
+                        check_member_priv(expr, obj_sname, fname, nsd.is_priv)
                         found = true
                         break
                     }
@@ -1864,6 +1892,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                 for fld : Declaration in fa_sdd.fields {
                     if fld.name.eq(fname) {
                         found = true
+                        check_member_priv(stmt, obj_sname, fname, fld.is_priv)
                         if fld.is_mut.not() {
                             type_error(stmt, "cannot assign to immutable field '".concat(fname).concat("'"))
                         }
@@ -2220,6 +2249,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
         }
         scope.set(sdecl.name, stmt.til_type, FuncType.None, sdecl.is_mut, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut decl_b : TypeBinding = scope.get_binding(sdecl.name)
+        decl_b.is_priv = sdecl.is_priv
         if stmt.til_type.is(TilType.FuncPtr) {
             switch rhs.node_type {
             case NodeType.Ident(rhs_id):

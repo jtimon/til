@@ -84,3 +84,101 @@ For ~Param~ and ~FunctionDef~, the enum is used directly (~own_type~,
 ~own_type~ field replaces the former ~is_own~ / ~is_ref~ booleans.
 ~Shallow~ is the natural default for declarations: inline for fields,
 stack-owned for locals.
+
+
+** Visibility (priv keyword)
+
+   Issue #179. til is public by default; the ~priv~ keyword opts
+   individual declarations out of visibility. This is the inverse
+   of Rust, where items are private by default and ~pub~ opts them
+   in to exposure. The default keeps libraries that expose almost
+   everything noise-free; the unusual case (genuinely internal
+   helpers) carries the marker.
+
+*** Where ~priv~ may appear
+
+    | Context                                  | Effect                                         |
+    |------------------------------------------+------------------------------------------------|
+    | Top-level ~func~ / ~proc~ declaration    | hidden from importers (cross-file only)        |
+    | Top-level ~struct~ declaration           | type name + constructor hidden from importers  |
+    | Top-level ~enum~ declaration             | type name + variants hidden from importers     |
+    | Top-level value (~mut~ / immutable)      | name hidden from importers                     |
+    | Field inside a ~struct~ body             | hidden outside the struct's namespace methods  |
+    | Function inside a ~namespace:~ block     | hidden outside the struct's namespace methods  |
+
+*** Cross-file vs in-struct rules
+
+    Top-level ~priv~ items follow a *cross-file* rule: they are
+    visible everywhere within the declaring file (top-level helpers,
+    other top-level functions, even outside the struct that uses
+    them) and invisible from any importer.
+
+    Struct members (fields and namespace methods) marked ~priv~
+    follow a stricter *in-struct* rule: they are visible only from
+    inside the struct's own namespace methods. Same-file code that
+    is not part of the struct cannot touch them either.
+
+*** Examples
+
+    #+begin_src til
+    // Library file: lib_helper.til
+    mode lib
+
+    // Public function -- visible to importers.
+    add_one := func(x: I64) returns I64 {
+        return x.add(internal_inc(1))
+    }
+
+    // Private to this file -- importers cannot reference it.
+    priv internal_inc := func(x: I64) returns I64 {
+        return x.add(1)
+    }
+
+    // Private struct -- importers cannot construct it or name it.
+    priv Secret := struct {
+        mut value := 0
+    namespace:
+        show := func(self: Secret) returns I64 { return self.value }
+    }
+
+    // Public struct with a private field and a private method.
+    Box := struct {
+        mut tag := 0
+        priv mut hidden := 0
+    namespace:
+        // Public method may freely read the priv field of the
+        // same struct.
+        hidden_plus_one := func(self: Box) returns I64 {
+            return self.hidden.add(1)
+        }
+        // Private namespace method -- only callable from another
+        // Box method.
+        priv bump := func(mut self: Box) {
+            self.hidden = self.hidden.add(1)
+        }
+        // Public wrapper that calls the priv method internally.
+        bump_and_show := func(mut self: Box) returns I64 {
+            Box.bump(self)
+            return self.hidden
+        }
+    }
+
+    // Private top-level globals -- importers cannot read or write.
+    priv MAGIC : I64 = 42
+    priv mut counter := 0
+    #+end_src
+
+*** Not in scope
+
+    - No module/crate-level visibility levels (no ~pub(crate)~,
+      no ~pub(super)~). til's import graph is flat: a thing is
+      either visible to importers or it isn't.
+    - ~priv~ has no effect on builtins, ~ext_func~, ~ext_proc~,
+      or ~ext_struct~.
+    - The keyword is purely additive. Any existing declaration
+      stays public unless ~priv~ is added explicitly.
+
+*** Diagnostics
+
+    - Cross-file violation: ~error: 'X' is private to '<decl-file>'~
+    - In-struct violation:  ~error: 'Type.member' is private to its struct~

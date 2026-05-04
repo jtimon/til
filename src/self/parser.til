@@ -398,6 +398,14 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             p.pending_doc = ""
             continue
         }
+        // #179 steps 4-5: priv on fields and namespace methods.
+        // Allowed inside any struct body (works for both NodeType.StructDef
+        // and NodeType.EnumDef -- enums share the namespace parse path).
+        mut member_priv := false
+        if check(p, TokenType.KwPriv) {
+            advance(p)
+            member_priv = true
+        }
         if in_namespace {
             // Parse namespace declaration directly into sdd.ns_decls
             mut ns_name := ""
@@ -419,6 +427,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
                 til_type = til_type_from_explicit_type(ns_explicit_type),
                 doc = ns_doc,
+                is_priv = member_priv,
                 default_value = ns_value)
             switch def.node_type {
             case NodeType.StructDef(sdd):
@@ -449,6 +458,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
                 own_type = f_own_type, explicit_type = f_explicit_type,
                 til_type = til_type_from_explicit_type(f_explicit_type),
                 doc = f_doc,
+                is_priv = member_priv,
                 default_value = f_value)
             switch def.node_type {
             case NodeType.StructDef(sdd):
@@ -1235,20 +1245,10 @@ parse_statement := proc(mut p: Parser) returns Expr {
     if is_priv {
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            // #179 steps 1-2: priv is allowed on standalone func/proc
-            // decls and on struct decls. Future steps (enums, fields,
-            // globals) opt in explicitly rather than silently accepting
-            // the keyword.
-            mut allowed := false
-            if stmt.children.len().gt(0) {
-                ref body : Expr = stmt.child(0)
-                if body.node_type.is(NodeType.FuncDef) { allowed = true }
-                if body.node_type.is(NodeType.StructDef) { allowed = true }
-            }
-            if allowed.not() {
-                panic(__LOC__, p.path, ":", priv_line.to_str(), ":", priv_col.to_str(),
-                    ": error: 'priv' is only supported on top-level func/proc/struct declarations")
-            }
+            // #179 steps 1-3, 6: priv is allowed on any top-level
+            // declaration (func/proc, struct, enum, or value/let
+            // global). Steps 4-5 (struct fields, namespace methods)
+            // are handled separately inside parse_struct_def.
             dd.is_priv = true
         case:
             panic(__LOC__, p.path, ":", priv_line.to_str(), ":", priv_col.to_str(),

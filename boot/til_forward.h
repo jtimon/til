@@ -1113,6 +1113,7 @@ U32 CtorArg_size(void);
 void type_error(Expr * e, Str * msg);
 void type_error_at(Str * path, U32 line, U32 col, Str * msg);
 Expr * find_namespace_func(Expr * sdef, Str * method);
+Bool namespace_member_is_priv(Expr * sdef, Str * method);
 Bool try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * method, Str * type_name);
 Expr * resolve_fn_sig(Expr * fcall, TypeScope * scope);
 Bool fcall_returns_own(Expr * fcall, TypeScope * scope);
@@ -1130,6 +1131,7 @@ void resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, TypeBind
 Str * obj_method_type_name(Expr * obj);
 Bool infer_field_access_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void check_priv_access(Expr * e, Str * name, TypeBinding * b);
+void check_member_priv(Expr * e, Str * owner_name, Str * member_name, Bool * member_is_priv);
 void infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void infer_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void infer_ident_expr(TypeScope * scope, Expr * expr);
