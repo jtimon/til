@@ -93,7 +93,8 @@ resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd
 }
 
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
-// Matching nodes are removed from the body.
+// The .til suffix is appended internally; paths already ending in ".til" are
+// accepted as-is during this transitional commit.
 extract_imports := func(body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
     for stmt : Expr in body.children {
@@ -102,8 +103,12 @@ extract_imports := func(body: Expr) returns Vec {
             .and(stmt.child(1).node_type.is(NodeType.LiteralStr)) {
                 ref _c0id : Str = get_payload(stmt.child(0).node_type)
                 if _c0id.eq("import") {
-                    ref path : Str = get_payload(stmt.child(1).node_type)
-                    paths.push(own path.clone())
+                    ref p : Str = get_payload(stmt.child(1).node_type)
+                    if p.ends_with(".til") {
+                        paths.push(own p.clone())
+                    } else {
+                        paths.push(own p.concat(".til"))
+                    }
                 }
             }
         }
