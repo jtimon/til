@@ -197,9 +197,12 @@ and(true, 42)
 type_test := func(a: I64, _b: Bool) returns I64 { return a }
 type_test(1, 2)
 
-// #157 argument type mismatch: variadic ..Str called with non-Str
-print(1+1)
-println(true)
+// #157 argument type mismatch: variadic ..Str called with a type that
+// has no to_str method (auto-coerce only fires when to_str exists)
+NoToStr := struct { x : I64 = 0 }
+println(NoToStr())
+str_va := proc(_parts: ..Str) { print_flush() }
+str_va(NoToStr())
 
 // cannot call method on Dynamic value (namespace UFCS ambiguous)
 dyn_vec := vec("I64", 10, 20)
