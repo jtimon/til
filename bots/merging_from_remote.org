@@ -21,7 +21,8 @@ git show HASH --no-color -- <non-boot files>
 ** Step 4 -- soft reset + revert totals
 Soft reset discards the top commit but keeps its changes in the worktree,
 allowing you to re-commit after regenerating boot artifacts. The totals
-files are auto-generated and must be discarded.
+files (doc/totals.csv, img/totals.svg) from the remote commit are stale
+and must be discarded; ~make test~ in Step 5 will regenerate them fresh.
 #+begin_src shell
 git reset --soft HEAD~1 && git checkout HEAD -- doc/totals.csv img/totals.svg
 #+end_src
@@ -64,6 +65,15 @@ systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/build.log 
     #+begin_src shell
     systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/build.log 2>&1 && make test_two_pass >> tmp/build.log 2>&1'
     #+end_src
+
+*** Totals files: local vs. remote
+    After ~make test~ regenerates doc/totals.csv and img/totals.svg,
+    local agents keep them (they are picked up by ~git add -A~ in Step
+    7). Remote agents must discard them before committing:
+    #+begin_src shell
+    git checkout HEAD -- doc/totals.csv img/totals.svg
+    #+end_src
+    See AGENTS.md for the local/remote agent policy on totals files.
 
 *** Staged migrations (loader/parser contract changes)
     Some series can NOT be reviewed as a single rebased branch: e.g. a
