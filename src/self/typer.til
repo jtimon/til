@@ -4273,10 +4273,9 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
 }
 
 build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, shallow vc: U32) returns Expr {
-    mut new_call := make_ns_call("Array", "new", TilType.Struct("Array".clone()), fcall)
+    mut new_call := make_ns_call("Array", "new_newi", TilType.Struct("Array".clone()), fcall)
 
-    mut et := Expr.new(NodeType.LiteralStr(elem_type.clone()), fcall.line, fcall.col)
-    et.til_type = TilType.Struct("Str".clone())
+    mut et := make_til_type_expr(fcall, type_from_name(elem_type, scope))
     new_call.add_child(own et)
 
     cap_str := vc.to_str()

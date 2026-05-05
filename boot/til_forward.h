@@ -1,6 +1,9 @@
 #pragma once
 #include "ext.h"
 
+typedef struct Vec Vec;
+typedef struct Str Str;
+typedef struct Dynamic Dynamic;
 typedef struct Map Map;
 typedef enum {
     TilType_TAG_Unknown,
@@ -76,9 +79,6 @@ typedef enum {
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
-typedef struct Vec Vec;
-typedef struct Str Str;
-typedef struct Dynamic Dynamic;
 typedef struct Array Array;
 typedef struct File File;
 typedef struct Set Set;
@@ -237,24 +237,6 @@ typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 
 
 
-struct FuncType {
-    FuncType_tag tag;
-};
-
-struct OwnType {
-    OwnType_tag tag;
-};
-
-typedef struct FCallData {
-    I32 variadic_index;
-    U32 variadic_count;
-    I32 kwargs_index;
-    U32 kwargs_count;
-    Bool is_splat;
-    U64 own_args;
-} FCallData;
-
-
 typedef struct Str {
     U8 *c_str;
     U32 count;
@@ -268,6 +250,61 @@ typedef struct Dynamic {
 
 
 
+
+
+struct TilType {
+    TilType_tag tag;
+    union {
+        Str Struct;
+        Str Enum;
+        Str Custom;
+    } data;
+};
+
+struct FuncType {
+    FuncType_tag tag;
+};
+
+struct OwnType {
+    OwnType_tag tag;
+};
+
+typedef struct Declaration {
+    Str name;
+    Str doc;
+    Str explicit_type;
+    Bool is_mut;
+    Bool is_priv;
+    Bool used;
+    OwnType own_type;
+    TilType til_type;
+    I32 field_offset;
+    I32 field_size;
+    Expr *field_struct_def;
+    Expr *default_value;
+} Declaration;
+
+
+typedef struct FCallData {
+    I32 variadic_index;
+    U32 variadic_count;
+    I32 kwargs_index;
+    U32 kwargs_count;
+    Bool is_splat;
+    U64 own_args;
+} FCallData;
+
+
+typedef struct AssignData {
+    Str name;
+    Bool save_old_delete;
+} AssignData;
+
+
+typedef struct ForInData {
+    Str name;
+    Bool is_mut;
+} ForInData;
 
 
 typedef struct Array {
@@ -310,6 +347,35 @@ typedef struct Token {
 } Token;
 
 
+typedef struct TypeBinding {
+    Str name;
+    TilType type;
+    FuncType func_type;
+    Bool is_mut;
+    Bool is_priv;
+    Bool priv_err_reported;
+    Str path;
+    U32 line;
+    U32 col;
+    Bool is_param;
+    OwnType own_type;
+    Bool is_alias;
+    Bool is_type_alias;
+    Str alias_target;
+    Expr *struct_def;
+    Expr *func_def;
+    Bool is_builtin;
+    Bool used;
+} TypeBinding;
+
+
+struct ScopeFind {
+    ScopeFind_tag tag;
+    union {
+        TypeBinding Found;
+    } data;
+};
+
 typedef struct Mode {
     Bool needs_main;
     Bool decls_only;
@@ -328,6 +394,17 @@ struct Lang {
 struct Target {
     Target_tag tag;
 };
+
+typedef struct LocalInfo {
+    Str *name;
+    TilType type;
+    I32 decl_index;
+    I32 last_use;
+    I32 own_transfer;
+    Bool skip_scope_delete;
+    Bool is_heap;
+} LocalInfo;
+
 
 typedef struct DeclRef {
     Str path;
@@ -465,43 +542,6 @@ typedef struct CliArgs {
 } CliArgs;
 
 
-struct TilType {
-    TilType_tag tag;
-    union {
-        Str Struct;
-        Str Enum;
-        Str Custom;
-    } data;
-};
-
-typedef struct Declaration {
-    Str name;
-    Str doc;
-    Str explicit_type;
-    Bool is_mut;
-    Bool is_priv;
-    Bool used;
-    OwnType own_type;
-    TilType til_type;
-    I32 field_offset;
-    I32 field_size;
-    Expr *field_struct_def;
-    Expr *default_value;
-} Declaration;
-
-
-typedef struct AssignData {
-    Str name;
-    Bool save_old_delete;
-} AssignData;
-
-
-typedef struct ForInData {
-    Str name;
-    Bool is_mut;
-} ForInData;
-
-
 typedef struct Vec {
     U8 *data;
     U32 count;
@@ -511,70 +551,6 @@ typedef struct Vec {
     void * elem_clone;
     void * elem_delete;
 } Vec;
-
-
-typedef struct Parser {
-    Vec tokens;
-    U32 pos;
-    Str path;
-    Vec fn_sig_decls;
-    Vec lambda_decls;
-    Str pending_doc;
-} Parser;
-
-
-typedef struct TypeBinding {
-    Str name;
-    TilType type;
-    FuncType func_type;
-    Bool is_mut;
-    Bool is_priv;
-    Bool priv_err_reported;
-    Str path;
-    U32 line;
-    U32 col;
-    Bool is_param;
-    OwnType own_type;
-    Bool is_alias;
-    Bool is_type_alias;
-    Str alias_target;
-    Expr *struct_def;
-    Expr *func_def;
-    Bool is_builtin;
-    Bool used;
-} TypeBinding;
-
-
-struct ScopeFind {
-    ScopeFind_tag tag;
-    union {
-        TypeBinding Found;
-    } data;
-};
-
-typedef struct ImportUnit {
-    Mode mode;
-    Expr *ast;
-    Vec imports;
-} ImportUnit;
-
-
-typedef struct LocalInfo {
-    Str *name;
-    TilType type;
-    I32 decl_index;
-    I32 last_use;
-    I32 own_transfer;
-    Bool skip_scope_delete;
-    Bool is_heap;
-} LocalInfo;
-
-
-typedef struct ProgramUnit {
-    Str path;
-    Mode mode;
-    Vec imports;
-} ProgramUnit;
 
 
 typedef struct Map {
@@ -640,10 +616,27 @@ typedef struct Expr {
 } Expr;
 
 
+typedef struct Parser {
+    Vec tokens;
+    U32 pos;
+    Str path;
+    Vec fn_sig_decls;
+    Vec lambda_decls;
+    Str pending_doc;
+} Parser;
+
+
 typedef struct TypeScope {
     Map bindings;
     TypeScope *parent;
 } TypeScope;
+
+
+typedef struct ImportUnit {
+    Mode mode;
+    Expr *ast;
+    Vec imports;
+} ImportUnit;
 
 
 typedef struct Context {
@@ -684,6 +677,13 @@ struct CtorArg {
         Expr Filled;
     } data;
 };
+
+typedef struct ProgramUnit {
+    Str path;
+    Mode mode;
+    Vec imports;
+} ProgramUnit;
+
 
 typedef struct LoadedProgram {
     Vec *core_units;
@@ -767,6 +767,98 @@ Bool U8_gt(U8 * a, U8 * b);
 Bool U8_neq(U8 * a, U8 * b);
 Bool U8_lte(U8 * a, U8 * b);
 Bool U8_gte(U8 * a, U8 * b);
+Vec * Vec_new_type_name(Str * elem_type);
+Vec * Vec_new(TilType * T);
+U32 Vec_len(Vec * self);
+void Vec_push(Vec * self, void * val);
+void Vec_append(Vec * self, Vec * other);
+void Vec_move_from(Vec * self, Vec * other);
+void * Vec_get(Vec * self, U32 * i);
+void * Vec_pop(Vec * self);
+Vec * Vec_take_prefix(Vec * self, U32 * n);
+void Vec_set(Vec * self, U32 * i, void * val);
+void Vec_push_take(Vec * self, Vec * src, U32 i);
+void Vec_delete(Vec * self, Bool * call_free);
+Vec * Vec_clone(Vec * self);
+U32 Vec_size(void);
+Str * format(Array * parts);
+U32 Str_len(Str * self);
+U8 * Str_get(Str * self, U32 * i);
+U8 * Str_byte_at(Str * self, U32 * i);
+I64 Str_cmp(Str * a, Str * b);
+Str * Str_concat(Str * a, Str * b);
+Str * Str_with_capacity(U32 * n);
+void Str_push_str(Str * self, Str * s);
+Str * Str_clone(Str * val);
+void Str_delete(Str * self, Bool * call_free);
+Str * Str_to_str(Str * val);
+Str * Str_substr(Str * s, U32 * start, U32 * n);
+Bool Str_contains(Str * a, Str * b);
+Bool Str_starts_with(Str * a, Str * b);
+Bool Str_ends_with(Str * a, Str * b);
+Bool Str_is_empty(Str * self);
+I64 Str_find(Str * self, Str * needle);
+I64 Str_rfind(Str * self, Str * needle);
+Str * Str_replace(Str * self, Str * from, Str * to);
+Str * Str_get_char(Str * self, U32 * i);
+Str * Str_strip_prefix(Str * self, Str * prefix);
+Str * Str_strip_suffix(Str * self, Str * suffix);
+Str * Str_from_byte(U8 * byte);
+I64 Str_to_i64(Str * self);
+U8 Str_to_u8(Str * self);
+I32 Str_to_i32(Str * self);
+F32 Str_to_f32(Str * self);
+Vec * Str_split(Str * self, Str * delim);
+U32 Str_size(void);
+Bool Str_eq(Str * a, Str * b);
+Bool Str_lt(Str * a, Str * b);
+Bool Str_gt(Str * a, Str * b);
+Bool Str_neq(Str * a, Str * b);
+Bool Str_lte(Str * a, Str * b);
+Bool Str_gte(Str * a, Str * b);
+Str * join(Vec * parts, Str * sep);
+U32 * Dynamic_size(void);
+void * default_clone(void * v);
+void default_delete(void * _v, Bool * _cf);
+I64 * default_cmp(void * _a, void * _b);
+Str * I16_to_str(I16 * val);
+void I16_inc(I16 * self);
+void I16_dec(I16 * self);
+I16 * I16_unity(I16 * _self);
+I16 * I16_neg(I16 * a);
+I16 * I16_abs(I16 * a);
+U64 I16_distance(void * a, void * b);
+void I16_delete(I16 * self, Bool * call_free);
+U32 * I16_size(void);
+Bool I16_lt(I16 * a, I16 * b);
+Bool I16_gt(I16 * a, I16 * b);
+Bool I16_neq(I16 * a, I16 * b);
+Bool I16_lte(I16 * a, I16 * b);
+Bool I16_gte(I16 * a, I16 * b);
+Str * I64_to_str(I64 * val);
+U32 I64_to_usize(I64 val);
+void I64_inc(I64 * self);
+void I64_dec(I64 * self);
+I64 * I64_unity(I64 * _self);
+I64 * I64_neg(I64 * a);
+I64 * I64_abs(I64 * a);
+U64 I64_distance(void * a, void * b);
+void I64_delete(I64 * self, Bool * call_free);
+U32 * I64_size(void);
+Bool I64_lt(I64 * a, I64 * b);
+Bool I64_gt(I64 * a, I64 * b);
+Bool I64_neq(I64 * a, I64 * b);
+Bool I64_lte(I64 * a, I64 * b);
+Bool I64_gte(I64 * a, I64 * b);
+Str * Bool_to_str(Bool * b);
+I64 * Bool_cmp(Bool * a, Bool * b);
+void Bool_delete(Bool * self, Bool * call_free);
+U32 * Bool_size(void);
+Bool Bool_lt(Bool * a, Bool * b);
+Bool Bool_gt(Bool * a, Bool * b);
+Bool Bool_neq(Bool * a, Bool * b);
+Bool Bool_lte(Bool * a, Bool * b);
+Bool Bool_gte(Bool * a, Bool * b);
 Map * Map_new_type_names(Str * key_type, Str * val_type);
 Map * Map_new(TilType * K, TilType * V);
 U32 * Map_len(Map * self);
@@ -866,99 +958,8 @@ Vec * def_ns_decls(Expr * sdef);
 Bool enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
-Vec * Vec_new_type_name(Str * elem_type);
-Vec * Vec_new(TilType * T);
-U32 Vec_len(Vec * self);
-void Vec_push(Vec * self, void * val);
-void Vec_append(Vec * self, Vec * other);
-void Vec_move_from(Vec * self, Vec * other);
-void * Vec_get(Vec * self, U32 * i);
-void * Vec_pop(Vec * self);
-Vec * Vec_take_prefix(Vec * self, U32 * n);
-void Vec_set(Vec * self, U32 * i, void * val);
-void Vec_push_take(Vec * self, Vec * src, U32 i);
-void Vec_delete(Vec * self, Bool * call_free);
-Vec * Vec_clone(Vec * self);
-U32 Vec_size(void);
-Str * format(Array * parts);
-U32 Str_len(Str * self);
-U8 * Str_get(Str * self, U32 * i);
-U8 * Str_byte_at(Str * self, U32 * i);
-I64 Str_cmp(Str * a, Str * b);
-Str * Str_concat(Str * a, Str * b);
-Str * Str_with_capacity(U32 * n);
-void Str_push_str(Str * self, Str * s);
-Str * Str_clone(Str * val);
-void Str_delete(Str * self, Bool * call_free);
-Str * Str_to_str(Str * val);
-Str * Str_substr(Str * s, U32 * start, U32 * n);
-Bool Str_contains(Str * a, Str * b);
-Bool Str_starts_with(Str * a, Str * b);
-Bool Str_ends_with(Str * a, Str * b);
-Bool Str_is_empty(Str * self);
-I64 Str_find(Str * self, Str * needle);
-I64 Str_rfind(Str * self, Str * needle);
-Str * Str_replace(Str * self, Str * from, Str * to);
-Str * Str_get_char(Str * self, U32 * i);
-Str * Str_strip_prefix(Str * self, Str * prefix);
-Str * Str_strip_suffix(Str * self, Str * suffix);
-Str * Str_from_byte(U8 * byte);
-I64 Str_to_i64(Str * self);
-U8 Str_to_u8(Str * self);
-I32 Str_to_i32(Str * self);
-F32 Str_to_f32(Str * self);
-Vec * Str_split(Str * self, Str * delim);
-U32 Str_size(void);
-Bool Str_eq(Str * a, Str * b);
-Bool Str_lt(Str * a, Str * b);
-Bool Str_gt(Str * a, Str * b);
-Bool Str_neq(Str * a, Str * b);
-Bool Str_lte(Str * a, Str * b);
-Bool Str_gte(Str * a, Str * b);
-Str * join(Vec * parts, Str * sep);
-U32 * Dynamic_size(void);
-void * default_clone(void * v);
-void default_delete(void * _v, Bool * _cf);
-I64 * default_cmp(void * _a, void * _b);
-Str * I16_to_str(I16 * val);
-void I16_inc(I16 * self);
-void I16_dec(I16 * self);
-I16 * I16_unity(I16 * _self);
-I16 * I16_neg(I16 * a);
-I16 * I16_abs(I16 * a);
-U64 I16_distance(void * a, void * b);
-void I16_delete(I16 * self, Bool * call_free);
-U32 * I16_size(void);
-Bool I16_lt(I16 * a, I16 * b);
-Bool I16_gt(I16 * a, I16 * b);
-Bool I16_neq(I16 * a, I16 * b);
-Bool I16_lte(I16 * a, I16 * b);
-Bool I16_gte(I16 * a, I16 * b);
-Str * I64_to_str(I64 * val);
-U32 I64_to_usize(I64 val);
-void I64_inc(I64 * self);
-void I64_dec(I64 * self);
-I64 * I64_unity(I64 * _self);
-I64 * I64_neg(I64 * a);
-I64 * I64_abs(I64 * a);
-U64 I64_distance(void * a, void * b);
-void I64_delete(I64 * self, Bool * call_free);
-U32 * I64_size(void);
-Bool I64_lt(I64 * a, I64 * b);
-Bool I64_gt(I64 * a, I64 * b);
-Bool I64_neq(I64 * a, I64 * b);
-Bool I64_lte(I64 * a, I64 * b);
-Bool I64_gte(I64 * a, I64 * b);
-Str * Bool_to_str(Bool * b);
-I64 * Bool_cmp(Bool * a, Bool * b);
-void Bool_delete(Bool * self, Bool * call_free);
-U32 * Bool_size(void);
-Bool Bool_lt(Bool * a, Bool * b);
-Bool Bool_gt(Bool * a, Bool * b);
-Bool Bool_neq(Bool * a, Bool * b);
-Bool Bool_lte(Bool * a, Bool * b);
-Bool Bool_gte(Bool * a, Bool * b);
 Array * Array_new(Str * elem_type, U32 * cap);
+Array * Array_new_newi(TilType * T, U32 * cap);
 U32 * Array_len(Array * self);
 void * Array_get(Array * self, U32 * i);
 void Array_set(Array * self, U32 * i, void * val);

@@ -643,7 +643,7 @@ chess_unpack_ep := func(b: Board) returns I64 {
 }
 
 chess_unpack_cf := func(b: Board) returns Array {
-    mut cf := Array.new("I64", 6)
+    mut cf := Array.new_newi(I64, 6)
     mut i := 0
     while i.lt(6) {
         cf.set(i.to_u32(), own board_get_i64(b, CHESS_IDX_CF.add(i)).clone())
@@ -678,7 +678,7 @@ chess_heuristic : Heuristic = (b) {
 // Next boards: generate all legal moves
 chess_next_boards : NextBoardsFn = (b) {
     ref cb : Board = b
-    mut cells := Array.new("I64", 64)
+    mut cells := Array.new_newi(I64, 64)
     mut ci := 0
     while ci.lt(64) {
         cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
@@ -688,8 +688,8 @@ chess_next_boards : NextBoardsFn = (b) {
     ep_col := chess_unpack_ep(cb)
     mut cf := chess_unpack_cf(cb)
     result := Vec.new(Board)
-    mut tmp := Array.new("I64", 64)
-    mut moves := Array.new("I64", 64)
+    mut tmp := Array.new_newi(I64, 64)
+    mut moves := Array.new_newi(I64, 64)
     mut i := 0
     while i.lt(64) {
         ref p : I64 = cells.get(i.to_u32())
@@ -698,9 +698,9 @@ chess_next_boards : NextBoardsFn = (b) {
             mut j := 0
             while j.lt(mc) {
                 ref dest : I64 = moves.get(j.to_u32())
-                mut child_cells := Array.new("I64", 64)
+                mut child_cells := Array.new_newi(I64, 64)
                 copy_board(child_cells, cells)
-                mut child_cf := Array.new("I64", 6)
+                mut child_cf := Array.new_newi(I64, 6)
                 copy_cf(child_cf, cf)
                 child_ep := execute_move(child_cells, i, dest.clone(), side, child_cf)
                 opp := 1.sub(side)
@@ -724,15 +724,15 @@ main := proc() {
     mut ai := AlphaBeta(h = chess_heuristic, nexts = chess_next_boards, depth = 1)
 
     // Board state
-    mut board := Array.new("I64", 64)
-    mut tmp_board := Array.new("I64", 64)
+    mut board := Array.new_newi(I64, 64)
+    mut tmp_board := Array.new_newi(I64, 64)
 
     // Valid moves buffer (max 28 moves per piece is enough)
-    mut valid_moves := Array.new("I64", 64)
+    mut valid_moves := Array.new_newi(I64, 64)
     mut valid_count := 0
 
     // Castle flags: [wk, wra, wrh, bk, bra, brh] (0=not moved, 1=moved)
-    mut castle_flags := Array.new("I64", 6)
+    mut castle_flags := Array.new_newi(I64, 6)
 
     // Radio button state (only applied on restart / initial start)
     mut sel_color := 1  // 0=white, 1=black (default black so AI starts as white)
@@ -818,10 +818,10 @@ main := proc() {
             ai_timer = ai_timer.add(1)
             if ai_timer.gt(30) {
                 ai_timer = 0
-                mut ai_pieces := Array.new("I64", 64)
-                mut ai_dests := Array.new("I64", 64)
+                mut ai_pieces := Array.new_newi(I64, 64)
+                mut ai_dests := Array.new_newi(I64, 64)
                 mut ai_total := 0
-                mut ai_moves := Array.new("I64", 64)
+                mut ai_moves := Array.new_newi(I64, 64)
 
                 mut sq := 0
                 while sq.lt(64) {
@@ -851,9 +851,9 @@ main := proc() {
                         from_val := from_sq.clone()
                         to_val := to_sq.clone()
 
-                        mut child := Array.new("I64", 64)
+                        mut child := Array.new_newi(I64, 64)
                         copy_board(child, board)
-                        mut child_cf := Array.new("I64", 6)
+                        mut child_cf := Array.new_newi(I64, 6)
                         copy_cf(child_cf, castle_flags)
 
                         child_ep := execute_move(child, from_val, to_val, ai_side, child_cf)

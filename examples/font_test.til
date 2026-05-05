@@ -32,7 +32,7 @@ main := proc() {
     set_target_fps(60)
 
     // Load all fonts
-    mut fonts := Array.new("Font", NUM_FONTS)
+    mut fonts := Array.new_newi(Font, NUM_FONTS)
     for i in 0..NUM_FONTS {
         ref path : Str = FONTS.get(i)
         f := load_font(path, 48)

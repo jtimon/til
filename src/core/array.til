@@ -1,5 +1,6 @@
 mode lib
 
+import("ast")
 import("bool")
 import("dyn")
 import("str")
@@ -12,7 +13,7 @@ Array := struct {
     own mut data : U8 = 0
     cap : USize = 0
     elem_size : USize = 0
-    elem_type := ""
+    elem_type : Str = ""
     elem_clone : CloneFn = default_clone
     elem_delete : DeleteFn = default_delete
 
@@ -25,6 +26,11 @@ namespace:
                      elem_size = elem_size, elem_type = elem_type.clone(),
                      elem_clone = dyn_fn(elem_type, "clone"),
                      elem_delete = dyn_fn(elem_type, "delete"))
+    }
+
+    new_newi := func(T: TilType, cap: USize) returns Array {
+        elem_type := dyn_type_to_str(T)
+        return Array.new(elem_type, cap)
     }
 
     len := func(self: Array) returns USize { return self.cap }

@@ -1,8 +1,6 @@
 * Open
 ** High
 *** [[./open/109.org][#109]] Fix memory leaks (make test_asan clean)
-*** [[./open/116.org][#116]] Imported files are parsed in isolation
-*** [[./open/124.org][#124]] Raw `Dynamic` ownership should not require explicit `free(...)` in til
 *** [[./open/125.org][#125]] Enum payload method generation should not assume ~eq~/~to_str~
 *** [[./open/127.org][#127]] Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
 *** [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
@@ -32,9 +30,6 @@
 ** Low
 *** [[./open/101.org][#101]] Deterministic temp variable names in generated C
 *** [[./open/102.org][#102]] Auto-generate eq and to_str for structs
-*** [[./open/114.org][#114]] Source docs + repl help/introspection
-*** [[./open/115.org][#115]] Remove or simplify ~ext_struct~
-*** [[./open/117.org][#117]] Bool and/or do not short-circuit
 *** [[./open/151.org][#151]] 32-bit targets: wasm32 and templeos-x86
 *** [[./open/152.org][#152]] True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
 *** [[./open/154.org][#154]] Typer error for unused imports

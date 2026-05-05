@@ -5,7 +5,7 @@ mode lib
 
 // Create a new grid of cols*rows cells (all dead/0)
 ca_new_grid := func(cols: I64, rows: I64) returns Array {
-    return Array.new("I64", cols.mul(rows).to_usize())
+    return Array.new_newi(I64, cols.mul(rows).to_usize())
 }
 
 // Clear all cells to 0

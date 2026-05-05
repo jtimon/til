@@ -418,8 +418,8 @@ go_next_boards : NextBoardsFn = (b) {
     total := size.mul(size)
     side := go_unpack_side(gb)
     has_ko := go_unpack_has_ko(gb)
-    mut cells := Array.new("I64", total.to_u32())
-    mut ko_cells := Array.new("I64", total.to_u32())
+    mut cells := Array.new_newi(I64, total.to_u32())
+    mut ko_cells := Array.new_newi(I64, total.to_u32())
     mut ci := 0
     while ci.lt(total) {
         cells.set(ci.to_u32(), own board_get_i64(gb, ci).clone())
@@ -431,10 +431,10 @@ go_next_boards : NextBoardsFn = (b) {
     while i.lt(total) {
         ref p : I64 = cells.get(i.to_u32())
         if p.eq(0) {
-            mut child := Array.new("I64", MAX_CELLS.to_u32())
+            mut child := Array.new_newi(I64, MAX_CELLS.to_u32())
             copy_board(child, cells, total)
-            mut child_vis := Array.new("I64", MAX_CELLS.to_u32())
-            mut child_lib := Array.new("I64", MAX_CELLS.to_u32())
+            mut child_vis := Array.new_newi(I64, MAX_CELLS.to_u32())
+            mut child_lib := Array.new_newi(I64, MAX_CELLS.to_u32())
             mut child_stk := Vec.new(I64)
             cap := try_place(child, child_vis, child_lib, child_stk, i, size, side, ko_cells, has_ko)
             if cap.gte(0) {
@@ -578,11 +578,11 @@ main := proc() {
     mut ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards, depth = 1)
 
     // Shared work arrays
-    mut board := Array.new("I64", MAX_CELLS.to_u32())
-    mut tmp_board := Array.new("I64", MAX_CELLS.to_u32())
-    mut ko_board := Array.new("I64", MAX_CELLS.to_u32())
-    mut visited := Array.new("I64", MAX_CELLS.to_u32())
-    mut lib_seen := Array.new("I64", MAX_CELLS.to_u32())
+    mut board := Array.new_newi(I64, MAX_CELLS.to_u32())
+    mut tmp_board := Array.new_newi(I64, MAX_CELLS.to_u32())
+    mut ko_board := Array.new_newi(I64, MAX_CELLS.to_u32())
+    mut visited := Array.new_newi(I64, MAX_CELLS.to_u32())
+    mut lib_seen := Array.new_newi(I64, MAX_CELLS.to_u32())
     mut stk := Vec.new(I64)
 
     // Radio button state (only applied on restart / initial start)
