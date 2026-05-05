@@ -33,10 +33,6 @@ namespace:
         return Array.new_type_name(elem_type, cap)
     }
 
-    new_newi := func(T: TilType, cap: USize) returns Array {
-        return Array.new(T, cap)
-    }
-
     len := func(self: Array) returns USize { return self.cap }
 
     /// Ref to the element at index `i`. Panics if out of bounds.
