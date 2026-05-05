@@ -124,10 +124,10 @@ Context := struct {
 
     // Import tracking (rstil-style). Map path -> (mode, ast).
     mut imported := Map.new("Str", "ImportUnit")
-    mut imports_init_done := Set.new_newi(Str)
-    mut imports_typer_done := Set.new_newi(Str)
-    mut imports_precomp_done := Set.new_newi(Str)
-    mut imports_eval_done := Set.new_newi(Str)
+    mut imports_init_done := Set.new(Str)
+    mut imports_typer_done := Set.new(Str)
+    mut imports_precomp_done := Set.new(Str)
+    mut imports_eval_done := Set.new(Str)
 
     mut scope := TypeScope()
     mut is_repl := false
@@ -145,25 +145,25 @@ Context := struct {
     // at build registration time, read throughout codegen.
     mut func_defs := Map.new("Str", "Dynamic")
     mut struct_def_exprs := Map.new("Str", "Dynamic")
-    mut funcsig_names := Set.new_newi(Str)
-    mut script_globals := Set.new_newi(Str)
-    mut ref_globals := Set.new_newi(Str)
+    mut funcsig_names := Set.new(Str)
+    mut script_globals := Set.new(Str)
+    mut ref_globals := Set.new(Str)
 
     // #178 builder per-function transients. The builder resets these on
     // entering each function body and reads them throughout that body's
     // emission. emit_func_def is not actually recursive (the typer lifts
     // nested funcs to top level), so a per-emit reset is sufficient.
-    mut stack_locals := Set.new_newi(Str)
+    mut stack_locals := Set.new(Str)
     mut stack_local_types := Map.new("Str", "Str")
-    mut unsafe_to_hoist := Set.new_newi(Str)
-    mut ref_locals := Set.new_newi(Str)
+    mut unsafe_to_hoist := Set.new(Str)
+    mut ref_locals := Set.new(Str)
     // #185: ref-locals declared as `ref X : Dynamic = ...`. Tracked
     // separately so emit_deref can typed-cast a Dynamic-declared
     // local when the typer's narrow_dynamic has retyped a use of it
     // to a concrete primitive (`not(x)`, `y.add(x)`, etc.). Without
     // the cast the codegen would emit `DEREF(x)` on a `void *`,
     // which is invalid C.
-    mut ref_dyn_locals := Set.new_newi(Str)
+    mut ref_dyn_locals := Set.new(Str)
     ref mut current_fdef : Expr = NULL
 
     // #177 interpreter caches for well-known core types, populated during

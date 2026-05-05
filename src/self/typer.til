@@ -4508,7 +4508,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         }
     }
 
-    mut new_call := make_ns_call("Set", "new_newi", TilType.Struct("Set".clone()), set_lit)
+    mut new_call := make_ns_call("Set", "new", TilType.Struct("Set".clone()), set_lit)
     mut et := make_til_type_expr(set_lit, first.til_type)
     new_call.add_child(own et)
 
