@@ -311,7 +311,7 @@ precomp_imported := proc(mut lp: LoadedProgram) {
 
 // Scavenge across per-file units (rstil-style): compute a single visited set
 // from merged views, then filter each file's canonical AST in ctx.imported.
-DeclRef := struct {
+priv DeclRef := struct {
     mut path := ""
     mut idx : U32 = 0.to_u32()
 }

@@ -5,12 +5,12 @@ import("targets")
 
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 
-CollectionInfo := struct {
+priv CollectionInfo := struct {
     ref mut type_name : Str = NULL
     mut is_vec : I32 = 0
 }
 
-DynCallInfo := struct {
+priv DynCallInfo := struct {
     ref mut method : Str = NULL
     mut nargs : I32 = 1
     mut has_return := false
@@ -4920,7 +4920,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     return 0.to_i32()
 }
 
-BuildPaths := struct {
+priv BuildPaths := struct {
     mut name := ""
     mut c_path := ""
     mut bin_path := ""

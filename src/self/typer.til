@@ -90,7 +90,7 @@ U64Name := "U64"
 F32Name := "F32"
 BoolName := "Bool"
 
-LocalInfo := struct {
+priv LocalInfo := struct {
     ref mut name : Str = NULL
     mut type := TilType.Unknown
     mut decl_index : I32 = 0
@@ -100,7 +100,7 @@ LocalInfo := struct {
     mut is_heap := false
 }
 
-CtorArg := enum {
+priv CtorArg := enum {
     Unfilled,
     Filled: Expr,
 }
@@ -1857,7 +1857,12 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str) returns s
         case:
             UNREACHABLE(__LOC__)
         }
-        // Field walk (StructDef only).
+        // Field walk (StructDef only). Report at the field's
+        // default_value location (every field has one -- the parser
+        // requires `name := value` or `name : Type = value`) so the
+        // diagnostic points at the dead member, not the enclosing
+        // struct. Fall back to tdef location for compiler-generated
+        // decls that may carry the NoDefaultArg sentinel.
         switch tdef.node_type {
         case NodeType.StructDef(walk_sdd):
             for fld : Declaration in walk_sdd.fields {
@@ -1865,21 +1870,36 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str) returns s
                 if fld.used { continue }
                 if fld.name.len().eq(0) { continue }
                 if fld.name.starts_with("_") { continue }
-                type_error_at(path, tdef.line, tdef.col,
+                mut fl_line : U32 = tdef.line
+                mut fl_col : U32 = tdef.col
+                if is_null(fld.default_value).not()
+                    .and(fld.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
+                    fl_line = fld.default_value.line
+                    fl_col = fld.default_value.col
+                }
+                type_error_at(path, fl_line, fl_col,
                     "unused priv field '".concat(owner_name).concat(".").concat(fld.name)
                         .concat("'; remove 'priv' to expose it"))
                 found = found.add(1.to_i32())
             }
         case:
         }
-        // Namespace walk (both StructDef and EnumDef).
+        // Namespace walk (both StructDef and EnumDef). Same
+        // default_value-location strategy as fields.
         ref ns : Vec = def_ns_decls(tdef)
         for nsd : Declaration in ns {
             if nsd.is_priv.not() { continue }
             if nsd.used { continue }
             if nsd.name.len().eq(0) { continue }
             if nsd.name.starts_with("_") { continue }
-            type_error_at(path, tdef.line, tdef.col,
+            mut ns_line : U32 = tdef.line
+            mut ns_col : U32 = tdef.col
+            if is_null(nsd.default_value).not()
+                .and(nsd.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
+                ns_line = nsd.default_value.line
+                ns_col = nsd.default_value.col
+            }
+            type_error_at(path, ns_line, ns_col,
                 "unused priv ns member '".concat(owner_name).concat(".").concat(nsd.name)
                     .concat("'; remove 'priv' to expose it"))
             found = found.add(1.to_i32())

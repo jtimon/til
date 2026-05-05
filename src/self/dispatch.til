@@ -2,13 +2,13 @@ mode lib
 
 import("../lib/libffi")
 
-ExtStr := struct {
+priv ExtStr := struct {
     ref mut data : U8 = NULL
     mut count : U64 = 0
     mut cap : U64 = 0
 }
 
-FFIEntry := struct {
+priv FFIEntry := struct {
     ref mut fn : U8 = NULL
     ref mut return_type : Str = NULL
     mut nparam : I32 = 0
@@ -22,7 +22,7 @@ ExprPtrBox := struct {
     ref mut ptr : Expr = NULL
 }
 
-FFITypePtrBox := struct {
+priv FFITypePtrBox := struct {
     ref mut ptr : ffi_type = NULL
 }
 

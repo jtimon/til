@@ -4,7 +4,7 @@ import("lexer")
 
 // --- Parser state ---
 
-Parser := struct {
+priv Parser := struct {
     mut tokens := Vec.new("Token", Token.size())
     mut pos : USize = 0
     mut path := ""
@@ -500,6 +500,14 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             continue
         }
         if in_namespace {
+            // #179 step 5: priv on enum namespace members. The struct
+            // body in parse_struct_def already supports this; the enum
+            // body has its own loop and was missing it.
+            mut enum_ns_priv := false
+            if check(p, TokenType.KwPriv) {
+                advance(p)
+                enum_ns_priv = true
+            }
             mut ns_name := ""
             mut ns_explicit_type := ""
             mut ns_is_mut := false
@@ -519,6 +527,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
                 til_type = til_type_from_explicit_type(ns_explicit_type),
                 doc = ns_doc,
+                is_priv = enum_ns_priv,
                 default_value = ns_value)
             switch def.node_type {
             case NodeType.EnumDef(edd):
