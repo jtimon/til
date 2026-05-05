@@ -189,3 +189,20 @@ test_dyn_size_of := test() {
     via_method : USize = I64.size()
     assert_eq(__LOC__, via_size.to_i64(), via_method.to_i64())
 }
+
+TypeNameStruct := struct {
+    x := 0
+}
+
+type_name_passthrough := func(T: TilType) returns Str {
+    return dyn_type_to_str(T)
+}
+
+test_dyn_type_to_str := test() {
+    assert_eq_str(__LOC__, dyn_type_to_str(I64), "I64")
+    assert_eq_str(__LOC__, dyn_type_to_str(Str), "Str")
+    assert_eq_str(__LOC__, dyn_type_to_str(Bool), "Bool")
+    assert_eq_str(__LOC__, dyn_type_to_str(TypeNameStruct), "TypeNameStruct")
+    assert_eq_str(__LOC__, type_name_passthrough(Str), "Str")
+    assert_eq_str(__LOC__, type_name_passthrough(TypeNameStruct), "TypeNameStruct")
+}

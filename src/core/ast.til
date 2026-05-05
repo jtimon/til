@@ -98,6 +98,8 @@ til_type_name := func(t: TilType) returns Str {
     }
 }
 
+dyn_type_to_str := ext_func(type: TilType) returns Str {}
+
 // --- FuncType enum ---
 /// Classifies a til function declaration: func, proc, test, macro, or external.
 FuncType := enum {

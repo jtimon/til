@@ -1463,6 +1463,10 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             f.write("dyn_size_of(")
             emit_as_ptr(f, e.child(1), depth, false)
             f.write(")")
+        } else if name.eq("dyn_type_to_str") {
+            f.write("dyn_type_to_str(")
+            emit_as_ptr(f, e.child(1), depth, false)
+            f.write(")")
         } else if name.eq("dyn_has_method") {
             ref method : Str = get_payload(e.child(2).node_type)
             f.write("dyn_has_")
@@ -4124,8 +4128,38 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
             }
         }
     }
+    mut has_dyn_type_to_str := false
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            if has_dyn_type_to_str { break }
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                if is_func_decl(stmt).not() { continue }
+                ref sdd : Declaration = get_payload(stmt.node_type)
+                if sdd.name.eq("dyn_type_to_str") {
+                    has_dyn_type_to_str = true
+                    break
+                }
+            }
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        if has_dyn_type_to_str { break }
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for stmt : Expr in iu.ast.children {
+            if is_func_decl(stmt).not() { continue }
+            ref sdd : Declaration = get_payload(stmt.node_type)
+            if sdd.name.eq("dyn_type_to_str") {
+                has_dyn_type_to_str = true
+                break
+            }
+        }
+    }
     f.write("void *dyn_fn(Str *type_name, Str *method);\n")
     f.write("U32 dyn_size_of(Str *type_name);\n")
+    if has_dyn_type_to_str {
+        f.write("Str *dyn_type_to_str(TilType *type);\n")
+    }
     f.write("\n")
     own dyn_methods.delete()
 
@@ -4368,6 +4402,32 @@ emit_dyn_size_of_body := proc(f: File) {
     }
     f.write("    fprintf(stderr, \"dyn_size_of: unknown type %.*s\\n\", (int)type_name->count, (char*)type_name->c_str);\n")
     f.write("    exit(1);\n")
+    f.write("}\n\n")
+}
+
+emit_dyn_type_to_str_body := proc(f: File) {
+    f.write("Str *dyn_type_to_str(TilType *type) {\n")
+    f.write("    switch (type->tag) {\n")
+    f.write("    case TilType_TAG_Unknown: return Str_lit(\"\", 0ULL);\n")
+    f.write("    case TilType_TAG_None: return Str_lit(\"\", 0ULL);\n")
+    f.write("    case TilType_TAG_I64: return Str_lit(\"I64\", 3ULL);\n")
+    f.write("    case TilType_TAG_U8: return Str_lit(\"U8\", 2ULL);\n")
+    f.write("    case TilType_TAG_I16: return Str_lit(\"I16\", 3ULL);\n")
+    f.write("    case TilType_TAG_I32: return Str_lit(\"I32\", 3ULL);\n")
+    f.write("    case TilType_TAG_U32: return Str_lit(\"U32\", 3ULL);\n")
+    f.write("    case TilType_TAG_U64: return Str_lit(\"U64\", 3ULL);\n")
+    f.write("    case TilType_TAG_F32: return Str_lit(\"F32\", 3ULL);\n")
+    f.write("    case TilType_TAG_Bool: return Str_lit(\"Bool\", 4ULL);\n")
+    f.write("    case TilType_TAG_Struct: return Str_clone(&type->data.Struct);\n")
+    f.write("    case TilType_TAG_StructDef: return Str_lit(\"StructDef\", 9ULL);\n")
+    f.write("    case TilType_TAG_Enum: return Str_clone(&type->data.Enum);\n")
+    f.write("    case TilType_TAG_EnumDef: return Str_lit(\"EnumDef\", 7ULL);\n")
+    f.write("    case TilType_TAG_FuncDef: return Str_lit(\"FunctionDef\", 11ULL);\n")
+    f.write("    case TilType_TAG_FuncPtr: return Str_lit(\"Fn\", 2ULL);\n")
+    f.write("    case TilType_TAG_Dynamic: return Str_lit(\"Dynamic\", 7ULL);\n")
+    f.write("    case TilType_TAG_Custom: return Str_clone(&type->data.Custom);\n")
+    f.write("    }\n")
+    f.write("    return Str_lit(\"?\", 1ULL);\n")
     f.write("}\n\n")
 }
 
@@ -4913,6 +4973,37 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     emit_dyn_fn_wrappers(f)
     emit_dyn_has_bodies(f)
     emit_dyn_size_of_body(f)
+    ref lp3 : LoadedProgram = codegen_lp()
+    mut has_dyn_type_to_str2 := false
+    if lp3.skip_core.not() {
+        for u : ProgramUnit in lp3.core_units {
+            if has_dyn_type_to_str2 { break }
+            ref iu : ImportUnit = lp3.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                if is_func_decl(stmt).not() { continue }
+                ref sdd : Declaration = get_payload(stmt.node_type)
+                if sdd.name.eq("dyn_type_to_str") {
+                    has_dyn_type_to_str2 = true
+                    break
+                }
+            }
+        }
+    }
+    for u : ProgramUnit in lp3.units {
+        if has_dyn_type_to_str2 { break }
+        ref iu : ImportUnit = lp3.ctx.imported.get(u.path)
+        for stmt : Expr in iu.ast.children {
+            if is_func_decl(stmt).not() { continue }
+            ref sdd : Declaration = get_payload(stmt.node_type)
+            if sdd.name.eq("dyn_type_to_str") {
+                has_dyn_type_to_str2 = true
+                break
+            }
+        }
+    }
+    if has_dyn_type_to_str2 {
+        emit_dyn_type_to_str_body(f)
+    }
     emit_collection_helpers(f)
 
     if run_tests {

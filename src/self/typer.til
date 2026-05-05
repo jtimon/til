@@ -33,6 +33,66 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns shallow Bool {
     return false
 }
 
+type_binding_is_type_token := func(b: TypeBinding) returns shallow Bool {
+    if is_null(b) { return false }
+    if b.is_type_alias { return true }
+    if b.is_builtin { return true }
+    if is_null(b.struct_def).not() { return true }
+    if is_null(b.func_def).not() {
+        if b.func_def.children.len().eq(0) { return true }
+    }
+    return false
+}
+
+make_til_type_expr := func(src: Expr, t: TilType) returns Expr {
+    mut type_ident := Expr.new(NodeType.Ident("TilType"), src.line, src.col)
+    mut variant_name := ""
+    mut payload_name := ""
+    mut has_payload := false
+    switch t {
+    case TilType.Unknown:   variant_name = "Unknown"
+    case TilType.None:      variant_name = "None"
+    case TilType.I64:       variant_name = "I64"
+    case TilType.U8:        variant_name = "U8"
+    case TilType.I16:       variant_name = "I16"
+    case TilType.I32:       variant_name = "I32"
+    case TilType.U32:       variant_name = "U32"
+    case TilType.U64:       variant_name = "U64"
+    case TilType.F32:       variant_name = "F32"
+    case TilType.Bool:      variant_name = "Bool"
+    case TilType.Struct(s): variant_name = "Struct"; payload_name = s.clone(); has_payload = true
+    case TilType.StructDef: variant_name = "StructDef"
+    case TilType.Enum(s):   variant_name = "Enum"; payload_name = s.clone(); has_payload = true
+    case TilType.EnumDef:   variant_name = "EnumDef"
+    case TilType.FuncDef:   variant_name = "FuncDef"
+    case TilType.FuncPtr:   variant_name = "FuncPtr"
+    case TilType.Dynamic:   variant_name = "Dynamic"
+    case TilType.Custom(s): variant_name = "Custom"; payload_name = s.clone(); has_payload = true
+    }
+    mut fa := Expr.new(NodeType.FieldAccess(variant_name), src.line, src.col)
+    fa.add_child(own type_ident)
+    if has_payload.not() {
+        return fa
+    }
+    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    call.add_child(own fa)
+    mut payload := Expr.new(NodeType.LiteralStr(payload_name), src.line, src.col)
+    call.add_child(own payload)
+    return call
+}
+
+rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: TilType, shallow in_func: I32, ctx: Context) {
+    if ptype.is(TilType.Enum("TilType")).not() { return }
+    if arg.node_type.is(NodeType.Ident).not() { return }
+    ref arg_name : Str = get_payload(arg.node_type)
+    ref b : TypeBinding = scope.get_binding(arg_name)
+    if type_binding_is_type_token(b).not() { return }
+    mut replacement := make_til_type_expr(arg, b.type)
+    memcpy(arg, replacement, Expr.size())
+    memset(replacement, 0, Expr.size())
+    infer_expr(scope, arg, in_func, ctx)
+}
+
 // Look up the OwnType for the instance field of a FieldAccess/FieldAssign.
 fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
     if e.children.len().eq(0) { return OwnType.Shallow }
@@ -856,6 +916,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                     ref vparam : Declaration = fdef_data.params.get(pi)
                     vptype := type_from_name(vparam.explicit_type, scope)
                     for vk in 0..fvc {
+                        rewrite_til_type_arg(scope, e.child(ci.add(vk)), vptype, in_func, ctx)
                         narrow_dynamic(e.child(ci.add(vk)), vptype)
                     }
                     ci = ci.add(fvc)
@@ -872,7 +933,9 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
             }
             ref param1 : Declaration = fdef_data.params.get(pi)
             ref ptype : Str = param1.explicit_type
-            narrow_dynamic(e.child(ci), type_from_name(ptype, scope))
+            ptype_t := type_from_name(ptype, scope)
+            rewrite_til_type_arg(scope, e.child(ci), ptype_t, in_func, ctx)
+            narrow_dynamic(e.child(ci), ptype_t)
             ci = ci.add(1)
             pi = pi.add(1)
         }
@@ -910,6 +973,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                                         }
                                     }
                                 }
+                                rewrite_til_type_arg(scope, e.child(ci.add(vk)), vptype, in_func, ctx)
                                 validate_fcall_arg(e.child(ci.add(vk)), vptype, vptype_name, vparam.name)
                             }
                         }
@@ -939,6 +1003,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                 pi = pi.add(1)
                 continue
             }
+            rewrite_til_type_arg(scope, e.child(ci), ptype, in_func, ctx)
             validate_fcall_arg(e.child(ci), ptype, ptype_name, param2.name)
             ci = ci.add(1)
             pi = pi.add(1)
@@ -1297,7 +1362,9 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             if i.sub(1).gte(ns_fdef.params.len()) { break }
             ref param2 : Declaration = ns_fdef.params.get(i.sub(1))
             ref ptype : Str = param2.explicit_type
-            narrow_dynamic(e.child(i), type_from_name(ptype, scope))
+            ptype_t := type_from_name(ptype, scope)
+            rewrite_til_type_arg(scope, e.child(i), ptype_t, in_func, ctx)
+            narrow_dynamic(e.child(i), ptype_t)
         }
         for i in 1..e.children.len() {
             if i.sub(1).gte(ns_fdef.params.len()) { break }

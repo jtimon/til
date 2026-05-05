@@ -1,5 +1,6 @@
 mode lib
 
+import("ast")
 import("bool")
 import("dyn")
 import("str")
@@ -23,8 +24,8 @@ namespace:
 
     len := func(self: Tuple) returns USize { return self.type_names.len() }
 
-    /// Append a value of the given type. `val` is owned.
-    push := func(mut self: Tuple, elem_type: Str, own val: Dynamic) {
+    /// Internal helper that keeps tuple metadata as string type names.
+    push_type_name := func(mut self: Tuple, own elem_type: Str, own val: Dynamic) {
         elem_size : USize = dyn_size_of(elem_type)
         new_total := self.total_size.add(elem_size)
         if new_total.gt(self.cap) {
@@ -40,6 +41,12 @@ namespace:
         self.type_names.push(own elem_type.clone())
         self.type_sizes.push(own elem_size.clone())
         self.total_size = new_total
+    }
+
+    /// Append a value of the given type. `val` is owned.
+    push := func(mut self: Tuple, T: TilType, own val: Dynamic) {
+        elem_type := dyn_type_to_str(T)
+        self.push_type_name(own elem_type, own val)
     }
 
     /// Ref to element at index `i`. Panics if out of bounds.
