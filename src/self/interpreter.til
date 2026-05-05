@@ -266,7 +266,7 @@ mut return_value := Value.None
 
 // --- Namespace fields (static struct fields) ---
 mut ns_fields := Map.new("Str", Str.size(), "Value", Value.size())
-mut ns_keys := Vec.new("Dynamic", Dynamic.size())
+mut ns_keys := Vec.new("Dynamic")
 
 // --- Type-def registry: maps struct/enum names to their AST def Expr.
 // Populated by interpreter_init_ns from every struct/enum decl seen in core+user
@@ -1394,7 +1394,7 @@ mut ns_inited := false
 interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) {
     if ns_inited.not() {
         ns_fields = Map.new("Str", Str.size(), "Value", Value.size())
-        ns_keys = Vec.new("Dynamic", Dynamic.size())
+        ns_keys = Vec.new("Dynamic")
         ns_inited = true
     }
     for stmt : Expr in program.children {

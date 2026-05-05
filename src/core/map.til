@@ -8,8 +8,8 @@ import("vec")
 
 /// Hash map from typed keys to typed values.
 Map := struct {
-    mut keys := Vec.new("Dynamic", Dynamic.size())
-    mut values := Vec.new("Dynamic", Dynamic.size())
+    mut keys := Vec.new("Dynamic")
+    mut values := Vec.new("Dynamic")
 
     mut key_cmp : CmpFn = default_cmp
 

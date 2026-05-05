@@ -765,6 +765,7 @@ Bool U8_gt(U8 * a, U8 * b);
 Bool U8_neq(U8 * a, U8 * b);
 Bool U8_lte(U8 * a, U8 * b);
 Bool U8_gte(U8 * a, U8 * b);
+U32 * vec_size_of(Str * elem_type);
 Vec * Vec_new(Str * elem_type, U32 * elem_size);
 U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
