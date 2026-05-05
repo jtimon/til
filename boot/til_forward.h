@@ -867,7 +867,6 @@ Array * Array_clone(Array * self);
 U32 Array_size(void);
 Map * Map_new_type_names(Str * key_type, Str * val_type);
 Map * Map_new(TilType * K, TilType * V);
-Map * Map_new_newi(TilType * K, TilType * V);
 U32 * Map_len(Map * self);
 void * Map_key_ptr(Map * self, U32 * i);
 void * Map_val_ptr(Map * self, U32 * i);

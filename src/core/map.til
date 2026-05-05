@@ -38,10 +38,6 @@ namespace:
         return Map.new_type_names(key_type, val_type)
     }
 
-    new_newi := func(K: TilType, V: TilType) returns Map {
-        return Map.new(K, V)
-    }
-
     len := func(self: Map) returns USize { return self.keys.count }
 
     /// Ref to the key slot at sorted index `i`.
