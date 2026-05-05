@@ -17,6 +17,10 @@ namespace:
     /// Create an empty Map. Both key_type and val_type must be non-empty;
     /// key_type must implement `cmp`.
     new := func(key_type: Str, _key_size: USize, val_type: Str, _val_size: USize) returns Map {
+        return Map.new_newi(key_type, val_type)
+    }
+
+    new_newi := func(key_type: Str, val_type: Str) returns Map {
         if key_type.is_empty() { panic(__LOC__, "Map.new: key_type required") }
         if dyn_has_method(key_type, "cmp").not() {
             panic(__LOC__, "Map.new: type ", key_type, " must implement cmp")
@@ -135,7 +139,7 @@ namespace:
     }
 
     clone := func(self: Map) returns Map {
-        mut out := Map.new(self.keys.elem_type, self.keys.elem_size, self.values.elem_type, self.values.elem_size)
+        mut out := Map.new_newi(self.keys.elem_type, self.values.elem_type)
         for i in 0..self.len() {
             ck : Dynamic = self.keys.elem_clone(self.key_ptr(i))
             if self.values.elem_type.eq("Dynamic") {

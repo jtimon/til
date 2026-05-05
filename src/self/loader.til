@@ -326,7 +326,7 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     ffi_loaded = true
 
     // 3) Fold calls in every file
-    known = Map.new("Str", Str.size(), "Value", Value.size())
+    known = Map.new_newi("Str", "Value")
     if lp.skip_core.not() {
         for i in 0..lp.core_units.len() {
             ref u : ProgramUnit = lp.core_units.get(i)
@@ -391,7 +391,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     }
 
     // 1) Build top-level decl maps: name -> (path, idx)
-    mut core_top := Map.new("Str", Str.size(), "DeclRef", DeclRef.size())
+    mut core_top := Map.new_newi("Str", "DeclRef")
     if lp.skip_core.not() {
         for ui in 0..lp.core_units.len() {
             ref u : ProgramUnit = lp.core_units.get(ui)
@@ -405,7 +405,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
             }
         }
     }
-    mut top := Map.new("Str", Str.size(), "DeclRef", DeclRef.size())
+    mut top := Map.new_newi("Str", "DeclRef")
     for ui in 0..lp.units.len() {
         ref u : ProgramUnit = lp.units.get(ui)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)

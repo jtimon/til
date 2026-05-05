@@ -1,7 +1,7 @@
 mode test
 
 test_i64_map := test() {
-    m := Map.new("I64", I64.size(), "I64", I64.size())
+    m := Map.new_newi("I64", "I64")
     m.set(own 3, own 30)
     m.set(own 1, own 10)
     m.set(own 2, own 20)
@@ -26,7 +26,7 @@ test_i64_map := test() {
 }
 
 test_str_map := test() {
-    sm := Map.new("Str", Str.size(), "I64", I64.size())
+    sm := Map.new_newi("Str", "I64")
     sm.set(own "banana", own 2)
     sm.set(own "apple", own 1)
     sm.set(own "cherry", own 3)
