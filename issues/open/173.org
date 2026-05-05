@@ -17,11 +17,11 @@ Goal:
       Interpreter handler reuses ~get_elem_size~. Codegen emits a
       ~U32 dyn_size_of(Str *)~ function with a ~memcmp~ switch over
       every struct/enum returning ~sizeof(<TypeName>)~.
-   2. [ ] Slim ~Vec.new~ to a single ~elem_type: Str~ arg and call
+   2. [X] Slim ~Vec.new~ to a single ~elem_type: Str~ arg and call
       ~dyn_size_of~ internally. Rewrite all ~Vec.new~ callsites
       (~50 sites).
    3. [ ] Same treatment for ~Array.new~, ~Map.new~, ~Set.new~,
-      ~List.new~, and any ~Tuple~ fields that pass ~T.size()~.
+      and any ~Tuple~ fields that pass ~T.size()~.
    4. [ ] Add ~dyn_type_to_str(T)~ ext_func: at the call site, the
       codegen converts the type identifier ~T~ to the string literal
       ~"T"~. Special-cased in the typer like ~dyn_call~ requires its
@@ -33,10 +33,20 @@ Goal:
 
    Not in scope:
 
-   - We're not introducing rstil's string-based ~Type~ pseudo-type or
-     renaming the existing ~TilType~ enum. The two ~dyn_*~ helpers
-     fit the codebase's existing dispatch pattern and avoid touching
-     the typer's value-type machinery.
+    - We're not introducing rstil's string-based ~Type~ pseudo-type or
+      renaming the existing ~TilType~ enum. The two ~dyn_*~ helpers
+      fit the codebase's existing dispatch pattern and avoid touching
+      the typer's value-type machinery.
+
+   Progress:
+
+   - ~Vec.new("T")~, ~Set.new("T")~, ~Array.new("T", cap)~, and
+     ~Map.new("K", "V")~ are now the active source interfaces.
+   - ~array(...)~ and ~vec(...)~ are desugared in the typer now, not
+     lowered specially by builder / dispatch.
+   - There is no core ~List~ type in this tree.
+   - ~Tuple~ is intentionally still pending; its ~push(type, size, val)~
+     shape needs a separate pass.
 
    Side issue uncovered (may be subsumed by master's [[./165.org][#165]]):
 
@@ -49,4 +59,3 @@ Goal:
      declaration with the other ~dyn_*~ funcs. Master's [[./165.org][#165]]
      ("Declaration order should not matter") looks like the same
      family.
-
