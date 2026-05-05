@@ -17,9 +17,21 @@ Array := struct {
     elem_delete : DeleteFn = default_delete
 
 namespace:
-    /// Create a zero-initialized Array with the given element type and capacity.
+    /// Create a zero-initialized Array with the given element type, element size, and capacity.
     new := func(elem_type: Str, elem_size: USize, cap: USize) returns Array {
         if elem_type.is_empty() { panic(__LOC__, "Array.new: elem_type required") }
+        return Array(data = calloc(cap, elem_size), cap = cap,
+                     elem_size = elem_size, elem_type = elem_type.clone(),
+                     elem_clone = dyn_fn(elem_type, "clone"),
+                     elem_delete = dyn_fn(elem_type, "delete"))
+    }
+
+    new_oldi := func(elem_type: Str, elem_size: USize, cap: USize) returns Array {
+        return Array.new(elem_type, elem_size, cap)
+    }
+
+    new_newi := func(elem_type: Str, cap: USize) returns Array {
+        elem_size : USize = dyn_size_of(elem_type)
         return Array(data = calloc(cap, elem_size), cap = cap,
                      elem_size = elem_size, elem_type = elem_type.clone(),
                      elem_clone = dyn_fn(elem_type, "clone"),
