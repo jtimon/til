@@ -92,8 +92,9 @@ systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/build.log 
 ** Step 6 -- ASAN leak check (both interpret and translate paths)
 
 The current baseline (last known good from the previous processed commit)
-is recorded here. Update it after each committed merge so the next run can
-compute a delta without checking out the prior commit.
+is recorded here. Update it here before Step 7 (so the baseline update
+folds into the same commit) so the next run can compute a delta without
+checking out the prior commit.
 
 | Channel   | Bytes    | Allocs |
 |-----------+----------+--------|
@@ -117,8 +118,8 @@ ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate src/te
 
 Compute the delta against the recorded baseline above. Report it to the
 user so they can decide whether to accept the commit. If the commit is
-accepted and committed in Step 7, update the baseline table with the new
-numbers.
+accepted, update the baseline table above NOW, before proceeding to Step 7
+(where ~git add -A~ picks it up and folds it into the same commit).
 
 ** Step 7 -- commit with exact original message + appended Co-Authored-By line
 #+begin_src shell
