@@ -1256,7 +1256,7 @@ Expr * build_kwargs_dynmap_decl(Expr * fcall, Str * kw_name);
 Expr * build_kwargs_dynmap_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg);
 Expr * build_variadic_array_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, U32 vc);
 Expr * build_variadic_array_set(Expr * fcall, TypeScope * scope, Str * va_name, I32 vi, U32 j);
-Expr * build_builtin_vec_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * vec_name);
+Expr * build_builtin_vec_decl(Expr * fcall, TypeScope * _scope, Str * elem_type, Str * vec_name);
 Expr * build_builtin_vec_push(Expr * fcall, Str * vec_name, U32 j);
 void rewrite_collection_fcall_to_ident(Expr * fcall, Str * coll_name, TilType * coll_type);
 Bool desugar_array_vec_fcall(Expr * fcall, Vec * new_ch, TypeScope * scope);

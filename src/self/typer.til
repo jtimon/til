@@ -4253,15 +4253,18 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
     return set_call
 }
 
-build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str) returns Expr {
+build_builtin_vec_decl := func(fcall: Expr, _scope: TypeScope, elem_type: Str, vec_name: Str) returns Expr {
     mut new_call := make_ns_call("Vec", "new", TilType.Struct("Vec".clone()), fcall)
 
     mut et := Expr.new(NodeType.LiteralStr(elem_type.clone()), fcall.line, fcall.col)
     et.til_type = TilType.Struct("Str".clone())
     new_call.add_child(own et)
 
-    mut sz := make_ns_call(elem_type, "size", usize_type(scope), fcall)
-    new_call.add_child(own sz)
+    if typer_path.starts_with("src/self/").or(typer_path.eq("src/til.til")) {
+    } else {
+        mut sz := make_ns_call(elem_type, "size", usize_type(_scope), fcall)
+        new_call.add_child(own sz)
+    }
 
     mut vec_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
     switch vec_decl.node_type {
