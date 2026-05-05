@@ -247,8 +247,8 @@ retarget_loaded_aliases := func(mut lp: LoadedProgram) {
 // Precomp across per-file units (rstil-style): fold macros/pure funcs in the
 // canonical ASTs stored in lp.ctx.imported.
 precomp_imported := proc(mut lp: LoadedProgram) {
-    // Make codegen_lp() available so dispatch handlers (h_array, h_vec)
-    // and helpers like make_str_value can read shared Context fields
+    // Make codegen_lp() available so dispatch helpers like make_str_value can
+    // read shared Context fields
     // (cached_str/array/vec_def) populated by interpreter_init_ns below.
     codegen_set_lp(lp)
     // 1) Collect macro and pure func names across all files

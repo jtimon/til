@@ -72,6 +72,7 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
 mut hoist_counter : I32 = 0
 mut va_counter : I32 = 0
 mut kw_counter : I32 = 0
+mut coll_counter : I32 = 0
 mut errors : I32 = 0
 mut proc_calls_count : I32 = 0
 mut proc_def_depth : I32 = 0
@@ -3868,6 +3869,30 @@ find_kwargs_fcall := func(e: Expr) returns ref Expr {
     return NULL
 }
 
+find_array_vec_fcall := func(e: Expr) returns ref Expr {
+    if is_null(e) { return NULL }
+    if e.node_type.is(NodeType.FuncDef) { return NULL }
+    if e.node_type.is(NodeType.StructDef) { return NULL }
+    if e.node_type.is(NodeType.EnumDef) { return NULL }
+    if e.node_type.is(NodeType.Body) { return NULL }
+    switch e.node_type {
+    case NodeType.FCall:
+        if e.children.len().gt(0) {
+            switch e.child(0).node_type {
+            case NodeType.Ident(cn):
+                if cn.eq("array").or(cn.eq("vec")) { return e }
+            case:
+            }
+        }
+    case:
+    }
+    for e_i : Expr in e.children {
+        ref found : Expr = find_array_vec_fcall(e_i)
+        if is_null(found).not() { return found }
+    }
+    return NULL
+}
+
 type_prefix := func(t: TilType) returns Str {
     switch t {
     case TilType.I64: return "I64"
@@ -4194,6 +4219,158 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
     return set_call
 }
 
+build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str) returns Expr {
+    mut new_call := make_ns_call("Vec", "new", TilType.Struct("Vec".clone()), fcall)
+
+    mut et := Expr.new(NodeType.LiteralStr(elem_type.clone()), fcall.line, fcall.col)
+    et.til_type = TilType.Struct("Str".clone())
+    new_call.add_child(own et)
+
+    mut sz := make_ns_call(elem_type, "size", usize_type(scope), fcall)
+    new_call.add_child(own sz)
+
+    mut vec_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
+    switch vec_decl.node_type {
+    case NodeType.Decl(dd):
+        dd.name = vec_name.clone()
+        dd.own_type = OwnType.Own
+        dd.is_mut = true
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    vec_decl.til_type = TilType.Struct("Vec".clone())
+    vec_decl.add_child(own new_call)
+    return vec_decl
+}
+
+build_builtin_vec_push := func(fcall: Expr, vec_name: Str, shallow j: U32) returns Expr {
+    mut push_call := make_ns_call("Vec", "push", TilType.None, fcall)
+
+    mut self_id := Expr.new(NodeType.Ident(vec_name.clone()), fcall.line, fcall.col)
+    self_id.til_type = TilType.Struct("Vec".clone())
+    push_call.add_child(own self_id)
+
+    ref val_in : Expr = fcall.child(j.add(2))
+    mut val := val_in.clone()
+    if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
+        tname := type_to_name(val_in.til_type)
+        if tname.len().gt(0) {
+            val = make_clone_call(tname, val_in.til_type, val_in, val_in)
+        }
+    }
+    set_own_arg(push_call, push_call.children.len())
+    push_call.add_child(own val)
+    return push_call
+}
+
+rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, coll_type: TilType) {
+    mut old_args := Vec.new("Expr")
+    old_args.move_from(fcall.children)
+    fcall.children = Vec.new("Expr")
+    Vec.delete(own old_args, false)
+    fcall.node_type = NodeType.Ident(coll_name.clone())
+    fcall.til_type = coll_type
+}
+
+desugar_array_vec_fcall := func(mut fcall: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool {
+    switch fcall.node_type {
+    case NodeType.FCall:
+        if fcall.children.len().lt(2) { return false }
+        ref callee : Expr = fcall.child(0)
+        switch callee.node_type {
+        case NodeType.Ident(cn):
+            ref elem_type : Str = get_payload(fcall.child(1).node_type)
+            count : U32 = fcall.children.len().sub(2)
+            if cn.eq("vec") {
+                vec_name := "_vec_".concat(coll_counter.to_str())
+                coll_counter++
+                mut vec_decl := build_builtin_vec_decl(fcall, scope, elem_type, vec_name)
+                scope.set(vec_name, TilType.Struct("Vec".clone()), FuncType.None, true, typer_path, fcall.line, fcall.col, false, OwnType.Own)
+                new_ch.push(own vec_decl)
+                for j in 0..count {
+                    mut push_call := build_builtin_vec_push(fcall, vec_name, j)
+                    new_ch.push(own push_call)
+                }
+                rewrite_collection_fcall_to_ident(fcall, vec_name, TilType.Struct("Vec".clone()))
+                return true
+            }
+            if cn.eq("array") {
+                arr_name := "_array_".concat(coll_counter.to_str())
+                coll_counter++
+                mut arr_decl := build_variadic_array_decl(fcall, scope, elem_type, arr_name, count)
+                scope.set(arr_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, fcall.line, fcall.col, false, OwnType.Own)
+                new_ch.push(own arr_decl)
+                for j in 0..count {
+                    mut setter := build_variadic_array_set(fcall, scope, arr_name, 2.to_i32(), j)
+                    new_ch.push(own setter)
+                }
+                rewrite_collection_fcall_to_ident(fcall, arr_name, TilType.Struct("Array".clone()))
+                return true
+            }
+        case:
+        }
+        return false
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
+}
+
+desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool {
+    if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { return false }
+    ref rhs : Expr = stmt.child(0)
+    if rhs.node_type.is(NodeType.FCall).not() { return false }
+
+    mut var_name := ""
+    switch stmt.node_type {
+    case NodeType.Decl(stmt_decl):
+        var_name = stmt_decl.name.clone()
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
+
+    ref callee : Expr = rhs.child(0)
+    switch callee.node_type {
+    case NodeType.Ident(cn):
+        if cn.eq("vec") {
+            if rhs.children.len().lt(2) { return false }
+            ref elem_type : Str = get_payload(rhs.child(1).node_type)
+            count : U32 = rhs.children.len().sub(2)
+            mut vec_decl := build_builtin_vec_decl(rhs, scope, elem_type, var_name)
+            vec_decl.til_type = TilType.Struct("Vec".clone())
+            switch vec_decl.node_type {
+            case NodeType.Decl(dd):
+                dd.is_mut = true
+            case:
+            }
+            scope.set(var_name, TilType.Struct("Vec".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            new_ch.push(own vec_decl)
+            for j in 0..count {
+                mut push_call := build_builtin_vec_push(rhs, var_name, j)
+                new_ch.push(own push_call)
+            }
+            return true
+        }
+        if cn.eq("array") {
+            if rhs.children.len().lt(2) { return false }
+            ref elem_type : Str = get_payload(rhs.child(1).node_type)
+            count : U32 = rhs.children.len().sub(2)
+            mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count)
+            arr_decl.til_type = TilType.Struct("Array".clone())
+            scope.set(var_name, TilType.Struct("Array".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            new_ch.push(own arr_decl)
+            for j in 0..count {
+                mut setter := build_variadic_array_set(rhs, scope, var_name, 2.to_i32(), j)
+                new_ch.push(own setter)
+            }
+            return true
+        }
+    case:
+    }
+    return false
+}
+
 // Returns true if the call constructed replacement stmts and pushed them
 // to new_ch; false if the original stmt should be kept (caller pushes it).
 desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool {
@@ -4370,11 +4547,11 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 // over body decls and scope bindings). Sharing the prefilter, rebuild,
 // and reregister halves that cost when both transformations apply, and
 // drops one walk + one reregister even when only one applies.
-// Apply the variadic and kwargs desugars to a single stmt (in place).
-// Prepends va_decl/va_setters and kw_decl/kw_setters to new_ch as needed
-// and rewrites the discovered fcall's args. Caller is responsible for
-// pushing the (possibly-mutated) stmt to new_ch afterwards.
-// Desugar every variadic and kwargs fcall reachable from stmt in a
+// Apply the array/vec, variadic, and kwargs desugars to a single stmt (in
+// place). Prepends helper decls/setters to new_ch as needed and rewrites the
+// discovered fcall(s) in place. Caller is responsible for pushing the
+// (possibly-mutated) stmt to new_ch afterwards.
+// Desugar every array/vec, variadic, and kwargs fcall reachable from stmt in a
 // single post-order walk. Children are processed before their parent,
 // so by the time we build a parent's setter (which clones a variadic
 // arg) the inner fcall has already been rewritten in place. That
@@ -4384,11 +4561,11 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 // same root cause (single-pass-per-stmt instead of full traversal).
 //
 // Note: the traversal mirrors the recursion guards used by
-// find_variadic_fcall / find_kwargs_fcall (FuncDef / StructDef /
+// find_array_vec_fcall / find_variadic_fcall / find_kwargs_fcall (FuncDef / StructDef /
 // EnumDef / Body) so a body-level walk doesn't dive into a nested
 // function definition or nested block, which the outer desugar_body
 // pass will reach separately.
-process_call_desugars := func(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_variadic: Bool, shallow has_kwargs: Bool) {
+process_call_desugars := func(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_array_vec: Bool, shallow has_variadic: Bool, shallow has_kwargs: Bool) {
     if is_null(e) { return }
     if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.StructDef) { return }
@@ -4396,14 +4573,15 @@ process_call_desugars := func(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope
     if e.node_type.is(NodeType.Body) { return }
 
     for e_i : Expr in e.children {
-        process_call_desugars(e_i, new_ch, scope, has_variadic, has_kwargs)
+        process_call_desugars(e_i, new_ch, scope, has_array_vec, has_variadic, has_kwargs)
     }
 
     switch e.node_type {
     case NodeType.FCall(fcall_data):
+        if has_array_vec {
+            if desugar_array_vec_fcall(e, new_ch, scope) { return }
+        }
         if has_variadic.and(fcall_data.variadic_index.gte(0)) {
-            // Skip array/vec callees -- handled separately by the
-            // container literal builders, not by the variadic desugar.
             mut skip := false
             switch e.child(0).node_type {
             case NodeType.Ident(cn):
@@ -4454,8 +4632,8 @@ process_call_desugars := func(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope
     }
 }
 
-// Combine all four body-level desugars (set/map literal, variadic call,
-// kwargs call) into a single AST walk over body.children. One prefilter,
+// Combine all five body-level desugars (set/map literal, array/vec call,
+// variadic call, kwargs call) into a single AST walk over body.children. One prefilter,
 // one move-out + rebuild + move-back, one reregister_scope_defs.
 //
 // Set/map literal desugaring replaces a Decl with multiple new stmts
@@ -4469,6 +4647,7 @@ process_call_desugars := func(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope
 priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
     mut has_set_lit := false
     mut has_map_lit := false
+    mut has_array_vec := false
     mut has_variadic := false
     mut has_kwargs := false
     for stmt : Expr in body.children {
@@ -4477,6 +4656,9 @@ priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
             if rhs.node_type.is(NodeType.SetLit) { has_set_lit = true }
             if rhs.node_type.is(NodeType.MapLit) { has_map_lit = true }
         }
+        if has_array_vec.not() {
+            if is_null(find_array_vec_fcall(stmt)).not() { has_array_vec = true }
+        }
         if has_variadic.not() {
             if is_null(find_variadic_fcall(stmt)).not() { has_variadic = true }
         }
@@ -4484,7 +4666,7 @@ priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
             if is_null(find_kwargs_fcall(stmt)).not() { has_kwargs = true }
         }
     }
-    if has_set_lit.not().and(has_map_lit.not()).and(has_variadic.not()).and(has_kwargs.not()) {
+    if has_set_lit.not().and(has_map_lit.not()).and(has_array_vec.not()).and(has_variadic.not()).and(has_kwargs.not()) {
         return
     }
 
@@ -4495,36 +4677,40 @@ priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
 
-        // First try the literal desugars. They replace stmt with N new
+        // First try the top-level desugars. They replace stmt with N new
         // stmts and may produce stmts that themselves contain variadic
         // or kwargs fcalls (e.g. set { f(a..) } -> Set.new(...);
         // Set.add(f(a..))), so each result stmt then runs through the
         // call desugars before being flushed to new_ch.
-        mut literal_handled := false
+        mut stmt_handled := false
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref rhs : Expr = stmt.child(0)
             mut temp_ch := Vec.new("Expr")
             if has_set_lit.and(rhs.node_type.is(NodeType.SetLit)) {
                 if desugar_set_literal_decl(stmt, temp_ch, scope) {
-                    literal_handled = true
+                    stmt_handled = true
                 }
             } else if has_map_lit.and(rhs.node_type.is(NodeType.MapLit)) {
                 if desugar_map_literal_decl(stmt, temp_ch, scope) {
-                    literal_handled = true
+                    stmt_handled = true
+                }
+            } else if has_array_vec.and(rhs.node_type.is(NodeType.FCall)) {
+                if desugar_array_vec_decl(stmt, temp_ch, scope) {
+                    stmt_handled = true
                 }
             }
-            if literal_handled {
+            if stmt_handled {
                 for j in 0..temp_ch.len() {
                     ref ts : Expr = temp_ch.get(j)
-                    process_call_desugars(ts, new_ch, scope, has_variadic, has_kwargs)
+                    process_call_desugars(ts, new_ch, scope, has_array_vec, has_variadic, has_kwargs)
                     new_ch.push_take(temp_ch, j)
                 }
             }
             Vec.delete(own temp_ch, false)
         }
 
-        if literal_handled.not() {
-            process_call_desugars(stmt, new_ch, scope, has_variadic, has_kwargs)
+        if stmt_handled.not() {
+            process_call_desugars(stmt, new_ch, scope, has_array_vec, has_variadic, has_kwargs)
             new_ch.push_take(old, i)
         }
     }

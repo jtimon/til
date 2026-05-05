@@ -1463,19 +1463,6 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             f.write("dyn_size_of(")
             emit_as_ptr(f, e.child(1), depth, false)
             f.write(")")
-        } else if name.eq("array").or(name.eq("vec")) {
-            ref elem_type : Str = get_payload(e.child(1).node_type)
-            count := e.children.len().sub(2).to_i64().to_i32()
-            if name.eq("array") { f.write("array") } else { f.write("vec") }
-            f.write("_of_")
-            f.write(elem_type)
-            f.write("(")
-            emit_i32(f, count)
-            for i in 2..e.children.len() {
-                f.write(", ")
-                emit_as_ptr(f, e.child(i), depth, false)
-            }
-            f.write(")")
         } else if name.eq("dyn_has_method") {
             ref method : Str = get_payload(e.child(2).node_type)
             f.write("dyn_has_")
