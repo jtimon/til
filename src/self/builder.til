@@ -2025,7 +2025,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                     // Variadic array
                     f.write("    int _va_argc = argc - "); emit_i32(f, argi); f.write(";\n")
                     f.write("    USize _va_cap = _va_argc;\n")
-                    f.write("    Array *"); f.write(p.name); f.write(" = Array_new_newi(&(Str){.c_str = (U8 *)\""); f.write(p.explicit_type); f.write("\", .count = "); emit_u64(f, p.explicit_type.len().to_i64().to_u64()); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_cap});\n")
+                    f.write("    Array *"); f.write(p.name); f.write(" = Array_new(&(Str){.c_str = (U8 *)\""); f.write(p.explicit_type); f.write("\", .count = "); emit_u64(f, p.explicit_type.len().to_i64().to_u64()); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_cap});\n")
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     if p.explicit_type.eq("Str") {
@@ -2267,7 +2267,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
         }
     }
     mut remaining := indices.len()
-    mut done := Array.new_newi("Bool", indices.len())
+    mut done := Array.new("Bool", indices.len())
     for di in 0..indices.len() {
         mut f_val := false
         done.set(di, own f_val)
@@ -2377,7 +2377,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
     }
 
     mut remaining := items.len()
-    mut done := Array.new_newi("Bool", items.len())
+    mut done := Array.new("Bool", items.len())
     for di in 0..items.len() {
         mut f_val := false
         done.set(di, own f_val)
@@ -4650,7 +4650,7 @@ emit_collection_helpers := proc(f: File) {
         } else {
             f.write("Array *array_of_"); f.write(et); f.write("(int count, ...) {\n")
             f.write("    USize _cap = count;\n")
-            f.write("    Array *_a = Array_new_newi(&(Str){.c_str = (U8 *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_cap});\n")
+            f.write("    Array *_a = Array_new(&(Str){.c_str = (U8 *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_cap});\n")
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
             f.write("        USize _idx = _i;\n")

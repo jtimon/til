@@ -220,7 +220,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
     mut next : USize = 0
     mut active : USize = 0
 
-    slots := Array.new_newi("Slot", j)
+    slots := Array.new("Slot", j)
     mut si : USize = 0
     while si.lt(j) {
         slots.set(si, own Slot())

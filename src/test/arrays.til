@@ -1,7 +1,7 @@
 mode test
 
 test_array_new_get_set := test() {
-    a := Array.new_newi("I64", 3)
+    a := Array.new("I64", 3)
     a.set(0, own 10)
     a.set(1, own 20)
     a.set(2, own 30)
@@ -17,7 +17,7 @@ test_array_new_get_set := test() {
 }
 
 test_array_strings := test() {
-    a := Array.new_newi("Str", 2)
+    a := Array.new("Str", 2)
     a.set(0, own "hello")
     a.set(1, own "world")
 
@@ -29,7 +29,7 @@ test_array_strings := test() {
 }
 
 test_array_overwrite := test() {
-    a := Array.new_newi("I64", 2)
+    a := Array.new("I64", 2)
     a.set(0, own 1)
     a.set(1, own 2)
     a.set(0, own 99)
