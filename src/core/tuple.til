@@ -23,8 +23,9 @@ namespace:
 
     len := func(self: Tuple) returns USize { return self.type_names.len() }
 
-    /// Append a value of the given type and size. `val` is owned.
-    push := func(mut self: Tuple, elem_type: Str, elem_size: USize, own val: Dynamic) {
+    /// Append a value of the given type. `val` is owned.
+    push := func(mut self: Tuple, elem_type: Str, own val: Dynamic) {
+        elem_size : USize = dyn_size_of(elem_type)
         new_total := self.total_size.add(elem_size)
         if new_total.gt(self.cap) {
             mut new_cap := self.cap.mul(2)

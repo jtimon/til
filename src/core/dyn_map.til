@@ -26,9 +26,9 @@ namespace:
     }
 
     /// Insert or overwrite `key` with typed value. Key and val are owned.
-    set := func(mut self: DynMap, own key: Str, elem_type: Str, elem_size: USize, own val: Dynamic) {
+    set := func(mut self: DynMap, own key: Str, elem_type: Str, _elem_size: USize, own val: Dynamic) {
         mut tup := Tuple.new()
-        tup.push(elem_type, elem_size, own val)
+        tup.push(elem_type, own val)
         self.items.set(own key, own tup)
     }
 

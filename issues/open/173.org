@@ -20,7 +20,7 @@ Goal:
    2. [X] Slim ~Vec.new~ to a single ~elem_type: Str~ arg and call
       ~dyn_size_of~ internally. Rewrite all ~Vec.new~ callsites
       (~50 sites).
-   3. [ ] Same treatment for ~Array.new~, ~Map.new~, ~Set.new~,
+   3. [X] Same treatment for ~Array.new~, ~Map.new~, ~Set.new~,
       and any ~Tuple~ fields that pass ~T.size()~.
    4. [ ] Add ~dyn_type_to_str(T)~ ext_func: at the call site, the
       codegen converts the type identifier ~T~ to the string literal
@@ -45,8 +45,7 @@ Goal:
    - ~array(...)~ and ~vec(...)~ are desugared in the typer now, not
      lowered specially by builder / dispatch.
    - There is no core ~List~ type in this tree.
-   - ~Tuple~ is intentionally still pending; its ~push(type, size, val)~
-     shape needs a separate pass.
+   - ~Tuple.push(type, val)~ now computes the element size internally too.
 
    Side issue uncovered (may be subsumed by master's [[./165.org][#165]]):
 
