@@ -31,10 +31,6 @@ namespace:
         return m
     }
 
-    new_newi := func(key_type: Str, val_type: Str) returns Map {
-        return Map.new(key_type, val_type)
-    }
-
     len := func(self: Map) returns USize { return self.keys.count }
 
     /// Ref to the key slot at sorted index `i`.
