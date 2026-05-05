@@ -4310,94 +4310,83 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 // Prepends va_decl/va_setters and kw_decl/kw_setters to new_ch as needed
 // and rewrites the discovered fcall's args. Caller is responsible for
 // pushing the (possibly-mutated) stmt to new_ch afterwards.
-// Desugar every variadic and kwargs fcall in stmt. Each iteration
-// finds the first remaining match (DFS), wraps its variadic args
-// into an Array (Array.new + Array.set) or its kwargs into a
-// DynMap (DynMap.new + DynMap.set), and rewrites the fcall to use
-// the temp. The find/rewrite cycle handles both nested fcalls
-// (caught via the recursion on each emitted setter, since setters
-// are pushed after their inner desugars) and sibling fcalls in the
-// same arg list (caught by the next iteration of the outer loop,
-// because rewrite_*_fcall_args sets the matching index to -1 so
-// find_*_fcall won't return the same fcall twice). #186 / #188 /
-// #189 all came from the same root: this used to be a single `if`
-// per branch instead of a loop.
-process_call_desugars := func(mut stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_variadic: Bool, shallow has_kwargs: Bool) {
-    if has_variadic {
-        ref mut fcall : Expr = find_variadic_fcall(stmt)
-        while is_null(fcall).not() {
-            mut vi : I32 = 0
-            mut vc : U32 = 0
-            switch fcall.node_type {
-            case NodeType.FCall(fcall_data):
-                vi = fcall_data.variadic_index
-                vc = fcall_data.variadic_count
-            case:
-                UNREACHABLE(__LOC__)
-            }
-            if desugar_pure_splat_variadic_call(fcall) {
-                // Pure splat handled inline; variadic_index is now -1
-                // so the next find_variadic_fcall won't return same fcall.
-            } else {
-                line := fcall.line
-                col := fcall.col
-                ref elem_type : Str = resolve_variadic_elem_type(fcall, scope)
-                if is_null(elem_type) {
-                    // Can't desugar -- the typer should already have
-                    // reported an error for this call. Bail to avoid
-                    // an infinite loop (find would keep returning the
-                    // same fcall since variadic_index stays >= 0).
-                    break
-                }
-                va_name := "_va_Array_".concat(va_counter.to_str())
-                va_counter++
-                mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
-                scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, line, col, false, OwnType.Own)
-                new_ch.push(own va_decl)
-                for j in 0..vc {
-                    mut setter := build_variadic_array_set(fcall, scope, va_name, vi, j)
-                    // Setters can hold their own variadic / kwargs fcalls
-                    // (e.g. println(say(true, false, true))). Recurse
-                    // before pushing so the setter's value is the
-                    // rewritten fcall, not the raw one. #186.
-                    process_call_desugars(setter, new_ch, scope, has_variadic, has_kwargs)
-                    new_ch.push(own setter)
-                }
-                rewrite_variadic_fcall_args(fcall, va_name)
-            }
-            fcall = find_variadic_fcall(stmt)
-        }
+// Desugar every variadic and kwargs fcall reachable from stmt in a
+// single post-order walk. Children are processed before their parent,
+// so by the time we build a parent's setter (which clones a variadic
+// arg) the inner fcall has already been rewritten in place. That
+// covers nested fcalls in one walk, and sibling fcalls naturally fall
+// out of the children iteration -- no recursion on setters and no
+// repeated find_*_fcall scans. #186 / #188 / #189 all came from the
+// same root cause (single-pass-per-stmt instead of full traversal).
+//
+// Note: the traversal mirrors the recursion guards used by
+// find_variadic_fcall / find_kwargs_fcall (FuncDef / StructDef /
+// EnumDef / Body) so a body-level walk doesn't dive into a nested
+// function definition or nested block, which the outer desugar_body
+// pass will reach separately.
+process_call_desugars := func(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_variadic: Bool, shallow has_kwargs: Bool) {
+    if is_null(e) { return }
+    if e.node_type.is(NodeType.FuncDef) { return }
+    if e.node_type.is(NodeType.StructDef) { return }
+    if e.node_type.is(NodeType.EnumDef) { return }
+    if e.node_type.is(NodeType.Body) { return }
+
+    for e_i : Expr in e.children {
+        process_call_desugars(e_i, new_ch, scope, has_variadic, has_kwargs)
     }
 
-    if has_kwargs {
-        ref mut fcall : Expr = find_kwargs_fcall(stmt)
-        while is_null(fcall).not() {
-            mut ki : I32 = 0
-            mut kc : U32 = 0
-            switch fcall.node_type {
-            case NodeType.FCall(fcd):
-                ki = fcd.kwargs_index
-                kc = fcd.kwargs_count
+    switch e.node_type {
+    case NodeType.FCall(fcall_data):
+        if has_variadic.and(fcall_data.variadic_index.gte(0)) {
+            // Skip array/vec callees -- handled separately by the
+            // container literal builders, not by the variadic desugar.
+            mut skip := false
+            switch e.child(0).node_type {
+            case NodeType.Ident(cn):
+                if cn.eq("array").or(cn.eq("vec")) { skip = true }
             case:
-                UNREACHABLE(__LOC__)
             }
+            if skip.not() {
+                if desugar_pure_splat_variadic_call(e).not() {
+                    line := e.line
+                    col := e.col
+                    vi := fcall_data.variadic_index
+                    vc := fcall_data.variadic_count
+                    ref elem_type : Str = resolve_variadic_elem_type(e, scope)
+                    // elem_type-null here means the typer already
+                    // reported an error upstream; just leave the
+                    // fcall raw rather than emit a half-formed wrap.
+                    if is_null(elem_type).not() {
+                        va_name := "_va_Array_".concat(va_counter.to_str())
+                        va_counter++
+                        mut va_decl := build_variadic_array_decl(e, scope, elem_type, va_name, vc)
+                        scope.set(va_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, line, col, false, OwnType.Own)
+                        new_ch.push(own va_decl)
+                        for j in 0..vc {
+                            mut setter := build_variadic_array_set(e, scope, va_name, vi, j)
+                            new_ch.push(own setter)
+                        }
+                        rewrite_variadic_fcall_args(e, va_name)
+                    }
+                }
+            }
+        }
+        if has_kwargs.and(fcall_data.kwargs_index.gte(0)) {
+            ki := fcall_data.kwargs_index
+            kc := fcall_data.kwargs_count
             kw_name := "_kw".concat(kw_counter.to_str())
             kw_counter++
-            kw_decl := build_kwargs_dynmap_decl(fcall, kw_name)
-            scope.set(kw_name, TilType.Struct("DynMap".clone()), FuncType.None, false, typer_path, fcall.line, fcall.col, false, OwnType.Shallow)
+            kw_decl := build_kwargs_dynmap_decl(e, kw_name)
+            scope.set(kw_name, TilType.Struct("DynMap".clone()), FuncType.None, false, typer_path, e.line, e.col, false, OwnType.Shallow)
             new_ch.push(own kw_decl)
             for j in 0..kc {
-                ref named_arg : Expr = fcall.child(ki.add(j.to_i64().to_i32()).to_i64().to_usize())
-                mut setter := build_kwargs_dynmap_set(fcall, scope, kw_name, named_arg)
-                // Same recursion rationale as the variadic branch:
-                // setters can themselves hold nested variadic / kwargs
-                // fcalls. #188.
-                process_call_desugars(setter, new_ch, scope, has_variadic, has_kwargs)
+                ref named_arg : Expr = e.child(ki.add(j.to_i64().to_i32()).to_i64().to_usize())
+                mut setter := build_kwargs_dynmap_set(e, scope, kw_name, named_arg)
                 new_ch.push(own setter)
             }
-            rewrite_kwargs_fcall_args(fcall, kw_name)
-            fcall = find_kwargs_fcall(stmt)
+            rewrite_kwargs_fcall_args(e, kw_name)
         }
+    case:
     }
 }
 

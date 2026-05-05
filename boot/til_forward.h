@@ -1219,7 +1219,7 @@ Expr * build_variadic_array_decl(Expr * fcall, TypeScope * scope, Str * elem_typ
 Expr * build_variadic_array_set(Expr * fcall, TypeScope * scope, Str * va_name, I32 vi, U32 j);
 Bool desugar_set_literal_decl(Expr * stmt, Vec * new_ch, TypeScope * scope);
 Bool desugar_map_literal_decl(Expr * stmt, Vec * new_ch, TypeScope * scope);
-void process_call_desugars(Expr * stmt, Vec * new_ch, TypeScope * scope, Bool has_variadic, Bool has_kwargs);
+void process_call_desugars(Expr * e, Vec * new_ch, TypeScope * scope, Bool has_variadic, Bool has_kwargs);
 void desugar_body(Expr * body, TypeScope * scope);
 void hoist_param_swap_assign(Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_expr(Expr * expr, Vec * hoisted, TypeScope * scope);
