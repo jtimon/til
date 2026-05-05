@@ -34,10 +34,6 @@ namespace:
                    elem_cmp = dyn_fn(elem_type, "cmp"))
     }
 
-    new_newi := func(T: TilType) returns Set {
-        return Set.new(T)
-    }
-
     len := func(self: Set) returns USize { return self.count }
 
     /// True if the set contains an element equal to `val`.
