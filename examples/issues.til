@@ -179,23 +179,4 @@ main := proc() {
     File.writefile("issues/summary.org", s)
     println("Generated: issues/summary.org")
 
-    // Update process.org
-    next_num := max_num.add(1)
-    process_content := File.readfile("issues/process.org")
-    next_marker := "NEXT_ISSUE: "
-    marker_pos := process_content.find(next_marker)
-    if marker_pos.gte(0) {
-        marker_pos_u : USize = marker_pos.to_usize()
-        before := process_content.substr(0, marker_pos_u.add(next_marker.len()))
-        rest_start := marker_pos_u.add(next_marker.len())
-        rest := process_content.substr(rest_start, process_content.len().sub(rest_start))
-        end_nl := rest.find(NL)
-        mut updated := before.format(next_num.to_str())
-        if end_nl.gte(0) {
-            end_nl_u : USize = end_nl.to_usize()
-            updated = updated.format(rest.substr(end_nl_u, rest.len().sub(end_nl_u)))
-        }
-        File.writefile("issues/process.org", updated)
-        println("Updated: issues/process.org (NEXT_ISSUE: ", next_num.to_str(), ")")
-    }
 }

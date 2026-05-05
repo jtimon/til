@@ -139,11 +139,11 @@ due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
 
 - Issues live in `issues/open/`, one file per issue (e.g. `issues/open/189.org`).
 - Each file starts with `# priority: high` or `# priority: low`, then `** OPEN #NNN Title`.
-- Process and NEXT_ISSUE counter are in `issues/process.org`.
-- New issues go at the top of their priority, numbered from NEXT_ISSUE.
+- Process is in `issues/process.org`; the counter is in `issues/NEXT_ISSUE.txt`.
+- New issues go at the top of their priority, numbered from `issues/NEXT_ISSUE.txt`.
 - When work starts, change OPEN -> WIP in the title line.
 - Fixed issues move to `issues/fixed/`, cancelled to `issues/cancelled/`.
-- `make test` regenerates `issues/summary.org` and updates `NEXT_ISSUE` in `issues/process.org`.
+- `make test` regenerates `issues/summary.org`. Increment `issues/NEXT_ISSUE.txt` manually.
 
 ## Build Output
 

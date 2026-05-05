@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all clean test test_asan test_nogui test_repl_help test_two_pass build_win doc help install summary tmp two_pass
+.PHONY: all clean test test_asan test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass
 
 all: bin/til
 
@@ -135,11 +135,6 @@ doc: bin/til
 	rm -rf doc/gen
 	bin/til doc src/til.til
 
-# Regenerate issues/summary.org and update NEXT_ISSUE in issues/process.org.
-# Run on demand when issues are added, moved, or changed.
-summary: bin/til
-	bin/til run examples/issues.til
-
 install: bin/til
 	bin/til install src/til.til
 # Shared writable scratch dir for targets that need it (test_repl_help
@@ -203,7 +198,6 @@ help:
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
 	echo "make doc            Regenerate doc/gen/ from current sources"
-	echo "make summary        Regenerate issues/summary.org"
 	echo "make install        Install til under PREFIX (default /usr/local)"
 	echo "make clean          Remove build artifacts"
 	echo ""

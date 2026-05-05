@@ -515,7 +515,7 @@ main := proc(args: ..Str) {
                       "examples/svg2ttf.til ",
                       "img/logo.svg tmp/svg2ttf_fail.ttf"))
     // issues.til is fast enough to keep in the regular suite; it refreshes
-    // issues/summary.org and NEXT_ISSUE from the current issue files.
+    // issues/summary.org from the current issue files.
     add_single(tests, "issues_summary", "build", 0, "",
                format(til_bin,
                       " run -o bin/c/issues_summary -c gen/c/issues_summary.c ",
