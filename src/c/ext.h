@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef long long I64;
 typedef unsigned long long U64;
@@ -13,11 +14,17 @@ typedef unsigned char U8;
 typedef float F32;
 typedef bool Bool;
 typedef U32 USize;  // container sizes (count, cap, elem_size)
+#if UINTPTR_MAX == 0xffffffff
+typedef U32 UPtr;
+#else
+typedef U64 UPtr;
+#endif
 typedef struct Str Str;
 
 // During the USize migration, generated code should box size arguments using
 // the alias-facing ABI rather than the source expression's numeric type.
 #define USIZE_REF(x) ((void *)&(U32){(U32)(x)})
+#define UPTR_REF(x) ((void *)&(UPtr){(UPtr)(x)})
 
 // I64 clone
 I64 I64_clone(I64 *v);
@@ -208,7 +215,7 @@ Bool not(Bool a);
 Bool Bool_clone(Bool *v);
 
 // Pointer primitives (custom, not in libc)
-void *ptr_add(void *buf, U64 offset);
+void *ptr_add(void *buf, UPtr offset);
 void *to_ptr(void *a);
 void *deref(void *slot);
 void write_ptr(void *dest, void *val);
@@ -221,6 +228,7 @@ I64 *cli_parse_i64(const char *s);
 U8 *cli_parse_u8(const char *s);
 U32 *cli_parse_u32(const char *s);
 U64 *cli_parse_u64(const char *s);
+UPtr *cli_parse_uptr(const char *s);
 Bool *cli_parse_bool(const char *s);
 
 // System primitives

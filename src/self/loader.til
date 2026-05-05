@@ -3,6 +3,7 @@ mode lib
 import("parser")
 import("modes")
 import("initer")
+import("targets")
 import("typer")
 import("precomp")
 import("scavenger")
@@ -191,6 +192,7 @@ LoadedProgram := struct {
     own mut core_units := Vec.new("ProgramUnit")
     own mut units := Vec.new("ProgramUnit")
 
+    mut target := Target.LinuxX64
     mut cur_mode := Mode()
     mut ctx := Context()
     mut skip_core := false
@@ -201,6 +203,24 @@ LoadedProgram := struct {
     mut include_flags := ""
     mut link_c_paths := ""
     mut run_tests := false
+}
+
+retarget_alias_binding := func(scope: TypeScope, alias_name: Str, target_name: Str) {
+    ref mut alias_binding : TypeBinding = scope.get_binding(alias_name)
+    if is_null(alias_binding) { return }
+    ref target_binding : TypeBinding = scope.get_binding(target_name)
+    if is_null(target_binding) { return }
+    alias_binding.type = target_binding.type.clone()
+    alias_binding.func_type = target_binding.func_type
+    alias_binding.struct_def = target_binding.struct_def
+    alias_binding.func_def = target_binding.func_def
+    alias_binding.is_builtin = target_binding.is_builtin
+    alias_binding.is_type_alias = true
+    alias_binding.alias_target = target_name.clone()
+}
+
+retarget_loaded_aliases := func(mut lp: LoadedProgram) {
+    retarget_alias_binding(lp.ctx.scope, "UPtr", target_uptr_name(lp.target))
 }
 
 // Precomp across per-file units (rstil-style): fold macros/pure funcs in the
@@ -600,6 +620,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     mut lp := LoadedProgram()
     lp.path = path.clone()
     lp.ext_c_path = ext_c_path.clone()
+    lp.target = detect_current_target()
 
     core_path := bin_dir.concat("/src/core/core.til")
     core_disp := display_path(core_path, cwd)
@@ -1228,6 +1249,8 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
         context_enter_file(lp.ctx, u.path)
         init_declarations_global(iu.ast, lp.ctx.scope)
     }
+
+    retarget_loaded_aliases(lp)
 
     // Ensure ctx.path is set to the user entrypoint by default.
     if lp.units.len().gt(0) {

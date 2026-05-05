@@ -201,6 +201,7 @@ is_primitive_type := func(name: Str) returns shallow Bool {
     if name.eq("U32") { return true }
     if name.eq("U64") { return true }
     if name.eq("USize") { return true }
+    if name.eq("UPtr") { return true }
     if name.eq("F32") { return true }
     if name.eq("Bool") { return true }
     return false
@@ -416,6 +417,19 @@ callee_param_is_usize := func(callee_name: Str, shallow arg_index: U32) returns 
     }
 }
 
+callee_param_is_uptr := func(callee_name: Str, shallow arg_index: U32) returns shallow Bool {
+    ref fdef : Expr = find_callee_fdef(callee_name)
+    if is_null(fdef) { return false }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if arg_index.gte(fd.params.len()) { return false }
+        ref p : Declaration = fd.params.get(arg_index)
+        return p.explicit_type.eq("UPtr")
+    case:
+        return false
+    }
+}
+
 callee_param_is_own := func(callee_name: Str, shallow arg_index: U32) returns shallow Bool {
     ref fdef : Expr = find_callee_fdef(callee_name)
     if is_null(fdef) { return false }
@@ -541,6 +555,7 @@ type_name_to_c := func(name: Str) returns Str {
     if name.eq("U32") { return "U32 *" }
     if name.eq("U64") { return "U64 *" }
     if name.eq("USize") { return "USize *" }
+    if name.eq("UPtr") { return "UPtr *" }
     if name.eq("F32") { return "F32 *" }
     if name.eq("Bool") { return "Bool *" }
     if name.eq("Dynamic") { return "void *" }
@@ -557,6 +572,7 @@ type_name_to_c_value := func(name: Str) returns Str {
     if name.eq("U32") { return "U32" }
     if name.eq("U64") { return "U64" }
     if name.eq("USize") { return "USize" }
+    if name.eq("UPtr") { return "UPtr" }
     if name.eq("F32") { return "F32" }
     if name.eq("Bool") { return "Bool" }
     if name.eq("Dynamic") { return "void *" }
@@ -1404,6 +1420,8 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                     emit_deref(f, e.child(i), depth)
                 } else if callee_param_is_usize(flat, i.sub(1)).and(callee_param_is_own(flat, i.sub(1)).not()) {
                     emit_usize_ref(f, e.child(i), depth)
+                } else if callee_param_is_uptr(flat, i.sub(1)).and(callee_param_is_own(flat, i.sub(1)).not()) {
+                    emit_uptr_ref(f, e.child(i), depth)
                 } else {
                     emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i))
                 }
@@ -1508,6 +1526,8 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                     emit_deref(f, e.child(i), depth)
                 } else if callee_param_is_usize(name, i.sub(1)).and(callee_param_is_own(name, i.sub(1)).not()) {
                     emit_usize_ref(f, e.child(i), depth)
+                } else if callee_param_is_uptr(name, i.sub(1)).and(callee_param_is_own(name, i.sub(1)).not()) {
+                    emit_uptr_ref(f, e.child(i), depth)
                 } else {
                     emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i))
                 }
@@ -1921,6 +1941,12 @@ emit_usize_ref := proc(f: File, e: Expr, shallow depth: I32) {
     f.write(")")
 }
 
+emit_uptr_ref := proc(f: File, e: Expr, shallow depth: I32) {
+    f.write("UPTR_REF(")
+    emit_deref(f, e, depth)
+    f.write(")")
+}
+
 emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
     if ptype.eq("Str") {
         f.write("    Str *"); f.write(pname); f.write(" = Str_clone(&(Str){.c_str = (U8 *)argv["); emit_i32(f, argi); f.write("], .count = strlen(argv["); emit_i32(f, argi); f.write("]), .cap = TIL_CAP_LIT});\n")
@@ -1938,6 +1964,8 @@ emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
         f.write("    U64 *"); f.write(pname); f.write(" = cli_parse_u64(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("USize") {
         f.write("    USize *"); f.write(pname); f.write(" = (USize *)cli_parse_u64(argv["); emit_i32(f, argi); f.write("]);\n")
+    } else if ptype.eq("UPtr") {
+        f.write("    UPtr *"); f.write(pname); f.write(" = cli_parse_uptr(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("Bool") {
         f.write("    Bool *"); f.write(pname); f.write(" = cli_parse_bool(argv["); emit_i32(f, argi); f.write("]);\n")
     } else {
@@ -2030,6 +2058,8 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                         f.write("        U64 *_val = cli_parse_u64(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("USize") {
                         f.write("        USize *_val = (USize *)cli_parse_u64(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
+                    } else if p.explicit_type.eq("UPtr") {
+                        f.write("        UPtr *_val = cli_parse_uptr(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("Bool") {
                         f.write("        Bool *_val = cli_parse_bool(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     }
@@ -5018,8 +5048,8 @@ compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_ove
     return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import)
 }
 
-cmd_translate := proc(lp: LoadedProgram, custom_c: Str) returns shallow I32 {
-    paths := derive_build_paths(lp, "", custom_c, detect_current_target())
+cmd_translate := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns shallow I32 {
+    paths := derive_build_paths(lp, "", custom_c, target)
     make_build_dirs(paths)
     result := translate_ast(lp, paths)
     if result.eq(0) { print_translate_success(paths) }

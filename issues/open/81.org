@@ -1,5 +1,5 @@
 # priority: low
-** OPEN #81 UPtr type alias for pointer-sized integers
+** WIP #81 UPtr type alias for pointer-sized integers
 
 :DEPENDENCIES: [[./79.org][#79]] [[./25.org][#25]]
   ~UPtr := U64~ on 64-bit platforms, ~UPtr := U32~ on 32-bit.
@@ -14,4 +14,3 @@
   Post-self-hosting — depends on [[./25.org][#25]] (multi-platform support) to
   actually have different platforms to target. On Linux x86_64 only,
   UPtr is just U64.
-

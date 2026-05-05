@@ -533,6 +533,13 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns 
     if type_name.eq("U32") { ref v : U32 = p; return val_u32(v.to_i64()) }
     if type_name.eq("U64") { ref v : U64 = p; return val_u64(v) }
     if type_name.eq("USize") { ref v : U32 = p; return val_u32(v.to_i64()) }
+    if type_name.eq("UPtr") {
+        ref lp : LoadedProgram = codegen_lp()
+        ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
+        if uptr_name.eq("U32") { ref v : U32 = p; return val_u32(v.to_i64()) }
+        ref v : U64 = p
+        return val_u64(v)
+    }
     if type_name.eq("F32") { ref v : F32 = p; return val_f32(v) }
     if type_name.eq("Bool") { ref v : Bool = p; return val_bool(v) }
     if type_name.eq("Str") {
@@ -1170,6 +1177,12 @@ widen_numeric := func(v: Value, ptype: Str) returns Value {
     }
     if ptype.eq("U64") { return val_u64(uval) }
     if ptype.eq("USize") { return val_u32(uval.to_i64()) }
+    if ptype.eq("UPtr") {
+        ref lp : LoadedProgram = codegen_lp()
+        ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
+        if uptr_name.eq("U32") { return val_u32(uval.to_i64()) }
+        return val_u64(uval)
+    }
     if ptype.eq("U32") {
         if v.is(Value.Byte) { return val_u32(uval.to_i64()) }
     }
@@ -1523,6 +1536,13 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
     if ftype.eq("U32") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
     if ftype.eq("U64") { ref v : U64 = ptr; return val_u64(v) }
     if ftype.eq("USize") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
+    if ftype.eq("UPtr") {
+        ref lp : LoadedProgram = codegen_lp()
+        ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
+        if uptr_name.eq("U32") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
+        ref v : U64 = ptr
+        return val_u64(v)
+    }
     if ftype.eq("F32") { ref v : F32 = ptr; return val_f32(v) }
     if ftype.eq("Bool") { ref v : Bool = ptr; return val_bool(v) }
     // Enum field

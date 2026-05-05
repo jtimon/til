@@ -75,6 +75,8 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
         context_enter_file(lp.ctx, u.path)
         init_declarations_global(iu.ast, lp.ctx.scope)
     }
+
+    retarget_loaded_aliases(lp)
     if lp.units.len().gt(0) {
         ref last : ProgramUnit = lp.units.get(lp.units.len().sub(1))
         context_enter_file(lp.ctx, last.path)
@@ -442,7 +444,11 @@ main := proc(args: ..Str) {
     cwd := get_cwd_str()
     ext_c_path := bin_dir.format("/src/c/ext.c")
 
+    mut target := detect_current_target()
+    if cli.target_str.len().gt(0) { target = target_from_str(cli.target_str) }
+
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path)
+    lp.target = target
     user_argv := collect_user_argv(lp, args, cli.path_idx.add(1))
 
     // `ast` prints the raw parsed AST -- skip init/typecheck/precomp/scavenge
@@ -463,9 +469,6 @@ main := proc(args: ..Str) {
 
     prepare_program(lp, cli.command.eq("test"))
 
-    mut target := detect_current_target()
-    if cli.target_str.len().gt(0) { target = target_from_str(cli.target_str) }
-
     mut result : I32 = 0
     if cli.command.eq("interpret").or(cli.command.eq("test")) {
         if lp.cur_mode.is_library.and(cli.command.eq("interpret")) {
@@ -473,7 +476,7 @@ main := proc(args: ..Str) {
         }
         result = cmd_interpret(lp, user_argv)
     } else if cli.command.eq("translate") {
-        result = cmd_translate(lp, cli.custom_c)
+        result = cmd_translate(lp, cli.custom_c, target)
     } else if cli.command.eq("build") {
         result = cmd_build(lp, cli.custom_bin, cli.custom_c, target, cli.cc)
     } else if cli.command.eq("run") {

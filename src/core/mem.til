@@ -3,24 +3,24 @@ mode lib
 import("bool")
 import("dyn")
 import("i32")
-import("u64")
+import("uptr")
 
 free := ext_func(own elem: Dynamic) {}
 is_null := ext_func(p: Dynamic) returns shallow Bool {}
-malloc := ext_func(shallow count: U64) returns Dynamic {}
-calloc := ext_func(shallow nmemb: U64, shallow size: U64) returns Dynamic {}
-realloc := ext_func(own buf: Dynamic, shallow count: U64) returns Dynamic {}
-ptr_add := ext_func(buf: Dynamic, shallow offset: U64) returns ref Dynamic {}
+malloc := ext_func(shallow count: UPtr) returns Dynamic {}
+calloc := ext_func(shallow nmemb: UPtr, shallow size: UPtr) returns Dynamic {}
+realloc := ext_func(own buf: Dynamic, shallow count: UPtr) returns Dynamic {}
+ptr_add := ext_func(buf: Dynamic, shallow offset: UPtr) returns ref Dynamic {}
 deref := ext_func(slot: Dynamic) returns ref Dynamic {}
 write_ptr := ext_func(dest: Dynamic, val: Dynamic) {}
-memcpy := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
-memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
-memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: U64) {}
+memcpy := ext_func(dest: Dynamic, src: Dynamic, shallow len: UPtr) {}
+memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: UPtr) {}
+memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: UPtr) {}
 ptr_eq := ext_func(a: Dynamic, b: Dynamic) returns shallow Bool {}
 
 to_ptr := ext_func(a: Dynamic) returns ref Dynamic {}
 
-swap := func(a: Dynamic, b: Dynamic, shallow size: U64) {
+swap := func(a: Dynamic, b: Dynamic, shallow size: UPtr) {
     tmp : Dynamic = malloc(size)
     memcpy(tmp, a, size)
     memcpy(a, b, size)
@@ -28,7 +28,7 @@ swap := func(a: Dynamic, b: Dynamic, shallow size: U64) {
     free(own tmp)
 }
 
-move := func(dest: Dynamic, src: Dynamic, shallow size: U64) {
+move := func(dest: Dynamic, src: Dynamic, shallow size: UPtr) {
     memcpy(dest, src, size)
     memset(src, 0, size)
 }

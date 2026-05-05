@@ -184,6 +184,13 @@ value_to_u64 := func(v: Value) returns U64 {
     }
 }
 
+uptr_ffi_type := func() returns ref ffi_type {
+    ref lp : LoadedProgram = codegen_lp()
+    ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
+    if uptr_name.eq("U32") { return ffi_type_uint32_ref() }
+    return ffi_type_uint64_ref()
+}
+
 priv value_to_f32 := func(v: Value) returns F32 {
     switch v {
     case Value.Int(x):     return x.to_f32()
@@ -432,6 +439,7 @@ priv shallow_ffi_type := func(type_name: Str) returns ref ffi_type {
     if type_name.eq("U32")   { return ffi_type_uint32_ref() }
     if type_name.eq("U64")   { return ffi_type_uint64_ref() }
     if type_name.eq("USize") { return ffi_type_uint32_ref() }
+    if type_name.eq("UPtr")  { return uptr_ffi_type() }
     if type_name.eq("F32")   { return ffi_type_float_ref() }
     if type_name.eq("Bool")  { return ffi_type_uint8_ref() }
     if ffi_struct_defs.has(type_name) {
@@ -451,6 +459,7 @@ field_ffi_type := func(dd: Declaration) returns ref ffi_type {
     if dd.explicit_type.eq("U32")   { return ffi_type_uint32_ref() }
     if dd.explicit_type.eq("U64")   { return ffi_type_uint64_ref() }
     if dd.explicit_type.eq("USize") { return ffi_type_uint32_ref() }
+    if dd.explicit_type.eq("UPtr")  { return uptr_ffi_type() }
     if dd.explicit_type.eq("F32")   { return ffi_type_float_ref() }
     if dd.explicit_type.eq("Bool")  { return ffi_type_uint8_ref() }
     if ffi_struct_defs.has(dd.explicit_type) {
@@ -823,6 +832,14 @@ ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value) returns sha
     else if rtype.eq("U32")   { ref rv : U32 = p;   result = val_u32(rv.to_i64());   return true }
     else if rtype.eq("U64")   { ref rv : U64 = p;   result = val_u64(rv);            return true }
     else if rtype.eq("USize") { ref rv : U32 = p;   result = val_u32(rv.to_i64());   return true }
+    else if rtype.eq("UPtr") {
+        ref lp : LoadedProgram = codegen_lp()
+        ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
+        if uptr_name.eq("U32") { ref rv : U32 = p; result = val_u32(rv.to_i64()); return true }
+        ref rv : U64 = p
+        result = val_u64(rv)
+        return true
+    }
     else if rtype.eq("F32")   { ref rv : F32 = p;   result = val_f32(rv);            return true }
     else if rtype.eq("Bool")  { ref rv : Bool = p;  result = val_bool(rv);           return true }
     return false

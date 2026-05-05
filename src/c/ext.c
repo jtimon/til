@@ -56,6 +56,7 @@ static U32 *new_u32(U32 v) { U32 *r = malloc(sizeof(U32)); *r = v; return r; }
 
 __attribute__((unused)) static F32 *new_f32(F32 v) { F32 *r = malloc(sizeof(F32)); *r = v; return r; }
 static U64 *new_u64(U64 v) { U64 *r = malloc(sizeof(U64)); *r = v; return r; }
+static UPtr *new_uptr(UPtr v) { UPtr *r = malloc(sizeof(UPtr)); *r = v; return r; }
 static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r; }
 
 // --- Small libc wrappers ---
@@ -322,7 +323,7 @@ Bool not(Bool a) { return !a; }
 Bool Bool_clone(Bool *v) { return *v; }
 
 // Pointer primitives (custom, not in libc)
-void *ptr_add(void *buf, U64 offset) {
+void *ptr_add(void *buf, UPtr offset) {
     return (char *)buf + offset;
 }
 void *to_ptr(void *a) { return a; }
@@ -379,6 +380,15 @@ U64 *cli_parse_u64(const char *s) {
         exit(1);
     }
     return new_u64((U64)v);
+}
+UPtr *cli_parse_uptr(const char *s) {
+    char *end;
+    unsigned long long v = strtoull(s, &end, 10);
+    if (*end != '\0' || v > UINTPTR_MAX) {
+        fprintf(stderr, "error: cannot parse '%s' as UPtr\n", s);
+        exit(1);
+    }
+    return new_uptr((UPtr)v);
 }
 Bool *cli_parse_bool(const char *s) {
     if (strcmp(s, "true") == 0) return new_bool(1);

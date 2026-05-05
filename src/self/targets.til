@@ -98,6 +98,19 @@ target_to_str := func(target: Target) returns Str {
     return ""
 }
 
+target_is_32bit := func(target: Target) returns Bool {
+    switch target {
+    case Target.Wasm32: return true
+    case Target.TempleosX86: return true
+    case: return false
+    }
+}
+
+target_uptr_name := func(target: Target) returns Str {
+    if target_is_32bit(target) { return "U32" }
+    return "U64"
+}
+
 // ---------- Target/Lang compatibility
 
 default_lang_for_target := func(target: Target) returns Lang {

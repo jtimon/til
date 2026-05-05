@@ -261,3 +261,34 @@ test_alias_in_struct_methods := test() {
     v++
     assert_eq(__LOC__, v.len().to_i64(), 2)
 }
+
+# === Type aliases: pointer-width integers (#81) ===
+
+add_uptr := func(a: UPtr, b: UPtr) returns UPtr {
+    return a.add(b)
+}
+
+test_uptr_type_alias := test() {
+    x : UPtr = 42
+    assert_eq(__LOC__, x.to_i64(), 42)
+    y : UPtr = 100
+    assert_eq(__LOC__, x.add(y).to_i64(), 142)
+}
+
+test_uptr_alias_in_func := test() {
+    assert_eq(__LOC__, add_uptr(3, 7).to_i64(), 10)
+}
+
+test_uptr_memory_api := test() {
+    size : UPtr = 2
+    buf : Dynamic = malloc(size)
+    memset(buf, 0, size)
+    memcpy(buf, 65, 1)
+    off : UPtr = 1
+    memcpy(ptr_add(buf, off), 66, 1)
+    ref a : U8 = ptr_add(buf, 0)
+    ref b : U8 = ptr_add(buf, off)
+    assert_eq(__LOC__, a.to_i64(), 65)
+    assert_eq(__LOC__, b.to_i64(), 66)
+    free(own buf)
+}

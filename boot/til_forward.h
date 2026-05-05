@@ -170,15 +170,6 @@ typedef struct TypeScope TypeScope;
 typedef struct ImportUnit ImportUnit;
 typedef struct Context Context;
 typedef struct Mode Mode;
-typedef struct LocalInfo LocalInfo;
-typedef enum {
-    CtorArg_TAG_Unfilled,
-    CtorArg_TAG_Filled
-} CtorArg_tag;
-typedef struct CtorArg CtorArg;
-typedef struct ProgramUnit ProgramUnit;
-typedef struct LoadedProgram LoadedProgram;
-typedef struct DeclRef DeclRef;
 typedef enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
@@ -196,6 +187,15 @@ typedef enum {
     Target_TAG_TempleosX86
 } Target_tag;
 typedef struct Target Target;
+typedef struct LocalInfo LocalInfo;
+typedef enum {
+    CtorArg_TAG_Unfilled,
+    CtorArg_TAG_Filled
+} CtorArg_tag;
+typedef struct CtorArg CtorArg;
+typedef struct ProgramUnit ProgramUnit;
+typedef struct LoadedProgram LoadedProgram;
+typedef struct DeclRef DeclRef;
 typedef struct CollectionInfo CollectionInfo;
 typedef struct DynCallInfo DynCallInfo;
 typedef struct BuildPaths BuildPaths;
@@ -387,6 +387,14 @@ typedef struct Mode {
 } Mode;
 
 
+struct Lang {
+    Lang_tag tag;
+};
+
+struct Target {
+    Target_tag tag;
+};
+
 typedef struct LocalInfo {
     Str *name;
     TilType type;
@@ -403,14 +411,6 @@ typedef struct DeclRef {
     U32 idx;
 } DeclRef;
 
-
-struct Lang {
-    Lang_tag tag;
-};
-
-struct Target {
-    Target_tag tag;
-};
 
 typedef struct CollectionInfo {
     Str *type_name;
@@ -687,6 +687,7 @@ typedef struct ProgramUnit {
 typedef struct LoadedProgram {
     Vec *core_units;
     Vec *units;
+    Target target;
     Mode cur_mode;
     Context ctx;
     Bool skip_core;
@@ -1100,6 +1101,37 @@ void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 void context_enter_file(Context * ctx, Str * path);
 Mode * mode_resolve(Str * name);
+Bool Lang_is(Lang * self, Lang * other);
+Bool Lang_eq(Lang * self, Lang * other);
+void Lang_delete(Lang * self, Bool * call_free);
+Str * Lang_to_str(Lang * self);
+Lang * Lang_clone(Lang * self);
+U32 Lang_size(void);
+Str * lang_to_str(Lang * lang);
+Bool Target_is(Target * self, Target * other);
+Bool Target_eq(Target * self, Target * other);
+void Target_delete(Target * self, Bool * call_free);
+Str * Target_to_str(Target * self);
+Target * Target_clone(Target * self);
+U32 Target_size(void);
+Target * target_from_str(Str * s);
+Str * target_to_str(Target * target);
+Bool * target_is_32bit(Target * target);
+Str * target_uptr_name(Target * target);
+Lang * default_lang_for_target(Target * target);
+Bool * is_lang_supported_for_target(Lang * lang, Target * target);
+void validate_lang_for_target(Lang * lang, Target * target);
+Bool * is_clang(Str * cmd);
+Str * toolchain_command(Target * target, Lang * lang);
+Str * target_prefix_args(Target * target);
+Str * common_warning_flags(void);
+Str * clang_warning_flags(void);
+Str * toolchain_extra_args(Target * target, Str * compiler);
+Str * executable_extension(Target * target);
+Str * target_system_libs(Target * target);
+Str * target_ffi_lib(Target * target);
+Str * target_gui_libs(Target * target);
+Target * detect_current_target(void);
 Bool fa_is_ns(Expr * e, TypeScope * scope);
 OwnType fa_own_type(Expr * e, TypeScope * scope);
 LocalInfo * LocalInfo_clone(LocalInfo * self);
@@ -1190,6 +1222,7 @@ Bool is_numeric_type(TilType * t);
 Bool is_integral_numeric_type(TilType * t);
 Bool type_ctor_consumes(TilType * t);
 Bool is_usize_name(Str * name);
+Bool is_uptr_name(Str * name);
 Bool can_implicit_usize_coerce(TilType * from, TilType * to, Str * to_name);
 Bool literal_in_range(Str * val_str, TilType * target);
 Bool can_implicit_widen(TilType * from, TilType * to);
@@ -1301,6 +1334,8 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 void LoadedProgram_delete(LoadedProgram * self, Bool * call_free);
 U32 LoadedProgram_size(void);
+void retarget_alias_binding(TypeScope * scope, Str * alias_name, Str * target_name);
+void retarget_loaded_aliases(LoadedProgram * lp);
 void precomp_imported(LoadedProgram * lp);
 DeclRef * DeclRef_clone(DeclRef * self);
 void DeclRef_delete(DeclRef * self, Bool * call_free);
@@ -1333,35 +1368,6 @@ void loaded_add_lflag(LoadedProgram * lp, Str * lib);
 void init_and_type_program(LoadedProgram * lp, Bool run_tests);
 void prepare_program(LoadedProgram * lp, Bool run_tests);
 void cmd_ast(LoadedProgram * lp);
-Bool Lang_is(Lang * self, Lang * other);
-Bool Lang_eq(Lang * self, Lang * other);
-void Lang_delete(Lang * self, Bool * call_free);
-Str * Lang_to_str(Lang * self);
-Lang * Lang_clone(Lang * self);
-U32 Lang_size(void);
-Str * lang_to_str(Lang * lang);
-Bool Target_is(Target * self, Target * other);
-Bool Target_eq(Target * self, Target * other);
-void Target_delete(Target * self, Bool * call_free);
-Str * Target_to_str(Target * self);
-Target * Target_clone(Target * self);
-U32 Target_size(void);
-Target * target_from_str(Str * s);
-Str * target_to_str(Target * target);
-Lang * default_lang_for_target(Target * target);
-Bool * is_lang_supported_for_target(Lang * lang, Target * target);
-void validate_lang_for_target(Lang * lang, Target * target);
-Bool * is_clang(Str * cmd);
-Str * toolchain_command(Target * target, Lang * lang);
-Str * target_prefix_args(Target * target);
-Str * common_warning_flags(void);
-Str * clang_warning_flags(void);
-Str * toolchain_extra_args(Target * target, Str * compiler);
-Str * executable_extension(Target * target);
-Str * target_system_libs(Target * target);
-Str * target_ffi_lib(Target * target);
-Str * target_gui_libs(Target * target);
-Target * detect_current_target(void);
 I32 system_cmd(Str * cmd);
 CollectionInfo * CollectionInfo_clone(CollectionInfo * self);
 void CollectionInfo_delete(CollectionInfo * self, Bool * call_free);
@@ -1397,6 +1403,7 @@ Bool callee_returns_shallow(Str * callee_name);
 Bool callee_returns_dynamic(Str * callee_name);
 Bool callee_param_is_shallow(Str * callee_name, U32 arg_index);
 Bool callee_param_is_usize(Str * callee_name, U32 arg_index);
+Bool callee_param_is_uptr(Str * callee_name, U32 arg_index);
 Bool callee_param_is_own(Str * callee_name, U32 arg_index);
 Bool fcall_is_shallow_return(Expr * fcall);
 Bool fcall_returns_dynamic(Expr * fcall);
@@ -1441,6 +1448,7 @@ void emit_body_scoped(File * f, Expr * body, I32 depth);
 void emit_deref(File * f, Expr * e, I32 depth);
 void emit_as_ptr(File * f, Expr * e, I32 depth, Bool is_own);
 void emit_usize_ref(File * f, Expr * e, I32 depth);
+void emit_uptr_ref(File * f, Expr * e, I32 depth);
 void emit_cli_parse_arg(File * f, Str * pname, Str * ptype, I32 argi);
 void emit_func_def(File * f, Str * name, Expr * func_def, Mode * mode, Bool is_static);
 void emit_struct_typedef(File * f, Str * name, Expr * struct_def);
@@ -1496,7 +1504,7 @@ void make_build_dirs(BuildPaths * paths);
 I32 translate_ast(LoadedProgram * lp, BuildPaths * paths);
 void print_translate_success(BuildPaths * paths);
 I32 compile_ast(LoadedProgram * lp, BuildPaths * paths, Target * target, Str * cc_override);
-I32 cmd_translate(LoadedProgram * lp, Str * custom_c);
+I32 cmd_translate(LoadedProgram * lp, Str * custom_c, Target * target);
 I32 cmd_build(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override);
 I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv, Target * target, Str * cc_override);
 Str * format_unit_doc_org(Str * unit_path, Expr * ast, TypeScope * scope);
@@ -1644,6 +1652,7 @@ I32 ffi_init_user_so(Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * 
 void ffi_init_struct_defs(Expr * program);
 void ffi_init_struct_defs_append(Expr * program);
 U64 * value_to_u64(Value * v);
+ffi_type * uptr_ffi_type(void);
 F32 * value_to_f32(Value * v);
 Str * value_variant_name(Value * v);
 Bool * narrow_bool_arg(Scope * s, Expr * e);
@@ -1789,9 +1798,6 @@ TokenType *TokenType_Error();
 Bool ScopeFind_eq(ScopeFind *, ScopeFind *);
 ScopeFind *ScopeFind_NotFound();
 ScopeFind *ScopeFind_Found(TypeBinding *);
-Bool CtorArg_eq(CtorArg *, CtorArg *);
-CtorArg *CtorArg_Unfilled();
-CtorArg *CtorArg_Filled(Expr *);
 Bool Lang_eq(Lang *, Lang *);
 Lang *Lang_C();
 Lang *Lang_HolyC();
@@ -1805,6 +1811,9 @@ Target *Target_MacosX64();
 Target *Target_MacosArm64();
 Target *Target_Wasm32();
 Target *Target_TempleosX86();
+Bool CtorArg_eq(CtorArg *, CtorArg *);
+CtorArg *CtorArg_Unfilled();
+CtorArg *CtorArg_Filled(Expr *);
 Bool * Value_eq(Value *, Value *);
 Value *Value_None();
 Value *Value_Int(I64 *);
