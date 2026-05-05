@@ -3,7 +3,7 @@ mode lib
 // Precomp: constant folding for macros and pure functions
 mut macros := Set.new(Str)
 mut funcs := Set.new(Str)
-mut known := Map.new_newi(Str, Value)
+mut known := Map.new(Str, Value)
 
 precomp_has_macro := func(name: Str) returns shallow Bool {
     return macros.has(name)
@@ -732,7 +732,7 @@ precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     }
 
     // 3. Fold calls in both core and user programs.
-    known = Map.new_newi(Str, Value)
+    known = Map.new(Str, Value)
     if is_null(core_program).not() { process_body(global, core_program, ctx, true) }
     process_body(global, program, ctx, true)
 

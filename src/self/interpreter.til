@@ -249,7 +249,7 @@ Binding := struct {
 }
 
 Scope := struct {
-    mut bindings := Map.new_newi(Str, Binding)
+    mut bindings := Map.new(Str, Binding)
     ref mut parent : Scope = NULL
 }
 
@@ -265,14 +265,14 @@ mut return_value := Value.None
 // codegen_lp().ctx.cached_*.
 
 // --- Namespace fields (static struct fields) ---
-mut ns_fields := Map.new_newi(Str, Value)
+mut ns_fields := Map.new(Str, Value)
 mut ns_keys := Vec.new("Dynamic")
 
 // --- Type-def registry: maps struct/enum names to their AST def Expr.
 // Populated by interpreter_init_ns from every struct/enum decl seen in core+user
 // programs. Replaces dangerous Declaration.field_struct_def reads at use sites.
 // (#147 anti-pattern catalog: layout cache on AST nodes / dangerous refs.)
-mut interp_type_defs := Map.new_newi(Str, ExprPtrBox)
+mut interp_type_defs := Map.new(Str, ExprPtrBox)
 
 lookup_interp_type_def := func(name: Str) returns ref Expr {
     if interp_type_defs.has(name).not() { return NULL }
@@ -1406,7 +1406,7 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
 mut ns_inited := false
 interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) {
     if ns_inited.not() {
-        ns_fields = Map.new_newi(Str, Value)
+        ns_fields = Map.new(Str, Value)
         ns_keys = Vec.new("Dynamic")
         ns_inited = true
     }

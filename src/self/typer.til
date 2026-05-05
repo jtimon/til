@@ -4597,7 +4597,7 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         }
     }
 
-    mut new_call := make_ns_call("Map", "new_newi", TilType.Struct("Map".clone()), map_lit)
+    mut new_call := make_ns_call("Map", "new", TilType.Struct("Map".clone()), map_lit)
     mut kt := make_til_type_expr(map_lit, first_key.til_type)
     new_call.add_child(own kt)
     mut vt := make_til_type_expr(map_lit, first_val.til_type)

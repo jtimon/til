@@ -2063,11 +2063,11 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         }
         ref mut lp : LoadedProgram = codegen_lp()
         lp.ctx.stack_locals = Set.new(Str)
-        lp.ctx.stack_local_types = Map.new_newi(Str, Str)
+        lp.ctx.stack_local_types = Map.new(Str, Str)
         lp.ctx.unsafe_to_hoist = Set.new(Str)
         lp.ctx.ref_locals = Set.new(Str)
         lp.ctx.ref_dyn_locals = Set.new(Str)
-        lp.ctx.local_fn_sigs = Map.new_newi(Str, Dynamic)
+        lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(body)
         in_main_func = true
         emit_body(f, body, 1.to_i32())
@@ -2089,11 +2089,11 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         ref mut lp : LoadedProgram = codegen_lp()
         lp.ctx.current_fdef = func_def
         lp.ctx.stack_locals = Set.new(Str)
-        lp.ctx.stack_local_types = Map.new_newi(Str, Str)
+        lp.ctx.stack_local_types = Map.new(Str, Str)
         lp.ctx.unsafe_to_hoist = Set.new(Str)
         lp.ctx.ref_locals = Set.new(Str)
         lp.ctx.ref_dyn_locals = Set.new(Str)
-        lp.ctx.local_fn_sigs = Map.new_newi(Str, Dynamic)
+        lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(body)
         emit_body(f, body, 1.to_i32())
         in_func_def = false
@@ -3700,10 +3700,10 @@ register_lookups_prog := func(prog: Expr) {
 // the clone bug makes stored pointers point to cloned nodes
 build_register_lookups := func(core_program: Expr, program: Expr) {
     ref mut lp : LoadedProgram = codegen_lp()
-    lp.ctx.struct_def_exprs = Map.new_newi(Str, Dynamic)
-    lp.ctx.func_defs = Map.new_newi(Str, Dynamic)
+    lp.ctx.struct_def_exprs = Map.new(Str, Dynamic)
+    lp.ctx.func_defs = Map.new(Str, Dynamic)
     lp.ctx.stack_locals = Set.new(Str)
-    lp.ctx.stack_local_types = Map.new_newi(Str, Str)
+    lp.ctx.stack_local_types = Map.new(Str, Str)
     lp.ctx.unsafe_to_hoist = Set.new(Str)
     lp.ctx.ref_locals = Set.new(Str)
     lp.ctx.ref_dyn_locals = Set.new(Str)
@@ -3713,10 +3713,10 @@ build_register_lookups := func(core_program: Expr, program: Expr) {
 
 build_register_lookups_lp := func() {
     ref mut lp : LoadedProgram = codegen_lp()
-    lp.ctx.struct_def_exprs = Map.new_newi(Str, Dynamic)
-    lp.ctx.func_defs = Map.new_newi(Str, Dynamic)
+    lp.ctx.struct_def_exprs = Map.new(Str, Dynamic)
+    lp.ctx.func_defs = Map.new(Str, Dynamic)
     lp.ctx.stack_locals = Set.new(Str)
-    lp.ctx.stack_local_types = Map.new_newi(Str, Str)
+    lp.ctx.stack_local_types = Map.new(Str, Str)
     lp.ctx.unsafe_to_hoist = Set.new(Str)
     lp.ctx.ref_locals = Set.new(Str)
     lp.ctx.ref_dyn_locals = Set.new(Str)
@@ -5032,9 +5032,9 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
 
     f.close()
     ref mut lp_end : LoadedProgram = codegen_lp()
-    lp_end.ctx.func_defs = Map.new_newi(Str, Dynamic)
+    lp_end.ctx.func_defs = Map.new(Str, Dynamic)
     lp_end.ctx.stack_locals = Set.new(Str)
-    lp_end.ctx.stack_local_types = Map.new_newi(Str, Str)
+    lp_end.ctx.stack_local_types = Map.new(Str, Str)
     lp_end.ctx.unsafe_to_hoist = Set.new(Str)
     return 0.to_i32()
 }
