@@ -46,6 +46,7 @@ type_binding_is_type_token := func(b: TypeBinding) returns shallow Bool {
 
 make_til_type_expr := func(src: Expr, t: TilType) returns Expr {
     mut type_ident := Expr.new(NodeType.Ident("TilType"), src.line, src.col)
+    type_ident.til_type = TilType.Enum("TilType".clone())
     mut variant_name := ""
     mut payload_name := ""
     mut has_payload := false
@@ -72,12 +73,16 @@ make_til_type_expr := func(src: Expr, t: TilType) returns Expr {
     mut fa := Expr.new(NodeType.FieldAccess(variant_name), src.line, src.col)
     fa.add_child(own type_ident)
     if has_payload.not() {
+        fa.til_type = TilType.Enum("TilType".clone())
         return fa
     }
+    fa.til_type = TilType.Unknown
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.add_child(own fa)
     mut payload := Expr.new(NodeType.LiteralStr(payload_name), src.line, src.col)
+    payload.til_type = TilType.Struct("Str".clone())
     call.add_child(own payload)
+    call.til_type = TilType.Enum("TilType".clone())
     return call
 }
 
@@ -4503,10 +4508,9 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         }
     }
 
-    mut new_call := make_ns_call("Set", "new", TilType.Struct("Set".clone()), set_lit)
-    mut et_str := Expr.new(NodeType.LiteralStr(elem_type.clone()), set_lit.line, set_lit.col)
-    et_str.til_type = TilType.Struct("Str".clone())
-    new_call.add_child(own et_str)
+    mut new_call := make_ns_call("Set", "new_newi", TilType.Struct("Set".clone()), set_lit)
+    mut et := make_til_type_expr(set_lit, first.til_type)
+    new_call.add_child(own et)
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
     switch decl.node_type {

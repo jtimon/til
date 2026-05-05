@@ -1,5 +1,6 @@
 mode lib
 
+import("ast")
 import("bool")
 import("dyn")
 import("i64")
@@ -30,6 +31,11 @@ namespace:
                    elem_clone = dyn_fn(elem_type, "clone"),
                    elem_delete = dyn_fn(elem_type, "delete"),
                    elem_cmp = dyn_fn(elem_type, "cmp"))
+    }
+
+    new_newi := func(T: TilType) returns Set {
+        elem_type := dyn_type_to_str(T)
+        return Set.new(elem_type)
     }
 
     len := func(self: Set) returns USize { return self.count }

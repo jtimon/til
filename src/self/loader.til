@@ -252,8 +252,8 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     // (cached_str/array/vec_def) populated by interpreter_init_ns below.
     codegen_set_lp(lp)
     // 1) Collect macro and pure func names across all files
-    macros = Set.new("Str")
-    funcs = Set.new("Str")
+    macros = Set.new_newi(Str)
+    funcs = Set.new_newi(Str)
     if lp.skip_core.not() {
         for i in 0..lp.core_units.len() {
             ref u : ProgramUnit = lp.core_units.get(i)
@@ -464,7 +464,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     }
 
     // 3) BFS
-    mut visited := Set.new("Str")
+    mut visited := Set.new_newi(Str)
     mut cursor : U32 = 0
     while cursor.lt(worklist.len()) {
         name := Str.clone(worklist.get(cursor))
@@ -650,7 +650,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     core_disp := display_path(core_path, cwd)
 
     // Single resolved set for all imports (core + user), so no file is loaded twice
-    resolved := Set.new("Str")
+    resolved := Set.new_newi(Str)
     resolve_stack := Vec.new("Expr")
     ctx := Context()
 

@@ -976,6 +976,7 @@ void File_delete(File * self, Bool * call_free);
 U32 File_size(void);
 void swap(void * a, void * b, U64 size);
 Set * Set_new(Str * elem_type);
+Set * Set_new_newi(TilType * T);
 U32 * Set_len(Set * self);
 Bool Set_has(Set * self, void * val);
 void Set_add(Set * self, void * val);
