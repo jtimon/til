@@ -26,11 +26,11 @@ priv FFITypePtrBox := struct {
     ref mut ptr : ffi_type = NULL
 }
 
-mut dispatch_map := Map.new("Str", "Dynamic")
+mut dispatch_map := Map.new_newi(Str, Dynamic)
 mut dispatch_inited := false
 
-mut ffi_map := Map.new("Str", "FFIEntry")
-mut ffi_struct_defs := Map.new("Str", "Dynamic")
+mut ffi_map := Map.new_newi(Str, FFIEntry)
+mut ffi_struct_defs := Map.new_newi(Str, Dynamic)
 mut ffi_loaded := false
 
 mut ffi_type_cache := Vec.new("FFITypePtrBox")
@@ -46,7 +46,7 @@ ffi_reset := proc() {
         ffi_map_inited = false
     }
     // Always ensure struct defs map exists.
-    ffi_struct_defs = Map.new("Str", "Dynamic")
+    ffi_struct_defs = Map.new_newi(Str, Dynamic)
 }
 
 priv ffi_type_pointer_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_pointer")) }
@@ -148,7 +148,7 @@ ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_
 }
 
 ffi_init_struct_defs := func(program: Expr) {
-    ffi_struct_defs = Map.new("Str", "ExprPtrBox")
+    ffi_struct_defs = Map.new_newi(Str, ExprPtrBox)
     ffi_init_struct_defs_append(program)
 }
 
@@ -647,7 +647,7 @@ reg_dispatch := func(name: Str, handler: DispatchFn) {
 }
 
 dispatch_init := func() {
-    dispatch_map = Map.new("Str", "Dynamic")
+    dispatch_map = Map.new_newi(Str, Dynamic)
     reg_dispatch("print_single", h_print_single)
     reg_dispatch("print_flush", h_print_flush)
     reg_dispatch("and", h_Bool_and)
@@ -1055,7 +1055,7 @@ ffi_register := func(name: Str, fn: Dynamic, fdef: Expr) {
 
 ffi_init_scan_program := func(program: Expr) {
     if ffi_map_inited.not() {
-        ffi_map = Map.new("Str", "FFIEntry")
+        ffi_map = Map.new_newi(Str, FFIEntry)
         ffi_map_inited = true
     }
     for stmt : Expr in program.children {

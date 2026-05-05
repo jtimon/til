@@ -211,7 +211,7 @@ namespace:
 EnumDef : StructDef = struct {
     mut ns_decls := Vec.new("Declaration")
     mut variants := Vec.new("Str")
-    mut payload_types := Map.new("I64", "Str")
+    mut payload_types := Map.new_newi(I64, Str)
     mut total_enum_size : I32 = 0
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {

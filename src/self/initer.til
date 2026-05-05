@@ -37,7 +37,7 @@ mut initer_path := ""
 ScopeFind := enum { NotFound, Found: TypeBinding }
 
 TypeScope := struct {
-    mut bindings := Map.new("Str", "TypeBinding")
+    mut bindings := Map.new_newi(Str, TypeBinding)
     ref mut parent : TypeScope = NULL
 namespace:
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
@@ -120,10 +120,10 @@ ImportUnit := struct {
 Context := struct {
     mut mode := Mode()
     mut path := ""
-    mut path_modes := Map.new("Str", "Mode")
+    mut path_modes := Map.new_newi(Str, Mode)
 
     // Import tracking (rstil-style). Map path -> (mode, ast).
-    mut imported := Map.new("Str", "ImportUnit")
+    mut imported := Map.new_newi(Str, ImportUnit)
     mut imports_init_done := Set.new(Str)
     mut imports_typer_done := Set.new(Str)
     mut imports_precomp_done := Set.new(Str)
@@ -139,12 +139,12 @@ Context := struct {
     // per emission. The eventual rstil-style direction is to populate
     // this from the typer (keyed by function name) so the builder reads
     // without a per-emit reset; this commit only moves the storage.
-    mut local_fn_sigs := Map.new("Str", "Dynamic")
+    mut local_fn_sigs := Map.new_newi(Str, Dynamic)
 
     // #178 builder lookup tables migrated from module-globals. Populated
     // at build registration time, read throughout codegen.
-    mut func_defs := Map.new("Str", "Dynamic")
-    mut struct_def_exprs := Map.new("Str", "Dynamic")
+    mut func_defs := Map.new_newi(Str, Dynamic)
+    mut struct_def_exprs := Map.new_newi(Str, Dynamic)
     mut funcsig_names := Set.new(Str)
     mut script_globals := Set.new(Str)
     mut ref_globals := Set.new(Str)
@@ -154,7 +154,7 @@ Context := struct {
     // emission. emit_func_def is not actually recursive (the typer lifts
     // nested funcs to top level), so a per-emit reset is sufficient.
     mut stack_locals := Set.new(Str)
-    mut stack_local_types := Map.new("Str", "Str")
+    mut stack_local_types := Map.new_newi(Str, Str)
     mut unsafe_to_hoist := Set.new(Str)
     mut ref_locals := Set.new(Str)
     // #185: ref-locals declared as `ref X : Dynamic = ...`. Tracked
