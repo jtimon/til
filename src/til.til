@@ -395,6 +395,24 @@ parse_args := proc(args: Array) returns CliArgs {
         return cli
     }
 
+    if cli.command.starts_with("-").not()
+        .and(cli.command.eq("interpret").not())
+        .and(cli.command.eq("translate").not())
+        .and(cli.command.eq("build").not())
+        .and(cli.command.eq("run").not())
+        .and(cli.command.eq("test").not())
+        .and(cli.command.eq("doc").not())
+        .and(cli.command.eq("ast").not())
+        .and(cli.command.eq("help").not())
+        .and(cli.command.eq("--help").not())
+        .and(cli.command.eq("--version").not())
+        .and(cli.command.eq("-v").not()) {
+        cli.path = cli.command
+        cli.command = "interpret"
+        cli.path_idx = 0
+        return cli
+    }
+
     // Scan for -o/-c/--target/--cc flags before source file
     while cli.path_idx.lt(args.len()) {
         ref flag : Str = args.get(cli.path_idx)

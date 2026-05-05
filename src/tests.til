@@ -450,6 +450,10 @@ main := proc(args: ..Str) {
     File.writefile(format(exp, "cli_args_hello.out"), format("hello", NL, "world", NL))
     add_cli_pair(tests, "cli_args_hello", "examples/cli_args.til",
                  "hello world", 0, format(exp, "cli_args_hello.out"), til_bin)
+    add_single(tests, "cli_args_default_args", "cli", 0, format(exp, "cli_args_hello.out"),
+               format(til_bin, " examples/cli_args.til hello world"))
+    add_single(tests, "cli_args_dd_default_args", "cli", 0, format(exp, "cli_args_hello.out"),
+               format(til_bin, " -- examples/cli_args.til hello world"))
 
     File.writefile(format(exp, "cli_args_empty.out"), "")
     add_cli_pair(tests, "cli_args_empty", "examples/cli_args.til",
