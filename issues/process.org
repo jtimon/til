@@ -1,4 +1,4 @@
-NEXT_ISSUE: 193
+NEXT_ISSUE: 194
 
 1. Create a new file in issues/open/ with the next number, e.g. issues/open/189.org
 2. First line: "# priority: high", "# priority: medium", or "# priority: low"
