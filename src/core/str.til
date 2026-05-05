@@ -333,7 +333,7 @@ namespace:
 
     /// Split the string on `delim`, returning a Vec of Str clones.
     split := func(self: Str, delim: Str) returns Vec {
-        parts := Vec.new("Str")
+        parts := Vec.new_newi(Str)
         if delim.len().eq(0) {
             parts.push(own self.clone())
             return parts

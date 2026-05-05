@@ -9,8 +9,8 @@ import("vec")
 
 /// Hash map from typed keys to typed values.
 Map := struct {
-    mut keys := Vec.new("Dynamic")
-    mut values := Vec.new("Dynamic")
+    mut keys : Vec = Vec.new("Dynamic")
+    mut values : Vec = Vec.new("Dynamic")
 
     mut key_cmp : CmpFn = default_cmp
 
@@ -100,10 +100,12 @@ namespace:
         }
         if found {
             // Delete old key/value at index lo.
-            if self.keys.elem_type.is_empty().not() {
+            ref key_type_name : Str = self.keys.elem_type
+            if key_type_name.is_empty().not() {
                 self.keys.elem_delete(self.key_ptr(lo), false)
             }
-            if self.values.elem_type.is_empty().not().and(self.values.elem_type.eq("Dynamic").not()) {
+            ref val_type_name : Str = self.values.elem_type
+            if val_type_name.is_empty().not().and(val_type_name.eq("Dynamic").not()) {
                 self.values.elem_delete(self.val_ptr(lo), false)
             }
 
@@ -143,9 +145,10 @@ namespace:
 
     clone := func(self: Map) returns Map {
         mut out := Map.new_type_names(self.keys.elem_type, self.values.elem_type)
+        ref self_val_type_name : Str = self.values.elem_type
         for i in 0..self.len() {
             ck : Dynamic = self.keys.elem_clone(self.key_ptr(i))
-            if self.values.elem_type.eq("Dynamic") {
+            if self_val_type_name.eq("Dynamic") {
                 cv : Dynamic = malloc(self.values.elem_size)
                 memcpy(cv, self.val_ptr(i), self.values.elem_size)
                 out.set(own ck, own cv)

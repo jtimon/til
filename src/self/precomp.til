@@ -230,6 +230,7 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
         if mname.eq("delete") { return true }
         if mname.eq("concat") { return true }
         if mname.eq("substr") { return true }
+        if mname.eq("new_newi") { return true }
     }
     for e_ci : Expr in e.children {
         if func_uses_unknown_globals(e_ci, func_def, precomp_scope, body_root, lenient) { return true }

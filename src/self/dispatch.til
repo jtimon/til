@@ -33,7 +33,7 @@ mut ffi_map := Map.new(Str, FFIEntry)
 mut ffi_struct_defs := Map.new(Str, Dynamic)
 mut ffi_loaded := false
 
-mut ffi_type_cache := Vec.new("FFITypePtrBox")
+mut ffi_type_cache := Vec.new_newi(FFITypePtrBox)
 mut ffi_type_cache_inited := false
 
 // Reset all FFI state so a fresh scan can run.
@@ -560,7 +560,7 @@ field_ffi_type := func(dd: Declaration) returns ref ffi_type {
 
 build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
     if ffi_type_cache_inited.not() {
-        ffi_type_cache = Vec.new("FFITypePtrBox")
+        ffi_type_cache = Vec.new_newi(FFITypePtrBox)
         ffi_type_cache_inited = true
     }
     switch struct_def.node_type {

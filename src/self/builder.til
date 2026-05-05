@@ -2258,7 +2258,7 @@ emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr) {
 }
 
 topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
-    mut indices := Vec.new("U32")
+    mut indices := Vec.new_newi(U32)
     for i in 0..prog.children.len() {
         ref stmt : Expr = prog.child(i)
         if stmt.node_type.is(NodeType.Decl) {
@@ -2349,7 +2349,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
     ref lp : LoadedProgram = codegen_lp()
     // Vec<Dynamic> stores raw pointers (8-byte values). Each push takes an
     // allocated 8-byte temp, copies the pointer bytes, then frees the temp.
-    mut items := Vec.new("Dynamic")
+    mut items := Vec.new_newi(Dynamic)
     // Collect pointers to all struct/enum decl statements in stable order.
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -4102,7 +4102,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     f.write("\n")
 
     // Forward declarations for dyn_call dispatch functions
-    mut dyn_methods := Vec.new("DynCallInfo")
+    mut dyn_methods := Vec.new_newi(DynCallInfo)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4195,7 +4195,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     }
     mut dyn_has_ret := "Bool *"
     if dyn_has_shallow { dyn_has_ret = "Bool" }
-    mut has_methods := Vec.new("Str")
+    mut has_methods := Vec.new_newi(Str)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4213,7 +4213,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     own has_methods.delete()
 
     // Forward declarations for array/vec builtin helpers
-    mut coll_infos := Vec.new("CollectionInfo")
+    mut coll_infos := Vec.new_newi(CollectionInfo)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4433,7 +4433,7 @@ emit_dyn_type_to_str_body := proc(f: File) {
 
 emit_dyn_call_bodies := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
-    mut dyn_methods := Vec.new("DynCallInfo")
+    mut dyn_methods := Vec.new_newi(DynCallInfo)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4611,7 +4611,7 @@ emit_dyn_has_bodies := proc(f: File) {
     }
     mut dyn_has_ret := "Bool *"
     if dyn_has_shallow { dyn_has_ret = "Bool" }
-    mut has_methods := Vec.new("Str")
+    mut has_methods := Vec.new_newi(Str)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4675,7 +4675,7 @@ emit_dyn_has_bodies := proc(f: File) {
 
 emit_collection_helpers := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
-    mut coll_infos := Vec.new("CollectionInfo")
+    mut coll_infos := Vec.new_newi(CollectionInfo)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -5297,7 +5297,7 @@ format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns
     // First pass: render each Decl's chunk separately. format_decl_info
     // already sizes its returned Str to fit, so we don't need to pre-size
     // the page buffer here -- chunks are accumulated and concatenated once.
-    chunks := Vec.new("Str")
+    chunks := Vec.new_newi(Str)
     mut total : USize = title.len().add(64.to_usize())
     for stmt : Expr in ast.children {
         if stmt.node_type.is(NodeType.Decl) {

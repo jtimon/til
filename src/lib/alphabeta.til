@@ -11,7 +11,7 @@ Heuristic := func(Dynamic) returns I64
 NextBoardsFn := func(Dynamic) returns Vec
 
 default_heuristic : Heuristic = (_board) { return 0 }
-default_next_boards : NextBoardsFn = (_board) { return Vec.new("Board") }
+default_next_boards : NextBoardsFn = (_board) { return Vec.new_newi(Board) }
 
 Board := struct {
     mut data := Array.new("U8", MAX_BOARD.to_usize())
