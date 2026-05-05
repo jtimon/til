@@ -4260,12 +4260,6 @@ build_builtin_vec_decl := func(fcall: Expr, _scope: TypeScope, elem_type: Str, v
     et.til_type = TilType.Struct("Str".clone())
     new_call.add_child(own et)
 
-    if typer_path.starts_with("src/self/").or(typer_path.eq("src/til.til")) {
-    } else {
-        mut sz := make_ns_call(elem_type, "size", usize_type(_scope), fcall)
-        new_call.add_child(own sz)
-    }
-
     mut vec_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
     switch vec_decl.node_type {
     case NodeType.Decl(dd):

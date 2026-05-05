@@ -14,7 +14,7 @@ run := proc(cmd: Str) returns I64 {
 }
 
 list_dir := proc(dir: Str) returns Vec {
-    mut files := Vec.new("Str", Str.size())
+    mut files := Vec.new("Str")
     tmpf := "tmp/_issues_ls"
     mut cmd := format("ls ", dir, " > ", tmpf, " 2>/dev/null")
     run(cmd)
@@ -106,7 +106,7 @@ main := proc() {
     if cmax.gt(max_num) { max_num = cmax }
 
     // Build entry lines
-    mut entries := Vec.new("Str", Str.size())
+    mut entries := Vec.new("Str")
     for fi in 0..files.len() {
         ref fname : Str = files.get(fi)
         line := parse_issue(fname)
