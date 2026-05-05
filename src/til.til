@@ -315,8 +315,10 @@ run_repl := proc(initial_mode: Str) {
 
 usage := proc() {
     println("Usage: til [<command>] [<path>]")
+    println("       til [<command>] [--] [<path>]")
     println("")
     println("With no arguments, starts the interactive REPL (mode script).")
+    println("Use -- before <path> to stop option parsing.")
     println("")
     println("Commands:")
     println("  repl       Start the interactive REPL")
@@ -352,6 +354,19 @@ parse_args := proc(args: Array) returns CliArgs {
     ref cmd_ref : Str = args.get(0)
     cli.command = cmd_ref.clone()
 
+    if cli.command.eq("--") {
+        if args.len().eq(1) {
+            println("error: missing source path after --")
+            usage()
+            exit(1)
+        }
+        ref p : Str = args.get(1)
+        cli.command = "interpret"
+        cli.path = p.clone()
+        cli.path_idx = 1
+        return cli
+    }
+
     if args.len().eq(1) {
         if cli.command.eq("--version").or(cli.command.eq("-v")) {
             println(VERSION)
@@ -383,7 +398,10 @@ parse_args := proc(args: Array) returns CliArgs {
     // Scan for -o/-c/--target/--cc flags before source file
     while cli.path_idx.lt(args.len()) {
         ref flag : Str = args.get(cli.path_idx)
-        if flag.eq("-o").and(cli.path_idx.add(1).lt(args.len())) {
+        if flag.eq("--") {
+            cli.path_idx = cli.path_idx.add(1)
+            break
+        } else if flag.eq("-o").and(cli.path_idx.add(1).lt(args.len())) {
             ref oval : Str = args.get(cli.path_idx.add(1))
             cli.custom_bin = oval.clone()
             cli.path_idx = cli.path_idx.add(2)
@@ -400,6 +418,11 @@ parse_args := proc(args: Array) returns CliArgs {
         } else {
             break
         }
+    }
+    if cli.path_idx.gte(args.len()) {
+        println("error: missing source path")
+        usage()
+        exit(1)
     }
     ref p : Str = args.get(cli.path_idx)
     cli.path = p.clone()

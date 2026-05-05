@@ -444,7 +444,7 @@ main := proc(args: ..Str) {
               "non-exhaustive switch on enum", 2,
               asan_safe_cmd(format(til_bin, " build src/test/enum_switch_missing_case.til"), til_bin))
 
-    // === 24 CLI tests (12 cases × interpret + run) ===
+    // === CLI tests ===
     exp := "gen/out/expected/"
 
     File.writefile(format(exp, "cli_args_hello.out"), format("hello", NL, "world", NL))
@@ -462,6 +462,12 @@ main := proc(args: ..Str) {
     File.writefile(format(exp, "hello_cli.out"), format("Hello World!", NL))
     add_cli_pair(tests, "hello_cli", "examples/hello_cli.til",
                  "", 0, format(exp, "hello_cli.out"), til_bin)
+    add_single(tests, "hello_cli_dd_default", "cli", 0, format(exp, "hello_cli.out"),
+               format(til_bin, " -- examples/hello_cli.til"))
+    add_single(tests, "hello_cli_dd_i", "cli", 0, format(exp, "hello_cli.out"),
+               format(til_bin, " interpret -- examples/hello_cli.til"))
+    add_single(tests, "hello_cli_dd_r", "cli", 0, format(exp, "hello_cli.out"),
+               format(til_bin, " run -o bin/c/hello_cli_dd -c gen/c/hello_cli_dd.c -- examples/hello_cli.til"))
 
     File.writefile(format(exp, "variadic_add.out"), format("60", NL))
     add_cli_pair(tests, "variadic_add", "examples/cli_variadic_i64.til",

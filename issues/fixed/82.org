@@ -1,0 +1,9 @@
+** #82 POSIX ~--~ end-of-options in til CLI argument parsing
+
+  til now accepts a literal ~--~ before the source path. This stops
+  option parsing for the CLI front-end, so commands like
+  ~til interpret -- examples/hello_cli.til~ and
+  ~til run -o bin/c/out -c gen/c/out.c -- examples/hello_cli.til~ work.
+
+  ~til -- examples/hello_cli.til~ also works as shorthand for the default
+  ~interpret~ command.

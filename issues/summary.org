@@ -55,7 +55,6 @@
 *** [[./open/68.org][#68]] Negative literal support
 *** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
 *** [[./open/81.org][#81]] UPtr type alias for pointer-sized integers
-*** [[./open/82.org][#82]] POSIX ~--~ end-of-options in til CLI argument parsing
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
 *** [[./open/87.org][#87]] ~priv~ keyword for private declarations
