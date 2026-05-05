@@ -143,7 +143,7 @@ due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
 - New issues go at the top of their priority, numbered from NEXT_ISSUE.
 - When work starts, change OPEN -> WIP in the title line.
 - Fixed issues move to `issues/fixed/`, cancelled to `issues/cancelled/`.
-- Run `bin/til interpret examples/issues.til` to regenerate `issues/summary.org`.
+- `make test` regenerates `issues/summary.org` and updates `NEXT_ISSUE` in `issues/process.org`.
 
 ## Build Output
 

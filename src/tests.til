@@ -350,7 +350,7 @@ main := proc(args: ..Str) {
     mut fail := 0
 
     // Create output directories
-    run("mkdir -p gen/out/interp gen/out/run gen/out/results gen/out/single gen/out/expected")
+    run("mkdir -p gen/out/interp gen/out/run gen/out/results gen/out/single gen/out/expected tmp")
 
     tests := Vec.new("Test")
     flags := mode_flags(en_interp, en_run)
@@ -514,6 +514,12 @@ main := proc(args: ..Str) {
                       " run -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ",
                       "examples/svg2ttf.til ",
                       "img/logo.svg tmp/svg2ttf_fail.ttf"))
+    // issues.til is fast enough to keep in the regular suite; it refreshes
+    // issues/summary.org and NEXT_ISSUE from the current issue files.
+    add_single(tests, "issues_summary", "build", 0, "",
+               format(til_bin,
+                      " run -o bin/c/issues_summary -c gen/c/issues_summary.c ",
+                      "examples/issues.til"))
 
     // === library mode checks ===
     add_single(tests, "pure_build", "library", 0, "",
