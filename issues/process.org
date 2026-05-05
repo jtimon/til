@@ -1,7 +1,7 @@
-NEXT_ISSUE: 191
+NEXT_ISSUE: 192
 
 1. Create a new file in issues/open/ with the next number, e.g. issues/open/189.org
-2. First line: "# priority: high" or "# priority: low"
+2. First line: "# priority: high", "# priority: medium", or "# priority: low"
 3. Then: "** OPEN #189 Title" followed by the issue body
 4. Use the current NEXT_ISSUE value above for the new issue number
 5. To start work: change OPEN -> WIP in the title line (no directory move needed)
