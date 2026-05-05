@@ -29,14 +29,14 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     while i.lt(args.len()) {
         ref arg: Str = args.get(i)
         if i.gt(0) {
-            cmd = cmd.concat(" '").concat(arg).concat("'")
+            cmd = cmd.format(" '", arg, "'")
         } else {
             cmd = arg.clone()
         }
         i = i.add(1)
     }
     tmpf := "tmp/_run_cmd_out"
-    pid := spawn_cmd(cmd.concat(" > ").concat(tmpf).concat(" 2>&1"))
+    pid := spawn_cmd(cmd.format(" > ", tmpf, " 2>&1"))
     ec := wait_cmd(pid)
     content := File.readfile(tmpf)
     // Copy content data into output (transfer ownership via memcpy)

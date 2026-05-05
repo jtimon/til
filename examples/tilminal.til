@@ -28,7 +28,7 @@ run_shell_command := proc(lines: Vec, cmd: Str) {
     ec := run_cmd(out, "sh", "-lc", cmd)
 
     push_output(lines, out)
-    push_line(lines, "[exit ".concat(ec.to_str()).concat("]"))
+    push_line(lines, format("[exit ", ec.to_str(), "]"))
 }
 
 main := proc(args: ..Str) {

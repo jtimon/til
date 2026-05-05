@@ -44,6 +44,70 @@ to limit memory usage (prevents OOM from memory leaks killing the system).
 Remote sessions: just use `make clean && make test` directly (systemd-run is not available).
 See doc/self.org for the build workflow.
 
+## Worktrees (local sessions)
+
+When a task spans multiple files or multiple commits, create a dedicated git
+worktree so the task stays isolated and the main tree is free for other work.
+
+Directory: `~/sync/data_common/code/jt/til_worktrees/<descriptive-name>`
+
+Setup::
+
+  mkdir -p ~/sync/data_common/code/jt/til_worktrees
+  git worktree add ~/sync/data_common/code/jt/til_worktrees/<name> [HEAD|master]
+
+For a new branch, add `-b <branch-name>`.
+
+All `make` targets work from the worktree. The main tree stays clean.
+
+Merging to master (local sessions)::
+
+  # After self-hosting changes that regenerate boot/*, the worktree's
+  # boot artifacts and totals files may conflict with origin/master.
+  # Cherry-pick instead of merge to keep the log linear.
+  #
+  # 1. Rebase the worktree branch on top of origin/master.
+  git fetch origin master
+  git rebase origin/master
+
+  # 2. If conflicts appear ONLY in generated files (boot/*, doc/totals.csv,
+  #    img/totals.svg), accept ours and continue. If source files conflict,
+  #    resolve manually.
+  git checkout --ours boot/til.c doc/totals.csv img/totals.svg
+  git add boot/til.c doc/totals.csv img/totals.svg
+  git rebase --continue
+
+  # 3. Soft-reset so the next make test regenerates boot/ against the
+  #    rebased source.
+  git reset --soft HEAD~1
+
+  # 4. Make any additional edits (e.g. doc updates).  Discard totals so
+  #    make test writes fresh ones; they must match the current commit.
+  git restore doc/totals.csv img/totals.svg
+
+  # 5. Rebuild and test.
+  make clean && make test
+
+  # 6. Stage everything (including regenerated boot/*) and commit.
+  git add -A && git commit -m "..."
+
+  # 7. Cherry-pick onto master.
+  git checkout master
+  git cherry-pick concat-to-format    # or the worktree branch name
+
+  # 8. Only now remove the worktree -- testing may need more edits after
+  #    rebase, so keep it alive until master has the final commit.
+  git worktree remove <path>
+  git worktree prune
+
+Teardown (when no merge to master is needed)::
+
+  git worktree remove <path>
+  git worktree prune
+
+The til_worktrees directory lives outside the repo, so worktrees never appear
+as untracked files in `git status` of the main tree.
+
 ## Build & Run
 
 Read `doc/self.org` for the bootstrap model and `make help` for targets.

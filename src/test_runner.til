@@ -90,9 +90,9 @@ main := proc(args: ..Str) {
 
         basename := test_basename(file)
 
-        interp_outfile := "gen/out/interp/".concat(basename).concat(".out")
-        run_outfile := "gen/out/run/".concat(basename).concat(".out")
-        bin_path := "bin/c/".concat(basename)
+        interp_outfile := format("gen/out/interp/", basename, ".out")
+        run_outfile := format("gen/out/run/", basename, ".out")
+        bin_path := format("bin/c/", basename)
 
         mut interp_ms := 0
         mut interp_ok := 0
@@ -106,7 +106,7 @@ main := proc(args: ..Str) {
         mut fail := 0
 
         if en_interp.eq(1) {
-            cmd := TIL.concat(" interpret '").concat(file).concat("' > ").concat(interp_outfile).concat(" 2>/dev/null")
+            cmd := TIL.format(" interpret '", file, "' > ", interp_outfile, " 2>/dev/null")
             phase := run_phase(cmd)
             interp_ms = phase.ms
             interp_mem = phase.mem
@@ -120,14 +120,14 @@ main := proc(args: ..Str) {
 
         if en_run.eq(1) {
             // Compile
-            build_cmd := TIL.concat(" build -o ").concat(bin_path).concat(" '").concat(file).concat("' 2>/dev/null")
+            build_cmd := TIL.format(" build -o ", bin_path, " '", file, "' 2>/dev/null")
             phase := run_phase(build_cmd)
             compile_ms = phase.ms
             compile_mem = phase.mem
             if phase.status.eq(0) {
                 compile_ok = 1
                 // Run the compiled binary
-                run_cmd := bin_path.concat(" > ").concat(run_outfile).concat(" 2>/dev/null")
+                run_cmd := bin_path.format(" > ", run_outfile, " 2>/dev/null")
                 run_phase_result := run_phase(run_cmd)
                 run_ms = run_phase_result.ms
                 run_mem = run_phase_result.mem
@@ -225,9 +225,9 @@ main := proc(args: ..Str) {
             exit(1)
         }
 
-        outfile := "gen/out/single/".concat(label).concat(".out")
+        outfile := format("gen/out/single/", label, ".out")
 
-        phase := run_phase(cmd.concat(" > ").concat(outfile).concat(" 2>&1"))
+        phase := run_phase(cmd.format(" > ", outfile, " 2>&1"))
         ms := phase.ms
         mem := phase.mem
 
@@ -284,9 +284,9 @@ main := proc(args: ..Str) {
             exit(1)
         }
 
-        outfile := "gen/out/single/".concat(label).concat(".out")
+        outfile := format("gen/out/single/", label, ".out")
 
-        phase := run_phase(cmd.concat(" > ").concat(outfile).concat(" 2>&1"))
+        phase := run_phase(cmd.format(" > ", outfile, " 2>&1"))
         ms := phase.ms
         mem := phase.mem
 

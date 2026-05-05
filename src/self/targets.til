@@ -168,9 +168,9 @@ toolchain_extra_args := func(target: Target, compiler: Str) returns Str {
     }
     prefix := target_prefix_args(target)
     mut out := prefix
-    out = out.concat(" ").concat(common_warning_flags())
+    out = out.format(" ", common_warning_flags())
     if is_clang(compiler).or(prefix.len().gt(0)) {
-        out = out.concat(" ").concat(clang_warning_flags())
+        out = out.format(" ", clang_warning_flags())
     }
     return out
 }

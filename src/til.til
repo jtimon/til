@@ -148,8 +148,8 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
 
     bin_dir := get_bin_dir()
     cwd := get_cwd_str()
-    ext_c_path := bin_dir.concat("/src/c/ext.c")
-    til_bin := bin_dir.concat("/bin/til")
+    ext_c_path := bin_dir.format("/src/c/ext.c")
+    til_bin := bin_dir.format("/bin/til")
 
     // Accumulated user source across REPL inputs for this session.
     mut accum := ""
@@ -196,10 +196,10 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
 
         // Build combined source (no wrap yet) and write to temp.
         mut combined := ""
-        combined = combined.concat("mode ").concat(mode_str).concat("\n")
-        combined = combined.concat(accum)
-        if accum.len().gt(0) { combined = combined.concat("\n") }
-        combined = combined.concat(block)
+        combined = combined.format("mode ", mode_str, "\n")
+        combined = combined.format(accum)
+        if accum.len().gt(0) { combined = combined.format("\n") }
+        combined = combined.format(block)
         File.writefile(tmp_path, combined)
 
         // In-process typecheck: lets us look at the typed AST and decide
@@ -242,32 +242,32 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
             // so a user redefining a core name shadows nothing (matches the
             // pre-cache behaviour where the unified walk emitted core then
             // user, and __doc_lookup__ returns the first hit).
-            full_info := cached_core_info.concat(user_info)
-            full_docs := cached_core_docs.concat(user_docs)
+            full_info := cached_core_info.format(user_info)
+            full_docs := cached_core_docs.format(user_docs)
             doc_line := build_doc_init_line(full_info, full_docs)
 
             // Rebuild combined source with REPL doc registry init.
             combined = ""
-            combined = combined.concat("mode ").concat(mode_str).concat("\n")
-            combined = combined.concat(doc_line)
-            combined = combined.concat(accum)
-            if accum.len().gt(0) { combined = combined.concat("\n") }
-            combined = combined.concat(block_eff)
+            combined = combined.format("mode ", mode_str, "\n")
+            combined = combined.format(doc_line)
+            combined = combined.format(accum)
+            if accum.len().gt(0) { combined = combined.format("\n") }
+            combined = combined.format(block_eff)
             File.writefile(tmp_path, combined)
 
             if repl_should_wrap(peek_ast, user_merged) {
-                block_eff = "println((".concat(block).concat(").to_str())")
+                block_eff = format("println((", block, ").to_str())")
                 combined = ""
-                combined = combined.concat("mode ").concat(mode_str).concat("\n")
-                combined = combined.concat(doc_line)
-                combined = combined.concat(accum)
-                if accum.len().gt(0) { combined = combined.concat("\n") }
-                combined = combined.concat(block_eff)
+                combined = combined.format("mode ", mode_str, "\n")
+                combined = combined.format(doc_line)
+                combined = combined.format(accum)
+                if accum.len().gt(0) { combined = combined.format("\n") }
+                combined = combined.format(block_eff)
                 File.writefile(tmp_path, combined)
             }
 
             // Run subprocess til interpret on the (possibly wrapped) source.
-            cmd := til_bin.concat(" interpret ").concat(tmp_path).concat(" > ").concat(out_path).concat(" 2>&1")
+            cmd := til_bin.format(" interpret ", tmp_path, " > ", out_path, " 2>&1")
             system_cmd(cmd)
 
             // Print only the delta vs the previous run's output. Since the
@@ -293,15 +293,15 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
             // Only commit good lines to accumulated source. If typecheck
             // failed, drop the line so it doesn't pollute future turns
             // (the typer would replay the same error on every input).
-            if accum.len().gt(0) { accum = accum.concat("\n") }
-            accum = accum.concat(block_eff)
+            if accum.len().gt(0) { accum = accum.format("\n") }
+            accum = accum.format(block_eff)
         }
     }
 }
 
 // Outer REPL driver: restarts the session when a `mode X` statement is entered.
 run_repl := proc(initial_mode: Str) {
-    println("til ".concat(VERSION).concat(" REPL -- Ctrl-D to exit"))
+    println(format("til ", VERSION, " REPL -- Ctrl-D to exit"))
     mut next_mode := initial_mode.clone()
     if next_mode.len().eq(0) { next_mode = "script" }
     while next_mode.len().gt(0) {
@@ -440,7 +440,7 @@ main := proc(args: ..Str) {
 
     bin_dir := get_bin_dir()
     cwd := get_cwd_str()
-    ext_c_path := bin_dir.concat("/src/c/ext.c")
+    ext_c_path := bin_dir.format("/src/c/ext.c")
 
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path)
     user_argv := collect_user_argv(lp, args, cli.path_idx.add(1))
@@ -479,7 +479,7 @@ main := proc(args: ..Str) {
     } else if cli.command.eq("run") {
         result = cmd_run(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc)
     } else {
-        println("error: unknown command '".concat(cli.command).concat("'"))
+        println(format("error: unknown command '", cli.command, "'"))
         usage()
         result = 1
     }

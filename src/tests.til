@@ -32,8 +32,8 @@ ms_to_str := func(ms: I64) returns Str {
     secs := ms.div(1000)
     frac := ms.mod(1000).div(10)
     mut frac_str := frac.to_str()
-    if frac.lt(10) { frac_str = "0".concat(frac_str) }
-    return secs.to_str().concat(".").concat(frac_str).concat("s")
+    if frac.lt(10) { frac_str = format("0", frac_str) }
+    return format(secs.to_str(), ".", frac_str, "s")
 }
 
 pad_right := func(s: Str, width: USize) returns Str {
@@ -64,7 +64,7 @@ test_basename := func(path: Str) returns Str {
 }
 
 parse_kv := func(line: Str, key: Str) returns I64 {
-    needle := key.concat("=")
+    needle := format(key, "=")
     pos := line.find(needle)
     if pos.lt(0) { return 0 }
     pos_u : USize = pos.to_usize()
@@ -78,8 +78,8 @@ parse_kv := func(line: Str, key: Str) returns I64 {
 
 mode_flags := func(en_interp: I64, en_run: I64) returns Str {
     mut f := ""
-    if en_interp.eq(0) { f = f.concat(" -no-interp") }
-    if en_run.eq(0) { f = f.concat(" -no-run") }
+    if en_interp.eq(0) { f = format(f, " -no-interp") }
+    if en_run.eq(0) { f = format(f, " -no-run") }
     return f
 }
 
@@ -141,9 +141,9 @@ print_test_result := proc(t: Test) {
     switch t.kind {
     case TestKind.Mode(md):
         mut line := pad_right(t.label, 42)
-        if t.has_interp.eq(1) { line = line.concat("interp: ").concat(pad_right(ms_to_str(md.interp_ms), 9)) }
-        if t.has_run.eq(1) { line = line.concat("compile: ").concat(pad_right(ms_to_str(md.compile_ms), 9)).concat("run: ").concat(pad_right(ms_to_str(md.run_ms), 9)) }
-        if md.output_match.eq(0) { line = line.concat(" MISMATCH") }
+        if t.has_interp.eq(1) { line = format(line, "interp: ", pad_right(ms_to_str(md.interp_ms), 9)) }
+        if t.has_run.eq(1) { line = format(line, "compile: ", pad_right(ms_to_str(md.compile_ms), 9), "run: ", pad_right(ms_to_str(md.run_ms), 9)) }
+        if md.output_match.eq(0) { line = format(line, " MISMATCH") }
         println(line)
     case:
         if t.ok.eq(1) {
@@ -158,8 +158,8 @@ add_mode := func(tests: Vec, file: Str, flags: Str) {
     bn := test_basename(file)
     tests.push(own Test(
         label = file.clone(),
-        cmd = RUNNER.concat(" mode '").concat(file).concat("'").concat(flags),
-        outfile = "gen/out/results/".concat(bn).concat(".txt"),
+        cmd = format(RUNNER, " mode '", file, "'", flags),
+        outfile = format("gen/out/results/", bn, ".txt"),
         category = "mode",
         kind = TestKind.Mode(ModeData()),
         has_interp = 1, has_run = 1
@@ -168,15 +168,15 @@ add_mode := func(tests: Vec, file: Str, flags: Str) {
 
 add_single := func(tests: Vec, label: Str, category: Str,
                    expected_exit: I64, expected_out: Str, cmd_suffix: Str) {
-    mut runner_cmd := RUNNER.concat(" single ").concat(label).concat(" ").concat(expected_exit.to_str())
+    mut runner_cmd := format(RUNNER, " single ", label, " ", expected_exit.to_str())
     if expected_out.len().gt(0) {
-        runner_cmd = runner_cmd.concat(" ").concat(expected_out)
+        runner_cmd = format(runner_cmd, " ", expected_out)
     }
-    runner_cmd = runner_cmd.concat(" -- ").concat(cmd_suffix)
+    runner_cmd = format(runner_cmd, " -- ", cmd_suffix)
     tests.push(own Test(
         label = label.clone(),
         cmd = runner_cmd,
-        outfile = "gen/out/results/".concat(label).concat(".txt"),
+        outfile = format("gen/out/results/", label, ".txt"),
         category = category.clone(),
         kind = TestKind.Single
     ))
@@ -184,11 +184,11 @@ add_single := func(tests: Vec, label: Str, category: Str,
 
 add_count := func(tests: Vec, label: Str, category: Str,
                   needle: Str, expected_count: I64, cmd_suffix: Str) {
-    runner_cmd := RUNNER.concat(" count ").concat(label).concat(" '").concat(needle).concat("' ").concat(expected_count.to_str()).concat(" -- ").concat(cmd_suffix)
+    runner_cmd := format(RUNNER, " count ", label, " '", needle, "' ", expected_count.to_str(), " -- ", cmd_suffix)
     tests.push(own Test(
         label = label.clone(),
         cmd = runner_cmd,
-        outfile = "gen/out/results/".concat(label).concat(".txt"),
+        outfile = format("gen/out/results/", label, ".txt"),
         category = category.clone(),
         kind = TestKind.Count
     ))
@@ -197,14 +197,14 @@ add_count := func(tests: Vec, label: Str, category: Str,
 add_cli_pair := func(tests: Vec, name: Str, file: Str,
                      cli_args: Str, expected_exit: I64, expected_out: Str,
                      til: Str) {
-    mut cmd_i := til.concat(" interpret ").concat(file)
-    if cli_args.len().gt(0) { cmd_i = cmd_i.concat(" ").concat(cli_args) }
-    add_single(tests, name.concat("_i"), "cli", expected_exit, expected_out, cmd_i)
-    mut cmd_r := til.concat(" run -o bin/c/").concat(name)
-        .concat(" -c gen/c/").concat(name).concat(".c ")
-        .concat(file)
-    if cli_args.len().gt(0) { cmd_r = cmd_r.concat(" ").concat(cli_args) }
-    add_single(tests, name.concat("_r"), "cli", expected_exit, expected_out, cmd_r)
+    mut cmd_i := format(til, " interpret ", file)
+    if cli_args.len().gt(0) { cmd_i = format(cmd_i, " ", cli_args) }
+    add_single(tests, format(name, "_i"), "cli", expected_exit, expected_out, cmd_i)
+    mut cmd_r := format(til, " run -o bin/c/", name,
+        " -c gen/c/", name, ".c ",
+        file)
+    if cli_args.len().gt(0) { cmd_r = format(cmd_r, " ", cli_args) }
+    add_single(tests, format(name, "_r"), "cli", expected_exit, expected_out, cmd_r)
 }
 
 asan_safe_cmd := func(cmd: Str, til_bin: Str) returns Str {
@@ -231,7 +231,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
     si = 0
     while si.lt(j).and(next.lt(tests.len())) {
         ref t : Test = tests.get(next)
-        cmd := t.cmd.concat(" > ").concat(t.outfile).concat(" 2>&1")
+        cmd := format(t.cmd, " > ", t.outfile, " 2>&1")
         start := clock_ms()
         pid := spawn_cmd(cmd)
         slots.set(si, own Slot(test_idx = next, pid = pid, start_ms = start))
@@ -301,7 +301,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
 
                     if next.lt(tests.len()) {
                         ref nt : Test = tests.get(next)
-                        cmd := nt.cmd.concat(" > ").concat(nt.outfile).concat(" 2>&1")
+                        cmd := format(nt.cmd, " > ", nt.outfile, " 2>&1")
                         start := clock_ms()
                         pid := spawn_cmd(cmd)
                         slots.set(i, own Slot(test_idx = next, pid = pid, start_ms = start))
@@ -409,75 +409,75 @@ main := proc(args: ..Str) {
 
     // === 2 FFI tests ===
     ffi_exp := "gen/out/expected/ffi.out"
-    File.writefile(ffi_exp, "hello world".concat(NL).concat("hello universe").concat(NL))
+    File.writefile(ffi_exp, format("hello world", NL, "hello universe", NL))
     add_single(tests, "ffi_interp", "ffi", 0, ffi_exp,
-               asan_safe_cmd(til_bin.concat(" interpret examples/ffi/ext_module.til"), til_bin))
+               asan_safe_cmd(format(til_bin, " interpret examples/ffi/ext_module.til"), til_bin))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
-               asan_safe_cmd(til_bin.concat(" run examples/ffi/ext_module.til"), til_bin))
+               asan_safe_cmd(format(til_bin, " run examples/ffi/ext_module.til"), til_bin))
 
     // === parser / typer diagnostics ===
     add_count(tests, "typer_errors", "typer", "error:", 90,
-              asan_safe_cmd(til_bin.concat(" interpret src/test/typer_errors.til"), til_bin))
+               asan_safe_cmd(format(til_bin, " interpret src/test/typer_errors.til"), til_bin))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
-              asan_safe_cmd(til_bin.concat(" interpret src/test/qualifier_shallow_local_error.til"), til_bin))
+               asan_safe_cmd(format(til_bin, " interpret src/test/qualifier_shallow_local_error.til"), til_bin))
     add_count(tests, "qualifier_ref_param_error", "parser",
               "parameters are borrowed by default", 1,
-              asan_safe_cmd(til_bin.concat(" interpret src/test/qualifier_ref_param_error.til"), til_bin))
+              asan_safe_cmd(format(til_bin, " interpret src/test/qualifier_ref_param_error.til"), til_bin))
     add_count(tests, "qualifier_returns_own_error", "parser",
               "returns are owned by default", 1,
-              asan_safe_cmd(til_bin.concat(" interpret src/test/qualifier_returns_own_error.til"), til_bin))
+              asan_safe_cmd(format(til_bin, " interpret src/test/qualifier_returns_own_error.til"), til_bin))
     add_count(tests, "priv_error", "typer",
               "is private to", 11,
-              asan_safe_cmd(til_bin.concat(" interpret src/test/priv_error.til"), til_bin))
+              asan_safe_cmd(format(til_bin, " interpret src/test/priv_error.til"), til_bin))
     add_count(tests, "priv_unused_error", "typer",
               "unused priv", 7,
-              asan_safe_cmd(til_bin.concat(" interpret src/test/priv_unused_error.til"), til_bin))
+              asan_safe_cmd(format(til_bin, " interpret src/test/priv_unused_error.til"), til_bin))
     add_count(tests, "enum_switch_missing_case_interp", "typer",
               "non-exhaustive switch on enum", 2,
-              asan_safe_cmd(til_bin.concat(" interpret src/test/enum_switch_missing_case.til"), til_bin))
+              asan_safe_cmd(format(til_bin, " interpret src/test/enum_switch_missing_case.til"), til_bin))
     add_count(tests, "enum_switch_missing_case_build", "typer",
               "non-exhaustive switch on enum", 2,
-              asan_safe_cmd(til_bin.concat(" build src/test/enum_switch_missing_case.til"), til_bin))
+              asan_safe_cmd(format(til_bin, " build src/test/enum_switch_missing_case.til"), til_bin))
 
     // === 24 CLI tests (12 cases × interpret + run) ===
     exp := "gen/out/expected/"
 
-    File.writefile(exp.concat("cli_args_hello.out"), "hello".concat(NL).concat("world").concat(NL))
+    File.writefile(format(exp, "cli_args_hello.out"), format("hello", NL, "world", NL))
     add_cli_pair(tests, "cli_args_hello", "examples/cli_args.til",
-                 "hello world", 0, exp.concat("cli_args_hello.out"), til_bin)
+                 "hello world", 0, format(exp, "cli_args_hello.out"), til_bin)
 
-    File.writefile(exp.concat("cli_args_empty.out"), "")
+    File.writefile(format(exp, "cli_args_empty.out"), "")
     add_cli_pair(tests, "cli_args_empty", "examples/cli_args.til",
-                 "", 0, exp.concat("cli_args_empty.out"), til_bin)
+                 "", 0, format(exp, "cli_args_empty.out"), til_bin)
 
-    File.writefile(exp.concat("cli_typed_alice42.out"), "alice 42".concat(NL))
+    File.writefile(format(exp, "cli_typed_alice42.out"), format("alice 42", NL))
     add_cli_pair(tests, "cli_typed_alice42", "examples/cli_typed.til",
-                 "alice 42", 0, exp.concat("cli_typed_alice42.out"), til_bin)
+                 "alice 42", 0, format(exp, "cli_typed_alice42.out"), til_bin)
 
-    File.writefile(exp.concat("hello_cli.out"), "Hello World!".concat(NL))
+    File.writefile(format(exp, "hello_cli.out"), format("Hello World!", NL))
     add_cli_pair(tests, "hello_cli", "examples/hello_cli.til",
-                 "", 0, exp.concat("hello_cli.out"), til_bin)
+                 "", 0, format(exp, "hello_cli.out"), til_bin)
 
-    File.writefile(exp.concat("variadic_add.out"), "60".concat(NL))
+    File.writefile(format(exp, "variadic_add.out"), format("60", NL))
     add_cli_pair(tests, "variadic_add", "examples/cli_variadic_i64.til",
-                 "add 10 20 30", 0, exp.concat("variadic_add.out"), til_bin)
+                 "add 10 20 30", 0, format(exp, "variadic_add.out"), til_bin)
 
-    File.writefile(exp.concat("variadic_mul.out"), "24".concat(NL))
+    File.writefile(format(exp, "variadic_mul.out"), format("24", NL))
     add_cli_pair(tests, "variadic_mul", "examples/cli_variadic_i64.til",
-                 "mul 2 3 4", 0, exp.concat("variadic_mul.out"), til_bin)
+                 "mul 2 3 4", 0, format(exp, "variadic_mul.out"), til_bin)
 
-    File.writefile(exp.concat("variadic_add0.out"), "0".concat(NL))
+    File.writefile(format(exp, "variadic_add0.out"), format("0", NL))
     add_cli_pair(tests, "variadic_add0", "examples/cli_variadic_i64.til",
-                 "add", 0, exp.concat("variadic_add0.out"), til_bin)
+                 "add", 0, format(exp, "variadic_add0.out"), til_bin)
 
-    File.writefile(exp.concat("variadic_bool_f.out"), "false".concat(NL))
+    File.writefile(format(exp, "variadic_bool_f.out"), format("false", NL))
     add_cli_pair(tests, "variadic_bool_f", "examples/cli_variadic_bool.til",
-                 "true true false", 0, exp.concat("variadic_bool_f.out"), til_bin)
+                 "true true false", 0, format(exp, "variadic_bool_f.out"), til_bin)
 
-    File.writefile(exp.concat("variadic_bool_t.out"), "true".concat(NL))
+    File.writefile(format(exp, "variadic_bool_t.out"), format("true", NL))
     add_cli_pair(tests, "variadic_bool_t", "examples/cli_variadic_bool.til",
-                 "true true", 0, exp.concat("variadic_bool_t.out"), til_bin)
+                 "true true", 0, format(exp, "variadic_bool_t.out"), til_bin)
 
     // Error cases (exit=1, no output check)
     add_cli_pair(tests, "cli_typed_err1", "examples/cli_typed.til", "alice", 1, "", til_bin)
@@ -491,27 +491,29 @@ main := proc(args: ..Str) {
     // into build_ms rather than cli_ms in totals.
     run("mkdir -p fonts")
     add_single(tests, "svg2ttf_ok", "build", 0, "",
-               til_bin.concat(" run -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ")
-                      .concat("examples/svg2ttf.til ")
-                      .concat("img/logo-transparent.svg fonts/til_logo.ttf"))
+               format(til_bin,
+                      " run -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ",
+                      "examples/svg2ttf.til ",
+                      "img/logo-transparent.svg fonts/til_logo.ttf"))
     add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
-               til_bin.concat(" run -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ")
-                      .concat("examples/svg2ttf.til ")
-                       .concat("img/logo.svg tmp/svg2ttf_fail.ttf"))
+               format(til_bin,
+                      " run -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ",
+                      "examples/svg2ttf.til ",
+                      "img/logo.svg tmp/svg2ttf_fail.ttf"))
 
     // === library mode checks ===
     add_single(tests, "pure_build", "library", 0, "",
-               asan_safe_cmd(til_bin.concat(" build src/test/pure.til"), til_bin))
+               asan_safe_cmd(format(til_bin, " build src/test/pure.til"), til_bin))
     add_single(tests, "pura_build", "library", 0, "",
-               asan_safe_cmd(til_bin.concat(" build src/test/pura.til"), til_bin))
+               asan_safe_cmd(format(til_bin, " build src/test/pura.til"), til_bin))
     add_single(tests, "pure_interp_forbidden", "library", 1, "",
-               asan_safe_cmd(til_bin.concat(" interpret src/test/pure.til"), til_bin))
+               asan_safe_cmd(format(til_bin, " interpret src/test/pure.til"), til_bin))
     add_single(tests, "pure_run_forbidden", "library", 1, "",
-               asan_safe_cmd(til_bin.concat(" run src/test/pure.til"), til_bin))
+               asan_safe_cmd(format(til_bin, " run src/test/pure.til"), til_bin))
     add_single(tests, "pura_interp_forbidden", "library", 1, "",
-               asan_safe_cmd(til_bin.concat(" interpret src/test/pura.til"), til_bin))
+               asan_safe_cmd(format(til_bin, " interpret src/test/pura.til"), til_bin))
     add_single(tests, "pura_run_forbidden", "library", 1, "",
-               asan_safe_cmd(til_bin.concat(" run src/test/pura.til"), til_bin))
+               asan_safe_cmd(format(til_bin, " run src/test/pura.til"), til_bin))
 
     // === build tests (build + run with timeout) ===
     if en_gui.eq(1) {
@@ -535,11 +537,9 @@ main := proc(args: ..Str) {
             bn := test_basename(gf)
             mut run_args := ""
             if bn.eq("popcorn") { run_args = " --mute" }
-            add_single(tests, "build_".concat(bn), "build", 124, "",
+            add_single(tests, format("build_", bn), "build", 124, "",
                        asan_safe_cmd(
-                           til_bin.concat(" build ").concat(gf)
-                               .concat(" '&&' xvfb-run --auto-servernum timeout ").concat(GUI_TIMEOUT)
-                               .concat(" bin/").concat(bn).concat(run_args),
+                           format(til_bin, " build ", gf, " '&&' xvfb-run --auto-servernum timeout ", GUI_TIMEOUT, " bin/", bn, run_args),
                            til_bin))
         }
     }
@@ -611,7 +611,7 @@ main := proc(args: ..Str) {
                        "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,500000,900000,300000,1700000", NL,
                        "def5678,1890,3900,1510,190,1680,1950,4500,32,32,520000,880000,320000,1720000", NL)
     File.writefile("tmp/_test_plot.csv", test_csv)
-    run(PLOT.concat(" tmp/_test_plot.csv tmp/_test_plot.svg 0"))
+    run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0"))
     plot_svg := File.readfile("tmp/_test_plot.svg")
     mut plot_ok := 1
     if count_matches(plot_svg, "<svg").eq(0) {
@@ -722,25 +722,25 @@ main := proc(args: ..Str) {
                 mut li : USize = 0
                 while li.lt(last_data_idx) {
                     ref ln : Str = lines.get(li)
-                    totals_content = totals_content.concat(ln).concat(NL)
+                    totals_content = format(totals_content, ln, NL)
                     li = li.add(1)
                 }
             } else {
                 totals_content = existing
                 if existing.substr(existing.len().sub(1), 1).neq(NL) {
-                    totals_content = totals_content.concat(NL)
+                    totals_content = format(totals_content, NL)
                 }
             }
         } else {
             totals_content = existing
             if existing.len().gt(0).and(existing.substr(existing.len().sub(1), 1).neq(NL)) {
-                totals_content = totals_content.concat(NL)
+                totals_content = format(totals_content, NL)
             }
         }
-        totals_content = totals_content.concat(totals_line).concat(NL)
+        totals_content = format(totals_content, totals_line, NL)
         File.writefile(totals_path, totals_content)
 
-        run(PLOT.concat(" doc/totals.csv img/totals.svg 10 --no-x-labels"))
+        run(format(PLOT, " doc/totals.csv img/totals.svg 10 --no-x-labels"))
         println("Updated doc/totals.csv and img/totals.svg")
     }
 

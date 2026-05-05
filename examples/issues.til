@@ -16,7 +16,7 @@ run := proc(cmd: Str) returns I64 {
 list_dir := proc(dir: Str) returns Vec {
     mut files := Vec.new("Str", Str.size())
     tmpf := "tmp/_issues_ls"
-    mut cmd := "ls ".concat(dir).concat(" > ").concat(tmpf).concat(" 2>/dev/null")
+    mut cmd := format("ls ", dir, " > ", tmpf, " 2>/dev/null")
     run(cmd)
     content := File.readfile(tmpf)
     if content.is_empty() { return files }
@@ -47,7 +47,7 @@ max_num_in := func(names: Vec) returns I64 {
 // Parse an issue file and return {priority_marker, is_wip, link}
 // Returns "H\nlink" or "HW\nlink" or "L\nlink" or "LW\nlink"
 parse_issue := func(fname: Str) returns Str {
-    path := "issues/open/".concat(fname)
+    path := format("issues/open/", fname)
     raw_content := File.readfile(path)
     content := raw_content.clone()
 
@@ -117,10 +117,10 @@ main := proc() {
 
     // Build summary.org manually
     mut s := ""
-    s = s.concat("* Open").concat(NL)
+    s = format(s, "* Open", NL)
 
     // Open High
-    s = s.concat("** High").concat(NL)
+    s = format(s, "** High", NL)
     for ei in 0..entries.len() {
         ref entry : Str = entries.get(ei)
         nl_pos := entry.find(NL)
@@ -128,14 +128,14 @@ main := proc() {
         nlp : USize = nl_pos.to_usize()
         tag := entry.substr(0, nlp)
         link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
-        if tag.eq("H") { s = s.concat(link).concat(NL) }
+        if tag.eq("H") { s = format(s, link, NL) }
     }
 
     // Open Medium
-    s = s.concat("** Medium").concat(NL)
+    s = format(s, "** Medium", NL)
 
     // Open Low
-    s = s.concat("** Low").concat(NL)
+    s = format(s, "** Low", NL)
     for ei in 0..entries.len() {
         ref entry : Str = entries.get(ei)
         nl_pos := entry.find(NL)
@@ -143,14 +143,14 @@ main := proc() {
         nlp : USize = nl_pos.to_usize()
         tag := entry.substr(0, nlp)
         link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
-        if tag.eq("L") { s = s.concat(link).concat(NL) }
+        if tag.eq("L") { s = format(s, link, NL) }
     }
 
     // WIP
-    s = s.concat(NL).concat("* WIP").concat(NL)
+    s = format(s, NL, "* WIP", NL)
 
     // WIP High
-    s = s.concat("** High").concat(NL)
+    s = format(s, "** High", NL)
     for ei in 0..entries.len() {
         ref entry : Str = entries.get(ei)
         nl_pos := entry.find(NL)
@@ -158,14 +158,14 @@ main := proc() {
         nlp : USize = nl_pos.to_usize()
         tag := entry.substr(0, nlp)
         link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
-        if tag.eq("HW") { s = s.concat(link).concat(NL) }
+        if tag.eq("HW") { s = format(s, link, NL) }
     }
 
     // WIP Medium
-    s = s.concat("** Medium").concat(NL)
+    s = format(s, "** Medium", NL)
 
     // WIP Low
-    s = s.concat("** Low").concat(NL)
+    s = format(s, "** Low", NL)
     for ei in 0..entries.len() {
         ref entry : Str = entries.get(ei)
         nl_pos := entry.find(NL)
@@ -173,7 +173,7 @@ main := proc() {
         nlp : USize = nl_pos.to_usize()
         tag := entry.substr(0, nlp)
         link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
-        if tag.eq("LW") { s = s.concat(link).concat(NL) }
+        if tag.eq("LW") { s = format(s, link, NL) }
     }
 
     File.writefile("issues/summary.org", s)
@@ -190,10 +190,10 @@ main := proc() {
         rest_start := marker_pos_u.add(next_marker.len())
         rest := process_content.substr(rest_start, process_content.len().sub(rest_start))
         end_nl := rest.find(NL)
-        mut updated := before.concat(next_num.to_str())
+        mut updated := before.format(next_num.to_str())
         if end_nl.gte(0) {
             end_nl_u : USize = end_nl.to_usize()
-            updated = updated.concat(rest.substr(end_nl_u, rest.len().sub(end_nl_u)))
+            updated = updated.format(rest.substr(end_nl_u, rest.len().sub(end_nl_u)))
         }
         File.writefile("issues/process.org", updated)
         println("Updated: issues/process.org (NEXT_ISSUE: ", next_num.to_str(), ")")

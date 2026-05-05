@@ -404,7 +404,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         ref ident : Str = get_payload(e.node_type)
         ref cell : Cell = scope_get(scope, ident)
         if is_null(cell) {
-            interp_error(e, "undefined variable '".concat(ident).concat("'"))
+            interp_error(e, format("undefined variable '", ident, "'"))
             exit(1.to_i32())
         }
         return shallow_copy_value(cell.val)
@@ -470,7 +470,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                 }
                 return shallow_copy_value(nsv)
             }
-            interp_error(e, "no namespace field '".concat(fname).concat("'"))
+            interp_error(e, format("no namespace field '", fname, "'"))
             exit(1.to_i32())
         }
         if obj.is(Value.Ptr) {
@@ -501,7 +501,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         ref si : StructInstance = get_payload(obj)
         ref fdecl : Declaration = find_field_decl(si.struct_def, fname)
         if is_null(fdecl) {
-            interp_error(e, "no field '".concat(fname).concat("'"))
+            interp_error(e, format("no field '", fname, "'"))
             exit(1.to_i32())
         }
         return read_field(si, fdecl)
@@ -891,7 +891,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             // unqualified top-level name. This is required for and/or/not.
             mut flat_str := fn_name.clone()
             if sn.len().gt(0) {
-                flat_str = sn.concat("_").concat(fn_name)
+                flat_str = sn.format("_", fn_name)
             }
             orig_callee_val := callee_expr.clone()
             mut flat_ident2 := callee_expr.clone()
@@ -1435,7 +1435,7 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) 
 }
 
 priv ns_qname := func(sname: Str, fname: Str) returns Str {
-    return sname.concat(".").concat(fname)
+    return sname.format(".", fname)
 }
 
 ns_get := func(sname: Str, fname: Str) returns ref Value {
@@ -2047,7 +2047,7 @@ cmd_interpret := proc(lp: LoadedProgram, user_argv: Vec) returns shallow I32 {
     mut result : I32 = 0
     if lp.link_c_paths.len().gt(0) {
         system_cmd("mkdir -p tmp")
-        interpret_fwd_path = "tmp/ffi_".concat(clock_ms().to_str()).concat("_forward.h")
+        interpret_fwd_path = format("tmp/ffi_", clock_ms().to_str(), "_forward.h")
         codegen_set_lp(lp)
         result = build_forward_header_lp(interpret_fwd_path)
     }

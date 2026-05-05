@@ -24,7 +24,7 @@ test_kwargs_multiple := test() {
 greet := func(name: Str, opts: ...) returns Str {
     if opts.has("prefix") {
         ref p : Str = opts.get("prefix")
-        return p.clone().concat(" ").concat(name)
+        return p.clone().format(" ", name)
     }
     return name
 }
@@ -79,7 +79,7 @@ bug188_kwargs_variadic_mixed := test() {
 // find_kwargs_fcall returns the first match. Fix: after rewriting
 // a kwargs fcall, recurse process_call_desugars on stmt.
 bug189_pair := func(a: Str, b: Str) returns Str {
-    return a.clone().concat("|").concat(b)
+    return a.clone().format("|", b)
 }
 
 bug189_sibling_kwargs := test() {

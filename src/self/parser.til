@@ -154,7 +154,7 @@ priv parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U
 priv maybe_lift_lambda := func(mut p: Parser, own e: Expr) returns Expr {
     if e.node_type.is(NodeType.FuncDef).not() { return e }
     if e.children.len().eq(0) { return e }
-    lname := "_lambda_".concat(p.lambda_decls.len().to_str())
+    lname := format("_lambda_", p.lambda_decls.len().to_str())
     line := e.line
     col := e.col
     mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone())), line, col)
@@ -1235,7 +1235,7 @@ drain_doc_comments := func(mut p: Parser) {
         if p.pending_doc.is_empty() {
             p.pending_doc = t.text.clone()
         } else {
-            p.pending_doc = p.pending_doc.concat("\n").concat(t.text)
+            p.pending_doc = p.pending_doc.format("\n", t.text)
         }
         advance(p)
     }

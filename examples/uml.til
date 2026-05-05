@@ -306,16 +306,16 @@ generate_org := func(paths: Vec, types: Vec) returns Str {
     while i.lt(paths.len()) {
         ref path : Str = paths.get(i)
         label := file_label(path)
-        out = out.concat("* ").concat(label).concat(NL)
+        out = out.format("* ", label, NL)
         mut j : USize = 0
         while j.lt(types.len()) {
             ref t : UmlType = types.get(j)
             if t.file.eq(label) {
-                out = out.concat("** ").concat(t.name).concat(": ").concat(t.kind).concat(NL)
+                out = out.format("** ", t.name, ": ", t.kind, NL)
                 mut k : USize = 0
                 while k.lt(t.lines.len()) {
                     ref line : Str = t.lines.get(k)
-                    out = out.concat("*** ").concat(line).concat(NL)
+                    out = out.format("*** ", line, NL)
                     k = k.add(1)
                 }
             }
@@ -327,25 +327,25 @@ generate_org := func(paths: Vec, types: Vec) returns Str {
 }
 
 qa := func(val: Str) returns Str {
-    return Q.concat(val).concat(Q)
+    return format(Q, val, Q)
 }
 
 svg_rect := func(x: I64, y: I64, w: I64, h: I64) returns Str {
-    return "<rect x=".concat(qa(x.to_str()))
-        .concat(" y=").concat(qa(y.to_str()))
-        .concat(" width=").concat(qa(w.to_str()))
-        .concat(" height=").concat(qa(h.to_str()))
-        .concat(" rx=").concat(qa("10"))
-        .concat(" ry=").concat(qa("10"))
-        .concat(" class=").concat(qa("box"))
-        .concat("/>").concat(NL)
+    return format("<rect x=", qa(x.to_str()),
+        " y=", qa(y.to_str()),
+        " width=", qa(w.to_str()),
+        " height=", qa(h.to_str()),
+        " rx=", qa("10"),
+        " ry=", qa("10"),
+        " class=", qa("box"),
+        "/>", NL)
 }
 
 svg_text := func(x: I64, y: I64, klass: Str, body: Str) returns Str {
-    return "<text x=".concat(qa(x.to_str()))
-        .concat(" y=").concat(qa(y.to_str()))
-        .concat(" class=").concat(qa(klass))
-        .concat(">").concat(body).concat("</text>").concat(NL)
+    return format("<text x=", qa(x.to_str()),
+        " y=", qa(y.to_str()),
+        " class=", qa(klass),
+        ">", body, "</text>", NL)
 }
 
 xml_escape := func(s: Str) returns Str {
@@ -367,7 +367,7 @@ xml_escape := func(s: Str) returns Str {
 }
 
 max_line_chars := func(t: UmlType) returns I64 {
-    header := t.name.concat(": ").concat(t.kind)
+    header := format(t.name, ": ", t.kind)
     mut max := header.len().to_i64()
     for line : Str in t.lines {
         n := line.len().to_i64()
@@ -431,28 +431,28 @@ generate_svg := func(panels: Vec) returns Str {
     total_h := PAGE_PAD_Y.add(max_h).add(PAGE_PAD_Y)
 
     mut svg := ""
-    view_box := "0 0 ".concat(total_w.to_str()).concat(" ").concat(total_h.to_str())
-    svg = svg.concat("<svg xmlns=").concat(qa("http://www.w3.org/2000/svg"))
-        .concat(" width=").concat(qa(total_w.to_str()))
-        .concat(" height=").concat(qa(total_h.to_str()))
-        .concat(" viewBox=").concat(qa(view_box))
-        .concat(">").concat(NL)
-    svg = svg.concat("  <defs>").concat(NL)
-    svg = svg.concat("    <style>").concat(NL)
-    svg = svg.concat("      .bg { fill: #f7f5ef; }").concat(NL)
-    svg = svg.concat("      .panel { fill: none; stroke: #c8c2b7; stroke-width: 2; stroke-dasharray: 10 7; }").concat(NL)
-    svg = svg.concat("      .panel-label { font: 700 18px Georgia, serif; fill: #6b7280; }").concat(NL)
-    svg = svg.concat("      .box { fill: #fffdf8; stroke: #334155; stroke-width: 2; }").concat(NL)
-    svg = svg.concat("      .title { font: 700 16px 'Courier New', monospace; fill: #111827; }").concat(NL)
-    svg = svg.concat("      .line { font: 13px 'Courier New', monospace; fill: #1f2937; }").concat(NL)
-    svg = svg.concat("    </style>").concat(NL)
-    svg = svg.concat("  </defs>").concat(NL)
-    svg = svg.concat("  <rect class=").concat(qa("bg"))
-        .concat(" x=").concat(qa("0"))
-        .concat(" y=").concat(qa("0"))
-        .concat(" width=").concat(qa(total_w.to_str()))
-        .concat(" height=").concat(qa(total_h.to_str()))
-        .concat("/>").concat(NL)
+    view_box := format("0 0 ", total_w.to_str(), " ", total_h.to_str())
+    svg = svg.format("<svg xmlns=", qa("http://www.w3.org/2000/svg"),
+        " width=", qa(total_w.to_str()),
+        " height=", qa(total_h.to_str()),
+        " viewBox=", qa(view_box),
+        ">", NL)
+    svg = svg.format("  <defs>", NL)
+    svg = svg.format("    <style>", NL)
+    svg = svg.format("      .bg { fill: #f7f5ef; }", NL)
+    svg = svg.format("      .panel { fill: none; stroke: #c8c2b7; stroke-width: 2; stroke-dasharray: 10 7; }", NL)
+    svg = svg.format("      .panel-label { font: 700 18px Georgia, serif; fill: #6b7280; }", NL)
+    svg = svg.format("      .box { fill: #fffdf8; stroke: #334155; stroke-width: 2; }", NL)
+    svg = svg.format("      .title { font: 700 16px 'Courier New', monospace; fill: #111827; }", NL)
+    svg = svg.format("      .line { font: 13px 'Courier New', monospace; fill: #1f2937; }", NL)
+    svg = svg.format("    </style>", NL)
+    svg = svg.format("  </defs>", NL)
+    svg = svg.format("  <rect class=", qa("bg"),
+        " x=", qa("0"),
+        " y=", qa("0"),
+        " width=", qa(total_w.to_str()),
+        " height=", qa(total_h.to_str()),
+        "/>", NL)
 
     mut panel_x := PAGE_PAD_X
     i = 0
@@ -461,15 +461,15 @@ generate_svg := func(panels: Vec) returns Str {
         pw := panel_w(p)
         ph := panel_h(p)
         panel_y := PAGE_PAD_Y
-        svg = svg.concat("  <rect x=").concat(qa(panel_x.to_str()))
-            .concat(" y=").concat(qa(panel_y.to_str()))
-            .concat(" width=").concat(qa(pw.to_str()))
-            .concat(" height=").concat(qa(ph.to_str()))
-            .concat(" rx=").concat(qa("14"))
-            .concat(" ry=").concat(qa("14"))
-            .concat(" class=").concat(qa("panel"))
-            .concat("/>").concat(NL)
-        svg = svg.concat("  ").concat(svg_text(panel_x.add(PANEL_PAD_X), panel_y.add(PANEL_PAD_Y).add(20), "panel-label", xml_escape(p.file)))
+        svg = svg.format("  <rect x=", qa(panel_x.to_str()),
+            " y=", qa(panel_y.to_str()),
+            " width=", qa(pw.to_str()),
+            " height=", qa(ph.to_str()),
+            " rx=", qa("14"),
+            " ry=", qa("14"),
+            " class=", qa("panel"),
+            "/>", NL)
+        svg = svg.format("  ", svg_text(panel_x.add(PANEL_PAD_X), panel_y.add(PANEL_PAD_Y).add(20), "panel-label", xml_escape(p.file)))
 
         mut box_y := panel_y.add(PANEL_PAD_Y).add(PANEL_LABEL_H).add(PANEL_PAD_Y)
         mut j : USize = 0
@@ -478,14 +478,14 @@ generate_svg := func(panels: Vec) returns Str {
             w := box_w(t)
             h := box_h(t)
             box_x := panel_x.add(PANEL_PAD_X)
-            svg = svg.concat("  ").concat(svg_rect(box_x, box_y, w, h))
-            header := xml_escape(t.name.concat(": ").concat(t.kind))
-            svg = svg.concat("  ").concat(svg_text(box_x.add(BOX_PAD_X), box_y.add(BOX_PAD_Y).add(HEADER_H), "title", header))
+            svg = svg.format("  ", svg_rect(box_x, box_y, w, h))
+            header := xml_escape(format(t.name, ": ", t.kind))
+            svg = svg.format("  ", svg_text(box_x.add(BOX_PAD_X), box_y.add(BOX_PAD_Y).add(HEADER_H), "title", header))
             mut k : USize = 0
             while k.lt(t.lines.len()) {
                 ref line : Str = t.lines.get(k)
                 line_y := box_y.add(BOX_PAD_Y).add(HEADER_H).add(ROW_H).add(k.to_i64().mul(ROW_H))
-                svg = svg.concat("  ").concat(svg_text(box_x.add(BOX_PAD_X), line_y, "line", xml_escape(line)))
+                svg = svg.format("  ", svg_text(box_x.add(BOX_PAD_X), line_y, "line", xml_escape(line)))
                 k = k.add(1)
             }
             box_y = box_y.add(h).add(BOX_GAP_Y)
@@ -495,7 +495,7 @@ generate_svg := func(panels: Vec) returns Str {
         i = i.add(1)
     }
 
-    svg = svg.concat("</svg>").concat(NL)
+    svg = svg.format("</svg>", NL)
     return svg
 }
 

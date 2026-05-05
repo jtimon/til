@@ -512,7 +512,7 @@ is_macro_call := func(e: Expr) returns shallow Bool {
         sname := fa_recv_type_name(callee)
         if sname.is_empty() { return false }
         ref mname : Str = get_payload(callee.node_type)
-        qname := sname.concat("_").concat(mname)
+        qname := sname.format("_", mname)
         return precomp_has_macro(qname)
     }
     return false
@@ -529,7 +529,7 @@ is_func_call := func(e: Expr) returns shallow Bool {
         sname := fa_recv_type_name(callee)
         if sname.is_empty() { return false }
         ref mname : Str = get_payload(callee.node_type)
-        qname := sname.concat("_").concat(mname)
+        qname := sname.format("_", mname)
         return precomp_has_func(qname)
     }
     return false
@@ -654,7 +654,7 @@ precomp_scan_names := func(prog: Expr) {
                     ref fdef : Expr = fdd.default_value
                     if fdef.node_type.is(NodeType.FuncDef) {
                         ref ffd : FunctionDef = get_payload(fdef.node_type)
-                        qname := sdd.name.concat("_").concat(fdd.name)
+                        qname := sdd.name.format("_", fdd.name)
                         if ffd.func_type.is(FuncType.Macro) {
                             macros.add(own qname)
                         } else if ffd.func_type.is(FuncType.Func)
@@ -670,7 +670,7 @@ precomp_scan_names := func(prog: Expr) {
                     if is_null(nsd.default_value) { continue }
                     if nsd.default_value.node_type.is(NodeType.FuncDef) {
                         ref ffd : FunctionDef = get_payload(nsd.default_value.node_type)
-                        qname := sdd.name.concat("_").concat(nsd.name)
+                        qname := sdd.name.format("_", nsd.name)
                         if ffd.func_type.is(FuncType.Macro) {
                             macros.add(own qname)
                         } else if ffd.func_type.is(FuncType.Func)

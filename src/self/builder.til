@@ -438,7 +438,7 @@ priv fcall_is_shallow_return := func(fcall: Expr) returns shallow Bool {
     case NodeType.FieldAccess(mname):
         sname := til_type_name(callee.child(0).til_type)
         if sname.len().eq(0) { return false }
-        flat := sname.concat("_").concat(mname)
+        flat := sname.format("_", mname)
         if callee_returns_shallow(flat) { return true }
     case:
     }
@@ -460,7 +460,7 @@ fcall_returns_dynamic := func(fcall: Expr) returns shallow Bool {
     case NodeType.FieldAccess(mname):
         sname := til_type_name(callee_node.child(0).til_type)
         if sname.len().eq(0) { return false }
-        flat := sname.concat("_").concat(mname)
+        flat := sname.format("_", mname)
         return callee_returns_dynamic(flat)
     case NodeType.Ident(ident):
         return callee_returns_dynamic(ident)
@@ -546,7 +546,7 @@ type_name_to_c := func(name: Str) returns Str {
     if name.eq("Dynamic") { return "void *" }
     if name.eq("Fn") { return "void *" }
     if codegen_lp().ctx.funcsig_names.has(name) { return name.clone() }
-    return name.concat(" *")
+    return name.format(" *")
 }
 
 type_name_to_c_value := func(name: Str) returns Str {
@@ -763,7 +763,7 @@ resolve_callee_name := func(fcall: Expr) returns Str {
     case NodeType.FieldAccess(mname):
         sname := til_type_name(callee_node.child(0).til_type)
         if sname.len().eq(0) { return "" }
-        return sname.concat("_").concat(mname)
+        return sname.format("_", mname)
     case NodeType.Ident(ident):
         return ident.clone()
     case:
@@ -1393,7 +1393,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             // Namespace method call
             sname := til_type_name(callee.child(0).til_type)
             ref mname : Str = get_payload(callee.node_type)
-            flat := sname.concat("_").concat(mname)
+            flat := sname.format("_", mname)
             f.write(sname)
             f.write("_")
             f.write(mname)
@@ -2146,7 +2146,7 @@ emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr) {
         UNREACHABLE(__LOC__)
         return
     }
-    full_name := name.concat("_").concat(dd_name)
+    full_name := name.format("_", dd_name)
     emit_func_def(f, full_name, fdef, NULL, false)
     f.write("\n")
 }
@@ -2675,7 +2675,7 @@ emit_header_func_fwds_prog := proc(f: File, prog: Expr, shallow is_core_pass: Bo
                 switch fdd.default_value.node_type {
                 case NodeType.FuncDef(fd):
                     if is_core_pass.and(fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc))) { continue }
-                    full_name := dd.name.concat("_").concat(fdd.name)
+                    full_name := dd.name.format("_", fdd.name)
                     emit_func_forward_decl(f, full_name, fdd.default_value)
                 case:
                 }
@@ -2774,7 +2774,7 @@ emit_header_defs_and_funcs_lp := proc(f: File) {
                         if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                         ref fd : FunctionDef = get_payload(fdd.default_value.node_type)
                         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-                        full_name := dd.name.concat("_").concat(fdd.name)
+                        full_name := dd.name.format("_", fdd.name)
                         emit_func_forward_decl(f, full_name, fdd.default_value)
                     }
                 } else if rhs.node_type.is(NodeType.FuncDef) {
@@ -2800,7 +2800,7 @@ emit_header_defs_and_funcs_lp := proc(f: File) {
                 for fdd : Declaration in fwd_ns {
                     if is_null(fdd.default_value) { continue }
                     if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                    full_name := dd.name.concat("_").concat(fdd.name)
+                    full_name := dd.name.format("_", fdd.name)
                     emit_func_forward_decl(f, full_name, fdd.default_value)
                 }
             } else if rhs.node_type.is(NodeType.FuncDef) {
@@ -3090,13 +3090,13 @@ type_name_to_ctypes := func(name: Str) returns Str {
 type_name_to_ctypes_param := func(name: Str, shallow is_shallow: Bool) returns Str {
     base := type_name_to_ctypes(name)
     if is_shallow { return base }
-    return "ctypes.POINTER(".concat(base).concat(")")
+    return format("ctypes.POINTER(", base, ")")
 }
 
 type_name_to_ctypes_return := func(name: Str, shallow is_shallow: Bool) returns Str {
     base := type_name_to_ctypes(name)
     if is_shallow { return base }
-    return "ctypes.POINTER(".concat(base).concat(")")
+    return format("ctypes.POINTER(", base, ")")
 }
 
 build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns shallow I32 {
@@ -3393,9 +3393,9 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     if slash.gte(0) { ext_dir = ext_c_path.substr(0, slash.to_usize()).clone() }
 
     // Compile library .c to object
-    obj_path := "gen/lib/".concat(lib_name).concat(".o")
-    mut cmd := compiler.concat(extra).concat(" -Werror -fPIC -I").concat(ext_dir)
-    .concat(" -c ").concat(c_path).concat(" -o ").concat(obj_path)
+    obj_path := format("gen/lib/", lib_name, ".o")
+    mut cmd := compiler.format(extra, " -Werror -fPIC -I", ext_dir,
+        " -c ", c_path, " -o ", obj_path)
     mut result := system_cmd(cmd)
     if result.neq(0) {
         println("error: library compilation failed")
@@ -3404,8 +3404,8 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
 
     // Compile ext.c to object
     ext_obj := "gen/lib/ext.o"
-    cmd = compiler.concat(extra).concat(" -Werror -fPIC -I").concat(ext_dir)
-    .concat(" -c ").concat(ext_c_path).concat(" -o ").concat(ext_obj)
+    cmd = compiler.format(extra, " -Werror -fPIC -I", ext_dir,
+        " -c ", ext_c_path, " -o ", ext_obj)
     result = system_cmd(cmd)
     if result.neq(0) {
         println("error: ext.c compilation failed")
@@ -3416,8 +3416,8 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     mut user_obj := ""
     if uc.len().gt(0) {
         user_obj = "gen/lib/user.o"
-        cmd = compiler.concat(extra).concat(" -Werror -fPIC -I").concat(ext_dir).concat(ifl)
-        .concat(" -c ").concat(uc).concat(" -o ").concat(user_obj)
+        cmd = compiler.format(extra, " -Werror -fPIC -I", ext_dir, ifl,
+            " -c ", uc, " -o ", user_obj)
         result = system_cmd(cmd)
         if result.neq(0) {
             println("error: user .c compilation failed")
@@ -3426,10 +3426,10 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     }
 
     // Create shared library
-    so_path := "gen/lib/lib".concat(lib_name).concat(".so")
-    cmd = compiler.concat(" -shared -o ").concat(so_path)
-    .concat(" ").concat(obj_path).concat(" ").concat(ext_obj)
-    .concat(" ").concat(user_obj).concat(lf)
+    so_path := format("gen/lib/lib", lib_name, ".so")
+    cmd = compiler.format(" -shared -o ", so_path,
+        " ", obj_path, " ", ext_obj,
+        " ", user_obj, lf)
     result = system_cmd(cmd)
     if result.neq(0) {
         println("error: shared library creation failed")
@@ -3437,10 +3437,10 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     }
 
     // Create static library
-    a_path := "gen/lib/lib".concat(lib_name).concat(".a")
-    cmd = "ar rcs ".concat(a_path)
-    .concat(" ").concat(obj_path).concat(" ").concat(ext_obj)
-    .concat(" ").concat(user_obj)
+    a_path := format("gen/lib/lib", lib_name, ".a")
+    cmd = format("ar rcs ", a_path,
+        " ", obj_path, " ", ext_obj,
+        " ", user_obj)
     result = system_cmd(cmd)
     if result.neq(0) {
         println("error: static library creation failed")
@@ -3476,7 +3476,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
         c_dot := c_path.rfind(".")
         mut c_base := c_path
         if c_dot.gt(c_slash) { c_base = c_path.substr(0, c_dot.to_usize()) }
-        fwd_path := c_base.concat("_forward.h")
+        fwd_path := c_base.format("_forward.h")
 
         // Split space-separated link_c files and compile each individually
         files := uc.split(" ")
@@ -3484,21 +3484,21 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
         for fi in 0..files.len() {
             ref file : Str = files.get(fi)
             if file.len().eq(0) { continue }
-            user_obj := c_dir.concat("/user_").concat(fi.to_str()).concat(".o")
+            user_obj := c_dir.format("/user_", fi.to_str(), ".o")
 
             // Skip -include forward.h for src/c/ files
-            mut fwd_flag := " -include ".concat(fwd_path)
+            mut fwd_flag := format(" -include ", fwd_path)
             if file.starts_with("src/c/") { fwd_flag = " -Isrc/c -Iboot" }
-            obj_cmd := compiler.concat(extra).concat(" -Werror -I").concat(ext_dir)
-            .concat(fwd_flag).concat(ifl).concat(" -c ").concat(file)
-            .concat(" -o ").concat(user_obj)
+            obj_cmd := compiler.format(extra, " -Werror -I", ext_dir,
+                fwd_flag, ifl, " -c ", file,
+                " -o ", user_obj)
 
             obj_result := system_cmd(obj_cmd)
             if obj_result.neq(0) {
-                println("error: link_c compilation failed for ".concat(file))
+                println(format("error: link_c compilation failed for ", file))
                 return 1.to_i32()
             }
-            all_objs = all_objs.concat(" ").concat(user_obj)
+            all_objs = all_objs.format(" ", user_obj)
         }
         user_part = all_objs
     }
@@ -3528,12 +3528,12 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     sys_libs := target_system_libs(target)
     ffi_lib  := target_ffi_lib(target)
     mut gui_part := ""
-    if mode_auto_import.eq("gui") { gui_part = " ".concat(target_gui_libs(target)) }
+    if mode_auto_import.eq("gui") { gui_part = format(" ", target_gui_libs(target)) }
 
-    cmd := compiler.concat(extra).concat(" -Werror -g").concat(dyn_flag).concat(" -I").concat(ext_dir)
-    .concat(" -o ").concat(bin_path).concat(" ").concat(c_path)
-    .concat(" ").concat(ext_c_path).concat(user_part).concat(lf)
-    .concat(" ").concat(ffi_lib).concat(gui_part).concat(" ").concat(sys_libs)
+    cmd := compiler.format(extra, " -Werror -g", dyn_flag, " -I", ext_dir,
+        " -o ", bin_path, " ", c_path,
+        " ", ext_c_path, user_part, lf,
+        " ", ffi_lib, gui_part, " ", sys_libs)
 
     result := system_cmd(cmd)
     if result.neq(0) {
@@ -3636,7 +3636,7 @@ register_lookups_prog := func(prog: Expr) {
                     ref nsd : Declaration = d_j
                     if is_null(nsd.default_value) { continue }
                     if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                    key := dd.name.concat("_").concat(nsd.name)
+                    key := dd.name.format("_", nsd.name)
                     if lp.ctx.func_defs.has(key) { continue }
                     fv : Dynamic = malloc(I64.size())
                     write_ptr(fv, nsd.default_value)
@@ -3715,7 +3715,7 @@ emit_monolithic_header_func_decls_prog := proc(f: File, prog: Expr, mode: Mode) 
                 if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                 ref fd : FunctionDef = get_payload(fdd.default_value.node_type)
                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-                full_name := dd.name.concat("_").concat(fdd.name)
+                full_name := dd.name.format("_", fdd.name)
                 emit_func_forward_decl(f, full_name, fdd.default_value)
             }
         } else if rhs.node_type.is(NodeType.FuncDef) {
@@ -3822,7 +3822,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
                         if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                         ref fd : FunctionDef = get_payload(fdd.default_value.node_type)
                         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-                        full_name := dd.name.concat("_").concat(fdd.name)
+                        full_name := dd.name.format("_", fdd.name)
                         emit_func_forward_decl(f, full_name, fdd.default_value)
                     }
                 } else if rhs.node_type.is(NodeType.FuncDef) {
@@ -3855,7 +3855,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
                     if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                     ref fd : FunctionDef = get_payload(fdd.default_value.node_type)
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-                    full_name := dd.name.concat("_").concat(fdd.name)
+                    full_name := dd.name.format("_", fdd.name)
                     emit_func_forward_decl(f, full_name, fdd.default_value)
                 }
             } else if rhs.node_type.is(NodeType.FuncDef) {
@@ -3935,7 +3935,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
                         if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                         ref fd : FunctionDef = get_payload(fdd.default_value.node_type)
                         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-                        full_name := dd.name.concat("_").concat(fdd.name)
+                        full_name := dd.name.format("_", fdd.name)
                         emit_func_forward_decl(f, full_name, fdd.default_value)
                     }
                 } else if rhs.node_type.is(NodeType.FuncDef) {
@@ -3966,7 +3966,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
                 for fdd : Declaration in afd_ns {
                     if is_null(fdd.default_value) { continue }
                     if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                    full_name := dd.name.concat("_").concat(fdd.name)
+                    full_name := dd.name.format("_", fdd.name)
                     emit_func_forward_decl(f, full_name, fdd.default_value)
                 }
             } else if rhs.node_type.is(NodeType.FuncDef) {
@@ -4379,14 +4379,14 @@ emit_dyn_call_bodies := proc(f: File) {
                     mut arg1 := "val"
                     if mfd.params.len().gt(0) {
                         ref p0 : Declaration = mfd.params.get(0)
-                        if p0.own_type.is(OwnType.Shallow) { arg1 = "*(".concat(dd.name).concat(" *)val") }
+                        if p0.own_type.is(OwnType.Shallow) { arg1 = format("*(", dd.name, " *)val") }
                     }
                     mut arg2_s := "arg2"
                     if info.nargs.eq(2) {
                         if mfd.params.len().gt(1) {
                             if mfd.params.len().gt(1) {
                                 ref p1 : Declaration = mfd.params.get(1)
-                                if p1.own_type.is(OwnType.Shallow) { arg2_s = "*(".concat(dd.name).concat(" *)arg2") }
+                                if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", dd.name, " *)arg2") }
                             }
                         }
                     }
@@ -4436,14 +4436,14 @@ emit_dyn_call_bodies := proc(f: File) {
                 mut arg1 := "val"
                 if mfd.params.len().gt(0) {
                     ref p0 : Declaration = mfd.params.get(0)
-                    if p0.own_type.is(OwnType.Shallow) { arg1 = "*(".concat(dd.name).concat(" *)val") }
+                    if p0.own_type.is(OwnType.Shallow) { arg1 = format("*(", dd.name, " *)val") }
                 }
                 mut arg2_s := "arg2"
                 if info.nargs.eq(2) {
                     if mfd.params.len().gt(1) {
                         if mfd.params.len().gt(1) {
                             ref p1 : Declaration = mfd.params.get(1)
-                            if p1.own_type.is(OwnType.Shallow) { arg2_s = "*(".concat(dd.name).concat(" *)arg2") }
+                            if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", dd.name, " *)arg2") }
                         }
                     }
                 }
@@ -4606,7 +4606,7 @@ emit_collection_helpers := proc(f: File) {
             f.write("    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
-            cn := et.concat("_clone")
+            cn := et.format("_clone")
             is_shallow := callee_returns_shallow(cn)
             if is_shallow {
                 f.write("        "); f.write(et); f.write(" *_val = malloc(sizeof("); f.write(et); f.write(")); *_val = "); f.write(et); f.write("_clone(va_arg(ap, "); f.write(et); f.write(" *));\n")
@@ -4626,7 +4626,7 @@ emit_collection_helpers := proc(f: File) {
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
             f.write("        USize _idx = _i;\n")
-            cn := et.concat("_clone")
+            cn := et.format("_clone")
             is_shallow := callee_returns_shallow(cn)
             if is_shallow {
                 f.write("        "); f.write(et); f.write(" *_val = malloc(sizeof("); f.write(et); f.write(")); *_val = "); f.write(et); f.write("_clone(va_arg(ap, "); f.write(et); f.write(" *));\n")
@@ -4947,17 +4947,17 @@ derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
     name := basename.substr(0, name_len)
     paths.name = name.clone()
 
-    mut c_path := "gen/til/".concat(name).concat(".c")
+    mut c_path := format("gen/til/", name, ".c")
     if custom_c.len().gt(0) { c_path = custom_c.clone() }
-    mut bin_path := "bin/".concat(name).concat(executable_extension(target))
+    mut bin_path := format("bin/", name, executable_extension(target))
     if custom_bin.len().gt(0) { bin_path = custom_bin.clone() }
 
     paths.c_path = c_path
     paths.bin_path = bin_path
     paths.fwd_path = forward_header_path(c_path)
-    paths.h_path = "gen/til/".concat(name).concat(".h")
-    paths.til_path = "gen/til/".concat(name).concat(".til")
-    paths.py_path = "gen/til/".concat(name).concat(".py")
+    paths.h_path = format("gen/til/", name, ".h")
+    paths.til_path = format("gen/til/", name, ".til")
+    paths.py_path = format("gen/til/", name, ".py")
     paths.do_lib = lp.cur_mode.is_library
     return paths
 }
@@ -4978,7 +4978,7 @@ make_build_dirs := func(paths: BuildPaths) {
             bp_slash_u : USize = bp_slash.to_u32()
             bp_dir = paths.bin_path.substr(0, bp_slash_u)
         }
-        system_cmd("mkdir -p ".concat(cp_dir).concat(" ").concat(bp_dir))
+        system_cmd(format("mkdir -p ", cp_dir, " ", bp_dir))
     }
 }
 
@@ -5002,12 +5002,12 @@ priv translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow
 }
 
 print_translate_success := proc(paths: BuildPaths) {
-    println("Generated: ".concat(paths.c_path))
-    println("Generated: ".concat(paths.fwd_path))
+    println(format("Generated: ", paths.c_path))
+    println(format("Generated: ", paths.fwd_path))
     if paths.do_lib {
-        println("Generated: ".concat(paths.h_path))
-        println("Generated: ".concat(paths.til_path))
-        println("Generated: ".concat(paths.py_path))
+        println(format("Generated: ", paths.h_path))
+        println(format("Generated: ", paths.til_path))
+        println(format("Generated: ", paths.py_path))
     }
 }
 
@@ -5033,8 +5033,8 @@ cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Tar
     if result.eq(0) { result = compile_ast(lp, paths, target, cc_override) }
     if result.eq(0).and(paths.do_lib) {
         print_translate_success(paths)
-        println("Generated: gen/lib/lib".concat(paths.name).concat(".so"))
-        println("Generated: gen/lib/lib".concat(paths.name).concat(".a"))
+        println(format("Generated: gen/lib/lib", paths.name, ".so"))
+        println(format("Generated: gen/lib/lib", paths.name, ".a"))
     }
     return result
 }
@@ -5050,7 +5050,7 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
     if result.eq(0) {
         mut cmd := paths.bin_path
         for uarg : Str in user_argv {
-            cmd = cmd.concat(" '").concat(uarg).concat("'")
+            cmd = cmd.format(" '", uarg, "'")
         }
         result = system_cmd(cmd)
     }
@@ -5116,7 +5116,7 @@ til_doc_out_path := func(unit_path: Str) returns Str {
     if name.ends_with(".til") {
         name = name.substr(0, name.len().sub(4)).clone()
     }
-    return "doc/gen/".concat(name).concat(".org")
+    return format("doc/gen/", name, ".org")
 }
 
 // Ensure the parent directory of `path` exists (mkdir -p).
@@ -5125,7 +5125,7 @@ ensure_parent_dir := func(path: Str) {
     if last_slash.lt(0) { return }
     last_slash_u : USize = last_slash.to_u32()
     dir := path.substr(0, last_slash_u).clone()
-    system_cmd("mkdir -p '".concat(dir).concat("'"))
+    system_cmd(format("mkdir -p '", dir, "'"))
 }
 
 emit_unit_doc := proc(u: ProgramUnit, lp: LoadedProgram) {
@@ -5134,7 +5134,7 @@ emit_unit_doc := proc(u: ProgramUnit, lp: LoadedProgram) {
     ensure_parent_dir(out)
     page := format_unit_doc_org(u.path, iu.ast, lp.ctx.scope)
     File.writefile(out, page)
-    println("Generated: ".concat(out))
+    println(format("Generated: ", out))
 }
 
 cmd_doc := proc(lp: LoadedProgram) returns shallow I32 {

@@ -1102,7 +1102,7 @@ ffi_init_scan_program := func(program: Expr) {
                     if fdef.node_type.is(NodeType.FuncDef).not() { continue }
                     ref fd : FunctionDef = get_payload(fdef.node_type)
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
-                        flat_name := sdd.name.concat("_").concat(fdd.name)
+                        flat_name := sdd.name.format("_", fdd.name)
                         ref fn_ptr : U8 = ffi_dlsym(flat_name)
                         if is_null(fn_ptr).not() {
                             ffi_register(flat_name, fn_ptr, fdef)

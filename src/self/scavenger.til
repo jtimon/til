@@ -20,7 +20,7 @@ scav_fa_is_ns := func(e: Expr) returns shallow Bool {
 }
 
 qualified_name := func(type_name: Str, method_name: Str) returns Str {
-    return type_name.concat(".").concat(method_name)
+    return type_name.format(".", method_name)
 }
 
 gc_str := func(own s: Str) returns ref Str {

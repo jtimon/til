@@ -1,7 +1,7 @@
 mode pure
 
 greet := func(name: Str) returns Str {
-    return "Hello, ".concat(name).concat("!")
+    return format("Hello, ", name, "!")
 }
 
 test_greet := test() {

@@ -80,10 +80,10 @@ ProgramUnit := struct {
 resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd: Str) returns Vec {
     mut out := Vec.new("Str", Str.size())
     for import_path : Str in import_paths {
-        mut try_path := base_dir.concat("/").concat(import_path)
+        mut try_path := base_dir.format("/", import_path)
         mut abs := realpath_str(try_path)
         if abs.eq("").and(lib_dir.len().gt(0)) {
-            try_path = lib_dir.concat("/").concat(import_path)
+            try_path = lib_dir.format("/", import_path)
             abs = realpath_str(try_path)
         }
         if abs.eq("") { continue }
@@ -106,7 +106,7 @@ extract_imports := func(body: Expr, path: Str) returns Vec {
                     ref p : Str = get_payload(stmt.child(1).node_type)
                     if p.ends_with(".til") {
                         bare := p.strip_suffix(".til")
-                        loc := path.concat(":").concat(stmt.line.to_str()).concat(":").concat(stmt.col.to_str())
+                        loc := path.format(":", stmt.line.to_str(), ":", stmt.col.to_str())
                         panic(loc, "import path must not end in '.til' (got \"", p,
                             "\"); use import(\"", bare, "\") instead")
                     }
@@ -125,14 +125,14 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
     mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
         for import_path : Str in import_paths {
             // Try relative to importing file's directory, then lib_dir
-            mut try_path := base_dir.concat("/").concat(import_path)
+            mut try_path := base_dir.format("/", import_path)
             mut abs := realpath_str(try_path)
             if abs.eq("").and(lib_dir.len().gt(0)) {
-                try_path = lib_dir.concat("/").concat(import_path)
+                try_path = lib_dir.format("/", import_path)
                 abs = realpath_str(try_path)
             }
             if abs.eq("") {
-                println("error: could not find import '".concat(import_path).concat("' (from ").concat(base_dir).concat("/)"))
+                println(format("error: could not find import '", import_path, "' (from ", base_dir, "/)"))
                 return 1
             }
 
@@ -565,18 +565,18 @@ extract_link_info := func(mut lp: LoadedProgram) {
                     if fname.eq("link") {
                         keep = false
                         if arg.find("/").gte(0) {
-                            lp.link_flags = lp.link_flags.concat(" ").concat(arg)
+                            lp.link_flags = lp.link_flags.format(" ", arg)
                             last_slash := arg.rfind("/")
                             if last_slash.gte(0) {
                                 parent_dir := arg.substr(0, last_slash.to_usize())
                                 parent_slash := parent_dir.rfind("/")
                                 if parent_slash.gte(0) {
-                                    inc_dir := parent_dir.substr(0, parent_slash.to_usize()).concat("/include")
-                                    lp.include_flags = lp.include_flags.concat(" -I").concat(inc_dir)
+                                    inc_dir := parent_dir.substr(0, parent_slash.to_usize()).format("/include")
+                                    lp.include_flags = lp.include_flags.format(" -I", inc_dir)
                                 }
                             }
                         } else {
-                            lp.link_flags = lp.link_flags.concat(" -l").concat(arg)
+                            lp.link_flags = lp.link_flags.format(" -l", arg)
                         }
                     } else if fname.eq("link_c") {
                         keep = false
@@ -690,7 +690,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     // followed by imported files, with the user entrypoint unit last.
     mut mode_disp := ""
     if auto_import.len().gt(0) {
-        mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
+        mode_til_path := bin_dir.format("/src/modes/", auto_import, ".til")
         mode_disp = display_path(mode_til_path, cwd)
         mode_source := File.readfile(mode_til_path)
         mode_tokens := tokenize(mode_source, mode_disp)
@@ -933,7 +933,7 @@ format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) returns St
     if t.is(TilType.Unknown) { t = scope.get_type(name) }
     type_str := til_type_user(t)
     if type_str.is_empty().not() {
-        return name.concat(" is a ").concat(type_str)
+        return name.format(" is a ", type_str)
     }
     if dd.explicit_type.len().gt(0) {
         return name.concat(" is a ").concat(dd.explicit_type)
@@ -1059,7 +1059,7 @@ format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
 
 // Append "Type.method" qualified entry for a single namespace method.
 collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: Str, mut docs: Str) {
-    qual := type_name.concat(".").concat(d.name)
+    qual := type_name.format(".", d.name)
     mut info_cap : USize = qual.len().add(64.to_usize())
     if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
         ref fd : FunctionDef = get_payload(d.default_value.node_type)
@@ -1097,7 +1097,7 @@ collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: S
 collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info: Str, mut docs: Str) {
     for i in 0..sdef.fields.len() {
         ref f : Declaration = sdef.fields.get(i)
-        qual := type_name.concat(".").concat(f.name)
+        qual := type_name.format(".", f.name)
         mut field_info := Str.with_capacity(qual.len().add(f.explicit_type.len()).add(64.to_usize()))
         field_info.push_str("field ")
         append_qualifier_prefix(field_info, f, OwnType.Shallow)
@@ -1122,7 +1122,7 @@ collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info:
 collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str) {
     for i in 0..edef.variants.len() {
         ref v : Str = edef.variants.get(i)
-        qual := type_name.concat(".").concat(v)
+        qual := type_name.format(".", v)
         mut variant_info := Str.with_capacity(qual.len().add(64.to_usize()))
         variant_info.push_str("variant ")
         variant_info.push_str(qual)
@@ -1173,7 +1173,7 @@ build_doc_init_line := func(packed_info: Str, packed_docs: Str) returns Str {
     if packed_info.is_empty().and(packed_docs.is_empty()) { return "" }
     esc_info := escape_doc_for_literal_str(packed_info)
     esc_docs := escape_doc_for_literal_str(packed_docs)
-    return "__doc_init__(\"".concat(esc_info).concat("\", \"").concat(esc_docs).concat("\")\n")
+    return format("__doc_init__(\"", esc_info, "\", \"", esc_docs, "\")\n")
 }
 
 // Build a single source-level __doc_init__("...", "...") line for use by
@@ -1190,7 +1190,7 @@ doc_init_src_line := func(core_ast: Expr, user_ast: Expr, scope: TypeScope) retu
 
 // Append -l flag to the link_flags carried on lp.
 loaded_add_lflag := func(mut lp: LoadedProgram, lib: Str) {
-    lp.link_flags = lp.link_flags.concat(" -l").concat(lib)
+    lp.link_flags = lp.link_flags.format(" -l", lib)
 }
 
 // Run init/typecheck/precomp/scavenge on the loaded program. Sets

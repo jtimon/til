@@ -34,7 +34,7 @@ MEM_TOTAL_COLOR := "#000000"
 
 // Helper to wrap a value in quotes: "val"
 qa := func(val: Str) returns Str {
-    return Q.concat(val).concat(Q)
+    return format(Q, val, Q)
 }
 
 // Data row
@@ -359,7 +359,7 @@ generate_svg := func(rows: Vec, show_x_labels: Bool = true, show_y_labels: Bool 
         svg = svg.concat(svg_text(lx_pos.add(8), ly.add(4), "start", 12, MEM_TOTAL_COLOR, "mem-total"))
     }
 
-    svg = svg.concat("</svg>").concat(NL)
+    svg = svg.format("</svg>", NL)
     return svg
 }
 
