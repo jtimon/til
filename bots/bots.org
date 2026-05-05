@@ -93,8 +93,8 @@ Merging to master (local sessions)::
   ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret src/test/strings.til > tmp/asan_interpret.log 2>&1; grep "SUMMARY" tmp/asan_interpret.log
   ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate src/test/strings.til > tmp/asan_translate.log 2>&1; grep "SUMMARY" tmp/asan_translate.log
   # Compute delta vs the baseline recorded in bots/merging_from_remote.org
-  # and report it to the user. Update the baseline in that file after
-  # committing.
+  # and report it to the user. If accepted, update the baseline in that
+  # file now -- the commit below picks it up.
 
   # 6. Stage everything (including regenerated boot/* and totals) and commit.
   git add -A && git commit -m "..."
