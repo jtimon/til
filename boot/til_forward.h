@@ -1644,6 +1644,7 @@ void ffi_init_struct_defs(Expr * program);
 void ffi_init_struct_defs_append(Expr * program);
 U64 * value_to_u64(Value * v);
 F32 * value_to_f32(Value * v);
+Str * value_variant_name(Value * v);
 Bool * narrow_bool_arg(Scope * s, Expr * e);
 Bool h_Bool_and(Scope * s, Expr * e, Value * r);
 Bool h_Bool_or(Scope * s, Expr * e, Value * r);
