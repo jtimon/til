@@ -866,7 +866,7 @@ void Array_set(Array * self, U32 * i, void * val);
 void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
 U32 Array_size(void);
-Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size);
+Map * Map_new(Str * key_type, U32 * _key_size, Str * val_type, U32 * _val_size);
 U32 * Map_len(Map * self);
 void * Map_key_ptr(Map * self, U32 * i);
 void * Map_val_ptr(Map * self, U32 * i);

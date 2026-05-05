@@ -5221,7 +5221,7 @@ format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns
     // First pass: render each Decl's chunk separately. format_decl_info
     // already sizes its returned Str to fit, so we don't need to pre-size
     // the page buffer here -- chunks are accumulated and concatenated once.
-    chunks := Vec.new("Str", Str.size())
+    chunks := Vec.new("Str")
     mut total : USize = title.len().add(64.to_usize())
     for stmt : Expr in ast.children {
         if stmt.node_type.is(NodeType.Decl) {

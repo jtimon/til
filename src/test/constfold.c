@@ -5799,123 +5799,123 @@ U32 Array_size(void) {
 void panic(Str * loc_str, Array * parts) {
     (void)loc_str;
     (void)parts;
-    Str *_t_Str_2722 = Str_lit("Str", 3ULL);
-    (void)_t_Str_2722;
-    U32 _t_U32_2723 = 16;
-    (void)_t_U32_2723;
-    U32 _t_U32_2724 = 3;
-    (void)_t_U32_2724;
-    Array *_va_Array_92 = Array_new(_t_Str_2722, &_t_U32_2723, &_t_U32_2724);
-    (void)_va_Array_92;
-    Str_delete(_t_Str_2722, &(Bool){1});
-    ;
-    ;
-    U32 _t_U32_2725 = 0;
+    Str *_t_Str_2724 = Str_lit("Str", 3ULL);
+    (void)_t_Str_2724;
+    U32 _t_U32_2725 = 16;
     (void)_t_U32_2725;
-    Str *_t_Str_2726 = Str_clone(loc_str);
-    (void)_t_Str_2726;
-    Array_set(_va_Array_92, &_t_U32_2725, _t_Str_2726);
+    U32 _t_U32_2726 = 3;
+    (void)_t_U32_2726;
+    Array *_va_Array_92 = Array_new(_t_Str_2724, &_t_U32_2725, &_t_U32_2726);
+    (void)_va_Array_92;
+    Str_delete(_t_Str_2724, &(Bool){1});
     ;
-    U32 _t_U32_2727 = 1;
+    ;
+    U32 _t_U32_2727 = 0;
     (void)_t_U32_2727;
-    Str *_t_Str_2728 = Str_lit(": panic: ", 9ULL);
+    Str *_t_Str_2728 = Str_clone(loc_str);
     (void)_t_Str_2728;
     Array_set(_va_Array_92, &_t_U32_2727, _t_Str_2728);
     ;
-    Array *_t_Array_2729 = Array_clone(parts);
-    (void)_t_Array_2729;
+    U32 _t_U32_2729 = 1;
+    (void)_t_U32_2729;
+    Str *_t_Str_2730 = Str_lit(": panic: ", 9ULL);
+    (void)_t_Str_2730;
+    Array_set(_va_Array_92, &_t_U32_2729, _t_Str_2730);
+    ;
+    Array *_t_Array_2731 = Array_clone(parts);
+    (void)_t_Array_2731;
     Array_delete(parts, &(Bool){0});
-    U32 _t_U32_2730 = 2;
-    (void)_t_U32_2730;
-    Str *_t_Str_2731 = format(_t_Array_2729);
-    (void)_t_Str_2731;
-    Array_set(_va_Array_92, &_t_U32_2730, _t_Str_2731);
+    U32 _t_U32_2732 = 2;
+    (void)_t_U32_2732;
+    Str *_t_Str_2733 = format(_t_Array_2731);
+    (void)_t_Str_2733;
+    Array_set(_va_Array_92, &_t_U32_2732, _t_Str_2733);
     ;
     println(_va_Array_92);
-    I64 _t_I64_2732 = 1;
-    (void)_t_I64_2732;
-    exit(_t_I64_2732);
+    I64 _t_I64_2734 = 1;
+    (void)_t_I64_2734;
+    exit(_t_I64_2734);
     ;
 }
 
 Bool * assert(Str * loc_str, Bool * cond) {
     (void)loc_str;
     (void)cond;
-    Bool _t_Bool_2751 = not(DEREF(cond));
-    (void)_t_Bool_2751;
-    if (_t_Bool_2751) {
-        Str *_t_Str_2746 = Str_lit("Str", 3ULL);
-        (void)_t_Str_2746;
-        U32 _t_U32_2747 = 16;
-        (void)_t_U32_2747;
-        U32 _t_U32_2748 = 1;
-        (void)_t_U32_2748;
-        Array *_va_Array_95 = Array_new(_t_Str_2746, &_t_U32_2747, &_t_U32_2748);
-        (void)_va_Array_95;
-        Str_delete(_t_Str_2746, &(Bool){1});
-        ;
-        ;
-        U32 _t_U32_2749 = 0;
+    Bool _t_Bool_2753 = not(DEREF(cond));
+    (void)_t_Bool_2753;
+    if (_t_Bool_2753) {
+        Str *_t_Str_2748 = Str_lit("Str", 3ULL);
+        (void)_t_Str_2748;
+        U32 _t_U32_2749 = 16;
         (void)_t_U32_2749;
-        Str *_t_Str_2750 = Str_lit("assert failed", 13ULL);
-        (void)_t_Str_2750;
-        Array_set(_va_Array_95, &_t_U32_2749, _t_Str_2750);
+        U32 _t_U32_2750 = 1;
+        (void)_t_U32_2750;
+        Array *_va_Array_95 = Array_new(_t_Str_2748, &_t_U32_2749, &_t_U32_2750);
+        (void)_va_Array_95;
+        Str_delete(_t_Str_2748, &(Bool){1});
+        ;
+        ;
+        U32 _t_U32_2751 = 0;
+        (void)_t_U32_2751;
+        Str *_t_Str_2752 = Str_lit("assert failed", 13ULL);
+        (void)_t_Str_2752;
+        Array_set(_va_Array_95, &_t_U32_2751, _t_Str_2752);
         ;
         panic(loc_str, _va_Array_95);
     }
     ;
-    Bool _t_Bool_2752 = 1;
-    (void)_t_Bool_2752;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t_Bool_2752; return _r; }
+    Bool _t_Bool_2754 = 1;
+    (void)_t_Bool_2754;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t_Bool_2754; return _r; }
 }
 
 void assert_eq(Str * loc_str, I64 * a, I64 * b) {
     (void)loc_str;
     (void)a;
     (void)b;
-    Bool _t_Bool_2775 = I64_neq(a, b);
-    (void)_t_Bool_2775;
-    if (_t_Bool_2775) {
-        Str *_t_Str_2762 = Str_lit("Str", 3ULL);
-        (void)_t_Str_2762;
-        U32 _t_U32_2763 = 16;
-        (void)_t_U32_2763;
-        U32 _t_U32_2764 = 5;
-        (void)_t_U32_2764;
-        Array *_va_Array_97 = Array_new(_t_Str_2762, &_t_U32_2763, &_t_U32_2764);
-        (void)_va_Array_97;
-        Str_delete(_t_Str_2762, &(Bool){1});
-        ;
-        ;
-        U32 _t_U32_2765 = 0;
+    Bool _t_Bool_2777 = I64_neq(a, b);
+    (void)_t_Bool_2777;
+    if (_t_Bool_2777) {
+        Str *_t_Str_2764 = Str_lit("Str", 3ULL);
+        (void)_t_Str_2764;
+        U32 _t_U32_2765 = 16;
         (void)_t_U32_2765;
-        Str *_t_Str_2766 = Str_lit("assert_eq failed: expected '", 28ULL);
-        (void)_t_Str_2766;
-        Array_set(_va_Array_97, &_t_U32_2765, _t_Str_2766);
+        U32 _t_U32_2766 = 5;
+        (void)_t_U32_2766;
+        Array *_va_Array_97 = Array_new(_t_Str_2764, &_t_U32_2765, &_t_U32_2766);
+        (void)_va_Array_97;
+        Str_delete(_t_Str_2764, &(Bool){1});
         ;
-        U32 _t_U32_2767 = 1;
+        ;
+        U32 _t_U32_2767 = 0;
         (void)_t_U32_2767;
-        Str *_t_Str_2768 = I64_to_str(a);
+        Str *_t_Str_2768 = Str_lit("assert_eq failed: expected '", 28ULL);
         (void)_t_Str_2768;
         Array_set(_va_Array_97, &_t_U32_2767, _t_Str_2768);
         ;
-        U32 _t_U32_2769 = 2;
+        U32 _t_U32_2769 = 1;
         (void)_t_U32_2769;
-        Str *_t_Str_2770 = Str_lit("', found '", 10ULL);
+        Str *_t_Str_2770 = I64_to_str(a);
         (void)_t_Str_2770;
         Array_set(_va_Array_97, &_t_U32_2769, _t_Str_2770);
         ;
-        U32 _t_U32_2771 = 3;
+        U32 _t_U32_2771 = 2;
         (void)_t_U32_2771;
-        Str *_t_Str_2772 = I64_to_str(b);
+        Str *_t_Str_2772 = Str_lit("', found '", 10ULL);
         (void)_t_Str_2772;
         Array_set(_va_Array_97, &_t_U32_2771, _t_Str_2772);
         ;
-        U32 _t_U32_2773 = 4;
+        U32 _t_U32_2773 = 3;
         (void)_t_U32_2773;
-        Str *_t_Str_2774 = Str_lit("'", 1ULL);
+        Str *_t_Str_2774 = I64_to_str(b);
         (void)_t_Str_2774;
         Array_set(_va_Array_97, &_t_U32_2773, _t_Str_2774);
+        ;
+        U32 _t_U32_2775 = 4;
+        (void)_t_U32_2775;
+        Str *_t_Str_2776 = Str_lit("'", 1ULL);
+        (void)_t_Str_2776;
+        Array_set(_va_Array_97, &_t_U32_2775, _t_Str_2776);
         ;
         panic(loc_str, _va_Array_97);
     }
@@ -5925,30 +5925,30 @@ void assert_eq(Str * loc_str, I64 * a, I64 * b) {
 void println(Array * parts) {
     (void)parts;
     {
-        Array *_fc_Array_2791 = parts;
-        (void)_fc_Array_2791;
-        U32 _fi_USize_2791 = 0;
-        (void)_fi_USize_2791;
+        Array *_fc_Array_2793 = parts;
+        (void)_fc_Array_2793;
+        U32 _fi_USize_2793 = 0;
+        (void)_fi_USize_2793;
         while (1) {
-            U32 _t_U32_2793; { U32 *_hp = (U32 *)Array_len(_fc_Array_2791); _t_U32_2793 = *_hp; free(_hp); }
-            (void)_t_U32_2793;
-            Bool _wcond_Bool_2792 = U32_lt(&_fi_USize_2791, &_t_U32_2793);
-            (void)_wcond_Bool_2792;
+            U32 _t_U32_2795; { U32 *_hp = (U32 *)Array_len(_fc_Array_2793); _t_U32_2795 = *_hp; free(_hp); }
+            (void)_t_U32_2795;
+            Bool _wcond_Bool_2794 = U32_lt(&_fi_USize_2793, &_t_U32_2795);
+            (void)_wcond_Bool_2794;
             ;
-            if (_wcond_Bool_2792) {
+            if (_wcond_Bool_2794) {
             } else {
                 ;
                 break;
             }
             ;
-            Str *s = Array_get(_fc_Array_2791, &_fi_USize_2791);
+            Str *s = Array_get(_fc_Array_2793, &_fi_USize_2793);
             (void)s;
-            U32 _t_U32_2794 = 1;
-            (void)_t_U32_2794;
-            U32 _t_U32_2795 = U32_add(_fi_USize_2791, _t_U32_2794);
-            (void)_t_U32_2795;
+            U32 _t_U32_2796 = 1;
+            (void)_t_U32_2796;
+            U32 _t_U32_2797 = U32_add(_fi_USize_2793, _t_U32_2796);
+            (void)_t_U32_2797;
             ;
-            _fi_USize_2791 = _t_U32_2795;
+            _fi_USize_2793 = _t_U32_2797;
             ;
             print_single(s);
         }
@@ -5959,83 +5959,83 @@ void println(Array * parts) {
 }
 
 void test_simple_add(void) {
-    I64 _t_I64_2987 = 1;
-    (void)_t_I64_2987;
-    I64 _t_I64_2988 = 2;
-    (void)_t_I64_2988;
+    I64 _t_I64_2989 = 1;
+    (void)_t_I64_2989;
+    I64 _t_I64_2990 = 2;
+    (void)_t_I64_2990;
     I64 result = 3;
     (void)result;
     ;
     ;
-    Str *_t_Str_2989 = Str_lit("src/test/constfold.til:15:15", 28ULL);
-    (void)_t_Str_2989;
-    I64 _t_I64_2990 = 3;
-    (void)_t_I64_2990;
-    assert_eq(_t_Str_2989, &result, &_t_I64_2990);
+    Str *_t_Str_2991 = Str_lit("src/test/constfold.til:15:15", 28ULL);
+    (void)_t_Str_2991;
+    I64 _t_I64_2992 = 3;
+    (void)_t_I64_2992;
+    assert_eq(_t_Str_2991, &result, &_t_I64_2992);
     ;
-    Str_delete(_t_Str_2989, &(Bool){1});
+    Str_delete(_t_Str_2991, &(Bool){1});
     ;
 }
 
 void test_nested_arithmetic(void) {
-    I64 _t_I64_2991 = 1;
-    (void)_t_I64_2991;
-    I64 _t_I64_2992 = 2;
-    (void)_t_I64_2992;
-    I64 _t_I64_2993 = 10;
+    I64 _t_I64_2993 = 1;
     (void)_t_I64_2993;
-    I64 _t_I64_2994 = 5;
+    I64 _t_I64_2994 = 2;
     (void)_t_I64_2994;
-    I64 _t_I64_2995 = 3;
+    I64 _t_I64_2995 = 10;
     (void)_t_I64_2995;
-    ;
-    ;
     I64 _t_I64_2996 = 5;
     (void)_t_I64_2996;
+    I64 _t_I64_2997 = 3;
+    (void)_t_I64_2997;
+    ;
+    ;
+    I64 _t_I64_2998 = 5;
+    (void)_t_I64_2998;
     ;
     ;
     I64 result = 15;
     (void)result;
     ;
     ;
-    Str *_t_Str_2997 = Str_lit("src/test/constfold.til:21:15", 28ULL);
-    (void)_t_Str_2997;
-    I64 _t_I64_2998 = 15;
-    (void)_t_I64_2998;
-    assert_eq(_t_Str_2997, &result, &_t_I64_2998);
+    Str *_t_Str_2999 = Str_lit("src/test/constfold.til:21:15", 28ULL);
+    (void)_t_Str_2999;
+    I64 _t_I64_3000 = 15;
+    (void)_t_I64_3000;
+    assert_eq(_t_Str_2999, &result, &_t_I64_3000);
     ;
-    Str_delete(_t_Str_2997, &(Bool){1});
+    Str_delete(_t_Str_2999, &(Bool){1});
     ;
 }
 
 void test_deeply_nested(void) {
-    I64 _t_I64_2999 = 2;
-    (void)_t_I64_2999;
-    I64 _t_I64_3000 = 3;
-    (void)_t_I64_3000;
-    I64 _t_I64_3001 = 4;
+    I64 _t_I64_3001 = 2;
     (void)_t_I64_3001;
-    I64 _t_I64_3002 = 5;
+    I64 _t_I64_3002 = 3;
     (void)_t_I64_3002;
-    I64 _t_I64_3003 = 6;
+    I64 _t_I64_3003 = 4;
     (void)_t_I64_3003;
-    ;
-    ;
-    I64 _t_I64_3004 = 20;
+    I64 _t_I64_3004 = 5;
     (void)_t_I64_3004;
+    I64 _t_I64_3005 = 6;
+    (void)_t_I64_3005;
+    ;
+    ;
+    I64 _t_I64_3006 = 20;
+    (void)_t_I64_3006;
     ;
     ;
     I64 result = 26;
     (void)result;
     ;
     ;
-    Str *_t_Str_3005 = Str_lit("src/test/constfold.til:27:15", 28ULL);
-    (void)_t_Str_3005;
-    I64 _t_I64_3006 = 26;
-    (void)_t_I64_3006;
-    assert_eq(_t_Str_3005, &result, &_t_I64_3006);
+    Str *_t_Str_3007 = Str_lit("src/test/constfold.til:27:15", 28ULL);
+    (void)_t_Str_3007;
+    I64 _t_I64_3008 = 26;
+    (void)_t_I64_3008;
+    assert_eq(_t_Str_3007, &result, &_t_I64_3008);
     ;
-    Str_delete(_t_Str_3005, &(Bool){1});
+    Str_delete(_t_Str_3007, &(Bool){1});
     ;
 }
 
@@ -6044,71 +6044,71 @@ Str * poem(I64 * depth, Str * current, Str * s1, Str * s2) {
     (void)current;
     (void)s1;
     (void)s2;
-    I64 _t_I64_3014 = 4;
-    (void)_t_I64_3014;
-    Bool _t_Bool_3015 = I64_eq(DEREF(depth), _t_I64_3014);
-    (void)_t_Bool_3015;
+    I64 _t_I64_3016 = 4;
+    (void)_t_I64_3016;
+    Bool _t_Bool_3017 = I64_eq(DEREF(depth), _t_I64_3016);
+    (void)_t_Bool_3017;
     ;
-    if (_t_Bool_3015) {
-        Str *_t_Str_3007 = Str_lit("\n", 2ULL);
-        (void)_t_Str_3007;
-        Str *_t_Str_3008 = Str_concat(current, _t_Str_3007);
-        (void)_t_Str_3008;
-        Str_delete(_t_Str_3007, &(Bool){1});
+    if (_t_Bool_3017) {
+        Str *_t_Str_3009 = Str_lit("\n", 2ULL);
+        (void)_t_Str_3009;
+        Str *_t_Str_3010 = Str_concat(current, _t_Str_3009);
+        (void)_t_Str_3010;
+        Str_delete(_t_Str_3009, &(Bool){1});
         ;
-        return _t_Str_3008;
+        return _t_Str_3010;
     }
     ;
     Str *result = Str_lit("", 0ULL);
     (void)result;
-    I64 _t_I64_3016 = 1;
-    (void)_t_I64_3016;
-    I64 _t_I64_3017 = I64_add(DEREF(depth), _t_I64_3016);
-    (void)_t_I64_3017;
+    I64 _t_I64_3018 = 1;
+    (void)_t_I64_3018;
+    I64 _t_I64_3019 = I64_add(DEREF(depth), _t_I64_3018);
+    (void)_t_I64_3019;
     ;
-    Str *_t_Str_3018 = Str_concat(current, s1);
-    (void)_t_Str_3018;
-    Str *_t_Str_3019 = poem(&_t_I64_3017, _t_Str_3018, s1, s2);
-    (void)_t_Str_3019;
+    Str *_t_Str_3020 = Str_concat(current, s1);
+    (void)_t_Str_3020;
+    Str *_t_Str_3021 = poem(&_t_I64_3019, _t_Str_3020, s1, s2);
+    (void)_t_Str_3021;
     ;
-    Str_delete(_t_Str_3018, &(Bool){1});
-    { Str *_old = result; result = Str_concat(result, _t_Str_3019); Str_delete(_old, &(Bool){1}); }
-    Str_delete(_t_Str_3019, &(Bool){1});
-    I64 _t_I64_3020 = 1;
-    (void)_t_I64_3020;
-    I64 _t_I64_3021 = I64_add(DEREF(depth), _t_I64_3020);
-    (void)_t_I64_3021;
+    Str_delete(_t_Str_3020, &(Bool){1});
+    { Str *_old = result; result = Str_concat(result, _t_Str_3021); Str_delete(_old, &(Bool){1}); }
+    Str_delete(_t_Str_3021, &(Bool){1});
+    I64 _t_I64_3022 = 1;
+    (void)_t_I64_3022;
+    I64 _t_I64_3023 = I64_add(DEREF(depth), _t_I64_3022);
+    (void)_t_I64_3023;
     ;
-    Str *_t_Str_3022 = Str_concat(current, s2);
-    (void)_t_Str_3022;
-    Str *_t_Str_3023 = poem(&_t_I64_3021, _t_Str_3022, s1, s2);
-    (void)_t_Str_3023;
+    Str *_t_Str_3024 = Str_concat(current, s2);
+    (void)_t_Str_3024;
+    Str *_t_Str_3025 = poem(&_t_I64_3023, _t_Str_3024, s1, s2);
+    (void)_t_Str_3025;
     ;
-    Str_delete(_t_Str_3022, &(Bool){1});
-    { Str *_old = result; result = Str_concat(result, _t_Str_3023); Str_delete(_old, &(Bool){1}); }
-    Str_delete(_t_Str_3023, &(Bool){1});
-    I64 _t_I64_3024 = 2;
-    (void)_t_I64_3024;
-    Bool _t_Bool_3025 = I64_eq(DEREF(depth), _t_I64_3024);
-    (void)_t_Bool_3025;
+    Str_delete(_t_Str_3024, &(Bool){1});
+    { Str *_old = result; result = Str_concat(result, _t_Str_3025); Str_delete(_old, &(Bool){1}); }
+    Str_delete(_t_Str_3025, &(Bool){1});
+    I64 _t_I64_3026 = 2;
+    (void)_t_I64_3026;
+    Bool _t_Bool_3027 = I64_eq(DEREF(depth), _t_I64_3026);
+    (void)_t_Bool_3027;
     ;
-    if (_t_Bool_3025) {
-        I64 _t_I64_3009 = 1;
-        (void)_t_I64_3009;
-        Str *_t_Str_3010 = Str_lit("lei", 3ULL);
-        (void)_t_Str_3010;
-        I64 _t_I64_3011 = I64_add(DEREF(depth), _t_I64_3009);
+    if (_t_Bool_3027) {
+        I64 _t_I64_3011 = 1;
         (void)_t_I64_3011;
-        ;
-        Str *_t_Str_3012 = Str_concat(current, _t_Str_3010);
+        Str *_t_Str_3012 = Str_lit("lei", 3ULL);
         (void)_t_Str_3012;
-        Str_delete(_t_Str_3010, &(Bool){1});
-        Str *_t_Str_3013 = poem(&_t_I64_3011, _t_Str_3012, s1, s2);
-        (void)_t_Str_3013;
+        I64 _t_I64_3013 = I64_add(DEREF(depth), _t_I64_3011);
+        (void)_t_I64_3013;
         ;
+        Str *_t_Str_3014 = Str_concat(current, _t_Str_3012);
+        (void)_t_Str_3014;
         Str_delete(_t_Str_3012, &(Bool){1});
-        { Str *_old = result; result = Str_concat(result, _t_Str_3013); Str_delete(_old, &(Bool){1}); }
-        Str_delete(_t_Str_3013, &(Bool){1});
+        Str *_t_Str_3015 = poem(&_t_I64_3013, _t_Str_3014, s1, s2);
+        (void)_t_Str_3015;
+        ;
+        Str_delete(_t_Str_3014, &(Bool){1});
+        { Str *_old = result; result = Str_concat(result, _t_Str_3015); Str_delete(_old, &(Bool){1}); }
+        Str_delete(_t_Str_3015, &(Bool){1});
     }
     ;
     return result;
@@ -6117,84 +6117,84 @@ Str * poem(I64 * depth, Str * current, Str * s1, Str * s2) {
 Str * make_poem(Str * s1, Str * s2) {
     (void)s1;
     (void)s2;
-    I64 _t_I64_3026 = 0;
-    (void)_t_I64_3026;
-    Str *_t_Str_3027 = Str_lit("", 0ULL);
-    (void)_t_Str_3027;
-    Str *_t_Str_3028 = poem(&_t_I64_3026, _t_Str_3027, s1, s2);
-    (void)_t_Str_3028;
+    I64 _t_I64_3028 = 0;
+    (void)_t_I64_3028;
+    Str *_t_Str_3029 = Str_lit("", 0ULL);
+    (void)_t_Str_3029;
+    Str *_t_Str_3030 = poem(&_t_I64_3028, _t_Str_3029, s1, s2);
+    (void)_t_Str_3030;
     ;
-    Str_delete(_t_Str_3027, &(Bool){1});
-    return _t_Str_3028;
+    Str_delete(_t_Str_3029, &(Bool){1});
+    return _t_Str_3030;
 }
 
 void test_lolalalo(void) {
-    Str *_t_Str_3029 = Str_lit("lo", 2ULL);
-    (void)_t_Str_3029;
-    Str *_t_Str_3030 = Str_lit("la", 2ULL);
-    (void)_t_Str_3030;
-    Str *lo_la = make_poem(_t_Str_3029, _t_Str_3030);
-    (void)lo_la;
-    Str_delete(_t_Str_3029, &(Bool){1});
-    Str_delete(_t_Str_3030, &(Bool){1});
-    Str *_t_Str_3031 = Str_lit("la", 2ULL);
+    Str *_t_Str_3031 = Str_lit("lo", 2ULL);
     (void)_t_Str_3031;
-    Str *_t_Str_3032 = Str_lit("lo", 2ULL);
+    Str *_t_Str_3032 = Str_lit("la", 2ULL);
     (void)_t_Str_3032;
-    Str *la_lo = make_poem(_t_Str_3031, _t_Str_3032);
-    (void)la_lo;
+    Str *lo_la = make_poem(_t_Str_3031, _t_Str_3032);
+    (void)lo_la;
     Str_delete(_t_Str_3031, &(Bool){1});
     Str_delete(_t_Str_3032, &(Bool){1});
-    Str *_t_Str_3033 = Str_lit("lolalolo", 8ULL);
+    Str *_t_Str_3033 = Str_lit("la", 2ULL);
     (void)_t_Str_3033;
-    Str *_t_Str_3034 = Str_lit("src/test/constfold.til:56:12", 28ULL);
+    Str *_t_Str_3034 = Str_lit("lo", 2ULL);
     (void)_t_Str_3034;
-    Bool _t_Bool_3035 = Str_contains(lo_la, _t_Str_3033);
-    (void)_t_Bool_3035;
+    Str *la_lo = make_poem(_t_Str_3033, _t_Str_3034);
+    (void)la_lo;
     Str_delete(_t_Str_3033, &(Bool){1});
-    Bool _t_Bool_3036; { Bool *_hp = (Bool *)assert(_t_Str_3034, &_t_Bool_3035); _t_Bool_3036 = *_hp; free(_hp); }
-    (void)_t_Bool_3036;
-    ;
-    ;
     Str_delete(_t_Str_3034, &(Bool){1});
-    Str *_t_Str_3037 = Str_lit("lalalala", 8ULL);
-    (void)_t_Str_3037;
-    Str *_t_Str_3038 = Str_lit("src/test/constfold.til:57:12", 28ULL);
-    (void)_t_Str_3038;
-    Bool _t_Bool_3039 = Str_contains(la_lo, _t_Str_3037);
-    (void)_t_Bool_3039;
-    Str_delete(_t_Str_3037, &(Bool){1});
-    Bool _t_Bool_3040; { Bool *_hp = (Bool *)assert(_t_Str_3038, &_t_Bool_3039); _t_Bool_3040 = *_hp; free(_hp); }
-    (void)_t_Bool_3040;
+    Str *_t_Str_3035 = Str_lit("lolalolo", 8ULL);
+    (void)_t_Str_3035;
+    Str *_t_Str_3036 = Str_lit("src/test/constfold.til:56:12", 28ULL);
+    (void)_t_Str_3036;
+    Bool _t_Bool_3037 = Str_contains(lo_la, _t_Str_3035);
+    (void)_t_Bool_3037;
+    Str_delete(_t_Str_3035, &(Bool){1});
+    Bool _t_Bool_3038; { Bool *_hp = (Bool *)assert(_t_Str_3036, &_t_Bool_3037); _t_Bool_3038 = *_hp; free(_hp); }
+    (void)_t_Bool_3038;
     ;
     ;
-    Str_delete(_t_Str_3038, &(Bool){1});
-    Str *_t_Str_3041 = Str_lit("lolei", 5ULL);
-    (void)_t_Str_3041;
-    Str *_t_Str_3042 = Str_lit("src/test/constfold.til:59:12", 28ULL);
-    (void)_t_Str_3042;
-    Bool _t_Bool_3043 = Str_contains(lo_la, _t_Str_3041);
-    (void)_t_Bool_3043;
-    Str_delete(_t_Str_3041, &(Bool){1});
+    Str_delete(_t_Str_3036, &(Bool){1});
+    Str *_t_Str_3039 = Str_lit("lalalala", 8ULL);
+    (void)_t_Str_3039;
+    Str *_t_Str_3040 = Str_lit("src/test/constfold.til:57:12", 28ULL);
+    (void)_t_Str_3040;
+    Bool _t_Bool_3041 = Str_contains(la_lo, _t_Str_3039);
+    (void)_t_Bool_3041;
+    Str_delete(_t_Str_3039, &(Bool){1});
+    Bool _t_Bool_3042; { Bool *_hp = (Bool *)assert(_t_Str_3040, &_t_Bool_3041); _t_Bool_3042 = *_hp; free(_hp); }
+    (void)_t_Bool_3042;
+    ;
+    ;
+    Str_delete(_t_Str_3040, &(Bool){1});
+    Str *_t_Str_3043 = Str_lit("lolei", 5ULL);
+    (void)_t_Str_3043;
+    Str *_t_Str_3044 = Str_lit("src/test/constfold.til:59:12", 28ULL);
+    (void)_t_Str_3044;
+    Bool _t_Bool_3045 = Str_contains(lo_la, _t_Str_3043);
+    (void)_t_Bool_3045;
+    Str_delete(_t_Str_3043, &(Bool){1});
     Str_delete(lo_la, &(Bool){1});
-    Bool _t_Bool_3044; { Bool *_hp = (Bool *)assert(_t_Str_3042, &_t_Bool_3043); _t_Bool_3044 = *_hp; free(_hp); }
-    (void)_t_Bool_3044;
+    Bool _t_Bool_3046; { Bool *_hp = (Bool *)assert(_t_Str_3044, &_t_Bool_3045); _t_Bool_3046 = *_hp; free(_hp); }
+    (void)_t_Bool_3046;
     ;
     ;
-    Str_delete(_t_Str_3042, &(Bool){1});
-    Str *_t_Str_3045 = Str_lit("lalei", 5ULL);
-    (void)_t_Str_3045;
-    Str *_t_Str_3046 = Str_lit("src/test/constfold.til:60:12", 28ULL);
-    (void)_t_Str_3046;
-    Bool _t_Bool_3047 = Str_contains(la_lo, _t_Str_3045);
-    (void)_t_Bool_3047;
-    Str_delete(_t_Str_3045, &(Bool){1});
+    Str_delete(_t_Str_3044, &(Bool){1});
+    Str *_t_Str_3047 = Str_lit("lalei", 5ULL);
+    (void)_t_Str_3047;
+    Str *_t_Str_3048 = Str_lit("src/test/constfold.til:60:12", 28ULL);
+    (void)_t_Str_3048;
+    Bool _t_Bool_3049 = Str_contains(la_lo, _t_Str_3047);
+    (void)_t_Bool_3049;
+    Str_delete(_t_Str_3047, &(Bool){1});
     Str_delete(la_lo, &(Bool){1});
-    Bool _t_Bool_3048; { Bool *_hp = (Bool *)assert(_t_Str_3046, &_t_Bool_3047); _t_Bool_3048 = *_hp; free(_hp); }
-    (void)_t_Bool_3048;
+    Bool _t_Bool_3050; { Bool *_hp = (Bool *)assert(_t_Str_3048, &_t_Bool_3049); _t_Bool_3050 = *_hp; free(_hp); }
+    (void)_t_Bool_3050;
     ;
     ;
-    Str_delete(_t_Str_3046, &(Bool){1});
+    Str_delete(_t_Str_3048, &(Bool){1});
 }
 
 void *F32_to_i64_dyn(void *_a0) {
