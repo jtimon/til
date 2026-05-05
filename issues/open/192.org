@@ -1,0 +1,34 @@
+# priority: high
+** OPEN #192 USize should not be hardwired to U32
+
+Current state mixes two separate problems:
+
+1. ~USize~ is still effectively hardwired to ~U32~, even on 64-bit builds.
+2. Code that is really talking about collection sizes/capacities sometimes
+   gets routed through ~UPtr~ or explicit ~to_u32()~/~to_u64()~ conversions.
+
+This creates avoidable friction in the compiler and core library:
+
+- alias-resolution bugs around ~USize~ return types and declarations
+- noisy conversion chains where a value should stay in one logical size type
+- confusion between "count/capacity/len" values and raw pointer-width values
+
+Desired direction:
+
+- Make ~USize~ and ~UPtr~ target-driven in one place.
+- On 32-bit targets: ~USize := U32~, ~UPtr := U32~.
+- On 64-bit targets: ~USize := U64~, ~UPtr := U64~.
+- Keep APIs that mean collection length/capacity/size on ~USize~.
+- Use ~UPtr~ only where raw pointer arithmetic / byte offsets really need it.
+- Clean up callsites that currently force this manually with things like
+  ~to_u32()~ where ~to_usize()~ or no conversion should be needed.
+
+This likely needs a careful pass through:
+
+- builtin type registration / alias normalization in init + typer
+- memory and pointer APIs in ~src/core/mem.til~
+- collection constructors and helpers
+- codegen / interpreter places that currently assume ~USize == U32~ on all targets
+
+The recent ~dyn_size_of~ / collection-constructor work kept tripping over this,
+so this cleanup should happen before more size-related refactors pile up.
