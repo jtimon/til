@@ -72,7 +72,7 @@ main := proc(args: ..Str) {
 
     ref subcmd : Str = args.get(0)
 
-    // ========== mode subcommand ==========
+    // mode subcommand
     if subcmd.eq("mode") {
         if args.len().lt(2) {
             println("Usage: test_runner mode <file> [-no-interp] [-no-run]")
@@ -183,7 +183,7 @@ main := proc(args: ..Str) {
         exit(fail)
     }
 
-    // ========== single subcommand ==========
+    // single subcommand
     if subcmd.eq("single") {
         if args.len().lt(4) {
             println("Usage: test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>")
@@ -250,7 +250,7 @@ main := proc(args: ..Str) {
         if ok.eq(1) { exit(0) } else { exit(1) }
     }
 
-    // ========== count subcommand ==========
+    // count subcommand
     if subcmd.eq("count") {
         if args.len().lt(5) {
             println("Usage: test_runner count <label> <needle> <expected_count> -- <cmd...>")
