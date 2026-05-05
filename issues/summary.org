@@ -60,7 +60,6 @@
 
 * WIP
 ** High
-*** [[./open/173.org][#173]] Vec.new(Expr) syntax: copy rstil's runtime-type-name trick
 ** Medium
 ** Low
 *** [[./open/81.org][#81]] UPtr type alias for pointer-sized integers

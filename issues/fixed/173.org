@@ -1,5 +1,4 @@
-# priority: high
-** WIP #173 Vec.new(Expr) syntax: copy rstil's runtime-type-name trick
+** #173 Vec.new(Expr) syntax: copy rstil's runtime-type-name trick
 
 Goal:
 
@@ -22,30 +21,45 @@ Goal:
       (~50 sites).
    3. [X] Same treatment for ~Array.new~, ~Map.new~, ~Set.new~,
       and any ~Tuple~ fields that pass ~T.size()~.
-   4. [ ] Add ~dyn_type_to_str(T)~ ext_func: at the call site, the
+   4. [X] Add ~dyn_type_to_str(T)~ ext_func: at the call site, the
       codegen converts the type identifier ~T~ to the string literal
       ~"T"~. Special-cased in the typer like ~dyn_call~ requires its
       method arg to be a literal.
-   5. [ ] Rewrite all ~Vec.new("Foo")~ callsites to ~Vec.new(Foo)~
+   5. [X] Rewrite all ~Vec.new("Foo")~ callsites to ~Vec.new(Foo)~
       and equivalents for the other collections. End state: no
       ~T.size()~ noise at any callsite, no string-literal type names
       either.
 
-   Not in scope:
+   Resolution summary:
 
-    - We're not introducing rstil's string-based ~Type~ pseudo-type or
-      renaming the existing ~TilType~ enum. The two ~dyn_*~ helpers
-      fit the codebase's existing dispatch pattern and avoid touching
-      the typer's value-type machinery.
+   - Step 1 added ~dyn_size_of(type_name: Str)~ and the generated C
+     runtime/type-size switch.
+   - Step 2 removed explicit ~T.size()~ noise from ~Vec.new~ and
+     rewrote the original string-based callsites.
+   - Step 3 completed the remaining collection/container surface work:
+     ~Tuple.push(T, val)~, ~Set.new(T)~, ~Map.new(K, V)~,
+     ~Vec.new(T)~, and ~Array.new(T, cap)~.
+   - For ~Set~, ~Map~, ~Vec~, and ~Array~, the migration used staged
+     bootstrap-safe commits with temporary ~new_newi~ aliases (and for
+     ~Array~, one extra ~new_type_name~ preparation commit for raw C
+     builder emission).
+   - Step 4 added ~dyn_type_to_str(T)~ plus generic Type-token lowering
+     in typer / builder / interpreter so bare type identifiers can be
+     passed through ordinary function parameters.
+   - Step 5 is complete: source callsites now use type tokens directly,
+     including ~Vec.new(Foo)~, ~Set.new(Foo)~, ~Map.new(K, V)~,
+     ~Array.new(Foo, cap)~, and ~Tuple.push(Foo, val)~.
+   - Final cherry on top: public source code can now spell the compiler's
+     type object as ~Type~ via ~Type := TilType~, while the bootstrap
+     compiler and generated C continue to use ~TilType~ internally.
 
-   Progress:
+   Final state:
 
-   - ~Vec.new("T")~, ~Set.new("T")~, ~Array.new("T", cap)~, and
-     ~Map.new("K", "V")~ are now the active source interfaces.
-   - ~array(...)~ and ~vec(...)~ are desugared in the typer now, not
+   - ~vec(...)~ and ~array(...)~ are desugared in the typer now, not
      lowered specially by builder / dispatch.
    - There is no core ~List~ type in this tree.
-   - ~Tuple.push(type, val)~ now computes the element size internally too.
+   - Call sites no longer need explicit ~T.size()~ or string literal
+     type names for the supported collection constructors.
 
    Side issue uncovered (may be subsumed by master's [[./165.org][#165]]):
 
