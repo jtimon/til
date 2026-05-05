@@ -28,9 +28,13 @@ namespace:
                      elem_delete = dyn_fn(elem_type, "delete"))
     }
 
+    new_type_name := func(elem_type: Str, cap: USize) returns Array {
+        return Array.new(elem_type, cap)
+    }
+
     new_newi := func(T: TilType, cap: USize) returns Array {
         elem_type := dyn_type_to_str(T)
-        return Array.new(elem_type, cap)
+        return Array.new_type_name(elem_type, cap)
     }
 
     len := func(self: Array) returns USize { return self.cap }

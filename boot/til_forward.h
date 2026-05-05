@@ -959,6 +959,7 @@ Bool enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
 Array * Array_new(Str * elem_type, U32 * cap);
+Array * Array_new_type_name(Str * elem_type, U32 * cap);
 Array * Array_new_newi(TilType * T, U32 * cap);
 U32 * Array_len(Array * self);
 void * Array_get(Array * self, U32 * i);
