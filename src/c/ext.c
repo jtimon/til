@@ -5,6 +5,7 @@
 #include <time.h>
 #include <limits.h>
 #include <stdint.h>
+#include <errno.h>
 
 #ifdef _WIN32
 // winnt.h declares 'TokenType' as an enum constant inside
@@ -22,11 +23,11 @@
 #define PATH_MAX MAX_PATH
 #endif
 #else
+#include <dirent.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
-#include <errno.h>
 #include <dlfcn.h>
 #endif
 
@@ -44,6 +45,184 @@ static char *dup_n(const char *s, size_t n) {
     memcpy(r, s, n);
     r[n] = '\0';
     return r;
+}
+
+static char *path_join(const char *a, const char *b) {
+    size_t na = strlen(a);
+    size_t nb = strlen(b);
+    int need_sep = na > 0 && a[na - 1] != '/' && a[na - 1] != '\\';
+    char *out = malloc(na + nb + (need_sep ? 2 : 1));
+    if (!out) return NULL;
+    memcpy(out, a, na);
+    if (need_sep) out[na++] = '/';
+    memcpy(out + na, b, nb + 1);
+    return out;
+}
+
+static char *path_dirname(const char *path) {
+    const char *slash = strrchr(path, '/');
+#ifdef _WIN32
+    const char *backslash = strrchr(path, '\\');
+    if (backslash && (!slash || backslash > slash)) slash = backslash;
+#endif
+    if (!slash) return NULL;
+    return dup_n(path, (size_t)(slash - path));
+}
+
+#ifdef _WIN32
+static void normalize_windows_path(char *path) {
+    for (char *p = path; *p; p++) {
+        if (*p == '/') *p = '\\';
+    }
+}
+#endif
+
+static int mkdir_one(const char *path) {
+#ifdef _WIN32
+    if (_mkdir(path) == 0 || errno == EEXIST) return 0;
+#else
+    if (mkdir(path, 0777) == 0 || errno == EEXIST) return 0;
+#endif
+    return 1;
+}
+
+static int mkdir_p_cstr(const char *path) {
+    if (!path || !*path) return 0;
+    char *tmp = dup_n(path, strlen(path));
+    if (!tmp) return 1;
+#ifdef _WIN32
+    normalize_windows_path(tmp);
+#endif
+    size_t start = 0;
+    if (tmp[0] == '/' || tmp[0] == '\\') start = 1;
+#ifdef _WIN32
+    if (strlen(tmp) >= 2 && tmp[1] == ':') {
+        start = 2;
+        if (tmp[2] == '\\' || tmp[2] == '/') start = 3;
+    }
+#endif
+    for (size_t i = start; tmp[i]; i++) {
+        if (tmp[i] != '/' && tmp[i] != '\\') continue;
+        char saved = tmp[i];
+        tmp[i] = '\0';
+        if (tmp[0] && mkdir_one(tmp) != 0) {
+            tmp[i] = saved;
+            free(tmp);
+            return 1;
+        }
+        tmp[i] = saved;
+    }
+    if (mkdir_one(tmp) != 0) {
+        free(tmp);
+        return 1;
+    }
+    free(tmp);
+    return 0;
+}
+
+static int copy_file_cstr(const char *src, const char *dst) {
+    char *parent = path_dirname(dst);
+    if (parent) {
+        if (mkdir_p_cstr(parent) != 0) {
+            free(parent);
+            return 1;
+        }
+        free(parent);
+    }
+
+    FILE *in = fopen(src, "rb");
+    if (!in) return 1;
+    FILE *out = fopen(dst, "wb");
+    if (!out) {
+        fclose(in);
+        return 1;
+    }
+
+    char buf[65536];
+    size_t n = 0;
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+        if (fwrite(buf, 1, n, out) != n) {
+            fclose(in);
+            fclose(out);
+            return 1;
+        }
+    }
+    fclose(in);
+    fclose(out);
+#ifndef _WIN32
+    struct stat st;
+    if (stat(src, &st) == 0) {
+        chmod(dst, st.st_mode & 0777);
+    }
+#endif
+    return 0;
+}
+
+static int copy_tree_cstr(const char *src, const char *dst) {
+    if (mkdir_p_cstr(dst) != 0) return 1;
+#ifdef _WIN32
+    char *src_norm = dup_n(src, strlen(src));
+    if (!src_norm) return 1;
+    normalize_windows_path(src_norm);
+    char *pattern = path_join(src_norm, "*");
+    free(src_norm);
+    if (!pattern) return 1;
+    normalize_windows_path(pattern);
+
+    WIN32_FIND_DATAA data;
+    HANDLE h = FindFirstFileA(pattern, &data);
+    free(pattern);
+    if (h == INVALID_HANDLE_VALUE) return 1;
+    int rc = 0;
+    do {
+        if (strcmp(data.cFileName, ".") == 0 || strcmp(data.cFileName, "..") == 0) continue;
+        char *child_src = path_join(src, data.cFileName);
+        char *child_dst = path_join(dst, data.cFileName);
+        if (!child_src || !child_dst) {
+            free(child_src);
+            free(child_dst);
+            rc = 1;
+            break;
+        }
+        if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) rc = copy_tree_cstr(child_src, child_dst);
+        else rc = copy_file_cstr(child_src, child_dst);
+        free(child_src);
+        free(child_dst);
+        if (rc != 0) break;
+    } while (FindNextFileA(h, &data));
+    FindClose(h);
+    return rc;
+#else
+    DIR *dir = opendir(src);
+    if (!dir) return 1;
+    struct dirent *ent = NULL;
+    int rc = 0;
+    while ((ent = readdir(dir)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+        char *child_src = path_join(src, ent->d_name);
+        char *child_dst = path_join(dst, ent->d_name);
+        if (!child_src || !child_dst) {
+            free(child_src);
+            free(child_dst);
+            rc = 1;
+            break;
+        }
+        struct stat st;
+        if (stat(child_src, &st) != 0) {
+            free(child_src);
+            free(child_dst);
+            rc = 1;
+            break;
+        }
+        if (S_ISDIR(st.st_mode)) rc = copy_tree_cstr(child_src, child_dst);
+        else rc = copy_file_cstr(child_src, child_dst);
+        free(child_src);
+        free(child_dst);
+        if (rc != 0) break;
+    }
+    closedir(dir);
+    return rc;
+#endif
 }
 
 // Internal helpers for heap-allocating scalar values
@@ -707,6 +886,34 @@ I64 file_mtime(Str *path) {
     free(p);
     if (rc != 0) return -1;
     return (I64)st.st_mtime;
+}
+
+I32 mkdir_p(Str *path) {
+    char *p = dup_n((char *)path->c_str, path->count);
+    int rc = mkdir_p_cstr(p);
+    if (rc != 0) fprintf(stderr, "mkdir_p: failed for '%s'\n", p);
+    free(p);
+    return (I32)rc;
+}
+
+I32 copy_file(Str *src, Str *dst) {
+    char *s = dup_n((char *)src->c_str, src->count);
+    char *d = dup_n((char *)dst->c_str, dst->count);
+    int rc = copy_file_cstr(s, d);
+    if (rc != 0) fprintf(stderr, "copy_file: failed from '%s' to '%s'\n", s, d);
+    free(s);
+    free(d);
+    return (I32)rc;
+}
+
+I32 copy_tree(Str *src, Str *dst) {
+    char *s = dup_n((char *)src->c_str, src->count);
+    char *d = dup_n((char *)dst->c_str, dst->count);
+    int rc = copy_tree_cstr(s, d);
+    if (rc != 0) fprintf(stderr, "copy_tree: failed from '%s' to '%s'\n", s, d);
+    free(s);
+    free(d);
+    return (I32)rc;
 }
 
 I64 clock_ms(void) {

@@ -32,8 +32,6 @@ LIBFFI_DIR := lib/libffi
 LIBFFI_INCDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/include))
 LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
 LIBFFI_FLAGS = -I$(LIBFFI_INCDIR) -L$(LIBFFI_LIBDIR) -lffi
-PREFIX ?= /usr/local
-DESTDIR ?=
 
 $(RAYLIB_LIB):
 	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP \
@@ -143,7 +141,7 @@ summary: bin/til
 	bin/til run examples/issues.til
 
 install: bin/til
-	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til install --prefix="$(DESTDIR)$(PREFIX)" src/til.til
+	bin/til install src/til.til
 # Shared writable scratch dir for targets that need it (test_repl_help
 # writes the REPL stdin/stdout fixtures there; til_boot copies snapshot
 # sources into tmp/boot/).

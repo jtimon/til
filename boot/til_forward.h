@@ -1373,7 +1373,6 @@ void loaded_add_lflag(LoadedProgram * lp, Str * lib);
 void init_and_type_program(LoadedProgram * lp, Bool run_tests);
 void prepare_program(LoadedProgram * lp, Bool run_tests);
 void cmd_ast(LoadedProgram * lp);
-Str * host_os(void);
 I32 system_cmd(Str * cmd);
 CollectionInfo * CollectionInfo_clone(CollectionInfo * self);
 void CollectionInfo_delete(CollectionInfo * self, Bool * call_free);
@@ -1513,8 +1512,7 @@ I32 compile_ast(LoadedProgram * lp, BuildPaths * paths, Target * target, Str * c
 I32 cmd_translate(LoadedProgram * lp, Str * custom_c, Target * target);
 I32 cmd_build(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override);
 Str * default_install_prefix(void);
-Str * shell_quote(Str * path);
-I32 run_install_cmd(Str * cmd, Str * what);
+I32 check_install_rc(I32 * rc, Str * what);
 Str * builder_compiler_root(LoadedProgram * lp);
 Str * support_root(Str * prefix);
 I32 install_file(Str * src, Str * dst, Str * what);

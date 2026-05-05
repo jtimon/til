@@ -3,7 +3,6 @@ mode lib
 import("loader")
 import("targets")
 
-host_os := ext_func() returns Str {}
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 
 priv CollectionInfo := struct {
@@ -5007,7 +5006,8 @@ derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
 
 make_build_dirs := func(paths: BuildPaths) {
     if paths.do_lib {
-        system_cmd("mkdir -p gen/til gen/lib")
+        if mkdir_p("gen/til").neq(0) { panic(__LOC__, "failed to create gen/til") }
+        if mkdir_p("gen/lib").neq(0) { panic(__LOC__, "failed to create gen/lib") }
     } else {
         cp_slash := paths.c_path.rfind("/")
         bp_slash := paths.bin_path.rfind("/")
@@ -5021,7 +5021,8 @@ make_build_dirs := func(paths: BuildPaths) {
             bp_slash_u : USize = bp_slash.to_u32()
             bp_dir = paths.bin_path.substr(0, bp_slash_u)
         }
-        system_cmd(format("mkdir -p ", cp_dir, " ", bp_dir))
+        if mkdir_p(cp_dir).neq(0) { panic(__LOC__, "failed to create build output dir") }
+        if mkdir_p(bp_dir).neq(0) { panic(__LOC__, "failed to create binary output dir") }
     }
 }
 
@@ -5084,18 +5085,12 @@ cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Tar
 
 default_install_prefix := func() returns Str {
     if host_os().eq("windows") {
-        return "C:/til"
+        return "C:/Program Files/til"
     }
     return "/usr/local"
 }
 
-shell_quote := func(path: Str) returns Str {
-    parts := path.split("'")
-    return format("'", join(parts, "'\"'\"'"), "'")
-}
-
-run_install_cmd := proc(cmd: Str, what: Str) returns shallow I32 {
-    rc := system_cmd(cmd)
+check_install_rc := proc(rc: I32, what: Str) returns shallow I32 {
     if rc.neq(0) {
         println(format("error: failed to ", what))
         return 1
@@ -5112,16 +5107,11 @@ support_root := func(prefix: Str) returns Str {
 }
 
 install_file := proc(src: Str, dst: Str, what: Str) returns shallow I32 {
-    ensure_parent_dir(dst)
-    cmd := format("cp ", shell_quote(src), " ", shell_quote(dst))
-    return run_install_cmd(cmd, what)
+    return check_install_rc(copy_file(src, dst), what)
 }
 
 install_tree := proc(src: Str, dst: Str, what: Str) returns shallow I32 {
-    rc := run_install_cmd(format("mkdir -p ", shell_quote(dst)), what)
-    if rc.neq(0) { return rc }
-    cmd := format("cp -r ", shell_quote(src.concat("/.")), " ", shell_quote(dst))
-    return run_install_cmd(cmd, what)
+    return check_install_rc(copy_tree(src, dst), what)
 }
 
 is_compiler_install := func(lp: LoadedProgram, paths: BuildPaths) returns shallow Bool {
@@ -5285,7 +5275,7 @@ ensure_parent_dir := func(path: Str) {
     if last_slash.lt(0) { return }
     last_slash_u : USize = last_slash.to_u32()
     dir := path.substr(0, last_slash_u).clone()
-    system_cmd(format("mkdir -p '", dir, "'"))
+    if mkdir_p(dir).neq(0) { panic(__LOC__, "failed to create parent dir for ", path) }
 }
 
 emit_unit_doc := proc(u: ProgramUnit, lp: LoadedProgram) {
