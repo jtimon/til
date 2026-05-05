@@ -113,6 +113,38 @@
   baked into commit 1's boot/til.c, which only exists once commit
   1 has been merged.
 
+** Staged interface migration with a temporary alias
+
+  Some bootstrap-safe source interface changes need THREE commits, not
+  two. This happens when existing source call sites must keep working
+  for HEAD's til_boot, but you still want the final public name to
+  change.
+
+  Example pattern: changing ~Set.new("Str")~ into ~Set.new(Str)~.
+  If commit 1 changed ~Set.new~ directly, old bootstrapped code that
+  still emits string-arg calls could break before the source tree is
+  fully migrated.
+
+  Use this sequence instead:
+
+  1. Add a temporary alias with the NEW interface, under a NEW name
+     (for example ~Set.new_newi(T: TilType)~), while keeping the old
+     ~Set.new(elem_type: Str)~ interface intact. Rewrite all source
+     call sites and desugars to use the temporary alias. ~make clean &&
+     make test~ passes. Merge to master.
+  2. Flip the original public name to the NEW interface (for example
+     ~Set.new(T: TilType)~), and rewrite all source call sites back to
+     the original name. Keep the temporary alias as a forwarding
+     wrapper so bootstrapped/generated callers from commit 1 still
+     work. ~make clean && make test~ passes. Merge to master.
+  3. Remove the temporary alias once nothing in source or generated
+     output still calls it. ~make clean && make test~ passes. Merge to
+     master.
+
+  This is the right pattern when the final interface name must stay the
+  same, but the argument contract changes in a way that old boot output
+  cannot consume immediately.
+
 ** Commands
 
   - ~make test~ builds + runs all tests (uses xvfb-run). Commit includes boot/.
