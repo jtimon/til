@@ -196,6 +196,11 @@ func callee_param_is_shallow(callee_name: Str, shallow arg_index: U32) returns s
 func callee_param_is_usize(callee_name: Str, shallow arg_index: U32) returns shallow Bool
 #+end_src
 
+* callee_param_is_uptr
+#+begin_src til
+func callee_param_is_uptr(callee_name: Str, shallow arg_index: U32) returns shallow Bool
+#+end_src
+
 * callee_param_is_own
 #+begin_src til
 func callee_param_is_own(callee_name: Str, shallow arg_index: U32) returns shallow Bool
@@ -414,6 +419,11 @@ proc emit_as_ptr(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool)
 * emit_usize_ref
 #+begin_src til
 proc emit_usize_ref(f: File, e: Expr, shallow depth: I32)
+#+end_src
+
+* emit_uptr_ref
+#+begin_src til
+proc emit_uptr_ref(f: File, e: Expr, shallow depth: I32)
 #+end_src
 
 * emit_cli_parse_arg
@@ -771,7 +781,7 @@ proc compile_ast(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_overri
 
 * cmd_translate
 #+begin_src til
-proc cmd_translate(lp: LoadedProgram, custom_c: Str) returns shallow I32
+proc cmd_translate(lp: LoadedProgram, custom_c: Str, target: Target) returns shallow I32
 #+end_src
 
 * cmd_build

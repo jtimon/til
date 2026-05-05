@@ -56,7 +56,7 @@ func resolve_import_disps(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd: S
 
 * extract_imports
 #+begin_src til
-func extract_imports(body: Expr) returns Vec
+func extract_imports(body: Expr, path: Str) returns Vec
 #+end_src
 
 * resolve_imports
@@ -69,6 +69,7 @@ proc resolve_imports(import_paths: Vec, base_dir: Str, mut resolved_set: Set, mu
 struct LoadedProgram {
     own mut core_units
     own mut units
+    mut target : Target
     mut cur_mode : Mode
     mut ctx : Context
     mut skip_core : Bool
@@ -84,6 +85,16 @@ namespace:
     func delete(own self: LoadedProgram, call_free: Bool)
     func size() returns shallow U32
 }
+#+end_src
+
+* retarget_alias_binding
+#+begin_src til
+func retarget_alias_binding(scope: TypeScope, alias_name: Str, target_name: Str)
+#+end_src
+
+* retarget_loaded_aliases
+#+begin_src til
+func retarget_loaded_aliases(mut lp: LoadedProgram)
 #+end_src
 
 * precomp_imported
@@ -131,11 +142,6 @@ proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns Lo
 * escape_doc_for_literal_str
 #+begin_src til
 func escape_doc_for_literal_str(raw: Str) returns Str
-#+end_src
-
-* make_register_call
-#+begin_src til
-func make_register_call(callee_name: Str, name: Str, payload: Str, shallow line: U32, shallow col: U32) returns Expr
 #+end_src
 
 * func_kind

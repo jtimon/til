@@ -53,24 +53,24 @@ namespace:
 }
 #+end_src
 
-* _t_Str_29999
+* _t_Str_31431
 #+begin_src til
-_t_Str_29999 is a Str
+_t_Str_31431 is a Str
 #+end_src
 
-* _t_U32_30000
+* _t_U32_31432
 #+begin_src til
-_t_U32_30000 is a U32
+_t_U32_31432 is a U32
 #+end_src
 
-* _t_Str_30001
+* _t_Str_31433
 #+begin_src til
-_t_Str_30001 is a Str
+_t_Str_31433 is a Str
 #+end_src
 
-* _t_U32_30002
+* _t_U32_31434
 #+begin_src til
-_t_U32_30002 is a U32
+_t_U32_31434 is a U32
 #+end_src
 
 * dispatch_map
@@ -83,24 +83,24 @@ dispatch_map is a Map
 dispatch_inited is a Bool
 #+end_src
 
-* _t_Str_30003
+* _t_Str_31435
 #+begin_src til
-_t_Str_30003 is a Str
+_t_Str_31435 is a Str
 #+end_src
 
-* _t_U32_30004
+* _t_U32_31436
 #+begin_src til
-_t_U32_30004 is a U32
+_t_U32_31436 is a U32
 #+end_src
 
-* _t_Str_30005
+* _t_Str_31437
 #+begin_src til
-_t_Str_30005 is a Str
+_t_Str_31437 is a Str
 #+end_src
 
-* _t_U32_30006
+* _t_U32_31438
 #+begin_src til
-_t_U32_30006 is a U32
+_t_U32_31438 is a U32
 #+end_src
 
 * ffi_map
@@ -108,24 +108,24 @@ _t_U32_30006 is a U32
 ffi_map is a Map
 #+end_src
 
-* _t_Str_30007
+* _t_Str_31439
 #+begin_src til
-_t_Str_30007 is a Str
+_t_Str_31439 is a Str
 #+end_src
 
-* _t_U32_30008
+* _t_U32_31440
 #+begin_src til
-_t_U32_30008 is a U32
+_t_U32_31440 is a U32
 #+end_src
 
-* _t_Str_30009
+* _t_Str_31441
 #+begin_src til
-_t_Str_30009 is a Str
+_t_Str_31441 is a Str
 #+end_src
 
-* _t_U32_30010
+* _t_U32_31442
 #+begin_src til
-_t_U32_30010 is a U32
+_t_U32_31442 is a U32
 #+end_src
 
 * ffi_struct_defs
@@ -138,14 +138,14 @@ ffi_struct_defs is a Map
 ffi_loaded is a Bool
 #+end_src
 
-* _t_Str_30011
+* _t_Str_31443
 #+begin_src til
-_t_Str_30011 is a Str
+_t_Str_31443 is a Str
 #+end_src
 
-* _t_U32_30012
+* _t_U32_31444
 #+begin_src til
-_t_U32_30012 is a U32
+_t_U32_31444 is a U32
 #+end_src
 
 * ffi_type_cache
@@ -293,19 +293,24 @@ func ffi_init_struct_defs(program: Expr)
 func ffi_init_struct_defs_append(program: Expr)
 #+end_src
 
-* value_to_i64
-#+begin_src til
-func value_to_i64(v: Value) returns I64
-#+end_src
-
 * value_to_u64
 #+begin_src til
 func value_to_u64(v: Value) returns U64
 #+end_src
 
+* uptr_ffi_type
+#+begin_src til
+func uptr_ffi_type() returns ref ffi_type
+#+end_src
+
 * value_to_f32
 #+begin_src til
 func value_to_f32(v: Value) returns F32
+#+end_src
+
+* value_variant_name
+#+begin_src til
+func value_variant_name(v: Value) returns Str
 #+end_src
 
 * narrow_bool_arg

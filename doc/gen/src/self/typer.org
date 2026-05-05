@@ -46,6 +46,11 @@ proc_def_depth is a I32
 current_type_name is a Str
 #+end_src
 
+* auto_gen_depth
+#+begin_src til
+auto_gen_depth is a I32
+#+end_src
+
 * I64Name
 #+begin_src til
 I64Name is a Str
@@ -140,6 +145,16 @@ proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str)
 func find_namespace_func(sdef: Expr, method: Str) returns ref Expr
 #+end_src
 
+* namespace_member_is_priv
+#+begin_src til
+func namespace_member_is_priv(sdef: Expr, method: Str) returns shallow Bool
+#+end_src
+
+* mark_ns_member_used
+#+begin_src til
+func mark_ns_member_used(sdef: Expr, method: Str) returns shallow Bool
+#+end_src
+
 * try_ufcs_rewrite
 #+begin_src til
 func try_ufcs_rewrite(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str) returns shallow Bool
@@ -225,6 +240,11 @@ proc infer_field_access_fcall(scope: TypeScope, mut e: Expr, shallow in_func: I3
 proc check_priv_access(mut e: Expr, name: Str, mut b: TypeBinding)
 #+end_src
 
+* check_member_priv
+#+begin_src til
+proc check_member_priv(mut e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool)
+#+end_src
+
 * infer_fcall_expr
 #+begin_src til
 proc infer_fcall_expr(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context)
@@ -285,6 +305,16 @@ proc check_unused_params(func_scope: TypeScope, expr: Expr)
 proc check_unused_locals(scope: TypeScope, path: Str)
 #+end_src
 
+* check_unused_priv_top_level
+#+begin_src til
+proc check_unused_priv_top_level(scope: TypeScope) returns shallow I32
+#+end_src
+
+* check_unused_priv_members_in_program
+#+begin_src til
+proc check_unused_priv_members_in_program(program: Expr, path: Str) returns shallow I32
+#+end_src
+
 * infer_return_stmt
 #+begin_src til
 proc infer_return_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context)
@@ -323,6 +353,16 @@ proc infer_decl_func_def(scope: TypeScope, mut stmt: Expr) returns shallow Bool
 * infer_decl_type_alias_passthrough
 #+begin_src til
 func infer_decl_type_alias_passthrough(scope: TypeScope, mut stmt: Expr) returns shallow Bool
+#+end_src
+
+* declared_type_for_decl
+#+begin_src til
+func declared_type_for_decl(scope: TypeScope, stmt: Expr) returns TilType
+#+end_src
+
+* pre_coerce_decl_numeric_literals
+#+begin_src til
+proc pre_coerce_decl_numeric_literals(mut expr: Expr, target: TilType)
 #+end_src
 
 * infer_decl_typed_value
@@ -460,6 +500,11 @@ proc type_file(path: Str, ctx: Context) returns shallow I32
 proc infer_assign_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, ctx: Context)
 #+end_src
 
+* rhs_is_clone_fcall
+#+begin_src til
+func rhs_is_clone_fcall(rhs: Expr) returns shallow Bool
+#+end_src
+
 * assign_target_is_func_local
 #+begin_src til
 func assign_target_is_func_local(mut scope: TypeScope, name: Str) returns shallow Bool
@@ -483,6 +528,11 @@ func type_ctor_consumes(t: TilType) returns shallow Bool
 * is_usize_name
 #+begin_src til
 func is_usize_name(name: Str) returns shallow Bool
+#+end_src
+
+* is_uptr_name
+#+begin_src til
+func is_uptr_name(name: Str) returns shallow Bool
 #+end_src
 
 * can_implicit_usize_coerce
@@ -523,6 +573,11 @@ func usize_type(scope: TypeScope) returns TilType
 * type_has_cmp
 #+begin_src til
 func type_has_cmp(scope: TypeScope, type_name: Str) returns shallow Bool
+#+end_src
+
+* type_has_to_str
+#+begin_src til
+func type_has_to_str(scope: TypeScope, type_name: Str) returns shallow Bool
 #+end_src
 
 * expr_contains_fcall
@@ -575,9 +630,24 @@ func make_field_delete(field_assign: Expr, shallow field_own_type: OwnType) retu
 func make_delete_call(var_name: Str, shallow type: TilType, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr
 #+end_src
 
+* transfer_is_shallow_field_value_copy
+#+begin_src til
+func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool
+#+end_src
+
+* make_free_call
+#+begin_src til
+func make_free_call(var_name: Str, shallow type: TilType, src: Expr) returns Expr
+#+end_src
+
 * make_clone_call
 #+begin_src til
 func make_clone_call(type_name: Str, shallow type: TilType, arg: Expr, src: Expr) returns Expr
+#+end_src
+
+* make_to_str_call
+#+begin_src til
+func make_to_str_call(type_name: Str, arg: Expr) returns Expr
 #+end_src
 
 * make_ns_call
@@ -617,7 +687,7 @@ proc desugar_map_literal_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope)
 
 * process_call_desugars
 #+begin_src til
-func process_call_desugars(mut stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_variadic: Bool, shallow has_kwargs: Bool)
+func process_call_desugars(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_variadic: Bool, shallow has_kwargs: Bool)
 #+end_src
 
 * desugar_body
@@ -762,7 +832,7 @@ func insert_exit_deletes_into_stmt(stmt: Expr, body_stmts: Vec, mut locals: Vec,
 
 * insert_post_stmt_deletes
 #+begin_src til
-func insert_post_stmt_deletes(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec)
+func insert_post_stmt_deletes(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec, scope: TypeScope)
 #+end_src
 
 * insert_assign_delete

@@ -1,19 +1,19 @@
 #+TITLE: src/core/str.til
 #+OPTIONS: toc:t
 
-* _t_I64_848
+* _t_I64_856
 #+begin_src til
-_t_I64_848 is a I64
+_t_I64_856 is a I64
 #+end_src
 
-* _t_I64_849
+* _t_I64_857
 #+begin_src til
-_t_I64_849 is a I64
+_t_I64_857 is a I64
 #+end_src
 
-* _t_I64_850
+* _t_I64_858
 #+begin_src til
-_t_I64_850 is a I64
+_t_I64_858 is a I64
 #+end_src
 
 * CAP_LIT
@@ -21,19 +21,19 @@ _t_I64_850 is a I64
 CAP_LIT is a USize
 #+end_src
 
-* _t_I64_851
+* _t_I64_859
 #+begin_src til
-_t_I64_851 is a I64
+_t_I64_859 is a I64
 #+end_src
 
-* _t_I64_852
+* _t_I64_860
 #+begin_src til
-_t_I64_852 is a I64
+_t_I64_860 is a I64
 #+end_src
 
-* _t_I64_853
+* _t_I64_861
 #+begin_src til
-_t_I64_853 is a I64
+_t_I64_861 is a I64
 #+end_src
 
 * CAP_VIEW

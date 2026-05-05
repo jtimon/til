@@ -138,11 +138,6 @@ func type_from_name_init(name: Str, scope: TypeScope) returns TilType
 proc register_struct_def_for_stmt(stmt: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
-* register_struct_definitions
-#+begin_src til
-proc register_struct_definitions(program: Expr, scope: TypeScope) returns shallow I32
-#+end_src
-
 * gen_struct_clone_delete_for_stmt
 #+begin_src til
 func gen_struct_clone_delete_for_stmt(stmt: Expr, scope: TypeScope)

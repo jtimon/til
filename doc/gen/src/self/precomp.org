@@ -1,14 +1,14 @@
 #+TITLE: src/self/precomp.til
 #+OPTIONS: toc:t
 
-* _t_Str_17265
+* _t_Str_18171
 #+begin_src til
-_t_Str_17265 is a Str
+_t_Str_18171 is a Str
 #+end_src
 
-* _t_U32_17266
+* _t_U32_18172
 #+begin_src til
-_t_U32_17266 is a U32
+_t_U32_18172 is a U32
 #+end_src
 
 * macros
@@ -16,14 +16,14 @@ _t_U32_17266 is a U32
 macros is a Set
 #+end_src
 
-* _t_Str_17267
+* _t_Str_18173
 #+begin_src til
-_t_Str_17267 is a Str
+_t_Str_18173 is a Str
 #+end_src
 
-* _t_U32_17268
+* _t_U32_18174
 #+begin_src til
-_t_U32_17268 is a U32
+_t_U32_18174 is a U32
 #+end_src
 
 * funcs
@@ -31,24 +31,24 @@ _t_U32_17268 is a U32
 funcs is a Set
 #+end_src
 
-* _t_Str_17269
+* _t_Str_18175
 #+begin_src til
-_t_Str_17269 is a Str
+_t_Str_18175 is a Str
 #+end_src
 
-* _t_U32_17270
+* _t_U32_18176
 #+begin_src til
-_t_U32_17270 is a U32
+_t_U32_18176 is a U32
 #+end_src
 
-* _t_Str_17271
+* _t_Str_18177
 #+begin_src til
-_t_Str_17271 is a Str
+_t_Str_18177 is a Str
 #+end_src
 
-* _t_U32_17272
+* _t_U32_18178
 #+begin_src til
-_t_U32_17272 is a U32
+_t_U32_18178 is a U32
 #+end_src
 
 * known

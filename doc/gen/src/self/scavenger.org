@@ -1,14 +1,14 @@
 #+TITLE: src/self/scavenger.til
 #+OPTIONS: toc:t
 
-* _t_Str_17495
+* _t_Str_18408
 #+begin_src til
-_t_Str_17495 is a Str
+_t_Str_18408 is a Str
 #+end_src
 
-* _t_U32_17496
+* _t_U32_18409
 #+begin_src til
-_t_U32_17496 is a U32
+_t_U32_18409 is a U32
 #+end_src
 
 * gc_strs

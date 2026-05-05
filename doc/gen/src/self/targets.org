@@ -74,6 +74,16 @@ func target_from_str(s: Str) returns Target
 func target_to_str(target: Target) returns Str
 #+end_src
 
+* target_is_32bit
+#+begin_src til
+func target_is_32bit(target: Target) returns Bool
+#+end_src
+
+* target_uptr_name
+#+begin_src til
+func target_uptr_name(target: Target) returns Str
+#+end_src
+
 * default_lang_for_target
 #+begin_src til
 func default_lang_for_target(target: Target) returns Lang

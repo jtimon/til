@@ -6,6 +6,11 @@
 ext_func vec(type_name: Str, elements: ..Dynamic) returns Vec
 #+end_src
 
+* vec_size_of
+#+begin_src til
+func vec_size_of(elem_type: Str) returns U32
+#+end_src
+
 * Vec
 Dynamic array of typed elements.
 
