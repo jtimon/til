@@ -1,8 +1,8 @@
 mode lib
 
 // Precomp: constant folding for macros and pure functions
-mut macros := Set.new("Str", Str.size())
-mut funcs := Set.new("Str", Str.size())
+mut macros := Set.new("Str")
+mut funcs := Set.new("Str")
 mut known := Map.new("Str", Str.size(), "Value", Value.size())
 
 precomp_has_macro := func(name: Str) returns shallow Bool {
@@ -705,8 +705,8 @@ precomp_register_defs := func(mut global: Scope, prog: Expr) {
 
 precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     // 1. Collect macro and pure func names
-    macros = Set.new("Str", Str.size())
-    funcs = Set.new("Str", Str.size())
+    macros = Set.new("Str")
+    funcs = Set.new("Str")
     if is_null(core_program).not() { precomp_scan_names(core_program) }
     precomp_scan_names(program)
 

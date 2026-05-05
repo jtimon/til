@@ -1,7 +1,7 @@
 mode test
 
 test_i64_set := test() {
-    s := Set.new("I64", I64.size())
+    s := Set.new("I64")
     s.add(own 3)
     s.add(own 1)
     s.add(own 2)
@@ -17,7 +17,7 @@ test_i64_set := test() {
 }
 
 test_str_set := test() {
-    ss := Set.new("Str", Str.size())
+    ss := Set.new("Str")
     ss.add(own "banana")
     ss.add(own "apple")
     ss.add(own "cherry")

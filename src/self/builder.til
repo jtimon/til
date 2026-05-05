@@ -2072,11 +2072,11 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
             }
         }
         ref mut lp : LoadedProgram = codegen_lp()
-        lp.ctx.stack_locals = Set.new("Str", Str.size())
+        lp.ctx.stack_locals = Set.new("Str")
         lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
-        lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
-        lp.ctx.ref_locals = Set.new("Str", Str.size())
-        lp.ctx.ref_dyn_locals = Set.new("Str", Str.size())
+        lp.ctx.unsafe_to_hoist = Set.new("Str")
+        lp.ctx.ref_locals = Set.new("Str")
+        lp.ctx.ref_dyn_locals = Set.new("Str")
         lp.ctx.local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
         collect_unsafe_to_hoist(body)
         in_main_func = true
@@ -2098,11 +2098,11 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         in_func_def = true
         ref mut lp : LoadedProgram = codegen_lp()
         lp.ctx.current_fdef = func_def
-        lp.ctx.stack_locals = Set.new("Str", Str.size())
+        lp.ctx.stack_locals = Set.new("Str")
         lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
-        lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
-        lp.ctx.ref_locals = Set.new("Str", Str.size())
-        lp.ctx.ref_dyn_locals = Set.new("Str", Str.size())
+        lp.ctx.unsafe_to_hoist = Set.new("Str")
+        lp.ctx.ref_locals = Set.new("Str")
+        lp.ctx.ref_dyn_locals = Set.new("Str")
         lp.ctx.local_fn_sigs = Map.new("Str", Str.size(), "Dynamic", I64.size())
         collect_unsafe_to_hoist(body)
         emit_body(f, body, 1.to_i32())
@@ -2724,7 +2724,7 @@ emit_header_func_fwds_prog := proc(f: File, prog: Expr, shallow is_core_pass: Bo
 }
 
 emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
-    mut emitted_h := Set.new("Str", Str.size())
+    mut emitted_h := Set.new("Str")
     emitted_h.add(own "U8".clone()); emitted_h.add(own "I16".clone()); emitted_h.add(own "I32".clone())
     emitted_h.add(own "U32".clone()); emitted_h.add(own "U64".clone()); emitted_h.add(own "I64".clone())
     emitted_h.add(own "F32".clone()); emitted_h.add(own "Bool".clone())
@@ -2778,7 +2778,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
 }
 
 emit_header_defs_and_funcs_lp := proc(f: File) {
-    mut emitted_h := Set.new("Str", Str.size())
+    mut emitted_h := Set.new("Str")
     emitted_h.add(own "U8".clone()); emitted_h.add(own "I16".clone()); emitted_h.add(own "I32".clone())
     emitted_h.add(own "U32".clone()); emitted_h.add(own "U64".clone()); emitted_h.add(own "I64".clone())
     emitted_h.add(own "F32".clone()); emitted_h.add(own "Bool".clone())
@@ -3642,14 +3642,14 @@ emit_global_inits := proc(f: File) {
 
 build_register_funcsig_names := func(core_program: Expr, program: Expr) {
     ref mut lp : LoadedProgram = codegen_lp()
-    lp.ctx.funcsig_names = Set.new("Str", Str.size())
+    lp.ctx.funcsig_names = Set.new("Str")
     if is_null(core_program).not() { register_funcsig_prog(core_program) }
     if is_null(program).not()      { register_funcsig_prog(program) }
 }
 
 build_register_funcsig_names_lp := func() {
     ref mut lp : LoadedProgram = codegen_lp()
-    lp.ctx.funcsig_names = Set.new("Str", Str.size())
+    lp.ctx.funcsig_names = Set.new("Str")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -3712,11 +3712,11 @@ build_register_lookups := func(core_program: Expr, program: Expr) {
     ref mut lp : LoadedProgram = codegen_lp()
     lp.ctx.struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     lp.ctx.func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
-    lp.ctx.stack_locals = Set.new("Str", Str.size())
+    lp.ctx.stack_locals = Set.new("Str")
     lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
-    lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
-    lp.ctx.ref_locals = Set.new("Str", Str.size())
-    lp.ctx.ref_dyn_locals = Set.new("Str", Str.size())
+    lp.ctx.unsafe_to_hoist = Set.new("Str")
+    lp.ctx.ref_locals = Set.new("Str")
+    lp.ctx.ref_dyn_locals = Set.new("Str")
     if is_null(core_program).not() { register_lookups_prog(core_program) }
     register_lookups_prog(program)
 }
@@ -3725,11 +3725,11 @@ build_register_lookups_lp := func() {
     ref mut lp : LoadedProgram = codegen_lp()
     lp.ctx.struct_def_exprs = Map.new("Str", Str.size(), "Dynamic", I64.size())
     lp.ctx.func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
-    lp.ctx.stack_locals = Set.new("Str", Str.size())
+    lp.ctx.stack_locals = Set.new("Str")
     lp.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
-    lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
-    lp.ctx.ref_locals = Set.new("Str", Str.size())
-    lp.ctx.ref_dyn_locals = Set.new("Str", Str.size())
+    lp.ctx.unsafe_to_hoist = Set.new("Str")
+    lp.ctx.ref_locals = Set.new("Str")
+    lp.ctx.ref_dyn_locals = Set.new("Str")
 
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -3781,7 +3781,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
     emit_funcsig_typedefs(f, core_program, program)
 
     // Topo-sort struct/enum defs
-    mut emitted_mh := Set.new("Str", Str.size())
+    mut emitted_mh := Set.new("Str")
     emitted_mh.add(own "U8".clone()); emitted_mh.add(own "I16".clone()); emitted_mh.add(own "I32".clone())
     emitted_mh.add(own "U32".clone()); emitted_mh.add(own "U64".clone()); emitted_mh.add(own "I64".clone())
     emitted_mh.add(own "F32".clone()); emitted_mh.add(own "Bool".clone())
@@ -3838,7 +3838,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
     emit_funcsig_typedefs_lp(f)
 
     // Topo-sort struct/enum defs across all units
-    mut emitted_mh := Set.new("Str", Str.size())
+    mut emitted_mh := Set.new("Str")
     emitted_mh.add(own "U8".clone()); emitted_mh.add(own "I16".clone()); emitted_mh.add(own "I32".clone())
     emitted_mh.add(own "U32".clone()); emitted_mh.add(own "U64".clone()); emitted_mh.add(own "I64".clone())
     emitted_mh.add(own "F32".clone()); emitted_mh.add(own "Bool".clone())
@@ -4688,8 +4688,8 @@ emit_collection_helpers := proc(f: File) {
 
 emit_global_declarations := proc(f: File) {
     ref mut lp : LoadedProgram = codegen_lp()
-    lp.ctx.script_globals = Set.new("Str", Str.size())
-    lp.ctx.ref_globals = Set.new("Str", Str.size())
+    lp.ctx.script_globals = Set.new("Str")
+    lp.ctx.ref_globals = Set.new("Str")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4756,7 +4756,7 @@ emit_script_main := proc(f: File) {
     f.write("int main(void) {\n")
     emit_ns_inits(f, 1)
     ref mut lp : LoadedProgram = codegen_lp()
-    lp.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
+    lp.ctx.unsafe_to_hoist = Set.new("Str")
     // Collect hoist restrictions across all user units.
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -4791,7 +4791,7 @@ emit_script_main := proc(f: File) {
     f.write("    return 0;\n")
     f.write("}\n")
     ref mut lp_after : LoadedProgram = codegen_lp()
-    lp_after.ctx.script_globals = Set.new("Str", Str.size())
+    lp_after.ctx.script_globals = Set.new("Str")
 }
 
 emit_function_bodies := proc(f: File, mode: Mode) {
@@ -4957,9 +4957,9 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     f.close()
     ref mut lp_end : LoadedProgram = codegen_lp()
     lp_end.ctx.func_defs = Map.new("Str", Str.size(), "Dynamic", I64.size())
-    lp_end.ctx.stack_locals = Set.new("Str", Str.size())
+    lp_end.ctx.stack_locals = Set.new("Str")
     lp_end.ctx.stack_local_types = Map.new("Str", Str.size(), "Str", Str.size())
-    lp_end.ctx.unsafe_to_hoist = Set.new("Str", Str.size())
+    lp_end.ctx.unsafe_to_hoist = Set.new("Str")
     return 0.to_i32()
 }
 
