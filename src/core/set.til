@@ -6,10 +6,6 @@ import("i64")
 import("str")
 import("u8")
 
-set_size_of := func(elem_type: Str) returns USize {
-    return dyn_size_of(elem_type)
-}
-
 /// Unordered collection of unique typed elements.
 Set := struct {
     own mut data : U8 = 0
@@ -23,13 +19,12 @@ Set := struct {
 
 namespace:
     /// Create an empty Set. elem_type must implement `cmp`.
-    new := func(elem_type: Str, elem_size: USize = 0) returns Set {
+    new := func(elem_type: Str) returns Set {
         if elem_type.is_empty() { panic(__LOC__, "Set.new: elem_type required") }
         if dyn_has_method(elem_type, "cmp").not() {
             panic(__LOC__, "Set.new: type ", elem_type, " must implement cmp")
         }
-        mut sz : USize = elem_size
-        if sz.eq(0) { sz = set_size_of(elem_type) }
+        sz : USize = dyn_size_of(elem_type)
         return Set(data = malloc(sz), cap = 1,
                    elem_size = sz, elem_type = elem_type.clone(),
                    elem_clone = dyn_fn(elem_type, "clone"),
