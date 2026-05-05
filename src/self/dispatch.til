@@ -200,6 +200,27 @@ priv value_to_f32 := func(v: Value) returns F32 {
     }
 }
 
+// Best-effort variant name for a Value, used in diagnostics. Value.to_str
+// only handles a few variants; this covers the rest. Returns "?" if the
+// tag is unrecognised (shouldn't happen, but the diagnostic shouldn't
+// itself crash).
+priv value_variant_name := func(v: Value) returns Str {
+    if v.is(Value.None)    { return "None" }
+    if v.is(Value.Int)     { return "Int" }
+    if v.is(Value.Byte)    { return "Byte" }
+    if v.is(Value.Short)   { return "Short" }
+    if v.is(Value.Int32)   { return "Int32" }
+    if v.is(Value.Uint32)  { return "Uint32" }
+    if v.is(Value.Uint64)  { return "Uint64" }
+    if v.is(Value.Float)   { return "Float" }
+    if v.is(Value.Boolean) { return "Boolean" }
+    if v.is(Value.Func)    { return "Func" }
+    if v.is(Value.Struct)  { return "Struct" }
+    if v.is(Value.Enum)    { return "Enum" }
+    if v.is(Value.Ptr)     { return "Ptr" }
+    return "?"
+}
+
 // Narrow an FCall arg to a Value.Boolean. Used by h_Bool_and/or/not to
 // pull the (possibly Value.Ptr) arg out of eval_expr and route it
 // through reinterpret_ptr_value -- the same helper ref bindings, param
@@ -207,10 +228,10 @@ priv value_to_f32 := func(v: Value) returns F32 {
 // as a Bool (silently defaulting to false would mask cast/typer bugs;
 // the Bool handlers are reached via FFI dispatch on top-level
 // and/or/not, so the typer should only let Bool-shaped values through).
-narrow_bool_arg := proc(s: Scope, e: Expr) returns Bool {
+priv narrow_bool_arg := proc(s: Scope, e: Expr) returns Bool {
     v := reinterpret_ptr_value(eval_expr(s, e), "Bool", s)
     if v.is(Value.Boolean).not() {
-        panic(__LOC__, "expected Bool argument to and/or/not")
+        panic(__LOC__, "expected Bool argument to and/or/not, got Value.", value_variant_name(v))
     }
     ref bv : Bool = get_payload(v)
     return bv.clone()
@@ -823,7 +844,7 @@ ffi_call_ret_struct_def := func(fe: FFIEntry) returns ref Expr {
 // false for ffi_types that don't correspond to a primitive shallow
 // value (struct/pointer/etc., caller falls back to the Ptr-default
 // path). type_name is what reinterpret_ptr_value understands.
-ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool {
+priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool {
     if ptr_eq(atype, ffi_type_sint64_ref()) { type_name = "I64"; size = 8.to_i32(); return true }
     if ptr_eq(atype, ffi_type_uint8_ref())  { type_name = "U8";  size = 1.to_i32(); return true }
     if ptr_eq(atype, ffi_type_sint16_ref()) { type_name = "I16"; size = 2.to_i32(); return true }
@@ -847,7 +868,7 @@ ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32)
 // numeric conversion) or value_to_u64 (all integer-shaped ffi_types,
 // truncated by memcpy'ing only `size` bytes -- equivalent to the old
 // to_i16/to_u8/etc. casts on x86-64 little-endian).
-ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic) returns shallow Bool {
+priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic) returns shallow Bool {
     mut tn := ""
     mut sz : I32 = 0.to_i32()
     if ffi_shallow_type_info(atype, tn, sz).not() { return false }
