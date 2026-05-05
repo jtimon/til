@@ -177,7 +177,7 @@ main := proc() {
 
     // Build AABBs for collision detection.
     total_boxes := cube_positions.len().add(tall_positions.len()).add(small_positions.len())
-    aabbs := Array.new_newi(BoundingBox, total_boxes)
+    aabbs := Array.new(BoundingBox, total_boxes)
     mut bi : USize = 0
     for pos : Vector3 in cube_positions {
         aabbs.set(bi, own crate_bb(pos, cube_size))

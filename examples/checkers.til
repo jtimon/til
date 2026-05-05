@@ -294,7 +294,7 @@ expand_jumps := func(mut cells: Array, piece_pos: I64, side: I64,
     while j.lt(mc) {
         ref dest : I64 = tmp_m.get(j.to_u32())
         ref jmp : I64 = tmp_j.get(j.to_u32())
-        mut child := Array.new_newi(I64, 64)
+        mut child := Array.new(I64, 64)
         copy_board(child, cells)
         new_piece := execute_move(child, piece_pos, dest.clone(), jmp.clone())
         ref orig : I64 = cells.get(piece_pos.to_u32())
@@ -316,7 +316,7 @@ expand_jumps := func(mut cells: Array, piece_pos: I64, side: I64,
 // Next boards: generate all complete turns (multi-jumps expanded)
 checkers_next_boards : NextBoardsFn = (b) {
     ref cb : Board = b
-    mut cells := Array.new_newi(I64, 64)
+    mut cells := Array.new(I64, 64)
     mut ci := 0
     while ci.lt(64) {
         cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
@@ -324,8 +324,8 @@ checkers_next_boards : NextBoardsFn = (b) {
     }
     side := checkers_unpack_side(cb)
     result := Vec.new(Board)
-    mut tmp_m := Array.new_newi(I64, 64)
-    mut tmp_j := Array.new_newi(I64, 64)
+    mut tmp_m := Array.new(I64, 64)
+    mut tmp_j := Array.new(I64, 64)
     must_cap := has_any_captures(cells, side, tmp_m, tmp_j)
     mut i := 0
     while i.lt(64) {
@@ -338,7 +338,7 @@ checkers_next_boards : NextBoardsFn = (b) {
                 mut j := 0
                 while j.lt(mc) {
                     ref dest : I64 = tmp_m.get(j.to_u32())
-                    mut child := Array.new_newi(I64, 64)
+                    mut child := Array.new(I64, 64)
                     copy_board(child, cells)
                     execute_move(child, i, dest.clone(), -1)
                     opp := 3.sub(side)
@@ -361,9 +361,9 @@ main := proc() {
     // AI (depth applied on Restart from sel_difficulty)
     mut ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards, depth = 1)
 
-    mut board := Array.new_newi(I64, 64)
-    mut tmp_moves := Array.new_newi(I64, 64)
-    mut tmp_jumped := Array.new_newi(I64, 64)
+    mut board := Array.new(I64, 64)
+    mut tmp_moves := Array.new(I64, 64)
+    mut tmp_jumped := Array.new(I64, 64)
 
     // Radio button state (only applied on restart / initial start)
     mut sel_color := 1  // 0=red, 1=black (default black so AI starts as red)
@@ -378,8 +378,8 @@ main := proc() {
     // Game state
     mut turn := 1           // 1=red, 2=black (red moves first)
     mut selected := -1
-    mut valid_moves := Array.new_newi(I64, 64)
-    mut valid_jumped := Array.new_newi(I64, 64)
+    mut valid_moves := Array.new(I64, 64)
+    mut valid_jumped := Array.new(I64, 64)
     mut valid_count := 0
     mut game_over := 0      // 0=playing, 1=red wins, 2=black wins, 3=draw
     mut ai_timer := 0
@@ -466,7 +466,7 @@ main := proc() {
                         while mj.lt(mc) {
                             ref dest : I64 = tmp_moves.get(mj.to_u32())
                             ref jmp : I64 = tmp_jumped.get(mj.to_u32())
-                            mut child := Array.new_newi(I64, 64)
+                            mut child := Array.new(I64, 64)
                             copy_board(child, board)
                             execute_move(child, multi_jump_idx, dest.clone(), jmp.clone())
                             mut child_b := Board()
@@ -497,8 +497,8 @@ main := proc() {
                         if orig_val.eq(1).and(new_piece.eq(2)) { was_promoted = true }
                         if orig_val.eq(3).and(new_piece.eq(4)) { was_promoted = true }
 
-                        mut more_moves := Array.new_newi(I64, 64)
-                        mut more_jumped := Array.new_newi(I64, 64)
+                        mut more_moves := Array.new(I64, 64)
+                        mut more_jumped := Array.new(I64, 64)
                         more := gen_captures(board, bd_val, ai_side, more_moves, more_jumped)
                         if more.gt(0).and(was_promoted.not()) {
                             multi_jump_idx = bd_val
@@ -519,9 +519,9 @@ main := proc() {
                     }
                 } else {
                     // Collect all legal moves for AI side
-                    mut ai_pieces := Array.new_newi(I64, 128)
-                    mut ai_dests := Array.new_newi(I64, 128)
-                    mut ai_jumps := Array.new_newi(I64, 128)
+                    mut ai_pieces := Array.new(I64, 128)
+                    mut ai_dests := Array.new(I64, 128)
+                    mut ai_jumps := Array.new(I64, 128)
                     mut ai_total := 0
 
                     ai_must_cap := has_any_captures(board, ai_side, tmp_moves, tmp_jumped)
@@ -571,7 +571,7 @@ main := proc() {
                             to_val := to_sq.clone()
                             jmp_val := jmp_sq.clone()
 
-                            mut child := Array.new_newi(I64, 64)
+                            mut child := Array.new(I64, 64)
                             copy_board(child, board)
                             execute_move(child, from_val, to_val, jmp_val)
 
@@ -610,8 +610,8 @@ main := proc() {
                             if orig_val.eq(1).and(new_piece.eq(2)) { was_promoted = true }
                             if orig_val.eq(3).and(new_piece.eq(4)) { was_promoted = true }
 
-                            mut more_moves := Array.new_newi(I64, 64)
-                            mut more_jumped := Array.new_newi(I64, 64)
+                            mut more_moves := Array.new(I64, 64)
+                            mut more_jumped := Array.new(I64, 64)
                             more := gen_captures(board, to_val, ai_side, more_moves, more_jumped)
                             if more.gt(0).and(was_promoted.not()) {
                                 multi_jump_idx = to_val

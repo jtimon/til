@@ -17,7 +17,7 @@ main := proc() {
 
     // P1 state
     max_len_us : USize = max_len.to_usize()
-    mut body := Array.new_newi(I64, max_len_us)
+    mut body := Array.new(I64, max_len_us)
     mut snake_len : USize = 3
     mut dx := 1
     mut dy := 0
@@ -25,7 +25,7 @@ main := proc() {
     mut next_dy := 0
 
     // P2 state
-    mut body2 := Array.new_newi(I64, max_len_us)
+    mut body2 := Array.new(I64, max_len_us)
     mut snake_len2 : USize = 3
     mut dx2 := -1
     mut dy2 := 0

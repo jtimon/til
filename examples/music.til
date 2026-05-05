@@ -298,13 +298,13 @@ main := proc() {
     fnt := load_font("assets/DejaVuSans.ttf", 48)
 
     // Scale result arrays (8 notes: 7 degrees + octave)
-    mut sc_chrom := Array.new_newi(I64, 8)
-    mut sc_diat := Array.new_newi(I64, 8)
-    mut sc_oct := Array.new_newi(I64, 8)
-    mut sc_acc := Array.new_newi(I64, 8)
-    mut sc_freq := Array.new_newi(I64, 8)
+    mut sc_chrom := Array.new(I64, 8)
+    mut sc_diat := Array.new(I64, 8)
+    mut sc_oct := Array.new(I64, 8)
+    mut sc_acc := Array.new(I64, 8)
+    mut sc_freq := Array.new(I64, 8)
     // Triad types for 7 degrees: 0=M, 1=m, 2=dim, 3=aug
-    mut sc_triad := Array.new_newi(U32, 7)
+    mut sc_triad := Array.new(U32, 7)
 
     // State
     mut sel_diatonic : USize = 0

@@ -2271,7 +2271,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
         }
     }
     mut remaining := indices.len()
-    mut done := Array.new_newi(Bool, indices.len())
+    mut done := Array.new(Bool, indices.len())
     for di in 0..indices.len() {
         mut f_val := false
         done.set(di, own f_val)
@@ -2381,7 +2381,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
     }
 
     mut remaining := items.len()
-    mut done := Array.new_newi(Bool, items.len())
+    mut done := Array.new(Bool, items.len())
     for di in 0..items.len() {
         mut f_val := false
         done.set(di, own f_val)
