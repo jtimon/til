@@ -134,7 +134,7 @@ namespace:
 /// Function signature metadata: params, return type, variadic info.
 FunctionDef := struct {
     mut func_type := FuncType.Func
-    mut params := Vec.new("Declaration", Declaration.size())
+    mut params := Vec.new("Declaration")
     mut return_type := ""
     mut variadic_index : I32 = -1.to_i32()
     mut kwargs_index : I32 = -1.to_i32()
@@ -195,8 +195,8 @@ get_own_arg := func(fcall: Expr, shallow arg_index: USize) returns shallow Bool 
 /// Struct definition: field declarations, namespace methods, total size.
 StructDef : StructDef = struct {
     mut total_struct_size : I32 = 0
-    mut fields := Vec.new("Declaration", Declaration.size())
-    mut ns_decls := Vec.new("Declaration", Declaration.size())
+    mut fields := Vec.new("Declaration")
+    mut ns_decls := Vec.new("Declaration")
     mut c_tag := ""
 namespace:
     eq := func(a: StructDef, b: StructDef) returns Bool {
@@ -207,8 +207,8 @@ namespace:
 
 /// Enum definition: variants, payload types, namespace methods.
 EnumDef : StructDef = struct {
-    mut ns_decls := Vec.new("Declaration", Declaration.size())
-    mut variants := Vec.new("Str", Str.size())
+    mut ns_decls := Vec.new("Declaration")
+    mut variants := Vec.new("Str")
     mut payload_types := Map.new("I64", I64.size(), "Str", Str.size())
     mut total_enum_size : I32 = 0
 namespace:
@@ -274,7 +274,7 @@ NodeType := enum {
 Expr := struct {
     mut node_type := NodeType.Body
     mut til_type := TilType.Unknown
-    mut children := Vec.new("Expr", Expr.size())
+    mut children := Vec.new("Expr")
     mut line : U32 = 0
     mut col : U32 = 0
 

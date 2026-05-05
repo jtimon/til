@@ -426,7 +426,7 @@ go_next_boards : NextBoardsFn = (b) {
         ko_cells.set(ci.to_u32(), own board_get_i64(gb, GO_IDX_KO.add(ci)).clone())
         ci = ci.add(1)
     }
-    result := Vec.new("Board", Board.size())
+    result := Vec.new("Board")
     mut i := 0
     while i.lt(total) {
         ref p : I64 = cells.get(i.to_u32())
@@ -435,7 +435,7 @@ go_next_boards : NextBoardsFn = (b) {
             copy_board(child, cells, total)
             mut child_vis := Array.new("I64", 8, MAX_CELLS.to_u32())
             mut child_lib := Array.new("I64", 8, MAX_CELLS.to_u32())
-            mut child_stk := Vec.new("I64", 8)
+            mut child_stk := Vec.new("I64")
             cap := try_place(child, child_vis, child_lib, child_stk, i, size, side, ko_cells, has_ko)
             if cap.gte(0) {
                 opp := 3.sub(side)
@@ -583,7 +583,7 @@ main := proc() {
     mut ko_board := Array.new("I64", 8, MAX_CELLS.to_u32())
     mut visited := Array.new("I64", 8, MAX_CELLS.to_u32())
     mut lib_seen := Array.new("I64", 8, MAX_CELLS.to_u32())
-    mut stk := Vec.new("I64", 8)
+    mut stk := Vec.new("I64")
 
     // Radio button state (only applied on restart / initial start)
     mut sel_color := 0   // 0=white, 1=black (default white so AI starts as black)

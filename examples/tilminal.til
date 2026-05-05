@@ -37,7 +37,7 @@ main := proc(args: ..Str) {
     pad_y := 10
     input_h := 36
 
-    mut lines := Vec.new("Str", Str.size())
+    mut lines := Vec.new("Str")
     push_line(lines, "tilminal")
     push_line(lines, "type a shell command and press Enter")
     push_line(lines, "builtins: clear, help")
@@ -64,7 +64,7 @@ main := proc(args: ..Str) {
             if input.len().gt(0) {
                 cmd := input.clone()
                 if cmd.eq("clear") {
-                    mut fresh := Vec.new("Str", Str.size())
+                    mut fresh := Vec.new("Str")
                     lines = fresh
                 } else {
                     run_shell_command(lines, cmd)

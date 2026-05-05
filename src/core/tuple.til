@@ -12,8 +12,8 @@ Tuple := struct {
     own mut data : U8 = 0
     mut total_size : USize = 0
     mut cap : USize = 0
-    mut type_names := Vec.new("Str", Str.size())
-    mut type_sizes := Vec.new("U32", USize.size())
+    mut type_names := Vec.new("Str")
+    mut type_sizes := Vec.new("U32")
 
 namespace:
     /// Create an empty Tuple.

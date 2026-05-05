@@ -73,12 +73,12 @@ dir_of := func(abs: Str) returns Str {
 ProgramUnit := struct {
     mut path := ""
     mut mode := Mode()
-    mut imports := Vec.new("Str", Str.size())
+    mut imports := Vec.new("Str")
 }
 
 // Resolve a file's direct import paths to display paths.
 resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd: Str) returns Vec {
-    mut out := Vec.new("Str", Str.size())
+    mut out := Vec.new("Str")
     for import_path : Str in import_paths {
         mut try_path := base_dir.format("/", import_path)
         mut abs := realpath_str(try_path)
@@ -96,7 +96,7 @@ resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd
 // The .til suffix is appended internally; paths already ending in ".til" are
 // rejected with a helpful error suggesting the bare-name form.
 extract_imports := func(body: Expr, path: Str) returns Vec {
-    mut paths := Vec.new("Str", Str.size())
+    mut paths := Vec.new("Str")
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
             if stmt.child(0).node_type.is(NodeType.Ident)
@@ -188,8 +188,8 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 // --- LoadedProgram ---
 
 LoadedProgram := struct {
-    own mut core_units := Vec.new("ProgramUnit", ProgramUnit.size())
-    own mut units := Vec.new("ProgramUnit", ProgramUnit.size())
+    own mut core_units := Vec.new("ProgramUnit")
+    own mut units := Vec.new("ProgramUnit")
 
     mut cur_mode := Mode()
     mut ctx := Context()
@@ -378,7 +378,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     }
 
     // 2) Seed worklist from the concatenated user-unit stream
-    mut worklist := Vec.new("Str", Str.size())
+    mut worklist := Vec.new("Str")
     if is_cli {
         vec_push_str(worklist, "main")
         for ui in 0..lp.units.len() {
@@ -552,9 +552,9 @@ extract_link_info := func(mut lp: LoadedProgram) {
     for ui in 0..lp.units.len() {
         ref u : ProgramUnit = lp.units.get(ui)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        mut new_children := Vec.new("Expr", Expr.size())
+        mut new_children := Vec.new("Expr")
         mut old_children := iu.ast.children
-        iu.ast.children = Vec.new("Expr", Expr.size())
+        iu.ast.children = Vec.new("Expr")
         for stmt : Expr in old_children {
             mut keep := true
             if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
@@ -606,7 +606,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 
     // Single resolved set for all imports (core + user), so no file is loaded twice
     resolved := Set.new("Str", Str.size())
-    resolve_stack := Vec.new("Expr", Expr.size())
+    resolve_stack := Vec.new("Expr")
     ctx := Context()
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
@@ -636,7 +636,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     }
 
     // Resolve core imports
-    core_units := Vec.new("ProgramUnit", ProgramUnit.size())
+    core_units := Vec.new("ProgramUnit")
     core_imports := extract_imports(core_ast, core_disp)
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
@@ -663,7 +663,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     auto_import := cur_mode.auto_import
 
     // Resolve user imports (using same resolved set -- skips files already loaded by core)
-    units := Vec.new("ProgramUnit", ProgramUnit.size())
+    units := Vec.new("ProgramUnit")
     lib_dir := bin_dir.concat("/src/lib")
     user_import_disps := resolve_import_disps(imports, user_dir, lib_dir, cwd)
     if imports.len().gt(0) {
@@ -731,7 +731,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     // Ensure mode auto-import runs before the file's explicit imports.
     // This matches the merged AST order and keeps per-file init/type in sync.
     if mode_disp.len().gt(0) {
-        mut all_imports := Vec.new("Str", Str.size())
+        mut all_imports := Vec.new("Str")
         all_imports.push(own mode_disp.clone())
         for dep : Str in user_import_disps { all_imports.push(own dep.clone()) }
         user_iu.imports = all_imports
@@ -743,7 +743,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     // User entrypoint unit.
     mut user_unit := ProgramUnit(path = path.clone(), mode = cur_mode.clone())
     if mode_disp.len().gt(0) {
-        mut all_imports2 := Vec.new("Str", Str.size())
+        mut all_imports2 := Vec.new("Str")
         all_imports2.push(own mode_disp.clone())
         for dep : Str in user_import_disps { all_imports2.push(own dep.clone()) }
         user_unit.imports = all_imports2

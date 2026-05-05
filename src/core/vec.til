@@ -7,6 +7,20 @@ import("u8")
 
 vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}
 
+// Module-scope wrapper around dyn_size_of. Workarounds:
+//   - Inside Vec's namespace methods, the bootstrap typer mis-infers
+//     dyn_size_of's USize return as Struct; pulling the call out to
+//     module scope sidesteps that.
+//   - Dynamic is special-cased: its C struct is 1 byte (placeholder),
+//     but at the til level Dynamic is a void* (8 bytes). Emitted
+//     dyn_size_of returns sizeof(Dynamic) = 1 in the C runtime, which
+//     would corrupt Vec slot sizing. We hand-patch it here so callers
+//     like `Vec.new("Dynamic")` get the runtime pointer size.
+vec_size_of := func(elem_type: Str) returns USize {
+    if elem_type.eq("Dynamic") { return 8.to_u32() }
+    return dyn_size_of(elem_type)
+}
+
 /// Dynamic array of typed elements.
 Vec := struct {
     own mut data : U8 = 0
@@ -19,16 +33,18 @@ Vec := struct {
 
 namespace:
     /// Create a new empty Vec for elements of the given type and size.
-    new := func(elem_type: Str, elem_size: USize) returns Vec {
+    new := func(elem_type: Str, elem_size: USize = 0) returns Vec {
         if elem_type.is_empty() {
             panic(__LOC__, "Vec.new: elem_type required")
         }
+        mut sz : USize = elem_size
+        if sz.eq(0) { sz = vec_size_of(elem_type) }
         if elem_type.eq("Dynamic") {
-            return Vec(data = malloc(elem_size), cap = 1,
-                       elem_size = elem_size, elem_type = elem_type.clone())
+            return Vec(data = malloc(sz), cap = 1,
+                       elem_size = sz, elem_type = elem_type.clone())
         }
-        return Vec(data = malloc(elem_size), cap = 1,
-                   elem_size = elem_size, elem_type = elem_type.clone(),
+        return Vec(data = malloc(sz), cap = 1,
+                   elem_size = sz, elem_type = elem_type.clone(),
                    elem_clone = dyn_fn(elem_type, "clone"),
                    elem_delete = dyn_fn(elem_type, "delete"))
     }

@@ -265,7 +265,7 @@ test_custom_delete := test() {
 }
 
 Container := struct {
-    mut items := Vec.new("I64", I64.size())
+    mut items := Vec.new("I64")
 }
 
 test_vec_in_struct := test() {

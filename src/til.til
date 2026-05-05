@@ -167,7 +167,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
     mut have_core_cache := false
 
     // Keep block Strs alive so parsed AST views don't dangle.
-    source_keep := Vec.new("Str", Str.size())
+    source_keep := Vec.new("Str")
 
     system_cmd("mkdir -p tmp")
     tmp_path := "tmp/repl_".concat(process_id().to_str()).concat(".til")
@@ -407,7 +407,7 @@ parse_args := proc(args: Array) returns CliArgs {
 // Split trailing args (after the source path) into -l flags (appended to
 // lp.link_flags) and user argv (returned).
 collect_user_argv := func(mut lp: LoadedProgram, args: Array, shallow start_idx: USize) returns Vec {
-    mut user_argv := Vec.new("Str", Str.size())
+    mut user_argv := Vec.new("Str")
     mut ai := start_idx
     while ai.lt(args.len()) {
         ref arg : Str = args.get(ai)

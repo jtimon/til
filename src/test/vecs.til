@@ -1,7 +1,7 @@
 mode test
 
 test_vec_push_get := test() {
-    v := Vec.new("I64", I64.size())
+    v := Vec.new("I64")
     v.push(own 42)
     v.push(own 99)
     v.push(own 7)
@@ -17,7 +17,7 @@ test_vec_push_get := test() {
 }
 
 test_vec_grow := test() {
-    v := Vec.new("I64", I64.size())
+    v := Vec.new("I64")
     // default cap is 4, push 8 to force growth
     v.push(own 1)
     v.push(own 2)
@@ -36,7 +36,7 @@ test_vec_grow := test() {
 }
 
 test_vec_strings := test() {
-    v := Vec.new("Str", Str.size())
+    v := Vec.new("Str")
     v.push(own "hello")
     v.push(own "world")
 
@@ -49,7 +49,7 @@ test_vec_strings := test() {
 }
 
 test_vec_set := test() {
-    v := Vec.new("I64", I64.size())
+    v := Vec.new("I64")
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -70,7 +70,7 @@ test_vec_set := test() {
 }
 
 test_vec_set_str := test() {
-    v := Vec.new("Str", Str.size())
+    v := Vec.new("Str")
     v.push(own "aaa")
     v.push(own "bbb")
 
@@ -90,7 +90,7 @@ test_vec_size := test() {
 }
 
 test_vec_dynamic := test() {
-    v := Vec.new("Dynamic", Dynamic.size())
+    v := Vec.new("Dynamic")
     // Use pointer-sized allocs so FFI Vec.push reads valid memory
     p1 : Dynamic = malloc(Dynamic.size())
     p2 : Dynamic = malloc(Dynamic.size())
@@ -106,7 +106,7 @@ test_vec_dynamic := test() {
 }
 
 test_vec_pop := test() {
-    v := Vec.new("I64", I64.size())
+    v := Vec.new("I64")
     v.push(own 11)
     v.push(own 22)
     v.push(own 33)
@@ -128,7 +128,7 @@ test_vec_pop := test() {
 }
 
 test_vec_take_prefix := test() {
-    v := Vec.new("I64", I64.size())
+    v := Vec.new("I64")
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -151,7 +151,7 @@ test_vec_take_prefix := test() {
 }
 
 test_vec_take_prefix_str := test() {
-    v := Vec.new("Str", Str.size())
+    v := Vec.new("Str")
     v.push(own "aa")
     v.push(own "bb")
     v.push(own "cc")
@@ -171,8 +171,8 @@ test_vec_take_prefix_str := test() {
 }
 
 test_vec_append := test() {
-    a := Vec.new("I64", I64.size())
-    b := Vec.new("I64", I64.size())
+    a := Vec.new("I64")
+    b := Vec.new("I64")
     a.push(own 1)
     a.push(own 2)
     b.push(own 3)
@@ -192,8 +192,8 @@ test_vec_append := test() {
 }
 
 test_vec_append_str := test() {
-    a := Vec.new("Str", Str.size())
-    b := Vec.new("Str", Str.size())
+    a := Vec.new("Str")
+    b := Vec.new("Str")
     a.push(own "aa")
     b.push(own "bb")
     b.push(own "cc")
@@ -210,7 +210,7 @@ test_vec_append_str := test() {
 }
 
 test_vec_take_prefix_append_roundtrip := test() {
-    v := Vec.new("I64", I64.size())
+    v := Vec.new("I64")
     v.push(own 5)
     v.push(own 6)
     v.push(own 7)
