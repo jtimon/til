@@ -254,4 +254,3 @@ scavenge_filter := func(mut program: Expr, visited: Set) {
         }
     }
 }
-

@@ -194,7 +194,7 @@ TypeNameStruct := struct {
     x := 0
 }
 
-type_name_passthrough := func(T: TilType) returns Str {
+type_name_passthrough := func(T: Type) returns Str {
     return dyn_type_to_str(T)
 }
 

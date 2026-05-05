@@ -25,7 +25,7 @@ TilType := enum {
     FuncDef, FuncPtr, Dynamic,
     Custom: Str,
 namespace:
-    /// Compare two TilTypes. Named-payload variants (Struct/Enum/Custom)
+    /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
     /// compare equal regardless of variant if their name payloads match.
     // #165 step 1: treat Custom(x) as equal to Struct(x) or Enum(x).
     // initer's registration helpers can write Custom(name) without
@@ -62,6 +62,10 @@ namespace:
         return false
     }
 }
+
+// Public alias: user-facing code can spell the compiler's type object as
+// `Type`, while the bootstrap compiler and generated C still use `TilType`.
+Type := TilType
 
 til_type_name_c := func(t: TilType) returns Str {
     switch t {
