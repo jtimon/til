@@ -53,7 +53,6 @@
 *** [[./open/63.org][#63]] User-defined modes
 *** [[./open/66.org][#66]] Better imports: qualified namespaces
 *** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
-*** [[./open/81.org][#81]] UPtr type alias for pointer-sized integers
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
 *** [[./open/87.org][#87]] ~priv~ keyword for private declarations
@@ -67,3 +66,4 @@
 *** [[./open/173.org][#173]] Vec.new(Expr) syntax: copy rstil's runtime-type-name trick
 ** Medium
 ** Low
+*** [[./open/81.org][#81]] UPtr type alias for pointer-sized integers
