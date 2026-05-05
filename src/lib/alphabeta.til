@@ -25,7 +25,7 @@ namespace:
     search := proc(self: AlphaBeta, board: Board) returns I64 {
         return AlphaBeta.search_ab(self, board, self.depth, 0.sub(AB_INF), AB_INF)
     }
-    search_ab := proc(self: AlphaBeta, board: Board, depth: I64,
+    priv search_ab := proc(self: AlphaBeta, board: Board, depth: I64,
                     alpha: I64, beta: I64) returns I64 {
         if depth.eq(0) {
             return self.h(board)
