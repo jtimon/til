@@ -163,16 +163,19 @@ target_prefix_args := func(target: Target) returns Str {
 }
 
 common_warning_flags := func() returns Str {
-    return vec("Str", "-Wall", "-Wextra").join(" ")
+    mut flags := Vec.new("Str")
+    flags.push(own "-Wall")
+    flags.push(own "-Wextra")
+    return flags.join(" ")
 }
 
 clang_warning_flags := func() returns Str {
-    return vec("Str",
-        "-Wno-sometimes-uninitialized",
-        "-Wno-self-assign",
-        "-Wno-uninitialized",
-        "-Wno-unused-function"
-    ).join(" ")
+    mut flags := Vec.new("Str")
+    flags.push(own "-Wno-sometimes-uninitialized")
+    flags.push(own "-Wno-self-assign")
+    flags.push(own "-Wno-uninitialized")
+    flags.push(own "-Wno-unused-function")
+    return flags.join(" ")
 }
 
 toolchain_extra_args := func(target: Target, compiler: Str) returns Str {
