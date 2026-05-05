@@ -27,10 +27,6 @@ namespace:
                      elem_delete = dyn_fn(elem_type, "delete"))
     }
 
-    new_newi := func(elem_type: Str, cap: USize) returns Array {
-        return Array.new(elem_type, cap)
-    }
-
     len := func(self: Array) returns USize { return self.cap }
 
     /// Ref to the element at index `i`. Panics if out of bounds.

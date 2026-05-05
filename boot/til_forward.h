@@ -859,7 +859,6 @@ Bool Bool_neq(Bool * a, Bool * b);
 Bool Bool_lte(Bool * a, Bool * b);
 Bool Bool_gte(Bool * a, Bool * b);
 Array * Array_new(Str * elem_type, U32 * cap);
-Array * Array_new_newi(Str * elem_type, U32 * cap);
 U32 * Array_len(Array * self);
 void * Array_get(Array * self, U32 * i);
 void Array_set(Array * self, U32 * i, void * val);
