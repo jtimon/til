@@ -3489,6 +3489,16 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                 case:
                 }
             }
+        } else if rhs.node_type.is(NodeType.LiteralStr).and(
+            existing.is(TilType.Struct).or(existing.is(TilType.Enum))
+        ) {
+            if scope.bindings.has(aname).not().and(assign_target_is_func_local(scope, aname)) {
+                switch stmt.node_type {
+                case NodeType.Assign(adata4):
+                    adata4.save_old_delete = true
+                case:
+                }
+            }
         }
     }
 }

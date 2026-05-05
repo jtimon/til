@@ -30,7 +30,8 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   | when                                     | bytes    | allocs |
   |------------------------------------------+----------+--------|
   | pre-[[./175.org][#175]] series (commit 9079323)         | 335,026  | 44,123 |
-  | today (post-ff6ce78)                     | 106,541  | 20,674 |
+  | post-2026-05 [[./175.org][#175]] series (ff6ce78)       | 106,541  | 20,674 |
+  | today (this commit)                      | 106,342  | 20,671 |
 
   Drive these to zero. If a fix doesn't move this baseline, the
   attribution was wrong and the fix is wrong.
@@ -80,8 +81,17 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
      transfer shapes (which already consume the wrapper) aren't
      double-freed. -13.9% bytes / -4.4% allocs.
 
+  5. ~widen save_old_delete to LiteralStr RHS~ (this commit). Same
+     outer-scope [[./175.org][#175]] shape but ~rhs~ is a literal string, e.g.
+     ~mut ftype := fd.explicit_type; ftype = "I64"~ inside a nested
+     ~if~ in ~compute_struct_layout~. ~Str_lit~ returns a heap Str
+     pointer, so the existing ~save_old_delete~ codegen already
+     handles it; just add a third ~else if~ branch in
+     ~infer_assign_stmt~ alongside the FCall-returning-Own and
+     auto-clone-wrap branches. -480 bytes / -44 allocations.
+
   Cumulative for the series:
-  ~-228,485 bytes (-68%) / -23,449 allocations (-53%)~ vs pre-fix
+  ~-228,684 bytes (-68%) / -23,452 allocations (-53%)~ vs pre-fix
   baseline.
 
   *** Earlier fixes (DONE, summarised)
