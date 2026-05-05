@@ -1,0 +1,48 @@
+* Lessons learned
+
+** Private mementos
+
+  - Keep private, session-local notes under ~bots/local_memento/~, not
+    under ~tmp/~.
+  - ~tmp/~ is wiped by ~make clean~, so it is the wrong place for notes
+    meant to survive a build/test cycle.
+
+** Bootstrap interface migrations
+
+  - If a source interface changes but old boot output still names the
+    old entrypoint, use staged commits instead of trying to force the
+    whole rename in one shot.
+  - Use a 3-commit ladder for pure source-level interface changes:
+    add a temporary ~new_newi~ entrypoint, switch the public name,
+    then remove the temporary alias.
+  - Use a 4-commit ladder when builder-generated raw C also spells the
+    old public constructor name. Add an internal string-based helper
+    first (for example ~new_type_name~), switch the raw C emission to
+    that helper, then do the public-name flip and final cleanup.
+  - Issue #173 used this pattern successfully for ~Set.new~,
+    ~Map.new~,
+    ~Vec.new~,
+    and ~Array.new~.
+
+** Type-token special cases
+
+  - The ~dyn_type_to_str~ / type-token path is sensitive to whatever
+    enum name old ~til_boot~ hardcodes into pass-1 rewrites and
+    generated C.
+  - If a cosmetic rename changes that enum's source-level name, a
+    transitional alias can unblock the bootstrap compiler while keeping
+    the new public spelling available to user code.
+
+** REM comments
+
+  - Keep ~REM~ comments when they still say something true.
+  - They are low-cost breadcrumbs for the next session and often point
+    directly at the weird bootstrap or ownership constraint that would
+    otherwise need rediscovery.
+
+** Master vs worktree
+
+  - For long serial bootstrap ladders where later commits depend on
+    earlier ones landing immediately, doing the sequence directly on
+    ~master~ can be less painful than carrying a long-lived worktree
+    branch that must be rebased repeatedly.

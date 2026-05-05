@@ -170,6 +170,9 @@ Use plain ASCII everywhere -- in .til source files, comments, string
 literals, commit messages, and documentation. No Unicode arrows,
 bullets, em-dashes, or fancy quotes. til's lexer cannot parse Unicode.
 Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
+Preserve existing ~REM~ comments unless the change makes them false or
+obsolete. They are memory aids for future sessions; do not delete them
+just because the surrounding code was edited.
 
 ## Commits
 

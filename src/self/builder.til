@@ -970,7 +970,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
         if rhs.node_type.is(NodeType.EnumDef) { f.write("enum") } else { f.write("struct") }
         f.write(" "); f.write(dd.name); f.write(" defined above */\n")
     } else if e.til_type.is(TilType.None).and(rhs.node_type.is(NodeType.Ident)) {
-        // Type alias -- no-op
+        // REM Type alias -- no-op
     } else {
         if dd.own_type.is(OwnType.Ref) {
             is_rg := is_ref_global(dd.name).and(in_func_def.not())

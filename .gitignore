@@ -2,6 +2,7 @@ bin/
 gen/
 !doc/gen/
 tmp/
+bots/local_memento/
 lib/raylib/src/libraylib.a
 lib/libffi/.built
 lib/libffi/*-*-*/
