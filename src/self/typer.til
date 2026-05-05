@@ -253,7 +253,7 @@ try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
     mut fn_ident := Expr.new(NodeType.Ident(method.clone()), fa.line, fa.col)
     e.children.set(0, own fn_ident)
     mut instance := obj
-    mut new_children := Vec.new_newi(Expr)
+    mut new_children := Vec.new(Expr)
     new_children.push(own e.child(0).clone())
     new_children.push(own instance.clone())
     for i in 1..e.children.len() {
@@ -636,7 +636,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
     switch sdef.node_type {
     case NodeType.StructDef(ctor_sdd):
         nfields := ctor_sdd.fields.len()
-        mut field_vals := Vec.new_newi(CtorArg)
+        mut field_vals := Vec.new(CtorArg)
         for _ in 0..nfields {
             field_vals.push(own CtorArg.Unfilled())
         }
@@ -681,7 +681,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
                 field_vals.set(i, own CtorArg.Filled(fld_d.default_value.clone()))
             }
         }
-        mut new_ch := Vec.new_newi(Expr)
+        mut new_ch := Vec.new(Expr)
         ref callee : Expr = e.child(0)
         new_ch.push(own callee.clone())
         for i in 0..nfields {
@@ -728,9 +728,9 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
         if vi.gte(0) {
             fixed_count = vi.to_i64().to_u32()
         }
-        mut va_args := Vec.new_newi(Expr)
-        mut kw_args := Vec.new_newi(Expr)
-        mut new_args := Vec.new_newi(CtorArg)
+        mut va_args := Vec.new(Expr)
+        mut kw_args := Vec.new(Expr)
+        mut new_args := Vec.new(CtorArg)
         for _ in 0..nparam {
             new_args.push(own CtorArg.Unfilled())
         }
@@ -803,7 +803,7 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
                 type_error(e, format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()))
             }
         }
-        mut new_ch := Vec.new_newi(Expr)
+        mut new_ch := Vec.new(Expr)
         ref callee : Expr = e.child(0)
         new_ch.push(own callee.clone())
         for i in 0..nparam {
@@ -1242,7 +1242,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         case:
             UNREACHABLE(__LOC__)
         }
-        mut new_children := Vec.new_newi(Expr)
+        mut new_children := Vec.new(Expr)
         new_children.push(own e.child(0).clone())
         new_children.push(own instance)
         for i in 1..e.children.len() {
@@ -1294,7 +1294,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     switch ns_func2.node_type {
     case NodeType.FuncDef(ns_fdef):
         np := ns_fdef.params.len()
-        mut new_args := Vec.new_newi(CtorArg)
+        mut new_args := Vec.new(CtorArg)
         for _ in 0..np {
             new_args.push(own CtorArg.Unfilled())
         }
@@ -1347,7 +1347,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         if pos_idx.gt(np) {
             type_error(e, format("too many arguments: expected ", np.to_str(), ", got ", pos_idx.to_str()))
         }
-        mut new_ch := Vec.new_newi(Expr)
+        mut new_ch := Vec.new(Expr)
         ref callee : Expr = e.child(0)
         new_ch.push(own callee.clone())
         for i in 0..np {
@@ -2271,10 +2271,10 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         true_lit.til_type = TilType.Bool
         stmt.children.set(0, own true_lit)
 
-        mut old := Vec.new_newi(Expr)
+        mut old := Vec.new(Expr)
         old.move_from(body.children)
 
-        mut new_ch := Vec.new_newi(Expr)
+        mut new_ch := Vec.new(Expr)
         new_ch.push(own decl)
         new_ch.push(own if_node)
         for j in 0..old.len() {
@@ -2811,10 +2811,10 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), til_type = til_type_from_explicit_type(payload_type), own_type = OwnType.Ref)), sw_line, sw_col)
                                         bind_decl.add_child(own get_call)
 
-                                        mut old := Vec.new_newi(Expr)
+                                        mut old := Vec.new(Expr)
                                         old.move_from(case_body.children)
 
-                                        mut new_ch := Vec.new_newi(Expr)
+                                        mut new_ch := Vec.new(Expr)
                                         new_ch.push(own bind_decl)
                                         for bi in 0..old.len() {
                                             new_ch.push_take(old, bi)
@@ -2921,7 +2921,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     sw_line := stmt.line
     sw_col := stmt.col
     infer_expr(scope, sw_expr, in_func, ctx)
-    mut covered_variants := Vec.new_newi(Bool)
+    mut covered_variants := Vec.new(Bool)
     mut n_variants : I32 = 0
     mut has_default_case := false
     mut has_switch_enum_def := false
@@ -4363,9 +4363,9 @@ build_builtin_vec_push := func(fcall: Expr, vec_name: Str, shallow j: U32) retur
 }
 
 rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, coll_type: TilType) {
-    mut old_args := Vec.new_newi(Expr)
+    mut old_args := Vec.new(Expr)
     old_args.move_from(fcall.children)
-    fcall.children = Vec.new_newi(Expr)
+    fcall.children = Vec.new(Expr)
     Vec.delete(own old_args, false)
     fcall.node_type = NodeType.Ident(coll_name.clone())
     fcall.til_type = coll_type
@@ -4762,10 +4762,10 @@ priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
         return
     }
 
-    mut old := Vec.new_newi(Expr)
+    mut old := Vec.new(Expr)
     old.move_from(body.children)
 
-    mut new_ch := Vec.new_newi(Expr)
+    mut new_ch := Vec.new(Expr)
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
 
@@ -4777,7 +4777,7 @@ priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
         mut stmt_handled := false
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref rhs : Expr = stmt.child(0)
-            mut temp_ch := Vec.new_newi(Expr)
+            mut temp_ch := Vec.new(Expr)
             if has_set_lit.and(rhs.node_type.is(NodeType.SetLit)) {
                 if desugar_set_literal_decl(stmt, temp_ch, scope) {
                     stmt_handled = true
@@ -5048,10 +5048,10 @@ hoist_and_insert_field_deletes := proc(mut body: Expr, mut scope: TypeScope, sha
     }
     if do_hoist.eq(0).and(needs_delete.not()) { return }
 
-    mut old := Vec.new_newi(Expr)
+    mut old := Vec.new(Expr)
     old.move_from(body.children)
 
-    mut new_ch := Vec.new_newi(Expr)
+    mut new_ch := Vec.new(Expr)
     mut any_hoisted := false
     mut any_field_deleted := false
     for i in 0..old.len() {
@@ -5060,7 +5060,7 @@ hoist_and_insert_field_deletes := proc(mut body: Expr, mut scope: TypeScope, sha
 
         // hoist_fcall_args: per-stmt dispatch, hoisted temps go first.
         if do_hoist.neq(0) {
-            mut hoisted := Vec.new_newi(Expr)
+            mut hoisted := Vec.new(Expr)
             switch stmt.node_type {
             case NodeType.Decl:
                 hoist_decl_rhs(stmt, hoisted, scope)
@@ -5113,9 +5113,9 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
         old_own := fcall_data.own_args
         line := fcall.line
         col := fcall.col
-        mut old_args := Vec.new_newi(Expr)
+        mut old_args := Vec.new(Expr)
         old_args.move_from(fcall.children)
-        mut fcall_new_ch := Vec.new_newi(Expr)
+        mut fcall_new_ch := Vec.new(Expr)
         mut va_inserted := false
         mut new_own : U64 = 0
         for j in 0..old_args.len() {
@@ -5246,7 +5246,7 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr) returns shallow Bool {
         if vc.eq(1).not() { return false }
         if fcd.is_splat.not() { return false }
 
-        mut old_args := Vec.new_newi(Expr)
+        mut old_args := Vec.new(Expr)
         old_args.move_from(fcall.children)
 
         ref splat_in : Expr = old_args.get(vi.to_i64().to_usize())
@@ -5255,7 +5255,7 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr) returns shallow Bool {
         if splat_in.node_type.is(NodeType.Ident) {
             splat = make_clone_call("Array", TilType.Struct("Array".clone()), splat_in, splat_in)
         }
-        mut fcall_new_ch := Vec.new_newi(Expr)
+        mut fcall_new_ch := Vec.new(Expr)
         for j in 0..old_args.len() {
             ji := j.to_i64().to_i32()
             if ji.eq(vi) {
@@ -5281,9 +5281,9 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
         ki := fcd.kwargs_index
         kc := fcd.kwargs_count
         old_own := fcd.own_args
-        mut old_args := Vec.new_newi(Expr)
+        mut old_args := Vec.new(Expr)
         old_args.move_from(fcall.children)
-        mut fcall_new_ch := Vec.new_newi(Expr)
+        mut fcall_new_ch := Vec.new(Expr)
         mut kw_inserted := false
         mut new_own : U64 = 0
 
@@ -5708,10 +5708,10 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: 
     }
     if needs_scan.not() { return }
 
-    mut old := Vec.new_newi(Expr)
+    mut old := Vec.new(Expr)
     old.move_from(body.children)
 
-    mut new_ch := Vec.new_newi(Expr)
+    mut new_ch := Vec.new(Expr)
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
         if is_compile_directive(stmt) { continue }
@@ -5752,7 +5752,7 @@ insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx
             if stmt.node_type.is(NodeType.Body).not() { return }
         }
     }
-    mut live_vec := Vec.new_newi(LocalInfo)
+    mut live_vec := Vec.new(LocalInfo)
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
@@ -5903,7 +5903,7 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     if scope_exit.eq(0) { return }
     is_program_scope := is_null(scope.parent)
 
-    mut locals_vec := Vec.new_newi(LocalInfo)
+    mut locals_vec := Vec.new(LocalInfo)
     collect_scope_locals(body, scope, is_program_scope, locals_vec)
     if locals_vec.len().eq(0) { return }
 
@@ -5911,17 +5911,17 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     check_use_after_own_transfer(body, locals_vec)
     promote_own_transferred_locals(body, locals_vec)
 
-    mut old := Vec.new_newi(Expr)
+    mut old := Vec.new(Expr)
     old.move_from(body.children)
 
-    mut new_ch := Vec.new_newi(Expr)
+    mut new_ch := Vec.new(Expr)
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
         if is_compile_directive(stmt) { continue }
         insert_exit_deletes_into_stmt(stmt, old, locals_vec, i.to_i64().to_u32(), new_ch)
         insert_nested_exit_deletes(stmt, locals_vec, i.to_i64().to_u32())
         insert_assign_delete(stmt, locals_vec, new_ch)
-        mut post_deletes := Vec.new_newi(Expr)
+        mut post_deletes := Vec.new(Expr)
         insert_post_stmt_deletes(stmt, locals_vec, i.to_i64().to_u32(), post_deletes, scope)
         new_ch.push_take(old, i)
         new_ch.append(own post_deletes)

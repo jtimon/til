@@ -20,7 +20,7 @@ Vec := struct {
 
 namespace:
     /// Create a new empty Vec for elements of the given type.
-    new := func(elem_type: Str) returns Vec {
+    new_type_name := func(elem_type: Str) returns Vec {
         if elem_type.is_empty() {
             panic(__LOC__, "Vec.new: elem_type required")
         }
@@ -35,9 +35,13 @@ namespace:
                    elem_delete = dyn_fn(elem_type, "delete"))
     }
 
-    new_newi := func(T: TilType) returns Vec {
+    new := func(T: TilType) returns Vec {
         elem_type := dyn_type_to_str(T)
-        return Vec.new(elem_type)
+        return Vec.new_type_name(elem_type)
+    }
+
+    new_newi := func(T: TilType) returns Vec {
+        return Vec.new(T)
     }
 
     len := func(self: Vec) returns shallow USize { return self.count }

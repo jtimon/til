@@ -23,7 +23,7 @@ main := proc(src: Str, dest: Str) {
     check_viewbox(svg)
     check_group_transform(svg)
 
-    segments := Vec.new("Segment")
+    segments := Vec.new(Segment)
     paths := extract_paths(svg)
     mut i : USize = 0
     while i.lt(paths.len()) {

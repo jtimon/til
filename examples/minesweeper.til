@@ -26,7 +26,7 @@ main := proc() {
     mut flags := 0
 
     // Flood fill stack
-    mut stack := Vec.new("I64")
+    mut stack := Vec.new(I64)
 
     while window_should_close().not() {
         // Input

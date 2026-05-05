@@ -51,7 +51,7 @@ Row := struct {
 }
 
 parse_csv := func(content: Str) returns Vec {
-    rows := Vec.new("Row")
+    rows := Vec.new(Row)
     lines := content.split(NL)
     mut i : USize = 1 // skip header
     while i.lt(lines.len()) {
@@ -368,7 +368,7 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: B
     content := File.readfile(csv_path)
     all_rows := parse_csv(content)
 
-    mut rows := Vec.new("Row")
+    mut rows := Vec.new(Row)
     if last_n.gt(0) {
         last_n_us : USize = last_n.to_usize()
         if all_rows.len().gt(last_n_us) {

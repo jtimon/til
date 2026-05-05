@@ -16,7 +16,7 @@ main := proc(args: ..Str) {
     }
 
     // Lines buffer
-    mut lines := Vec.new("Str")
+    mut lines := Vec.new(Str)
 
     // Load file or start with one empty line
     if filename.len().gt(0) {
@@ -80,7 +80,7 @@ main := proc(args: ..Str) {
             path := open_file_dialog("Open file", "")
             if path.len().gt(0) {
                 filename = path
-                mut new_lines := Vec.new("Str")
+                mut new_lines := Vec.new(Str)
                 content := File.readfile(filename)
                 if content.len().gt(0) {
                     parts := content.split("\n")
@@ -168,7 +168,7 @@ main := proc(args: ..Str) {
 
                 // Replace current line with before
                 // Build new lines vec
-                mut new_lines := Vec.new("Str")
+                mut new_lines := Vec.new(Str)
                 mut i : USize = 0
                 while i.lt(lines.len()) {
                     if i.eq(cursor_y.to_u32()) {
@@ -195,7 +195,7 @@ main := proc(args: ..Str) {
                     cur_line.substr(cursor_x.to_u32(), cur_line.len().sub(cursor_x.to_u32()))
                 )
                 // Rebuild lines
-                mut new_lines := Vec.new("Str")
+                mut new_lines := Vec.new(Str)
                 mut i : USize = 0
                 while i.lt(lines.len()) {
                     if i.eq(cursor_y.to_u32()) {
@@ -217,7 +217,7 @@ main := proc(args: ..Str) {
                     new_x := prev_line.len().to_i64()
                     merged := prev_line.concat(cur_line)
 
-                    mut new_lines := Vec.new("Str")
+                    mut new_lines := Vec.new(Str)
                     mut i : USize = 0
                     while i.lt(lines.len()) {
                         if i.eq(cursor_y.sub(1).to_u32()) {
@@ -247,7 +247,7 @@ main := proc(args: ..Str) {
                 new_line := cur_line.substr(0, cursor_x_u).concat(
                     cur_line.substr(next_x_u, cur_line.len().sub(next_x_u))
                 )
-                mut new_lines := Vec.new("Str")
+                mut new_lines := Vec.new(Str)
                 mut i : USize = 0
                 while i.lt(lines.len()) {
                     if i.eq(cursor_y.to_u32()) {
@@ -266,7 +266,7 @@ main := proc(args: ..Str) {
                     ref next_line : Str = lines.get(cursor_y.add(1).to_u32())
                     merged := cur_line.concat(next_line)
 
-                    mut new_lines := Vec.new("Str")
+                    mut new_lines := Vec.new(Str)
                     mut i : USize = 0
                     while i.lt(lines.len()) {
                         if i.eq(cursor_y.to_u32()) {
@@ -296,7 +296,7 @@ main := proc(args: ..Str) {
                     new_line := cur_line.substr(0, cursor_x.to_u32()).concat(ch_str).concat(
                         cur_line.substr(cursor_x.to_u32(), cur_line.len().sub(cursor_x.to_u32()))
                     )
-                    mut new_lines := Vec.new("Str")
+                    mut new_lines := Vec.new(Str)
                     mut i : USize = 0
                     while i.lt(lines.len()) {
                         if i.eq(cursor_y.to_u32()) {

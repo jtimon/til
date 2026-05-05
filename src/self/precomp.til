@@ -231,6 +231,12 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
         if mname.eq("concat") { return true }
         if mname.eq("substr") { return true }
         if mname.eq("new_newi") { return true }
+        if mname.eq("new").and(e.children.len().gt(0)) {
+            if e.child(0).node_type.is(NodeType.Ident) {
+                ref type_name : Str = get_payload(e.child(0).node_type)
+                if type_name.eq("Vec") { return true }
+            }
+        }
     }
     for e_ci : Expr in e.children {
         if func_uses_unknown_globals(e_ci, func_def, precomp_scope, body_root, lenient) { return true }

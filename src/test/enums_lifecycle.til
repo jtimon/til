@@ -3,7 +3,7 @@ mode test
 Token := enum { Num: I64, Name: Str, Eof }
 
 WordBag := struct {
-    mut items := Vec.new("Str")
+    mut items := Vec.new(Str)
     namespace:
     eq := func(a: WordBag, b: WordBag) returns Bool {
         if a.items.len().neq(b.items.len()) { return false }

@@ -27,12 +27,12 @@ UmlType := struct {
     mut file := ""
     mut name := ""
     mut kind := ""
-    mut lines := Vec.new("Str")
+    mut lines := Vec.new(Str)
 }
 
 UmlPanel := struct {
     mut file := ""
-    mut types := Vec.new("UmlType")
+    mut types := Vec.new(UmlType)
 }
 
 file_label := func(path: Str) returns Str {
@@ -46,7 +46,7 @@ file_label := func(path: Str) returns Str {
 }
 
 ordered_paths := func() returns Vec {
-    mut paths := Vec.new("Str")
+    mut paths := Vec.new(Str)
     paths.push(own "src/self/lexer.til".clone())
     paths.push(own "src/core/ast.til".clone())
     paths.push(own "src/self/parser.til".clone())
@@ -95,7 +95,7 @@ count_char := func(s: Str, ch: U8) returns I64 {
 }
 
 extract_body_lines := func(lines: Vec, shallow start_line: U32) returns Vec {
-    mut out := Vec.new("Str")
+    mut out := Vec.new(Str)
     mut started := false
     mut stop_collect := false
     mut depth := 0
@@ -180,7 +180,7 @@ trim_trailing_comma := func(s: Str) returns Str {
 }
 
 split_enum_variants := proc(lines: Vec) returns Vec {
-    mut out := Vec.new("Str")
+    mut out := Vec.new(Str)
     body := join_lines(lines)
     tokens := tokenize(body, "uml_enum_body")
     mut current := ""
@@ -230,7 +230,7 @@ extract_types_from_file := proc(path: Str) returns Vec {
     source := File.readfile(path)
     lines := source.split(NL)
     ast := parse_file(path)
-    mut out := Vec.new("UmlType")
+    mut out := Vec.new(UmlType)
     label := file_label(path)
 
     for stmt : Expr in ast.children {
@@ -263,7 +263,7 @@ extract_types_from_file := proc(path: Str) returns Vec {
 }
 
 collect_types := proc(paths: Vec) returns Vec {
-    mut out := Vec.new("UmlType")
+    mut out := Vec.new(UmlType)
     mut i : USize = 0
     while i.lt(paths.len()) {
         ref path : Str = paths.get(i)
@@ -280,7 +280,7 @@ collect_types := proc(paths: Vec) returns Vec {
 }
 
 collect_panels := func(paths: Vec, types: Vec) returns Vec {
-    mut out := Vec.new("UmlPanel")
+    mut out := Vec.new(UmlPanel)
     mut i : USize = 0
     while i.lt(paths.len()) {
         ref path : Str = paths.get(i)

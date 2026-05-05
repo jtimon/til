@@ -1,6 +1,6 @@
 mode lib
 
-mut gc_strs := Vec.new_newi(Str)
+mut gc_strs := Vec.new(Str)
 
 // Check if a FieldAccess is a namespace access (type-level, not instance).
 // The typer marks type-name idents with StructDef/EnumDef til_type.
@@ -30,7 +30,7 @@ gc_str := func(own s: Str) returns ref Str {
 }
 
 gc_free_all := func() {
-    gc_strs = Vec.new_newi(Str)
+    gc_strs = Vec.new(Str)
 }
 
 vec_push_str := func(mut v: Vec, s: Str) {

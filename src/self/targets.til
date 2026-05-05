@@ -163,14 +163,14 @@ target_prefix_args := func(target: Target) returns Str {
 }
 
 common_warning_flags := func() returns Str {
-    mut flags := Vec.new_newi(Str)
+    mut flags := Vec.new(Str)
     flags.push(own "-Wall")
     flags.push(own "-Wextra")
     return flags.join(" ")
 }
 
 clang_warning_flags := func() returns Str {
-    mut flags := Vec.new_newi(Str)
+    mut flags := Vec.new(Str)
     flags.push(own "-Wno-sometimes-uninitialized")
     flags.push(own "-Wno-self-assign")
     flags.push(own "-Wno-uninitialized")
