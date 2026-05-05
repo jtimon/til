@@ -21,18 +21,23 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   - ~[[./143.org][#143]]~ (OPEN) -- own-arg drop on early-exit deletes.
   - ~[[./146.org][#146]]~ (OPEN) -- unify typer desugar/insert passes into a single walk.
 
-  *** Per-test ASAN baseline (commit ff6ce78)
+  *** Per-test ASAN baseline
 
   Use ~bin/til_asan interpret examples/cli_args.til hello world~ as
   the canonical small end-to-end test (cheap to run, exercises lex /
   parse / load-core / type-check / interpret):
 
-  | when                                     | bytes    | allocs |
-  |------------------------------------------+----------+--------|
-  | pre-[[./175.org][#175]] series (commit 9079323)         | 335,026  | 44,123 |
-  | post-2026-05 [[./175.org][#175]] series (ff6ce78)       | 106,541  | 20,674 |
-  | today (this commit)                      | 106,342  | 20,671 |
+  | when                                          | bytes    | allocs |
+  |-----------------------------------------------+----------+--------|
+  | pre-[[./175.org][#175]] series (commit 9079323)              | 335,026  | 44,123 |
+  | post-2026-05 [[./175.org][#175]] series (ff6ce78)            | 106,541  | 20,674 |
+  | post LiteralStr save_old_delete (a886407)     | 106,342  | 20,671 |
+  | today (5d2f0fe; format-replace + priv churn)  | 115,566  | 21,320 |
 
+  Note the +9224 / +649 regression from a886407 -> 5d2f0fe is from
+  master commits unrelated to leak work (notably 742116b's
+  concat->format conversion landed +766 bytes via 91 leaked format()
+  c_str buffers in ~ffi_init_scan_program~; see open buckets below).
   Drive these to zero. If a fix doesn't move this baseline, the
   attribution was wrong and the fix is wrong.
 
@@ -211,6 +216,96 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     regressions because ~stmt.til_type = existing.clone()~ in the
     [[./175.org][#175]] fix was a leak source the auto-delete chained through. Item
     1 of the open buckets above is the careful version.
+
+  - Skip auto-clone wrap on ~mut X := Y~ when Y is at last-use
+    (explored, not committed): the typer auto-wraps any
+    ~Ident~/~FieldAccess~-of-Struct/Enum RHS in ~Type.clone(...)~
+    inside both ~infer_decl_stmt~ and ~infer_assign_stmt~ /
+    ~infer_field_assign_stmt~. For ~mut X := Y~ where Y is itself a
+    heap-owned local at its last use, the clone is wasted (caller
+    could transfer ownership instead). Two reasons not to flip it
+    naively:
+    1. Last-use information is computed by ~collect_scope_locals~ in
+       a later pass; ~infer_decl_stmt~ runs before that, so it does
+       not yet know whether Y is at last use.
+    2. The auto-clone exists precisely to break aliasing -- if Y's
+       ownership is shared with another binding (param, scope cell,
+       Map value, Vec element), transferring through X would create
+       two owners of the same data. A real fix needs a post-pass
+       that drops the clone wrap once last-use is known AND
+       confirms no other live alias.
+    Documented here so the next session does not re-attempt without
+    this context.
+
+  *** Investigation notes (open buckets, this session)
+
+  - The dominant remaining cluster is now ~Context_clone~ inside
+    ~load_program~: ~lp.ctx = ctx~ is auto-cloned into ~lp.ctx~ even
+    though ~ctx~ is at its last use. The clone deep-clones the
+    entire ~ctx.imported~ Map, including each ~ImportUnit~'s AST.
+    Trace top: ~Str_clone -> Vec_clone -> Expr_clone -> ... ->
+    ImportUnit_clone -> Map_clone -> Context_clone -> load_program~.
+    A targeted "transfer-instead-of-clone" rewrite of this single
+    site is plausible (use a ~take_struct_inplace~-style helper or
+    rework the lp.ctx ownership model) and would eliminate ~795 +
+    544 + 448 + several ~250B clusters at once.
+
+  - The ~ffi_init_scan_program~ format leak (~766 bytes / 91 sites,
+    introduced by 742116b's concat->format conversion) is the
+    ~flat_name := sdd.name.format("_", fdd.name)~ pattern feeding
+    ~ffi_register~ which keeps a ~CAP_VIEW~ borrow of ~flat_name~'s
+    inner data, then the caller ~memset~s ~flat_name~ so the
+    destructor cannot free anything. This was less visible with the
+    old ~concat~ chain because the intermediate ~Str~ values had
+    different lifetimes; with ~format~ the single allocation is
+    handed straight to ~ffi_register~ which then permanently borrows
+    it. Real fix: give ~ffi_register~ ownership and free the entries
+    at process exit.
+
+  - ~precomp.til~'s ~known~ ~Map~ leaks every entry it accumulates
+    (~37 ~StructInstance~ clones in cli_args, more in larger
+    programs). The map IS deleted at the end of ~precomp~ via
+    ~Map.delete(own known, false)~, so the cleanup path looks
+    correct on paper. Root cause confirmed this session:
+    ~src/self/interpreter.til~ defines stub deletes for both
+    ~StructInstance~ and ~EnumInstance~:
+
+    #+begin_src til
+    delete := func(own self: StructInstance, call_free: Bool = true) {
+        if call_free { free(own self) }    // wrapper only -- self.data leaks!
+    }
+    delete := func(own self: EnumInstance, call_free: Bool = true) {
+        if call_free { free(own self) }    // same
+    }
+    #+end_src
+
+    Both have ~own mut data : U8 = 0~ fields populated by ~clone~
+    via ~malloc~. Naive fix (free ~self.data~ when not borrowed)
+    crashes with double-free during ~bin/til build src/test_runner.til~
+    because value-copy patterns alias the ~data~ pointer:
+    ~scope_set_owned~ does ~memcpy(cell, val, Value.size())~ then
+    returns, leaving both ~val~ (caller's) and ~cell~ (callee's)
+    with the same ~data~ pointer; both then try to free it.
+    ~Value_clone~ likewise clones ~StructInstance~ through
+    ~Value_Struct(_t_clone)~ which value-copies the struct into
+    ~r->data.Struct~ and frees the wrapper, leaving the data ptr
+    aliased between the just-freed-wrapper's struct and the new
+    Value's inline payload (works only because StructInstance.delete
+    currently doesn't free data).
+
+    Real fix needs one of:
+    - Set ~borrowed = true~ on every value-copy of a StructInstance
+      (so secondary copies don't try to free).
+    - Or: zero out the source ~data~ pointer on memcpy-transfer
+      patterns (move semantics for Value).
+    - Or: switch StructInstance / EnumInstance in Value variants from
+      inline-by-value to heap-pointer (so each Value has its own
+      heap StructInstance and there's no aliasing on Value copy).
+    The third option matches how every other Struct payload behaves
+    in til Enums and would let auto-gen take over.
+
+    Related: ~#128~ flags the clone-side gap; the delete-side gap is
+    the same shape on the other axis.
 
   *** Lessons learned
 
