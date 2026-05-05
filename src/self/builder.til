@@ -4359,6 +4359,7 @@ emit_dyn_fn_wrappers := proc(f: File) {
 emit_dyn_size_of_body := proc(f: File) {
     ref lp : LoadedProgram = codegen_lp()
     f.write("U32 dyn_size_of(Str *type_name) {\n    (void)type_name;\n")
+    f.write("    if (type_name->count == 7ULL && memcmp(type_name->c_str, \"Dynamic\", 7ULL) == 0) return 8;\n")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)

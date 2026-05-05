@@ -28,7 +28,6 @@
 *** [[./open/184.org][#184]] Finish the bare ~get_payload~ -> switch destructure refactor
 *** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
 ** Medium
-*** [[./open/191.org][#191]] Installed til computes VERSION from git at runtime
 ** Low
 *** [[./open/101.org][#101]] Deterministic temp variable names in generated C
 *** [[./open/102.org][#102]] Auto-generate eq and to_str for structs
@@ -41,6 +40,7 @@
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
 *** [[./open/159.org][#159]] Show the til logo as a single character in the REPL prompt
 *** [[./open/164.org][#164]] Diagnose `mut` qualifiers that are never used to write
+*** [[./open/191.org][#191]] Installed til computes VERSION from git at runtime
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/36.org][#36]] Nested pattern matching in switch

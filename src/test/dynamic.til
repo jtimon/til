@@ -174,10 +174,12 @@ test_dyn_size_of := test() {
     sz_i64 : USize = dyn_size_of("I64")
     sz_u8 : USize = dyn_size_of("U8")
     sz_str : USize = dyn_size_of("Str")
+    sz_dynamic : USize = dyn_size_of("Dynamic")
 
     assert_eq(__LOC__, sz_i64.to_i64(), 8)
     assert_eq(__LOC__, sz_u8.to_i64(), 1)
     assert_eq(__LOC__, sz_str.to_i64(), 16)
+    assert_eq(__LOC__, sz_dynamic.to_i64(), Dynamic.size().to_i64())
 
     elem_type : Str = "I64"
     via_var : USize = dyn_size_of(elem_type)
