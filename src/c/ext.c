@@ -573,13 +573,41 @@ Str *get_bin_dir(void) {
     char *slash = strrchr(buf, '/');
     if (slash) *slash = '\0';
     for (int i = 0; i < 5; i++) {
-        char test[PATH_MAX + 32];
+        char test[PATH_MAX * 2];
         snprintf(test, sizeof(test), "%s/src/core/core.til", buf);
 #ifdef _WIN32
         if (_access(test, 0) == 0) return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
 #else
         if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
 #endif
+        char *parent = strrchr(buf, '/');
+        if (parent) {
+            char install_root[PATH_MAX * 2];
+            size_t parent_len = (size_t)(parent - buf);
+            memcpy(install_root, buf, parent_len);
+            install_root[parent_len] = '\0';
+            const char *core_suffix = "/lib/til/src/core/core.til";
+            size_t core_suffix_len = strlen(core_suffix);
+            if (parent_len + core_suffix_len >= sizeof(test)) {
+                break;
+            }
+            memcpy(test, install_root, parent_len);
+            memcpy(test + parent_len, core_suffix, core_suffix_len + 1);
+#ifdef _WIN32
+            if (_access(test, 0) == 0) {
+#else
+            if (access(test, F_OK) == 0) {
+#endif
+                const char *root_suffix = "/lib/til";
+                size_t root_suffix_len = strlen(root_suffix);
+                if (parent_len + root_suffix_len >= sizeof(install_root)) {
+                    break;
+                }
+                memcpy(install_root, buf, parent_len);
+                memcpy(install_root + parent_len, root_suffix, root_suffix_len + 1);
+                return Str_clone(&(Str){.c_str = (U8*)(install_root), .count = (USize)strlen((const char*)(install_root)), .cap = CAP_VIEW});
+            }
+        }
         slash = strrchr(buf, '/');
         if (!slash) break;
         *slash = '\0';

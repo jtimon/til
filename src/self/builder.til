@@ -3,6 +3,7 @@ mode lib
 import("loader")
 import("targets")
 
+host_os := ext_func() returns Str {}
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 
 priv CollectionInfo := struct {
@@ -3138,8 +3139,20 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
     f.write("import ctypes\n")
     f.write("import os\n\n")
     f.write("_dir = os.path.dirname(os.path.abspath(__file__))\n")
-    f.write("_lib = ctypes.CDLL(os.path.join(_dir, '..', 'lib', 'lib")
-    f.write(lib_name); f.write(".so'))\n\n")
+    f.write("_candidates = [\n")
+    f.write("    os.path.abspath(os.path.join(_dir, '..', 'lib', 'lib")
+    f.write(lib_name); f.write(".so')),\n")
+    f.write("    os.path.abspath(os.path.join(_dir, '..', '..', '..', 'lib")
+    f.write(lib_name); f.write(".so')),\n")
+    f.write("]\n")
+    f.write("_lib = None\n")
+    f.write("for _path in _candidates:\n")
+    f.write("    if os.path.exists(_path):\n")
+    f.write("        _lib = ctypes.CDLL(_path)\n")
+    f.write("        break\n")
+    f.write("if _lib is None:\n")
+    f.write("    raise OSError('could not find lib")
+    f.write(lib_name); f.write(".so')\n\n")
 
     f.write("\nclass Str(ctypes.Structure):\n")
     f.write("    _fields_ = [\n")
@@ -5067,6 +5080,123 @@ cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Tar
         println(format("Generated: gen/lib/lib", paths.name, ".a"))
     }
     return result
+}
+
+default_install_prefix := func() returns Str {
+    if host_os().eq("windows") {
+        return "C:/til"
+    }
+    return "/usr/local"
+}
+
+shell_quote := func(path: Str) returns Str {
+    parts := path.split("'")
+    return format("'", join(parts, "'\"'\"'"), "'")
+}
+
+run_install_cmd := proc(cmd: Str, what: Str) returns shallow I32 {
+    rc := system_cmd(cmd)
+    if rc.neq(0) {
+        println(format("error: failed to ", what))
+        return 1
+    }
+    return 0
+}
+
+builder_compiler_root := func(lp: LoadedProgram) returns Str {
+    return compiler_root(lp.ext_c_path)
+}
+
+support_root := func(prefix: Str) returns Str {
+    return prefix.concat("/lib/til")
+}
+
+install_file := proc(src: Str, dst: Str, what: Str) returns shallow I32 {
+    ensure_parent_dir(dst)
+    cmd := format("cp ", shell_quote(src), " ", shell_quote(dst))
+    return run_install_cmd(cmd, what)
+}
+
+install_tree := proc(src: Str, dst: Str, what: Str) returns shallow I32 {
+    rc := run_install_cmd(format("mkdir -p ", shell_quote(dst)), what)
+    if rc.neq(0) { return rc }
+    cmd := format("cp -r ", shell_quote(src.concat("/.")), " ", shell_quote(dst))
+    return run_install_cmd(cmd, what)
+}
+
+is_compiler_install := func(lp: LoadedProgram, paths: BuildPaths) returns shallow Bool {
+    if paths.name.eq("til").not() { return false }
+    if lp.path.eq("src/til.til").or(lp.path.eq("./src/til.til")) { return true }
+    return lp.path.ends_with("/src/til.til")
+}
+
+install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns shallow I32 {
+    root := builder_compiler_root(lp)
+    dst_root := support_root(prefix)
+    mut rc := install_tree(root.concat("/src/core"), dst_root.concat("/src/core"), "install compiler core sources")
+    if rc.neq(0) { return rc }
+    rc = install_tree(root.concat("/src/lib"), dst_root.concat("/src/lib"), "install compiler library sources")
+    if rc.neq(0) { return rc }
+    rc = install_tree(root.concat("/src/modes"), dst_root.concat("/src/modes"), "install compiler mode sources")
+    if rc.neq(0) { return rc }
+    rc = install_tree(root.concat("/src/c"), dst_root.concat("/src/c"), "install compiler C sources")
+    if rc.neq(0) { return rc }
+    rc = install_tree(root.concat("/boot"), dst_root.concat("/boot"), "install compiler boot files")
+    if rc.neq(0) { return rc }
+    rc = install_tree(root.concat("/lib"), dst_root.concat("/lib"), "install bundled dependency tree")
+    if rc.neq(0) { return rc }
+    return 0
+}
+
+print_install_success := proc(path: Str) {
+    println(format("Installed: ", path))
+}
+
+cmd_install := proc(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str) returns shallow I32 {
+    mut install_prefix := install_prefix_in
+    if install_prefix.len().eq(0) {
+        install_prefix = default_install_prefix()
+    }
+
+    paths := derive_build_paths(lp, "", "", target)
+    make_build_dirs(paths)
+    mut result := translate_ast(lp, paths)
+    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override) }
+    if result.neq(0) { return result }
+
+    if paths.do_lib {
+        so_dst := format(install_prefix, "/lib/lib", paths.name, ".so")
+        a_dst := format(install_prefix, "/lib/lib", paths.name, ".a")
+        h_dst := format(install_prefix, "/include/", paths.name, ".h")
+        til_dst := format(support_root(install_prefix), "/src/lib/", paths.name, ".til")
+        py_dst := format(support_root(install_prefix), "/src/lib/", paths.name, ".py")
+
+        result = install_file(format("gen/lib/lib", paths.name, ".so"), so_dst, "install shared library")
+        if result.eq(0) { result = install_file(format("gen/lib/lib", paths.name, ".a"), a_dst, "install static library") }
+        if result.eq(0) { result = install_file(paths.h_path, h_dst, "install C header") }
+        if result.eq(0) { result = install_file(paths.til_path, til_dst, "install til binding") }
+        if result.eq(0) { result = install_file(paths.py_path, py_dst, "install Python binding") }
+        if result.eq(0) {
+            print_install_success(so_dst)
+            print_install_success(a_dst)
+            print_install_success(h_dst)
+            print_install_success(til_dst)
+            print_install_success(py_dst)
+        }
+        return result
+    }
+
+    bin_dst := format(install_prefix, "/bin/", paths.name, executable_extension(target))
+    result = install_file(paths.bin_path, bin_dst, "install executable")
+    if result.neq(0) { return result }
+    print_install_success(bin_dst)
+
+    if is_compiler_install(lp, paths) {
+        result = install_compiler_support(lp, install_prefix)
+        if result.neq(0) { return result }
+        print_install_success(support_root(install_prefix))
+    }
+    return 0
 }
 
 cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str) returns shallow I32 {

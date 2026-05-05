@@ -69,6 +69,27 @@ dir_of := func(abs: Str) returns Str {
     return str_left(abs, last_slash)
 }
 
+compiler_root := func(ext_c_path: Str) returns Str {
+    return ext_c_path.strip_suffix("/src/c/ext.c")
+}
+
+resolve_link_path := func(base_dir: Str, root_dir: Str, path: Str) returns Str {
+    if path.starts_with("/") {
+        return path.clone()
+    }
+    rel_candidate := base_dir.format("/", path)
+    if realpath_str(rel_candidate).len().gt(0) {
+        return rel_candidate
+    }
+    if root_dir.len().gt(0) {
+        root_candidate := root_dir.format("/", path)
+        if realpath_str(root_candidate).len().gt(0) {
+            return root_candidate
+        }
+    }
+    return rel_candidate
+}
+
 // --- Import resolution ---
 
 ProgramUnit := struct {
@@ -567,11 +588,13 @@ scavenge_imported := func(mut lp: LoadedProgram) {
 // Scan program AST for link()/link_c() directives; fill link_flags,
 // include_flags, link_c_paths on the given LoadedProgram.
 extract_link_info := func(mut lp: LoadedProgram) {
+    root_dir := compiler_root(lp.ext_c_path)
     // Remove link()/link_c() directives in-place from every user file so the
     // interpreter never evaluates them.
     for ui in 0..lp.units.len() {
         ref u : ProgramUnit = lp.units.get(ui)
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        base_dir := dir_of(u.path)
         mut new_children := Vec.new("Expr")
         mut old_children := iu.ast.children
         iu.ast.children = Vec.new("Expr")
@@ -585,10 +608,11 @@ extract_link_info := func(mut lp: LoadedProgram) {
                     if fname.eq("link") {
                         keep = false
                         if arg.find("/").gte(0) {
-                            lp.link_flags = lp.link_flags.format(" ", arg)
-                            last_slash := arg.rfind("/")
+                            resolved := resolve_link_path(base_dir, root_dir, arg)
+                            lp.link_flags = lp.link_flags.format(" ", resolved)
+                            last_slash := resolved.rfind("/")
                             if last_slash.gte(0) {
-                                parent_dir := arg.substr(0, last_slash.to_usize())
+                                parent_dir := resolved.substr(0, last_slash.to_usize())
                                 parent_slash := parent_dir.rfind("/")
                                 if parent_slash.gte(0) {
                                     inc_dir := parent_dir.substr(0, parent_slash.to_usize()).format("/include")
@@ -603,7 +627,7 @@ extract_link_info := func(mut lp: LoadedProgram) {
                         if lp.link_c_paths.len().gt(0) {
                             lp.link_c_paths = lp.link_c_paths.concat(" ")
                         }
-                        lp.link_c_paths = lp.link_c_paths.concat(arg)
+                        lp.link_c_paths = lp.link_c_paths.concat(resolve_link_path(base_dir, root_dir, arg))
                     }
                 }
             }

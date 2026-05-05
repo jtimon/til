@@ -43,7 +43,6 @@
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/36.org][#36]] Nested pattern matching in switch
-*** [[./open/42.org][#42]] til install: system-wide library installation
 *** [[./open/51.org][#51]] Add ~til test~ command
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies

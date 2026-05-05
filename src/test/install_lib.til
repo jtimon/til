@@ -1,0 +1,9 @@
+mode lib
+
+meaning := func() returns I64 {
+    return 42
+}
+
+message := func() returns Str {
+    return "installed library ok"
+}

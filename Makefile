@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all clean test test_asan test_nogui test_repl_help test_two_pass build_win doc help tmp two_pass
+.PHONY: all clean test test_asan test_nogui test_repl_help test_two_pass build_win doc help install summary tmp two_pass
 
 all: bin/til
 
@@ -32,6 +32,8 @@ LIBFFI_DIR := lib/libffi
 LIBFFI_INCDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/include))
 LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
 LIBFFI_FLAGS = -I$(LIBFFI_INCDIR) -L$(LIBFFI_LIBDIR) -lffi
+PREFIX ?= /usr/local
+DESTDIR ?=
 
 $(RAYLIB_LIB):
 	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP \
@@ -135,6 +137,13 @@ doc: bin/til
 	rm -rf doc/gen
 	bin/til doc src/til.til
 
+# Regenerate issues/summary.org and update NEXT_ISSUE in issues/process.org.
+# Run on demand when issues are added, moved, or changed.
+summary: bin/til
+	bin/til run examples/issues.til
+
+install: bin/til
+	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til install --prefix="$(DESTDIR)$(PREFIX)" src/til.til
 # Shared writable scratch dir for targets that need it (test_repl_help
 # writes the REPL stdin/stdout fixtures there; til_boot copies snapshot
 # sources into tmp/boot/).
@@ -196,6 +205,8 @@ help:
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
 	echo "make doc            Regenerate doc/gen/ from current sources"
+	echo "make summary        Regenerate issues/summary.org"
+	echo "make install        Install til under PREFIX (default /usr/local)"
 	echo "make clean          Remove build artifacts"
 	echo ""
 	echo "bin/til_boot  From last commit (git). Always works."

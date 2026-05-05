@@ -35,6 +35,15 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
         }
         i = i.add(1)
     }
+    if host_os().eq("windows") {
+        _mk := spawn_cmd("if not exist tmp mkdir tmp >NUL 2>&1")
+        _ec := wait_cmd(_mk)
+        if _ec.lt(0) { }
+    } else {
+        _mk := spawn_cmd("mkdir -p tmp >/dev/null 2>&1")
+        _ec := wait_cmd(_mk)
+        if _ec.lt(0) { }
+    }
     tmpf := "tmp/_run_cmd_out"
     pid := spawn_cmd(cmd.format(" > ", tmpf, " 2>&1"))
     ec := wait_cmd(pid)

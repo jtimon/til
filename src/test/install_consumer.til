@@ -1,0 +1,8 @@
+mode cli
+
+import("install_lib")
+
+main := proc() {
+    println(meaning().to_str())
+    println(message())
+}

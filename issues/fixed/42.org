@@ -1,0 +1,44 @@
+** #42 til install: system-wide compiler, program, and library installation
+  Added ~til install~ for system-wide installation under a prefix
+  (default ~/usr/local~). ~make install~ now installs ~til~ like a normal
+  system compiler, and installed ~til~ works outside the repo because it
+  ships its support tree under ~<prefix>/lib/til~.
+
+*** Programs
+   ~til install examples/hello_cli.til~ builds the executable and installs it
+   to ~<prefix>/bin/~ so it can be run from anywhere on the system.
+
+*** Compiler install
+   Installing ~src/til.til~ installs:
+   - ~<prefix>/bin/til~
+   - ~<prefix>/lib/til/src/core/~
+   - ~<prefix>/lib/til/src/lib/~
+   - ~<prefix>/lib/til/src/modes/~
+   - ~<prefix>/lib/til/src/c/~
+   - ~<prefix>/lib/til/boot/~
+   - ~<prefix>/lib/til/lib/~
+
+   ~get_bin_dir()~ now recognizes both repo and installed layouts, so the
+   installed compiler can still find core/library/mode sources and generated
+   boot headers from arbitrary working directories.
+
+*** Libraries
+   Installing a ~mode lib/pure/pura/liba~ file installs all generated outputs:
+   - ~lib<name>.so~ and ~lib<name>.a~ to ~<prefix>/lib/~
+   - ~<name>.h~ to ~<prefix>/include/~
+   - generated ~<name>.til~ and ~<name>.py~ bindings to
+     ~<prefix>/lib/til/src/lib/~
+
+   The generated Python binding now checks both the build-tree and installed
+   library layouts so it can load the installed shared library after
+   ~til install~.
+
+*** Makefile
+   Added ~make install~ with standard ~PREFIX~ and ~DESTDIR~ overrides.
+
+*** Tests
+   Added an install smoke test that verifies:
+   - installed executables run from another cwd
+   - installed ~til~ works from another cwd
+   - installed libraries are importable by name through the installed compiler
+   - all generated library bindings are present after installation
