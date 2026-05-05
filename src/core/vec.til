@@ -40,10 +40,6 @@ namespace:
         return Vec.new_type_name(elem_type)
     }
 
-    new_newi := func(T: TilType) returns Vec {
-        return Vec.new(T)
-    }
-
     len := func(self: Vec) returns shallow USize { return self.count }
 
     /// Append an element to the end. `val` is owned: after this call the

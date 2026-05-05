@@ -868,7 +868,6 @@ I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
 Vec * Vec_new_type_name(Str * elem_type);
 Vec * Vec_new(TilType * T);
-Vec * Vec_new_newi(TilType * T);
 U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void Vec_append(Vec * self, Vec * other);
