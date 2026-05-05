@@ -1065,6 +1065,7 @@ void Context_delete(Context * self, Bool * call_free);
 U32 Context_size(void);
 I32 align_up(I32 offset, I32 align);
 TilType * type_from_name_init(Str * name, TypeScope * scope);
+TilType * init_type_from_explicit_type(Str * name, TypeScope * scope);
 I32 register_struct_def_for_stmt(Expr * stmt, TypeScope * scope);
 void gen_struct_clone_delete_for_stmt(Expr * stmt, TypeScope * scope);
 I32 register_enum_definition(Expr * stmt, TypeScope * scope);

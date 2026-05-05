@@ -965,7 +965,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
             }
         }
     }
-    fn_type := scope.get_type(name)
+    mut fn_type := scope.get_type(name)
     if fn_type.is(TilType.Unknown) {
         type_error(e, "undefined function '".concat(name).concat("'"))
     }
@@ -978,7 +978,8 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                     switch callee_bind.func_def.node_type {
                     case NodeType.FuncDef(cb_fdef):
                         if cb_fdef.return_type.len().gt(0) {
-                            rt := type_from_name(cb_fdef.return_type, scope)
+                            ref resolved_return_type : Str = resolve_type_alias(scope, cb_fdef.return_type)
+                            rt := type_from_name(resolved_return_type, scope)
                             e.til_type = rt
                         } else {
                             e.til_type = TilType.None
@@ -1029,6 +1030,15 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                 return
             }
         }
+    }
+    switch fn_type {
+    case TilType.Custom(ret_name):
+        ref resolved_ret_name : Str = resolve_type_alias(scope, ret_name)
+        resolved_ret := type_from_name(resolved_ret_name, scope)
+        if resolved_ret.is(TilType.Unknown).not() {
+            fn_type = resolved_ret
+        }
+    case:
     }
     e.til_type = fn_type
     // fn_type (from binding.type) already carries the name payload via
@@ -2278,7 +2288,8 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
         case NodeType.FuncDef(fdef):
             mut rt := TilType.None
             if fdef.return_type.len().gt(0) {
-                rt = type_from_name(fdef.return_type, scope)
+                ref resolved_return_type : Str = resolve_type_alias(scope, fdef.return_type)
+                rt = type_from_name(resolved_return_type, scope)
             }
             stmt.til_type = rt
             scope.set(sdecl.name, rt, fdef.func_type, false, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -2360,6 +2371,15 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
     case NodeType.Decl(sdecl):
         mut declared := declared_type_for_decl(scope, stmt)
         ref mut val : Expr = stmt.child(0)
+        switch val.til_type {
+        case TilType.Custom(alias_name):
+            ref resolved_alias_name : Str = resolve_type_alias(scope, alias_name)
+            resolved_alias_type := type_from_name(resolved_alias_name, scope)
+            if resolved_alias_type.is(TilType.Unknown).not() {
+                val.til_type = resolved_alias_type
+            }
+        case:
+        }
         if declared.is(TilType.Unknown) {
             type_error(stmt, "undefined type '".concat(sdecl.explicit_type).concat("'"))
         } else if val.node_type.is(NodeType.LiteralNum).and(is_numeric_type(declared).or(declared.is(TilType.Dynamic))) {
@@ -3390,6 +3410,15 @@ normalize_scope_bindings := func(scope: TypeScope) {
         ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
         if b.type.is(TilType.Custom).not() { continue }
         ref name : Str = get_payload(b.type)
+        ref alias_b : TypeBinding = scope.get_binding(name)
+        if is_null(alias_b).not() {
+            if alias_b.is_type_alias {
+                if alias_b.type.is(TilType.Custom).not() {
+                    b.type = alias_b.type.clone()
+                    continue
+                }
+            }
+        }
         ref sdef : Expr = scope.get_struct(name)
         if is_null(sdef) { continue }
         if sdef.node_type.is(NodeType.EnumDef) {
@@ -3703,6 +3732,11 @@ type_from_name := func(name: Str, scope: TypeScope) returns TilType {
     if is_null(scope).not() {
         ref mut b : TypeBinding = scope.get_binding(name)
         if is_null(b).not() {
+            if b.is_type_alias {
+                if b.alias_target.is_empty().not() {
+                    return type_from_name(b.alias_target, scope)
+                }
+            }
             // #187: explicit type annotations (e.g. ~ref x : Foo = ...~,
             // function param/return types) count as a use of the named
             // type. Same gate as the Ident path -- skip when we're inside

@@ -158,6 +158,17 @@ test_enum_type_alias := test() {
     assert_eq_str(__LOC__, Color2.Blue.to_str(), "Blue")
 }
 
+ByteCount := U32
+
+byte_count := func() returns ByteCount {
+    return dyn_size_of("I64")
+}
+
+test_alias_return_type := test() {
+    sz : ByteCount = byte_count()
+    assert_eq(__LOC__, sz.to_i64(), I64.size().to_i64())
+}
+
 # === Type aliases: primitives ===
 
 USize := U64

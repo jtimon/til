@@ -1185,9 +1185,9 @@ U32 * vec_size_of(Str * elem_type) {
         { U32 *_r = malloc(sizeof(U32)); *_r = _t_U32_143; return _r; }
     }
     ;
-    U32 _t_USize_146 = dyn_size_of(elem_type);
-    (void)_t_USize_146;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t_USize_146; return _r; }
+    U32 _t_U32_146 = dyn_size_of(elem_type);
+    (void)_t_U32_146;
+    { U32 *_r = malloc(sizeof(U32)); *_r = _t_U32_146; return _r; }
 }
 
 Vec * Vec_new(Str * elem_type, U32 * elem_size) {

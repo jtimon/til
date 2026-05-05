@@ -218,6 +218,23 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
     return TilType.Unknown
 }
 
+init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns TilType {
+    mut resolved := name.clone()
+    ref b : TypeBinding = scope.get_binding(name)
+    if is_null(b).not() {
+        if b.is_type_alias {
+            if b.alias_target.is_empty().not() {
+                resolved = b.alias_target.clone()
+            }
+        }
+    }
+    resolved_type := type_from_name_init(resolved, scope)
+    if resolved_type.is(TilType.Unknown).not() {
+        return resolved_type
+    }
+    return til_type_from_explicit_type(resolved)
+}
+
 register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
     if stmt.node_type.is(NodeType.Decl).not() { return 0.to_i32() }
     if stmt.child(0).node_type.is(NodeType.StructDef).not() { return 0.to_i32() }
@@ -1294,10 +1311,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
             ft := fdef.func_type
             mut rt := TilType.None
             if fdef.return_type.len().gt(0) {
-                // #165 step 1: scope-free. Custom(name) for user types;
-                // normalize_scope_bindings (called after init) resolves
-                // these to Struct/Enum once scope is populated.
-                rt = til_type_from_explicit_type(fdef.return_type)
+                rt = init_type_from_explicit_type(fdef.return_type, scope)
             }
             scope.set(sdecl.name, rt, ft, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
@@ -2061,9 +2075,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
     switch stmt.node_type {
     case NodeType.Decl(dd):
         if dd.explicit_type.len().gt(0) {
-            // #165 step 1: scope-free. normalize_scope_bindings resolves
-            // any Custom(name) it produces after init has finished.
-            out_type = til_type_from_explicit_type(dd.explicit_type)
+            out_type = init_type_from_explicit_type(dd.explicit_type, scope)
             return out_type.is(TilType.Unknown).not()
         }
     case:
