@@ -220,6 +220,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         // previous value cleanly, unlike `mut nm := \"\"` reassignment.
         mut param_decl := Declaration(is_mut = is_mut, own_type = own_type.clone())
         mut is_variadic := false
+        mut is_kwargs := false
         if check(p, TokenType.Colon).not() {
             // Bare type (FuncSig style): name stays "", type from pname
             param_decl.explicit_type = pname.clone()
@@ -235,10 +236,8 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if fd.kwargs_index.neq(-1.to_i32()) {
                     panic(__LOC__, "only one kwargs parameter is allowed")
                 }
-                if fd.variadic_index.neq(-1.to_i32()) {
-                    panic(__LOC__, "cannot combine variadic and kwargs in the same function")
-                }
                 fd.kwargs_index = fd.params.len().to_i64().to_i32()
+                is_kwargs = true
                 param_decl.own_type = OwnType.Own // kwargs Map is owned by callee
                 param_decl.name = pname.clone()
                 param_decl.explicit_type = "DynMap"
@@ -249,9 +248,6 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
                 if own_type.is(OwnType.Shallow) { panic(__LOC__, "variadic param cannot be 'shallow'") }
                 if fd.variadic_index.neq(-1.to_i32()) { panic(__LOC__, "only one variadic param allowed") }
-                if fd.kwargs_index.neq(-1.to_i32()) {
-                    panic(__LOC__, "cannot combine variadic and kwargs in the same function")
-                }
                 fd.variadic_index = fd.params.len().to_i64().to_i32()
                 is_variadic = true
                 param_decl.own_type = OwnType.Own // variadic Array is owned by callee
@@ -281,8 +277,14 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             param_decl.default_value = parse_expression(p)
             has_default = true
         }
-        if fd.variadic_index.neq(-1.to_i32()).and(is_variadic.not()).and(has_default.not()) {
+        if fd.variadic_index.neq(-1.to_i32()).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
             panic(__LOC__, "positional param not allowed after variadic")
+        }
+        // Variadic and kwargs may coexist (Python-style *args + **kwargs);
+        // when both are present, kwargs must come last so positional vs
+        // named-arg slots don't get tangled at the call site.
+        if fd.kwargs_index.neq(-1.to_i32()).and(is_kwargs.not()) {
+            panic(__LOC__, "no parameter allowed after kwargs")
         }
 
         fd.params.push(own param_decl)

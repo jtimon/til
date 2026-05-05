@@ -1,0 +1,64 @@
+** #190 Permit `..T` and `...` in the same function signature
+  Python-style ~def f(*args, **kwargs)~ is a natural shape:
+  positional and named args occupy separate namespaces, so
+  there's no fundamental conflict between a typed variadic param
+  and a kwargs param in the same signature. til used to reject
+  the combination at parse time:
+
+  : ./src/self/parser.til:239:27: panic: cannot combine variadic and kwargs in the same function
+
+  The rejection was a self-imposed restriction, not a language
+  constraint. The reason it existed: the desugar in
+  [[file:../../src/self/typer.til][src/self/typer.til]]
+  ~rewrite_variadic_fcall_args~ collapses the variadic range in
+  ~fcall.children~ to a single ~_va_Array_N~ ident and shifts
+  every following positional, but never updated
+  ~fcall_data.kwargs_index~. With the rejection in place that
+  shift didn't matter; lifting the rejection without fixing the
+  shift would have read named-arg slots from the wrong children
+  positions.
+
+  Fix: drop the parse-time rejection (and the matching one on
+  the variadic side) in [[file:../../src/self/parser.til][src/self/parser.til]], plus the
+  positional-after-variadic check learns to exempt a kwargs
+  param. Add a parser invariant that nothing may follow the
+  kwargs param so call-site arg-slot accounting stays simple.
+  In ~rewrite_variadic_fcall_args~, shift ~kwargs_index~ by
+  ~(1 - variadic_count)~ -- the universal delta for "variadic
+  range collapsed to one element": when ~vc>0~ kwargs shifts
+  left by ~(vc-1)~ as expected, when ~vc=0~ the rewrite still
+  appends one ~va_id~ at the end so kwargs shifts right by 1.
+  The ~vc=0~ case bites whenever the call site supplies neither
+  variadic nor kwargs args (both indices initially set to the
+  same past-end position by the typer); without the ~+1~ the
+  kwargs handler tried to insert ~_kw0~ at the slot now
+  occupied by ~_va_Array~ and produced a call with the args
+  swapped, which gcc rejected as ~incompatible pointer type~.
+
+  Repro that now works:
+
+  #+begin_src til
+  mode cli
+  combo := func(_label: Str, items: ..I64, opts: ...) returns I64 {
+      mut total := 0
+      for i in 0..items.len() {
+          ref n : I64 = items.get(i)
+          total = total.add(n)
+      }
+      if opts.has("bias") {
+          ref b : I64 = opts.get("bias")
+          total = total.add(b)
+      }
+      return total
+  }
+  main := proc() { println(combo("x", 1, 2, 3, bias = 100).to_str()) }
+  #+end_src
+
+  Prints ~106~ in both ~bin/til run~ and ~bin/til interpret~.
+
+  Regression test: ~test_combo_variadic_and_kwargs~ in
+  [[file:../../src/test/kwargs.til][src/test/kwargs.til]] exercises five edge cases against the
+  same combo signature: neither supplied (both ranges empty),
+  variadic only, kwargs only, both, and extra kwargs ignored.
+  All 100 tests pass.
+

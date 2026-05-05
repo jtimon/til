@@ -4828,6 +4828,18 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
         }
         fcall.children.move_from(fcall_new_ch)
         fcall_data.own_args = new_own
+        // Variadic + kwargs may coexist in one signature. When the
+        // variadic range collapses to a single _va_Array_N ident,
+        // children's length changes by (1 - vc): shift kwargs_index
+        // by the same delta so the kwargs handler downstream still
+        // points at the named-arg block (or past-end when there are
+        // no kwargs args). The kwargs param always sits to the right
+        // of the variadic param (parser invariant), so the shift is
+        // unconditional whenever kwargs_index is set.
+        if fcall_data.kwargs_index.gte(0) {
+            delta := 1.to_i32().sub(vc.to_i64().to_i32())
+            fcall_data.kwargs_index = fcall_data.kwargs_index.add(delta)
+        }
         fcall_data.variadic_index = -1.to_i32()
         fcall_data.variadic_count = 0.to_u32()
     case:
