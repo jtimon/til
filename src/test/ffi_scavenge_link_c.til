@@ -1,0 +1,21 @@
+mode cli
+
+import("../core/io")
+import("../core/str")
+import("../core/sys")
+
+main := proc() {
+    out_path := "tmp/ffi_scavenge_link_c.c"
+    log_path := "tmp/ffi_scavenge_link_c.log"
+    cmd := format("bin/til translate -c ", out_path,
+        " examples/ffi/ext_module.til > ", log_path, " 2>&1")
+    ec := wait_cmd(spawn_cmd(cmd))
+    if ec.neq(0) { exit(ec) }
+
+    generated := File.readfile(out_path)
+    if generated.contains("bug78_unused_til_helper") {
+        print("bad")
+    } else {
+        print("ok")
+    }
+}
