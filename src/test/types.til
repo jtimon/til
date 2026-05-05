@@ -63,6 +63,20 @@ test_implicit_widen := test() {
     assert_eq_str(__LOC__, takes_u64(b).to_str(), "200")
 }
 
+test_typed_literal_coercion := test() {
+    neg_i32 : I32 = -1
+    assert_eq(__LOC__, neg_i32.to_i64(), -1)
+
+    neg_chain : I32 = -34.add(-35)
+    assert_eq(__LOC__, neg_chain.to_i64(), -69)
+
+    half : F32 = 1 / 2
+    assert_eq_str(__LOC__, half.to_str(), "0.5")
+
+    half_explicit : F32 = 1.to_f32() / 2
+    assert_eq_str(__LOC__, half_explicit.to_str(), "0.5")
+}
+
 test_format := test() {
     assert_eq_str(__LOC__, "hello".concat(" world"), "hello world")
     assert_eq_str(__LOC__, format("a", "b", "c"), "abc")

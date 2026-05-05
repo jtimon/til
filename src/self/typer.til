@@ -2316,7 +2316,7 @@ infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr) retu
     }
 }
 
-infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
+declared_type_for_decl := func(scope: TypeScope, stmt: Expr) returns TilType {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         mut declared := stmt.til_type
@@ -2327,6 +2327,37 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
             declared = type_from_name(cname, scope)
         case:
         }
+        return declared
+    case:
+        UNREACHABLE(__LOC__)
+        return TilType.Unknown
+    }
+}
+
+// Typed declarations can steer numeric method resolution (for example,
+// `x : F32 = 1 / 2` -> `F32.div`), but explicit `to_*` conversions still need
+// their literal receiver to keep the default numeric type so lookup lands on
+// the source type's namespace.
+pre_coerce_decl_numeric_literals := proc(mut expr: Expr, target: TilType) {
+    switch expr.node_type {
+    case NodeType.LiteralNum:
+        expr.til_type = target
+    case NodeType.FieldAccess(fname):
+        for i in 0..expr.children.len() {
+            if i.eq(0).and(fname.starts_with("to_")) { continue }
+            pre_coerce_decl_numeric_literals(expr.child(i), target)
+        }
+    case:
+        for i in 0..expr.children.len() {
+            pre_coerce_decl_numeric_literals(expr.child(i), target)
+        }
+    }
+}
+
+infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        mut declared := declared_type_for_decl(scope, stmt)
         ref mut val : Expr = stmt.child(0)
         if declared.is(TilType.Unknown) {
             type_error(stmt, "undefined type '".concat(sdecl.explicit_type).concat("'"))
@@ -2502,6 +2533,16 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
             UNREACHABLE(__LOC__)
         }
     } else {
+        switch stmt.node_type {
+        case NodeType.Decl(sdecl):
+            if sdecl.explicit_type.len().gt(0) {
+                declared := declared_type_for_decl(scope, stmt)
+                if is_numeric_type(declared) {
+                    pre_coerce_decl_numeric_literals(stmt.child(0), declared)
+                }
+            }
+        case:
+        }
         infer_expr(scope, stmt.child(0), in_func, ctx)
     }
     if infer_decl_type_def(scope, stmt) { return }
@@ -5619,7 +5660,7 @@ infer_literal_expr := func(mut expr: Expr) {
     case NodeType.LiteralStr:
         expr.til_type = TilType.Struct("Str".clone())
     case NodeType.LiteralNum:
-        if expr.til_type.is(TilType.U8).not() {
+        if is_numeric_type(expr.til_type).not() {
             expr.til_type = TilType.I64
         }
     case NodeType.LiteralBool:

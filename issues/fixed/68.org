@@ -1,0 +1,23 @@
+** #68 Negative literal support
+
+  Phase 2 had already landed in the parser: ~-N~ desugars to ~0.sub(N)~.
+
+  Phase 1 is now fixed in the self-hosted typer by:
+
+  - preserving pre-coerced numeric literal types in ~infer_literal_expr~
+  - recursively pre-coercing numeric literals across a typed declaration RHS
+    before inference
+  - skipping the receiver of explicit ~to_*~ conversions so expressions like
+    ~1.to_f32()~ still resolve on the source numeric type
+
+  This fixes the original ~a : I32 = -1~ failure, handles chained cases like
+  ~a : I32 = -34.add(-35)~, and enables target-directed typed expressions like
+  ~a : F32 = 1 / 2~.
+
+  Regression coverage lives in ~src/test/types.til~.
+
+  Related to [[./67.org][#67]] (implicit numeric widening in for-in ranges).
+
+  Remaining memory work after the stack-local rework belongs under ~[[./109.org][#109]]~:
+  leak reduction, error-path cleanup, and any ownership mismatches that only
+  show up under ASAN.

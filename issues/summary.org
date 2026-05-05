@@ -52,7 +52,6 @@
 *** [[./open/58.org][#58]] First-class functions: Type hierarchy and FuncSig/FuncDef
 *** [[./open/63.org][#63]] User-defined modes
 *** [[./open/66.org][#66]] Better imports: qualified namespaces
-*** [[./open/68.org][#68]] Negative literal support
 *** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
 *** [[./open/81.org][#81]] UPtr type alias for pointer-sized integers
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more

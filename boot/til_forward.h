@@ -1190,6 +1190,8 @@ void infer_while_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_r
 Bool infer_decl_type_def(TypeScope * scope, Expr * stmt);
 Bool infer_decl_func_def(TypeScope * scope, Expr * stmt);
 Bool infer_decl_type_alias_passthrough(TypeScope * scope, Expr * stmt);
+TilType * declared_type_for_decl(TypeScope * scope, Expr * stmt);
+void pre_coerce_decl_numeric_literals(Expr * expr, TilType * target);
 void infer_decl_typed_value(TypeScope * scope, Expr * stmt);
 void infer_decl_untyped_value(Expr * stmt);
 void finalize_decl_binding(TypeScope * scope, Expr * stmt, I32 in_type_body);
