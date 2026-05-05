@@ -414,6 +414,13 @@ main := proc(args: ..Str) {
                asan_safe_cmd(format(til_bin, " interpret examples/ffi/ext_module.til"), til_bin))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
                asan_safe_cmd(format(til_bin, " run examples/ffi/ext_module.til"), til_bin))
+    ffi_scavenge_exp := "gen/out/expected/ffi_scavenge.out"
+    File.writefile(ffi_scavenge_exp, "ok")
+    add_single(tests, "ffi_scavenge_link_c", "ffi", 0, ffi_scavenge_exp,
+               asan_safe_cmd(format(
+                   "sh -c '", til_bin,
+                   " translate -c \"$(pwd)/tmp/ffi_scavenge_link_c.c\" examples/ffi/ext_module.til >/dev/null 2>&1 && if [ -f \"$(pwd)/tmp/ffi_scavenge_link_c.c\" ] && ! grep -q bug78_unused_til_helper \"$(pwd)/tmp/ffi_scavenge_link_c.c\"; then printf ok; else printf bad; fi'"),
+                   til_bin))
 
     // === parser / typer diagnostics ===
     add_count(tests, "typer_errors", "typer", "error:", 90,

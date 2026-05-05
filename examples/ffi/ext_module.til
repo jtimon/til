@@ -5,6 +5,12 @@ link_c("examples/ffi/ext_module.c")
 greet := ext_func(name: Str) returns Str {}
 greet_print := ext_proc(name: Str) {}
 
+// #78: this til-only helper is intentionally unused. If link_c() still
+// disables scavenging, translate/build will emit it into gen/til/ext_module.c.
+bug78_unused_til_helper := func() returns I64 {
+    return 78
+}
+
 // struct with ext methods
 Pair := struct {
     mut a := 0

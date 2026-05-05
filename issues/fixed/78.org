@@ -1,0 +1,15 @@
+# priority: low
+** #78 Scavenger: support programs with link_c/link directives
+
+Resolved by removing the loader-level ~link_c_paths~ bypass in
+  [[file:../../src/self/loader.til][src/self/loader.til]]. The scavenger now runs for all non-library programs,
+  including ones that use ~link_c()~ or ~link()~ directives.
+
+  The old bypass was a temporary workaround during the C-to-til migration
+  tracked by [[./39.org][#39]]. With the compiler-side ~link_c~ usage gone, keeping that
+  guard only left user ~link_c~ programs unscavenged.
+
+  Regression coverage lives in [[file:../../examples/ffi/ext_module.til][examples/ffi/ext_module.til]] and
+  [[file:../../src/tests.til][src/tests.til]]: the test suite now translates a ~link_c~ program and
+  asserts that an intentionally unused til helper is pruned from the
+  generated C.

@@ -54,7 +54,6 @@
 *** [[./open/66.org][#66]] Better imports: qualified namespaces
 *** [[./open/68.org][#68]] Negative literal support
 *** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
-*** [[./open/78.org][#78]] Scavenger: support programs with link_c/link directives
 *** [[./open/81.org][#81]] UPtr type alias for pointer-sized integers
 *** [[./open/82.org][#82]] POSIX ~--~ end-of-options in til CLI argument parsing
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more

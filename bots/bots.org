@@ -65,6 +65,9 @@ Merging to master (local sessions)::
   # After self-hosting changes that regenerate boot/*, the worktree's
   # boot artifacts and totals files may conflict with origin/master.
   # Cherry-pick instead of merge to keep the log linear.
+  # Start this sequence from a committed worktree branch. If your fix is
+  # still uncommitted, finish the edit/test/commit cycle first -- git
+  # rebase will not start from a dirty worktree.
   #
   # 1. Rebase the worktree branch on top of origin/master.
   git fetch origin master
