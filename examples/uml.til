@@ -36,13 +36,13 @@ UmlPanel := struct {
 }
 
 file_label := func(path: Str) returns Str {
-    mut label := path.clone()
-    if label.starts_with("src/self/") {
-        label = label.strip_prefix("src/self/")
-    } else if label.starts_with("src/core/") {
-        label = label.strip_prefix("src/core/")
+    if path.starts_with("src/self/") {
+        return path.strip_prefix("src/self/").strip_suffix(".til").clone()
     }
-    return label.strip_suffix(".til")
+    if path.starts_with("src/core/") {
+        return path.strip_prefix("src/core/").strip_suffix(".til").clone()
+    }
+    return path.strip_suffix(".til").clone()
 }
 
 ordered_paths := func() returns Vec {

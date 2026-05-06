@@ -2,6 +2,8 @@
 ** High
 *** [[./open/109.org][#109]] Fix memory leaks (make test_asan clean)
 *** [[./open/125.org][#125]] Enum payload method generation should not assume ~eq~/~to_str~
+*** [[./open/127.org][#127]] Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
+*** [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
 *** [[./open/130.org][#130]] AST / ~Expr~ representation cleanup
 *** [[./open/136.org][#136]] Precomp doesn't fold pure function calls
 *** [[./open/143.org][#143]] Avoid unnecessary heap round-trips for Expr construction
@@ -36,7 +38,6 @@
 *** [[./open/164.org][#164]] Diagnose `mut` qualifiers that are never used to write
 *** [[./open/191.org][#191]] Installed til computes VERSION from git at runtime
 *** [[./open/193.org][#193]] Add lower-level File cursor APIs
-*** [[./open/194.org][#194]] Fix corrupted generated UML docs
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/36.org][#36]] Nested pattern matching in switch
