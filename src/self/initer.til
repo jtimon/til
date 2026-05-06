@@ -4,7 +4,7 @@ import("parser")
 
 TypeBinding := struct {
     mut name := ""
-    mut type := TilType.Unknown
+    mut type := Type.Unknown
     mut func_type := FuncType.None
     mut is_mut := false
     mut is_priv := false
@@ -58,10 +58,10 @@ namespace:
         }
         return ScopeFind.NotFound
     }
-    get_type := func(self: TypeScope, name: Str) returns TilType {
+    get_type := func(self: TypeScope, name: Str) returns Type {
         ref b : TypeBinding = self.get_binding(name)
         if is_null(b).not() { return b.type.clone() }
-        return TilType.Unknown
+        return Type.Unknown
     }
     get_func_type := func(self: TypeScope, name: Str) returns shallow FuncType {
         ref b : TypeBinding = self.get_binding(name)
@@ -83,7 +83,7 @@ namespace:
         if is_null(b).not() { return b.is_mut }
         return false
     }
-    set := func(mut self: TypeScope, name: Str, type: TilType,
+    set := func(mut self: TypeScope, name: Str, type: Type,
         shallow func_type: FuncType, shallow is_mut: Bool,
         path: Str,
         shallow line: U32, shallow col: U32,
@@ -182,21 +182,21 @@ priv align_up := func(shallow offset: I32, shallow align: I32) returns shallow I
     return offset.add(align).sub(1).and(align.sub(1).xor(-1.to_i32()))
 }
 
-type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
-    if name.eq("I64")  { return TilType.I64 }
-    if name.eq("U8")   { return TilType.U8 }
-    if name.eq("I16")  { return TilType.I16 }
-    if name.eq("I32")  { return TilType.I32 }
-    if name.eq("U32")  { return TilType.U32 }
-    if name.eq("U64")  { return TilType.U64 }
-    if name.eq("USize") { return TilType.U32 }
-    if name.eq("Str")  { return TilType.Struct("Str".clone()) }
-    if name.eq("Bool") { return TilType.Bool }
-    if name.eq("Type") { return TilType.Enum("TilType".clone()) }
-    if name.eq("TilType") { return TilType.Enum("TilType".clone()) }
-    if name.eq("StructDef") { return TilType.Struct("StructDef".clone()) }
-    if name.eq("EnumDef") { return TilType.Struct("EnumDef".clone()) }
-    if name.eq("Dynamic")   { return TilType.Dynamic }
+type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
+    if name.eq("I64")  { return Type.I64 }
+    if name.eq("U8")   { return Type.U8 }
+    if name.eq("I16")  { return Type.I16 }
+    if name.eq("I32")  { return Type.I32 }
+    if name.eq("U32")  { return Type.U32 }
+    if name.eq("U64")  { return Type.U64 }
+    if name.eq("USize") { return Type.U32 }
+    if name.eq("Str")  { return Type.Struct("Str".clone()) }
+    if name.eq("Bool") { return Type.Bool }
+    if name.eq("Type") { return Type.Enum("TilType".clone()) }
+    if name.eq("TilType") { return Type.Enum("TilType".clone()) }
+    if name.eq("StructDef") { return Type.Struct("StructDef".clone()) }
+    if name.eq("EnumDef") { return Type.Struct("EnumDef".clone()) }
+    if name.eq("Dynamic")   { return Type.Dynamic }
     if is_null(scope).not() {
         ref b : TypeBinding = scope.get_binding(name)
         if is_null(b).not() {
@@ -205,22 +205,22 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
             }
             if is_null(b.func_def).not() {
                 if b.func_def.children.len().eq(0) {
-                    return TilType.FuncPtr
+                    return Type.FuncPtr
                 }
             }
         }
         ref sdef : Expr = scope.get_struct(name)
         if is_null(sdef).not() {
             if sdef.node_type.is(NodeType.EnumDef) {
-                return TilType.Enum(name.clone())
+                return Type.Enum(name.clone())
             }
-            return TilType.Struct(name.clone())
+            return Type.Struct(name.clone())
         }
     }
-    return TilType.Unknown
+    return Type.Unknown
 }
 
-init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns TilType {
+init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
     mut resolved := name.clone()
     ref b : TypeBinding = scope.get_binding(name)
     if is_null(b).not() {
@@ -231,7 +231,7 @@ init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns TilTyp
         }
     }
     resolved_type := type_from_name_init(resolved, scope)
-    if resolved_type.is(TilType.Unknown).not() {
+    if resolved_type.is(Type.Unknown).not() {
         return resolved_type
     }
     return til_type_from_explicit_type(resolved)
@@ -259,20 +259,20 @@ register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shall
         case:
         }
 
-        mut builtin_type := TilType.Struct(sname.clone())
+        mut builtin_type := Type.Struct(sname.clone())
         mut is_builtin := false
-        if sname.eq("I64") { builtin_type = TilType.I64; is_builtin = true }
-        else if sname.eq("U8") { builtin_type = TilType.U8; is_builtin = true }
-        else if sname.eq("I16") { builtin_type = TilType.I16; is_builtin = true }
-        else if sname.eq("I32") { builtin_type = TilType.I32; is_builtin = true }
-        else if sname.eq("U32") { builtin_type = TilType.U32; is_builtin = true }
-        else if sname.eq("U64") { builtin_type = TilType.U64; is_builtin = true }
-        else if sname.eq("USize") { builtin_type = TilType.U32; is_builtin = true }
+        if sname.eq("I64") { builtin_type = Type.I64; is_builtin = true }
+        else if sname.eq("U8") { builtin_type = Type.U8; is_builtin = true }
+        else if sname.eq("I16") { builtin_type = Type.I16; is_builtin = true }
+        else if sname.eq("I32") { builtin_type = Type.I32; is_builtin = true }
+        else if sname.eq("U32") { builtin_type = Type.U32; is_builtin = true }
+        else if sname.eq("U64") { builtin_type = Type.U64; is_builtin = true }
+        else if sname.eq("USize") { builtin_type = Type.U32; is_builtin = true }
         else if sname.eq("Str") { is_builtin = false }
-        else if sname.eq("Bool") { builtin_type = TilType.Bool; is_builtin = true }
+        else if sname.eq("Bool") { builtin_type = Type.Bool; is_builtin = true }
         else if sname.eq("StructDef") { is_builtin = false }
         else if sname.eq("FunctionDef") { is_builtin = false }
-        else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
+        else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
 
         scope.set(sname, builtin_type, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(sname)
@@ -320,7 +320,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
                 mut ref_flag : I32 = 0
                 if fd.own_type.eq(OwnType.Ref) {
                     ref_flag = 1
-                } else if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
+                } else if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(Type.FuncPtr)) {
                     ref_flag = 1
                 }
                 field_refs.push(own ref_flag)
@@ -387,7 +387,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
             for d_j : Declaration in sdd.fields {
                 ref fd : Declaration = d_j
                 if fd.own_type.eq(OwnType.Ref) { continue }
-                if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
+                if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(Type.FuncPtr)) {
                     continue
                 }
                 del_field_names.push(own fd.name.clone())
@@ -436,7 +436,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
             mut proc_decl := FunctionDef(auto_generated = true)
             proc_decl.func_type = FuncType.Func
             proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Own))
-            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = TilType.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
+            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
             proc_decl.variadic_index = -1.to_i32()
             proc_decl.kwargs_index = -1.to_i32()
 
@@ -475,7 +475,7 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
         case:
         }
 
-        scope.set(ename, TilType.Enum(ename.clone()), FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(ename, Type.Enum(ename.clone()), FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(ename)
         b.struct_def = stmt.child(0)
         b.is_priv = edecl.is_priv
@@ -595,7 +595,7 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
 
         ref vtype : Str = variant_types.get(j)
         if vtype.len().gt(0) {
-            is_funcsig := type_from_name_init(vtype, scope).eq(TilType.FuncPtr)
+            is_funcsig := type_from_name_init(vtype, scope).eq(Type.FuncPtr)
 
             mut iv2 := Expr.new(NodeType.Ident("is"), line, col)
             mut other_id := Expr.new(NodeType.Ident("other"), line, col)
@@ -711,7 +711,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
             ref vtype : Str = variant_types.get(j)
             if vtype.len().eq(0) { continue }
             if vtype.eq("Dynamic") { continue }
-            if type_from_name_init(vtype, scope).eq(TilType.FuncPtr) { continue }
+            if type_from_name_init(vtype, scope).eq(Type.FuncPtr) { continue }
 
             mut tiv := Expr.new(NodeType.Ident("is"), line, col)
             mut self_id := Expr.new(NodeType.Ident("self"), line, col)
@@ -771,7 +771,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
     fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Own))
-    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = TilType.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
+    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
 
@@ -804,7 +804,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
             is_call.add_child(own tvr)
 
             mut then_body := Expr.new(NodeType.Body, line, col)
-            if vtype.len().gt(0).and(type_from_name_init(vtype, scope).eq(TilType.FuncPtr)) {
+            if vtype.len().gt(0).and(type_from_name_init(vtype, scope).eq(Type.FuncPtr)) {
                 ret_text := format(vn, "(func)")
                 mut ret_str := Expr.new(NodeType.LiteralStr(ret_text), line, col)
                 mut ret := Expr.new(NodeType.Return, line, col)
@@ -1130,7 +1130,7 @@ register_funcsig_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.child(0).children.len().neq(0) { return }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
-        scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sdecl.name, Type.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
         fb.func_def = stmt.child(0)
     case:
@@ -1189,8 +1189,8 @@ register_type_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
             // arm above handles user-defined types when the target file
             // was already init'd. #165.
             til_type := til_type_from_explicit_type(target_name)
-            if til_type.is(TilType.Unknown) { return }
-            if til_type.is(TilType.Custom) { return }
+            if til_type.is(Type.Unknown) { return }
+            if til_type.is(Type.Custom) { return }
             scope.set(sdecl.name, til_type, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
             ab.is_type_alias = true
@@ -1219,7 +1219,7 @@ register_top_level_value_for_stmt := func(stmt: Expr, scope: TypeScope) {
             if sdecl0.explicit_type.len().eq(0) {
                 switch rhs.node_type {
                 case NodeType.Ident(rhs_name):
-                    if type_from_name_init(rhs_name, scope).eq(TilType.Unknown).not() {
+                    if type_from_name_init(rhs_name, scope).eq(Type.Unknown).not() {
                         return
                     }
                 case:
@@ -1257,7 +1257,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         if def.children.len().eq(0) {
-            scope.set(sdecl.name, TilType.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, Type.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
             fb.is_priv = sdecl.is_priv
@@ -1295,7 +1295,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
                                 fdef.return_type = sigdef.return_type
                                 fdef.return_own_type = sigdef.return_own_type
                                 sdecl.explicit_type = ""
-                                sdecl.til_type = TilType.Unknown
+                                sdecl.til_type = Type.Unknown
                             case:
                                 UNREACHABLE(__LOC__)
                             }
@@ -1311,7 +1311,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
         switch def.node_type {
         case NodeType.FuncDef(fdef):
             ft := fdef.func_type
-            mut rt := TilType.None
+            mut rt := Type.None
             if fdef.return_type.len().gt(0) {
                 rt = init_type_from_explicit_type(fdef.return_type, scope)
             }
@@ -1921,7 +1921,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                 else if ftype.eq("I32") { fsz = 4; falign = 4 }
                 else if ftype.eq("U32") { fsz = 4; falign = 4 }
                 else if ftype.eq("Bool") { fsz = 1; falign = 1 }
-                else if type_from_name_init(ftype, scope).is(TilType.FuncPtr) { fsz = 8; falign = 8 }
+                else if type_from_name_init(ftype, scope).is(Type.FuncPtr) { fsz = 8; falign = 8 }
                 else {
                     ref nested_def : Expr = scope.get_struct(ftype)
                     if is_null(nested_def).not().and(nested_def.node_type.is(NodeType.EnumDef)) {
@@ -1974,7 +1974,7 @@ type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) 
     if ftype.eq("U32") { sz = 4; al = 4; return }
     if ftype.eq("Bool") { sz = 1; al = 1; return }
     if ftype.eq("Dynamic") { sz = 8; al = 8; return }
-    if type_from_name_init(ftype, scope).is(TilType.FuncPtr) { sz = 8; al = 8; return }
+    if type_from_name_init(ftype, scope).is(Type.FuncPtr) { sz = 8; al = 8; return }
     ref nested : Expr = scope.get_struct(ftype)
     if is_null(nested) { sz = 8; al = 8; return }
     switch nested.node_type {
