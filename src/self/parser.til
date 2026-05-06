@@ -57,25 +57,25 @@ expect_text := func(mut p: Parser, type: TokenType) returns Str {
 peek_line := func(p: Parser) returns shallow U32 { return peek(p).line }
 peek_col := func(p: Parser) returns shallow U32 { return peek(p).col }
 
-// Resolve an explicit type name from the source into a TilType. Fixed-name
+// Resolve an explicit type name from the source into a Type. Fixed-name
 // primitives are returned directly. Empty name -> Unknown. Anything else
 // (Str, user-defined structs/enums) becomes Custom(name) so the typer can
 // later refine it into Struct(name) or Enum(name) via scope lookup while
 // keeping the name already provided by the user.
-til_type_from_explicit_type := func(name: Str) returns TilType {
-    if name.eq("I64")     { return TilType.I64 }
-    if name.eq("U8")      { return TilType.U8 }
-    if name.eq("I16")     { return TilType.I16 }
-    if name.eq("I32")     { return TilType.I32 }
-    if name.eq("U32")     { return TilType.U32 }
-    if name.eq("U64")     { return TilType.U64 }
-    if name.eq("F32")     { return TilType.F32 }
-    if name.eq("Bool")    { return TilType.Bool }
-    if name.eq("Type")    { return TilType.Enum("TilType".clone()) }
-    if name.eq("TilType") { return TilType.Enum("TilType".clone()) }
-    if name.eq("Dynamic") { return TilType.Dynamic }
-    if name.len().eq(0)   { return TilType.Unknown }
-    return TilType.Custom(name.clone())
+til_type_from_explicit_type := func(name: Str) returns Type {
+    if name.eq("I64")     { return Type.I64 }
+    if name.eq("U8")      { return Type.U8 }
+    if name.eq("I16")     { return Type.I16 }
+    if name.eq("I32")     { return Type.I32 }
+    if name.eq("U32")     { return Type.U32 }
+    if name.eq("U64")     { return Type.U64 }
+    if name.eq("F32")     { return Type.F32 }
+    if name.eq("Bool")    { return Type.Bool }
+    if name.eq("Type")    { return Type.Enum("TilType".clone()) }
+    if name.eq("TilType") { return Type.Enum("TilType".clone()) }
+    if name.eq("Dynamic") { return Type.Dynamic }
+    if name.len().eq(0)   { return Type.Unknown }
+    return Type.Custom(name.clone())
 }
 
 // --- Parsing functions ---
@@ -703,7 +703,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             if ch.len().gt(0) { byte_val = ch.get(0).to_i64() }
         }
         e = Expr.new(NodeType.LiteralNum(byte_val.to_str()), t_line, t_col)
-        e.til_type = TilType.U8
+        e.til_type = Type.U8
         e_set = true
     }
     if e_set.not().and(t.type.is(TokenType.KwTrue).or(t.type.is(TokenType.KwFalse))) {
@@ -1376,7 +1376,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         mut node := Expr.new(NodeType.ForIn(ForInData(name = iname, is_mut = for_is_mut)), i_line, i_col)
         if check(p, TokenType.Colon) {
             advance(p)
-            node.til_type = TilType.Custom(expect_text(p, TokenType.Ident))
+            node.til_type = Type.Custom(expect_text(p, TokenType.Ident))
         }
         expect_token(p, TokenType.KwIn)
         node.add_child(own parse_expression(p))
