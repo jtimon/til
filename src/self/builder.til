@@ -36,6 +36,10 @@ codegen_lp := func() returns ref LoadedProgram {
     return lp
 }
 
+builder_compiler_type_name := func() returns ref Str {
+    return resolve_type_alias(codegen_lp().ctx.scope, "Type")
+}
+
 codegen_set_lp := func(lp: LoadedProgram) {
     // Store pointer to stack-owned lp; valid for duration of build.
     codegen_lp_slot = to_ptr(lp)
@@ -4158,7 +4162,9 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     f.write("void *dyn_fn(Str *type_name, Str *method);\n")
     f.write("U32 dyn_size_of(Str *type_name);\n")
     if has_dyn_type_to_str {
-        f.write("Str *dyn_type_to_str(TilType *type);\n")
+        f.write("Str *dyn_type_to_str(")
+        f.write(builder_compiler_type_name())
+        f.write(" *type);\n")
     }
     f.write("\n")
     own dyn_methods.delete()
@@ -4406,26 +4412,29 @@ emit_dyn_size_of_body := proc(f: File) {
 }
 
 emit_dyn_type_to_str_body := proc(f: File) {
-    f.write("Str *dyn_type_to_str(TilType *type) {\n")
+    ref ctn : Str = builder_compiler_type_name()
+    f.write("Str *dyn_type_to_str(")
+    f.write(ctn)
+    f.write(" *type) {\n")
     f.write("    switch (type->tag) {\n")
-    f.write("    case TilType_TAG_Unknown: return Str_lit(\"\", 0ULL);\n")
-    f.write("    case TilType_TAG_None: return Str_lit(\"\", 0ULL);\n")
-    f.write("    case TilType_TAG_I64: return Str_lit(\"I64\", 3ULL);\n")
-    f.write("    case TilType_TAG_U8: return Str_lit(\"U8\", 2ULL);\n")
-    f.write("    case TilType_TAG_I16: return Str_lit(\"I16\", 3ULL);\n")
-    f.write("    case TilType_TAG_I32: return Str_lit(\"I32\", 3ULL);\n")
-    f.write("    case TilType_TAG_U32: return Str_lit(\"U32\", 3ULL);\n")
-    f.write("    case TilType_TAG_U64: return Str_lit(\"U64\", 3ULL);\n")
-    f.write("    case TilType_TAG_F32: return Str_lit(\"F32\", 3ULL);\n")
-    f.write("    case TilType_TAG_Bool: return Str_lit(\"Bool\", 4ULL);\n")
-    f.write("    case TilType_TAG_Struct: return Str_clone(&type->data.Struct);\n")
-    f.write("    case TilType_TAG_StructDef: return Str_lit(\"StructDef\", 9ULL);\n")
-    f.write("    case TilType_TAG_Enum: return Str_clone(&type->data.Enum);\n")
-    f.write("    case TilType_TAG_EnumDef: return Str_lit(\"EnumDef\", 7ULL);\n")
-    f.write("    case TilType_TAG_FuncDef: return Str_lit(\"FunctionDef\", 11ULL);\n")
-    f.write("    case TilType_TAG_FuncPtr: return Str_lit(\"Fn\", 2ULL);\n")
-    f.write("    case TilType_TAG_Dynamic: return Str_lit(\"Dynamic\", 7ULL);\n")
-    f.write("    case TilType_TAG_Custom: return Str_clone(&type->data.Custom);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_Unknown: return Str_lit(\"\", 0ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_None: return Str_lit(\"\", 0ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_I64: return Str_lit(\"I64\", 3ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_U8: return Str_lit(\"U8\", 2ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_I16: return Str_lit(\"I16\", 3ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_I32: return Str_lit(\"I32\", 3ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_U32: return Str_lit(\"U32\", 3ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_U64: return Str_lit(\"U64\", 3ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_F32: return Str_lit(\"F32\", 3ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_Bool: return Str_lit(\"Bool\", 4ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_Struct: return Str_clone(&type->data.Struct);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_StructDef: return Str_lit(\"StructDef\", 9ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_Enum: return Str_clone(&type->data.Enum);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_EnumDef: return Str_lit(\"EnumDef\", 7ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_FuncDef: return Str_lit(\"FunctionDef\", 11ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_FuncPtr: return Str_lit(\"Fn\", 2ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_Dynamic: return Str_lit(\"Dynamic\", 7ULL);\n")
+    f.write("    case "); f.write(ctn); f.write("_TAG_Custom: return Str_clone(&type->data.Custom);\n")
     f.write("    }\n")
     f.write("    return Str_lit(\"?\", 1ULL);\n")
     f.write("}\n\n")

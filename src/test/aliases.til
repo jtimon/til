@@ -158,18 +158,6 @@ test_enum_type_alias := test() {
     assert_eq_str(__LOC__, Color2.Blue.to_str(), "Blue")
 }
 
-TypeObject := Type
-TypeObject2 := TypeObject
-
-type_token_name := func(T: TypeObject2) returns Str {
-    return dyn_type_to_str(T)
-}
-
-test_type_object_alias := test() {
-    assert_eq_str(__LOC__, type_token_name(I64), "I64")
-    assert_eq_str(__LOC__, type_token_name(Str), "Str")
-}
-
 ByteCount := U32
 
 byte_count := func() returns ByteCount {

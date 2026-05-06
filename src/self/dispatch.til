@@ -395,7 +395,9 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
         panic(__LOC__, "dyn_type_to_str: expected Type enum value")
     }
     ref ei : EnumInstance = get_payload(type_val)
-    ref til_type_def : Expr = lookup_interp_type_def("TilType")
+    ref lp : LoadedProgram = codegen_lp()
+    ref compiler_type_name : Str = resolve_type_alias(lp.ctx.scope, "Type")
+    ref til_type_def : Expr = lookup_interp_type_def(compiler_type_name)
     if is_null(til_type_def) {
         panic(__LOC__, "dyn_type_to_str: Type definition not registered")
     }

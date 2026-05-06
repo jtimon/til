@@ -44,9 +44,14 @@ type_binding_is_type_token := func(b: TypeBinding) returns shallow Bool {
     return false
 }
 
-make_til_type_expr := func(src: Expr, t: TilType) returns Expr {
+typer_compiler_type_name := func(scope: TypeScope) returns ref Str {
+    return resolve_type_alias(scope, "Type")
+}
+
+make_til_type_expr := func(scope: TypeScope, src: Expr, t: TilType) returns Expr {
     mut type_ident := Expr.new(NodeType.Ident("Type"), src.line, src.col)
-    type_ident.til_type = Type.Enum("TilType".clone())
+    ref ctn : Str = typer_compiler_type_name(scope)
+    type_ident.til_type = Type.Enum(ctn.clone())
     mut variant_name := ""
     mut payload_name := ""
     mut has_payload := false
@@ -73,7 +78,7 @@ make_til_type_expr := func(src: Expr, t: TilType) returns Expr {
     mut fa := Expr.new(NodeType.FieldAccess(variant_name), src.line, src.col)
     fa.add_child(own type_ident)
     if has_payload.not() {
-        fa.til_type = Type.Enum("TilType".clone())
+        fa.til_type = Type.Enum(ctn.clone())
         return fa
     }
     fa.til_type = Type.Unknown
@@ -82,17 +87,17 @@ make_til_type_expr := func(src: Expr, t: TilType) returns Expr {
     mut payload := Expr.new(NodeType.LiteralStr(payload_name), src.line, src.col)
     payload.til_type = Type.Struct("Str".clone())
     call.add_child(own payload)
-    call.til_type = Type.Enum("TilType".clone())
+    call.til_type = Type.Enum(ctn.clone())
     return call
 }
 
 rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: TilType, shallow in_func: I32, ctx: Context) {
-    if ptype.is(Type.Enum("TilType")).not() { return }
+    if ptype.is(Type.Enum(typer_compiler_type_name(scope).clone())).not() { return }
     if arg.node_type.is(NodeType.Ident).not() { return }
     ref arg_name : Str = get_payload(arg.node_type)
     ref b : TypeBinding = scope.get_binding(arg_name)
     if type_binding_is_type_token(b).not() { return }
-    mut replacement := make_til_type_expr(arg, b.type)
+    mut replacement := make_til_type_expr(scope, arg, b.type)
     memcpy(arg, replacement, Expr.size())
     memset(replacement, 0, Expr.size())
     infer_expr(scope, arg, in_func, ctx)
@@ -4275,7 +4280,7 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
 build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, shallow vc: U32) returns Expr {
     mut new_call := make_ns_call("Array", "new", Type.Struct("Array".clone()), fcall)
 
-    mut et := make_til_type_expr(fcall, type_from_name(elem_type, scope))
+    mut et := make_til_type_expr(scope, fcall, type_from_name(elem_type, scope))
     new_call.add_child(own et)
 
     cap_str := vc.to_str()
@@ -4324,7 +4329,7 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
 build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str) returns Expr {
     mut new_call := make_ns_call("Vec", "new", Type.Struct("Vec".clone()), fcall)
 
-    mut et := make_til_type_expr(fcall, type_from_name(elem_type, scope))
+    mut et := make_til_type_expr(scope, fcall, type_from_name(elem_type, scope))
     new_call.add_child(own et)
 
     mut vec_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
@@ -4507,7 +4512,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     }
 
     mut new_call := make_ns_call("Set", "new", Type.Struct("Set".clone()), set_lit)
-    mut et := make_til_type_expr(set_lit, first.til_type)
+    mut et := make_til_type_expr(scope, set_lit, first.til_type)
     new_call.add_child(own et)
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
@@ -4596,9 +4601,9 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     }
 
     mut new_call := make_ns_call("Map", "new", Type.Struct("Map".clone()), map_lit)
-    mut kt := make_til_type_expr(map_lit, first_key.til_type)
+    mut kt := make_til_type_expr(scope, map_lit, first_key.til_type)
     new_call.add_child(own kt)
-    mut vt := make_til_type_expr(map_lit, first_val.til_type)
+    mut vt := make_til_type_expr(scope, map_lit, first_val.til_type)
     new_call.add_child(own vt)
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
