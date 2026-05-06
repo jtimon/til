@@ -211,4 +211,37 @@ stack-owned for locals.
       auto-gen clone reads every field by name. ~FunctionDef~
       carries an ~auto_generated~ flag set by initer's helpers;
       the typer tracks ~auto_gen_depth~ around such bodies and
-      skips "mark used" sets while inside one.
+      skips "mark used" sets while inside one. *Hand-written*
+      ~clone~/~delete~/~size~ stay regular user code
+      (~auto_generated == false~) and DO mark their reads, so
+      ~priv~ fields used only by a user-supplied clone are not
+      misreported as unused (regression test in
+      ~src/test/priv.til:test_user_clone_marks_priv_used~).
+
+*** Parser-synthesised declarations
+
+    The parser emits a small number of compiler-internal Decls
+    that the user never sees by name:
+
+    - ~_lambda_<N>~: the lifted carrier for an anonymous
+      ~func() {...}~ literal, created by ~maybe_lift_lambda~ so
+      the existing fn-ptr machinery can pick it up.
+    - ~_Fn_*~: the synthetic FuncSig type for an inline
+      ~Fn(T1, T2) returns T~ annotation, created by
+      ~parse_fn_signature~.
+
+    Both are marked ~priv~ at construction. They're file-local
+    by construction (only referenced by the synthetic Ident
+    written immediately after); the ~priv~ marker means the
+    unused-priv check would catch any future drift if a phase
+    started leaking these names cross-file. The ~_~ prefix
+    keeps the unused-decl check itself quiet for the synthetic
+    names.
+
+*** Tutorial example
+
+    See ~examples/priv_demo.til~ for a small worked example
+    that exercises every shape: top-level priv helper, a
+    public struct with a priv field and a priv namespace
+    method, and a public method that drives the priv state
+    internally.

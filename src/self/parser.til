@@ -137,8 +137,11 @@ priv parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U
     }
     mut sig := Expr.new(NodeType.FuncDef(fd), line, col)
 
-    // Wrap in Decl and store for later emission
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), line, col)
+    // Wrap in Decl and store for later emission. The synthetic
+    // ~_Fn_*~ name is only ever referenced from the parameter type
+    // annotations the parser just wrote, all inside the same file --
+    // mark priv so the unused-priv check would flag any leak.
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone(), is_priv = true)), line, col)
     decl.add_child(own sig)
     p.fn_sig_decls.push(own decl)
 
@@ -157,7 +160,12 @@ priv maybe_lift_lambda := func(mut p: Parser, own e: Expr) returns Expr {
     lname := format("_lambda_", p.lambda_decls.len().to_str())
     line := e.line
     col := e.col
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone())), line, col)
+    // Synthetic lambda lift -- the _lambda_<N> name is only ever
+    // referenced from the synthetic Ident emitted right below, all
+    // inside the same file. Mark priv so the unused-priv check would
+    // catch any future drift if a phase started leaking these names
+    // cross-file.
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), line, col)
     decl.add_child(own e)
     p.lambda_decls.push(own decl)
     return Expr.new(NodeType.Ident(lname.clone()), line, col)

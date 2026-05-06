@@ -388,6 +388,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/imports.til", flags)
     add_mode(tests, "src/test/import_diamond.til", flags)
     add_mode(tests, "src/test/priv.til", flags)
+    add_mode(tests, "examples/priv_demo.til", flags)
     add_mode(tests, "src/test/aliases.til", flags)
     add_mode(tests, "src/test/loops.til", flags)
     add_mode(tests, "src/test/splat.til", flags)

@@ -92,3 +92,33 @@ test_priv_global_indirect := test() {
     bump_counter()
     assert_eq(__LOC__, get_counter(), 2)
 }
+
+// #187 auto_gen_depth gate: a USER-defined clone reading a priv
+// field counts as a real use, so the unused-priv-field check stays
+// quiet. The gate only suppresses `used = true` set inside
+// FuncDef.auto_generated bodies (clone/delete/size emitted by
+// initer); a hand-written method with the same name is regular
+// user code with auto_generated == false.
+priv UserCloneStruct := struct {
+    mut tag := 0
+    priv mut secret := 0
+namespace:
+    new := func(t: I64, s: I64) returns UserCloneStruct {
+        return UserCloneStruct(tag = t, secret = s)
+    }
+    // Hand-written clone -- not auto-emitted. Must mark `secret`
+    // used despite priv.
+    clone := func(self: UserCloneStruct) returns UserCloneStruct {
+        return UserCloneStruct(tag = self.tag, secret = self.secret)
+    }
+    leak_secret := func(self: UserCloneStruct) returns I64 {
+        return self.secret
+    }
+}
+
+test_user_clone_marks_priv_used := test() {
+    a := UserCloneStruct.new(7, 41)
+    b := a.clone()
+    assert_eq(__LOC__, b.tag, 7)
+    assert_eq(__LOC__, b.leak_secret(), 41)
+}

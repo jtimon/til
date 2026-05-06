@@ -2,8 +2,6 @@
 ** High
 *** [[./open/109.org][#109]] Fix memory leaks (make test_asan clean)
 *** [[./open/125.org][#125]] Enum payload method generation should not assume ~eq~/~to_str~
-*** [[./open/127.org][#127]] Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
-*** [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
 *** [[./open/130.org][#130]] AST / ~Expr~ representation cleanup
 *** [[./open/136.org][#136]] Precomp doesn't fold pure function calls
 *** [[./open/143.org][#143]] Avoid unnecessary heap round-trips for Expr construction
@@ -53,7 +51,6 @@
 *** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
-*** [[./open/87.org][#87]] ~priv~ keyword for private declarations
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
 *** [[./open/93.org][#93]] Local struct, enum, and function definitions
