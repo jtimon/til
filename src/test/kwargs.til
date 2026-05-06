@@ -135,3 +135,45 @@ test_combo_variadic_and_kwargs := test() {
     // Multiple kwargs (only "bias" is read, the rest are ignored).
     assert_eq(__LOC__, combo_sum("x", 1, 2, 3, bias = 100, extra = 999), 106)
 }
+
+// Splat into variadic + kwargs in the same call. The desugar runs
+// through desugar_pure_splat_variadic_call (a 1-for-1 substitution
+// that doesn't change children length), not rewrite_variadic_fcall_args,
+// so kwargs_index needs no shift. Lock in that the splat path
+// composes with kwargs.
+test_combo_splat_with_kwargs := test() {
+    arr := array("I64", 10, 20, 30)
+    assert_eq(__LOC__, combo_sum("x", ..arr, bias = 100), 160)
+}
+
+// Default-valued positional between variadic and kwargs. The parser
+// already exempts default-valued params from the "no positional
+// after variadic" rule, and lifting the variadic+kwargs ban means
+// such a param can sit between the two. Verify it defaults when
+// not passed and overrides when passed by name.
+combo_label := func(_a: Str, items: ..I64, label: Str = "default", opts: ...) returns Str {
+    mut total := 0
+    for i in 0..items.len() {
+        ref n : I64 = items.get(i)
+        total = total.add(n)
+    }
+    if opts.has("bias") {
+        ref b : I64 = opts.get("bias")
+        total = total.add(b)
+    }
+    return label.clone().format(":", total.to_str())
+}
+
+test_combo_default_between_variadic_and_kwargs := test() {
+    // No items, no kwargs -- label defaults.
+    assert_eq_str(__LOC__, combo_label("x"), "default:0")
+    // Items only.
+    assert_eq_str(__LOC__, combo_label("x", 1, 2, 3), "default:6")
+    // Items + kwargs, label still defaults.
+    assert_eq_str(__LOC__, combo_label("x", 1, 2, 3, bias = 100), "default:106")
+    // Override label by name.
+    assert_eq_str(__LOC__, combo_label("x", 1, 2, 3, label = "override", bias = 100), "override:106")
+    // Splat + override + kwargs, all composed.
+    arr := array("I64", 10, 20, 30)
+    assert_eq_str(__LOC__, combo_label("x", ..arr, label = "splat", bias = 100), "splat:160")
+}

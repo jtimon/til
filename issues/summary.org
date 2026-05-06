@@ -38,6 +38,7 @@
 *** [[./open/164.org][#164]] Diagnose `mut` qualifiers that are never used to write
 *** [[./open/191.org][#191]] Installed til computes VERSION from git at runtime
 *** [[./open/193.org][#193]] Add lower-level File cursor APIs
+*** [[./open/194.org][#194]] Fix corrupted generated UML docs
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/36.org][#36]] Nested pattern matching in switch
