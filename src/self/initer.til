@@ -8,7 +8,6 @@ TypeBinding := struct {
     mut func_type := FuncType.None
     mut is_mut := false
     mut is_priv := false
-    mut priv_err_reported := false
     mut path := ""
     mut line : U32 = 0
     mut col : U32 = 0

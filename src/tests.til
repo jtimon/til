@@ -433,7 +433,7 @@ main := proc(args: ..Str) {
               "returns are owned by default", 1,
               asan_safe_cmd(format(til_bin, " interpret src/test/qualifier_returns_own_error.til"), til_bin))
     add_count(tests, "priv_error", "typer",
-              "is private to", 15,
+              "is private to", 18,
               asan_safe_cmd(format(til_bin, " interpret src/test/priv_error.til"), til_bin))
     add_count(tests, "priv_unused_error", "typer",
               "unused priv", 7,

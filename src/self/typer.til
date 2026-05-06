@@ -1360,8 +1360,15 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             }
         }
         e.children = new_ch
+        // After UFCS rewriting, e.child(1) is the original receiver
+        // Expr that was already inferred at the top of this proc. Skip
+        // it (and any already-typed positional arg) to avoid firing
+        // priv / member checks twice on the same node. Genuinely
+        // unresolved args (Unknown til_type) still get inferred here.
         for i in 1..e.children.len() {
-            infer_expr(scope, e.child(i), in_func, ctx)
+            if e.child(i).til_type.is(Type.Unknown) {
+                infer_expr(scope, e.child(i), in_func, ctx)
+            }
         }
         for i in 1..e.children.len() {
             if i.sub(1).gte(ns_fdef.params.len()) { break }
@@ -1482,17 +1489,16 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
 }
 
 // Issue #179 step 1: cross-file priv check for standalone funcs.
-// Idempotent per binding: a failing call site can be visited twice
-// (e.g. via FieldAccess receiver re-walks), so we track whether the
-// error has already been reported and emit at most one diagnostic.
+// The duplicate-fire problem this used to dedup against (FieldAccess
+// receiver re-walk in infer_field_access_fcall) is now prevented at
+// source: the post-UFCS re-walk skips already-typed children, so the
+// receiver Expr is inferred exactly once.
 priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
     if is_null(b) { return }
     if b.is_priv.not() { return }
     if b.path.eq(typer_path) { return }
-    if b.priv_err_reported { return }
     type_error(e, "'".concat(name).concat("' is private to '").concat(b.path)
         .concat("'; remove 'priv' to expose it"))
-    b.priv_err_reported = true
 }
 
 // Issue #179 + follow-up: cross-file priv check for type names that
@@ -1502,12 +1508,6 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
 // write ~func(x: PrivStruct) returns PrivStruct~ in another file
 // silently. Skip when inside the type's own namespace (auto-gen and
 // hand-written ns methods both reference the parent type by name).
-//
-// Does NOT consult b.priv_err_reported. That flag exists so the
-// FieldAccess receiver re-walk in infer_field_access_fcall doesn't
-// duplicate-report a value-position priv error within a single
-// statement; declaration positions are independent sites and each
-// deserves its own diagnostic.
 priv check_priv_type_name := proc(mut e: Expr, name: Str, scope: TypeScope) {
     if name.len().eq(0) { return }
     if current_type_name.eq(name) { return }

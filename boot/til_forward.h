@@ -353,7 +353,6 @@ typedef struct TypeBinding {
     FuncType func_type;
     Bool is_mut;
     Bool is_priv;
-    Bool priv_err_reported;
     Str path;
     U32 line;
     U32 col;
