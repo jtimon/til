@@ -1,4 +1,4 @@
-#include "../../boot/modes.h"
+#include "../../boot/til_forward.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +10,7 @@
 #ifdef _WIN32
 // winnt.h declares 'TokenType' as an enum constant inside
 // TOKEN_INFORMATION_CLASS, which collides with our 'TokenType' typedef from
-// boot/modes.h. ext.c never references the Windows token enum, so rename it
+// boot/til_forward.h. ext.c never references the Windows token enum, so rename it
 // via the preprocessor for the duration of the Windows headers.
 #define TokenType _WinTokenType_Conflict
 #include <windows.h>

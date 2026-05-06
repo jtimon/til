@@ -63,10 +63,6 @@ namespace:
     }
 }
 
-// Compatibility alias: bootstrap code and generated C can keep spelling the
-// compiler's type object as `TilType` while source moves to `Type`.
-TilType := Type
-
 til_type_name_c := func(t: Type) returns Str {
     switch t {
     case Type.Unknown:   return "unknown"
