@@ -1,0 +1,80 @@
+# priority: medium
+** OPEN #194 Fix corrupted generated UML docs
+
+Goal:
+
+   Make [[file:../../examples/uml.til][examples/uml.til]] generate clean, trustworthy
+   ~doc/uml.org~ and ~doc/uml.svg~ again.
+
+Current symptoms:
+
+   - ~examples/uml.til~ exits successfully and now runs in the regular
+     test suite as ~uml_docs~.
+   - But the generated ~doc/uml.svg~ is visibly corrupted: panel labels
+     contain garbage bytes / broken text, and large sections of the
+     diagram look duplicated or otherwise malformed.
+   - The generated ~doc/uml.org~ also contains weird characters instead
+     of clean source/type labels.
+
+Concrete evidence from the current tree:
+
+   - ~doc/uml.svg~ contains panel labels like ~r)e&...fil~,
+     ~r)e&...ftil~, and ~\0\0\0\0\0\0\0er~ instead of clean file names
+     like ~lexer~, ~ast~, ~parser~, etc.
+   - The type boxes inside those panels are mostly sane (~Type: EnumDef~,
+     ~Parser: StructDef~, etc.), which suggests the corruption is centered
+     on file/panel labels rather than the whole AST/type extraction pass.
+   - ~doc/uml.org~ is not even plain text right now: ~file doc/uml.org~
+     reports ~data~, and the first bytes contain embedded NULs right after
+     the initial heading marker (~2a 20 00 00 00 ... 69 6c~).
+
+Why this matters:
+
+   - ~doc/self.svg~ was historical and has now been removed, so
+     ~doc/uml.org~ / ~doc/uml.svg~ are the remaining generated overview
+     diagrams people are expected to trust.
+   - A green test run is not enough if the UML generator quietly emits
+     broken output.
+
+Repro:
+
+   - ~make clean && make test~ now runs ~uml_docs~ as part of
+     [[file:../../src/tests.til][src/tests.til]].
+   - Or run it directly:
+
+   #+begin_src sh
+   bin/til run -o bin/c/uml_docs -c gen/c/uml_docs.c examples/uml.til
+   #+end_src
+
+Expected:
+
+   - ~doc/uml.org~ should contain readable, deterministic type summaries.
+   - ~doc/uml.svg~ should contain readable panel labels and one correct
+     rendering of each intended panel/type block.
+
+Suspected areas:
+
+   - path collection / ordering in ~examples/uml.til~
+   - string handling or formatting in the SVG/org emitters
+   - accidental inclusion of bad/non-source labels in panel titles
+
+Likely root cause found during triage:
+
+   - ~examples/uml.til:file_label()~ builds a local ~label~ string and
+     returns ~label.strip_prefix(...).strip_suffix(...)~.
+   - In [[file:../../src/core/str.til][src/core/str.til]], both ~strip_prefix~ and ~strip_suffix~ return
+     ~substr(...)~ views when they match, and ~substr~ is explicitly a
+     no-allocation view (~cap = CAP_VIEW~).
+   - That means ~file_label()~ is very likely returning views into a local
+     temporary string, which would explain:
+     - corrupted panel/file labels in both org and svg output
+     - embedded NUL bytes / garbage characters
+     - repeated or mismatched panel headings while the type bodies still
+       look mostly correct
+
+Likely fix direction:
+
+   - make ~file_label()~ return an owned clone of the final stripped value,
+     or otherwise avoid returning a view into stack/local string storage
+   - then rerun ~examples/uml.til~ and verify both ~doc/uml.org~ and
+     ~doc/uml.svg~ are plain-text / readable again
