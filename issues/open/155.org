@@ -18,9 +18,9 @@ Spun off from ~[[./113.org][#113]]~. Accessing a struct field whose declared
    ~Value~ here is an enum, ~Cell.val~ has no explicit type annotation
    and is initialised to ~Value.None~. The typer should infer the
    field's til_type from the default-value expression
-   (~TilType.Enum("Value")~) and propagate it through field access so
+   (~Type.Enum("Value")~) and propagate it through field access so
    ~c.val~ has type ~Value~. Today it leaves the field at
-   ~TilType.Unknown~, which leaves the UFCS rewrite with no
+   ~Type.Unknown~, which leaves the UFCS rewrite with no
    ~type_name~ to dispatch on and no namespace-method lookup target.
 
    Symptom site: [[file:../../src/self/precomp.til][src/self/precomp.til]] ~try_eval_call~ has a
@@ -38,4 +38,3 @@ Spun off from ~[[./113.org][#113]]~. Accessing a struct field whose declared
    Out of scope:
    - Exhaustive-switch checking for enums (~[[./113.org][#113]]~ part d).
    - Widening UFCS itself (already done in ~[[./113.org][#113]]~ follow-up).
-

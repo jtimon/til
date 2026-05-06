@@ -45,7 +45,7 @@ Revisit whether ~ext_struct~ should exist as a separate concept at all.
   - but importing ~I8~ immediately exposed that the current compiler still
     has repeated hardcoded primitive-name lists (~U8~, ~I16~, ~I32~, ~U32~,
     ~U64~, ~I64~, ~F32~, ~Bool~) across builder, initer, typer, and
-    ~TilType~
+    ~Type~
   - those lists decide things like:
     - whether a type is treated as a builtin scalar
     - whether generated headers skip forward declarations for it
@@ -64,4 +64,3 @@ Revisit whether ~ext_struct~ should exist as a separate concept at all.
 
   This issue is partly about simplifying the language surface and partly about
   reducing one more C-leaning special case in the core model.
-

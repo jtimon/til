@@ -193,7 +193,7 @@
     til.til does equivalent through bridge functions.
     Not directly comparable — til.til uses higher-level abstractions.
 
-** modes.h
+** Mode header surface
 
 *** Mode uses const char* fields
     ~name~ and ~auto_import~ are const char*, not Str.

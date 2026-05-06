@@ -1,7 +1,7 @@
 # priority: low
 ** OPEN #63 User-defined modes
 
-8 built-in modes are hardcoded in the compiler (modes.h):
+8 built-in modes are hardcoded in the compiler/runtime mode table:
   - ~script~ — top-level statements, no main required
   - ~cli~ — ~main(args: ..Str)~ entry point, decls only
   - ~gui~ — like cli, auto-imports modes/gui.til, links raylib
@@ -53,4 +53,3 @@
     linked libraries, compiler flags?
   - How does mode linking/composition work? ~mode gui + server~? Inheritance?
   - How are stdlib modes distributed — as .til files? Compiled-in?
-

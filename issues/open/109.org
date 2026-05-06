@@ -142,8 +142,8 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
      ~src/self/~ assigned to ~til_type~/~node_type~/etc. Tried the
      naive "always free old field on FieldAssign" approach this
      session and it regressed because ~stmt.til_type = existing.clone()~
-     in the same [[./175.org][#175]] path was itself leaking each TilType clone:
-     so every save_old_delete trigger added a TilType leak. Need an
+     in the same [[./175.org][#175]] path was itself leaking each Type clone:
+     so every save_old_delete trigger added a Type leak. Need an
      opt-in flag set by the typer (like ~AssignData.save_old_delete~)
      plus a discriminator for sites that move ownership instead
      of value-copying.
@@ -243,4 +243,3 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     causes more owned values to be freed before exit. Never
     attributed to a specific code path; worth a follow-up if a
     similar import reorder lands again.
-

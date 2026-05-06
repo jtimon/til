@@ -73,7 +73,7 @@ Goal: remove the remaining bare ~get_payload(...)~ calls in the
       tag-only checks is misleading and can be more expensive.
 
     Most ~x.eq(Variant)~ sites in the self-host have already been
-    rewritten to ~x.is(Variant)~. A handful of ~OwnType~ / ~TilType~
+    rewritten to ~x.is(Variant)~. A handful of ~OwnType~ / ~Type~
     / ~FuncType~ ~.eq~ usages remain in [[file:../../src/self/initer.til][src/self/initer.til]] and
     [[file:../../src/self/precomp.til][src/self/precomp.til]]; those are tag-only enums so the two
     operators are functionally equivalent, but they should still
@@ -150,4 +150,3 @@ Goal: remove the remaining bare ~get_payload(...)~ calls in the
     Belongs under [[./109.org][#109]] (memory leak cleanup) only insofar as [[./175.org][#175]]
     blocks the most aggressive form of this refactor on dual-variant
     helpers.
-

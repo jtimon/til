@@ -22,7 +22,7 @@ The builder emits top-level constants as heap-allocated runtime
 
   Current status after the real ~[[./104.org][#104]]~ fix:
   - ordinary top-level globals are now usable from handwritten C through
-    generated ~extern~ declarations in ~modes.h~
+    generated ~extern~ declarations in ~boot/til_forward.h~
   - but namespace/static-field globals still do not have the same final
     generated-C story
   - so the remaining work to make things like ~Str.CAP_LIT~ / generated
@@ -33,4 +33,3 @@ The builder emits top-level constants as heap-allocated runtime
   ~const~ qualifiers, so C code must drop ~const~ from ~Mode *~ etc.
   to match generated signatures for [[./39.org][#39]] swaps. Once [[./70.org][#70]] lands, the
   builder can emit ~const~ where appropriate and C can use it again.
-

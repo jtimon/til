@@ -19,7 +19,7 @@ Status (high level):
      initer.til (~register_function_def_for_stmt~,
      ~infer_top_level_decl_type~) now use the scope-free
      ~til_type_from_explicit_type~. Custom-vs-Struct equivalence is
-     handled by a custom ~TilType.eq~ override in ast.til, a
+    handled by a custom ~Type.eq~ override in ast.til, a
      ~Custom(s)~ case in ~type_prefix~, and a
      ~normalize_scope_bindings~ sweep that runs once between
      ~init_declarations_global~ and the first ~type_file~. The alias
@@ -74,7 +74,7 @@ Status (high level):
      ~range.til~ / ~bool.til~ / ~mem.til~ / ... are init'd before USize is
      in scope, so any of their decls that reference USize through derived
      methods (size methods, ~for~ desugaring against ~Vec.len()~, etc.)
-     resolve USize as ~TilType.Unknown~ at init time.
+      resolve USize as ~Type.Unknown~ at init time.
    - Even within a single file, ~init_declarations_unit~ does the AST walk
      in source order: ~register_struct_def_for_stmt~ runs for struct decls
      immediately during the walk, but alias decls (~NodeType.Ident~ on the
@@ -152,7 +152,7 @@ Status (high level):
       silently drops on NotFound for builtin-primitive targets.
       Stores ~alias_target~ + ~is_type_alias = true~ when
       ~til_type_from_explicit_type(target)~ returns a non-Custom
-      TilType (so ~USize := U32~ works wherever it is in the file).
+      Type (so ~USize := U32~ works wherever it is in the file).
       ce0a584 moved ~USize := U32~ to the top of core.til to validate
       end-to-end.
 
@@ -163,7 +163,7 @@ Status (high level):
       these helpers compare equal to ~Struct(name)~/~Enum(name)~
       written elsewhere in the typer:
 
-      - ast.til adds a custom ~TilType.eq~ that treats Custom <->
+      - ast.til adds a custom ~Type.eq~ that treats Custom <->
         Struct/Enum as equal when names match. Uses ~.is()~ throughout
         (tag-only) because switch-on-enum desugars to recursive eq.
       - typer.til ~type_prefix~ gets a ~Custom(s)~ case that returns
@@ -358,4 +358,3 @@ Status (high level):
      ~ast.til~->U32 wall.
    - ~[[./116.org][#116]]~ Imported files are parsed in isolation -- same root-cause
      family (cross-file visibility vs. phase ordering).
-

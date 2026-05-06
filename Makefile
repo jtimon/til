@@ -62,7 +62,7 @@ bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) lib/libffi/.built
 
 bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
 	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til_boot build -o bin/til src/til.til
-	cp gen/til/til.c gen/til/til.h gen/til/til_forward.h boot/ 2>/dev/null || true
+	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true
 
 # --- Two-pass build ---
 #
@@ -77,7 +77,7 @@ bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
 # (see bots/merging_from_remote.org).
 two_pass: bin/til
 	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til build -o bin/til src/til.til
-	cp gen/til/til.c gen/til/til.h gen/til/til_forward.h boot/ 2>/dev/null || true
+	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true
 
 # --- ASAN build (for memory debugging) ---
 

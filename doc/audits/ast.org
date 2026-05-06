@@ -103,9 +103,9 @@ Assign nodes.
 - is_core: only used on top-level Decl nodes.  Could become a flag
   on Declaration.  Low priority.
 
-** Ghost fields in boot/til.h but not in ast.til (2 fields)
+** Ghost fields in boot/til_forward.h but not in ast.til (2 fields)
 
-| Field            | In ast.til? | In boot/til.h? | Usage          |
+| Field            | In ast.til? | In boot/til_forward.h? | Usage          |
 |------------------+-------------+----------------+----------------|
 | is_ext           | no          | yes (Expr)     | never read     |
 | total_struct_size| no          | yes (Expr)     | never read on Expr |

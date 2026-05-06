@@ -152,7 +152,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    | File             | Reads | Writes | Role                                              |
    |------------------+-------+--------+---------------------------------------------------|
    | ~typer.til~      |   236 |    123 | self-consumption: propagates types up; rewrites   |
-   | ~builder.til~    |    97 |      0 | pure consumer; pivots on ~is(TilType.X)~          |
+   | ~builder.til~    |    97 |      0 | pure consumer; pivots on ~is(Type.X)~             |
    | ~interpreter.til~ |    22 |      0 | pure consumer                                     |
    | ~precomp.til~    |    14 |     11 | writes when synthesizing literals during folding  |
    | ~initer.til~     |    16 |      7 | writes during synthesized helper generation       |
@@ -165,9 +165,9 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
 
    Read characterization:
 
-   - Most non-typer reads are simple pivots: ~e.til_type.is(TilType.Struct)~,
+   - Most non-typer reads are simple pivots: ~e.til_type.is(Type.Struct)~,
      ~til_type_name(e.til_type)~, ~til_type_to_c(e.til_type)~. They
-     want a concrete ~TilType~ value, not a re-derivation walk.
+     want a concrete ~Type~ value, not a re-derivation walk.
    - Builder + interpreter together: 119 reads, *zero* writes. They're
      pure consumers running after typer.
    - Writes outside typer: literals (parser/precomp -- trivially
@@ -248,7 +248,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    **** explicit_type / til_type duplication (step 5 finish)
 
    ~Declaration~ now carries both ~explicit_type : Str~ and
-   ~til_type : TilType~ kept in sync at write sites (~5f822fc~). 204
+   ~til_type : Type~ kept in sync at write sites (~5f822fc~). 204
    read sites across ~src/self/*~ still pivot on ~explicit_type~. The
    plan: migrate readers to ~til_type~, then delete ~explicit_type~.
 
@@ -318,4 +318,3 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      work and the home for any remaining merged-AST removal
    - ~[[./165.org][#165]]~ Declaration order should not matter (rstil-style init) --
      step 3 of ~[[./165.org][#165]]~ is exactly step 3 of this issue
-

@@ -79,7 +79,7 @@ There are two main back ends.
   - [[file:../src/c/ext.c][src/c/ext.c]]
 - Til sees these through `ext_func` / `ext_proc` declarations imported through
   `modes.til`, and handwritten C sees til declarations through generated
-  `boot/modes.h`.
+  `boot/til_forward.h`.
 
 * Notes
 
