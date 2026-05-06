@@ -172,18 +172,18 @@ build_glyph := func(segments: Vec) returns Glyph {
     // Bounding box.
     ref x0 : I64 = xs.get(0)
     ref y0 : I64 = ys.get(0)
-    mut xmn := x0.clone()
-    mut xmx := x0.clone()
-    mut ymn := y0.clone()
-    mut ymx := y0.clone()
+    mut xmn := x0
+    mut xmx := x0
+    mut ymn := y0
+    mut ymx := y0
     mut k : USize = 1
     while k.lt(n) {
         ref xv : I64 = xs.get(k)
         ref yv : I64 = ys.get(k)
-        if xv.lt(xmn) { xmn = xv.clone() }
-        if xv.gt(xmx) { xmx = xv.clone() }
-        if yv.lt(ymn) { ymn = yv.clone() }
-        if yv.gt(ymx) { ymx = yv.clone() }
+        if xv.lt(xmn) { xmn = xv }
+        if xv.gt(xmx) { xmx = xv }
+        if yv.lt(ymn) { ymn = yv }
+        if yv.gt(ymx) { ymx = yv }
         k = k.add(1)
     }
 
@@ -210,18 +210,18 @@ build_glyph := func(segments: Vec) returns Glyph {
     mut prev_x : I64 = 0
     for xv : I64 in xs {
         w_i16(body, xv.sub(prev_x))
-        prev_x = xv.clone()
+        prev_x = xv
     }
 
     // Y coordinates as I16 deltas.
     mut prev_y : I64 = 0
     for yv : I64 in ys {
         w_i16(body, yv.sub(prev_y))
-        prev_y = yv.clone()
+        prev_y = yv
     }
 
     return Glyph(
-        bytes = body.clone(),
+        bytes = body,
         x_min = xmn,
         y_min = ymn,
         x_max = xmx,
@@ -486,7 +486,7 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
     ref p2v : I64 = p2.get(0)
     ref p2l : I64 = p2.get(1)
     search_range := p2v.mul(16)
-    entry_selector := p2l.clone()
+    entry_selector := p2l
     range_shift := num_tables.mul(16).sub(search_range)
 
     // Compute offsets.
