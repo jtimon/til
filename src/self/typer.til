@@ -44,13 +44,20 @@ type_binding_is_type_token := func(b: TypeBinding) returns shallow Bool {
     return false
 }
 
-typer_compiler_type_name := func(scope: TypeScope) returns ref Str {
-    return resolve_type_alias(scope, "Type")
+typer_compiler_type_name := func(scope: TypeScope) returns Str {
+    ref b : TypeBinding = scope.get_binding("Type")
+    if is_null(b).not() {
+        if b.is_type_alias {
+            if b.alias_target.is_empty().not() { return b.alias_target.clone() }
+        }
+        return b.name.clone()
+    }
+    return "Type"
 }
 
 make_til_type_expr := func(scope: TypeScope, src: Expr, t: TilType) returns Expr {
     mut type_ident := Expr.new(NodeType.Ident("Type"), src.line, src.col)
-    ref ctn : Str = typer_compiler_type_name(scope)
+    ctn := typer_compiler_type_name(scope)
     type_ident.til_type = Type.Enum(ctn.clone())
     mut variant_name := ""
     mut payload_name := ""
@@ -92,7 +99,8 @@ make_til_type_expr := func(scope: TypeScope, src: Expr, t: TilType) returns Expr
 }
 
 rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: TilType, shallow in_func: I32, ctx: Context) {
-    if ptype.is(Type.Enum(typer_compiler_type_name(scope).clone())).not() { return }
+    ctn := typer_compiler_type_name(scope)
+    if ptype.is(Type.Enum(ctn.clone())).not() { return }
     if arg.node_type.is(NodeType.Ident).not() { return }
     ref arg_name : Str = get_payload(arg.node_type)
     ref b : TypeBinding = scope.get_binding(arg_name)

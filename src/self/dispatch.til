@@ -396,7 +396,17 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
     }
     ref ei : EnumInstance = get_payload(type_val)
     ref lp : LoadedProgram = codegen_lp()
-    ref compiler_type_name : Str = resolve_type_alias(lp.ctx.scope, "Type")
+    mut compiler_type_name := "Type"
+    ref type_binding : TypeBinding = lp.ctx.scope.get_binding("Type")
+    if is_null(type_binding).not() {
+        if type_binding.is_type_alias {
+            if type_binding.alias_target.is_empty().not() {
+                compiler_type_name = type_binding.alias_target.clone()
+            }
+        } else {
+            compiler_type_name = type_binding.name.clone()
+        }
+    }
     ref til_type_def : Expr = lookup_interp_type_def(compiler_type_name)
     if is_null(til_type_def) {
         panic(__LOC__, "dyn_type_to_str: Type definition not registered")

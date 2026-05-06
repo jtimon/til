@@ -36,8 +36,15 @@ codegen_lp := func() returns ref LoadedProgram {
     return lp
 }
 
-builder_compiler_type_name := func() returns ref Str {
-    return resolve_type_alias(codegen_lp().ctx.scope, "Type")
+builder_compiler_type_name := func() returns Str {
+    ref b : TypeBinding = codegen_lp().ctx.scope.get_binding("Type")
+    if is_null(b).not() {
+        if b.is_type_alias {
+            if b.alias_target.is_empty().not() { return b.alias_target.clone() }
+        }
+        return b.name.clone()
+    }
+    return "Type"
 }
 
 codegen_set_lp := func(lp: LoadedProgram) {
@@ -4163,7 +4170,8 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     f.write("U32 dyn_size_of(Str *type_name);\n")
     if has_dyn_type_to_str {
         f.write("Str *dyn_type_to_str(")
-        f.write(builder_compiler_type_name())
+        ctn := builder_compiler_type_name()
+        f.write(ctn)
         f.write(" *type);\n")
     }
     f.write("\n")
@@ -4412,7 +4420,7 @@ emit_dyn_size_of_body := proc(f: File) {
 }
 
 emit_dyn_type_to_str_body := proc(f: File) {
-    ref ctn : Str = builder_compiler_type_name()
+    ctn := builder_compiler_type_name()
     f.write("Str *dyn_type_to_str(")
     f.write(ctn)
     f.write(" *type) {\n")
