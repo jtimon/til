@@ -327,7 +327,7 @@ usage := proc() {
     println("  build      Compile a .til file to a binary")
     println("  install    Build and install a .til program or library")
     println("  run        Compile and run a .til file")
-    println("  test       Run test functions in a .til file")
+    println("  test       Run test() functions interpreted, then compiled")
     println("  doc        Emit org-mode docs under doc/gen/")
     println("  ast        Print the parsed AST as a Lisp-like S-expression")
     println("  help       Print this message")
@@ -521,11 +521,27 @@ main := proc(args: ..Str) {
     prepare_program(lp, cli.command.eq("test"))
 
     mut result : I32 = 0
-    if cli.command.eq("interpret").or(cli.command.eq("test")) {
-        if lp.cur_mode.is_library.and(cli.command.eq("interpret")) {
+    if cli.command.eq("interpret") {
+        if lp.cur_mode.is_library {
             panic(__LOC__, "cannot interpret a library -- use translate or build")
         }
         result = cmd_interpret(lp, user_argv)
+    } else if cli.command.eq("test") {
+        if lp.cur_mode.is_library {
+            panic(__LOC__, "cannot test a library -- use translate or build")
+        }
+        // First pass: run tests interpreted. cmd_interpret exit(1)s on
+        // any failing test, so we only reach the compile pass when the
+        // interpreted pass passed.
+        println("=== interpret ===")
+        result = cmd_interpret(lp, user_argv)
+        if result.eq(0) {
+            // Second pass: compile a test binary (emit_test_main is gated
+            // on lp.run_tests, set by prepare_program above) and run it.
+            println("=== compile + run ===")
+            empty_argv := Vec.new(Str)
+            result = cmd_run(lp, cli.custom_bin, cli.custom_c, empty_argv, target, cli.cc)
+        }
     } else if cli.command.eq("translate") {
         result = cmd_translate(lp, cli.custom_c, target)
     } else if cli.command.eq("build") {

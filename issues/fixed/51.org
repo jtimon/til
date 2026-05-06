@@ -1,5 +1,5 @@
 # priority: low
-** OPEN #51 Add ~til test~ command
+** FIXED #51 Add ~til test~ command
 
 Add a ~til test myfile.til~ command that finds all test() functions in
   the file, treats each as an entry point, and runs them all — both
