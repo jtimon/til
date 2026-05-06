@@ -71,6 +71,8 @@ til_type_from_explicit_type := func(name: Str) returns TilType {
     if name.eq("U64")     { return TilType.U64 }
     if name.eq("F32")     { return TilType.F32 }
     if name.eq("Bool")    { return TilType.Bool }
+    if name.eq("Type")    { return TilType.Enum("TilType".clone()) }
+    if name.eq("TilType") { return TilType.Enum("TilType".clone()) }
     if name.eq("Dynamic") { return TilType.Dynamic }
     if name.len().eq(0)   { return TilType.Unknown }
     return TilType.Custom(name.clone())
