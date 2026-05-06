@@ -20,7 +20,7 @@ Set := struct {
 
 namespace:
     /// Create an empty Set. elem_type must implement `cmp`.
-    new := func(T: TilType) returns Set {
+    new := func(T: Type) returns Set {
         elem_type := dyn_type_to_str(T)
         if elem_type.is_empty() { panic(__LOC__, "Set.new: elem_type required") }
         if dyn_has_method(elem_type, "cmp").not() {

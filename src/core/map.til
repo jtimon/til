@@ -32,7 +32,7 @@ namespace:
         return m
     }
 
-    new := func(K: TilType, V: TilType) returns Map {
+    new := func(K: Type, V: Type) returns Map {
         key_type := dyn_type_to_str(K)
         val_type := dyn_type_to_str(V)
         return Map.new_type_names(key_type, val_type)

@@ -35,7 +35,7 @@ namespace:
                    elem_delete = dyn_fn(elem_type, "delete"))
     }
 
-    new := func(T: TilType) returns Vec {
+    new := func(T: Type) returns Vec {
         elem_type := dyn_type_to_str(T)
         return Vec.new_type_name(elem_type)
     }

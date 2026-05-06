@@ -44,7 +44,7 @@ namespace:
     }
 
     /// Append a value of the given type. `val` is owned.
-    push := func(mut self: Tuple, T: TilType, own val: Dynamic) {
+    push := func(mut self: Tuple, T: Type, own val: Dynamic) {
         elem_type := dyn_type_to_str(T)
         self.push_type_name(own elem_type, own val)
     }
