@@ -384,12 +384,12 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
     if e.node_type.is(NodeType.LiteralNum) {
         ref num_str : Str = get_payload(e.node_type)
         switch e.til_type {
-        case TilType.U8:  return val_u8(num_str.to_i64())
-        case TilType.U32: return val_u32(num_str.to_i64())
-        case TilType.U64: return val_u64(num_str.to_i64().to_u64())
-        case TilType.I16: return val_i16(num_str.to_i64())
-        case TilType.I32: return val_i32(num_str.to_i64())
-        case TilType.F32: return val_f32(num_str.to_f32())
+        case Type.U8:  return val_u8(num_str.to_i64())
+        case Type.U32: return val_u32(num_str.to_i64())
+        case Type.U64: return val_u64(num_str.to_i64().to_u64())
+        case Type.I16: return val_i16(num_str.to_i64())
+        case Type.I32: return val_i32(num_str.to_i64())
+        case Type.F32: return val_f32(num_str.to_f32())
         case: return val_i64(num_str.to_i64())
         }
     }
@@ -441,7 +441,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                 if nsv.is(Value.Int) { ref iv : I64 = get_payload(nsv); return val_i64(iv) }
                 if nsv.is(Value.Int32) { ref iv : I32 = get_payload(nsv); return val_i32(iv.to_i64()) }
                 if nsv.is(Value.Func) {
-                    if e.til_type.is(TilType.Enum) {
+                    if e.til_type.is(Type.Enum) {
                         ref fptr : Dynamic = get_payload(nsv)
                         ref fdef : Expr = deref(fptr)
                         if fdef.node_type.is(NodeType.FuncDef) {
@@ -475,9 +475,9 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         }
         if obj.is(Value.Ptr) {
             ref obj_expr : Expr = e.child(0)
-            if obj_expr.til_type.is(TilType.Struct)
-            .or(obj_expr.til_type.is(TilType.Enum))
-            .or(obj_expr.til_type.is(TilType.Custom)) {
+            if obj_expr.til_type.is(Type.Struct)
+            .or(obj_expr.til_type.is(Type.Enum))
+            .or(obj_expr.til_type.is(Type.Custom)) {
                 ref obj_sname : Str = get_payload(obj_expr.til_type)
                 if obj_sname.len().gt(0) {
                     ref tc : Cell = scope_get(scope, obj_sname)
@@ -634,7 +634,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
         if stmt.node_type.is(NodeType.Decl) {
             ref dd : Declaration = get_payload(stmt.node_type)
             ref rhs : Expr = stmt.child(0)
-            if stmt.til_type.is(TilType.None) {
+            if stmt.til_type.is(Type.None) {
                 if rhs.node_type.is(NodeType.Ident) { continue }
             }
             if dd.own_type.is(OwnType.Ref) {
@@ -674,7 +674,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 interp_error(stmt, "undefined variable '".concat(assign_name).concat("'"))
                 exit(1.to_i32())
             }
-            if stmt.til_type.is(TilType.Dynamic) {
+            if stmt.til_type.is(Type.Dynamic) {
                 if rhs.node_type.is(NodeType.Ident) {
                     ref rhs_ident : Str = get_payload(rhs.node_type)
                     ref src : Cell = scope_get(scope, rhs_ident)
@@ -832,7 +832,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         ref func_def : Expr = deref(fn_ptr)
 
         // FuncPtr field: stored function may be ext_func from another type
-        if callee_expr.til_type.is(TilType.FuncPtr) {
+        if callee_expr.til_type.is(Type.FuncPtr) {
             ref fp_fdef : FunctionDef = get_payload(func_def.node_type)
             if fp_fdef.func_type.is(FuncType.ExtFunc).or(fp_fdef.func_type.is(FuncType.ExtProc)) {
                 for ki in 0..ns_fields.len() {
@@ -989,9 +989,9 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             ref sdd : StructDef = get_payload(si_edef.node_type)
             inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
             mut inst := val_none()
-            if e.til_type.is(TilType.Struct)
-            .or(e.til_type.is(TilType.Enum))
-            .or(e.til_type.is(TilType.Custom)) {
+            if e.til_type.is(Type.Struct)
+            .or(e.til_type.is(Type.Enum))
+            .or(e.til_type.is(Type.Custom)) {
                 ref _es : Str = get_payload(e.til_type)
                 if _es.len().gt(0) {
                     inst = make_struct_value(_es, si_edef, inst_data, false)
@@ -1327,7 +1327,7 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
 // for Dynamic). Returns NULL when the rhs isn't an Ident or isn't
 // Dynamic, signalling "evaluate the expression normally".
 field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref Cell {
-    if val_expr.til_type.is(TilType.Dynamic).not() { return NULL }
+    if val_expr.til_type.is(Type.Dynamic).not() { return NULL }
     if val_expr.node_type.is(NodeType.Ident).not() { return NULL }
     ref vi : Str = get_payload(val_expr.node_type)
     return scope_get(scope, vi)
@@ -1664,7 +1664,7 @@ interpret_register_defs := func(mut global: Scope, prog: Expr) {
 interpret_register_aliases := func(mut global: Scope, prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
-        else if stmt.til_type.is(TilType.None).not() { }
+        else if stmt.til_type.is(Type.None).not() { }
         else if stmt.children.len().eq(0) { }
         else {
             ref rhs : Expr = stmt.child(0)
@@ -1693,7 +1693,7 @@ interpret_register_aliases := func(mut global: Scope, prog: Expr) {
 interpret_copy_alias_ns := func(prog: Expr, global: Scope) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
-        else if stmt.til_type.is(TilType.None).not() { }
+        else if stmt.til_type.is(Type.None).not() { }
         else if stmt.children.len().eq(0) { }
         else {
             ref rhs : Expr = stmt.child(0)

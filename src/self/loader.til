@@ -848,25 +848,25 @@ func_kind := func(ft: FuncType) returns Str {
     }
 }
 
-// User-facing TilType name for help() info strings. "" for Unknown/None.
-til_type_user := func(t: TilType) returns Str {
+// User-facing Type name for help() info strings. "" for Unknown/None.
+til_type_user := func(t: Type) returns Str {
     switch t {
-    case TilType.I64:       return "I64"
-    case TilType.U8:        return "U8"
-    case TilType.I16:       return "I16"
-    case TilType.I32:       return "I32"
-    case TilType.U32:       return "U32"
-    case TilType.U64:       return "U64"
-    case TilType.F32:       return "F32"
-    case TilType.Bool:      return "Bool"
-    case TilType.Struct(name):    return name.clone()
-    case TilType.StructDef:       return "StructDef"
-    case TilType.Enum(name):      return name.clone()
-    case TilType.EnumDef:         return "EnumDef"
-    case TilType.FuncDef:         return "FunctionDef"
-    case TilType.FuncPtr:         return "Fn"
-    case TilType.Dynamic:         return "Dynamic"
-    case TilType.Custom(name):    return name.clone()
+    case Type.I64:       return "I64"
+    case Type.U8:        return "U8"
+    case Type.I16:       return "I16"
+    case Type.I32:       return "I32"
+    case Type.U32:       return "U32"
+    case Type.U64:       return "U64"
+    case Type.F32:       return "F32"
+    case Type.Bool:      return "Bool"
+    case Type.Struct(name):    return name.clone()
+    case Type.StructDef:       return "StructDef"
+    case Type.Enum(name):      return name.clone()
+    case Type.EnumDef:         return "EnumDef"
+    case Type.FuncDef:         return "FunctionDef"
+    case Type.FuncPtr:         return "Fn"
+    case Type.Dynamic:         return "Dynamic"
+    case Type.Custom(name):    return name.clone()
     case: return ""
     }
 }
@@ -975,7 +975,7 @@ append_ns_method_indented := func(mut out: Str, d: Declaration) {
 
 format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) returns Str {
     mut t := dd.til_type.clone()
-    if t.is(TilType.Unknown) { t = scope.get_type(name) }
+    if t.is(Type.Unknown) { t = scope.get_type(name) }
     type_str := til_type_user(t)
     if type_str.is_empty().not() {
         return name.format(" is a ", type_str)
@@ -1282,7 +1282,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
         context_enter_file(lp.ctx, last.path)
     }
 
-    // #165 step 1: resolve any TilType.Custom(name) bindings (written by
+    // #165 step 1: resolve any Type.Custom(name) bindings (written by
     // initer's scope-free registration helpers) to Struct/Enum now that
     // every name is in scope.
     normalize_scope_bindings(lp.ctx.scope)

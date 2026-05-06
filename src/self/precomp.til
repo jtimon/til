@@ -79,27 +79,27 @@ value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
     switch val {
     case Value.Int(x):
         mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = TilType.I64
+        e.til_type = Type.I64
         return e
     case Value.Byte(x):
         mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = TilType.U8
+        e.til_type = Type.U8
         return e
     case Value.Short(x):
         mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = TilType.I16
+        e.til_type = Type.I16
         return e
     case Value.Int32(x):
         mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = TilType.I32
+        e.til_type = Type.I32
         return e
     case Value.Uint32(x):
         mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = TilType.U32
+        e.til_type = Type.U32
         return e
     case Value.Uint64(x):
         mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = TilType.U64
+        e.til_type = Type.U64
         return e
     case Value.Float(_x):
         // F32 to_str uses %g and can emit scientific notation
@@ -111,13 +111,13 @@ value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
         if si.to_str().eq("Str") {
             sv := str_view(val)
             mut e := Expr.new(NodeType.LiteralStr(sv.clone()), src.line, src.col)
-            e.til_type = TilType.Struct("Str".clone())
+            e.til_type = Type.Struct("Str".clone())
             return e
         }
         return NULL
     case Value.Boolean(b):
         mut e := Expr.new(NodeType.LiteralBool(b.clone()), src.line, src.col)
-        e.til_type = TilType.Bool
+        e.til_type = Type.Bool
         return e
     case:
         return NULL
@@ -128,12 +128,12 @@ expr_to_value := func(e: Expr) returns shallow Value {
     switch e.node_type {
     case NodeType.LiteralNum(num):
         switch e.til_type {
-        case TilType.U8:  return val_u8(num.to_u8())
-        case TilType.U32: return val_u32(num.to_i64())
-        case TilType.U64: return val_u64(num.to_i64().to_u64())
-        case TilType.I16: return val_i16(num.to_i64())
-        case TilType.I32: return val_i32(num.to_i64())
-        case TilType.F32: return val_f32(num.to_f32())
+        case Type.U8:  return val_u8(num.to_u8())
+        case Type.U32: return val_u32(num.to_i64())
+        case Type.U64: return val_u64(num.to_i64().to_u64())
+        case Type.I16: return val_i16(num.to_i64())
+        case Type.I32: return val_i32(num.to_i64())
+        case Type.F32: return val_f32(num.to_f32())
         case: return val_i64(num.to_i64())
         }
     case NodeType.LiteralStr(s):

@@ -82,7 +82,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
         context_enter_file(lp.ctx, last.path)
     }
 
-    // Resolve TilType.Custom(name) bindings now that every name is in scope.
+    // Resolve Type.Custom(name) bindings now that every name is in scope.
     normalize_scope_bindings(lp.ctx.scope)
 
     mut errs : I32 = 0
@@ -128,8 +128,8 @@ repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
     }
     if typed_ast.children.len().eq(0) { return false }
     ref tlast : Expr = typed_ast.children.get(typed_ast.children.len().sub(1))
-    if tlast.til_type.is(TilType.None) { return false }
-    if tlast.til_type.is(TilType.Unknown) { return false }
+    if tlast.til_type.is(Type.None) { return false }
+    if tlast.til_type.is(Type.Unknown) { return false }
     return true
 }
 
