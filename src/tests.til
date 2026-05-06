@@ -521,11 +521,6 @@ main := proc(args: ..Str) {
                format(til_bin,
                       " run -o bin/c/issues_summary -c gen/c/issues_summary.c ",
                       "examples/issues.til"))
-    add_single(tests, "uml_docs", "build", 0, "",
-               format(til_bin,
-                      " run -o bin/c/uml_docs -c gen/c/uml_docs.c ",
-                      "examples/uml.til"))
-
     // === library mode checks ===
     add_single(tests, "pure_build", "library", 0, "",
                asan_safe_cmd(format(til_bin, " build src/test/pure.til"), til_bin))

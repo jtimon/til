@@ -126,14 +126,17 @@ test_asan: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
 test_nogui: bin/til bin/test_runner bin/plot bin/tests
 	bin/tests --no-gui $(if $(J),-j$(J))
 
-# --- Doc generator (regenerates doc/gen/ from current sources) ---
-
+# --- Doc generator (regenerates doc/gen/ and UML docs) ---
+#
 # Run on demand, not from `make test` -- doc gen on src/til.til runs the
-# full init+typer pipeline and adds ~1 minute of wall time. Commit the
-# refreshed doc/gen/ tree alongside notable doc-affecting changes.
+# full init+typer pipeline and adds ~1 minute of wall time. Includes
+# examples/uml.til, which is expensive enough to keep out of `make test`.
+# Commit the refreshed doc/gen/ tree and UML outputs alongside notable
+# doc-affecting changes.
 doc: bin/til
 	rm -rf doc/gen
 	bin/til doc src/til.til
+	bin/til run examples/uml.til
 
 install: bin/til
 	bin/til install src/til.til
@@ -197,7 +200,7 @@ help:
 	echo "make test           Build + run tests"
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
-	echo "make doc            Regenerate doc/gen/ from current sources"
+	echo "make doc            Regenerate doc/gen/ and UML docs"
 	echo "make install        Install til under PREFIX (default /usr/local)"
 	echo "make clean          Remove build artifacts"
 	echo ""

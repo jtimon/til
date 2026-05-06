@@ -42,6 +42,8 @@ Always run `make clean && make test` and verify all tests pass before committing
 Local sessions only: use `systemd-run --user --scope -p MemoryMax=64G make clean && make test`
 to limit memory usage (prevents OOM from memory leaks killing the system).
 Remote sessions: just use `make clean && make test` directly (systemd-run is not available).
+Session type rule: OpenCode/Codex CLI runs in a local checkout count as LOCAL
+sessions. "Remote" means CI or hosted bot runs on assigned bot branches.
 See doc/self.org for the build workflow.
 
 ## Worktrees (local sessions)
@@ -180,7 +182,8 @@ just because the surrounding code was edited.
 - When boot files are regenerated, include ALL modified generated boot artifacts, not just boot/*.c.
   This includes boot/*.c, boot/*.h, boot/*_forward.h, and any other changed files under boot/.
 - Local agents: include doc/totals.csv and img/totals.svg in commits
-- Remote agents (GitHub Actions, Codex, etc.): do NOT include doc/totals.csv
+  (this includes OpenCode/Codex CLI runs in a local checkout).
+- Remote agents (GitHub Actions, hosted bots, etc.): do NOT include doc/totals.csv
   or img/totals.svg. After `make test` regenerates them, DISCARD the changes
   before committing -- either form is fine:
       git checkout HEAD -- doc/totals.csv img/totals.svg
