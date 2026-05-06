@@ -977,6 +977,7 @@ File * File_clone(File * self);
 void File_delete(File * self, Bool * call_free);
 U32 File_size(void);
 void swap(void * a, void * b, U64 size);
+void move(void * dest, void * src, U64 size);
 Set * Set_new(Type * T);
 U32 * Set_len(Set * self);
 Bool Set_has(Set * self, void * val);

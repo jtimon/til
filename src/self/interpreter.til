@@ -84,10 +84,8 @@ namespace:
                             if is_null(ei_ref).not() {
                                 ref ei : EnumInstance = ei_ref
                                 mut cloned_ei := ei.clone()
-                                // Store heap pointer -- malloc+memcpy, null local to prevent destructor
                                 heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
-                                memcpy(heap_ei, cloned_ei, EnumInstance.size().to_u64())
-                                memset(cloned_ei, 0, EnumInstance.size().to_u64())
+                                move(heap_ei, cloned_ei, EnumInstance.size().to_u64())
                                 write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), heap_ei)
                             }
                             continue
@@ -846,11 +844,9 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                             orig_callee := callee_expr.clone()
                             mut flat_ident := callee_expr.clone()
                             flat_ident.node_type = NodeType.Ident(fp_flat.clone())
-                            memcpy(e.children.get(0), flat_ident, Expr.size())
-                            memset(flat_ident, 0, Expr.size())
+                            move(e.children.get(0), flat_ident, Expr.size())
                             result := eval_call(scope, e)
-                            memcpy(e.children.get(0), orig_callee, Expr.size())
-                            memset(orig_callee, 0, Expr.size())
+                            move(e.children.get(0), orig_callee, Expr.size())
                             return result
                         }
                     }
@@ -903,11 +899,9 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             orig_callee_val := callee_expr.clone()
             mut flat_ident2 := callee_expr.clone()
             flat_ident2.node_type = NodeType.Ident(flat_str.clone())
-            memcpy(e.children.get(0), flat_ident2, Expr.size())
-            memset(flat_ident2, 0, Expr.size())
+            move(e.children.get(0), flat_ident2, Expr.size())
             result := eval_call(scope, e)
-            memcpy(e.children.get(0), orig_callee_val, Expr.size())
-            memset(orig_callee_val, 0, Expr.size())
+            move(e.children.get(0), orig_callee_val, Expr.size())
             return result
         }
 
@@ -1655,7 +1649,6 @@ interpret_register_defs := func(mut global: Scope, prog: Expr) {
                 memcpy(val, 9.to_i32(), 4)
                 write_ptr(ptr_add(val, 8), stmt.child(0))
                 scope_set_owned(global, dd.name, val)
-                memset(val, 0, Value.size())
             }
         }
     }
@@ -1681,7 +1674,6 @@ interpret_register_aliases := func(mut global: Scope, prog: Expr) {
                             memcpy(val, 9.to_i32(), 4)
                             write_ptr(ptr_add(val, 8), sdef)
                             scope_set_owned(global, dd.name, val)
-                            memset(val, 0, Value.size())
                         }
                     }
                 }

@@ -93,8 +93,7 @@ rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, shall
     ref b : TypeBinding = scope.get_binding(arg_name)
     if type_binding_is_type_token(b).not() { return }
     mut replacement := make_til_type_expr(arg, b.type)
-    memcpy(arg, replacement, Expr.size())
-    memset(replacement, 0, Expr.size())
+    move(arg, replacement, Expr.size())
     infer_expr(scope, arg, in_func, ctx)
 }
 
