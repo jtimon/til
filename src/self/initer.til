@@ -1229,9 +1229,9 @@ register_top_level_value_for_stmt := func(stmt: Expr, scope: TypeScope) {
         }
     }
 
-    mut t := TilType.Unknown
+    mut t := Type.Unknown
     if infer_top_level_decl_type(stmt, scope, t).not() { return }
-    if t.eq(TilType.Unknown) { return }
+    if t.eq(Type.Unknown) { return }
 
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
@@ -2072,35 +2072,35 @@ resolve_field_struct_defs := func(program: Expr, scope: TypeScope) {
 
 infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: TilType) returns shallow Bool {
     ref rhs : Expr = stmt.child(0)
-    out_type = TilType.Unknown
+    out_type = Type.Unknown
 
     switch stmt.node_type {
     case NodeType.Decl(dd):
         if dd.explicit_type.len().gt(0) {
             out_type = init_type_from_explicit_type(dd.explicit_type, scope)
-            return out_type.is(TilType.Unknown).not()
+            return out_type.is(Type.Unknown).not()
         }
     case:
     }
 
     switch rhs.node_type {
     case NodeType.LiteralNum:
-        out_type = TilType.I64
+        out_type = Type.I64
         return true
     case NodeType.LiteralBool:
-        out_type = TilType.Bool
+        out_type = Type.Bool
         return true
     case NodeType.LiteralStr:
-        out_type = TilType.Struct("Str".clone())
+        out_type = Type.Struct("Str".clone())
         return true
     case NodeType.LiteralNull:
-        out_type = TilType.Dynamic
+        out_type = Type.Dynamic
         return true
     case NodeType.Ident(id):
         ref b : TypeBinding = scope.get_binding(id)
         if is_null(b) { return false }
         out_type = b.type
-        return out_type.is(TilType.Unknown).not()
+        return out_type.is(Type.Unknown).not()
     case NodeType.FieldAccess:
         mut init_ns1 := false
         if rhs.children.len().gt(0) {
@@ -2111,12 +2111,12 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
                 }
             }
         }
-        if init_ns1.and(rhs.til_type.is(TilType.Enum)) {
+        if init_ns1.and(rhs.til_type.is(Type.Enum)) {
             mut enum_name := ""
             if rhs.children.len().gt(0) {
                 enum_name = til_type_name(rhs.child(0).til_type)
             }
-            out_type = TilType.Enum(enum_name.clone())
+            out_type = Type.Enum(enum_name.clone())
             return true
         }
         return false
@@ -2125,13 +2125,13 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
         switch callee.node_type {
         case NodeType.Ident(cn):
             if til_type_name(rhs.til_type).len().gt(0).and(cn.eq(til_type_name(rhs.til_type))) {
-                out_type = TilType.Struct(til_type_name(rhs.til_type))
+                out_type = Type.Struct(til_type_name(rhs.til_type))
                 return true
             }
             ref fb : TypeBinding = scope.get_binding(cn)
             if is_null(fb) { return false }
             out_type = fb.type
-            return out_type.is(TilType.Unknown).not()
+            return out_type.is(Type.Unknown).not()
         case NodeType.FieldAccess:
             mut init_ns2 := false
             if callee.children.len().gt(0) {
@@ -2142,8 +2142,8 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
                     }
                 }
             }
-            if init_ns2.and(til_type_name(rhs.til_type).len().gt(0)).and(rhs.til_type.is(TilType.Enum)) {
-                out_type = TilType.Enum(til_type_name(rhs.til_type))
+            if init_ns2.and(til_type_name(rhs.til_type).len().gt(0)).and(rhs.til_type.is(Type.Enum)) {
+                out_type = Type.Enum(til_type_name(rhs.til_type))
                 return true
             }
             return false
