@@ -49,17 +49,33 @@ Goal:
    - Step 5 is complete: source callsites now use type tokens directly,
      including ~Vec.new(Foo)~, ~Set.new(Foo)~, ~Map.new(K, V)~,
      ~Array.new(Foo, cap)~, and ~Tuple.push(Foo, val)~.
-   - Final cherry on top: public source code can now spell the compiler's
-     type object as ~Type~ via ~Type := TilType~, while the bootstrap
-     compiler and generated C continue to use ~TilType~ internally.
+    - Final cherry on top: the compiler type object is now named ~Type~
+      end-to-end. The temporary ~TilType~ compatibility alias and the
+      legacy ~boot/modes*~ / ~boot/til.h~ bootstrap artifacts are gone.
+
+    What fixed it in practice:
+
+    - Removed the custom ~Type~/~TilType~ special cases and let the
+      compiler's normal type-alias machinery resolve type names.
+    - Taught typer / builder / interpreter to lower type tokens through
+      ordinary call paths, so APIs like ~Vec.new(Foo)~ and
+      ~dyn_type_to_str(Foo)~ work without string literals or ~T.size()~.
+    - Landed the rename in bootstrap-safe stages: first alias resolution,
+      then emitted ~Type~-aware bootstrap output, then stable helper name
+      handling, then the actual ~TilType~ -> ~Type~ flip.
+    - Once the generated output and runtime C surface were clean, removed
+      the temporary bridge helpers, dropped the ~TilType~ alias entirely,
+      and deleted the leftover legacy bootstrap headers.
 
    Final state:
 
-   - ~vec(...)~ and ~array(...)~ are desugared in the typer now, not
-     lowered specially by builder / dispatch.
-   - There is no core ~List~ type in this tree.
-   - Call sites no longer need explicit ~T.size()~ or string literal
-     type names for the supported collection constructors.
+    - ~vec(...)~ and ~array(...)~ are desugared in the typer now, not
+      lowered specially by builder / dispatch.
+    - There is no core ~List~ type in this tree.
+    - Call sites no longer need explicit ~T.size()~ or string literal
+      type names for the supported collection constructors.
+    - The generated bootstrap surface now uses ~boot/til.c~ and
+      ~boot/til_forward.h~ only.
 
    Side issue uncovered (may be subsumed by master's [[./165.org][#165]]):
 
