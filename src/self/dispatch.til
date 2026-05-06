@@ -777,12 +777,10 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case:
                 }
                 mut tmp := val_enum_flat(enum_name, enum_def, ctor_tag, pdata, psz)
-                memcpy(result, tmp, Value.size())
-                memset(tmp, 0, Value.size())
+                move(result, tmp, Value.size())
             } else {
                 mut tmp := val_enum_flat(enum_name, enum_def, ctor_tag, NULL, 0.to_i32())
-                memcpy(result, tmp, Value.size())
-                memset(tmp, 0, Value.size())
+                move(result, tmp, Value.size())
             }
             return true
         }
@@ -1044,8 +1042,7 @@ ffi_register := func(name: Str, fn: Dynamic, fdef: Expr) {
         memcpy(key, name, Str.size().to_u64())
         memcpy(ptr_add(key, 12), CAP_VIEW, U32.size().to_u64())
         val : Dynamic = malloc(FFIEntry.size().to_u64())
-        memcpy(val, entry, FFIEntry.size().to_u64())
-        memset(entry, 0, FFIEntry.size())
+        move(val, entry, FFIEntry.size().to_u64())
         ffi_map.set(own key, own val)
     case:
         UNREACHABLE(__LOC__)

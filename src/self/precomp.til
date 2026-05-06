@@ -361,8 +361,7 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr) returns ref Expr {
     mut _lit_clone := _lit.clone()
     _lit_clone.til_type = fcall.til_type
     _heap : Dynamic = malloc(Expr.size().to_u64())
-    memcpy(_heap, _lit_clone, Expr.size())
-    memset(_lit_clone, 0, Expr.size())
+    move(_heap, _lit_clone, Expr.size())
     ref _heap_ref : Expr = to_ptr(_heap)
     return _heap_ref
 }
@@ -492,8 +491,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     // (re-typing, codegen) expects the original til_type.
     lit_local.til_type = fcall.til_type
     heap : Dynamic = malloc(Expr.size().to_u64())
-    memcpy(heap, lit_local, Expr.size())
-    memset(lit_local, 0, Expr.size())
+    move(heap, lit_local, Expr.size())
     ref heap_lit : Expr = to_ptr(heap)
     return heap_lit
 }
@@ -703,7 +701,6 @@ precomp_register_defs := func(mut global: Scope, prog: Expr) {
                 memcpy(val, 9.to_i32(), 4)
                 write_ptr(ptr_add(val, 8), stmt.child(0))
                 scope_set_owned(global, dd.name, val)
-                memset(val, 0, Value.size())
             }
         }
     }
