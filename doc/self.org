@@ -128,12 +128,12 @@
   Use this sequence instead:
 
   1. Add a temporary alias with the NEW interface, under a NEW name
-     (for example ~Set.new_newi(T: TilType)~), while keeping the old
+     (for example ~Set.new_newi(T: Type)~), while keeping the old
      ~Set.new(elem_type: Str)~ interface intact. Rewrite all source
      call sites and desugars to use the temporary alias. ~make clean &&
      make test~ passes. Merge to master.
   2. Flip the original public name to the NEW interface (for example
-     ~Set.new(T: TilType)~), and rewrite all source call sites back to
+     ~Set.new(T: Type)~), and rewrite all source call sites back to
      the original name. Keep the temporary alias as a forwarding
      wrapper so bootstrapped/generated callers from commit 1 still
      work. ~make clean && make test~ passes. Merge to master.

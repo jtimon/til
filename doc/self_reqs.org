@@ -17,7 +17,7 @@
   til has structs with fields, namespace methods, clone, delete.
 
 * HAVE Enums
-  C uses: NodeType, TokenType, FuncType, TilType, ValType.
+  C uses: NodeType, TokenType, FuncType, Type, ValType.
   til treats enums as structs with namespace constants (I64 fields).
   Works but verbose — no match/switch sugar.
 

@@ -198,6 +198,8 @@ just because the surrounding code was edited.
   message buffer and get stripped by some tools.
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
 - Local sessions do NOT push. Humans handle all pushes manually.
+- Do NOT remind Jorge to push. Local pushes are handled manually and don't
+  need bot follow-up nudges.
 - Remote sessions may push only to their own assigned feature branches
   (for example `claude/...` or other explicitly assigned bot branches).
   Remote sessions must NOT push to master.

@@ -6,6 +6,8 @@
     under ~tmp/~.
   - ~tmp/~ is wiped by ~make clean~, so it is the wrong place for notes
     meant to survive a build/test cycle.
+  - Do not remind Jorge to push. Pushes are handled manually by humans in
+    local sessions, and the reminder adds noise instead of value.
 
 ** Bootstrap interface migrations
 

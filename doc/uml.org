@@ -78,7 +78,7 @@
 *** line : U32 = 0
 *** col : U32 = 0
 * ast
-** TilType: EnumDef
+** Type: EnumDef
 *** Unknown
 *** None
 *** I64
