@@ -4051,10 +4051,10 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     if tname.len().eq(0) { return NULL }
 
     mut call := Expr.new(NodeType.FCall(FCallData()), field_assign.line, field_assign.col)
-    call.til_type = TilType.None
+    call.til_type = Type.None
 
     mut type_id := Expr.new(NodeType.Ident(tname.clone()), field_assign.line, field_assign.col)
-    type_id.til_type = TilType.Custom(tname.clone())
+    type_id.til_type = Type.Custom(tname.clone())
 
     mut fa := Expr.new(NodeType.FieldAccess("delete"), field_assign.line, field_assign.col)
     fa.add_child(own type_id)
@@ -4073,7 +4073,7 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     call.add_child(own field_acc)
 
     mut cf_lit := Expr.new(NodeType.LiteralBool(field_own_type.is(OwnType.Own)), field_assign.line, field_assign.col)
-    cf_lit.til_type = TilType.Bool
+    cf_lit.til_type = Type.Bool
     call.add_child(own cf_lit)
 
     return call
@@ -4084,10 +4084,10 @@ make_delete_call := func(var_name: Str, shallow type: TilType, shallow arg_is_ow
     if tname.len().eq(0) { return NULL }
 
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-    call.til_type = TilType.None
+    call.til_type = Type.None
 
     mut type_id := Expr.new(NodeType.Ident(tname.clone()), src.line, src.col)
-    type_id.til_type = TilType.Custom(tname.clone())
+    type_id.til_type = Type.Custom(tname.clone())
 
     mut fa := Expr.new(NodeType.FieldAccess("delete"), src.line, src.col)
     fa.add_child(own type_id)
@@ -4099,7 +4099,7 @@ make_delete_call := func(var_name: Str, shallow type: TilType, shallow arg_is_ow
     call.add_child(own arg)
 
     mut cf_lit := Expr.new(NodeType.LiteralBool(call_free), src.line, src.col)
-    cf_lit.til_type = TilType.Bool
+    cf_lit.til_type = Type.Bool
     call.add_child(own cf_lit)
 
     return call
@@ -4166,7 +4166,7 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
 // struct field, where the field's own destructor will free the inner data.
 make_free_call := func(var_name: Str, shallow type: TilType, src: Expr) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-    call.til_type = TilType.None
+    call.til_type = Type.None
 
     mut callee := Expr.new(NodeType.Ident("free".clone()), src.line, src.col)
     call.add_child(own callee)
@@ -4182,14 +4182,14 @@ make_free_call := func(var_name: Str, shallow type: TilType, src: Expr) returns 
 make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: Expr) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.til_type = type
-    if type.is(TilType.Struct).and(til_type_name(type).len().eq(0)) {
-        call.til_type = TilType.Struct(type_name.clone())
-    } else if type.is(TilType.Enum).and(til_type_name(type).len().eq(0)) {
-        call.til_type = TilType.Enum(type_name.clone())
+    if type.is(Type.Struct).and(til_type_name(type).len().eq(0)) {
+        call.til_type = Type.Struct(type_name.clone())
+    } else if type.is(Type.Enum).and(til_type_name(type).len().eq(0)) {
+        call.til_type = Type.Enum(type_name.clone())
     }
 
     mut type_id := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col)
-    type_id.til_type = TilType.Custom(type_name.clone())
+    type_id.til_type = Type.Custom(type_name.clone())
 
     mut fa := Expr.new(NodeType.FieldAccess("clone"), src.line, src.col)
     fa.add_child(own type_id)
@@ -4202,7 +4202,7 @@ make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: E
 // Wrap `arg` with `T.to_str(arg)`, used to auto-coerce non-Str args
 // passed to a `..Str` variadic param so `print(1+1)` etc. work.
 make_to_str_call := func(type_name: Str, arg: Expr) returns Expr {
-    mut call := make_ns_call(type_name, "to_str", TilType.Struct("Str".clone()), arg)
+    mut call := make_ns_call(type_name, "to_str", Type.Struct("Str".clone()), arg)
     call.add_child(own arg.clone())
     return call
 }
@@ -4212,7 +4212,7 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, src: Ex
     call.til_type = ret_type
 
     mut type_id := Expr.new(NodeType.Ident(sname.clone()), src.line, src.col)
-    type_id.til_type = TilType.Custom(sname.clone())
+    type_id.til_type = Type.Custom(sname.clone())
 
     mut fa := Expr.new(NodeType.FieldAccess(method.clone()), src.line, src.col)
     fa.add_child(own type_id)
@@ -4221,7 +4221,7 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, src: Ex
 }
 
 build_kwargs_dynmap_decl := func(fcall: Expr, kw_name: Str) returns Expr {
-    mut new_call := make_ns_call("DynMap", "new", TilType.Struct("DynMap".clone()), fcall)
+    mut new_call := make_ns_call("DynMap", "new", Type.Struct("DynMap".clone()), fcall)
     mut kw_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
     switch kw_decl.node_type {
     case NodeType.Decl(dd):
@@ -4229,7 +4229,7 @@ build_kwargs_dynmap_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     case:
         UNREACHABLE(__LOC__)
     }
-    kw_decl.til_type = TilType.Struct("DynMap".clone())
+    kw_decl.til_type = Type.Struct("DynMap".clone())
     kw_decl.add_child(own new_call)
     return kw_decl
 }
@@ -4243,20 +4243,20 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
         UNREACHABLE(__LOC__)
     }
     ref val : Expr = named_arg.child(0)
-    mut set_call := make_ns_call("DynMap", "set", TilType.None, fcall)
+    mut set_call := make_ns_call("DynMap", "set", Type.None, fcall)
 
     mut self_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col)
-    self_id.til_type = TilType.Struct("DynMap".clone())
+    self_id.til_type = Type.Struct("DynMap".clone())
     set_call.add_child(own self_id)
 
     mut key_lit := Expr.new(NodeType.LiteralStr(key_name.clone()), fcall.line, fcall.col)
-    key_lit.til_type = TilType.Struct("Str".clone())
+    key_lit.til_type = Type.Struct("Str".clone())
     set_own_arg(set_call, set_call.children.len())
     set_call.add_child(own key_lit)
 
     tname := type_to_name(val.til_type)
     mut type_lit := Expr.new(NodeType.LiteralStr(tname.clone()), fcall.line, fcall.col)
-    type_lit.til_type = TilType.Struct("Str".clone())
+    type_lit.til_type = Type.Struct("Str".clone())
     set_own_arg(set_call, set_call.children.len())
     set_call.add_child(own type_lit)
 
@@ -4275,7 +4275,7 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
 }
 
 build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, shallow vc: U32) returns Expr {
-    mut new_call := make_ns_call("Array", "new", TilType.Struct("Array".clone()), fcall)
+    mut new_call := make_ns_call("Array", "new", Type.Struct("Array".clone()), fcall)
 
     mut et := make_til_type_expr(fcall, type_from_name(elem_type, scope))
     new_call.add_child(own et)
@@ -4293,16 +4293,16 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
     case:
         UNREACHABLE(__LOC__)
     }
-    va_decl.til_type = TilType.Struct("Array".clone())
+    va_decl.til_type = Type.Struct("Array".clone())
     va_decl.add_child(own new_call)
     return va_decl
 }
 
 build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr {
-    mut set_call := make_ns_call("Array", "set", TilType.None, fcall)
+    mut set_call := make_ns_call("Array", "set", Type.None, fcall)
 
     mut self_id := Expr.new(NodeType.Ident(va_name.clone()), fcall.line, fcall.col)
-    self_id.til_type = TilType.Struct("Array".clone())
+    self_id.til_type = Type.Struct("Array".clone())
     set_call.add_child(own self_id)
 
     idx_str := j.to_str()
@@ -4324,7 +4324,7 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
 }
 
 build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str) returns Expr {
-    mut new_call := make_ns_call("Vec", "new", TilType.Struct("Vec".clone()), fcall)
+    mut new_call := make_ns_call("Vec", "new", Type.Struct("Vec".clone()), fcall)
 
     mut et := make_til_type_expr(fcall, type_from_name(elem_type, scope))
     new_call.add_child(own et)
@@ -4338,16 +4338,16 @@ build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, ve
     case:
         UNREACHABLE(__LOC__)
     }
-    vec_decl.til_type = TilType.Struct("Vec".clone())
+    vec_decl.til_type = Type.Struct("Vec".clone())
     vec_decl.add_child(own new_call)
     return vec_decl
 }
 
 build_builtin_vec_push := func(fcall: Expr, vec_name: Str, shallow j: U32) returns Expr {
-    mut push_call := make_ns_call("Vec", "push", TilType.None, fcall)
+    mut push_call := make_ns_call("Vec", "push", Type.None, fcall)
 
     mut self_id := Expr.new(NodeType.Ident(vec_name.clone()), fcall.line, fcall.col)
-    self_id.til_type = TilType.Struct("Vec".clone())
+    self_id.til_type = Type.Struct("Vec".clone())
     push_call.add_child(own self_id)
 
     ref val_in : Expr = fcall.child(j.add(2))
@@ -4385,26 +4385,26 @@ desugar_array_vec_fcall := func(mut fcall: Expr, mut new_ch: Vec, mut scope: Typ
                 vec_name := "_vec_".concat(coll_counter.to_str())
                 coll_counter++
                 mut vec_decl := build_builtin_vec_decl(fcall, scope, elem_type, vec_name)
-                scope.set(vec_name, TilType.Struct("Vec".clone()), FuncType.None, true, typer_path, fcall.line, fcall.col, false, OwnType.Own)
+                scope.set(vec_name, Type.Struct("Vec".clone()), FuncType.None, true, typer_path, fcall.line, fcall.col, false, OwnType.Own)
                 new_ch.push(own vec_decl)
                 for j in 0..count {
                     mut push_call := build_builtin_vec_push(fcall, vec_name, j)
                     new_ch.push(own push_call)
                 }
-                rewrite_collection_fcall_to_ident(fcall, vec_name, TilType.Struct("Vec".clone()))
+                rewrite_collection_fcall_to_ident(fcall, vec_name, Type.Struct("Vec".clone()))
                 return true
             }
             if cn.eq("array") {
                 arr_name := "_array_".concat(coll_counter.to_str())
                 coll_counter++
                 mut arr_decl := build_variadic_array_decl(fcall, scope, elem_type, arr_name, count)
-                scope.set(arr_name, TilType.Struct("Array".clone()), FuncType.None, false, typer_path, fcall.line, fcall.col, false, OwnType.Own)
+                scope.set(arr_name, Type.Struct("Array".clone()), FuncType.None, false, typer_path, fcall.line, fcall.col, false, OwnType.Own)
                 new_ch.push(own arr_decl)
                 for j in 0..count {
                     mut setter := build_variadic_array_set(fcall, scope, arr_name, 2.to_i32(), j)
                     new_ch.push(own setter)
                 }
-                rewrite_collection_fcall_to_ident(fcall, arr_name, TilType.Struct("Array".clone()))
+                rewrite_collection_fcall_to_ident(fcall, arr_name, Type.Struct("Array".clone()))
                 return true
             }
         case:
@@ -4438,13 +4438,13 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
             ref elem_type : Str = get_payload(rhs.child(1).node_type)
             count : U32 = rhs.children.len().sub(2)
             mut vec_decl := build_builtin_vec_decl(rhs, scope, elem_type, var_name)
-            vec_decl.til_type = TilType.Struct("Vec".clone())
+            vec_decl.til_type = Type.Struct("Vec".clone())
             switch vec_decl.node_type {
             case NodeType.Decl(dd):
                 dd.is_mut = true
             case:
             }
-            scope.set(var_name, TilType.Struct("Vec".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(var_name, Type.Struct("Vec".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             new_ch.push(own vec_decl)
             for j in 0..count {
                 mut push_call := build_builtin_vec_push(rhs, var_name, j)
@@ -4457,8 +4457,8 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
             ref elem_type : Str = get_payload(rhs.child(1).node_type)
             count : U32 = rhs.children.len().sub(2)
             mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count)
-            arr_decl.til_type = TilType.Struct("Array".clone())
-            scope.set(var_name, TilType.Struct("Array".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            arr_decl.til_type = Type.Struct("Array".clone())
+            scope.set(var_name, Type.Struct("Array".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
             new_ch.push(own arr_decl)
             for j in 0..count {
                 mut setter := build_variadic_array_set(rhs, scope, var_name, 2.to_i32(), j)
@@ -4508,7 +4508,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         }
     }
 
-    mut new_call := make_ns_call("Set", "new", TilType.Struct("Set".clone()), set_lit)
+    mut new_call := make_ns_call("Set", "new", Type.Struct("Set".clone()), set_lit)
     mut et := make_til_type_expr(set_lit, first.til_type)
     new_call.add_child(own et)
 
@@ -4520,17 +4520,17 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     case:
         UNREACHABLE(__LOC__)
     }
-    decl.til_type = TilType.Struct("Set".clone())
+    decl.til_type = Type.Struct("Set".clone())
     decl.add_child(own new_call)
 
-    scope.set(var_name, TilType.Struct("Set".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set(var_name, Type.Struct("Set".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
 
     new_ch.push(own decl)
 
     for e_j : Expr in set_lit.children {
-        mut add_call := make_ns_call("Set", "add", TilType.None, set_lit)
+        mut add_call := make_ns_call("Set", "add", Type.None, set_lit)
         mut self_id := Expr.new(NodeType.Ident(var_name.clone()), set_lit.line, set_lit.col)
-        self_id.til_type = TilType.Struct("Set".clone())
+        self_id.til_type = Type.Struct("Set".clone())
         add_call.add_child(own self_id)
         mut val := e_j.clone()
         set_own_arg(add_call, add_call.children.len())
@@ -4597,7 +4597,7 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         }
     }
 
-    mut new_call := make_ns_call("Map", "new", TilType.Struct("Map".clone()), map_lit)
+    mut new_call := make_ns_call("Map", "new", Type.Struct("Map".clone()), map_lit)
     mut kt := make_til_type_expr(map_lit, first_key.til_type)
     new_call.add_child(own kt)
     mut vt := make_til_type_expr(map_lit, first_val.til_type)
@@ -4611,17 +4611,17 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     case:
         UNREACHABLE(__LOC__)
     }
-    decl.til_type = TilType.Struct("Map".clone())
+    decl.til_type = Type.Struct("Map".clone())
     decl.add_child(own new_call)
 
-    scope.set(var_name, TilType.Struct("Map".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set(var_name, Type.Struct("Map".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
 
     new_ch.push(own decl)
 
     for j in 0..n_pairs {
-        mut set_call := make_ns_call("Map", "set", TilType.None, map_lit)
+        mut set_call := make_ns_call("Map", "set", Type.None, map_lit)
         mut self_id := Expr.new(NodeType.Ident(var_name.clone()), map_lit.line, map_lit.col)
-        self_id.til_type = TilType.Struct("Map".clone())
+        self_id.til_type = Type.Struct("Map".clone())
         set_call.add_child(own self_id)
         mut key := map_lit.child(j.mul(2)).clone()
         set_own_arg(set_call, set_call.children.len())
