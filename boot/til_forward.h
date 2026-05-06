@@ -6,26 +6,26 @@ typedef struct Str Str;
 typedef struct Dynamic Dynamic;
 typedef struct Map Map;
 typedef enum {
-    TilType_TAG_Unknown,
-    TilType_TAG_None,
-    TilType_TAG_I64,
-    TilType_TAG_U8,
-    TilType_TAG_I16,
-    TilType_TAG_I32,
-    TilType_TAG_U32,
-    TilType_TAG_U64,
-    TilType_TAG_F32,
-    TilType_TAG_Bool,
-    TilType_TAG_Struct,
-    TilType_TAG_StructDef,
-    TilType_TAG_Enum,
-    TilType_TAG_EnumDef,
-    TilType_TAG_FuncDef,
-    TilType_TAG_FuncPtr,
-    TilType_TAG_Dynamic,
-    TilType_TAG_Custom
-} TilType_tag;
-typedef struct TilType TilType;
+    Type_TAG_Unknown,
+    Type_TAG_None,
+    Type_TAG_I64,
+    Type_TAG_U8,
+    Type_TAG_I16,
+    Type_TAG_I32,
+    Type_TAG_U32,
+    Type_TAG_U64,
+    Type_TAG_F32,
+    Type_TAG_Bool,
+    Type_TAG_Struct,
+    Type_TAG_StructDef,
+    Type_TAG_Enum,
+    Type_TAG_EnumDef,
+    Type_TAG_FuncDef,
+    Type_TAG_FuncPtr,
+    Type_TAG_Dynamic,
+    Type_TAG_Custom
+} Type_tag;
+typedef struct Type Type;
 typedef enum {
     FuncType_TAG_None,
     FuncType_TAG_Func,
@@ -252,8 +252,8 @@ typedef struct Dynamic {
 
 
 
-struct TilType {
-    TilType_tag tag;
+struct Type {
+    Type_tag tag;
     union {
         Str Struct;
         Str Enum;
@@ -277,7 +277,7 @@ typedef struct Declaration {
     Bool is_priv;
     Bool used;
     OwnType own_type;
-    TilType til_type;
+    Type til_type;
     I32 field_offset;
     I32 field_size;
     Expr *field_struct_def;
@@ -349,7 +349,7 @@ typedef struct Token {
 
 typedef struct TypeBinding {
     Str name;
-    TilType type;
+    Type type;
     FuncType func_type;
     Bool is_mut;
     Bool is_priv;
@@ -397,7 +397,7 @@ struct Target {
 
 typedef struct LocalInfo {
     Str *name;
-    TilType type;
+    Type type;
     I32 decl_index;
     I32 last_use;
     I32 own_transfer;
@@ -609,7 +609,7 @@ struct NodeType {
 
 typedef struct Expr {
     NodeType node_type;
-    TilType til_type;
+    Type til_type;
     Vec children;
     U32 line;
     U32 col;
@@ -768,7 +768,7 @@ Bool U8_neq(U8 * a, U8 * b);
 Bool U8_lte(U8 * a, U8 * b);
 Bool U8_gte(U8 * a, U8 * b);
 Vec * Vec_new_type_name(Str * elem_type);
-Vec * Vec_new(TilType * T);
+Vec * Vec_new(Type * T);
 U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void Vec_append(Vec * self, Vec * other);
@@ -860,7 +860,7 @@ Bool Bool_neq(Bool * a, Bool * b);
 Bool Bool_lte(Bool * a, Bool * b);
 Bool Bool_gte(Bool * a, Bool * b);
 Map * Map_new_type_names(Str * key_type, Str * val_type);
-Map * Map_new(TilType * K, TilType * V);
+Map * Map_new(Type * K, Type * V);
 U32 * Map_len(Map * self);
 void * Map_key_ptr(Map * self, U32 * i);
 void * Map_val_ptr(Map * self, U32 * i);
@@ -870,14 +870,14 @@ void Map_set(Map * self, void * key, void * val);
 void Map_delete(Map * self, Bool * call_free);
 Map * Map_clone(Map * self);
 U32 Map_size(void);
-Bool TilType_eq(TilType * a, TilType * b);
-Bool TilType_is(TilType * self, TilType * other);
-void TilType_delete(TilType * self, Bool * call_free);
-Str * TilType_to_str(TilType * self);
-TilType * TilType_clone(TilType * self);
-U32 TilType_size(void);
-Str * til_type_name_c(TilType * t);
-Str * til_type_name(TilType * t);
+Bool Type_eq(Type * a, Type * b);
+Bool Type_is(Type * self, Type * other);
+void Type_delete(Type * self, Bool * call_free);
+Str * Type_to_str(Type * self);
+Type * Type_clone(Type * self);
+U32 Type_size(void);
+Str * til_type_name_c(Type * t);
+Str * til_type_name(Type * t);
 Bool FuncType_is(FuncType * self, FuncType * other);
 Bool FuncType_eq(FuncType * self, FuncType * other);
 void FuncType_delete(FuncType * self, Bool * call_free);
@@ -959,7 +959,7 @@ Bool enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
 Array * Array_new_type_name(Str * elem_type, U32 * cap);
-Array * Array_new(TilType * T, U32 * cap);
+Array * Array_new(Type * T, U32 * cap);
 U32 * Array_len(Array * self);
 void * Array_get(Array * self, U32 * i);
 void Array_set(Array * self, U32 * i, void * val);
@@ -978,7 +978,7 @@ File * File_clone(File * self);
 void File_delete(File * self, Bool * call_free);
 U32 File_size(void);
 void swap(void * a, void * b, U64 size);
-Set * Set_new(TilType * T);
+Set * Set_new(Type * T);
 U32 * Set_len(Set * self);
 Bool Set_has(Set * self, void * val);
 void Set_add(Set * self, void * val);
@@ -1014,7 +1014,7 @@ Token * expect_token(Parser * p, TokenType * type);
 Str * expect_text(Parser * p, TokenType * type);
 U32 peek_line(Parser * p);
 U32 peek_col(Parser * p);
-TilType * til_type_from_explicit_type(Str * name);
+Type * til_type_from_explicit_type(Str * name);
 Str * parse_fn_signature(Parser * p, U32 line, U32 col);
 Expr * maybe_lift_lambda(Parser * p, Expr * e);
 Expr * parse_block(Parser * p);
@@ -1051,11 +1051,11 @@ ScopeFind * ScopeFind_clone(ScopeFind * self);
 U32 ScopeFind_size(void);
 TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
-TilType * TypeScope_get_type(TypeScope * self, Str * name);
+Type * TypeScope_get_type(TypeScope * self, Str * name);
 FuncType TypeScope_get_func_type(TypeScope * self, Str * name);
 Expr * TypeScope_get_struct(TypeScope * self, Str * name);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
-void TypeScope_set(TypeScope * self, Str * name, TilType * type, FuncType func_type, Bool is_mut, Str * path, U32 line, U32 col, Bool is_param, OwnType own_type);
+void TypeScope_set(TypeScope * self, Str * name, Type * type, FuncType func_type, Bool is_mut, Str * path, U32 line, U32 col, Bool is_param, OwnType own_type);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U32 TypeScope_size(void);
@@ -1066,8 +1066,8 @@ Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool * call_free);
 U32 Context_size(void);
 I32 align_up(I32 offset, I32 align);
-TilType * type_from_name_init(Str * name, TypeScope * scope);
-TilType * init_type_from_explicit_type(Str * name, TypeScope * scope);
+Type * type_from_name_init(Str * name, TypeScope * scope);
+Type * init_type_from_explicit_type(Str * name, TypeScope * scope);
 I32 register_struct_def_for_stmt(Expr * stmt, TypeScope * scope);
 void gen_struct_clone_delete_for_stmt(Expr * stmt, TypeScope * scope);
 I32 register_enum_definition(Expr * stmt, TypeScope * scope);
@@ -1093,7 +1093,7 @@ void compute_struct_layout(Expr * struct_def, TypeScope * scope);
 void type_size_align(Str * ftype, TypeScope * scope, I32 * sz, I32 * al);
 I32 compute_enum_layout(Expr * enum_def, TypeScope * scope);
 void resolve_field_struct_defs(Expr * program, TypeScope * scope);
-Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_type);
+Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, Type * out_type);
 I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 init_declarations_global(Expr * program, TypeScope * scope);
 U32 count_ast_imports(Expr * body);
@@ -1139,8 +1139,8 @@ Target * detect_current_target(void);
 Bool fa_is_ns(Expr * e, TypeScope * scope);
 Bool type_binding_is_type_token(TypeBinding * b);
 Str * typer_compiler_type_name(TypeScope * scope);
-Expr * make_til_type_expr(TypeScope * scope, Expr * src, TilType * t);
-void rewrite_til_type_arg(TypeScope * scope, Expr * arg, TilType * ptype, I32 in_func, Context * ctx);
+Expr * make_til_type_expr(TypeScope * scope, Expr * src, Type * t);
+void rewrite_til_type_arg(TypeScope * scope, Expr * arg, Type * ptype, I32 in_func, Context * ctx);
 OwnType fa_own_type(Expr * e, TypeScope * scope);
 LocalInfo * LocalInfo_clone(LocalInfo * self);
 void LocalInfo_delete(LocalInfo * self, Bool * call_free);
@@ -1169,7 +1169,7 @@ Bool infer_func_ptr_field_call(TypeScope * scope, Expr * e, Expr * fa, Expr * ob
 void validate_fcall_own_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind);
 Bool infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
 void desugar_user_func_fcall_args(Expr * e, Str * name, TypeBinding * callee_bind);
-void validate_fcall_arg(Expr * arg, TilType * ptype, Str * ptype_name, Str * param_name);
+void validate_fcall_arg(Expr * arg, Type * ptype, Str * ptype_name, Str * param_name);
 void infer_and_validate_fcall_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind, I32 in_func, Context * ctx);
 void resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, I32 in_func, Context * ctx);
 Str * obj_method_type_name(Expr * obj);
@@ -1198,8 +1198,8 @@ void infer_while_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_r
 Bool infer_decl_type_def(TypeScope * scope, Expr * stmt);
 Bool infer_decl_func_def(TypeScope * scope, Expr * stmt);
 Bool infer_decl_type_alias_passthrough(TypeScope * scope, Expr * stmt);
-TilType * declared_type_for_decl(TypeScope * scope, Expr * stmt);
-void pre_coerce_decl_numeric_literals(Expr * expr, TilType * target);
+Type * declared_type_for_decl(TypeScope * scope, Expr * stmt);
+void pre_coerce_decl_numeric_literals(Expr * expr, Type * target);
 void infer_decl_typed_value(TypeScope * scope, Expr * stmt);
 void infer_decl_untyped_value(Expr * stmt);
 void finalize_decl_binding(TypeScope * scope, Expr * stmt, I32 in_type_body);
@@ -1228,18 +1228,18 @@ I32 type_check_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx
 I32 type_file(Str * path, Context * ctx);
 void infer_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 Bool assign_target_is_func_local(TypeScope * scope, Str * name);
-Bool is_numeric_type(TilType * t);
-Bool is_integral_numeric_type(TilType * t);
-Bool type_ctor_consumes(TilType * t);
+Bool is_numeric_type(Type * t);
+Bool is_integral_numeric_type(Type * t);
+Bool type_ctor_consumes(Type * t);
 Bool is_usize_name(Str * name);
 Bool is_uptr_name(Str * name);
-Bool can_implicit_usize_coerce(TilType * from, TilType * to, Str * to_name);
-Bool literal_in_range(Str * val_str, TilType * target);
-Bool can_implicit_widen(TilType * from, TilType * to);
-TilType * type_from_name(Str * name, TypeScope * scope);
+Bool can_implicit_usize_coerce(Type * from, Type * to, Str * to_name);
+Bool literal_in_range(Str * val_str, Type * target);
+Bool can_implicit_widen(Type * from, Type * to);
+Type * type_from_name(Str * name, TypeScope * scope);
 Str * resolve_type_alias(TypeScope * scope, Str * name);
 Str * usize_name(TypeScope * scope);
-TilType * usize_type(TypeScope * scope);
+Type * usize_type(TypeScope * scope);
 Bool type_has_cmp(TypeScope * scope, Str * type_name);
 Bool type_has_to_str(TypeScope * scope, Str * type_name);
 Bool expr_contains_fcall(Expr * e);
@@ -1249,22 +1249,22 @@ Bool expr_used_in_nested_func(Expr * e, Str * name);
 Expr * find_variadic_fcall(Expr * e);
 Expr * find_kwargs_fcall(Expr * e);
 Expr * find_array_vec_fcall(Expr * e);
-Str * type_prefix(TilType * t);
-Str * type_to_name(TilType * t);
+Str * type_prefix(Type * t);
+Str * type_to_name(Type * t);
 Expr * make_field_delete(Expr * field_assign, OwnType field_own_type);
-Expr * make_delete_call(Str * var_name, TilType type, Bool arg_is_own, Bool call_free, Expr * src);
+Expr * make_delete_call(Str * var_name, Type type, Bool arg_is_own, Bool call_free, Expr * src);
 Bool transfer_is_shallow_field_value_copy(Expr * e, Str * var_name, TypeScope * scope);
-Expr * make_free_call(Str * var_name, TilType type, Expr * src);
-Expr * make_clone_call(Str * type_name, TilType type, Expr * arg, Expr * src);
+Expr * make_free_call(Str * var_name, Type type, Expr * src);
+Expr * make_clone_call(Str * type_name, Type type, Expr * arg, Expr * src);
 Expr * make_to_str_call(Str * type_name, Expr * arg);
-Expr * make_ns_call(Str * sname, Str * method, TilType ret_type, Expr * src);
+Expr * make_ns_call(Str * sname, Str * method, Type ret_type, Expr * src);
 Expr * build_kwargs_dynmap_decl(Expr * fcall, Str * kw_name);
 Expr * build_kwargs_dynmap_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg);
 Expr * build_variadic_array_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, U32 vc);
 Expr * build_variadic_array_set(Expr * fcall, TypeScope * scope, Str * va_name, I32 vi, U32 j);
 Expr * build_builtin_vec_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * vec_name);
 Expr * build_builtin_vec_push(Expr * fcall, Str * vec_name, U32 j);
-void rewrite_collection_fcall_to_ident(Expr * fcall, Str * coll_name, TilType * coll_type);
+void rewrite_collection_fcall_to_ident(Expr * fcall, Str * coll_name, Type * coll_type);
 Bool desugar_array_vec_fcall(Expr * fcall, Vec * new_ch, TypeScope * scope);
 Bool desugar_array_vec_decl(Expr * stmt, Vec * new_ch, TypeScope * scope);
 Bool desugar_set_literal_decl(Expr * stmt, Vec * new_ch, TypeScope * scope);
@@ -1303,7 +1303,7 @@ void insert_assign_delete(Expr * stmt, Vec * locals, Vec * new_ch);
 void promote_own_transferred_locals(Expr * body, Vec * locals);
 void insert_free_calls(Expr * body, TypeScope * scope, I32 scope_exit);
 void infer_literal_expr(Expr * expr);
-void narrow_dynamic(Expr * expr, TilType * target);
+void narrow_dynamic(Expr * expr, Type * target);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
 Expr * hoist_to_temp(Expr * val, Vec * hoisted, TypeScope * scope, Bool is_own);
 Bool precomp_has_macro(Str * name);
@@ -1365,7 +1365,7 @@ void extract_link_info(LoadedProgram * lp);
 LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path);
 Str * escape_doc_for_literal_str(Str * raw);
 Str * func_kind(FuncType * ft);
-Str * til_type_user(TilType * t);
+Str * til_type_user(Type * t);
 void append_packed_entry(Str * packed, Str * name, Str * value);
 void append_qualifier_prefix(Str * out, Declaration * d, OwnType * default_own);
 void append_fn_signature(Str * out, FunctionDef * fd);
@@ -1426,17 +1426,17 @@ Bool callee_param_is_uptr(Str * callee_name, U32 arg_index);
 Bool callee_param_is_own(Str * callee_name, U32 arg_index);
 Bool fcall_is_shallow_return(Expr * fcall);
 Bool fcall_returns_dynamic(Expr * fcall);
-Str * til_type_to_c(TilType t);
-Str * extern_decl_ctype(TilType t, TilType rhs_t);
-Str * resolve_decl_ctype(TilType t, TilType rhs_t, Str * explicit);
-Str * c_type_name(TilType t, Str * struct_name);
+Str * til_type_to_c(Type t);
+Str * extern_decl_ctype(Type t, Type rhs_t);
+Str * resolve_decl_ctype(Type t, Type rhs_t, Str * explicit);
+Str * c_type_name(Type t, Str * struct_name);
 Str * func_to_c(Str * name);
 Str * type_name_to_c(Str * name);
 Str * type_name_to_c_value(Str * name);
 void emit_u64(File * f, U64 v);
 void emit_i32(File * f, I32 v);
 void emit_indent(File * f, I32 depth);
-void emit_til_default(File * f, TilType t);
+void emit_til_default(File * f, Type t);
 Str * callee_return_ctype(Str * callee_name);
 Str * param_ctype(FunctionDef * fd, U32 i);
 void emit_param_list(File * f, Expr * fdef, Bool with_names);
@@ -1444,7 +1444,7 @@ void collect_dyn_methods(Expr * e, Vec * methods);
 void collect_collection_builtins(Expr * e, Vec * infos);
 void emit_field(File * f, Str * var, Str * field);
 Str * get_stack_local_ctype(Str * name);
-Str * resolve_ident_ctype(Str * ident, TilType * ttype, Str * sname);
+Str * resolve_ident_ctype(Str * ident, Type * ttype, Str * sname);
 Str * resolve_callee_name(Expr * fcall);
 Str * resolve_callee_name(Expr * fcall);
 Str * callee_return_ctype(Str * callee_name);

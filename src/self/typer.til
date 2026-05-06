@@ -55,7 +55,7 @@ typer_compiler_type_name := func(scope: TypeScope) returns Str {
     return "Type"
 }
 
-make_til_type_expr := func(scope: TypeScope, src: Expr, t: TilType) returns Expr {
+make_til_type_expr := func(scope: TypeScope, src: Expr, t: Type) returns Expr {
     mut type_ident := Expr.new(NodeType.Ident("Type"), src.line, src.col)
     ctn := typer_compiler_type_name(scope)
     type_ident.til_type = Type.Enum(ctn.clone())
@@ -63,24 +63,24 @@ make_til_type_expr := func(scope: TypeScope, src: Expr, t: TilType) returns Expr
     mut payload_name := ""
     mut has_payload := false
     switch t {
-    case TilType.Unknown:   variant_name = "Unknown"
-    case TilType.None:      variant_name = "None"
-    case TilType.I64:       variant_name = "I64"
-    case TilType.U8:        variant_name = "U8"
-    case TilType.I16:       variant_name = "I16"
-    case TilType.I32:       variant_name = "I32"
-    case TilType.U32:       variant_name = "U32"
-    case TilType.U64:       variant_name = "U64"
-    case TilType.F32:       variant_name = "F32"
-    case TilType.Bool:      variant_name = "Bool"
-    case TilType.Struct(s): variant_name = "Struct"; payload_name = s.clone(); has_payload = true
-    case TilType.StructDef: variant_name = "StructDef"
-    case TilType.Enum(s):   variant_name = "Enum"; payload_name = s.clone(); has_payload = true
-    case TilType.EnumDef:   variant_name = "EnumDef"
-    case TilType.FuncDef:   variant_name = "FuncDef"
-    case TilType.FuncPtr:   variant_name = "FuncPtr"
-    case TilType.Dynamic:   variant_name = "Dynamic"
-    case TilType.Custom(s): variant_name = "Custom"; payload_name = s.clone(); has_payload = true
+    case Type.Unknown:   variant_name = "Unknown"
+    case Type.None:      variant_name = "None"
+    case Type.I64:       variant_name = "I64"
+    case Type.U8:        variant_name = "U8"
+    case Type.I16:       variant_name = "I16"
+    case Type.I32:       variant_name = "I32"
+    case Type.U32:       variant_name = "U32"
+    case Type.U64:       variant_name = "U64"
+    case Type.F32:       variant_name = "F32"
+    case Type.Bool:      variant_name = "Bool"
+    case Type.Struct(s): variant_name = "Struct"; payload_name = s.clone(); has_payload = true
+    case Type.StructDef: variant_name = "StructDef"
+    case Type.Enum(s):   variant_name = "Enum"; payload_name = s.clone(); has_payload = true
+    case Type.EnumDef:   variant_name = "EnumDef"
+    case Type.FuncDef:   variant_name = "FuncDef"
+    case Type.FuncPtr:   variant_name = "FuncPtr"
+    case Type.Dynamic:   variant_name = "Dynamic"
+    case Type.Custom(s): variant_name = "Custom"; payload_name = s.clone(); has_payload = true
     }
     mut fa := Expr.new(NodeType.FieldAccess(variant_name), src.line, src.col)
     fa.add_child(own type_ident)
@@ -98,7 +98,7 @@ make_til_type_expr := func(scope: TypeScope, src: Expr, t: TilType) returns Expr
     return call
 }
 
-rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: TilType, shallow in_func: I32, ctx: Context) {
+rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, shallow in_func: I32, ctx: Context) {
     ctn := typer_compiler_type_name(scope)
     if ptype.is(Type.Enum(ctn.clone())).not() { return }
     if arg.node_type.is(NodeType.Ident).not() { return }
@@ -862,7 +862,7 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
 // numeric literals to fit the param type, applies implicit widen /
 // usize-coerce, and emits a type_error on mismatch. Skips Dynamic-typed
 // args (the caller has already decided this arg is not constrained).
-validate_fcall_arg := proc(mut arg: Expr, ptype: TilType, ptype_name: Str, param_name: Str) {
+validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str) {
     if arg.til_type.is(Type.Dynamic) { return }
     if arg.til_type.is(Type.Unknown) { return }
     switch arg.node_type {
@@ -3681,7 +3681,7 @@ assign_target_is_func_local := func(mut scope: TypeScope, name: Str) returns sha
     return false
 }
 
-is_numeric_type := func(t: TilType) returns shallow Bool {
+is_numeric_type := func(t: Type) returns shallow Bool {
     switch t {
     case Type.I64: return true
     case Type.U8:  return true
@@ -3694,7 +3694,7 @@ is_numeric_type := func(t: TilType) returns shallow Bool {
     }
 }
 
-is_integral_numeric_type := func(t: TilType) returns shallow Bool {
+is_integral_numeric_type := func(t: Type) returns shallow Bool {
     switch t {
     case Type.I64: return true
     case Type.U8:  return true
@@ -3706,7 +3706,7 @@ is_integral_numeric_type := func(t: TilType) returns shallow Bool {
     }
 }
 
-type_ctor_consumes := func(t: TilType) returns shallow Bool {
+type_ctor_consumes := func(t: Type) returns shallow Bool {
     switch t {
     case Type.Struct: return true
     case Type.Enum: return true
@@ -3724,7 +3724,7 @@ is_uptr_name := func(name: Str) returns shallow Bool {
     return name.eq("UPtr")
 }
 
-can_implicit_usize_coerce := func(from: TilType, to: TilType, to_name: Str) returns shallow Bool {
+can_implicit_usize_coerce := func(from: Type, to: Type, to_name: Str) returns shallow Bool {
     if is_usize_name(to_name) {
         switch to {
         case Type.U32:
@@ -3744,7 +3744,7 @@ can_implicit_usize_coerce := func(from: TilType, to: TilType, to_name: Str) retu
     return false
 }
 
-literal_in_range := func(val_str: Str, target: TilType) returns shallow Bool {
+literal_in_range := func(val_str: Str, target: Type) returns shallow Bool {
     switch target {
     case Type.I64: return true
     case Type.F32: return true
@@ -3767,7 +3767,7 @@ literal_in_range := func(val_str: Str, target: TilType) returns shallow Bool {
     }
 }
 
-can_implicit_widen := func(from: TilType, to: TilType) returns shallow Bool {
+can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
     if from.eq(to) { return false }
     switch from {
     case Type.U8:
@@ -3800,7 +3800,7 @@ can_implicit_widen := func(from: TilType, to: TilType) returns shallow Bool {
     }
 }
 
-type_from_name := func(name: Str, scope: TypeScope) returns TilType {
+type_from_name := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("I64")  { return Type.I64 }
     if name.eq("U8")   { return Type.U8 }
     if name.eq("I16")  { return Type.I16 }
@@ -3865,7 +3865,7 @@ usize_name := func(scope: TypeScope) returns Str {
     return "U64"
 }
 
-usize_type := func(scope: TypeScope) returns TilType {
+usize_type := func(scope: TypeScope) returns Type {
     return type_from_name(usize_name(scope), scope)
 }
 
@@ -4012,7 +4012,7 @@ find_array_vec_fcall := func(e: Expr) returns ref Expr {
     return NULL
 }
 
-type_prefix := func(t: TilType) returns Str {
+type_prefix := func(t: Type) returns Str {
     switch t {
     case Type.I64: return "I64"
     case Type.U8: return "U8"
@@ -4040,7 +4040,7 @@ type_prefix := func(t: TilType) returns Str {
     }
 }
 
-type_to_name := func(t: TilType) returns Str {
+type_to_name := func(t: Type) returns Str {
     name := til_type_name(t)
     if name.len().gt(0) { return name }
     switch t {
@@ -4090,7 +4090,7 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     return call
 }
 
-make_delete_call := func(var_name: Str, shallow type: TilType, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
+make_delete_call := func(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
     tname := type_to_name(type)
     if tname.len().eq(0) { return NULL }
 
@@ -4175,7 +4175,7 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
 // `free(own var_name)`: release just the heap wrapper without invoking the
 // type's destructor. Used after value-copy ownership transfer to a Shallow
 // struct field, where the field's own destructor will free the inner data.
-make_free_call := func(var_name: Str, shallow type: TilType, src: Expr) returns Expr {
+make_free_call := func(var_name: Str, shallow type: Type, src: Expr) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.til_type = Type.None
 
@@ -4190,7 +4190,7 @@ make_free_call := func(var_name: Str, shallow type: TilType, src: Expr) returns 
     return call
 }
 
-make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: Expr) returns Expr {
+make_clone_call := func(type_name: Str, shallow type: Type, arg: Expr, src: Expr) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.til_type = type
     if type.is(Type.Struct).and(til_type_name(type).len().eq(0)) {
@@ -4218,7 +4218,7 @@ make_to_str_call := func(type_name: Str, arg: Expr) returns Expr {
     return call
 }
 
-make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, src: Expr) returns Expr {
+make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.til_type = ret_type
 
@@ -4374,7 +4374,7 @@ build_builtin_vec_push := func(fcall: Expr, vec_name: Str, shallow j: U32) retur
     return push_call
 }
 
-rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, coll_type: TilType) {
+rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, coll_type: Type) {
     mut old_args := Vec.new(Expr)
     old_args.move_from(fcall.children)
     fcall.children = Vec.new(Expr)
@@ -5959,7 +5959,7 @@ infer_literal_expr := func(mut expr: Expr) {
     }
 }
 
-narrow_dynamic := func(mut expr: Expr, target: TilType) {
+narrow_dynamic := func(mut expr: Expr, target: Type) {
     if expr.til_type.is(Type.Dynamic).not() { return }
     if target.is(Type.Dynamic) { return }
     if target.is(Type.Unknown) { return }

@@ -10,26 +10,26 @@ typedef struct Vec Vec;
 typedef struct Str Str;
 typedef struct Dynamic Dynamic;
 typedef enum {
-    TilType_TAG_Unknown,
-    TilType_TAG_None,
-    TilType_TAG_I64,
-    TilType_TAG_U8,
-    TilType_TAG_I16,
-    TilType_TAG_I32,
-    TilType_TAG_U32,
-    TilType_TAG_U64,
-    TilType_TAG_F32,
-    TilType_TAG_Bool,
-    TilType_TAG_Struct,
-    TilType_TAG_StructDef,
-    TilType_TAG_Enum,
-    TilType_TAG_EnumDef,
-    TilType_TAG_FuncDef,
-    TilType_TAG_FuncPtr,
-    TilType_TAG_Dynamic,
-    TilType_TAG_Custom
-} TilType_tag;
-typedef struct TilType TilType;
+    Type_TAG_Unknown,
+    Type_TAG_None,
+    Type_TAG_I64,
+    Type_TAG_U8,
+    Type_TAG_I16,
+    Type_TAG_I32,
+    Type_TAG_U32,
+    Type_TAG_U64,
+    Type_TAG_F32,
+    Type_TAG_Bool,
+    Type_TAG_Struct,
+    Type_TAG_StructDef,
+    Type_TAG_Enum,
+    Type_TAG_EnumDef,
+    Type_TAG_FuncDef,
+    Type_TAG_FuncPtr,
+    Type_TAG_Dynamic,
+    Type_TAG_Custom
+} Type_tag;
+typedef struct Type Type;
 typedef struct Array Array;
 
 typedef void * (*CloneFn)(void *);
@@ -55,8 +55,8 @@ typedef struct Dynamic {
 
 
 
-struct TilType {
-    TilType_tag tag;
+struct Type {
+    Type_tag tag;
     union {
         Str Struct;
         Str Enum;
@@ -145,7 +145,7 @@ Bool U8_neq(U8 * a, U8 * b);
 Bool U8_lte(U8 * a, U8 * b);
 Bool U8_gte(U8 * a, U8 * b);
 Vec * Vec_new_type_name(Str * elem_type);
-Vec * Vec_new(TilType * T);
+Vec * Vec_new(Type * T);
 U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void Vec_append(Vec * self, Vec * other);
@@ -234,14 +234,14 @@ Bool Bool_gt(Bool * a, Bool * b);
 Bool Bool_neq(Bool * a, Bool * b);
 Bool Bool_lte(Bool * a, Bool * b);
 Bool Bool_gte(Bool * a, Bool * b);
-Bool TilType_eq(TilType * a, TilType * b);
-Bool TilType_is(TilType * self, TilType * other);
-void TilType_delete(TilType * self, Bool * call_free);
-Str * TilType_to_str(TilType * self);
-TilType * TilType_clone(TilType * self);
-U32 TilType_size(void);
+Bool Type_eq(Type * a, Type * b);
+Bool Type_is(Type * self, Type * other);
+void Type_delete(Type * self, Bool * call_free);
+Str * Type_to_str(Type * self);
+Type * Type_clone(Type * self);
+U32 Type_size(void);
 Array * Array_new_type_name(Str * elem_type, U32 * cap);
-Array * Array_new(TilType * T, U32 * cap);
+Array * Array_new(Type * T, U32 * cap);
 U32 * Array_len(Array * self);
 void * Array_get(Array * self, U32 * i);
 void Array_set(Array * self, U32 * i, void * val);
@@ -325,7 +325,7 @@ Bool U8_neq(U8 * a, U8 * b);
 Bool U8_lte(U8 * a, U8 * b);
 Bool U8_gte(U8 * a, U8 * b);
 Vec * Vec_new_type_name(Str * elem_type);
-Vec * Vec_new(TilType * T);
+Vec * Vec_new(Type * T);
 U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void Vec_append(Vec * self, Vec * other);
@@ -414,14 +414,14 @@ Bool Bool_gt(Bool * a, Bool * b);
 Bool Bool_neq(Bool * a, Bool * b);
 Bool Bool_lte(Bool * a, Bool * b);
 Bool Bool_gte(Bool * a, Bool * b);
-Bool TilType_eq(TilType * a, TilType * b);
-Bool TilType_is(TilType * self, TilType * other);
-void TilType_delete(TilType * self, Bool * call_free);
-Str * TilType_to_str(TilType * self);
-TilType * TilType_clone(TilType * self);
-U32 TilType_size(void);
+Bool Type_eq(Type * a, Type * b);
+Bool Type_is(Type * self, Type * other);
+void Type_delete(Type * self, Bool * call_free);
+Str * Type_to_str(Type * self);
+Type * Type_clone(Type * self);
+U32 Type_size(void);
 Array * Array_new_type_name(Str * elem_type, U32 * cap);
-Array * Array_new(TilType * T, U32 * cap);
+Array * Array_new(Type * T, U32 * cap);
 U32 * Array_len(Array * self);
 void * Array_get(Array * self, U32 * i);
 void Array_set(Array * self, U32 * i, void * val);
@@ -438,29 +438,29 @@ void test_deeply_nested(void);
 Str * poem(I64 * depth, Str * current, Str * s1, Str * s2);
 Str * make_poem(Str * s1, Str * s2);
 void test_lolalalo(void);
-Bool TilType_eq(TilType *, TilType *);
-TilType *TilType_Unknown();
-TilType *TilType_None();
-TilType *TilType_I64();
-TilType *TilType_U8();
-TilType *TilType_I16();
-TilType *TilType_I32();
-TilType *TilType_U32();
-TilType *TilType_U64();
-TilType *TilType_F32();
-TilType *TilType_Bool();
-TilType *TilType_Struct(Str *);
-TilType *TilType_StructDef();
-TilType *TilType_Enum(Str *);
-TilType *TilType_EnumDef();
-TilType *TilType_FuncDef();
-TilType *TilType_FuncPtr();
-TilType *TilType_Dynamic();
-TilType *TilType_Custom(Str *);
+Bool Type_eq(Type *, Type *);
+Type *Type_Unknown();
+Type *Type_None();
+Type *Type_I64();
+Type *Type_U8();
+Type *Type_I16();
+Type *Type_I32();
+Type *Type_U32();
+Type *Type_U64();
+Type *Type_F32();
+Type *Type_Bool();
+Type *Type_Struct(Str *);
+Type *Type_StructDef();
+Type *Type_Enum(Str *);
+Type *Type_EnumDef();
+Type *Type_FuncDef();
+Type *Type_FuncPtr();
+Type *Type_Dynamic();
+Type *Type_Custom(Str *);
 
 void *dyn_fn(Str *type_name, Str *method);
 U32 dyn_size_of(Str *type_name);
-Str *dyn_type_to_str(TilType *type);
+Str *dyn_type_to_str(Type *type);
 
 #define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))
 #define TIL_CAP_LIT ((USize)-1)
@@ -1239,14 +1239,14 @@ Vec * Vec_new_type_name(Str * elem_type) {
     if (_t_Bool_154) {
         Str *_t_Str_142 = Str_lit("Str", 3ULL);
         (void)_t_Str_142;
-        TilType *_t_TilType_143 = TilType_Struct(_t_Str_142);
-        (void)_t_TilType_143;
+        Type *_t_Type_143 = Type_Struct(_t_Str_142);
+        (void)_t_Type_143;
         Str_delete(_t_Str_142, &(Bool){1});
         U32 _t_U32_144 = 1;
         (void)_t_U32_144;
-        Array *_va_Array_0 = Array_new(_t_TilType_143, &_t_U32_144);
+        Array *_va_Array_0 = Array_new(_t_Type_143, &_t_U32_144);
         (void)_va_Array_0;
-        TilType_delete(_t_TilType_143, &(Bool){1});
+        Type_delete(_t_Type_143, &(Bool){1});
         ;
         U32 _t_U32_145 = 0;
         (void)_t_U32_145;
@@ -1320,7 +1320,7 @@ Vec * Vec_new_type_name(Str * elem_type) {
     return _t_Vec_162;
 }
 
-Vec * Vec_new(TilType * T) {
+Vec * Vec_new(Type * T) {
     (void)T;
     Str *elem_type = dyn_type_to_str(T);
     (void)elem_type;
@@ -1395,14 +1395,14 @@ void Vec_append(Vec * self, Vec * other) {
     if (_t_Bool_189) {
         Str *_t_Str_173 = Str_lit("Str", 3ULL);
         (void)_t_Str_173;
-        TilType *_t_TilType_174 = TilType_Struct(_t_Str_173);
-        (void)_t_TilType_174;
+        Type *_t_Type_174 = Type_Struct(_t_Str_173);
+        (void)_t_Type_174;
         Str_delete(_t_Str_173, &(Bool){1});
         U32 _t_U32_175 = 1;
         (void)_t_U32_175;
-        Array *_va_Array_1 = Array_new(_t_TilType_174, &_t_U32_175);
+        Array *_va_Array_1 = Array_new(_t_Type_174, &_t_U32_175);
         (void)_va_Array_1;
-        TilType_delete(_t_TilType_174, &(Bool){1});
+        Type_delete(_t_Type_174, &(Bool){1});
         ;
         U32 _t_U32_176 = 0;
         (void)_t_U32_176;
@@ -1505,14 +1505,14 @@ void Vec_move_from(Vec * self, Vec * other) {
     if (_t_Bool_225) {
         Str *_t_Str_198 = Str_lit("Str", 3ULL);
         (void)_t_Str_198;
-        TilType *_t_TilType_199 = TilType_Struct(_t_Str_198);
-        (void)_t_TilType_199;
+        Type *_t_Type_199 = Type_Struct(_t_Str_198);
+        (void)_t_Type_199;
         Str_delete(_t_Str_198, &(Bool){1});
         U32 _t_U32_200 = 1;
         (void)_t_U32_200;
-        Array *_va_Array_2 = Array_new(_t_TilType_199, &_t_U32_200);
+        Array *_va_Array_2 = Array_new(_t_Type_199, &_t_U32_200);
         (void)_va_Array_2;
-        TilType_delete(_t_TilType_199, &(Bool){1});
+        Type_delete(_t_Type_199, &(Bool){1});
         ;
         U32 _t_U32_201 = 0;
         (void)_t_U32_201;
@@ -1674,14 +1674,14 @@ void * Vec_get(Vec * self, U32 * i) {
     if (_t_Bool_251) {
         Str *_t_Str_237 = Str_lit("Str", 3ULL);
         (void)_t_Str_237;
-        TilType *_t_TilType_238 = TilType_Struct(_t_Str_237);
-        (void)_t_TilType_238;
+        Type *_t_Type_238 = Type_Struct(_t_Str_237);
+        (void)_t_Type_238;
         Str_delete(_t_Str_237, &(Bool){1});
         U32 _t_U32_239 = 5;
         (void)_t_U32_239;
-        Array *_va_Array_3 = Array_new(_t_TilType_238, &_t_U32_239);
+        Array *_va_Array_3 = Array_new(_t_Type_238, &_t_U32_239);
         (void)_va_Array_3;
-        TilType_delete(_t_TilType_238, &(Bool){1});
+        Type_delete(_t_Type_238, &(Bool){1});
         ;
         U32 _t_U32_240 = 0;
         (void)_t_U32_240;
@@ -1737,14 +1737,14 @@ void * Vec_pop(Vec * self) {
     if (_t_Bool_261) {
         Str *_t_Str_254 = Str_lit("Str", 3ULL);
         (void)_t_Str_254;
-        TilType *_t_TilType_255 = TilType_Struct(_t_Str_254);
-        (void)_t_TilType_255;
+        Type *_t_Type_255 = Type_Struct(_t_Str_254);
+        (void)_t_Type_255;
         Str_delete(_t_Str_254, &(Bool){1});
         U32 _t_U32_256 = 1;
         (void)_t_U32_256;
-        Array *_va_Array_4 = Array_new(_t_TilType_255, &_t_U32_256);
+        Array *_va_Array_4 = Array_new(_t_Type_255, &_t_U32_256);
         (void)_va_Array_4;
-        TilType_delete(_t_TilType_255, &(Bool){1});
+        Type_delete(_t_Type_255, &(Bool){1});
         ;
         U32 _t_U32_257 = 0;
         (void)_t_U32_257;
@@ -1787,14 +1787,14 @@ Vec * Vec_take_prefix(Vec * self, U32 * n) {
     if (_t_Bool_285) {
         Str *_t_Str_266 = Str_lit("Str", 3ULL);
         (void)_t_Str_266;
-        TilType *_t_TilType_267 = TilType_Struct(_t_Str_266);
-        (void)_t_TilType_267;
+        Type *_t_Type_267 = Type_Struct(_t_Str_266);
+        (void)_t_Type_267;
         Str_delete(_t_Str_266, &(Bool){1});
         U32 _t_U32_268 = 5;
         (void)_t_U32_268;
-        Array *_va_Array_5 = Array_new(_t_TilType_267, &_t_U32_268);
+        Array *_va_Array_5 = Array_new(_t_Type_267, &_t_U32_268);
         (void)_va_Array_5;
-        TilType_delete(_t_TilType_267, &(Bool){1});
+        Type_delete(_t_Type_267, &(Bool){1});
         ;
         U32 _t_U32_269 = 0;
         (void)_t_U32_269;
@@ -1909,14 +1909,14 @@ void Vec_set(Vec * self, U32 * i, void * val) {
     if (_t_Bool_309) {
         Str *_t_Str_295 = Str_lit("Str", 3ULL);
         (void)_t_Str_295;
-        TilType *_t_TilType_296 = TilType_Struct(_t_Str_295);
-        (void)_t_TilType_296;
+        Type *_t_Type_296 = Type_Struct(_t_Str_295);
+        (void)_t_Type_296;
         Str_delete(_t_Str_295, &(Bool){1});
         U32 _t_U32_297 = 5;
         (void)_t_U32_297;
-        Array *_va_Array_6 = Array_new(_t_TilType_296, &_t_U32_297);
+        Array *_va_Array_6 = Array_new(_t_Type_296, &_t_U32_297);
         (void)_va_Array_6;
-        TilType_delete(_t_TilType_296, &(Bool){1});
+        Type_delete(_t_Type_296, &(Bool){1});
         ;
         U32 _t_U32_298 = 0;
         (void)_t_U32_298;
@@ -1972,14 +1972,14 @@ void Vec_push_take(Vec * self, Vec * src, U32 i) {
     if (_t_Bool_336) {
         Str *_t_Str_312 = Str_lit("Str", 3ULL);
         (void)_t_Str_312;
-        TilType *_t_TilType_313 = TilType_Struct(_t_Str_312);
-        (void)_t_TilType_313;
+        Type *_t_Type_313 = Type_Struct(_t_Str_312);
+        (void)_t_Type_313;
         Str_delete(_t_Str_312, &(Bool){1});
         U32 _t_U32_314 = 5;
         (void)_t_U32_314;
-        Array *_va_Array_7 = Array_new(_t_TilType_313, &_t_U32_314);
+        Array *_va_Array_7 = Array_new(_t_Type_313, &_t_U32_314);
         (void)_va_Array_7;
-        TilType_delete(_t_TilType_313, &(Bool){1});
+        Type_delete(_t_Type_313, &(Bool){1});
         ;
         U32 _t_U32_315 = 0;
         (void)_t_U32_315;
@@ -2034,14 +2034,14 @@ void Vec_push_take(Vec * self, Vec * src, U32 i) {
     if (_t_Bool_341) {
         Str *_t_Str_326 = Str_lit("Str", 3ULL);
         (void)_t_Str_326;
-        TilType *_t_TilType_327 = TilType_Struct(_t_Str_326);
-        (void)_t_TilType_327;
+        Type *_t_Type_327 = Type_Struct(_t_Str_326);
+        (void)_t_Type_327;
         Str_delete(_t_Str_326, &(Bool){1});
         U32 _t_U32_328 = 1;
         (void)_t_U32_328;
-        Array *_va_Array_8 = Array_new(_t_TilType_327, &_t_U32_328);
+        Array *_va_Array_8 = Array_new(_t_Type_327, &_t_U32_328);
         (void)_va_Array_8;
-        TilType_delete(_t_TilType_327, &(Bool){1});
+        Type_delete(_t_Type_327, &(Bool){1});
         ;
         U32 _t_U32_329 = 0;
         (void)_t_U32_329;
@@ -2416,14 +2416,14 @@ U8 * Str_get(Str * self, U32 * i) {
     if (_t_Bool_411) {
         Str *_t_Str_405 = Str_lit("Str", 3ULL);
         (void)_t_Str_405;
-        TilType *_t_TilType_406 = TilType_Struct(_t_Str_405);
-        (void)_t_TilType_406;
+        Type *_t_Type_406 = Type_Struct(_t_Str_405);
+        (void)_t_Type_406;
         Str_delete(_t_Str_405, &(Bool){1});
         U32 _t_U32_407 = 1;
         (void)_t_U32_407;
-        Array *_va_Array_9 = Array_new(_t_TilType_406, &_t_U32_407);
+        Array *_va_Array_9 = Array_new(_t_Type_406, &_t_U32_407);
         (void)_va_Array_9;
-        TilType_delete(_t_TilType_406, &(Bool){1});
+        Type_delete(_t_Type_406, &(Bool){1});
         ;
         U32 _t_U32_408 = 0;
         (void)_t_U32_408;
@@ -2600,14 +2600,14 @@ void Str_push_str(Str * self, Str * s) {
     if (_t_Bool_443) {
         Str *_t_Str_431 = Str_lit("Str", 3ULL);
         (void)_t_Str_431;
-        TilType *_t_TilType_432 = TilType_Struct(_t_Str_431);
-        (void)_t_TilType_432;
+        Type *_t_Type_432 = Type_Struct(_t_Str_431);
+        (void)_t_Type_432;
         Str_delete(_t_Str_431, &(Bool){1});
         U32 _t_U32_433 = 1;
         (void)_t_U32_433;
-        Array *_va_Array_10 = Array_new(_t_TilType_432, &_t_U32_433);
+        Array *_va_Array_10 = Array_new(_t_Type_432, &_t_U32_433);
         (void)_va_Array_10;
-        TilType_delete(_t_TilType_432, &(Bool){1});
+        Type_delete(_t_Type_432, &(Bool){1});
         ;
         U32 _t_U32_434 = 0;
         (void)_t_U32_434;
@@ -2628,14 +2628,14 @@ void Str_push_str(Str * self, Str * s) {
     if (_t_Bool_444) {
         Str *_t_Str_437 = Str_lit("Str", 3ULL);
         (void)_t_Str_437;
-        TilType *_t_TilType_438 = TilType_Struct(_t_Str_437);
-        (void)_t_TilType_438;
+        Type *_t_Type_438 = Type_Struct(_t_Str_437);
+        (void)_t_Type_438;
         Str_delete(_t_Str_437, &(Bool){1});
         U32 _t_U32_439 = 1;
         (void)_t_U32_439;
-        Array *_va_Array_11 = Array_new(_t_TilType_438, &_t_U32_439);
+        Array *_va_Array_11 = Array_new(_t_Type_438, &_t_U32_439);
         (void)_va_Array_11;
-        TilType_delete(_t_TilType_438, &(Bool){1});
+        Type_delete(_t_Type_438, &(Bool){1});
         ;
         U32 _t_U32_440 = 0;
         (void)_t_U32_440;
@@ -4017,14 +4017,14 @@ I64 Str_to_i64(Str * self) {
     if (_t_Bool_717) {
         Str *_t_Str_656 = Str_lit("Str", 3ULL);
         (void)_t_Str_656;
-        TilType *_t_TilType_657 = TilType_Struct(_t_Str_656);
-        (void)_t_TilType_657;
+        Type *_t_Type_657 = Type_Struct(_t_Str_656);
+        (void)_t_Type_657;
         Str_delete(_t_Str_656, &(Bool){1});
         U32 _t_U32_658 = 1;
         (void)_t_U32_658;
-        Array *_va_Array_12 = Array_new(_t_TilType_657, &_t_U32_658);
+        Array *_va_Array_12 = Array_new(_t_Type_657, &_t_U32_658);
         (void)_va_Array_12;
-        TilType_delete(_t_TilType_657, &(Bool){1});
+        Type_delete(_t_Type_657, &(Bool){1});
         ;
         U32 _t_U32_659 = 0;
         (void)_t_U32_659;
@@ -4070,14 +4070,14 @@ I64 Str_to_i64(Str * self) {
     if (_t_Bool_721) {
         Str *_t_Str_664 = Str_lit("Str", 3ULL);
         (void)_t_Str_664;
-        TilType *_t_TilType_665 = TilType_Struct(_t_Str_664);
-        (void)_t_TilType_665;
+        Type *_t_Type_665 = Type_Struct(_t_Str_664);
+        (void)_t_Type_665;
         Str_delete(_t_Str_664, &(Bool){1});
         U32 _t_U32_666 = 1;
         (void)_t_U32_666;
-        Array *_va_Array_13 = Array_new(_t_TilType_665, &_t_U32_666);
+        Array *_va_Array_13 = Array_new(_t_Type_665, &_t_U32_666);
         (void)_va_Array_13;
-        TilType_delete(_t_TilType_665, &(Bool){1});
+        Type_delete(_t_Type_665, &(Bool){1});
         ;
         U32 _t_U32_667 = 0;
         (void)_t_U32_667;
@@ -4139,14 +4139,14 @@ I64 Str_to_i64(Str * self) {
                 if (_t_Bool_688) {
                     Str *_t_Str_672 = Str_lit("Str", 3ULL);
                     (void)_t_Str_672;
-                    TilType *_t_TilType_673 = TilType_Struct(_t_Str_672);
-                    (void)_t_TilType_673;
+                    Type *_t_Type_673 = Type_Struct(_t_Str_672);
+                    (void)_t_Type_673;
                     Str_delete(_t_Str_672, &(Bool){1});
                     U32 _t_U32_674 = 3;
                     (void)_t_U32_674;
-                    Array *_va_Array_14 = Array_new(_t_TilType_673, &_t_U32_674);
+                    Array *_va_Array_14 = Array_new(_t_Type_673, &_t_U32_674);
                     (void)_va_Array_14;
-                    TilType_delete(_t_TilType_673, &(Bool){1});
+                    Type_delete(_t_Type_673, &(Bool){1});
                     ;
                     U32 _t_U32_675 = 0;
                     (void)_t_U32_675;
@@ -4225,14 +4225,14 @@ I64 Str_to_i64(Str * self) {
                 if (_t_Bool_709) {
                     Str *_t_Str_693 = Str_lit("Str", 3ULL);
                     (void)_t_Str_693;
-                    TilType *_t_TilType_694 = TilType_Struct(_t_Str_693);
-                    (void)_t_TilType_694;
+                    Type *_t_Type_694 = Type_Struct(_t_Str_693);
+                    (void)_t_Type_694;
                     Str_delete(_t_Str_693, &(Bool){1});
                     U32 _t_U32_695 = 3;
                     (void)_t_U32_695;
-                    Array *_va_Array_15 = Array_new(_t_TilType_694, &_t_U32_695);
+                    Array *_va_Array_15 = Array_new(_t_Type_694, &_t_U32_695);
                     (void)_va_Array_15;
-                    TilType_delete(_t_TilType_694, &(Bool){1});
+                    Type_delete(_t_Type_694, &(Bool){1});
                     ;
                     U32 _t_U32_696 = 0;
                     (void)_t_U32_696;
@@ -4578,12 +4578,12 @@ Vec * Str_split(Str * self, Str * delim) {
     (void)delim;
     Str *_t_Str_799 = Str_lit("Str", 3ULL);
     (void)_t_Str_799;
-    TilType *_t_TilType_800 = TilType_Struct(_t_Str_799);
-    (void)_t_TilType_800;
+    Type *_t_Type_800 = Type_Struct(_t_Str_799);
+    (void)_t_Type_800;
     Str_delete(_t_Str_799, &(Bool){1});
-    Vec *parts = Vec_new(_t_TilType_800);
+    Vec *parts = Vec_new(_t_Type_800);
     (void)parts;
-    TilType_delete(_t_TilType_800, &(Bool){1});
+    Type_delete(_t_Type_800, &(Bool){1});
     U32 _t_U32_801 = Str_len(delim);
     (void)_t_U32_801;
     U32 _t_U32_802 = 0;
@@ -5488,125 +5488,125 @@ Bool Bool_gte(Bool * a, Bool * b) {
     return _t_Bool_1004;
 }
 
-TilType *TilType_Unknown() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_Unknown;
+Type *Type_Unknown() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_Unknown;
     return r;
 }
-TilType *TilType_None() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_None;
+Type *Type_None() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_None;
     return r;
 }
-TilType *TilType_I64() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_I64;
+Type *Type_I64() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_I64;
     return r;
 }
-TilType *TilType_U8() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_U8;
+Type *Type_U8() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_U8;
     return r;
 }
-TilType *TilType_I16() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_I16;
+Type *Type_I16() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_I16;
     return r;
 }
-TilType *TilType_I32() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_I32;
+Type *Type_I32() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_I32;
     return r;
 }
-TilType *TilType_U32() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_U32;
+Type *Type_U32() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_U32;
     return r;
 }
-TilType *TilType_U64() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_U64;
+Type *Type_U64() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_U64;
     return r;
 }
-TilType *TilType_F32() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_F32;
+Type *Type_F32() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_F32;
     return r;
 }
-TilType *TilType_Bool() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_Bool;
+Type *Type_Bool() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_Bool;
     return r;
 }
-TilType *TilType_Struct(Str * val) {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_Struct;
+Type *Type_Struct(Str * val) {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_Struct;
     { Str * _tmp = Str_clone(val); r->data.Struct = *_tmp; free(_tmp); }
     return r;
 }
-TilType *TilType_StructDef() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_StructDef;
+Type *Type_StructDef() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_StructDef;
     return r;
 }
-TilType *TilType_Enum(Str * val) {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_Enum;
+Type *Type_Enum(Str * val) {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_Enum;
     { Str * _tmp = Str_clone(val); r->data.Enum = *_tmp; free(_tmp); }
     return r;
 }
-TilType *TilType_EnumDef() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_EnumDef;
+Type *Type_EnumDef() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_EnumDef;
     return r;
 }
-TilType *TilType_FuncDef() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_FuncDef;
+Type *Type_FuncDef() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_FuncDef;
     return r;
 }
-TilType *TilType_FuncPtr() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_FuncPtr;
+Type *Type_FuncPtr() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_FuncPtr;
     return r;
 }
-TilType *TilType_Dynamic() {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_Dynamic;
+Type *Type_Dynamic() {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_Dynamic;
     return r;
 }
-TilType *TilType_Custom(Str * val) {
-    TilType *r = malloc(sizeof(TilType));
-    r->tag = TilType_TAG_Custom;
+Type *Type_Custom(Str * val) {
+    Type *r = malloc(sizeof(Type));
+    r->tag = Type_TAG_Custom;
     { Str * _tmp = Str_clone(val); r->data.Custom = *_tmp; free(_tmp); }
     return r;
 }
-Bool TilType_eq(TilType * a, TilType * b) {
+Bool Type_eq(Type * a, Type * b) {
     (void)a;
     (void)b;
-    Bool _t_Bool_1164 = TilType_is(a, &(TilType){.tag = TilType_TAG_Custom});
+    Bool _t_Bool_1164 = Type_is(a, &(Type){.tag = Type_TAG_Custom});
     (void)_t_Bool_1164;
-    Bool _t_Bool_1165 = TilType_is(a, &(TilType){.tag = TilType_TAG_Struct});
+    Bool _t_Bool_1165 = Type_is(a, &(Type){.tag = Type_TAG_Struct});
     (void)_t_Bool_1165;
     Bool _t_Bool_1166 = or(_t_Bool_1164, _t_Bool_1165);
     (void)_t_Bool_1166;
     ;
     ;
-    Bool _t_Bool_1167 = TilType_is(a, &(TilType){.tag = TilType_TAG_Enum});
+    Bool _t_Bool_1167 = Type_is(a, &(Type){.tag = Type_TAG_Enum});
     (void)_t_Bool_1167;
     Bool a_named = or(_t_Bool_1166, _t_Bool_1167);
     (void)a_named;
     ;
     ;
-    Bool _t_Bool_1168 = TilType_is(b, &(TilType){.tag = TilType_TAG_Custom});
+    Bool _t_Bool_1168 = Type_is(b, &(Type){.tag = Type_TAG_Custom});
     (void)_t_Bool_1168;
-    Bool _t_Bool_1169 = TilType_is(b, &(TilType){.tag = TilType_TAG_Struct});
+    Bool _t_Bool_1169 = Type_is(b, &(Type){.tag = Type_TAG_Struct});
     (void)_t_Bool_1169;
     Bool _t_Bool_1170 = or(_t_Bool_1168, _t_Bool_1169);
     (void)_t_Bool_1170;
     ;
     ;
-    Bool _t_Bool_1171 = TilType_is(b, &(TilType){.tag = TilType_TAG_Enum});
+    Bool _t_Bool_1171 = Type_is(b, &(Type){.tag = Type_TAG_Enum});
     (void)_t_Bool_1171;
     Bool b_named = or(_t_Bool_1170, _t_Bool_1171);
     (void)b_named;
@@ -5638,136 +5638,136 @@ Bool TilType_eq(TilType * a, TilType * b) {
         return _t_Bool_1148;
     }
     ;
-    Bool _t_Bool_1174 = TilType_is(a, &(TilType){.tag = TilType_TAG_Unknown});
+    Bool _t_Bool_1174 = Type_is(a, &(Type){.tag = Type_TAG_Unknown});
     (void)_t_Bool_1174;
     if (_t_Bool_1174) {
-        Bool _t_Bool_1149 = TilType_is(b, &(TilType){.tag = TilType_TAG_Unknown});
+        Bool _t_Bool_1149 = Type_is(b, &(Type){.tag = Type_TAG_Unknown});
         (void)_t_Bool_1149;
         ;
         return _t_Bool_1149;
     }
     ;
-    Bool _t_Bool_1175 = TilType_is(a, &(TilType){.tag = TilType_TAG_None});
+    Bool _t_Bool_1175 = Type_is(a, &(Type){.tag = Type_TAG_None});
     (void)_t_Bool_1175;
     if (_t_Bool_1175) {
-        Bool _t_Bool_1150 = TilType_is(b, &(TilType){.tag = TilType_TAG_None});
+        Bool _t_Bool_1150 = Type_is(b, &(Type){.tag = Type_TAG_None});
         (void)_t_Bool_1150;
         ;
         return _t_Bool_1150;
     }
     ;
-    Bool _t_Bool_1176 = TilType_is(a, &(TilType){.tag = TilType_TAG_I64});
+    Bool _t_Bool_1176 = Type_is(a, &(Type){.tag = Type_TAG_I64});
     (void)_t_Bool_1176;
     if (_t_Bool_1176) {
-        Bool _t_Bool_1151 = TilType_is(b, &(TilType){.tag = TilType_TAG_I64});
+        Bool _t_Bool_1151 = Type_is(b, &(Type){.tag = Type_TAG_I64});
         (void)_t_Bool_1151;
         ;
         return _t_Bool_1151;
     }
     ;
-    Bool _t_Bool_1177 = TilType_is(a, &(TilType){.tag = TilType_TAG_U8});
+    Bool _t_Bool_1177 = Type_is(a, &(Type){.tag = Type_TAG_U8});
     (void)_t_Bool_1177;
     if (_t_Bool_1177) {
-        Bool _t_Bool_1152 = TilType_is(b, &(TilType){.tag = TilType_TAG_U8});
+        Bool _t_Bool_1152 = Type_is(b, &(Type){.tag = Type_TAG_U8});
         (void)_t_Bool_1152;
         ;
         return _t_Bool_1152;
     }
     ;
-    Bool _t_Bool_1178 = TilType_is(a, &(TilType){.tag = TilType_TAG_I16});
+    Bool _t_Bool_1178 = Type_is(a, &(Type){.tag = Type_TAG_I16});
     (void)_t_Bool_1178;
     if (_t_Bool_1178) {
-        Bool _t_Bool_1153 = TilType_is(b, &(TilType){.tag = TilType_TAG_I16});
+        Bool _t_Bool_1153 = Type_is(b, &(Type){.tag = Type_TAG_I16});
         (void)_t_Bool_1153;
         ;
         return _t_Bool_1153;
     }
     ;
-    Bool _t_Bool_1179 = TilType_is(a, &(TilType){.tag = TilType_TAG_I32});
+    Bool _t_Bool_1179 = Type_is(a, &(Type){.tag = Type_TAG_I32});
     (void)_t_Bool_1179;
     if (_t_Bool_1179) {
-        Bool _t_Bool_1154 = TilType_is(b, &(TilType){.tag = TilType_TAG_I32});
+        Bool _t_Bool_1154 = Type_is(b, &(Type){.tag = Type_TAG_I32});
         (void)_t_Bool_1154;
         ;
         return _t_Bool_1154;
     }
     ;
-    Bool _t_Bool_1180 = TilType_is(a, &(TilType){.tag = TilType_TAG_U32});
+    Bool _t_Bool_1180 = Type_is(a, &(Type){.tag = Type_TAG_U32});
     (void)_t_Bool_1180;
     if (_t_Bool_1180) {
-        Bool _t_Bool_1155 = TilType_is(b, &(TilType){.tag = TilType_TAG_U32});
+        Bool _t_Bool_1155 = Type_is(b, &(Type){.tag = Type_TAG_U32});
         (void)_t_Bool_1155;
         ;
         return _t_Bool_1155;
     }
     ;
-    Bool _t_Bool_1181 = TilType_is(a, &(TilType){.tag = TilType_TAG_U64});
+    Bool _t_Bool_1181 = Type_is(a, &(Type){.tag = Type_TAG_U64});
     (void)_t_Bool_1181;
     if (_t_Bool_1181) {
-        Bool _t_Bool_1156 = TilType_is(b, &(TilType){.tag = TilType_TAG_U64});
+        Bool _t_Bool_1156 = Type_is(b, &(Type){.tag = Type_TAG_U64});
         (void)_t_Bool_1156;
         ;
         return _t_Bool_1156;
     }
     ;
-    Bool _t_Bool_1182 = TilType_is(a, &(TilType){.tag = TilType_TAG_F32});
+    Bool _t_Bool_1182 = Type_is(a, &(Type){.tag = Type_TAG_F32});
     (void)_t_Bool_1182;
     if (_t_Bool_1182) {
-        Bool _t_Bool_1157 = TilType_is(b, &(TilType){.tag = TilType_TAG_F32});
+        Bool _t_Bool_1157 = Type_is(b, &(Type){.tag = Type_TAG_F32});
         (void)_t_Bool_1157;
         ;
         return _t_Bool_1157;
     }
     ;
-    Bool _t_Bool_1183 = TilType_is(a, &(TilType){.tag = TilType_TAG_Bool});
+    Bool _t_Bool_1183 = Type_is(a, &(Type){.tag = Type_TAG_Bool});
     (void)_t_Bool_1183;
     if (_t_Bool_1183) {
-        Bool _t_Bool_1158 = TilType_is(b, &(TilType){.tag = TilType_TAG_Bool});
+        Bool _t_Bool_1158 = Type_is(b, &(Type){.tag = Type_TAG_Bool});
         (void)_t_Bool_1158;
         ;
         return _t_Bool_1158;
     }
     ;
-    Bool _t_Bool_1184 = TilType_is(a, &(TilType){.tag = TilType_TAG_StructDef});
+    Bool _t_Bool_1184 = Type_is(a, &(Type){.tag = Type_TAG_StructDef});
     (void)_t_Bool_1184;
     if (_t_Bool_1184) {
-        Bool _t_Bool_1159 = TilType_is(b, &(TilType){.tag = TilType_TAG_StructDef});
+        Bool _t_Bool_1159 = Type_is(b, &(Type){.tag = Type_TAG_StructDef});
         (void)_t_Bool_1159;
         ;
         return _t_Bool_1159;
     }
     ;
-    Bool _t_Bool_1185 = TilType_is(a, &(TilType){.tag = TilType_TAG_EnumDef});
+    Bool _t_Bool_1185 = Type_is(a, &(Type){.tag = Type_TAG_EnumDef});
     (void)_t_Bool_1185;
     if (_t_Bool_1185) {
-        Bool _t_Bool_1160 = TilType_is(b, &(TilType){.tag = TilType_TAG_EnumDef});
+        Bool _t_Bool_1160 = Type_is(b, &(Type){.tag = Type_TAG_EnumDef});
         (void)_t_Bool_1160;
         ;
         return _t_Bool_1160;
     }
     ;
-    Bool _t_Bool_1186 = TilType_is(a, &(TilType){.tag = TilType_TAG_FuncDef});
+    Bool _t_Bool_1186 = Type_is(a, &(Type){.tag = Type_TAG_FuncDef});
     (void)_t_Bool_1186;
     if (_t_Bool_1186) {
-        Bool _t_Bool_1161 = TilType_is(b, &(TilType){.tag = TilType_TAG_FuncDef});
+        Bool _t_Bool_1161 = Type_is(b, &(Type){.tag = Type_TAG_FuncDef});
         (void)_t_Bool_1161;
         ;
         return _t_Bool_1161;
     }
     ;
-    Bool _t_Bool_1187 = TilType_is(a, &(TilType){.tag = TilType_TAG_FuncPtr});
+    Bool _t_Bool_1187 = Type_is(a, &(Type){.tag = Type_TAG_FuncPtr});
     (void)_t_Bool_1187;
     if (_t_Bool_1187) {
-        Bool _t_Bool_1162 = TilType_is(b, &(TilType){.tag = TilType_TAG_FuncPtr});
+        Bool _t_Bool_1162 = Type_is(b, &(Type){.tag = Type_TAG_FuncPtr});
         (void)_t_Bool_1162;
         ;
         return _t_Bool_1162;
     }
     ;
-    Bool _t_Bool_1188 = TilType_is(a, &(TilType){.tag = TilType_TAG_Dynamic});
+    Bool _t_Bool_1188 = Type_is(a, &(Type){.tag = Type_TAG_Dynamic});
     (void)_t_Bool_1188;
     if (_t_Bool_1188) {
-        Bool _t_Bool_1163 = TilType_is(b, &(TilType){.tag = TilType_TAG_Dynamic});
+        Bool _t_Bool_1163 = Type_is(b, &(Type){.tag = Type_TAG_Dynamic});
         (void)_t_Bool_1163;
         ;
         return _t_Bool_1163;
@@ -5778,7 +5778,7 @@ Bool TilType_eq(TilType * a, TilType * b) {
     return _t_Bool_1189;
 }
 
-Bool TilType_is(TilType * self, TilType * other) {
+Bool Type_is(Type * self, Type * other) {
     (void)self;
     (void)other;
     Bool _t_Bool_1190 = is(self, other);
@@ -5786,10 +5786,10 @@ Bool TilType_is(TilType * self, TilType * other) {
     return _t_Bool_1190;
 }
 
-void TilType_delete(TilType * self, Bool * call_free) {
+void Type_delete(Type * self, Bool * call_free) {
     (void)self;
     (void)call_free;
-    Bool _t_Bool_1197 = is(self, &(TilType){.tag = TilType_TAG_Struct});
+    Bool _t_Bool_1197 = is(self, &(Type){.tag = Type_TAG_Struct});
     (void)_t_Bool_1197;
     if (_t_Bool_1197) {
         Str *_t_Str_1191 = get_payload(self);
@@ -5800,7 +5800,7 @@ void TilType_delete(TilType * self, Bool * call_free) {
         ;
     }
     ;
-    Bool _t_Bool_1198 = is(self, &(TilType){.tag = TilType_TAG_Enum});
+    Bool _t_Bool_1198 = is(self, &(Type){.tag = Type_TAG_Enum});
     (void)_t_Bool_1198;
     if (_t_Bool_1198) {
         Str *_t_Str_1193 = get_payload(self);
@@ -5811,7 +5811,7 @@ void TilType_delete(TilType * self, Bool * call_free) {
         ;
     }
     ;
-    Bool _t_Bool_1199 = is(self, &(TilType){.tag = TilType_TAG_Custom});
+    Bool _t_Bool_1199 = is(self, &(Type){.tag = Type_TAG_Custom});
     (void)_t_Bool_1199;
     if (_t_Bool_1199) {
         Str *_t_Str_1195 = get_payload(self);
@@ -5827,9 +5827,9 @@ void TilType_delete(TilType * self, Bool * call_free) {
     }
 }
 
-Str * TilType_to_str(TilType * self) {
+Str * Type_to_str(Type * self) {
     (void)self;
-    Bool _t_Bool_1245 = is(self, &(TilType){.tag = TilType_TAG_Unknown});
+    Bool _t_Bool_1245 = is(self, &(Type){.tag = Type_TAG_Unknown});
     (void)_t_Bool_1245;
     if (_t_Bool_1245) {
         Str *_t_Str_1200 = Str_lit("Unknown", 7ULL);
@@ -5838,7 +5838,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1200;
     }
     ;
-    Bool _t_Bool_1246 = is(self, &(TilType){.tag = TilType_TAG_None});
+    Bool _t_Bool_1246 = is(self, &(Type){.tag = Type_TAG_None});
     (void)_t_Bool_1246;
     if (_t_Bool_1246) {
         Str *_t_Str_1201 = Str_lit("None", 4ULL);
@@ -5847,7 +5847,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1201;
     }
     ;
-    Bool _t_Bool_1247 = is(self, &(TilType){.tag = TilType_TAG_I64});
+    Bool _t_Bool_1247 = is(self, &(Type){.tag = Type_TAG_I64});
     (void)_t_Bool_1247;
     if (_t_Bool_1247) {
         Str *_t_Str_1202 = Str_lit("I64", 3ULL);
@@ -5856,7 +5856,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1202;
     }
     ;
-    Bool _t_Bool_1248 = is(self, &(TilType){.tag = TilType_TAG_U8});
+    Bool _t_Bool_1248 = is(self, &(Type){.tag = Type_TAG_U8});
     (void)_t_Bool_1248;
     if (_t_Bool_1248) {
         Str *_t_Str_1203 = Str_lit("U8", 2ULL);
@@ -5865,7 +5865,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1203;
     }
     ;
-    Bool _t_Bool_1249 = is(self, &(TilType){.tag = TilType_TAG_I16});
+    Bool _t_Bool_1249 = is(self, &(Type){.tag = Type_TAG_I16});
     (void)_t_Bool_1249;
     if (_t_Bool_1249) {
         Str *_t_Str_1204 = Str_lit("I16", 3ULL);
@@ -5874,7 +5874,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1204;
     }
     ;
-    Bool _t_Bool_1250 = is(self, &(TilType){.tag = TilType_TAG_I32});
+    Bool _t_Bool_1250 = is(self, &(Type){.tag = Type_TAG_I32});
     (void)_t_Bool_1250;
     if (_t_Bool_1250) {
         Str *_t_Str_1205 = Str_lit("I32", 3ULL);
@@ -5883,7 +5883,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1205;
     }
     ;
-    Bool _t_Bool_1251 = is(self, &(TilType){.tag = TilType_TAG_U32});
+    Bool _t_Bool_1251 = is(self, &(Type){.tag = Type_TAG_U32});
     (void)_t_Bool_1251;
     if (_t_Bool_1251) {
         Str *_t_Str_1206 = Str_lit("U32", 3ULL);
@@ -5892,7 +5892,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1206;
     }
     ;
-    Bool _t_Bool_1252 = is(self, &(TilType){.tag = TilType_TAG_U64});
+    Bool _t_Bool_1252 = is(self, &(Type){.tag = Type_TAG_U64});
     (void)_t_Bool_1252;
     if (_t_Bool_1252) {
         Str *_t_Str_1207 = Str_lit("U64", 3ULL);
@@ -5901,7 +5901,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1207;
     }
     ;
-    Bool _t_Bool_1253 = is(self, &(TilType){.tag = TilType_TAG_F32});
+    Bool _t_Bool_1253 = is(self, &(Type){.tag = Type_TAG_F32});
     (void)_t_Bool_1253;
     if (_t_Bool_1253) {
         Str *_t_Str_1208 = Str_lit("F32", 3ULL);
@@ -5910,7 +5910,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1208;
     }
     ;
-    Bool _t_Bool_1254 = is(self, &(TilType){.tag = TilType_TAG_Bool});
+    Bool _t_Bool_1254 = is(self, &(Type){.tag = Type_TAG_Bool});
     (void)_t_Bool_1254;
     if (_t_Bool_1254) {
         Str *_t_Str_1209 = Str_lit("Bool", 4ULL);
@@ -5919,21 +5919,21 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1209;
     }
     ;
-    Bool _t_Bool_1255 = is(self, &(TilType){.tag = TilType_TAG_Struct});
+    Bool _t_Bool_1255 = is(self, &(Type){.tag = Type_TAG_Struct});
     (void)_t_Bool_1255;
     if (_t_Bool_1255) {
         Str *_p_Str_10 = get_payload(self);
         (void)_p_Str_10;
         Str *_t_Str_1210 = Str_lit("Str", 3ULL);
         (void)_t_Str_1210;
-        TilType *_t_TilType_1211 = TilType_Struct(_t_Str_1210);
-        (void)_t_TilType_1211;
+        Type *_t_Type_1211 = Type_Struct(_t_Str_1210);
+        (void)_t_Type_1211;
         Str_delete(_t_Str_1210, &(Bool){1});
         U32 _t_U32_1212 = 3;
         (void)_t_U32_1212;
-        Array *_va_Array_20 = Array_new(_t_TilType_1211, &_t_U32_1212);
+        Array *_va_Array_20 = Array_new(_t_Type_1211, &_t_U32_1212);
         (void)_va_Array_20;
-        TilType_delete(_t_TilType_1211, &(Bool){1});
+        Type_delete(_t_Type_1211, &(Bool){1});
         ;
         U32 _t_U32_1213 = 0;
         (void)_t_U32_1213;
@@ -5959,7 +5959,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1219;
     }
     ;
-    Bool _t_Bool_1256 = is(self, &(TilType){.tag = TilType_TAG_StructDef});
+    Bool _t_Bool_1256 = is(self, &(Type){.tag = Type_TAG_StructDef});
     (void)_t_Bool_1256;
     if (_t_Bool_1256) {
         Str *_t_Str_1220 = Str_lit("StructDef", 9ULL);
@@ -5968,21 +5968,21 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1220;
     }
     ;
-    Bool _t_Bool_1257 = is(self, &(TilType){.tag = TilType_TAG_Enum});
+    Bool _t_Bool_1257 = is(self, &(Type){.tag = Type_TAG_Enum});
     (void)_t_Bool_1257;
     if (_t_Bool_1257) {
         Str *_p_Str_12 = get_payload(self);
         (void)_p_Str_12;
         Str *_t_Str_1221 = Str_lit("Str", 3ULL);
         (void)_t_Str_1221;
-        TilType *_t_TilType_1222 = TilType_Struct(_t_Str_1221);
-        (void)_t_TilType_1222;
+        Type *_t_Type_1222 = Type_Struct(_t_Str_1221);
+        (void)_t_Type_1222;
         Str_delete(_t_Str_1221, &(Bool){1});
         U32 _t_U32_1223 = 3;
         (void)_t_U32_1223;
-        Array *_va_Array_21 = Array_new(_t_TilType_1222, &_t_U32_1223);
+        Array *_va_Array_21 = Array_new(_t_Type_1222, &_t_U32_1223);
         (void)_va_Array_21;
-        TilType_delete(_t_TilType_1222, &(Bool){1});
+        Type_delete(_t_Type_1222, &(Bool){1});
         ;
         U32 _t_U32_1224 = 0;
         (void)_t_U32_1224;
@@ -6008,7 +6008,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1230;
     }
     ;
-    Bool _t_Bool_1258 = is(self, &(TilType){.tag = TilType_TAG_EnumDef});
+    Bool _t_Bool_1258 = is(self, &(Type){.tag = Type_TAG_EnumDef});
     (void)_t_Bool_1258;
     if (_t_Bool_1258) {
         Str *_t_Str_1231 = Str_lit("EnumDef", 7ULL);
@@ -6017,7 +6017,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1231;
     }
     ;
-    Bool _t_Bool_1259 = is(self, &(TilType){.tag = TilType_TAG_FuncDef});
+    Bool _t_Bool_1259 = is(self, &(Type){.tag = Type_TAG_FuncDef});
     (void)_t_Bool_1259;
     if (_t_Bool_1259) {
         Str *_t_Str_1232 = Str_lit("FuncDef", 7ULL);
@@ -6026,7 +6026,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1232;
     }
     ;
-    Bool _t_Bool_1260 = is(self, &(TilType){.tag = TilType_TAG_FuncPtr});
+    Bool _t_Bool_1260 = is(self, &(Type){.tag = Type_TAG_FuncPtr});
     (void)_t_Bool_1260;
     if (_t_Bool_1260) {
         Str *_t_Str_1233 = Str_lit("FuncPtr", 7ULL);
@@ -6035,7 +6035,7 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1233;
     }
     ;
-    Bool _t_Bool_1261 = is(self, &(TilType){.tag = TilType_TAG_Dynamic});
+    Bool _t_Bool_1261 = is(self, &(Type){.tag = Type_TAG_Dynamic});
     (void)_t_Bool_1261;
     if (_t_Bool_1261) {
         Str *_t_Str_1234 = Str_lit("Dynamic", 7ULL);
@@ -6044,21 +6044,21 @@ Str * TilType_to_str(TilType * self) {
         return _t_Str_1234;
     }
     ;
-    Bool _t_Bool_1262 = is(self, &(TilType){.tag = TilType_TAG_Custom});
+    Bool _t_Bool_1262 = is(self, &(Type){.tag = Type_TAG_Custom});
     (void)_t_Bool_1262;
     if (_t_Bool_1262) {
         Str *_p_Str_17 = get_payload(self);
         (void)_p_Str_17;
         Str *_t_Str_1235 = Str_lit("Str", 3ULL);
         (void)_t_Str_1235;
-        TilType *_t_TilType_1236 = TilType_Struct(_t_Str_1235);
-        (void)_t_TilType_1236;
+        Type *_t_Type_1236 = Type_Struct(_t_Str_1235);
+        (void)_t_Type_1236;
         Str_delete(_t_Str_1235, &(Bool){1});
         U32 _t_U32_1237 = 3;
         (void)_t_U32_1237;
-        Array *_va_Array_22 = Array_new(_t_TilType_1236, &_t_U32_1237);
+        Array *_va_Array_22 = Array_new(_t_Type_1236, &_t_U32_1237);
         (void)_va_Array_22;
-        TilType_delete(_t_TilType_1236, &(Bool){1});
+        Type_delete(_t_Type_1236, &(Bool){1});
         ;
         U32 _t_U32_1238 = 0;
         (void)_t_U32_1238;
@@ -6089,143 +6089,143 @@ Str * TilType_to_str(TilType * self) {
     return _t_Str_1263;
 }
 
-TilType * TilType_clone(TilType * self) {
+Type * Type_clone(Type * self) {
     (void)self;
-    Bool _t_Bool_1266 = is(self, &(TilType){.tag = TilType_TAG_Unknown});
+    Bool _t_Bool_1266 = is(self, &(Type){.tag = Type_TAG_Unknown});
     (void)_t_Bool_1266;
     if (_t_Bool_1266) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_Unknown; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Unknown; return _r; }
     }
     ;
-    Bool _t_Bool_1267 = is(self, &(TilType){.tag = TilType_TAG_None});
+    Bool _t_Bool_1267 = is(self, &(Type){.tag = Type_TAG_None});
     (void)_t_Bool_1267;
     if (_t_Bool_1267) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_None; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_None; return _r; }
     }
     ;
-    Bool _t_Bool_1268 = is(self, &(TilType){.tag = TilType_TAG_I64});
+    Bool _t_Bool_1268 = is(self, &(Type){.tag = Type_TAG_I64});
     (void)_t_Bool_1268;
     if (_t_Bool_1268) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_I64; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_I64; return _r; }
     }
     ;
-    Bool _t_Bool_1269 = is(self, &(TilType){.tag = TilType_TAG_U8});
+    Bool _t_Bool_1269 = is(self, &(Type){.tag = Type_TAG_U8});
     (void)_t_Bool_1269;
     if (_t_Bool_1269) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_U8; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_U8; return _r; }
     }
     ;
-    Bool _t_Bool_1270 = is(self, &(TilType){.tag = TilType_TAG_I16});
+    Bool _t_Bool_1270 = is(self, &(Type){.tag = Type_TAG_I16});
     (void)_t_Bool_1270;
     if (_t_Bool_1270) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_I16; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_I16; return _r; }
     }
     ;
-    Bool _t_Bool_1271 = is(self, &(TilType){.tag = TilType_TAG_I32});
+    Bool _t_Bool_1271 = is(self, &(Type){.tag = Type_TAG_I32});
     (void)_t_Bool_1271;
     if (_t_Bool_1271) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_I32; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_I32; return _r; }
     }
     ;
-    Bool _t_Bool_1272 = is(self, &(TilType){.tag = TilType_TAG_U32});
+    Bool _t_Bool_1272 = is(self, &(Type){.tag = Type_TAG_U32});
     (void)_t_Bool_1272;
     if (_t_Bool_1272) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_U32; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_U32; return _r; }
     }
     ;
-    Bool _t_Bool_1273 = is(self, &(TilType){.tag = TilType_TAG_U64});
+    Bool _t_Bool_1273 = is(self, &(Type){.tag = Type_TAG_U64});
     (void)_t_Bool_1273;
     if (_t_Bool_1273) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_U64; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_U64; return _r; }
     }
     ;
-    Bool _t_Bool_1274 = is(self, &(TilType){.tag = TilType_TAG_F32});
+    Bool _t_Bool_1274 = is(self, &(Type){.tag = Type_TAG_F32});
     (void)_t_Bool_1274;
     if (_t_Bool_1274) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_F32; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_F32; return _r; }
     }
     ;
-    Bool _t_Bool_1275 = is(self, &(TilType){.tag = TilType_TAG_Bool});
+    Bool _t_Bool_1275 = is(self, &(Type){.tag = Type_TAG_Bool});
     (void)_t_Bool_1275;
     if (_t_Bool_1275) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_Bool; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Bool; return _r; }
     }
     ;
-    Bool _t_Bool_1276 = is(self, &(TilType){.tag = TilType_TAG_Struct});
+    Bool _t_Bool_1276 = is(self, &(Type){.tag = Type_TAG_Struct});
     (void)_t_Bool_1276;
     if (_t_Bool_1276) {
         Str *_clone_payload_Struct_10 = get_payload(self);
         (void)_clone_payload_Struct_10;
-        TilType *_t_TilType_1264 = TilType_Struct(_clone_payload_Struct_10);
-        (void)_t_TilType_1264;
+        Type *_t_Type_1264 = Type_Struct(_clone_payload_Struct_10);
+        (void)_t_Type_1264;
         ;
-        return _t_TilType_1264;
+        return _t_Type_1264;
     }
     ;
-    Bool _t_Bool_1277 = is(self, &(TilType){.tag = TilType_TAG_StructDef});
+    Bool _t_Bool_1277 = is(self, &(Type){.tag = Type_TAG_StructDef});
     (void)_t_Bool_1277;
     if (_t_Bool_1277) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_StructDef; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_StructDef; return _r; }
     }
     ;
-    Bool _t_Bool_1278 = is(self, &(TilType){.tag = TilType_TAG_Enum});
+    Bool _t_Bool_1278 = is(self, &(Type){.tag = Type_TAG_Enum});
     (void)_t_Bool_1278;
     if (_t_Bool_1278) {
         Str *_clone_payload_Enum_12 = get_payload(self);
         (void)_clone_payload_Enum_12;
-        TilType *_t_TilType_1265 = TilType_Enum(_clone_payload_Enum_12);
-        (void)_t_TilType_1265;
+        Type *_t_Type_1265 = Type_Enum(_clone_payload_Enum_12);
+        (void)_t_Type_1265;
         ;
-        return _t_TilType_1265;
+        return _t_Type_1265;
     }
     ;
-    Bool _t_Bool_1279 = is(self, &(TilType){.tag = TilType_TAG_EnumDef});
+    Bool _t_Bool_1279 = is(self, &(Type){.tag = Type_TAG_EnumDef});
     (void)_t_Bool_1279;
     if (_t_Bool_1279) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_EnumDef; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_EnumDef; return _r; }
     }
     ;
-    Bool _t_Bool_1280 = is(self, &(TilType){.tag = TilType_TAG_FuncDef});
+    Bool _t_Bool_1280 = is(self, &(Type){.tag = Type_TAG_FuncDef});
     (void)_t_Bool_1280;
     if (_t_Bool_1280) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_FuncDef; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_FuncDef; return _r; }
     }
     ;
-    Bool _t_Bool_1281 = is(self, &(TilType){.tag = TilType_TAG_FuncPtr});
+    Bool _t_Bool_1281 = is(self, &(Type){.tag = Type_TAG_FuncPtr});
     (void)_t_Bool_1281;
     if (_t_Bool_1281) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_FuncPtr; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_FuncPtr; return _r; }
     }
     ;
-    Bool _t_Bool_1282 = is(self, &(TilType){.tag = TilType_TAG_Dynamic});
+    Bool _t_Bool_1282 = is(self, &(Type){.tag = Type_TAG_Dynamic});
     (void)_t_Bool_1282;
     if (_t_Bool_1282) {
         ;
-        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_Dynamic; return _r; }
+        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Dynamic; return _r; }
     }
     ;
     Str *_clone_payload_Custom_17 = get_payload(self);
     (void)_clone_payload_Custom_17;
-    TilType *_t_TilType_1283 = TilType_Custom(_clone_payload_Custom_17);
-    (void)_t_TilType_1283;
-    return _t_TilType_1283;
+    Type *_t_Type_1283 = Type_Custom(_clone_payload_Custom_17);
+    (void)_t_Type_1283;
+    return _t_Type_1283;
 }
 
-U32 TilType_size(void) {
+U32 Type_size(void) {
     I64 _t_I64_1284 = 24;
     (void)_t_I64_1284;
     return _t_I64_1284;
@@ -6240,14 +6240,14 @@ Array * Array_new_type_name(Str * elem_type, U32 * cap) {
     if (_t_Bool_2407) {
         Str *_t_Str_2401 = Str_lit("Str", 3ULL);
         (void)_t_Str_2401;
-        TilType *_t_TilType_2402 = TilType_Struct(_t_Str_2401);
-        (void)_t_TilType_2402;
+        Type *_t_Type_2402 = Type_Struct(_t_Str_2401);
+        (void)_t_Type_2402;
         Str_delete(_t_Str_2401, &(Bool){1});
         U32 _t_U32_2403 = 1;
         (void)_t_U32_2403;
-        Array *_va_Array_73 = Array_new(_t_TilType_2402, &_t_U32_2403);
+        Array *_va_Array_73 = Array_new(_t_Type_2402, &_t_U32_2403);
         (void)_va_Array_73;
-        TilType_delete(_t_TilType_2402, &(Bool){1});
+        Type_delete(_t_Type_2402, &(Bool){1});
         ;
         U32 _t_U32_2404 = 0;
         (void)_t_U32_2404;
@@ -6281,7 +6281,7 @@ Array * Array_new_type_name(Str * elem_type, U32 * cap) {
     return _t_Array_2411;
 }
 
-Array * Array_new(TilType * T, U32 * cap) {
+Array * Array_new(Type * T, U32 * cap) {
     (void)T;
     (void)cap;
     Str *elem_type = dyn_type_to_str(T);
@@ -6305,14 +6305,14 @@ void * Array_get(Array * self, U32 * i) {
     if (_t_Bool_2427) {
         Str *_t_Str_2413 = Str_lit("Str", 3ULL);
         (void)_t_Str_2413;
-        TilType *_t_TilType_2414 = TilType_Struct(_t_Str_2413);
-        (void)_t_TilType_2414;
+        Type *_t_Type_2414 = Type_Struct(_t_Str_2413);
+        (void)_t_Type_2414;
         Str_delete(_t_Str_2413, &(Bool){1});
         U32 _t_U32_2415 = 5;
         (void)_t_U32_2415;
-        Array *_va_Array_74 = Array_new(_t_TilType_2414, &_t_U32_2415);
+        Array *_va_Array_74 = Array_new(_t_Type_2414, &_t_U32_2415);
         (void)_va_Array_74;
-        TilType_delete(_t_TilType_2414, &(Bool){1});
+        Type_delete(_t_Type_2414, &(Bool){1});
         ;
         U32 _t_U32_2416 = 0;
         (void)_t_U32_2416;
@@ -6367,14 +6367,14 @@ void Array_set(Array * self, U32 * i, void * val) {
     if (_t_Bool_2444) {
         Str *_t_Str_2430 = Str_lit("Str", 3ULL);
         (void)_t_Str_2430;
-        TilType *_t_TilType_2431 = TilType_Struct(_t_Str_2430);
-        (void)_t_TilType_2431;
+        Type *_t_Type_2431 = Type_Struct(_t_Str_2430);
+        (void)_t_Type_2431;
         Str_delete(_t_Str_2430, &(Bool){1});
         U32 _t_U32_2432 = 5;
         (void)_t_U32_2432;
-        Array *_va_Array_75 = Array_new(_t_TilType_2431, &_t_U32_2432);
+        Array *_va_Array_75 = Array_new(_t_Type_2431, &_t_U32_2432);
         (void)_va_Array_75;
-        TilType_delete(_t_TilType_2431, &(Bool){1});
+        Type_delete(_t_Type_2431, &(Bool){1});
         ;
         U32 _t_U32_2433 = 0;
         (void)_t_U32_2433;
@@ -6602,14 +6602,14 @@ void panic(Str * loc_str, Array * parts) {
     (void)parts;
     Str *_t_Str_2714 = Str_lit("Str", 3ULL);
     (void)_t_Str_2714;
-    TilType *_t_TilType_2715 = TilType_Struct(_t_Str_2714);
-    (void)_t_TilType_2715;
+    Type *_t_Type_2715 = Type_Struct(_t_Str_2714);
+    (void)_t_Type_2715;
     Str_delete(_t_Str_2714, &(Bool){1});
     U32 _t_U32_2716 = 3;
     (void)_t_U32_2716;
-    Array *_va_Array_92 = Array_new(_t_TilType_2715, &_t_U32_2716);
+    Array *_va_Array_92 = Array_new(_t_Type_2715, &_t_U32_2716);
     (void)_va_Array_92;
-    TilType_delete(_t_TilType_2715, &(Bool){1});
+    Type_delete(_t_Type_2715, &(Bool){1});
     ;
     U32 _t_U32_2717 = 0;
     (void)_t_U32_2717;
@@ -6647,14 +6647,14 @@ Bool * assert(Str * loc_str, Bool * cond) {
     if (_t_Bool_2743) {
         Str *_t_Str_2738 = Str_lit("Str", 3ULL);
         (void)_t_Str_2738;
-        TilType *_t_TilType_2739 = TilType_Struct(_t_Str_2738);
-        (void)_t_TilType_2739;
+        Type *_t_Type_2739 = Type_Struct(_t_Str_2738);
+        (void)_t_Type_2739;
         Str_delete(_t_Str_2738, &(Bool){1});
         U32 _t_U32_2740 = 1;
         (void)_t_U32_2740;
-        Array *_va_Array_95 = Array_new(_t_TilType_2739, &_t_U32_2740);
+        Array *_va_Array_95 = Array_new(_t_Type_2739, &_t_U32_2740);
         (void)_va_Array_95;
-        TilType_delete(_t_TilType_2739, &(Bool){1});
+        Type_delete(_t_Type_2739, &(Bool){1});
         ;
         U32 _t_U32_2741 = 0;
         (void)_t_U32_2741;
@@ -6679,14 +6679,14 @@ void assert_eq(Str * loc_str, I64 * a, I64 * b) {
     if (_t_Bool_2767) {
         Str *_t_Str_2754 = Str_lit("Str", 3ULL);
         (void)_t_Str_2754;
-        TilType *_t_TilType_2755 = TilType_Struct(_t_Str_2754);
-        (void)_t_TilType_2755;
+        Type *_t_Type_2755 = Type_Struct(_t_Str_2754);
+        (void)_t_Type_2755;
         Str_delete(_t_Str_2754, &(Bool){1});
         U32 _t_U32_2756 = 5;
         (void)_t_U32_2756;
-        Array *_va_Array_97 = Array_new(_t_TilType_2755, &_t_U32_2756);
+        Array *_va_Array_97 = Array_new(_t_Type_2755, &_t_U32_2756);
         (void)_va_Array_97;
-        TilType_delete(_t_TilType_2755, &(Bool){1});
+        Type_delete(_t_Type_2755, &(Bool){1});
         ;
         U32 _t_U32_2757 = 0;
         (void)_t_U32_2757;
@@ -7481,14 +7481,14 @@ void *Bool_lte_dyn(void *_a0, void *_a1) {
 void *Bool_gte_dyn(void *_a0, void *_a1) {
     Bool *_r = malloc(sizeof(Bool)); *_r = Bool_gte(_a0, _a1); return _r;
 }
-void *TilType_eq_dyn(void *_a0, void *_a1) {
-    Bool *_r = malloc(sizeof(Bool)); *_r = TilType_eq(_a0, _a1); return _r;
+void *Type_eq_dyn(void *_a0, void *_a1) {
+    Bool *_r = malloc(sizeof(Bool)); *_r = Type_eq(_a0, _a1); return _r;
 }
-void *TilType_is_dyn(void *_a0, void *_a1) {
-    Bool *_r = malloc(sizeof(Bool)); *_r = TilType_is(_a0, _a1); return _r;
+void *Type_is_dyn(void *_a0, void *_a1) {
+    Bool *_r = malloc(sizeof(Bool)); *_r = Type_is(_a0, _a1); return _r;
 }
-void *TilType_size_dyn(void) {
-    U32 *_r = malloc(sizeof(U32)); *_r = TilType_size(); return _r;
+void *Type_size_dyn(void) {
+    U32 *_r = malloc(sizeof(U32)); *_r = Type_size(); return _r;
 }
 void *Array_size_dyn(void) {
     U32 *_r = malloc(sizeof(U32)); *_r = Array_size(); return _r;
@@ -7732,30 +7732,30 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "neq", 3ULL) == 0) return (void*)Bool_neq_dyn;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "lte", 3ULL) == 0) return (void*)Bool_lte_dyn;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "gte", 3ULL) == 0) return (void*)Bool_gte_dyn;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "eq", 2ULL) == 0) return (void*)TilType_eq_dyn;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "Unknown", 7ULL) == 0) return (void*)TilType_Unknown;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "None", 4ULL) == 0) return (void*)TilType_None;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "I64", 3ULL) == 0) return (void*)TilType_I64;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "U8", 2ULL) == 0) return (void*)TilType_U8;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "I16", 3ULL) == 0) return (void*)TilType_I16;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "I32", 3ULL) == 0) return (void*)TilType_I32;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "U32", 3ULL) == 0) return (void*)TilType_U32;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "U64", 3ULL) == 0) return (void*)TilType_U64;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "F32", 3ULL) == 0) return (void*)TilType_F32;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "Bool", 4ULL) == 0) return (void*)TilType_Bool;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "Struct", 6ULL) == 0) return (void*)TilType_Struct;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 9ULL && memcmp(method->c_str, "StructDef", 9ULL) == 0) return (void*)TilType_StructDef;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "Enum", 4ULL) == 0) return (void*)TilType_Enum;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "EnumDef", 7ULL) == 0) return (void*)TilType_EnumDef;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "FuncDef", 7ULL) == 0) return (void*)TilType_FuncDef;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "FuncPtr", 7ULL) == 0) return (void*)TilType_FuncPtr;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "Dynamic", 7ULL) == 0) return (void*)TilType_Dynamic;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "Custom", 6ULL) == 0) return (void*)TilType_Custom;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "is", 2ULL) == 0) return (void*)TilType_is_dyn;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)TilType_delete;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_str", 6ULL) == 0) return (void*)TilType_to_str;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)TilType_clone;
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)TilType_size_dyn;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "eq", 2ULL) == 0) return (void*)Type_eq_dyn;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "Unknown", 7ULL) == 0) return (void*)Type_Unknown;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "None", 4ULL) == 0) return (void*)Type_None;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "I64", 3ULL) == 0) return (void*)Type_I64;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "U8", 2ULL) == 0) return (void*)Type_U8;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "I16", 3ULL) == 0) return (void*)Type_I16;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "I32", 3ULL) == 0) return (void*)Type_I32;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "U32", 3ULL) == 0) return (void*)Type_U32;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "U64", 3ULL) == 0) return (void*)Type_U64;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "F32", 3ULL) == 0) return (void*)Type_F32;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "Bool", 4ULL) == 0) return (void*)Type_Bool;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "Struct", 6ULL) == 0) return (void*)Type_Struct;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 9ULL && memcmp(method->c_str, "StructDef", 9ULL) == 0) return (void*)Type_StructDef;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "Enum", 4ULL) == 0) return (void*)Type_Enum;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "EnumDef", 7ULL) == 0) return (void*)Type_EnumDef;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "FuncDef", 7ULL) == 0) return (void*)Type_FuncDef;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "FuncPtr", 7ULL) == 0) return (void*)Type_FuncPtr;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "Dynamic", 7ULL) == 0) return (void*)Type_Dynamic;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "Custom", 6ULL) == 0) return (void*)Type_Custom;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "is", 2ULL) == 0) return (void*)Type_is_dyn;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Type_delete;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_str", 6ULL) == 0) return (void*)Type_to_str;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)Type_clone;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Type_size_dyn;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0 && method->count == 13ULL && memcmp(method->c_str, "new_type_name", 13ULL) == 0) return (void*)Array_new_type_name;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)Array_new;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "len", 3ULL) == 0) return (void*)Array_len;
@@ -7782,32 +7782,32 @@ U32 dyn_size_of(Str *type_name) {
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) return sizeof(I16);
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) return sizeof(I64);
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) return sizeof(Bool);
-    if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0) return sizeof(TilType);
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0) return sizeof(Type);
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0) return sizeof(Array);
     fprintf(stderr, "dyn_size_of: unknown type %.*s\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
 }
 
-Str *dyn_type_to_str(TilType *type) {
+Str *dyn_type_to_str(Type *type) {
     switch (type->tag) {
-    case TilType_TAG_Unknown: return Str_lit("", 0ULL);
-    case TilType_TAG_None: return Str_lit("", 0ULL);
-    case TilType_TAG_I64: return Str_lit("I64", 3ULL);
-    case TilType_TAG_U8: return Str_lit("U8", 2ULL);
-    case TilType_TAG_I16: return Str_lit("I16", 3ULL);
-    case TilType_TAG_I32: return Str_lit("I32", 3ULL);
-    case TilType_TAG_U32: return Str_lit("U32", 3ULL);
-    case TilType_TAG_U64: return Str_lit("U64", 3ULL);
-    case TilType_TAG_F32: return Str_lit("F32", 3ULL);
-    case TilType_TAG_Bool: return Str_lit("Bool", 4ULL);
-    case TilType_TAG_Struct: return Str_clone(&type->data.Struct);
-    case TilType_TAG_StructDef: return Str_lit("StructDef", 9ULL);
-    case TilType_TAG_Enum: return Str_clone(&type->data.Enum);
-    case TilType_TAG_EnumDef: return Str_lit("EnumDef", 7ULL);
-    case TilType_TAG_FuncDef: return Str_lit("FunctionDef", 11ULL);
-    case TilType_TAG_FuncPtr: return Str_lit("Fn", 2ULL);
-    case TilType_TAG_Dynamic: return Str_lit("Dynamic", 7ULL);
-    case TilType_TAG_Custom: return Str_clone(&type->data.Custom);
+    case Type_TAG_Unknown: return Str_lit("", 0ULL);
+    case Type_TAG_None: return Str_lit("", 0ULL);
+    case Type_TAG_I64: return Str_lit("I64", 3ULL);
+    case Type_TAG_U8: return Str_lit("U8", 2ULL);
+    case Type_TAG_I16: return Str_lit("I16", 3ULL);
+    case Type_TAG_I32: return Str_lit("I32", 3ULL);
+    case Type_TAG_U32: return Str_lit("U32", 3ULL);
+    case Type_TAG_U64: return Str_lit("U64", 3ULL);
+    case Type_TAG_F32: return Str_lit("F32", 3ULL);
+    case Type_TAG_Bool: return Str_lit("Bool", 4ULL);
+    case Type_TAG_Struct: return Str_clone(&type->data.Struct);
+    case Type_TAG_StructDef: return Str_lit("StructDef", 9ULL);
+    case Type_TAG_Enum: return Str_clone(&type->data.Enum);
+    case Type_TAG_EnumDef: return Str_lit("EnumDef", 7ULL);
+    case Type_TAG_FuncDef: return Str_lit("FunctionDef", 11ULL);
+    case Type_TAG_FuncPtr: return Str_lit("Fn", 2ULL);
+    case Type_TAG_Dynamic: return Str_lit("Dynamic", 7ULL);
+    case Type_TAG_Custom: return Str_clone(&type->data.Custom);
     }
     return Str_lit("?", 1ULL);
 }

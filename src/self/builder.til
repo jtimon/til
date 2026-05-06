@@ -494,7 +494,7 @@ fcall_returns_dynamic := func(fcall: Expr) returns shallow Bool {
     }
 }
 
-priv til_type_to_c := func(shallow t: TilType) returns Str {
+priv til_type_to_c := func(shallow t: Type) returns Str {
     switch t {
     case Type.I64:     return "I64"
     case Type.U8:      return "U8"
@@ -514,7 +514,7 @@ priv til_type_to_c := func(shallow t: TilType) returns Str {
 // Resolve the C type for an `extern` global decl. Replaces the
 // `mut ctype := ""; if dyn { ... } else { ... }` reassign-leak
 // pattern in emit_header_global_decls / emit_funcsig_typedefs.
-extern_decl_ctype := func(shallow t: TilType, shallow rhs_t: TilType) returns Str {
+extern_decl_ctype := func(shallow t: Type, shallow rhs_t: Type) returns Str {
     if t.is(Type.Dynamic) { return til_type_to_c(t) }
     return c_type_name(t, til_type_name(rhs_t))
 }
@@ -523,7 +523,7 @@ extern_decl_ctype := func(shallow t: TilType, shallow rhs_t: TilType) returns St
 // Skips the heap-allocated empty-Str dance from til_type_name when t isn't
 // Struct/Enum/FuncPtr (where the name actually matters) -- saves the Str_lit("")
 // leak per call.
-resolve_decl_ctype := func(shallow t: TilType, shallow rhs_t: TilType, explicit: Str) returns Str {
+resolve_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, explicit: Str) returns Str {
     if t.is(Type.Struct).or(t.is(Type.Enum)).or(t.is(Type.FuncPtr)) {
         sn := til_type_name(t)
         if sn.len().gt(0) { return c_type_name(t, sn) }
@@ -534,7 +534,7 @@ resolve_decl_ctype := func(shallow t: TilType, shallow rhs_t: TilType, explicit:
     return c_type_name(t, "")
 }
 
-c_type_name := func(shallow t: TilType, struct_name: Str) returns Str {
+c_type_name := func(shallow t: Type, struct_name: Str) returns Str {
     if t.is(Type.Struct).or(t.is(Type.Enum)) {
         if is_null(struct_name).not() {
             if struct_name.len().gt(0) {
@@ -776,7 +776,7 @@ get_stack_local_ctype := func(name: Str) returns ref Str {
 // stack-local type if any, otherwise derived from the Expr's til_type.
 // Replaces the previous `ref mut ctype : Str = NULL; if is_null { ctype
 // = c_type_name(...) }` shape that leaked an owned Str into a ref slot.
-resolve_ident_ctype := func(ident: Str, ttype: TilType, sname: Str) returns Str {
+resolve_ident_ctype := func(ident: Str, ttype: Type, sname: Str) returns Str {
     ref existing : Str = get_stack_local_ctype(ident)
     if is_null(existing).not() { return existing.clone() }
     return c_type_name(ttype, sname)

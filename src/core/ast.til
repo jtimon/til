@@ -13,11 +13,11 @@ import("vec")
 
 // builtin types
 
-// --- TilType enum ---
+// --- Type enum ---
 
 /// Type representation for the til compiler. Carries payload for named
 /// types (Struct/Enum/Custom) and is tag-only for builtins.
-TilType := enum {
+Type := enum {
     Unknown, None,
     I64, U8, I16, I32, U32, U64, F32, Bool,
     Struct: Str, StructDef,
@@ -63,9 +63,9 @@ namespace:
     }
 }
 
-// Public alias: user-facing code can spell the compiler's type object as
-// `Type`, while the bootstrap compiler and generated C still use `TilType`.
-Type := TilType
+// Compatibility alias: bootstrap code and generated C can keep spelling the
+// compiler's type object as `TilType` while source moves to `Type`.
+TilType := Type
 
 til_type_name_c := func(t: Type) returns Str {
     switch t {
@@ -102,7 +102,7 @@ til_type_name := func(t: Type) returns Str {
     }
 }
 
-dyn_type_to_str := ext_func(type: TilType) returns Str {}
+dyn_type_to_str := ext_func(type: Type) returns Str {}
 
 // --- FuncType enum ---
 /// Classifies a til function declaration: func, proc, test, macro, or external.
