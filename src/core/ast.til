@@ -32,11 +32,11 @@ namespace:
     // resolving against scope; typer lookups that return Struct/Enum
     // still compare equal. Uses .is() throughout (tag-only) because
     // ~switch~ on an enum desugars to recursive ~eq~ calls.
-    eq := func(a: TilType, b: TilType) returns shallow Bool {
+    eq := func(a: Type, b: Type) returns shallow Bool {
         // Named-payload group: Custom, Struct, Enum compare equal across
         // variants iff their name payloads match.
-        a_named := a.is(TilType.Custom).or(a.is(TilType.Struct)).or(a.is(TilType.Enum))
-        b_named := b.is(TilType.Custom).or(b.is(TilType.Struct)).or(b.is(TilType.Enum))
+        a_named := a.is(Type.Custom).or(a.is(Type.Struct)).or(a.is(Type.Enum))
+        b_named := b.is(Type.Custom).or(b.is(Type.Struct)).or(b.is(Type.Enum))
         if a_named.and(b_named) {
             ref an : Str = get_payload(a)
             ref bn : Str = get_payload(b)
@@ -44,21 +44,21 @@ namespace:
         }
         if a_named.or(b_named) { return false }
         // Non-payloaded variants: tag equality.
-        if a.is(TilType.Unknown)   { return b.is(TilType.Unknown) }
-        if a.is(TilType.None)      { return b.is(TilType.None) }
-        if a.is(TilType.I64)       { return b.is(TilType.I64) }
-        if a.is(TilType.U8)        { return b.is(TilType.U8) }
-        if a.is(TilType.I16)       { return b.is(TilType.I16) }
-        if a.is(TilType.I32)       { return b.is(TilType.I32) }
-        if a.is(TilType.U32)       { return b.is(TilType.U32) }
-        if a.is(TilType.U64)       { return b.is(TilType.U64) }
-        if a.is(TilType.F32)       { return b.is(TilType.F32) }
-        if a.is(TilType.Bool)      { return b.is(TilType.Bool) }
-        if a.is(TilType.StructDef) { return b.is(TilType.StructDef) }
-        if a.is(TilType.EnumDef)   { return b.is(TilType.EnumDef) }
-        if a.is(TilType.FuncDef)   { return b.is(TilType.FuncDef) }
-        if a.is(TilType.FuncPtr)   { return b.is(TilType.FuncPtr) }
-        if a.is(TilType.Dynamic)   { return b.is(TilType.Dynamic) }
+        if a.is(Type.Unknown)   { return b.is(Type.Unknown) }
+        if a.is(Type.None)      { return b.is(Type.None) }
+        if a.is(Type.I64)       { return b.is(Type.I64) }
+        if a.is(Type.U8)        { return b.is(Type.U8) }
+        if a.is(Type.I16)       { return b.is(Type.I16) }
+        if a.is(Type.I32)       { return b.is(Type.I32) }
+        if a.is(Type.U32)       { return b.is(Type.U32) }
+        if a.is(Type.U64)       { return b.is(Type.U64) }
+        if a.is(Type.F32)       { return b.is(Type.F32) }
+        if a.is(Type.Bool)      { return b.is(Type.Bool) }
+        if a.is(Type.StructDef) { return b.is(Type.StructDef) }
+        if a.is(Type.EnumDef)   { return b.is(Type.EnumDef) }
+        if a.is(Type.FuncDef)   { return b.is(Type.FuncDef) }
+        if a.is(Type.FuncPtr)   { return b.is(Type.FuncPtr) }
+        if a.is(Type.Dynamic)   { return b.is(Type.Dynamic) }
         return false
     }
 }
@@ -67,37 +67,37 @@ namespace:
 // `Type`, while the bootstrap compiler and generated C still use `TilType`.
 Type := TilType
 
-til_type_name_c := func(t: TilType) returns Str {
+til_type_name_c := func(t: Type) returns Str {
     switch t {
-    case TilType.Unknown:   return "unknown"
-    case TilType.None:      return "None"
-    case TilType.I64:       return "I64"
-    case TilType.U8:        return "U8"
-    case TilType.I16:       return "I16"
-    case TilType.I32:       return "I32"
-    case TilType.U32:       return "U32"
-    case TilType.U64:       return "U64"
-    case TilType.F32:       return "F32"
-    case TilType.Bool:      return "Bool"
-    case TilType.Struct:    return "Struct"
-    case TilType.StructDef: return "StructDef"
-    case TilType.Enum:      return "Enum"
-    case TilType.EnumDef:   return "EnumDef"
-    case TilType.FuncDef:   return "FunctionDef"
-    case TilType.FuncPtr:   return "Fn"
-    case TilType.Dynamic:   return "Dynamic"
-    case TilType.Custom(name): return name.clone()
+    case Type.Unknown:   return "unknown"
+    case Type.None:      return "None"
+    case Type.I64:       return "I64"
+    case Type.U8:        return "U8"
+    case Type.I16:       return "I16"
+    case Type.I32:       return "I32"
+    case Type.U32:       return "U32"
+    case Type.U64:       return "U64"
+    case Type.F32:       return "F32"
+    case Type.Bool:      return "Bool"
+    case Type.Struct:    return "Struct"
+    case Type.StructDef: return "StructDef"
+    case Type.Enum:      return "Enum"
+    case Type.EnumDef:   return "EnumDef"
+    case Type.FuncDef:   return "FunctionDef"
+    case Type.FuncPtr:   return "Fn"
+    case Type.Dynamic:   return "Dynamic"
+    case Type.Custom(name): return name.clone()
     case: return "?"
     }
 }
 
-// Extract the struct/enum/custom name carried in a TilType's payload.
+// Extract the struct/enum/custom name carried in a Type's payload.
 // Returns empty Str for any other variant.
-til_type_name := func(t: TilType) returns Str {
+til_type_name := func(t: Type) returns Str {
     switch t {
-    case TilType.Struct(s): return s.clone()
-    case TilType.Enum(s):   return s.clone()
-    case TilType.Custom(s): return s.clone()
+    case Type.Struct(s): return s.clone()
+    case Type.Enum(s):   return s.clone()
+    case Type.Custom(s): return s.clone()
     case: return ""
     }
 }
@@ -126,7 +126,7 @@ Declaration := struct {
     mut is_priv := false
     mut used := false
     mut own_type := OwnType.Shallow
-    mut til_type := TilType.Unknown
+    mut til_type := Type.Unknown
     mut field_offset : I32 = 0
     mut field_size : I32 = 0
     ref mut field_struct_def : Expr = NULL
@@ -279,7 +279,7 @@ NodeType := enum {
 /// AST expression node with line/col, type, children, and node-specific payload.
 Expr := struct {
     mut node_type := NodeType.Body
-    mut til_type := TilType.Unknown
+    mut til_type := Type.Unknown
     mut children := Vec.new(Expr)
     mut line : U32 = 0
     mut col : U32 = 0
@@ -484,7 +484,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
         print("  ")
     }
     print("(", node_name(e.node_type))
-    if e.til_type.is(TilType.Unknown).not() {
+    if e.til_type.is(Type.Unknown).not() {
         print(":", til_type_name_c(e.til_type))
     }
     switch e.node_type {
