@@ -1490,8 +1490,33 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
     if b.is_priv.not() { return }
     if b.path.eq(typer_path) { return }
     if b.priv_err_reported { return }
-    type_error(e, "'".concat(name).concat("' is private to '").concat(b.path).concat("'"))
+    type_error(e, "'".concat(name).concat("' is private to '").concat(b.path)
+        .concat("'; remove 'priv' to expose it"))
     b.priv_err_reported = true
+}
+
+// Issue #179 + follow-up: cross-file priv check for type names that
+// appear in declaration positions (parameter types, return types,
+// ref/let decl explicit_type). The Ident-path check_priv_access only
+// fires when a name is referenced as a value -- a user can otherwise
+// write ~func(x: PrivStruct) returns PrivStruct~ in another file
+// silently. Skip when inside the type's own namespace (auto-gen and
+// hand-written ns methods both reference the parent type by name).
+//
+// Does NOT consult b.priv_err_reported. That flag exists so the
+// FieldAccess receiver re-walk in infer_field_access_fcall doesn't
+// duplicate-report a value-position priv error within a single
+// statement; declaration positions are independent sites and each
+// deserves its own diagnostic.
+priv check_priv_type_name := proc(mut e: Expr, name: Str, scope: TypeScope) {
+    if name.len().eq(0) { return }
+    if current_type_name.eq(name) { return }
+    ref b : TypeBinding = scope.get_binding(name)
+    if is_null(b) { return }
+    if b.is_priv.not() { return }
+    if b.path.eq(typer_path) { return }
+    type_error(e, "'".concat(name).concat("' is private to '").concat(b.path)
+        .concat("'; remove 'priv' to expose it"))
 }
 
 // Issue #179 steps 4-5: priv check for struct fields and namespace
@@ -1502,7 +1527,8 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
 check_member_priv := proc(mut e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool) {
     if member_is_priv.not() { return }
     if current_type_name.eq(owner_name) { return }
-    type_error(e, "'".concat(owner_name).concat(".").concat(member_name).concat("' is private to its struct"))
+    type_error(e, "'".concat(owner_name).concat(".").concat(member_name)
+        .concat("' is private to its struct; remove 'priv' to expose it"))
 }
 
 infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) {
@@ -1766,6 +1792,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
             fdef.return_type = resolved_return_type
+            check_priv_type_name(expr, resolved_return_type, scope)
         }
         for i in 0..fdef.params.len() {
             ref mut param : Declaration = fdef.params.get(i)
@@ -1778,6 +1805,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             if pt.is(Type.Unknown) {
                 type_error(expr, "undefined type '".concat(ptn).concat("'"))
             }
+            check_priv_type_name(expr, ptn, scope)
             pmut := param.is_mut
             pown := param.own_type.is(OwnType.Own)
             pshallow := param.own_type.is(OwnType.Shallow)
@@ -2442,6 +2470,10 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         mut declared := declared_type_for_decl(scope, stmt)
+        // #179 follow-up: explicit type annotation on a Decl
+        // (e.g. ~ref x : Foo = ...~) is a use of Foo's name from
+        // declaration position. Check priv across files.
+        check_priv_type_name(stmt, sdecl.explicit_type, scope)
         ref mut val : Expr = stmt.child(0)
         switch val.til_type {
         case Type.Custom(alias_name):

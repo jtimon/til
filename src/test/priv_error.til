@@ -31,3 +31,20 @@ main := proc() {
     // Step 6: priv top-level mutable global -- direct write.
     counter = counter.add(1)
 }
+
+// Closing the type_from_name gap: a priv struct/enum can no longer
+// silently appear in another file's signature or ref-decl explicit
+// type. Each of these triggers a fresh "is private to" error from
+// the typer's check_priv_type_name hook.
+
+// priv struct as parameter type.
+takes_secret := func(_s: Secret) returns I64 { return 0 }
+
+// priv struct as return type.
+makes_secret := func() returns Secret { return Secret(value = 1) }
+
+// priv struct as ref-decl explicit type.
+ref bad_ref : Secret = NULL
+
+// priv enum as parameter type.
+takes_mood := func(_m: Mood) returns I64 { return 0 }

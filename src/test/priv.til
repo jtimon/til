@@ -122,3 +122,57 @@ test_user_clone_marks_priv_used := test() {
     assert_eq(__LOC__, b.tag, 7)
     assert_eq(__LOC__, b.leak_secret(), 41)
 }
+
+// Nested priv shapes: cross-file (priv struct/enum) and in-struct
+// (priv field / ns method) rules compose. These tests don't add
+// new coverage of either rule individually -- they verify that
+// having both layers on the same type doesn't surprise the typer.
+
+priv NestedSecret := struct {
+    mut tag := 0
+    priv mut hidden := 0
+namespace:
+    new := func(t: I64, h: I64) returns NestedSecret {
+        return NestedSecret(tag = t, hidden = h)
+    }
+    sum := func(self: NestedSecret) returns I64 {
+        return self.tag.add(self.hidden)
+    }
+    priv only_internal := func(self: NestedSecret) returns I64 {
+        return self.hidden
+    }
+    drive_internal := func(self: NestedSecret) returns I64 {
+        return self.only_internal().mul(2)
+    }
+}
+
+test_priv_struct_with_priv_members := test() {
+    s := NestedSecret.new(3, 4)
+    // Public ns method reads priv field internally.
+    assert_eq(__LOC__, s.sum(), 7)
+    // Public ns method calls priv ns method internally.
+    assert_eq(__LOC__, s.drive_internal(), 8)
+}
+
+priv NestedMood := enum {
+    Calm,
+    Stormy
+namespace:
+    priv classify := func(self: NestedMood) returns Str {
+        switch self {
+        case NestedMood.Calm:   return "calm"
+        case NestedMood.Stormy: return "stormy"
+        }
+        return "?"
+    }
+    describe := func(self: NestedMood) returns Str {
+        return NestedMood.classify(self)
+    }
+}
+
+test_priv_enum_with_priv_ns_method := test() {
+    a := NestedMood.Calm
+    b := NestedMood.Stormy
+    assert_eq_str(__LOC__, a.describe(), "calm")
+    assert_eq_str(__LOC__, b.describe(), "stormy")
+}

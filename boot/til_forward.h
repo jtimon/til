@@ -1174,6 +1174,7 @@ void resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, TypeBind
 Str * obj_method_type_name(Expr * obj);
 Bool infer_field_access_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void check_priv_access(Expr * e, Str * name, TypeBinding * b);
+void check_priv_type_name(Expr * e, Str * name, TypeScope * scope);
 void check_member_priv(Expr * e, Str * owner_name, Str * member_name, Bool * member_is_priv);
 void infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void infer_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
