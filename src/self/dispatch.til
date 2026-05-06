@@ -392,12 +392,12 @@ h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     type_val := eval_expr(s, e.child(1))
     if type_val.is(Value.Enum).not() {
-        panic(__LOC__, "dyn_type_to_str: expected TilType enum value")
+        panic(__LOC__, "dyn_type_to_str: expected Type enum value")
     }
     ref ei : EnumInstance = get_payload(type_val)
     ref til_type_def : Expr = lookup_interp_type_def("TilType")
     if is_null(til_type_def) {
-        panic(__LOC__, "dyn_type_to_str: TilType definition not registered")
+        panic(__LOC__, "dyn_type_to_str: Type definition not registered")
     }
     ref tag_ptr : Dynamic = ei.data
     ref tag_ref : I32 = tag_ptr
@@ -473,7 +473,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
         r = make_str_value(payload3.c_str, payload3.count.to_u64())
         return true
     }
-    panic(__LOC__, "dyn_type_to_str: unknown TilType tag")
+    panic(__LOC__, "dyn_type_to_str: unknown Type tag")
     r = make_str_value("".c_str, 0)
     return true
 }
@@ -703,7 +703,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
     // Build fake AST: Type.method(args...)
     mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), e.line, e.col)
-    type_ident.til_type = TilType.Struct(type_name.clone())
+    type_ident.til_type = Type.Struct(type_name.clone())
 
     mut field_access := Expr.new(NodeType.FieldAccess(method.clone()), e.line, e.col)
     field_access.add_child(own type_ident)
@@ -731,7 +731,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
     }
     // Build fake call: Type.size()
     mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col)
-    type_ident.til_type = TilType.Struct(type_name.clone())
+    type_ident.til_type = Type.Struct(type_name.clone())
 
     mut field_access := Expr.new(NodeType.FieldAccess("size"), src.line, src.col)
     field_access.add_child(own type_ident)
