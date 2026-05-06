@@ -1,5 +1,5 @@
 # priority: medium
-** OPEN #194 Fix corrupted generated UML docs
+** FIXED #194 Fix corrupted generated UML docs
 
 Goal:
 

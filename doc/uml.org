@@ -1,4 +1,4 @@
-* hôb´“il
+* lexer
 ** TokenType: EnumDef
 *** Eof
 *** LParen
@@ -78,26 +78,7 @@
 *** text := ""
 *** line : U32 = 0
 *** col : U32 = 0
-** LocalInfo: StructDef
-*** ref mut name : Str = NULL
-*** mut type := Type.Unknown
-*** mut decl_index : I32 = 0
-*** mut last_use : I32 = 0
-*** mut own_transfer : I32 = -1.to_i32()
-*** mut skip_scope_delete := false
-*** mut is_heap := false
-** CtorArg: EnumDef
-*** Unfilled
-*** Filled:Expr
-** Mode: StructDef
-*** mut needs_main := false
-*** mut decls_only := true
-*** mut auto_import := ""
-*** mut is_library := false
-*** mut is_pure := false
-*** mut run_tests := false
-*** mut debug_prints := false
-* hôb´“
+* ast
 ** Type: EnumDef
 *** Unknown
 *** None
@@ -206,7 +187,7 @@
 *** mut children := Vec.new(Expr)
 *** mut line : U32 = 0
 *** mut col : U32 = 0
-* hôb´“til
+* parser
 ** Parser: StructDef
 *** mut tokens := Vec.new(Token)
 *** mut pos : USize = 0
@@ -214,6 +195,7 @@
 *** mut fn_sig_decls := Vec.new(Expr)
 *** mut lambda_decls := Vec.new(Expr)
 *** mut pending_doc := ""
+* initer
 ** TypeBinding: StructDef
 *** mut name := ""
 *** mut type := Type.Unknown
@@ -272,321 +254,89 @@
 *** ref mut cached_array_name : Str = NULL
 *** ref mut cached_vec_def : Expr = NULL
 *** ref mut cached_vec_name : Str = NULL
-* hôb´“til
-** Parser: StructDef
-*** mut tokens := Vec.new(Token)
-*** mut pos : USize = 0
-*** mut path := ""
-*** mut fn_sig_decls := Vec.new(Expr)
-*** mut lambda_decls := Vec.new(Expr)
-*** mut pending_doc := ""
-** TypeBinding: StructDef
+* typer
+** LocalInfo: StructDef
+*** ref mut name : Str = NULL
+*** mut type := Type.Unknown
+*** mut decl_index : I32 = 0
+*** mut last_use : I32 = 0
+*** mut own_transfer : I32 = -1.to_i32()
+*** mut skip_scope_delete := false
+*** mut is_heap := false
+** CtorArg: EnumDef
+*** Unfilled
+*** Filled:Expr
+* precomp
+* scavenger
+* builder
+** CollectionInfo: StructDef
+*** ref mut type_name : Str = NULL
+*** mut is_vec : I32 = 0
+** DynCallInfo: StructDef
+*** ref mut method : Str = NULL
+*** mut nargs : I32 = 1
+*** mut has_return := false
+** BuildPaths: StructDef
 *** mut name := ""
-*** mut type := Type.Unknown
-*** mut func_type := FuncType.None
-*** mut is_mut := false
-*** mut is_priv := false
-*** mut priv_err_reported := false
-*** mut path := ""
-*** mut line : U32 = 0
-*** mut col : U32 = 0
-*** mut is_param := false
-*** mut own_type := OwnType.Shallow
-*** mut is_alias := false
-*** mut is_type_alias := false
-*** mut alias_target := ""
+*** mut c_path := ""
+*** mut bin_path := ""
+*** mut fwd_path := ""
+*** mut h_path := ""
+*** mut til_path := ""
+*** mut py_path := ""
+*** mut do_lib := false
+* dispatch
+** ExtStr: StructDef
+*** ref mut data : U8 = NULL
+*** mut count : U64 = 0
+*** mut cap : U64 = 0
+** FFIEntry: StructDef
+*** ref mut fn : U8 = NULL
+*** ref mut return_type : Str = NULL
+*** mut nparam : I32 = 0
+*** ref mut param_shallows : U8 = NULL
+*** mut return_is_shallow := false
+*** ref mut cif : ffi_cif = NULL
+*** ref mut arg_types : Dynamic = NULL
+** ExprPtrBox: StructDef
+*** ref mut ptr : Expr = NULL
+** FFITypePtrBox: StructDef
+*** ref mut ptr : ffi_type = NULL
+* interpreter
+** StructInstance: StructDef
+*** ref mut struct_name : Str = NULL
 *** ref mut struct_def : Expr = NULL
-*** ref mut func_def : Expr = NULL
-*** mut is_builtin := false
-*** mut used := false
-** ScopeFind: EnumDef
-*** NotFound
-*** Found:TypeBinding }
-** TypeScope: StructDef
-*** mut bindings := Map.new(Str, TypeBinding)
-*** ref mut parent : TypeScope = NULL
-** ImportUnit: StructDef
-*** mut mode := Mode()
-*** own mut ast := Expr.new(NodeType.Body, 0, 0)
-*** mut imports := Vec.new(Str)
-** Context: StructDef
-*** mut mode := Mode()
-*** mut path := ""
-*** mut path_modes := Map.new(Str, Mode)
-*** mut imported := Map.new(Str, ImportUnit)
-*** mut imports_init_done := Set.new(Str)
-*** mut imports_typer_done := Set.new(Str)
-*** mut imports_precomp_done := Set.new(Str)
-*** mut imports_eval_done := Set.new(Str)
-*** mut scope := TypeScope()
-*** mut is_repl := false
-*** mut local_fn_sigs := Map.new(Str, Dynamic)
-*** mut func_defs := Map.new(Str, Dynamic)
-*** mut struct_def_exprs := Map.new(Str, Dynamic)
-*** mut funcsig_names := Set.new(Str)
-*** mut script_globals := Set.new(Str)
-*** mut ref_globals := Set.new(Str)
-*** mut stack_locals := Set.new(Str)
-*** mut stack_local_types := Map.new(Str, Str)
-*** mut unsafe_to_hoist := Set.new(Str)
-*** mut ref_locals := Set.new(Str)
-*** mut ref_dyn_locals := Set.new(Str)
-*** ref mut current_fdef : Expr = NULL
-*** ref mut cached_str_def : Expr = NULL
-*** ref mut cached_str_name : Str = NULL
-*** ref mut cached_array_def : Expr = NULL
-*** ref mut cached_array_name : Str = NULL
-*** ref mut cached_vec_def : Expr = NULL
-*** ref mut cached_vec_name : Str = NULL
-* hôb´“il
-** TokenType: EnumDef
-*** Eof
-*** LParen
-*** RParen
-*** LBrace
-*** RBrace
-*** LBracket
-*** RBracket
-*** Comma
-*** Colon
-*** Question
-*** Bang
-*** Minus
-*** Plus
-*** Star
-*** Slash
-*** Percent
-*** Ampersand
-*** Pipe
-*** Caret
-*** Dot
-*** DotDot
-*** DotDotDot
-*** Eq
-*** EqEq
-*** Neq
-*** Lt
-*** LtEq
-*** Gt
-*** GtEq
-*** PlusPlus
-*** MinusMinus
-*** ColonEq
-*** Ident
-*** StringTok
-*** Number
-*** Char
-*** DocComment
-*** KwMut
-*** KwOwn
-*** KwRef
-*** KwShallow
-*** KwStruct
-*** KwEnum
-*** KwNamespace
-*** KwFunc
-*** KwProc
-*** KwTest
-*** KwMacro
-*** KwExtFunc
-*** KwExtProc
-*** KwExtStruct
-*** KwReturns
-*** KwThrows
-*** KwIf
-*** KwElse
-*** KwWhile
-*** KwFor
-*** KwIn
-*** KwSwitch
-*** KwMatch
-*** KwCase
-*** KwDefault
-*** KwReturn
-*** KwThrow
-*** KwCatch
-*** KwBreak
-*** KwContinue
-*** KwDefer
-*** KwTrue
-*** KwFalse
-*** KwNull
-*** KwPriv
-*** Error
-** Token: StructDef
-*** type := TokenType.Eof
-*** text := ""
-*** line : U32 = 0
-*** col : U32 = 0
-** LocalInfo: StructDef
+*** own mut data : U8 = 0
+*** mut borrowed := false
+** EnumInstance: StructDef
+*** ref mut enum_name : Str = NULL
+*** ref mut enum_def : Expr = NULL
+*** own mut data : U8 = 0
+*** mut data_size : I32 = 0
+** Value: EnumDef
+*** None
+*** Int:I64
+*** Byte:U8
+*** Short:I16
+*** Int32:I32
+*** Uint32:U32
+*** Uint64:U64
+*** Float:F32
+*** Boolean:Bool
+*** Func:Dynamic
+*** Struct:StructInstance
+*** Enum:EnumInstance
+*** Ptr:Dynamic
+** Cell: StructDef
+*** mut val := Value.None
+** Binding: StructDef
 *** ref mut name : Str = NULL
-*** mut type := Type.Unknown
-*** mut decl_index : I32 = 0
-*** mut last_use : I32 = 0
-*** mut own_transfer : I32 = -1.to_i32()
-*** mut skip_scope_delete := false
-*** mut is_heap := false
-** CtorArg: EnumDef
-*** Unfilled
-*** Filled:Expr
-** Mode: StructDef
-*** mut needs_main := false
-*** mut decls_only := true
-*** mut auto_import := ""
-*** mut is_library := false
-*** mut is_pure := false
-*** mut run_tests := false
-*** mut debug_prints := false
-* hôb´“
-** Type: EnumDef
-*** Unknown
-*** None
-*** I64
-*** U8
-*** I16
-*** I32
-*** U32
-*** U64
-*** F32
-*** Bool
-*** Struct:Str
-*** StructDef
-*** Enum:Str
-*** EnumDef
-*** FuncDef
-*** FuncPtr
-*** Dynamic
-*** Custom:Str
-** FuncType: EnumDef
-*** None
-*** Func
-*** Proc
-*** Test
-*** Macro
-*** ExtFunc
-*** ExtProc
-* hôb´“er
-* hôb´“
-** Type: EnumDef
-*** Unknown
-*** None
-*** I64
-*** U8
-*** I16
-*** I32
-*** U32
-*** U64
-*** F32
-*** Bool
-*** Struct:Str
-*** StructDef
-*** Enum:Str
-*** EnumDef
-*** FuncDef
-*** FuncPtr
-*** Dynamic
-*** Custom:Str
-** FuncType: EnumDef
-*** None
-*** Func
-*** Proc
-*** Test
-*** Macro
-*** ExtFunc
-*** ExtProc
-* hôb´“h
-* hôb´“eter
-* hôb´“il
-** TokenType: EnumDef
-*** Eof
-*** LParen
-*** RParen
-*** LBrace
-*** RBrace
-*** LBracket
-*** RBracket
-*** Comma
-*** Colon
-*** Question
-*** Bang
-*** Minus
-*** Plus
-*** Star
-*** Slash
-*** Percent
-*** Ampersand
-*** Pipe
-*** Caret
-*** Dot
-*** DotDot
-*** DotDotDot
-*** Eq
-*** EqEq
-*** Neq
-*** Lt
-*** LtEq
-*** Gt
-*** GtEq
-*** PlusPlus
-*** MinusMinus
-*** ColonEq
-*** Ident
-*** StringTok
-*** Number
-*** Char
-*** DocComment
-*** KwMut
-*** KwOwn
-*** KwRef
-*** KwShallow
-*** KwStruct
-*** KwEnum
-*** KwNamespace
-*** KwFunc
-*** KwProc
-*** KwTest
-*** KwMacro
-*** KwExtFunc
-*** KwExtProc
-*** KwExtStruct
-*** KwReturns
-*** KwThrows
-*** KwIf
-*** KwElse
-*** KwWhile
-*** KwFor
-*** KwIn
-*** KwSwitch
-*** KwMatch
-*** KwCase
-*** KwDefault
-*** KwReturn
-*** KwThrow
-*** KwCatch
-*** KwBreak
-*** KwContinue
-*** KwDefer
-*** KwTrue
-*** KwFalse
-*** KwNull
-*** KwPriv
-*** Error
-** Token: StructDef
-*** type := TokenType.Eof
-*** text := ""
-*** line : U32 = 0
-*** col : U32 = 0
-** LocalInfo: StructDef
-*** ref mut name : Str = NULL
-*** mut type := Type.Unknown
-*** mut decl_index : I32 = 0
-*** mut last_use : I32 = 0
-*** mut own_transfer : I32 = -1.to_i32()
-*** mut skip_scope_delete := false
-*** mut is_heap := false
-** CtorArg: EnumDef
-*** Unfilled
-*** Filled:Expr
+*** ref mut cell : Cell = NULL
+*** mut cell_is_local := false
+** Scope: StructDef
+*** mut bindings := Map.new(Str, Binding)
+*** ref mut parent : Scope = NULL
+* modes
 ** Mode: StructDef
 *** mut needs_main := false
 *** mut decls_only := true
