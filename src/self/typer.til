@@ -2400,7 +2400,7 @@ infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr) retu
     }
 }
 
-declared_type_for_decl := func(scope: TypeScope, stmt: Expr) returns TilType {
+declared_type_for_decl := func(scope: TypeScope, stmt: Expr) returns Type {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         mut declared := stmt.til_type
@@ -2422,7 +2422,7 @@ declared_type_for_decl := func(scope: TypeScope, stmt: Expr) returns TilType {
 // `x : F32 = 1 / 2` -> `F32.div`), but explicit `to_*` conversions still need
 // their literal receiver to keep the default numeric type so lookup lands on
 // the source type's namespace.
-pre_coerce_decl_numeric_literals := proc(mut expr: Expr, target: TilType) {
+pre_coerce_decl_numeric_literals := proc(mut expr: Expr, target: Type) {
     switch expr.node_type {
     case NodeType.LiteralNum:
         expr.til_type = target
