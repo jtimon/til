@@ -14,9 +14,9 @@
   - If a source interface changes but old boot output still names the
     old entrypoint, use staged commits instead of trying to force the
     whole rename in one shot.
-  - Use a 3-commit ladder for pure source-level interface changes:
-    add a temporary ~new_newi~ entrypoint, switch the public name,
-    then remove the temporary alias.
+  - Use an ABC 3-commit ladder for pure source-level interface changes:
+    A adds a temporary compatibility entrypoint such as ~new_newi~,
+    B switches the public name, and C removes the temporary alias.
   - Use a 4-commit ladder when builder-generated raw C also spells the
     old public constructor name. Add an internal string-based helper
     first (for example ~new_type_name~), switch the raw C emission to
@@ -25,6 +25,9 @@
     ~Map.new~,
     ~Vec.new~,
     and ~Array.new~.
+  - Prefer lettered stages like A/B/C over numbered stages like 1/2/3
+    in docs and commit messages. The labels keep their meaning even if
+    bootstrap compatibility needs an extra commit in the middle.
 
 ** Type-token special cases
 
