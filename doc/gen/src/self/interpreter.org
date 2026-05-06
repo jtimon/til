@@ -148,24 +148,24 @@ has_continue is a Bool
 return_value is a Value
 #+end_src
 
-* _t_Str_29752
+* _t_Str_30331
 #+begin_src til
-_t_Str_29752 is a Str
+_t_Str_30331 is a Str
 #+end_src
 
-* _t_U32_29753
+* _t_Str_30332
 #+begin_src til
-_t_U32_29753 is a U32
+_t_Str_30332 is a Str
 #+end_src
 
-* _t_Str_29754
+* _t_Type_30333
 #+begin_src til
-_t_Str_29754 is a Str
+_t_Type_30333 is a Type
 #+end_src
 
-* _t_U32_29755
+* _t_Type_30334
 #+begin_src til
-_t_U32_29755 is a U32
+_t_Type_30334 is a Type
 #+end_src
 
 * ns_fields
@@ -173,39 +173,29 @@ _t_U32_29755 is a U32
 ns_fields is a Map
 #+end_src
 
-* _t_Str_29756
-#+begin_src til
-_t_Str_29756 is a Str
-#+end_src
-
-* _t_U32_29757
-#+begin_src til
-_t_U32_29757 is a U32
-#+end_src
-
 * ns_keys
 #+begin_src til
 ns_keys is a Vec
 #+end_src
 
-* _t_Str_29758
+* _t_Str_30335
 #+begin_src til
-_t_Str_29758 is a Str
+_t_Str_30335 is a Str
 #+end_src
 
-* _t_U32_29759
+* _t_Str_30336
 #+begin_src til
-_t_U32_29759 is a U32
+_t_Str_30336 is a Str
 #+end_src
 
-* _t_Str_29760
+* _t_Type_30337
 #+begin_src til
-_t_Str_29760 is a Str
+_t_Type_30337 is a Type
 #+end_src
 
-* _t_U32_29761
+* _t_Type_30338
 #+begin_src til
-_t_U32_29761 is a U32
+_t_Type_30338 is a Type
 #+end_src
 
 * interp_type_defs
@@ -263,9 +253,9 @@ func val_f32(shallow v: F32) returns shallow Value
 func val_bool(shallow v: Bool) returns shallow Value
 #+end_src
 
-* _t_I64_29762
+* _t_I64_30339
 #+begin_src til
-_t_I64_29762 is a I64
+_t_I64_30339 is a I64
 #+end_src
 
 * ENUM_PAYLOAD_OFFSET

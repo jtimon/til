@@ -12,7 +12,8 @@ struct Map {
 namespace:
     /// Create an empty Map. Both key_type and val_type must be non-empty;
     /// key_type must implement `cmp`.
-    func new(key_type: Str, key_size: U32, val_type: Str, val_size: U32) returns Map
+    func new_type_names(key_type: Str, val_type: Str) returns Map
+    func new(K: Type, V: Type) returns Map
     func len(self: Map) returns U32
     /// Ref to the key slot at sorted index `i`.
     func key_ptr(self: Map, i: U32) returns ref Dynamic

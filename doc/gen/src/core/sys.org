@@ -46,6 +46,21 @@ ext_func current_rss_bytes(shallow pid: I64) returns shallow U64
 ext_func host_os() returns Str
 #+end_src
 
+* mkdir_p
+#+begin_src til
+ext_func mkdir_p(path: Str) returns shallow I32
+#+end_src
+
+* copy_file
+#+begin_src til
+ext_func copy_file(src: Str, dst: Str) returns shallow I32
+#+end_src
+
+* copy_tree
+#+begin_src til
+ext_func copy_tree(src: Str, dst: Str) returns shallow I32
+#+end_src
+
 * wait_cmd
 #+begin_src til
 proc wait_cmd(pid: I64) returns I64

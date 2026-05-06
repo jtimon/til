@@ -14,7 +14,7 @@ namespace:
     /// True if `key` exists in the map.
     func has(self: DynMap, key: Str) returns shallow Bool
     /// Insert or overwrite `key` with typed value. Key and val are owned.
-    func set(mut self: DynMap, own key: Str, elem_type: Str, elem_size: U32, own val: Dynamic)
+    func set(mut self: DynMap, own key: Str, elem_type: Str, _elem_size: U32, own val: Dynamic)
     /// Ref to the value stored under `key`. Panics if not found.
     func get(self: DynMap, key: Str) returns ref Dynamic
     /// Type name of the value stored under `key`.

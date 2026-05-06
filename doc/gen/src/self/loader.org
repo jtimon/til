@@ -36,6 +36,16 @@ func forward_header_path(path: Str) returns Str
 func dir_of(abs: Str) returns Str
 #+end_src
 
+* compiler_root
+#+begin_src til
+func compiler_root(ext_c_path: Str) returns Str
+#+end_src
+
+* resolve_link_path
+#+begin_src til
+func resolve_link_path(base_dir: Str, root_dir: Str, path: Str) returns Str
+#+end_src
+
 * ProgramUnit
 #+begin_src til
 struct ProgramUnit {
@@ -151,7 +161,7 @@ func func_kind(ft: FuncType) returns Str
 
 * til_type_user
 #+begin_src til
-func til_type_user(t: TilType) returns Str
+func til_type_user(t: Type) returns Str
 #+end_src
 
 * append_packed_entry

@@ -53,24 +53,14 @@ namespace:
 }
 #+end_src
 
-* _t_Str_31431
+* _t_Str_31871
 #+begin_src til
-_t_Str_31431 is a Str
+_t_Str_31871 is a Str
 #+end_src
 
-* _t_U32_31432
+* _t_Type_31872
 #+begin_src til
-_t_U32_31432 is a U32
-#+end_src
-
-* _t_Str_31433
-#+begin_src til
-_t_Str_31433 is a Str
-#+end_src
-
-* _t_U32_31434
-#+begin_src til
-_t_U32_31434 is a U32
+_t_Type_31872 is a Type
 #+end_src
 
 * dispatch_map
@@ -83,24 +73,24 @@ dispatch_map is a Map
 dispatch_inited is a Bool
 #+end_src
 
-* _t_Str_31435
+* _t_Str_31873
 #+begin_src til
-_t_Str_31435 is a Str
+_t_Str_31873 is a Str
 #+end_src
 
-* _t_U32_31436
+* _t_Str_31874
 #+begin_src til
-_t_U32_31436 is a U32
+_t_Str_31874 is a Str
 #+end_src
 
-* _t_Str_31437
+* _t_Type_31875
 #+begin_src til
-_t_Str_31437 is a Str
+_t_Type_31875 is a Type
 #+end_src
 
-* _t_U32_31438
+* _t_Type_31876
 #+begin_src til
-_t_U32_31438 is a U32
+_t_Type_31876 is a Type
 #+end_src
 
 * ffi_map
@@ -108,24 +98,14 @@ _t_U32_31438 is a U32
 ffi_map is a Map
 #+end_src
 
-* _t_Str_31439
+* _t_Str_31877
 #+begin_src til
-_t_Str_31439 is a Str
+_t_Str_31877 is a Str
 #+end_src
 
-* _t_U32_31440
+* _t_Type_31878
 #+begin_src til
-_t_U32_31440 is a U32
-#+end_src
-
-* _t_Str_31441
-#+begin_src til
-_t_Str_31441 is a Str
-#+end_src
-
-* _t_U32_31442
-#+begin_src til
-_t_U32_31442 is a U32
+_t_Type_31878 is a Type
 #+end_src
 
 * ffi_struct_defs
@@ -138,14 +118,14 @@ ffi_struct_defs is a Map
 ffi_loaded is a Bool
 #+end_src
 
-* _t_Str_31443
+* _t_Str_31879
 #+begin_src til
-_t_Str_31443 is a Str
+_t_Str_31879 is a Str
 #+end_src
 
-* _t_U32_31444
+* _t_Type_31880
 #+begin_src til
-_t_U32_31444 is a U32
+_t_Type_31880 is a Type
 #+end_src
 
 * ffi_type_cache
@@ -408,6 +388,11 @@ proc h_dyn_fn(s: Scope, e: Expr, mut r: Value) returns shallow Bool
 proc h_dyn_size_of(s: Scope, e: Expr, mut r: Value) returns shallow Bool
 #+end_src
 
+* h_dyn_type_to_str
+#+begin_src til
+proc h_dyn_type_to_str(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+#+end_src
+
 * h_check_cmd_status
 #+begin_src til
 proc h_check_cmd_status(s: Scope, e: Expr, mut r: Value) returns shallow Bool
@@ -506,16 +491,6 @@ proc h_dyn_call(s: Scope, e: Expr, mut r: Value) returns shallow Bool
 * get_elem_size
 #+begin_src til
 proc get_elem_size(s: Scope, type_name: Str, src: Expr) returns shallow I32
-#+end_src
-
-* h_array
-#+begin_src til
-proc h_array(s: Scope, e: Expr, mut r: Value) returns shallow Bool
-#+end_src
-
-* h_vec
-#+begin_src til
-proc h_vec(s: Scope, e: Expr, mut r: Value) returns shallow Bool
 #+end_src
 
 * enum_method_dispatch

@@ -6,6 +6,21 @@
 func fa_is_ns(e: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
+* type_binding_is_type_token
+#+begin_src til
+func type_binding_is_type_token(b: TypeBinding) returns shallow Bool
+#+end_src
+
+* make_til_type_expr
+#+begin_src til
+func make_til_type_expr(src: Expr, t: Type) returns Expr
+#+end_src
+
+* rewrite_til_type_arg
+#+begin_src til
+proc rewrite_til_type_arg(scope: TypeScope, mut arg: Expr, ptype: Type, shallow in_func: I32, ctx: Context)
+#+end_src
+
 * fa_own_type
 #+begin_src til
 func fa_own_type(e: Expr, scope: TypeScope) returns shallow OwnType
@@ -24,6 +39,11 @@ va_counter is a I32
 * kw_counter
 #+begin_src til
 kw_counter is a I32
+#+end_src
+
+* coll_counter
+#+begin_src til
+coll_counter is a I32
 #+end_src
 
 * errors
@@ -95,7 +115,7 @@ BoolName is a Str
 #+begin_src til
 struct LocalInfo {
     ref mut name : Str
-    mut type : TilType
+    mut type : Type
     mut decl_index : I32
     mut last_use : I32
     mut own_transfer : I32
@@ -212,7 +232,7 @@ proc desugar_user_func_fcall_args(mut e: Expr, name: Str, callee_bind: TypeBindi
 
 * validate_fcall_arg
 #+begin_src til
-proc validate_fcall_arg(mut arg: Expr, ptype: TilType, ptype_name: Str, param_name: Str)
+proc validate_fcall_arg(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str)
 #+end_src
 
 * infer_and_validate_fcall_args
@@ -357,12 +377,12 @@ func infer_decl_type_alias_passthrough(scope: TypeScope, mut stmt: Expr) returns
 
 * declared_type_for_decl
 #+begin_src til
-func declared_type_for_decl(scope: TypeScope, stmt: Expr) returns TilType
+func declared_type_for_decl(scope: TypeScope, stmt: Expr) returns Type
 #+end_src
 
 * pre_coerce_decl_numeric_literals
 #+begin_src til
-proc pre_coerce_decl_numeric_literals(mut expr: Expr, target: TilType)
+proc pre_coerce_decl_numeric_literals(mut expr: Expr, target: Type)
 #+end_src
 
 * infer_decl_typed_value
@@ -512,17 +532,17 @@ func assign_target_is_func_local(mut scope: TypeScope, name: Str) returns shallo
 
 * is_numeric_type
 #+begin_src til
-func is_numeric_type(t: TilType) returns shallow Bool
+func is_numeric_type(t: Type) returns shallow Bool
 #+end_src
 
 * is_integral_numeric_type
 #+begin_src til
-func is_integral_numeric_type(t: TilType) returns shallow Bool
+func is_integral_numeric_type(t: Type) returns shallow Bool
 #+end_src
 
 * type_ctor_consumes
 #+begin_src til
-func type_ctor_consumes(t: TilType) returns shallow Bool
+func type_ctor_consumes(t: Type) returns shallow Bool
 #+end_src
 
 * is_usize_name
@@ -537,22 +557,22 @@ func is_uptr_name(name: Str) returns shallow Bool
 
 * can_implicit_usize_coerce
 #+begin_src til
-func can_implicit_usize_coerce(from: TilType, to: TilType, to_name: Str) returns shallow Bool
+func can_implicit_usize_coerce(from: Type, to: Type, to_name: Str) returns shallow Bool
 #+end_src
 
 * literal_in_range
 #+begin_src til
-func literal_in_range(val_str: Str, target: TilType) returns shallow Bool
+func literal_in_range(val_str: Str, target: Type) returns shallow Bool
 #+end_src
 
 * can_implicit_widen
 #+begin_src til
-func can_implicit_widen(from: TilType, to: TilType) returns shallow Bool
+func can_implicit_widen(from: Type, to: Type) returns shallow Bool
 #+end_src
 
 * type_from_name
 #+begin_src til
-func type_from_name(name: Str, scope: TypeScope) returns TilType
+func type_from_name(name: Str, scope: TypeScope) returns Type
 #+end_src
 
 * resolve_type_alias
@@ -567,7 +587,7 @@ func usize_name(scope: TypeScope) returns Str
 
 * usize_type
 #+begin_src til
-func usize_type(scope: TypeScope) returns TilType
+func usize_type(scope: TypeScope) returns Type
 #+end_src
 
 * type_has_cmp
@@ -610,14 +630,19 @@ func find_variadic_fcall(e: Expr) returns ref Expr
 func find_kwargs_fcall(e: Expr) returns ref Expr
 #+end_src
 
+* find_array_vec_fcall
+#+begin_src til
+func find_array_vec_fcall(e: Expr) returns ref Expr
+#+end_src
+
 * type_prefix
 #+begin_src til
-func type_prefix(t: TilType) returns Str
+func type_prefix(t: Type) returns Str
 #+end_src
 
 * type_to_name
 #+begin_src til
-func type_to_name(t: TilType) returns Str
+func type_to_name(t: Type) returns Str
 #+end_src
 
 * make_field_delete
@@ -627,7 +652,7 @@ func make_field_delete(field_assign: Expr, shallow field_own_type: OwnType) retu
 
 * make_delete_call
 #+begin_src til
-func make_delete_call(var_name: Str, shallow type: TilType, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr
+func make_delete_call(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr
 #+end_src
 
 * transfer_is_shallow_field_value_copy
@@ -637,12 +662,12 @@ func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeSco
 
 * make_free_call
 #+begin_src til
-func make_free_call(var_name: Str, shallow type: TilType, src: Expr) returns Expr
+func make_free_call(var_name: Str, shallow type: Type, src: Expr) returns Expr
 #+end_src
 
 * make_clone_call
 #+begin_src til
-func make_clone_call(type_name: Str, shallow type: TilType, arg: Expr, src: Expr) returns Expr
+func make_clone_call(type_name: Str, shallow type: Type, arg: Expr, src: Expr) returns Expr
 #+end_src
 
 * make_to_str_call
@@ -652,7 +677,7 @@ func make_to_str_call(type_name: Str, arg: Expr) returns Expr
 
 * make_ns_call
 #+begin_src til
-func make_ns_call(sname: Str, method: Str, shallow ret_type: TilType, src: Expr) returns Expr
+func make_ns_call(sname: Str, method: Str, shallow ret_type: Type, src: Expr) returns Expr
 #+end_src
 
 * build_kwargs_dynmap_decl
@@ -675,6 +700,31 @@ func build_variadic_array_decl(fcall: Expr, scope: TypeScope, elem_type: Str, va
 func build_variadic_array_set(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr
 #+end_src
 
+* build_builtin_vec_decl
+#+begin_src til
+func build_builtin_vec_decl(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str) returns Expr
+#+end_src
+
+* build_builtin_vec_push
+#+begin_src til
+func build_builtin_vec_push(fcall: Expr, vec_name: Str, shallow j: U32) returns Expr
+#+end_src
+
+* rewrite_collection_fcall_to_ident
+#+begin_src til
+func rewrite_collection_fcall_to_ident(mut fcall: Expr, coll_name: Str, coll_type: Type)
+#+end_src
+
+* desugar_array_vec_fcall
+#+begin_src til
+func desugar_array_vec_fcall(mut fcall: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool
+#+end_src
+
+* desugar_array_vec_decl
+#+begin_src til
+func desugar_array_vec_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool
+#+end_src
+
 * desugar_set_literal_decl
 #+begin_src til
 proc desugar_set_literal_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool
@@ -687,7 +737,7 @@ proc desugar_map_literal_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope)
 
 * process_call_desugars
 #+begin_src til
-func process_call_desugars(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_variadic: Bool, shallow has_kwargs: Bool)
+func process_call_desugars(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_array_vec: Bool, shallow has_variadic: Bool, shallow has_kwargs: Bool)
 #+end_src
 
 * desugar_body
@@ -857,7 +907,7 @@ func infer_literal_expr(mut expr: Expr)
 
 * narrow_dynamic
 #+begin_src til
-func narrow_dynamic(mut expr: Expr, target: TilType)
+func narrow_dynamic(mut expr: Expr, target: Type)
 #+end_src
 
 * fcall_returns_ref

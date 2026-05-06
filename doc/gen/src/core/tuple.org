@@ -15,8 +15,10 @@ namespace:
     /// Create an empty Tuple.
     func new() returns Tuple
     func len(self: Tuple) returns U32
-    /// Append a value of the given type and size. `val` is owned.
-    func push(mut self: Tuple, elem_type: Str, elem_size: U32, own val: Dynamic)
+    /// Internal helper that keeps tuple metadata as string type names.
+    func push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
+    /// Append a value of the given type. `val` is owned.
+    func push(mut self: Tuple, T: Type, own val: Dynamic)
     /// Ref to element at index `i`. Panics if out of bounds.
     func get(self: Tuple, i: U32) returns ref Dynamic
     /// Type name of the element at index `i`.

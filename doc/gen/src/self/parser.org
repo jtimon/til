@@ -54,7 +54,7 @@ func peek_col(p: Parser) returns shallow U32
 
 * til_type_from_explicit_type
 #+begin_src til
-func til_type_from_explicit_type(name: Str) returns TilType
+func til_type_from_explicit_type(name: Str) returns Type
 #+end_src
 
 * parse_fn_signature

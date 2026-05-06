@@ -16,7 +16,7 @@ struct Set {
     elem_cmp : CmpFn
 namespace:
     /// Create an empty Set. elem_type must implement `cmp`.
-    func new(elem_type: Str, elem_size: U32) returns Set
+    func new(T: Type) returns Set
     func len(self: Set) returns U32
     /// True if the set contains an element equal to `val`.
     func has(self: Set, val: Dynamic) returns shallow Bool

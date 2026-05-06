@@ -65,6 +65,7 @@ struct CliArgs {
     mut custom_c : Str
     mut target_str : Str
     mut cc : Str
+    mut install_prefix : Str
     mut path_idx : U32
     mut early_return : Bool
 namespace:

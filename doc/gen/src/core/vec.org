@@ -6,11 +6,6 @@
 ext_func vec(type_name: Str, elements: ..Dynamic) returns Vec
 #+end_src
 
-* vec_size_of
-#+begin_src til
-func vec_size_of(elem_type: Str) returns U32
-#+end_src
-
 * Vec
 Dynamic array of typed elements.
 
@@ -24,8 +19,9 @@ struct Vec {
     elem_clone : CloneFn
     elem_delete : DeleteFn
 namespace:
-    /// Create a new empty Vec for elements of the given type and size.
-    func new(elem_type: Str, elem_size: U32) returns Vec
+    /// Create a new empty Vec for elements of the given type.
+    func new_type_name(elem_type: Str) returns Vec
+    func new(T: Type) returns Vec
     func len(self: Vec) returns shallow U32
     /// Append an element to the end. `val` is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.

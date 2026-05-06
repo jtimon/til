@@ -33,24 +33,24 @@ func context_set_mode_from_path(mut ctx: Context, path: Str)
 func context_enter_file(mut ctx: Context, path: Str)
 #+end_src
 
-* _t_Str_9819
+* _t_Str_9796
 #+begin_src til
-_t_Str_9819 is a Str
+_t_Str_9796 is a Str
 #+end_src
 
-* _t_U32_9820
+* _t_Str_9797
 #+begin_src til
-_t_U32_9820 is a U32
+_t_Str_9797 is a Str
 #+end_src
 
-* _t_Str_9821
+* _t_Type_9798
 #+begin_src til
-_t_Str_9821 is a Str
+_t_Type_9798 is a Type
 #+end_src
 
-* _t_U32_9822
+* _t_Type_9799
 #+begin_src til
-_t_U32_9822 is a U32
+_t_Type_9799 is a Type
 #+end_src
 
 * core_modes
@@ -58,9 +58,124 @@ _t_U32_9822 is a U32
 core_modes is a Map
 #+end_src
 
-* _t_Bool_9823
+* _t_Bool_9800
 #+begin_src til
-_t_Bool_9823 is a Bool
+_t_Bool_9800 is a Bool
+#+end_src
+
+* _t_Bool_9801
+#+begin_src til
+_t_Bool_9801 is a Bool
+#+end_src
+
+* _t_Bool_9802
+#+begin_src til
+_t_Bool_9802 is a Bool
+#+end_src
+
+* _t_Bool_9803
+#+begin_src til
+_t_Bool_9803 is a Bool
+#+end_src
+
+* _t_Bool_9804
+#+begin_src til
+_t_Bool_9804 is a Bool
+#+end_src
+
+* _t_Bool_9805
+#+begin_src til
+_t_Bool_9805 is a Bool
+#+end_src
+
+* _t_Str_9806
+#+begin_src til
+_t_Str_9806 is a Str
+#+end_src
+
+* _t_Mode_9807
+#+begin_src til
+_t_Mode_9807 is a Mode
+#+end_src
+
+* _t_Bool_9808
+#+begin_src til
+_t_Bool_9808 is a Bool
+#+end_src
+
+* _t_Bool_9809
+#+begin_src til
+_t_Bool_9809 is a Bool
+#+end_src
+
+* _t_Bool_9810
+#+begin_src til
+_t_Bool_9810 is a Bool
+#+end_src
+
+* _t_Bool_9811
+#+begin_src til
+_t_Bool_9811 is a Bool
+#+end_src
+
+* _t_Bool_9812
+#+begin_src til
+_t_Bool_9812 is a Bool
+#+end_src
+
+* _t_Bool_9813
+#+begin_src til
+_t_Bool_9813 is a Bool
+#+end_src
+
+* _t_Str_9814
+#+begin_src til
+_t_Str_9814 is a Str
+#+end_src
+
+* _t_Mode_9815
+#+begin_src til
+_t_Mode_9815 is a Mode
+#+end_src
+
+* _t_Bool_9816
+#+begin_src til
+_t_Bool_9816 is a Bool
+#+end_src
+
+* _t_Bool_9817
+#+begin_src til
+_t_Bool_9817 is a Bool
+#+end_src
+
+* _t_Bool_9818
+#+begin_src til
+_t_Bool_9818 is a Bool
+#+end_src
+
+* _t_Bool_9819
+#+begin_src til
+_t_Bool_9819 is a Bool
+#+end_src
+
+* _t_Bool_9820
+#+begin_src til
+_t_Bool_9820 is a Bool
+#+end_src
+
+* _t_Bool_9821
+#+begin_src til
+_t_Bool_9821 is a Bool
+#+end_src
+
+* _t_Str_9822
+#+begin_src til
+_t_Str_9822 is a Str
+#+end_src
+
+* _t_Mode_9823
+#+begin_src til
+_t_Mode_9823 is a Mode
 #+end_src
 
 * _t_Bool_9824
@@ -88,19 +203,19 @@ _t_Bool_9827 is a Bool
 _t_Bool_9828 is a Bool
 #+end_src
 
-* _t_Str_9829
+* _t_Bool_9829
 #+begin_src til
-_t_Str_9829 is a Str
+_t_Bool_9829 is a Bool
 #+end_src
 
-* _t_Mode_9830
+* _t_Str_9830
 #+begin_src til
-_t_Mode_9830 is a Mode
+_t_Str_9830 is a Str
 #+end_src
 
-* _t_Bool_9831
+* _t_Mode_9831
 #+begin_src til
-_t_Bool_9831 is a Bool
+_t_Mode_9831 is a Mode
 #+end_src
 
 * _t_Bool_9832
@@ -128,19 +243,19 @@ _t_Bool_9835 is a Bool
 _t_Bool_9836 is a Bool
 #+end_src
 
-* _t_Str_9837
+* _t_Bool_9837
 #+begin_src til
-_t_Str_9837 is a Str
+_t_Bool_9837 is a Bool
 #+end_src
 
-* _t_Mode_9838
+* _t_Str_9838
 #+begin_src til
-_t_Mode_9838 is a Mode
+_t_Str_9838 is a Str
 #+end_src
 
-* _t_Bool_9839
+* _t_Mode_9839
 #+begin_src til
-_t_Bool_9839 is a Bool
+_t_Mode_9839 is a Mode
 #+end_src
 
 * _t_Bool_9840
@@ -168,19 +283,19 @@ _t_Bool_9843 is a Bool
 _t_Bool_9844 is a Bool
 #+end_src
 
-* _t_Str_9845
+* _t_Bool_9845
 #+begin_src til
-_t_Str_9845 is a Str
+_t_Bool_9845 is a Bool
 #+end_src
 
-* _t_Mode_9846
+* _t_Str_9846
 #+begin_src til
-_t_Mode_9846 is a Mode
+_t_Str_9846 is a Str
 #+end_src
 
-* _t_Bool_9847
+* _t_Mode_9847
 #+begin_src til
-_t_Bool_9847 is a Bool
+_t_Mode_9847 is a Mode
 #+end_src
 
 * _t_Bool_9848
@@ -208,19 +323,19 @@ _t_Bool_9851 is a Bool
 _t_Bool_9852 is a Bool
 #+end_src
 
-* _t_Str_9853
+* _t_Bool_9853
 #+begin_src til
-_t_Str_9853 is a Str
+_t_Bool_9853 is a Bool
 #+end_src
 
-* _t_Mode_9854
+* _t_Str_9854
 #+begin_src til
-_t_Mode_9854 is a Mode
+_t_Str_9854 is a Str
 #+end_src
 
-* _t_Bool_9855
+* _t_Mode_9855
 #+begin_src til
-_t_Bool_9855 is a Bool
+_t_Mode_9855 is a Mode
 #+end_src
 
 * _t_Bool_9856
@@ -248,134 +363,19 @@ _t_Bool_9859 is a Bool
 _t_Bool_9860 is a Bool
 #+end_src
 
-* _t_Str_9861
+* _t_Bool_9861
 #+begin_src til
-_t_Str_9861 is a Str
+_t_Bool_9861 is a Bool
 #+end_src
 
-* _t_Mode_9862
+* _t_Str_9862
 #+begin_src til
-_t_Mode_9862 is a Mode
+_t_Str_9862 is a Str
 #+end_src
 
-* _t_Bool_9863
+* _t_Mode_9863
 #+begin_src til
-_t_Bool_9863 is a Bool
-#+end_src
-
-* _t_Bool_9864
-#+begin_src til
-_t_Bool_9864 is a Bool
-#+end_src
-
-* _t_Bool_9865
-#+begin_src til
-_t_Bool_9865 is a Bool
-#+end_src
-
-* _t_Bool_9866
-#+begin_src til
-_t_Bool_9866 is a Bool
-#+end_src
-
-* _t_Bool_9867
-#+begin_src til
-_t_Bool_9867 is a Bool
-#+end_src
-
-* _t_Bool_9868
-#+begin_src til
-_t_Bool_9868 is a Bool
-#+end_src
-
-* _t_Str_9869
-#+begin_src til
-_t_Str_9869 is a Str
-#+end_src
-
-* _t_Mode_9870
-#+begin_src til
-_t_Mode_9870 is a Mode
-#+end_src
-
-* _t_Bool_9871
-#+begin_src til
-_t_Bool_9871 is a Bool
-#+end_src
-
-* _t_Bool_9872
-#+begin_src til
-_t_Bool_9872 is a Bool
-#+end_src
-
-* _t_Bool_9873
-#+begin_src til
-_t_Bool_9873 is a Bool
-#+end_src
-
-* _t_Bool_9874
-#+begin_src til
-_t_Bool_9874 is a Bool
-#+end_src
-
-* _t_Bool_9875
-#+begin_src til
-_t_Bool_9875 is a Bool
-#+end_src
-
-* _t_Bool_9876
-#+begin_src til
-_t_Bool_9876 is a Bool
-#+end_src
-
-* _t_Str_9877
-#+begin_src til
-_t_Str_9877 is a Str
-#+end_src
-
-* _t_Mode_9878
-#+begin_src til
-_t_Mode_9878 is a Mode
-#+end_src
-
-* _t_Bool_9879
-#+begin_src til
-_t_Bool_9879 is a Bool
-#+end_src
-
-* _t_Bool_9880
-#+begin_src til
-_t_Bool_9880 is a Bool
-#+end_src
-
-* _t_Bool_9881
-#+begin_src til
-_t_Bool_9881 is a Bool
-#+end_src
-
-* _t_Bool_9882
-#+begin_src til
-_t_Bool_9882 is a Bool
-#+end_src
-
-* _t_Bool_9883
-#+begin_src til
-_t_Bool_9883 is a Bool
-#+end_src
-
-* _t_Bool_9884
-#+begin_src til
-_t_Bool_9884 is a Bool
-#+end_src
-
-* _t_Str_9885
-#+begin_src til
-_t_Str_9885 is a Str
-#+end_src
-
-* _t_Mode_9886
-#+begin_src til
-_t_Mode_9886 is a Mode
+_t_Mode_9863 is a Mode
 #+end_src
 
 * mode_resolve

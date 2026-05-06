@@ -218,22 +218,22 @@ func fcall_returns_dynamic(fcall: Expr) returns shallow Bool
 
 * til_type_to_c
 #+begin_src til
-func til_type_to_c(shallow t: TilType) returns Str
+func til_type_to_c(shallow t: Type) returns Str
 #+end_src
 
 * extern_decl_ctype
 #+begin_src til
-func extern_decl_ctype(shallow t: TilType, shallow rhs_t: TilType) returns Str
+func extern_decl_ctype(shallow t: Type, shallow rhs_t: Type) returns Str
 #+end_src
 
 * resolve_decl_ctype
 #+begin_src til
-func resolve_decl_ctype(shallow t: TilType, shallow rhs_t: TilType, explicit: Str) returns Str
+func resolve_decl_ctype(shallow t: Type, shallow rhs_t: Type, explicit: Str) returns Str
 #+end_src
 
 * c_type_name
 #+begin_src til
-func c_type_name(shallow t: TilType, struct_name: Str) returns Str
+func c_type_name(shallow t: Type, struct_name: Str) returns Str
 #+end_src
 
 * func_to_c
@@ -268,7 +268,7 @@ proc emit_indent(f: File, shallow depth: I32)
 
 * emit_til_default
 #+begin_src til
-proc emit_til_default(f: File, shallow t: TilType)
+proc emit_til_default(f: File, shallow t: Type)
 #+end_src
 
 * callee_return_ctype
@@ -308,7 +308,7 @@ func get_stack_local_ctype(name: Str) returns ref Str
 
 * resolve_ident_ctype
 #+begin_src til
-func resolve_ident_ctype(ident: Str, ttype: TilType, sname: Str) returns Str
+func resolve_ident_ctype(ident: Str, ttype: Type, sname: Str) returns Str
 #+end_src
 
 * resolve_callee_name
@@ -686,6 +686,11 @@ proc emit_dyn_fn_wrappers(f: File)
 proc emit_dyn_size_of_body(f: File)
 #+end_src
 
+* emit_dyn_type_to_str_body
+#+begin_src til
+proc emit_dyn_type_to_str_body(f: File)
+#+end_src
+
 * emit_dyn_call_bodies
 #+begin_src til
 proc emit_dyn_call_bodies(f: File)
@@ -787,6 +792,56 @@ proc cmd_translate(lp: LoadedProgram, custom_c: Str, target: Target) returns sha
 * cmd_build
 #+begin_src til
 proc cmd_build(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str) returns shallow I32
+#+end_src
+
+* default_install_prefix
+#+begin_src til
+func default_install_prefix() returns Str
+#+end_src
+
+* check_install_rc
+#+begin_src til
+proc check_install_rc(rc: I32, what: Str) returns shallow I32
+#+end_src
+
+* builder_compiler_root
+#+begin_src til
+func builder_compiler_root(lp: LoadedProgram) returns Str
+#+end_src
+
+* support_root
+#+begin_src til
+func support_root(prefix: Str) returns Str
+#+end_src
+
+* install_file
+#+begin_src til
+proc install_file(src: Str, dst: Str, what: Str) returns shallow I32
+#+end_src
+
+* install_tree
+#+begin_src til
+proc install_tree(src: Str, dst: Str, what: Str) returns shallow I32
+#+end_src
+
+* is_compiler_install
+#+begin_src til
+func is_compiler_install(lp: LoadedProgram, paths: BuildPaths) returns shallow Bool
+#+end_src
+
+* install_compiler_support
+#+begin_src til
+proc install_compiler_support(lp: LoadedProgram, prefix: Str) returns shallow I32
+#+end_src
+
+* print_install_success
+#+begin_src til
+proc print_install_success(path: Str)
+#+end_src
+
+* cmd_install
+#+begin_src til
+proc cmd_install(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str) returns shallow I32
 #+end_src
 
 * cmd_run

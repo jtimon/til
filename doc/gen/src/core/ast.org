@@ -1,12 +1,12 @@
 #+TITLE: src/core/ast.til
 #+OPTIONS: toc:t
 
-* TilType
+* Type
 Type representation for the til compiler. Carries payload for named
 types (Struct/Enum/Custom) and is tag-only for builtins.
 
 #+begin_src til
-enum TilType {
+enum Type {
     Unknown
     None
     I64
@@ -26,43 +26,48 @@ enum TilType {
     Dynamic
     Custom: Str
 namespace:
-    /// Compare two TilTypes. Named-payload variants (Struct/Enum/Custom)
+    /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
     /// compare equal regardless of variant if their name payloads match.
-    func eq(a: TilType, b: TilType) returns shallow Bool
-    ext_func Unknown() returns TilType
-    ext_func None() returns TilType
-    ext_func I64() returns TilType
-    ext_func U8() returns TilType
-    ext_func I16() returns TilType
-    ext_func I32() returns TilType
-    ext_func U32() returns TilType
-    ext_func U64() returns TilType
-    ext_func F32() returns TilType
-    ext_func Bool() returns TilType
-    ext_func Struct(val: Str) returns TilType
-    ext_func StructDef() returns TilType
-    ext_func Enum(val: Str) returns TilType
-    ext_func EnumDef() returns TilType
-    ext_func FuncDef() returns TilType
-    ext_func FuncPtr() returns TilType
-    ext_func Dynamic() returns TilType
-    ext_func Custom(val: Str) returns TilType
-    func is(self: TilType, other: TilType) returns shallow Bool
-    func delete(own self: TilType, call_free: Bool)
-    func to_str(self: TilType) returns Str
-    func clone(self: TilType) returns TilType
+    func eq(a: Type, b: Type) returns shallow Bool
+    ext_func Unknown() returns Type
+    ext_func None() returns Type
+    ext_func I64() returns Type
+    ext_func U8() returns Type
+    ext_func I16() returns Type
+    ext_func I32() returns Type
+    ext_func U32() returns Type
+    ext_func U64() returns Type
+    ext_func F32() returns Type
+    ext_func Bool() returns Type
+    ext_func Struct(val: Str) returns Type
+    ext_func StructDef() returns Type
+    ext_func Enum(val: Str) returns Type
+    ext_func EnumDef() returns Type
+    ext_func FuncDef() returns Type
+    ext_func FuncPtr() returns Type
+    ext_func Dynamic() returns Type
+    ext_func Custom(val: Str) returns Type
+    func is(self: Type, other: Type) returns shallow Bool
+    func delete(own self: Type, call_free: Bool)
+    func to_str(self: Type) returns Str
+    func clone(self: Type) returns Type
     func size() returns shallow U32
 }
 #+end_src
 
 * til_type_name_c
 #+begin_src til
-func til_type_name_c(t: TilType) returns Str
+func til_type_name_c(t: Type) returns Str
 #+end_src
 
 * til_type_name
 #+begin_src til
-func til_type_name(t: TilType) returns Str
+func til_type_name(t: Type) returns Str
+#+end_src
+
+* dyn_type_to_str
+#+begin_src til
+ext_func dyn_type_to_str(type: Type) returns Str
 #+end_src
 
 * FuncType
@@ -127,7 +132,7 @@ struct Declaration {
     mut is_priv : Bool
     mut used : Bool
     mut own_type : OwnType
-    mut til_type : TilType
+    mut til_type : Type
     mut field_offset : I32
     mut field_size : I32
     ref mut field_struct_def : Expr
@@ -333,7 +338,7 @@ AST expression node with line/col, type, children, and node-specific payload.
 #+begin_src til
 struct Expr {
     mut node_type : NodeType
-    mut til_type : TilType
+    mut til_type : Type
     mut children : Vec
     mut line : U32
     mut col : U32

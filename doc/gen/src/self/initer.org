@@ -5,7 +5,7 @@
 #+begin_src til
 struct TypeBinding {
     mut name : Str
-    mut type : TilType
+    mut type : Type
     mut func_type : FuncType
     mut is_mut : Bool
     mut is_priv : Bool
@@ -61,11 +61,11 @@ struct TypeScope {
 namespace:
     func get_binding(self: TypeScope, name: Str) returns ref TypeBinding
     func find(self: TypeScope, name: Str) returns ScopeFind
-    func get_type(self: TypeScope, name: Str) returns TilType
+    func get_type(self: TypeScope, name: Str) returns Type
     func get_func_type(self: TypeScope, name: Str) returns shallow FuncType
     func get_struct(self: TypeScope, name: Str) returns ref Expr
     func is_mut(self: TypeScope, name: Str) returns shallow Bool
-    func set(mut self: TypeScope, name: Str, type: TilType, shallow func_type: FuncType, shallow is_mut: Bool, path: Str, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow own_type: OwnType)
+    func set(mut self: TypeScope, name: Str, type: Type, shallow func_type: FuncType, shallow is_mut: Bool, path: Str, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow own_type: OwnType)
     func clone(self: TypeScope) returns TypeScope
     func delete(own self: TypeScope, call_free: Bool)
     func size() returns shallow U32
@@ -130,7 +130,12 @@ func align_up(shallow offset: I32, shallow align: I32) returns shallow I32
 
 * type_from_name_init
 #+begin_src til
-func type_from_name_init(name: Str, scope: TypeScope) returns TilType
+func type_from_name_init(name: Str, scope: TypeScope) returns Type
+#+end_src
+
+* init_type_from_explicit_type
+#+begin_src til
+func init_type_from_explicit_type(name: Str, scope: TypeScope) returns Type
 #+end_src
 
 * register_struct_def_for_stmt
@@ -320,7 +325,7 @@ func resolve_field_struct_defs(program: Expr, scope: TypeScope)
 
 * infer_top_level_decl_type
 #+begin_src til
-func infer_top_level_decl_type(stmt: Expr, scope: TypeScope, mut out_type: TilType) returns shallow Bool
+func infer_top_level_decl_type(stmt: Expr, scope: TypeScope, mut out_type: Type) returns shallow Bool
 #+end_src
 
 * init_declarations
