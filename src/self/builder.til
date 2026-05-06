@@ -4779,14 +4779,33 @@ emit_test_main := proc(f: File, program: Expr) {
     mut test_count : I32 = 0
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
         ref rhs : Expr = stmt.child(0)
-        if rhs.node_type.is(NodeType.FuncDef).not() { continue }
-        ref fd : FunctionDef = get_payload(rhs.node_type)
-        if fd.func_type.is(FuncType.Test).not() { continue }
-        ref dd : Declaration = get_payload(stmt.node_type)
-        f.write("    "); f.write(dd.name); f.write("();\n")
-        f.write("    fprintf(stderr, \"  pass: %s\\n\", \""); f.write(dd.name); f.write("\");\n")
-        test_count = test_count.add(1.to_i32())
+        if rhs.node_type.is(NodeType.FuncDef) {
+            ref fd : FunctionDef = get_payload(rhs.node_type)
+            if fd.func_type.is(FuncType.Test).not() { continue }
+            ref dd : Declaration = get_payload(stmt.node_type)
+            f.write("    "); f.write(dd.name); f.write("();\n")
+            f.write("    fprintf(stderr, \"  pass: %s\\n\", \""); f.write(dd.name); f.write("\");\n")
+            test_count = test_count.add(1.to_i32())
+            continue
+        }
+        if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+            ref sdd : Declaration = get_payload(stmt.node_type)
+            ref ns : Vec = def_ns_decls(rhs)
+            for nsd : Declaration in ns {
+                ref nsfdef : Expr = nsd.default_value
+                if is_null(nsfdef) { continue }
+                if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
+                ref nsfd : FunctionDef = get_payload(nsfdef.node_type)
+                if nsfd.func_type.is(FuncType.Test).not() { continue }
+                full_name := sdd.name.format("_", nsd.name)
+                qual_name := sdd.name.format(".", nsd.name)
+                f.write("    "); f.write(full_name); f.write("();\n")
+                f.write("    fprintf(stderr, \"  pass: %s\\n\", \""); f.write(qual_name); f.write("\");\n")
+                test_count = test_count.add(1.to_i32())
+            }
+        }
     }
     if test_count.eq(0.to_i32()) {
         f.write("    fprintf(stderr, \"no tests found\\n\");\n")
@@ -5281,6 +5300,19 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
         }
         result = system_cmd(cmd)
     }
+    return result
+}
+
+// Compile and run a test binary. Forces do_lib=false so library-mode
+// files still produce an executable -- emit_test_main is gated on
+// lp.run_tests, so the C output has a real main().
+cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str) returns shallow I32 {
+    mut paths := derive_build_paths(lp, custom_bin, custom_c, target)
+    paths.do_lib = false
+    make_build_dirs(paths)
+    mut result := translate_ast(lp, paths)
+    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override) }
+    if result.eq(0) { result = system_cmd(paths.bin_path) }
     return result
 }
 

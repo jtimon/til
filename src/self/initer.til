@@ -131,6 +131,13 @@ Context := struct {
     mut scope := TypeScope()
     mut is_repl := false
 
+    // True while the typer is inferring a struct/enum namespace member
+    // (set in infer_type_def_expr).  Lets infer_func_def_expr accept
+    // test() decls at the namespace level even though scope.parent is
+    // the type's inner scope, while still rejecting test() decls
+    // inside arbitrary nested function bodies.
+    mut typing_namespace_member := false
+
     // #178 first table: per-function-emission cache of FuncPtr local
     // signatures, populated by the builder when it emits a FuncPtr-typed
     // decl, read back when fcall_fn_sig needs to resolve a FuncPtr local

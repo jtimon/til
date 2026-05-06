@@ -1693,7 +1693,11 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         }
     case:
     }
-    // Type-check ns_decls (stored directly by parser, not via body)
+    // Type-check ns_decls (stored directly by parser, not via body).
+    // Flip ctx.typing_namespace_member so infer_func_def_expr accepts
+    // test() decls at the namespace level (issue #51).
+    saved_in_ns := ctx.typing_namespace_member
+    ctx.typing_namespace_member = true
     ref tc_ns : Vec = def_ns_decls(expr)
     for tc_nd : Declaration in tc_ns {
         if is_null(tc_nd.default_value) { continue }
@@ -1717,6 +1721,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             tc_nd.til_type = tc_nd.default_value.til_type.clone()
         }
     }
+    ctx.typing_namespace_member = saved_in_ns
     TypeScope.delete(own inner)
 }
 
@@ -1765,13 +1770,20 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         return
     }
     expr.til_type = Type.None
+    // Snapshot + clear the namespace flag so nested funcs typed by
+    // recursive infer_expr calls aren't treated as namespace members.
+    ifd_in_ns := ctx.typing_namespace_member
+    ctx.typing_namespace_member = false
     switch expr.node_type {
     case NodeType.FuncDef(fdef):
         is_func := fdef.func_type.is(FuncType.Func)
         is_macro := fdef.func_type.is(FuncType.Macro)
         if fdef.func_type.is(FuncType.Test) {
-            if is_null(scope.parent).not() {
-                type_error(expr, "test functions can only be declared in root scope")
+            // Allowed at root scope, or at the immediate namespace
+            // level of a struct/enum (issue #51).  Tests in arbitrary
+            // nested function bodies are still rejected.
+            if is_null(scope.parent).not().and(ifd_in_ns.not()) {
+                type_error(expr, "test functions can only be declared at root scope or in a struct/enum namespace")
             }
             if fdef.return_type.len().gt(0) {
                 type_error(expr, "test functions cannot have a return type")
@@ -1881,6 +1893,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     case:
         UNREACHABLE(__LOC__)
     }
+    ctx.typing_namespace_member = ifd_in_ns
 }
 
 check_unused_params := proc(func_scope: TypeScope, expr: Expr) {

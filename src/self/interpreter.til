@@ -1943,7 +1943,9 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
         eval_body(global, iu.ast)
     }
 
-    // Run tests (scan per-file user ASTs)
+    // Run tests (scan per-file user ASTs).  Picks up both top-level
+    // test() decls and test() decls inside struct/enum namespaces so
+    // tests can live next to the code they exercise.
     if lp.run_tests {
         mut test_count : I32 = 0
         mut pass_count : I32 = 0
@@ -1968,6 +1970,34 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
                         eprint_single("\n")
                     }
                 }
+                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+                    ref rhs : Expr = stmt.child(0)
+                    if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                        ref sdd : Declaration = get_payload(stmt.node_type)
+                        ref ns : Vec = def_ns_decls(rhs)
+                        for nsd : Declaration in ns {
+                            ref nsfdef : Expr = nsd.default_value
+                            if is_null(nsfdef) { continue }
+                            if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
+                            ref nsfd : FunctionDef = get_payload(nsfdef.node_type)
+                            if nsfd.func_type.is(FuncType.Test).not() { continue }
+                            test_count = test_count.add(1)
+                            test_scope := scope_new(global)
+                            interp_path = lp.path.clone()
+                            eval_body(test_scope, nsfdef.child(0))
+                            if has_return {
+                                return_value = return_value.clone()
+                            }
+                            scope_free(own test_scope)
+                            pass_count = pass_count.add(1)
+                            eprint_single("  pass: ")
+                            eprint_single(sdd.name)
+                            eprint_single(".")
+                            eprint_single(nsd.name)
+                            eprint_single("\n")
+                        }
+                    }
+                }
             }
         }
         if test_count.eq(0) {
@@ -1982,8 +2012,10 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
         if pass_count.eq(test_count).not() { exit(1) }
     }
 
-    // In needs_main mode, call main() (same logic as interpret())
-    if is_null(lp.cur_mode).not() { if lp.cur_mode.needs_main {
+    // In needs_main mode, call main() (same logic as interpret()).  When
+    // run_tests is set, tests are the entry points -- skip main() so a
+    // mode cli/gui file with inline test() decls runs only its tests.
+    if lp.run_tests.not() { if is_null(lp.cur_mode).not() { if lp.cur_mode.needs_main {
         ref main_cell : Cell = scope_get(global, "main")
         if is_null(main_cell).or(main_cell.val.is(Value.Func).not()) {
             eprint_single(lp.path)
@@ -2045,7 +2077,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
 
         eval_body(main_scope, body)
         scope_free(own main_scope)
-    } }
+    } } }
 
     scope_free(own global)
     ffi_cleanup()

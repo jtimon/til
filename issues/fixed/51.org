@@ -2,8 +2,8 @@
 ** FIXED #51 Add ~til test~ command
 
 Add a ~til test myfile.til~ command that finds all test() functions in
-  the file, treats each as an entry point, and runs them all — both
-  interpreted and compiled — reporting results. Works on any file
+  the file, treats each as an entry point, and runs them all -- both
+  interpreted and compiled -- reporting results. Works on any file
   regardless of mode. Currently there is no test command; mode test files
   are run externally by the Makefile test harness using separate
   ~ctil interpret~ and ~ctil run~ invocations.
@@ -11,4 +11,45 @@ Add a ~til test myfile.til~ command that finds all test() functions in
   This also enables keeping test() functions inline next to the code they
   test (e.g. inside ext_struct namespaces or regular source files) without
   needing separate mode test files.
+
+*** Resolution
+
+  - ~src/til.til~ wires ~til test foo.til~ to a two-pass dispatch:
+    ~cmd_interpret~ runs the tests interpreted; on success
+    ~cmd_test_build_run~ (new helper in ~src/self/builder.til~) builds a
+    test binary and runs it. Both passes print their own
+    ~N/M tests passed~ summary.
+  - The library-mode panic was lifted: ~cmd_test_build_run~ forces
+    ~paths.do_lib = false~ so a ~mode lib~/~mode pure~ source still
+    produces an executable (~emit_test_main~ is already gated on
+    ~lp.run_tests~, so the C output has a real ~main()~).
+  - Tests are now genuine entry points: in ~interpret_units~
+    (~src/self/interpreter.til~) the ~needs_main~ branch is gated on
+    ~lp.run_tests.not()~, so a ~mode cli~/~mode gui~ file with inline
+    ~test()~ decls runs only its tests (~main()~ is no longer also
+    invoked). The build side already drops ~main()~ via the scavenger
+    seed when ~run_tests~.
+  - test() inside struct/enum namespaces:
+    - ~src/self/typer.til~: ~infer_func_def_expr~ now accepts ~test()~
+      decls when ~Context.typing_namespace_member~ is set, which
+      ~infer_type_def_expr~ flips around its ns_decls loop. The flag is
+      cleared on entry to ~infer_func_def_expr~ so a stray ~test()~
+      buried inside an arbitrary nested function body is still rejected.
+    - ~src/self/loader.til~: the ~run_tests~ scavenger seed now also
+      pushes ~Type.test_name~ for every namespace ~test()~ decl, so
+      ~Type_test_name()~ symbols aren't scavenged out of the binary.
+    - ~src/self/interpreter.til~: the ~run_tests~ loop walks struct/enum
+      ns_decls in addition to top-level decls and reports namespace
+      tests as ~Type.test_name~.
+    - ~src/self/builder.til~: ~emit_test_main~ emits
+      ~Type_test_name();~ calls (and ~Type.test_name~ in the per-test
+      pass message) for every namespace ~test()~ decl.
+  - Regression coverage:
+    - ~src/test/test_in_namespace.til~ -- a ~mode test~ file with
+      ~test()~ decls inside both a struct and an enum namespace, plus a
+      top-level test, registered via ~add_mode~ in ~src/tests.til~ so
+      the harness runs it interpreted and compiled.
+    - ~til_test_cmd~ ~add_single~ entry runs ~bin/til test
+      src/test/test_in_namespace.til~ end-to-end and asserts that
+      ~tests passed~ appears twice in the output (once per backend).
 

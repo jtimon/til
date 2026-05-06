@@ -527,20 +527,16 @@ main := proc(args: ..Str) {
         }
         result = cmd_interpret(lp, user_argv)
     } else if cli.command.eq("test") {
-        if lp.cur_mode.is_library {
-            panic(__LOC__, "cannot test a library -- use translate or build")
-        }
         // First pass: run tests interpreted. cmd_interpret exit(1)s on
         // any failing test, so we only reach the compile pass when the
-        // interpreted pass passed.
+        // interpreted pass passed.  Library modes are fine here -- the
+        // interpreter doesn't care, and cmd_test_build_run forces an
+        // executable build (emit_test_main is gated on lp.run_tests).
         println("=== interpret ===")
         result = cmd_interpret(lp, user_argv)
         if result.eq(0) {
-            // Second pass: compile a test binary (emit_test_main is gated
-            // on lp.run_tests, set by prepare_program above) and run it.
             println("=== compile + run ===")
-            empty_argv := Vec.new(Str)
-            result = cmd_run(lp, cli.custom_bin, cli.custom_c, empty_argv, target, cli.cc)
+            result = cmd_test_build_run(lp, cli.custom_bin, cli.custom_c, target, cli.cc)
         }
     } else if cli.command.eq("translate") {
         result = cmd_translate(lp, cli.custom_c, target)

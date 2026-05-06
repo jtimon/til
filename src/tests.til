@@ -404,6 +404,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/kwargs.til", flags)
     add_mode(tests, "src/test/files.til", flags)
     add_mode(tests, "src/test/constfold.til", flags)
+    add_mode(tests, "src/test/test_in_namespace.til", flags)
     // TODO(#114): help()/doc comments are REPL-only for now; doc_comments.til
     // assumes docs are populated for til test / til interpret.
     // add_mode(tests, "src/test/doc_comments.til", flags)
@@ -419,6 +420,11 @@ main := proc(args: ..Str) {
     File.writefile(ffi_scavenge_exp, "ok")
     add_single(tests, "ffi_scavenge_link_c_run", "ffi", 0, ffi_scavenge_exp,
                asan_safe_cmd(format(til_bin, " run src/test/ffi_scavenge_link_c.til"), til_bin))
+
+    // === til test command (issue #51): runs interpret + compile-and-run
+    // and counts "tests passed" lines so both backends are exercised.
+    add_count(tests, "til_test_cmd", "test", "tests passed", 2,
+              asan_safe_cmd(format(til_bin, " test src/test/test_in_namespace.til"), til_bin))
 
     // === parser / typer diagnostics ===
     add_count(tests, "typer_errors", "typer", "error:", 90,

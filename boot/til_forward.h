@@ -649,6 +649,7 @@ typedef struct Context {
     Set imports_eval_done;
     TypeScope scope;
     Bool is_repl;
+    Bool typing_namespace_member;
     Map local_fn_sigs;
     Map func_defs;
     Map struct_def_exprs;
@@ -1536,6 +1537,7 @@ I32 install_compiler_support(LoadedProgram * lp, Str * prefix);
 void print_install_success(Str * path);
 I32 cmd_install(LoadedProgram * lp, Str * install_prefix_in, Target * target, Str * cc_override);
 I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv, Target * target, Str * cc_override);
+I32 cmd_test_build_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override);
 Str * format_unit_doc_org(Str * unit_path, Expr * ast, TypeScope * scope);
 Str * til_doc_out_path(Str * unit_path);
 void ensure_parent_dir(Str * path);

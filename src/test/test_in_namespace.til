@@ -1,0 +1,51 @@
+mode test
+
+# Issue #51: test() decls inline in struct/enum namespaces are
+# discovered and run by both `til interpret` (run_tests via mode test)
+# and `til build` (emit_test_main).
+
+Counter := struct {
+    mut value : I64 = 0
+    namespace:
+    bump := func(self: Counter) returns I64 { return self.value.add(1) }
+
+    test_bump_default := test() {
+        c := Counter(value = 0)
+        assert_eq(__LOC__, c.bump(), 1)
+    }
+
+    test_bump_seeded := test() {
+        c := Counter(value = 10)
+        assert_eq(__LOC__, c.bump(), 11)
+    }
+}
+
+Sign := enum {
+    Pos
+    Zero
+    Neg
+    namespace:
+    classify := func(x: I64) returns I64 {
+        if x.gt(0) { return 1 }
+        if x.lt(0) { return -1 }
+        return 0
+    }
+
+    test_classify_pos := test() {
+        assert_eq(__LOC__, Sign.classify(7), 1)
+    }
+
+    test_classify_neg := test() {
+        assert_eq(__LOC__, Sign.classify(-3), -1)
+    }
+
+    test_classify_zero := test() {
+        assert_eq(__LOC__, Sign.classify(0), 0)
+    }
+}
+
+# Sanity: a top-level test in the same file still runs.
+test_top_level_still_works := test() {
+    c := Counter(value = 41)
+    assert_eq(__LOC__, c.bump(), 42)
+}
