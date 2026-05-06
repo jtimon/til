@@ -192,14 +192,17 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("USize") { return Type.U32 }
     if name.eq("Str")  { return Type.Struct("Str".clone()) }
     if name.eq("Bool") { return Type.Bool }
-    if name.eq("Type") { return Type.Enum("TilType".clone()) }
-    if name.eq("TilType") { return Type.Enum("TilType".clone()) }
     if name.eq("StructDef") { return Type.Struct("StructDef".clone()) }
     if name.eq("EnumDef") { return Type.Struct("EnumDef".clone()) }
     if name.eq("Dynamic")   { return Type.Dynamic }
     if is_null(scope).not() {
         ref b : TypeBinding = scope.get_binding(name)
         if is_null(b).not() {
+            if b.is_type_alias {
+                if b.alias_target.is_empty().not() {
+                    return type_from_name_init(b.alias_target, scope)
+                }
+            }
             if b.is_builtin {
                 if is_null(b.struct_def).not() { return b.type }
             }
