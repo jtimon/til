@@ -172,11 +172,13 @@ is_known := func(e: Expr, mut out: Value) returns shallow Bool {
 // typer-hoisted temps and other body-locals so func_uses_unknown_globals
 // can skip flagging them as unknown globals.
 body_has_local := proc(body: Expr, name: Str) returns shallow Bool {
-    if body.node_type.is(NodeType.Decl) {
-        ref dd : Declaration = get_payload(body.node_type)
+    switch body.node_type {
+    case NodeType.Decl(dd):
         if dd.name.eq(name) { return true }
+    case NodeType.FuncDef:
+        return false
+    case:
     }
-    if body.node_type.is(NodeType.FuncDef) { return false }
     for c : Expr in body.children {
         if body_has_local(c, name) { return true }
     }
@@ -190,9 +192,10 @@ body_has_local := proc(body: Expr, name: Str) returns shallow Bool {
 // fold from forcing eval into a body whose hoisted temps the eval
 // scope can't see.
 func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool) returns shallow Bool {
-    if e.node_type.is(NodeType.FuncDef) { return false }
-    if e.node_type.is(NodeType.Ident) {
-        ref name : Str = get_payload(e.node_type)
+    switch e.node_type {
+    case NodeType.FuncDef:
+        return false
+    case NodeType.Ident(name):
         // Side-effecting names are "unknown" for fold purposes: their
         // bodies aren't, but invoking them at compile time would kill
         // or corrupt the build.
@@ -205,37 +208,38 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
         if name.eq("concat") { return true }
         if name.eq("substr") { return true }
         if name.eq("format") { return true }
-        ref fd : FunctionDef = get_payload(func_def.node_type)
-        for p : Declaration in fd.params {
-            if p.name.eq(name) { return false }
+        switch func_def.node_type {
+        case NodeType.FuncDef(fd):
+            for p : Declaration in fd.params {
+                if p.name.eq(name) { return false }
+            }
+        case:
         }
         if known.has(name) { return false }
         if is_null(scope_get(precomp_scope, name)).not() { return false }
         if lenient.and(body_has_local(body_root, name)) { return false }
         return true
-    }
-    // Assign carries the LHS name as the node payload, not as an Ident
-    // child. If the LHS isn't a body-local, the function mutates a
-    // global -- never fold (eval would crash on missing bindings, or
-    // worse, silently mutate precomp's interpreter scope).
-    if e.node_type.is(NodeType.Assign) {
-        ref aname : Str = get_payload(e.node_type)
-        if body_has_local(body_root, aname).not() { return true }
-    }
-    // FieldAccess: detect `.clone()` / `.delete()` / etc on values where
-    // the FA is the callee of an enclosing FCall. Same heap-cleanup risk.
-    if e.node_type.is(NodeType.FieldAccess) {
-        ref mname : Str = get_payload(e.node_type)
+    case NodeType.Assign(ad):
+        // Assign carries the LHS name as the node payload, not as an Ident
+        // child. If the LHS isn't a body-local, the function mutates a
+        // global -- never fold (eval would crash on missing bindings, or
+        // worse, silently mutate precomp's interpreter scope).
+        if body_has_local(body_root, ad.name).not() { return true }
+    case NodeType.FieldAccess(mname):
+        // FieldAccess: detect `.clone()` / `.delete()` / etc on values where
+        // the FA is the callee of an enclosing FCall. Same heap-cleanup risk.
         if mname.eq("clone") { return true }
         if mname.eq("delete") { return true }
         if mname.eq("concat") { return true }
         if mname.eq("substr") { return true }
         if mname.eq("new").and(e.children.len().gt(0)) {
-            if e.child(0).node_type.is(NodeType.Ident) {
-                ref type_name : Str = get_payload(e.child(0).node_type)
+            switch e.child(0).node_type {
+            case NodeType.Ident(type_name):
                 if type_name.eq("Vec") { return true }
+            case:
             }
         }
+    case:
     }
     for e_ci : Expr in e.children {
         if func_uses_unknown_globals(e_ci, func_def, precomp_scope, body_root, lenient) { return true }
@@ -265,20 +269,26 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
     if n.eq(2) {
         ref decl : Expr = body.child(0)
         ref ret : Expr = body.child(1)
-        if decl.node_type.is(NodeType.Decl).not() { return NULL }
         if ret.node_type.is(NodeType.Return).not() { return NULL }
         if decl.children.len().eq(0) { return NULL }
         if ret.children.len().eq(0) { return NULL }
-        ref dd : Declaration = get_payload(decl.node_type)
-        ref ret_val : Expr = ret.child(0)
-        if ret_val.node_type.is(NodeType.Ident).not() { return NULL }
-        ref ident_name : Str = get_payload(ret_val.node_type)
-        if ident_name.eq(dd.name).not() { return NULL }
-        ref rhs : Expr = decl.child(0)
-        if rhs.node_type.is(NodeType.LiteralNum)
-            .or(rhs.node_type.is(NodeType.LiteralStr))
-            .or(rhs.node_type.is(NodeType.LiteralBool)) {
-            return rhs
+        switch decl.node_type {
+        case NodeType.Decl(dd):
+            ref ret_val : Expr = ret.child(0)
+            switch ret_val.node_type {
+            case NodeType.Ident(ident_name):
+                if ident_name.eq(dd.name).not() { return NULL }
+                ref rhs : Expr = decl.child(0)
+                if rhs.node_type.is(NodeType.LiteralNum)
+                    .or(rhs.node_type.is(NodeType.LiteralStr))
+                    .or(rhs.node_type.is(NodeType.LiteralBool)) {
+                    return rhs
+                }
+            case:
+                return NULL
+            }
+        case:
+            return NULL
         }
     }
     return NULL
@@ -312,12 +322,13 @@ ns_lookup_flat := func(name: Str) returns shallow Dynamic {
 fa_recv_type_name := func(callee: Expr) returns Str {
     if callee.children.len().eq(0) { return "" }
     ref recv : Expr = callee.child(0)
-    if recv.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(recv.node_type)
+    switch recv.node_type {
+    case NodeType.Ident(ident):
         // If the Ident names a known type (`Str`/`I64`/...), use it.
         // Otherwise it's a value and we fall back to its til_type.
         ref _probe : Value = ns_get(ident, "size")
         if is_null(_probe).not() { return ident.clone() }
+    case:
     }
     return til_type_name_c(recv.til_type)
 }
@@ -332,8 +343,9 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr) returns ref Expr {
     case NodeType.Ident(_ci):
         ref _cell : Cell = scope_get(scope, _ci)
         if is_null(_cell).not() {
-            if is(_cell.val, Value.Func) {
-                _fc_fp = get_payload(_cell.val)
+            switch _cell.val {
+            case Value.Func(p): _fc_fp = p
+            case:
             }
         }
         // Fall back to namespace lookup for typer-flattened callees
@@ -345,8 +357,9 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr) returns ref Expr {
             if _sn.is_empty().not() {
                 ref _nv : Value = ns_get(_sn, _mn)
                 if is_null(_nv).not() {
-                    if is(_nv, Value.Func) {
-                        _fc_fp = get_payload(_nv)
+                    switch _nv {
+                    case Value.Func(p): _fc_fp = p
+                    case:
                     }
                 }
             }
@@ -383,7 +396,10 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         if is_side_effecting_name(callee_ident) { return NULL }
         ref fn_cell : Cell = scope_get(scope, callee_ident)
         if is_null(fn_cell).not() {
-            if is(fn_cell.val, Value.Func) { fp = get_payload(fn_cell.val) }
+            switch fn_cell.val {
+            case Value.Func(p): fp = p
+            case:
+            }
         }
     case NodeType.FieldAccess(mname):
         // FieldAccess on an Ident value receiver: the interpreter needs
@@ -391,18 +407,22 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         // and isn't a known constant, bail.
         if callee.children.len().gt(0) {
             ref recv : Expr = callee.child(0)
-            if recv.node_type.is(NodeType.Ident) {
-                ref _ri : Str = get_payload(recv.node_type)
+            switch recv.node_type {
+            case NodeType.Ident(_ri):
                 ref _probe : Value = ns_get(_ri, "size")
                 if is_null(_probe) {
                     if known.has(_ri).not() { return NULL }
                 }
+            case:
             }
             sname := fa_recv_type_name(callee)
             if sname.is_empty().not() {
                 ref ns_val : Value = ns_get(sname, mname)
                 if is_null(ns_val).not() {
-                    if is(ns_val, Value.Func) { fp = get_payload(ns_val) }
+                    switch ns_val {
+                    case Value.Func(p): fp = p
+                    case:
+                    }
                 }
             }
         }
@@ -410,8 +430,8 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     }
     if is_null(fp).not() {
         ref fdef : Expr = deref(fp)
-        if fdef.node_type.is(NodeType.FuncDef) {
-            ref _fd : FunctionDef = get_payload(fdef.node_type)
+        switch fdef.node_type {
+        case NodeType.FuncDef(_fd):
             // Folding a ref-returning func would bake the compile-time
             // alias into the AST. For ext_funcs it would also dlsym at
             // compile time and truncate the static address to scalar.
@@ -432,6 +452,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                     return NULL
                 }
             }
+        case:
         }
     }
 
@@ -509,34 +530,34 @@ is_macro_call := func(e: Expr) returns shallow Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
-    if callee.node_type.is(NodeType.Ident) {
-        return precomp_has_macro(get_payload(callee.node_type))
-    }
-    if callee.node_type.is(NodeType.FieldAccess) {
+    switch callee.node_type {
+    case NodeType.Ident(cname):
+        return precomp_has_macro(cname)
+    case NodeType.FieldAccess(mname):
         sname := fa_recv_type_name(callee)
         if sname.is_empty() { return false }
-        ref mname : Str = get_payload(callee.node_type)
         qname := sname.format("_", mname)
         return precomp_has_macro(qname)
+    case:
+        return false
     }
-    return false
 }
 
 is_func_call := func(e: Expr) returns shallow Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
-    if callee.node_type.is(NodeType.Ident) {
-        return precomp_has_func(get_payload(callee.node_type))
-    }
-    if callee.node_type.is(NodeType.FieldAccess) {
+    switch callee.node_type {
+    case NodeType.Ident(cname):
+        return precomp_has_func(cname)
+    case NodeType.FieldAccess(mname):
         sname := fa_recv_type_name(callee)
         if sname.is_empty() { return false }
-        ref mname : Str = get_payload(callee.node_type)
         qname := sname.format("_", mname)
         return precomp_has_func(qname)
+    case:
+        return false
     }
-    return false
 }
 
 // Uniform fold: walk the subtree rooted at `e` and replace every FCall
@@ -581,14 +602,15 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         // bodies would let one body's value bleed into another's fold
         // via the global `known` Map. (rstil avoids this with a scope
         // stack; til doesn't have one.)
-        if child.node_type.is(NodeType.Decl) {
-            ref dd : Declaration = get_payload(child.node_type)
+        switch child.node_type {
+        case NodeType.Decl(dd):
             if dd.is_mut.not()
             .and(dd.own_type.eq(OwnType.Ref).not())
             .and(dd.name.starts_with("_t_"))
             .and(child.children.len().gt(0)) {
                 track_literal(scope, dd.name, child.child(0))
             }
+        case:
         }
     }
 }
@@ -630,58 +652,70 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, shallow at_global: 
         if rhs.node_type.is(NodeType.StructDef) { continue }
         if rhs.node_type.is(NodeType.EnumDef) { continue }
         if at_global.not() { continue }
-        ref dd : Declaration = get_payload(stmt.node_type)
-        if dd.is_mut { continue }
-        if dd.own_type.is(OwnType.Ref) { continue }
-        track_literal(scope, dd.name, rhs)
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if dd.is_mut { continue }
+            if dd.own_type.is(OwnType.Ref) { continue }
+            track_literal(scope, dd.name, rhs)
+        case:
+        }
     }
 }
 
 precomp_scan_names := func(prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.child(0).node_type.is(NodeType.FuncDef) {
-                ref fd : FunctionDef = get_payload(stmt.child(0).node_type)
-                ref dd : Declaration = get_payload(stmt.node_type)
-                if fd.func_type.is(FuncType.Macro) {
-                    macros.add(own dd.name.clone())
-                } else if fd.func_type.is(FuncType.Func)
-                    .or(fd.func_type.is(FuncType.ExtFunc)) {
-                    funcs.add(own dd.name.clone())
-                }
-            }
             switch stmt.child(0).node_type {
+            case NodeType.FuncDef(fd):
+                switch stmt.node_type {
+                case NodeType.Decl(dd):
+                    if fd.func_type.is(FuncType.Macro) {
+                        macros.add(own dd.name.clone())
+                    } else if fd.func_type.is(FuncType.Func)
+                        .or(fd.func_type.is(FuncType.ExtFunc)) {
+                        funcs.add(own dd.name.clone())
+                    }
+                case:
+                }
             case NodeType.StructDef(sdd_data):
-                ref sdd : Declaration = get_payload(stmt.node_type)
-                for d_j : Declaration in sdd_data.ns_decls {
-                    ref fdd : Declaration = d_j
-                    ref fdef : Expr = fdd.default_value
-                    if fdef.node_type.is(NodeType.FuncDef) {
-                        ref ffd : FunctionDef = get_payload(fdef.node_type)
-                        qname := sdd.name.format("_", fdd.name)
-                        if ffd.func_type.is(FuncType.Macro) {
-                            macros.add(own qname)
-                        } else if ffd.func_type.is(FuncType.Func)
-                            .or(ffd.func_type.is(FuncType.ExtFunc)) {
-                            funcs.add(own qname)
+                switch stmt.node_type {
+                case NodeType.Decl(sdd):
+                    for d_j : Declaration in sdd_data.ns_decls {
+                        ref fdd : Declaration = d_j
+                        ref fdef : Expr = fdd.default_value
+                        switch fdef.node_type {
+                        case NodeType.FuncDef(ffd):
+                            qname := sdd.name.format("_", fdd.name)
+                            if ffd.func_type.is(FuncType.Macro) {
+                                macros.add(own qname)
+                            } else if ffd.func_type.is(FuncType.Func)
+                                .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                                funcs.add(own qname)
+                            }
+                        case:
                         }
                     }
+                case:
                 }
             case NodeType.EnumDef(pc_edd):
-                ref sdd : Declaration = get_payload(stmt.node_type)
-                for d_j : Declaration in pc_edd.ns_decls {
-                    ref nsd : Declaration = d_j
-                    if is_null(nsd.default_value) { continue }
-                    if nsd.default_value.node_type.is(NodeType.FuncDef) {
-                        ref ffd : FunctionDef = get_payload(nsd.default_value.node_type)
-                        qname := sdd.name.format("_", nsd.name)
-                        if ffd.func_type.is(FuncType.Macro) {
-                            macros.add(own qname)
-                        } else if ffd.func_type.is(FuncType.Func)
-                            .or(ffd.func_type.is(FuncType.ExtFunc)) {
-                            funcs.add(own qname)
+                switch stmt.node_type {
+                case NodeType.Decl(sdd):
+                    for d_j : Declaration in pc_edd.ns_decls {
+                        ref nsd : Declaration = d_j
+                        if is_null(nsd.default_value) { continue }
+                        switch nsd.default_value.node_type {
+                        case NodeType.FuncDef(ffd):
+                            qname := sdd.name.format("_", nsd.name)
+                            if ffd.func_type.is(FuncType.Macro) {
+                                macros.add(own qname)
+                            } else if ffd.func_type.is(FuncType.Func)
+                                .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                                funcs.add(own qname)
+                            }
+                        case:
                         }
                     }
+                case:
                 }
             case:
             }
@@ -695,12 +729,15 @@ precomp_register_defs := func(mut global: Scope, prog: Expr) {
             if stmt.child(0).node_type.is(NodeType.FuncDef)
             .or(stmt.child(0).node_type.is(NodeType.StructDef))
             .or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
-                ref dd : Declaration = get_payload(stmt.node_type)
-                mut val := val_none()
-                // Build Value.Func manually: tag=9 (Func), data=pointer to child(0)
-                memcpy(val, 9.to_i32(), 4)
-                write_ptr(ptr_add(val, 8), stmt.child(0))
-                scope_set_owned(global, dd.name, val)
+                switch stmt.node_type {
+                case NodeType.Decl(dd):
+                    mut val := val_none()
+                    // Build Value.Func manually: tag=9 (Func), data=pointer to child(0)
+                    memcpy(val, 9.to_i32(), 4)
+                    write_ptr(ptr_add(val, 8), stmt.child(0))
+                    scope_set_owned(global, dd.name, val)
+                case:
+                }
             }
         }
     }

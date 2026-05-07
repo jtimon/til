@@ -88,13 +88,15 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
 
 rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, shallow in_func: I32, ctx: Context) {
     if ptype.is(Type.Enum("Type")).not() { return }
-    if arg.node_type.is(NodeType.Ident).not() { return }
-    ref arg_name : Str = get_payload(arg.node_type)
-    ref b : TypeBinding = scope.get_binding(arg_name)
-    if type_binding_is_type_token(b).not() { return }
-    mut replacement := make_til_type_expr(arg, b.type)
-    move(arg, replacement, Expr.size())
-    infer_expr(scope, arg, in_func, ctx)
+    switch arg.node_type {
+    case NodeType.Ident(arg_name):
+        ref b : TypeBinding = scope.get_binding(arg_name)
+        if type_binding_is_type_token(b).not() { return }
+        mut replacement := make_til_type_expr(arg, b.type)
+        move(arg, replacement, Expr.size())
+        infer_expr(scope, arg, in_func, ctx)
+    case:
+    }
 }
 
 // Look up the OwnType for the instance field of a FieldAccess/FieldAssign.
@@ -1280,9 +1282,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     check_member_priv(e, obj3_sname, method, namespace_member_is_priv(sdef2, method))
     if auto_gen_depth.eq(0) { mark_ns_member_used(sdef2, method) }
     if proc_def_depth.gt(0).or(in_func.neq(0)) {
-        ref ns_fdef0 : FunctionDef = get_payload(ns_func2.node_type)
-        if ns_fdef0.func_type.is(FuncType.Proc).or(ns_fdef0.func_type.is(FuncType.ExtProc)) {
-            proc_calls_count = proc_calls_count.add(1.to_i32())
+        switch ns_func2.node_type {
+        case NodeType.FuncDef(ns_fdef0):
+            if ns_fdef0.func_type.is(FuncType.Proc).or(ns_fdef0.func_type.is(FuncType.ExtProc)) {
+                proc_calls_count = proc_calls_count.add(1.to_i32())
+            }
+        case:
         }
     }
     // Ensure obj3 carries the resolved struct type so the interpreter can
@@ -3524,23 +3529,25 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
 normalize_scope_bindings := func(scope: TypeScope) {
     for bi in 0..scope.bindings.len() {
         ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
-        if b.type.is(Type.Custom).not() { continue }
-        ref name : Str = get_payload(b.type)
-        ref alias_b : TypeBinding = scope.get_binding(name)
-        if is_null(alias_b).not() {
-            if alias_b.is_type_alias {
-                if alias_b.type.is(Type.Custom).not() {
-                    b.type = alias_b.type.clone()
-                    continue
+        switch b.type {
+        case Type.Custom(name):
+            ref alias_b : TypeBinding = scope.get_binding(name)
+            if is_null(alias_b).not() {
+                if alias_b.is_type_alias {
+                    if alias_b.type.is(Type.Custom).not() {
+                        b.type = alias_b.type.clone()
+                        continue
+                    }
                 }
             }
-        }
-        ref sdef : Expr = scope.get_struct(name)
-        if is_null(sdef) { continue }
-        if sdef.node_type.is(NodeType.EnumDef) {
-            b.type = Type.Enum(name.clone())
-        } else {
-            b.type = Type.Struct(name.clone())
+            ref sdef : Expr = scope.get_struct(name)
+            if is_null(sdef) { continue }
+            if sdef.node_type.is(NodeType.EnumDef) {
+                b.type = Type.Enum(name.clone())
+            } else {
+                b.type = Type.Struct(name.clone())
+            }
+        case:
         }
     }
 }
@@ -3579,13 +3586,16 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
     for stmt : Expr in iu.ast.children {
         if stmt.node_type.is(NodeType.FCall).not() { continue }
         if stmt.children.len().neq(2) { continue }
-        if stmt.child(0).node_type.is(NodeType.Ident).not() { continue }
         if stmt.child(1).node_type.is(NodeType.LiteralStr).not() { continue }
-        ref id : Str = get_payload(stmt.child(0).node_type)
-        if id.eq("import").not() { continue }
-        ref dep : Str = iu.imports.get(import_idx)
-        total = total.add(type_file(dep, ctx))
-        import_idx = import_idx.add(1.to_u32())
+        switch stmt.child(0).node_type {
+        case NodeType.Ident(id):
+            if id.eq("import").not() { continue }
+            ref dep : Str = iu.imports.get(import_idx)
+            total = total.add(type_file(dep, ctx))
+            import_idx = import_idx.add(1.to_u32())
+        case:
+            continue
+        }
     }
 
     ctx.mode = iu.mode.clone()

@@ -162,10 +162,13 @@ ffi_init_struct_defs_append := func(program: Expr) {
         if sdef.node_type.is(NodeType.StructDef).not() {
             continue
         }
-        ref dd : Declaration = get_payload(stmt.node_type)
-        key := Str(c_str = dd.name.c_str, count = dd.name.count, cap = CAP_VIEW)
-        box := ExprPtrBox(ptr = sdef)
-        ffi_struct_defs.set(own key, own box)
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            key := Str(c_str = dd.name.c_str, count = dd.name.count, cap = CAP_VIEW)
+            box := ExprPtrBox(ptr = sdef)
+            ffi_struct_defs.set(own key, own box)
+        case:
+        }
     }
 }
 
@@ -244,11 +247,13 @@ priv value_variant_name := func(v: Value) returns Str {
 // and/or/not, so the typer should only let Bool-shaped values through).
 priv narrow_bool_arg := proc(s: Scope, e: Expr) returns Bool {
     v := reinterpret_ptr_value(eval_expr(s, e), "Bool", s)
-    if v.is(Value.Boolean).not() {
+    switch v {
+    case Value.Boolean(bv):
+        return bv.clone()
+    case:
         panic(__LOC__, "expected Bool argument to and/or/not, got Value.", value_variant_name(v))
+        return false
     }
-    ref bv : Bool = get_payload(v)
-    return bv.clone()
 }
 
 h_Bool_and := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
@@ -273,37 +278,62 @@ h_Bool_not := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
 h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     v := eval_expr(s, e.child(1))
-    ref i : I64 = get_payload(v)
-    r = val_u8(i)
-    return true
+    switch v {
+    case Value.Int(i):
+        r = val_u8(i)
+        return true
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
 }
 
 h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     v := eval_expr(s, e.child(1))
-    ref i : I64 = get_payload(v)
-    r = val_i16(i)
-    return true
+    switch v {
+    case Value.Int(i):
+        r = val_i16(i)
+        return true
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
 }
 
 h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     v := eval_expr(s, e.child(1))
-    ref i : I64 = get_payload(v)
-    r = val_i32(i)
-    return true
+    switch v {
+    case Value.Int(i):
+        r = val_i32(i)
+        return true
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
 }
 
 h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     v := eval_expr(s, e.child(1))
-    ref i : I64 = get_payload(v)
-    r = val_f32(i.to_f32())
-    return true
+    switch v {
+    case Value.Int(i):
+        r = val_f32(i.to_f32())
+        return true
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
 }
 
 h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     v := eval_expr(s, e.child(1))
-    ref i : I64 = get_payload(v)
-    r = val_u32(i)
-    return true
+    switch v {
+    case Value.Int(i):
+        r = val_u32(i)
+        return true
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
 }
 
 priv h_print_single := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
@@ -321,8 +351,12 @@ h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
 
 h_exit := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     a := eval_expr(s, e.child(1))
-    ref code : I64 = get_payload(a)
-    exit(code)
+    switch a {
+    case Value.Int(code):
+        exit(code)
+    case:
+        UNREACHABLE(__LOC__)
+    }
     r = val_none()
     return true
 }
@@ -487,17 +521,27 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
 
 h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     pidv := eval_expr(s, e.child(1))
-    ref pid : I64 = get_payload(pidv)
-    r = val_i64(check_cmd_status(pid))
-    return true
+    switch pidv {
+    case Value.Int(pid):
+        r = val_i64(check_cmd_status(pid))
+        return true
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
 }
 
 h_sleep := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     msv := eval_expr(s, e.child(1))
-    ref ms : I64 = get_payload(msv)
-    sleep_ms(ms)
-    r = val_none()
-    return true
+    switch msv {
+    case Value.Int(ms):
+        sleep_ms(ms)
+        r = val_none()
+        return true
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
 }
 
 h_file_mtime := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
@@ -520,9 +564,14 @@ h_cfile_open := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     path_v := eval_expr(s, e.child(1))
     is_write_v := eval_expr(s, e.child(2))
     path := str_view(path_v)
-    ref is_write : Bool = get_payload(is_write_v)
-    r = Value.Ptr(cfile_open(path, is_write))
-    return true
+    switch is_write_v {
+    case Value.Boolean(is_write):
+        r = Value.Ptr(cfile_open(path, is_write))
+        return true
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
 }
 
 // type_name -> ffi_type. Inverse mapping in ffi_shallow_type_info; keep
@@ -596,16 +645,15 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
 }
 
 h_free := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    if e.child(1).node_type.is(NodeType.Ident).not() {
+    switch e.child(1).node_type {
+    case NodeType.Ident(ident):
+        ref cell : Cell = scope_get(s, ident)
+        free_value(cell.val)
+        memcpy(cell.val, val_none(), Value.size())
+    case:
         val := eval_expr(s, e.child(1))
         free_value(val)
-        r = val_none()
-        return true
     }
-    ref ident : Str = get_payload(e.child(1).node_type)
-    ref cell : Cell = scope_get(s, ident)
-    free_value(cell.val)
-    memcpy(cell.val, val_none(), Value.size())
     r = val_none()
     return true
 }
@@ -720,8 +768,13 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
     // child 3 is arity literal, actual args start at child 4
     ref arity_expr : Expr = e.child(3)
-    ref arity_str : Str = get_payload(arity_expr.node_type)
-    nargs := arity_str.to_i64().to_u32()
+    mut nargs : U32 = 0.to_u32()
+    switch arity_expr.node_type {
+    case NodeType.LiteralNum(arity_str):
+        nargs = arity_str.to_i64().to_u32()
+    case:
+        UNREACHABLE(__LOC__)
+    }
     for ai in 0..nargs {
         fake_call.push_child_clone(e.child(ai.add(4)))
     }
@@ -772,8 +825,11 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Boolean(x): pdata = to_ptr(x); psz = 1.to_i32()
                 case Value.Struct(si):
                     if is_null(si.struct_def).not() {
-                        ref sd : StructDef = get_payload(si.struct_def.node_type)
-                        psz = sd.total_struct_size
+                        switch si.struct_def.node_type {
+                        case NodeType.StructDef(sd):
+                            psz = sd.total_struct_size
+                        case:
+                        }
                     }
                     pdata = to_ptr(si.data)
                 case Value.Enum(ei):
@@ -903,19 +959,19 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
         }
         if is_shallow {
             // Shallow: store dereferenced value directly
-            if v.is(Value.Struct) {
-                ref si : StructInstance = get_payload(v)
+            switch v {
+            case Value.Struct(si):
                 write_ptr(ptr_add(arg_ptrs, i.to_u64().mul(8)), si.data)
-            } else {
+            case:
                 ref at : Dynamic = ptr_add(fe.arg_types, i.to_u64().mul(8))
                 ref atype : Dynamic = deref(at)
                 ref dst : Dynamic = ptr_add(args, i.to_u64().mul(8))
                 if ffi_write_shallow_arg(scope, v, atype, dst).not() {
                     // Default: Ptr value
-                    if v.is(Value.Ptr) {
-                        ref pv : Dynamic = get_payload(v)
+                    switch v {
+                    case Value.Ptr(pv):
                         write_ptr(dst, deref(pv))
-                    } else {
+                    case:
                         write_ptr(dst, NULL)
                     }
                 }
@@ -956,9 +1012,13 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     raw : Dynamic = calloc(1, 16)
     mut ret_buf : Dynamic = 0
     if is_null(ret_sdef).not() {
-        ref sdd : StructDef = get_payload(ret_sdef.node_type)
-        ret_buf = malloc(sdd.total_struct_size.to_i64().to_usize())
-        ffi_call(fe.cif, fe.fn, ret_buf, arg_ptrs)
+        switch ret_sdef.node_type {
+        case NodeType.StructDef(sdd):
+            ret_buf = malloc(sdd.total_struct_size.to_i64().to_usize())
+            ffi_call(fe.cif, fe.fn, ret_buf, arg_ptrs)
+        case:
+            ffi_call(fe.cif, fe.fn, raw, arg_ptrs)
+        }
     } else {
         ffi_call(fe.cif, fe.fn, raw, arg_ptrs)
     }
@@ -1076,27 +1136,43 @@ ffi_init_scan_program := func(program: Expr) {
             // Top-level ext_func/ext_proc
             if stmt.child(0).node_type.is(NodeType.FuncDef) {
                 ref fdef : Expr = stmt.child(0)
-                ref fd : FunctionDef = get_payload(fdef.node_type)
-                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
-                    ref dname : Declaration = get_payload(stmt.node_type)
-                    ref fn_ptr : U8 = ffi_dlsym(dname.name)
-                    if is_null(fn_ptr).not() {
-                        ffi_register(dname.name, fn_ptr, fdef)
+                switch fdef.node_type {
+                case NodeType.FuncDef(fd):
+                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
+                        switch stmt.node_type {
+                        case NodeType.Decl(dname):
+                            ref fn_ptr : U8 = ffi_dlsym(dname.name)
+                            if is_null(fn_ptr).not() {
+                                ffi_register(dname.name, fn_ptr, fdef)
+                            }
+                        case:
+                        }
                     }
+                case:
                 }
             }
             // Struct namespace ext_func/ext_proc
             if stmt.child(0).node_type.is(NodeType.StructDef) {
-                ref sdd : Declaration = get_payload(stmt.node_type)
+                mut sdd_name := ""
+                switch stmt.node_type {
+                case NodeType.Decl(sdd):
+                    sdd_name = sdd.name.clone()
+                case:
+                }
                 ref sdd_data : StructDef = get_payload(stmt.child(0).node_type)
                 for d_j : Declaration in sdd_data.ns_decls {
                     ref fdd : Declaration = d_j
                     ref fdef : Expr = fdd.default_value
                     if is_null(fdef) { continue }
-                    if fdef.node_type.is(NodeType.FuncDef).not() { continue }
-                    ref fd : FunctionDef = get_payload(fdef.node_type)
-                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
-                        flat_name := sdd.name.format("_", fdd.name)
+                    mut fd_func_type := FuncType.None
+                    switch fdef.node_type {
+                    case NodeType.FuncDef(fd):
+                        fd_func_type = fd.func_type
+                    case:
+                        continue
+                    }
+                    if fd_func_type.is(FuncType.ExtFunc).or(fd_func_type.is(FuncType.ExtProc)) {
+                        flat_name := sdd_name.format("_", fdd.name)
                         ref fn_ptr : U8 = ffi_dlsym(flat_name)
                         if is_null(fn_ptr).not() {
                             ffi_register(flat_name, fn_ptr, fdef)
@@ -1104,21 +1180,25 @@ ffi_init_scan_program := func(program: Expr) {
                             // zero flat_name to prevent destructor from freeing c_str
                             memset(flat_name, 0, Str.size())
                         }
-                    } else if fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc)) {
+                    } else if fd_func_type.is(FuncType.Func).or(fd_func_type.is(FuncType.Proc)) {
                         // Scan function body for nested ext_func/ext_proc
                         ref fbody : Expr = fdef.child(0)
                         for inner : Expr in fbody.children {
                             if inner.node_type.is(NodeType.Decl).and(inner.children.len().gt(0)) {
                                 ref idef : Expr = inner.child(0)
-                                if idef.node_type.is(NodeType.FuncDef) {
-                                    ref ifd : FunctionDef = get_payload(idef.node_type)
+                                switch idef.node_type {
+                                case NodeType.FuncDef(ifd):
                                     if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {
-                                        ref iname : Declaration = get_payload(inner.node_type)
-                                        ref ifn : U8 = ffi_dlsym(iname.name)
-                                        if is_null(ifn).not() {
-                                            ffi_register(iname.name, ifn, idef)
+                                        switch inner.node_type {
+                                        case NodeType.Decl(iname):
+                                            ref ifn : U8 = ffi_dlsym(iname.name)
+                                            if is_null(ifn).not() {
+                                                ffi_register(iname.name, ifn, idef)
+                                            }
+                                        case:
                                         }
                                     }
+                                case:
                                 }
                             }
                         }
