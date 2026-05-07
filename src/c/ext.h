@@ -23,7 +23,9 @@ typedef struct Str Str;
 
 // During the USize migration, generated code should box size arguments using
 // the alias-facing ABI rather than the source expression's numeric type.
-#define USIZE_REF(x) ((void *)&(U32){(U32)(x)})
+// USIZE_REF spells the box with the USize typedef name (rather than a hardwired
+// U32) so it widens with the typedef once it goes target-driven.
+#define USIZE_REF(x) ((void *)&(USize){(USize)(x)})
 #define UPTR_REF(x) ((void *)&(UPtr){(UPtr)(x)})
 
 // I64 clone

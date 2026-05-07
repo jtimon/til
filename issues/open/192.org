@@ -51,7 +51,7 @@ width, so the bootstrap stays consistent.
   ~slash.to_u32()~ callsites that fed ~USize~ slots with ~to_usize()~,
   removing the manual width-conversion noise the issue calls out.
 
-Step 2 (this commit): make ~I64.to_usize~ track the ~USize~ typedef.
+Step 2: make ~I64.to_usize~ track the ~USize~ typedef.
 
 - ~src/c/ext.h~ + ~src/c/ext.c~: declare and define ~USize I64_to_usize(I64)~
   as a one-line ~(USize)a~ cast. This stays equivalent to ~I64_to_u32~
@@ -62,20 +62,39 @@ Step 2 (this commit): make ~I64.to_usize~ track the ~USize~ typedef.
   TIL wrapper would have kept returning ~U32~ even after the alias flip;
   the ext_func form does not.
 
+Step 3 (this commit): finish the alias-side preparation so the typedef
+flip later only needs to touch ~ext.h~ + ~target_usize_name~.
+
+- Audited core container types. ~Vec~, ~Array~, ~Map~, ~Set~, ~Str~ already
+  spell their fields and method params as ~USize~. The one remaining
+  hardwire was ~Tuple.type_sizes : Vec.new(U32)~, which stored ~USize~
+  element sizes in a ~Vec<U32>~ and would fail to typecheck once ~USize~
+  widens to ~U64~. Switched it to ~Vec.new(USize)~ and dropped the
+  now-unused ~import("u32")~.
+- ~src/c/ext.h~: ~USIZE_REF~ now boxes via the ~USize~ typedef name
+  (~(USize){(USize)(x)}~) instead of a hardwired ~U32~. While the typedef
+  is still ~U32~ this expansion is byte-for-byte identical to before, but
+  it widens automatically once the typedef goes target-driven.
+
 *** Remaining (to be done in follow-up commits)
 
 The actual width flip on 64-bit targets is not done yet because it
 participates in the C ABI between ~bin/til_boot~ and ~bin/til~. Doing it
 safely needs the staged migration described in ~doc/self.org~:
 
-- Ensure every ~USize~ field on Str/Vec/Array/Map/Set/Tuple/etc. and
-  every ~USize~ parameter on container APIs is reachable through the
-  alias (so flipping ~target_usize_name~ propagates everywhere at once).
-- Make ~src/c/ext.h~'s ~USize~ typedef target-driven (mirroring the
-  existing ~#if UINTPTR_MAX == 0xffffffff~ block for ~UPtr~), and adapt
-  ~USIZE_REF~ accordingly.
-- Then flip ~target_usize_name~ to return ~U64~ on 64-bit. This ships as
-  a "Two-pass: " commit (or as a preparation+use pair) so ~boot/til.c~
+- Step 4 (preparation, single commit): teach ~src/self/builder.til~ to
+  emit the ~USize~ alias name (e.g. ~USize *~ in a ~Vec_set~ signature)
+  instead of resolving it to the underlying primitive (~U32 *~) at
+  translation time. After this lands, the next ~til_boot~ baked from
+  master emits alias-spelled signatures, which is what the ~USIZE_REF~
+  box (and any future U64 widening) needs to line up with.
+- Step 5 (the flip, two-pass commit): make ~src/c/ext.h~'s ~USize~
+  typedef target-driven (mirror the existing ~#if UINTPTR_MAX ==
+  0xffffffff~ block for ~UPtr~) AND change ~target_usize_name~ to return
+  ~U64~ on 64-bit targets. Ships as a ~Two-pass:~ commit so ~boot/til.c~
   is regenerated against the new alias.
-- After the flip, sweep callsites that route container sizes through
-  ~UPtr~ or explicit ~to_u64()~ and route them back through ~USize~.
+- Step 6 (post-flip cleanup): sweep callsites that route container sizes
+  through ~UPtr~ or explicit ~to_u64()~ and route them back through
+  ~USize~. Also fix typer/parser counters declared as bare ~U32~ that
+  consume ~.len()~ values (they typecheck today only because ~USize ==
+  U32~).
