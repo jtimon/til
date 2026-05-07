@@ -121,19 +121,22 @@ extract_imports := func(body: Expr, path: Str) returns Vec {
     mut paths := Vec.new(Str)
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
-            if stmt.child(0).node_type.is(NodeType.Ident)
-            .and(stmt.child(1).node_type.is(NodeType.LiteralStr)) {
-                ref _c0id : Str = get_payload(stmt.child(0).node_type)
+            switch stmt.child(0).node_type {
+            case NodeType.Ident(_c0id):
                 if _c0id.eq("import") {
-                    ref p : Str = get_payload(stmt.child(1).node_type)
-                    if p.ends_with(".til") {
-                        bare := p.strip_suffix(".til")
-                        loc := path.format(":", stmt.line.to_str(), ":", stmt.col.to_str())
-                        panic(loc, "import path must not end in '.til' (got \"", p,
-                            "\"); use import(\"", bare, "\") instead")
+                    switch stmt.child(1).node_type {
+                    case NodeType.LiteralStr(p):
+                        if p.ends_with(".til") {
+                            bare := p.strip_suffix(".til")
+                            loc := path.format(":", stmt.line.to_str(), ":", stmt.col.to_str())
+                            panic(loc, "import path must not end in '.til' (got \"", p,
+                                "\"); use import(\"", bare, "\") instead")
+                        }
+                        paths.push(own p.concat(".til"))
+                    case:
                     }
-                    paths.push(own p.concat(".til"))
                 }
+            case:
             }
         }
     }
@@ -403,9 +406,10 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
-                if stmt.node_type.is(NodeType.Decl) {
-                    ref decl : Declaration = get_payload(stmt.node_type)
+                switch stmt.node_type {
+                case NodeType.Decl(decl):
                     core_top.set(own decl.name.clone(), own DeclRef(path = u.path.clone(), idx = i.clone()))
+                case:
                 }
             }
         }
@@ -416,9 +420,10 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
-            if stmt.node_type.is(NodeType.Decl) {
-                ref decl : Declaration = get_payload(stmt.node_type)
+            switch stmt.node_type {
+            case NodeType.Decl(decl):
                 top.set(own decl.name.clone(), own DeclRef(path = u.path.clone(), idx = i.clone()))
+            case:
             }
         }
     }
@@ -443,11 +448,17 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
-                    if stmt.children.len().gt(0).and(stmt.child(0).node_type.is(NodeType.FuncDef)) {
-                        ref fdef : FunctionDef = get_payload(stmt.child(0).node_type)
-                        if fdef.func_type.is(FuncType.Test) {
-                            ref d : Declaration = get_payload(stmt.node_type)
-                            vec_push_str(worklist, d.name)
+                    if stmt.children.len().gt(0) {
+                        switch stmt.child(0).node_type {
+                        case NodeType.FuncDef(fdef):
+                            if fdef.func_type.is(FuncType.Test) {
+                                switch stmt.node_type {
+                                case NodeType.Decl(d):
+                                    vec_push_str(worklist, d.name)
+                                case:
+                                }
+                            }
+                        case:
                         }
                     }
                     // Seed namespace test() decls so emit_test_main's
@@ -623,34 +634,37 @@ extract_link_info := func(mut lp: LoadedProgram) {
         for stmt : Expr in old_children {
             mut keep := true
             if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
-                if stmt.child(0).node_type.is(NodeType.Ident)
-                .and(stmt.child(1).node_type.is(NodeType.LiteralStr)) {
-                    ref fname : Str = get_payload(stmt.child(0).node_type)
-                    ref arg : Str = get_payload(stmt.child(1).node_type)
-                    if fname.eq("link") {
-                        keep = false
-                        if arg.find("/").gte(0) {
-                            resolved := resolve_link_path(base_dir, root_dir, arg)
-                            lp.link_flags = lp.link_flags.format(" ", resolved)
-                            last_slash := resolved.rfind("/")
-                            if last_slash.gte(0) {
-                                parent_dir := resolved.substr(0, last_slash.to_usize())
-                                parent_slash := parent_dir.rfind("/")
-                                if parent_slash.gte(0) {
-                                    inc_dir := parent_dir.substr(0, parent_slash.to_usize()).format("/include")
-                                    lp.include_flags = lp.include_flags.format(" -I", inc_dir)
+                switch stmt.child(0).node_type {
+                case NodeType.Ident(fname):
+                    switch stmt.child(1).node_type {
+                    case NodeType.LiteralStr(arg):
+                        if fname.eq("link") {
+                            keep = false
+                            if arg.find("/").gte(0) {
+                                resolved := resolve_link_path(base_dir, root_dir, arg)
+                                lp.link_flags = lp.link_flags.format(" ", resolved)
+                                last_slash := resolved.rfind("/")
+                                if last_slash.gte(0) {
+                                    parent_dir := resolved.substr(0, last_slash.to_usize())
+                                    parent_slash := parent_dir.rfind("/")
+                                    if parent_slash.gte(0) {
+                                        inc_dir := parent_dir.substr(0, parent_slash.to_usize()).format("/include")
+                                        lp.include_flags = lp.include_flags.format(" -I", inc_dir)
+                                    }
                                 }
+                            } else {
+                                lp.link_flags = lp.link_flags.format(" -l", arg)
                             }
-                        } else {
-                            lp.link_flags = lp.link_flags.format(" -l", arg)
+                        } else if fname.eq("link_c") {
+                            keep = false
+                            if lp.link_c_paths.len().gt(0) {
+                                lp.link_c_paths = lp.link_c_paths.concat(" ")
+                            }
+                            lp.link_c_paths = lp.link_c_paths.concat(resolve_link_path(base_dir, root_dir, arg))
                         }
-                    } else if fname.eq("link_c") {
-                        keep = false
-                        if lp.link_c_paths.len().gt(0) {
-                            lp.link_c_paths = lp.link_c_paths.concat(" ")
-                        }
-                        lp.link_c_paths = lp.link_c_paths.concat(resolve_link_path(base_dir, root_dir, arg))
+                    case:
                     }
+                case:
                 }
             }
             if keep { new_children.push(own stmt.clone()) }
@@ -980,13 +994,19 @@ append_field_indented := func(mut out: Str, d: Declaration) {
 append_ns_method_indented := func(mut out: Str, d: Declaration) {
     append_doc_lines_indented(out, d.doc, "    ")
     out.push_str("    ")
-    if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
-        ref fd : FunctionDef = get_payload(d.default_value.node_type)
-        out.push_str(func_kind(fd.func_type))
-        out.push_str(" ")
-        out.push_str(d.name)
-        append_fn_signature(out, fd)
-    } else {
+    mut handled := false
+    if is_null(d.default_value).not() {
+        switch d.default_value.node_type {
+        case NodeType.FuncDef(fd):
+            out.push_str(func_kind(fd.func_type))
+            out.push_str(" ")
+            out.push_str(d.name)
+            append_fn_signature(out, fd)
+            handled = true
+        case:
+        }
+    }
+    if handled.not() {
         out.push_str(d.name)
         if d.explicit_type.len().gt(0) {
             out.push_str(" : ")
@@ -1031,12 +1051,15 @@ format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     for i in 0..sdef.ns_decls.len() {
         ref d : Declaration = sdef.ns_decls.get(i)
         cap = cap.add(d.name.len()).add(d.doc.len().mul(2.to_usize())).add(192.to_usize())
-        if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
-            ref fd : FunctionDef = get_payload(d.default_value.node_type)
-            cap = cap.add(fd.return_type.len()).add(48.to_usize())
-            for j in 0..fd.params.len() {
-                ref p : Declaration = fd.params.get(j)
-                cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+        if is_null(d.default_value).not() {
+            switch d.default_value.node_type {
+            case NodeType.FuncDef(fd):
+                cap = cap.add(fd.return_type.len()).add(48.to_usize())
+                for j in 0..fd.params.len() {
+                    ref p : Declaration = fd.params.get(j)
+                    cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+                }
+            case:
             }
         }
     }
@@ -1071,12 +1094,15 @@ format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     for i in 0..edef.ns_decls.len() {
         ref d : Declaration = edef.ns_decls.get(i)
         cap = cap.add(d.name.len()).add(d.doc.len().mul(2.to_usize())).add(192.to_usize())
-        if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
-            ref fd : FunctionDef = get_payload(d.default_value.node_type)
-            cap = cap.add(fd.return_type.len()).add(48.to_usize())
-            for j in 0..fd.params.len() {
-                ref p : Declaration = fd.params.get(j)
-                cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+        if is_null(d.default_value).not() {
+            switch d.default_value.node_type {
+            case NodeType.FuncDef(fd):
+                cap = cap.add(fd.return_type.len()).add(48.to_usize())
+                for j in 0..fd.params.len() {
+                    ref p : Declaration = fd.params.get(j)
+                    cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+                }
+            case:
             }
         }
     }
@@ -1109,42 +1135,53 @@ format_enum_info := func(name: Str, edef: EnumDef) returns Str {
 
 // Build the rich info string for a top-level Decl.
 format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
-    if stmt.node_type.is(NodeType.Decl).not() { return "" }
-    ref dd : Declaration = get_payload(stmt.node_type)
-    if stmt.children.len().eq(0) {
-        return format_var_info(dd.name, dd, scope)
+    switch stmt.node_type {
+    case NodeType.Decl(dd):
+        if stmt.children.len().eq(0) {
+            return format_var_info(dd.name, dd, scope)
+        }
+        ref rhs : Expr = stmt.children.get(0)
+        switch rhs.node_type {
+        case NodeType.StructDef(sdef): return format_struct_info(dd.name, sdef)
+        case NodeType.EnumDef(edef):   return format_enum_info(dd.name, edef)
+        case NodeType.FuncDef(fd):     return format_func_info(dd.name, fd)
+        case:                          return format_var_info(dd.name, dd, scope)
+        }
+    case:
+        return ""
     }
-    ref rhs : Expr = stmt.children.get(0)
-    switch rhs.node_type {
-    case NodeType.StructDef(sdef): return format_struct_info(dd.name, sdef)
-    case NodeType.EnumDef(edef):   return format_enum_info(dd.name, edef)
-    case NodeType.FuncDef(fd):     return format_func_info(dd.name, fd)
-    case:                          return format_var_info(dd.name, dd, scope)
-    }
-    return format_var_info(dd.name, dd, scope)
 }
 
 // Append "Type.method" qualified entry for a single namespace method.
 collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: Str, mut docs: Str) {
     qual := type_name.format(".", d.name)
     mut info_cap : USize = qual.len().add(64.to_usize())
-    if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
-        ref fd : FunctionDef = get_payload(d.default_value.node_type)
-        info_cap = info_cap.add(fd.return_type.len()).add(48.to_usize())
-        for j in 0..fd.params.len() {
-            ref p : Declaration = fd.params.get(j)
-            info_cap = info_cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+    mut is_func := false
+    if is_null(d.default_value).not() {
+        switch d.default_value.node_type {
+        case NodeType.FuncDef(fd):
+            is_func = true
+            info_cap = info_cap.add(fd.return_type.len()).add(48.to_usize())
+            for j in 0..fd.params.len() {
+                ref p : Declaration = fd.params.get(j)
+                info_cap = info_cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+            }
+        case:
         }
-    } else {
+    }
+    if is_func.not() {
         info_cap = info_cap.add(d.explicit_type.len()).add(8.to_usize())
     }
     mut method_info := Str.with_capacity(info_cap)
-    if is_null(d.default_value).not().and(d.default_value.node_type.is(NodeType.FuncDef)) {
-        ref fd : FunctionDef = get_payload(d.default_value.node_type)
-        method_info.push_str(func_kind(fd.func_type))
-        method_info.push_str(" ")
-        method_info.push_str(qual)
-        append_fn_signature(method_info, fd)
+    if is_func {
+        switch d.default_value.node_type {
+        case NodeType.FuncDef(fd):
+            method_info.push_str(func_kind(fd.func_type))
+            method_info.push_str(" ")
+            method_info.push_str(qual)
+            append_fn_signature(method_info, fd)
+        case:
+        }
     } else {
         method_info.push_str("member ")
         method_info.push_str(qual)
@@ -1211,8 +1248,8 @@ collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str
 // Struct/enum members are also registered under qualified names.
 collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut docs: Str) {
     for stmt : Expr in body.children {
-        if stmt.node_type.is(NodeType.Decl) {
-            ref dd : Declaration = get_payload(stmt.node_type)
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
             entry_info := format_decl_info(stmt, scope)
             if entry_info.is_empty().not() {
                 append_packed_entry(info, dd.name, entry_info)
@@ -1222,14 +1259,15 @@ collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut doc
             }
             if stmt.children.len().gt(0) {
                 ref rhs : Expr = stmt.children.get(0)
-                if rhs.node_type.is(NodeType.StructDef) {
-                    ref sdef : StructDef = get_payload(rhs.node_type)
+                switch rhs.node_type {
+                case NodeType.StructDef(sdef):
                     collect_struct_members_packed(dd.name, sdef, info, docs)
-                } else if rhs.node_type.is(NodeType.EnumDef) {
-                    ref edef : EnumDef = get_payload(rhs.node_type)
+                case NodeType.EnumDef(edef):
                     collect_enum_members_packed(dd.name, edef, info, docs)
+                case:
                 }
             }
+        case:
         }
     }
 }

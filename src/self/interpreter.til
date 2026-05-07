@@ -32,81 +32,89 @@ namespace:
     }
     clone := func(self: StructInstance) returns StructInstance {
         ref src_sdef : Expr = self.struct_def
-        ref sdef_data : StructDef = get_payload(src_sdef.node_type)
-        sz := sdef_data.total_struct_size
-        dst_data : Dynamic = malloc(sz.to_i64().to_u64())
-        memcpy(dst_data, self.data, sz.to_i64().to_u64())
-        if self.struct_name.eq("Str") {
-            ref s : Str = to_ptr(self.data)
-            if s.count.to_i64().gt(0) {
-                if is_null(s.c_str).not() {
-                    mut cloned_str := s.clone()
-                    // Only replace c_str pointer, keep original count and cap
-                    write_ptr(dst_data, cloned_str.c_str)
-                    // Prevent cloned_str destructor from freeing the new c_str
-                    memset(cloned_str, 0, Str.size().to_u64())
-                }
-            }
-        } else {
-            ref cl_sdd : StructDef = get_payload(src_sdef.node_type)
-            for dd : Declaration in cl_sdd.fields {
-                foff := dd.field_offset
-                ref ftype : Str = dd.explicit_type
-                if dd.own_type.is(OwnType.Own) {
-                    ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.to_i64().to_u64()))
-                    if is_null(src_ptr).not() {
-                        if is_null(dd.field_struct_def).not() {
-                            mut tmp := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = to_ptr(src_ptr), borrowed = true)
-                            mut cloned := tmp.clone()
-                            tmp.data = NULL
-                            write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), cloned.data)
-                            cloned.data = NULL
-                        }
+        switch src_sdef.node_type {
+        case NodeType.StructDef(sdef_data):
+            sz := sdef_data.total_struct_size
+            dst_data : Dynamic = malloc(sz.to_i64().to_u64())
+            memcpy(dst_data, self.data, sz.to_i64().to_u64())
+            if self.struct_name.eq("Str") {
+                ref s : Str = to_ptr(self.data)
+                if s.count.to_i64().gt(0) {
+                    if is_null(s.c_str).not() {
+                        mut cloned_str := s.clone()
+                        // Only replace c_str pointer, keep original count and cap
+                        write_ptr(dst_data, cloned_str.c_str)
+                        // Prevent cloned_str destructor from freeing the new c_str
+                        memset(cloned_str, 0, Str.size().to_u64())
                     }
-                    continue
                 }
-                if dd.own_type.is(OwnType.Ref) { continue }
-                if ftype.eq("Str") {
-                    ref s : Str = ptr_add(self.data, foff.to_i64().to_u64())
-                    if s.count.to_i64().gt(0) {
-                        if is_null(s.c_str).not() {
-                            mut cloned_str := s.clone()
-                            write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), cloned_str.c_str)
-                            memset(cloned_str, 0, Str.size().to_u64())
-                        }
-                    }
-                    continue
-                }
-                if is_null(dd.field_struct_def).not() {
-                    if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
-                        if enum_has_payloads(dd.field_struct_def) {
-                            ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_i64().to_u64()))
-                            if is_null(ei_ref).not() {
-                                ref ei : EnumInstance = ei_ref
-                                mut cloned_ei := ei.clone()
-                                heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
-                                move(heap_ei, cloned_ei, EnumInstance.size().to_u64())
-                                write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), heap_ei)
+            } else {
+                for dd : Declaration in sdef_data.fields {
+                    foff := dd.field_offset
+                    ref ftype : Str = dd.explicit_type
+                    if dd.own_type.is(OwnType.Own) {
+                        ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.to_i64().to_u64()))
+                        if is_null(src_ptr).not() {
+                            if is_null(dd.field_struct_def).not() {
+                                mut tmp := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = to_ptr(src_ptr), borrowed = true)
+                                mut cloned := tmp.clone()
+                                tmp.data = NULL
+                                write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), cloned.data)
+                                cloned.data = NULL
                             }
-                            continue
+                        }
+                        continue
+                    }
+                    if dd.own_type.is(OwnType.Ref) { continue }
+                    if ftype.eq("Str") {
+                        ref s : Str = ptr_add(self.data, foff.to_i64().to_u64())
+                        if s.count.to_i64().gt(0) {
+                            if is_null(s.c_str).not() {
+                                mut cloned_str := s.clone()
+                                write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), cloned_str.c_str)
+                                memset(cloned_str, 0, Str.size().to_u64())
+                            }
+                        }
+                        continue
+                    }
+                    if is_null(dd.field_struct_def).not() {
+                        if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
+                            if enum_has_payloads(dd.field_struct_def) {
+                                ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_i64().to_u64()))
+                                if is_null(ei_ref).not() {
+                                    ref ei : EnumInstance = ei_ref
+                                    mut cloned_ei := ei.clone()
+                                    heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
+                                    move(heap_ei, cloned_ei, EnumInstance.size().to_u64())
+                                    write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), heap_ei)
+                                }
+                                continue
+                            }
+                        }
+                    }
+                    if is_null(dd.field_struct_def).not() {
+                        if dd.field_struct_def.node_type.is(NodeType.EnumDef).not() {
+                            ref nested : Expr = dd.field_struct_def
+                            switch nested.node_type {
+                            case NodeType.StructDef(nested_sdef):
+                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested, data = ptr_add(self.data, foff.to_i64().to_u64()), borrowed = true)
+                                mut cloned := tmp.clone()
+                                tmp.data = NULL
+                                memcpy(ptr_add(dst_data, foff.to_i64().to_u64()), cloned.data, nested_sdef.total_struct_size.to_i64().to_u64())
+                                free(own cloned.data)
+                                cloned.data = NULL
+                            case:
+                                UNREACHABLE(__LOC__)
+                            }
                         }
                     }
                 }
-                if is_null(dd.field_struct_def).not() {
-                    if dd.field_struct_def.node_type.is(NodeType.EnumDef).not() {
-                        ref nested : Expr = dd.field_struct_def
-                        ref nested_sdef : StructDef = get_payload(nested.node_type)
-                        mut tmp := StructInstance(struct_name = ftype, struct_def = nested, data = ptr_add(self.data, foff.to_i64().to_u64()), borrowed = true)
-                        mut cloned := tmp.clone()
-                        tmp.data = NULL
-                        memcpy(ptr_add(dst_data, foff.to_i64().to_u64()), cloned.data, nested_sdef.total_struct_size.to_i64().to_u64())
-                        free(own cloned.data)
-                        cloned.data = NULL
-                    }
-                }
             }
+            return StructInstance(struct_name = self.struct_name, struct_def = self.struct_def, data = dst_data, borrowed = false)
+        case:
+            UNREACHABLE(__LOC__)
+            return StructInstance()
         }
-        return StructInstance(struct_name = self.struct_name, struct_def = self.struct_def, data = dst_data, borrowed = false)
     }
     delete := func(own self: StructInstance, call_free: Bool = true) {
         if call_free { free(own self) }
@@ -161,6 +169,9 @@ Value := enum {
     Ptr: Dynamic
 namespace:
     eq := func(a: Value, b: Value) returns Bool {
+        // Switch-destructure on `a` here would recurse: the typer desugars
+        // empty case arms (e.g. `case Value.None`) to `a.eq(Value.None)`,
+        // which is the function we're defining. Keep bare get_payload.
         if a.is(Value.None).and(b.is(Value.None)) { return true }
         if a.is(Value.Int).and(b.is(Value.Int)) {
             ref _ai : I64 = get_payload(a)
@@ -183,56 +194,31 @@ namespace:
         }
     }
     clone := func(self: Value) returns Value {
-        if self.is(Value.Struct) {
-            ref si : StructInstance = get_payload(self)
+        switch self {
+        case Value.Struct(si):
             return Value.Struct(si.clone())
-        }
-        if self.is(Value.Enum) {
-            ref ei : EnumInstance = get_payload(self)
+        case Value.Enum(ei):
             return Value.Enum(ei.clone())
-        }
-        if self.is(Value.Int) {
-            ref v : I64 = get_payload(self)
-            return Value.Int(v)
-        }
-        if self.is(Value.Byte) {
-            ref v : U8 = get_payload(self)
-            return Value.Byte(v)
-        }
-        if self.is(Value.Short) {
-            ref v : I16 = get_payload(self)
-            return Value.Short(v)
-        }
-        if self.is(Value.Int32) {
-            ref v : I32 = get_payload(self)
-            return Value.Int32(v)
-        }
-        if self.is(Value.Uint32) {
-            ref v : U32 = get_payload(self)
-            return Value.Uint32(v)
-        }
-        if self.is(Value.Uint64) {
-            ref v : U64 = get_payload(self)
-            return Value.Uint64(v)
-        }
-        if self.is(Value.Float) {
-            ref v : F32 = get_payload(self)
-            return Value.Float(v)
-        }
-        if self.is(Value.Boolean) {
-            ref v : Bool = get_payload(self)
-            return Value.Boolean(v)
-        }
-        if self.is(Value.None) {
+        case Value.Int(v):     return Value.Int(v)
+        case Value.Byte(v):    return Value.Byte(v)
+        case Value.Short(v):   return Value.Short(v)
+        case Value.Int32(v):   return Value.Int32(v)
+        case Value.Uint32(v):  return Value.Uint32(v)
+        case Value.Uint64(v):  return Value.Uint64(v)
+        case Value.Float(v):   return Value.Float(v)
+        case Value.Boolean(v): return Value.Boolean(v)
+        case Value.None:       return Value.None
+        case Value.Func(payload):
+            // void* payload reinterpreted via U64 (both 8 bytes)
+            ref raw : U64 = payload
+            return Value.Func(ptr_add(NULL, raw))
+        case Value.Ptr(payload):
+            ref raw : U64 = payload
+            return Value.Ptr(ptr_add(NULL, raw))
+        case:
+            UNREACHABLE(__LOC__)
             return Value.None
         }
-        // Func, Ptr: read void* payload via U64 reinterpret (both 8 bytes)
-        ref payload : Dynamic = get_payload(self)
-        ref raw : U64 = payload
-        if self.is(Value.Func) {
-            return Value.Func(ptr_add(NULL, raw))
-        }
-        return Value.Ptr(ptr_add(NULL, raw))
     }
 }
 
@@ -353,8 +339,8 @@ parse_cli_arg := func(s: Str, type_name: Str) returns shallow Value {
 }
 
 eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
-    if e.node_type.is(NodeType.LiteralStr) {
-        ref raw : Str = get_payload(e.node_type)
+    switch e.node_type {
+    case NodeType.LiteralStr(raw):
         buf : Dynamic = malloc(raw.count.to_u64().add(1))
         mut j : U64 = 0
         mut i : U64 = 0
@@ -378,9 +364,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         v := make_str_value(buf, j)
         free(own buf)
         return v
-    }
-    if e.node_type.is(NodeType.LiteralNum) {
-        ref num_str : Str = get_payload(e.node_type)
+    case NodeType.LiteralNum(num_str):
         switch e.til_type {
         case Type.U8:  return val_u8(num_str.to_i64())
         case Type.U32: return val_u32(num_str.to_i64())
@@ -390,65 +374,56 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         case Type.F32: return val_f32(num_str.to_f32())
         case: return val_i64(num_str.to_i64())
         }
-    }
-    if e.node_type.is(NodeType.LiteralBool) {
-        ref b : Bool = get_payload(e.node_type)
+    case NodeType.LiteralBool(b):
         return val_bool(b)
-    }
-    if e.node_type.is(NodeType.LiteralNull) {
+    case NodeType.LiteralNull:
         return Value.Ptr(NULL)
-    }
-    if e.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(e.node_type)
+    case NodeType.Ident(ident):
         ref cell : Cell = scope_get(scope, ident)
         if is_null(cell) {
             interp_error(e, format("undefined variable '", ident, "'"))
             exit(1.to_i32())
         }
         return shallow_copy_value(cell.val)
-    }
-    if e.node_type.is(NodeType.FCall) {
+    case NodeType.FCall:
         return eval_call(scope, e)
-    }
-    if e.node_type.is(NodeType.FuncDef) {
+    case NodeType.FuncDef:
         return Value.Func(e)
-    }
-    if e.node_type.is(NodeType.StructDef) {
+    case NodeType.StructDef:
         return Value.Func(e)
-    }
-    if e.node_type.is(NodeType.EnumDef) {
+    case NodeType.EnumDef:
         return Value.Func(e)
-    }
-    if e.node_type.is(NodeType.FieldAccess) {
+    case NodeType.FieldAccess(fname):
         mut obj := eval_expr(scope, e.child(0))
-        ref fname : Str = get_payload(e.node_type)
         if interp_fa_is_ns(scope, e) {
             mut sname := ""
-            if obj.is(Value.Struct) {
-                ref si : StructInstance = get_payload(obj)
+            switch obj {
+            case Value.Struct(si):
                 sname = si.struct_name
-            } else if e.child(0).node_type.is(NodeType.Ident) {
-                ref ident : Str = get_payload(e.child(0).node_type)
-                sname = ident
-            } else {
-                // Primitive receiver (LiteralNum I64, etc.).
-                sname = til_type_name_c(e.child(0).til_type)
+            case:
+                switch e.child(0).node_type {
+                case NodeType.Ident(ident):
+                    sname = ident
+                case:
+                    // Primitive receiver (LiteralNum I64, etc.).
+                    sname = til_type_name_c(e.child(0).til_type)
+                }
             }
             ref nsv : Value = ns_get(sname, fname)
             if is_null(nsv).not() {
-                if nsv.is(Value.Int) { ref iv : I64 = get_payload(nsv); return val_i64(iv) }
-                if nsv.is(Value.Int32) { ref iv : I32 = get_payload(nsv); return val_i32(iv.to_i64()) }
-                if nsv.is(Value.Func) {
+                switch nsv {
+                case Value.Int(iv):     return val_i64(iv)
+                case Value.Int32(iv):   return val_i32(iv.to_i64())
+                case Value.Func(fptr):
                     if e.til_type.is(Type.Enum) {
-                        ref fptr : Dynamic = get_payload(nsv)
                         ref fdef : Expr = deref(fptr)
-                        if fdef.node_type.is(NodeType.FuncDef) {
-                            ref fd : FunctionDef = get_payload(fdef.node_type)
+                        switch fdef.node_type {
+                        case NodeType.FuncDef(fd):
                             if fd.func_type.is(FuncType.ExtFunc) {
                                 ref tc : Cell = scope_get(scope, sname)
                                 if is_null(tc).not() {
-                                    if tc.val.is(Value.Func) {
-                                        ref eptr : Dynamic = get_payload(tc.val)
+                                    switch tc.val {
+                                    case Value.Func(eptr):
                                         ref edef : Expr = deref(eptr)
                                         if edef.node_type.is(NodeType.EnumDef) {
                                             tag := enum_variant_tag(edef, fname)
@@ -460,11 +435,14 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                                                 }
                                             }
                                         }
+                                    case:
                                     }
                                 }
                             }
+                        case:
                         }
                     }
+                case:
                 }
                 return shallow_copy_value(nsv)
             }
@@ -480,13 +458,17 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                 if obj_sname.len().gt(0) {
                     ref tc : Cell = scope_get(scope, obj_sname)
                     if is_null(tc).not() {
-                        if tc.val.is(Value.Func) {
-                            ref tptr : Dynamic = get_payload(tc.val)
+                        switch tc.val {
+                        case Value.Func(tptr):
                             ref tdef : Expr = deref(tptr)
                             if tdef.node_type.is(NodeType.StructDef) {
-                                ref pv : Dynamic = get_payload(obj)
-                                obj = make_struct_value(obj_sname, tdef, deref(pv), true)
+                                switch obj {
+                                case Value.Ptr(pv):
+                                    obj = make_struct_value(obj_sname, tdef, deref(pv), true)
+                                case:
+                                }
                             }
+                        case:
                         }
                     }
                 }
@@ -496,131 +478,153 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             interp_error(e, "field access on non-struct")
             exit(1.to_i32())
         }
-        ref si : StructInstance = get_payload(obj)
-        ref fdecl : Declaration = find_field_decl(si.struct_def, fname)
-        if is_null(fdecl) {
-            interp_error(e, format("no field '", fname, "'"))
-            exit(1.to_i32())
+        switch obj {
+        case Value.Struct(si):
+            ref fdecl : Declaration = find_field_decl(si.struct_def, fname)
+            if is_null(fdecl) {
+                interp_error(e, format("no field '", fname, "'"))
+                exit(1.to_i32())
+            }
+            return read_field(si, fdecl)
+        case:
+            UNREACHABLE(__LOC__)
+            return val_none()
         }
-        return read_field(si, fdecl)
+    case:
+        interp_lang_error(e, "cannot evaluate node as expression")
+        exit(1.to_i32())
+        return val_none()
     }
-    interp_lang_error(e, "cannot evaluate node as expression")
-    exit(1.to_i32())
-    return val_none()
 }
 
 // Reinterpret a Value.Ptr to the appropriate scalar/struct/enum Value
 // based on a type name. Used by eval_call (param binding) and eval_body (ref decl).
 reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns Value {
-    if val.is(Value.Ptr).not() { return shallow_copy_value(val) }
-    ref pv : Dynamic = get_payload(val)
-    ref p : Dynamic = deref(pv)
-    if is_null(p) { return shallow_copy_value(val) }
-    if type_name.len().eq(0) { return shallow_copy_value(val) }
-    // Dynamic is a void-pointer type; the slot pointer IS the value, no
-    // narrowing needed. Without this early-return the generic StructDef
-    // lookup below would match Dynamic (registered as StructDef in
-    // src/core/dyn.til) and wrap the Ptr into a Value.Struct, which
-    // breaks downstream code that expects ref-Dynamic bindings to stay
-    // as Value.Ptr (#180).
-    if type_name.eq("Dynamic") { return shallow_copy_value(val) }
-    if type_name.eq("I64") { ref v : I64 = p; return val_i64(v) }
-    if type_name.eq("U8") { ref v : U8 = p; return val_u8(v.to_i64()) }
-    if type_name.eq("I16") { ref v : I16 = p; return val_i16(v.to_i64()) }
-    if type_name.eq("I32") { ref v : I32 = p; return val_i32(v.to_i64()) }
-    if type_name.eq("U32") { ref v : U32 = p; return val_u32(v.to_i64()) }
-    if type_name.eq("U64") { ref v : U64 = p; return val_u64(v) }
-    if type_name.eq("USize") { ref v : U32 = p; return val_u32(v.to_i64()) }
-    if type_name.eq("UPtr") {
-        ref lp : LoadedProgram = codegen_lp()
-        ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
-        if uptr_name.eq("U32") { ref v : U32 = p; return val_u32(v.to_i64()) }
-        ref v : U64 = p
-        return val_u64(v)
-    }
-    if type_name.eq("F32") { ref v : F32 = p; return val_f32(v) }
-    if type_name.eq("Bool") { ref v : Bool = p; return val_bool(v) }
-    if type_name.eq("Str") {
-        ref sp : Str = p
-        return make_str_value_own(sp.c_str, sp.count.to_u64())
-    }
-    ref tc : Cell = scope_get(scope, type_name)
-    if is_null(tc).not() {
-        if tc.val.is(Value.Func) {
-            ref fptr : Dynamic = get_payload(tc.val)
-            ref tdef : Expr = deref(fptr)
-            if tdef.node_type.is(NodeType.FuncDef) {
-                if tdef.children.len().eq(0) {
-                    // FuncSig: dereference to get function pointer
-                    ref fp : Dynamic = deref(p)
-                    return Value.Func(fp)
+    switch val {
+    case Value.Ptr(pv):
+        ref p : Dynamic = deref(pv)
+        if is_null(p) { return shallow_copy_value(val) }
+        if type_name.len().eq(0) { return shallow_copy_value(val) }
+        // Dynamic is a void-pointer type; the slot pointer IS the value, no
+        // narrowing needed. Without this early-return the generic StructDef
+        // lookup below would match Dynamic (registered as StructDef in
+        // src/core/dyn.til) and wrap the Ptr into a Value.Struct, which
+        // breaks downstream code that expects ref-Dynamic bindings to stay
+        // as Value.Ptr (#180).
+        if type_name.eq("Dynamic") { return shallow_copy_value(val) }
+        if type_name.eq("I64") { ref v : I64 = p; return val_i64(v) }
+        if type_name.eq("U8") { ref v : U8 = p; return val_u8(v.to_i64()) }
+        if type_name.eq("I16") { ref v : I16 = p; return val_i16(v.to_i64()) }
+        if type_name.eq("I32") { ref v : I32 = p; return val_i32(v.to_i64()) }
+        if type_name.eq("U32") { ref v : U32 = p; return val_u32(v.to_i64()) }
+        if type_name.eq("U64") { ref v : U64 = p; return val_u64(v) }
+        if type_name.eq("USize") { ref v : U32 = p; return val_u32(v.to_i64()) }
+        if type_name.eq("UPtr") {
+            ref lp : LoadedProgram = codegen_lp()
+            ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
+            if uptr_name.eq("U32") { ref v : U32 = p; return val_u32(v.to_i64()) }
+            ref v : U64 = p
+            return val_u64(v)
+        }
+        if type_name.eq("F32") { ref v : F32 = p; return val_f32(v) }
+        if type_name.eq("Bool") { ref v : Bool = p; return val_bool(v) }
+        if type_name.eq("Str") {
+            ref sp : Str = p
+            return make_str_value_own(sp.c_str, sp.count.to_u64())
+        }
+        ref tc : Cell = scope_get(scope, type_name)
+        if is_null(tc).not() {
+            switch tc.val {
+            case Value.Func(fptr):
+                ref tdef : Expr = deref(fptr)
+                if tdef.node_type.is(NodeType.FuncDef) {
+                    if tdef.children.len().eq(0) {
+                        // FuncSig: dereference to get function pointer
+                        ref fp : Dynamic = deref(p)
+                        return Value.Func(fp)
+                    }
                 }
-            }
-            if tdef.node_type.is(NodeType.EnumDef) {
-                ref etag : I32 = p
-                if enum_has_payloads(tdef) {
-                    ecopy : Dynamic = malloc(8)
-                    memcpy(ecopy, ptr_add(p, ENUM_PAYLOAD_OFFSET.to_i64().to_u64()), 8)
-                    return val_enum_flat(type_name, tdef, etag, ecopy, 8.to_i32())
+                if tdef.node_type.is(NodeType.EnumDef) {
+                    ref etag : I32 = p
+                    if enum_has_payloads(tdef) {
+                        ecopy : Dynamic = malloc(8)
+                        memcpy(ecopy, ptr_add(p, ENUM_PAYLOAD_OFFSET.to_i64().to_u64()), 8)
+                        return val_enum_flat(type_name, tdef, etag, ecopy, 8.to_i32())
+                    }
+                    return val_i32(etag.to_i64())
                 }
-                return val_i32(etag.to_i64())
-            }
-            if tdef.node_type.is(NodeType.StructDef) {
-                return make_struct_value(type_name, tdef, p, true)
+                if tdef.node_type.is(NodeType.StructDef) {
+                    return make_struct_value(type_name, tdef, p, true)
+                }
+            case:
             }
         }
+        return shallow_copy_value(val)
+    case:
+        return shallow_copy_value(val)
     }
-    return shallow_copy_value(val)
 }
 
 // Check if call should be skipped because first own param is None/borrowed/Ptr.
 // Returns true if call should be skipped (caller returns val_none).
 guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shallow Bool {
-    ref fd : FunctionDef = get_payload(func_def.node_type)
-    if fd.params.len().eq(0) { return false }
-    if fd.params.len().eq(0) { return false }
-    ref p0 : Declaration = fd.params.get(0)
-    if p0.own_type.is(OwnType.Own).not() { return false }
-    if e.children.len().lte(1) { return false }
-    if e.child(1).node_type.is(NodeType.Ident).not() { return false }
-    ref arg_ident : Str = get_payload(e.child(1).node_type)
-    ref fc : Cell = scope_get(scope, arg_ident)
-    if is_null(fc) { return false }
-    if fc.val.is(Value.None) { return true }
-    if fc.val.is(Value.Struct) {
-        ref si : StructInstance = get_payload(fc.val)
-        if si.borrowed { memcpy(fc.val, val_none(), Value.size()); return true }
+    switch func_def.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.params.len().eq(0) { return false }
+        ref p0 : Declaration = fd.params.get(0)
+        if p0.own_type.is(OwnType.Own).not() { return false }
+        if e.children.len().lte(1) { return false }
+        switch e.child(1).node_type {
+        case NodeType.Ident(arg_ident):
+            ref fc : Cell = scope_get(scope, arg_ident)
+            if is_null(fc) { return false }
+            if fc.val.is(Value.None) { return true }
+            switch fc.val {
+            case Value.Struct(si):
+                if si.borrowed { memcpy(fc.val, val_none(), Value.size()); return true }
+            case:
+            }
+            if fc.val.is(Value.Ptr) { memcpy(fc.val, val_none(), Value.size()); return true }
+            return false
+        case:
+            return false
+        }
+    case:
+        UNREACHABLE(__LOC__)
+        return false
     }
-    if fc.val.is(Value.Ptr) { memcpy(fc.val, val_none(), Value.size()); return true }
-    return false
 }
 
 resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns ref Dynamic {
-    if obj_expr.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(obj_expr.node_type)
+    switch obj_expr.node_type {
+    case NodeType.Ident(ident):
         ref cell : Cell = scope_get(scope, ident)
         if is_null(cell) { return NULL }
-        if cell.val.is(Value.Struct) {
-            ref si : StructInstance = get_payload(cell.val)
+        switch cell.val {
+        case Value.Struct(si):
             return si.data
+        case:
+            return NULL
         }
+    case:
         return NULL
     }
-    return NULL
 }
 
 resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr {
-    if obj_expr.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(obj_expr.node_type)
+    switch obj_expr.node_type {
+    case NodeType.Ident(ident):
         ref cell : Cell = scope_get(scope, ident)
         if is_null(cell) { return NULL }
-        if cell.val.is(Value.Struct) {
-            ref si : StructInstance = get_payload(cell.val)
+        switch cell.val {
+        case Value.Struct(si):
             return si.struct_def
+        case:
+            return NULL
         }
+    case:
         return NULL
     }
-    return NULL
 }
 
 eval_body := proc(scope: Scope, mut body: Expr) {
@@ -629,23 +633,24 @@ eval_body := proc(scope: Scope, mut body: Expr) {
         if has_break { return }
         if has_continue { return }
         ref mut stmt : Expr = e_i
-        if stmt.node_type.is(NodeType.Decl) {
-            ref dd : Declaration = get_payload(stmt.node_type)
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
             ref rhs : Expr = stmt.child(0)
             if stmt.til_type.is(Type.None) {
                 if rhs.node_type.is(NodeType.Ident) { continue }
             }
             if dd.own_type.is(OwnType.Ref) {
-                if rhs.node_type.is(NodeType.Ident) {
-                    ref rhs_ident : Str = get_payload(rhs.node_type)
+                switch rhs.node_type {
+                case NodeType.Ident(rhs_ident):
                     ref src : Cell = scope_get(scope, rhs_ident)
                     scope_set_borrowed(scope, dd.name, src)
                     continue
+                case:
                 }
             }
             mut val := val_none()
-            if rhs.node_type.is(NodeType.Ident) {
-                ref rhs_ident : Str = get_payload(rhs.node_type)
+            switch rhs.node_type {
+            case NodeType.Ident(rhs_ident):
                 ref src : Cell = scope_get(scope, rhs_ident)
                 if is_null(src) {
                     interp_error(rhs, "undefined variable '".concat(rhs_ident).concat("'"))
@@ -655,7 +660,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 if val.is(Value.Func).not() {
                     memcpy(src.val, val_none(), Value.size())
                 }
-            } else {
+            case:
                 val = eval_expr(scope, rhs)
             }
             if dd.own_type.is(OwnType.Ref) {
@@ -664,28 +669,30 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 }
             }
             scope_set_owned(scope, dd.name, val)
-        } else if stmt.node_type.is(NodeType.Assign) {
+        case NodeType.Assign(ad):
             ref rhs : Expr = stmt.child(0)
-            ref assign_name : Str = get_payload(stmt.node_type)
-            ref cell : Cell = scope_get(scope, assign_name)
+            ref cell : Cell = scope_get(scope, ad.name)
             if is_null(cell) {
-                interp_error(stmt, "undefined variable '".concat(assign_name).concat("'"))
+                interp_error(stmt, "undefined variable '".concat(ad.name).concat("'"))
                 exit(1.to_i32())
             }
             if stmt.til_type.is(Type.Dynamic) {
                 if rhs.node_type.is(NodeType.Ident) {
-                    ref rhs_ident : Str = get_payload(rhs.node_type)
-                    ref src : Cell = scope_get(scope, rhs_ident)
-                    memcpy(cell.val, src.val, Value.size())
-                    if src.val.is(Value.Func).not() {
-                        memcpy(src.val, val_none(), Value.size())
+                    switch rhs.node_type {
+                    case NodeType.Ident(rhs_ident):
+                        ref src : Cell = scope_get(scope, rhs_ident)
+                        memcpy(cell.val, src.val, Value.size())
+                        if src.val.is(Value.Func).not() {
+                            memcpy(src.val, val_none(), Value.size())
+                        }
+                    case:
                     }
                     continue
                 }
             }
             new_val := eval_expr(scope, rhs)
             memcpy(cell.val, new_val, Value.size())
-        } else if stmt.node_type.is(NodeType.FieldAssign) {
+        case NodeType.FieldAssign(fname):
             ref val_expr : Expr = stmt.child(1)
             mut val := val_none()
             ref move_src : Cell = field_assign_dyn_move_src(scope, val_expr)
@@ -694,16 +701,18 @@ eval_body := proc(scope: Scope, mut body: Expr) {
             } else {
                 val = eval_expr(scope, val_expr)
             }
-            ref fname : Str = get_payload(stmt.node_type)
             if interp_fa_is_ns(scope, stmt) {
                 obj := eval_expr(scope, stmt.child(0))
                 mut sname := ""
-                if obj.is(Value.Struct) {
-                    ref si : StructInstance = get_payload(obj)
+                switch obj {
+                case Value.Struct(si):
                     sname = si.struct_name
-                } else {
-                    ref oi : Str = get_payload(stmt.child(0).node_type)
-                    sname = oi
+                case:
+                    switch stmt.child(0).node_type {
+                    case NodeType.Ident(oi):
+                        sname = oi
+                    case:
+                    }
                 }
                 ns_set(sname, fname, val)
                 if is_null(move_src).not() { memcpy(move_src.val, val_none(), Value.size()) }
@@ -718,27 +727,34 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                         depth = depth.add(1.to_i32())
                         cur = cur.child(0)
                     }
-                    ref root_ident : Str = get_payload(cur.node_type)
-                    ref cell : Cell = scope_get(scope, root_ident)
-                    if is_null(cell).not() {
-                        if cell.val.is(Value.Struct) {
-                            ref si : StructInstance = get_payload(cell.val)
-                            base = to_ptr(si.data)
-                            cur_sdef = si.struct_def
-                            // For simplicity, handle depth=1 (most common: a.field = val)
-                            if depth.eq(1.to_i32()) {
-                                ref fa_name : Str = get_payload(stmt.child(0).node_type)
-                                ref fd : Declaration = find_field_decl(cur_sdef, fa_name)
-                                if is_null(fd).not() {
-                                    if fd.own_type.is(OwnType.Shallow).not() {
-                                        base = deref(ptr_add(base, fd.field_offset.to_i64().to_u64()))
-                                    } else {
-                                        base = ptr_add(base, fd.field_offset.to_i64().to_u64())
+                    switch cur.node_type {
+                    case NodeType.Ident(root_ident):
+                        ref cell : Cell = scope_get(scope, root_ident)
+                        if is_null(cell).not() {
+                            switch cell.val {
+                            case Value.Struct(si):
+                                base = to_ptr(si.data)
+                                cur_sdef = si.struct_def
+                                // For simplicity, handle depth=1 (most common: a.field = val)
+                                if depth.eq(1.to_i32()) {
+                                    switch stmt.child(0).node_type {
+                                    case NodeType.FieldAccess(fa_name):
+                                        ref fd : Declaration = find_field_decl(cur_sdef, fa_name)
+                                        if is_null(fd).not() {
+                                            if fd.own_type.is(OwnType.Shallow).not() {
+                                                base = deref(ptr_add(base, fd.field_offset.to_i64().to_u64()))
+                                            } else {
+                                                base = ptr_add(base, fd.field_offset.to_i64().to_u64())
+                                            }
+                                            cur_sdef = fd.field_struct_def
+                                        }
+                                    case:
                                     }
-                                    cur_sdef = fd.field_struct_def
                                 }
+                            case:
                             }
                         }
+                    case:
                     }
                 }
                 if is_null(base) {
@@ -759,18 +775,24 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                     }
                 }
             }
-        } else if stmt.node_type.is(NodeType.FCall) {
+        case NodeType.FCall:
             eval_call(scope, stmt)
-        } else if stmt.node_type.is(NodeType.Body) {
+        case NodeType.Body:
             block_scope := scope_new(scope)
             eval_body(block_scope, stmt)
             if has_return {
                 return_value = return_value.clone()
             }
             scope_free(own block_scope)
-        } else if stmt.node_type.is(NodeType.If) {
+        case NodeType.If:
             cond := eval_expr(scope, stmt.child(0))
-            ref cv : Bool = get_payload(cond)
+            mut cv := false
+            switch cond {
+            case Value.Boolean(b):
+                cv = b
+            case:
+                UNREACHABLE(__LOC__)
+            }
             if cv {
                 then_scope := scope_new(scope)
                 eval_body(then_scope, stmt.child(1))
@@ -782,11 +804,17 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 if has_return { return_value = return_value.clone() }
                 scope_free(own else_scope)
             }
-        } else if stmt.node_type.is(NodeType.While) {
+        case NodeType.While:
             while true {
                 if has_return { break }
                 cond := eval_expr(scope, stmt.child(0))
-                ref cv : Bool = get_payload(cond)
+                mut cv := false
+                switch cond {
+                case Value.Boolean(b):
+                    cv = b
+                case:
+                    UNREACHABLE(__LOC__)
+                }
                 if cv.not() { break }
                 while_scope := scope_new(scope)
                 eval_body(while_scope, stmt.child(1))
@@ -795,21 +823,18 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 if has_break { has_break = false; break }
                 if has_continue { has_continue = false }
             }
-        } else if stmt.node_type.is(NodeType.Break) {
+        case NodeType.Break:
             has_break = true
-            return
-        } else if stmt.node_type.is(NodeType.Continue) {
+        case NodeType.Continue:
             has_continue = true
-            return
-        } else if stmt.node_type.is(NodeType.Return) {
+        case NodeType.Return:
             if stmt.children.len().gt(0) {
                 return_value = eval_expr(scope, stmt.child(0))
             } else {
                 return_value = val_none()
             }
             has_return = true
-            return
-        } else {
+        case:
             interp_lang_error(stmt, "unexpected statement type")
             exit(1.to_i32())
         }
@@ -909,36 +934,39 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         ref body_ns : Expr = func_def.child(0)
         if guard_own_param_skip(scope, e, func_def) { return val_none() }
         call_scope := scope_new(scope)
-        ref fdef_params : FunctionDef = get_payload(func_def.node_type)
-        for pi in 0..fdef_params.params.len() {
-            ref param : Declaration = fdef_params.params.get(pi)
-            ref arg_expr : Expr = e.child(pi.add(1))
-            if arg_expr.node_type.is(NodeType.Ident) {
-                ref arg_ident : Str = get_payload(arg_expr.node_type)
-                ref arg_cell : Cell = scope_get(scope, arg_ident)
-                if is_null(arg_cell) {
-                    interp_error(arg_expr, "undefined variable '".concat(arg_ident).concat("'"))
-                    exit(1.to_i32())
-                }
-                if arg_cell.val.is(Value.Ptr).and(param.explicit_type.len().gt(0)) {
-                    mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, scope)
+        switch func_def.node_type {
+        case NodeType.FuncDef(fdef_params):
+            for pi in 0..fdef_params.params.len() {
+                ref param : Declaration = fdef_params.params.get(pi)
+                ref arg_expr : Expr = e.child(pi.add(1))
+                switch arg_expr.node_type {
+                case NodeType.Ident(arg_ident):
+                    ref arg_cell : Cell = scope_get(scope, arg_ident)
+                    if is_null(arg_cell) {
+                        interp_error(arg_expr, "undefined variable '".concat(arg_ident).concat("'"))
+                        exit(1.to_i32())
+                    }
+                    if arg_cell.val.is(Value.Ptr).and(param.explicit_type.len().gt(0)) {
+                        mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, scope)
+                        arg = widen_numeric(arg, param.explicit_type)
+                        scope_set_owned(call_scope, param.name, arg)
+                    } else if needs_widen(arg_cell.val, param.explicit_type) {
+                        mut arg := arg_cell.val.clone()
+                        arg = widen_numeric(arg, param.explicit_type)
+                        scope_set_owned(call_scope, param.name, arg)
+                    } else {
+                        scope_set_borrowed(call_scope, param.name, arg_cell)
+                    }
+                case:
+                    mut arg := eval_expr(scope, arg_expr)
+                    if arg.is(Value.Ptr).and(param.explicit_type.len().gt(0)) {
+                        arg = reinterpret_ptr_value(arg, param.explicit_type, scope)
+                    }
                     arg = widen_numeric(arg, param.explicit_type)
                     scope_set_owned(call_scope, param.name, arg)
-                } else if needs_widen(arg_cell.val, param.explicit_type) {
-                    mut arg := arg_cell.val.clone()
-                    arg = widen_numeric(arg, param.explicit_type)
-                    scope_set_owned(call_scope, param.name, arg)
-                } else {
-                    scope_set_borrowed(call_scope, param.name, arg_cell)
                 }
-            } else {
-                mut arg := eval_expr(scope, arg_expr)
-                if arg.is(Value.Ptr).and(param.explicit_type.len().gt(0)) {
-                    arg = reinterpret_ptr_value(arg, param.explicit_type, scope)
-                }
-                arg = widen_numeric(arg, param.explicit_type)
-                scope_set_owned(call_scope, param.name, arg)
             }
+        case:
         }
         has_return = false
         eval_body(call_scope, body_ns)
@@ -959,10 +987,13 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     if ext_function_dispatch(name, scope, e, ext_result) {
         for oi in 1..e.children.len() {
             ref oa : Expr = e.child(oi)
-            if oa.node_type.is(NodeType.Ident).and(get_own_arg(e, oi)) {
-                ref oa_ident : Str = get_payload(oa.node_type)
-                ref oc : Cell = scope_get(scope, oa_ident)
-                if is_null(oc).not() { oc.val = val_none() }
+            if get_own_arg(e, oi) {
+                switch oa.node_type {
+                case NodeType.Ident(oa_ident):
+                    ref oc : Cell = scope_get(scope, oa_ident)
+                    if is_null(oc).not() { oc.val = val_none() }
+                case:
+                }
             }
         }
         return ext_result
@@ -995,27 +1026,31 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             } else {
                 inst = make_struct_value(name, si_edef, inst_data, false)
             }
-            ref si_inst : StructInstance = get_payload(inst)
-            mut arg_idx : U32 = 1
-            for fdd : Declaration in sdd.fields {
-                ref arg : Expr = e.child(arg_idx)
-                arg_idx = arg_idx.add(1)
-                mut val := val_none()
-                if arg.node_type.is(NodeType.Ident) {
-                    ref arg_ident : Str = get_payload(arg.node_type)
-                    ref src : Cell = scope_get(scope, arg_ident)
-                    if is_null(src) {
-                        interp_error(arg, "undefined variable '".concat(arg_ident).concat("'"))
-                        exit(1.to_i32())
+            switch inst {
+            case Value.Struct(si_inst):
+                mut arg_idx : U32 = 1
+                for fdd : Declaration in sdd.fields {
+                    ref arg : Expr = e.child(arg_idx)
+                    arg_idx = arg_idx.add(1)
+                    mut val := val_none()
+                    switch arg.node_type {
+                    case NodeType.Ident(arg_ident):
+                        ref src : Cell = scope_get(scope, arg_ident)
+                        if is_null(src) {
+                            interp_error(arg, "undefined variable '".concat(arg_ident).concat("'"))
+                            exit(1.to_i32())
+                        }
+                        val = shallow_copy_value(src.val)
+                        if get_own_arg(e, arg_idx).and(val.is(Value.Func).not()) {
+                            src.val = val_none()
+                        }
+                    case:
+                        val = eval_expr(scope, arg)
                     }
-                    val = shallow_copy_value(src.val)
-                    if get_own_arg(e, arg_idx).and(val.is(Value.Func).not()) {
-                        src.val = val_none()
-                    }
-                } else {
-                    val = eval_expr(scope, arg)
+                    write_field(si_inst, fdd, val)
                 }
-                write_field(si_inst, fdd, val)
+            case:
+                UNREACHABLE(__LOC__)
             }
             return inst
         }
@@ -1036,23 +1071,25 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         ref first_param : Declaration = fdef2.params.get(0)
         if first_param.own_type.is(OwnType.Own) {
             ref first_arg : Expr = e.child(1)
-            if first_arg.node_type.is(NodeType.Ident) {
-                ref fa_ident : Str = get_payload(first_arg.node_type)
+            switch first_arg.node_type {
+            case NodeType.Ident(fa_ident):
                 ref fc : Cell = scope_get(scope, fa_ident)
                 if is_null(fc).not() {
                     if fc.val.is(Value.None) { return val_none() }
-                    if fc.val.is(Value.Struct) {
-                        ref fsi : StructInstance = get_payload(fc.val)
+                    switch fc.val {
+                    case Value.Struct(fsi):
                         if fsi.borrowed {
                             fc.val = val_none()
                             return val_none()
                         }
+                    case:
                     }
                     if fc.val.is(Value.Ptr) {
                         fc.val = val_none()
                         return val_none()
                     }
                 }
+            case:
             }
         }
     }
@@ -1062,8 +1099,8 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     for pi in 0..nparam2 {
         ref arg_expr : Expr = e.child(pi.add(1))
         ref param : Declaration = fdef2.params.get(pi)
-        if arg_expr.node_type.is(NodeType.Ident) {
-            ref arg_ident : Str = get_payload(arg_expr.node_type)
+        switch arg_expr.node_type {
+        case NodeType.Ident(arg_ident):
             ref arg_cell : Cell = scope_get(scope, arg_ident)
             if is_null(arg_cell) {
                 interp_error(arg_expr, "undefined variable '".concat(arg_ident).concat("'"))
@@ -1076,7 +1113,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             } else {
                 scope_set_borrowed(call_scope2, param.name, arg_cell)
             }
-        } else {
+        case:
             mut arg := eval_expr(scope, arg_expr)
             arg = widen_numeric(arg, param.explicit_type)
             scope_set_owned(call_scope2, param.name, arg)
@@ -1095,15 +1132,14 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
 }
 
 free_value := func(shallow v: Value) {
-    if v.is(Value.Struct) {
-        ref si : StructInstance = get_payload(v)
+    switch v {
+    case Value.Struct(si):
         if si.borrowed.not() {
             if is_null(si.data).not() { free(own si.data) }
         }
-    }
-    if v.is(Value.Enum) {
-        ref ei : EnumInstance = get_payload(v)
+    case Value.Enum(ei):
         if is_null(ei.data).not() { free(own ei.data) }
+    case:
     }
 }
 
@@ -1243,9 +1279,10 @@ scope_free := func(own s: Scope) {
     for i in 0..s.bindings.len() {
         ref b : Binding = Map.val_ptr(s.bindings, i)
         if b.cell_is_local {
-            if b.cell.val.is(Value.Enum) {
-                ref ei : EnumInstance = get_payload(b.cell.val)
+            switch b.cell.val {
+            case Value.Enum(ei):
                 if is_null(ei.data).not() { free(own ei.data) }
+            case:
             }
             free(own b.cell)
         }
@@ -1266,6 +1303,7 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
     if sdef.node_type.is(NodeType.StructDef).not() {
         if sdef.node_type.is(NodeType.EnumDef).not() { return false }
     }
+    // FieldAccess and FieldAssign share Str payload; both reach here.
     ref mut fname : Str = get_payload(e.node_type)
     mut has_ns := false
     mut has_inst := false
@@ -1273,43 +1311,47 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
     for ins_d : Declaration in ins_ns {
         if ins_d.name.eq(fname) { has_ns = true }
     }
-    if sdef.node_type.is(NodeType.StructDef) {
-        ref ins_sdd : StructDef = get_payload(sdef.node_type)
+    switch sdef.node_type {
+    case NodeType.StructDef(ins_sdd):
         for dd : Declaration in ins_sdd.fields {
             if dd.name.eq(fname) { has_inst = true }
         }
-    } else {
-        ref ins_edd : EnumDef = get_payload(sdef.node_type)
+    case NodeType.EnumDef(ins_edd):
         for vn : Str in ins_edd.variants {
             if vn.eq(fname) { has_inst = true }
         }
+    case:
     }
     if has_ns {
         if has_inst.not() { return true }
     }
     if has_ns.not() {
         if has_inst.not() {
-            if obj_expr.node_type.is(NodeType.Ident) {
-                ref ident : Str = get_payload(obj_expr.node_type)
+            switch obj_expr.node_type {
+            case NodeType.Ident(ident):
                 if ident.eq(sname) { return true }
                 if ident.len().gt(0) {
                     if ident.byte_at(0).gte(65) {
                         if ident.byte_at(0).lte(90) { return true }
                     }
                 }
+            case:
             }
             return false
         }
     }
     if has_ns {
         if has_inst {
-            if obj_expr.node_type.is(NodeType.Ident).not() { return false }
-            ref ident : Str = get_payload(obj_expr.node_type)
-            if ident.eq(sname) { return true }
-            if ident.len().gt(0) {
-                if ident.byte_at(0).gte(65) {
-                    if ident.byte_at(0).lte(90) { return true }
+            switch obj_expr.node_type {
+            case NodeType.Ident(ident):
+                if ident.eq(sname) { return true }
+                if ident.len().gt(0) {
+                    if ident.byte_at(0).gte(65) {
+                        if ident.byte_at(0).lte(90) { return true }
+                    }
                 }
+            case:
+                return false
             }
         }
     }
@@ -1322,18 +1364,22 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
 // Dynamic, signalling "evaluate the expression normally".
 field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref Cell {
     if val_expr.til_type.is(Type.Dynamic).not() { return NULL }
-    if val_expr.node_type.is(NodeType.Ident).not() { return NULL }
-    ref vi : Str = get_payload(val_expr.node_type)
-    return scope_get(scope, vi)
+    switch val_expr.node_type {
+    case NodeType.Ident(vi):
+        return scope_get(scope, vi)
+    case:
+        return NULL
+    }
 }
 
 interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
     ref obj_expr : Expr = e.child(0)
     sname := til_type_name(obj_expr.til_type)
     if sname.len().gt(0) { return interp_fa_is_ns_inner(scope, e, sname) }
-    if obj_expr.node_type.is(NodeType.Ident) {
-        ref ident : Str = get_payload(obj_expr.node_type)
+    switch obj_expr.node_type {
+    case NodeType.Ident(ident):
         return interp_fa_is_ns_inner(scope, e, ident)
+    case:
     }
     // Primitive receivers (`0.sub(1)`, recv = LiteralNum I64): til_type_name
     // returns "" for I64/U8/etc, fall back to til_type_name_c.
@@ -1345,25 +1391,32 @@ interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
 }
 
 value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
-    if type_name.eq("I64") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 8); return }
-    if type_name.eq("U8") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 1); return }
-    if type_name.eq("I16") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 2); return }
-    if type_name.eq("I32") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 4); return }
-    if type_name.eq("U32") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 4); return }
-    if type_name.eq("Bool") { ref v : Dynamic = get_payload(val); memcpy(dest, v, 1); return }
-    if val.is(Value.Struct) {
-        ref si : StructInstance = get_payload(val)
-        ref sd : StructDef = get_payload(si.struct_def.node_type)
-        sz := sd.total_struct_size
-        if si.borrowed {
-            mut cloned := val.clone()
-            ref csi : StructInstance = get_payload(cloned)
-            memcpy(dest, csi.data, sz.to_i64().to_u64())
-            free(own csi.data)
-            csi.data = NULL
-        } else {
-            memcpy(dest, si.data, sz.to_i64().to_u64())
+    switch val {
+    case Value.Int(v):     if type_name.eq("I64")  { memcpy(dest, v, 8); return }
+    case Value.Byte(v):    if type_name.eq("U8")   { memcpy(dest, v, 1); return }
+    case Value.Short(v):   if type_name.eq("I16")  { memcpy(dest, v, 2); return }
+    case Value.Int32(v):   if type_name.eq("I32")  { memcpy(dest, v, 4); return }
+    case Value.Uint32(v):  if type_name.eq("U32")  { memcpy(dest, v, 4); return }
+    case Value.Boolean(v): if type_name.eq("Bool") { memcpy(dest, v, 1); return }
+    case Value.Struct(si):
+        switch si.struct_def.node_type {
+        case NodeType.StructDef(sd):
+            sz := sd.total_struct_size
+            if si.borrowed {
+                mut cloned := val.clone()
+                switch cloned {
+                case Value.Struct(csi):
+                    memcpy(dest, csi.data, sz.to_i64().to_u64())
+                    free(own csi.data)
+                    csi.data = NULL
+                case:
+                }
+            } else {
+                memcpy(dest, si.data, sz.to_i64().to_u64())
+            }
+        case:
         }
+    case:
     }
 }
 
@@ -1378,8 +1431,14 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
         value_to_buf(ptr_add(data, i.to_u64().mul(esz.to_i64().to_u64())), v, elem_type)
     }
     ref lp : LoadedProgram = codegen_lp()
-    ref asd : StructDef = get_payload(lp.ctx.cached_array_def.node_type)
-    inst_data : Dynamic = calloc(1, asd.total_struct_size.to_i64().to_u64())
+    mut sz : I32 = 0.to_i32()
+    switch lp.ctx.cached_array_def.node_type {
+    case NodeType.StructDef(asd):
+        sz = asd.total_struct_size
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    inst_data : Dynamic = calloc(1, sz.to_i64().to_u64())
     mut tmp := StructInstance(struct_name = lp.ctx.cached_array_name, struct_def = lp.ctx.cached_array_def, data = to_ptr(inst_data), borrowed = true)
     ref ba_data_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "data")
     write_field(tmp, ba_data_d, Value.Ptr(data))
@@ -1405,38 +1464,41 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) 
         ns_inited = true
     }
     for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        ref dd : Declaration = get_payload(stmt.node_type)
-        if stmt.children.len().eq(0) { continue }
-        ref sdef : Expr = stmt.child(0)
-        if sdef.node_type.is(NodeType.StructDef).not() {
-            if sdef.node_type.is(NodeType.EnumDef).not() { continue }
-        }
-        if sdef.node_type.is(NodeType.StructDef) {
-            if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
-            if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
-            if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.child(0); ctx.cached_vec_name   = dd.name }
-        }
-        // Register every struct/enum AST in the comprehensive type-def map
-        // so readers can replace Declaration.field_struct_def with a name lookup.
-        // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
-        // AST gets rebuilt later in the run.
-        td_box := ExprPtrBox(ptr = sdef)
-        interp_type_defs.set(own dd.name.clone(), own td_box)
-        ref ien_ns : Vec = def_ns_decls(sdef)
-        for d_j : Declaration in ien_ns {
-            ref nsd : Declaration = d_j
-            if is_null(nsd.default_value) { continue }
-            mut fval := eval_expr(global, nsd.default_value)
-            if sdef.node_type.is(NodeType.EnumDef) {
-                if enum_has_payloads(sdef).not() {
-                    if fval.is(Value.Int) {
-                        ref iv : I64 = get_payload(fval)
-                        fval = val_i32(iv)
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if stmt.children.len().eq(0) { continue }
+            ref sdef : Expr = stmt.child(0)
+            if sdef.node_type.is(NodeType.StructDef).not() {
+                if sdef.node_type.is(NodeType.EnumDef).not() { continue }
+            }
+            if sdef.node_type.is(NodeType.StructDef) {
+                if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
+                if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
+                if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.child(0); ctx.cached_vec_name   = dd.name }
+            }
+            // Register every struct/enum AST in the comprehensive type-def map
+            // so readers can replace Declaration.field_struct_def with a name lookup.
+            // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
+            // AST gets rebuilt later in the run.
+            td_box := ExprPtrBox(ptr = sdef)
+            interp_type_defs.set(own dd.name.clone(), own td_box)
+            ref ien_ns : Vec = def_ns_decls(sdef)
+            for d_j : Declaration in ien_ns {
+                ref nsd : Declaration = d_j
+                if is_null(nsd.default_value) { continue }
+                mut fval := eval_expr(global, nsd.default_value)
+                if sdef.node_type.is(NodeType.EnumDef) {
+                    if enum_has_payloads(sdef).not() {
+                        switch fval {
+                        case Value.Int(iv):
+                            fval = val_i32(iv)
+                        case:
+                        }
                     }
                 }
+                ns_set(dd.name, nsd.name, fval)
             }
-            ns_set(dd.name, nsd.name, fval)
+        case:
         }
     }
 }
@@ -1481,24 +1543,32 @@ make_str_value_own := func(data: Dynamic, shallow len: U64) returns shallow Valu
     return make_struct_value(lp.ctx.cached_str_name, lp.ctx.cached_str_def, inst_data, false)
 }
 str_view := func(shallow v: Value) returns shallow Str {
-    ref si : StructInstance = get_payload(v)
-    // Str layout in si.data: c_str (8b), count (8b), cap (8b)
-    // Copy it out, then override cap with CAP_VIEW
-    mut result := ""
-    memcpy(result, si.data, Str.size())
-    result.cap = CAP_VIEW
-    return result
+    switch v {
+    case Value.Struct(si):
+        // Str layout in si.data: c_str (8b), count (8b), cap (8b)
+        // Copy it out, then override cap with CAP_VIEW
+        mut result := ""
+        memcpy(result, si.data, Str.size())
+        result.cap = CAP_VIEW
+        return result
+    case:
+        UNREACHABLE(__LOC__)
+        return ""
+    }
 }
 
 find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
-    if struct_def.node_type.is(NodeType.StructDef).not() { return NULL }
-    ref ffd_sdd : StructDef = get_payload(struct_def.node_type)
-    for dd : Declaration in ffd_sdd.fields {
-        if dd.name.eq(fname) {
-            return dd
+    switch struct_def.node_type {
+    case NodeType.StructDef(ffd_sdd):
+        for dd : Declaration in ffd_sdd.fields {
+            if dd.name.eq(fname) {
+                return dd
+            }
         }
+        return NULL
+    case:
+        return NULL
     }
-    return NULL
 }
 
 ENUM_PAYLOAD_OFFSET : I32 = 8
@@ -1581,23 +1651,25 @@ write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
     ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
     fsz := dd.field_size
     if dd.own_type.is(OwnType.Own) {
-        if val.is(Value.Struct) {
-            ref si : StructInstance = get_payload(val)
+        switch val {
+        case Value.Struct(si):
             write_ptr(ptr, si.data)
-        } else {
+        case Value.Ptr(pv):
+            write_ptr(ptr, deref(pv))
+        case:
+            // For other types, fall back to bare-payload reinterpret.
             ref pv : Dynamic = get_payload(val)
             write_ptr(ptr, deref(pv))
         }
         return
     }
     if dd.own_type.is(OwnType.Ref) {
-        if val.is(Value.Ptr) {
-            ref pv : Dynamic = get_payload(val)
+        switch val {
+        case Value.Ptr(pv):
             write_ptr(ptr, deref(pv))
-        } else if val.is(Value.Struct) {
-            ref si : StructInstance = get_payload(val)
+        case Value.Struct(si):
             write_ptr(ptr, si.data)
-        } else {
+        case:
             write_ptr(ptr, NULL)
         }
         return
@@ -1614,10 +1686,13 @@ write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
     case Value.Struct(si):
         if si.borrowed {
             mut cloned := val.clone()
-            ref mut csi : StructInstance = get_payload(cloned)
-            memcpy(ptr, csi.data, fsz.to_i64().to_u64())
-            free(own csi.data)
-            csi.data = NULL
+            switch cloned {
+            case Value.Struct(csi):
+                memcpy(ptr, csi.data, fsz.to_i64().to_u64())
+                free(own csi.data)
+                csi.data = NULL
+            case:
+            }
         } else {
             memcpy(ptr, si.data, fsz.to_i64().to_u64())
         }
@@ -1644,11 +1719,14 @@ interpret_register_defs := func(mut global: Scope, prog: Expr) {
             if stmt.child(0).node_type.is(NodeType.FuncDef)
             .or(stmt.child(0).node_type.is(NodeType.StructDef))
             .or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
-                ref dd : Declaration = get_payload(stmt.node_type)
-                mut val := val_none()
-                memcpy(val, 9.to_i32(), 4)
-                write_ptr(ptr_add(val, 8), stmt.child(0))
-                scope_set_owned(global, dd.name, val)
+                switch stmt.node_type {
+                case NodeType.Decl(dd):
+                    mut val := val_none()
+                    memcpy(val, 9.to_i32(), 4)
+                    write_ptr(ptr_add(val, 8), stmt.child(0))
+                    scope_set_owned(global, dd.name, val)
+                case:
+                }
             }
         }
     }
@@ -1661,22 +1739,27 @@ interpret_register_aliases := func(mut global: Scope, prog: Expr) {
         else if stmt.children.len().eq(0) { }
         else {
             ref rhs : Expr = stmt.child(0)
-            if rhs.node_type.is(NodeType.Ident) {
-                ref rhs_ident : Str = get_payload(rhs.node_type)
+            switch rhs.node_type {
+            case NodeType.Ident(rhs_ident):
                 ref src : Cell = scope_get(global, rhs_ident)
                 if is_null(src).not() {
-                    if src.val.is(Value.Func) {
-                        ref fptr : Dynamic = get_payload(src.val)
+                    switch src.val {
+                    case Value.Func(fptr):
                         ref sdef : Expr = deref(fptr)
                         if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
-                            ref dd : Declaration = get_payload(stmt.node_type)
-                            mut val := val_none()
-                            memcpy(val, 9.to_i32(), 4)
-                            write_ptr(ptr_add(val, 8), sdef)
-                            scope_set_owned(global, dd.name, val)
+                            switch stmt.node_type {
+                            case NodeType.Decl(dd):
+                                mut val := val_none()
+                                memcpy(val, 9.to_i32(), 4)
+                                write_ptr(ptr_add(val, 8), sdef)
+                                scope_set_owned(global, dd.name, val)
+                            case:
+                            }
                         }
+                    case:
                     }
                 }
+            case:
             }
         }
     }
@@ -1689,22 +1772,29 @@ interpret_copy_alias_ns := func(prog: Expr, global: Scope) {
         else if stmt.children.len().eq(0) { }
         else {
             ref rhs : Expr = stmt.child(0)
-            if rhs.node_type.is(NodeType.Ident) {
-                ref dd : Declaration = get_payload(stmt.node_type)
-                ref rhs_ident : Str = get_payload(rhs.node_type)
-                ref tc : Cell = scope_get(global, rhs_ident)
-                if is_null(tc).not().and(tc.val.is(Value.Func)) {
-                    ref fptr : Dynamic = get_payload(tc.val)
-                    ref sdef : Expr = deref(fptr)
-                    if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
-                        ref ica_ns : Vec = def_ns_decls(sdef)
-                        for d_j : Declaration in ica_ns {
-                            ref nsd : Declaration = d_j
-                            ref v : Value = ns_get(rhs_ident, nsd.name)
-                            if is_null(v).not() { ns_set(dd.name, nsd.name, v) }
+            switch rhs.node_type {
+            case NodeType.Ident(rhs_ident):
+                switch stmt.node_type {
+                case NodeType.Decl(dd):
+                    ref tc : Cell = scope_get(global, rhs_ident)
+                    if is_null(tc).not() {
+                        switch tc.val {
+                        case Value.Func(fptr):
+                            ref sdef : Expr = deref(fptr)
+                            if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
+                                ref ica_ns : Vec = def_ns_decls(sdef)
+                                for d_j : Declaration in ica_ns {
+                                    ref nsd : Declaration = d_j
+                                    ref v : Value = ns_get(rhs_ident, nsd.name)
+                                    if is_null(v).not() { ns_set(dd.name, nsd.name, v) }
+                                }
+                            }
+                        case:
                         }
                     }
+                case:
                 }
+            case:
             }
         }
     }
@@ -1747,20 +1837,26 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
         mut pass_count : I32 = 0
         for stmt : Expr in program.children {
             if is_func_decl(stmt) {
-                ref fd : FunctionDef = get_payload(stmt.child(0).node_type)
-                if fd.func_type.is(FuncType.Test) {
-                    ref dd : Declaration = get_payload(stmt.node_type)
-                    test_count = test_count.add(1)
-                    test_scope := scope_new(global)
-                    eval_body(test_scope, stmt.child(0).child(0))
-                    if has_return {
-                        return_value = return_value.clone()
+                switch stmt.child(0).node_type {
+                case NodeType.FuncDef(fd):
+                    if fd.func_type.is(FuncType.Test) {
+                        switch stmt.node_type {
+                        case NodeType.Decl(dd):
+                            test_count = test_count.add(1)
+                            test_scope := scope_new(global)
+                            eval_body(test_scope, stmt.child(0).child(0))
+                            if has_return {
+                                return_value = return_value.clone()
+                            }
+                            scope_free(own test_scope)
+                            pass_count = pass_count.add(1)
+                            eprint_single("  pass: ")
+                            eprint_single(dd.name)
+                            eprint_single("\n")
+                        case:
+                        }
                     }
-                    scope_free(own test_scope)
-                    pass_count = pass_count.add(1)
-                    eprint_single("  pass: ")
-                    eprint_single(dd.name)
-                    eprint_single("\n")
+                case:
                 }
             }
         }
@@ -1953,78 +2049,94 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {
                 if is_func_decl(stmt) {
-                    ref fd : FunctionDef = get_payload(stmt.child(0).node_type)
-                    if fd.func_type.is(FuncType.Test) {
-                        ref dd : Declaration = get_payload(stmt.node_type)
-                        if lp.only_test.len().eq(0).or(lp.only_test.eq(dd.name)) {
-                            test_count = test_count.add(1)
-                            test_scope := scope_new(global)
-                            interp_path = lp.path.clone()
-                            eval_body(test_scope, stmt.child(0).child(0))
-                            if has_return {
-                                return_value = return_value.clone()
+                    switch stmt.child(0).node_type {
+                    case NodeType.FuncDef(fd):
+                        if fd.func_type.is(FuncType.Test) {
+                            switch stmt.node_type {
+                            case NodeType.Decl(dd):
+                                if lp.only_test.len().eq(0).or(lp.only_test.eq(dd.name)) {
+                                    test_count = test_count.add(1)
+                                    test_scope := scope_new(global)
+                                    interp_path = lp.path.clone()
+                                    eval_body(test_scope, stmt.child(0).child(0))
+                                    if has_return {
+                                        return_value = return_value.clone()
+                                    }
+                                    scope_free(own test_scope)
+                                    pass_count = pass_count.add(1)
+                                    eprint_single("  pass: ")
+                                    eprint_single(dd.name)
+                                    eprint_single("\n")
+                                }
+                            case:
                             }
-                            scope_free(own test_scope)
-                            pass_count = pass_count.add(1)
-                            eprint_single("  pass: ")
-                            eprint_single(dd.name)
-                            eprint_single("\n")
+                        }
+                    case:
+                    }
+                }
+                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+                    ref rhs : Expr = stmt.child(0)
+                    if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                        switch stmt.node_type {
+                        case NodeType.Decl(sdd):
+                            ref ns : Vec = def_ns_decls(rhs)
+                            for nsd : Declaration in ns {
+                                ref nsfdef : Expr = nsd.default_value
+                                if is_null(nsfdef) { continue }
+                                switch nsfdef.node_type {
+                                case NodeType.FuncDef(nsfd):
+                                    if nsfd.func_type.is(FuncType.Test).not() { continue }
+                                    qual := format(sdd.name, ".", nsd.name)
+                                    if lp.only_test.len().gt(0).and(lp.only_test.eq(qual).not()) { continue }
+                                    test_count = test_count.add(1)
+                                    test_scope := scope_new(global)
+                                    interp_path = lp.path.clone()
+                                    eval_body(test_scope, nsfdef.child(0))
+                                    if has_return {
+                                        return_value = return_value.clone()
+                                    }
+                                    scope_free(own test_scope)
+                                    pass_count = pass_count.add(1)
+                                    eprint_single("  pass: ")
+                                    eprint_single(qual)
+                                    eprint_single("\n")
+                                case:
+                                }
+                            }
+                        case:
                         }
                     }
                 }
                 if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
                     ref rhs : Expr = stmt.child(0)
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                        ref sdd : Declaration = get_payload(stmt.node_type)
-                        ref ns : Vec = def_ns_decls(rhs)
-                        for nsd : Declaration in ns {
-                            ref nsfdef : Expr = nsd.default_value
-                            if is_null(nsfdef) { continue }
-                            if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
-                            ref nsfd : FunctionDef = get_payload(nsfdef.node_type)
-                            if nsfd.func_type.is(FuncType.Test).not() { continue }
-                            qual := format(sdd.name, ".", nsd.name)
-                            if lp.only_test.len().gt(0).and(lp.only_test.eq(qual).not()) { continue }
-                            test_count = test_count.add(1)
-                            test_scope := scope_new(global)
-                            interp_path = lp.path.clone()
-                            eval_body(test_scope, nsfdef.child(0))
-                            if has_return {
-                                return_value = return_value.clone()
+                        switch stmt.node_type {
+                        case NodeType.Decl(sdd):
+                            ref ns : Vec = def_ns_decls(rhs)
+                            for nsd : Declaration in ns {
+                                ref nsfdef : Expr = nsd.default_value
+                                if is_null(nsfdef) { continue }
+                                switch nsfdef.node_type {
+                                case NodeType.FuncDef(nsfd):
+                                    if nsfd.func_type.is(FuncType.Test).not() { continue }
+                                    test_count = test_count.add(1)
+                                    test_scope := scope_new(global)
+                                    interp_path = lp.path.clone()
+                                    eval_body(test_scope, nsfdef.child(0))
+                                    if has_return {
+                                        return_value = return_value.clone()
+                                    }
+                                    scope_free(own test_scope)
+                                    pass_count = pass_count.add(1)
+                                    eprint_single("  pass: ")
+                                    eprint_single(sdd.name)
+                                    eprint_single(".")
+                                    eprint_single(nsd.name)
+                                    eprint_single("\n")
+                                case:
+                                }
                             }
-                            scope_free(own test_scope)
-                            pass_count = pass_count.add(1)
-                            eprint_single("  pass: ")
-                            eprint_single(qual)
-                            eprint_single("\n")
-                        }
-                    }
-                }
-                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-                    ref rhs : Expr = stmt.child(0)
-                    if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                        ref sdd : Declaration = get_payload(stmt.node_type)
-                        ref ns : Vec = def_ns_decls(rhs)
-                        for nsd : Declaration in ns {
-                            ref nsfdef : Expr = nsd.default_value
-                            if is_null(nsfdef) { continue }
-                            if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
-                            ref nsfd : FunctionDef = get_payload(nsfdef.node_type)
-                            if nsfd.func_type.is(FuncType.Test).not() { continue }
-                            test_count = test_count.add(1)
-                            test_scope := scope_new(global)
-                            interp_path = lp.path.clone()
-                            eval_body(test_scope, nsfdef.child(0))
-                            if has_return {
-                                return_value = return_value.clone()
-                            }
-                            scope_free(own test_scope)
-                            pass_count = pass_count.add(1)
-                            eprint_single("  pass: ")
-                            eprint_single(sdd.name)
-                            eprint_single(".")
-                            eprint_single(nsd.name)
-                            eprint_single("\n")
+                        case:
                         }
                     }
                 }

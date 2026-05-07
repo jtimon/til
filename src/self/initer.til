@@ -2395,10 +2395,12 @@ count_ast_imports := func(body: Expr) returns shallow USize {
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.FCall).not() { continue }
         if stmt.children.len().neq(2) { continue }
-        if stmt.child(0).node_type.is(NodeType.Ident).not() { continue }
         if stmt.child(1).node_type.is(NodeType.LiteralStr).not() { continue }
-        ref id : Str = get_payload(stmt.child(0).node_type)
-        if id.eq("import") { n = n.add(1.to_u32()) }
+        switch stmt.child(0).node_type {
+        case NodeType.Ident(id):
+            if id.eq("import") { n = n.add(1.to_u32()) }
+        case:
+        }
     }
     return n
 }
@@ -2426,13 +2428,16 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
     for stmt : Expr in iu.ast.children {
         if stmt.node_type.is(NodeType.FCall).not() { continue }
         if stmt.children.len().neq(2) { continue }
-        if stmt.child(0).node_type.is(NodeType.Ident).not() { continue }
         if stmt.child(1).node_type.is(NodeType.LiteralStr).not() { continue }
-        ref id : Str = get_payload(stmt.child(0).node_type)
-        if id.eq("import").not() { continue }
-        ref dep : Str = iu.imports.get(import_idx)
-        init_file(dep, ctx)
-        import_idx = import_idx.add(1.to_u32())
+        switch stmt.child(0).node_type {
+        case NodeType.Ident(id):
+            if id.eq("import").not() { continue }
+            ref dep : Str = iu.imports.get(import_idx)
+            init_file(dep, ctx)
+            import_idx = import_idx.add(1.to_u32())
+        case:
+            continue
+        }
     }
 
     ctx.mode = iu.mode.clone()
