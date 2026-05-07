@@ -242,6 +242,7 @@ retarget_alias_binding := func(scope: TypeScope, alias_name: Str, target_name: S
 
 retarget_loaded_aliases := func(mut lp: LoadedProgram) {
     retarget_alias_binding(lp.ctx.scope, "UPtr", target_uptr_name(lp.target))
+    retarget_alias_binding(lp.ctx.scope, "USize", target_usize_name(lp.target))
 }
 
 // Precomp across per-file units (rstil-style): fold macros/pure funcs in the

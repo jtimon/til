@@ -5075,7 +5075,7 @@ derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
     last_slash := lp.path.rfind("/")
     mut basename := lp.path
     if last_slash.gte(0) {
-        last_slash_u : USize = last_slash.to_u32()
+        last_slash_u : USize = last_slash.to_usize()
         basename = lp.path.substr(last_slash_u.add(1), lp.path.len().sub(last_slash_u).sub(1))
     }
     mut name_len := basename.len()
@@ -5109,12 +5109,12 @@ make_build_dirs := func(paths: BuildPaths) {
         bp_slash := paths.bin_path.rfind("/")
         mut cp_dir := "gen/til"
         if cp_slash.gt(0) {
-            cp_slash_u : USize = cp_slash.to_u32()
+            cp_slash_u : USize = cp_slash.to_usize()
             cp_dir = paths.c_path.substr(0, cp_slash_u)
         }
         mut bp_dir := "bin"
         if bp_slash.gt(0) {
-            bp_slash_u : USize = bp_slash.to_u32()
+            bp_slash_u : USize = bp_slash.to_usize()
             bp_dir = paths.bin_path.substr(0, bp_slash_u)
         }
         if mkdir_p(cp_dir).neq(0) { panic(__LOC__, "failed to create build output dir") }
@@ -5382,7 +5382,7 @@ til_doc_out_path := func(unit_path: Str) returns Str {
 ensure_parent_dir := func(path: Str) {
     last_slash := path.rfind("/")
     if last_slash.lt(0) { return }
-    last_slash_u : USize = last_slash.to_u32()
+    last_slash_u : USize = last_slash.to_usize()
     dir := path.substr(0, last_slash_u).clone()
     if mkdir_p(dir).neq(0) { panic(__LOC__, "failed to create parent dir for ", path) }
 }
