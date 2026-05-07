@@ -839,7 +839,6 @@ Bool I16_neq(I16 * a, I16 * b);
 Bool I16_lte(I16 * a, I16 * b);
 Bool I16_gte(I16 * a, I16 * b);
 Str * I64_to_str(I64 * val);
-U32 I64_to_usize(I64 val);
 void I64_inc(I64 * self);
 void I64_dec(I64 * self);
 I64 * I64_unity(I64 * _self);
