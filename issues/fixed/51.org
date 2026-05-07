@@ -44,6 +44,27 @@ Add a ~til test myfile.til~ command that finds all test() functions in
     - ~src/self/builder.til~: ~emit_test_main~ emits
       ~Type_test_name();~ calls (and ~Type.test_name~ in the per-test
       pass message) for every namespace ~test()~ decl.
+  - Recursive import discovery: ~emit_test_main~ now walks every
+    ~lp.units~ entry instead of just the entrypoint file, so
+    ~til test foo.til~ runs every ~test()~ found in foo.til *and* in
+    files transitively imported by foo.til.  Matches what the
+    interpret pass already did.
+  - Output streams: the ~=== interpret ===~ / ~=== compile + run ===~
+    markers go to stderr via ~eprint_single~ alongside the per-test
+    ~  pass: NAME~ lines, so capturing one stream gives a coherent log.
+  - Test isolation (bulk-first, fanout-on-failure):
+    - ~src/til.til~ ~cmd_test_fanout~ runs each pass as a single bulk
+      subprocess.  If the bulk pass exits 0, the captured output is
+      replayed verbatim (one extra subprocess per pass, no per-test
+      cost).  If it exits non-zero, ~cmd_test_fanout~ falls back to
+      one subprocess per test so a panicking test only kills its own
+      process and the rest of the suite still reports.
+    - Plumbing: ~LoadedProgram.only_test~, ~CliArgs.only_test~ /
+      ~CliArgs.bulk_test~, ~--only=NAME~ / ~--all-tests~ flags;
+      ~interpret_units~ filters by ~lp.only_test~; ~emit_test_main~
+      now emits ~int main(int argc, char **argv)~ with an ~argv[1]~
+      filter; ~discover_test_names~ + ~cmd_test_compile~ helpers in
+      ~src/self/builder.til~ for the parent driver.
   - Regression coverage:
     - ~src/test/test_in_namespace.til~ -- a ~mode test~ file with
       ~test()~ decls inside both a struct and an enum namespace, plus a
@@ -52,4 +73,7 @@ Add a ~til test myfile.til~ command that finds all test() functions in
     - ~til_test_cmd~ ~add_single~ entry runs ~bin/til test
       src/test/test_in_namespace.til~ end-to-end and asserts that
       ~tests passed~ appears twice in the output (once per backend).
+
+  Follow-up filed as #195 (consider whether ~mode test~ is still
+  worth keeping now that ~til test~ works on any mode).
 

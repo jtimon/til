@@ -1,0 +1,22 @@
+# priority: low
+** OPEN #195 Consider removing ~mode test~
+
+  Now that ~til test foo.til~ works on any file regardless of mode and
+  discovers test() decls inline (issue #51), the dedicated ~mode test~
+  is largely syntactic sugar that flips ~run_tests=true~ on
+  ~til interpret~ / ~til build~.  A user can write:
+
+    mode lib
+    test_foo := test() { ... }
+
+  and run it with ~til test foo.til~ -- ~mode test~ no longer adds
+  capability.  Decide whether to:
+
+  - keep ~mode test~ as a convenience (running plain
+    ~til interpret some_test_file.til~ will still run its tests), or
+  - deprecate / remove it and migrate ~src/test/*.til~ + the makefile
+    harness to use the host file's natural mode plus ~til test~.
+
+  If we keep it, doc/self.org should explicitly note that mode test
+  has no behavioral difference from ~lib~ + ~til test~.
+

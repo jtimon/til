@@ -7812,7 +7812,8 @@ Str *dyn_type_to_str(Type *type) {
     return Str_lit("?", 1ULL);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    const char *_til_only = (argc > 1) ? argv[1] : 0;
     I64 _t_I64_851 = 0;
     (void)_t_I64_851;
     I64 _t_I64_852 = 1;
@@ -7833,14 +7834,39 @@ int main(void) {
     (void)__til_docs_blob__;
     __til_info_blob__ = (Str){.c_str=(U8*)"", .count=0ULL, .cap=TIL_CAP_LIT};
     (void)__til_info_blob__;
-    test_simple_add();
-    fprintf(stderr, "  pass: %s\n", "test_simple_add");
-    test_nested_arithmetic();
-    fprintf(stderr, "  pass: %s\n", "test_nested_arithmetic");
-    test_deeply_nested();
-    fprintf(stderr, "  pass: %s\n", "test_deeply_nested");
-    test_lolalalo();
-    fprintf(stderr, "  pass: %s\n", "test_lolalalo");
-    fprintf(stderr, "4/4 tests passed\n");
+    int _til_total = 0, _til_ran = 0;
+    _til_total++;
+    if (!_til_only || strcmp(_til_only, "test_simple_add") == 0) {
+        test_simple_add();
+        fprintf(stderr, "  pass: %s\n", "test_simple_add");
+        _til_ran++;
+    }
+    _til_total++;
+    if (!_til_only || strcmp(_til_only, "test_nested_arithmetic") == 0) {
+        test_nested_arithmetic();
+        fprintf(stderr, "  pass: %s\n", "test_nested_arithmetic");
+        _til_ran++;
+    }
+    _til_total++;
+    if (!_til_only || strcmp(_til_only, "test_deeply_nested") == 0) {
+        test_deeply_nested();
+        fprintf(stderr, "  pass: %s\n", "test_deeply_nested");
+        _til_ran++;
+    }
+    _til_total++;
+    if (!_til_only || strcmp(_til_only, "test_lolalalo") == 0) {
+        test_lolalalo();
+        fprintf(stderr, "  pass: %s\n", "test_lolalalo");
+        _til_ran++;
+    }
+    if (_til_only && _til_ran == 0) {
+        fprintf(stderr, "no test matched '%s'\n", _til_only);
+        return 1;
+    }
+    if (_til_total == 0) {
+        fprintf(stderr, "no tests found\n");
+    } else {
+        fprintf(stderr, "%d/%d tests passed\n", _til_ran, _til_ran);
+    }
     return 0;
 }

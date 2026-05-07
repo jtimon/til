@@ -1956,18 +1956,48 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
                     ref fd : FunctionDef = get_payload(stmt.child(0).node_type)
                     if fd.func_type.is(FuncType.Test) {
                         ref dd : Declaration = get_payload(stmt.node_type)
-                        test_count = test_count.add(1)
-                        test_scope := scope_new(global)
-                        interp_path = lp.path.clone()
-                        eval_body(test_scope, stmt.child(0).child(0))
-                        if has_return {
-                            return_value = return_value.clone()
+                        if lp.only_test.len().eq(0).or(lp.only_test.eq(dd.name)) {
+                            test_count = test_count.add(1)
+                            test_scope := scope_new(global)
+                            interp_path = lp.path.clone()
+                            eval_body(test_scope, stmt.child(0).child(0))
+                            if has_return {
+                                return_value = return_value.clone()
+                            }
+                            scope_free(own test_scope)
+                            pass_count = pass_count.add(1)
+                            eprint_single("  pass: ")
+                            eprint_single(dd.name)
+                            eprint_single("\n")
                         }
-                        scope_free(own test_scope)
-                        pass_count = pass_count.add(1)
-                        eprint_single("  pass: ")
-                        eprint_single(dd.name)
-                        eprint_single("\n")
+                    }
+                }
+                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+                    ref rhs : Expr = stmt.child(0)
+                    if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                        ref sdd : Declaration = get_payload(stmt.node_type)
+                        ref ns : Vec = def_ns_decls(rhs)
+                        for nsd : Declaration in ns {
+                            ref nsfdef : Expr = nsd.default_value
+                            if is_null(nsfdef) { continue }
+                            if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
+                            ref nsfd : FunctionDef = get_payload(nsfdef.node_type)
+                            if nsfd.func_type.is(FuncType.Test).not() { continue }
+                            qual := format(sdd.name, ".", nsd.name)
+                            if lp.only_test.len().gt(0).and(lp.only_test.eq(qual).not()) { continue }
+                            test_count = test_count.add(1)
+                            test_scope := scope_new(global)
+                            interp_path = lp.path.clone()
+                            eval_body(test_scope, nsfdef.child(0))
+                            if has_return {
+                                return_value = return_value.clone()
+                            }
+                            scope_free(own test_scope)
+                            pass_count = pass_count.add(1)
+                            eprint_single("  pass: ")
+                            eprint_single(qual)
+                            eprint_single("\n")
+                        }
                     }
                 }
                 if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
