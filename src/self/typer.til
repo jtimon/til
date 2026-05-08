@@ -4431,22 +4431,24 @@ desugar_array_vec_fcall := func(mut fcall: Expr, mut new_ch: Vec, mut scope: Typ
         ref callee : Expr = fcall.child(0)
         switch callee.node_type {
         case NodeType.Ident(cn):
-            ref elem_type : Str = get_payload(fcall.child(1).node_type)
-            count : U32 = fcall.children.len().sub(2)
-            if cn.eq("vec") {
-                vec_name := "_vec_".concat(coll_counter.to_str())
-                coll_counter++
-                mut vec_decl := build_builtin_vec_decl(fcall, scope, elem_type, vec_name)
-                scope.set(vec_name, Type.Struct("Vec".clone()), FuncType.None, true, typer_path, fcall.line, fcall.col, false, OwnType.Own)
-                new_ch.push(own vec_decl)
-                for j in 0..count {
-                    mut push_call := build_builtin_vec_push(fcall, vec_name, j)
-                    new_ch.push(own push_call)
+            if cn.eq("vec").or(cn.eq("array")).not() { return false }
+            ref child1 : Expr = fcall.child(1)
+            switch child1.node_type {
+            case NodeType.LiteralStr(elem_type):
+                count : U32 = fcall.children.len().sub(2)
+                if cn.eq("vec") {
+                    vec_name := "_vec_".concat(coll_counter.to_str())
+                    coll_counter++
+                    mut vec_decl := build_builtin_vec_decl(fcall, scope, elem_type, vec_name)
+                    scope.set(vec_name, Type.Struct("Vec".clone()), FuncType.None, true, typer_path, fcall.line, fcall.col, false, OwnType.Own)
+                    new_ch.push(own vec_decl)
+                    for j in 0..count {
+                        mut push_call := build_builtin_vec_push(fcall, vec_name, j)
+                        new_ch.push(own push_call)
+                    }
+                    rewrite_collection_fcall_to_ident(fcall, vec_name, Type.Struct("Vec".clone()))
+                    return true
                 }
-                rewrite_collection_fcall_to_ident(fcall, vec_name, Type.Struct("Vec".clone()))
-                return true
-            }
-            if cn.eq("array") {
                 arr_name := "_array_".concat(coll_counter.to_str())
                 coll_counter++
                 mut arr_decl := build_variadic_array_decl(fcall, scope, elem_type, arr_name, count)
@@ -4458,6 +4460,8 @@ desugar_array_vec_fcall := func(mut fcall: Expr, mut new_ch: Vec, mut scope: Typ
                 }
                 rewrite_collection_fcall_to_ident(fcall, arr_name, Type.Struct("Array".clone()))
                 return true
+            case:
+                UNREACHABLE(__LOC__)
             }
         case:
         }
@@ -4487,36 +4491,46 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
     case NodeType.Ident(cn):
         if cn.eq("vec") {
             if rhs.children.len().lt(2) { return false }
-            ref elem_type : Str = get_payload(rhs.child(1).node_type)
-            count : U32 = rhs.children.len().sub(2)
-            mut vec_decl := build_builtin_vec_decl(rhs, scope, elem_type, var_name)
-            vec_decl.til_type = Type.Struct("Vec".clone())
-            switch vec_decl.node_type {
-            case NodeType.Decl(dd):
-                dd.is_mut = true
+            ref child1 : Expr = rhs.child(1)
+            switch child1.node_type {
+            case NodeType.LiteralStr(elem_type):
+                count : U32 = rhs.children.len().sub(2)
+                mut vec_decl := build_builtin_vec_decl(rhs, scope, elem_type, var_name)
+                vec_decl.til_type = Type.Struct("Vec".clone())
+                switch vec_decl.node_type {
+                case NodeType.Decl(dd):
+                    dd.is_mut = true
+                case:
+                }
+                scope.set(var_name, Type.Struct("Vec".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+                new_ch.push(own vec_decl)
+                for j in 0..count {
+                    mut push_call := build_builtin_vec_push(rhs, var_name, j)
+                    new_ch.push(own push_call)
+                }
+                return true
             case:
+                UNREACHABLE(__LOC__)
             }
-            scope.set(var_name, Type.Struct("Vec".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
-            new_ch.push(own vec_decl)
-            for j in 0..count {
-                mut push_call := build_builtin_vec_push(rhs, var_name, j)
-                new_ch.push(own push_call)
-            }
-            return true
         }
         if cn.eq("array") {
             if rhs.children.len().lt(2) { return false }
-            ref elem_type : Str = get_payload(rhs.child(1).node_type)
-            count : U32 = rhs.children.len().sub(2)
-            mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count)
-            arr_decl.til_type = Type.Struct("Array".clone())
-            scope.set(var_name, Type.Struct("Array".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
-            new_ch.push(own arr_decl)
-            for j in 0..count {
-                mut setter := build_variadic_array_set(rhs, scope, var_name, 2.to_i32(), j)
-                new_ch.push(own setter)
+            ref child1 : Expr = rhs.child(1)
+            switch child1.node_type {
+            case NodeType.LiteralStr(elem_type):
+                count : U32 = rhs.children.len().sub(2)
+                mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count)
+                arr_decl.til_type = Type.Struct("Array".clone())
+                scope.set(var_name, Type.Struct("Array".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+                new_ch.push(own arr_decl)
+                for j in 0..count {
+                    mut setter := build_variadic_array_set(rhs, scope, var_name, 2.to_i32(), j)
+                    new_ch.push(own setter)
+                }
+                return true
+            case:
+                UNREACHABLE(__LOC__)
             }
-            return true
         }
     case:
     }

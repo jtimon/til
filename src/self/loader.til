@@ -466,16 +466,24 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                     if stmt.children.len().gt(0)
                         .and(stmt.child(0).node_type.is(NodeType.StructDef)
                             .or(stmt.child(0).node_type.is(NodeType.EnumDef))) {
-                        ref sdecl : Declaration = get_payload(stmt.node_type)
-                        ref nstv : Vec = def_ns_decls(stmt.child(0))
-                        for nsd : Declaration in nstv {
-                            ref nsfdef : Expr = nsd.default_value
-                            if is_null(nsfdef) { continue }
-                            if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
-                            ref nsfd : FunctionDef = get_payload(nsfdef.node_type)
-                            if nsfd.func_type.is(FuncType.Test) {
-                                push_qn(worklist, sdecl.name, nsd.name)
+                        switch stmt.node_type {
+                        case NodeType.Decl(sdecl):
+                            ref nstv : Vec = def_ns_decls(stmt.child(0))
+                            for nsd : Declaration in nstv {
+                                ref nsfdef : Expr = nsd.default_value
+                                if is_null(nsfdef) { continue }
+                                if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
+                                switch nsfdef.node_type {
+                                case NodeType.FuncDef(nsfd):
+                                    if nsfd.func_type.is(FuncType.Test) {
+                                        push_qn(worklist, sdecl.name, nsd.name)
+                                    }
+                                case:
+                                    UNREACHABLE(__LOC__)
+                                }
                             }
+                        case:
+                            UNREACHABLE(__LOC__)
                         }
                     }
                     if is_def(stmt) { continue }

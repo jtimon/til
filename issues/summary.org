@@ -24,6 +24,7 @@
 *** [[./open/182.org][#182]] Support ~/** */~ block doc comments (in addition to ~///~)
 *** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
 *** [[./open/184.org][#184]] Finish the bare ~get_payload~ -> switch destructure refactor
+*** [[./open/196.org][#196]] Interpreter mishandles enum values in struct fields and switch hoists
 *** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
 ** Medium
 ** Low
