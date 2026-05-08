@@ -56,6 +56,11 @@ Run under systemd-run to limit memory (prevents OOM from memory leaks).
 systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/build.log 2>&1 && make test >> tmp/build.log 2>&1'
 #+end_src
 
+*** If tests fail: STOP. Report the error to the user. Do NOT investigate.
+    Do NOT run ad-hoc commands. Do NOT try to fix anything. Do NOT go
+    digging through logs beyond finding the FAIL/error line. Just tell
+    the user what failed. Period.
+
 *** "Two-pass: " commits
     If the commit subject starts with "Two-pass: ", the author shipped
     boot artifacts produced by running the new compiler against itself
