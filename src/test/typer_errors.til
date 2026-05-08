@@ -369,3 +369,8 @@ terr_null_ref_local_fn()
 // carve-out before the cached_*_def migration).
 ref terr_module_null : I64 = NULL
 ref mut terr_module_null_mut : I64 = NULL
+
+// #191: macro argument must be known at compile time
+macro_test := macro(x: I64) returns I64 { return x }
+runtime_val := func() returns I64 { return 42 }
+_ = macro_test(runtime_val())

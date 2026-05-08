@@ -194,6 +194,63 @@ find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
     return NULL
 }
 
+// Issue #191: check if an Expr is comptime-known. Used by typer to
+// validate macro arguments and by precomp to decide func folding.
+// Conservative: only accepts shapes that are definitely known at
+// compile time.
+expr_is_comptime := func(e: Expr, scope: TypeScope) returns shallow Bool {
+    switch e.node_type {
+    case NodeType.LiteralNum:    return true
+    case NodeType.LiteralStr:    return true
+    case NodeType.LiteralBool:   return true
+    case NodeType.LiteralNull:   return true
+    case NodeType.Ident(id):
+        ref b : TypeBinding = scope.get_binding(id)
+        if is_null(b) { return false }
+        if b.is_mut { return false }
+        if b.is_param { return false }
+        return true
+    case NodeType.FCall:
+        if e.children.len().eq(0) { return false }
+        ref callee : Expr = e.child(0)
+        mut callee_name := ""
+        switch callee.node_type {
+        case NodeType.Ident(cn):
+            callee_name = cn.clone()
+        case NodeType.FieldAccess(_mn):
+            if callee.children.len().gt(0) {
+                ref recv : Expr = callee.child(0)
+                mut sname := til_type_name(recv.til_type)
+                if sname.len().eq(0) {
+                    switch recv.node_type {
+                    case NodeType.Ident(rn):
+                        sname = rn.clone()
+                    case:
+                    }
+                }
+                callee_name = sname.format("_", _mn)
+            }
+        case:
+            return false
+        }
+        if callee_name.len().eq(0) { return false }
+        ref cb : TypeBinding = scope.get_binding(callee_name)
+        if is_null(cb) { return false }
+        if cb.func_type.is(FuncType.Proc).or(cb.func_type.is(FuncType.ExtProc)) {
+            return false
+        }
+        if cb.func_type.is(FuncType.Macro).or(cb.func_type.is(FuncType.Func)).or(cb.func_type.is(FuncType.ExtFunc)) {
+            for ai in 1..e.children.len() {
+                if expr_is_comptime(e.child(ai), scope).not() { return false }
+            }
+            return true
+        }
+        return false
+    case:
+        return false
+    }
+}
+
 // Issue #179 step 5: locate a namespace member's Declaration so the
 // caller can read its is_priv flag (find_namespace_func only returns
 // the default_value FuncDef Expr).
@@ -1485,6 +1542,14 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             rt = type_from_name(ns_fdef.return_type, scope)
         }
         e.til_type = rt
+        // Issue #191: namespace macro calls require all arguments to be comptime-known.
+        if ns_fdef.func_type.is(FuncType.Macro) {
+            for ai in 1..e.children.len() {
+                if expr_is_comptime(e.child(ai), scope).not() {
+                    type_error(e.child(ai), "macro argument must be known at compile time")
+                }
+            }
+        }
     case:
         UNREACHABLE(__LOC__)
         return false
@@ -1563,6 +1628,16 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
         }
     }
     infer_and_validate_fcall_args(scope, e, callee_bind, in_func, ctx)
+    // Issue #191: macro calls require all arguments to be comptime-known.
+    if is_null(callee_bind).not() {
+        if callee_bind.func_type.is(FuncType.Macro) {
+            for ai in 1..e.children.len() {
+                if expr_is_comptime(e.child(ai), scope).not() {
+                    type_error(e.child(ai), "macro argument must be known at compile time")
+                }
+            }
+        }
+    }
     validate_fcall_own_args(scope, e, callee_bind)
     resolve_fcall_return_type(scope, e, name, callee_bind, in_func, ctx)
     return

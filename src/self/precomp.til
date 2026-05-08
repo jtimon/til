@@ -384,16 +384,14 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     if is_null(_fast).not() { return _fast }
 
     ref callee : Expr = fcall.child(0)
-    // Resolve fdef once so we can reject ref-returning funcs (results
-    // are aliases not standalone values; for ext_funcs this also covers
-    // env-dependent dlsym-style pointers that get truncated when
-    // materialised back into a literal).
+    // Issue #191: for macro calls (require_known=true), don't block on
+    // side-effecting names or ext_funcs -- macros are allowed to call
+    // run_cmd, malloc, etc. at compile time.
+    mut is_macro_mode := require_known
     mut fp : Dynamic = 0
     switch callee.node_type {
     case NodeType.Ident(callee_ident):
-        // Block direct calls to side-effecting names (exit, malloc, panic,
-        // clock_ms, ffi_global_symbol, ...).
-        if is_side_effecting_name(callee_ident) { return NULL }
+        if is_macro_mode.not().and(is_side_effecting_name(callee_ident)) { return NULL }
         ref fn_cell : Cell = scope_get(scope, callee_ident)
         if is_null(fn_cell).not() {
             switch fn_cell.val {
@@ -402,9 +400,6 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             }
         }
     case NodeType.FieldAccess(mname):
-        // FieldAccess on an Ident value receiver: the interpreter needs
-        // a binding to look up. If the Ident isn't a type name (Str/I64...)
-        // and isn't a known constant, bail.
         if callee.children.len().gt(0) {
             ref recv : Expr = callee.child(0)
             switch recv.node_type {
@@ -432,24 +427,16 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         ref fdef : Expr = deref(fp)
         switch fdef.node_type {
         case NodeType.FuncDef(_fd):
-            // Folding a ref-returning func would bake the compile-time
-            // alias into the AST. For ext_funcs it would also dlsym at
-            // compile time and truncate the static address to scalar.
             if _fd.return_own_type.eq(OwnType.Ref) { return NULL }
-            // Don't directly fold ext_funcs. Many user ext_funcs aren't
-            // dispatchable at precomp time (their .so isn't dlopen'd) and
-            // dispatching them would invoke runtime FFI with broken state.
-            // Built-in arithmetic ops (I64_add etc.) are still invokable
-            // when reached transitively through a user func body.
-            if _fd.func_type.is(FuncType.ExtFunc) { return NULL }
+            // Issue #191: macros can call ext_funcs (e.g. run_cmd).
+            // Funcs still can't.
+            if is_macro_mode.not().and(_fd.func_type.is(FuncType.ExtFunc)) { return NULL }
             if fdef.children.len().gt(0) {
-                // Macros use the strict body check (master's behaviour):
-                // any unknown Ident bails before the args check, which
-                // is what keeps `macro_add(N, 5)` from forcing eval.
-                // Funcs use the lenient check that skips body-locals
-                // (typer-hoisted temps), so non-trivial bodies can fold.
-                if func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), require_known.not()) {
-                    return NULL
+                // Issue #191: skip unknown-global check for macro calls.
+                if is_macro_mode.not() {
+                    if func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), true) {
+                        return NULL
+                    }
                 }
             }
         case:
@@ -465,7 +452,54 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     for i in 0..nargs {
         ref arg : Expr = fcall.child(i.add(1))
         mut arg_val := val_none()
-        if is_known(arg, arg_val).not() {
+        mut arg_is_known := is_known(arg, arg_val)
+        // Issue #191: also check interpreter scope for arg values
+        if arg_is_known.not() {
+            switch arg.node_type {
+            case NodeType.Ident(arg_id):
+                ref cell : Cell = scope_get(scope, arg_id)
+                if is_null(cell).not() {
+                    switch cell.val {
+                    case Value.Int(iv):
+                        mut lit := Expr.new(NodeType.LiteralNum(iv.to_str()), arg.line, arg.col)
+                        lit.til_type = Type.I64
+                        ec.add_child(own lit)
+                        continue
+                    case Value.Byte(bv):
+                        mut lit := Expr.new(NodeType.LiteralNum(bv.to_str()), arg.line, arg.col)
+                        lit.til_type = Type.U8
+                        ec.add_child(own lit)
+                        continue
+                    case Value.Short(sv):
+                        mut lit := Expr.new(NodeType.LiteralNum(sv.to_str()), arg.line, arg.col)
+                        lit.til_type = Type.I16
+                        ec.add_child(own lit)
+                        continue
+                    case Value.Int32(iv):
+                        mut lit := Expr.new(NodeType.LiteralNum(iv.to_str()), arg.line, arg.col)
+                        lit.til_type = Type.I32
+                        ec.add_child(own lit)
+                        continue
+                    case Value.Uint32(uv):
+                        mut lit := Expr.new(NodeType.LiteralNum(uv.to_str()), arg.line, arg.col)
+                        lit.til_type = Type.U32
+                        ec.add_child(own lit)
+                        continue
+                    case Value.Uint64(uv):
+                        mut lit := Expr.new(NodeType.LiteralNum(uv.to_str()), arg.line, arg.col)
+                        lit.til_type = Type.U64
+                        ec.add_child(own lit)
+                        continue
+                    case Value.Boolean(bv):
+                        mut lit := Expr.new(NodeType.LiteralBool(bv), arg.line, arg.col)
+                        lit.til_type = Type.Bool
+                        ec.add_child(own lit)
+                        continue
+                    case:
+                    }
+                }
+            case:
+            }
             if require_known {
                 panic(
                     __LOC__,
@@ -483,8 +517,9 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
 
     // Value.Float intentionally excluded: F32_to_str -> %g can yield
     // scientific notation that doesn't round-trip through Str.to_f32.
-    // Value.Struct(Str) intentionally excluded: folded strings can carry
-    // NULs/non-ASCII that don't round-trip through a C source literal.
+    // Value.Struct(Str) intentionally excluded for funcs: folded strings
+    // can carry NULs/non-ASCII that don't round-trip through a C source
+    // literal. Issue #191: macros are allowed to return Str.
     mut can_convert := result.is(Value.Int)
     .or(result.is(Value.Byte))
     .or(result.is(Value.Short))
@@ -492,6 +527,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     .or(result.is(Value.Uint32))
     .or(result.is(Value.Uint64))
     .or(result.is(Value.Boolean))
+    .or(require_known.and(result.is(Value.Struct)))
     if can_convert.not() {
         if require_known {
             panic(
@@ -562,51 +598,47 @@ is_func_call := func(e: Expr) returns shallow Bool {
 
 // Uniform fold: walk the subtree rooted at `e` and replace every FCall
 // child whose callee is a known macro or pure func with its folded
-// literal. Macros are forced (require_known); funcs try the fast path
-// first, then the eval-based path for direct Ident callees (so
-// `add(1, 2)` -> `3` works -- rstil-style).
+// literal. Issue #191: macros are always folded (typer already rejected
+// non-comptime args). Funcs fold when all args are comptime. Procs are
+// never folded.
 fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
     for i in 0..e.children.len() {
         ref child : Expr = e.child(i)
         fold_subtree(scope, child, ctx)
         if child.node_type.is(NodeType.FCall) {
             if is_macro_call(child) {
+                // Issue #191: always fold macro calls. Typer already
+                // validated that all args are comptime.
                 ref lit : Expr = try_eval_call(scope, child, true, ctx)
                 if is_null(lit).not() { e.children.set(i, own lit.clone()) }
             } else if is_func_call(child) {
-                ref lit : Expr = try_fast_fold_call(scope, child)
-                if is_null(lit).not() {
-                    e.children.set(i, own lit.clone())
-                } else if e.node_type.is(NodeType.Body).not() {
-                    // Only fold FCalls inside expression contexts (parent
-                    // isn't Body). Statement-level FCalls have meaningful
-                    // side effects that fold would silently discard.
-                    if child.children.len().gt(0) {
-                        ref _cc : Expr = child.child(0)
-                        // Only fold Ident-callee FCalls. FA-callee folds
-                        // (method calls) require precomp-scope bindings
-                        // for the receiver that we can't always provide.
-                        if _cc.node_type.is(NodeType.Ident) {
-                            ref lit2 : Expr = try_eval_call(scope, child, false, ctx)
-                            if is_null(lit2).not() { e.children.set(i, own lit2.clone()) }
-                        }
+                // Issue #191: fold func calls when all args are comptime.
+                mut all_comptime := true
+                for ai in 1..child.children.len() {
+                    if is_known(child.child(ai), val_none()).not() {
+                        all_comptime = false
+                        break
+                    }
+                }
+                if all_comptime {
+                    ref lit : Expr = try_fast_fold_call(scope, child)
+                    if is_null(lit).not() {
+                        e.children.set(i, own lit.clone())
+                    } else {
+                        ref lit2 : Expr = try_eval_call(scope, child, false, ctx)
+                        if is_null(lit2).not() { e.children.set(i, own lit2.clone()) }
                     }
                 }
             }
+            // Procs/ext_procs are intentionally never folded.
         }
-        // Forward-track typer-hoisted temp Decls (`_t_*`) with literal
-        // rhs so siblings can fold calls through them. The hoister
-        // numbers temps program-globally, so `_t_*` names are unique
-        // across sibling bodies. User-named locals are intentionally
-        // NOT tracked: shared names (`x`, `result`, `i`) across sibling
-        // bodies would let one body's value bleed into another's fold
-        // via the global `known` Map. (rstil avoids this with a scope
-        // stack; til doesn't have one.)
+        // Forward-track Decl literals so siblings can fold calls through
+        // them. Issue #191: track ALL non-mut, non-ref Decls (not just
+        // `_t_*` temps) so macro args inside function bodies are known.
         switch child.node_type {
         case NodeType.Decl(dd):
             if dd.is_mut.not()
             .and(dd.own_type.eq(OwnType.Ref).not())
-            .and(dd.name.starts_with("_t_"))
             .and(child.children.len().gt(0)) {
                 track_literal(scope, dd.name, child.child(0))
             }
@@ -743,6 +775,42 @@ precomp_register_defs := func(mut global: Scope, prog: Expr) {
     }
 }
 
+// Issue #191: register global constants in the precomp scope before
+// folding, so macro bodies that call procs can access them.
+precomp_register_globals := func(mut global: Scope, prog: Expr) {
+    // Hardcode core constants that macro bodies may need.
+    // CAP_VIEW = -2 as USize (U32) = 0xFFFFFFFE = 4294967294
+    // CAP_LIT = -1 as USize (U32) = 0xFFFFFFFF = 4294967295
+    mut cap_view_val := val_u32(4294967294)
+    scope_set_owned(global, "CAP_VIEW", cap_view_val)
+    mut cap_lit_val := val_u32(4294967295)
+    scope_set_owned(global, "CAP_LIT", cap_lit_val)
+
+    for stmt : Expr in prog.children {
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if dd.is_mut.not().and(dd.own_type.eq(OwnType.Ref).not()) {
+                if stmt.children.len().gt(0) {
+                    ref rhs : Expr = stmt.child(0)
+                    // Skip function/struct/enum definitions
+                    if rhs.node_type.is(NodeType.FuncDef)
+                    .or(rhs.node_type.is(NodeType.StructDef))
+                    .or(rhs.node_type.is(NodeType.EnumDef)) {
+                        continue
+                    }
+                    // Only register literals for now. Complex expressions
+                    // like `-1.to_usize()` need full interpreter support.
+                    mut v := val_none()
+                    if is_known(rhs, v) {
+                        scope_set_owned(global, dd.name, v)
+                    }
+                }
+            }
+        case:
+        }
+    }
+}
+
 precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     // 1. Collect macro and pure func names
     macros = Set.new(Str)
@@ -761,6 +829,10 @@ precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     global := scope_new(NULL)
     if is_null(core_program).not() { precomp_register_defs(global, core_program) }
     precomp_register_defs(global, program)
+    // Issue #191: register global constants before folding so macro bodies
+    // that call procs can access them (e.g. CAP_VIEW for Str ops).
+    if is_null(core_program).not() { precomp_register_globals(global, core_program) }
+    precomp_register_globals(global, program)
     if is_null(core_program).not() { interpreter_init_ns(ctx, global, core_program) }
     interpreter_init_ns(ctx, global, program)
 
