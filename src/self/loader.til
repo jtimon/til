@@ -227,10 +227,6 @@ LoadedProgram := struct {
     mut include_flags := ""
     mut link_c_paths := ""
     mut run_tests := false
-    // When non-empty, the run_tests pass runs only this test (top-level
-    // name like "test_foo" or qualified "Type.test_bar").  Set by
-    // `til test --only=NAME`; used by the subprocess fanout in cmd_test.
-    mut only_test := ""
 }
 
 retarget_alias_binding := func(scope: TypeScope, alias_name: Str, target_name: Str) {
