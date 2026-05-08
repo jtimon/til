@@ -536,8 +536,6 @@ typedef struct CliArgs {
     Str target_str;
     Str cc;
     Str install_prefix;
-    Str only_test;
-    Bool bulk_test;
     U32 path_idx;
     Bool early_return;
 } CliArgs;
@@ -701,7 +699,6 @@ typedef struct LoadedProgram {
     Str include_flags;
     Str link_c_paths;
     Bool run_tests;
-    Str only_test;
 } LoadedProgram;
 
 
@@ -1540,8 +1537,7 @@ I32 install_compiler_support(LoadedProgram * lp, Str * prefix);
 void print_install_success(Str * path);
 I32 cmd_install(LoadedProgram * lp, Str * install_prefix_in, Target * target, Str * cc_override);
 I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv, Target * target, Str * cc_override);
-Str * cmd_test_compile(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override);
-Vec * discover_test_names(LoadedProgram * lp);
+I32 cmd_test_build_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override);
 Str * format_unit_doc_org(Str * unit_path, Expr * ast, TypeScope * scope);
 Str * til_doc_out_path(Str * unit_path);
 void ensure_parent_dir(Str * path);
@@ -1755,8 +1751,6 @@ void CliArgs_delete(CliArgs * self, Bool * call_free);
 U32 CliArgs_size(void);
 CliArgs * parse_args(Array * args);
 Vec * collect_user_argv(LoadedProgram * lp, Array * args, U32 start_idx);
-I32 run_test_subprocess(Str * cmd, Str * name, Str * log_path);
-I32 cmd_test_fanout(LoadedProgram * lp, CliArgs * cli, Target * target);
 void main(Array * args);
 Bool TokenType_eq(TokenType *, TokenType *);
 TokenType *TokenType_Eof();

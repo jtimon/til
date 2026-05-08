@@ -4773,14 +4773,10 @@ emit_global_declarations := proc(f: File) {
 }
 
 emit_test_main := proc(f: File, lp: LoadedProgram) {
-    // argv[1], if present, is the only test name to run -- matches the
-    // interpret-pass --only filter so `til test`'s subprocess fanout
-    // can isolate each test in its own process.
-    f.write("int main(int argc, char **argv) {\n")
-    f.write("    const char *_til_only = (argc > 1) ? argv[1] : 0;\n")
+    f.write("int main(void) {\n")
     emit_ns_inits(f, 1)
     emit_global_inits(f)
-    f.write("    int _til_total = 0, _til_ran = 0;\n")
+    mut test_count : I32 = 0
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for stmt : Expr in iu.ast.children {
@@ -4791,12 +4787,9 @@ emit_test_main := proc(f: File, lp: LoadedProgram) {
                 ref fd : FunctionDef = get_payload(rhs.node_type)
                 if fd.func_type.is(FuncType.Test).not() { continue }
                 ref dd : Declaration = get_payload(stmt.node_type)
-                f.write("    _til_total++;\n")
-                f.write("    if (!_til_only || strcmp(_til_only, \""); f.write(dd.name); f.write("\") == 0) {\n")
-                f.write("        "); f.write(dd.name); f.write("();\n")
-                f.write("        fprintf(stderr, \"  pass: %s\\n\", \""); f.write(dd.name); f.write("\");\n")
-                f.write("        _til_ran++;\n")
-                f.write("    }\n")
+                f.write("    "); f.write(dd.name); f.write("();\n")
+                f.write("    fprintf(stderr, \"  pass: %s\\n\", \""); f.write(dd.name); f.write("\");\n")
+                test_count = test_count.add(1.to_i32())
                 continue
             }
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
@@ -4810,25 +4803,18 @@ emit_test_main := proc(f: File, lp: LoadedProgram) {
                     if nsfd.func_type.is(FuncType.Test).not() { continue }
                     full_name := sdd.name.format("_", nsd.name)
                     qual_name := sdd.name.format(".", nsd.name)
-                    f.write("    _til_total++;\n")
-                    f.write("    if (!_til_only || strcmp(_til_only, \""); f.write(qual_name); f.write("\") == 0) {\n")
-                    f.write("        "); f.write(full_name); f.write("();\n")
-                    f.write("        fprintf(stderr, \"  pass: %s\\n\", \""); f.write(qual_name); f.write("\");\n")
-                    f.write("        _til_ran++;\n")
-                    f.write("    }\n")
+                    f.write("    "); f.write(full_name); f.write("();\n")
+                    f.write("    fprintf(stderr, \"  pass: %s\\n\", \""); f.write(qual_name); f.write("\");\n")
+                    test_count = test_count.add(1.to_i32())
                 }
             }
         }
     }
-    f.write("    if (_til_only && _til_ran == 0) {\n")
-    f.write("        fprintf(stderr, \"no test matched '%s'\\n\", _til_only);\n")
-    f.write("        return 1;\n")
-    f.write("    }\n")
-    f.write("    if (_til_total == 0) {\n")
-    f.write("        fprintf(stderr, \"no tests found\\n\");\n")
-    f.write("    } else {\n")
-    f.write("        fprintf(stderr, \"%d/%d tests passed\\n\", _til_ran, _til_ran);\n")
-    f.write("    }\n")
+    if test_count.eq(0.to_i32()) {
+        f.write("    fprintf(stderr, \"no tests found\\n\");\n")
+    } else {
+        f.write("    fprintf(stderr, \""); emit_i32(f, test_count); f.write("/"); emit_i32(f, test_count); f.write(" tests passed\\n\");\n")
+    }
     f.write("    return 0;\n")
     f.write("}\n")
 }
@@ -5323,60 +5309,13 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
 // files still produce an executable -- emit_test_main is gated on
 // lp.run_tests, so the C output has a real main().
 cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str) returns shallow I32 {
-    bin_path := cmd_test_compile(lp, custom_bin, custom_c, target, cc_override)
-    if bin_path.is_empty() { return 1.to_i32() }
-    return system_cmd(bin_path)
-}
-
-// Compile a test binary and return its path on success, or "" on
-// failure.  Same do_lib=false override as cmd_test_build_run but
-// stops short of running -- used by the cmd_test subprocess fanout
-// so the binary is built once and then invoked per test name.
-cmd_test_compile := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str) returns Str {
     mut paths := derive_build_paths(lp, custom_bin, custom_c, target)
     paths.do_lib = false
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
     if result.eq(0) { result = compile_ast(lp, paths, target, cc_override) }
-    if result.neq(0) { return "" }
-    return paths.bin_path.clone()
-}
-
-// Walk every loaded user unit and return the names of every test()
-// decl found, both top-level and inside struct/enum namespaces.
-// Namespace tests are returned as "Type.method" so the names are
-// what `til test --only=NAME` understands and what
-// emit_test_main embeds for argv comparison.
-discover_test_names := func(lp: LoadedProgram) returns Vec {
-    mut names := Vec.new(Str)
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        for stmt : Expr in iu.ast.children {
-            if stmt.node_type.is(NodeType.Decl).not() { continue }
-            if stmt.children.len().eq(0) { continue }
-            ref rhs : Expr = stmt.child(0)
-            if rhs.node_type.is(NodeType.FuncDef) {
-                ref fd : FunctionDef = get_payload(rhs.node_type)
-                if fd.func_type.is(FuncType.Test).not() { continue }
-                ref dd : Declaration = get_payload(stmt.node_type)
-                names.push(own dd.name.clone())
-                continue
-            }
-            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                ref sdd : Declaration = get_payload(stmt.node_type)
-                ref ns : Vec = def_ns_decls(rhs)
-                for nsd : Declaration in ns {
-                    ref nsfdef : Expr = nsd.default_value
-                    if is_null(nsfdef) { continue }
-                    if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
-                    ref nsfd : FunctionDef = get_payload(nsfdef.node_type)
-                    if nsfd.func_type.is(FuncType.Test).not() { continue }
-                    names.push(own format(sdd.name, ".", nsd.name))
-                }
-            }
-        }
-    }
-    return names
+    if result.eq(0) { result = system_cmd(paths.bin_path) }
+    return result
 }
 
 // --- til doc <path> -- documentation generator ---

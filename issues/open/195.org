@@ -20,3 +20,12 @@
   If we keep it, doc/self.org should explicitly note that mode test
   has no behavioral difference from ~lib~ + ~til test~.
 
+  Possibility worth considering as part of this work: replace
+  ~src/test_runner.til~ + ~src/tests.til~ + ~bin/tests~ with direct
+  ~bin/til test src/test/X.til~ invocations from the Makefile.  The
+  current harness wraps separate ~til interpret~ and ~til build~
+  invocations because ~til test~ didn't exist; now it does, and
+  collapses to one subcommand per file.  The harness also tracks
+  per-test ms/mem and renders ~doc/totals.csv~ / ~img/totals.svg~
+  though, so it's not a free swap -- those bits would need to move
+  somewhere else (or be dropped if no longer needed).
