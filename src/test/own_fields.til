@@ -60,3 +60,24 @@ test_own_field_clone_independence := test() {
     assert_eq(__LOC__, line2.start.x, 1)
     assert_eq(__LOC__, line.start.x, 99)
 }
+
+# #196.A: own-mut enum field round-trip in interpret mode
+EnumF := enum {
+    A,
+    B: I64,
+}
+
+OwnEnumW := struct {
+    own mut e := EnumF.A
+}
+
+test_own_field_enum_default := test() {
+    w := OwnEnumW()
+    assert(__LOC__, w.e.is(EnumF.A))
+}
+
+test_own_field_enum_assign := test() {
+    mut w := OwnEnumW()
+    w.e = EnumF.B(42)
+    assert(__LOC__, w.e.is(EnumF.B))
+}

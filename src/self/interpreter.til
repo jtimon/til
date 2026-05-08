@@ -1614,9 +1614,26 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
 ENUM_PAYLOAD_OFFSET : I32 = 8
 
 read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value {
-    ref ftype : Str = dd.explicit_type
     ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
-    if dd.own_type.is(OwnType.Own) {
+    // Resolve the field's type name. For own/ref enum fields the typer
+    // sometimes leaves explicit_type empty -- recover the enum name from
+    // til_type when available so the enum branch below applies regardless
+    // of own_type.
+    mut ftype := dd.explicit_type
+    if ftype.len().eq(0) {
+        if dd.til_type.is(Type.Enum) {
+            ref ename : Str = get_payload(dd.til_type)
+            ftype = ename
+        }
+    }
+    mut is_enum_field := false
+    if is_null(dd.field_struct_def).not() {
+        if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
+            is_enum_field = true
+        }
+    }
+    if dd.til_type.is(Type.Enum) { is_enum_field = true }
+    if dd.own_type.is(OwnType.Own).and(is_enum_field.not()) {
         if is_null(dd.field_struct_def).not() {
             ref owned : Dynamic = deref(ptr)
             return make_struct_value(ftype, dd.field_struct_def, owned, true)
@@ -1624,7 +1641,7 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
         ref owned2 : Dynamic = deref(ptr)
         return Value.Ptr(owned2)
     }
-    if dd.own_type.is(OwnType.Ref) {
+    if dd.own_type.is(OwnType.Ref).and(is_enum_field.not()) {
         if is_null(deref(ptr)) { return Value.Ptr(NULL) }
         if is_null(dd.field_struct_def).not() {
             ref rp : Dynamic = deref(ptr)
@@ -1650,7 +1667,14 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
     if ftype.eq("F32") { ref v : F32 = ptr; return val_f32(v) }
     if ftype.eq("Bool") { ref v : Bool = ptr; return val_bool(v) }
     // Enum field
-    ref edef_lookup : Expr = lookup_interp_type_def(ftype)
+    ref mut edef_lookup : Expr = lookup_interp_type_def(ftype)
+    if is_null(edef_lookup) {
+        if is_null(dd.field_struct_def).not() {
+            if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
+                edef_lookup = dd.field_struct_def
+            }
+        }
+    }
     if is_null(edef_lookup).not() {
         if edef_lookup.node_type.is(NodeType.EnumDef) {
             ref edef : Expr = edef_lookup
@@ -1690,7 +1714,17 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
 write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
     ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
     fsz := dd.field_size
-    if dd.own_type.is(OwnType.Own) {
+    // Enum-typed fields use the same heap-EnumInstance encoding regardless
+    // of own_type; let the unified switch below allocate the heap instance.
+    mut is_enum_field := false
+    if is_null(dd.field_struct_def).not() {
+        if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
+            is_enum_field = true
+        }
+    }
+    if dd.til_type.is(Type.Enum) { is_enum_field = true }
+    if val.is(Value.Enum) { is_enum_field = true }
+    if dd.own_type.is(OwnType.Own).and(is_enum_field.not()) {
         switch val {
         case Value.Struct(si):
             write_ptr(ptr, si.data)
@@ -1703,7 +1737,7 @@ write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
         }
         return
     }
-    if dd.own_type.is(OwnType.Ref) {
+    if dd.own_type.is(OwnType.Ref).and(is_enum_field.not()) {
         switch val {
         case Value.Ptr(pv):
             write_ptr(ptr, deref(pv))

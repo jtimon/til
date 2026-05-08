@@ -1,11 +1,13 @@
 # priority: high
-** OPEN #196 Interpreter mishandles enum values in struct fields and switch hoists
+** WIP #196 Interpreter mishandles enum values in struct fields and switch hoists
 
 Two interpret-mode-only bugs surfaced while doing #184 in
 src/self/dispatch.til. Both compile fine via build/run -- only the
 interpreter (eval_expr / read_field / write_field) is broken.
 
-*** Bug A: ~own mut Field : Enum~ struct field write/read
+Bug A is fixed; Bug B remains.
+
+*** [FIXED] Bug A: ~own mut Field : Enum~ struct field write/read
 
 Minimal repro:
 
@@ -45,12 +47,15 @@ treats the field's payload as a raw pointer/struct-data:
 Workaround: drop the ~own~ keyword on the enum field. The
 ~mut e := E.A~ form (default ~OwnType.Shallow~) round-trips correctly.
 
-Fix: route enum-typed fields to the same EnumInstance handling
-regardless of ~own_type~. Either short-circuit the ~OwnType.Own~
-branch when the field type is an enum, or duplicate the enum
-heap-alloc path inside the ~OwnType.Own~ branch.
+Fix applied: route enum-typed fields through the existing enum branch
+in ~read_field~/~write_field~ regardless of ~own_type~. The fix also
+recovers ~ftype~ from ~dd.til_type~ when ~explicit_type~ is empty (the
+typer leaves it empty for ~own~/~ref~ enum fields), and falls back to
+~dd.field_struct_def~ when ~lookup_interp_type_def(ftype)~ returns
+NULL. Tests added in ~src/test/own_fields.til~ exercise both default
+and explicit-assign paths.
 
-*** Bug B: nested switch case-binding on a hoisted enum subject
+*** [OPEN] Bug B: nested switch case-binding on a hoisted enum subject
 
 Real-world site that triggered this: ~src/self/dispatch.til~ in
 ~ffi_init_scan_program~. The ~d4a123a~ refactor wrote:
