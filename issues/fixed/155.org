@@ -1,0 +1,20 @@
+** #155 Typer infers ~unknown~ for enum-typed struct field access
+   The struct-field type-from-default-value inference now picks up
+   enum constructors, so the issue's repro typechecks and runs:
+
+   #+begin_src til
+   Value := enum { None, Func: I64, }
+   Cell  := struct { mut val : Value = Value.None }
+   main  := proc() {
+       c : Cell = Cell()
+       if c.val.is(Value.Func) { println("yes") }
+       else { println("no") }
+   }
+   #+end_src
+
+   ~bin/til interpret~ on this prints ~no~ instead of erroring with
+   "no method 'is' for type 'unknown'". The TODO(#113) workaround in
+   [[file:../../src/self/precomp.til][src/self/precomp.til]] that called ~is(fn_cell.val, Value.Func)~
+   in free-function form is gone; precomp.til:401 now uses
+   ~switch fn_cell.val~ directly. Grep for ~TODO.*113~ /
+   ~TODO.*155~ in src/ returns nothing.

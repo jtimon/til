@@ -1,0 +1,15 @@
+** #181 Declared-type inference for literal expressions
+   The exact regression the issue called for is in
+   [[file:../../src/test/types.til][src/test/types.til:73]] inside ~test_typed_literal_coercion~:
+
+   #+begin_src til
+   half : F32 = 1 / 2
+   assert_eq_str(__LOC__, half.to_str(), "0.5")
+   #+end_src
+
+   It passes in the standard test suite. The declared type ~F32~
+   propagates into the integer-division initialiser so ~1 / 2~ is
+   coerced to F32 division and yields ~0.5~ instead of the previous
+   I64 division giving ~0~. A complementary explicit form
+   (~half_explicit : F32 = 1.to_f32() / 2~) sits next to it as a
+   sanity check.

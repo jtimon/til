@@ -1,0 +1,21 @@
+** #149 Add ns_decls container for namespace-section Decls
+   Both phases landed.
+
+   - Phase 1 (structs): ~StructDefData.ns_decls : Vec<Declaration>~
+     is in [[file:../../src/core/ast.til][src/core/ast.til:201]]; readers in initer/typer/builder/
+     dispatch/interpreter/scavenger/precomp all loop over
+     ~sdd.ns_decls~ instead of filtering ~body.children~ by
+     ~is_namespace~.
+
+   - Phase 2 (enums): ~EnumDefData~ payload struct exists with
+     ~ns_decls : Vec<Declaration>~ at [[file:../../src/core/ast.til][src/core/ast.til:212]]; the
+     ~NodeType.EnumDef~ variant carries the new payload.
+
+   - Cut-over complete: zero ~is_namespace~ references remain in
+     ~src/~. The shared accessor ~def_ns_decls~ (ast.til:543) hands
+     out the right Vec for either definition kind.
+
+   Landed alongside the [[./147.org][#147]] ns_decls migration series; the related
+   [[./148.org][#148]] ("drop Declaration.is_namespace, finish ns_decls cut-over")
+   was filed separately for the flag removal and is already in
+   ~issues/fixed/~.

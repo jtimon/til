@@ -1,0 +1,23 @@
+** #169 Typer panics with Vec.get out-of-bounds, suppressing later type errors
+   ~bin/til translate src/test/typer_errors.til~ no longer panics
+   in [[file:../../src/core/vec.til][src/core/vec.til]] ~Vec.get~ at the end of the run; it now
+   reports 91 type errors and exits cleanly.
+
+   The four errors the issue documented as suppressed by the panic
+   all fire again:
+
+   - ~src/test/typer_errors.til:123:16: error: use of 'doomed' after ownership transfer~
+   - ~src/test/typer_errors.til:142:9: error: use of 'ctor_name' after ownership transfer~
+   - ~src/test/typer_errors.til:213:13: error: map literal: key type 'NoCmp' must implement cmp~
+   - ~src/test/typer_errors.til:216:13: error: set literal: element type 'NoCmp' must implement cmp~
+
+   (The set/map lines drifted from 210/213 to 213/216 as the test
+   file grew.)
+
+   The eager-~.and()~ guard pattern in ~desugar_set_literals~ /
+   ~desugar_map_literals~ that crashed on zero-child stmts (~break~,
+   ~continue~) was reworked: those passes are now folded into
+   ~desugar_body~ in [[file:../../src/self/typer.til][src/self/typer.til]] and access ~stmt.child(0)~
+   inside a nested ~if~ that depends on the children-count check
+   instead of relying on ~Bool.and~ short-circuit semantics
+   (~Bool.and/or~ short-circuit is still tracked separately by [[./open/117.org][#117]]).
