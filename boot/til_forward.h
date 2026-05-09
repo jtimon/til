@@ -1739,7 +1739,6 @@ void ffi_register(Str * name, void * fn, Expr * fdef);
 void ffi_init_scan_program(Expr * program);
 I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags);
 void ffi_cleanup(void);
-Str get_version(void);
 Str * get_bin_dir(void);
 Str * get_cwd_str(void);
 Str * repl_read_line(Str * mode_name);
