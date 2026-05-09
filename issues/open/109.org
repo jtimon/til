@@ -21,17 +21,19 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   - ~[[./143.org][#143]]~ (OPEN) -- own-arg drop on early-exit deletes.
   - ~[[./146.org][#146]]~ (OPEN) -- unify typer desugar/insert passes into a single walk.
 
-  *** Per-test ASAN baseline (commit ff6ce78)
+  *** Per-test ASAN baseline
 
   Use ~bin/til_asan interpret examples/cli_args.til hello world~ as
   the canonical small end-to-end test (cheap to run, exercises lex /
   parse / load-core / type-check / interpret):
 
-  | when                                     | bytes    | allocs |
-  |------------------------------------------+----------+--------|
-  | pre-[[./175.org][#175]] series (commit 9079323)         | 335,026  | 44,123 |
-  | post-2026-05 [[./175.org][#175]] series (ff6ce78)       | 106,541  | 20,674 |
-  | today (this commit)                      | 106,342  | 20,671 |
+  | when                                            | bytes    | allocs |
+  |-------------------------------------------------+----------+--------|
+  | pre-[[./175.org][#175]] series (commit 9079323)                | 335,026  | 44,123 |
+  | post-2026-05 [[./175.org][#175]] series (ff6ce78)              | 106,541  | 20,674 |
+  | post LiteralStr save_old_delete (a886407)       | 106,342  | 20,671 |
+  | post Vec.new dyn_size_of regression (8e30822)   | 123,142  | 21,818 |
+  | this commit (shallow-return wrapper free)       | 122,758  | 21,775 |
 
   Drive these to zero. If a fix doesn't move this baseline, the
   attribution was wrong and the fix is wrong.
@@ -81,7 +83,7 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
      transfer shapes (which already consume the wrapper) aren't
      double-freed. -13.9% bytes / -4.4% allocs.
 
-  5. ~widen save_old_delete to LiteralStr RHS~ (this commit). Same
+  5. ~widen save_old_delete to LiteralStr RHS~ (a886407). Same
      outer-scope [[./175.org][#175]] shape but ~rhs~ is a literal string, e.g.
      ~mut ftype := fd.explicit_type; ftype = "I64"~ inside a nested
      ~if~ in ~compute_struct_layout~. ~Str_lit~ returns a heap Str
@@ -90,9 +92,23 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
      ~infer_assign_stmt~ alongside the FCall-returning-Own and
      auto-clone-wrap branches. -480 bytes / -44 allocations.
 
+  6. ~free heap-promoted Struct/Enum local before shallow-return~
+     (this commit). When a function declared ~returns shallow X~
+     returns a heap-promoted local of Struct/Enum type (e.g.
+     ~mut result := ""; ...; return result~ in ~str_view~), the
+     existing codegen emits ~return DEREF(rv)~ which value-copies
+     the struct out of the heap wrapper but never frees the
+     wrapper. Builder.til now emits the box-then-free pattern
+     ~{ T _r = DEREF(rv); free(rv); return _r; }~ for this case.
+     -384 bytes / -43 allocations vs the post-Vec.new-regression
+     baseline. Small per call, but the leaking site (~str_view~)
+     was hit on every ~dyn_fn~ / ~dyn_size_of~ dispatch.
+
   Cumulative for the series:
-  ~-228,684 bytes (-68%) / -23,452 allocations (-53%)~ vs pre-fix
-  baseline.
+  ~-212,268 bytes (-63%) / -22,348 allocations (-51%)~ vs pre-fix
+  baseline. (Net reduction smaller than peak because the 8e30822
+  ~Vec.new~ migration reintroduced ~17K bytes of leaks via more
+  ~dyn_fn~/~dyn_size_of~ dispatch sites.)
 
   *** Earlier fixes (DONE, summarised)
 

@@ -1124,6 +1124,22 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
                     f.write("return "); emit_as_ptr(f, rv, depth, false); f.write(";\n"); return
                 }
                 if fd.return_own_type.is(OwnType.Shallow) {
+                    // Heap-promoted local rv of Struct/Enum type: shallow-return
+                    // value-copies out and orphans the wrapper. Box-then-free
+                    // to release the wrapper before returning the value.
+                    if rv.node_type.is(NodeType.Ident).and(
+                        rv.til_type.is(Type.Struct).or(rv.til_type.is(Type.Enum))
+                    ) {
+                        ref rv_name : Str = get_payload(rv.node_type)
+                        if is_stack_local(rv_name).not().and(is_value_global(rv_name).not()) {
+                            ctype := c_type_name(rv.til_type, rv_sname)
+                            if ctype.len().gt(0) {
+                                f.write("{ "); f.write(ctype); f.write(" _r = "); emit_deref(f, rv, depth)
+                                f.write("; free("); f.write(rv_name); f.write("); return _r; }\n")
+                                return
+                            }
+                        }
+                    }
                     f.write("return ")
                     if rv.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rv)) { emit_expr(f, rv, depth) }
                     else { emit_deref(f, rv, depth) }
