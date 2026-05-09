@@ -1,0 +1,76 @@
+mode test
+
+// Regression for #196.B: nested switch with an FCall (returns ref) in
+// the subject path. The buggy form hoists ~recv.fcall().nt~ into a
+// value-copied temp; that temp's recursive destructor frees aliased
+// Vec/Str pointers in the source's payload (compile mode) or leaves
+// case-bindings dangling (interpret mode).
+//
+// Pre-fix this triggered ~panic: null deref~ during ffi_init_scan_program
+// when bin/til was self-compiled with the same pattern.
+
+priv Inner := struct {
+    mut items := Vec.new(Str)
+namespace:
+    eq := func(a: Inner, b: Inner) returns Bool { return a.items.len().eq(b.items.len()) }
+    to_str := func(_self: Inner) returns Str { return "Inner" }
+}
+
+priv NT := enum {
+    Empty,
+    Decl: Str,
+    Block: Inner,
+}
+
+priv Box := struct {
+    mut nt := NT.Empty
+namespace:
+    self_ref := func(self: Box) returns ref Box { return self }
+}
+
+test_nested_switch_fcall_subject := test() {
+    mut box := Box()
+    mut data := Inner()
+    data.items.push(own "one")
+    data.items.push(own "two")
+    box.nt = NT.Block(data)
+
+    switch box.nt {
+    case NT.Block(_outer):
+        switch box.self_ref().nt {
+        case NT.Block(inner):
+            assert(__LOC__, inner.items.len().eq(2.to_u32()))
+        case:
+            UNREACHABLE(__LOC__)
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+
+    // Source must remain intact after the inner case body unwinds:
+    // pre-fix the temp's destructor freed the Vec storage backing
+    // ~box.nt~'s Block payload, which corrupted later reads.
+    switch box.nt {
+    case NT.Block(after):
+        assert(__LOC__, after.items.len().eq(2.to_u32()))
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+test_nested_switch_fcall_str_payload := test() {
+    mut box := Box()
+    box.nt = NT.Decl("hello")
+
+    switch box.nt {
+    case NT.Decl(_outer_name):
+        switch box.self_ref().nt {
+        case NT.Decl(inner_name):
+            assert(__LOC__, inner_name.eq("hello"))
+        case:
+            UNREACHABLE(__LOC__)
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}

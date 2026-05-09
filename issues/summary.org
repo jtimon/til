@@ -59,7 +59,6 @@
 * WIP
 ** High
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
-*** [[./open/196.org][#196]] Interpreter mishandles enum values in struct fields and switch hoists
 ** Medium
 ** Low
 *** [[./open/81.org][#81]] UPtr type alias for pointer-sized integers

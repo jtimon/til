@@ -3067,7 +3067,13 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
 
     mut sw_ref := Expr.new(NodeType.LiteralNull, sw_line, sw_col)
     mut block := Expr.new(NodeType.Body, stmt.line, stmt.col)
-    if is_simple_lvalue_expr(sw_expr) {
+    // #196.B: Never hoist enum-typed subjects. A hoisted local would be
+    // either a shallow value copy (whose destructor frees aliased Vec/Str
+    // pointers and corrupts the source AST in compile mode) or a deep
+    // clone (whose destructor frees clone-owned strings that downstream
+    // case-bindings expose via CAP_VIEW pointers in callers like
+    // ffi_register). Re-evaluate sw_expr per case condition instead.
+    if is_simple_lvalue_expr(sw_expr).or(sw_expr.til_type.is(Type.Enum)) {
         sw_ref = sw_expr.clone()
     } else {
         tp := type_prefix(sw_expr.til_type)
