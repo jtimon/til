@@ -1582,12 +1582,8 @@ make_str_value_own := func(data: Dynamic, shallow len: U64) returns shallow Valu
 str_view := func(shallow v: Value) returns shallow Str {
     switch v {
     case Value.Struct(si):
-        // Str layout in si.data: c_str (8b), count (8b), cap (8b)
-        // Copy it out, then override cap with CAP_VIEW
-        mut result := ""
-        memcpy(result, si.data, Str.size())
-        result.cap = CAP_VIEW
-        return result
+        ref s : Str = to_ptr(si.data)
+        return Str(c_str = s.c_str, count = s.count, cap = CAP_VIEW)
     case:
         UNREACHABLE(__LOC__)
         return ""
