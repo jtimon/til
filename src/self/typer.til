@@ -3770,6 +3770,10 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
         } else if rhs.node_type.is(NodeType.LiteralStr).and(
             existing.is(Type.Struct).or(existing.is(Type.Enum))
         ) {
+            // mut X := some_str; ... X = "literal" -- the outer-scope local
+            // owns a heap-allocated Str clone; the literal RHS just rebinds
+            // the pointer, leaking the old clone. Same outer-scope shape as
+            // the Ident/FCall branches above.
             if scope.bindings.has(aname).not().and(assign_target_is_func_local(scope, aname)) {
                 switch stmt.node_type {
                 case NodeType.Assign(adata4):
@@ -5989,6 +5993,39 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
             continue
         }
         if local.last_use.eq(stmt_idx.to_i64().to_i32()) {
+            // FieldAssign with auto-cloned Ident RHS at the local's last use:
+            // the clone allocates a deep copy, the field stores the copy, and
+            // the local's contents would then be deleted by the normal
+            // last_use destructor below -- a clone+delete roundtrip whose
+            // intermediate allocation leaks its sub-pointers (Context_clone
+            // via load_program, etc.). Replace clone(local) with bare local
+            // so codegen emits a value-copy (`field = *local`), then free
+            // only the heap wrapper. Only apply when stmt is the FieldAssign
+            // itself (not a wrapping for/if -- last_use would point to the
+            // outer stmt in that case, so this match implicitly excludes
+            // loop/conditional bodies).
+            if local.is_heap.and(local.type.is(Type.Struct).or(local.type.is(Type.Enum))) {
+                if stmt.node_type.is(NodeType.FieldAssign).and(stmt.children.len().gte(2)) {
+                    ref _fa_rhs : Expr = stmt.child(1)
+                    if rhs_is_clone_fcall(_fa_rhs).and(_fa_rhs.children.len().gte(2)) {
+                        ref _clone_arg : Expr = _fa_rhs.child(1)
+                        switch _clone_arg.node_type {
+                        case NodeType.Ident(_clone_arg_name):
+                            if _clone_arg_name.eq(local.name) {
+                                mut _bare := Expr.new(NodeType.Ident(local.name.clone()), _fa_rhs.line, _fa_rhs.col)
+                                _bare.til_type = local.type.clone()
+                                stmt.children.set(1, own _bare)
+                                free_call := make_free_call(local.name, local.type, stmt)
+                                if is_null(free_call).not() {
+                                    new_ch.push(own free_call)
+                                }
+                                continue
+                            }
+                        case:
+                        }
+                    }
+                }
+            }
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
                 del := make_delete_call(local.name, local.type, heap, heap, stmt)

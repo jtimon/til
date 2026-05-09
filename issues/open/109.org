@@ -31,7 +31,8 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   |------------------------------------------+----------+--------|
   | pre-[[./175.org][#175]] series (commit 9079323)         | 335,026  | 44,123 |
   | post-2026-05 [[./175.org][#175]] series (ff6ce78)       | 106,541  | 20,674 |
-  | today (this commit)                      | 106,342  | 20,671 |
+  | pre-typer ASAP-delete extensions         | 106,342  | 20,671 |
+  | + LiteralStr save_old_delete + FieldAssign clone-at-last-use -> move (this commit) |  76,350  | 13,959 |
 
   Drive these to zero. If a fix doesn't move this baseline, the
   attribution was wrong and the fix is wrong.
@@ -93,6 +94,41 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   Cumulative for the series:
   ~-228,684 bytes (-68%) / -23,452 allocations (-53%)~ vs pre-fix
   baseline.
+
+  *** 2026-05 typer ASAP-delete extensions (DONE)
+
+  Two follow-ups in the same vein, both under doc/self.org's two-pass
+  workflow:
+
+  1. ~Typer: save_old_delete on LiteralStr RHS to outer-scope mut local~
+     (commit before a83f9dc). The save_old_delete chain in
+     ~infer_assign_stmt~ already widened to Ident/FieldAccess and
+     FCall(returns own) RHS shapes for outer-scope mut Struct/Enum
+     locals (the [[./175.org][#175]] series), but the LiteralStr RHS shape was not
+     covered. ~mut ftype := fd.explicit_type; ...; ftype = "I64"~ in
+     ~compute_struct_layout~ (and similar parse_*/init_* helpers)
+     leaked the prior heap-allocated clone every time. -456 bytes /
+     -40 allocs.
+
+  2. ~Typer: FieldAssign clone(local)-at-last-use -> move~ (a83f9dc).
+     ~infer_field_assign_stmt~ unconditionally wraps an Ident RHS in
+     ~Type_clone(local)~. When the local is dying after the assignment
+     (last_use is the FieldAssign stmt itself), the clone is wasted
+     work and its sub-pointers leak under LSAN. The fix runs in
+     ~insert_post_stmt_deletes~ (where last_use is known): replaces
+     ~clone(local)~ with the bare Ident and emits ~free(local)~ for
+     the heap wrapper instead of the regular destructor. The codegen's
+     existing FieldAssign path turns the bare Ident into ~*local~, so
+     the emit becomes ~obj.field = *local; free(local);~ -- a struct
+     value-copy with sub-pointers transferred. The match implicitly
+     excludes loop/conditional bodies (last_use points to the outer
+     for/if stmt in those cases). Concrete win: the ~lp.ctx = ctx~ in
+     ~load_program~ becomes a move instead of a deep
+     ~Context_clone~ over the imported ASTs of every loaded file.
+     Combined with the LiteralStr fix above: -29,992 bytes (-28%) /
+     -6,712 allocs (-32%) on cli_args.til interpret vs the pre-extension
+     baseline (106,342 -> 76,350); comparable proportional drops on
+     strings.til translate and hello_cli.til interpret.
 
   *** Earlier fixes (DONE, summarised)
 

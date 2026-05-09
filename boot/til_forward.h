@@ -1229,6 +1229,7 @@ void normalize_scope_bindings(TypeScope * scope);
 I32 type_check_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 type_file(Str * path, Context * ctx);
 void infer_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
+Bool rhs_is_clone_fcall(Expr * rhs);
 Bool assign_target_is_func_local(TypeScope * scope, Str * name);
 Bool is_numeric_type(Type * t);
 Bool is_integral_numeric_type(Type * t);
