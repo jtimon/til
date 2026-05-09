@@ -469,6 +469,30 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_args_empty", "examples/cli_args.til",
                  "", 0, format(exp, "cli_args_empty.out"), til_bin)
 
+    mut fb_out := ""
+    mut fbi := 1
+    while fbi.lte(100) {
+        mut fb_line := ""
+        if fbi.mod(15).eq(0) {
+            fb_line = "FizzBuzz"
+        } else {
+            if fbi.mod(3).eq(0) {
+                fb_line = "Fizz"
+            } else {
+                if fbi.mod(5).eq(0) {
+                    fb_line = "Buzz"
+                } else {
+                    fb_line = fbi.to_str()
+                }
+            }
+        }
+        fb_out = format(fb_out, fb_line, NL)
+        fbi = fbi.add(1)
+    }
+    File.writefile(format(exp, "fizzbuzz.out"), fb_out)
+    add_cli_pair(tests, "fizzbuzz", "examples/fizzbuzz.til",
+                 "", 0, format(exp, "fizzbuzz.out"), til_bin)
+
     File.writefile(format(exp, "cli_typed_alice42.out"), format("alice 42", NL))
     add_cli_pair(tests, "cli_typed_alice42", "examples/cli_typed.til",
                  "alice 42", 0, format(exp, "cli_typed_alice42.out"), til_bin)
