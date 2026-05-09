@@ -148,6 +148,12 @@ mut current_type_name := ""
 // check ignores reads inside these so genuinely-unused priv fields
 // and ns methods are not masked by boilerplate references.
 mut auto_gen_depth : I32 = 0
+// True while typing the body of a function declared `returns shallow X`.
+// Used to skip heap-promotion of a Struct/Enum local whose only use is the
+// Return expression -- in that case the value-copy at return is the only
+// transfer, and a heap wrapper would just leak. Set/restored in
+// infer_func_def_expr around the body recursion.
+mut typer_in_shallow_return : Bool = false
 I64Name := "I64"
 U8Name := "U8"
 I16Name := "I16"
@@ -1952,7 +1958,10 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         if fdef.auto_generated {
             auto_gen_depth = auto_gen_depth.add(1.to_i32())
         }
+        saved_in_shallow_ret := typer_in_shallow_return
+        typer_in_shallow_return = fdef.return_own_type.is(OwnType.Shallow)
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
+        typer_in_shallow_return = saved_in_shallow_ret
         if fdef.auto_generated {
             auto_gen_depth = auto_gen_depth.sub(1.to_i32())
         }
@@ -6078,6 +6087,26 @@ promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
         if dd.own_type.is(OwnType.Ref) { continue }
         is_struct := local.type.is(Type.Struct)
         if local.own_transfer.lt(0.to_i32()).and(is_struct.not()) { continue }
+        // Skip heap-promotion if the only "use" is the function's
+        // shallow return: the value-copy at return is the transfer,
+        // and a heap wrapper just leaks (the codegen does
+        // ~return DEREF(rv)~ without freeing rv). Keeping the local
+        // Shallow lets the codegen use a stack value and value-copy
+        // out cleanly.
+        if typer_in_shallow_return.and(local.own_transfer.lt(0.to_i32())).and(is_struct) {
+            if local.last_use.gte(0.to_i32()) {
+                ref last_stmt : Expr = body.child(local.last_use.to_i64().to_u32())
+                if last_stmt.node_type.is(NodeType.Return) {
+                    if last_stmt.children.len().gt(0) {
+                        switch last_stmt.child(0).node_type {
+                        case NodeType.Ident(rname):
+                            if rname.eq(local.name) { continue }
+                        case:
+                        }
+                    }
+                }
+            }
+        }
         dd.own_type = OwnType.Own
         local.is_heap = true
         case:
