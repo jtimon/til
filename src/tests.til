@@ -366,7 +366,10 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/strings.til", flags)
     add_mode(tests, "src/test/ref.til", flags)
     add_mode(tests, "src/test/own_fields.til", flags)
-    add_mode(tests, "src/test/macros.til", flags)
+    // macros.til contains a macro that prints during precomp; the line
+    // appears in interpret output but not in compiled-run output, so
+    // skip the run-vs-interp comparison.
+    add_mode(tests, "src/test/macros.til", format(flags, " -no-match"))
     add_mode(tests, "src/test/enums.til", flags)
     add_mode(tests, "src/test/enums_lifecycle.til", mode_flags(0, en_run))
     add_mode(tests, "src/test/vecs.til", flags)
