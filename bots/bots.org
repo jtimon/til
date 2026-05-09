@@ -176,6 +176,22 @@ Preserve existing ~REM~ comments unless the change makes them false or
 obsolete. They are memory aids for future sessions; do not delete them
 just because the surrounding code was edited.
 
+## Naming
+
+Do not introduce identifiers that start with a leading underscore
+(~_x~, ~_foo_bar~, ~_t_Bool_1234~, etc).  til is not C, and the
+"reserved for the implementation" convention does not apply here.
+A leading underscore is reserved for codegen-emitted temporaries
+(boot/til.c writes ~_t_<Type>_<id>~ and similar) and for variables
+that are deliberately unused (~for _ in 0..n~).  Any other ~_name~
+is noise and obscures intent.
+
+If you find yourself reaching for a leading underscore to dodge a
+name collision, rename the binding to something descriptive instead.
+If you are translating from existing code that uses leading
+underscores (eg the ~_nv~/~_b~ style), drop the underscore on the
+way through.
+
 ## Commits
 
 - Always include ALL modified files in commits.
