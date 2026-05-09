@@ -1621,9 +1621,10 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
     // of own_type.
     mut ftype := dd.explicit_type
     if ftype.len().eq(0) {
-        if dd.til_type.is(Type.Enum) {
-            ref ename : Str = get_payload(dd.til_type)
+        switch dd.til_type {
+        case Type.Enum(ename):
             ftype = ename
+        case:
         }
     }
     mut is_enum_field := false

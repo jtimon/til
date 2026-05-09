@@ -309,8 +309,12 @@ ns_lookup_flat := func(name: Str) returns shallow Dynamic {
         mname := name.substr(rest_start, n.sub(rest_start))
         ref _nv : Value = ns_get(sname, mname)
         if is_null(_nv) { continue }
-        if is(_nv, Value.Func).not() { continue }
-        return get_payload(_nv)
+        switch _nv {
+        case Value.Func(p):
+            return deref(p)
+        case:
+            continue
+        }
     }
     return NULL
 }
