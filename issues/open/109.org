@@ -21,18 +21,27 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   - ~[[./143.org][#143]]~ (OPEN) -- own-arg drop on early-exit deletes.
   - ~[[./146.org][#146]]~ (OPEN) -- unify typer desugar/insert passes into a single walk.
 
-  *** Per-test ASAN baseline (commit ff6ce78)
+  *** Per-test ASAN baseline
 
   Use ~bin/til_asan interpret examples/cli_args.til hello world~ as
   the canonical small end-to-end test (cheap to run, exercises lex /
   parse / load-core / type-check / interpret):
 
-  | when                                     | bytes    | allocs |
-  |------------------------------------------+----------+--------|
-  | pre-[[./175.org][#175]] series (commit 9079323)         | 335,026  | 44,123 |
-  | post-2026-05 [[./175.org][#175]] series (ff6ce78)       | 106,541  | 20,674 |
-  | pre-typer ASAP-delete extensions         | 106,342  | 20,671 |
-  | + LiteralStr save_old_delete + FieldAssign clone-at-last-use -> move (this commit) |  76,350  | 13,959 |
+  | when                                                | bytes   | allocs |
+  |-----------------------------------------------------+---------+--------|
+  | pre-[[./175.org][#175]] series (commit 9079323)                    | 335,026 | 44,123 |
+  | post-2026-05 [[./175.org][#175]] series (ff6ce78)                  | 106,541 | 20,674 |
+  | pre-typer ASAP-delete extensions                    | 106,342 | 20,671 |
+  | LiteralStr save_old_delete + FieldAssign clone->move (3671a4f) |  76,350 | 13,959 |
+  | this commit (skip-promote shallow-return Struct)    |  87,593 | 15,805 |
+
+  Note: this commit's measurable delta on cli_args interpret is 0 vs
+  master after [[file:../../issues/fixed/190.org][#190]]+3671a4f. The fix targets ~str_view~
+  (the only ~returns shallow Struct~ site in the self-host) where the
+  ~mut result := ""~ local would otherwise heap-promote and leak its
+  wrapper on shallow return. Master's recent reshuffles have made
+  this leak invisible on cli_args; the fix is kept as a defensive
+  typer rule so the pattern stays free if it shows up again.
 
   Drive these to zero. If a fix doesn't move this baseline, the
   attribution was wrong and the fix is wrong.
@@ -82,7 +91,7 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
      transfer shapes (which already consume the wrapper) aren't
      double-freed. -13.9% bytes / -4.4% allocs.
 
-  5. ~widen save_old_delete to LiteralStr RHS~ (this commit). Same
+  5. ~widen save_old_delete to LiteralStr RHS~ (a886407). Same
      outer-scope [[./175.org][#175]] shape but ~rhs~ is a literal string, e.g.
      ~mut ftype := fd.explicit_type; ftype = "I64"~ inside a nested
      ~if~ in ~compute_struct_layout~. ~Str_lit~ returns a heap Str
@@ -91,9 +100,37 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
      ~infer_assign_stmt~ alongside the FCall-returning-Own and
      auto-clone-wrap branches. -480 bytes / -44 allocations.
 
+  6. ~skip heap-promotion for Struct local whose only use is a
+     shallow return~ (this commit). When a function declared
+     ~returns shallow X~ has a Struct local whose ~last_use~ is
+     the matching ~Return~ stmt and ~own_transfer < 0~, the
+     existing ~promote_own_transferred_locals~ pass would still
+     heap-promote it (because ~Struct~ locals always promote).
+     The codegen then emits ~Str *result = Str_lit("", 0ULL)~ +
+     mutations + ~return DEREF(result)~ -- value-copies the
+     struct out and orphans the wrapper. Concrete site:
+     ~str_view~ in [[file:../../src/self/interpreter.til][src/self/interpreter.til]], hit on every
+     ~dyn_fn~ / ~dyn_size_of~ dispatch (and there are a lot more
+     of those after [[file:../../issues/fixed/190.org][#190]]'s ~Vec.new~ migration).
+     ~promote_own_transferred_locals~ now skips promotion when the
+     last_use stmt is a ~Return~ that returns the local by name and
+     a new ~typer_in_shallow_return~ flag (set/restored in
+     ~infer_func_def_expr~) confirms the surrounding func is
+     shallow. The result is a stack-typed local; the codegen
+     emits ~Str result = ...; ...; return result;~ which
+     value-copies cleanly with no wrapper to leak.
+     -145 bytes / -5 allocations vs the post-Vec.new-regression
+     baseline. Small per call but eliminates the ~str_view~ wrapper
+     leak that compounded across every dispatch site, and applies
+     to any other shape where a heap-promoted Struct local is only
+     used as the shallow-return value.
+
   Cumulative for the series:
-  ~-228,684 bytes (-68%) / -23,452 allocations (-53%)~ vs pre-fix
-  baseline.
+  ~-212,029 bytes (-63%) / -22,310 allocations (-51%)~ vs pre-fix
+  baseline. (Net reduction smaller than peak because the 8e30822
+  ~Vec.new~ migration reintroduced ~17K bytes of leaks via more
+  ~dyn_fn~/~dyn_size_of~ dispatch sites; this fix recovers a
+  small slice on the typer side.)
 
   *** 2026-05 typer ASAP-delete extensions (DONE)
 
