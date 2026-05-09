@@ -432,91 +432,93 @@ h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
 h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     type_val := eval_expr(s, e.child(1))
-    if type_val.is(Value.Enum).not() {
-        panic(__LOC__, "dyn_type_to_str: expected Type enum value")
-    }
-    ref ei : EnumInstance = get_payload(type_val)
-    ref til_type_def : Expr = lookup_interp_type_def("Type")
-    if is_null(til_type_def) {
-        panic(__LOC__, "dyn_type_to_str: Type definition not registered")
-    }
-    ref tag_ptr : Dynamic = ei.data
-    ref tag_ref : I32 = tag_ptr
-    tag := tag_ref
-    if tag.eq(enum_variant_tag(til_type_def, "Unknown")).or(tag.eq(enum_variant_tag(til_type_def, "None"))) {
+    switch type_val {
+    case Value.Enum(ei):
+        ref til_type_def : Expr = lookup_interp_type_def("Type")
+        if is_null(til_type_def) {
+            panic(__LOC__, "dyn_type_to_str: Type definition not registered")
+        }
+        ref tag_ptr : Dynamic = ei.data
+        ref tag_ref : I32 = tag_ptr
+        tag := tag_ref
+        if tag.eq(enum_variant_tag(til_type_def, "Unknown")).or(tag.eq(enum_variant_tag(til_type_def, "None"))) {
+            r = make_str_value("".c_str, 0)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "I64")) {
+            r = make_str_value("I64".c_str, 3)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "U8")) {
+            r = make_str_value("U8".c_str, 2)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "I16")) {
+            r = make_str_value("I16".c_str, 3)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "I32")) {
+            r = make_str_value("I32".c_str, 3)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "U32")) {
+            r = make_str_value("U32".c_str, 3)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "U64")) {
+            r = make_str_value("U64".c_str, 3)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "F32")) {
+            r = make_str_value("F32".c_str, 3)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "Bool")) {
+            r = make_str_value("Bool".c_str, 4)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "Struct")) {
+            ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64())
+            r = make_str_value(payload.c_str, payload.count.to_u64())
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "StructDef")) {
+            r = make_str_value("StructDef".c_str, 9)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "Enum")) {
+            ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64())
+            r = make_str_value(payload2.c_str, payload2.count.to_u64())
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "EnumDef")) {
+            r = make_str_value("EnumDef".c_str, 7)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "FuncDef")) {
+            r = make_str_value("FunctionDef".c_str, 11)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "FuncPtr")) {
+            r = make_str_value("Fn".c_str, 2)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "Dynamic")) {
+            r = make_str_value("Dynamic".c_str, 7)
+            return true
+        }
+        if tag.eq(enum_variant_tag(til_type_def, "Custom")) {
+            ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64())
+            r = make_str_value(payload3.c_str, payload3.count.to_u64())
+            return true
+        }
+        panic(__LOC__, "dyn_type_to_str: unknown Type tag")
         r = make_str_value("".c_str, 0)
         return true
+    case:
+        panic(__LOC__, "dyn_type_to_str: expected Type enum value")
+        return false
     }
-    if tag.eq(enum_variant_tag(til_type_def, "I64")) {
-        r = make_str_value("I64".c_str, 3)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "U8")) {
-        r = make_str_value("U8".c_str, 2)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "I16")) {
-        r = make_str_value("I16".c_str, 3)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "I32")) {
-        r = make_str_value("I32".c_str, 3)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "U32")) {
-        r = make_str_value("U32".c_str, 3)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "U64")) {
-        r = make_str_value("U64".c_str, 3)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "F32")) {
-        r = make_str_value("F32".c_str, 3)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "Bool")) {
-        r = make_str_value("Bool".c_str, 4)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "Struct")) {
-        ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64())
-        r = make_str_value(payload.c_str, payload.count.to_u64())
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "StructDef")) {
-        r = make_str_value("StructDef".c_str, 9)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "Enum")) {
-        ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64())
-        r = make_str_value(payload2.c_str, payload2.count.to_u64())
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "EnumDef")) {
-        r = make_str_value("EnumDef".c_str, 7)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "FuncDef")) {
-        r = make_str_value("FunctionDef".c_str, 11)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "FuncPtr")) {
-        r = make_str_value("Fn".c_str, 2)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "Dynamic")) {
-        r = make_str_value("Dynamic".c_str, 7)
-        return true
-    }
-    if tag.eq(enum_variant_tag(til_type_def, "Custom")) {
-        ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64())
-        r = make_str_value(payload3.c_str, payload3.count.to_u64())
-        return true
-    }
-    panic(__LOC__, "dyn_type_to_str: unknown Type tag")
-    r = make_str_value("".c_str, 0)
-    return true
 }
 
 h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
@@ -1155,8 +1157,9 @@ ffi_init_scan_program := func(program: Expr) {
             if stmt.child(0).node_type.is(NodeType.StructDef) {
                 switch stmt.node_type {
                 case NodeType.Decl(sdd):
-                    ref sdd_data : StructDef = get_payload(stmt.child(0).node_type)
-                    for d_j : Declaration in sdd_data.ns_decls {
+                    switch stmt.child(0).node_type {
+                    case NodeType.StructDef(sdd_data):
+                        for d_j : Declaration in sdd_data.ns_decls {
                         ref fdd : Declaration = d_j
                         ref fdef : Expr = fdd.default_value
                         if is_null(fdef) { continue }
@@ -1200,6 +1203,9 @@ ffi_init_scan_program := func(program: Expr) {
                                 }
                             }
                         }
+                    }
+                    case:
+                        UNREACHABLE(__LOC__)
                     }
                 case:
                     UNREACHABLE(__LOC__)

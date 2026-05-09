@@ -169,19 +169,16 @@ Value := enum {
     Ptr: Dynamic
 namespace:
     eq := func(a: Value, b: Value) returns Bool {
-        // Switch-destructure on `a` here would recurse: the typer desugars
-        // empty case arms (e.g. `case Value.None`) to `a.eq(Value.None)`,
-        // which is the function we're defining. Keep bare get_payload.
         if a.is(Value.None).and(b.is(Value.None)) { return true }
         if a.is(Value.Int).and(b.is(Value.Int)) {
-            ref _ai : I64 = get_payload(a)
-            ref _bi : I64 = get_payload(b)
-            return _ai.eq(_bi)
+            ref ai : I64 = get_payload(a)
+            ref bi : I64 = get_payload(b)
+            return ai.eq(bi)
         }
         if a.is(Value.Boolean).and(b.is(Value.Boolean)) {
-            ref _ab : Bool = get_payload(a)
-            ref _bb : Bool = get_payload(b)
-            return _ab.eq(_bb)
+            ref ab : Bool = get_payload(a)
+            ref bb : Bool = get_payload(b)
+            return ab.eq(bb)
         }
         return false
     }

@@ -2974,11 +2974,12 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                     ref enum_def : Expr = scope.get_struct(type_name)
                     if is_null(enum_def).not().and(enum_def.node_type.is(NodeType.EnumDef)) {
                         vt_tag2 := enum_variant_tag(enum_def, variant_name)
-                        mut payload_type := ""
                         if vt_tag2.gte(0.to_i32()) {
-                            payload_type = enum_variant_type(enum_def, vt_tag2)
-                        }
-                        if payload_type.len().gt(0) {
+                            // `case Variant` (no payload binding) -> sw.is(Type.Variant).
+                            // Use .is rather than .eq so the desugared check is a
+                            // tag-only comparison and never recurses through a
+                            // user-defined eq (which is itself often defined as a
+                            // switch -- e.g. Value.eq).
                             mut iv_id := Expr.new(NodeType.Ident("is"), sw_line, sw_col)
                             mut sw_id := sw_ref.clone()
                             mut vtype_id := Expr.new(NodeType.Ident(type_name.clone()), sw_line, sw_col)
