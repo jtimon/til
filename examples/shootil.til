@@ -108,16 +108,11 @@ priv print_cam := proc(label: Str) {
     println(")")
 }
 
+mut god_mode := false
+
 enter_god_mode := func() { god_mode = true }
 
 exit_god_mode := func() { god_mode = false; reset_camera() }
-
-TODO_remove_this_work_around := func() {
-    enter_god_mode()
-    exit_god_mode()
-}
-
-mut god_mode := false
 
 main := proc() {
     set_config_flags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED)
@@ -138,7 +133,8 @@ main := proc() {
 
     // Simulate pressing G twice + a dummy frame to match the manual
     // god-mode toggle that happens mid-gameplay.
-    TODO_remove_this_work_around()
+    enter_god_mode()
+    exit_god_mode()
     BeginDrawing()
     EndDrawing()
     // Drain mouse delta accumulated during the dummy draw cycle.

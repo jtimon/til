@@ -25,7 +25,6 @@ test_macro_str := test() {
 
 # macro body can call procs (runs at compile time)
 macro_double := macro(x: I64) returns I64 {
-    println("precomp: doubling ", x.to_str())
     return x.mul(2)
 }
 
