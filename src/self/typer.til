@@ -1810,13 +1810,12 @@ infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
     case NodeType.FuncDef(fdef):
         if fdef.return_type.len().gt(0) {
             return_type_name := fdef.return_type.clone()
-            ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
-            fdef.return_type = resolved_return_type
+            fdef.return_type = resolve_alias_for_codegen(scope, return_type_name)
         }
         for param : Declaration in fdef.params {
             ptype_name := param.explicit_type.clone()
             ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
-            param.explicit_type = resolved_ptype
+            param.explicit_type = resolve_alias_for_codegen(scope, ptype_name)
             param.til_type = til_type_from_explicit_type(resolved_ptype)
         }
     case:
@@ -1882,14 +1881,14 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         if fdef.return_type.len().gt(0) {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
-            fdef.return_type = resolved_return_type
+            fdef.return_type = resolve_alias_for_codegen(scope, return_type_name)
             check_priv_type_name(expr, resolved_return_type, scope)
         }
         for i in 0..fdef.params.len() {
             ref mut param : Declaration = fdef.params.get(i)
             ptype_name := param.explicit_type.clone()
             ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
-            param.explicit_type = resolved_ptype
+            param.explicit_type = resolve_alias_for_codegen(scope, ptype_name)
             param.til_type = til_type_from_explicit_type(resolved_ptype)
             ref ptn : Str = param.explicit_type
             pt := type_from_name(ptn, scope)
@@ -3974,6 +3973,23 @@ resolve_type_alias := func(scope: TypeScope, name: Str) returns ref Str {
         }
     }
     return name
+}
+
+// Issue #192: USize and UPtr are target-driven aliases that must
+// round-trip through codegen as their alias name (so the C side can
+// pick the right underlying primitive via the typedef in ext.h).
+// User-defined aliases (e.g. `ByteCount := U32`) have no C typedef and
+// must still be resolved to their underlying primitive at typer time.
+priv is_target_driven_alias := func(name: Str) returns Bool {
+    if name.eq("USize") { return true }
+    if name.eq("UPtr") { return true }
+    return false
+}
+
+priv resolve_alias_for_codegen := func(scope: TypeScope, name: Str) returns Str {
+    if is_target_driven_alias(name) { return name.clone() }
+    ref resolved : Str = resolve_type_alias(scope, name)
+    return resolved.clone()
 }
 
 usize_name := func(scope: TypeScope) returns Str {

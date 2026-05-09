@@ -404,17 +404,18 @@ callee_param_is_shallow := func(callee_name: Str, shallow arg_index: U32) return
     }
 }
 
+// Issue #192 step 4: kept disabled while the call-site emit is
+// redesigned. Activating this triggers the USIZE_REF compound-literal
+// path in emit_call_args, which corrupts callers in ways that
+// emit_as_ptr's `&local` form does not (svg2ttf hits a memcpy with
+// a stack-region destination on the first push). The function-signature
+// side of the alias-emit work happens via param_ctype reading
+// p.explicit_type directly, which still spells "USize" once the typer
+// stops resolving the alias for codegen.
 callee_param_is_usize := func(callee_name: Str, shallow arg_index: U32) returns shallow Bool {
-    ref fdef : Expr = find_callee_fdef(callee_name)
-    if is_null(fdef) { return false }
-    switch fdef.node_type {
-    case NodeType.FuncDef(fd):
-        if arg_index.gte(fd.params.len()) { return false }
-        ref p : Declaration = fd.params.get(arg_index)
-        return p.explicit_type.eq("USize")
-    case:
-        return false
-    }
+    ref _cn : Str = callee_name
+    _ai : U32 = arg_index
+    return false
 }
 
 callee_param_is_uptr := func(callee_name: Str, shallow arg_index: U32) returns shallow Bool {

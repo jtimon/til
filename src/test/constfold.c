@@ -87,7 +87,7 @@ typedef struct Vec {
 
 F32 * F32_from_i64(I64 * val);
 void F32_delete(F32 * self, Bool * call_free);
-U32 * F32_size(void);
+USize * F32_size(void);
 Bool F32_lt(F32 * a, F32 * b);
 Bool F32_gt(F32 * a, F32 * b);
 Bool F32_neq(F32 * a, F32 * b);
@@ -100,7 +100,7 @@ void U64_dec(U64 * self);
 U64 * U64_unity(U64 * _self);
 U64 U64_distance(void * a, void * b);
 void U64_delete(U64 * self, Bool * call_free);
-U32 * U64_size(void);
+USize * U64_size(void);
 Bool U64_lt(U64 * a, U64 * b);
 Bool U64_gt(U64 * a, U64 * b);
 Bool U64_neq(U64 * a, U64 * b);
@@ -112,7 +112,7 @@ void U32_dec(U32 * self);
 U32 * U32_unity(U32 * _self);
 U64 U32_distance(void * a, void * b);
 void U32_delete(U32 * self, Bool * call_free);
-U32 * U32_size(void);
+USize * U32_size(void);
 Bool U32_lt(U32 * a, U32 * b);
 Bool U32_gt(U32 * a, U32 * b);
 Bool U32_neq(U32 * a, U32 * b);
@@ -126,7 +126,7 @@ I32 * I32_neg(I32 * a);
 I32 * I32_abs(I32 * a);
 U64 I32_distance(void * a, void * b);
 void I32_delete(I32 * self, Bool * call_free);
-U32 * I32_size(void);
+USize * I32_size(void);
 Bool I32_lt(I32 * a, I32 * b);
 Bool I32_gt(I32 * a, I32 * b);
 Bool I32_neq(I32 * a, I32 * b);
@@ -138,7 +138,7 @@ void U8_dec(U8 * self);
 U8 * U8_unity(U8 * _self);
 U64 U8_distance(void * a, void * b);
 void U8_delete(U8 * self, Bool * call_free);
-U32 * U8_size(void);
+USize * U8_size(void);
 Bool U8_lt(U8 * a, U8 * b);
 Bool U8_gt(U8 * a, U8 * b);
 Bool U8_neq(U8 * a, U8 * b);
@@ -146,30 +146,30 @@ Bool U8_lte(U8 * a, U8 * b);
 Bool U8_gte(U8 * a, U8 * b);
 Vec * Vec_new_type_name(Str * elem_type);
 Vec * Vec_new(Type * T);
-U32 Vec_len(Vec * self);
+USize Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void Vec_append(Vec * self, Vec * other);
 void Vec_move_from(Vec * self, Vec * other);
-void * Vec_get(Vec * self, U32 * i);
+void * Vec_get(Vec * self, USize * i);
 void * Vec_pop(Vec * self);
-Vec * Vec_take_prefix(Vec * self, U32 * n);
-void Vec_set(Vec * self, U32 * i, void * val);
-void Vec_push_take(Vec * self, Vec * src, U32 i);
+Vec * Vec_take_prefix(Vec * self, USize * n);
+void Vec_set(Vec * self, USize * i, void * val);
+void Vec_push_take(Vec * self, Vec * src, USize i);
 void Vec_delete(Vec * self, Bool * call_free);
 Vec * Vec_clone(Vec * self);
-U32 Vec_size(void);
+USize Vec_size(void);
 Str * format(Array * parts);
-U32 Str_len(Str * self);
-U8 * Str_get(Str * self, U32 * i);
-U8 * Str_byte_at(Str * self, U32 * i);
+USize Str_len(Str * self);
+U8 * Str_get(Str * self, USize * i);
+U8 * Str_byte_at(Str * self, USize * i);
 I64 Str_cmp(Str * a, Str * b);
 Str * Str_concat(Str * a, Str * b);
-Str * Str_with_capacity(U32 * n);
+Str * Str_with_capacity(USize * n);
 void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 void Str_delete(Str * self, Bool * call_free);
 Str * Str_to_str(Str * val);
-Str * Str_substr(Str * s, U32 * start, U32 * n);
+Str * Str_substr(Str * s, USize * start, USize * n);
 Bool Str_contains(Str * a, Str * b);
 Bool Str_starts_with(Str * a, Str * b);
 Bool Str_ends_with(Str * a, Str * b);
@@ -177,7 +177,7 @@ Bool Str_is_empty(Str * self);
 I64 Str_find(Str * self, Str * needle);
 I64 Str_rfind(Str * self, Str * needle);
 Str * Str_replace(Str * self, Str * from, Str * to);
-Str * Str_get_char(Str * self, U32 * i);
+Str * Str_get_char(Str * self, USize * i);
 Str * Str_strip_prefix(Str * self, Str * prefix);
 Str * Str_strip_suffix(Str * self, Str * suffix);
 Str * Str_from_byte(U8 * byte);
@@ -186,14 +186,14 @@ U8 Str_to_u8(Str * self);
 I32 Str_to_i32(Str * self);
 F32 Str_to_f32(Str * self);
 Vec * Str_split(Str * self, Str * delim);
-U32 Str_size(void);
+USize Str_size(void);
 Bool Str_eq(Str * a, Str * b);
 Bool Str_lt(Str * a, Str * b);
 Bool Str_gt(Str * a, Str * b);
 Bool Str_neq(Str * a, Str * b);
 Bool Str_lte(Str * a, Str * b);
 Bool Str_gte(Str * a, Str * b);
-U32 * Dynamic_size(void);
+USize * Dynamic_size(void);
 void * default_clone(void * v);
 void default_delete(void * _v, Bool * _cf);
 Str * I16_to_str(I16 * val);
@@ -204,7 +204,7 @@ I16 * I16_neg(I16 * a);
 I16 * I16_abs(I16 * a);
 U64 I16_distance(void * a, void * b);
 void I16_delete(I16 * self, Bool * call_free);
-U32 * I16_size(void);
+USize * I16_size(void);
 Bool I16_lt(I16 * a, I16 * b);
 Bool I16_gt(I16 * a, I16 * b);
 Bool I16_neq(I16 * a, I16 * b);
@@ -218,7 +218,7 @@ I64 * I64_neg(I64 * a);
 I64 * I64_abs(I64 * a);
 U64 I64_distance(void * a, void * b);
 void I64_delete(I64 * self, Bool * call_free);
-U32 * I64_size(void);
+USize * I64_size(void);
 Bool I64_lt(I64 * a, I64 * b);
 Bool I64_gt(I64 * a, I64 * b);
 Bool I64_neq(I64 * a, I64 * b);
@@ -227,7 +227,7 @@ Bool I64_gte(I64 * a, I64 * b);
 Str * Bool_to_str(Bool * b);
 I64 * Bool_cmp(Bool * a, Bool * b);
 void Bool_delete(Bool * self, Bool * call_free);
-U32 * Bool_size(void);
+USize * Bool_size(void);
 Bool Bool_lt(Bool * a, Bool * b);
 Bool Bool_gt(Bool * a, Bool * b);
 Bool Bool_neq(Bool * a, Bool * b);
@@ -238,15 +238,15 @@ Bool Type_is(Type * self, Type * other);
 void Type_delete(Type * self, Bool * call_free);
 Str * Type_to_str(Type * self);
 Type * Type_clone(Type * self);
-U32 Type_size(void);
-Array * Array_new_type_name(Str * elem_type, U32 * cap);
-Array * Array_new(Type * T, U32 * cap);
-U32 * Array_len(Array * self);
-void * Array_get(Array * self, U32 * i);
-void Array_set(Array * self, U32 * i, void * val);
+USize Type_size(void);
+Array * Array_new_type_name(Str * elem_type, USize * cap);
+Array * Array_new(Type * T, USize * cap);
+USize * Array_len(Array * self);
+void * Array_get(Array * self, USize * i);
+void Array_set(Array * self, USize * i, void * val);
 void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
-U32 Array_size(void);
+USize Array_size(void);
 void panic(Str * loc_str, Array * parts);
 Bool * assert(Str * loc_str, Bool * cond);
 void assert_eq(Str * loc_str, I64 * a, I64 * b);
@@ -266,7 +266,7 @@ void print_flush();
 
 F32 * F32_from_i64(I64 * val);
 void F32_delete(F32 * self, Bool * call_free);
-U32 * F32_size(void);
+USize * F32_size(void);
 Bool F32_lt(F32 * a, F32 * b);
 Bool F32_gt(F32 * a, F32 * b);
 Bool F32_neq(F32 * a, F32 * b);
@@ -279,7 +279,7 @@ void U64_dec(U64 * self);
 U64 * U64_unity(U64 * _self);
 U64 U64_distance(void * a, void * b);
 void U64_delete(U64 * self, Bool * call_free);
-U32 * U64_size(void);
+USize * U64_size(void);
 Bool U64_lt(U64 * a, U64 * b);
 Bool U64_gt(U64 * a, U64 * b);
 Bool U64_neq(U64 * a, U64 * b);
@@ -291,7 +291,7 @@ void U32_dec(U32 * self);
 U32 * U32_unity(U32 * _self);
 U64 U32_distance(void * a, void * b);
 void U32_delete(U32 * self, Bool * call_free);
-U32 * U32_size(void);
+USize * U32_size(void);
 Bool U32_lt(U32 * a, U32 * b);
 Bool U32_gt(U32 * a, U32 * b);
 Bool U32_neq(U32 * a, U32 * b);
@@ -305,7 +305,7 @@ I32 * I32_neg(I32 * a);
 I32 * I32_abs(I32 * a);
 U64 I32_distance(void * a, void * b);
 void I32_delete(I32 * self, Bool * call_free);
-U32 * I32_size(void);
+USize * I32_size(void);
 Bool I32_lt(I32 * a, I32 * b);
 Bool I32_gt(I32 * a, I32 * b);
 Bool I32_neq(I32 * a, I32 * b);
@@ -317,7 +317,7 @@ void U8_dec(U8 * self);
 U8 * U8_unity(U8 * _self);
 U64 U8_distance(void * a, void * b);
 void U8_delete(U8 * self, Bool * call_free);
-U32 * U8_size(void);
+USize * U8_size(void);
 Bool U8_lt(U8 * a, U8 * b);
 Bool U8_gt(U8 * a, U8 * b);
 Bool U8_neq(U8 * a, U8 * b);
@@ -325,30 +325,30 @@ Bool U8_lte(U8 * a, U8 * b);
 Bool U8_gte(U8 * a, U8 * b);
 Vec * Vec_new_type_name(Str * elem_type);
 Vec * Vec_new(Type * T);
-U32 Vec_len(Vec * self);
+USize Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void Vec_append(Vec * self, Vec * other);
 void Vec_move_from(Vec * self, Vec * other);
-void * Vec_get(Vec * self, U32 * i);
+void * Vec_get(Vec * self, USize * i);
 void * Vec_pop(Vec * self);
-Vec * Vec_take_prefix(Vec * self, U32 * n);
-void Vec_set(Vec * self, U32 * i, void * val);
-void Vec_push_take(Vec * self, Vec * src, U32 i);
+Vec * Vec_take_prefix(Vec * self, USize * n);
+void Vec_set(Vec * self, USize * i, void * val);
+void Vec_push_take(Vec * self, Vec * src, USize i);
 void Vec_delete(Vec * self, Bool * call_free);
 Vec * Vec_clone(Vec * self);
-U32 Vec_size(void);
+USize Vec_size(void);
 Str * format(Array * parts);
-U32 Str_len(Str * self);
-U8 * Str_get(Str * self, U32 * i);
-U8 * Str_byte_at(Str * self, U32 * i);
+USize Str_len(Str * self);
+U8 * Str_get(Str * self, USize * i);
+U8 * Str_byte_at(Str * self, USize * i);
 I64 Str_cmp(Str * a, Str * b);
 Str * Str_concat(Str * a, Str * b);
-Str * Str_with_capacity(U32 * n);
+Str * Str_with_capacity(USize * n);
 void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 void Str_delete(Str * self, Bool * call_free);
 Str * Str_to_str(Str * val);
-Str * Str_substr(Str * s, U32 * start, U32 * n);
+Str * Str_substr(Str * s, USize * start, USize * n);
 Bool Str_contains(Str * a, Str * b);
 Bool Str_starts_with(Str * a, Str * b);
 Bool Str_ends_with(Str * a, Str * b);
@@ -356,7 +356,7 @@ Bool Str_is_empty(Str * self);
 I64 Str_find(Str * self, Str * needle);
 I64 Str_rfind(Str * self, Str * needle);
 Str * Str_replace(Str * self, Str * from, Str * to);
-Str * Str_get_char(Str * self, U32 * i);
+Str * Str_get_char(Str * self, USize * i);
 Str * Str_strip_prefix(Str * self, Str * prefix);
 Str * Str_strip_suffix(Str * self, Str * suffix);
 Str * Str_from_byte(U8 * byte);
@@ -365,14 +365,14 @@ U8 Str_to_u8(Str * self);
 I32 Str_to_i32(Str * self);
 F32 Str_to_f32(Str * self);
 Vec * Str_split(Str * self, Str * delim);
-U32 Str_size(void);
+USize Str_size(void);
 Bool Str_eq(Str * a, Str * b);
 Bool Str_lt(Str * a, Str * b);
 Bool Str_gt(Str * a, Str * b);
 Bool Str_neq(Str * a, Str * b);
 Bool Str_lte(Str * a, Str * b);
 Bool Str_gte(Str * a, Str * b);
-U32 * Dynamic_size(void);
+USize * Dynamic_size(void);
 void * default_clone(void * v);
 void default_delete(void * _v, Bool * _cf);
 Str * I16_to_str(I16 * val);
@@ -383,7 +383,7 @@ I16 * I16_neg(I16 * a);
 I16 * I16_abs(I16 * a);
 U64 I16_distance(void * a, void * b);
 void I16_delete(I16 * self, Bool * call_free);
-U32 * I16_size(void);
+USize * I16_size(void);
 Bool I16_lt(I16 * a, I16 * b);
 Bool I16_gt(I16 * a, I16 * b);
 Bool I16_neq(I16 * a, I16 * b);
@@ -397,7 +397,7 @@ I64 * I64_neg(I64 * a);
 I64 * I64_abs(I64 * a);
 U64 I64_distance(void * a, void * b);
 void I64_delete(I64 * self, Bool * call_free);
-U32 * I64_size(void);
+USize * I64_size(void);
 Bool I64_lt(I64 * a, I64 * b);
 Bool I64_gt(I64 * a, I64 * b);
 Bool I64_neq(I64 * a, I64 * b);
@@ -406,7 +406,7 @@ Bool I64_gte(I64 * a, I64 * b);
 Str * Bool_to_str(Bool * b);
 I64 * Bool_cmp(Bool * a, Bool * b);
 void Bool_delete(Bool * self, Bool * call_free);
-U32 * Bool_size(void);
+USize * Bool_size(void);
 Bool Bool_lt(Bool * a, Bool * b);
 Bool Bool_gt(Bool * a, Bool * b);
 Bool Bool_neq(Bool * a, Bool * b);
@@ -417,15 +417,15 @@ Bool Type_is(Type * self, Type * other);
 void Type_delete(Type * self, Bool * call_free);
 Str * Type_to_str(Type * self);
 Type * Type_clone(Type * self);
-U32 Type_size(void);
-Array * Array_new_type_name(Str * elem_type, U32 * cap);
-Array * Array_new(Type * T, U32 * cap);
-U32 * Array_len(Array * self);
-void * Array_get(Array * self, U32 * i);
-void Array_set(Array * self, U32 * i, void * val);
+USize Type_size(void);
+Array * Array_new_type_name(Str * elem_type, USize * cap);
+Array * Array_new(Type * T, USize * cap);
+USize * Array_len(Array * self);
+void * Array_get(Array * self, USize * i);
+void Array_set(Array * self, USize * i, void * val);
 void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
-U32 Array_size(void);
+USize Array_size(void);
 void panic(Str * loc_str, Array * parts);
 Bool * assert(Str * loc_str, Bool * cond);
 void assert_eq(Str * loc_str, I64 * a, I64 * b);
@@ -498,10 +498,10 @@ void F32_delete(F32 * self, Bool * call_free) {
     }
 }
 
-U32 * F32_size(void) {
+USize * F32_size(void) {
     I64 _t_I64_1 = 4;
     (void)_t_I64_1;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t_I64_1; return _r; }
+    { USize *_r = malloc(sizeof(USize)); *_r = _t_I64_1; return _r; }
 }
 
 Bool F32_lt(F32 * a, F32 * b) {
@@ -648,10 +648,10 @@ void U64_delete(U64 * self, Bool * call_free) {
     }
 }
 
-U32 * U64_size(void) {
+USize * U64_size(void) {
     I64 _t_I64_27 = 8;
     (void)_t_I64_27;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t_I64_27; return _r; }
+    { USize *_r = malloc(sizeof(USize)); *_r = _t_I64_27; return _r; }
 }
 
 Bool U64_lt(U64 * a, U64 * b) {
@@ -804,10 +804,10 @@ void U32_delete(U32 * self, Bool * call_free) {
     }
 }
 
-U32 * U32_size(void) {
+USize * U32_size(void) {
     I64 _t_I64_57 = 4;
     (void)_t_I64_57;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t_I64_57; return _r; }
+    { USize *_r = malloc(sizeof(USize)); *_r = _t_I64_57; return _r; }
 }
 
 Bool U32_lt(U32 * a, U32 * b) {
@@ -1007,10 +1007,10 @@ void I32_delete(I32 * self, Bool * call_free) {
     }
 }
 
-U32 * I32_size(void) {
+USize * I32_size(void) {
     I64 _t_I64_99 = 4;
     (void)_t_I64_99;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t_I64_99; return _r; }
+    { USize *_r = malloc(sizeof(USize)); *_r = _t_I64_99; return _r; }
 }
 
 Bool I32_lt(I32 * a, I32 * b) {
@@ -1157,10 +1157,10 @@ void U8_delete(U8 * self, Bool * call_free) {
     }
 }
 
-U32 * U8_size(void) {
+USize * U8_size(void) {
     I64 _t_I64_127 = 1;
     (void)_t_I64_127;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t_I64_127; return _r; }
+    { USize *_r = malloc(sizeof(USize)); *_r = _t_I64_127; return _r; }
 }
 
 Bool U8_lt(U8 * a, U8 * b) {
@@ -1291,7 +1291,7 @@ Vec * Vec_new_type_name(Str * elem_type) {
         return _t_Vec_153;
     }
     ;
-    U32 sz = dyn_size_of(elem_type);
+    USize sz = dyn_size_of(elem_type);
     (void)sz;
     void * _t_v_157 = malloc(sz);
     (void)_t_v_157;
@@ -1328,7 +1328,7 @@ Vec * Vec_new(Type * T) {
     return _t_Vec_163;
 }
 
-U32 Vec_len(Vec * self) {
+USize Vec_len(Vec * self) {
     (void)self;
     return self->count;
 }
@@ -1664,7 +1664,7 @@ void Vec_move_from(Vec * self, Vec * other) {
     ;
 }
 
-void * Vec_get(Vec * self, U32 * i) {
+void * Vec_get(Vec * self, USize * i) {
     (void)self;
     (void)i;
     Bool _t_Bool_251 = U32_gte(i, &self->count);
@@ -1777,7 +1777,7 @@ void * Vec_pop(Vec * self) {
     return out;
 }
 
-Vec * Vec_take_prefix(Vec * self, U32 * n) {
+Vec * Vec_take_prefix(Vec * self, USize * n) {
     (void)self;
     (void)n;
     Bool _t_Bool_285 = U32_gt(n, &self->count);
@@ -1898,7 +1898,7 @@ Vec * Vec_take_prefix(Vec * self, U32 * n) {
     return _t_Vec_294;
 }
 
-void Vec_set(Vec * self, U32 * i, void * val) {
+void Vec_set(Vec * self, USize * i, void * val) {
     (void)self;
     (void)i;
     (void)val;
@@ -1961,7 +1961,7 @@ void Vec_set(Vec * self, U32 * i, void * val) {
     free(val);
 }
 
-void Vec_push_take(Vec * self, Vec * src, U32 i) {
+void Vec_push_take(Vec * self, Vec * src, USize i) {
     (void)self;
     (void)src;
     (void)i;
@@ -2318,7 +2318,7 @@ Vec * Vec_clone(Vec * self) {
     return _t_Vec_391;
 }
 
-U32 Vec_size(void) {
+USize Vec_size(void) {
     I64 _t_I64_392 = 56;
     (void)_t_I64_392;
     return _t_I64_392;
@@ -2334,7 +2334,7 @@ Str * format(Array * parts) {
         U32 _fi_USize_393 = 0;
         (void)_fi_USize_393;
         while (1) {
-            U32 _t_U32_395; { U32 *_hp = (U32 *)Array_len(_fc_Array_393); _t_U32_395 = *_hp; free(_hp); }
+            USize _t_U32_395; { USize *_hp = (USize *)Array_len(_fc_Array_393); _t_U32_395 = *_hp; free(_hp); }
             (void)_t_U32_395;
             Bool _wcond_Bool_394 = U32_lt(&_fi_USize_393, &_t_U32_395);
             (void)_wcond_Bool_394;
@@ -2354,7 +2354,7 @@ Str * format(Array * parts) {
             ;
             _fi_USize_393 = _t_U32_397;
             ;
-            U32 _t_U32_398 = Str_len(s);
+            USize _t_U32_398 = Str_len(s);
             (void)_t_U32_398;
             U32 _t_U32_399 = U32_add(total, _t_U32_398);
             (void)_t_U32_399;
@@ -2373,7 +2373,7 @@ Str * format(Array * parts) {
         U32 _fi_USize_400 = 0;
         (void)_fi_USize_400;
         while (1) {
-            U32 _t_U32_402; { U32 *_hp = (U32 *)Array_len(_fc_Array_400); _t_U32_402 = *_hp; free(_hp); }
+            USize _t_U32_402; { USize *_hp = (USize *)Array_len(_fc_Array_400); _t_U32_402 = *_hp; free(_hp); }
             (void)_t_U32_402;
             Bool _wcond_Bool_401 = U32_lt(&_fi_USize_400, &_t_U32_402);
             (void)_wcond_Bool_401;
@@ -2401,12 +2401,12 @@ Str * format(Array * parts) {
     return out;
 }
 
-U32 Str_len(Str * self) {
+USize Str_len(Str * self) {
     (void)self;
     return self->count;
 }
 
-U8 * Str_get(Str * self, U32 * i) {
+U8 * Str_get(Str * self, USize * i) {
     (void)self;
     (void)i;
     Bool _t_Bool_411 = U32_gte(i, &self->count);
@@ -2440,7 +2440,7 @@ U8 * Str_get(Str * self, U32 * i) {
     return _t_v_412;
 }
 
-U8 * Str_byte_at(Str * self, U32 * i) {
+U8 * Str_byte_at(Str * self, USize * i) {
     (void)self;
     (void)i;
     void *_t_v_413 = ptr_add(self->c_str, DEREF(i));
@@ -2562,7 +2562,7 @@ Str * Str_concat(Str * a, Str * b) {
     return out;
 }
 
-Str * Str_with_capacity(U32 * n) {
+Str * Str_with_capacity(USize * n) {
     (void)n;
     U32 _t_U32_425 = 1;
     (void)_t_U32_425;
@@ -2715,7 +2715,7 @@ Str * Str_to_str(Str * val) {
     return _t_Str_457;
 }
 
-Str * Str_substr(Str * s, U32 * start, U32 * n) {
+Str * Str_substr(Str * s, USize * start, USize * n) {
     (void)s;
     (void)start;
     (void)n;
@@ -3792,7 +3792,7 @@ Str * Str_replace(Str * self, Str * from, Str * to) {
             break;
         }
         ;
-        U32 pos_u = I64_to_usize(pos);
+        USize pos_u = I64_to_usize(pos);
         (void)pos_u;
         ;
         U32 _t_U32_611 = U32_add(start, pos_u);
@@ -3881,7 +3881,7 @@ Str * Str_replace(Str * self, Str * from, Str * to) {
             break;
         }
         ;
-        U32 pos_u = I64_to_usize(pos);
+        USize pos_u = I64_to_usize(pos);
         (void)pos_u;
         ;
         Str *_t_Str_623 = Str_substr(self, &start, &pos_u);
@@ -3914,7 +3914,7 @@ Str * Str_replace(Str * self, Str * from, Str * to) {
     return out;
 }
 
-Str * Str_get_char(Str * self, U32 * i) {
+Str * Str_get_char(Str * self, USize * i) {
     (void)self;
     (void)i;
     U32 _t_U32_636 = 1;
@@ -4314,7 +4314,7 @@ F32 Str_to_f32(Str * self) {
     (void)start;
     Bool neg = 0;
     (void)neg;
-    U32 _t_U32_751 = Str_len(self);
+    USize _t_U32_751 = Str_len(self);
     (void)_t_U32_751;
     U32 _t_U32_752 = 0;
     (void)_t_U32_752;
@@ -4347,7 +4347,7 @@ F32 Str_to_f32(Str * self) {
         ;
     }
     ;
-    U32 _t_U32_759 = Str_len(self);
+    USize _t_U32_759 = Str_len(self);
     (void)_t_U32_759;
     U32 _t_U32_760 = U32_sub(_t_U32_759, start);
     (void)_t_U32_760;
@@ -4403,22 +4403,22 @@ F32 Str_to_f32(Str * self) {
     ;
     U32 _t_U32_766 = 0;
     (void)_t_U32_766;
-    U32 _t_U32_767 = I64_to_usize(dot);
+    USize _t_U32_767 = I64_to_usize(dot);
     (void)_t_U32_767;
     Str *int_part = Str_substr(rest, &_t_U32_766, &_t_U32_767);
     (void)int_part;
     ;
     ;
-    U32 _t_U32_768 = I64_to_usize(dot);
+    USize _t_U32_768 = I64_to_usize(dot);
     (void)_t_U32_768;
     U32 _t_U32_769 = 1;
     (void)_t_U32_769;
-    U32 _t_U32_770 = I64_to_usize(dot);
+    USize _t_U32_770 = I64_to_usize(dot);
     (void)_t_U32_770;
     ;
     U32 _t_U32_771 = 1;
     (void)_t_U32_771;
-    U32 _t_U32_772 = Str_len(rest);
+    USize _t_U32_772 = Str_len(rest);
     (void)_t_U32_772;
     U32 _t_U32_773 = U32_add(_t_U32_770, _t_U32_771);
     (void)_t_U32_773;
@@ -4442,7 +4442,7 @@ F32 Str_to_f32(Str * self) {
     F32 out = I64_to_f32(_t_I64_776);
     (void)out;
     ;
-    U32 _t_U32_777 = Str_len(int_part);
+    USize _t_U32_777 = Str_len(int_part);
     (void)_t_U32_777;
     U32 _t_U32_778 = 0;
     (void)_t_U32_778;
@@ -4461,7 +4461,7 @@ F32 Str_to_f32(Str * self) {
     }
     ;
     Str_delete(int_part, &(Bool){1});
-    U32 _t_U32_780 = Str_len(frac_part);
+    USize _t_U32_780 = Str_len(frac_part);
     (void)_t_U32_780;
     U32 _t_U32_781 = 0;
     (void)_t_U32_781;
@@ -4481,7 +4481,7 @@ F32 Str_to_f32(Str * self) {
         (void)scale;
         ;
         {
-            U32 _re_U32_734 = Str_len(frac_part);
+            USize _re_U32_734 = Str_len(frac_part);
             (void)_re_U32_734;
             U32 _rc_U32_734 = 0;
             (void)_rc_U32_734;
@@ -4582,7 +4582,7 @@ Vec * Str_split(Str * self, Str * delim) {
     Vec *parts = Vec_new(_t_Type_800);
     (void)parts;
     Type_delete(_t_Type_800, &(Bool){1});
-    U32 _t_U32_801 = Str_len(delim);
+    USize _t_U32_801 = Str_len(delim);
     (void)_t_U32_801;
     U32 _t_U32_802 = 0;
     (void)_t_U32_802;
@@ -4603,9 +4603,9 @@ Vec * Str_split(Str * self, Str * delim) {
     U32 pos = 0;
     (void)pos;
     while (1) {
-        U32 _t_U32_793 = Str_len(self);
+        USize _t_U32_793 = Str_len(self);
         (void)_t_U32_793;
-        U32 _t_U32_794 = Str_len(delim);
+        USize _t_U32_794 = Str_len(delim);
         (void)_t_U32_794;
         U32 _t_U32_795 = U32_sub(_t_U32_793, _t_U32_794);
         (void)_t_U32_795;
@@ -4620,7 +4620,7 @@ Vec * Str_split(Str * self, Str * delim) {
             break;
         }
         ;
-        U32 _t_U32_796 = Str_len(delim);
+        USize _t_U32_796 = Str_len(delim);
         (void)_t_U32_796;
         Str *_t_Str_797 = Str_substr(self, &pos, &_t_U32_796);
         (void)_t_Str_797;
@@ -4638,7 +4638,7 @@ Vec * Str_split(Str * self, Str * delim) {
             (void)_t_Str_787;
             Str_delete(_t_Str_786, &(Bool){1});
             Vec_push(parts, _t_Str_787);
-            U32 _t_U32_788 = Str_len(delim);
+            USize _t_U32_788 = Str_len(delim);
             (void)_t_U32_788;
             U32 _t_U32_789 = U32_add(pos, _t_U32_788);
             (void)_t_U32_789;
@@ -4661,7 +4661,7 @@ Vec * Str_split(Str * self, Str * delim) {
         ;
     }
     ;
-    U32 _t_U32_804 = Str_len(self);
+    USize _t_U32_804 = Str_len(self);
     (void)_t_U32_804;
     U32 _t_U32_805 = U32_sub(_t_U32_804, start);
     (void)_t_U32_805;
@@ -4677,7 +4677,7 @@ Vec * Str_split(Str * self, Str * delim) {
     return parts;
 }
 
-U32 Str_size(void) {
+USize Str_size(void) {
     I64 _t_I64_808 = 16;
     (void)_t_I64_808;
     return _t_I64_808;
@@ -4764,10 +4764,10 @@ Bool Str_gte(Str * a, Str * b) {
     return _t_Bool_825;
 }
 
-U32 * Dynamic_size(void) {
+USize * Dynamic_size(void) {
     I64 _t_I64_857 = 8;
     (void)_t_I64_857;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t_I64_857; return _r; }
+    { USize *_r = malloc(sizeof(USize)); *_r = _t_I64_857; return _r; }
 }
 
 void * default_clone(void * v) {
@@ -4910,10 +4910,10 @@ void I16_delete(I16 * self, Bool * call_free) {
     }
 }
 
-U32 * I16_size(void) {
+USize * I16_size(void) {
     I64 _t_I64_887 = 2;
     (void)_t_I64_887;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t_I64_887; return _r; }
+    { USize *_r = malloc(sizeof(USize)); *_r = _t_I64_887; return _r; }
 }
 
 Bool I16_lt(I16 * a, I16 * b) {
@@ -5284,10 +5284,10 @@ void I64_delete(I64 * self, Bool * call_free) {
     }
 }
 
-U32 * I64_size(void) {
+USize * I64_size(void) {
     I64 _t_I64_966 = 8;
     (void)_t_I64_966;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t_I64_966; return _r; }
+    { USize *_r = malloc(sizeof(USize)); *_r = _t_I64_966; return _r; }
 }
 
 Bool I64_lt(I64 * a, I64 * b) {
@@ -5406,10 +5406,10 @@ void Bool_delete(Bool * self, Bool * call_free) {
     }
 }
 
-U32 * Bool_size(void) {
+USize * Bool_size(void) {
     I64 _t_I64_989 = 1;
     (void)_t_I64_989;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t_I64_989; return _r; }
+    { USize *_r = malloc(sizeof(USize)); *_r = _t_I64_989; return _r; }
 }
 
 Bool Bool_lt(Bool * a, Bool * b) {
@@ -6216,14 +6216,14 @@ Type * Type_clone(Type * self) {
     return _t_Type_1282;
 }
 
-U32 Type_size(void) {
+USize Type_size(void) {
     I64 _t_I64_1283 = 24;
     (void)_t_I64_1283;
     return _t_I64_1283;
 }
 
 
-Array * Array_new_type_name(Str * elem_type, U32 * cap) {
+Array * Array_new_type_name(Str * elem_type, USize * cap) {
     (void)elem_type;
     (void)cap;
     Bool _t_Bool_2406 = Str_is_empty(elem_type);
@@ -6252,7 +6252,7 @@ Array * Array_new_type_name(Str * elem_type, U32 * cap) {
         Str_delete(_t_Str_2405, &(Bool){1});
     }
     ;
-    U32 elem_size = dyn_size_of(elem_type);
+    USize elem_size = dyn_size_of(elem_type);
     (void)elem_size;
     void * _t_v_2407 = calloc(DEREF(cap), elem_size);
     (void)_t_v_2407;
@@ -6272,7 +6272,7 @@ Array * Array_new_type_name(Str * elem_type, U32 * cap) {
     return _t_Array_2410;
 }
 
-Array * Array_new(Type * T, U32 * cap) {
+Array * Array_new(Type * T, USize * cap) {
     (void)T;
     (void)cap;
     Str *elem_type = dyn_type_to_str(T);
@@ -6283,12 +6283,12 @@ Array * Array_new(Type * T, U32 * cap) {
     return _t_Array_2411;
 }
 
-U32 * Array_len(Array * self) {
+USize * Array_len(Array * self) {
     (void)self;
-    { U32 *_r = malloc(sizeof(U32)); *_r = self->cap; return _r; }
+    { USize *_r = malloc(sizeof(USize)); *_r = self->cap; return _r; }
 }
 
-void * Array_get(Array * self, U32 * i) {
+void * Array_get(Array * self, USize * i) {
     (void)self;
     (void)i;
     Bool _t_Bool_2426 = U32_gte(i, &self->cap);
@@ -6349,7 +6349,7 @@ void * Array_get(Array * self, U32 * i) {
     return _t_v_2428;
 }
 
-void Array_set(Array * self, U32 * i, void * val) {
+void Array_set(Array * self, USize * i, void * val) {
     (void)self;
     (void)i;
     (void)val;
@@ -6582,7 +6582,7 @@ Array * Array_clone(Array * self) {
     return _t_Array_2473;
 }
 
-U32 Array_size(void) {
+USize Array_size(void) {
     I64 _t_I64_2474 = 48;
     (void)_t_I64_2474;
     return _t_I64_2474;
@@ -6722,7 +6722,7 @@ void println(Array * parts) {
         U32 _fi_USize_2782 = 0;
         (void)_fi_USize_2782;
         while (1) {
-            U32 _t_U32_2784; { U32 *_hp = (U32 *)Array_len(_fc_Array_2782); _t_U32_2784 = *_hp; free(_hp); }
+            USize _t_U32_2784; { USize *_hp = (USize *)Array_len(_fc_Array_2782); _t_U32_2784 = *_hp; free(_hp); }
             (void)_t_U32_2784;
             Bool _wcond_Bool_2783 = U32_lt(&_fi_USize_2782, &_t_U32_2784);
             (void)_wcond_Bool_2783;
@@ -7260,16 +7260,16 @@ void *U8_gte_dyn(void *_a0, void *_a1) {
     Bool *_r = malloc(sizeof(Bool)); *_r = U8_gte(_a0, _a1); return _r;
 }
 void *Vec_len_dyn(void *_a0) {
-    U32 *_r = malloc(sizeof(U32)); *_r = Vec_len(_a0); return _r;
+    USize *_r = malloc(sizeof(USize)); *_r = Vec_len(_a0); return _r;
 }
 void Vec_push_take_dyn(void *_a0, void *_a1, void *_a2) {
-    Vec_push_take(_a0, _a1, *(U32 *)_a2);
+    Vec_push_take(_a0, _a1, *(USize *)_a2);
 }
 void *Vec_size_dyn(void) {
-    U32 *_r = malloc(sizeof(U32)); *_r = Vec_size(); return _r;
+    USize *_r = malloc(sizeof(USize)); *_r = Vec_size(); return _r;
 }
 void *Str_len_dyn(void *_a0) {
-    U32 *_r = malloc(sizeof(U32)); *_r = Str_len(_a0); return _r;
+    USize *_r = malloc(sizeof(USize)); *_r = Str_len(_a0); return _r;
 }
 void *Str_cmp_dyn(void *_a0, void *_a1) {
     I64 *_r = malloc(sizeof(I64)); *_r = Str_cmp(_a0, _a1); return _r;
@@ -7305,7 +7305,7 @@ void *Str_to_f32_dyn(void *_a0) {
     F32 *_r = malloc(sizeof(F32)); *_r = Str_to_f32(_a0); return _r;
 }
 void *Str_size_dyn(void) {
-    U32 *_r = malloc(sizeof(U32)); *_r = Str_size(); return _r;
+    USize *_r = malloc(sizeof(USize)); *_r = Str_size(); return _r;
 }
 void *Str_eq_dyn(void *_a0, void *_a1) {
     Bool *_r = malloc(sizeof(Bool)); *_r = Str_eq(_a0, _a1); return _r;
@@ -7392,7 +7392,7 @@ void *I64_to_u32_dyn(void *_a0) {
     U32 *_r = malloc(sizeof(U32)); *_r = I64_to_u32(*(I64 *)_a0); return _r;
 }
 void *I64_to_usize_dyn(void *_a0) {
-    U32 *_r = malloc(sizeof(U32)); *_r = I64_to_usize(*(I64 *)_a0); return _r;
+    USize *_r = malloc(sizeof(USize)); *_r = I64_to_usize(*(I64 *)_a0); return _r;
 }
 void *I64_to_u64_dyn(void *_a0) {
     U64 *_r = malloc(sizeof(U64)); *_r = I64_to_u64(*(I64 *)_a0); return _r;
@@ -7479,10 +7479,10 @@ void *Type_is_dyn(void *_a0, void *_a1) {
     Bool *_r = malloc(sizeof(Bool)); *_r = Type_is(_a0, _a1); return _r;
 }
 void *Type_size_dyn(void) {
-    U32 *_r = malloc(sizeof(U32)); *_r = Type_size(); return _r;
+    USize *_r = malloc(sizeof(USize)); *_r = Type_size(); return _r;
 }
 void *Array_size_dyn(void) {
-    U32 *_r = malloc(sizeof(U32)); *_r = Array_size(); return _r;
+    USize *_r = malloc(sizeof(USize)); *_r = Array_size(); return _r;
 }
 void *dyn_fn(Str *type_name, Str *method) {
     (void)type_name; (void)method;
