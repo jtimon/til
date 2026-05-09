@@ -1,0 +1,20 @@
+** #191 Installed til computes VERSION from git at runtime
+   Fixed in commit ~68ba4ad~ ("Issue #191: precomp folds all macro
+   calls, typer rejects non-comptime macro args"). The
+   ~get_version()~ macro in [[file:../../src/til.til][src/til.til]] is now folded by precomp at
+   build time, so the installed compiler carries a baked version
+   string instead of shelling out to ~git rev-parse~ at runtime.
+
+   Verified in the current ~boot/til.c~:
+
+   #+begin_src c
+   VERSION = (Str){.c_str=(U8*)"0.0.1-d8eebe1ba", .count=15ULL, .cap=TIL_CAP_LIT};
+   #+end_src
+
+   The literal version is initialised at startup; no git invocation
+   happens, so an installed binary outside any git checkout no longer
+   prints ~fatal: not a git repository~ on the REPL banner.
+
+   The broader change (precomp folding all macro calls and the typer
+   rejecting non-comptime macro arguments) covers this case as a
+   side-effect, but it was the motivating example.

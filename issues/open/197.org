@@ -1,0 +1,34 @@
+# priority: medium
+** OPEN #197 Issue summary generator silently drops some open issues
+
+[[file:../../examples/issues.til][examples/issues.til]] regenerates [[./summary.org][issues/summary.org]] from the
+files under ~issues/open/~. Running it deterministically drops a
+subset of open issues from the output even though the source files
+are present and well-formed. As of master ~7fbc594~, the dropped
+high-priority entries are:
+
+  - [[./open/127.org][#127]] Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
+  - [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
+  - [[./open/143.org][#143]] Avoid unnecessary heap round-trips for Expr construction
+  - [[./open/146.org][#146]] Unify typer desugar/insert passes into a single walk
+
+And the following have apparently never appeared in the generated
+summary, even with the original committed file set:
+
+  - [[./open/114.org][#114]], [[./open/115.org][#115]], [[./open/116.org][#116]], [[./open/117.org][#117]], [[./open/124.org][#124]]
+
+Repro:
+
+  rm issues/open/81.org issues/open/191.org   # any small change works
+  bin/til run -o bin/c/issues_summary -c gen/c/issues_summary.c examples/issues.til
+  grep -E "#127|#128|#143|#146" issues/summary.org   # 0 hits
+
+The dropped files have valid headers (~# priority: high~ followed by
+~** OPEN #NNN ...~), so ~parse_issue~ in [[file:../../examples/issues.til][examples/issues.til]] is
+mis-handling them, or the ~Vec~ of entries is losing pushed elements
+(possibly the same shallow-clone class of bug tracked in [[./open/128.org][#128]]).
+
+Workaround for now: hand-patch ~issues/summary.org~ after each
+regeneration. The right fix is to debug ~parse_issue~ /
+~entries.push(own line)~ until the regen is faithful, then drop the
+manual patch.

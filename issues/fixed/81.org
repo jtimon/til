@@ -1,0 +1,25 @@
+** #81 UPtr type alias for pointer-sized integers
+   The alias and its retargeting infrastructure are in place:
+
+   - [[file:../../src/core/uptr.til][src/core/uptr.til]] defines ~UPtr := U64~ as the source-level
+     default.
+   - [[file:../../src/self/targets.til][src/self/targets.til]] ~target_uptr_name(target)~ returns ~"U32"~
+     for ~Wasm32~ / ~TempleosX86~ and ~"U64"~ otherwise.
+   - [[file:../../src/self/loader.til][src/self/loader.til:247]] retargets the alias per build:
+     ~retarget_alias_binding(lp.ctx.scope, "UPtr", target_uptr_name(lp.target))~.
+   - The typer ([[file:../../src/self/typer.til][src/self/typer.til:3846]]), interpreter, dispatch /
+     FFI ([[file:../../src/self/dispatch.til][src/self/dispatch.til]]), builder ([[file:../../src/self/builder.til][src/self/builder.til]]) and CLI
+     parser (~cli_parse_uptr~) all recognise ~UPtr~ as a first-class
+     pointer-width type.
+
+   Behaviour matches the original spec: platform-determined, not
+   user-configurable, ~U64~ on 64-bit and ~U32~ on the 32-bit
+   targets the compiler currently knows about. On Linux x86_64 it
+   resolves to ~U64~, as the issue called out.
+
+   Dependencies: #79 is fixed (alias resolution in FuncPtr typedef
+   signatures); #25 (multi-platform support) is still open, but the
+   UPtr alias mechanism doesn't block on it -- it's already wired
+   for the 32-bit targets that exist (~Wasm32~, ~TempleosX86~) and
+   will pick up new targets through ~target_uptr_name~ without
+   further work.

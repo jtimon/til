@@ -35,9 +35,9 @@
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
 *** [[./open/159.org][#159]] Show the til logo as a single character in the REPL prompt
 *** [[./open/164.org][#164]] Diagnose `mut` qualifiers that are never used to write
-*** [[./open/191.org][#191]] Installed til computes VERSION from git at runtime
 *** [[./open/193.org][#193]] Add lower-level File cursor APIs
 *** [[./open/195.org][#195]] Consider removing ~mode test~
+*** [[./open/197.org][#197]] Issue summary generator silently drops some open issues
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/36.org][#36]] Nested pattern matching in switch
@@ -61,4 +61,3 @@
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
 ** Medium
 ** Low
-*** [[./open/81.org][#81]] UPtr type alias for pointer-sized integers
