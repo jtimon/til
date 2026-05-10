@@ -3512,6 +3512,31 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
         } else if desugar_for_in_collection_stmt(scope, body, i, in_func, ctx) {
             i = i.sub(1)
         }
+    case NodeType.Throw:
+        // Issue #198 step 5a: minimal dispatch -- type-check the
+        // thrown expression so it isn't silently skipped. Validation
+        // (throws-set tracking) and lowering land in later steps.
+        if stmt.children.len().eq(1) {
+            infer_expr(scope, stmt.child(0), in_func, ctx)
+        } else {
+            type_error(stmt, "throw must have exactly one parameter")
+        }
+        stmt.til_type = Type.None
+    case NodeType.Catch:
+        // Issue #198 step 5a: minimal dispatch -- type-check the
+        // catch body in a child scope. The err variable binding and
+        // throws-set matching land in the validation step. Body
+        // statements need infer_body so var refs etc. resolve.
+        if stmt.children.len().eq(3) {
+            ref body_expr : Expr = stmt.child(2)
+            catch_scope := TypeScope(parent = scope)
+            infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
+            check_unused_locals(catch_scope, typer_path)
+            TypeScope.delete(own catch_scope)
+        } else {
+            type_error(stmt, "catch must have 3 children: var, type, body")
+        }
+        stmt.til_type = Type.None
     case:
         stmt.til_type = Type.None
     }

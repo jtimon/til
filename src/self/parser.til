@@ -316,6 +316,20 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         fd.return_type = expect_text(p, TokenType.Ident)
     }
 
+    // Issue #198: optional 'throws T1, T2, ...' clause after returns.
+    // Stored as a list of type-name strings on FunctionDef. Validation
+    // and lowering live in the typer; the parser only collects names.
+    if check(p, TokenType.KwThrows) {
+        advance(p)
+        tname := expect_text(p, TokenType.Ident)
+        fd.throw_types.push(own tname.clone())
+        while check(p, TokenType.Comma) {
+            advance(p)
+            next_tname := expect_text(p, TokenType.Ident)
+            fd.throw_types.push(own next_tname.clone())
+        }
+    }
+
     mut def := Expr.new(NodeType.FuncDef(fd), kw_line, kw_col)
 
     if check(p, TokenType.LBrace) {
@@ -630,6 +644,16 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
+    // Issue #198: postfix ~?~ marks a call to a throwing function.
+    if check(p, TokenType.Question) {
+        advance(p)
+        switch call.node_type {
+        case NodeType.FCall(fcd):
+            fcd.does_throw = true
+        case:
+            UNREACHABLE(__LOC__)
+        }
+    }
     return call
 }
 
@@ -850,6 +874,16 @@ parse_primary := proc(mut p: Parser) returns Expr {
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect_token(p, TokenType.RParen)
+            // Issue #198: postfix ~?~ on method call.
+            if check(p, TokenType.Question) {
+                advance(p)
+                switch mcall.node_type {
+                case NodeType.FCall(mcd):
+                    mcd.does_throw = true
+                case:
+                    UNREACHABLE(__LOC__)
+                }
+            }
             e = mcall
         } else {
             mut access := Expr.new(NodeType.FieldAccess(fname), f_line, f_col)
@@ -1450,6 +1484,34 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     if t.type.is(TokenType.KwContinue) {
         advance(p)
         return Expr.new(NodeType.Continue, t_line, t_col)
+    }
+    // Issue #198: `throw <expr>`. One child = thrown expression.
+    if t.type.is(TokenType.KwThrow) {
+        advance(p)
+        mut tn := Expr.new(NodeType.Throw, t_line, t_col)
+        tn.add_child(own parse_expression(p))
+        return tn
+    }
+    // Issue #198: `catch (err: T) { body }`.
+    // Three children: Ident var name, Ident type name, Body block.
+    if t.type.is(TokenType.KwCatch) {
+        advance(p)
+        expect_token(p, TokenType.LParen)
+        v_line := peek_line(p)
+        v_col := peek_col(p)
+        var_name := expect_text(p, TokenType.Ident)
+        expect_token(p, TokenType.Colon)
+        ty_line := peek_line(p)
+        ty_col := peek_col(p)
+        type_name := expect_text(p, TokenType.Ident)
+        expect_token(p, TokenType.RParen)
+        expect_token(p, TokenType.LBrace)
+        mut body := parse_block(p)
+        mut cn := Expr.new(NodeType.Catch, t_line, t_col)
+        cn.add_child(own Expr.new(NodeType.Ident(var_name.clone()), v_line, v_col))
+        cn.add_child(own Expr.new(NodeType.Ident(type_name.clone()), ty_line, ty_col))
+        cn.add_child(own body)
+        return cn
     }
 
     panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),

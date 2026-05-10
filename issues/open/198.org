@@ -1,5 +1,56 @@
 # priority: high
-** OPEN #198 Add throw/catch error handling, rstil-style, with desugaring in typer
+** WIP #198 Add throw/catch error handling, rstil-style, with desugaring in typer
+
+   *** Progress (in-flight on claude/add-throw-catch-support-lJA6W)
+
+   Done (parser-side scaffolding, all behind a typer that doesn't
+   yet validate or lower; tests stay green at 114/114 after each
+   commit):
+
+   1. Step 1 -- parse ~throws T1, T2, ...~ clause on func/proc/etc
+      signatures. Stored as ~Vec[Str] FunctionDef.throw_types~. No
+      validation yet.
+   2. Step 2 -- add ~NodeType.Throw~ and ~NodeType.Catch~ enum
+      variants (plus node_head_str / node_name entries). Pure enum
+      extension; nothing constructs them yet.
+   3. Step 3 -- parser branches for ~throw <expr>~ and
+      ~catch (err: T) { body }~. Throw has 1 child, Catch has 3
+      (Ident var name, Ident type name, Body).
+   4. Step 4 -- postfix ~?~ on calls sets ~FCallData.does_throw~.
+      Both ~name(args)?~ and ~obj.method(args)?~ are recognised.
+   5. Step 5a -- minimal typer dispatch in ~infer_body_stmt~ for
+      NodeType.Throw and NodeType.Catch. Throw type-checks its
+      child; Catch opens a child scope and infers the body. Both
+      set ~til_type = Type.None~. No validation, no lowering.
+
+   Remaining (in roughly the same order as the original plan
+   below):
+
+   6. Step 5b -- thrown_types accumulator + throws-set checks in
+      the typer. Port rstil's ~check_body_returns_throws~: track
+      each Throw and ~?~-marked FCall as it walks the body, match
+      Catch nodes against pending entries, and at function exit
+      reject any leftover that isn't in the declared throws plus
+      any declared throws never raised. Also bind ~err: T~ in the
+      Catch sub-scope so ~err.field~ resolves.
+   7. Step 5c -- ~?~-on-call validation: require ~?~ iff the
+      callee throws, reject ~?~ on constructors and non-throwing
+      calls.
+   8. Step 6 -- typer-side AST lowering. Replace Throw with
+      assignment to per-type ~_err_<T>~ slot + ~_err_kind~ tag,
+      replace Catch with an ~if I64.eq(_err_kind, tag)~ block that
+      resets ~_err_kind~ before running the body, and wrap
+      between-stmt code in ~if I64.eq(_err_kind, 0)~ guards.
+      After this step the interpreter and builder both run
+      throw/catch programs without any new error-handling code
+      paths.
+   9. Step 7 -- built-in error types in src/core/: at minimum
+      ~DivideByZero~ + ~I64.safe_div~. ~IndexOutOfBoundsError~
+      can ride along once Array.get is wired up.
+   10. Step 8 -- port rstil's src/test/errors.til as
+       ~src/test/errors.til~, wire into ~src/tests.til~, run on
+       both ~bin/til interpret~ and ~bin/til build~ + ASAN.
+
 
    Port rstil's exception/error system to til (~throw~, ~catch~,
    ~throws~, postfix ~?~ on calls) and gate it on a single shared

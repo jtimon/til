@@ -75,7 +75,9 @@ typedef enum {
     NodeType_TAG_SetLit,
     NodeType_TAG_Switch,
     NodeType_TAG_Case,
-    NodeType_TAG_NoDefaultArg
+    NodeType_TAG_NoDefaultArg,
+    NodeType_TAG_Throw,
+    NodeType_TAG_Catch
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
@@ -291,6 +293,7 @@ typedef struct FCallData {
     I32 kwargs_index;
     U32 kwargs_count;
     Bool is_splat;
+    Bool does_throw;
     U64 own_args;
 } FCallData;
 
@@ -563,6 +566,7 @@ typedef struct FunctionDef {
     FuncType func_type;
     Vec params;
     Str return_type;
+    Vec throw_types;
     I32 variadic_index;
     I32 kwargs_index;
     OwnType return_own_type;

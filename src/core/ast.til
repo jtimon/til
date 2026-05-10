@@ -136,6 +136,11 @@ FunctionDef := struct {
     mut func_type := FuncType.Func
     mut params := Vec.new(Declaration)
     mut return_type := ""
+    // Issue #198: list of error type names declared in the
+    // ~throws T1, T2, ...~ clause of the signature. Empty Vec when
+    // the function does not throw. Names match Type.Custom payloads
+    // (e.g. ~"DivideByZero"~, ~"Str"~).
+    mut throw_types := Vec.new(Str)
     mut variadic_index : I32 = -1.to_i32()
     mut kwargs_index : I32 = -1.to_i32()
     mut return_own_type := OwnType.Own
@@ -158,6 +163,10 @@ FCallData := struct {
     mut kwargs_index : I32 = -1.to_i32()
     mut kwargs_count : USize = 0
     mut is_splat := false
+    // Issue #198: parser sets this when the call is followed by ~?~,
+    // marking it as a call to a throwing function. The typer
+    // validates that does_throw matches the callee's throws set.
+    mut does_throw := false
     mut own_args : U64 = 0
 namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
@@ -266,6 +275,13 @@ NodeType := enum {
     Switch,
     Case,
     NoDefaultArg,
+    // Issue #198: error handling. Throw has 1 child (the thrown
+    // expression). Catch has 3 children: Ident (var name), Ident
+    // (caught type), Body. The typer validates and then lowers
+    // both away to plain til (mut locals + if), so no downstream
+    // stage ever evaluates them.
+    Throw,
+    Catch,
 }
 
 // --- Expr struct ---
@@ -416,6 +432,8 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.Switch:         return "Switch"
     case NodeType.Case:           return "Case"
     case NodeType.NoDefaultArg:   return "NoDefaultArg"
+    case NodeType.Throw:          return "Throw"
+    case NodeType.Catch:          return "Catch"
     case: return "?"
     }
 }
@@ -469,6 +487,8 @@ node_name := func(data: NodeType) returns Str {
     case NodeType.SetLit:      return "set_lit"
     case NodeType.Switch:      return "switch"
     case NodeType.Case:        return "case"
+    case NodeType.Throw:       return "throw"
+    case NodeType.Catch:       return "catch"
     case: return "?"
     }
 }
