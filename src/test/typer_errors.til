@@ -374,3 +374,10 @@ ref mut terr_module_null_mut : I64 = NULL
 macro_test := macro(x: I64) returns I64 { return x }
 runtime_val := func() returns I64 { return 42 }
 _ = macro_test(runtime_val())
+
+// #184: bare get_payload(...) in user code is rejected;
+// switch case bindings are the only legitimate way to extract
+// an enum payload.
+TerrGetPayloadEnum := enum { TerrI: I64, TerrZ }
+terr_get_payload_val := TerrGetPayloadEnum.TerrI(7)
+get_payload(terr_get_payload_val)

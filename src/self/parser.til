@@ -1458,25 +1458,6 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
 }
 
 // parse: entry point
-// Reject user-code references to ~get_payload~ -- the builtin is
-// internal-only and the typer emits it from switch case desugar.
-// Walk the post-parse AST and panic on any NodeType.Ident("get_payload").
-// Runs at parse time (before the typer introduces its own emissions),
-// so every such Ident is necessarily user-written.
-priv reject_user_get_payload := proc(e: Expr, path: Str) {
-    switch e.node_type {
-    case NodeType.Ident(id_name):
-        if id_name.eq("get_payload") {
-            panic(__LOC__, path, ":", e.line.to_str(), ":", e.col.to_str(),
-                ": bare get_payload(...) is not allowed in user code; use a switch case binding instead")
-        }
-    case:
-    }
-    for c : Expr in e.children {
-        reject_user_get_payload(c, path)
-    }
-}
-
 parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
     mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone())
 
@@ -1511,6 +1492,5 @@ parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
     for d : Expr in p.lambda_decls {
         root.add_child(own d.clone())
     }
-    reject_user_get_payload(root, path)
     return root
 }
