@@ -1327,7 +1327,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     if t.type.is(TokenType.KwReturn) {
         advance(p)
         mut ret := Expr.new(NodeType.Return, t_line, t_col)
-        if check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+        if check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()).and(check(p, TokenType.KwCase).not()) {
             ret.add_child(own parse_expression(p))
         }
         return ret
