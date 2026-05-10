@@ -1,5 +1,5 @@
 # priority: high
-** OPEN #184 Finish the bare ~get_payload~ -> switch destructure refactor
+** FIXED #184 Finish the bare ~get_payload~ -> switch destructure refactor
 
 Goal: remove the remaining bare ~get_payload(...)~ calls in the
    self-host and replace them with idiomatic switch destructuring,
@@ -36,33 +36,24 @@ Goal: remove the remaining bare ~get_payload(...)~ calls in the
    }
    #+end_src
 
-*** Current state
+*** Resolution
 
-    src/self/, src/core/ast.til and src/test/*.til have NO
-    remaining incidental bare ~get_payload~ calls -- every site is
-    either a switch case binding (which desugars to a typer-emitted
-    ~Ident("get_payload")~ AST node, fine) or one of the four
-    deliberate sites listed below.
+    parser.til now rejects every NodeType.Ident("get_payload") in
+    the post-parse AST. The check runs at the end of ~parse()~,
+    before the typer's switch desugar inserts its own
+    ~Ident("get_payload")~ FCall in
+    [[file:../../src/self/typer.til:make_switch_case_condition][src/self/typer.til:make_switch_case_condition]], so every
+    surviving Ident is necessarily user-written. There is no
+    allow-list. The only legitimate appearance of the name in
+    user source is the ~get_payload := ext_func(...)~ declaration
+    in [[file:../../src/core/dyn.til][src/core/dyn.til]], which is a NodeType.Decl whose ~name~
+    field is "get_payload" -- it doesn't contain a
+    NodeType.Ident("get_payload") child, so the check passes.
 
-    Deliberate user-code ~get_payload~ call sites:
-
-    - [[file:../../src/test/enums.til][src/test/enums.til]]: ~test_get_payload~,
-      ~test_get_payload_str~, ~test_get_payload_struct~. These
-      three tests exist specifically to exercise the builtin
-      directly; they are the language feature's test surface.
-    - [[file:../../src/core/dyn.til][src/core/dyn.til]]: the ~ext_func get_payload~ declaration
-      itself.
-
-*** Plan to close
-
-    Add a typer.til rule that rejects user-code calls to
-    ~get_payload~ outside the four sites above.
-    Typer-emitted ~Ident("get_payload")~ from switch case
-    desugaring stays allowed because it is constructed inside
-    the compiler, not written by the user. The check fires on
-    AST shape (NodeType.Ident("get_payload") inside an
-    NodeType.FCall) and consults a known-callers allow-list keyed
-    on enclosing function name + file path.
+    The three earlier ~test_get_payload*~ tests in
+    [[file:../../src/test/enums.til][src/test/enums.til]] were redundant: switch case bindings
+    already exercise the same get_payload code path through the
+    typer's desugar, so dropping them loses no coverage.
 
 *** ~.is~ vs ~.eq~ on enum tags
 

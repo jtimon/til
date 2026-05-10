@@ -347,27 +347,6 @@ test_is_payload_eof := test() {
     expect(__LOC__, t.is(Token.Num(0)).not(), "Eof not Num")
 }
 
-# --- get_payload (generic payload access) ---
-
-test_get_payload := test() {
-    t := Token.Num(42)
-    ref val : I64 = get_payload(t)
-    assert_eq(__LOC__, val, 42)
-}
-
-test_get_payload_str := test() {
-    t := Token.Name("hello")
-    ref val : Str = get_payload(t)
-    assert_eq_str(__LOC__, val, "hello")
-}
-
-test_get_payload_struct := test() {
-    s := Shape.Dot(Point(x = 3, y = 4))
-    ref p : Point = get_payload(s)
-    assert_eq(__LOC__, p.x, 3)
-    assert_eq(__LOC__, p.y, 4)
-}
-
 # --- exhaustive switch (#113): default catches everything the other cases don't ---
 
 test_switch_default_only := test() {

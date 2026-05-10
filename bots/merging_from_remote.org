@@ -103,8 +103,8 @@ checking out the prior commit.
 
 | Channel   | Bytes    | Allocs |
 |-----------+----------+--------|
-| interpret | 90361    | 16742  |
-| translate | 89695    | 16710  |
+| interpret | 90546    | 16767  |
+| translate | 89621    | 16692  |
 
 Build the ASAN binary:
 #+begin_src shell

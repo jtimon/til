@@ -959,6 +959,7 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, OwnType own_type);
 void drain_doc_comments(Parser * p);
 Expr * parse_statement(Parser * p);
 Expr * parse_statement_body(Parser * p);
+void reject_user_get_payload(Expr * e, Str * path);
 Expr * parse(Vec * tokens, Str * path, Str * mode_out);
 Bool is_lift_target(Expr * stmt);
 Str * lookup_name(Map * renamings, Str * name);
