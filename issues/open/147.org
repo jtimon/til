@@ -57,12 +57,38 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      pass; no separate Context fields are needed.
    - ~Declaration.til_type~ added and synced with ~explicit_type~ at
      every set site (~5f822fc~, ~8e72cd3~) -- step 5 prep.
+   - Step 7 partial -- ~FCallData.fn_sig~ removed. The dangerous
+     ~ref mut Expr = NULL~ field that used to point at the resolved
+     callee is gone; readers go through ~resolve_fn_sig~
+     ([[file:../../src/self/typer.til:339][src/self/typer.til:339]]) and ~fcall_fn_sig~
+     ([[file:../../src/self/builder.til:98][src/self/builder.til:98]]), which scope-walk to recover
+     what the cached ref used to provide. Proves the
+     "name + lookup" replacement pattern.
+   - Per #177, the ad-hoc ~ref mut current_*_def : Expr = NULL~
+     thread-local fields in interpreter / builder / typer were
+     migrated to Context fields; module-scope-only ref-NULL carve-out
+     is gone.
 
    Partial:
 
-   - Step 5 -- ~Declaration.til_type~ exists and stays in sync, but the
-     ~204~ ~explicit_type~ read sites still drive type classification.
-     Migrate readers to ~til_type~, then drop ~explicit_type~.
+   - Step 5 -- ~Declaration.til_type~ exists and stays in sync with
+     ~explicit_type~ at write sites, and ~243~ ~explicit_type~ read
+     sites across ~src/self/*~ still pivot on the string. The naive
+     "migrate readers, drop ~explicit_type~" plan is the wrong
+     direction: ~explicit_type~ is the parse-time fact, ~til_type~ is
+     the typer-filled cache, and dropping the parse fact while keeping
+     the cache makes the cache the database -- exactly the AST-as-cache
+     antipattern this issue catalogs, and it makes ~Expr.til_type~
+     /harder/ to remove (step 11 wants re-derivation from parse facts +
+     scope, not trust in a typer-mutated cache). Rstil's equivalent
+     ~Declaration.value_type~ works as a single field because the
+     parser writes it directly as ~TCustom(name)~ (the unresolved form)
+     and the typer only refines the classification. The til-shaped
+     step 5 is therefore: have the parser populate ~til_type~ as
+     ~Type.Custom(name)~ at parse time, stop writing ~explicit_type~,
+     migrate readers, then drop ~explicit_type~. Larger than a
+     mechanical reader migration; worth doing only as part of the
+     step-11 push.
    - Step 8 -- FuncSig/FuncDef split tracked under ~[[./58.org][#58]]~. Lambdas (~[[./61.org][#61]]~)
      already lift FuncSig-form expressions, so the type-level shape
      exists in flight; the ~FunctionDef~ struct in ~core/ast.til~ still
@@ -76,9 +102,14 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    - Step 4 -- remove ~Declaration.field_offset~ /
      ~field_size~ / ~field_struct_def~ and ~StructDef.total_struct_size~
      / ~EnumDef.total_enum_size~. Blocked on step 3.
-   - Step 7 -- shrink ~FCallData~ from 7 fields to ~{does_throw,
-     is_bang}~ (rstil ~FCallInfo~ shape). Variadic / kwargs / splat /
-     own_args / fn_sig are typer resolution artifacts.
+   - Step 7 remainder -- with ~fn_sig~ already gone, six typer-
+     resolution fields remain on ~FCallData~ (~variadic_index~,
+     ~variadic_count~, ~kwargs_index~, ~kwargs_count~, ~is_splat~,
+     ~own_args~). Compute on demand from the resolved callee
+     ~FunctionDef~, same lookup pattern that replaced ~fn_sig~. Note:
+     rstil's ~FCallInfo~ also has ~does_throw~ / ~is_bang~ parse facts
+     that til doesn't track yet -- those are additions, not
+     replacements for the typer-artifact fields.
    - Step 11 (stretch) -- remove ~Expr.til_type~. Long-term shape is
      rstil's derive-from-Context+AST (no per-Expr storage, no node
      IDs); see "Implications for removal" below for the path. Once
@@ -98,54 +129,53 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    | ~Expr~       | 5 fields: ~node_type, til_type, children, line, col~                                                                   | 4 fields: ~node_type, params, line, col~                       |
    | ~Declaration~ | 10 fields: ~name, doc, explicit_type, is_mut, own_type, til_type, field_offset, field_size, field_struct_def, default_value~ | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
    | ~Context~    | 10 fields: ~mode, path, path_modes, imported, imports_init_done, imports_typer_done, imports_precomp_done, imports_eval_done, scope, is_repl~ | ~19 fields: mode_def, path, scope_stack, temp_enum_payload, imported_asts, imported_modes, imports_*_done x4 Sets, current_precomp_func, precomp_forin_counter, precomputed_heap_values, anon_{struct,enum,func}_counter, anon_{struct,enum}_decls, anon_func_map |
-   | ~FCallData~  | 7 fields: ~variadic_index, variadic_count, kwargs_index, kwargs_count, is_splat, own_args, fn_sig (ref Expr)~          | 2 fields: ~does_throw, is_bang~                                |
+   | ~FCallData~  | 6 fields: ~variadic_index, variadic_count, kwargs_index, kwargs_count, is_splat, own_args~                             | 2 fields: ~does_throw, is_bang~                                |
    | ~StructDef~  | 4 fields: ~total_struct_size, fields, ns_decls, c_tag~                                                                 | 3 fields: ~members, default_values, ns~                        |
    | ~EnumDef~    | 4 fields: ~ns_decls, variants, payload_types, total_enum_size~                                                         | 3 fields: ~variants, methods, ns~                              |
 
-*** Audit (read/write site counts, master = ~2ca9261~)
+*** Audit (read/write site counts; remaining dangerous refs after ~fn_sig~ removal)
 
    **** Dangerous ~ref mut .. : Expr = NULL~ refs
 
    | Field                              | Writes | Reads | Notes                                                                                  |
    |------------------------------------+--------+-------+----------------------------------------------------------------------------------------|
    | ~Declaration.field_struct_def~     |      5 |   ~20 | initer x4 + typer x1 writes; reads in interpreter (~16), dispatch (2), loader (2), typer (1) |
-   | ~FCallData.fn_sig~                 |      4 |     5 | typer self-writes; reads: builder x3, typer x2 (one round-trips back to ~decl_b.func_def~)   |
    | ~TypeBinding.struct_def~           |      6 |   ~30 | initer + typer write; reads spread across initer/typer/interpreter/dispatch                  |
    | ~TypeBinding.func_def~             |    ~14 |   ~50 | most reads in typer (callee resolution); initer also reads heavily                           |
 
-   Two pieces of empirical evidence the dangling-ref hazard is real:
+   The dangling-ref hazard is empirically real: two defensive AST walks
+   exist solely to re-resolve ~field_struct_def~ pointers after a clone
+   invalidated them.
 
-   - [[file:../../src/self/loader.til:958-969][src/self/loader.til:958-969]] defines and calls
-     ~resolve_field_struct_defs~ -- a defensive AST walk after hoisting
-     to /re-resolve/ ~field_struct_def~ pointers because cloning the
-     AST invalidated them.
-   - [[file:../../src/self/typer.til:2593-2608][src/self/typer.til:2593-2608]] does the same thing
-     (~reregister_field_struct_defs~) after typer rebuilds.
+   - ~resolve_field_struct_defs~, called from
+     [[file:../../src/self/loader.til][src/self/loader.til]] after hoisting.
+   - ~reregister_field_struct_defs~ in
+     [[file:../../src/self/typer.til][src/self/typer.til]] after typer rebuilds.
 
-   And one round-trip pathology:
-
-   - ~typer.til:1825~ assigns ~decl_b.func_def = _rfc.fn_sig~ -- one
-     dangerous ref feeds another. Killing ~fn_sig~ (5 reads) cuts this
-     thread by half; killing ~TypeBinding.func_def~ closes it.
+   The ~fn_sig~ -> ~TypeBinding.func_def~ round-trip pathology that
+   used to feed one dangerous ref into another is gone with ~fn_sig~.
+   ~TypeBinding.func_def~ is still on the table as the next big purge.
 
    First-move ranking (smallest -> biggest):
 
-   1. *fn_sig* (5 read sites, 4 write sites; readers have ~scope~ at
-      hand and the callee name in ~fcall.child(0)~). Replacement:
-      ~scope.lookup_func(callee_name)~. Doesn't need new Context
-      machinery; mostly proves the "name + lookup" pattern.
-   2. *Declaration.field_struct_def* (~20 reads). Forces step 3
+   1. *Declaration.field_struct_def* (~20 reads). Forces step 3
       (~Context.struct_layouts~) + step 4. Biggest architectural payoff
       because it also kills ~resolve_field_struct_defs~ /
       ~reregister_field_struct_defs~ defensive walks. Needs an
       ~enum_layouts~ map alongside (current state already has
       ~EnumDef.total_enum_size~ matched against
       ~StructDef.total_struct_size~).
-   3. *TypeBinding.struct_def* / *TypeBinding.func_def* (~80 reads
+   2. *TypeBinding.struct_def* / *TypeBinding.func_def* (~80 reads
       combined). Largest scope. Discipline: store the name on the
       binding, look up via ~scope.get_struct(name)~ /
       ~scope.lookup_func(name)~ at read time. Needed to fully purge
       AST refs from the scope layer.
+
+   The smallest-but-model-neutral move that doesn't depend on either
+   of these is the *FCallData remainder* (step 7): the six typer-
+   resolution fields can be derived from the resolved callee through
+   the same ~resolve_fn_sig~ / ~fcall_fn_sig~ helpers that replaced
+   ~fn_sig~. ~is_splat~ is the easiest single-field cut.
 
    **** ~Expr.til_type~ reads/writes by phase
 
@@ -209,10 +239,13 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    Bottom line: ~Expr.til_type~ removal heads toward the rstil-style
    "derive from Context + AST" pattern. Hybrid (push ~til_type~ into
    selected NodeType payloads) is a reasonable intermediate step;
-   full side-table-with-node-id is rejected. Dangerous refs
-   (~fn_sig~ first, then ~field_struct_def~) are the actionable next
-   moves and also help leak reduction (cloners no longer need to
-   keep referenced nodes live just for the ref).
+   full side-table-with-node-id is rejected. With ~fn_sig~ already
+   removed, the remaining dangerous-ref work (~field_struct_def~,
+   then ~TypeBinding.struct_def~ / ~func_def~) is the actionable next
+   structural move; the FCallData remainder (step 7) is the smallest
+   model-neutral move that needs no new Context machinery. Both also
+   help leak reduction (cloners no longer need to keep referenced
+   nodes live just for the ref).
 
 *** Anti-pattern catalog (the remaining work, organized)
 
@@ -232,25 +265,46 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
 
    **** FCallData resolution artifacts (step 7)
 
-   Of the 7 fields on ~FCallData~, only would-be ~does_throw~ /
-   ~is_bang~ are parse facts. ~variadic_index~, ~variadic_count~,
-   ~kwargs_index~, ~kwargs_count~, ~is_splat~, ~own_args~, ~fn_sig~ are
-   all written by the typer.
+   ~fn_sig~ has been removed; readers now scope-walk via
+   ~resolve_fn_sig~ / ~fcall_fn_sig~. Six typer-written fields remain
+   on ~FCallData~: ~variadic_index~, ~variadic_count~, ~kwargs_index~,
+   ~kwargs_count~, ~is_splat~, ~own_args~. None are parse facts.
 
    Path forward: compute on demand during desugar from the resolved
-   ~FunctionDef~ (rstil's approach). A side table keyed on Expr
-   identity (~Map<Expr-id, FCallResolution>~) was considered earlier
-   but rejected for the same reason as the ~Expr.til_type~ side-
-   table option above: til has decided against node IDs.
+   ~FunctionDef~ (rstil's approach), reusing the same lookup that
+   replaced ~fn_sig~. A side table keyed on Expr identity
+   (~Map<Expr-id, FCallResolution>~) was considered earlier but
+   rejected for the same reason as the ~Expr.til_type~ side-table
+   option above: til has decided against node IDs.
 
-   ~fn_sig~ is also one of the dangerous-refs cases below.
+   Note: rstil's ~FCallInfo~ also tracks ~does_throw~ / ~is_bang~
+   parse facts (whether the call is ~?~ or ~!~). til doesn't store
+   those today; adding them is orthogonal to removing the typer
+   artifacts above.
 
    **** explicit_type / til_type duplication (step 5 finish)
 
    ~Declaration~ now carries both ~explicit_type : Str~ and
-   ~til_type : Type~ kept in sync at write sites (~5f822fc~). 204
-   read sites across ~src/self/*~ still pivot on ~explicit_type~. The
-   plan: migrate readers to ~til_type~, then delete ~explicit_type~.
+   ~til_type : Type~ kept in sync at write sites (~5f822fc~,
+   ~8e72cd3~). ~243~ ~explicit_type~ read sites across
+   ~src/self/*~ still pivot on the string.
+
+   The naive plan ("migrate readers to ~til_type~, drop
+   ~explicit_type~") is the wrong direction. ~explicit_type~ is the
+   parse-time fact; ~til_type~ is filled in by the typer. Dropping
+   the parse fact while keeping the typer-mutated cache makes the
+   cache the database -- the AST-as-cache antipattern. It also makes
+   step 11 (~Expr.til_type~ removal) /harder/, because step 11 wants
+   re-derivation from parse facts + scope, not trust in a cache.
+
+   The correct shape, matching rstil's single-field
+   ~Declaration.value_type~: have the parser write
+   ~til_type = Type.Custom(name)~ at parse time (the unresolved form),
+   stop writing ~explicit_type~, then migrate readers and drop
+   ~explicit_type~. The typer's job becomes refining ~Type.Custom~ ->
+   ~Type.Struct~ / ~Type.Enum~ / ... where it can, not filling an
+   empty slot. This is larger than a mechanical reader migration and
+   is best done as part of the step-11 push, not before.
 
    **** Expr.til_type per-node cache (step 11, stretch)
 
@@ -266,23 +320,23 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    or pre-date the nodes they point at. When any pass clones-and-filters
    ~body.children~ the refs can dangle. Catalog:
 
-   - ~Declaration.field_struct_def~ ([[file:../../src/core/ast.til:71][src/core/ast.til:71]]) -- points at
+   - ~Declaration.field_struct_def~ ([[file:../../src/core/ast.til:126][src/core/ast.til:126]]) -- points at
      a nested struct/enum AST node. Replace with a name + lookup in
      ~Context.struct_layouts~ once steps 3-4 land.
-   - ~FCallData.fn_sig~ ([[file:../../src/core/ast.til:99][src/core/ast.til:99]]) -- points at the
-     resolved callee. Replace with the callee's name + scope lookup,
-     which is what every reader does anyway after dereferencing.
+   - ~FCallData.fn_sig~ -- *removed*. Was the original motivating
+     case; the "name + lookup" replacement
+     (~resolve_fn_sig~ / ~fcall_fn_sig~) is now the template for the
+     remaining purges.
    - ~TypeBinding.struct_def~, ~TypeBinding.func_def~
-     ([[file:../../src/self/initer.til:18-19][src/self/initer.til:18-19]]) -- these live in ~scope.bindings~,
+     ([[file:../../src/self/initer.til:19-20][src/self/initer.til:19-20]]) -- these live in ~scope.bindings~,
      not on the AST, but they reference into the AST and have the same
      dangling-on-rebuild risk. Same fix: store name + look up the
      authoritative payload via ~scope.get_struct~ /
      ~scope.lookup_func~.
-   - Various ~ref mut current_*_def : Expr = NULL~ in
-     ~typer.til~ / ~builder.til~ / ~interpreter.til~ -- these are
-     thread-local-style state during a walk; less risky than the struct
-     fields but they encode "current X" implicitly instead of through
-     Context.
+   - Per-walk ~ref mut current_*_def : Expr = NULL~ thread-locals in
+     ~typer.til~ / ~builder.til~ / ~interpreter.til~ -- *migrated to
+     Context fields* per #177; module-scope-only ref-NULL carve-out is
+     gone. Listed here for completeness.
 
 *** Things til does better than rstil (honest balance, kept)
 
