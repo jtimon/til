@@ -215,11 +215,24 @@ namespace:
         case Value.Struct(si):
             // Value.Struct(...) enum ctor clones its arg internally,
             // so the temp from si.clone() leaks its data buffer when
-            // its no-op delete runs. Drop the temp's data after copy.
+            // its no-op delete runs. Drop the temp's data (and the
+            // Str c_str inside it, when applicable) after copy.
+            // StructInstance.clone for "Str" only allocates a fresh
+            // c_str when count > 0; for count == 0 the dst c_str is
+            // memcpy-shared with the source, so freeing it would
+            // double-free.
             mut tmp := si.clone()
             out := Value.Struct(tmp)
-            free(own tmp.data)
-            tmp.data = NULL
+            if is_null(tmp.data).not() {
+                if tmp.struct_name.eq("Str") {
+                    ref s_str : Str = to_ptr(tmp.data)
+                    if s_str.count.to_i64().gt(0).and(s_str.cap.lt(CAP_VIEW)) {
+                        if is_null(s_str.c_str).not() { free(own s_str.c_str) }
+                    }
+                }
+                free(own tmp.data)
+                tmp.data = NULL
+            }
             return out
         case Value.Enum(ei):
             mut tmp := ei.clone()
@@ -910,8 +923,13 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                             orig_callee := callee_expr.clone()
                             mut flat_ident := callee_expr.clone()
                             flat_ident.node_type = NodeType.Ident(fp_flat.clone())
+                            // The slot is an inline Expr in e.children's data
+                            // buffer; a raw move(...) would orphan its heap
+                            // allocations. Free the prior content first.
+                            free_expr_in_place(e.children.get(0))
                             move(e.children.get(0), flat_ident, Expr.size())
                             result := eval_call(scope, e)
+                            free_expr_in_place(e.children.get(0))
                             move(e.children.get(0), orig_callee, Expr.size())
                             return result
                         }
@@ -982,8 +1000,14 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                 orig_callee_val := callee_expr.clone()
                 mut flat_ident2 := callee_expr.clone()
                 flat_ident2.node_type = NodeType.Ident(flat_str.clone())
+                // Deep-delete the slot's prior content before each move:
+                // the slot is part of e.children's data buffer (inline Expr),
+                // and a raw move(...) would orphan its heap allocations
+                // (NodeType Str, til_type, children Vec, ...).
+                free_expr_in_place(e.children.get(0))
                 move(e.children.get(0), flat_ident2, Expr.size())
                 result := eval_call(scope, e)
+                free_expr_in_place(e.children.get(0))
                 move(e.children.get(0), orig_callee_val, Expr.size())
                 return result
             case:
@@ -1241,7 +1265,9 @@ cleanup_value_payload := func(shallow v: Value) {
             if is_null(si.data).not() {
                 if si.struct_name.eq("Str") {
                     ref s_str : Str = to_ptr(si.data)
-                    if s_str.cap.lt(CAP_VIEW) {
+                    // Only free c_str when count > 0: StructInstance.clone
+                    // for "Str" memcpy-shares c_str when count == 0.
+                    if s_str.count.to_i64().gt(0).and(s_str.cap.lt(CAP_VIEW)) {
                         if is_null(s_str.c_str).not() { free(own s_str.c_str) }
                     }
                 }
@@ -1390,6 +1416,16 @@ scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
     // cell_is_local = false (already zeroed by memset)
     s.bindings.set(own k, own v)
 }
+// Free the heap allocations inside an Expr that lives inline in a Vec
+// data buffer. Mirrors Expr.delete(false) but takes a ref since Vec
+// elements aren't owned values til-side. Used before move(...) replaces
+// an in-place Expr to keep the prior content from leaking.
+free_expr_in_place := func(mut e: Expr) {
+    NodeType.delete(own e.node_type, false)
+    Type.delete(own e.til_type, false)
+    Vec.delete(own e.children, false)
+}
+
 scope_free := func(own s: Scope) {
     for i in 0..s.bindings.len() {
         ref b : Binding = Map.val_ptr(s.bindings, i)
