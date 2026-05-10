@@ -42,8 +42,15 @@ namespace:
                 if s.count.to_i64().gt(0) {
                     if is_null(s.c_str).not() {
                         mut cloned_str := s.clone()
-                        // Only replace c_str pointer, keep original count and cap
+                        // Replace c_str with the freshly malloc'd clone
+                        // and update cap so the clone OWNS its buffer.
+                        // Preserving the original cap (e.g. CAP_VIEW from
+                        // a view-typed value) leaked the new buffer
+                        // because cleanup_value_payload / Str.delete
+                        // skip free for cap >= CAP_VIEW.
                         write_ptr(dst_data, cloned_str.c_str)
+                        ref mut dst_cap : U32 = ptr_add(dst_data, 12)
+                        dst_cap = s.count.clone()
                         // Prevent cloned_str destructor from freeing the new c_str
                         memset(cloned_str, 0, Str.size().to_u64())
                     }
@@ -72,6 +79,11 @@ namespace:
                             if is_null(s.c_str).not() {
                                 mut cloned_str := s.clone()
                                 write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), cloned_str.c_str)
+                                // Update cap to count so the clone owns
+                                // its freshly malloc'd buffer (mirrors
+                                // the Str-payload branch above).
+                                ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.to_i64().to_u64()), 12)
+                                dst_cap = s.count.clone()
                                 memset(cloned_str, 0, Str.size().to_u64())
                             }
                         }

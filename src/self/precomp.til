@@ -668,8 +668,26 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             return NULL
         }
         ref _arg_lit : Expr = value_to_expr(arg_val, arg)
-        if is_null(_arg_lit) { return NULL }
+        if is_null(_arg_lit) {
+            // Free the LiteralStr-owned arg_val before bailing. is_known
+            // for Ident returns a borrow from `known` (shared payload),
+            // so cleanup must skip that branch -- gating on the source
+            // node type is sufficient since LiteralNum/LiteralBool are
+            // inline and cleanup_value_payload is a no-op on them.
+            if arg.node_type.is(NodeType.LiteralStr) {
+                cleanup_value_payload(arg_val)
+            }
+            return NULL
+        }
         ec.add_child(own _arg_lit.clone())
+        // value_to_expr deep-copied the bytes (str_to_source_form clones,
+        // and ec.add_child clone'd the LiteralStr again), so arg_val's
+        // payload is no longer reachable from anything that survives the
+        // loop. Free it -- without this each LiteralStr arg of every
+        // pure-func / macro fold leaked its Str struct + buffer.
+        if arg.node_type.is(NodeType.LiteralStr) {
+            cleanup_value_payload(arg_val)
+        }
     }
 
     // Evaluate the call using the interpreter
@@ -698,7 +716,17 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
 
     // value_to_expr can still return NULL (e.g. Value.Struct non-Str).
     ref lit_local : Expr = value_to_expr(result, fcall)
-    if is_null(lit_local) { return NULL }
+    if is_null(lit_local) {
+        // result was produced by eval_expr and is owned by us; nothing
+        // else holds a reference past this point. Free it before bailing.
+        cleanup_value_payload(result)
+        return NULL
+    }
+    // value_to_expr deep-copied result's payload into the LiteralStr
+    // (str_to_source_form clones into source-form bytes), so the
+    // eval_expr-owned result can be freed now. Without this, every
+    // Str-returning fold leaked the heap buffer eval_expr produced.
+    cleanup_value_payload(result)
     // Preserve fcall.til_type. value_to_expr derives til_type from the
     // runtime Value variant (Uint32 -> U32), but the original fcall might
     // have been typed as USize/U64/... at typer time. Surrounding code
