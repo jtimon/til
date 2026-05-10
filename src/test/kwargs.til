@@ -55,8 +55,7 @@ bug188_kwargs_nested_in_kwargs := test() {
 // Lock that in. Same root fix as #186 / #188.
 bug188_join := func(parts: ..Str) returns Str {
     mut result := ""
-    for i in 0..parts.len() {
-        ref p : Str = parts.get(i)
+    for p : Str in parts {
         result = result.concat(p)
     }
     return result
@@ -112,8 +111,7 @@ bug189_sibling_mixed_variadic_kwargs := test() {
 // the named args block.
 combo_sum := func(_label: Str, items: ..I64, opts: ...) returns I64 {
     mut total := 0
-    for i in 0..items.len() {
-        ref n : I64 = items.get(i)
+    for n : I64 in items {
         total = total.add(n)
     }
     if opts.has("bias") {
@@ -153,8 +151,7 @@ test_combo_splat_with_kwargs := test() {
 // not passed and overrides when passed by name.
 combo_label := func(_a: Str, items: ..I64, label: Str = "default", opts: ...) returns Str {
     mut total := 0
-    for i in 0..items.len() {
-        ref n : I64 = items.get(i)
+    for n : I64 in items {
         total = total.add(n)
     }
     if opts.has("bias") {
