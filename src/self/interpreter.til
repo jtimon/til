@@ -1642,7 +1642,25 @@ make_str_value := func(data: Dynamic, shallow len: U64) returns shallow Value {
     write_ptr(inst_data, copy)
     ref mut count_slot : U32 = ptr_add(inst_data, 8)
     count_slot = len.to_i64().to_i32().to_u32()
-    memcpy(ptr_add(inst_data, 12), CAP_LIT, U32.size().to_u64())
+    // cap = count so Str.delete frees the malloc'd buffer (was CAP_LIT,
+    // which left the buffer alive forever -- a per-call leak that
+    // multiplied with every Str-typed precomp fold).
+    memcpy(ptr_add(inst_data, 12), count_slot, U32.size().to_u64())
+    ref lp : LoadedProgram = codegen_lp()
+    return make_struct_value(lp.ctx.cached_str_name, lp.ctx.cached_str_def, inst_data, false)
+}
+
+// Like make_str_value but builds a Value.Struct(Str) that VIEWS into
+// the caller's buffer (cap=CAP_VIEW) rather than copying. The caller
+// MUST guarantee `data` outlives every consumer of the returned Value.
+// Used by precomp to track LiteralStr Decls without copying the buffer:
+// the LiteralStr's c_str is stable for the entire precomp lifetime.
+make_str_value_view := func(data: Dynamic, shallow len: U64) returns shallow Value {
+    inst_data : Dynamic = malloc(Str.size())
+    write_ptr(inst_data, data)
+    ref mut count_slot : U32 = ptr_add(inst_data, 8)
+    count_slot = len.to_i64().to_i32().to_u32()
+    memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size().to_u64())
     ref lp : LoadedProgram = codegen_lp()
     return make_struct_value(lp.ctx.cached_str_name, lp.ctx.cached_str_def, inst_data, false)
 }

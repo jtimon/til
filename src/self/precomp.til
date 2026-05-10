@@ -89,6 +89,14 @@ priv hex_digit_value := func(b: U8) returns U8 {
 }
 
 priv from_source_form := func(s: Str) returns Str {
+    // Fast path: no backslash means no escape sequence to process,
+    // source-form bytes already equal post-escape bytes.
+    mut has_bs := false
+    nn := s.len()
+    for ii in 0..nn {
+        if s.byte_at(ii).eq(92.to_u8()) { has_bs = true; break }
+    }
+    if has_bs.not() { return s.clone() }
     n := s.len()
     mut out := ""
     mut i : U32 = 0.to_u32()
@@ -120,12 +128,27 @@ priv from_source_form := func(s: Str) returns Str {
     return out
 }
 
+// Cheap pre-scan: if every byte is a printable ASCII char that doesn't
+// need an escape, str_to_source_form would clone byte-for-byte.
+priv needs_source_escape := func(s: Str) returns shallow Bool {
+    n := s.len()
+    for i in 0..n {
+        ref b : U8 = s.byte_at(i)
+        if b.eq(34.to_u8()) { return true }
+        if b.eq(92.to_u8()) { return true }
+        if b.lt(32.to_u8()) { return true }
+        if b.gt(126.to_u8()) { return true }
+    }
+    return false
+}
+
 // Convert a runtime Str (raw bytes) into the source-form text that the
 // parser produces for `"..."` literals: 0x0A becomes the two chars
 // `\n`, 0x22 (`"`) becomes `\"`, etc. Keeps LiteralStr storage
 // consistent regardless of whether the node came from the parser or
 // from a precomp-time fold.
 priv str_to_source_form := func(s: Str) returns Str {
+    if needs_source_escape(s).not() { return s.clone() }
     n := s.len()
     mut out := ""
     for i in 0..n {
@@ -225,8 +248,23 @@ expr_to_value := func(e: Expr) returns shallow Value {
     case NodeType.LiteralStr(s):
         // LiteralStr stores source-form text (parser doesn't process
         // escapes); runtime sees post-escape bytes from C-compiler-
-        // interpreted Str_lit. Convert here so precomp's evaluator
-        // matches runtime byte counts and contents.
+        // interpreted Str_lit. Fast path: most LiteralStr nodes have no
+        // backslash, so source-form bytes already equal post-escape
+        // bytes. Build a Str view into the LiteralStr's own c_str
+        // (stable for the AST's lifetime) instead of allocating + memcpy
+        // -ing a private copy. Saves the per-call buffer alloc and the
+        // matching buffer leak (no caller frees Value.Struct payloads
+        // on the precomp hot path).
+        mut has_bs := false
+        for bi in 0..s.len() {
+            if s.byte_at(bi).eq(92.to_u8()) { has_bs = true; break }
+        }
+        if has_bs.not() {
+            return make_str_value_view(s.c_str, s.count)
+        }
+        // Slow path: process escape sequences into a fresh buffer. The
+        // result must own its bytes (post-escape bytes don't live in the
+        // AST), so use make_str_value which memcpys.
         raw := from_source_form(s)
         return make_str_value(raw.c_str, raw.count)
     case NodeType.LiteralBool(b):
@@ -688,6 +726,24 @@ track_literal := func(scope: Scope, name: Str, rhs: Expr) {
     }
 }
 
+// Like track_literal but skips the scope_set_owned step. Used by
+// fold_subtree for body-local Decls so the body's tracked values don't
+// share ownership with `scope` (the precomp interpreter scope used for
+// the entire compilation). Without this split, freeing known's payloads
+// during the FuncDef save/restore would dangle the shared scope binding
+// and corrupt the heap on the next interpreter lookup that touched it.
+track_literal_known_only := func(name: Str, rhs: Expr) {
+    mut v := val_none()
+    if is_known(rhs, v) {
+        if known.has(name) {
+            ref old : Value = known.get(name)
+            cleanup_value_payload(old)
+        }
+        mut vcopy := v
+        known.set(own name.clone(), own vcopy)
+    }
+}
+
 is_macro_call := func(e: Expr) returns shallow Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
@@ -732,13 +788,29 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         ref child : Expr = e.child(i)
         // Save+restore `known` around any nested FuncDef body so user-named
         // locals tracked inside one func body don't pollute siblings.
-        // _t_* temps are program-unique; user-named locals (`N`, `c`,
-        // `result`) collide across bodies via the global `known` Map.
         if child.node_type.is(NodeType.FuncDef) {
-            snapshot_fd := known.clone()
+            mut snapshot_fd := known.clone()
             fold_subtree(scope, child, ctx)
+            // Free payloads of every entry in `known` (both inherited
+            // and inner-fold-added) before dropping the Map. Map.delete
+            // doesn't deep-free Value payloads, so without this each
+            // FuncDef body fold would leak both the body's own Str
+            // additions and the deep-cloned outer payloads that the
+            // snapshot wired into known. Safe because body-local
+            // track_literal_known_only does not share Value payloads
+            // with `scope`.
+            for ki in 0..known.len() {
+                ref kv : Value = Map.val_ptr(known, ki)
+                cleanup_value_payload(kv)
+            }
             Map.delete(own known, false)
-            known = snapshot_fd
+            // Transfer snapshot_fd into known via memcpy (avoids the
+            // implicit Map.clone that til codegen would emit for a plain
+            // `known = snapshot_fd`, which would leak a second deep
+            // copy of every value). memset snapshot_fd to zero so its
+            // scope-end Map.delete becomes a no-op.
+            memcpy(known, snapshot_fd, Map.size().to_u64())
+            memset(snapshot_fd, 0.to_i32(), Map.size().to_u64())
             continue
         }
         fold_subtree(scope, child, ctx)
@@ -770,16 +842,15 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // Procs/ext_procs are intentionally never folded.
         }
         // Forward-track Decl literals so siblings can fold calls through
-        // them. Track ALL non-mut, non-ref Decls -- user-named locals
-        // (`N`, `result`) need to be visible inside macro folds. The
-        // process_body wrapper save/restores `known` per body so this
-        // doesn't pollute across sibling bodies.
+        // them. Track ALL non-mut, non-ref Decls. Use the known-only
+        // tracker so body-local payloads don't get aliased into `scope`
+        // (which would dangle when the FuncDef restore frees them).
         switch child.node_type {
         case NodeType.Decl(dd):
             if dd.is_mut.not()
             .and(dd.own_type.is(OwnType.Ref).not())
             .and(child.children.len().gt(0)) {
-                track_literal(scope, dd.name, child.child(0))
+                track_literal_known_only(dd.name, child.child(0))
             }
         case:
         }
