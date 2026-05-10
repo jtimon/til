@@ -168,6 +168,19 @@ is_known := func(e: Expr, mut out: Value) returns shallow Bool {
     }
 }
 
+// Cheap is_known check that doesn't allocate or fill an out-Value.
+// Use when callers only need the boolean and would otherwise leak the
+// throwaway temporary they pass to is_known.
+is_known_check := func(e: Expr) returns shallow Bool {
+    switch e.node_type {
+    case NodeType.LiteralNum:  return true
+    case NodeType.LiteralStr:  return true
+    case NodeType.LiteralBool: return true
+    case NodeType.Ident(id):   return known.has(id)
+    case:                      return false
+    }
+}
+
 // Walk `body` looking for a local Decl named `name`. Used to recognise
 // typer-hoisted temps and other body-locals so func_uses_unknown_globals
 // can skip flagging them as unknown globals.
@@ -560,6 +573,13 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
 track_literal := func(scope: Scope, name: Str, rhs: Expr) {
     mut v := val_none()
     if is_known(rhs, v) {
+        // Map.set deletes the old value via Value.delete(false), which is
+        // a no-op on .data -- so a same-name overwrite leaks the old
+        // payload. Deep-free it before set.
+        if known.has(name) {
+            ref old : Value = known.get(name)
+            cleanup_value_payload(old)
+        }
         mut vcopy := v
         known.set(own name.clone(), own vcopy)
         scope_set_owned(scope, name, v)
@@ -619,7 +639,7 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                 // Issue #191: fold func calls when all args are comptime.
                 mut all_comptime := true
                 for ai in 1..child.children.len() {
-                    if is_known(child.child(ai), val_none()).not() {
+                    if is_known_check(child.child(ai)).not() {
                         all_comptime = false
                         break
                     }
@@ -852,7 +872,13 @@ precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     if is_null(core_program).not() { process_body(global, core_program, ctx, true) }
     process_body(global, program, ctx, true)
 
-    // Cleanup
+    // Cleanup. Free each known value's heap payload before the Map drops
+    // them: StructInstance.delete is a no-op on .data (callers that move
+    // payloads via memcpy rely on that), so we do the deep free here.
+    for i in 0..known.len() {
+        ref v : Value = Map.val_ptr(known, i)
+        cleanup_value_payload(v)
+    }
     Map.delete(own known, false)
     scope_free(own global)
     Set.delete(own macros, false)

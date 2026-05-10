@@ -360,7 +360,13 @@ precomp_imported := proc(mut lp: LoadedProgram) {
         process_body(global, iu.ast, lp.ctx, true)
     }
 
-    // Cleanup
+    // Cleanup. Free each known value's heap payload before the Map drops
+    // them: StructInstance.delete is a no-op on .data (callers that move
+    // payloads via memcpy rely on that), so we do the deep free here.
+    for ki in 0..known.len() {
+        ref kv : Value = Map.val_ptr(known, ki)
+        cleanup_value_payload(kv)
+    }
     Map.delete(own known, false)
     scope_free(own global)
     Set.delete(own macros, false)
