@@ -546,7 +546,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         ref fdef : Expr = deref(fp)
         switch fdef.node_type {
         case NodeType.FuncDef(_fd):
-            if _fd.return_own_type.eq(OwnType.Ref) { return NULL }
+            if _fd.return_own_type.is(OwnType.Ref) { return NULL }
             // Issue #191: macros can call ext_funcs (e.g. run_cmd).
             // Funcs still can't.
             if is_macro_mode.not().and(_fd.func_type.is(FuncType.ExtFunc)) { return NULL }
@@ -777,7 +777,7 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         switch child.node_type {
         case NodeType.Decl(dd):
             if dd.is_mut.not()
-            .and(dd.own_type.eq(OwnType.Ref).not())
+            .and(dd.own_type.is(OwnType.Ref).not())
             .and(child.children.len().gt(0)) {
                 track_literal(scope, dd.name, child.child(0))
             }
@@ -921,7 +921,7 @@ precomp_register_globals := func(mut global: Scope, prog: Expr) {
     for stmt : Expr in prog.children {
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            if dd.is_mut.not().and(dd.own_type.eq(OwnType.Ref).not()) {
+            if dd.is_mut.not().and(dd.own_type.is(OwnType.Ref).not()) {
                 if stmt.children.len().gt(0) {
                     ref rhs : Expr = stmt.child(0)
                     // Skip function/struct/enum definitions

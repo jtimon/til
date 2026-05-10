@@ -1452,7 +1452,6 @@ void print_translate_success(BuildPaths * paths);
 I32 compile_ast(LoadedProgram * lp, BuildPaths * paths, Target * target, Str * cc_override);
 I32 cmd_translate(LoadedProgram * lp, Str * custom_c, Target * target);
 I32 cmd_build(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override);
-Str * default_install_prefix(void);
 I32 check_install_rc(I32 * rc, Str * what);
 Str * builder_compiler_root(LoadedProgram * lp);
 Str * support_root(Str * prefix);
