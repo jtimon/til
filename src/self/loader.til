@@ -368,6 +368,10 @@ precomp_imported := proc(mut lp: LoadedProgram) {
         cleanup_value_payload(kv)
     }
     Map.delete(own known, false)
+    // Same story for the precomp scope: each cell's Value payload was
+    // memcpy'd in via scope_set_owned and is uniquely owned. scope_free
+    // already handles Value.Enum; extend Value.Struct via this helper.
+    scope_deep_cleanup(global)
     scope_free(own global)
     Set.delete(own macros, false)
     Set.delete(own funcs, false)

@@ -1349,6 +1349,36 @@ scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
     // cell_is_local = false (already zeroed by memset)
     s.bindings.set(own k, own v)
 }
+// Deep-free Value.Struct payloads for every binding in this scope and
+// NULL out the data pointer so scope_free's normal pass becomes a no-op
+// for them. Use only when the caller knows the scope is the sole owner
+// of these payloads (e.g. precomp's global scope at teardown). Don't
+// touch Value.Enum here -- scope_free already frees those, so doing it
+// twice would double-free.
+scope_deep_cleanup := func(mut s: Scope) {
+    for i in 0..s.bindings.len() {
+        ref b : Binding = Map.val_ptr(s.bindings, i)
+        if b.cell_is_local {
+            switch b.cell.val {
+            case Value.Struct(si):
+                if si.borrowed.not() {
+                    if is_null(si.data).not() {
+                        if si.struct_name.eq("Str") {
+                            ref s_str : Str = to_ptr(si.data)
+                            if s_str.cap.lt(CAP_VIEW) {
+                                if is_null(s_str.c_str).not() { free(own s_str.c_str) }
+                            }
+                        }
+                        free(own si.data)
+                        si.data = NULL
+                    }
+                }
+            case:
+            }
+        }
+    }
+}
+
 scope_free := func(own s: Scope) {
     for i in 0..s.bindings.len() {
         ref b : Binding = Map.val_ptr(s.bindings, i)

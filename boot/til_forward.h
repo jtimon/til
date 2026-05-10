@@ -1619,6 +1619,7 @@ Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
 void scope_set_owned(Scope * s, Str * name, Value * val);
 void scope_set_borrowed(Scope * s, Str * name, Cell * cell);
+void scope_deep_cleanup(Scope * s);
 void scope_free(Scope * s);
 Bool interp_fa_is_ns_inner(Scope * scope, Expr * e, Str * sname);
 Cell * field_assign_dyn_move_src(Scope * scope, Expr * val_expr);
