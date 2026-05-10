@@ -235,3 +235,219 @@ scavenge_filter := func(mut program: Expr, visited: Set) {
         }
     }
 }
+
+// --- Body-level DCE (post-precomp dead temp elimination) -----------------
+
+// Constant folding in precomp replaces FCall nodes with literals, but the
+// arg-temps that the typer hoisted (`_t_<Type>_<n>`) remain as sibling
+// Decls with no remaining references. They're side-effect-free (literal
+// RHS, by-value primitive type), so we can drop them outright instead of
+// papering over the unused-variable warning with a `(void)<name>;`.
+
+// dyn_call/dyn_call_ret FCalls carry args beyond `nargs` that the
+// builder discards (see `is_dyn_call_name` handling in builder.til). So
+// `dyn_call_ret(self, "method", nargs, arg1, ..., argN, extra...)` only
+// "really uses" args up to index 4+nargs-1; later children are weak
+// refs that should not pin a hoisted temp.
+priv dyn_call_real_arg_count := func(e: Expr) returns shallow USize {
+    if e.node_type.is(NodeType.FCall).not() { return e.children.len() }
+    if e.children.len().lt(4) { return e.children.len() }
+    ref callee : Expr = e.child(0)
+    mut is_dc := false
+    switch callee.node_type {
+    case NodeType.Ident(cn):
+        is_dc = cn.eq("dyn_call").or(cn.eq("dyn_call_ret"))
+    case:
+    }
+    if is_dc.not() { return e.children.len() }
+    ref nargs_e : Expr = e.child(3)
+    mut nargs : USize = 0
+    switch nargs_e.node_type {
+    case NodeType.LiteralNum(s):
+        nargs = s.to_i64().to_usize()
+    case:
+        return e.children.len()
+    }
+    real := nargs.add(4.to_usize())
+    if real.gt(e.children.len()) { return e.children.len() }
+    return real
+}
+
+priv collect_body_refs := proc(e: Expr, mut refs: Set) {
+    if is_null(e) { return }
+    switch e.node_type {
+    case NodeType.Ident(name):
+        refs.add(own name.clone())
+    case NodeType.Assign(adata):
+        refs.add(own adata.name.clone())
+    case:
+    }
+    real_n := dyn_call_real_arg_count(e)
+    mut idx : USize = 0
+    for c : Expr in e.children {
+        if idx.gte(real_n) { break }
+        collect_body_refs(c, refs)
+        idx = idx.add(1)
+    }
+}
+
+// Recognize the typer-emitted "trivial delete" pattern:
+//
+//     <TypeName>.delete(<Ident>, LiteralBool false)
+//
+// These are auto-generated cleanup calls for hoisted primitive temps.
+// They emit as a bare `;` (the builder's by-value-delete shortcut), so
+// dropping them with the temp is safe and lets DCE actually remove the
+// temp without false-positive ref hits from the cleanup itself.
+//
+// Returns the target Ident name on match, "" otherwise.
+priv match_trivial_delete := func(stmt: Expr) returns Str {
+    if stmt.node_type.is(NodeType.FCall).not() { return "" }
+    if stmt.children.len().neq(3) { return "" }
+    ref callee : Expr = stmt.child(0)
+    if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
+    mut method := ""
+    switch callee.node_type {
+    case NodeType.FieldAccess(m): method = m.clone()
+    case:
+    }
+    if method.eq("delete").not() { return "" }
+    if callee.children.len().neq(1) { return "" }
+    ref tname : Expr = callee.child(0)
+    if tname.node_type.is(NodeType.Ident).not() { return "" }
+    ref arg0 : Expr = stmt.child(1)
+    if arg0.node_type.is(NodeType.Ident).not() { return "" }
+    ref arg1 : Expr = stmt.child(2)
+    if arg1.node_type.is(NodeType.LiteralBool).not() { return "" }
+    mut bv := false
+    switch arg1.node_type {
+    case NodeType.LiteralBool(b): bv = b
+    case:
+    }
+    if bv { return "" }
+    mut tn := ""
+    switch arg0.node_type {
+    case NodeType.Ident(n): tn = n.clone()
+    case:
+    }
+    return tn
+}
+
+// Side-effect-free, by-value RHS: dropping the binding cannot leak or
+// observe anything. Str literals are excluded because Str_lit allocates
+// and the corresponding delete is paired by name.
+priv rhs_is_pure_byvalue := func(e: Expr) returns shallow Bool {
+    if is_null(e) { return false }
+    switch e.node_type {
+    case NodeType.LiteralNum:  return true
+    case NodeType.LiteralBool: return true
+    case NodeType.LiteralNull: return true
+    case:
+    }
+    return false
+}
+
+// One DCE pass over a single Body. Returns true if anything was removed.
+priv dce_one_body := proc(mut body: Expr) returns shallow Bool {
+    n := body.children.len()
+    if n.eq(0) { return false }
+
+    // Phase 1: identify candidate temp Decls (non-mut, by-value, pure
+    // literal RHS) up front so phase 2 can ignore the trivial-delete
+    // cleanup calls that target them.
+    candidates := Set.new(Str)
+    for i in 0..n {
+        ref stmt : Expr = body.child(i)
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if dd.is_mut { continue }
+            if dd.own_type.is(OwnType.Own) { continue }
+            if dd.own_type.is(OwnType.Ref) { continue }
+            ref rhs : Expr = stmt.child(0)
+            if rhs_is_pure_byvalue(rhs).not() { continue }
+            candidates.add(own dd.name.clone())
+        case:
+        }
+    }
+
+    // Phase 2: collect "real" refs -- everything except trivial deletes
+    // that target a candidate temp. Those are weak refs we'll drop along
+    // with the candidate.
+    refs := Set.new(Str)
+    for i in 0..n {
+        ref stmt : Expr = body.child(i)
+        target := match_trivial_delete(stmt)
+        if target.len().gt(0).and(candidates.has(target)) { continue }
+        collect_body_refs(stmt, refs)
+    }
+
+    // Phase 3: mark Decls and their trivial-delete stmts for removal.
+    marks : Dynamic = malloc(n)
+    memset(marks, 0, n)
+    mut any := false
+    for i in 0..n {
+        ref stmt : Expr = body.child(i)
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if candidates.has(dd.name).not() { continue }
+            if refs.has(dd.name) { continue }
+            memset(ptr_add(marks, i), 1, 1)
+            any = true
+        case:
+        }
+    }
+    if any {
+        for j in 0..n {
+            ref stmt : Expr = body.child(j)
+            target := match_trivial_delete(stmt)
+            if target.len().eq(0) { continue }
+            if candidates.has(target).not() { continue }
+            if refs.has(target) { continue }
+            memset(ptr_add(marks, j), 1, 1)
+        }
+        children_filter(body.children, marks, n)
+    }
+    free(own marks)
+    Set.delete(own refs, false)
+    Set.delete(own candidates, false)
+    return any
+}
+
+// Recurse into nested bodies bottom-up; iterate to a fixed point so that
+// removing a Decl in an inner body can free up references that let an
+// outer Decl drop too.
+priv body_dce_walk := proc(mut e: Expr) {
+    if is_null(e) { return }
+    for i in 0..e.children.len() {
+        body_dce_walk(e.child(i))
+    }
+    if e.node_type.is(NodeType.Body) {
+        while dce_one_body(e) {}
+    }
+}
+
+priv body_dce_ns := proc(rhs: Expr) {
+    ref ns : Vec = def_ns_decls(rhs)
+    for _nsd_e : Declaration in ns {
+        ref nsd : Declaration = _nsd_e
+        if is_null(nsd.default_value) { continue }
+        if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+        if nsd.default_value.children.len().eq(0) { continue }
+        body_dce_walk(nsd.default_value.child(0))
+    }
+}
+
+dce_program_bodies := proc(mut program: Expr) {
+    for stmt : Expr in program.children {
+        if is_def(stmt).not() { continue }
+        ref rhs : Expr = stmt.child(0)
+        if rhs.node_type.is(NodeType.FuncDef) {
+            if rhs.children.len().gt(0) { body_dce_walk(rhs.child(0)) }
+        } else if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+            body_dce_ns(rhs)
+        }
+    }
+}

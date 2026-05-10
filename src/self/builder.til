@@ -618,6 +618,20 @@ priv emit_indent := proc(f: File, shallow depth: I32) {
     }
 }
 
+// Mirror of scavenger.til's rhs_is_pure_byvalue: by-value primitive
+// literal RHSes are exactly the cases body DCE will drop when the temp
+// is unreferenced, so the builder can skip the `(void)<name>;` guard.
+priv rhs_is_pure_byvalue_for_emit := func(e: Expr) returns shallow Bool {
+    if is_null(e) { return false }
+    switch e.node_type {
+    case NodeType.LiteralNum:  return true
+    case NodeType.LiteralBool: return true
+    case NodeType.LiteralNull: return true
+    case:
+    }
+    return false
+}
+
 emit_til_default := proc(f: File, shallow t: Type) {
     if t.is(Type.I64).or(t.is(Type.I16)).or(t.is(Type.I32))
     .or(t.is(Type.U32)).or(t.is(Type.U64)).or(t.is(Type.F32))
@@ -1000,7 +1014,6 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
         if is_typedef { f.write(ct); f.write(" "); f.write(dd.name); f.write(" = ") }
         else { f.write(ct); f.write(dd.name); f.write(" = ") }
         emit_expr(f, rhs, depth); f.write(";\n")
-        emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
     } else if rhs.node_type.is(NodeType.FuncDef) {
         f.write("/* TODO: nested func "); f.write(dd.name); f.write(" */\n")
     } else if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
@@ -1025,6 +1038,11 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
             if is_rg { f.write(dd.name); f.write(" = ") }
             else { f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ") }
             emit_as_ptr(f, rhs, depth, false); f.write(";\n")
+            // Ref decls (e.g. switch-case payload binds) can be unused on
+            // purpose -- til convention names them `_x`. Body DCE skips
+            // OwnType.Ref so we keep a (void) guard for the remaining
+            // unused-variable warnings.
+            emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
         } else {
             ctype := resolve_decl_ctype(e.til_type, rhs.til_type, dd.explicit_type)
             is_global := is_value_global(dd.name).and(in_func_def.not())
@@ -1116,7 +1134,15 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                 }
             }
         }
-        emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
+        // Body DCE removes unreferenced literal-RHS temps. For everything
+        // else (FCall side effects, FieldAccess, ctor allocations, mut
+        // vars), keep a (void) guard so -Werror=unused-{variable,but-set}
+        // doesn't fire on cases DCE can't safely drop. The (void) is now
+        // skipped for the literal-temp pattern that `_t_*` const-folding
+        // leaves behind.
+        if rhs_is_pure_byvalue_for_emit(rhs).not() {
+            emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
+        }
     }
     case:
         UNREACHABLE(__LOC__)
