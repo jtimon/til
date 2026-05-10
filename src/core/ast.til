@@ -347,6 +347,16 @@ namespace:
     }
 }
 
+// #147 step 11: single chokepoint for Expr.til_type reads. Today this
+// just returns the cached field; future moves migrate to deriving from
+// node_type + scope (rstil's get_value_type pattern), per-NodeType-
+// payload storage for the hybrid path, or a mix. Keeping all reads
+// behind one function lets the implementation evolve without revisiting
+// hundreds of call sites.
+expr_til_type := func(e: Expr) returns Type {
+    return e.til_type
+}
+
 // --- func_type_pascal ---
 // Enum-name form of FuncType (as written in NodeType.FuncDef payload), for
 // Expr.to_str output. Distinct from func_type_name which returns the til
@@ -478,8 +488,9 @@ ast_print := proc(e: Expr, shallow indent: U32) {
         print("  ")
     }
     print("(", node_name(e.node_type))
-    if e.til_type.is(Type.Unknown).not() {
-        print(":", til_type_name_c(e.til_type))
+    et := expr_til_type(e)
+    if et.is(Type.Unknown).not() {
+        print(":", til_type_name_c(et))
     }
     switch e.node_type {
     case NodeType.Ident(s):      print(" \"", s, "\"")
