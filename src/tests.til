@@ -360,6 +360,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/operators.til", flags)
     add_mode(tests, "src/test/functions.til", flags)
     add_mode(tests, "src/test/structs.til", flags)
+    add_mode(tests, "src/test/local_defs.til", flags)
     add_mode(tests, "src/test/optional_args.til", flags)
     add_mode(tests, "src/test/forward_refs.til", flags)
     add_mode(tests, "src/test/flow.til", flags)

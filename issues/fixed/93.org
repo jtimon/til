@@ -1,0 +1,33 @@
+# priority: low
+** FIXED #93 Local struct, enum, and function definitions
+
+Struct, enum, and function definitions inside function bodies don't
+  work -- the builder emits them at file scope but the generated C
+  references them before their declaration. Currently all type
+  definitions must be at top level.
+
+Fix: a new pre-typer transform pass (src/self/lifter.til, called from
+init_file) walks each top-level function body and hoists any inner
+Decl whose RHS is a struct, enum, or func/proc/test/macro definition
+to the program top level. Each lifted decl gets its name mangled to
+`<parent>_<orig>` (recursively for deeper nesting), the slot in the
+parent body becomes an empty inner block, and references to the
+original name within the parent body (Ident, FieldAccess base, FCall
+callee, Decl explicit_type, FuncDef return_type / param types,
+StructDef field types, EnumDef ns_decls) are rewritten to the
+mangled name through a single recursive walk.
+
+Mirrors rstil's `collect_nested_func_info` architecture
+(ccodegen.rs, ccodegen.til): the parser stays dumb and produces an
+AST that reflects the source, the hoisting concern lives in a
+dedicated post-parse pass, and mangling means two unrelated functions
+can each declare a local `Point := struct {...}` without colliding.
+
+`ext_func` / `ext_proc` forward declarations are NOT lifted -- they
+refer to externally-linked C symbols and the existing local-extern
+pattern in src/core/u64.til and src/core/f32.til keeps working.
+
+Coverage: src/test/local_defs.til exercises local struct, enum,
+payload-enum, func, struct-then-func, inside-a-bare-block, same-name
+across functions, and field-name-equals-local in both interpret and
+compile modes (8 tests, both backends).

@@ -54,7 +54,6 @@
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
-*** [[./open/93.org][#93]] Local struct, enum, and function definitions
 *** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
 
 * WIP

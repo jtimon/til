@@ -1,6 +1,7 @@
 mode lib
 
 import("parser")
+import("lifter")
 
 TypeBinding := struct {
     mut name := ""
@@ -2412,6 +2413,12 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
     ctx.imports_init_done.add(own path.clone())
 
     ref iu : ImportUnit = ctx.imported.get(path)
+
+    // Issue #93: hoist nested struct/enum/func defs from function
+    // bodies to the top level (with mangled names like `<parent>_<orig>`).
+    // Runs once per file before any registration so the rest of the
+    // pipeline only sees flat top-level decls.
+    lift_nested_defs(iu.ast)
 
     // Walk the AST in source order and recurse on each ~import("...")~ FCall.
     // iu.imports is kept as a side table that maps the i-th import FCall to

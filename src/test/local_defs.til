@@ -1,0 +1,86 @@
+mode test
+
+// Issue #93: struct/enum/func definitions inside a `{ ... }` block are
+// hoisted to the program top level by src/self/lifter.til with names
+// mangled `<parent>_<orig>`, so two functions can declare a same-named
+// local without colliding and the builder emits normal file-scope code.
+
+test_local_struct := test() {
+    LocalPoint := struct {
+        mut x := 0
+        mut y := 0
+    }
+    mut p := LocalPoint()
+    p.x = 5
+    p.y = 7
+    assert_eq(__LOC__, p.x, 5)
+    assert_eq(__LOC__, p.y, 7)
+}
+
+test_local_struct_same_name_different_shape := test() {
+    LocalPoint := struct {
+        mut a := 11
+    }
+    p := LocalPoint()
+    assert_eq(__LOC__, p.a, 11)
+}
+
+test_local_enum := test() {
+    LocalColor := enum { LCRed, LCGreen, LCBlue }
+    c := LocalColor.LCGreen
+    mut tag := 0
+    switch c {
+    case LocalColor.LCRed:   tag = 1
+    case LocalColor.LCGreen: tag = 2
+    case LocalColor.LCBlue:  tag = 3
+    }
+    assert_eq(__LOC__, tag, 2)
+}
+
+test_local_enum_payload := test() {
+    LocalOp := enum { LOAdd: I64, LODone }
+    o := LocalOp.LOAdd(42)
+    mut acc := 0
+    switch o {
+    case LocalOp.LOAdd(v): acc = v
+    case LocalOp.LODone:   acc = -1
+    }
+    assert_eq(__LOC__, acc, 42)
+}
+
+test_local_func := test() {
+    local_add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+    assert_eq(__LOC__, local_add(2, 3), 5)
+}
+
+test_local_struct_with_local_func := test() {
+    LocalPair := struct {
+        mut a := 0
+        mut b := 0
+    }
+    sum_pair := func(p: LocalPair) returns I64 { return p.a.add(p.b) }
+    mut q := LocalPair()
+    q.a = 4
+    q.b = 9
+    assert_eq(__LOC__, sum_pair(q), 13)
+}
+
+test_local_struct_in_block := test() {
+    {
+        BlockBox := struct { mut v := 0 }
+        mut b := BlockBox()
+        b.v = 11
+        assert_eq(__LOC__, b.v, 11)
+    }
+}
+
+// Mangling lets a local struct field share the parent's argument name
+// without ambiguity (the lifted top-level decl is `<parent>_LocalPair`,
+// not `LocalPair`, so type/value namespaces don't collide).
+test_local_func_field_name_match := test() {
+    LocalPair := struct {
+        mut z := 0
+    }
+    z := LocalPair()
+    assert_eq(__LOC__, z.z, 0)
+}
