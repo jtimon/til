@@ -12,8 +12,10 @@ namespace:
     ext_func to_i16(shallow val: I64) returns shallow I16
     ext_func to_i32(shallow val: I64) returns shallow I32
     ext_func to_u32(shallow val: I64) returns shallow U32
-    /// Convert to USize (target-width unsigned integer).
-    func to_usize(shallow val: I64) returns shallow U32
+    /// Convert to USize (target-width unsigned integer). Backed by the
+    /// C-level cast (USize)val so it tracks ext.h's USize typedef once it
+    /// becomes target-driven on 64-bit; see issue #192.
+    ext_func to_usize(shallow val: I64) returns shallow U32
     ext_func to_u64(shallow val: I64) returns shallow U64
     ext_func to_f32(shallow val: I64) returns shallow F32
     ext_func add(shallow a: I64, shallow b: I64) returns shallow I64

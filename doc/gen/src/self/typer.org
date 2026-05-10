@@ -71,6 +71,11 @@ current_type_name is a Str
 auto_gen_depth is a I32
 #+end_src
 
+* typer_in_shallow_return
+#+begin_src til
+typer_in_shallow_return is a Bool
+#+end_src
+
 * I64Name
 #+begin_src til
 I64Name is a Str
@@ -163,6 +168,11 @@ proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str)
 * find_namespace_func
 #+begin_src til
 func find_namespace_func(sdef: Expr, method: Str) returns ref Expr
+#+end_src
+
+* expr_is_comptime
+#+begin_src til
+func expr_is_comptime(e: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * namespace_member_is_priv
@@ -258,6 +268,11 @@ proc infer_field_access_fcall(scope: TypeScope, mut e: Expr, shallow in_func: I3
 * check_priv_access
 #+begin_src til
 proc check_priv_access(mut e: Expr, name: Str, mut b: TypeBinding)
+#+end_src
+
+* check_priv_type_name
+#+begin_src til
+proc check_priv_type_name(mut e: Expr, name: Str, scope: TypeScope)
 #+end_src
 
 * check_member_priv
@@ -568,6 +583,11 @@ func literal_in_range(val_str: Str, target: Type) returns shallow Bool
 * can_implicit_widen
 #+begin_src til
 func can_implicit_widen(from: Type, to: Type) returns shallow Bool
+#+end_src
+
+* type_from_name_at
+#+begin_src til
+proc type_from_name_at(name: Str, scope: TypeScope, mut e: Expr) returns Type
 #+end_src
 
 * type_from_name

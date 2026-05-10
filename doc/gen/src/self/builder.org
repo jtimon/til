@@ -161,9 +161,19 @@ func find_callee_fdef(name: Str) returns ref Expr
 func fa_struct_name(e: Expr) returns Str
 #+end_src
 
+* builder_fa_is_ptr_with_fname
+#+begin_src til
+func builder_fa_is_ptr_with_fname(sname: Str, fname: Str) returns shallow Bool
+#+end_src
+
 * builder_fa_is_ptr
 #+begin_src til
 func builder_fa_is_ptr(e: Expr) returns shallow Bool
+#+end_src
+
+* builder_fa_is_ns_with_fname
+#+begin_src til
+func builder_fa_is_ns_with_fname(e: Expr, sname: Str, fname: Str) returns shallow Bool
 #+end_src
 
 * builder_fa_is_ns
@@ -713,7 +723,7 @@ proc emit_global_declarations(f: File)
 
 * emit_test_main
 #+begin_src til
-proc emit_test_main(f: File, program: Expr)
+proc emit_test_main(f: File, lp: LoadedProgram)
 #+end_src
 
 * emit_script_main
@@ -847,6 +857,11 @@ proc cmd_install(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_o
 * cmd_run
 #+begin_src til
 proc cmd_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str) returns shallow I32
+#+end_src
+
+* cmd_test_build_run
+#+begin_src til
+proc cmd_test_build_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str) returns shallow I32
 #+end_src
 
 * format_unit_doc_org

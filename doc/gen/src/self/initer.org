@@ -9,7 +9,6 @@ struct TypeBinding {
     mut func_type : FuncType
     mut is_mut : Bool
     mut is_priv : Bool
-    mut priv_err_reported : Bool
     mut path : Str
     mut line : U32
     mut col : U32
@@ -98,6 +97,7 @@ struct Context {
     mut imports_eval_done : Set
     mut scope : TypeScope
     mut is_repl : Bool
+    mut typing_namespace_member : Bool
     mut local_fn_sigs : Map
     mut func_defs : Map
     mut struct_def_exprs : Map

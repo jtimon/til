@@ -1,14 +1,14 @@
 #+TITLE: src/self/precomp.til
 #+OPTIONS: toc:t
 
-* _t_Str_18434
+* _t_Str_18666
 #+begin_src til
-_t_Str_18434 is a Str
+_t_Str_18666 is a Str
 #+end_src
 
-* _t_Type_18435
+* _t_Type_18667
 #+begin_src til
-_t_Type_18435 is a Type
+_t_Type_18667 is a Type
 #+end_src
 
 * macros
@@ -16,14 +16,14 @@ _t_Type_18435 is a Type
 macros is a Set
 #+end_src
 
-* _t_Str_18436
+* _t_Str_18668
 #+begin_src til
-_t_Str_18436 is a Str
+_t_Str_18668 is a Str
 #+end_src
 
-* _t_Type_18437
+* _t_Type_18669
 #+begin_src til
-_t_Type_18437 is a Type
+_t_Type_18669 is a Type
 #+end_src
 
 * funcs
@@ -31,24 +31,24 @@ _t_Type_18437 is a Type
 funcs is a Set
 #+end_src
 
-* _t_Str_18438
+* _t_Str_18670
 #+begin_src til
-_t_Str_18438 is a Str
+_t_Str_18670 is a Str
 #+end_src
 
-* _t_Str_18439
+* _t_Str_18671
 #+begin_src til
-_t_Str_18439 is a Str
+_t_Str_18671 is a Str
 #+end_src
 
-* _t_Type_18440
+* _t_Type_18672
 #+begin_src til
-_t_Type_18440 is a Type
+_t_Type_18672 is a Type
 #+end_src
 
-* _t_Type_18441
+* _t_Type_18673
 #+begin_src til
-_t_Type_18441 is a Type
+_t_Type_18673 is a Type
 #+end_src
 
 * known
@@ -84,6 +84,11 @@ func expr_to_value(e: Expr) returns shallow Value
 * is_known
 #+begin_src til
 func is_known(e: Expr, mut out: Value) returns shallow Bool
+#+end_src
+
+* is_known_check
+#+begin_src til
+func is_known_check(e: Expr) returns shallow Bool
 #+end_src
 
 * body_has_local
@@ -154,6 +159,11 @@ func precomp_scan_names(prog: Expr)
 * precomp_register_defs
 #+begin_src til
 func precomp_register_defs(mut global: Scope, prog: Expr)
+#+end_src
+
+* precomp_register_globals
+#+begin_src til
+func precomp_register_globals(mut global: Scope, prog: Expr)
 #+end_src
 
 * precomp

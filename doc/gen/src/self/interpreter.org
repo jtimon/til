@@ -148,24 +148,24 @@ has_continue is a Bool
 return_value is a Value
 #+end_src
 
-* _t_Str_30331
+* _t_Str_30982
 #+begin_src til
-_t_Str_30331 is a Str
+_t_Str_30982 is a Str
 #+end_src
 
-* _t_Str_30332
+* _t_Str_30983
 #+begin_src til
-_t_Str_30332 is a Str
+_t_Str_30983 is a Str
 #+end_src
 
-* _t_Type_30333
+* _t_Type_30984
 #+begin_src til
-_t_Type_30333 is a Type
+_t_Type_30984 is a Type
 #+end_src
 
-* _t_Type_30334
+* _t_Type_30985
 #+begin_src til
-_t_Type_30334 is a Type
+_t_Type_30985 is a Type
 #+end_src
 
 * ns_fields
@@ -178,24 +178,24 @@ ns_fields is a Map
 ns_keys is a Vec
 #+end_src
 
-* _t_Str_30335
+* _t_Str_30986
 #+begin_src til
-_t_Str_30335 is a Str
+_t_Str_30986 is a Str
 #+end_src
 
-* _t_Str_30336
+* _t_Str_30987
 #+begin_src til
-_t_Str_30336 is a Str
+_t_Str_30987 is a Str
 #+end_src
 
-* _t_Type_30337
+* _t_Type_30988
 #+begin_src til
-_t_Type_30337 is a Type
+_t_Type_30988 is a Type
 #+end_src
 
-* _t_Type_30338
+* _t_Type_30989
 #+begin_src til
-_t_Type_30338 is a Type
+_t_Type_30989 is a Type
 #+end_src
 
 * interp_type_defs
@@ -253,9 +253,9 @@ func val_f32(shallow v: F32) returns shallow Value
 func val_bool(shallow v: Bool) returns shallow Value
 #+end_src
 
-* _t_I64_30339
+* _t_I64_30990
 #+begin_src til
-_t_I64_30339 is a I64
+_t_I64_30990 is a I64
 #+end_src
 
 * ENUM_PAYLOAD_OFFSET
@@ -281,6 +281,11 @@ func elem_size_for_type(type_name: Str) returns shallow I32
 * parse_cli_arg
 #+begin_src til
 func parse_cli_arg(s: Str, type_name: Str) returns shallow Value
+#+end_src
+
+* resolve_ptr_to_struct
+#+begin_src til
+func resolve_ptr_to_struct(mut obj: Value, scope: Scope, obj_sname: Str)
 #+end_src
 
 * eval_expr
@@ -321,6 +326,11 @@ proc eval_call(scope: Scope, e: Expr) returns shallow Value
 * free_value
 #+begin_src til
 func free_value(shallow v: Value)
+#+end_src
+
+* cleanup_value_payload
+#+begin_src til
+func cleanup_value_payload(shallow v: Value)
 #+end_src
 
 * needs_widen
@@ -366,6 +376,11 @@ func scope_set_borrowed(mut s: Scope, name: Str, cell: Cell)
 * scope_free
 #+begin_src til
 func scope_free(own s: Scope)
+#+end_src
+
+* interp_fa_is_ns_with_fname
+#+begin_src til
+func interp_fa_is_ns_with_fname(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns shallow Bool
 #+end_src
 
 * interp_fa_is_ns_inner

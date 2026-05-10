@@ -31,9 +31,9 @@ namespace:
 }
 #+end_src
 
-* _t_I64_30358
+* _t_I64_31009
 #+begin_src til
-_t_I64_30358 is a I64
+_t_I64_31009 is a I64
 #+end_src
 
 * FFI_DEFAULT_ABI
@@ -41,9 +41,9 @@ _t_I64_30358 is a I64
 FFI_DEFAULT_ABI is a I32
 #+end_src
 
-* _t_I64_30359
+* _t_I64_31010
 #+begin_src til
-_t_I64_30359 is a I64
+_t_I64_31010 is a I64
 #+end_src
 
 * FFI_TYPE_STRUCT

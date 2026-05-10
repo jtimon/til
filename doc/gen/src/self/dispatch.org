@@ -53,14 +53,14 @@ namespace:
 }
 #+end_src
 
-* _t_Str_31871
+* _t_Str_32564
 #+begin_src til
-_t_Str_31871 is a Str
+_t_Str_32564 is a Str
 #+end_src
 
-* _t_Type_31872
+* _t_Type_32565
 #+begin_src til
-_t_Type_31872 is a Type
+_t_Type_32565 is a Type
 #+end_src
 
 * dispatch_map
@@ -73,24 +73,24 @@ dispatch_map is a Map
 dispatch_inited is a Bool
 #+end_src
 
-* _t_Str_31873
+* _t_Str_32566
 #+begin_src til
-_t_Str_31873 is a Str
+_t_Str_32566 is a Str
 #+end_src
 
-* _t_Str_31874
+* _t_Str_32567
 #+begin_src til
-_t_Str_31874 is a Str
+_t_Str_32567 is a Str
 #+end_src
 
-* _t_Type_31875
+* _t_Type_32568
 #+begin_src til
-_t_Type_31875 is a Type
+_t_Type_32568 is a Type
 #+end_src
 
-* _t_Type_31876
+* _t_Type_32569
 #+begin_src til
-_t_Type_31876 is a Type
+_t_Type_32569 is a Type
 #+end_src
 
 * ffi_map
@@ -98,14 +98,14 @@ _t_Type_31876 is a Type
 ffi_map is a Map
 #+end_src
 
-* _t_Str_31877
+* _t_Str_32570
 #+begin_src til
-_t_Str_31877 is a Str
+_t_Str_32570 is a Str
 #+end_src
 
-* _t_Type_31878
+* _t_Type_32571
 #+begin_src til
-_t_Type_31878 is a Type
+_t_Type_32571 is a Type
 #+end_src
 
 * ffi_struct_defs
@@ -118,14 +118,14 @@ ffi_struct_defs is a Map
 ffi_loaded is a Bool
 #+end_src
 
-* _t_Str_31879
+* _t_Str_32572
 #+begin_src til
-_t_Str_31879 is a Str
+_t_Str_32572 is a Str
 #+end_src
 
-* _t_Type_31880
+* _t_Type_32573
 #+begin_src til
-_t_Type_31880 is a Type
+_t_Type_32573 is a Type
 #+end_src
 
 * ffi_type_cache
@@ -281,6 +281,11 @@ func value_to_u64(v: Value) returns U64
 * uptr_ffi_type
 #+begin_src til
 func uptr_ffi_type() returns ref ffi_type
+#+end_src
+
+* usize_ffi_type
+#+begin_src til
+func usize_ffi_type() returns ref ffi_type
 #+end_src
 
 * value_to_f32
