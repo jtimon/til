@@ -398,8 +398,6 @@ Str * format(Array * parts) {
             }
             ;
             Str *s = Array_get(_fc_Array_393, &_fi_USize_393);
-            (void)s;
-            (void)s;
             U32 _t_U32_396 = 1;
             U32 _t_U32_397 = U32_add(_fi_USize_393, _t_U32_396);
             (void)_t_U32_397;
@@ -417,7 +415,6 @@ Str * format(Array * parts) {
         ;
     }
     Str *out = Str_with_capacity(&total);
-    (void)out;
     ;
     {
         Array *_fc_Array_400 = parts;
@@ -437,8 +434,6 @@ Str * format(Array * parts) {
             }
             ;
             Str *s = Array_get(_fc_Array_400, &_fi_USize_400);
-            (void)s;
-            (void)s;
             U32 _t_U32_403 = 1;
             U32 _t_U32_404 = U32_add(_fi_USize_400, _t_U32_403);
             (void)_t_U32_404;
@@ -495,7 +490,6 @@ I64 Str_cmp(Str * a, Str * b) {
     (void)a;
     (void)b;
     U32 min_len = a->count;
-    (void)min_len;
     Bool _t_Bool_422 = U32_lt(&b->count, &a->count);
     (void)_t_Bool_422;
     if (_t_Bool_422) {
@@ -519,16 +513,10 @@ I64 Str_cmp(Str * a, Str * b) {
                 }
                 ;
                 U32 i = U32_clone(&_rc_U32_414);
-                (void)i;
                 U32_inc(&_rc_U32_414);
                 U8 *ab = Str_get(a, &i);
-                (void)ab;
-                (void)ab;
                 U8 *bb = Str_get(b, &i);
-                (void)bb;
-                (void)bb;
                 I64 c = U8_cmp(DEREF(ab), DEREF(bb));
-                (void)c;
                 ;
                 I64 _t_I64_416 = 0;
                 Bool _t_Bool_417 = I64_neq(&c, &_t_I64_416);
@@ -556,16 +544,10 @@ I64 Str_cmp(Str * a, Str * b) {
                 }
                 ;
                 U32 i = U32_clone(&_rc_U32_414);
-                (void)i;
                 U32_dec(&_rc_U32_414);
                 U8 *ab = Str_get(a, &i);
-                (void)ab;
-                (void)ab;
                 U8 *bb = Str_get(b, &i);
-                (void)bb;
-                (void)bb;
                 I64 c = U8_cmp(DEREF(ab), DEREF(bb));
-                (void)c;
                 ;
                 I64 _t_I64_419 = 0;
                 Bool _t_Bool_420 = I64_neq(&c, &_t_I64_419);
@@ -600,7 +582,6 @@ Str * Str_with_capacity(U32 * n) {
     (void)_t_U64_426;
     ;
     void * buf = malloc(_t_U64_426);
-    (void)buf;
     ;
     I32 _t_I32_427 = 0;
     U64 _t_U64_428 = 1;
@@ -645,7 +626,6 @@ void Str_push_str(Str * self, Str * s) {
     }
     ;
     U32 new_len = U32_add(self->count, s->count);
-    (void)new_len;
     Bool _t_Bool_444 = U32_gt(&new_len, &self->cap);
     (void)_t_Bool_444;
     if (_t_Bool_444) {
@@ -696,7 +676,6 @@ Str * Str_clone(Str * val) {
     (void)_t_U64_451;
     ;
     void * new_data = malloc(_t_U64_451);
-    (void)new_data;
     ;
     memcpy(new_data, val->c_str, val->count);
     void *_t_v_452 = ptr_add(new_data, val->count);
@@ -780,7 +759,6 @@ Str * I64_to_str(I64 * val) {
     if (_t_Bool_939) {
         U64 _t_U64_902 = 2;
         void * buf = malloc(_t_U64_902);
-        (void)buf;
         ;
         I64 _t_I64_903 = 48;
         U64 _t_U64_904 = 1;
@@ -812,7 +790,6 @@ Str * I64_to_str(I64 * val) {
     ;
     Bool is_neg = 0;
     I64 v = I64_clone(val);
-    (void)v;
     I64 _t_I64_940 = 0;
     Bool _t_Bool_941 = I64_lt(val, &_t_I64_940);
     (void)_t_Bool_941;
@@ -831,7 +808,6 @@ Str * I64_to_str(I64 * val) {
     ;
     U64 ndigits = 0;
     I64 tmp = I64_clone(&v);
-    (void)tmp;
     while (1) {
         I64 _t_I64_916 = 0;
         Bool _wcond_Bool_915 = I64_gt(&tmp, &_t_I64_916);
@@ -858,7 +834,6 @@ Str * I64_to_str(I64 * val) {
     }
     ;
     U64 total = U64_clone(&ndigits);
-    (void)total;
     ;
     if (is_neg) {
         U64 _t_U64_921 = 1;
@@ -873,7 +848,6 @@ Str * I64_to_str(I64 * val) {
     (void)_t_U64_943;
     ;
     void * buf = malloc(_t_U64_943);
-    (void)buf;
     ;
     if (is_neg) {
         I64 _t_I64_923 = 45;
@@ -885,7 +859,6 @@ Str * I64_to_str(I64 * val) {
     ;
     U64 _t_U64_944 = 1;
     U64 i = U64_sub(total, _t_U64_944);
-    (void)i;
     ;
     while (1) {
         I64 _t_I64_926 = 0;
@@ -1348,7 +1321,6 @@ Array * Array_new_type_name(Str * elem_type, U32 * cap) {
     }
     ;
     U32 elem_size = dyn_size_of(elem_type);
-    (void)elem_size;
     void * _t_v_2409 = calloc(DEREF(cap), elem_size);
     (void)_t_v_2409;
     void * _t_v_2410 = dyn_fn(elem_type, &(Str){.c_str=(U8*)"clone", .count=5ULL, .cap=TIL_CAP_LIT});
@@ -1371,7 +1343,6 @@ Array * Array_new(Type * T, U32 * cap) {
     (void)T;
     (void)cap;
     Str *elem_type = dyn_type_to_str(T);
-    (void)elem_type;
     Array *_t_Array_2413 = Array_new_type_name(elem_type, cap);
     (void)_t_Array_2413;
     Str_delete(elem_type, &(Bool){1});
@@ -1526,7 +1497,6 @@ void Array_delete(Array * self, Bool * call_free) {
                 }
                 ;
                 U32 i = U32_clone(&_rc_U32_2451);
-                (void)i;
                 U32_inc(&_rc_U32_2451);
                 U32 _t_U64_2453 = U32_mul(i, self->elem_size);
                 (void)_t_U64_2453;
@@ -1550,7 +1520,6 @@ void Array_delete(Array * self, Bool * call_free) {
                 }
                 ;
                 U32 i = U32_clone(&_rc_U32_2451);
-                (void)i;
                 U32_dec(&_rc_U32_2451);
                 U32 _t_U64_2457 = U32_mul(i, self->elem_size);
                 (void)_t_U64_2457;
@@ -1582,7 +1551,6 @@ Array * Array_clone(Array * self) {
     U32 _t_U64_2474 = U32_mul(self->cap, self->elem_size);
     (void)_t_U64_2474;
     void * new_data = malloc(_t_U64_2474);
-    (void)new_data;
     ;
     {
         U32 _re_U32_2462 = self->cap;
@@ -1601,7 +1569,6 @@ Array * Array_clone(Array * self) {
                 }
                 ;
                 U32 i = U32_clone(&_rc_U32_2462);
-                (void)i;
                 U32_inc(&_rc_U32_2462);
                 U32 _t_U64_2464 = U32_mul(i, self->elem_size);
                 (void)_t_U64_2464;
@@ -1609,7 +1576,6 @@ Array * Array_clone(Array * self) {
                 (void)_t_v_2465;
                 (void)_t_v_2465;
                 void * cloned = ((void * (*)(void *))(void *)(self->elem_clone))(_t_v_2465);
-                (void)cloned;
                 ;
                 U32 _t_U64_2466 = U32_mul(i, self->elem_size);
                 (void)_t_U64_2466;
@@ -1632,7 +1598,6 @@ Array * Array_clone(Array * self) {
                 }
                 ;
                 U32 i = U32_clone(&_rc_U32_2462);
-                (void)i;
                 U32_dec(&_rc_U32_2462);
                 U32 _t_U64_2469 = U32_mul(i, self->elem_size);
                 (void)_t_U64_2469;
@@ -1640,7 +1605,6 @@ Array * Array_clone(Array * self) {
                 (void)_t_v_2470;
                 (void)_t_v_2470;
                 void * cloned = ((void * (*)(void *))(void *)(self->elem_clone))(_t_v_2470);
-                (void)cloned;
                 ;
                 U32 _t_U64_2471 = U32_mul(i, self->elem_size);
                 (void)_t_U64_2471;
@@ -1855,8 +1819,6 @@ void println(Array * parts) {
             }
             ;
             Str *s = Array_get(_fc_Array_2784, &_fi_USize_2784);
-            (void)s;
-            (void)s;
             U32 _t_U32_2787 = 1;
             U32 _t_U32_2788 = U32_add(_fi_USize_2784, _t_U32_2787);
             (void)_t_U32_2788;
@@ -1910,7 +1872,6 @@ void test_string_concat(void) {
     Str *_t_Str_3001 = Str_lit(" world", 6ULL);
     (void)_t_Str_3001;
     Str *result = Str_lit("hello world", 11ULL);
-    (void)result;
     Str_delete(_t_Str_3000, &(Bool){1});
     Str_delete(_t_Str_3001, &(Bool){1});
     Str *_t_Str_3002 = Str_lit("src/test/constfold.til:33:19", 28ULL);
@@ -1929,7 +1890,6 @@ void test_lolalalo(void) {
     Str *_t_Str_3027 = Str_lit("la", 2ULL);
     (void)_t_Str_3027;
     Str *lo_la = Str_lit("lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", 248ULL);
-    (void)lo_la;
     Str_delete(_t_Str_3026, &(Bool){1});
     Str_delete(_t_Str_3027, &(Bool){1});
     Str *_t_Str_3028 = Str_lit("la", 2ULL);
@@ -1937,7 +1897,6 @@ void test_lolalalo(void) {
     Str *_t_Str_3029 = Str_lit("lo", 2ULL);
     (void)_t_Str_3029;
     Str *la_lo = Str_lit("lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", 248ULL);
-    (void)la_lo;
     Str_delete(_t_Str_3028, &(Bool){1});
     Str_delete(_t_Str_3029, &(Bool){1});
     Str *_t_Str_3030 = Str_lit("lolalolo", 8ULL);
@@ -2251,13 +2210,11 @@ int main(void) {
     I64 _t_I64_853 = I64_sub(_t_I64_851, _t_I64_852);
     (void)_t_I64_853;
     CAP_LIT = I64_to_usize(_t_I64_853);
-    (void)CAP_LIT;
     I64 _t_I64_854 = 0;
     I64 _t_I64_855 = 2;
     I64 _t_I64_856 = I64_sub(_t_I64_854, _t_I64_855);
     (void)_t_I64_856;
     CAP_VIEW = I64_to_usize(_t_I64_856);
-    (void)CAP_VIEW;
     __til_docs_blob__ = (Str){.c_str=(U8*)"", .count=0ULL, .cap=TIL_CAP_LIT};
     (void)__til_docs_blob__;
     __til_info_blob__ = (Str){.c_str=(U8*)"", .count=0ULL, .cap=TIL_CAP_LIT};

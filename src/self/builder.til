@@ -1038,11 +1038,13 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
             if is_rg { f.write(dd.name); f.write(" = ") }
             else { f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ") }
             emit_as_ptr(f, rhs, depth, false); f.write(";\n")
-            // Ref decls (e.g. switch-case payload binds) can be unused on
-            // purpose -- til convention names them `_x`. Body DCE skips
-            // OwnType.Ref so we keep a (void) guard for the remaining
-            // unused-variable warnings.
-            emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
+            // Ref decls named `_x` (til's "deliberately unused" convention,
+            // e.g. switch-case payload binds) need a (void) guard since C
+            // has no such convention. Real names should always be used --
+            // if not, it's a real bug worth surfacing as a C warning.
+            if dd.name.starts_with("_") {
+                emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
+            }
         } else {
             ctype := resolve_decl_ctype(e.til_type, rhs.til_type, dd.explicit_type)
             is_global := is_value_global(dd.name).and(in_func_def.not())
@@ -1134,13 +1136,13 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                 }
             }
         }
-        // Body DCE removes unreferenced literal-RHS temps. For everything
-        // else (FCall side effects, FieldAccess, ctor allocations, mut
-        // vars), keep a (void) guard so -Werror=unused-{variable,but-set}
-        // doesn't fire on cases DCE can't safely drop. The (void) is now
-        // skipped for the literal-temp pattern that `_t_*` const-folding
-        // leaves behind.
-        if rhs_is_pure_byvalue_for_emit(rhs).not() {
+        // Only `_x` names (til's "deliberately unused" convention -- the
+        // typer's `_t_*` hoisted temps and user-written `_foo` binds) get
+        // a (void) guard. C has no such convention, so a user-named local
+        // that goes unused is a real bug worth letting -Werror surface.
+        // Pure literal RHSes are handled by body DCE upstream and need
+        // no guard either way.
+        if dd.name.starts_with("_").and(rhs_is_pure_byvalue_for_emit(rhs).not()) {
             emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
         }
     }
@@ -3569,13 +3571,11 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                 // Find eq fdef to check return shallow
                 mut eq_shallow := false
                 ref py_eq_ns : Vec = def_ns_decls(rhs)
-                mut py_eq_found := false
                 for nsd : Declaration in py_eq_ns {
                     if nsd.name.eq("eq").and(is_null(nsd.default_value).not()) {
                         switch nsd.default_value.node_type {
                         case NodeType.FuncDef(eqfd):
                             eq_shallow = eqfd.return_own_type.is(OwnType.Shallow)
-                            py_eq_found = true
                         case:
                         }
                         break

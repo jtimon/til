@@ -126,13 +126,9 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
 
     // Check pawn attacks
     pawn_piece := by_side.mul(6).add(1)
-    // White pawns attack upward (row decreases), black downward (row increases)
-    mut pawn_dr := -1
-    if by_side.eq(1) { pawn_dr = 1 }
-    // Pawn attacks from the pawn's position, so a pawn on (r+pawn_dr, c+-1) attacks (r,c)
-    // But we want: is square (r,c) attacked by a pawn?
-    // A white pawn at (r+1, c+-1) attacks (r,c) — white pawns move up, attack diag up
-    // A black pawn at (r-1, c+-1) attacks (r,c) — black pawns move down, attack diag down
+    // Is square (r,c) attacked by a pawn?
+    // A white pawn at (r+1, c+-1) attacks (r,c) -- white pawns move up, attack diag up
+    // A black pawn at (r-1, c+-1) attacks (r,c) -- black pawns move down, attack diag down
     mut pawn_src_r := r.add(1)
     if by_side.eq(1) { pawn_src_r = r.sub(1) }
     if pawn_src_r.gte(0).and(pawn_src_r.lt(8)) {

@@ -41,8 +41,8 @@ test_mut_source_clones := test() {
 
 test_mut_dest_clones := test() {
     x := 42
-    mut y := x
-    y = 99
+    mut _y := x
+    _y = 99
     assert_eq(__LOC__, x, 42)
 }
 
@@ -104,8 +104,8 @@ test_param_clones := test() {
 
 test_struct_field_clones := test() {
     p := Point(x = 5, y = 10)
-    mut v := p.x
-    v = 99
+    mut _v := p.x
+    _v = 99
     assert_eq(__LOC__, p.x, 5)
 }
 
