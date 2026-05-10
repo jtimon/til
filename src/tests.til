@@ -431,7 +431,7 @@ main := proc(args: ..Str) {
               asan_safe_cmd(format(til_bin, " test src/test/test_in_namespace.til"), til_bin))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 92,
+    add_count(tests, "typer_errors", "typer", "error:", 96,
                asan_safe_cmd(format(til_bin, " interpret src/test/typer_errors.til"), til_bin))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,

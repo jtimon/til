@@ -381,3 +381,33 @@ _ = macro_test(runtime_val())
 TerrGetPayloadEnum := enum { TerrI: I64, TerrZ }
 terr_get_payload_val := TerrGetPayloadEnum.TerrI(7)
 get_payload(terr_get_payload_val)
+
+// #93: a nested struct/enum/func is private to its parent function.
+// The lifter (src/self/lifter.til) hoists it to the top level under a
+// mangled name `<parent>_<orig>` and marks it priv. Two checks fall
+// out of that:
+//   - if no sibling reference touches it, the existing unused-priv
+//     check flags it (the lifter rewrites references to the mangled
+//     name, so an originally-unused decl ends up with zero refs).
+//   - the original name doesn't exist outside the parent body, so a
+//     reference from another function or top-level scope errors as
+//     "undefined".
+unused_nested_struct_parent := func() returns I64 {
+    UnusedLocalStruct := struct { mut x := 0 }
+    return 0
+}
+unused_nested_struct_parent()
+
+uses_nested := func() returns I64 {
+    HiddenInUses := struct { mut x := 0 }
+    h := HiddenInUses()
+    return h.x
+}
+uses_nested()
+// Trying to reach the nested type by its original name from outside
+// the parent: the symbol doesn't exist at file scope.
+reach_outside := func() returns I64 {
+    h := HiddenInUses()
+    return h.x
+}
+reach_outside()

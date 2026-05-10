@@ -145,6 +145,12 @@ priv lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec
             mangled := parent_prefix.concat("_").concat(child_dd.name)
             renamings.set(own child_dd.name.clone(), own mangled.clone())
             child_dd.name = mangled.clone()
+            // Lifted nested defs are visible only through references in the
+            // enclosing body (which we rewrite below). Marking them priv
+            // prevents importers from poking at the mangled name and feeds
+            // the existing unused-priv check, so a nested decl that no
+            // sibling reference touches is flagged as dead code.
+            child_dd.is_priv = true
             mut idx := i
             lifted_indices.push(own idx)
         case:
