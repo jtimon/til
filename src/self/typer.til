@@ -4288,20 +4288,47 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                         if is_null(sdef).not() {
                             switch sdef.node_type {
                             case NodeType.StructDef(tsv_sdd):
-                                for fi in 0..tsv_sdd.fields.len() {
-                                    ref fld_decl : Declaration = tsv_sdd.fields.get(fi)
-                                    arg_idx := fi.add(1)
-                                    if arg_idx.lt(e.children.len()) {
-                                        ref arg : Expr = e.child(arg_idx)
-                                        switch arg.node_type {
-                                        case NodeType.Ident(_an):
-                                            if _an.eq(var_name).and(fld_decl.own_type.is(OwnType.Shallow)) {
-                                                if type_ctor_consumes(fld_decl.til_type) {
-                                                    return true
-                                                }
+                                // Walk every constructor arg. For each
+                                // arg that resolves to `Ident(var_name)`
+                                // (positional or NamedArg-wrapped), look
+                                // up the matching field by position
+                                // (positional) or by name (NamedArg) to
+                                // check its own_type. The previous loop
+                                // only checked positional Ident args and
+                                // missed every Type(field = local) form,
+                                // so the local's wrapper leaked there.
+                                for ci in 1..e.children.len() {
+                                    ref arg : Expr = e.child(ci)
+                                    mut inner : Expr = arg
+                                    mut field_name : Str = ""
+                                    switch arg.node_type {
+                                    case NodeType.NamedArg(nan):
+                                        field_name = nan
+                                        if arg.children.len().gt(0) { inner = arg.child(0) }
+                                    case:
+                                    }
+                                    switch inner.node_type {
+                                    case NodeType.Ident(_an):
+                                        if _an.eq(var_name).not() { continue }
+                                        // Resolve the receiving field.
+                                        mut fd_idx : I32 = -1.to_i32()
+                                        if field_name.is_empty() {
+                                            // Positional: arg position ci-1 maps to field index.
+                                            fd_idx = ci.sub(1).to_i64().to_i32()
+                                        } else {
+                                            for fi in 0..tsv_sdd.fields.len() {
+                                                ref tfd : Declaration = tsv_sdd.fields.get(fi)
+                                                if tfd.name.eq(field_name) { fd_idx = fi.to_i64().to_i32(); break }
                                             }
-                                        case:
                                         }
+                                        if fd_idx.lt(0.to_i32()) { continue }
+                                        if fd_idx.to_i64().to_u32().gte(tsv_sdd.fields.len()) { continue }
+                                        ref fld_decl : Declaration = tsv_sdd.fields.get(fd_idx.to_i64().to_u32())
+                                        if fld_decl.own_type.is(OwnType.Shallow).not() { continue }
+                                        if type_ctor_consumes(fld_decl.til_type) {
+                                            return true
+                                        }
+                                    case:
                                     }
                                 }
                             case:
