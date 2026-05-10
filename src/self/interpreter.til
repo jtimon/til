@@ -1282,11 +1282,15 @@ make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, shallow borrowe
     mut r := Value.None
     mut tag : I32 = 10.to_i32()
     memcpy(r, tag, 4)
-    ref payload : Dynamic = get_payload(r)
-    write_ptr(payload, sname)
-    write_ptr(ptr_add(payload, 8), sdef)
-    write_ptr(ptr_add(payload, 16), data)
-    memcpy(ptr_add(payload, 24), borrowed, Bool.size())
+    switch r {
+    case Value.Struct(payload):
+        payload.struct_name = sname
+        payload.struct_def = sdef
+        payload.data = data
+        payload.borrowed = borrowed
+    case:
+        UNREACHABLE(__LOC__)
+    }
     return shallow_copy_value(r)
 }
 

@@ -1,5 +1,5 @@
 # priority: high
-** FIXED #184 Finish the bare ~get_payload~ -> switch destructure refactor
+** OPEN #184 Finish the bare ~get_payload~ -> switch destructure refactor
 
 Goal: remove the remaining bare ~get_payload(...)~ calls in the
    self-host and replace them with idiomatic switch destructuring,
@@ -36,32 +36,44 @@ Goal: remove the remaining bare ~get_payload(...)~ calls in the
    }
    #+end_src
 
-*** Current state (after master ~3a04f57~)
+*** Current state
 
-    Files done (no remaining bare ~get_payload~):
-    - [[file:../../src/core/ast.til][src/core/ast.til]]
-    - ~src/tests.til~
-    - [[file:../../src/self/parser.til][src/self/parser.til]]
-    - [[file:../../src/self/typer.til][src/self/typer.til]] (modulo 1 leftover at ~typer.til:1042~)
-    - [[file:../../src/self/scavenger.til][src/self/scavenger.til]]
-    - [[file:../../src/self/dispatch.til][src/self/dispatch.til]] (most sites; a few remain)
-    - [[file:../../src/self/builder.til][src/self/builder.til]] (most sites; many remain)
-    - [[file:../../src/self/precomp.til][src/self/precomp.til]] (most sites; some remain)
-    - [[file:../../src/self/loader.til][src/self/loader.til]] (most sites; some remain)
-    - [[file:../../src/self/fonts.til][src/self/fonts.til]], [[file:../../examples/uml.til][examples/uml.til]]
+    src/self/ and src/core/ast.til have NO remaining bare
+    ~get_payload~ calls -- every site is either a switch case
+    binding (which desugars to a typer-emitted
+    ~Ident("get_payload")~ AST node, fine) or the
+    ~ext_func get_payload~ declaration in [[file:../../src/core/dyn.til][src/core/dyn.til]].
 
-    Remaining bare ~get_payload~ sites (call counts include
-    ~Ident("get_payload")~ AST construction, which stays):
-    - [[file:../../src/self/builder.til][src/self/builder.til]]: 151
-    - [[file:../../src/self/interpreter.til][src/self/interpreter.til]]: 124 (next file to tackle)
-    - [[file:../../src/self/dispatch.til][src/self/dispatch.til]]: 38
-    - [[file:../../src/self/precomp.til][src/self/precomp.til]]: 28
-    - [[file:../../src/self/loader.til][src/self/loader.til]]: 10
-    - [[file:../../src/self/initer.til][src/self/initer.til]]: 5 (all ~Ident("get_payload")~ AST
-      construction -- effectively done)
-    - [[file:../../src/self/typer.til][src/self/typer.til]]: 2 (1 real bare site + 1
-      ~Ident("get_payload")~)
-    - [[file:../../src/core/dyn.til][src/core/dyn.til]]: 1 (the ~ext_func~ declaration itself)
+    Remaining bare ~get_payload~ call sites outside src/self:
+
+    - [[file:../../src/test/enums.til][src/test/enums.til]] (12 sites): mix of incidental uses and
+      three tests (~test_get_payload~, ~test_get_payload_str~,
+      ~test_get_payload_struct~) that exercise the builtin
+      directly.
+    - [[file:../../src/test/parsing.til][src/test/parsing.til]] (7 sites)
+    - [[file:../../src/test/fn_ptr.til][src/test/fn_ptr.til]] (2 sites)
+    - [[file:../../src/test/enums_lifecycle.til][src/test/enums_lifecycle.til]] (2 sites)
+    - [[file:../../src/core/dyn.til][src/core/dyn.til]]: 1 site -- the ~ext_func~ declaration
+      itself; this stays.
+
+    The three explicit ~test_get_payload*~ tests in enums.til are
+    the only sites that need to keep calling the builtin from user
+    code (they test the language feature). Once everything else is
+    converted, those tests can be moved behind a typer-side opt-in
+    so the rest of the codebase has the rule applied uniformly.
+
+*** Plan to close
+
+    1. Convert all incidental bare ~get_payload~ in src/test/*.til
+       to switch destructure.
+    2. Keep the three ~test_get_payload*~ tests in enums.til as
+       the only deliberate user-code call sites; mark them and the
+       ~ext_func~ declaration with a known-uses list.
+    3. Add a typer.til rule that rejects user-code calls to
+       ~get_payload~ outside that known list. Typer-emitted
+       ~Ident("get_payload")~ from switch case desugaring stays
+       allowed because it is constructed inside the compiler, not
+       written by the user.
 
 *** ~.is~ vs ~.eq~ on enum tags
 
@@ -72,29 +84,8 @@ Goal: remove the remaining bare ~get_payload(...)~ calls in the
     - ~x.eq(Variant)~ is payload-aware deep equality. Using it for
       tag-only checks is misleading and can be more expensive.
 
-    Most ~x.eq(Variant)~ sites in the self-host have already been
-    rewritten to ~x.is(Variant)~. A handful of ~OwnType~ / ~Type~
-    / ~FuncType~ ~.eq~ usages remain in [[file:../../src/self/initer.til][src/self/initer.til]] and
-    [[file:../../src/self/precomp.til][src/self/precomp.til]]; those are tag-only enums so the two
-    operators are functionally equivalent, but they should still
-    flip to ~.is~ for consistency.
-
-*** Patterns we deliberately keep as bare ~get_payload~
-
-    Switch destructure is not a strict win in every case. Keep the
-    bare form when:
-
-    1. The case-bound payload would need to be reassigned through
-       the same pointer (e.g. mutating ~own_args~ on an ~FCall~
-       payload across multiple switch arms).
-    2. A short helper handles two variants that share the same
-       payload type (e.g. ~FieldAccess~ + ~FieldAssign~ both carry
-       ~Str~). Switch destructure forces either two arms with
-       duplicated bodies or a hoist into a ~mut Str~ -- and the
-       hoist leaks (see [[./175.org][#175]]).
-    3. Inside ~Ident("get_payload")~ AST construction, where the
-       ~"get_payload"~ string is just a literal in generated code,
-       not a real call.
+    All ~x.eq(EnumName.Variant)~ literal forms in src/self/ have
+    been flipped to ~x.is(EnumName.Variant)~.
 
 *** Lessons learned (for future similar work)
 
@@ -125,10 +116,12 @@ Goal: remove the remaining bare ~get_payload(...)~ calls in the
        both the ~""~ and the new ref-to-mut clone).
 
     3. *Don't hoist case-bound names into ~mut Str~ locals.* When
-       the case-bound value needs to outlive the switch, prefer
-       either keeping the work inside the case body, or using a
-       single bare ~ref X : T = get_payload(...)~ (option (2)
-       above). The ~mut hoist~ pattern is a [[./175.org][#175]] leak.
+       a single helper handles two variants that share the same
+       payload type (e.g. ~FieldAccess~ + ~FieldAssign~ both carry
+       ~Str~), the obvious ~mut X := ""; switch ... case A(s): X = s
+       case B(s): X = s~ pattern leaks both ~""~ and the
+       ref-to-mut clone (see [[./175.org][#175]]). Extract a small
+       helper that does the work inside each case arm instead.
 
     4. *Trust but verify session-summary file lists.* When a
        summary says "all sites in file X converted", grep before
