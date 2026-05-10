@@ -106,13 +106,13 @@ priv from_source_form := func(s: Str) returns Str {
         ref b : U8 = s.byte_at(i)
         if b.eq(92.to_u8()).and(i.add(one).lt(n)) {
             ref nx : U8 = s.byte_at(i.add(one))
-            if nx.eq(110.to_u8()) { out = out.concat(Str.from_byte(10.to_u8())); i = i.add(two); continue }
-            if nx.eq(114.to_u8()) { out = out.concat(Str.from_byte(13.to_u8())); i = i.add(two); continue }
-            if nx.eq(116.to_u8()) { out = out.concat(Str.from_byte(9.to_u8())); i = i.add(two); continue }
-            if nx.eq(34.to_u8())  { out = out.concat(Str.from_byte(34.to_u8())); i = i.add(two); continue }
-            if nx.eq(92.to_u8())  { out = out.concat(Str.from_byte(92.to_u8())); i = i.add(two); continue }
-            if nx.eq(39.to_u8())  { out = out.concat(Str.from_byte(39.to_u8())); i = i.add(two); continue }
-            if nx.eq(48.to_u8())  { out = out.concat(Str.from_byte(0.to_u8())); i = i.add(two); continue }
+            if nx.eq(110.to_u8()) { out = out.concat(Str.from_byte('\n')); i = i.add(two); continue }
+            if nx.eq(114.to_u8()) { out = out.concat(Str.from_byte('\r')); i = i.add(two); continue }
+            if nx.eq(116.to_u8()) { out = out.concat(Str.from_byte('\t')); i = i.add(two); continue }
+            if nx.eq(34.to_u8())  { out = out.concat(Str.from_byte('"')); i = i.add(two); continue }
+            if nx.eq(92.to_u8())  { out = out.concat(Str.from_byte('\\')); i = i.add(two); continue }
+            if nx.eq(39.to_u8())  { out = out.concat(Str.from_byte('\'')); i = i.add(two); continue }
+            if nx.eq(48.to_u8())  { out = out.concat(Str.from_byte('\0')); i = i.add(two); continue }
             if nx.eq(120.to_u8()).and(i.add(3.to_u32()).lt(n)) {
                 ref h1 : U8 = s.byte_at(i.add(two))
                 ref h2 : U8 = s.byte_at(i.add(3.to_u32()))

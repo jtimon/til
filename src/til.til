@@ -5,7 +5,7 @@ BASE_VERSION := "0.0.1-"
 get_version := macro() returns shallow Str {
     mut hash : Str = ""
     run_cmd(hash, "git", "rev-parse", "--short", "HEAD")
-    hash = hash.replace(Str.from_byte(10), "")
+    hash = hash.replace(Str.from_byte('\n'), "")
     return BASE_VERSION.concat(hash)
 }
 

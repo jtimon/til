@@ -1,6 +1,6 @@
 mode cli
 
-NL := Str.from_byte(10)
+NL := Str.from_byte('\n')
 TIL := "bin/til"
 RUNNER := "bin/test_runner"
 PLOT := "bin/plot"

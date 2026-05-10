@@ -5,8 +5,8 @@ import("../core/ast")
 import("../self/lexer")
 import("../self/parser")
 
-NL := Str.from_byte(10)
-Q := Str.from_byte(34)
+NL := Str.from_byte('\n')
+Q := Str.from_byte('"')
 
 CHAR_W := 8
 ROW_H := 18
