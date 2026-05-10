@@ -38,9 +38,7 @@ namespace:
         a_named := a.is(Type.Custom).or(a.is(Type.Struct)).or(a.is(Type.Enum))
         b_named := b.is(Type.Custom).or(b.is(Type.Struct)).or(b.is(Type.Enum))
         if a_named.and(b_named) {
-            ref an : Str = get_payload(a)
-            ref bn : Str = get_payload(b)
-            return an.eq(bn)
+            return til_type_name(a).eq(til_type_name(b))
         }
         if a_named.or(b_named) { return false }
         // Non-payloaded variants: tag equality.

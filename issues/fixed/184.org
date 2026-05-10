@@ -1,5 +1,5 @@
 # priority: high
-** OPEN #184 Finish the bare ~get_payload~ -> switch destructure refactor
+** FIXED #184 Finish the bare ~get_payload~ -> switch destructure refactor
 
 Goal: remove the remaining bare ~get_payload(...)~ calls in the
    self-host and replace them with idiomatic switch destructuring,

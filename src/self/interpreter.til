@@ -169,18 +169,26 @@ Value := enum {
     Ptr: Dynamic
 namespace:
     eq := func(a: Value, b: Value) returns Bool {
-        if a.is(Value.None).and(b.is(Value.None)) { return true }
-        if a.is(Value.Int).and(b.is(Value.Int)) {
-            ref ai : I64 = get_payload(a)
-            ref bi : I64 = get_payload(b)
-            return ai.eq(bi)
+        switch a {
+        case Value.None:
+            return b.is(Value.None)
+        case Value.Int(ai):
+            switch b {
+            case Value.Int(bi):
+                return ai.eq(bi)
+            case:
+                return false
+            }
+        case Value.Boolean(ab):
+            switch b {
+            case Value.Boolean(bb):
+                return ab.eq(bb)
+            case:
+                return false
+            }
+        case:
+            return false
         }
-        if a.is(Value.Boolean).and(b.is(Value.Boolean)) {
-            ref ab : Bool = get_payload(a)
-            ref bb : Bool = get_payload(b)
-            return ab.eq(bb)
-        }
-        return false
     }
     to_str := func(self: Value) returns Str {
         switch self {
@@ -348,6 +356,27 @@ parse_cli_arg := func(s: Str, type_name: Str) returns shallow Value {
     return val_none()
 }
 
+// For Value.Ptr objects whose static type is Struct/Enum/Custom, look
+// up the type's def in scope and reinterpret the pointer as a struct
+// value so subsequent field-access has a struct to read from.
+priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str) {
+    if obj_sname.len().eq(0) { return }
+    ref tc : Cell = scope_get(scope, obj_sname)
+    if is_null(tc) { return }
+    switch tc.val {
+    case Value.Func(tptr):
+        ref tdef : Expr = deref(tptr)
+        if tdef.node_type.is(NodeType.StructDef) {
+            switch obj {
+            case Value.Ptr(pv):
+                obj = make_struct_value(obj_sname, tdef, deref(pv), true)
+            case:
+            }
+        }
+    case:
+    }
+}
+
 eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
     switch e.node_type {
     case NodeType.LiteralStr(raw):
@@ -461,27 +490,14 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         }
         if obj.is(Value.Ptr) {
             ref obj_expr : Expr = e.child(0)
-            if obj_expr.til_type.is(Type.Struct)
-            .or(obj_expr.til_type.is(Type.Enum))
-            .or(obj_expr.til_type.is(Type.Custom)) {
-                ref obj_sname : Str = get_payload(obj_expr.til_type)
-                if obj_sname.len().gt(0) {
-                    ref tc : Cell = scope_get(scope, obj_sname)
-                    if is_null(tc).not() {
-                        switch tc.val {
-                        case Value.Func(tptr):
-                            ref tdef : Expr = deref(tptr)
-                            if tdef.node_type.is(NodeType.StructDef) {
-                                switch obj {
-                                case Value.Ptr(pv):
-                                    obj = make_struct_value(obj_sname, tdef, deref(pv), true)
-                                case:
-                                }
-                            }
-                        case:
-                        }
-                    }
-                }
+            switch obj_expr.til_type {
+            case Type.Struct(obj_sname):
+                resolve_ptr_to_struct(obj, scope, obj_sname)
+            case Type.Enum(obj_sname):
+                resolve_ptr_to_struct(obj, scope, obj_sname)
+            case Type.Custom(obj_sname):
+                resolve_ptr_to_struct(obj, scope, obj_sname)
+            case:
             }
         }
         if obj.is(Value.Struct).not() {
@@ -857,11 +873,8 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     // Namespace method call: Struct.method(args)
     if callee_expr.node_type.is(NodeType.FieldAccess) {
         fn_val := eval_expr(scope, callee_expr)
-        if fn_val.is(Value.Func).not() {
-            interp_error(e, "namespace field is not a function")
-            exit(1)
-        }
-        ref fn_ptr : Dynamic = get_payload(fn_val)
+        switch fn_val {
+        case Value.Func(fn_ptr):
         ref func_def : Expr = deref(fn_ptr)
 
         // FuncPtr field: stored function may be ext_func from another type
@@ -1013,10 +1026,16 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         }
         scope_free(own call_scope)
         return result
+        case:
+            interp_error(e, "namespace field is not a function")
+            exit(1)
+            return val_none()
+        }
     }
 
     // Direct ident call
-    ref name : Str = get_payload(callee_expr.node_type)
+    switch callee_expr.node_type {
+    case NodeType.Ident(name):
 
     // Ext function dispatch
     mut ext_result := val_none()
@@ -1043,24 +1062,25 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
     }
 
     // Struct instantiation
-    if fn_cell.val.is(Value.Func) {
-        ref si_fptr : Dynamic = get_payload(fn_cell.val)
+    switch fn_cell.val {
+    case Value.Func(si_fptr):
         ref si_edef : Expr = deref(si_fptr)
         if si_edef.node_type.is(NodeType.StructDef) {
             switch si_edef.node_type {
             case NodeType.StructDef(sdd):
                 inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
                 mut inst := val_none()
-                if e.til_type.is(Type.Struct)
-                .or(e.til_type.is(Type.Enum))
-                .or(e.til_type.is(Type.Custom)) {
-                    ref _es : Str = get_payload(e.til_type)
-                    if _es.len().gt(0) {
-                        inst = make_struct_value(_es, si_edef, inst_data, false)
-                    } else {
-                        inst = make_struct_value(name, si_edef, inst_data, false)
-                    }
-                } else {
+                switch e.til_type {
+                case Type.Struct(es):
+                    if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false) }
+                    else              { inst = make_struct_value(name, si_edef, inst_data, false) }
+                case Type.Enum(es):
+                    if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false) }
+                    else              { inst = make_struct_value(name, si_edef, inst_data, false) }
+                case Type.Custom(es):
+                    if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false) }
+                    else              { inst = make_struct_value(name, si_edef, inst_data, false) }
+                case:
                     inst = make_struct_value(name, si_edef, inst_data, false)
                 }
                 switch inst {
@@ -1094,6 +1114,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                 UNREACHABLE(__LOC__)
             }
         }
+    case:
     }
 
     if fn_cell.val.is(Value.Func).not() {
@@ -1175,6 +1196,10 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             UNREACHABLE(__LOC__)
             return val_none()
         }
+    case:
+        UNREACHABLE(__LOC__)
+        return val_none()
+    }
     case:
         UNREACHABLE(__LOC__)
         return val_none()
@@ -1367,18 +1392,10 @@ scope_free := func(own s: Scope) {
     memset(s.bindings, 0, Map.size().to_u64())
     free(own s)
 }
-interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow Bool {
-    ref obj_expr : Expr = e.child(0)
-    ref tc : Cell = scope_get(scope, sname)
-    if is_null(tc) { return false }
-    if tc.val.is(Value.Func).not() { return false }
-    ref fptr : Dynamic = get_payload(tc.val)
-    ref sdef : Expr = deref(fptr)
-    if sdef.node_type.is(NodeType.StructDef).not() {
-        if sdef.node_type.is(NodeType.EnumDef).not() { return false }
-    }
-    // FieldAccess and FieldAssign share Str payload; both reach here.
-    ref mut fname : Str = get_payload(e.node_type)
+// Body of interp_fa_is_ns_inner pulled out so both FieldAccess and
+// FieldAssign cases (which share an Str payload) can switch-destructure
+// `e.node_type` without duplicating ~50 lines of logic.
+priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns shallow Bool {
     mut has_ns := false
     mut has_inst := false
     ref ins_ns : Vec = def_ns_decls(sdef)
@@ -1430,6 +1447,29 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
         }
     }
     return false
+}
+
+interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow Bool {
+    ref obj_expr : Expr = e.child(0)
+    ref tc : Cell = scope_get(scope, sname)
+    if is_null(tc) { return false }
+    switch tc.val {
+    case Value.Func(fptr):
+        ref sdef : Expr = deref(fptr)
+        if sdef.node_type.is(NodeType.StructDef).not() {
+            if sdef.node_type.is(NodeType.EnumDef).not() { return false }
+        }
+        switch e.node_type {
+        case NodeType.FieldAccess(fname):
+            return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fname)
+        case NodeType.FieldAssign(fname):
+            return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fname)
+        case:
+            return false
+        }
+    case:
+        return false
+    }
 }
 
 // For FieldAssign rhs: when the value is a Dynamic Ident, return the
@@ -1761,10 +1801,10 @@ write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
             write_ptr(ptr, si.data)
         case Value.Ptr(pv):
             write_ptr(ptr, deref(pv))
+        case Value.Func(fv):
+            write_ptr(ptr, deref(fv))
         case:
-            // For other types, fall back to bare-payload reinterpret.
-            ref pv : Dynamic = get_payload(val)
-            write_ptr(ptr, deref(pv))
+            UNREACHABLE(__LOC__)
         }
         return
     }

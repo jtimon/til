@@ -296,13 +296,7 @@ fa_struct_name := func(e: Expr) returns Str {
     return obj_sname
 }
 
-// Check if a FieldAccess/FieldAssign accesses an own/ref (pointer) field.
-builder_fa_is_ptr := func(e: Expr) returns shallow Bool {
-    if e.node_type.is(NodeType.FieldAccess).not().and(e.node_type.is(NodeType.FieldAssign).not()) {
-        return false
-    }
-    sname := fa_struct_name(e)
-    ref fname : Str = get_payload(e.node_type)
+priv builder_fa_is_ptr_with_fname := func(sname: Str, fname: Str) returns shallow Bool {
     ref fap_def : Expr = find_struct_def(sname)
     if is_null(fap_def) { return false }
     switch fap_def.node_type {
@@ -318,12 +312,20 @@ builder_fa_is_ptr := func(e: Expr) returns shallow Bool {
     }
 }
 
-builder_fa_is_ns := func(e: Expr) returns shallow Bool {
-    if e.node_type.is(NodeType.FieldAccess).not().and(e.node_type.is(NodeType.FieldAssign).not()) {
+// Check if a FieldAccess/FieldAssign accesses an own/ref (pointer) field.
+builder_fa_is_ptr := func(e: Expr) returns shallow Bool {
+    sname := fa_struct_name(e)
+    switch e.node_type {
+    case NodeType.FieldAccess(fname):
+        return builder_fa_is_ptr_with_fname(sname, fname)
+    case NodeType.FieldAssign(fname):
+        return builder_fa_is_ptr_with_fname(sname, fname)
+    case:
         return false
     }
-    sname := fa_struct_name(e)
-    ref fname : Str = get_payload(e.node_type)
+}
+
+priv builder_fa_is_ns_with_fname := func(e: Expr, sname: Str, fname: Str) returns shallow Bool {
     ref bfn_def : Expr = find_struct_def(sname)
     if is_null(bfn_def) { return false }
     mut has_ns := false
@@ -353,6 +355,18 @@ builder_fa_is_ns := func(e: Expr) returns shallow Bool {
     case:
     }
     return false
+}
+
+builder_fa_is_ns := func(e: Expr) returns shallow Bool {
+    sname := fa_struct_name(e)
+    switch e.node_type {
+    case NodeType.FieldAccess(fname):
+        return builder_fa_is_ns_with_fname(e, sname, fname)
+    case NodeType.FieldAssign(fname):
+        return builder_fa_is_ns_with_fname(e, sname, fname)
+    case:
+        return false
+    }
 }
 
 is_shallow_param := func(name: Str) returns shallow Bool {
@@ -956,8 +970,9 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
 
 // Emit layer
 emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
-    ref dd : Declaration = get_payload(e.node_type)
     if e.children.len().eq(0) { return }
+    switch e.node_type {
+    case NodeType.Decl(dd):
     ref rhs : Expr = e.child(0)
     ref mut lp : LoadedProgram = codegen_lp()
     // For any FuncPtr-typed decl (own, ref, or value), capture the local's
@@ -1102,6 +1117,9 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
             }
         }
         emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
+    }
+    case:
+        UNREACHABLE(__LOC__)
     }
 }
 emit_return_ctype := func(rv: Expr) returns Str {
@@ -1454,27 +1472,30 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             }
             // Namespace method call
             sname := til_type_name(callee.child(0).til_type)
-            ref mname : Str = get_payload(callee.node_type)
-            flat := sname.format("_", mname)
-            f.write(sname)
-            f.write("_")
-            f.write(mname)
-            f.write("(")
-            for i in 1..e.children.len() {
-                if i.gt(1) { f.write(", ") }
-                if callee_param_is_shallow(flat, i.sub(1)) {
-                    emit_deref(f, e.child(i), depth)
-                } else if callee_param_is_usize(flat, i.sub(1)).and(callee_param_is_own(flat, i.sub(1)).not()) {
-                    emit_usize_ref(f, e.child(i), depth)
-                } else if callee_param_is_uptr(flat, i.sub(1)).and(callee_param_is_own(flat, i.sub(1)).not()) {
-                    emit_uptr_ref(f, e.child(i), depth)
-                } else {
-                    emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i))
+            switch callee.node_type {
+            case NodeType.FieldAccess(mname):
+                flat := sname.format("_", mname)
+                f.write(sname)
+                f.write("_")
+                f.write(mname)
+                f.write("(")
+                for i in 1..e.children.len() {
+                    if i.gt(1) { f.write(", ") }
+                    if callee_param_is_shallow(flat, i.sub(1)) {
+                        emit_deref(f, e.child(i), depth)
+                    } else if callee_param_is_usize(flat, i.sub(1)).and(callee_param_is_own(flat, i.sub(1)).not()) {
+                        emit_usize_ref(f, e.child(i), depth)
+                    } else if callee_param_is_uptr(flat, i.sub(1)).and(callee_param_is_own(flat, i.sub(1)).not()) {
+                        emit_uptr_ref(f, e.child(i), depth)
+                    } else {
+                        emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i))
+                    }
                 }
+                f.write(")")
+            case:
+                UNREACHABLE(__LOC__)
             }
-            f.write(")")
-            return
-        }
+        } else {
         switch callee.node_type {
         case NodeType.Ident(name):
             if name.eq("dyn_call").or(name.eq("dyn_call_ret")) {
@@ -1589,6 +1610,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             }
         case:
             UNREACHABLE(__LOC__)
+        }
         }
     case NodeType.FieldAccess(fname):
         ref obj : Expr = e.child(0)
@@ -1924,8 +1946,9 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
     case NodeType.FCall:
         e_sname := til_type_name(e.til_type)
         if e_sname.len().gt(0).and(e.children.len().gt(0)) {
-            if e.child(0).node_type.is(NodeType.Ident) {
-                ref callee_ident : Str = get_payload(e.child(0).node_type)
+            ref c0 : Expr = e.child(0)
+            switch c0.node_type {
+            case NodeType.Ident(callee_ident):
                 if callee_ident.eq(e_sname) {
                     ctype := c_type_name(e.til_type, e_sname)
                     ctor_seq = ctor_seq.add(1.to_i32())
@@ -1944,6 +1967,7 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
                     f.write("; })")
                     return
                 }
+            case:
             }
         }
         emit_expr(f, e, depth)
@@ -2028,7 +2052,8 @@ emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
 }
 
 emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is_static: Bool) {
-    ref fd : FunctionDef = get_payload(func_def.node_type)
+    switch func_def.node_type {
+    case NodeType.FuncDef(fd):
     ref body : Expr = func_def.child(0)
     mut is_main := false
     if is_null(mode).not() {
@@ -2160,6 +2185,9 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         emit_body(f, body, 1.to_i32())
         in_func_def = false
         f.write("}\n")
+    }
+    case:
+        UNREACHABLE(__LOC__)
     }
 }
 
@@ -4796,11 +4824,13 @@ emit_dyn_call_bodies := proc(f: File) {
                     ref stmt : Expr = e_i
                     if is_struct_or_enum(stmt).not() { continue }
                     ref def : Expr = stmt.child(0)
-                    ref dd : Declaration = get_payload(stmt.node_type)
                     ref method_fdef : Expr = find_namespace_func(def, method)
                     if is_null(method_fdef) { continue }
                     if method_fdef.node_type.is(NodeType.FuncDef).not() { continue }
-                    ref mfd : FunctionDef = get_payload(method_fdef.node_type)
+                    switch stmt.node_type {
+                    case NodeType.Decl(dd):
+                    switch method_fdef.node_type {
+                    case NodeType.FuncDef(mfd):
                     mut arg1 := "val"
                     if mfd.params.len().gt(0) {
                         ref p0 : Declaration = mfd.params.get(0)
@@ -4844,6 +4874,12 @@ emit_dyn_call_bodies := proc(f: File) {
                             f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) { "); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write("); return; }\n")
                         }
                     }
+                    case:
+                        UNREACHABLE(__LOC__)
+                    }
+                    case:
+                        UNREACHABLE(__LOC__)
+                    }
                 }
             }
         }
@@ -4853,11 +4889,13 @@ emit_dyn_call_bodies := proc(f: File) {
                 ref stmt : Expr = e_i
                 if is_struct_or_enum(stmt).not() { continue }
                 ref def : Expr = stmt.child(0)
-                ref dd : Declaration = get_payload(stmt.node_type)
                 ref method_fdef : Expr = find_namespace_func(def, method)
                 if is_null(method_fdef) { continue }
                 if method_fdef.node_type.is(NodeType.FuncDef).not() { continue }
-                ref mfd : FunctionDef = get_payload(method_fdef.node_type)
+                switch stmt.node_type {
+                case NodeType.Decl(dd):
+                switch method_fdef.node_type {
+                case NodeType.FuncDef(mfd):
                 mut arg1 := "val"
                 if mfd.params.len().gt(0) {
                     ref p0 : Declaration = mfd.params.get(0)
@@ -4900,6 +4938,12 @@ emit_dyn_call_bodies := proc(f: File) {
                     } else {
                         f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) { "); f.write(dd.name); f.write("_"); f.write(method); f.write("("); f.write(arg1); f.write("); return; }\n")
                     }
+                }
+                case:
+                    UNREACHABLE(__LOC__)
+                }
+                case:
+                    UNREACHABLE(__LOC__)
                 }
             }
         }
