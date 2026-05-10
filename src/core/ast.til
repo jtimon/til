@@ -357,11 +357,15 @@ expr_til_type := func(e: Expr) returns Type {
     return e.til_type
 }
 
-// --- func_type_pascal ---
-// Enum-name form of FuncType (as written in NodeType.FuncDef payload), for
-// Expr.to_str output. Distinct from func_type_name which returns the til
-// keyword (lowercase/snake_case).
-func_type_pascal := func(ft: FuncType) returns Str {
+// --- func_type_variant_name ---
+// Enum-variant-name form of FuncType (as written in NodeType.FuncDef
+// payload), for Expr.to_str output. Distinct from func_type_name which
+// returns the til keyword (lowercase/snake_case).
+// (The casing is PascalCase because that's how the FuncType enum variants
+// are spelled; it has nothing to do with the Pascal language. til's func
+// vs proc is not Pascal's void-vs-returns split -- the only rule is that
+// a func cannot call a proc.)
+func_type_variant_name := func(ft: FuncType) returns Str {
     switch ft {
     case FuncType.None:    return "None"
     case FuncType.Func:    return "Func"
@@ -393,7 +397,7 @@ node_head_str := func(data: NodeType) returns Str {
         return format("Decl ", d.name)
     case NodeType.Assign(a):      return format("Assign ", a.name)
     case NodeType.FCall:          return "FCall"
-    case NodeType.FuncDef(f):     return format("FuncDef ", func_type_pascal(f.func_type))
+    case NodeType.FuncDef(f):     return format("FuncDef ", func_type_variant_name(f.func_type))
     case NodeType.StructDef:      return "StructDef"
     case NodeType.EnumDef:        return "EnumDef"
     case NodeType.FieldAccess(s): return format("FieldAccess ", s)

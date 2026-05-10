@@ -31,8 +31,13 @@
   freed. Own fields are pointers (separately heap-allocated).
 
 * TRUE func and proc are distinct
-  funcs are pure: must return a value, can't call procs (except panic).
-  procs can have side effects and don't return values.
+  The only rule the language enforces is: a func cannot call a proc
+  (panic is the documented exception). Returns are orthogonal -- both
+  func and proc may or may not declare a returns clause, just like in
+  C. This is NOT Pascal's "function returns, procedure doesn't" split.
+  By convention func is used for pure, expression-style bodies and proc
+  for side-effecting ones (procs can call println etc.), but that's a
+  convention, not a typer rule beyond "func cannot call proc".
 
 * TRUE ext_func and ext_proc declare builtins with C implementations
   Declared in core.til — either as direct namespace fields (e.g. I64.add)
