@@ -259,14 +259,12 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     macros = Set.new(Str)
     funcs = Set.new(Str)
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             precomp_scan_names(iu.ast)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         precomp_scan_names(iu.ast)
     }
@@ -282,40 +280,34 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     // 2) Set up interpreter scope
     global := scope_new(NULL)
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             precomp_register_defs(global, iu.ast)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         precomp_register_defs(global, iu.ast)
     }
     // Issue #191: register global constants before folding so macro bodies
     // that call procs can access them (e.g. CAP_VIEW for Str ops).
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             precomp_register_globals(global, iu.ast)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         precomp_register_globals(global, iu.ast)
     }
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             interpreter_init_ns(lp.ctx, global, iu.ast)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         interpreter_init_ns(lp.ctx, global, iu.ast)
     }
@@ -324,15 +316,13 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     // Scan per-file ASTs directly to avoid merged-AST cloning.
     ffi_reset()
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             ffi_init_struct_defs_append(iu.ast)
             ffi_init_scan_program(iu.ast)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         ffi_init_struct_defs_append(iu.ast)
         ffi_init_scan_program(iu.ast)
@@ -346,15 +336,13 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     // 3) Fold calls in every file
     known = Map.new(Str, Value)
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             context_enter_file(lp.ctx, u.path)
             process_body(global, iu.ast, lp.ctx, true)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         context_enter_file(lp.ctx, u.path)
         process_body(global, iu.ast, lp.ctx, true)
@@ -417,8 +405,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     // 1) Build top-level decl maps: name -> (path, idx)
     mut core_top := Map.new(Str, DeclRef)
     if lp.skip_core.not() {
-        for ui in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(ui)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.child(i)
@@ -431,8 +418,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
         }
     }
     mut top := Map.new(Str, DeclRef)
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.child(i)
@@ -448,8 +434,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     mut worklist := Vec.new(Str)
     if is_cli {
         vec_push_str(worklist, "main")
-        for ui in 0..lp.units.len() {
-            ref u : ProgramUnit = lp.units.get(ui)
+        for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
@@ -459,8 +444,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
             }
         }
     } else if lp.run_tests {
-        for ui in 0..lp.units.len() {
-            ref u : ProgramUnit = lp.units.get(ui)
+        for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
@@ -508,8 +492,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
             }
         }
     } else {
-        for ui in 0..lp.units.len() {
-            ref u : ProgramUnit = lp.units.get(ui)
+        for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
@@ -620,14 +603,12 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
     visited := scavenge_visited_imported(lp)
 
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             scavenge_filter(iu.ast, visited)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         scavenge_filter(iu.ast, visited)
     }
@@ -636,14 +617,12 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
     // precomp's constant folding. Runs over every imported unit (cores
     // included) so the codegen no longer needs `(void)<name>;` guards.
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             dce_program_bodies(iu.ast)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         dce_program_bodies(iu.ast)
     }
@@ -655,8 +634,7 @@ extract_link_info := func(mut lp: LoadedProgram) {
     root_dir := compiler_root(lp.ext_c_path)
     // Remove link()/link_c() directives in-place from every user file so the
     // interpreter never evaluates them.
-    for ui in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(ui)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         base_dir := dir_of(u.path)
         mut new_children := Vec.new(Expr)
@@ -1061,8 +1039,7 @@ format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) returns St
 
 format_func_info := func(name: Str, fd: FunctionDef) returns Str {
     mut cap : USize = name.len().add(fd.return_type.len()).add(64.to_usize())
-    for j in 0..fd.params.len() {
-        ref p : Declaration = fd.params.get(j)
+    for p : Declaration in fd.params {
         cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
     }
     mut out := Str.with_capacity(cap)
@@ -1075,19 +1052,16 @@ format_func_info := func(name: Str, fd: FunctionDef) returns Str {
 
 format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     mut cap : USize = name.len().add(128.to_usize())
-    for i in 0..sdef.fields.len() {
-        ref f : Declaration = sdef.fields.get(i)
+    for f : Declaration in sdef.fields {
         cap = cap.add(f.name.len()).add(f.explicit_type.len()).add(f.doc.len().mul(2.to_usize())).add(128.to_usize())
     }
-    for i in 0..sdef.ns_decls.len() {
-        ref d : Declaration = sdef.ns_decls.get(i)
+    for d : Declaration in sdef.ns_decls {
         cap = cap.add(d.name.len()).add(d.doc.len().mul(2.to_usize())).add(192.to_usize())
         if is_null(d.default_value).not() {
             switch d.default_value.node_type {
             case NodeType.FuncDef(fd):
                 cap = cap.add(fd.return_type.len()).add(48.to_usize())
-                for j in 0..fd.params.len() {
-                    ref p : Declaration = fd.params.get(j)
+                for p : Declaration in fd.params {
                     cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
                 }
             case:
@@ -1099,15 +1073,13 @@ format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     out.push_str("struct ")
     out.push_str(name)
     out.push_str(" {")
-    for i in 0..sdef.fields.len() {
-        ref f : Declaration = sdef.fields.get(i)
+    for f : Declaration in sdef.fields {
         out.push_str("\n")
         append_field_indented(out, f)
     }
     if sdef.ns_decls.len().gt(0) {
         out.push_str("\nnamespace:")
-        for i in 0..sdef.ns_decls.len() {
-            ref d : Declaration = sdef.ns_decls.get(i)
+        for d : Declaration in sdef.ns_decls {
             out.push_str("\n")
             append_ns_method_indented(out, d)
         }
@@ -1118,19 +1090,16 @@ format_struct_info := func(name: Str, sdef: StructDef) returns Str {
 
 format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     mut cap : USize = name.len().add(128.to_usize())
-    for i in 0..edef.variants.len() {
-        ref v : Str = edef.variants.get(i)
+    for v : Str in edef.variants {
         cap = cap.add(v.len()).add(96.to_usize())
     }
-    for i in 0..edef.ns_decls.len() {
-        ref d : Declaration = edef.ns_decls.get(i)
+    for d : Declaration in edef.ns_decls {
         cap = cap.add(d.name.len()).add(d.doc.len().mul(2.to_usize())).add(192.to_usize())
         if is_null(d.default_value).not() {
             switch d.default_value.node_type {
             case NodeType.FuncDef(fd):
                 cap = cap.add(fd.return_type.len()).add(48.to_usize())
-                for j in 0..fd.params.len() {
-                    ref p : Declaration = fd.params.get(j)
+                for p : Declaration in fd.params {
                     cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
                 }
             case:
@@ -1154,8 +1123,7 @@ format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     }
     if edef.ns_decls.len().gt(0) {
         out.push_str("\nnamespace:")
-        for i in 0..edef.ns_decls.len() {
-            ref d : Declaration = edef.ns_decls.get(i)
+        for d : Declaration in edef.ns_decls {
             out.push_str("\n")
             append_ns_method_indented(out, d)
         }
@@ -1193,8 +1161,7 @@ collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: S
         case NodeType.FuncDef(fd):
             is_func = true
             info_cap = info_cap.add(fd.return_type.len()).add(48.to_usize())
-            for j in 0..fd.params.len() {
-                ref p : Declaration = fd.params.get(j)
+            for p : Declaration in fd.params {
                 info_cap = info_cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
             }
         case:
@@ -1230,8 +1197,7 @@ collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: S
 // Register "Type.field" entries for each struct field, plus "Type.method"
 // entries for each namespace method.
 collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info: Str, mut docs: Str) {
-    for i in 0..sdef.fields.len() {
-        ref f : Declaration = sdef.fields.get(i)
+    for f : Declaration in sdef.fields {
         qual := type_name.format(".", f.name)
         mut field_info := Str.with_capacity(qual.len().add(f.explicit_type.len()).add(64.to_usize()))
         field_info.push_str("field ")
@@ -1246,8 +1212,7 @@ collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info:
             append_packed_entry(docs, qual, f.doc)
         }
     }
-    for i in 0..sdef.ns_decls.len() {
-        ref d : Declaration = sdef.ns_decls.get(i)
+    for d : Declaration in sdef.ns_decls {
         collect_member_method_packed(type_name, d, info, docs)
     }
 }
@@ -1268,8 +1233,7 @@ collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str
         }
         append_packed_entry(info, qual, variant_info)
     }
-    for i in 0..edef.ns_decls.len() {
-        ref d : Declaration = edef.ns_decls.get(i)
+    for d : Declaration in edef.ns_decls {
         collect_member_method_packed(type_name, d, info, docs)
     }
 }
@@ -1349,16 +1313,14 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     // Global init steps: these generate methods/layouts that later phases
     // assume exist (e.g. comparison helpers on USize).
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             lp.ctx.mode = iu.mode.clone()
             context_enter_file(lp.ctx, u.path)
             init_declarations_global(iu.ast, lp.ctx.scope)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         lp.ctx.mode = iu.mode.clone()
         context_enter_file(lp.ctx, u.path)
@@ -1392,14 +1354,12 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     // that no code in the struct's own namespace ever reads. Walk
     // every loaded unit's AST.
     if lp.skip_core.not() {
-        for ci in 0..lp.core_units.len() {
-            ref cu : ProgramUnit = lp.core_units.get(ci)
+        for cu : ProgramUnit in lp.core_units {
             ref ciu : ImportUnit = lp.ctx.imported.get(cu.path)
             type_errors = type_errors.add(check_unused_priv_members_in_program(ciu.ast, cu.path))
         }
     }
-    for ui in 0..lp.units.len() {
-        ref uu : ProgramUnit = lp.units.get(ui)
+    for uu : ProgramUnit in lp.units {
         ref uiu : ImportUnit = lp.ctx.imported.get(uu.path)
         type_errors = type_errors.add(check_unused_priv_members_in_program(uiu.ast, uu.path))
     }
@@ -1410,14 +1370,12 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
 
     // Re-resolve field_struct_def after hoisting invalidates pointers.
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             resolve_field_struct_defs(iu.ast, lp.ctx.scope)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         resolve_field_struct_defs(iu.ast, lp.ctx.scope)
     }
@@ -1438,14 +1396,12 @@ prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
         // Even libraries get body-level DCE so the dead arg-temps left
         // behind by constant folding don't bloat the emitted C.
         if lp.skip_core.not() {
-            for i in 0..lp.core_units.len() {
-                ref u : ProgramUnit = lp.core_units.get(i)
+            for u : ProgramUnit in lp.core_units {
                 ref iu : ImportUnit = lp.ctx.imported.get(u.path)
                 dce_program_bodies(iu.ast)
             }
         }
-        for i in 0..lp.units.len() {
-            ref u : ProgramUnit = lp.units.get(i)
+        for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             dce_program_bodies(iu.ast)
         }

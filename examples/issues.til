@@ -21,8 +21,7 @@ list_dir := proc(dir: Str) returns Vec {
     content := File.readfile(tmpf)
     if content.is_empty() { return files }
     names := content.split(NL)
-    for fi in 0..names.len() {
-        ref fname : Str = names.get(fi)
+    for fname : Str in names {
         if fname.is_empty() { continue }
         if fname.ends_with(".org").not() { continue }
         files.push(own fname.clone())
@@ -36,8 +35,7 @@ issue_num := func(fname: Str) returns I64 {
 
 max_num_in := func(names: Vec) returns I64 {
     mut m : I64 = 0
-    for fi in 0..names.len() {
-        ref fname : Str = names.get(fi)
+    for fname : Str in names {
         n := issue_num(fname)
         if n.gt(m) { m = n }
     }
@@ -107,8 +105,7 @@ main := proc() {
 
     // Build entry lines
     mut entries := Vec.new(Str)
-    for fi in 0..files.len() {
-        ref fname : Str = files.get(fi)
+    for fname : Str in files {
         line := parse_issue(fname)
         if line.is_empty().not() {
             entries.push(own line)
@@ -121,8 +118,7 @@ main := proc() {
 
     // Open High
     s = format(s, "** High", NL)
-    for ei in 0..entries.len() {
-        ref entry : Str = entries.get(ei)
+    for entry : Str in entries {
         nl_pos := entry.find(NL)
         if nl_pos.lt(0) { continue }
         nlp : USize = nl_pos.to_usize()
@@ -136,8 +132,7 @@ main := proc() {
 
     // Open Low
     s = format(s, "** Low", NL)
-    for ei in 0..entries.len() {
-        ref entry : Str = entries.get(ei)
+    for entry : Str in entries {
         nl_pos := entry.find(NL)
         if nl_pos.lt(0) { continue }
         nlp : USize = nl_pos.to_usize()
@@ -151,8 +146,7 @@ main := proc() {
 
     // WIP High
     s = format(s, "** High", NL)
-    for ei in 0..entries.len() {
-        ref entry : Str = entries.get(ei)
+    for entry : Str in entries {
         nl_pos := entry.find(NL)
         if nl_pos.lt(0) { continue }
         nlp : USize = nl_pos.to_usize()
@@ -166,8 +160,7 @@ main := proc() {
 
     // WIP Low
     s = format(s, "** Low", NL)
-    for ei in 0..entries.len() {
-        ref entry : Str = entries.get(ei)
+    for entry : Str in entries {
         nl_pos := entry.find(NL)
         if nl_pos.lt(0) { continue }
         nlp : USize = nl_pos.to_usize()
