@@ -193,9 +193,22 @@ namespace:
     clone := func(self: Value) returns Value {
         switch self {
         case Value.Struct(si):
-            return Value.Struct(si.clone())
+            // Value.Struct(...) enum ctor clones its arg internally,
+            // so the temp from si.clone() leaks its data buffer when
+            // its no-op delete runs. Drop the temp's data after copy.
+            mut tmp := si.clone()
+            out := Value.Struct(tmp)
+            free(own tmp.data)
+            tmp.data = NULL
+            return out
         case Value.Enum(ei):
-            return Value.Enum(ei.clone())
+            mut tmp := ei.clone()
+            out := Value.Enum(tmp)
+            if is_null(tmp.data).not() {
+                free(own tmp.data)
+                tmp.data = NULL
+            }
+            return out
         case Value.Int(v):     return Value.Int(v)
         case Value.Byte(v):    return Value.Byte(v)
         case Value.Short(v):   return Value.Short(v)
@@ -1173,6 +1186,30 @@ free_value := func(shallow v: Value) {
     case Value.Struct(si):
         if si.borrowed.not() {
             if is_null(si.data).not() { free(own si.data) }
+        }
+    case Value.Enum(ei):
+        if is_null(ei.data).not() { free(own ei.data) }
+    case:
+    }
+}
+
+// End-of-lifetime cleanup for a Value's heap payload. Goes deeper than
+// free_value: also frees the c_str of a Value.Struct whose name is "Str".
+// Used by scope_free and precomp's known-map teardown, where the Value
+// genuinely owns the payload.
+cleanup_value_payload := func(shallow v: Value) {
+    switch v {
+    case Value.Struct(si):
+        if si.borrowed.not() {
+            if is_null(si.data).not() {
+                if si.struct_name.eq("Str") {
+                    ref s_str : Str = to_ptr(si.data)
+                    if s_str.cap.lt(CAP_VIEW) {
+                        if is_null(s_str.c_str).not() { free(own s_str.c_str) }
+                    }
+                }
+                free(own si.data)
+            }
         }
     case Value.Enum(ei):
         if is_null(ei.data).not() { free(own ei.data) }
