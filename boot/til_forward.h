@@ -1239,6 +1239,7 @@ Bool is_uptr_name(Str * name);
 Bool can_implicit_usize_coerce(Type * from, Type * to, Str * to_name);
 Bool literal_in_range(Str * val_str, Type * target);
 Bool can_implicit_widen(Type * from, Type * to);
+Type * type_from_name_at(Str * name, TypeScope * scope, Expr * e);
 Type * type_from_name(Str * name, TypeScope * scope);
 Str * resolve_type_alias(TypeScope * scope, Str * name);
 Str * usize_name(TypeScope * scope);

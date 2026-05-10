@@ -1583,15 +1583,13 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
 // write ~func(x: PrivStruct) returns PrivStruct~ in another file
 // silently. Skip when inside the type's own namespace (auto-gen and
 // hand-written ns methods both reference the parent type by name).
+// Thin wrapper: looks up the binding, gates on current_type_name,
+// then defers to check_priv_access for the actual emit.
 priv check_priv_type_name := proc(mut e: Expr, name: Str, scope: TypeScope) {
     if name.len().eq(0) { return }
     if current_type_name.eq(name) { return }
-    ref b : TypeBinding = scope.get_binding(name)
-    if is_null(b) { return }
-    if b.is_priv.not() { return }
-    if b.path.eq(typer_path) { return }
-    type_error(e, "'".concat(name).concat("' is private to '").concat(b.path)
-        .concat("'; remove 'priv' to expose it"))
+    ref mut b : TypeBinding = scope.get_binding(name)
+    check_priv_access(e, name, b)
 }
 
 // Issue #179 steps 4-5: priv check for struct fields and namespace
@@ -1898,11 +1896,10 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             param.explicit_type = resolved_ptype
             param.til_type = til_type_from_explicit_type(resolved_ptype)
             ref ptn : Str = param.explicit_type
-            pt := type_from_name(ptn, scope)
+            pt := type_from_name_at(ptn, scope, expr)
             if pt.is(Type.Unknown) {
                 type_error(expr, "undefined type '".concat(ptn).concat("'"))
             }
-            check_priv_type_name(expr, ptn, scope)
             pmut := param.is_mut
             pown := param.own_type.is(OwnType.Own)
             pshallow := param.own_type.is(OwnType.Shallow)
@@ -3934,6 +3931,20 @@ can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
         }
     case: return false
     }
+}
+
+// Type-name resolution at a user-facing site (parameter type, return
+// type, ref/let decl explicit_type). Shares the single
+// scope.get_binding lookup with the priv check, so user-facing
+// callers don't pay for two Map traversals per declaration position.
+type_from_name_at := proc(name: Str, scope: TypeScope, mut e: Expr) returns Type {
+    pt := type_from_name(name, scope)
+    if name.len().eq(0) { return pt }
+    if current_type_name.eq(name) { return pt }
+    if is_null(scope) { return pt }
+    ref mut b : TypeBinding = scope.get_binding(name)
+    check_priv_access(e, name, b)
+    return pt
 }
 
 type_from_name := func(name: Str, scope: TypeScope) returns Type {
