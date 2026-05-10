@@ -75,7 +75,85 @@ is_side_effecting_name := func(name: Str) returns shallow Bool {
     return false
 }
 
-value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
+// Inverse of str_to_source_form: convert source-form text (with C-style
+// escape sequences `\n`, `\"`, `\xNN`, ...) into the raw bytes that the
+// C compiler produces for the same literal at runtime. Needed so that
+// precomp's interpreter sees the same byte count and contents as runtime
+// (e.g. `"viewBox=\""` is 10 source-form bytes but 9 raw bytes).
+priv hex_digit_value := func(b: U8) returns U8 {
+    if b.lt(48.to_u8()).or(b.gt(102.to_u8())) { return 0.to_u8() }
+    if b.lte(57.to_u8()) { return b.sub(48.to_u8()) }
+    if b.gte(97.to_u8()) { return b.sub(97.to_u8()).add(10.to_u8()) }
+    if b.gte(65.to_u8()).and(b.lte(70.to_u8())) { return b.sub(65.to_u8()).add(10.to_u8()) }
+    return 0.to_u8()
+}
+
+priv from_source_form := func(s: Str) returns Str {
+    n := s.len()
+    mut out := ""
+    mut i : U32 = 0.to_u32()
+    one : U32 = 1.to_u32()
+    two : U32 = 2.to_u32()
+    while i.lt(n) {
+        ref b : U8 = s.byte_at(i)
+        if b.eq(92.to_u8()).and(i.add(one).lt(n)) {
+            ref nx : U8 = s.byte_at(i.add(one))
+            if nx.eq(110.to_u8()) { out = out.concat(Str.from_byte(10.to_u8())); i = i.add(two); continue }
+            if nx.eq(114.to_u8()) { out = out.concat(Str.from_byte(13.to_u8())); i = i.add(two); continue }
+            if nx.eq(116.to_u8()) { out = out.concat(Str.from_byte(9.to_u8())); i = i.add(two); continue }
+            if nx.eq(34.to_u8())  { out = out.concat(Str.from_byte(34.to_u8())); i = i.add(two); continue }
+            if nx.eq(92.to_u8())  { out = out.concat(Str.from_byte(92.to_u8())); i = i.add(two); continue }
+            if nx.eq(39.to_u8())  { out = out.concat(Str.from_byte(39.to_u8())); i = i.add(two); continue }
+            if nx.eq(48.to_u8())  { out = out.concat(Str.from_byte(0.to_u8())); i = i.add(two); continue }
+            if nx.eq(120.to_u8()).and(i.add(3.to_u32()).lt(n)) {
+                ref h1 : U8 = s.byte_at(i.add(two))
+                ref h2 : U8 = s.byte_at(i.add(3.to_u32()))
+                val : U8 = hex_digit_value(h1).mul(16.to_u8()).add(hex_digit_value(h2))
+                out = out.concat(Str.from_byte(val))
+                i = i.add(4.to_u32())
+                continue
+            }
+        }
+        out = out.concat(s.substr(i, one))
+        i = i.add(one)
+    }
+    return out
+}
+
+// Convert a runtime Str (raw bytes) into the source-form text that the
+// parser produces for `"..."` literals: 0x0A becomes the two chars
+// `\n`, 0x22 (`"`) becomes `\"`, etc. Keeps LiteralStr storage
+// consistent regardless of whether the node came from the parser or
+// from a precomp-time fold.
+priv str_to_source_form := func(s: Str) returns Str {
+    n := s.len()
+    mut out := ""
+    for i in 0..n {
+        ref b : U8 = s.byte_at(i)
+        if b.eq(34.to_u8())  { out = out.concat("\\\""); continue }
+        if b.eq(92.to_u8())  { out = out.concat("\\\\"); continue }
+        if b.eq(10.to_u8())  { out = out.concat("\\n"); continue }
+        if b.eq(13.to_u8())  { out = out.concat("\\r"); continue }
+        if b.eq(9.to_u8())   { out = out.concat("\\t"); continue }
+        if b.eq(0.to_u8())   { out = out.concat("\\0"); continue }
+        if b.lt(32.to_u8()).or(b.gt(126.to_u8())) {
+            // Hex escape with explicit terminator -- "" between escape
+            // and following digits prevents greedy hex consumption.
+            out = out.concat("\\x")
+            hi : U8 = b.div(16.to_u8())
+            lo : U8 = b.mod(16.to_u8())
+            hex := "0123456789abcdef"
+            out = out.concat(hex.substr(hi.to_i64().to_u32(), 1.to_u32()))
+            out = out.concat(hex.substr(lo.to_i64().to_u32(), 1.to_u32()))
+            out = out.concat("\"\"")
+            continue
+        }
+        out = out.concat(s.substr(i, 1.to_u32()))
+    }
+    return out
+}
+
+value_to_expr := func(shallow val: Value, src: Expr) returns ref Expr {
     switch val {
     case Value.Int(x):
         mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
@@ -110,7 +188,15 @@ value_to_expr := func(shallow val: Value, src: Expr) returns Expr {
     case Value.Struct(si):
         if si.to_str().eq("Str") {
             sv := str_view(val)
-            mut e := Expr.new(NodeType.LiteralStr(sv.clone()), src.line, src.col)
+            // Parser-emitted LiteralStr nodes carry source-form text
+            // (`\n` is two chars: backslash + n) and codegen writes them
+            // raw into Str_lit("...", N), letting the C compiler do the
+            // escape interpretation. Fold gives us runtime bytes (a
+            // literal newline 0x0A), so we re-escape into source form
+            // before constructing the LiteralStr to keep the invariant
+            // consistent.
+            escaped := str_to_source_form(sv)
+            mut e := Expr.new(NodeType.LiteralStr(escaped), src.line, src.col)
             e.til_type = Type.Struct("Str".clone())
             return e
         }
@@ -137,7 +223,12 @@ expr_to_value := func(e: Expr) returns shallow Value {
         case: return val_i64(num.to_i64())
         }
     case NodeType.LiteralStr(s):
-        return make_str_value(s.c_str, s.count)
+        // LiteralStr stores source-form text (parser doesn't process
+        // escapes); runtime sees post-escape bytes from C-compiler-
+        // interpreted Str_lit. Convert here so precomp's evaluator
+        // matches runtime byte counts and contents.
+        raw := from_source_form(s)
+        return make_str_value(raw.c_str, raw.count)
     case NodeType.LiteralBool(b):
         return val_bool(b)
     case:
@@ -204,7 +295,7 @@ body_has_local := proc(body: Expr, name: Str) returns shallow Bool {
 // any Ident not in params/known/scope is unknown, which keeps macro
 // fold from forcing eval into a body whose hoisted temps the eval
 // scope can't see.
-func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool) returns shallow Bool {
+func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool, mut visiting: Set) returns shallow Bool {
     switch e.node_type {
     case NodeType.FuncDef:
         return false
@@ -213,14 +304,6 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
         // bodies aren't, but invoking them at compile time would kill
         // or corrupt the build.
         if is_side_effecting_name(name) { return true }
-        // `clone`/`delete`/`concat`/`substr`/`format` allocate or free heap
-        // memory and trigger destructor runs that read top-level constants
-        // (e.g. Str.delete reads CAP_VIEW) precomp's scope doesn't have.
-        if name.eq("clone") { return true }
-        if name.eq("delete") { return true }
-        if name.eq("concat") { return true }
-        if name.eq("substr") { return true }
-        if name.eq("format") { return true }
         switch func_def.node_type {
         case NodeType.FuncDef(fd):
             for p : Declaration in fd.params {
@@ -229,7 +312,32 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
         case:
         }
         if known.has(name) { return false }
-        if is_null(scope_get(precomp_scope, name)).not() { return false }
+        ref _cell : Cell = scope_get(precomp_scope, name)
+        if is_null(_cell).not() {
+            // The Ident resolves to something in precomp scope. If it's
+            // a Func, walk its body too -- the surface body may only
+            // call helpers like `codegen_lp()` whose own body reads a
+            // mut global precomp scope doesn't have.
+            switch _cell.val {
+            case Value.Func(_fp):
+                if visiting.has(name).not() {
+                    visiting.add(own name.clone())
+                    ref _fdef : Expr = deref(_fp)
+                    switch _fdef.node_type {
+                    case NodeType.FuncDef:
+                        if _fdef.children.len().gt(0) {
+                            ref _called_body : Expr = _fdef.child(0)
+                            if func_uses_unknown_globals(_called_body, _fdef, precomp_scope, _called_body, lenient, visiting) {
+                                return true
+                            }
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+            return false
+        }
         if lenient.and(body_has_local(body_root, name)) { return false }
         return true
     case NodeType.Assign(ad):
@@ -239,12 +347,6 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
         // worse, silently mutate precomp's interpreter scope).
         if body_has_local(body_root, ad.name).not() { return true }
     case NodeType.FieldAccess(mname):
-        // FieldAccess: detect `.clone()` / `.delete()` / etc on values where
-        // the FA is the callee of an enclosing FCall. Same heap-cleanup risk.
-        if mname.eq("clone") { return true }
-        if mname.eq("delete") { return true }
-        if mname.eq("concat") { return true }
-        if mname.eq("substr") { return true }
         if mname.eq("new").and(e.children.len().gt(0)) {
             switch e.child(0).node_type {
             case NodeType.Ident(type_name):
@@ -255,7 +357,7 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
     case:
     }
     for e_ci : Expr in e.children {
-        if func_uses_unknown_globals(e_ci, func_def, precomp_scope, body_root, lenient) { return true }
+        if func_uses_unknown_globals(e_ci, func_def, precomp_scope, body_root, lenient, visiting) { return true }
     }
     return false
 }
@@ -451,7 +553,8 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             if fdef.children.len().gt(0) {
                 // Issue #191: skip unknown-global check for macro calls.
                 if is_macro_mode.not() {
-                    if func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), true) {
+                    mut _fuug_visiting := Set.new(Str)
+                    if func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), true, _fuug_visiting) {
                         return NULL
                     }
                 }
@@ -526,7 +629,9 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             }
             return NULL
         }
-        ec.add_child(own value_to_expr(arg_val, arg))
+        ref _arg_lit : Expr = value_to_expr(arg_val, arg)
+        if is_null(_arg_lit) { return NULL }
+        ec.add_child(own _arg_lit.clone())
     }
 
     // Evaluate the call using the interpreter
@@ -534,9 +639,6 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
 
     // Value.Float intentionally excluded: F32_to_str -> %g can yield
     // scientific notation that doesn't round-trip through Str.to_f32.
-    // Value.Struct(Str) intentionally excluded for funcs: folded strings
-    // can carry NULs/non-ASCII that don't round-trip through a C source
-    // literal. Issue #191: macros are allowed to return Str.
     mut can_convert := result.is(Value.Int)
     .or(result.is(Value.Byte))
     .or(result.is(Value.Short))
@@ -544,7 +646,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     .or(result.is(Value.Uint32))
     .or(result.is(Value.Uint64))
     .or(result.is(Value.Boolean))
-    .or(require_known.and(result.is(Value.Struct)))
+    .or(result.is(Value.Struct))
     if can_convert.not() {
         if require_known {
             panic(
@@ -557,7 +659,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     }
 
     // value_to_expr can still return NULL (e.g. Value.Struct non-Str).
-    mut lit_local := value_to_expr(result, fcall)
+    ref lit_local : Expr = value_to_expr(result, fcall)
     if is_null(lit_local) { return NULL }
     // Preserve fcall.til_type. value_to_expr derives til_type from the
     // runtime Value variant (Uint32 -> U32), but the original fcall might
@@ -628,6 +730,17 @@ is_func_call := func(e: Expr) returns shallow Bool {
 fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
     for i in 0..e.children.len() {
         ref child : Expr = e.child(i)
+        // Save+restore `known` around any nested FuncDef body so user-named
+        // locals tracked inside one func body don't pollute siblings.
+        // _t_* temps are program-unique; user-named locals (`N`, `c`,
+        // `result`) collide across bodies via the global `known` Map.
+        if child.node_type.is(NodeType.FuncDef) {
+            snapshot_fd := known.clone()
+            fold_subtree(scope, child, ctx)
+            Map.delete(own known, false)
+            known = snapshot_fd
+            continue
+        }
         fold_subtree(scope, child, ctx)
         if child.node_type.is(NodeType.FCall) {
             if is_macro_call(child) {
@@ -657,8 +770,10 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // Procs/ext_procs are intentionally never folded.
         }
         // Forward-track Decl literals so siblings can fold calls through
-        // them. Issue #191: track ALL non-mut, non-ref Decls (not just
-        // `_t_*` temps) so macro args inside function bodies are known.
+        // them. Track ALL non-mut, non-ref Decls -- user-named locals
+        // (`N`, `result`) need to be visible inside macro folds. The
+        // process_body wrapper save/restores `known` per body so this
+        // doesn't pollute across sibling bodies.
         switch child.node_type {
         case NodeType.Decl(dd):
             if dd.is_mut.not()
@@ -672,14 +787,24 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
 }
 
 process_body := proc(scope: Scope, body: Expr, ctx: Context, shallow at_global: Bool) {
-    fold_subtree(scope, body, ctx)
-    // Namespace method bodies live in StructDef/EnumDef ns_decls, not in
-    // the body tree, so fold_subtree never reaches them. Walk them here.
-    for stmt : Expr in body.children {
+    // Walk statement-by-statement so top-level non-mut Decls get bound
+    // in the precomp interpreter scope as soon as their RHS folds to a
+    // literal. This mirrors rstil's EvalHeap::insert_primitive flow and
+    // is what lets a later fold's eval-time invocation of Str.delete
+    // resolve CAP_VIEW (which lives in str.til as a top-level const).
+    for i in 0..body.children.len() {
+        ref stmt : Expr = body.child(i)
+        fold_subtree(scope, stmt, ctx)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
         ref rhs : Expr = stmt.child(0)
+        if rhs.node_type.is(NodeType.FuncDef) {
+            if rhs.children.len().gt(0) { process_body(scope, stmt.child(0).child(0), ctx, false) }
+            continue
+        }
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+            // Namespace method bodies live in StructDef/EnumDef ns_decls,
+            // not in the AST children tree -- walk them here.
             ref ns : Vec = def_ns_decls(rhs)
             for _nsd_e : Declaration in ns {
                 ref nsd : Declaration = _nsd_e
@@ -688,25 +813,8 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, shallow at_global: 
                 if nsd.default_value.children.len().eq(0) { continue }
                 fold_subtree(scope, nsd.default_value.child(0), ctx)
             }
-        }
-    }
-    // Track Decl literals so future Idents see them as known. Recurse
-    // into FuncDef bodies. Only track at top-level (at_global) -- inside
-    // function bodies, user-named locals (`x`, `result`, `i`) collide
-    // across siblings, and a global `known` Map would let one body's
-    // value bleed into another's fold. fold_subtree handles `_t_*`
-    // typer-hoisted temps directly during its walk (they're program-
-    // unique by counter, so they don't collide).
-    for stmt : Expr in body.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.children.len().eq(0) { continue }
-        ref rhs : Expr = stmt.child(0)
-        if rhs.node_type.is(NodeType.FuncDef) {
-            if rhs.children.len().gt(0) { process_body(scope, stmt.child(0).child(0), ctx, false) }
             continue
         }
-        if rhs.node_type.is(NodeType.StructDef) { continue }
-        if rhs.node_type.is(NodeType.EnumDef) { continue }
         if at_global.not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
