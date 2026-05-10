@@ -11,32 +11,10 @@ Lang := enum {
     TIL
 }
 
-lang_from_str := func(s: Str) returns Lang {
-    switch s {
-    case "c":     return Lang.C
-    case "C":     return Lang.C
-    case "holyc": return Lang.HolyC
-    case "HolyC": return Lang.HolyC
-    case "til":   return Lang.TIL
-    case "TIL":   return Lang.TIL
-    }
-    panic(__LOC__, "Unknown lang '", s, "'. Supported langs: c, holyc, til")
-    return Lang.C
-}
-
-lang_to_str := func(lang: Lang) returns Str {
+priv lang_to_str := func(lang: Lang) returns Str {
     switch lang {
     case Lang.C:     return "c"
     case Lang.HolyC: return "holyc"
-    case Lang.TIL:   return "til"
-    }
-    return ""
-}
-
-lang_file_extension := func(lang: Lang) returns Str {
-    switch lang {
-    case Lang.C:     return "c"
-    case Lang.HolyC: return "hc"
     case Lang.TIL:   return "til"
     }
     return ""
@@ -84,7 +62,7 @@ target_from_str := func(s: Str) returns Target {
     return Target.LinuxX64
 }
 
-target_to_str := func(target: Target) returns Str {
+priv target_to_str := func(target: Target) returns Str {
     switch target {
     case Target.LinuxX64:     return "linux-x64"
     case Target.LinuxArm64:   return "linux-arm64"
@@ -98,16 +76,12 @@ target_to_str := func(target: Target) returns Str {
     return ""
 }
 
-target_is_32bit := func(target: Target) returns Bool {
+priv target_is_32bit := func(target: Target) returns Bool {
     switch target {
     case Target.Wasm32: return true
     case Target.TempleosX86: return true
     case: return false
     }
-}
-
-target_is_64bit := func(target: Target) returns Bool {
-    return target_is_32bit(target).not()
 }
 
 target_uptr_name := func(target: Target) returns Str {
