@@ -38,42 +38,31 @@ Goal: remove the remaining bare ~get_payload(...)~ calls in the
 
 *** Current state
 
-    src/self/ and src/core/ast.til have NO remaining bare
-    ~get_payload~ calls -- every site is either a switch case
-    binding (which desugars to a typer-emitted
-    ~Ident("get_payload")~ AST node, fine) or the
-    ~ext_func get_payload~ declaration in [[file:../../src/core/dyn.til][src/core/dyn.til]].
+    src/self/, src/core/ast.til and src/test/*.til have NO
+    remaining incidental bare ~get_payload~ calls -- every site is
+    either a switch case binding (which desugars to a typer-emitted
+    ~Ident("get_payload")~ AST node, fine) or one of the four
+    deliberate sites listed below.
 
-    Remaining bare ~get_payload~ call sites outside src/self:
+    Deliberate user-code ~get_payload~ call sites:
 
-    - [[file:../../src/test/enums.til][src/test/enums.til]] (12 sites): mix of incidental uses and
-      three tests (~test_get_payload~, ~test_get_payload_str~,
-      ~test_get_payload_struct~) that exercise the builtin
-      directly.
-    - [[file:../../src/test/parsing.til][src/test/parsing.til]] (7 sites)
-    - [[file:../../src/test/fn_ptr.til][src/test/fn_ptr.til]] (2 sites)
-    - [[file:../../src/test/enums_lifecycle.til][src/test/enums_lifecycle.til]] (2 sites)
-    - [[file:../../src/core/dyn.til][src/core/dyn.til]]: 1 site -- the ~ext_func~ declaration
-      itself; this stays.
-
-    The three explicit ~test_get_payload*~ tests in enums.til are
-    the only sites that need to keep calling the builtin from user
-    code (they test the language feature). Once everything else is
-    converted, those tests can be moved behind a typer-side opt-in
-    so the rest of the codebase has the rule applied uniformly.
+    - [[file:../../src/test/enums.til][src/test/enums.til]]: ~test_get_payload~,
+      ~test_get_payload_str~, ~test_get_payload_struct~. These
+      three tests exist specifically to exercise the builtin
+      directly; they are the language feature's test surface.
+    - [[file:../../src/core/dyn.til][src/core/dyn.til]]: the ~ext_func get_payload~ declaration
+      itself.
 
 *** Plan to close
 
-    1. Convert all incidental bare ~get_payload~ in src/test/*.til
-       to switch destructure.
-    2. Keep the three ~test_get_payload*~ tests in enums.til as
-       the only deliberate user-code call sites; mark them and the
-       ~ext_func~ declaration with a known-uses list.
-    3. Add a typer.til rule that rejects user-code calls to
-       ~get_payload~ outside that known list. Typer-emitted
-       ~Ident("get_payload")~ from switch case desugaring stays
-       allowed because it is constructed inside the compiler, not
-       written by the user.
+    Add a typer.til rule that rejects user-code calls to
+    ~get_payload~ outside the four sites above.
+    Typer-emitted ~Ident("get_payload")~ from switch case
+    desugaring stays allowed because it is constructed inside
+    the compiler, not written by the user. The check fires on
+    AST shape (NodeType.Ident("get_payload") inside an
+    NodeType.FCall) and consults a known-callers allow-list keyed
+    on enclosing function name + file path.
 
 *** ~.is~ vs ~.eq~ on enum tags
 

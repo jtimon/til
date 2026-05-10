@@ -39,13 +39,20 @@ test_vec_payload_clone := test() {
     b := PayloadBox.Bag(bag)
     b2 := b.clone()
 
-    ref bag1 : WordBag = get_payload(b)
-    bag1.items.set(0, own "x")
-
-    ref bag2 : WordBag = get_payload(b2)
-    ref s1 : Str = bag1.items.get(0)
-    ref s2 : Str = bag2.items.get(0)
-    assert_eq_str(__LOC__, s1, "x")
-    assert_eq_str(__LOC__, s2, "a")
-    assert_eq(__LOC__, bag2.items.len().to_i64(), 2)
+    switch b {
+    case PayloadBox.Bag(bag1):
+        bag1.items.set(0, own "x")
+        switch b2 {
+        case PayloadBox.Bag(bag2):
+            ref s1 : Str = bag1.items.get(0)
+            ref s2 : Str = bag2.items.get(0)
+            assert_eq_str(__LOC__, s1, "x")
+            assert_eq_str(__LOC__, s2, "a")
+            assert_eq(__LOC__, bag2.items.len().to_i64(), 2)
+        case:
+            UNREACHABLE(__LOC__)
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }

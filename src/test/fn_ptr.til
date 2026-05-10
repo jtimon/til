@@ -235,15 +235,23 @@ Action := enum { Click: BinaryOp, Idle }
 test_enum_funcsig_payload := test() {
     a := Action.Click(fn_add)
     expect(__LOC__, a.is(Action.Click), "Click is_Click")
-    ref op : BinaryOp = get_payload(a)
-    assert_eq(__LOC__, op(3, 5), 8)
+    switch a {
+    case Action.Click(op):
+        assert_eq(__LOC__, op(3, 5), 8)
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }
 
 test_enum_funcsig_payload_mul := test() {
     a := Action.Click(fn_mul)
     expect(__LOC__, a.is(Action.Click), "Click is_Click")
-    ref op : BinaryOp = get_payload(a)
-    assert_eq(__LOC__, op(4, 5), 20)
+    switch a {
+    case Action.Click(op):
+        assert_eq(__LOC__, op(4, 5), 20)
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }
 
 test_enum_funcsig_idle := test() {
