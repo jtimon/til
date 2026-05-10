@@ -872,7 +872,7 @@ Str * Expr_to_str(Expr * self);
 Expr * Expr_clone(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);
 U32 Expr_size(void);
-Str * func_type_pascal(FuncType * ft);
+Str * func_type_variant_name(FuncType * ft);
 Str * node_head_str(NodeType * data);
 Str * expr_to_str_indent(Expr * self, U32 indent);
 Str * func_type_name(FuncType * ft);
