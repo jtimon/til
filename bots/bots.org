@@ -157,7 +157,24 @@ due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
 
 ## Background vs Foreground
 
-NEVER run commands in the background. No exceptions.
+NEVER run commands in the background. No exceptions. Specifically:
+
+- NEVER pass `run_in_background: true` to the Bash tool.
+- NEVER end a shell command with `&` to backgroundize it.
+- NEVER `disown`, `nohup`, `setsid`, or `(cmd &)` -- same effect.
+- NEVER spawn polling loops to "wait" for something.
+
+Every command runs in the foreground and blocks until done. The Bash
+tool accepts `timeout` up to 600000 ms (10 minutes); `make clean &&
+make test` fits well inside that. If something needs longer than that,
+stop and ask -- do not background it.
+
+Polling is also forbidden. A `while pgrep ...; do sleep N; done` loop
+is a background task in disguise: it stalls the turn, hides errors in
+the loop's stdout, and the harness will background it anyway when the
+inner command exits 0. If you started a command and need to wait, you
+already waited -- the Bash tool already blocked. Read the captured log
+file (`tmp/build.log`).
 
 ## Recovery
 
