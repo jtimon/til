@@ -1114,6 +1114,8 @@ void infer_ident_expr(TypeScope * scope, Expr * expr);
 void infer_named_arg_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void infer_map_lit_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void infer_set_lit_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
+Bool expr_uses_self_field(Expr * e, Str * field_name);
+void check_user_delete_frees_own_fields(Str * struct_name, Expr * sdef);
 void infer_type_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void infer_func_sig_expr(TypeScope * scope, Expr * expr);
 void check_ref_function_returns(TypeScope * func_scope, Expr * expr);
