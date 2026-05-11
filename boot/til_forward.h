@@ -195,6 +195,7 @@ typedef enum {
     CtorArg_TAG_Filled
 } CtorArg_tag;
 typedef struct CtorArg CtorArg;
+typedef struct CoverageNode CoverageNode;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct DeclRef DeclRef;
@@ -684,6 +685,13 @@ struct CtorArg {
     } data;
 };
 
+typedef struct CoverageNode {
+    Bool fully_covered;
+    Vec sub_names;
+    Vec sub_nodes;
+} CoverageNode;
+
+
 typedef struct ProgramUnit {
     Str path;
     Mode mode;
@@ -1091,6 +1099,13 @@ Bool CtorArg_is(CtorArg * self, CtorArg * other);
 void CtorArg_delete(CtorArg * self, Bool * call_free);
 CtorArg * CtorArg_clone(CtorArg * self);
 U32 CtorArg_size(void);
+CoverageNode * CoverageNode_clone(CoverageNode * self);
+void CoverageNode_delete(CoverageNode * self, Bool * call_free);
+U32 CoverageNode_size(void);
+void init_coverage_for_enum(CoverageNode * node, Expr * enum_def);
+I32 coverage_sub_index(CoverageNode * coverage, Str * variant_name);
+void mark_pattern_coverage(TypeScope * scope, CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
+void collect_missing_paths(TypeScope * scope, CoverageNode * coverage, Expr * enum_def, Str * prefix, Vec * out);
 void type_error(Expr * e, Str * msg);
 void type_error_at(Str * path, U32 line, U32 col, Str * msg);
 Expr * find_namespace_func(Expr * sdef, Str * method);
@@ -1146,7 +1161,6 @@ void infer_decl_typed_value(TypeScope * scope, Expr * stmt);
 void infer_decl_untyped_value(Expr * stmt);
 void finalize_decl_binding(TypeScope * scope, Expr * stmt, I32 in_type_body);
 void infer_decl_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_type_body, Context * ctx);
-void mark_switch_case_covered_variant(Expr * switch_enum_def, Vec * covered_variants, I32 n_variants, Expr * sw_expr, Expr * match_expr);
 Bool is_simple_lvalue_expr(Expr * e);
 Expr * make_switch_case_condition(TypeScope * scope, Expr * case_body, Expr * match_expr, Expr * sw_ref, U32 sw_line, U32 sw_col);
 void replace_switch_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);

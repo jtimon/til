@@ -187,6 +187,169 @@ priv CtorArg := enum {
     Filled: Expr,
 }
 
+// Issue #200: per-arm coverage trie for nested switch exhaustiveness.
+// Each node corresponds to one enum's variants. ~fully_covered~ means the
+// pattern bound the entire value at this level (e.g. ~case X.A(v):~ or
+// ~case X.A:~) so no inner walk is needed. Otherwise the parallel vecs
+// ~sub_names~ / ~sub_nodes~ hold per-variant child coverage; an empty
+// ~sub_nodes~ entry means "the variant's payload was never decomposed"
+// and is only fully_covered iff its own ~fully_covered~ bit is set.
+priv CoverageNode := struct {
+    mut fully_covered := false
+    mut sub_names := Vec.new(Str)
+    mut sub_nodes := Vec.new(CoverageNode)
+}
+
+// Seed a node with empty per-variant sub-coverage for an enum_def.
+priv init_coverage_for_enum := func(mut node: CoverageNode, enum_def: Expr) {
+    if is_null(enum_def) { return }
+    switch enum_def.node_type {
+    case NodeType.EnumDef(cn_edd):
+        for cvi in 0..cn_edd.variants.len() {
+            ref vn : Str = cn_edd.variants.get(cvi)
+            node.sub_names.push(own vn.clone())
+            node.sub_nodes.push(own CoverageNode())
+        }
+    case:
+    }
+}
+
+priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) returns shallow I32 {
+    for csi in 0..coverage.sub_names.len() {
+        ref n : Str = coverage.sub_names.get(csi)
+        if n.eq(variant_name) { return csi.to_i32() }
+    }
+    return -1.to_i32()
+}
+
+// Walk a case pattern against the (expected) enum type and update the
+// coverage trie. Returns silently for patterns that don't statically
+// describe a variant of `expected_type_name` (e.g. ~case 42:~, or a
+// pattern targeting a different enum -- those will surface as other
+// type errors).
+priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode, expected_type_name: Str, pattern: Expr) {
+    if expected_type_name.len().eq(0) { return }
+    ref enum_def : Expr = scope.get_struct(expected_type_name)
+    if is_null(enum_def) { return }
+    if enum_def.node_type.is(NodeType.EnumDef).not() { return }
+
+    // `case Type.Variant` (bare).
+    if pattern.node_type.is(NodeType.FieldAccess) {
+        if pattern.children.len().gt(0) {
+            if pattern.child(0).node_type.is(NodeType.Ident) {
+                mut type_name := ""
+                mut variant_name := ""
+                switch pattern.child(0).node_type {
+                case NodeType.Ident(tn): type_name = tn.clone()
+                case:
+                }
+                switch pattern.node_type {
+                case NodeType.FieldAccess(vn): variant_name = vn.clone()
+                case:
+                }
+                if type_name.eq(expected_type_name) {
+                    idx := coverage_sub_index(coverage, variant_name)
+                    if idx.gte(0.to_i32()) {
+                        ref mut sub : CoverageNode = coverage.sub_nodes.get(idx.to_u32())
+                        sub.fully_covered = true
+                    }
+                }
+            }
+        }
+        return
+    }
+
+    // `case Type.Variant(inner)` -- inner is either a binding (Ident, marks
+    // the variant fully covered) or another enum pattern (recurse).
+    if pattern.node_type.is(NodeType.FCall) {
+        if pattern.children.len().eq(2) {
+            ref callee : Expr = pattern.child(0)
+            if callee.node_type.is(NodeType.FieldAccess) {
+                if callee.children.len().gt(0) {
+                    if callee.child(0).node_type.is(NodeType.Ident) {
+                        mut type_name2 := ""
+                        mut variant_name2 := ""
+                        switch callee.child(0).node_type {
+                        case NodeType.Ident(tn2): type_name2 = tn2.clone()
+                        case:
+                        }
+                        switch callee.node_type {
+                        case NodeType.FieldAccess(vn2): variant_name2 = vn2.clone()
+                        case:
+                        }
+                        if type_name2.eq(expected_type_name) {
+                            idx2 := coverage_sub_index(coverage, variant_name2)
+                            if idx2.gte(0.to_i32()) {
+                                ref mut sub2 : CoverageNode = coverage.sub_nodes.get(idx2.to_u32())
+                                ref inner_pat : Expr = pattern.child(1)
+                                if inner_pat.node_type.is(NodeType.Ident) {
+                                    // Whole-payload binding -> covers all sub-variants.
+                                    sub2.fully_covered = true
+                                } else {
+                                    // Nested pattern: find inner enum and recurse.
+                                    vt_tag := enum_variant_tag(enum_def, variant_name2)
+                                    if vt_tag.gte(0.to_i32()) {
+                                        inner_type_name := enum_variant_type(enum_def, vt_tag)
+                                        if inner_type_name.len().gt(0) {
+                                            ref inner_def : Expr = scope.get_struct(inner_type_name)
+                                            if is_null(inner_def).not().and(inner_def.node_type.is(NodeType.EnumDef)) {
+                                                if sub2.sub_names.len().eq(0) {
+                                                    init_coverage_for_enum(sub2, inner_def)
+                                                }
+                                                mark_pattern_coverage(scope, sub2, inner_type_name, inner_pat)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
+}
+
+// Collect "Outer.Inner.Leaf"-style paths for any uncovered variants of
+// `enum_def` under `coverage`. A variant is OK iff fully_covered or
+// (its payload is itself an enum AND its sub-coverage is exhaustive).
+priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enum_def: Expr, prefix: Str, mut out: Vec) {
+    if is_null(enum_def) { return }
+    switch enum_def.node_type {
+    case NodeType.EnumDef(cm_edd):
+        for cmi in 0..cm_edd.variants.len() {
+            ref vn : Str = cm_edd.variants.get(cmi)
+            ref sub : CoverageNode = coverage.sub_nodes.get(cmi)
+            mut current := ""
+            if prefix.len().eq(0) {
+                current = vn.clone()
+            } else {
+                current = prefix.concat(".").concat(vn)
+            }
+            if sub.fully_covered { continue }
+            mut recursed := false
+            vt_tag := enum_variant_tag(enum_def, vn)
+            if vt_tag.gte(0.to_i32()) {
+                inner_type_name := enum_variant_type(enum_def, vt_tag)
+                if inner_type_name.len().gt(0) {
+                    ref inner_def : Expr = scope.get_struct(inner_type_name)
+                    if is_null(inner_def).not().and(inner_def.node_type.is(NodeType.EnumDef)) {
+                        if sub.sub_names.len().gt(0) {
+                            collect_missing_paths(scope, sub, inner_def, current, out)
+                            recursed = true
+                        }
+                    }
+                }
+            }
+            if recursed.not() {
+                out.push(own current.clone())
+            }
+        }
+    case:
+    }
+}
+
 // Active file path for diagnostics (Expr no longer stores path).
 mut typer_path := ""
 
@@ -2947,53 +3110,6 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
     finalize_decl_binding(scope, stmt, in_type_body)
 }
 
-mark_switch_case_covered_variant := func(switch_enum_def: Expr, mut covered_variants: Vec, shallow n_variants: I32, sw_expr: Expr, match_expr: Expr) {
-    if is_null(switch_enum_def).or(covered_variants.len().eq(0)) { return }
-    mut covered_variant_name := ""
-    switch match_expr.node_type {
-    case NodeType.FieldAccess(field_name):
-        if match_expr.children.len().gt(0) {
-            switch match_expr.child(0).node_type {
-            case NodeType.Ident(base_name):
-                if base_name.eq(til_type_name(sw_expr.til_type)) {
-                    covered_variant_name = field_name.clone()
-                }
-            case:
-            }
-        }
-    case:
-    }
-    if covered_variant_name.len().eq(0) {
-        if match_expr.node_type.is(NodeType.FCall) {
-            if match_expr.children.len().eq(2) {
-                if match_expr.child(0).node_type.is(NodeType.FieldAccess) {
-                    if match_expr.child(0).children.len().gt(0) {
-                        if match_expr.child(0).child(0).node_type.is(NodeType.Ident) {
-                            switch match_expr.child(0).child(0).node_type {
-                            case NodeType.Ident(type_name):
-                                if type_name.eq(til_type_name(sw_expr.til_type)) {
-                                    switch match_expr.child(0).node_type {
-                                    case NodeType.FieldAccess(field_name):
-                                        covered_variant_name = field_name.clone()
-                                    case:
-                                    }
-                                }
-                            case:
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    if covered_variant_name.len().eq(0) { return }
-    covered_tag := enum_variant_tag(switch_enum_def, covered_variant_name)
-    if covered_tag.gte(0.to_i32()).and(covered_tag.lt(n_variants)) {
-        ref mut covered : Bool = covered_variants.get(covered_tag.to_u32())
-        covered = true
-    }
-}
-
 is_simple_lvalue_expr := func(e: Expr) returns shallow Bool {
     if e.node_type.is(NodeType.Ident) { return true }
     if e.node_type.is(NodeType.FieldAccess) {
@@ -3278,22 +3394,16 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     sw_line := stmt.line
     sw_col := stmt.col
     infer_expr(scope, sw_expr, in_func, ctx)
-    mut covered_variants := Vec.new(Bool)
-    mut n_variants : I32 = 0
+    mut coverage := CoverageNode()
     mut has_default_case := false
     mut has_switch_enum_def := false
     sw_expr_sname := til_type_name(sw_expr.til_type)
     ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
     if sw_expr.til_type.is(Type.Enum).and(sw_expr_sname.len().gt(0)) {
         if is_null(switch_enum_def).not() {
-            switch switch_enum_def.node_type {
-            case NodeType.EnumDef(sw_edd):
+            if switch_enum_def.node_type.is(NodeType.EnumDef) {
                 has_switch_enum_def = true
-                n_variants = sw_edd.variants.len().to_i32()
-                for _ in 0..n_variants.to_usize() {
-                    covered_variants.push(own false)
-                }
-            case:
+                init_coverage_for_enum(coverage, switch_enum_def)
             }
         }
     }
@@ -3334,8 +3444,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         ref mut match_expr : Expr = case_node.child(0)
         ref mut case_body : Expr = case_node.child(1)
         if has_switch_enum_def {
-            ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
-            mark_switch_case_covered_variant(switch_enum_def, covered_variants, n_variants, sw_expr, match_expr)
+            mark_pattern_coverage(scope, coverage, sw_expr_sname, match_expr)
         }
         condition := make_switch_case_condition(scope, case_body, match_expr, sw_ref, sw_line, sw_col)
 
@@ -3358,24 +3467,18 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         has_first_if = true
     }
 
-    if has_switch_enum_def.and(covered_variants.len().gt(0)).and(has_default_case.not()) {
+    if has_switch_enum_def.and(has_default_case.not()) {
         ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
-        mut msg := "non-exhaustive switch on enum '".concat(sw_expr_sname).concat("'; missing cases:")
-        switch switch_enum_def.node_type {
-        case NodeType.EnumDef(mc_edd):
-            mut missing := false
-            for vi in 0..n_variants.to_usize() {
-                ref covered : Bool = covered_variants.get(vi)
-                if covered.not() {
-                    missing = true
-                    ref vn : Str = mc_edd.variants.get(vi)
-                    if msg.ends_with(":").not() { msg = msg.concat(",") }
-                    msg = msg.concat(" ").concat(vn)
-                }
+        mut missing_paths := Vec.new(Str)
+        collect_missing_paths(scope, coverage, switch_enum_def, "", missing_paths)
+        if missing_paths.len().gt(0) {
+            mut msg := "non-exhaustive switch on enum '".concat(sw_expr_sname).concat("'; missing cases:")
+            for mi in 0..missing_paths.len() {
+                ref mp : Str = missing_paths.get(mi)
+                if msg.ends_with(":").not() { msg = msg.concat(",") }
+                msg = msg.concat(" ").concat(mp)
             }
-            if missing { type_error(stmt, msg) }
-        case:
-            UNREACHABLE(__LOC__)
+            type_error(stmt, msg)
         }
     }
 

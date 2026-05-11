@@ -3,6 +3,10 @@ mode test
 Color := enum { Red, Green, Blue }
 Token := enum { Num: I64, Name: Str, Eof }
 
+# Inner enum for nested-exhaustiveness checks (#200)
+Inside := enum { A: I64, B: Str, C }
+Outside := enum { Wrap: Inside, Leaf: I64 }
+
 test_missing_simple_case := test() {
     mut result := ""
     switch Color.Green {
@@ -19,4 +23,15 @@ test_missing_payload_case := test() {
     case Token.Eof: result = "eof"
     }
     println(result)
+}
+
+# #200: nested patterns must cover every sub-variant or use a binding/default.
+test_missing_nested_inner := test() {
+    val := Outside.Wrap(Inside.A(1))
+    mut r := 0
+    switch val {
+    case Outside.Wrap(Inside.A(v)): r = v
+    case Outside.Leaf(i):           r = i
+    }
+    println(r)
 }

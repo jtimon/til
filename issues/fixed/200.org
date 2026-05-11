@@ -1,0 +1,33 @@
+# priority: low
+** #200 Deep exhaustiveness for nested switch patterns
+
+The exhaustiveness checker now recurses through nested patterns.
+A switch like::
+
+  switch outer {
+  case OuterE.WrapperA(InnerE.ValueA(v)): ...
+  case OuterE.WrapperB(i):                ...
+  }
+
+errors with ~missing cases: WrapperA.ValueB, WrapperA.ValueC~ unless
+the remaining inner variants are covered (or the case binds the whole
+payload with ~case OuterE.WrapperA(inner):~ / ~case OuterE.WrapperA:~,
+or a default ~case:~ is present).
+
+Implementation: a per-switch ~CoverageNode~ trie in ~src/self/typer.til~
+keyed by variant name. ~mark_pattern_coverage~ walks each arm and
+either marks the variant ~fully_covered~ (bare variant or a binding
+that consumes the whole payload) or recurses with a sub-tree seeded
+from the variant's payload enum. ~collect_missing_paths~ then walks
+the trie at the end of the switch and emits a path per uncovered
+leaf (e.g. ~WrapperA.ValueB~).
+
+A non-enum payload (e.g. ~Wrapper: I64~) cannot be exhaustively
+decomposed, so a variant with a non-enum payload is only marked
+covered when the case binds the whole payload (or omits parens).
+A literal-match like ~case OuterE.WrapperB(0):~ leaves the variant
+uncovered -- the user must add a binding case or a default to satisfy
+the checker.
+
+See ~src/test/enum_switch_missing_case.til~ (test_missing_nested_inner)
+and the existing nested tests in ~src/test/enums.til~.
