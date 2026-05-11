@@ -269,15 +269,29 @@ The base procedure is:
       `git rebase --continue`.
    b. After rebase finishes, soft-reset and regenerate so the boot/
       artifacts match the rebased source: `git reset --soft HEAD~1`,
-      `make clean && make test`, then re-stage and commit. Discard totals
-      with `git restore doc/totals.csv img/totals.svg` before committing.
+      then run the build/test target that matches the commit's
+      prefix:
+         - Plain commits: `make clean && make test`.
+         - `Two-pass: `-prefixed commits: `make clean && make test_two_pass`.
+           These commits depend on the new compiler's self-applied
+           output -- pass 1 alone would commit a `boot/til.c` that
+           the local merger's `make test_two_pass` (per
+           `bots/merging_from_remote.org`) would regenerate
+           differently. See `doc/self.org` "Two-pass build" for
+           the bootstrap reasoning.
+      If the branch mixes prefixes, choose `make test_two_pass` (it
+      is a superset of `make test`). Then re-stage and commit.
+      Discard totals with `git restore doc/totals.csv img/totals.svg`
+      before committing.
    c. Remote session: push (force-with-lease since history was rewritten)
       to your own assigned feature branch. Local session: stop there; a
       human handles the push.
 5. If source files (src/**, .github/**, Makefile, CLAUDE.md, etc.) have
    conflicts: resolve them manually. Do NOT `--ours` source files.
    After resolution, regenerating boot/ is recommended (`make clean &&
-   make test`) so the boot artifacts match the resolved source.
+   make test`, or `make clean && make test_two_pass` if any pending
+   commit is `Two-pass: `-prefixed) so the boot artifacts match the
+   resolved source.
 
 Soft-reset + regenerate is only required when (4) the rebase produced
 boot/* conflicts; a clean rebase needs no soft-reset on remote sessions.
