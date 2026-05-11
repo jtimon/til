@@ -89,31 +89,27 @@ priv rewrite_refs := proc(mut e: Expr, renamings: Map) {
                 fd.return_type = new_rt
             }
         }
-        for i in 0..fd.params.len() {
-            ref mut pd : Declaration = fd.params.get(i)
+        for mut pd : Declaration in fd.params {
             rename_decl_in_place(pd, renamings)
             if is_null(pd.default_value).not() {
                 rewrite_refs(pd.default_value, renamings)
             }
         }
     case NodeType.StructDef(sdd):
-        for i in 0..sdd.fields.len() {
-            ref mut sf : Declaration = sdd.fields.get(i)
+        for mut sf : Declaration in sdd.fields {
             rename_decl_in_place(sf, renamings)
             if is_null(sf.default_value).not() {
                 rewrite_refs(sf.default_value, renamings)
             }
         }
-        for i in 0..sdd.ns_decls.len() {
-            ref mut nd : Declaration = sdd.ns_decls.get(i)
+        for mut nd : Declaration in sdd.ns_decls {
             rename_decl_in_place(nd, renamings)
             if is_null(nd.default_value).not() {
                 rewrite_refs(nd.default_value, renamings)
             }
         }
     case NodeType.EnumDef(edd):
-        for i in 0..edd.ns_decls.len() {
-            ref mut nd : Declaration = edd.ns_decls.get(i)
+        for mut nd : Declaration in edd.ns_decls {
             rename_decl_in_place(nd, renamings)
             if is_null(nd.default_value).not() {
                 rewrite_refs(nd.default_value, renamings)
@@ -174,8 +170,7 @@ priv lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec
     // the lifted decl's own body using the mangled name as prefix
     // BEFORE we hand a clone over to top_level so deeper nesting
     // also gets mangled.
-    for li in 0..lifted_indices.len() {
-        ref idx : USize = lifted_indices.get(li)
+    for idx : USize in lifted_indices {
         ref mut slot : Expr = body.child(idx)
         switch slot.node_type {
         case NodeType.Decl(slot_dd):
@@ -263,8 +258,7 @@ lift_nested_defs := proc(mut prog: Expr) {
         }
     }
 
-    for i in 0..top_level.len() {
-        ref l : Expr = top_level.get(i)
+    for l : Expr in top_level {
         prog.children.push(own l.clone())
     }
 }
