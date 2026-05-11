@@ -2922,7 +2922,7 @@ mark_switch_case_covered_variant := func(switch_enum_def: Expr, mut covered_vari
             if match_expr.children.len().eq(2) {
                 if match_expr.child(0).node_type.is(NodeType.FieldAccess) {
                     if match_expr.child(0).children.len().gt(0) {
-                        if match_expr.child(0).child(0).node_type.is(NodeType.Ident).and(match_expr.child(1).node_type.is(NodeType.Ident)) {
+                        if match_expr.child(0).child(0).node_type.is(NodeType.Ident) {
                             switch match_expr.child(0).child(0).node_type {
                             case NodeType.Ident(type_name):
                                 if type_name.eq(til_type_name(sw_expr.til_type)) {
@@ -3059,6 +3059,77 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                             new_ch.push_take(old, bi)
                                         }
                                     case_body.children.move_from(new_ch)
+                                        has_condition = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Issue #36: nested pattern matching. `case Outer.A(Inner.B(val))` and
+    // `case Outer.A(Inner.B)` desugar to a conjunction:
+    //   sw.is(Outer.A).and(get_payload(sw, Inner).is(Inner.B))
+    // Any deeper binding inside `inner` desugars recursively against
+    // ~get_payload(sw, Inner)~ as the new sw_ref; ~.and~ is eager but
+    // ~get_payload~ is pure pointer arithmetic on the enum's union storage,
+    // so reading the second operand when the outer tag is wrong is harmless
+    // (just garbage bytes) and the outer false short-circuits the body.
+    if has_condition.not() {
+        if match_expr.node_type.is(NodeType.FCall) {
+            if match_expr.children.len().eq(2) {
+                if match_expr.child(0).node_type.is(NodeType.FieldAccess) {
+                    if match_expr.child(0).children.len().gt(0) {
+                        if match_expr.child(0).child(0).node_type.is(NodeType.Ident) {
+                            ref inner_pat : Expr = match_expr.child(1)
+                            if inner_pat.node_type.is(NodeType.Ident).not() {
+                                ref callee3 : Expr = match_expr.child(0)
+                                mut type_name3 := ""
+                                mut variant_name3 := ""
+                                switch callee3.child(0).node_type {
+                                case NodeType.Ident(tn3): type_name3 = tn3.clone()
+                                case:
+                                }
+                                switch callee3.node_type {
+                                case NodeType.FieldAccess(vn3): variant_name3 = vn3.clone()
+                                case:
+                                }
+                                ref enum_def3 : Expr = scope.get_struct(type_name3)
+                                if is_null(enum_def3).not().and(enum_def3.node_type.is(NodeType.EnumDef)) {
+                                    vt_tag3 := enum_variant_tag(enum_def3, variant_name3)
+                                    mut payload_type3 := ""
+                                    if vt_tag3.gte(0.to_i32()) {
+                                        payload_type3 = enum_variant_type(enum_def3, vt_tag3)
+                                    }
+                                    if payload_type3.len().gt(0) {
+                                        // outer condition: sw_ref.is(Type.Variant)
+                                        mut iv_id3 := Expr.new(NodeType.Ident("is"), sw_line, sw_col)
+                                        mut sw_id3 := sw_ref.clone()
+                                        mut vtype_id3 := Expr.new(NodeType.Ident(type_name3.clone()), sw_line, sw_col)
+                                        mut vref3 := Expr.new(NodeType.FieldAccess(variant_name3.clone()), sw_line, sw_col)
+                                        vref3.add_child(own vtype_id3)
+                                        mut outer_cond3 := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
+                                        outer_cond3.add_child(own iv_id3)
+                                        outer_cond3.add_child(own sw_id3)
+                                        outer_cond3.add_child(own vref3)
+
+                                        // inner sw_ref: get_payload(sw_ref, payload_type)
+                                        mut sw_for_gp := sw_ref.clone()
+                                        mut inner_sw_ref := make_get_payload_fcall(own sw_for_gp, til_type_from_explicit_type(payload_type3), sw_line, sw_col)
+
+                                        // Recurse on the nested pattern; bindings prepend to case_body
+                                        // and use ~get_payload(sw_ref, payload_type)~ as their root.
+                                        inner_cond3 := make_switch_case_condition(scope, case_body, inner_pat, inner_sw_ref, sw_line, sw_col)
+
+                                        // Combined: outer_cond.and(inner_cond)
+                                        mut and_acc3 := Expr.new(NodeType.FieldAccess("and"), sw_line, sw_col)
+                                        and_acc3.add_child(own outer_cond3)
+                                        condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
+                                        condition.add_child(own and_acc3)
+                                        condition.add_child(own inner_cond3)
                                         has_condition = true
                                     }
                                 }

@@ -366,3 +366,86 @@ test_switch_default_covers_missing := test() {
     }
     assert_eq_str(__LOC__, result, "other")
 }
+
+# --- nested pattern matching (#36) ---
+
+InnerE := enum { ValueA: I64, ValueB: Str, ValueC }
+OuterE := enum { WrapperA: InnerE, WrapperB: I64 }
+
+test_nested_payload_a := test() {
+    outer := OuterE.WrapperA(InnerE.ValueA(42))
+    mut result := 0
+    switch outer {
+    case OuterE.WrapperA(InnerE.ValueA(val)): result = val
+    case OuterE.WrapperA(InnerE.ValueB(_s)): result = -1
+    case OuterE.WrapperA(InnerE.ValueC):     result = -2
+    case OuterE.WrapperB(i):                 result = i
+    }
+    assert_eq(__LOC__, result, 42)
+}
+
+test_nested_payload_b := test() {
+    outer := OuterE.WrapperA(InnerE.ValueB("hello"))
+    mut result := ""
+    switch outer {
+    case OuterE.WrapperA(InnerE.ValueA(_n)): result = "got-a"
+    case OuterE.WrapperA(InnerE.ValueB(s)):  result = s
+    case OuterE.WrapperA(InnerE.ValueC):     result = "got-c"
+    case OuterE.WrapperB(_i):                result = "outer-b"
+    }
+    assert_eq_str(__LOC__, result, "hello")
+}
+
+test_nested_bare_inner := test() {
+    outer := OuterE.WrapperA(InnerE.ValueC)
+    mut hit := false
+    switch outer {
+    case OuterE.WrapperA(InnerE.ValueA(_n)): hit = false
+    case OuterE.WrapperA(InnerE.ValueB(_s)): hit = false
+    case OuterE.WrapperA(InnerE.ValueC):     hit = true
+    case OuterE.WrapperB(_i):                hit = false
+    }
+    assert(__LOC__, hit)
+}
+
+test_nested_outer_b := test() {
+    outer := OuterE.WrapperB(99)
+    mut result := 0
+    switch outer {
+    case OuterE.WrapperA(InnerE.ValueA(_n)): result = 1
+    case OuterE.WrapperA(InnerE.ValueB(_s)): result = 2
+    case OuterE.WrapperA(InnerE.ValueC):     result = 3
+    case OuterE.WrapperB(i):                 result = i
+    }
+    assert_eq(__LOC__, result, 99)
+}
+
+# Three levels of nesting.
+
+InnerInnerE := enum { X: I64, Y }
+MidE := enum { M: InnerInnerE, N: I64 }
+DeepE := enum { O: MidE, P }
+
+test_nested_triple := test() {
+    v := DeepE.O(MidE.M(InnerInnerE.X(7)))
+    mut result := 0
+    switch v {
+    case DeepE.O(MidE.M(InnerInnerE.X(n))): result = n
+    case DeepE.O(MidE.M(InnerInnerE.Y)):    result = -1
+    case DeepE.O(MidE.N(i)):                result = i
+    case DeepE.P:                           result = -99
+    }
+    assert_eq(__LOC__, result, 7)
+}
+
+test_nested_triple_fallthrough := test() {
+    v := DeepE.O(MidE.N(42))
+    mut result := 0
+    switch v {
+    case DeepE.O(MidE.M(InnerInnerE.X(n))): result = n
+    case DeepE.O(MidE.M(InnerInnerE.Y)):    result = -1
+    case DeepE.O(MidE.N(i)):                result = i
+    case DeepE.P:                           result = -99
+    }
+    assert_eq(__LOC__, result, 42)
+}
