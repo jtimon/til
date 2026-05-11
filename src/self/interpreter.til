@@ -1754,14 +1754,22 @@ make_str_value_own := func(data: Dynamic, shallow len: U64) returns shallow Valu
     return make_struct_value(lp.ctx.cached_str_name, lp.ctx.cached_str_def, inst_data, false)
 }
 str_view := func(shallow v: Value) returns shallow Str {
+    // Top-level Decl + Return so the typer's
+    // skip-promote-shallow-return optimization (in
+    // promote_own_transferred_locals) fires and the result stays on
+    // the stack. Putting the Decl inside the switch case hid it from
+    // the optimization (decl_idx fell back to the switch itself, not
+    // the inner Return), so codegen malloc'd the wrapper just to
+    // DEREF it on return -- 16 bytes leak per call.
+    mut result := ""
     switch v {
     case Value.Struct(si):
         ref s : Str = to_ptr(si.data)
-        return Str(c_str = s.c_str, count = s.count, cap = CAP_VIEW)
+        result = Str(c_str = s.c_str, count = s.count, cap = CAP_VIEW)
     case:
         UNREACHABLE(__LOC__)
-        return ""
     }
+    return result
 }
 
 find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
