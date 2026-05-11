@@ -1,33 +1,84 @@
 # priority: low
 ** #36 Nested pattern matching in switch
 
-Patterns of the form ~case Outer.WrapperA(Inner.ValueA(val)):~ now
-desugar in the typer to a conjunction:
+Three Phase-5 features from #35 landed under this issue. Guards
+(~case X if cond:~) remain open as [[../open/199.org][#199]].
 
-  sw.is(Outer.WrapperA).and(get_payload(sw, Inner).is(Inner.ValueA))
+*** Nested enum patterns
 
-and the binding ~val~ resolves to a nested ~get_payload~ chain rooted
-at the outer subject. ~.and~ is eager, but ~get_payload~ is just
-pointer arithmetic over the enum's union storage, so reading the
-inner operand when the outer tag is wrong is harmless (the outer
-~false~ short-circuits the body either way).
+  ~case Outer.WrapperA(Inner.ValueA(val)):~ and other arbitrarily-
+  nested enum patterns desugar in the typer to a conjunction:
 
-Supported forms inside a single case arm:
+    sw.is(Outer.WrapperA).and(get_payload(sw, Inner).is(Inner.ValueA))
 
-- Bare inner variant: ~case Outer.WrapperA(Inner.ValueC):~
-- Inner variant with binding: ~case Outer.WrapperA(Inner.ValueA(v)):~
-- Arbitrary nesting depth (~case Deep.O(Mid.M(Inner.X(n))):~)
+  with bindings resolved via a nested ~get_payload~ chain rooted at
+  the outer subject. ~.and~ is eager, but ~get_payload~ is pure
+  pointer arithmetic over the enum's union storage, so reading the
+  inner operand when the outer tag is wrong is harmless -- the outer
+  ~false~ short-circuits whether the body runs.
 
-Exhaustiveness still tracks only the outer enum: a nested case
-~Outer.WrapperA(Inner.ValueA(v))~ marks ~WrapperA~ covered without
-requiring every ~Inner~ variant to appear. Non-matching inner tags
-fall through to the next case (or the default).
+  Supported forms inside a single case arm:
 
-Other Phase 5 features from #35 (wildcard ~_~ as a non-binding,
-struct field matching, guard clauses) are not part of this change.
-Wildcard ~_~ already works as a payload binding name because ~_~
-is a normal identifier; the leading-underscore convention discards
-unused bindings without a separate codepath.
+  - Bare inner variant: ~case Outer.WrapperA(Inner.ValueC):~
+  - Inner variant with binding: ~case Outer.WrapperA(Inner.ValueA(v)):~
+  - Arbitrary nesting depth: ~case Deep.O(Mid.M(Inner.X(n))):~
 
-See ~src/test/enums.til~ test_nested_payload_*, test_nested_bare_inner,
-test_nested_outer_b, test_nested_triple, test_nested_triple_fallthrough.
+  Tests: ~test_nested_payload_*~, ~test_nested_bare_inner~,
+  ~test_nested_outer_b~, ~test_nested_triple~,
+  ~test_nested_triple_fallthrough~ in ~src/test/enums.til~.
+
+*** Deep exhaustiveness (was [[./200.org][#200]])
+
+  A per-switch ~CoverageNode~ trie keyed by variant name is walked by
+  ~mark_pattern_coverage~ as each case arm is processed. A variant is
+  marked ~fully_covered~ by ~case X.A:~ or ~case X.A(binding):~; a
+  nested pattern ~case X.A(Inner.B(v))~ recurses into a sub-tree
+  seeded from the variant's payload enum. ~collect_missing_paths~
+  walks the trie at the end of the switch and emits one error per
+  uncovered leaf:
+
+    non-exhaustive switch on enum 'OuterE'; missing cases:
+      WrapperA.ValueB, WrapperA.ValueC
+
+  Non-enum payloads (e.g. ~WrapperB: I64~) cannot be exhaustively
+  decomposed, so only a binding case or a default satisfies the
+  check -- ~case OuterE.WrapperB(0):~ alone does not cover WrapperB.
+
+  Test: ~test_missing_nested_inner~ in
+  ~src/test/enum_switch_missing_case.til~.
+
+*** Struct field matching
+
+  ~case Point(x = 0, y = ny):~ desugars each ~field = literal~ to
+  ~sw.field.eq(literal)~ ANDed into the case condition, and each
+  ~field = ident~ to ~ref ident := sw.field~ prepended to the case
+  body. The pattern is detected by ~FCall~ with an ~Ident~ callee
+  that resolves to a ~StructDef~ in scope and ~NamedArg~ children.
+  Nested struct/enum patterns inside a field value recurse through
+  ~make_switch_case_condition~ (so e.g. ~case Box(p = Point(x = 0)):~
+  walks naturally), and absent fields impose no constraint (no
+  explicit ~..~ syntax).
+
+  Limitation: a struct pattern placed *directly* inside an enum
+  variant -- e.g. ~case Shape.Dot(Point(x = 0)):~ -- still requires
+  an inner switch, because the typer cannot propagate ~get_payload~'s
+  preset payload type into a condition-side field access (the field
+  access re-infers ~get_payload~'s return as ~Dynamic~). Bind the
+  variant payload first and switch on it:
+
+    case Shape.Dot(p):
+        switch p {
+        case Point(x = 0, y = ny): ...
+        case Point(x = _nx, y = _ny): ...
+        }
+
+  Tests: ~test_struct_field_literal~, ~test_struct_field_origin~,
+  ~test_struct_field_bind_only~, ~test_enum_payload_then_struct_pattern~
+  in ~src/test/enums.til~.
+
+*** Notes
+
+  Wildcard ~_~ as a payload binding works for free because ~_~ is a
+  normal identifier; ~case:~ is the existing default-arm spelling
+  and covers the wildcard role. The remaining Phase-5 item -- guard
+  clauses -- is tracked separately in [[../open/199.org][#199]].

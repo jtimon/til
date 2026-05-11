@@ -449,3 +449,66 @@ test_nested_triple_fallthrough := test() {
     }
     assert_eq(__LOC__, result, 42)
 }
+
+# --- struct field matching in switch cases (#36) ---
+
+PointPat := struct {
+    mut x := 0
+    mut y := 0
+    namespace:
+    eq := func(a: PointPat, b: PointPat) returns Bool { return a.x.eq(b.x).and(a.y.eq(b.y)) }
+    to_str := func(self: PointPat) returns Str { return format(self.x.to_str(), ",", self.y.to_str()) }
+}
+
+test_struct_field_literal := test() {
+    p := PointPat(x = 0, y = 5)
+    mut r := ""
+    switch p {
+    case PointPat(x = 0, y = 0): r = "origin"
+    case PointPat(x = 0, y = ny): r = format("y-", ny.to_str())
+    case PointPat(x = nx, y = 0): r = format("x-", nx.to_str())
+    case PointPat(x = _nx, y = _ny): r = "other"
+    }
+    assert_eq_str(__LOC__, r, "y-5")
+}
+
+test_struct_field_origin := test() {
+    p := PointPat(x = 0, y = 0)
+    mut r := ""
+    switch p {
+    case PointPat(x = 0, y = 0): r = "origin"
+    case PointPat(x = _nx, y = _ny): r = "other"
+    }
+    assert_eq_str(__LOC__, r, "origin")
+}
+
+test_struct_field_bind_only := test() {
+    p := PointPat(x = 7, y = 9)
+    mut sum := 0
+    switch p {
+    case PointPat(x = nx, y = ny): sum = nx.add(ny)
+    }
+    assert_eq(__LOC__, sum, 16)
+}
+
+# Struct pattern combined with an outer binding to the enum payload.
+# (Struct patterns nested *directly* inside enum variants are still
+# the user's responsibility to decompose via an inner switch -- the
+# typer cannot propagate get_payload's type into a field access in
+# the condition position.)
+
+ShapePat := enum { Dot: PointPat, Line: I64 }
+
+test_enum_payload_then_struct_pattern := test() {
+    s := ShapePat.Dot(PointPat(x = 0, y = 7))
+    mut hit := ""
+    switch s {
+    case ShapePat.Dot(p):
+        switch p {
+        case PointPat(x = 0, y = ny): hit = format("y-axis-", ny.to_str())
+        case PointPat(x = _nx, y = _ny): hit = "other"
+        }
+    case ShapePat.Line(_l): hit = "line"
+    }
+    assert_eq_str(__LOC__, hit, "y-axis-7")
+}

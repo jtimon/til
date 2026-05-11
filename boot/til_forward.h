@@ -1164,6 +1164,7 @@ void infer_decl_untyped_value(Expr * stmt);
 void finalize_decl_binding(TypeScope * scope, Expr * stmt, I32 in_type_body);
 void infer_decl_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_type_body, Context * ctx);
 Bool is_simple_lvalue_expr(Expr * e);
+Expr * fold_and_chain(Vec * conds, U32 line, U32 col);
 Expr * make_switch_case_condition(TypeScope * scope, Expr * case_body, Expr * match_expr, Expr * sw_ref, U32 sw_line, U32 sw_col);
 void replace_switch_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
 void append_switch_else_if(Expr * root_if, Expr * if_node);

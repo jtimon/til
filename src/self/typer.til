@@ -3120,6 +3120,30 @@ is_simple_lvalue_expr := func(e: Expr) returns shallow Bool {
     return false
 }
 
+// Fold a Vec of conditions into a left-associative `.and()` chain.
+// Empty -> LiteralBool(true). Otherwise read by clone (the Vec is left
+// untouched for the caller to drop normally).
+priv fold_and_chain := func(conds: Vec, shallow line: U32, shallow col: U32) returns Expr {
+    if conds.len().eq(0) {
+        return Expr.new(NodeType.LiteralBool(true), line, col)
+    }
+    ref first_c : Expr = conds.get(0)
+    if conds.len().eq(1) {
+        return first_c.clone()
+    }
+    mut acc := first_c.clone()
+    for fi in 1..conds.len() {
+        mut and_acc := Expr.new(NodeType.FieldAccess("and"), line, col)
+        and_acc.add_child(own acc.clone())
+        mut next_chain := Expr.new(NodeType.FCall(FCallData()), line, col)
+        next_chain.add_child(own and_acc)
+        ref next_c : Expr = conds.get(fi)
+        next_chain.add_child(own next_c.clone())
+        acc = next_chain.clone()
+    }
+    return acc.clone()
+}
+
 make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr {
     mut condition := Expr.new(NodeType.Body, sw_line, sw_col)
     mut has_condition := false
@@ -3339,6 +3363,96 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                             condition.add_child(own vref)
                             has_condition = true
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // Issue #36: struct field matching. `case Point(x = 0, y = ny):` desugars
+    // each `field = literal` to ~sw.field.eq(literal)~ ANDed into the case
+    // condition, and each `field = ident` to ~ref ident := sw.field~ prepended
+    // to the body. Nested struct/enum patterns inside a field value recurse.
+    // Detected by FCall with an Ident callee (a struct/type name) where every
+    // non-callee child is a NamedArg.
+    if has_condition.not() {
+        if match_expr.node_type.is(NodeType.FCall) {
+            if match_expr.children.len().gt(0) {
+                if match_expr.child(0).node_type.is(NodeType.Ident) {
+                    mut sp_type_name := ""
+                    switch match_expr.child(0).node_type {
+                    case NodeType.Ident(spn): sp_type_name = spn.clone()
+                    case:
+                    }
+                    mut all_named := true
+                    for sp_ci in 1..match_expr.children.len() {
+                        ref sp_child : Expr = match_expr.child(sp_ci)
+                        if sp_child.node_type.is(NodeType.NamedArg).not() {
+                            all_named = false
+                        }
+                    }
+                    mut is_struct := false
+                    if all_named {
+                        ref sp_def : Expr = scope.get_struct(sp_type_name)
+                        if is_null(sp_def).not() {
+                            if sp_def.node_type.is(NodeType.StructDef) {
+                                is_struct = true
+                            }
+                        }
+                    }
+                    if is_struct {
+                        mut sp_conds := Vec.new(Expr)
+                        mut sp_bindings := Vec.new(Expr)
+                        for sp_ci2 in 1..match_expr.children.len() {
+                            ref na : Expr = match_expr.child(sp_ci2)
+                            mut field_name := ""
+                            switch na.node_type {
+                            case NodeType.NamedArg(fn): field_name = fn.clone()
+                            case:
+                            }
+                            if na.children.len().eq(0) { continue }
+                            ref field_pat : Expr = na.child(0)
+                            if field_pat.node_type.is(NodeType.Ident) {
+                                // `field = ident` is a binding -> ref bind_name := sw.field_name
+                                mut bind_name := ""
+                                switch field_pat.node_type {
+                                case NodeType.Ident(bn): bind_name = bn.clone()
+                                case:
+                                }
+                                mut field_acc_bind := Expr.new(NodeType.FieldAccess(field_name.clone()), sw_line, sw_col)
+                                field_acc_bind.add_child(own sw_ref.clone())
+                                mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = bind_name.clone(), own_type = OwnType.Ref)), sw_line, sw_col)
+                                bind_decl.add_child(own field_acc_bind)
+                                sp_bindings.push(own bind_decl)
+                            } else {
+                                // Value match (literal/expr) or nested pattern.
+                                // Recurse with sw_ref = sw.field_name; the recursive
+                                // call may itself prepend bindings to case_body.
+                                mut field_acc_match := Expr.new(NodeType.FieldAccess(field_name.clone()), sw_line, sw_col)
+                                field_acc_match.add_child(own sw_ref.clone())
+                                sub_cond := make_switch_case_condition(scope, case_body, field_pat, field_acc_match, sw_line, sw_col)
+                                sp_conds.push(own sub_cond)
+                            }
+                        }
+                        // Prepend bindings (in source order) before any existing
+                        // case_body statements -- including bindings that
+                        // recursive value-match calls may have prepended for
+                        // their own nested patterns.
+                        if sp_bindings.len().gt(0) {
+                            mut old_body := Vec.new(Expr)
+                            old_body.move_from(case_body.children)
+                            mut new_body := Vec.new(Expr)
+                            for spi in 0..sp_bindings.len() {
+                                new_body.push_take(sp_bindings, spi)
+                            }
+                            for obi in 0..old_body.len() {
+                                new_body.push_take(old_body, obi)
+                            }
+                            case_body.children.move_from(new_body)
+                        }
+                        // Fold conds into a left-associative AND chain.
+                        condition = fold_and_chain(sp_conds, sw_line, sw_col)
+                        has_condition = true
                     }
                 }
             }
