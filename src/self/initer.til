@@ -21,6 +21,11 @@ TypeBinding := struct {
     ref mut func_def : Expr = NULL
     mut is_builtin := false
     mut used := false
+    // Issue #93: mirror of Declaration.orig_name -- non-empty means
+    // the lifter hoisted this decl from a function body and the
+    // unused-priv check should report it in source terms (original
+    // name + enclosing parent) rather than as a synthetic mangled name.
+    mut orig_name := ""
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns shallow Bool {
         return a.name.eq(b.name)
@@ -318,6 +323,7 @@ register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shall
         b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
         b.is_priv = sdecl.is_priv
+        b.orig_name = sdecl.orig_name.clone()
         return 0.to_i32()
     case:
         UNREACHABLE(__LOC__)
@@ -518,6 +524,7 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
         ref mut b : TypeBinding = scope.get_binding(ename)
         b.struct_def = stmt.child(0)
         b.is_priv = edecl.is_priv
+        b.orig_name = edecl.orig_name.clone()
         return 0
     case:
         UNREACHABLE(__LOC__)
@@ -1247,6 +1254,7 @@ register_top_level_value_for_stmt := func(stmt: Expr, scope: TypeScope) {
         scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut tlv_b : TypeBinding = scope.get_binding(sdecl.name)
         tlv_b.is_priv = sdecl.is_priv
+        tlv_b.orig_name = sdecl.orig_name.clone()
     case:
         UNREACHABLE(__LOC__)
     }
@@ -1270,6 +1278,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
             fb.is_priv = sdecl.is_priv
+            fb.orig_name = sdecl.orig_name.clone()
             return
         }
 
@@ -1328,6 +1337,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
             fb.is_priv = sdecl.is_priv
+            fb.orig_name = sdecl.orig_name.clone()
             if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
                 fb.is_builtin = true
             }

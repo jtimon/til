@@ -125,6 +125,13 @@ Declaration := struct {
     mut field_size : I32 = 0
     ref mut field_struct_def : Expr = NULL
     own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
+    // Issue #93: when the lifter hoists a nested struct/enum/func from
+    // inside a function body to file scope, it stores the original
+    // unmangled identifier here so unused-priv diagnostics can report
+    // it (and the enclosing parent function name, derived by stripping
+    // the trailing "_<orig_name>" from the mangled `name`) in source
+    // terms instead of leaking the synthetic mangled name.
+    mut orig_name := ""
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: Declaration) returns Str { return self.name }

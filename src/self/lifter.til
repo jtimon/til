@@ -140,6 +140,9 @@ priv lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec
         case NodeType.Decl(child_dd):
             mangled := parent_prefix.concat("_").concat(child_dd.name)
             renamings.set(own child_dd.name.clone(), own mangled.clone())
+            // Remember the user-facing identifier so the unused-priv
+            // diagnostic can report it in source terms.
+            child_dd.orig_name = child_dd.name.clone()
             child_dd.name = mangled.clone()
             // Lifted nested defs are visible only through references in the
             // enclosing body (which we rewrite below). Marking them priv

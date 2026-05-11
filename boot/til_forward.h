@@ -284,6 +284,7 @@ typedef struct Declaration {
     I32 field_size;
     Expr *field_struct_def;
     Expr *default_value;
+    Str orig_name;
 } Declaration;
 
 
@@ -368,6 +369,7 @@ typedef struct TypeBinding {
     Expr *func_def;
     Bool is_builtin;
     Bool used;
+    Str orig_name;
 } TypeBinding;
 
 

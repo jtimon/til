@@ -2131,6 +2131,24 @@ check_unused_priv_top_level := proc(scope: TypeScope) returns shallow I32 {
             if b.struct_def.node_type.is(NodeType.EnumDef) { kind = "enum" }
             else { kind = "struct" }
         }
+        // Issue #93: nested defs lifted out of a function body carry the
+        // original identifier on b.orig_name (set by src/self/lifter.til).
+        // Report them in source terms -- the parent function name is the
+        // mangled name minus the trailing "_<orig_name>" -- and suggest
+        // actions that actually make sense for a lifted decl (delete it
+        // or move it to file scope).
+        if b.orig_name.len().gt(0) {
+            mangled_len := b.name.len()
+            orig_len := b.orig_name.len()
+            parent_len := mangled_len.sub(orig_len).sub(1)
+            parent_name := b.name.substr(0, parent_len)
+            type_error_at(b.path, b.line, b.col,
+                "unused local ".concat(kind).concat(" '").concat(b.orig_name)
+                    .concat("' in '").concat(parent_name)
+                    .concat("'; remove it or move it to file scope"))
+            found = found.add(1.to_i32())
+            continue
+        }
         type_error_at(b.path, b.line, b.col,
             "unused priv ".concat(kind).concat(" '").concat(b.name)
                 .concat("'; remove 'priv' to expose it"))
@@ -2562,6 +2580,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
         b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
         b.is_priv = sdecl.is_priv
+        b.orig_name = sdecl.orig_name.clone()
         return true
     case:
         UNREACHABLE(__LOC__)
@@ -2588,6 +2607,7 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
             fb.is_priv = sdecl.is_priv
+            fb.orig_name = sdecl.orig_name.clone()
             if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)) {
                 fb.is_builtin = true
             }
@@ -2759,6 +2779,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
         scope.set(sdecl.name, stmt.til_type, FuncType.None, sdecl.is_mut, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut decl_b : TypeBinding = scope.get_binding(sdecl.name)
         decl_b.is_priv = sdecl.is_priv
+        decl_b.orig_name = sdecl.orig_name.clone()
         if stmt.til_type.is(Type.FuncPtr) {
             switch rhs.node_type {
             case NodeType.Ident(rhs_id):
