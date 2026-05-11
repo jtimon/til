@@ -1835,6 +1835,7 @@ extern I32 errors;
 extern I32 proc_calls_count;
 extern I32 proc_def_depth;
 extern Str current_type_name;
+extern Str current_top_func_name;
 extern I32 auto_gen_depth;
 extern Bool typer_in_shallow_return;
 extern Str I64Name;

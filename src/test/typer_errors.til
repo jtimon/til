@@ -411,3 +411,11 @@ reach_outside := func() returns I64 {
     return h.x
 }
 reach_outside()
+
+// And trying to reach the SAME nested type by its mangled name from
+// another function in the same file: function-scope priv kicks in.
+reach_outside_mangled := func() returns I64 {
+    h := uses_nested_HiddenInUses()
+    return h.x
+}
+reach_outside_mangled()

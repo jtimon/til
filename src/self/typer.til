@@ -143,6 +143,15 @@ mut errors : I32 = 0
 mut proc_calls_count : I32 = 0
 mut proc_def_depth : I32 = 0
 mut current_type_name := ""
+// Issue #93 follow-up: name of the top-level Decl whose body we are
+// currently typing (function rhs or struct/enum that contains the
+// active ns method body via current_type_name). Lifted nested defs
+// carry their original parent in TypeBinding.orig_name; the function-
+// scope priv check uses these two tracking globals to decide whether
+// a reference at the current location is allowed to see the mangled
+// name (only the original parent function and any of its other lifted
+// descendants can).
+mut current_top_func_name := ""
 // #187 step 2: nesting depth of auto-generated FuncDef bodies
 // (clone/delete/size/etc emitted by initer). The unused-priv-member
 // check ignores reads inside these so genuinely-unused priv fields
@@ -1571,9 +1580,31 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
 priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
     if is_null(b) { return }
     if b.is_priv.not() { return }
-    if b.path.eq(typer_path) { return }
-    type_error(e, "'".concat(name).concat("' is private to '").concat(b.path)
-        .concat("'; remove 'priv' to expose it"))
+    if b.path.eq(typer_path).not() {
+        type_error(e, "'".concat(name).concat("' is private to '").concat(b.path)
+            .concat("'; remove 'priv' to expose it"))
+        return
+    }
+    // Issue #93 follow-up: lifted nested defs are function-scoped within
+    // the original parent function. The lifter sets b.orig_name to the
+    // user-facing identifier and mangles b.name as `<parent>_<orig>`, so
+    // the enclosing parent name is the prefix before the trailing
+    // `_<orig_name>`. Allow references from:
+    //   - the parent function itself (current_top_func_name == parent), or
+    //   - any other lifted descendant whose own mangled name starts with
+    //     `<parent>_` (sibling helpers and inner ns methods), or
+    //   - a ns-method body of a lifted struct/enum (tracked through
+    //     current_type_name).
+    if b.orig_name.len().eq(0) { return }
+    parent_len := b.name.len().sub(b.orig_name.len()).sub(1)
+    parent_name := b.name.substr(0, parent_len)
+    parent_underscore := parent_name.concat("_")
+    if current_top_func_name.eq(parent_name) { return }
+    if current_top_func_name.starts_with(parent_underscore) { return }
+    if current_type_name.eq(parent_name) { return }
+    if current_type_name.starts_with(parent_underscore) { return }
+    type_error(e, "'".concat(b.orig_name).concat("' is a local def of '")
+        .concat(parent_name).concat("' and cannot be referenced from outside it"))
 }
 
 // Issue #179 + follow-up: cross-file priv check for type names that
@@ -2871,6 +2902,12 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
             UNREACHABLE(__LOC__)
         }
     } else {
+        // Issue #93 follow-up: when the decl's rhs is a FuncDef body
+        // (top-level after the lifter has run), set current_top_func_name
+        // so the function-scope priv check in check_priv_access knows
+        // which parent we're inside while typing the body.
+        mut tracked_func := false
+        saved_top_func := current_top_func_name.clone()
         switch stmt.node_type {
         case NodeType.Decl(sdecl):
             if sdecl.explicit_type.len().gt(0) {
@@ -2879,9 +2916,18 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
                     pre_coerce_decl_numeric_literals(stmt.child(0), declared)
                 }
             }
+            if stmt.child(0).node_type.is(NodeType.FuncDef) {
+                if stmt.child(0).children.len().gt(0) {
+                    current_top_func_name = sdecl.name.clone()
+                    tracked_func = true
+                }
+            }
         case:
         }
         infer_expr(scope, stmt.child(0), in_func, ctx)
+        if tracked_func {
+            current_top_func_name = saved_top_func
+        }
     }
     if infer_decl_type_def(scope, stmt) { return }
     if infer_decl_func_def(scope, stmt) { return }
