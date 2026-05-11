@@ -62,6 +62,10 @@ I64 U8_cmp(U8 a, U8 b);
 // U8 conversions
 I64 U8_to_i64(U8 a);
 U64 U8_to_u64(U8 a);
+I32 U8_to_i32(U8 a);
+U32 U8_to_u32(U8 a);
+USize U8_to_usize(U8 a);
+F32 U8_to_f32(U8 a);
 U8 I64_to_u8(I64 a);
 U8 U8_from_i64_ext(I64 *a);
 
@@ -84,6 +88,7 @@ I64 I8_cmp(I8 a, I8 b);
 
 // I8 conversions
 I64 I8_to_i64(I8 a);
+U64 I8_to_u64(I8 a);
 I8 I64_to_i8(I64 a);
 I8 I8_from_i64_ext(I64 *a);
 
@@ -106,6 +111,9 @@ I64 I16_cmp(I16 a, I16 b);
 
 // I16 conversions
 I64 I16_to_i64(I16 a);
+U64 I16_to_u64(I16 a);
+U32 I16_to_u32(I16 a);
+F32 I16_to_f32(I16 a);
 I16 I64_to_i16(I64 a);
 I32 I64_to_i32(I64 a);
 U32 I64_to_u32(I64 a);
@@ -138,6 +146,9 @@ I64 I32_cmp(I32 a, I32 b);
 
 // I32 conversions
 I64 I32_to_i64(I32 a);
+U64 I32_to_u64(I32 a);
+USize I32_to_usize(I32 a);
+F32 I32_to_f32(I32 a);
 I32 I32_from_i64_ext(I64 *a);
 
 // I32 clone
@@ -181,6 +192,8 @@ I64 U32_cmp(U32 a, U32 b);
 // U32 conversions
 I64 U32_to_i64(U32 a);
 U64 U32_to_u64(U32 a);
+I32 U32_to_i32(U32 a);
+F32 U32_to_f32(U32 a);
 U32 U32_from_i64_ext(I64 *a);
 
 // U32 clone
@@ -202,6 +215,10 @@ I64 U64_cmp(U64 a, U64 b);
 
 // U64 conversions
 I64 U64_to_i64(U64 a);
+U32 U64_to_u32(U64 a);
+I32 U64_to_i32(U64 a);
+USize U64_to_usize(U64 a);
+F32 U64_to_f32(U64 a);
 U64 U64_from_i64_ext(I64 *a);
 Str *U64_to_str_ext(U64 v);
 

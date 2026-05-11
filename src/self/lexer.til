@@ -281,7 +281,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             continue
         }
 
-        col : U32 = pos.sub(line_start).add(1).to_i64().to_u32()
+        col : U32 = pos.sub(line_start).add(1)
         start := pos
 
         // Line comments: // or #

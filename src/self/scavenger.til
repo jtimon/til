@@ -264,7 +264,7 @@ priv dyn_call_real_arg_count := func(e: Expr) returns shallow USize {
     mut nargs : USize = 0
     switch nargs_e.node_type {
     case NodeType.LiteralNum(s):
-        nargs = s.to_i64().to_usize()
+        nargs = s.to_usize()
     case:
         return e.children.len()
     }

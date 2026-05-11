@@ -176,8 +176,8 @@ value_to_u64 := func(v: Value) returns U64 {
     switch v {
     case Value.Int(x):     return x.to_u64()
     case Value.Byte(x):    return x.to_u64()
-    case Value.Short(x):   return x.to_i64().to_u64()
-    case Value.Int32(x):   return x.to_i64().to_u64()
+    case Value.Short(x):   return x.to_u64()
+    case Value.Int32(x):   return x.to_u64()
     case Value.Uint32(x):  return x.to_u64()
     case Value.Uint64(x):  return x.clone()
     case Value.Boolean(x):
@@ -204,11 +204,11 @@ usize_ffi_type := func() returns ref ffi_type {
 priv value_to_f32 := func(v: Value) returns F32 {
     switch v {
     case Value.Int(x):     return x.to_f32()
-    case Value.Byte(x):    return x.to_u64().to_i64().to_f32()
-    case Value.Short(x):   return x.to_i64().to_f32()
-    case Value.Int32(x):   return x.to_i64().to_f32()
-    case Value.Uint32(x):  return x.to_i64().to_f32()
-    case Value.Uint64(x):  return x.to_i64().to_f32()
+    case Value.Byte(x):    return x.to_f32()
+    case Value.Short(x):   return x.to_f32()
+    case Value.Int32(x):   return x.to_f32()
+    case Value.Uint32(x):  return x.to_f32()
+    case Value.Uint64(x):  return x.to_f32()
     case Value.Float(x):   return x.clone()
     case Value.Boolean(x):
         if x { return 1.to_f32() }
@@ -478,7 +478,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Struct")) {
-            ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64())
+            ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
             r = make_str_value(payload.c_str, payload.count.to_u64())
             return true
         }
@@ -487,7 +487,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Enum")) {
-            ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64())
+            ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
             r = make_str_value(payload2.c_str, payload2.count.to_u64())
             return true
         }
@@ -508,7 +508,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Custom")) {
-            ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64())
+            ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
             r = make_str_value(payload3.c_str, payload3.count.to_u64())
             return true
         }
@@ -773,7 +773,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     mut nargs : U32 = 0.to_u32()
     switch arity_expr.node_type {
     case NodeType.LiteralNum(arity_str):
-        nargs = arity_str.to_i64().to_u32()
+        nargs = arity_str.to_u32()
     case:
         UNREACHABLE(__LOC__)
     }
@@ -803,7 +803,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
     fake_call.add_child(own field_access)
 
     result := eval_call(s, fake_call)
-    return value_to_u64(result).to_i64().to_i32()
+    return value_to_u64(result).to_i32()
 }
 
 enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value) returns shallow Bool {
@@ -928,13 +928,13 @@ priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: 
     if v.is(Value.Ptr) {
         narrowed := reinterpret_ptr_value(v, tn, scope)
         ref payload : Dynamic = val_to_ptr(narrowed)
-        memcpy(dst, payload, sz.to_i64().to_u64())
+        memcpy(dst, payload, sz.to_u64())
     } else if tn.eq("F32") {
         mut tmp : F32 = value_to_f32(v)
         memcpy(dst, tmp, 4)
     } else {
         mut tmp : U64 = value_to_u64(v)
-        memcpy(dst, tmp, sz.to_i64().to_u64())
+        memcpy(dst, tmp, sz.to_u64())
     }
     return true
 }
@@ -954,7 +954,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     for i in 0..nargs {
         v := eval_expr(scope, e.child(i.add(1)))
         mut is_shallow := is_null(fe.param_shallows).not()
-        .and(i.lt(fe.nparam.to_i64().to_usize()))
+        .and(i.lt(fe.nparam.to_usize()))
         if is_shallow {
             ref ps : Bool = ptr_add(fe.param_shallows, i.to_u64())
             is_shallow = ps
@@ -1016,7 +1016,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     if is_null(ret_sdef).not() {
         switch ret_sdef.node_type {
         case NodeType.StructDef(sdd):
-            ret_buf = malloc(sdd.total_struct_size.to_i64().to_usize())
+            ret_buf = malloc(sdd.total_struct_size.to_usize())
             ffi_call(fe.cif, fe.fn, ret_buf, arg_ptrs)
         case:
             ffi_call(fe.cif, fe.fn, raw, arg_ptrs)
@@ -1096,7 +1096,7 @@ ffi_register := func(name: Str, fn: Dynamic, fdef: Expr) {
         mut entry := FFIEntry()
         entry.fn = fn
         if fd.return_type.len().gt(0) { entry.return_type = fd.return_type }
-        entry.nparam = np.to_i64().to_i32()
+        entry.nparam = np.to_i32()
         entry.param_shallows = pshallows
         entry.return_is_shallow = ret_shallow
         entry.cif = cif

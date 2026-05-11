@@ -35,8 +35,8 @@ namespace:
         switch src_sdef.node_type {
         case NodeType.StructDef(sdef_data):
             sz := sdef_data.total_struct_size
-            dst_data : Dynamic = malloc(sz.to_i64().to_u64())
-            memcpy(dst_data, self.data, sz.to_i64().to_u64())
+            dst_data : Dynamic = malloc(sz.to_u64())
+            memcpy(dst_data, self.data, sz.to_u64())
             if self.struct_name.eq("Str") {
                 ref s : Str = to_ptr(self.data)
                 if s.count.to_i64().gt(0) {
@@ -60,13 +60,13 @@ namespace:
                     foff := dd.field_offset
                     ref ftype : Str = dd.explicit_type
                     if dd.own_type.is(OwnType.Own) {
-                        ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.to_i64().to_u64()))
+                        ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.to_u64()))
                         if is_null(src_ptr).not() {
                             if is_null(dd.field_struct_def).not() {
                                 mut tmp := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = to_ptr(src_ptr), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
-                                write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), cloned.data)
+                                write_ptr(ptr_add(dst_data, foff.to_u64()), cloned.data)
                                 cloned.data = NULL
                             }
                         }
@@ -74,15 +74,15 @@ namespace:
                     }
                     if dd.own_type.is(OwnType.Ref) { continue }
                     if ftype.eq("Str") {
-                        ref s : Str = ptr_add(self.data, foff.to_i64().to_u64())
+                        ref s : Str = ptr_add(self.data, foff.to_u64())
                         if s.count.to_i64().gt(0) {
                             if is_null(s.c_str).not() {
                                 mut cloned_str := s.clone()
-                                write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), cloned_str.c_str)
+                                write_ptr(ptr_add(dst_data, foff.to_u64()), cloned_str.c_str)
                                 // Update cap to count so the clone owns
                                 // its freshly malloc'd buffer (mirrors
                                 // the Str-payload branch above).
-                                ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.to_i64().to_u64()), 12)
+                                ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.to_u64()), 12)
                                 dst_cap = s.count.clone()
                                 memset(cloned_str, 0, Str.size().to_u64())
                             }
@@ -92,13 +92,13 @@ namespace:
                     if is_null(dd.field_struct_def).not() {
                         if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
                             if enum_has_payloads(dd.field_struct_def) {
-                                ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_i64().to_u64()))
+                                ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_u64()))
                                 if is_null(ei_ref).not() {
                                     ref ei : EnumInstance = ei_ref
                                     mut cloned_ei := ei.clone()
                                     heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
                                     move(heap_ei, cloned_ei, EnumInstance.size().to_u64())
-                                    write_ptr(ptr_add(dst_data, foff.to_i64().to_u64()), heap_ei)
+                                    write_ptr(ptr_add(dst_data, foff.to_u64()), heap_ei)
                                 }
                                 continue
                             }
@@ -109,10 +109,10 @@ namespace:
                             ref nested : Expr = dd.field_struct_def
                             switch nested.node_type {
                             case NodeType.StructDef(nested_sdef):
-                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested, data = ptr_add(self.data, foff.to_i64().to_u64()), borrowed = true)
+                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested, data = ptr_add(self.data, foff.to_u64()), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
-                                memcpy(ptr_add(dst_data, foff.to_i64().to_u64()), cloned.data, nested_sdef.total_struct_size.to_i64().to_u64())
+                                memcpy(ptr_add(dst_data, foff.to_u64()), cloned.data, nested_sdef.total_struct_size.to_u64())
                                 free(own cloned.data)
                                 cloned.data = NULL
                             case:
@@ -169,8 +169,8 @@ namespace:
                 data = NULL,
                 data_size = self.data_size)
         }
-        buf : Dynamic = malloc(self.data_size.to_i64().to_usize())
-        memcpy(buf, self.data, self.data_size.to_i64().to_usize())
+        buf : Dynamic = malloc(self.data_size.to_usize())
+        memcpy(buf, self.data, self.data_size.to_usize())
         return EnumInstance(enum_name = self.enum_name,
             enum_def = self.enum_def,
             data = buf,
@@ -369,11 +369,11 @@ val_enum_flat := func(enum_name: Str, enum_def: Expr, shallow etag: I32, payload
     if total.lt(8.to_i32()) {
         total = 8.to_i32()
     }
-    mut data : U8 = calloc(1, total.to_i64().to_u64())
+    mut data : U8 = calloc(1, total.to_u64())
     memcpy(data, etag, 4)
     if is_null(payload_data).not() {
         if payload_size.gt(0.to_i32()) {
-            memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64()), payload_data, payload_size.to_i64().to_u64())
+            memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.to_u64()), payload_data, payload_size.to_u64())
         }
     }
     return Value.Enum(EnumInstance(enum_name = enum_name, enum_def = enum_def, data = data, data_size = total))
@@ -384,12 +384,12 @@ val_enum_simple := func(enum_name: Str, shallow etag: I32) returns shallow Value
 }
 
 elem_size_for_type := func(type_name: Str) returns shallow I32 {
-    if type_name.eq("I64") { return I64.size().to_i64().to_i32() }
-    if type_name.eq("U8") { return U8.size().to_i64().to_i32() }
-    if type_name.eq("I16") { return I16.size().to_i64().to_i32() }
-    if type_name.eq("I32") { return I32.size().to_i64().to_i32() }
-    if type_name.eq("U32") { return U32.size().to_i64().to_i32() }
-    if type_name.eq("Bool") { return Bool.size().to_i64().to_i32() }
+    if type_name.eq("I64") { return I64.size().to_i32() }
+    if type_name.eq("U8") { return U8.size().to_i32() }
+    if type_name.eq("I16") { return I16.size().to_i32() }
+    if type_name.eq("I32") { return I32.size().to_i32() }
+    if type_name.eq("U32") { return U32.size().to_i32() }
+    if type_name.eq("Bool") { return Bool.size().to_i32() }
     if type_name.eq("Str") { return 24.to_i32() }
     return 8.to_i32()
 }
@@ -436,10 +436,10 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         mut j : U64 = 0
         mut i : U64 = 0
         while i.lt(raw.count.to_u64()) {
-            ref ch : U8 = raw.byte_at(i.to_i64().to_usize())
+            ref ch : U8 = raw.byte_at(i.to_usize())
             if ch.eq(92) {
                 if i.add(1).lt(raw.count.to_u64()) {
-                    ref next : U8 = raw.byte_at(i.add(1).to_i64().to_usize())
+                    ref next : U8 = raw.byte_at(i.add(1).to_usize())
                     if next.eq(110) { memset(ptr_add(buf, j), 10.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
                     if next.eq(116) { memset(ptr_add(buf, j), 9.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
                     if next.eq(92) { memset(ptr_add(buf, j), 92.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
@@ -447,7 +447,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                     if next.eq(48) { memset(ptr_add(buf, j), 0.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
                 }
             }
-            memcpy(ptr_add(buf, j), ptr_add(raw.c_str, i.to_i64().to_usize().to_u64()), 1)
+            memcpy(ptr_add(buf, j), ptr_add(raw.c_str, i), 1)
             j = j.add(1)
             i = i.add(1)
         }
@@ -459,7 +459,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         switch e.til_type {
         case Type.U8:  return val_u8(num_str.to_i64())
         case Type.U32: return val_u32(num_str.to_i64())
-        case Type.U64: return val_u64(num_str.to_i64().to_u64())
+        case Type.U64: return val_u64(num_str.to_u64())
         case Type.I16: return val_i16(num_str.to_i64())
         case Type.I32: return val_i32(num_str.to_i64())
         case Type.F32: return val_f32(num_str.to_f32())
@@ -626,7 +626,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns 
                     ref etag : I32 = p
                     if enum_has_payloads(tdef) {
                         ecopy : Dynamic = malloc(8)
-                        memcpy(ecopy, ptr_add(p, ENUM_PAYLOAD_OFFSET.to_i64().to_u64()), 8)
+                        memcpy(ecopy, ptr_add(p, ENUM_PAYLOAD_OFFSET.to_u64()), 8)
                         return val_enum_flat(type_name, tdef, etag, ecopy, 8.to_i32())
                     }
                     return val_i32(etag.to_i64())
@@ -820,9 +820,9 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                                         ref fd : Declaration = find_field_decl(cur_sdef, fa_name)
                                         if is_null(fd).not() {
                                             if fd.own_type.is(OwnType.Shallow).not() {
-                                                base = deref(ptr_add(base, fd.field_offset.to_i64().to_u64()))
+                                                base = deref(ptr_add(base, fd.field_offset.to_u64()))
                                             } else {
-                                                base = ptr_add(base, fd.field_offset.to_i64().to_u64())
+                                                base = ptr_add(base, fd.field_offset.to_u64())
                                             }
                                             cur_sdef = fd.field_struct_def
                                         }
@@ -1131,7 +1131,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         if si_edef.node_type.is(NodeType.StructDef) {
             switch si_edef.node_type {
             case NodeType.StructDef(sdd):
-                inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_i64().to_usize())
+                inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_usize())
                 mut inst := val_none()
                 switch e.til_type {
                 case Type.Struct(es):
@@ -1599,13 +1599,13 @@ value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
                 mut cloned := val.clone()
                 switch cloned {
                 case Value.Struct(csi):
-                    memcpy(dest, csi.data, sz.to_i64().to_u64())
+                    memcpy(dest, csi.data, sz.to_u64())
                     free(own csi.data)
                     csi.data = NULL
                 case:
                 }
             } else {
-                memcpy(dest, si.data, sz.to_i64().to_u64())
+                memcpy(dest, si.data, sz.to_u64())
             }
         case:
         }
@@ -1617,11 +1617,11 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     esz := elem_size_for_type(elem_type)
     mut alloc_count := count
     if alloc_count.eq(0) { alloc_count = 1 }
-    data : Dynamic = calloc(alloc_count.to_u64(), esz.to_i64().to_u64())
+    data : Dynamic = calloc(alloc_count.to_u64(), esz.to_u64())
     for i in 0..count {
         ref s : Str = argv.get(offset.add(i))
         v := parse_cli_arg(s, elem_type)
-        value_to_buf(ptr_add(data, i.to_u64().mul(esz.to_i64().to_u64())), v, elem_type)
+        value_to_buf(ptr_add(data, i.to_u64().mul(esz.to_u64())), v, elem_type)
     }
     ref lp : LoadedProgram = codegen_lp()
     mut sz : I32 = 0.to_i32()
@@ -1631,7 +1631,7 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     case:
         UNREACHABLE(__LOC__)
     }
-    inst_data : Dynamic = calloc(1, sz.to_i64().to_u64())
+    inst_data : Dynamic = calloc(1, sz.to_u64())
     mut tmp := StructInstance(struct_name = lp.ctx.cached_array_name, struct_def = lp.ctx.cached_array_def, data = to_ptr(inst_data), borrowed = true)
     ref ba_data_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "data")
     write_field(tmp, ba_data_d, Value.Ptr(data))
@@ -1720,7 +1720,7 @@ make_str_value := func(data: Dynamic, shallow len: U64) returns shallow Value {
     memset(ptr_add(copy, len), 0, 1)
     write_ptr(inst_data, copy)
     ref mut count_slot : U32 = ptr_add(inst_data, 8)
-    count_slot = len.to_i64().to_i32().to_u32()
+    count_slot = len.to_u32()
     // cap = count so Str.delete frees the malloc'd buffer (was CAP_LIT,
     // which left the buffer alive forever -- a per-call leak that
     // multiplied with every Str-typed precomp fold).
@@ -1738,7 +1738,7 @@ make_str_value_view := func(data: Dynamic, shallow len: U64) returns shallow Val
     inst_data : Dynamic = malloc(Str.size())
     write_ptr(inst_data, data)
     ref mut count_slot : U32 = ptr_add(inst_data, 8)
-    count_slot = len.to_i64().to_i32().to_u32()
+    count_slot = len.to_u32()
     memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size().to_u64())
     ref lp : LoadedProgram = codegen_lp()
     return make_struct_value(lp.ctx.cached_str_name, lp.ctx.cached_str_def, inst_data, false)
@@ -1748,7 +1748,7 @@ make_str_value_own := func(data: Dynamic, shallow len: U64) returns shallow Valu
     inst_data : Dynamic = malloc(Str.size())
     write_ptr(inst_data, data)
     ref mut count_slot : U32 = ptr_add(inst_data, 8)
-    count_slot = len.to_i64().to_i32().to_u32()
+    count_slot = len.to_u32()
     memcpy(ptr_add(inst_data, 12), count_slot, U32.size().to_u64())
     ref lp : LoadedProgram = codegen_lp()
     return make_struct_value(lp.ctx.cached_str_name, lp.ctx.cached_str_def, inst_data, false)
@@ -1781,7 +1781,7 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
 ENUM_PAYLOAD_OFFSET : I32 = 8
 
 read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value {
-    ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
+    ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_u64())
     // Resolve the field's type name. For own/ref enum fields the typer
     // sometimes leaves explicit_type empty -- recover the enum name from
     // til_type when available so the enum branch below applies regardless
@@ -1854,7 +1854,7 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
                 psz := ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
                 mut psz_final := psz
                 if psz.to_i64().lt(0) { psz_final = 0.to_i32() }
-                return val_enum_flat(ei.enum_name, edef, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_i64().to_u64()), psz_final)
+                return val_enum_flat(ei.enum_name, edef, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
             }
             ref itag : I32 = ptr
             return val_i32(itag.to_i64())
@@ -1868,19 +1868,19 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
         }
     }
     // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
-    ref ptr2 : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
+    ref ptr2 : Dynamic = ptr_add(inst.data, dd.field_offset.to_u64())
     if ftype.len().gt(0) {
         ref stored : Dynamic = deref(ptr2)
         if is_null(stored).not() { return Value.Func(stored) }
     }
     // Fallback
-    ref ptr3 : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
+    ref ptr3 : Dynamic = ptr_add(inst.data, dd.field_offset.to_u64())
     ref fi : I64 = ptr3
     return val_i64(fi)
 }
 
 write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
-    ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_i64().to_u64())
+    ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_u64())
     fsz := dd.field_size
     // Enum-typed fields use the same heap-EnumInstance encoding regardless
     // of own_type; let the unified switch below allocate the heap instance.
@@ -1917,26 +1917,26 @@ write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
         return
     }
     switch val {
-    case Value.Int(v):     memcpy(ptr, v, fsz.to_i64().to_u64())
-    case Value.Byte(v):    memcpy(ptr, v, fsz.to_i64().to_u64())
-    case Value.Short(v):   memcpy(ptr, v, fsz.to_i64().to_u64())
-    case Value.Int32(v):   memcpy(ptr, v, fsz.to_i64().to_u64())
-    case Value.Uint32(v):  memcpy(ptr, v, fsz.to_i64().to_u64())
-    case Value.Uint64(v):  memcpy(ptr, v, fsz.to_i64().to_u64())
-    case Value.Float(v):   memcpy(ptr, v, fsz.to_i64().to_u64())
-    case Value.Boolean(v): memcpy(ptr, v, fsz.to_i64().to_u64())
+    case Value.Int(v):     memcpy(ptr, v, fsz.to_u64())
+    case Value.Byte(v):    memcpy(ptr, v, fsz.to_u64())
+    case Value.Short(v):   memcpy(ptr, v, fsz.to_u64())
+    case Value.Int32(v):   memcpy(ptr, v, fsz.to_u64())
+    case Value.Uint32(v):  memcpy(ptr, v, fsz.to_u64())
+    case Value.Uint64(v):  memcpy(ptr, v, fsz.to_u64())
+    case Value.Float(v):   memcpy(ptr, v, fsz.to_u64())
+    case Value.Boolean(v): memcpy(ptr, v, fsz.to_u64())
     case Value.Struct(si):
         if si.borrowed {
             mut cloned := val.clone()
             switch cloned {
             case Value.Struct(csi):
-                memcpy(ptr, csi.data, fsz.to_i64().to_u64())
+                memcpy(ptr, csi.data, fsz.to_u64())
                 free(own csi.data)
                 csi.data = NULL
             case:
             }
         } else {
-            memcpy(ptr, si.data, fsz.to_i64().to_u64())
+            memcpy(ptr, si.data, fsz.to_u64())
         }
     case Value.Enum(ei):
         mut total := ei.data_size
@@ -1944,8 +1944,8 @@ write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
         heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
         memcpy(heap_ei, ei, EnumInstance.size().to_u64())
         // Deep-copy the data buffer
-        new_data : Dynamic = malloc(total.to_i64().to_u64())
-        memcpy(new_data, ei.data, total.to_i64().to_u64())
+        new_data : Dynamic = malloc(total.to_u64())
+        memcpy(new_data, ei.data, total.to_u64())
         // Write data pointer into the heap EnumInstance
         write_ptr(ptr_add(heap_ei, 16), new_data)
         write_ptr(ptr, heap_ei)
@@ -2160,12 +2160,12 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
                         ref param : Declaration = fd.params.get(pi)
                         if pi.to_i64().eq(vi.to_i64()) {
                             va_count := user_argc.sub(fixed)
-                            ref va_param : Declaration = fd.params.get(vi.to_i64().to_usize())
-                            arr := build_argv_array(user_argv, argi.to_i64().to_u32(), va_count, va_param.explicit_type)
+                            ref va_param : Declaration = fd.params.get(vi.to_usize())
+                            arr := build_argv_array(user_argv, argi.to_u32(), va_count, va_param.explicit_type)
                             scope_set_owned(main_scope, param.name, arr)
-                            argi = argi.add(va_count.to_i64().to_i32())
+                            argi = argi.add(va_count.to_i32())
                         } else {
-                            ref arg_s : Str = user_argv.get(argi.to_i64().to_usize())
+                            ref arg_s : Str = user_argv.get(argi.to_usize())
                             v := parse_cli_arg(arg_s, param.explicit_type)
                             scope_set_owned(main_scope, param.name, v)
                             argi = argi.add(1)
@@ -2416,12 +2416,12 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
                         ref param : Declaration = fd.params.get(pi)
                         if pi.to_i64().eq(vi.to_i64()) {
                             va_count := user_argc.sub(fixed)
-                            ref va_param : Declaration = fd.params.get(vi.to_i64().to_usize())
-                            arr := build_argv_array(user_argv, argi.to_i64().to_u32(), va_count, va_param.explicit_type)
+                            ref va_param : Declaration = fd.params.get(vi.to_usize())
+                            arr := build_argv_array(user_argv, argi.to_u32(), va_count, va_param.explicit_type)
                             scope_set_owned(main_scope, param.name, arr)
-                            argi = argi.add(va_count.to_i64().to_i32())
+                            argi = argi.add(va_count.to_i32())
                         } else {
-                            ref arg_s : Str = user_argv.get(argi.to_i64().to_usize())
+                            ref arg_s : Str = user_argv.get(argi.to_usize())
                             v := parse_cli_arg(arg_s, param.explicit_type)
                             scope_set_owned(main_scope, param.name, v)
                             argi = argi.add(1)
