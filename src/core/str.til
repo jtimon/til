@@ -295,6 +295,21 @@ namespace:
         return self.to_i64().to_i32()
     }
 
+    /// Parse as base-10 unsigned 32-bit integer.
+    to_u32 := func(self: Str) returns shallow U32 {
+        return self.to_i64().to_u32()
+    }
+
+    /// Parse as base-10 unsigned 64-bit integer.
+    to_u64 := func(self: Str) returns shallow U64 {
+        return self.to_i64().to_u64()
+    }
+
+    /// Parse as base-10 USize (collection sizes/indices).
+    to_usize := func(self: Str) returns shallow USize {
+        return self.to_i64().to_usize()
+    }
+
     /// Parse as a decimal floating-point number.
     to_f32 := func(self: Str) returns shallow F32 {
         mut start : USize = 0

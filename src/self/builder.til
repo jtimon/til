@@ -686,7 +686,7 @@ callee_return_ctype := ext_func(callee_name: Str) returns Str {}
 // `mut ptype := ""` pre-init pattern in emit_param_list, whose empty
 // Str leaked once per parameter on each call.
 param_ctype := func(fd: FunctionDef, shallow i: USize) returns Str {
-    ii := i.to_i64().to_i32()
+    ii := i.to_i32()
     if ii.eq(fd.variadic_index) { return "Array *" }
     ref p : Declaration = fd.params.get(i)
     if ii.eq(fd.kwargs_index) { return type_name_to_c(p.explicit_type) }
@@ -735,7 +735,7 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
                             ref c3 : Expr = e.child(3)
                             switch c3.node_type {
                             case NodeType.LiteralNum(num_str):
-                                nargs = num_str.to_i64().to_i32()
+                                nargs = num_str.to_i32()
                             case:
                             }
                         }
@@ -1559,14 +1559,14 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 case NodeType.LiteralStr(method):
                     switch c3.node_type {
                     case NodeType.LiteralNum(nargs_str):
-                        nargs := nargs_str.to_i64().to_i32()
+                        nargs := nargs_str.to_i32()
                         f.write("dyn_call_")
                         f.write(method)
                         f.write("(")
                         emit_as_ptr(f, e.child(1), depth, false)
                         for ai : I32 in 0..nargs {
                             f.write(", ")
-                            emit_as_ptr(f, e.child(ai.to_i64().add(4).to_u32()), depth, false)
+                            emit_as_ptr(f, e.child(ai.add(4).to_u32()), depth, false)
                         }
                         f.write(")")
                     case:
@@ -2123,12 +2123,12 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
             f.write("    if (argc > 1) { fprintf(stderr, \"error: main expects no arguments, got %d\\n\", argc - 1); return 1; }\n")
         } else {
             f.write("int main(int argc, char **argv) {\n")
-            mut fixed := nparam.to_i64().to_i32()
+            mut fixed := nparam.to_i32()
             if vi.gte(0.to_i32()) { fixed = fixed.sub(1.to_i32()) }
             if vi.gte(0.to_i32()) {
                 f.write("    if (argc - 1 < "); emit_i32(f, fixed); f.write(") { fprintf(stderr, \"error: main expects at least "); emit_i32(f, fixed); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
             } else {
-                f.write("    if (argc - 1 != "); emit_i32(f, nparam.to_i64().to_i32()); f.write(") { fprintf(stderr, \"error: main expects "); emit_i32(f, nparam.to_i64().to_i32()); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
+                f.write("    if (argc - 1 != "); emit_i32(f, nparam.to_i32()); f.write(") { fprintf(stderr, \"error: main expects "); emit_i32(f, nparam.to_i32()); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
             }
         }
         emit_ns_inits(f, 1.to_i32())
@@ -2165,7 +2165,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
             mut argi := 1.to_i32()
             for i in 0..nparam {
                 ref p : Declaration = fd.params.get(i)
-                ii := i.to_i64().to_i32()
+                ii := i.to_i32()
                 if ii.eq(vi) {
                     // Variadic array
                     f.write("    int _va_argc = argc - "); emit_i32(f, argi); f.write(";\n")
@@ -2343,7 +2343,7 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
             // Payload enum
             for i in 0..edd.variants.len() {
                 ref vn : Str = edd.variants.get(i)
-                vt := enum_variant_type(enum_def, i.to_i64().to_i32())
+                vt := enum_variant_type(enum_def, i.to_i32())
                 if vt.len().eq(0) {
                     f.write(name); f.write(" *"); f.write(name); f.write("_"); f.write(vn); f.write("() {\n")
                     f.write("    "); f.write(name); f.write(" *r = malloc(sizeof("); f.write(name); f.write("));\n")
@@ -2387,7 +2387,7 @@ emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr) {
         case NodeType.EnumDef(edd):
             for j in 0..edd.variants.len() {
                 ref vn : Str = edd.variants.get(j)
-                vt := enum_variant_type(enum_def, j.to_i64().to_i32())
+                vt := enum_variant_type(enum_def, j.to_i32())
                 if vt.len().gt(0) {
                     tnv := type_name_to_c_value(vt)
                     f.write("        "); f.write(tnv); f.write(" "); f.write(vn); f.write(";\n")
@@ -2445,7 +2445,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
                     }
                 case NodeType.EnumDef(dep_edd):
                     for fi in 0..dep_edd.variants.len() {
-                        dep_vt := enum_variant_type(def, fi.to_i64().to_i32())
+                        dep_vt := enum_variant_type(def, fi.to_i32())
                         if dep_vt.len().gt(0) {
                             if is_primitive_type(dep_vt).not().and(is_funcsig_type(dep_vt).not()) {
                                 if emitted.has(dep_vt).not() { deps_ok = false }
@@ -2564,7 +2564,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
                     }
                 case NodeType.EnumDef(dep_edd):
                     for fi in 0..dep_edd.variants.len() {
-                        dep_vt := enum_variant_type(def, fi.to_i64().to_i32())
+                        dep_vt := enum_variant_type(def, fi.to_i32())
                         if dep_vt.len().gt(0) {
                             if is_primitive_type(dep_vt).not().and(is_funcsig_type(dep_vt).not()) {
                                 if emitted.has(dep_vt).not() { deps_ok = false }
@@ -2946,7 +2946,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
             case NodeType.EnumDef(hdr_edd):
                 mut hdr_vi : USize = 0
                 for hdr_vn : Str in hdr_edd.variants {
-                    hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i64().to_i32())
+                    hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i32())
                     if hdr_vt.len().gt(0) {
                         tnc := type_name_to_c(hdr_vt)
                         f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("("); f.write(tnc); f.write(");\n")
@@ -3079,7 +3079,7 @@ emit_header_defs_and_funcs_lp := proc(f: File) {
                 case NodeType.EnumDef(hdr_edd):
                     mut hdr_vi : USize = 0
                     for hdr_vn : Str in hdr_edd.variants {
-                        hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i64().to_i32())
+                        hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i32())
                         if hdr_vt.len().gt(0) {
                             tnc := type_name_to_c(hdr_vt)
                             f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("("); f.write(tnc); f.write(");\n")
@@ -3289,7 +3289,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
                 f.write(dd.name); f.write(" := enum {\n")
                 mut bind_vi : USize = 0
                 for bind_vn : Str in bind_edd.variants {
-                    bind_vt := enum_variant_type(rhs, bind_vi.to_i64().to_i32())
+                    bind_vt := enum_variant_type(rhs, bind_vi.to_i32())
                     f.write("    "); f.write(bind_vn)
                     if bind_vt.len().gt(0) { f.write(": "); f.write(bind_vt) }
                     f.write(",\n")
@@ -3307,7 +3307,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
                     if p.gt(0) { f.write(", ") }
                     ref param : Declaration = fd.params.get(p)
                     if param.own_type.is(OwnType.Own) { f.write("own ") }
-                    pi := p.to_i64().to_i32()
+                    pi := p.to_i32()
                     if pi.eq(fd.variadic_index) { f.write("..") }
                     if pi.eq(fd.kwargs_index) {
                         f.write(param.name); f.write(": ...")
@@ -3472,7 +3472,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                     f.write("    _fields_ = [\n")
                     mut ct_vi : USize = 0
                     for ct_uvn : Str in ct_edd.variants {
-                        ct_vt := enum_variant_type(rhs, ct_vi.to_i64().to_i32())
+                        ct_vt := enum_variant_type(rhs, ct_vi.to_i32())
                         if ct_vt.len().gt(0) {
                             f.write("        ('"); f.write(ct_uvn); f.write("', ")
                             f.write(type_name_to_ctypes_param(ct_vt, false))
@@ -3553,7 +3553,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                     for p in 0..fd.params.len() {
                         if p.gt(0) { f.write(", ") }
                         ref param : Declaration = fd.params.get(p)
-                        pi := p.to_i64().to_i32()
+                        pi := p.to_i32()
                         if pi.eq(fd.variadic_index) {
                             f.write("ctypes.POINTER(Array)")
                         } else {
@@ -3621,7 +3621,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                 case NodeType.EnumDef(py_edd):
                     mut py_vi : USize = 0
                     for py_vn : Str in py_edd.variants {
-                        py_vt := enum_variant_type(rhs, py_vi.to_i64().to_i32())
+                        py_vt := enum_variant_type(rhs, py_vi.to_i32())
 
                         if hp {
                             // is_Variant
@@ -4094,7 +4094,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
             case NodeType.EnumDef(hdr_edd):
                 mut hdr_vi : USize = 0
                 for hdr_vn : Str in hdr_edd.variants {
-                    hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i64().to_i32())
+                    hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i32())
                     if hdr_vt.len().gt(0) {
                         tnc := type_name_to_c(hdr_vt)
                         f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("("); f.write(tnc); f.write(");\n")
@@ -4249,7 +4249,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
                 case NodeType.EnumDef(hdr_edd):
                     mut hdr_vi : USize = 0
                     for hdr_vn : Str in hdr_edd.variants {
-                        hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i64().to_i32())
+                        hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.to_i32())
                         if hdr_vt.len().gt(0) {
                             tnc := type_name_to_c(hdr_vt)
                             f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("("); f.write(tnc); f.write(");\n")
@@ -4389,7 +4389,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
                     case NodeType.EnumDef(shdr_edd):
                         mut shdr_vi : USize = 0
                         for shdr_vn : Str in shdr_edd.variants {
-                            shdr_vt := enum_variant_type(stmt.child(0), shdr_vi.to_i64().to_i32())
+                            shdr_vt := enum_variant_type(stmt.child(0), shdr_vi.to_i32())
                             if shdr_vt.len().gt(0) {
                                 tnc := type_name_to_c(shdr_vt)
                                 f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(shdr_vn); f.write("("); f.write(tnc); f.write(");\n")
@@ -4442,7 +4442,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
             case NodeType.EnumDef(shdr_edd):
                 mut shdr_vi : USize = 0
                 for shdr_vn : Str in shdr_edd.variants {
-                    shdr_vt := enum_variant_type(stmt.child(0), shdr_vi.to_i64().to_i32())
+                    shdr_vt := enum_variant_type(stmt.child(0), shdr_vi.to_i32())
                     if shdr_vt.len().gt(0) {
                         tnc := type_name_to_c(shdr_vt)
                         f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(shdr_vn); f.write("("); f.write(tnc); f.write(");\n")
@@ -4635,7 +4635,7 @@ emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: Funct
     }
     for p in 0..np {
         if p.gt(0) { f.write(", ") }
-        f.write("void *_a"); emit_i32(f, p.to_i64().to_i32())
+        f.write("void *_a"); emit_i32(f, p.to_i32())
     }
     if np.eq(0) { f.write("void") }
     f.write(") {\n")
@@ -4654,9 +4654,9 @@ emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: Funct
         ref pp : Declaration = fd.params.get(p)
         if pp.own_type.is(OwnType.Shallow) {
             pc := type_name_to_c_value(pp.explicit_type)
-            f.write("*("); f.write(pc); f.write(" *)_a"); emit_i32(f, p.to_i64().to_i32())
+            f.write("*("); f.write(pc); f.write(" *)_a"); emit_i32(f, p.to_i32())
         } else {
-            f.write("_a"); emit_i32(f, p.to_i64().to_i32())
+            f.write("_a"); emit_i32(f, p.to_i32())
         }
     }
     f.write(");")

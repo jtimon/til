@@ -333,7 +333,7 @@ main := proc(args: ..Str) {
     while i.lt(args.len()) {
         ref arg : Str = args.get(i)
         if arg.starts_with("-j") {
-            j = arg.substr(2, arg.len().sub(2)).to_i64().to_usize()
+            j = arg.substr(2, arg.len().sub(2)).to_usize()
             if j.lt(1) { j = 1 }
         }
         if arg.eq("-no-interp") { en_interp = 0 }

@@ -600,14 +600,14 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
         while pi.lt(fdef_data.params.len()) {
             if ci.gte(e.children.len()) { break }
             if fvi.gte(0) {
-                if pi.to_i64().to_i32().eq(fvi) {
+                if pi.to_i32().eq(fvi) {
                     ci = ci.add(fvc)
                     pi = pi.add(1)
                     continue
                 }
             }
             if fkwi.gte(0) {
-                if pi.to_i64().to_i32().eq(fkwi) {
+                if pi.to_i32().eq(fkwi) {
                     ci = ci.add(fkc)
                     pi = pi.add(1)
                     continue
@@ -712,7 +712,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
                 for j in 0..nfields {
                     ref fld_decl : Declaration = ctor_sdd.fields.get(j)
                     if fld_decl.name.eq(aname) {
-                        slot = j.to_i64().to_i32()
+                        slot = j.to_i32()
                         break
                     }
                 }
@@ -766,12 +766,12 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
         for fi in 0..nfields {
             if fi.gte(e.children.len().sub(1)) { break }
             ref fld_decl : Declaration = ctor_sdd.fields.get(fi)
-            ai := fi.add(1).to_i64().to_i32()
+            ai := fi.add(1).to_i32()
             if fld_decl.own_type.is(OwnType.Ref) { continue }
             if fld_decl.own_type.is(OwnType.Own).not() {
                 if type_ctor_consumes(fld_decl.til_type).not() { continue }
             }
-            set_own_arg(e, ai.to_i64().to_usize())
+            set_own_arg(e, ai.to_usize())
         }
         e.til_type = Type.Struct(resolve_type_alias(scope, name).clone())
         return true
@@ -807,11 +807,11 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
                 seen_named = true
                 mut slot := -1.to_i32()
                 for j in 0..nparam {
-                    if j.to_i64().to_i32().eq(vi) { continue }
-                    if j.to_i64().to_i32().eq(kwi) { continue }
+                    if j.to_i32().eq(vi) { continue }
+                    if j.to_i32().eq(kwi) { continue }
                     ref param : Declaration = fdef_data.params.get(j)
                     if param.name.eq(aname) {
-                        slot = j.to_i64().to_i32()
+                        slot = j.to_i32()
                         break
                     }
                 }
@@ -846,8 +846,8 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
             }
         }
         for i in 0..nparam {
-            if i.to_i64().to_i32().eq(vi) { continue }
-            if i.to_i64().to_i32().eq(kwi) { continue }
+            if i.to_i32().eq(vi) { continue }
+            if i.to_i32().eq(kwi) { continue }
             ref slot_arg : CtorArg = new_args.get(i)
             if slot_arg.is(CtorArg.Filled).not() {
                 ref param : Declaration = fdef_data.params.get(i)
@@ -871,25 +871,25 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
         ref callee : Expr = e.child(0)
         new_ch.push(own callee.clone())
         for i in 0..nparam {
-            if i.to_i64().to_i32().eq(vi) {
+            if i.to_i32().eq(vi) {
                 switch e.node_type {
                 case NodeType.FCall(fcall_data):
-                    fcall_data.variadic_index = new_ch.len().to_i64().to_i32()
+                    fcall_data.variadic_index = new_ch.len().to_i32()
                     for va : Expr in va_args {
                         new_ch.push(own va.clone())
                     }
-                    fcall_data.variadic_count = va_args.len().to_i64().to_u32()
+                    fcall_data.variadic_count = va_args.len()
                 case:
                     UNREACHABLE(__LOC__)
                 }
-            } else if i.to_i64().to_i32().eq(kwi) {
+            } else if i.to_i32().eq(kwi) {
                 switch e.node_type {
                 case NodeType.FCall(fcall_data):
-                    fcall_data.kwargs_index = new_ch.len().to_i64().to_i32()
+                    fcall_data.kwargs_index = new_ch.len().to_i32()
                     for kw : Expr in kw_args {
                         new_ch.push(own kw.clone())
                     }
-                    fcall_data.kwargs_count = kw_args.len().to_i64().to_u32()
+                    fcall_data.kwargs_count = kw_args.len()
                 case:
                     UNREACHABLE(__LOC__)
                 }
@@ -981,7 +981,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         while pi.lt(fdef_data.params.len()) {
             if ci.gte(e.children.len()) { break }
             if fvi.gte(0) {
-                if pi.to_i64().to_i32().eq(fvi) {
+                if pi.to_i32().eq(fvi) {
                     ref vparam : Declaration = fdef_data.params.get(pi)
                     vptype := type_from_name(vparam.explicit_type, scope)
                     for vk in 0..fvc {
@@ -994,7 +994,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                 }
             }
             if fkwi.gte(0) {
-                if pi.to_i64().to_i32().eq(fkwi) {
+                if pi.to_i32().eq(fkwi) {
                     ci = ci.add(fkc)
                     pi = pi.add(1)
                     continue
@@ -1013,7 +1013,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         while pi.lt(fdef_data.params.len()) {
             if ci.gte(e.children.len()) { break }
             if fvi.gte(0) {
-                if pi.to_i64().to_i32().eq(fvi) {
+                if pi.to_i32().eq(fvi) {
                     ref vparam : Declaration = fdef_data.params.get(pi)
                     ref vptype_name : Str = vparam.explicit_type
                     mut is_splat := false
@@ -1053,7 +1053,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                 }
             }
             if fkwi.gte(0) {
-                if pi.to_i64().to_i32().eq(fkwi) {
+                if pi.to_i32().eq(fkwi) {
                     ci = ci.add(fkc)
                     pi = pi.add(1)
                     continue
@@ -1376,7 +1376,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                 for j in 0..np {
                     ref param : Declaration = ns_fdef.params.get(j)
                     if param.name.eq(aname) {
-                        slot = j.to_i64().to_i32()
+                        slot = j.to_i32()
                         break
                     }
                 }
@@ -2013,10 +2013,10 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                     type_error(expr, "parameter cannot be both 'shallow' and 'own'")
                 }
             }
-            if i.to_i64().to_i32().eq(fdef.variadic_index) {
+            if i.to_i32().eq(fdef.variadic_index) {
                 param.own_type = OwnType.Own
                 func_scope.set(param.name, Type.Struct("Array".clone()), FuncType.None, false, typer_path, expr.line, expr.col, true, OwnType.Own)
-            } else if i.to_i64().to_i32().eq(fdef.kwargs_index) {
+            } else if i.to_i32().eq(fdef.kwargs_index) {
                 param.own_type = OwnType.Own
                 func_scope.set(param.name, Type.Struct("DynMap".clone()), FuncType.None, false, typer_path, expr.line, expr.col, true, OwnType.Own)
             } else {
@@ -2922,7 +2922,7 @@ mark_switch_case_covered_variant := func(switch_enum_def: Expr, mut covered_vari
     if covered_variant_name.len().eq(0) { return }
     covered_tag := enum_variant_tag(switch_enum_def, covered_variant_name)
     if covered_tag.gte(0.to_i32()).and(covered_tag.lt(n_variants)) {
-        ref mut covered : Bool = covered_variants.get(covered_tag.to_i64().to_u32())
+        ref mut covered : Bool = covered_variants.get(covered_tag.to_u32())
         covered = true
     }
 }
@@ -3154,8 +3154,8 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
             switch switch_enum_def.node_type {
             case NodeType.EnumDef(sw_edd):
                 has_switch_enum_def = true
-                n_variants = sw_edd.variants.len().to_i64().to_i32()
-                for _ in 0..n_variants.to_i64().to_usize() {
+                n_variants = sw_edd.variants.len().to_i32()
+                for _ in 0..n_variants.to_usize() {
                     covered_variants.push(own false)
                 }
             case:
@@ -3229,8 +3229,8 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         switch switch_enum_def.node_type {
         case NodeType.EnumDef(mc_edd):
             mut missing := false
-            for vi in 0..n_variants.to_i64().to_usize() {
-                ref covered : Bool = covered_variants.get(vi.to_i64().to_u32())
+            for vi in 0..n_variants.to_usize() {
+                ref covered : Bool = covered_variants.get(vi)
                 if covered.not() {
                     missing = true
                     ref vn : Str = mc_edd.variants.get(vi)
@@ -3695,7 +3695,7 @@ reregister_field_struct_defs := func(body: Expr, scope: TypeScope) {
 infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
     body.til_type = Type.None
     mut i := 0.to_u32()
-    while i.lt(body.children.len().to_i64().to_u32()) {
+    while i.lt(body.children.len()) {
         if is_null(scope.parent).and(in_func.eq(0)).and(in_type_body.eq(0)) {
             context_set_mode_from_path(ctx, typer_path)
         }
@@ -3710,7 +3710,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
 infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
     body.til_type = Type.None
     mut i := 0.to_u32()
-    while i.lt(body.children.len().to_i64().to_u32()) {
+    while i.lt(body.children.len()) {
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         i++
     }
@@ -4430,11 +4430,11 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                                         mut fd_idx : I32 = -1.to_i32()
                                         if field_name.is_empty() {
                                             // Positional: arg position ci-1 maps to field index.
-                                            fd_idx = ci.sub(1).to_i64().to_i32()
+                                            fd_idx = ci.sub(1).to_i32()
                                         } else {
                                             for fi in 0..tsv_sdd.fields.len() {
                                                 ref tfd : Declaration = tsv_sdd.fields.get(fi)
-                                                if tfd.name.eq(field_name) { fd_idx = fi.to_i64().to_i32(); break }
+                                                if tfd.name.eq(field_name) { fd_idx = fi.to_i32(); break }
                                             }
                                         }
                                         if fd_idx.lt(0.to_i32()) { continue }
@@ -4611,7 +4611,7 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
     idx.til_type = usize_type(scope)
     set_call.add_child(own idx)
 
-    ref val_in : Expr = fcall.child(vi.add(j.to_i64().to_i32()).to_i64().to_usize())
+    ref val_in : Expr = fcall.child(vi.add(j.to_i32()).to_usize())
     mut val := val_in.clone()
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
         tname := type_to_name(val_in.til_type)
@@ -5030,7 +5030,7 @@ process_call_desugars := func(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope
             scope.set(kw_name, Type.Struct("DynMap".clone()), FuncType.None, false, typer_path, e.line, e.col, false, OwnType.Shallow)
             new_ch.push(own kw_decl)
             for j in 0..kc {
-                ref named_arg : Expr = e.child(ki.add(j.to_i64().to_i32()).to_i64().to_usize())
+                ref named_arg : Expr = e.child(ki.add(j.to_i32()).to_usize())
                 mut setter := build_kwargs_dynmap_set(e, scope, kw_name, named_arg)
                 new_ch.push(own setter)
             }
@@ -5435,7 +5435,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
         mut va_inserted := false
         mut new_own : U64 = 0
         for j in 0..old_args.len() {
-            if j.to_i64().to_i32().gte(vi).and(j.to_i64().to_i32().lt(vi.add(vc.to_i64().to_i32()))) {
+            if j.to_i32().gte(vi).and(j.to_i32().lt(vi.add(vc.to_i32()))) {
                 if va_inserted.not() {
                     mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col)
                     va_id.til_type = Type.Struct("Array".clone())
@@ -5447,7 +5447,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
                 }
                 continue
             }
-            if j.to_i64().to_i32().eq(vi).and(va_inserted.not()) {
+            if j.to_i32().eq(vi).and(va_inserted.not()) {
                 mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col)
                 va_id.til_type = Type.Struct("Array".clone())
                 mut bit : U64 = 1
@@ -5485,7 +5485,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
         // of the variadic param (parser invariant), so the shift is
         // unconditional whenever kwargs_index is set.
         if fcall_data.kwargs_index.gte(0) {
-            delta := 1.to_i32().sub(vc.to_i64().to_i32())
+            delta := 1.to_i32().sub(vc.to_i32())
             fcall_data.kwargs_index = fcall_data.kwargs_index.add(delta)
         }
         fcall_data.variadic_index = -1.to_i32()
@@ -5514,7 +5514,7 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
                 case NodeType.FuncDef(cb_fdef):
                     fvi := cb_fdef.variadic_index
                     if fvi.gte(0) {
-                        ref param : Declaration = cb_fdef.params.get(fvi.to_i64().to_usize())
+                        ref param : Declaration = cb_fdef.params.get(fvi.to_usize())
                         return param.explicit_type
                     }
                 case:
@@ -5536,7 +5536,7 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
                         case NodeType.FuncDef(ffd):
                             fvi := ffd.variadic_index
                             if fvi.gte(0) {
-                                ref param : Declaration = ffd.params.get(fvi.to_i64().to_usize())
+                                ref param : Declaration = ffd.params.get(fvi.to_usize())
                                 return param.explicit_type
                             }
                         case:
@@ -5565,7 +5565,7 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr) returns shallow Bool {
         mut old_args := Vec.new(Expr)
         old_args.move_from(fcall.children)
 
-        ref splat_in : Expr = old_args.get(vi.to_i64().to_usize())
+        ref splat_in : Expr = old_args.get(vi.to_usize())
         mut splat := splat_in.clone()
         fcd.is_splat = false
         if splat_in.node_type.is(NodeType.Ident) {
@@ -5573,7 +5573,7 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr) returns shallow Bool {
         }
         mut fcall_new_ch := Vec.new(Expr)
         for j in 0..old_args.len() {
-            ji := j.to_i64().to_i32()
+            ji := j.to_i32()
             if ji.eq(vi) {
                 fcall_new_ch.push(own splat)
             } else {
@@ -5581,7 +5581,7 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr) returns shallow Bool {
             }
         }
         fcall.children.move_from(fcall_new_ch)
-        set_own_arg(fcall, vi.to_i64().to_usize())
+        set_own_arg(fcall, vi.to_usize())
         fcd.variadic_index = -1.to_i32()
         fcd.variadic_count = 0
         return true
@@ -5604,8 +5604,8 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
         mut new_own : U64 = 0
 
         for j in 0..old_args.len() {
-            ji := j.to_i64().to_i32()
-            if ji.gte(ki).and(ji.lt(ki.add(kc.to_i64().to_i32()))) {
+            ji := j.to_i32()
+            if ji.gte(ki).and(ji.lt(ki.add(kc.to_i32()))) {
                 if kw_inserted.not() {
                     mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col)
                     kw_id.til_type = Type.Struct("DynMap".clone())
@@ -5859,7 +5859,7 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
             switch s.node_type {
             case NodeType.Decl(dd):
                 if dd.name.eq(b.name) {
-                    decl_idx = j.to_i64().to_i32()
+                    decl_idx = j.to_i32()
                     break
                 }
             case:
@@ -5868,7 +5868,7 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
         if decl_idx.eq(-1.to_i32()) {
             for j in 0..body.children.len() {
                 if expr_contains_decl(body.child(j), b.name) {
-                    decl_idx = j.to_i64().to_i32()
+                    decl_idx = j.to_i32()
                     break
                 }
             }
@@ -5878,17 +5878,17 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
         mut own_transfer := -1.to_i32()
         mut scan_from : USize = 0
         if decl_idx.gte(0) {
-            scan_from = decl_idx.add(1).to_i64().to_usize()
+            scan_from = decl_idx.add(1).to_usize()
         }
         for j in scan_from..body.children.len() {
             ref stmt : Expr = body.child(j)
             if is_compile_directive(stmt) { continue }
             if expr_uses_var(stmt, b.name) {
-                last_use = j.to_i64().to_i32()
+                last_use = j.to_i32()
             }
             if own_transfer.eq(-1.to_i32()) {
                 if expr_transfers_own(stmt, b.name, scope) {
-                    own_transfer = j.to_i64().to_i32()
+                    own_transfer = j.to_i32()
                 }
             }
         }
@@ -5938,10 +5938,10 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec) {
             mut ref_last := -1.to_i32()
             for j in i.add(1)..body.children.len() {
                 if expr_uses_var(body.child(j), dd_name) {
-                    ref_last = j.to_i64().to_i32()
+                    ref_last = j.to_i32()
                 }
             }
-            if ref_last.eq(-1.to_i32()) { ref_last = i.to_i64().to_i32() }
+            if ref_last.eq(-1.to_i32()) { ref_last = i.to_i32() }
             for local : LocalInfo in locals {
                 if local.name.eq(dd_name).and(local.last_use.gt(ref_last)) {
                     ref_last = local.last_use
@@ -6000,9 +6000,9 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec) {
 check_use_after_own_transfer := proc(body: Expr, mut locals: Vec) {
     for local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
-            ref stmt : Expr = body.child(local.last_use.to_i64().to_usize())
+            ref stmt : Expr = body.child(local.last_use.to_usize())
             type_error(stmt, "use of '".concat(local.name).concat("' after ownership transfer"))
-            ref xfer : Expr = body.child(local.own_transfer.to_i64().to_usize())
+            ref xfer : Expr = body.child(local.own_transfer.to_usize())
             println(typer_path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
             println("  help: pass a clone instead: own ", local.name, ".clone()")
         }
@@ -6072,8 +6072,8 @@ insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
-        if local.decl_index.lt(stmt_idx.to_i64().to_i32()) {
-            if local.last_use.gte(stmt_idx.to_i64().to_i32()).or(local.last_use.eq(-1.to_i32())) {
+        if local.decl_index.lt(stmt_idx.to_i32()) {
+            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1.to_i32())) {
                 live_vec.push(own local.clone())
             }
         }
@@ -6108,8 +6108,8 @@ insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: V
         }
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
-        if local.decl_index.lt(stmt_idx.to_i64().to_i32()) {
-            if local.last_use.gte(stmt_idx.to_i64().to_i32()).or(local.last_use.eq(-1.to_i32())) {
+        if local.decl_index.lt(stmt_idx.to_i32()) {
+            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1.to_i32())) {
                 if type_to_name(local.type).len().gt(0) {
                     heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
@@ -6143,7 +6143,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
             // takes ownership of the wrapper) already consume the wrapper, so
             // adding a `free` here would double-free.
             if local.is_heap.and(local.type.is(Type.Struct)) {
-                if local.own_transfer.eq(stmt_idx.to_i64().to_i32()) {
+                if local.own_transfer.eq(stmt_idx.to_i32()) {
                     if type_to_name(local.type).len().gt(0) {
                         if transfer_is_shallow_field_value_copy(stmt, local.name, scope) {
                             free_call := make_free_call(local.name, local.type, stmt)
@@ -6156,7 +6156,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
             }
             continue
         }
-        if local.last_use.eq(stmt_idx.to_i64().to_i32()) {
+        if local.last_use.eq(stmt_idx.to_i32()) {
             // FieldAssign with auto-cloned Ident RHS at the local's last use:
             // the clone allocates a deep copy, the field stores the copy, and
             // the local's contents would then be deleted by the normal
@@ -6196,7 +6196,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
                 new_ch.push(own del)
             }
         }
-        if local.last_use.eq(-1.to_i32()).and(local.decl_index.eq(stmt_idx.to_i64().to_i32())) {
+        if local.last_use.eq(-1.to_i32()).and(local.decl_index.eq(stmt_idx.to_i32())) {
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
                 del := make_delete_call(local.name, local.type, heap, heap, stmt)
@@ -6287,11 +6287,11 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     for i in 0..old.len() {
         ref stmt : Expr = old.get(i)
         if is_compile_directive(stmt) { continue }
-        insert_exit_deletes_into_stmt(stmt, old, locals_vec, i.to_i64().to_u32(), new_ch)
-        insert_nested_exit_deletes(stmt, locals_vec, i.to_i64().to_u32())
+        insert_exit_deletes_into_stmt(stmt, old, locals_vec, i, new_ch)
+        insert_nested_exit_deletes(stmt, locals_vec, i)
         insert_assign_delete(stmt, locals_vec, new_ch)
         mut post_deletes := Vec.new(Expr)
-        insert_post_stmt_deletes(stmt, locals_vec, i.to_i64().to_u32(), post_deletes, scope)
+        insert_post_stmt_deletes(stmt, locals_vec, i, post_deletes, scope)
         new_ch.push_take(old, i)
         new_ch.append(own post_deletes)
     }

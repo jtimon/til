@@ -244,7 +244,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if fd.kwargs_index.neq(-1.to_i32()) {
                     panic(__LOC__, "only one kwargs parameter is allowed")
                 }
-                fd.kwargs_index = fd.params.len().to_i64().to_i32()
+                fd.kwargs_index = fd.params.len().to_i32()
                 is_kwargs = true
                 param_decl.own_type = OwnType.Own // kwargs Map is owned by callee
                 param_decl.name = pname.clone()
@@ -256,7 +256,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
                 if own_type.is(OwnType.Shallow) { panic(__LOC__, "variadic param cannot be 'shallow'") }
                 if fd.variadic_index.neq(-1.to_i32()) { panic(__LOC__, "only one variadic param allowed") }
-                fd.variadic_index = fd.params.len().to_i64().to_i32()
+                fd.variadic_index = fd.params.len().to_i32()
                 is_variadic = true
                 param_decl.own_type = OwnType.Own // variadic Array is owned by callee
                 param_decl.explicit_type = expect_text(p, TokenType.Ident)

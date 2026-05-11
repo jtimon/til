@@ -914,76 +914,76 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
 }
 
 generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32, shallow col: I32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
-    mut func_body := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32())
+    mut func_body := Expr.new(NodeType.Body, line.to_u32(), col.to_u32())
     for j in 0..variant_names.len() {
         ref vname : Str = variant_names.get(j)
 
-        mut ename_id := Expr.new(NodeType.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
-        mut ctor_acc := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
+        mut ename_id := Expr.new(NodeType.Ident(ename.clone()), line.to_u32(), col.to_u32())
+        mut ctor_acc := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_u32(), col.to_u32())
         ctor_acc.add_child(own ename_id)
 
-        mut ctor_expr := Expr.new(NodeType.LiteralNull, line.to_i64().to_u32(), col.to_i64().to_u32())
-        mut pd := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32())
+        mut ctor_expr := Expr.new(NodeType.LiteralNull, line.to_u32(), col.to_u32())
+        mut pd := Expr.new(NodeType.Body, line.to_u32(), col.to_u32())
         mut has_pd := false
         ref vtype : Str = variant_types.get(j)
         if vtype.len().gt(0) {
             pn := format("_clone_payload_", vname, "_", j.to_str())
 
-            mut self_arg := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32())
-            mut gc := make_get_payload_fcall(own self_arg, til_type_from_explicit_type(vtype), line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut self_arg := Expr.new(NodeType.Ident("self"), line.to_u32(), col.to_u32())
+            mut gc := make_get_payload_fcall(own self_arg, til_type_from_explicit_type(vtype), line.to_u32(), col.to_u32())
 
-            mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line.to_u32(), col.to_u32())
             decl_expr.add_child(own gc)
             pd = decl_expr
             has_pd = true
 
-            mut ctor_call := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut ctor_call := Expr.new(NodeType.FCall(FCallData()), line.to_u32(), col.to_u32())
             ctor_call.add_child(own ctor_acc)
-            mut p_id := Expr.new(NodeType.Ident(pn), line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut p_id := Expr.new(NodeType.Ident(pn), line.to_u32(), col.to_u32())
             ctor_call.add_child(own p_id)
             ctor_expr = ctor_call
         } else {
             ctor_expr = ctor_acc
         }
 
-        mut ret := Expr.new(NodeType.Return, line.to_i64().to_u32(), col.to_i64().to_u32())
+        mut ret := Expr.new(NodeType.Return, line.to_u32(), col.to_u32())
         ret.add_child(own ctor_expr)
 
         if j.lt(variant_names.len().sub(1)) {
-            mut cond := Expr.new(NodeType.LiteralNull, line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut cond := Expr.new(NodeType.LiteralNull, line.to_u32(), col.to_u32())
             if has_payloads {
-                mut civ := Expr.new(NodeType.Ident("is"), line.to_i64().to_u32(), col.to_i64().to_u32())
-                mut self_id := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32())
-                mut cet := Expr.new(NodeType.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
-                mut cvr := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
+                mut civ := Expr.new(NodeType.Ident("is"), line.to_u32(), col.to_u32())
+                mut self_id := Expr.new(NodeType.Ident("self"), line.to_u32(), col.to_u32())
+                mut cet := Expr.new(NodeType.Ident(ename.clone()), line.to_u32(), col.to_u32())
+                mut cvr := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_u32(), col.to_u32())
                 cvr.add_child(own cet)
-                mut cond_call := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32())
+                mut cond_call := Expr.new(NodeType.FCall(FCallData()), line.to_u32(), col.to_u32())
                 cond_call.add_child(own civ)
                 cond_call.add_child(own self_id)
                 cond_call.add_child(own cvr)
                 cond = cond_call
             } else {
-                mut self_id := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32())
-                mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line.to_i64().to_u32(), col.to_i64().to_u32())
+                mut self_id := Expr.new(NodeType.Ident("self"), line.to_u32(), col.to_u32())
+                mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line.to_u32(), col.to_u32())
                 eq_acc.add_child(own self_id)
 
-                mut en2 := Expr.new(NodeType.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
-                mut va2 := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32())
+                mut en2 := Expr.new(NodeType.Ident(ename.clone()), line.to_u32(), col.to_u32())
+                mut va2 := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_u32(), col.to_u32())
                 va2.add_child(own en2)
 
-                mut cond_call := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32())
+                mut cond_call := Expr.new(NodeType.FCall(FCallData()), line.to_u32(), col.to_u32())
                 cond_call.add_child(own eq_acc)
                 cond_call.add_child(own va2)
                 cond = cond_call
             }
 
-            mut then_body := Expr.new(NodeType.Body, line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut then_body := Expr.new(NodeType.Body, line.to_u32(), col.to_u32())
             if has_pd {
                 then_body.add_child(own pd.clone())
             }
             then_body.add_child(own ret)
 
-            mut if_node := Expr.new(NodeType.If, line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut if_node := Expr.new(NodeType.If, line.to_u32(), col.to_u32())
             if_node.add_child(own cond)
             if_node.add_child(own then_body)
             func_body.add_child(own if_node)
@@ -1002,7 +1002,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32
     fdecl.variadic_index = -1.to_i32()
     fdecl.kwargs_index = -1.to_i32()
 
-    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line.to_i64().to_u32(), col.to_i64().to_u32())
+    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line.to_u32(), col.to_u32())
     fdef.add_child(own func_body)
 
     switch enum_def.node_type {
@@ -1121,7 +1121,7 @@ gen_missing_enum_clone_for_stmt := func(stmt: Expr) {
         variant_types := Vec.new(Str)
         mut has_payloads := false
         collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
-        generate_enum_clone_method(stmt.child(0), ename, line.to_i64().to_i32(), col.to_i64().to_i32(), variant_names, variant_types, has_payloads)
+        generate_enum_clone_method(stmt.child(0), ename, line.to_i32(), col.to_i32(), variant_names, variant_types, has_payloads)
         Vec.delete(own variant_names, false)
         Vec.delete(own variant_types, false)
     }
@@ -2009,7 +2009,7 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns shallow I3
         mut max_payload_size : I32 = 0
         mut max_payload_align : I32 = 4
         for vi in 0..edd.variants.len() {
-            vt := enum_variant_type(enum_def, vi.to_i64().to_i32())
+            vt := enum_variant_type(enum_def, vi.to_i32())
             if vt.len().eq(0) { continue }
             mut psz : I32 = 0
             mut palign : I32 = 0
