@@ -4054,9 +4054,16 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         i++
     }
-    if owns_scope.neq(0) { desugar_body(body, scope) }
-    hoist_and_insert_field_deletes(body, scope, owns_scope)
-    insert_free_calls(body, scope, owns_scope)
+    // Each pass returns whether it changed body.children (added/replaced
+    // stmts). reregister_scope_defs is O(N*K) so we run it at most once
+    // per body, after all three passes, instead of after each.
+    mut body_changed := false
+    if owns_scope.neq(0) {
+        if desugar_body(body, scope) { body_changed = true }
+    }
+    if hoist_and_insert_field_deletes(body, scope, owns_scope) { body_changed = true }
+    if insert_free_calls(body, scope, owns_scope) { body_changed = true }
+    if body_changed { reregister_scope_defs(body, scope) }
 }
 
 infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
@@ -4066,9 +4073,16 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         i++
     }
-    if owns_scope.neq(0) { desugar_body(body, scope) }
-    hoist_and_insert_field_deletes(body, scope, owns_scope)
-    insert_free_calls(body, scope, owns_scope)
+    // Each pass returns whether it changed body.children (added/replaced
+    // stmts). reregister_scope_defs is O(N*K) so we run it at most once
+    // per body, after all three passes, instead of after each.
+    mut body_changed := false
+    if owns_scope.neq(0) {
+        if desugar_body(body, scope) { body_changed = true }
+    }
+    if hoist_and_insert_field_deletes(body, scope, owns_scope) { body_changed = true }
+    if insert_free_calls(body, scope, owns_scope) { body_changed = true }
+    if body_changed { reregister_scope_defs(body, scope) }
 }
 
 // Type-check a single file unit. Caller must have registered a mode for path.
@@ -5404,7 +5418,7 @@ process_call_desugars := func(mut e: Expr, mut new_ch: Vec, mut scope: TypeScope
 // per-stmt temp_ch, applies the call desugars to each result stmt, and
 // then transfers them to new_ch. Stmts that aren't set/map decls go
 // through the same call-desugar path before being pushed.
-priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
+priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) returns shallow Bool {
     mut has_set_lit := false
     mut has_map_lit := false
     mut has_array_vec := false
@@ -5427,7 +5441,7 @@ priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
         }
     }
     if has_set_lit.not().and(has_map_lit.not()).and(has_array_vec.not()).and(has_variadic.not()).and(has_kwargs.not()) {
-        return
+        return false
     }
 
     mut old := Vec.new(Expr)
@@ -5475,7 +5489,7 @@ priv desugar_body := proc(mut body: Expr, mut scope: TypeScope) {
         }
     }
     body.children.move_from(new_ch)
-    reregister_scope_defs(body, scope)
+    return true
 }
 
 hoist_param_swap_assign := func(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
@@ -5699,7 +5713,7 @@ hoist_stmt_fcall := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
 // hoist's temp Decls come first, then (for FieldAssign with a non-trivial
 // owned rhs type) the synthesized delete call, then the (possibly
 // rewritten) stmt itself.
-hoist_and_insert_field_deletes := proc(mut body: Expr, mut scope: TypeScope, shallow do_hoist: I32) {
+hoist_and_insert_field_deletes := proc(mut body: Expr, mut scope: TypeScope, shallow do_hoist: I32) returns shallow Bool {
     // insert_field_deletes-style prefilter: cheaper to walk once than to
     // pay the rebuild when nothing needs deleting AND no hoist is allowed.
     mut needs_delete := false
@@ -5714,7 +5728,7 @@ hoist_and_insert_field_deletes := proc(mut body: Expr, mut scope: TypeScope, sha
             }
         }
     }
-    if do_hoist.eq(0).and(needs_delete.not()) { return }
+    if do_hoist.eq(0).and(needs_delete.not()) { return false }
 
     mut old := Vec.new(Expr)
     old.move_from(body.children)
@@ -5768,9 +5782,7 @@ hoist_and_insert_field_deletes := proc(mut body: Expr, mut scope: TypeScope, sha
     }
 
     body.children.move_from(new_ch)
-    if any_hoisted.or(any_field_deleted) {
-        reregister_scope_defs(body, scope)
-    }
+    return any_hoisted.or(any_field_deleted)
 }
 
 rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
@@ -6636,13 +6648,13 @@ promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
     }
 }
 
-insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) {
-    if scope_exit.eq(0) { return }
+insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool {
+    if scope_exit.eq(0) { return false }
     is_program_scope := is_null(scope.parent)
 
     mut locals_vec := Vec.new(LocalInfo)
     collect_scope_locals(body, scope, is_program_scope, locals_vec)
-    if locals_vec.len().eq(0) { return }
+    if locals_vec.len().eq(0) { return false }
 
     extend_ref_local_lifetimes(body, locals_vec)
     check_use_after_own_transfer(body, locals_vec)
@@ -6665,7 +6677,7 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     }
 
     body.children.move_from(new_ch)
-    reregister_scope_defs(body, scope)
+    return true
 }
 
 infer_literal_expr := func(mut expr: Expr) {
