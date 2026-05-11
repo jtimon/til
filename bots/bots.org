@@ -15,6 +15,12 @@ Ask for explicit approval only when a decision materially changes one of these:
 
 If you need information to reproduce a bug, gather it by running commands and reading logs first. Only ask the user when a required fact cannot be obtained from the repo or environment.
 
+NEVER use the AskUserQuestion / interrogation interface. When a question
+is needed, ask it as plain text in the chat. Do not present numbered
+multiple-choice option lists ("(a) ... (b) ... (c) ...") either -- just
+ask the question in natural prose and let the user answer however they
+want.
+
 ## Following Orders
 
 When the user tells you to do something, DO IT. Do not analyze the order. Do not try to understand why. Do not add extra steps. Do not ls before rm. Do not check before writing. Do not investigate before acting. Just execute the exact command or action the user specified. Nothing more, nothing less. You are not paid to think about orders — you are paid to follow them.
