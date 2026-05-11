@@ -770,6 +770,16 @@ track_literal_known_only := func(name: Str, rhs: Expr) {
         mut vcopy := v
         known.set(own name.clone(), own vcopy)
     }
+    // is_known writes through `mut out: Value`, allocating Str payload
+    // bytes inside the caller's v for LiteralStr inputs. Unlike
+    // track_literal (which transfers v into the scope via
+    // scope_set_owned), nothing here picks up v's payload after the
+    // vcopy deep-clone, so v's data is orphaned and the function-exit
+    // Value.delete(v, false) is shallow on .data. Free it explicitly.
+    // val_none() (the else branch and the post-is_known case where
+    // is_known returned false) is harmless here -- cleanup_value_payload
+    // is a no-op on Value.None and Value.Int variants.
+    cleanup_value_payload(v)
 }
 
 is_macro_call := func(e: Expr) returns shallow Bool {

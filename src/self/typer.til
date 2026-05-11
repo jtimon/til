@@ -1732,6 +1732,84 @@ infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I3
     expr.til_type = Type.Struct("Set".clone())
 }
 
+// Recursively scan `e` for any read or write of `self.<field_name>`
+// (FieldAccess or FieldAssign whose receiver chain bottoms out in
+// Ident("self")). Used to verify that user-written delete bodies
+// reference each declared `own` field at least once -- if a field is
+// never touched, the delete cannot possibly free it and any heap
+// allocation the field's `own` qualifier announced is leaked at every
+// destruction site (Map.delete, Vec.delete, scope_free, the
+// auto-generated Value.delete chain, etc.).
+priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns shallow Bool {
+    if is_null(e) { return false }
+    switch e.node_type {
+    case NodeType.FieldAccess(_fa_name):
+        if _fa_name.eq(field_name) {
+            if e.children.len().gt(0) {
+                ref recv : Expr = e.child(0)
+                switch recv.node_type {
+                case NodeType.Ident(_id):
+                    if _id.eq("self") { return true }
+                case:
+                }
+            }
+        }
+    case NodeType.FieldAssign(_fa_name):
+        if _fa_name.eq(field_name) {
+            if e.children.len().gt(0) {
+                ref recv2 : Expr = e.child(0)
+                switch recv2.node_type {
+                case NodeType.Ident(_id2):
+                    if _id2.eq("self") { return true }
+                case:
+                }
+            }
+        }
+    case:
+    }
+    for ec : Expr in e.children {
+        if expr_uses_self_field(ec, field_name) { return true }
+    }
+    return false
+}
+
+// Walk a struct's namespace decls; for the user-written `delete`
+// (skip auto-generated ones), verify the body references each `own`
+// field that the struct declares. A miss means the field's heap
+// allocation has no path out -- the destructor silently leaks every
+// time it runs. Issued at struct typing time so the error points at
+// the struct declaration.
+priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr) {
+    switch sdef.node_type {
+    case NodeType.StructDef(_cdsdd):
+        ref cdns : Vec = def_ns_decls(sdef)
+        for cdnd : Declaration in cdns {
+            if cdnd.name.eq("delete").not() { continue }
+            if is_null(cdnd.default_value) { continue }
+            switch cdnd.default_value.node_type {
+            case NodeType.FuncDef(_cdfd):
+                if _cdfd.auto_generated { continue }
+                if cdnd.default_value.children.len().eq(0) { continue }
+                ref cdbody : Expr = cdnd.default_value.child(0)
+                for fd : Declaration in _cdsdd.fields {
+                    if fd.own_type.is(OwnType.Own).not() { continue }
+                    if expr_uses_self_field(cdbody, fd.name).not() {
+                        type_error(cdnd.default_value,
+                            "delete on '".concat(struct_name)
+                                .concat("' never references 'own' field 'self.")
+                                .concat(fd.name)
+                                .concat("' -- declaring the field 'own' announces a heap allocation; the destructor must free it (e.g. `free(own self.")
+                                .concat(fd.name)
+                                .concat(")`) or transfer its ownership."))
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+}
+
 infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     expr.til_type = Type.None
     inner := TypeScope(parent = scope)
@@ -1815,6 +1893,13 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         }
     }
     ctx.typing_namespace_member = saved_in_ns
+    // Static check: a hand-written `delete` must free (or transfer) every
+    // `own` field, otherwise the auto-generated destructor chain through
+    // Value.delete / Map.delete / Vec.delete / scope_free leaks the
+    // allocation the field's `own` qualifier declared.
+    if expr.node_type.is(NodeType.StructDef) {
+        check_user_delete_frees_own_fields(current_type_name, expr)
+    }
     TypeScope.delete(own inner)
 }
 
