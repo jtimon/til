@@ -6,8 +6,8 @@ mode cli
 // CSV format (header + data rows):
 //   commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total
 
-NL := Str.from_byte('\n')
-Q := Str.from_byte('"')
+NL := "\n"
+Q := "\""
 
 // Chart layout constants
 W := 800

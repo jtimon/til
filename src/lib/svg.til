@@ -118,7 +118,7 @@ extract_paths := func(svg: Str) returns Vec {
         end := part.find("\"")
         if end.gt(0) {
             val := part.substr(0, end.to_usize())
-            normalized := val.replace(Str.from_byte('\n'), " ")
+            normalized := val.replace("\n", " ")
             out.push(own normalized.clone())
         }
         i = i.add(1)
