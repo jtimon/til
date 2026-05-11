@@ -6588,6 +6588,22 @@ promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
         if local.decl_index.lt(0.to_i32()) { continue }
         ref stmt : Expr = body.child(local.decl_index.to_u32())
         if stmt.node_type.is(NodeType.Decl).not() { continue }
+        // Skip _t_* temps with LiteralStr RHS: the builder emits these as
+        // stack-allocated compound-literal Str values, so heap-promotion
+        // would mismatch the generated delete (call_free=true would call
+        // free on a stack pointer). Keep them Shallow so make_delete_call
+        // generates call_free=false. Gated on _t_* so user-visible
+        // bindings like `s := "hello"` keep the existing heap shape.
+        if stmt.children.len().gt(0) {
+            ref _rhs0 : Expr = stmt.child(0)
+            if _rhs0.node_type.is(NodeType.LiteralStr) {
+                switch stmt.node_type {
+                case NodeType.Decl(_litdd):
+                    if _litdd.name.starts_with("_t_") { continue }
+                case:
+                }
+            }
+        }
         switch stmt.node_type {
         case NodeType.Decl(dd):
         if dd.own_type.is(OwnType.Ref) { continue }
@@ -6732,6 +6748,12 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow
     }
 
     is_compound := val.til_type.is(Type.Struct).or(val.til_type.is(Type.Enum))
+    // LiteralStr temps own nothing: the c_str data is static and the
+    // struct itself is stack-allocated by the builder. Leaving own_type
+    // at Shallow makes the typer-inserted Str.delete call use
+    // call_free=false, which the builder pairs with `&name` for the
+    // own-self arg -- no malloc, no free.
+    is_literal_str := val.node_type.is(NodeType.LiteralStr)
 
     decl.add_child(own val.clone())
 
@@ -6746,6 +6768,8 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow
         if val_is_ref {
             dd.own_type = OwnType.Ref
             if is_null(tb).not() { tb.own_type = OwnType.Ref }
+        } else if is_literal_str {
+            // leave as Shallow
         } else if is_own.or(is_compound) {
             dd.own_type = OwnType.Own
             if is_null(tb).not() { tb.own_type = OwnType.Own }
