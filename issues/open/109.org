@@ -316,3 +316,34 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     causes more owned values to be freed before exit. Never
     attributed to a specific code path; worth a follow-up if a
     similar import reorder lands again.
+
+  - **Skip-promote-shallow-return optimization stops at the
+    function-body top level.** ~promote_own_transferred_locals~
+    detects Struct locals whose only use is a shallow Return-of-Ident
+    and keeps them off the heap. It walks ~body.children~ at the top
+    level only -- when a function body is just ~switch v { case ...:
+    mut result := X; return result; case: ... }~, ~result~ lives in
+    the desugared If's then-body (a nested scope), not in the
+    function's scope. ~collect_scope_locals~ + ~promote_*~ run on the
+    nested scope's body and "result"'s decl_index correctly resolves
+    to the Decl statement, but the optimization still doesn't fire on
+    the then-body's processing path (verified by reading
+    ~boot/til.c~'s ~str_view~ output after attempting the extension:
+    the ~Str *result = malloc(...); ...; return DEREF(result);~ shape
+    persists). ~typer_in_shallow_return~ is a global flag set in
+    ~infer_func_def_expr~ before the body recursion and isn't reset
+    on the nested infer_body calls, so the flag isn't the problem.
+    Something else in the path -- possibly the order of switch
+    desugar vs. ASAP insertion, possibly that the desugared If's
+    then-body is a clone whose own_transfer/last_use don't survive
+    the clone -- swallows the optimization. Workaround in landed code
+    is to hand-lift the Decl + Return to the function body's top
+    level (see commit c8518795 on ~str_view~). Real fix is somewhere
+    around either making the desugar happen BEFORE
+    ~collect_scope_locals~ on the function body, or having the
+    optimization recurse into nested case bodies / if branches /
+    while bodies (helpers ~find_decl_in~ +
+    ~expr_returns_ident~ as drafted would be reusable). A working
+    "scaffolding" attempt at the helpers built and passed 115/115 but
+    did not move the C output for ~str_view~ -- the gap is upstream
+    of where I patched, not in the predicate logic itself.
