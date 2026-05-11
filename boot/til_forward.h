@@ -999,6 +999,7 @@ Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool * call_free);
 U32 Context_size(void);
 I32 align_up(I32 offset, I32 align);
+Expr * make_get_payload_fcall(Expr * arg, Type payload_type, U32 line, U32 col);
 Type * type_from_name_init(Str * name, TypeScope * scope);
 Type * init_type_from_explicit_type(Str * name, TypeScope * scope);
 I32 register_struct_def_for_stmt(Expr * stmt, TypeScope * scope);

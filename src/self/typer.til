@@ -1612,17 +1612,18 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
     mut name := ""
     switch callee.node_type {
     case NodeType.Ident(name0):
+        // Reject user-code calls to the internal ~get_payload~ builtin.
+        // The typer's switch case desugar in make_switch_case_condition
+        // and the initer's generated method bodies pre-set til_type on
+        // their emitted FCalls; user-written FCalls arrive here with
+        // til_type still Unknown.
+        if name0.eq("get_payload").and(e.til_type.is(Type.Unknown)) {
+            type_error(e, "bare get_payload(...) is not allowed; use a switch case binding instead")
+            return
+        }
         name = name0.clone()
     case:
         UNREACHABLE(__LOC__)
-        return
-    }
-    // Reject user-code calls to the internal ~get_payload~ builtin.
-    // The typer's switch case desugar in make_switch_case_condition
-    // pre-sets til_type on its emitted FCall; user-written FCalls
-    // arrive here with til_type still Unknown.
-    if name.eq("get_payload").and(e.til_type.is(Type.Unknown)) {
-        type_error(e, "bare get_payload(...) is not allowed; use a switch case binding instead")
         return
     }
     ref resolved_name : Str = resolve_type_alias(scope, name)
@@ -2940,16 +2941,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         condition.add_child(own sw_id)
                                         condition.add_child(own vref)
 
-                                        mut gp_ident := Expr.new(NodeType.Ident("get_payload"), sw_line, sw_col)
                                         mut sw_id2 := sw_ref.clone()
-                                        mut get_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
-                                        get_call.add_child(own gp_ident)
-                                        get_call.add_child(own sw_id2)
-                                        // Pre-set til_type so infer_fcall_expr's
-                                        // "no bare get_payload" check below sees a
-                                        // non-Unknown type and recognises this as a
-                                        // typer-emitted call rather than user code.
-                                        get_call.til_type = til_type_from_explicit_type(payload_type)
+                                        mut get_call := make_get_payload_fcall(own sw_id2, til_type_from_explicit_type(payload_type), sw_line, sw_col)
 
                                         mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), til_type = til_type_from_explicit_type(payload_type), own_type = OwnType.Ref)), sw_line, sw_col)
                                         bind_decl.add_child(own get_call)

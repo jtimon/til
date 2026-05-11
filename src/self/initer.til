@@ -189,6 +189,20 @@ priv align_up := func(shallow offset: I32, shallow align: I32) returns shallow I
     return offset.add(align).sub(1).and(align.sub(1).xor(-1.to_i32()))
 }
 
+// Build the typer/initer-internal ~get_payload(arg)~ FCall used to
+// destructure enum payloads in generated method bodies and switch
+// case desugar. The til_type is set so infer_fcall_expr's
+// user-code rejection in typer.til recognises this as
+// typer-emitted rather than user-written.
+make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, shallow line: U32, shallow col: U32) returns Expr {
+    mut gp := Expr.new(NodeType.Ident("get_payload"), line, col)
+    mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
+    gc.add_child(own gp)
+    gc.add_child(own arg)
+    gc.til_type = payload_type
+    return gc
+}
+
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("I64")  { return Type.I64 }
     if name.eq("U8")   { return Type.U8 }
@@ -637,22 +651,14 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
                 ret_true.add_child(own true_lit)
                 then_body.add_child(own ret_true)
             } else {
-                mut gp1 := Expr.new(NodeType.Ident("get_payload"), line, col)
-                mut self2 := Expr.new(NodeType.Ident("self"), line, col)
-                mut gc1 := Expr.new(NodeType.FCall(FCallData()), line, col)
-                gc1.add_child(own gp1)
-                gc1.add_child(own self2)
-                gc1.til_type = til_type_from_explicit_type(vtype)
+                mut self_arg := Expr.new(NodeType.Ident("self"), line, col)
+                mut gc1 := make_get_payload_fcall(own self_arg, til_type_from_explicit_type(vtype), line, col)
                 mut sd1 := Expr.new(NodeType.Decl(Declaration(name = "_sp", explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line, col)
                 sd1.add_child(own gc1)
                 then_body.add_child(own sd1)
 
-                mut gp2 := Expr.new(NodeType.Ident("get_payload"), line, col)
-                mut other2 := Expr.new(NodeType.Ident("other"), line, col)
-                mut gc2 := Expr.new(NodeType.FCall(FCallData()), line, col)
-                gc2.add_child(own gp2)
-                gc2.add_child(own other2)
-                gc2.til_type = til_type_from_explicit_type(vtype)
+                mut other_arg := Expr.new(NodeType.Ident("other"), line, col)
+                mut gc2 := make_get_payload_fcall(own other_arg, til_type_from_explicit_type(vtype), line, col)
                 mut sd2 := Expr.new(NodeType.Decl(Declaration(name = "_op", explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line, col)
                 sd2.add_child(own gc2)
                 then_body.add_child(own sd2)
@@ -744,12 +750,8 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
             mut del_call := Expr.new(NodeType.FCall(FCallData()), line, col)
             del_call.add_child(own del_acc)
 
-            mut gp := Expr.new(NodeType.Ident("get_payload"), line, col)
-            mut self2 := Expr.new(NodeType.Ident("self"), line, col)
-            mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
-            gc.add_child(own gp)
-            gc.add_child(own self2)
-            gc.til_type = type_from_name_init(vtype, scope)
+            mut self_arg := Expr.new(NodeType.Ident("self"), line, col)
+            mut gc := make_get_payload_fcall(own self_arg, type_from_name_init(vtype, scope), line, col)
             set_own_arg(del_call, del_call.children.len())
             del_call.add_child(own gc)
 
@@ -824,12 +826,8 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
                 then_body.add_child(own ret)
             } else if vtype.len().gt(0) {
                 pn := format("_p_", vtype, "_", j.to_str())
-                mut gp := Expr.new(NodeType.Ident("get_payload"), line, col)
-                mut self2 := Expr.new(NodeType.Ident("self"), line, col)
-                mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
-                gc.add_child(own gp)
-                gc.add_child(own self2)
-                gc.til_type = til_type_from_explicit_type(vtype)
+                mut self_arg := Expr.new(NodeType.Ident("self"), line, col)
+                mut gc := make_get_payload_fcall(own self_arg, til_type_from_explicit_type(vtype), line, col)
                 mut pd := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line, col)
                 pd.add_child(own gc)
                 then_body.add_child(own pd)
@@ -931,12 +929,8 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32
         if vtype.len().gt(0) {
             pn := format("_clone_payload_", vname, "_", j.to_str())
 
-            mut gp := Expr.new(NodeType.Ident("get_payload"), line.to_i64().to_u32(), col.to_i64().to_u32())
-            mut self_g := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32())
-            mut gc := Expr.new(NodeType.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32())
-            gc.add_child(own gp)
-            gc.add_child(own self_g)
-            gc.til_type = til_type_from_explicit_type(vtype)
+            mut self_arg := Expr.new(NodeType.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32())
+            mut gc := make_get_payload_fcall(own self_arg, til_type_from_explicit_type(vtype), line.to_i64().to_u32(), col.to_i64().to_u32())
 
             mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line.to_i64().to_u32(), col.to_i64().to_u32())
             decl_expr.add_child(own gc)
