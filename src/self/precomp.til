@@ -669,14 +669,16 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         }
         ref _arg_lit : Expr = value_to_expr(arg_val, arg)
         if is_null(_arg_lit) {
-            // Free the LiteralStr-owned arg_val before bailing. is_known
-            // for Ident returns a borrow from `known` (shared payload),
-            // so cleanup must skip that branch -- gating on the source
-            // node type is sufficient since LiteralNum/LiteralBool are
-            // inline and cleanup_value_payload is a no-op on them.
-            if arg.node_type.is(NodeType.LiteralStr) {
-                cleanup_value_payload(arg_val)
-            }
+            // Free the arg_val payload before bailing. is_known's
+            // Ident branch goes through Value_clone (per the swap+
+            // clone-free pattern in the codegen), so the resulting
+            // arg_val owns its own deep-cloned payload independent of
+            // `known`'s entry. The other is_known branches
+            // (LiteralStr/Num/Bool) likewise produce owned payloads
+            // via expr_to_value. cleanup_value_payload is a no-op on
+            // Value.None / Value.Int / Value.Boolean, so calling it
+            // unconditionally is always safe.
+            cleanup_value_payload(arg_val)
             return NULL
         }
         ec.add_child(own _arg_lit.clone())
@@ -684,10 +686,10 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         // and ec.add_child clone'd the LiteralStr again), so arg_val's
         // payload is no longer reachable from anything that survives the
         // loop. Free it -- without this each LiteralStr arg of every
-        // pure-func / macro fold leaked its Str struct + buffer.
-        if arg.node_type.is(NodeType.LiteralStr) {
-            cleanup_value_payload(arg_val)
-        }
+        // pure-func / macro fold leaked its Str struct + buffer, and
+        // each Ident arg fold leaked the Value_clone the Ident branch
+        // of is_known had allocated.
+        cleanup_value_payload(arg_val)
     }
 
     // Evaluate the call using the interpreter
