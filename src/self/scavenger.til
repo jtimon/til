@@ -273,7 +273,11 @@ priv dyn_call_real_arg_count := func(e: Expr) returns shallow USize {
     return real
 }
 
-priv collect_body_refs := proc(e: Expr, mut refs: Set) {
+// Collect Ident/Assign refs anywhere in the subtree. Inside any Body,
+// skip trivial `<Type>.delete(<candidate>, false)` cleanup calls (at
+// any nesting depth) so a candidate's auto-generated cleanup doesn't
+// pin it. Phase 3 prunes those cleanup stmts alongside the candidate.
+priv collect_body_refs := proc(e: Expr, mut refs: Set, candidates: Set) {
     if is_null(e) { return }
     switch e.node_type {
     case NodeType.Ident(name):
@@ -282,11 +286,19 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set) {
         refs.add(own adata.name.clone())
     case:
     }
+    is_body := e.node_type.is(NodeType.Body)
     real_n := dyn_call_real_arg_count(e)
     mut idx : USize = 0
     for c : Expr in e.children {
         if idx.gte(real_n) { break }
-        collect_body_refs(c, refs)
+        if is_body {
+            target := match_trivial_delete(c)
+            if target.len().gt(0).and(candidates.has(target)) {
+                idx = idx.add(1)
+                continue
+            }
+        }
+        collect_body_refs(c, refs, candidates)
         idx = idx.add(1)
     }
 }
@@ -348,14 +360,52 @@ priv rhs_is_pure_byvalue := func(e: Expr) returns shallow Bool {
 }
 
 // One DCE pass over a single Body. Returns true if anything was removed.
+// Mark codes for body rewrite: 0=keep (default), 1=delete, 2=replace-with-rhs.
+priv MARK_DELETE : U8 = 1
+priv MARK_REPLACE_RHS : U8 = 2
+
+// Recursively prune trivial-delete stmts from any Body in the subtree
+// when they target a name in `dropped`. Used after candidates have
+// been dropped/replaced in the outer body, since their cleanup calls
+// also live in nested early-return bodies (if-then deletes before a
+// return) that the outer body's phase 3 didn't reach.
+priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set) {
+    if is_null(e) { return }
+    if e.node_type.is(NodeType.Body) {
+        n := e.children.len()
+        if n.gt(0) {
+            marks : Dynamic = malloc(n)
+            memset(marks, 0, n)
+            mut any := false
+            for i in 0..n {
+                ref stmt : Expr = e.child(i)
+                target := match_trivial_delete(stmt)
+                if target.len().eq(0) { continue }
+                if dropped.has(target).not() { continue }
+                memset(ptr_add(marks, i), 1, 1)
+                any = true
+            }
+            if any { children_filter(e.children, marks, n) }
+            free(own marks)
+        }
+    }
+    for j in 0..e.children.len() {
+        prune_trivial_deletes(e.child(j), dropped)
+    }
+}
+
 priv dce_one_body := proc(mut body: Expr) returns shallow Bool {
     n := body.children.len()
     if n.eq(0) { return false }
 
-    // Phase 1: identify candidate temp Decls (non-mut, by-value, pure
-    // literal RHS) up front so phase 2 can ignore the trivial-delete
-    // cleanup calls that target them.
+    // Phase 1: identify candidate temp Decls. Two flavors:
+    //   - literal-RHS by-value temps (LiteralNum/Bool/Null): the whole
+    //     Decl can be deleted outright.
+    //   - `_t_*` with FCall RHS: the binding is unused, but the FCall
+    //     may have side effects, so we replace the Decl stmt with the
+    //     bare FCall rather than dropping it.
     candidates := Set.new(Str)
+    candidates_replace := Set.new(Str)
     for i in 0..n {
         ref stmt : Expr = body.child(i)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -366,8 +416,12 @@ priv dce_one_body := proc(mut body: Expr) returns shallow Bool {
             if dd.own_type.is(OwnType.Own) { continue }
             if dd.own_type.is(OwnType.Ref) { continue }
             ref rhs : Expr = stmt.child(0)
-            if rhs_is_pure_byvalue(rhs).not() { continue }
-            candidates.add(own dd.name.clone())
+            if rhs_is_pure_byvalue(rhs) {
+                candidates.add(own dd.name.clone())
+            } else if rhs.node_type.is(NodeType.FCall).and(dd.name.starts_with("_t_")) {
+                candidates.add(own dd.name.clone())
+                candidates_replace.add(own dd.name.clone())
+            }
         case:
         }
     }
@@ -380,12 +434,14 @@ priv dce_one_body := proc(mut body: Expr) returns shallow Bool {
         ref stmt : Expr = body.child(i)
         target := match_trivial_delete(stmt)
         if target.len().gt(0).and(candidates.has(target)) { continue }
-        collect_body_refs(stmt, refs)
+        collect_body_refs(stmt, refs, candidates)
     }
 
-    // Phase 3: mark Decls and their trivial-delete stmts for removal.
+    // Phase 3: mark Decls (delete or replace-with-rhs) and the
+    // matching trivial-delete stmts.
     marks : Dynamic = malloc(n)
     memset(marks, 0, n)
+    dropped := Set.new(Str)
     mut any := false
     for i in 0..n {
         ref stmt : Expr = body.child(i)
@@ -394,7 +450,10 @@ priv dce_one_body := proc(mut body: Expr) returns shallow Bool {
         case NodeType.Decl(dd):
             if candidates.has(dd.name).not() { continue }
             if refs.has(dd.name) { continue }
-            memset(ptr_add(marks, i), 1, 1)
+            mut code : U8 = MARK_DELETE
+            if candidates_replace.has(dd.name) { code = MARK_REPLACE_RHS }
+            memset(ptr_add(marks, i), code, 1)
+            dropped.add(own dd.name.clone())
             any = true
         case:
         }
@@ -404,15 +463,43 @@ priv dce_one_body := proc(mut body: Expr) returns shallow Bool {
             ref stmt : Expr = body.child(j)
             target := match_trivial_delete(stmt)
             if target.len().eq(0) { continue }
-            if candidates.has(target).not() { continue }
-            if refs.has(target) { continue }
-            memset(ptr_add(marks, j), 1, 1)
+            if dropped.has(target).not() { continue }
+            memset(ptr_add(marks, j), MARK_DELETE, 1)
         }
-        children_filter(body.children, marks, n)
+        // Rebuild body.children honoring the marks. DELETE skips the
+        // stmt; REPLACE_RHS swaps the Decl for its RHS (the FCall is
+        // moved in via push_take from a temporary Vec).
+        mut old := Vec.new(Expr)
+        old.move_from(body.children)
+        mut new_ch := Vec.new(Expr)
+        for k in 0..n {
+            ref mark : U8 = ptr_add(marks, k)
+            if mark.eq(MARK_DELETE) { continue }
+            if mark.eq(MARK_REPLACE_RHS) {
+                ref decl_stmt : Expr = old.get(k)
+                mut decl_children := Vec.new(Expr)
+                decl_children.move_from(decl_stmt.children)
+                new_ch.push_take(decl_children, 0)
+                Vec.delete(own decl_children, false)
+                continue
+            }
+            new_ch.push_take(old, k)
+        }
+        body.children.move_from(new_ch)
+        Vec.delete(own old, false)
+        Vec.delete(own new_ch, false)
+
+        // Prune trivial-delete stmts targeting dropped names from any
+        // nested body (e.g. early-return cleanup inside an if-then).
+        for j in 0..body.children.len() {
+            prune_trivial_deletes(body.child(j), dropped)
+        }
     }
     free(own marks)
     Set.delete(own refs, false)
     Set.delete(own candidates, false)
+    Set.delete(own candidates_replace, false)
+    Set.delete(own dropped, false)
     return any
 }
 

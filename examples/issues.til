@@ -29,19 +29,6 @@ list_dir := proc(dir: Str) returns Vec {
     return files
 }
 
-issue_num := func(fname: Str) returns I64 {
-    return fname.substr(0, fname.len().sub(4)).to_i64()
-}
-
-max_num_in := func(names: Vec) returns I64 {
-    mut m : I64 = 0
-    for fname : Str in names {
-        n := issue_num(fname)
-        if n.gt(m) { m = n }
-    }
-    return m
-}
-
 // Parse an issue file and return {priority_marker, is_wip, link}
 // Returns "H\nlink" or "HW\nlink" or "L\nlink" or "LW\nlink"
 parse_issue := func(fname: Str) returns Str {
@@ -93,15 +80,6 @@ parse_issue := func(fname: Str) returns Str {
 
 main := proc() {
     files := list_dir("issues/open")
-    fixed := list_dir("issues/fixed")
-    cancelled := list_dir("issues/cancelled")
-
-    // Find max issue number
-    mut max_num : I64 = max_num_in(files)
-    fmax := max_num_in(fixed)
-    if fmax.gt(max_num) { max_num = fmax }
-    cmax := max_num_in(cancelled)
-    if cmax.gt(max_num) { max_num = cmax }
 
     // Build entry lines
     mut entries := Vec.new(Str)

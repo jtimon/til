@@ -1905,9 +1905,7 @@ void test_lolalalo(void) {
     (void)_t_Str_3052;
     Bool _t_Bool_3053 = 1;
     Str_delete(_t_Str_3051, &(Bool){1});
-    Bool _t_Bool_3054; { Bool *_hp = (Bool *)assert(_t_Str_3052, &_t_Bool_3053); _t_Bool_3054 = *_hp; free(_hp); }
-    (void)_t_Bool_3054;
-    ;
+    assert(_t_Str_3052, &_t_Bool_3053);
     ;
     Str_delete(_t_Str_3052, &(Bool){1});
     Str *_t_Str_3055 = Str_lit("lalalala", 8ULL);
@@ -1916,9 +1914,7 @@ void test_lolalalo(void) {
     (void)_t_Str_3056;
     Bool _t_Bool_3057 = 1;
     Str_delete(_t_Str_3055, &(Bool){1});
-    Bool _t_Bool_3058; { Bool *_hp = (Bool *)assert(_t_Str_3056, &_t_Bool_3057); _t_Bool_3058 = *_hp; free(_hp); }
-    (void)_t_Bool_3058;
-    ;
+    assert(_t_Str_3056, &_t_Bool_3057);
     ;
     Str_delete(_t_Str_3056, &(Bool){1});
     Str *_t_Str_3059 = Str_lit("lolei", 5ULL);
@@ -1928,9 +1924,7 @@ void test_lolalalo(void) {
     Bool _t_Bool_3061 = 1;
     Str_delete(_t_Str_3059, &(Bool){1});
     Str_delete(lo_la, &(Bool){1});
-    Bool _t_Bool_3062; { Bool *_hp = (Bool *)assert(_t_Str_3060, &_t_Bool_3061); _t_Bool_3062 = *_hp; free(_hp); }
-    (void)_t_Bool_3062;
-    ;
+    assert(_t_Str_3060, &_t_Bool_3061);
     ;
     Str_delete(_t_Str_3060, &(Bool){1});
     Str *_t_Str_3063 = Str_lit("lalei", 5ULL);
@@ -1940,9 +1934,7 @@ void test_lolalalo(void) {
     Bool _t_Bool_3065 = 1;
     Str_delete(_t_Str_3063, &(Bool){1});
     Str_delete(la_lo, &(Bool){1});
-    Bool _t_Bool_3066; { Bool *_hp = (Bool *)assert(_t_Str_3064, &_t_Bool_3065); _t_Bool_3066 = *_hp; free(_hp); }
-    (void)_t_Bool_3066;
-    ;
+    assert(_t_Str_3064, &_t_Bool_3065);
     ;
     Str_delete(_t_Str_3064, &(Bool){1});
 }
