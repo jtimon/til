@@ -721,16 +721,16 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
                     type_error(arg, msg)
                 }
                 if slot.gte(0) {
-                    ref ctor_fld : Declaration = ctor_sdd.fields.get(slot.to_i64().to_u32())
+                    ref ctor_fld : Declaration = ctor_sdd.fields.get(slot.to_u32())
                     check_member_priv(arg, name, aname, ctor_fld.is_priv)
                     if auto_gen_depth.eq(0) { ctor_fld.used = true }
-                    ref slot_arg : CtorArg = field_vals.get(slot.to_i64().to_u32())
+                    ref slot_arg : CtorArg = field_vals.get(slot.to_u32())
                     if slot_arg.is(CtorArg.Filled) {
                         msg := format("duplicate argument for field '", aname, "'")
                         type_error(arg, msg)
                     }
                     if slot_arg.is(CtorArg.Filled).not() {
-                        field_vals.set(slot.to_i64().to_u32(), own CtorArg.Filled(arg.child(0).clone()))
+                        field_vals.set(slot.to_u32(), own CtorArg.Filled(arg.child(0).clone()))
                     }
                 }
             case:
@@ -790,7 +790,7 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
         kwi := fdef_data.kwargs_index
         mut fixed_count : U32 = nparam
         if vi.gte(0) {
-            fixed_count = vi.to_i64().to_u32()
+            fixed_count = vi.to_u32()
         }
         mut va_args := Vec.new(Expr)
         mut kw_args := Vec.new(Expr)
@@ -822,11 +822,11 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
                         type_error(arg, format("'", name, "' has no parameter '", aname, "'"))
                     }
                 } else {
-                    ref slot_arg : CtorArg = new_args.get(slot.to_i64().to_u32())
+                    ref slot_arg : CtorArg = new_args.get(slot.to_u32())
                     if slot_arg.is(CtorArg.Filled) {
                         type_error(arg, format("duplicate argument for parameter '", aname, "'"))
                     } else {
-                        new_args.set(slot.to_i64().to_u32(), own CtorArg.Filled(arg.child(0).clone()))
+                        new_args.set(slot.to_u32(), own CtorArg.Filled(arg.child(0).clone()))
                     }
                 }
             case:
@@ -1383,11 +1383,11 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                 if slot.lt(0) {
                     type_error(arg, format("no parameter '", aname, "'"))
                 } else {
-                    ref slot_arg : CtorArg = new_args.get(slot.to_i64().to_u32())
+                    ref slot_arg : CtorArg = new_args.get(slot.to_u32())
                     if slot_arg.is(CtorArg.Filled) {
                         type_error(arg, format("duplicate argument for parameter '", aname, "'"))
                     } else {
-                        new_args.set(slot.to_i64().to_u32(), own CtorArg.Filled(arg.child(0).clone()))
+                        new_args.set(slot.to_u32(), own CtorArg.Filled(arg.child(0).clone()))
                     }
                 }
             case:
@@ -4438,8 +4438,8 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                                             }
                                         }
                                         if fd_idx.lt(0.to_i32()) { continue }
-                                        if fd_idx.to_i64().to_u32().gte(tsv_sdd.fields.len()) { continue }
-                                        ref fld_decl : Declaration = tsv_sdd.fields.get(fd_idx.to_i64().to_u32())
+                                        if fd_idx.to_u32().gte(tsv_sdd.fields.len()) { continue }
+                                        ref fld_decl : Declaration = tsv_sdd.fields.get(fd_idx.to_u32())
                                         if fld_decl.own_type.is(OwnType.Shallow).not() { continue }
                                         if type_ctor_consumes(fld_decl.til_type) {
                                             return true
@@ -6234,7 +6234,7 @@ insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
 promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
     for local : LocalInfo in locals {
         if local.decl_index.lt(0.to_i32()) { continue }
-        ref stmt : Expr = body.child(local.decl_index.to_i64().to_u32())
+        ref stmt : Expr = body.child(local.decl_index.to_u32())
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
@@ -6249,7 +6249,7 @@ promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
         // out cleanly.
         if typer_in_shallow_return.and(local.own_transfer.lt(0.to_i32())).and(is_struct) {
             if local.last_use.gte(0.to_i32()) {
-                ref last_stmt : Expr = body.child(local.last_use.to_i64().to_u32())
+                ref last_stmt : Expr = body.child(local.last_use.to_u32())
                 if last_stmt.node_type.is(NodeType.Return) {
                     if last_stmt.children.len().gt(0) {
                         switch last_stmt.child(0).node_type {
