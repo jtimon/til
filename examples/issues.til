@@ -6,7 +6,7 @@ import("../core/str")
 import("../core/vec")
 import("../core/i64")
 
-NL := Str.from_byte('\n')
+NL := "\n"
 
 run := proc(cmd: Str) returns I64 {
     pid := spawn_cmd(cmd)

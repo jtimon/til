@@ -1385,6 +1385,7 @@ Str * type_name_to_c_value(Str * name);
 void emit_u64(File * f, U64 v);
 void emit_i32(File * f, I32 v);
 void emit_indent(File * f, I32 depth);
+U32 * c_lit_byte_count(Str * s);
 Bool rhs_is_pure_byvalue_for_emit(Expr * e);
 void emit_til_default(File * f, Type t);
 Str * callee_return_ctype(Str * callee_name);

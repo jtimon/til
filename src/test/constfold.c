@@ -1889,14 +1889,14 @@ void test_lolalalo(void) {
     (void)_t_Str_3047;
     Str *_t_Str_3048 = Str_lit("la", 2ULL);
     (void)_t_Str_3048;
-    Str *lo_la = Str_lit("lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", 248ULL);
+    Str *lo_la = Str_lit("lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", 224ULL);
     Str_delete(_t_Str_3047, &(Bool){1});
     Str_delete(_t_Str_3048, &(Bool){1});
     Str *_t_Str_3049 = Str_lit("la", 2ULL);
     (void)_t_Str_3049;
     Str *_t_Str_3050 = Str_lit("lo", 2ULL);
     (void)_t_Str_3050;
-    Str *la_lo = Str_lit("lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", 248ULL);
+    Str *la_lo = Str_lit("lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", 224ULL);
     Str_delete(_t_Str_3049, &(Bool){1});
     Str_delete(_t_Str_3050, &(Bool){1});
     Str *_t_Str_3051 = Str_lit("lolalolo", 8ULL);
