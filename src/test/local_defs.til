@@ -84,3 +84,23 @@ test_local_func_field_name_match := test() {
     z := LocalPair()
     assert_eq(__LOC__, z.z, 0)
 }
+
+// A local struct with a namespace method whose body itself contains a
+// nested struct definition: the lifter must recurse into the method
+// body using the lifted struct's mangled name as the new parent prefix
+// (otherwise the deeper nested decl never gets hoisted and the
+// generated C fails to compile).
+test_local_struct_with_method_with_nested := test() {
+    Outer := struct {
+        mut tag := 0
+    namespace:
+        build := func() returns I64 {
+            Inner := struct {
+                mut q := 7
+            }
+            i := Inner()
+            return i.q
+        }
+    }
+    assert_eq(__LOC__, Outer.build(), 7)
+}

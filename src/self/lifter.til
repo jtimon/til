@@ -109,6 +109,18 @@ priv rewrite_refs := proc(mut e: Expr, renamings: Map) {
             }
         }
     case NodeType.EnumDef(edd):
+        // Variant payload type names live in edd.payload_types (Map<I64, Str>
+        // keyed by variant index). Walk every variant slot that has a
+        // payload and rename if it matches.
+        for vi in 0..edd.variants.len() {
+            vidx := vi.to_i64()
+            if edd.payload_types.has(vidx).not() { continue }
+            ref pt_old : Str = edd.payload_types.get(vidx)
+            new_pt := lookup_name(renamings, pt_old)
+            if new_pt.len().gt(0) {
+                edd.payload_types.set(own vidx.clone(), own new_pt.clone())
+            }
+        }
         for mut nd : Declaration in edd.ns_decls {
             rename_decl_in_place(nd, renamings)
             if is_null(nd.default_value).not() {
@@ -183,6 +195,12 @@ priv lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec
                     ref mut fbody : Expr = slot_rhs.child(0)
                     lift_in_body(fbody, slot_dd.name.clone(), top_level)
                 }
+            } else if slot_rhs.node_type.is(NodeType.StructDef).or(slot_rhs.node_type.is(NodeType.EnumDef)) {
+                // Recurse into each namespace method's body so deeper nested
+                // defs inside a local struct's / enum's methods also get
+                // lifted with the lifted type's mangled name as the new
+                // parent prefix.
+                lift_in_ns_decls(slot_rhs, slot_dd.name.clone(), top_level)
             }
             top_level.push(own slot.clone())
         case:
@@ -197,6 +215,34 @@ priv lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec
     // namespace methods aren't here -- they live in StructDef.ns_decls
     // -- but if/while/block/etc. nest into sub-Bodies).
     recurse_into_subbodies(body, parent_prefix, top_level)
+}
+
+// Walk a lifted struct/enum's namespace methods and lift any nested
+// defs inside their bodies. Each ns_decl whose default_value is a
+// FuncDef-with-body is treated the same way as a top-level FuncDef:
+// its body becomes a fresh `lift_in_body` invocation with the lifted
+// type's mangled name as the parent prefix.
+priv lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_level: Vec) {
+    if is_null(def) { return }
+    switch def.node_type {
+    case NodeType.StructDef(ld_sdd):
+        for mut nd : Declaration in ld_sdd.ns_decls {
+            if is_null(nd.default_value) { continue }
+            if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+            if nd.default_value.children.len().eq(0) { continue }
+            ref mut nbody : Expr = nd.default_value.child(0)
+            lift_in_body(nbody, parent_prefix.clone(), top_level)
+        }
+    case NodeType.EnumDef(ld_edd):
+        for mut nd : Declaration in ld_edd.ns_decls {
+            if is_null(nd.default_value) { continue }
+            if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+            if nd.default_value.children.len().eq(0) { continue }
+            ref mut nbody : Expr = nd.default_value.child(0)
+            lift_in_body(nbody, parent_prefix.clone(), top_level)
+        }
+    case:
+    }
 }
 
 priv recurse_into_subbodies := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec) {

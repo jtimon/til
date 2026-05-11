@@ -976,6 +976,7 @@ void rename_ident_in_place(Expr * e, Map * renamings);
 void rename_decl_in_place(Declaration * dd, Map * renamings);
 void rewrite_refs(Expr * e, Map * renamings);
 void lift_in_body(Expr * body, Str * parent_prefix, Vec * top_level);
+void lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec * top_level);
 void recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec * top_level);
 void recurse_into_expr(Expr * e, Str * parent_prefix, Vec * top_level);
 void lift_nested_defs(Expr * prog);
