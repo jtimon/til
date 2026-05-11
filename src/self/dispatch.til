@@ -1113,10 +1113,12 @@ ffi_register := func(name: Str, fn: Dynamic, fdef: Expr) {
         }
         ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np, rtype, entry.arg_types)
 
-        // Store in ffi_map (CAP_VIEW key to avoid freeing AST string)
+        // Store in ffi_map. Own a clone of the name so callers can pass
+        // either AST-owned strings or locally-allocated ones (e.g. format
+        // results) without bespoke ownership dances.
+        mut key_str := name.clone()
         key : Dynamic = malloc(Str.size().to_u64())
-        memcpy(key, name, Str.size().to_u64())
-        memcpy(ptr_add(key, 12), CAP_VIEW, U32.size().to_u64())
+        move(key, key_str, Str.size().to_u64())
         val : Dynamic = malloc(FFIEntry.size().to_u64())
         move(val, entry, FFIEntry.size().to_u64())
         ffi_map.set(own key, own val)
@@ -1175,9 +1177,6 @@ ffi_init_scan_program := func(program: Expr) {
                             ref fn_ptr : U8 = ffi_dlsym(flat_name)
                             if is_null(fn_ptr).not() {
                                 ffi_register(flat_name, fn_ptr, fdef)
-                                // ffi_register stores a CAP_VIEW of name->c_str;
-                                // zero flat_name to prevent destructor from freeing c_str
-                                memset(flat_name, 0, Str.size())
                             }
                         } else if fd_func_type.is(FuncType.Func).or(fd_func_type.is(FuncType.Proc)) {
                             // Scan function body for nested ext_func/ext_proc
