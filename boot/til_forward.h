@@ -627,7 +627,6 @@ typedef struct Parser {
     U32 pos;
     Str path;
     Vec fn_sig_decls;
-    Vec lambda_decls;
     Str pending_doc;
 } Parser;
 
@@ -958,7 +957,6 @@ U32 peek_line(Parser * p);
 U32 peek_col(Parser * p);
 Type * til_type_from_explicit_type(Str * name);
 Str * parse_fn_signature(Parser * p, U32 line, U32 col);
-Expr * maybe_lift_lambda(Parser * p, Expr * e);
 Expr * parse_block(Parser * p);
 Expr * parse_func_def(Parser * p);
 Expr * parse_struct_def(Parser * p, Str * c_tag);
@@ -988,6 +986,10 @@ void lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec * top_level);
 void recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec * top_level);
 void recurse_into_expr(Expr * e, Str * parent_prefix, Vec * top_level);
 void lift_nested_defs(Expr * prog);
+Bool is_lambda_target(Expr * e);
+I64 * lift_one_default_value(Declaration * dd, Vec * top_level, I64 * counter);
+I64 * lift_lambdas_in_expr(Expr * e, Vec * top_level, I64 * counter);
+void lift_lambdas(Expr * prog);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U32 TypeBinding_size(void);

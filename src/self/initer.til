@@ -2426,7 +2426,11 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
     // Issue #93: hoist nested struct/enum/func defs from function
     // bodies to the top level (with mangled names like `<parent>_<orig>`).
     // Runs once per file before any registration so the rest of the
-    // pipeline only sees flat top-level decls.
+    // pipeline only sees flat top-level decls. lift_lambdas runs first
+    // so anonymous `func(...){...}` literals in expression positions
+    // become top-level `_lambda_<N>` decls before nested-def lifting
+    // descends into their bodies.
+    lift_lambdas(iu.ast)
     lift_nested_defs(iu.ast)
 
     // Walk the AST in source order and recurse on each ~import("...")~ FCall.
