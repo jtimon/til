@@ -317,6 +317,43 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     attributed to a specific code path; worth a follow-up if a
     similar import reorder lands again.
 
+  - **~Vec.set~ blindly overwrites the slot without ~elem_delete~,
+    but adding a naive deep-delete before the set regresses
+    sibling paths.** Bucket 1 records this for ~FieldAssign~ on
+    owned-typed fields; the same shape applies to
+    ~Vec.set(stmt_idx, own block.clone())~ in
+    ~replace_body_stmt_with_block~ (called from
+    ~desugar_for_in_range_stmt~ /
+    ~desugar_for_in_collection_stmt~). The pre-fix ASAN leak from
+    that site on ~strings.til translate~ was ~347 bytes / 27
+    objects; adding ~Expr.delete(own body.child(stmt_idx),
+    false)~ before the set regressed the total from 84193 ->
+    105730 bytes, with ~+22KB of new leaks reported under
+    ~desugar_user_func_fcall_args~, ~infer_field_access_fcall~,
+    and ~infer_literal_expr~. Confirms bucket 1's "naive auto-
+    delete chains through ~stmt.til_type = existing.clone()~
+    -shaped sibling leak sources"; same opt-in flag + move-vs-
+    value-copy discriminator is needed here too. Tests stayed
+    115/115 so the regression is leak-only -- not a correctness
+    break.
+
+  - **A "mystery" leak that should already be freed by an
+    existing cleanup loop is often a leak the next master commit
+    plugs.** Spent a session staring at a
+    ~make_str_value_view -> expr_to_value -> is_known ->
+    track_literal_known_only~ leak where ASAN said ~1.4KB / 88
+    objects leaked from the 16-byte ~Str~-struct allocation, but
+    every code path I could trace said
+    ~cleanup_value_payload~'s end-loop in ~precomp_imported~ /
+    ~process_program~ should free them. Considered adding
+    counters / a gdb watchpoint to find the gap.  Next rebase on
+    master made the leak disappear: ~3534795 Two-pass:
+    try_eval_call cleans up arg_val regardless of source node
+    type~ closed a sibling ownership path I hadn't found. When a
+    leak doesn't match the code path, fetch master before
+    instrumenting.
+
+
   - **Skip-promote-shallow-return optimization stops at the
     function-body top level.** ~promote_own_transferred_locals~
     detects Struct locals whose only use is a shallow Return-of-Ident
