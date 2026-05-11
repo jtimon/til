@@ -3027,10 +3027,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         condition.add_child(own vref)
 
                                         mut sw_id2 := sw_ref.clone()
-                                        mut get_call := make_get_payload_fcall(own sw_id2, til_type_from_explicit_type(payload_type), sw_line, sw_col)
-
-                                        mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), til_type = til_type_from_explicit_type(payload_type), own_type = OwnType.Ref)), sw_line, sw_col)
-                                        bind_decl.add_child(own get_call)
+                                        mut bind_decl := make_payload_ref_decl(own sw_id2, binding_name, payload_type, sw_line, sw_col)
 
                                         mut old := Vec.new(Expr)
                                         old.move_from(case_body.children)

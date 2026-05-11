@@ -203,6 +203,21 @@ make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, shallo
     return gc
 }
 
+// Wrap make_get_payload_fcall in a ~ref bind_name : vtype = get_payload(arg)~
+// Decl. This is the payload-destructure shape used by every auto-generated
+// enum method body (eq/to_str/clone) and by typer.til's switch case desugar.
+// The delete-generator threads the FCall into a different parent and so
+// stays on the lower-level helper.
+// Both the FCall and the Decl need an owned Type for til_type; resolve
+// vtype twice so each consumer gets a fresh Type.Custom("Name") payload
+// instead of an aliased one (which would double-free at scope exit).
+make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, shallow line: U32, shallow col: U32) returns Expr {
+    mut gc := make_get_payload_fcall(own arg, til_type_from_explicit_type(vtype), line, col)
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = bind_name.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line, col)
+    decl.add_child(own gc)
+    return decl
+}
+
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("I64")  { return Type.I64 }
     if name.eq("U8")   { return Type.U8 }
@@ -652,16 +667,9 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
                 then_body.add_child(own ret_true)
             } else {
                 mut self_arg := Expr.new(NodeType.Ident("self"), line, col)
-                mut gc1 := make_get_payload_fcall(own self_arg, til_type_from_explicit_type(vtype), line, col)
-                mut sd1 := Expr.new(NodeType.Decl(Declaration(name = "_sp", explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line, col)
-                sd1.add_child(own gc1)
-                then_body.add_child(own sd1)
-
+                then_body.add_child(own make_payload_ref_decl(own self_arg, "_sp", vtype, line, col))
                 mut other_arg := Expr.new(NodeType.Ident("other"), line, col)
-                mut gc2 := make_get_payload_fcall(own other_arg, til_type_from_explicit_type(vtype), line, col)
-                mut sd2 := Expr.new(NodeType.Decl(Declaration(name = "_op", explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line, col)
-                sd2.add_child(own gc2)
-                then_body.add_child(own sd2)
+                then_body.add_child(own make_payload_ref_decl(own other_arg, "_op", vtype, line, col))
 
                 mut sp_id := Expr.new(NodeType.Ident("_sp"), line, col)
                 mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line, col)
@@ -827,10 +835,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
             } else if vtype.len().gt(0) {
                 pn := format("_p_", vtype, "_", j.to_str())
                 mut self_arg := Expr.new(NodeType.Ident("self"), line, col)
-                mut gc := make_get_payload_fcall(own self_arg, til_type_from_explicit_type(vtype), line, col)
-                mut pd := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line, col)
-                pd.add_child(own gc)
-                then_body.add_child(own pd)
+                then_body.add_child(own make_payload_ref_decl(own self_arg, pn, vtype, line, col))
 
                 mut fmt_call := Expr.new(NodeType.FCall(FCallData()), line, col)
                 mut fmt_id := Expr.new(NodeType.Ident("format"), line, col)
@@ -930,11 +935,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32
             pn := format("_clone_payload_", vname, "_", j.to_str())
 
             mut self_arg := Expr.new(NodeType.Ident("self"), line.to_u32(), col.to_u32())
-            mut gc := make_get_payload_fcall(own self_arg, til_type_from_explicit_type(vtype), line.to_u32(), col.to_u32())
-
-            mut decl_expr := Expr.new(NodeType.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)), line.to_u32(), col.to_u32())
-            decl_expr.add_child(own gc)
-            pd = decl_expr
+            pd = make_payload_ref_decl(own self_arg, pn, vtype, line.to_u32(), col.to_u32())
             has_pd = true
 
             mut ctor_call := Expr.new(NodeType.FCall(FCallData()), line.to_u32(), col.to_u32())
