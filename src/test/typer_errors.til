@@ -383,12 +383,12 @@ terr_get_payload_val := TerrGetPayloadEnum.TerrI(7)
 get_payload(terr_get_payload_val)
 
 // #93: a nested struct/enum/func is private to its parent function.
-// The lifter (src/self/lifter.til) hoists it to the top level under a
-// mangled name `<parent>_<orig>` and marks it priv. Two checks fall
-// out of that:
+// init_declarations_unit (src/self/initer.til) hoists it to the top
+// level under a mangled name `<parent>_<orig>` and marks it priv.
+// Two checks fall out of that:
 //   - if no sibling reference touches it, the existing unused-priv
-//     check flags it (the lifter rewrites references to the mangled
-//     name, so an originally-unused decl ends up with zero refs).
+//     check flags it (the lift also rewrites references to the
+//     mangled name, so an originally-unused decl ends up with zero refs).
 //   - the original name doesn't exist outside the parent body, so a
 //     reference from another function or top-level scope errors as
 //     "undefined".

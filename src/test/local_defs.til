@@ -1,9 +1,10 @@
 mode test
 
 // Issue #93: struct/enum/func definitions inside a `{ ... }` block are
-// hoisted to the program top level by src/self/lifter.til with names
-// mangled `<parent>_<orig>`, so two functions can declare a same-named
-// local without colliding and the builder emits normal file-scope code.
+// hoisted to the program top level by init_declarations_unit (see
+// src/self/initer.til) with names mangled `<parent>_<orig>`, so two
+// functions can declare a same-named local without colliding and the
+// builder emits normal file-scope code.
 
 test_local_struct := test() {
     LocalPoint := struct {
@@ -86,7 +87,7 @@ test_local_func_field_name_match := test() {
 }
 
 // A local struct with a namespace method whose body itself contains a
-// nested struct definition: the lifter must recurse into the method
+// nested struct definition: the lift must recurse into the method
 // body using the lifted struct's mangled name as the new parent prefix
 // (otherwise the deeper nested decl never gets hoisted and the
 // generated C fails to compile).

@@ -1545,9 +1545,10 @@ parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
         root.add_child(own d.clone())
     }
     // Anonymous lambdas (`func(...){...}` literals in expression positions)
-    // used to be lifted here too, but they now move to top level in a
-    // post-parse pass (src/self/lifter.til:lift_lambdas) so the parser
-    // can stay dumb. parse_block, parse_expression, and friends just
-    // produce a faithful AST; the lifter rewrites it.
+    // used to be lifted here too, but they now move to top level in the
+    // typer (src/self/typer.til:typer_lift_lambdas, called from
+    // type_check_unit) so the parser can stay dumb. parse_block,
+    // parse_expression, and friends just produce a faithful AST; the
+    // typer rewrites it.
     return root
 }

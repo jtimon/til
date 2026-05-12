@@ -1847,8 +1847,9 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
         return
     }
     // Issue #93 follow-up: lifted nested defs are function-scoped within
-    // the original parent function. The lifter sets b.orig_name to the
-    // user-facing identifier and mangles b.name as `<parent>_<orig>`, so
+    // the original parent function. init_declarations_unit sets
+    // b.orig_name to the user-facing identifier and mangles b.name as
+    // `<parent>_<orig>`, so
     // the enclosing parent name is the prefix before the trailing
     // `_<orig_name>`. Allow references from:
     //   - the parent function itself (current_top_func_name == parent), or
@@ -2461,9 +2462,10 @@ check_unused_priv_top_level := proc(scope: TypeScope) returns shallow I32 {
             else { kind = "struct" }
         }
         // Issue #93: nested defs lifted out of a function body carry the
-        // original identifier on b.orig_name (set by src/self/lifter.til).
-        // Report them in source terms -- the parent function name is the
-        // mangled name minus the trailing "_<orig_name>" -- and suggest
+        // original identifier on b.orig_name (set by init_declarations_unit
+        // in src/self/initer.til). Report them in source terms -- the
+        // parent function name is the mangled name minus the trailing
+        // "_<orig_name>" -- and suggest
         // actions that actually make sense for a lifted decl (delete it
         // or move it to file scope).
         if b.orig_name.len().gt(0) {
@@ -3201,9 +3203,10 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
         }
     } else {
         // Issue #93 follow-up: when the decl's rhs is a FuncDef body
-        // (top-level after the lifter has run), set current_top_func_name
-        // so the function-scope priv check in check_priv_access knows
-        // which parent we're inside while typing the body.
+        // (top-level after init_declarations_unit's nested-def lift),
+        // set current_top_func_name so the function-scope priv check in
+        // check_priv_access knows which parent we're inside while typing
+        // the body.
         mut tracked_func := false
         saved_top_func := current_top_func_name.clone()
         switch stmt.node_type {
@@ -5116,7 +5119,7 @@ normalize_scope_bindings := func(scope: TypeScope) {
 // replaced with an `Ident("_lambda_N")` reference; the typer then types
 // the lifted decl as an ordinary named function.
 //
-// This used to live in src/self/lifter.til as a pre-typer transform.
+// This used to live in a separate pre-typer transform file.
 // Moved into the typer module so the parser stays dumb and the lift
 // happens during the typer phase rather than as its own #158 pass.
 

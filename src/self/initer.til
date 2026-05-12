@@ -21,8 +21,8 @@ TypeBinding := struct {
     mut is_builtin := false
     mut used := false
     // Issue #93: mirror of Declaration.orig_name -- non-empty means
-    // the lifter hoisted this decl from a function body and the
-    // unused-priv check should report it in source terms (original
+    // init_declarations_unit hoisted this decl from a function body and
+    // the unused-priv check should report it in source terms (original
     // name + enclosing parent) rather than as a synthetic mangled name.
     mut orig_name := ""
 namespace:
