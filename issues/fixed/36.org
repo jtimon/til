@@ -1,8 +1,8 @@
 # priority: low
 ** #36 Nested pattern matching in switch
 
-Three Phase-5 features from #35 landed under this issue. Guards
-(~case X if cond:~) remain open as [[../open/199.org][#199]].
+All Phase-5 features from #35 plus follow-on safety/UX work landed
+under this issue. Five distinct changes shipped:
 
 *** Nested enum patterns
 
@@ -47,7 +47,7 @@ Three Phase-5 features from #35 landed under this issue. Guards
   Test: ~test_missing_nested_inner~ in
   ~src/test/enum_switch_missing_case.til~.
 
-*** Struct field matching
+*** Struct field matching (with `..` rest-pattern)
 
   ~case Point(x = 0, y = ny):~ desugars each ~field = literal~ to
   ~sw.field.eq(literal)~ ANDed into the case condition, and each
@@ -56,27 +56,80 @@ Three Phase-5 features from #35 landed under this issue. Guards
   that resolves to a ~StructDef~ in scope and ~NamedArg~ children.
   Nested struct/enum patterns inside a field value recurse through
   ~make_switch_case_condition~ (so e.g. ~case Box(p = Point(x = 0)):~
-  walks naturally), and absent fields impose no constraint (no
-  explicit ~..~ syntax).
+  walks naturally).
 
-  Struct patterns also nest *directly* inside enum variants
+  Struct patterns nest *directly* inside enum variants
   (~case Shape.Dot(Point(x = 0, y = ny)):~). The typer's
-  ~infer_fcall_expr~ now skips the normal callee-binding resolution
-  for ~get_payload~ -- otherwise its declared ~Dynamic~ return type
-  would clobber the typer-emitted Struct/Enum til_type and a
-  condition-side ~.x~ would fail. The C builder mirrors the cast on
-  the emit side: a field access whose receiver is a ~get_payload~
-  FCall is wrapped as ~((Type *)get_payload(&s))->x~ so the
-  generated C compiles (otherwise it'd dereference ~void *~).
+  ~infer_fcall_expr~ short-circuits the normal callee-binding
+  resolution for typer-emitted ~get_payload~ FCalls -- otherwise its
+  declared ~Dynamic~ return type would clobber the preset Struct/Enum
+  til_type and a condition-side ~.x~ would fail. The C builder
+  mirrors the cast on the emit side: a field access whose receiver
+  is a ~get_payload~ FCall is wrapped as
+  ~((Type *)get_payload(&s))->x~ so the generated C compiles
+  (otherwise it'd dereference ~void *~).
+
+  Omitting a field requires an explicit ~..~ rest-pattern (parsed as
+  a new ~RestPattern~ AST node when ~..~ appears bare in a call's
+  argument list, distinct from ~..expr~ splat). A
+  ~validate_struct_pattern_rest~ proc, called from
+  ~infer_switch_stmt~ before each case, errors when any struct field
+  is omitted without the marker:
+
+    case Point(x = 0): ...
+    # ERROR: struct pattern 'Point' is missing field 'y';
+    # either bind it or add '..' to allow partial matching
+
+    case Point(x = 0, ..): ...   # OK
+    case Point(..): ...          # OK, matches any Point
 
   Tests: ~test_struct_field_literal~, ~test_struct_field_origin~,
   ~test_struct_field_bind_only~, ~test_enum_payload_then_struct_pattern~,
-  ~test_enum_with_struct_pattern~, ~test_enum_with_struct_pattern_fallthrough~
-  in ~src/test/enums.til~.
+  ~test_enum_with_struct_pattern~, ~test_enum_with_struct_pattern_fallthrough~,
+  ~test_rest_partial~, ~test_rest_only~ in ~src/test/enums.til~;
+  a missing-field case in ~src/test/typer_errors.til~.
+
+*** Guard clauses (was [[./199.org][#199]])
+
+  Switch case patterns accept an optional ~if <expr>~ guard between
+  the pattern and the ~:~. A failed guard falls through to the next
+  case arm, matching Rust's match semantics. Implementation hoists a
+  ~mut _sw_matched_<n> := false~ flag and emits each case as an
+  independent ~if _sw_matched_<n>.not().and(pattern_cond) { ...;
+  _sw_matched_<n> = true }~; guards wrap the body in an inner
+  ~if <guard> { ...; _sw_matched_<n> = true }~ so a failed guard
+  leaves the flag false and the next case runs. Plain switches (no
+  guards) keep the cheaper if/elif chain. Guarded cases do NOT mark
+  their pattern as covered for exhaustiveness, because the guard can
+  fail at runtime. See ~issues/fixed/199.org~ for the full write-up.
+
+*** Dead-arm detection
+
+  A read-only ~is_pattern_covered~ helper mirrors
+  ~mark_pattern_coverage~ and is called per case before the existing
+  marking step. It flags arms that can't run:
+
+    case Color.Red: ...
+    case Color.Red: ...        # ERROR: variant already fully covered
+
+    case Token.Num(n): ...
+    case Token.Num(0): ...     # ERROR: Num fully covered by binding arm
+
+    case Color.Red: ...
+    case: ...
+    case Color.Blue: ...       # ERROR: preceded by `case:`
+    case: ...                  # ERROR: duplicate default arm
+
+  Tracked via a ~saw_default~ flag for the default-then-anything
+  cases. Value-literal duplicates within an unguarded arm
+  (~case Num(0): ...; case Num(0): ...~) and dead arms behind guards
+  are out of scope of this simple checker; a full Maranget pass
+  would catch them.
+
+  Tests: four cases at the end of ~src/test/typer_errors.til~.
 
 *** Notes
 
   Wildcard ~_~ as a payload binding works for free because ~_~ is a
   normal identifier; ~case:~ is the existing default-arm spelling
-  and covers the wildcard role. The remaining Phase-5 item -- guard
-  clauses -- is tracked separately in [[../open/199.org][#199]].
+  and covers the wildcard role.
