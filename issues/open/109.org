@@ -384,3 +384,32 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     "scaffolding" attempt at the helpers built and passed 115/115 but
     did not move the C output for ~str_view~ -- the gap is upstream
     of where I patched, not in the predicate logic itself.
+
+  - **~lp.ctx.stack_locals~ / ~stack_local_types~ accumulate ~3
+    allocations per ~_t_*~ LiteralStr Decl emitted.** Commit
+    ~23cad544~ ("Emit Str literals as stack compound literals for
+    `_t_*` temps") added a Decl-emit branch in ~emit_stmt_decl~ that
+    stores ~dd.name.clone()~ in ~stack_locals~ (Set<Str>) and a
+    ~(dd.name.clone(), ctype.clone())~ pair in ~stack_local_types~
+    (Map<Str,Str>). Same pattern is repeated at the surrounding
+    ~Vec~/~Array~ ctor branches (lines 1146, 1154, 1160, 1173 of
+    ~builder.til~) -- every Decl that opts into the stack
+    representation registers its name and type. The maps DO get reset
+    at function boundaries (line ~2224~, ~2250~, ~3992~, ~4005~,
+    ~5572~), but each reset is ~lp.ctx.stack_locals = Set.new(Str)~ on
+    a context field; the FieldAssign's save_old_delete depends on
+    whether the typer marks ~lp.ctx~ field assignments correctly. The
+    doc baseline jumped +23135 bytes / +4533 allocs at this commit
+    (~bots/merging_from_remote.org~ records 86863/16394 -> 109998/20927
+    on ~src/test/strings.til interpret~), which matches ~4500 small Str
+    allocations leaking. The follow-up ~9ffb9ff1~ ("single terminal
+    reregister_scope_defs") incidentally drove the baseline back down
+    below pre-~23cad544~ (84811/16086 now vs 86863/16394 then), so the
+    regression in master is no longer visible. But the
+    ~stack_locals~ / ~stack_local_types~ pattern is still present and
+    the +3 alloc per Decl is real -- the missing piece is whether the
+    field-assign on ~lp.ctx~ properly destructs the prior map. If it
+    doesn't, every function boundary leaks its accumulated entries.
+    Verifying needs: (a) a count of how often the branch fires per
+    compilation, (b) whether ~lp.ctx.stack_locals~ field has
+    save_old_delete on its FieldAssign emit path.
