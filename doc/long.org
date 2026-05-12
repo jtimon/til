@@ -1,0 +1,39 @@
+* Long-term reflections
+
+Where the truthful, long-term answer to a design call differs from
+what we ship today, log it here.  Short-term workarounds left in the
+tree get a paragraph so the debt is visible to future readers.  This
+file is for "what we would build if we cared only about getting it
+right for the long run", not for sprint-sized fixes.
+
+** Builder stack-local Str delete special-case
+
+src/self/builder.til ~1413-1437 force-emits
+~Str_delete(&name, &(Bool){0})~ for stack-local Str deletes,
+overriding whatever bool the typer put in the AST.  It exists because
+the typer commits to the cleanup bool at type-check time, but the
+builder later chooses to stack-allocate the binding (shallow-return
+funcs like ~str_view~, LiteralStr RHS, etc.).  ~call_free=true~ on a
+stack pointer is UB, so the builder rewrites the call at emission.
+
+The post-precomp fold case (FCall RHS folded to LiteralStr) is now
+handled in the scavenger (~fix_stale_litstr_in_body~): the AST gets
+re-aligned to ~Shallow~ + ~bool=false~ so DCE can act on it and the
+emission stays correct without help.  The builder special-case still
+covers the shallow-return-FCall case (e.g. ~str_view~), because no
+post-typer pass yet rewrites those.
+
+Long-term answer: make the AST the single source of truth for memory
+semantics.  Move the stack-vs-heap allocation decision out of the
+builder and into the typer (or a dedicated post-typer pass), record
+it on the Decl, and derive the cleanup bool from that record.  The
+builder then becomes a pure translator -- no special-cases, no hidden
+invariants, no cleanup deltas for future passes to chase.
+
+The cost is one design pass plus an audit across existing codegen
+optimizations.  The payoff compounds: every future optimization that
+stack-allocates something would otherwise grow another special-case
+in the builder; doing it right once reduces surface area permanently
+and makes the AST trustworthy to linters, alternative backends, and
+future contributors who shouldn't have to reverse-engineer the
+typer/builder disagreement.
