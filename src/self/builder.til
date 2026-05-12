@@ -1103,17 +1103,16 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                         f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = malloc(sizeof("); f.write(ctype); f.write("));\n")
                     }
                     emit_ctor_fields(f, dd.name, rhs, depth)
-                } else if rhs.node_type.is(NodeType.LiteralStr).and(is_global.not()).and(dd.name.starts_with("_t_")) {
-                    // Str literal hoisted into a `_t_*` temp: emit as a
-                    // stack-allocated compound-literal Str value -- skips
-                    // the malloc that emit_str_lit_expr would otherwise
-                    // produce. Pairs with the typer's hoist_to_temp path
-                    // (own_type=Shallow, is_heap=false), which generates
-                    // Str.delete(..., false). The existing FCall-arg
-                    // emission writes `&name` for non-own slots, and
-                    // emit_as_ptr's stack_local + is_own=true path does a
-                    // malloc round-trip when the temp is consumed by an
-                    // own-taking callee like Array_set.
+                } else if rhs.node_type.is(NodeType.LiteralStr).and(is_global.not()) {
+                    // Str literal: emit as a stack-allocated compound-literal
+                    // Str value -- no malloc, no Str_lit. Pairs with the
+                    // typer's hoist/promote pass keeping LiteralStr decls
+                    // Shallow so make_delete_call emits call_free=false and
+                    // the existing FCall-arg emission writes `&name` for
+                    // non-own slots. For own-taking callees (Array_set,
+                    // Vec_push, etc.) emit_as_ptr's stack_local + is_own=true
+                    // branch does the usual malloc round-trip so `free(own
+                    // val)` still operates on a heap wrapper.
                     f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = (Str){.c_str = (U8 *)\"")
                     switch rhs.node_type {
                     case NodeType.LiteralStr(s):
@@ -1411,6 +1410,30 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                     case NodeType.Ident(del_arg):
                         if is_stack_local(del_arg).and(c1.til_type.is(Type.Struct).not()).and(c1.til_type.is(Type.Enum).not()) {
                             f.write(";\n"); return
+                        }
+                        // Stack-local Str (compound-literal init). The typer
+                        // may have generated this delete with arg_is_own=true
+                        // and call_free=true because the binding's own_type
+                        // was Own pre-precomp. Force the safe shape:
+                        // `Str_delete(&name, &(Bool){0});` (no malloc, no
+                        // free on a stack pointer). cap=CAP_LIT means the
+                        // c_str data isn't freed either -- delete becomes
+                        // a no-op at runtime. Also `(void)` the hoisted
+                        // call_free temp if present, so -Wunused-variable
+                        // doesn't trip.
+                        if is_stack_local(del_arg).and(c1.til_type.is(Type.Struct)) {
+                            ref _del_ct : Str = get_stack_local_ctype(del_arg)
+                            if is_null(_del_ct).not().and(_del_ct.eq("Str")) {
+                                if e.children.len().gte(3) {
+                                    ref _cf_arg : Expr = e.child(2)
+                                    switch _cf_arg.node_type {
+                                    case NodeType.Ident(_cf_name):
+                                        f.write("(void)"); f.write(_cf_name); f.write("; ")
+                                    case:
+                                    }
+                                }
+                                f.write("Str_delete(&"); f.write(del_arg); f.write(", &(Bool){0});\n"); return
+                            }
                         }
                     case:
                     }

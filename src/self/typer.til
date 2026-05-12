@@ -6390,6 +6390,18 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
         li.own_transfer = own_transfer
         li.skip_scope_delete = skip_scope_delete
         li.is_heap = b.own_type.is(OwnType.Own).and(b.is_param.not())
+        // LiteralStr-RHS decls live on the stack (compound literal in the
+        // builder); their delete must use call_free=false. Force is_heap
+        // false regardless of the binding's own_type (which constfold may
+        // leave at Own from the original FCall return).
+        if decl_idx.gte(0.to_i32()) {
+            ref _li_stmt : Expr = body.child(decl_idx.to_u32())
+            if _li_stmt.node_type.is(NodeType.Decl).and(_li_stmt.children.len().gt(0)) {
+                if _li_stmt.child(0).node_type.is(NodeType.LiteralStr) {
+                    li.is_heap = false
+                }
+            }
+        }
         locals_vec.push(own li)
     }
 }
@@ -6713,21 +6725,14 @@ promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
         if local.decl_index.lt(0.to_i32()) { continue }
         ref stmt : Expr = body.child(local.decl_index.to_u32())
         if stmt.node_type.is(NodeType.Decl).not() { continue }
-        // Skip _t_* temps with LiteralStr RHS: the builder emits these as
-        // stack-allocated compound-literal Str values, so heap-promotion
-        // would mismatch the generated delete (call_free=true frees a
-        // stack pointer). Keep them Shallow so make_delete_call uses
-        // call_free=false. Gated on _t_* so user-visible bindings like
-        // `s := "hello"` keep the existing heap shape.
+        // Skip LiteralStr-RHS decls (temp or user-visible): the builder
+        // emits these as stack-allocated compound-literal Str values, so
+        // heap-promotion would mismatch the generated delete (call_free=true
+        // would free a stack pointer). Keep them Shallow so make_delete_call
+        // generates call_free=false.
         if stmt.children.len().gt(0) {
             ref _rhs0 : Expr = stmt.child(0)
-            if _rhs0.node_type.is(NodeType.LiteralStr) {
-                switch stmt.node_type {
-                case NodeType.Decl(_litdd):
-                    if _litdd.name.starts_with("_t_") { continue }
-                case:
-                }
-            }
+            if _rhs0.node_type.is(NodeType.LiteralStr) { continue }
         }
         switch stmt.node_type {
         case NodeType.Decl(dd):

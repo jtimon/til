@@ -1862,17 +1862,17 @@ void test_string_concat(void) {
     (void)_t_Str_3017;
     Str _t_Str_3018 = (Str){.c_str = (U8 *)" world", .count = 6ULL, .cap = TIL_CAP_LIT};
     (void)_t_Str_3018;
-    Str *result = ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT}; _lit; });
+    Str result = (Str){.c_str = (U8 *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
     Str_delete(&_t_Str_3017, &(Bool){0});
     Str_delete(&_t_Str_3018, &(Bool){0});
     Str _t_Str_3019 = (Str){.c_str = (U8 *)"src/test/constfold.til:33:19", .count = 28ULL, .cap = TIL_CAP_LIT};
     (void)_t_Str_3019;
     Str _t_Str_3020 = (Str){.c_str = (U8 *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
     (void)_t_Str_3020;
-    assert_eq_str(&_t_Str_3019, result, &_t_Str_3020);
+    assert_eq_str(&_t_Str_3019, &result, &_t_Str_3020);
     Str_delete(&_t_Str_3019, &(Bool){0});
     Str_delete(&_t_Str_3020, &(Bool){0});
-    Str_delete(result, &(Bool){1});
+    Str_delete(&result, &(Bool){0});
 }
 
 void test_lolalalo(void) {
@@ -1880,14 +1880,14 @@ void test_lolalalo(void) {
     (void)_t_Str_3043;
     Str _t_Str_3044 = (Str){.c_str = (U8 *)"la", .count = 2ULL, .cap = TIL_CAP_LIT};
     (void)_t_Str_3044;
-    Str *lo_la = ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT}; _lit; });
+    Str lo_la = (Str){.c_str = (U8 *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
     Str_delete(&_t_Str_3043, &(Bool){0});
     Str_delete(&_t_Str_3044, &(Bool){0});
     Str _t_Str_3045 = (Str){.c_str = (U8 *)"la", .count = 2ULL, .cap = TIL_CAP_LIT};
     (void)_t_Str_3045;
     Str _t_Str_3046 = (Str){.c_str = (U8 *)"lo", .count = 2ULL, .cap = TIL_CAP_LIT};
     (void)_t_Str_3046;
-    Str *la_lo = ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT}; _lit; });
+    Str la_lo = (Str){.c_str = (U8 *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
     Str_delete(&_t_Str_3045, &(Bool){0});
     Str_delete(&_t_Str_3046, &(Bool){0});
     Str _t_Str_3047 = (Str){.c_str = (U8 *)"lolalolo", .count = 8ULL, .cap = TIL_CAP_LIT};
@@ -1914,7 +1914,7 @@ void test_lolalalo(void) {
     (void)_t_Str_3056;
     Bool _t_Bool_3057 = 1;
     Str_delete(&_t_Str_3055, &(Bool){0});
-    Str_delete(lo_la, &(Bool){1});
+    Str_delete(&lo_la, &(Bool){0});
     assert(&_t_Str_3056, &_t_Bool_3057);
     ;
     Str_delete(&_t_Str_3056, &(Bool){0});
@@ -1924,7 +1924,7 @@ void test_lolalalo(void) {
     (void)_t_Str_3060;
     Bool _t_Bool_3061 = 1;
     Str_delete(&_t_Str_3059, &(Bool){0});
-    Str_delete(la_lo, &(Bool){1});
+    Str_delete(&la_lo, &(Bool){0});
     assert(&_t_Str_3060, &_t_Bool_3061);
     ;
     Str_delete(&_t_Str_3060, &(Bool){0});
