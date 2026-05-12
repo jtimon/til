@@ -1811,8 +1811,22 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
         // and the initer's generated method bodies pre-set til_type on
         // their emitted FCalls; user-written FCalls arrive here with
         // til_type still Unknown.
-        if name0.eq("get_payload").and(e.til_type.is(Type.Unknown)) {
-            type_error(e, "bare get_payload(...) is not allowed; use a switch case binding instead")
+        if name0.eq("get_payload") {
+            if e.til_type.is(Type.Unknown) {
+                type_error(e, "bare get_payload(...) is not allowed; use a switch case binding instead")
+                return
+            }
+            // typer-emitted: infer the receiver argument so downstream
+            // checks see its type, but skip the normal callee-binding
+            // resolution -- otherwise resolve_fcall_return_type would
+            // overwrite our preset Struct/Enum til_type with the
+            // declared `Dynamic` return of dyn.til's get_payload, and a
+            // condition-side field access on this FCall (e.g.
+            // ~case Shape.Dot(Point(x = 0)):~) would then fail with
+            // "field access on non-struct value".
+            if e.children.len().gt(1) {
+                infer_expr(scope, e.child(1), in_func, ctx)
+            }
             return
         }
         name = name0.clone()

@@ -59,21 +59,19 @@ Three Phase-5 features from #35 landed under this issue. Guards
   walks naturally), and absent fields impose no constraint (no
   explicit ~..~ syntax).
 
-  Limitation: a struct pattern placed *directly* inside an enum
-  variant -- e.g. ~case Shape.Dot(Point(x = 0)):~ -- still requires
-  an inner switch, because the typer cannot propagate ~get_payload~'s
-  preset payload type into a condition-side field access (the field
-  access re-infers ~get_payload~'s return as ~Dynamic~). Bind the
-  variant payload first and switch on it:
-
-    case Shape.Dot(p):
-        switch p {
-        case Point(x = 0, y = ny): ...
-        case Point(x = _nx, y = _ny): ...
-        }
+  Struct patterns also nest *directly* inside enum variants
+  (~case Shape.Dot(Point(x = 0, y = ny)):~). The typer's
+  ~infer_fcall_expr~ now skips the normal callee-binding resolution
+  for ~get_payload~ -- otherwise its declared ~Dynamic~ return type
+  would clobber the typer-emitted Struct/Enum til_type and a
+  condition-side ~.x~ would fail. The C builder mirrors the cast on
+  the emit side: a field access whose receiver is a ~get_payload~
+  FCall is wrapped as ~((Type *)get_payload(&s))->x~ so the
+  generated C compiles (otherwise it'd dereference ~void *~).
 
   Tests: ~test_struct_field_literal~, ~test_struct_field_origin~,
-  ~test_struct_field_bind_only~, ~test_enum_payload_then_struct_pattern~
+  ~test_struct_field_bind_only~, ~test_enum_payload_then_struct_pattern~,
+  ~test_enum_with_struct_pattern~, ~test_enum_with_struct_pattern_fallthrough~
   in ~src/test/enums.til~.
 
 *** Notes

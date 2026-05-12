@@ -1702,9 +1702,39 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 f.write(fname)
             }
         } else {
-            emit_expr(f, obj, depth)
-            if use_dot_access(obj) { f.write(".") } else { f.write("->") }
-            f.write(fname)
+            // Issue #36: a field access whose receiver is the typer-internal
+            // ~get_payload~ FCall (used by struct-pattern desugar inside enum
+            // variants) needs an explicit C cast -- get_payload's C signature
+            // returns ~void *~, but the typer preserves the variant payload's
+            // Struct/Enum til_type on the FCall. Without the cast the
+            // generated ~get_payload(&s)->x~ fails C compilation.
+            mut obj_is_get_payload := false
+            if obj.node_type.is(NodeType.FCall) {
+                if obj.children.len().gt(0) {
+                    if obj.child(0).node_type.is(NodeType.Ident("get_payload")) {
+                        obj_is_get_payload = true
+                    }
+                }
+            }
+            if obj_is_get_payload {
+                obj_sname_cast := til_type_name(obj.til_type)
+                if obj_sname_cast.len().gt(0) {
+                    f.write("((")
+                    f.write(obj_sname_cast)
+                    f.write(" *)")
+                    emit_expr(f, obj, depth)
+                    f.write(")->")
+                    f.write(fname)
+                } else {
+                    emit_expr(f, obj, depth)
+                    if use_dot_access(obj) { f.write(".") } else { f.write("->") }
+                    f.write(fname)
+                }
+            } else {
+                emit_expr(f, obj, depth)
+                if use_dot_access(obj) { f.write(".") } else { f.write("->") }
+                f.write(fname)
+            }
         }
     case:
         f.write("/* TODO: unknown expr type */")

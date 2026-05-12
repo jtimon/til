@@ -491,12 +491,6 @@ test_struct_field_bind_only := test() {
     assert_eq(__LOC__, sum, 16)
 }
 
-# Struct pattern combined with an outer binding to the enum payload.
-# (Struct patterns nested *directly* inside enum variants are still
-# the user's responsibility to decompose via an inner switch -- the
-# typer cannot propagate get_payload's type into a field access in
-# the condition position.)
-
 ShapePat := enum { Dot: PointPat, Line: I64 }
 
 test_enum_payload_then_struct_pattern := test() {
@@ -511,4 +505,27 @@ test_enum_payload_then_struct_pattern := test() {
     case ShapePat.Line(_l): hit = "line"
     }
     assert_eq_str(__LOC__, hit, "y-axis-7")
+}
+
+# Struct pattern *directly* inside an enum variant payload.
+test_enum_with_struct_pattern := test() {
+    s := ShapePat.Dot(PointPat(x = 0, y = 7))
+    mut hit := ""
+    switch s {
+    case ShapePat.Dot(PointPat(x = 0, y = ny)): hit = format("y-axis-", ny.to_str())
+    case ShapePat.Dot(p): hit = format("dot-", p.x.to_str(), ",", p.y.to_str())
+    case ShapePat.Line(_l): hit = "line"
+    }
+    assert_eq_str(__LOC__, hit, "y-axis-7")
+}
+
+test_enum_with_struct_pattern_fallthrough := test() {
+    s := ShapePat.Dot(PointPat(x = 3, y = 4))
+    mut hit := ""
+    switch s {
+    case ShapePat.Dot(PointPat(x = 0, y = _ny)): hit = "y-axis"
+    case ShapePat.Dot(p): hit = format("dot-", p.x.to_str(), ",", p.y.to_str())
+    case ShapePat.Line(_l): hit = "line"
+    }
+    assert_eq_str(__LOC__, hit, "dot-3,4")
 }
