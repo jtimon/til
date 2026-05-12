@@ -524,6 +524,27 @@ test_enum_with_struct_pattern_fallthrough := test() {
     assert_eq_str(__LOC__, hit, "dot-3,4")
 }
 
+# --- `..` rest-pattern (partial struct match) ---
+
+test_rest_partial := test() {
+    p := PointPat(x = 0, y = 99)
+    mut hit := false
+    switch p {
+    case PointPat(x = 0, ..): hit = true
+    case PointPat(x = _nx, y = _ny): hit = false
+    }
+    assert(__LOC__, hit)
+}
+
+test_rest_only := test() {
+    p := PointPat(x = 5, y = 6)
+    mut hit := false
+    switch p {
+    case PointPat(..): hit = true
+    }
+    assert(__LOC__, hit)
+}
+
 # --- guard clauses (#199) ---
 
 ColorG := enum { Unknown, Number: I64, Name: Str }

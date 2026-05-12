@@ -289,6 +289,12 @@ NodeType := enum {
     // stage ever evaluates them.
     Throw,
     Catch,
+    // Issue #36: rest-pattern marker for struct field matching.
+    // `case Point(x = 0, ..):` parses the `..` token into this node
+    // and stores it as a child of the FCall pattern. The typer reads
+    // its presence to allow missing-field cases and rejects patterns
+    // that omit fields without the marker.
+    RestPattern,
 }
 
 // --- Expr struct ---

@@ -77,7 +77,8 @@ typedef enum {
     NodeType_TAG_Case,
     NodeType_TAG_NoDefaultArg,
     NodeType_TAG_Throw,
-    NodeType_TAG_Catch
+    NodeType_TAG_Catch,
+    NodeType_TAG_RestPattern
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
@@ -1166,6 +1167,7 @@ Expr * make_switch_case_condition(TypeScope * scope, Expr * case_body, Expr * ma
 void replace_switch_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
 void append_switch_else_if(Expr * root_if, Expr * if_node);
 void attach_switch_default_body(Expr * root_if, Expr * default_body);
+void validate_struct_pattern_rest(TypeScope * scope, Expr * pattern);
 void infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 void replace_body_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
 Expr * make_field_access_call0(Expr * base, Str * field, U32 line, U32 col);

@@ -3509,7 +3509,9 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
     // condition, and each `field = ident` to ~ref ident := sw.field~ prepended
     // to the body. Nested struct/enum patterns inside a field value recurse.
     // Detected by FCall with an Ident callee (a struct/type name) where every
-    // non-callee child is a NamedArg.
+    // non-callee child is a NamedArg or a RestPattern. `..` is required if
+    // any field is omitted; without it the typer errors so callers can't
+    // silently leave a field unconstrained.
     if has_condition.not() {
         if match_expr.node_type.is(NodeType.FCall) {
             if match_expr.children.len().gt(0) {
@@ -3522,7 +3524,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                     mut all_named := true
                     for sp_ci in 1..match_expr.children.len() {
                         ref sp_child : Expr = match_expr.child(sp_ci)
-                        if sp_child.node_type.is(NodeType.NamedArg).not() {
+                        if sp_child.node_type.is(NodeType.RestPattern).not()
+                            .and(sp_child.node_type.is(NodeType.NamedArg).not()) {
                             all_named = false
                         }
                     }
@@ -3540,6 +3543,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                         mut sp_bindings := Vec.new(Expr)
                         for sp_ci2 in 1..match_expr.children.len() {
                             ref na : Expr = match_expr.child(sp_ci2)
+                            if na.node_type.is(NodeType.RestPattern) { continue }
                             mut field_name := ""
                             switch na.node_type {
                             case NodeType.NamedArg(fn): field_name = fn.clone()
@@ -3637,6 +3641,55 @@ attach_switch_default_body := proc(mut root_if: Expr, default_body: Expr) {
     root_if.add_child(own default_body.clone())
 }
 
+// Issue #36: a struct pattern that omits fields needs an explicit `..`
+// marker. Run on each non-default case BEFORE make_switch_case_condition
+// (which is a func and can't call the proc-typed type_error). Skips
+// silently for patterns that aren't struct-shaped.
+priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr) {
+    if pattern.node_type.is(NodeType.FCall).not() { return }
+    if pattern.children.len().eq(0) { return }
+    if pattern.child(0).node_type.is(NodeType.Ident).not() { return }
+    mut vsp_type_name := ""
+    switch pattern.child(0).node_type {
+    case NodeType.Ident(vspn): vsp_type_name = vspn.clone()
+    case:
+    }
+    mut vsp_all_named := true
+    mut vsp_has_rest := false
+    for vci in 1..pattern.children.len() {
+        ref vsc : Expr = pattern.child(vci)
+        if vsc.node_type.is(NodeType.RestPattern) {
+            vsp_has_rest = true
+        } else if vsc.node_type.is(NodeType.NamedArg).not() {
+            vsp_all_named = false
+        }
+    }
+    if vsp_all_named.not() { return }
+    ref vsp_def : Expr = scope.get_struct(vsp_type_name)
+    if is_null(vsp_def) { return }
+    if vsp_def.node_type.is(NodeType.StructDef).not() { return }
+    if vsp_has_rest { return }
+    switch vsp_def.node_type {
+    case NodeType.StructDef(vsp_sdd):
+        for vfi in 0..vsp_sdd.fields.len() {
+            ref vfld : Declaration = vsp_sdd.fields.get(vfi)
+            mut vsp_found := false
+            for vnai in 1..pattern.children.len() {
+                ref vnac : Expr = pattern.child(vnai)
+                switch vnac.node_type {
+                case NodeType.NamedArg(vnan):
+                    if vnan.eq(vfld.name) { vsp_found = true }
+                case:
+                }
+            }
+            if vsp_found.not() {
+                type_error(pattern, "struct pattern '".concat(vsp_type_name).concat("' is missing field '").concat(vfld.name).concat("'; either bind it or add '..' to allow partial matching"))
+            }
+        }
+    case:
+    }
+}
+
 infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, ctx: Context) {
     ref mut stmt : Expr = body.child(stmt_idx)
     ref mut sw_expr : Expr = stmt.child(0)
@@ -3732,6 +3785,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         }
         ref mut match_expr : Expr = case_node.child(0)
         ref mut case_body : Expr = case_node.child(body_idx)
+        validate_struct_pattern_rest(scope, match_expr)
         if saw_default {
             type_error(case_node, "unreachable case; an earlier `case:` default already covers everything")
         } else if has_switch_enum_def.and(has_guard.not()) {

@@ -454,3 +454,18 @@ case TerrDeadColor.Red: println("red")
 case: println("other")
 case: println("dup-default")
 }
+
+// struct pattern that omits a field without `..` is rejected; either
+// bind all fields or use `..` to make the partial match explicit.
+TerrRestPoint := struct {
+    mut x := 0
+    mut y := 0
+    namespace:
+    eq := func(a: TerrRestPoint, b: TerrRestPoint) returns Bool { return a.x.eq(b.x).and(a.y.eq(b.y)) }
+    to_str := func(self: TerrRestPoint) returns Str { return format(self.x.to_str(), ",", self.y.to_str()) }
+}
+terr_rest_p := TerrRestPoint(x = 0, y = 0)
+switch terr_rest_p {
+case TerrRestPoint(x = 0): println("origin-x")
+case TerrRestPoint(x = _nx, y = _ny): println("any")
+}

@@ -594,10 +594,21 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
                 }
             }
         }
-        // Splat arg: ..expr
+        // Splat arg: ..expr  OR  rest-pattern marker `..` (followed by
+        // a comma or the closing paren, no expression). Splat sets the
+        // FCall's is_splat flag and continues to parse the expression.
+        // Rest-pattern emits a RestPattern child and skips to the next
+        // arg.
         mut is_splat := false
         if check(p, TokenType.DotDot) {
             advance(p)
+            if check(p, TokenType.Comma).or(check(p, TokenType.RParen)) {
+                rp_line := peek_line(p)
+                rp_col := peek_col(p)
+                call.add_child(own Expr.new(NodeType.RestPattern, rp_line, rp_col))
+                if check(p, TokenType.Comma) { advance(p) }
+                continue
+            }
             is_splat = true
         }
         // Own arg: own expr
