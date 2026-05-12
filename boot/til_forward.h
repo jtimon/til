@@ -1265,6 +1265,7 @@ void insert_post_stmt_deletes(Expr * stmt, Vec * locals, U32 stmt_idx, Vec * new
 void insert_assign_delete(Expr * stmt, Vec * locals, Vec * new_ch);
 void promote_own_transferred_locals(Expr * body, Vec * locals);
 Bool insert_free_calls(Expr * body, TypeScope * scope, I32 scope_exit);
+Bool body_late_passes(Expr * body, TypeScope * scope, I32 owns_scope);
 void infer_literal_expr(Expr * expr);
 void narrow_dynamic(Expr * expr, Type * target);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);

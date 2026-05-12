@@ -4270,13 +4270,12 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
     }
     // Each pass returns whether it changed body.children (added/replaced
     // stmts). reregister_scope_defs is O(N*K) so we run it at most once
-    // per body, after all three passes, instead of after each.
+    // per body, after all the late passes, instead of after each.
     mut body_changed := false
     if owns_scope.neq(0) {
         if desugar_body(body, scope) { body_changed = true }
     }
-    if hoist_and_insert_field_deletes(body, scope, owns_scope) { body_changed = true }
-    if insert_free_calls(body, scope, owns_scope) { body_changed = true }
+    if body_late_passes(body, scope, owns_scope) { body_changed = true }
     if body_changed { reregister_scope_defs(body, scope) }
 }
 
@@ -4289,13 +4288,12 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
     }
     // Each pass returns whether it changed body.children (added/replaced
     // stmts). reregister_scope_defs is O(N*K) so we run it at most once
-    // per body, after all three passes, instead of after each.
+    // per body, after all the late passes, instead of after each.
     mut body_changed := false
     if owns_scope.neq(0) {
         if desugar_body(body, scope) { body_changed = true }
     }
-    if hoist_and_insert_field_deletes(body, scope, owns_scope) { body_changed = true }
-    if insert_free_calls(body, scope, owns_scope) { body_changed = true }
+    if body_late_passes(body, scope, owns_scope) { body_changed = true }
     if body_changed { reregister_scope_defs(body, scope) }
 }
 
@@ -6057,7 +6055,7 @@ hoist_stmt_fcall := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
 // hoist's temp Decls come first, then (for FieldAssign with a non-trivial
 // owned rhs type) the synthesized delete call, then the (possibly
 // rewritten) stmt itself.
-hoist_and_insert_field_deletes := proc(mut body: Expr, mut scope: TypeScope, shallow do_hoist: I32) returns shallow Bool {
+priv hoist_and_insert_field_deletes := proc(mut body: Expr, mut scope: TypeScope, shallow do_hoist: I32) returns shallow Bool {
     // insert_field_deletes-style prefilter: cheaper to walk once than to
     // pay the rebuild when nothing needs deleting AND no hoist is allowed.
     mut needs_delete := false
@@ -6997,7 +6995,7 @@ promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
     }
 }
 
-insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool {
+priv insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool {
     if scope_exit.eq(0) { return false }
     is_program_scope := is_null(scope.parent)
 
@@ -7027,6 +7025,27 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
 
     body.children.move_from(new_ch)
     return true
+}
+
+// Late-body post-processing: hoist_fcall_args + insert_field_deletes,
+// followed by insert_free_calls. Combined into a single proc so the
+// pipeline location is unambiguous and the OR'd "did this change body"
+// result drives the single terminal reregister_scope_defs in
+// infer_body / infer_body_unit.
+//
+// Still two internal rebuilds because insert_free_calls' prep work
+// (collect_scope_locals + extend_ref_local_lifetimes +
+// check_use_after_own_transfer + promote_own_transferred_locals) needs
+// to see body AFTER hoist's rebuild -- hoist registers temp Decls in
+// scope and inserts them in body.children, and those temps must show
+// up in locals_vec to get freed at scope exit. Fusing into one walk
+// would require teaching collect_scope_locals about pending hoist
+// temps; left as a follow-up.
+priv body_late_passes := proc(mut body: Expr, mut scope: TypeScope, shallow owns_scope: I32) returns shallow Bool {
+    mut changed := false
+    if hoist_and_insert_field_deletes(body, scope, owns_scope) { changed = true }
+    if insert_free_calls(body, scope, owns_scope) { changed = true }
+    return changed
 }
 
 infer_literal_expr := func(mut expr: Expr) {
