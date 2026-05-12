@@ -1831,8 +1831,6 @@ void test_string_concat(void) {
 }
 
 void test_lolalalo(void) {
-    Str lo_la = (Str){.c_str = (U8 *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
-    Str la_lo = (Str){.c_str = (U8 *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
     Str _t_Str_3064 = (Str){.c_str = (U8 *)"src/test/constfold.til:62:12", .count = 28ULL, .cap = TIL_CAP_LIT};
     Bool _t_Bool_3065 = 1;
     assert(&_t_Str_3064, &_t_Bool_3065);
@@ -1845,13 +1843,11 @@ void test_lolalalo(void) {
     Str_delete(&_t_Str_3068, &(Bool){0});
     Str _t_Str_3072 = (Str){.c_str = (U8 *)"src/test/constfold.til:65:12", .count = 28ULL, .cap = TIL_CAP_LIT};
     Bool _t_Bool_3073 = 1;
-    Str_delete(&lo_la, &(Bool){0});
     assert(&_t_Str_3072, &_t_Bool_3073);
     ;
     Str_delete(&_t_Str_3072, &(Bool){0});
     Str _t_Str_3076 = (Str){.c_str = (U8 *)"src/test/constfold.til:66:12", .count = 28ULL, .cap = TIL_CAP_LIT};
     Bool _t_Bool_3077 = 1;
-    Str_delete(&la_lo, &(Bool){0});
     assert(&_t_Str_3076, &_t_Bool_3077);
     ;
     Str_delete(&_t_Str_3076, &(Bool){0});

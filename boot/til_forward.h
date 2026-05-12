@@ -1342,6 +1342,8 @@ Str * match_trivial_delete(Expr * stmt);
 Bool rhs_is_pure_byvalue(Expr * e);
 void prune_trivial_deletes(Expr * e, Set * dropped);
 Bool dce_one_body(Expr * body);
+Bool match_named_delete(Expr * stmt, Str * name);
+void fix_stale_litstr_in_body(Expr * body);
 void body_dce_walk(Expr * e);
 void body_dce_ns(Expr * rhs);
 void dce_program_bodies(Expr * program);

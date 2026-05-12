@@ -513,6 +513,71 @@ priv dce_one_body := proc(mut body: Expr) returns shallow Bool {
     return any
 }
 
+// Match `<Type>.delete(<Ident name>, LiteralBool _)` without
+// constraining the bool value. Used by the stale-Own LiteralStr
+// fixup to find a Decl's paired cleanup when the cleanup's
+// call_free flag may still carry the typer's pre-precomp `true`.
+priv match_named_delete := func(stmt: Expr, name: Str) returns shallow Bool {
+    if stmt.node_type.is(NodeType.FCall).not() { return false }
+    if stmt.children.len().neq(3) { return false }
+    ref callee : Expr = stmt.child(0)
+    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
+    mut method_eq := false
+    switch callee.node_type {
+    case NodeType.FieldAccess(m): method_eq = m.eq("delete")
+    case:
+    }
+    if method_eq.not() { return false }
+    if callee.children.len().neq(1) { return false }
+    if callee.child(0).node_type.is(NodeType.Ident).not() { return false }
+    ref arg0 : Expr = stmt.child(1)
+    if arg0.node_type.is(NodeType.Ident).not() { return false }
+    mut name_eq := false
+    switch arg0.node_type {
+    case NodeType.Ident(n): name_eq = n.eq(name)
+    case:
+    }
+    if name_eq.not() { return false }
+    return stmt.child(2).node_type.is(NodeType.LiteralBool)
+}
+
+// Precomp folds an FCall RHS to a LiteralStr in place but doesn't
+// touch the surrounding Decl's `own_type` or the matching cleanup's
+// call_free flag -- the typer already committed to Own + call_free=true
+// when the RHS was still an FCall returning an owned Str. The builder
+// papers over the mismatch at emission (stack compound literal +
+// forced `&(Bool){0}`), but the stale Own hides these decls from body
+// DCE. Restore the typer's LiteralStr-decl invariant (Shallow + paired
+// delete with call_free=false) so DCE can drop them.
+priv fix_stale_litstr_in_body := func(mut body: Expr) {
+    n := body.children.len()
+    if n.eq(0) { return }
+    for i in 0..n {
+        ref stmt : Expr = body.child(i)
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if dd.own_type.is(OwnType.Own).not() { continue }
+            ref rhs : Expr = stmt.child(0)
+            if rhs.node_type.is(NodeType.LiteralStr).not() { continue }
+            ref target : Str = dd.name
+            dd.own_type = OwnType.Shallow
+            mut j : USize = i.add(1.to_usize())
+            while j.lt(n) {
+                ref del : Expr = body.child(j)
+                if match_named_delete(del, target) {
+                    ref bool_arg : Expr = del.child(2)
+                    bool_arg.node_type = NodeType.LiteralBool(false)
+                    break
+                }
+                j = j.add(1.to_usize())
+            }
+        case:
+        }
+    }
+}
+
 // Recurse into nested bodies bottom-up; iterate to a fixed point so that
 // removing a Decl in an inner body can free up references that let an
 // outer Decl drop too.
@@ -522,6 +587,7 @@ priv body_dce_walk := proc(mut e: Expr) {
         body_dce_walk(e.child(i))
     }
     if e.node_type.is(NodeType.Body) {
+        fix_stale_litstr_in_body(e)
         while dce_one_body(e) {}
     }
 }
