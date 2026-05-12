@@ -1,0 +1,37 @@
+mode cli
+
+// Issue #176 regression test: binding libc string-pointer functions directly
+// via ext_func used to fail C compilation under -Werror with two distinct
+// errors:
+//   1. "conflicting types for 'setenv'" -- til emits its own U8 * prototype
+//      that clashes with stdlib.h's 'const char *' declaration.
+//   2. "-Wpointer-sign" / "-Wdiscarded-qualifiers" at the call site, because
+//      til passes U8 * where the libc prototype expects 'const char *'.
+//
+// The fix in src/self/builder.til adds these libc symbols to is_skip_ext_decl
+// (so til does not emit a prototype that conflicts with stdlib.h) and emits
+// the matching diagnostic pragmas at the top of the generated .c so the call
+// site compiles cleanly.
+
+setenv := ext_func(name: U8, value: U8, shallow overwrite: I32) returns shallow I32 {}
+getenv := ext_func(name: U8) returns ref U8 {}
+unsetenv := ext_func(name: U8) returns shallow I32 {}
+
+main := proc() {
+    rc1 := setenv("TIL_ISSUE_176".c_str, "expected".c_str, 1.to_i32())
+    if rc1.neq(0.to_i32()) {
+        println("setenv failed")
+        return
+    }
+    ref v : U8 = getenv("TIL_ISSUE_176".c_str)
+    if is_null(v) {
+        println("getenv returned NULL")
+        return
+    }
+    rc2 := unsetenv("TIL_ISSUE_176".c_str)
+    if rc2.neq(0.to_i32()) {
+        println("unsetenv failed")
+        return
+    }
+    println("ok")
+}

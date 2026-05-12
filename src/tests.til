@@ -425,6 +425,12 @@ main := proc(args: ..Str) {
     File.writefile(ffi_scavenge_exp, "ok")
     add_single(tests, "ffi_scavenge_link_c_run", "ffi", 0, ffi_scavenge_exp,
                asan_safe_cmd(format(til_bin, " run src/test/ffi_scavenge_link_c.til"), til_bin))
+    // Issue #176: binding libc functions like setenv/getenv directly via
+    // ext_func must compile under -Werror and produce the expected behaviour.
+    ext_libc_exp := "gen/out/expected/ext_libc.out"
+    File.writefile(ext_libc_exp, format("ok", NL))
+    add_single(tests, "ext_libc_run", "ffi", 0, ext_libc_exp,
+               asan_safe_cmd(format(til_bin, " run src/test/ext_libc.til"), til_bin))
 
     // === til test command (issue #51): runs interpret + compile-and-run
     // and counts "tests passed" lines so both backends are exercised.

@@ -1,5 +1,5 @@
 # priority: high
-** OPEN #176 FFI: support const char* params (avoid libc prototype conflicts)
+** WIP #176 FFI: support const char* params (avoid libc prototype conflicts)
 
 Symptom:
 
@@ -35,3 +35,38 @@ Symptom:
        header is present, or ensure emitted prototypes exactly match the libc
        signature.
 
+** Progress
+
+   Done (commit on this branch):
+
+   - ~is_skip_ext_decl~ in ~src/self/builder.til~ now suppresses emitted
+     prototypes for ~setenv~, ~getenv~, ~unsetenv~, ~putenv~, ~system~,
+     ~atoi~, ~atol~, ~atof~ so the libc declarations in ~stdlib.h~ are not
+     overridden by a conflicting til-generated prototype.
+   - At each call site of those libc functions, the generated C now emits
+     explicit ~(char *)~ casts around ~U8~ / ~I8~ ref arguments and wraps
+     the call expression in a ~(U8 *)~ / ~(I8 *)~ cast when the libc
+     prototype returns a ~char *~ (e.g. ~getenv~). The casts make the
+     U8/char and unsigned/const conversions explicit, so the generated
+     code compiles under ~-Wall -Wextra -Werror~ without any new
+     diagnostics being silenced. Helpers ~is_libc_str_fn~,
+     ~callee_param_needs_char_cast~ and ~libc_call_return_cast~ in
+     ~src/self/builder.til~ drive this.
+   - Regression test ~src/test/ext_libc.til~ binds ~setenv~, ~getenv~,
+     and ~unsetenv~ directly via ~ext_func~ and asserts the round-trip
+     works.
+
+   Not done yet:
+
+   - First "Desired fix" bullet (const-correct emission) is not
+     implemented in general: non-~mut~ Ref args still emit ~Type *~ (not
+     ~const Type *~) in til-generated prototypes. Doing this safely
+     would require auditing internal callers and the matching
+     definitions in ~src/c/ext.c~ for const-correctness; left for a
+     separate change.
+   - Second "Desired fix" bullet (FFI types ~CStr~ / ~char *~ distinct
+     from ~U8 *~ / ~I8 *~) is not implemented: there is no new primitive
+     type that emits ~char *~ in til signatures. The cast-at-call-site
+     approach makes ~U8 *~ work at libc boundaries but does not give
+     users an opt-in type. Adding a new primitive ~Type~ variant would
+     touch the typer/initer/codegen and is left for a separate change.
