@@ -1003,6 +1003,7 @@ void Context_delete(Context * self, Bool * call_free);
 U32 Context_size(void);
 I32 align_up(I32 offset, I32 align);
 Expr * make_get_payload_fcall(Expr * arg, Type payload_type, U32 line, U32 col);
+Expr * make_is_tag_check_fcall(Str * arg_name, Str * ename, Str * vname, U32 line, U32 col);
 Expr * make_payload_ref_decl(Expr * arg, Str * bind_name, Str * vtype, U32 line, U32 col);
 Type * type_from_name_init(Str * name, TypeScope * scope);
 Type * init_type_from_explicit_type(Str * name, TypeScope * scope);

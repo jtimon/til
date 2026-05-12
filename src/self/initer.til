@@ -207,6 +207,22 @@ make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, shallo
     return gc
 }
 
+// Build the tag-check FCall ~is(arg, EnumName.Variant)~ used to gate
+// each per-variant arm in the auto-generated enum eq, delete, to_str
+// and clone method bodies.
+make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, shallow line: U32, shallow col: U32) returns Expr {
+    mut iv := Expr.new(NodeType.Ident("is"), line, col)
+    mut arg_id := Expr.new(NodeType.Ident(arg_name.clone()), line, col)
+    mut et := Expr.new(NodeType.Ident(ename.clone()), line, col)
+    mut vr := Expr.new(NodeType.FieldAccess(vname.clone()), line, col)
+    vr.add_child(own et)
+    mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    is_call.add_child(own iv)
+    is_call.add_child(own arg_id)
+    is_call.add_child(own vr)
+    return is_call
+}
+
 // Wrap make_get_payload_fcall in a ~ref bind_name : vtype = get_payload(arg)~
 // Decl. This is the payload-destructure shape used by every auto-generated
 // enum method body (eq/to_str/clone) and by typer.til's switch case desugar.
@@ -626,15 +642,7 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names.get(j)
-        mut iv1 := Expr.new(NodeType.Ident("is"), line, col)
-        mut self_id := Expr.new(NodeType.Ident("self"), line, col)
-        mut et1 := Expr.new(NodeType.Ident(ename.clone()), line, col)
-        mut vr1 := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
-        vr1.add_child(own et1)
-        mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-        is_call.add_child(own iv1)
-        is_call.add_child(own self_id)
-        is_call.add_child(own vr1)
+        mut is_call := make_is_tag_check_fcall("self", ename, vn, line, col)
 
         mut then_body := Expr.new(NodeType.Body, line, col)
 
@@ -642,15 +650,7 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
         if vtype.len().gt(0) {
             is_funcsig := type_from_name_init(vtype, scope).is(Type.FuncPtr)
 
-            mut iv2 := Expr.new(NodeType.Ident("is"), line, col)
-            mut other_id := Expr.new(NodeType.Ident("other"), line, col)
-            mut et2 := Expr.new(NodeType.Ident(ename.clone()), line, col)
-            mut vr2 := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
-            vr2.add_child(own et2)
-            mut is_call2 := Expr.new(NodeType.FCall(FCallData()), line, col)
-            is_call2.add_child(own iv2)
-            is_call2.add_child(own other_id)
-            is_call2.add_child(own vr2)
+            mut is_call2 := make_is_tag_check_fcall("other", ename, vn, line, col)
             mut not_acc := Expr.new(NodeType.FieldAccess("not"), line, col)
             not_acc.add_child(own is_call2)
             mut not_call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -690,15 +690,7 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
                 then_body.add_child(own ret_eq)
             }
         } else {
-            mut iv3 := Expr.new(NodeType.Ident("is"), line, col)
-            mut other_id := Expr.new(NodeType.Ident("other"), line, col)
-            mut et3 := Expr.new(NodeType.Ident(ename.clone()), line, col)
-            mut vr3 := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
-            vr3.add_child(own et3)
-            mut is_call3 := Expr.new(NodeType.FCall(FCallData()), line, col)
-            is_call3.add_child(own iv3)
-            is_call3.add_child(own other_id)
-            is_call3.add_child(own vr3)
+            mut is_call3 := make_is_tag_check_fcall("other", ename, vn, line, col)
             mut ret := Expr.new(NodeType.Return, line, col)
             ret.add_child(own is_call3)
             then_body.add_child(own ret)
@@ -745,15 +737,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
             if vtype.eq("Dynamic") { continue }
             if type_from_name_init(vtype, scope).is(Type.FuncPtr) { continue }
 
-            mut tiv := Expr.new(NodeType.Ident("is"), line, col)
-            mut self_id := Expr.new(NodeType.Ident("self"), line, col)
-            mut tet := Expr.new(NodeType.Ident(ename.clone()), line, col)
-            mut tvr := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
-            tvr.add_child(own tet)
-            mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-            is_call.add_child(own tiv)
-            is_call.add_child(own self_id)
-            is_call.add_child(own tvr)
+            mut is_call := make_is_tag_check_fcall("self", ename, vn, line, col)
 
             mut then_body := Expr.new(NodeType.Body, line, col)
 
@@ -821,15 +805,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
         ref vtype : Str = variant_types.get(j)
 
         if has_payloads {
-            mut tiv := Expr.new(NodeType.Ident("is"), line, col)
-            mut self_id := Expr.new(NodeType.Ident("self"), line, col)
-            mut tet := Expr.new(NodeType.Ident(ename.clone()), line, col)
-            mut tvr := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
-            tvr.add_child(own tet)
-            mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-            is_call.add_child(own tiv)
-            is_call.add_child(own self_id)
-            is_call.add_child(own tvr)
+            mut is_call := make_is_tag_check_fcall("self", ename, vn, line, col)
 
             mut then_body := Expr.new(NodeType.Body, line, col)
             if vtype.len().gt(0).and(type_from_name_init(vtype, scope).is(Type.FuncPtr)) {
@@ -959,16 +935,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32
         if j.lt(variant_names.len().sub(1)) {
             mut cond := Expr.new(NodeType.LiteralNull, line.to_u32(), col.to_u32())
             if has_payloads {
-                mut civ := Expr.new(NodeType.Ident("is"), line.to_u32(), col.to_u32())
-                mut self_id := Expr.new(NodeType.Ident("self"), line.to_u32(), col.to_u32())
-                mut cet := Expr.new(NodeType.Ident(ename.clone()), line.to_u32(), col.to_u32())
-                mut cvr := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_u32(), col.to_u32())
-                cvr.add_child(own cet)
-                mut cond_call := Expr.new(NodeType.FCall(FCallData()), line.to_u32(), col.to_u32())
-                cond_call.add_child(own civ)
-                cond_call.add_child(own self_id)
-                cond_call.add_child(own cvr)
-                cond = cond_call
+                cond = make_is_tag_check_fcall("self", ename, vname, line.to_u32(), col.to_u32())
             } else {
                 mut self_id := Expr.new(NodeType.Ident("self"), line.to_u32(), col.to_u32())
                 mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line.to_u32(), col.to_u32())
