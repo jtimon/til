@@ -307,10 +307,13 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set, candidates: Set) {
 //
 //     <TypeName>.delete(<Ident>, LiteralBool false)
 //
-// These are auto-generated cleanup calls for hoisted primitive temps.
-// They emit as a bare `;` (the builder's by-value-delete shortcut), so
-// dropping them with the temp is safe and lets DCE actually remove the
-// temp without false-positive ref hits from the cleanup itself.
+// These are auto-generated cleanup calls for hoisted primitive temps
+// and for LiteralStr arg-temps (which the typer marks Shallow so
+// call_free=false). They emit as a bare `;` (the builder's by-value-
+// delete shortcut) or as a no-op cleanup of a stack compound literal
+// (TIL_CAP_LIT view), so dropping them with the temp is safe and lets
+// DCE actually remove the temp without false-positive ref hits from
+// the cleanup itself.
 //
 // Returns the target Ident name on match, "" otherwise.
 priv match_trivial_delete := func(stmt: Expr) returns Str {
@@ -346,14 +349,18 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
 }
 
 // Side-effect-free, by-value RHS: dropping the binding cannot leak or
-// observe anything. Str literals are excluded because Str_lit allocates
-// and the corresponding delete is paired by name.
+// observe anything. LiteralStr is included because the typer marks
+// LiteralStr decls Shallow, the builder emits them as stack compound
+// literals (no malloc), and the paired Str.delete uses call_free=false
+// (no-op view cleanup) -- so dropping the Decl + its trivial delete
+// has no observable effect.
 priv rhs_is_pure_byvalue := func(e: Expr) returns shallow Bool {
     if is_null(e) { return false }
     switch e.node_type {
     case NodeType.LiteralNum:  return true
     case NodeType.LiteralBool: return true
     case NodeType.LiteralNull: return true
+    case NodeType.LiteralStr:  return true
     case:
     }
     return false
@@ -399,8 +406,11 @@ priv dce_one_body := proc(mut body: Expr) returns shallow Bool {
     if n.eq(0) { return false }
 
     // Phase 1: identify candidate temp Decls. Two flavors:
-    //   - literal-RHS by-value temps (LiteralNum/Bool/Null): the whole
-    //     Decl can be deleted outright.
+    //   - literal-RHS by-value temps (LiteralNum/Bool/Null/Str): the
+    //     whole Decl can be deleted outright. LiteralStr qualifies
+    //     because the typer marks these decls Shallow and the builder
+    //     emits them as stack compound literals -- no allocation, and
+    //     the paired delete is a no-op view cleanup.
     //   - `_t_*` with FCall RHS: the binding is unused, but the FCall
     //     may have side effects, so we replace the Decl stmt with the
     //     bare FCall rather than dropping it.

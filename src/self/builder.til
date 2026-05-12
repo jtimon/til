@@ -653,6 +653,7 @@ priv rhs_is_pure_byvalue_for_emit := func(e: Expr) returns shallow Bool {
     case NodeType.LiteralNum:  return true
     case NodeType.LiteralBool: return true
     case NodeType.LiteralNull: return true
+    case NodeType.LiteralStr:  return true
     case:
     }
     return false
