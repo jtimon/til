@@ -4235,10 +4235,140 @@ normalize_scope_bindings := func(scope: TypeScope) {
     }
 }
 
+// --- Lambda lifting -----------------------------------------------------
+//
+// Anonymous `func(...) {...}` literals in expression positions (FCall
+// args, NamedArg values, struct field defaults, etc.) are lifted out to
+// the program top level as `_lambda_<N> := func(...) {...}` priv decls
+// before the typer's main body walk. The original spot in the AST is
+// replaced with an `Ident("_lambda_N")` reference; the typer then types
+// the lifted decl as an ordinary named function.
+//
+// This used to live in src/self/lifter.til as a pre-typer transform.
+// Moved into the typer module so the parser stays dumb and the lift
+// happens during the typer phase rather than as its own #158 pass.
+
+priv typer_is_lambda_target := func(e: Expr) returns shallow Bool {
+    if is_null(e) { return false }
+    if e.node_type.is(NodeType.FuncDef).not() { return false }
+    if e.children.len().eq(0) { return false }
+    return true
+}
+
+priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Vec, mut counter: I64) returns I64 {
+    if is_null(dd.default_value) { return counter }
+    if typer_is_lambda_target(dd.default_value) {
+        counter = typer_lift_lambdas_in_expr(dd.default_value, top_level, counter)
+        lname := format("_lambda_", counter.to_str())
+        counter = counter.add(1)
+        mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), dd.default_value.line, dd.default_value.col)
+        decl.add_child(own dd.default_value.clone())
+        top_level.push(own decl)
+        mut ident := Expr.new(NodeType.Ident(lname.clone()), dd.default_value.line, dd.default_value.col)
+        ident.til_type = dd.default_value.til_type
+        dd.default_value = ident
+    } else {
+        counter = typer_lift_lambdas_in_expr(dd.default_value, top_level, counter)
+    }
+    return counter
+}
+
+priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec, mut counter: I64) returns I64 {
+    if is_null(e) { return counter }
+    // Visit default_value slots that live inside Declaration metadata.
+    // Struct field defaults and FuncDef param defaults can carry a
+    // lambda literal (`mut on_click : BinaryOp = func(...){...}`) the
+    // same way an FCall arg can.  Namespace member default_values are
+    // NOT lambda positions -- their FuncDef IS the named method's body,
+    // so just recurse into it without lifting the outer FuncDef.
+    switch e.node_type {
+    case NodeType.FuncDef(fd):
+        for mut pd : Declaration in fd.params {
+            counter = typer_lift_one_default_value(pd, top_level, counter)
+        }
+    case NodeType.StructDef(sdd):
+        for mut sf : Declaration in sdd.fields {
+            counter = typer_lift_one_default_value(sf, top_level, counter)
+        }
+        for mut nd : Declaration in sdd.ns_decls {
+            if is_null(nd.default_value).not() {
+                counter = typer_lift_lambdas_in_expr(nd.default_value, top_level, counter)
+            }
+        }
+    case NodeType.EnumDef(edd):
+        for mut nd : Declaration in edd.ns_decls {
+            if is_null(nd.default_value).not() {
+                counter = typer_lift_lambdas_in_expr(nd.default_value, top_level, counter)
+            }
+        }
+    case:
+    }
+    for i in 0..e.children.len() {
+        ref mut c : Expr = e.child(i)
+        if is_null(c) { continue }
+        // The rhs slot of a NodeType.Decl is a named function definition,
+        // not a lambda. Skip lifting; just recurse to find any lambdas
+        // nested INSIDE that named function's body.
+        is_decl_rhs := e.node_type.is(NodeType.Decl).and(i.eq(0.to_u32()))
+        if typer_is_lambda_target(c).and(is_decl_rhs.not()) {
+            counter = typer_lift_lambdas_in_expr(c, top_level, counter)
+            lname := format("_lambda_", counter.to_str())
+            counter = counter.add(1)
+            mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), c.line, c.col)
+            decl.add_child(own c.clone())
+            top_level.push(own decl)
+            mut ident := Expr.new(NodeType.Ident(lname.clone()), c.line, c.col)
+            e.children.set(i, own ident)
+        } else {
+            counter = typer_lift_lambdas_in_expr(c, top_level, counter)
+        }
+    }
+    return counter
+}
+
+// Pre-register a lifted lambda decl in scope so references to its
+// synthetic _lambda_<N> name resolve even though the typer's main walk
+// is in source order and may type a referencing function body before
+// it reaches the lifted decl itself.
+priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr) {
+    switch lifted.node_type {
+    case NodeType.Decl(sdecl):
+        ref rhs : Expr = lifted.child(0)
+        switch rhs.node_type {
+        case NodeType.FuncDef(fdef):
+            mut rt := Type.None
+            scope.set(sdecl.name, rt, fdef.func_type, false, typer_path, lifted.line, lifted.col, false, OwnType.Shallow)
+            ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+            fb.func_def = lifted.child(0)
+            fb.is_priv = sdecl.is_priv
+        case:
+        }
+    case:
+    }
+}
+
+priv typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr) {
+    if is_null(prog) { return }
+    if prog.node_type.is(NodeType.Body).not() { return }
+    mut top_level := Vec.new(Expr)
+    mut ctr : I64 = 0
+    ctr = typer_lift_lambdas_in_expr(prog, top_level, ctr)
+    for l : Expr in top_level {
+        typer_register_lifted_lambda(scope, l)
+        prog.children.push(own l.clone())
+    }
+}
+
 type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
     errors = 0.to_i32()
     context_enter_file(ctx, path)
     typer_path = ctx.path.clone()
+    // Lift anonymous func literals out of expression positions to
+    // top-level _lambda_<N> priv decls. The typer then types them as
+    // ordinary named functions through the normal walk below. Doing
+    // this in the typer (rather than as a pre-typer pass in init_file)
+    // keeps the parser dumb and avoids adding a #158-style extra walk.
+    typer_lift_lambdas(scope, program)
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
     return errors
