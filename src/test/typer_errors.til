@@ -469,3 +469,57 @@ switch terr_rest_p {
 case TerrRestPoint(x = 0): println("origin-x")
 case TerrRestPoint(x = _nx, y = _ny): println("any")
 }
+
+// ============================================================
+// Issue #198 follow-up: throw/catch validation diagnostics
+// ============================================================
+
+// Throwing function for the next batch of cases.
+TerrErrA := struct {}
+TerrErrB := struct {}
+
+terr_throws_a := func() throws TerrErrA {
+    throw TerrErrA()
+}
+
+terr_throws_b := func() throws TerrErrB {
+    throw TerrErrB()
+}
+
+terr_no_throws := func() returns I64 { return 0 }
+
+// missing '?' on a throwing call -- caller does not catch.
+terr_missing_question := func() throws TerrErrA {
+    terr_throws_a()
+}
+
+// '?' on a non-throwing call.
+terr_question_on_non_throwing := func() {
+    _ := terr_no_throws()?
+}
+
+// catch type that is not among the pending thrown types.
+terr_catch_not_thrown := func() {
+    terr_throws_a()?
+    catch (err: TerrErrA) {
+    }
+    catch (err: TerrErrB) {  // never thrown
+    }
+}
+
+// throw of type not in the function's throws clause, not caught.
+terr_uncaught_undeclared_throw := func() {
+    throw TerrErrA()
+}
+
+// throws clause declares TerrErrA but body never raises it.
+terr_declared_never_thrown := func() throws TerrErrA {
+}
+
+// Calling these so the unused-priv-func diagnostic doesn't mask
+// the throw/catch diagnostics above.
+terr_missing_question()
+terr_question_on_non_throwing()
+terr_catch_not_thrown()
+terr_uncaught_undeclared_throw()
+terr_declared_never_thrown()

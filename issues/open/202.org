@@ -1,0 +1,42 @@
+# priority: low
+** OPEN #202 Bang operator (!) -- panic on throw
+
+   Follow-up to [[../fixed/198.org][#198]]. rstil supports postfix
+   ~!~ on calls as a "panic if this throws" shortcut, e.g.
+
+   #+begin_src til
+   x := I64.safe_div(10, 0)!  // panics if it throws
+   #+end_src
+
+   instead of the verbose
+
+   #+begin_src til
+   x := I64.safe_div(10, 0)?
+   catch (err: DivideByZero) {
+       panic(loc(), err.msg)
+   }
+   #+end_src
+
+   The lexer already has the ~Bang~ token. The parser also already
+   tolerates the syntax in some positions (the lexer keyword test
+   in ~src/test/lexing.til~ exercises ~!~). What's missing:
+
+   1. Parser: a postfix-on-call branch that sets an
+      ~FCallData.is_bang~ flag (parallel to the existing
+      ~does_throw~).
+   2. Typer: desugar ~f(args)!~ into ~f(args)?~ + an immediate
+      ~catch (err: T) { panic(loc(), err.msg) }~ for each ~T~ in
+      the callee's throws clause. ~build_bang_catch~ in rstil's
+      ~src/rs/desugarer.rs~ is the reference.
+   3. Validation: ~!~ on a non-throwing call is the same error as
+      ~?~ on a non-throwing call.
+   4. Test: a ~test_bang_panics~ in ~src/test/errors.til~ that
+      asserts ~exit(1)~ on the bang path; needs the test harness
+      to support "expected-failure" mode tests (rstil's tests put
+      this in a separate single-test file).
+
+   *** Why low priority
+
+   The full ~?~ + ~catch~ form works today and is more honest about
+   error handling. ~!~ is a convenience.
+

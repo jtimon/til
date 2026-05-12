@@ -1,0 +1,49 @@
+# priority: low
+** OPEN #201 More built-in error types and safe_* methods
+
+   Follow-up to [[../fixed/198.org][#198]]: extend the catalogue of
+   built-in error types and the safe_* method variants that throw
+   them. [[../fixed/198.org][#198]] shipped only ~DivideByZero~ +
+   ~I64.safe_div~ as a proof of concept; everything else is left
+   to this issue.
+
+   Wanted (mirror rstil's ~src/core/~):
+
+   - ~I64.safe_add~ / ~safe_sub~ / ~safe_mul~ throwing
+     ~I64_Overflow~ with a ~msg: Str~ field, plus the equivalent
+     on ~I32~, ~U32~, ~U64~, ~U8~, ~I16~, ~I8~. ~I64_Overflow~
+     should be a single type used by all integer widths (or one
+     per width -- decide once and document).
+   - ~F32.safe_div~ throwing ~DivideByZero~ (reuse the existing
+     type).
+   - ~Array.get(self, index: I64) returns Ptr throws IndexOutOfBoundsError~
+     and the matching ~Vec.get~ / ~Str.get_byte_safe~. Currently
+     ~Array.get~ panics on OOB; the catch-friendly variant lets
+     callers handle it. The error type ~IndexOutOfBoundsError~
+     should carry a ~msg: Str~ with the formatted
+     ~"file:line:col:Array.get: index out of bounds"~ shape that
+     ~src/test/errors.til~'s rstil twin expects.
+   - Optional: ~Str.parse_i64~ throwing ~ParseError~ for the
+     fallible-parse pattern.
+
+   For each new built-in error type, add a corresponding regression
+   in ~src/test/errors.til~ that exercises a successful return and
+   a catch on the throw path.
+
+   *** Things to check while adding these
+
+   - Cross-file resolution: ~throws_names_global~ already
+     accumulates across files but each built-in error type wants
+     a single Decl somewhere in ~src/core/~ (don't duplicate the
+     struct).
+   - ASAN: ~_err_<T>~ slots must be cleaned up when ~T~ owns a
+     heap string. Verify with ~make test_asan~ once
+     ~ErrorWithMessage~-style types have an init that allocates.
+
+   *** Why low priority
+
+   [[../fixed/198.org][#198]] already covers the user-facing
+   semantics for any new error type -- adding one is a roughly
+   ten-line change per built-in. The lift here is in agreeing on
+   the names / shapes and writing the tests, not the lowering.
+

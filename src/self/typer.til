@@ -2368,6 +2368,11 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         // matches by method name so the appended args end up at
         // the end of the eventual rewritten FCall.
         if fdef.auto_generated.not() {
+            // Issue #198 follow-up: rstil-parity validation runs on
+            // the ORIGINAL body (before lowering eats Throw/Catch
+            // nodes) so diagnostics point at the user's source
+            // shape.
+            validate_throws_in_func_body(expr.child(0), fdef.throw_types, typer_path)
             lower_throw_catch_in_func_body(expr.child(0), fdef.throw_types)
             // Append fallback return for throwing functions whose
             // last stmt is a return (now guarded by if _err_kind==0).
@@ -4818,6 +4823,248 @@ priv append_fallback_return := func(mut body: Expr, return_type: Str) {
     mut ret := Expr.new(NodeType.Return, line, col)
     ret.add_child(own make_default_value_expr(return_type, line, col))
     body.add_child(own ret)
+}
+
+// Issue #198 follow-up: rstil-parity validation for throw/catch.
+//
+// Walks a function body in source order, tracking the list of
+// types currently "pending" (thrown but not yet caught). Catches
+// remove matching entries; if no entry matches, emit an error.
+// FCalls with does_throw=true pull their callee's declared throws
+// into pending; does_throw=false on a throwing callee (or true on
+// a non-throwing one) is also an error.
+//
+// At end-of-body the validator:
+//   - errors on any leftover pending type that isn't in the
+//     function's own throws clause
+//   - errors on any declared throws entry that was never raised
+//     (rstil's "declared but never thrown" diagnostic)
+
+// Look up callee throws by FCall callee name. Returns "" for
+// not-found, otherwise the matching entry's index (encoded +1)
+// in throws_names_global so the caller can read throws_per_global.
+priv find_callee_throws_idx := func(fcall: Expr) returns I64 {
+    if fcall.children.len().eq(0) { return 0 }
+    ref callee : Expr = fcall.child(0)
+    mut cname := ""
+    switch callee.node_type {
+    case NodeType.Ident(n): cname = n.clone()
+    case NodeType.FieldAccess(fname): cname = fname.clone()
+    case:
+    }
+    if cname.len().eq(0) { return 0 }
+    for i in 0..throws_names_global.len() {
+        ref n : Str = throws_names_global.get(i)
+        if n.eq(cname) { return i.to_i64().add(1) }
+    }
+    return 0
+}
+
+// Matches rstil: a single catch consumes EVERY pending entry of
+// that type, not just one. Returns true if at least one was found.
+priv pending_remove_all_matching := func(mut pending: Vec, type_name: Str) returns shallow Bool {
+    mut found := false
+    // Rebuild pending in place, dropping matches.
+    mut write : USize = 0
+    for i in 0..pending.len() {
+        ref n : Str = pending.get(i)
+        if n.eq(type_name) {
+            found = true
+        } else {
+            if write.lt(i) {
+                pending.set(write, own n.clone())
+            }
+            write = write.add(1)
+        }
+    }
+    pending.count = write
+    return found
+}
+
+priv vec_str_contains := func(v: Vec, name: Str) returns shallow Bool {
+    for i in 0..v.len() {
+        ref n : Str = v.get(i)
+        if n.eq(name) { return true }
+    }
+    return false
+}
+
+priv vec_str_push_uniq := func(mut v: Vec, name: Str) {
+    if vec_str_contains(v, name) { return }
+    v.push(own name.clone())
+}
+
+priv validate_throws_in_expr := proc(mut e: Expr, mut pending: Vec, mut seen: Vec, path: Str) {
+    // Skip nested FuncDef/StructDef/EnumDef bodies; they get their
+    // own validation pass when infer_func_def_expr runs on them.
+    if e.node_type.is(NodeType.FuncDef).or(e.node_type.is(NodeType.StructDef)).or(e.node_type.is(NodeType.EnumDef)) {
+        return
+    }
+    if e.node_type.is(NodeType.FCall) {
+        mut does_throw := false
+        switch e.node_type {
+        case NodeType.FCall(fcd): does_throw = fcd.does_throw
+        case:
+        }
+        idx := find_callee_throws_idx(e)
+        callee_is_throwing := idx.gt(0)
+        if does_throw {
+            if callee_is_throwing.not() {
+                type_error_at(path, e.line, e.col, "function does not throw, remove the '?' after the call")
+                // Best-effort fix-up: clear the does_throw flag so
+                // downstream stages don't try to pass err out-args
+                // to a function that has no err params.
+                switch e.node_type {
+                case NodeType.FCall(fcd_fix): fcd_fix.does_throw = false
+                case:
+                }
+            } else {
+                ref tts : Vec = throws_per_global.get(idx.sub(1).to_u32())
+                for tn : Str in tts {
+                    pending.push(own tn.clone())
+                    vec_str_push_uniq(seen, tn)
+                }
+            }
+        } else {
+            if callee_is_throwing {
+                ref tts2 : Vec = throws_per_global.get(idx.sub(1).to_u32())
+                mut tlist := ""
+                for j in 0..tts2.len() {
+                    ref tn2 : Str = tts2.get(j)
+                    if j.gt(0) { tlist = tlist.concat(", ") }
+                    tlist = tlist.concat(tn2)
+                }
+                type_error_at(path, e.line, e.col, format("function throws ", tlist, ", missing '?' after the call"))
+                // Best-effort fix-up: set does_throw so the
+                // inject_throw_args pass appends the matching err
+                // out-args and the typer's arity check accepts the
+                // call. The user still needs to add ? themselves;
+                // this just keeps the typer from panicking on a
+                // half-resolved signature.
+                switch e.node_type {
+                case NodeType.FCall(fcd_fix): fcd_fix.does_throw = true
+                case:
+                }
+                // Treat the call as throwing for the in-body
+                // accumulator too so it counts toward seen / pending.
+                for tn3 : Str in tts2 {
+                    pending.push(own tn3.clone())
+                    vec_str_push_uniq(seen, tn3)
+                }
+            }
+        }
+    }
+    for ci in 0..e.children.len() {
+        ref mut c : Expr = e.child(ci)
+        validate_throws_in_expr(c, pending, seen, path)
+    }
+}
+
+priv validate_throws_in_body := proc(mut body: Expr, mut pending: Vec, mut seen: Vec, path: Str) {
+    for sidx in 0..body.children.len() {
+        ref mut stmt : Expr = body.child(sidx)
+        if stmt.node_type.is(NodeType.Throw) {
+            if stmt.children.len().eq(1) {
+                tn := throw_type_name_for_with_body(stmt.child(0), body)
+                if tn.len().gt(0) {
+                    pending.push(own tn.clone())
+                    vec_str_push_uniq(seen, tn)
+                } else {
+                    type_error_at(path, stmt.line, stmt.col, "cannot determine type of thrown expression")
+                }
+                ref mut thrown : Expr = stmt.child(0)
+                validate_throws_in_expr(thrown, pending, seen, path)
+            } else {
+                type_error_at(path, stmt.line, stmt.col, "throw must have exactly one parameter")
+            }
+        } else if stmt.node_type.is(NodeType.Catch) {
+            if stmt.children.len().eq(3) {
+                mut ctype := ""
+                switch stmt.child(1).node_type {
+                case NodeType.Ident(n): ctype = n.clone()
+                case:
+                }
+                if ctype.len().gt(0) {
+                    matched := pending_remove_all_matching(pending, ctype)
+                    if matched.not() {
+                        type_error_at(path, stmt.line, stmt.col, format("trying to catch '", ctype, "', but it is not among the thrown types"))
+                    }
+                }
+                ref mut cbody : Expr = stmt.child(2)
+                validate_throws_in_body(cbody, pending, seen, path)
+            } else {
+                type_error_at(path, stmt.line, stmt.col, "catch must have 3 parameters: variable, type, and body")
+            }
+        } else if stmt.node_type.is(NodeType.If) {
+            ref mut icond : Expr = stmt.child(0)
+            validate_throws_in_expr(icond, pending, seen, path)
+            for ci in 1..stmt.children.len() {
+                ref mut sub : Expr = stmt.child(ci)
+                if sub.node_type.is(NodeType.Body) {
+                    validate_throws_in_body(sub, pending, seen, path)
+                } else {
+                    validate_throws_in_expr(sub, pending, seen, path)
+                }
+            }
+        } else if stmt.node_type.is(NodeType.While) {
+            ref mut wcond : Expr = stmt.child(0)
+            validate_throws_in_expr(wcond, pending, seen, path)
+            if stmt.children.len().gte(2) {
+                ref mut wbody : Expr = stmt.child(1)
+                validate_throws_in_body(wbody, pending, seen, path)
+            }
+        } else if stmt.node_type.is(NodeType.ForIn) {
+            if stmt.children.len().gte(1) {
+                ref mut fcoll : Expr = stmt.child(0)
+                validate_throws_in_expr(fcoll, pending, seen, path)
+            }
+            if stmt.children.len().gte(2) {
+                ref mut fbody : Expr = stmt.child(1)
+                validate_throws_in_body(fbody, pending, seen, path)
+            }
+        } else if stmt.node_type.is(NodeType.Switch) {
+            ref mut sexp : Expr = stmt.child(0)
+            validate_throws_in_expr(sexp, pending, seen, path)
+            for ci in 1..stmt.children.len() {
+                ref mut cn : Expr = stmt.child(ci)
+                if cn.node_type.is(NodeType.Case) {
+                    for cci in 0..cn.children.len() {
+                        ref mut ccn : Expr = cn.child(cci)
+                        if ccn.node_type.is(NodeType.Body) {
+                            validate_throws_in_body(ccn, pending, seen, path)
+                        } else {
+                            validate_throws_in_expr(ccn, pending, seen, path)
+                        }
+                    }
+                }
+            }
+        } else if stmt.node_type.is(NodeType.Body) {
+            validate_throws_in_body(stmt, pending, seen, path)
+        } else {
+            validate_throws_in_expr(stmt, pending, seen, path)
+        }
+    }
+}
+
+priv validate_throws_in_func_body := proc(mut body: Expr, fdef_throws: Vec, path: Str) {
+    if subtree_has_throw_catch(body).not().and(fdef_throws.len().eq(0)) { return }
+    mut pending := Vec.new(Str)
+    mut seen := Vec.new(Str)
+    validate_throws_in_body(body, pending, seen, path)
+    // Leftover pending: must be in fdef_throws or error.
+    for tn : Str in pending {
+        if vec_str_contains(fdef_throws, tn).not() {
+            type_error_at(path, body.line, body.col,
+                format("function may throw '", tn, "' but it is not in the throws clause; declare 'throws ", tn, "' or catch it"))
+        }
+    }
+    // Declared throws never raised.
+    for dt : Str in fdef_throws {
+        if vec_str_contains(seen, dt).not() {
+            type_error_at(path, body.line, body.col,
+                format("'throws ", dt, "' is declared but '", dt, "' is never thrown -- remove it from the throws clause"))
+        }
+    }
 }
 
 lower_throw_catch_in_func_body := proc(mut body: Expr, fdef_throws: Vec) {
