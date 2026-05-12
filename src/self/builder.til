@@ -1105,11 +1105,15 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                     emit_ctor_fields(f, dd.name, rhs, depth)
                 } else if rhs.node_type.is(NodeType.LiteralStr).and(is_global.not()).and(dd.name.starts_with("_t_")) {
                     // Str literal hoisted into a `_t_*` temp: emit as a
-                    // stack-allocated compound-literal Str value instead of
-                    // a malloc'd Str_lit(...) call. Pairs with the typer's
-                    // LiteralStr-hoist case (own_type=Shallow, is_heap=false),
-                    // which generates Str.delete(..., false) -- the existing
-                    // FCall-arg emission then writes Str_delete(&name, &(Bool){0}).
+                    // stack-allocated compound-literal Str value -- skips
+                    // the malloc that emit_str_lit_expr would otherwise
+                    // produce. Pairs with the typer's hoist_to_temp path
+                    // (own_type=Shallow, is_heap=false), which generates
+                    // Str.delete(..., false). The existing FCall-arg
+                    // emission writes `&name` for non-own slots, and
+                    // emit_as_ptr's stack_local + is_own=true path does a
+                    // malloc round-trip when the temp is consumed by an
+                    // own-taking callee like Array_set.
                     f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = (Str){.c_str = (U8 *)\"")
                     switch rhs.node_type {
                     case NodeType.LiteralStr(s):
@@ -1504,14 +1508,24 @@ emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, shallow depth: I32)
     }
 }
 
+// Emit a Str literal as an inline expression that mallocs the wrapper
+// and initialises it from a compound literal. Replaces the old
+// Str_lit("...", N) runtime helper -- same heap-wrapper-with-static-c_str
+// semantics, just inlined so the codegen has no Str_lit function to call.
+// The `own` contract for callers like Array_set / Vec_push that
+// `free(own val)` the wrapper continues to hold.
+emit_str_lit_expr := proc(f: File, s: Str) {
+    f.write("({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)\"")
+    f.write(s)
+    f.write("\", .count = ")
+    emit_u64(f, c_lit_byte_count(s).to_u64())
+    f.write("ULL, .cap = TIL_CAP_LIT}; _lit; })")
+}
+
 emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
     switch e.node_type {
     case NodeType.LiteralStr(s):
-        f.write("Str_lit(\"")
-        f.write(s)
-        f.write("\", ")
-        emit_u64(f, c_lit_byte_count(s).to_u64())
-        f.write("ULL)")
+        emit_str_lit_expr(f, s)
     case NodeType.LiteralNum(num):
         f.write(num)
     case NodeType.LiteralBool(b):
@@ -4869,29 +4883,39 @@ emit_dyn_size_of_body := proc(f: File) {
     f.write("}\n\n")
 }
 
+emit_tag_case := proc(f: File, tag: Str, name: Str) {
+    f.write("    case ")
+    f.write(tag)
+    f.write(": return ")
+    emit_str_lit_expr(f, name)
+    f.write(";\n")
+}
+
 emit_dyn_type_to_str_body := proc(f: File) {
     f.write("Str *dyn_type_to_str(Type *type) {\n")
     f.write("    switch (type->tag) {\n")
-    f.write("    case Type_TAG_Unknown: return Str_lit(\"\", 0ULL);\n")
-    f.write("    case Type_TAG_None: return Str_lit(\"\", 0ULL);\n")
-    f.write("    case Type_TAG_I64: return Str_lit(\"I64\", 3ULL);\n")
-    f.write("    case Type_TAG_U8: return Str_lit(\"U8\", 2ULL);\n")
-    f.write("    case Type_TAG_I16: return Str_lit(\"I16\", 3ULL);\n")
-    f.write("    case Type_TAG_I32: return Str_lit(\"I32\", 3ULL);\n")
-    f.write("    case Type_TAG_U32: return Str_lit(\"U32\", 3ULL);\n")
-    f.write("    case Type_TAG_U64: return Str_lit(\"U64\", 3ULL);\n")
-    f.write("    case Type_TAG_F32: return Str_lit(\"F32\", 3ULL);\n")
-    f.write("    case Type_TAG_Bool: return Str_lit(\"Bool\", 4ULL);\n")
+    emit_tag_case(f, "Type_TAG_Unknown", "")
+    emit_tag_case(f, "Type_TAG_None", "")
+    emit_tag_case(f, "Type_TAG_I64", "I64")
+    emit_tag_case(f, "Type_TAG_U8", "U8")
+    emit_tag_case(f, "Type_TAG_I16", "I16")
+    emit_tag_case(f, "Type_TAG_I32", "I32")
+    emit_tag_case(f, "Type_TAG_U32", "U32")
+    emit_tag_case(f, "Type_TAG_U64", "U64")
+    emit_tag_case(f, "Type_TAG_F32", "F32")
+    emit_tag_case(f, "Type_TAG_Bool", "Bool")
     f.write("    case Type_TAG_Struct: return Str_clone(&type->data.Struct);\n")
-    f.write("    case Type_TAG_StructDef: return Str_lit(\"StructDef\", 9ULL);\n")
+    emit_tag_case(f, "Type_TAG_StructDef", "StructDef")
     f.write("    case Type_TAG_Enum: return Str_clone(&type->data.Enum);\n")
-    f.write("    case Type_TAG_EnumDef: return Str_lit(\"EnumDef\", 7ULL);\n")
-    f.write("    case Type_TAG_FuncDef: return Str_lit(\"FunctionDef\", 11ULL);\n")
-    f.write("    case Type_TAG_FuncPtr: return Str_lit(\"Fn\", 2ULL);\n")
-    f.write("    case Type_TAG_Dynamic: return Str_lit(\"Dynamic\", 7ULL);\n")
+    emit_tag_case(f, "Type_TAG_EnumDef", "EnumDef")
+    emit_tag_case(f, "Type_TAG_FuncDef", "FunctionDef")
+    emit_tag_case(f, "Type_TAG_FuncPtr", "Fn")
+    emit_tag_case(f, "Type_TAG_Dynamic", "Dynamic")
     f.write("    case Type_TAG_Custom: return Str_clone(&type->data.Custom);\n")
     f.write("    }\n")
-    f.write("    return Str_lit(\"?\", 1ULL);\n")
+    f.write("    return ")
+    emit_str_lit_expr(f, "?")
+    f.write(";\n")
     f.write("}\n\n")
 }
 
@@ -5501,7 +5525,6 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
         emit_ext_func_declarations(f, iu.ast)
     }
 
-    f.write("Str *Str_lit(const char *s, unsigned long long len);\n")
     f.write("void print_single(Str *s);\n")
     f.write("void print_flush();\n\n")
 
@@ -5510,14 +5533,6 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     f.write("#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n")
 
     f.write("#define TIL_CAP_LIT ((USize)-1)\n")
-    f.write("Str *Str_lit(const char *s, unsigned long long len) {\n")
-    f.write("    (void)len;\n")
-    f.write("    Str *r = malloc(sizeof(Str));\n")
-    f.write("    r->c_str = (U8 *)s;\n")
-    f.write("    r->count = (USize)strlen(s);\n")
-    f.write("    r->cap = TIL_CAP_LIT;\n")
-    f.write("    return r;\n")
-    f.write("}\n")
     f.write("void print_single(Str *s) {\n")
     f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
     f.write("}\n")

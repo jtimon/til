@@ -133,7 +133,6 @@ void test_lolalalo(void);
 #include "ext.h"
 
 
-Str *Str_lit(const char *s, unsigned long long len);
 void print_single(Str *s);
 void print_flush();
 
@@ -222,14 +221,6 @@ Str *dyn_type_to_str(Type *type);
 
 #define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))
 #define TIL_CAP_LIT ((USize)-1)
-Str *Str_lit(const char *s, unsigned long long len) {
-    (void)len;
-    Str *r = malloc(sizeof(Str));
-    r->c_str = (U8 *)s;
-    r->count = (USize)strlen(s);
-    r->cap = TIL_CAP_LIT;
-    return r;
-}
 void print_single(Str *s) {
     fwrite(s->c_str, 1, (size_t)s->count, stdout);
 }
@@ -1871,7 +1862,7 @@ void test_string_concat(void) {
     (void)_t_Str_3017;
     Str _t_Str_3018 = (Str){.c_str = (U8 *)" world", .count = 6ULL, .cap = TIL_CAP_LIT};
     (void)_t_Str_3018;
-    Str *result = Str_lit("hello world", 11ULL);
+    Str *result = ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT}; _lit; });
     Str_delete(&_t_Str_3017, &(Bool){0});
     Str_delete(&_t_Str_3018, &(Bool){0});
     Str _t_Str_3019 = (Str){.c_str = (U8 *)"src/test/constfold.til:33:19", .count = 28ULL, .cap = TIL_CAP_LIT};
@@ -1889,14 +1880,14 @@ void test_lolalalo(void) {
     (void)_t_Str_3043;
     Str _t_Str_3044 = (Str){.c_str = (U8 *)"la", .count = 2ULL, .cap = TIL_CAP_LIT};
     (void)_t_Str_3044;
-    Str *lo_la = Str_lit("lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", 224ULL);
+    Str *lo_la = ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT}; _lit; });
     Str_delete(&_t_Str_3043, &(Bool){0});
     Str_delete(&_t_Str_3044, &(Bool){0});
     Str _t_Str_3045 = (Str){.c_str = (U8 *)"la", .count = 2ULL, .cap = TIL_CAP_LIT};
     (void)_t_Str_3045;
     Str _t_Str_3046 = (Str){.c_str = (U8 *)"lo", .count = 2ULL, .cap = TIL_CAP_LIT};
     (void)_t_Str_3046;
-    Str *la_lo = Str_lit("lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", 224ULL);
+    Str *la_lo = ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT}; _lit; });
     Str_delete(&_t_Str_3045, &(Bool){0});
     Str_delete(&_t_Str_3046, &(Bool){0});
     Str _t_Str_3047 = (Str){.c_str = (U8 *)"lolalolo", .count = 8ULL, .cap = TIL_CAP_LIT};
@@ -2174,26 +2165,26 @@ U32 dyn_size_of(Str *type_name) {
 
 Str *dyn_type_to_str(Type *type) {
     switch (type->tag) {
-    case Type_TAG_Unknown: return Str_lit("", 0ULL);
-    case Type_TAG_None: return Str_lit("", 0ULL);
-    case Type_TAG_I64: return Str_lit("I64", 3ULL);
-    case Type_TAG_U8: return Str_lit("U8", 2ULL);
-    case Type_TAG_I16: return Str_lit("I16", 3ULL);
-    case Type_TAG_I32: return Str_lit("I32", 3ULL);
-    case Type_TAG_U32: return Str_lit("U32", 3ULL);
-    case Type_TAG_U64: return Str_lit("U64", 3ULL);
-    case Type_TAG_F32: return Str_lit("F32", 3ULL);
-    case Type_TAG_Bool: return Str_lit("Bool", 4ULL);
+    case Type_TAG_Unknown: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_None: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_I64: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_U8: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_I16: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"I16", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_I32: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"I32", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_U32: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_U64: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"U64", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_F32: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"F32", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_Bool: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; _lit; });
     case Type_TAG_Struct: return Str_clone(&type->data.Struct);
-    case Type_TAG_StructDef: return Str_lit("StructDef", 9ULL);
+    case Type_TAG_StructDef: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"StructDef", .count = 9ULL, .cap = TIL_CAP_LIT}; _lit; });
     case Type_TAG_Enum: return Str_clone(&type->data.Enum);
-    case Type_TAG_EnumDef: return Str_lit("EnumDef", 7ULL);
-    case Type_TAG_FuncDef: return Str_lit("FunctionDef", 11ULL);
-    case Type_TAG_FuncPtr: return Str_lit("Fn", 2ULL);
-    case Type_TAG_Dynamic: return Str_lit("Dynamic", 7ULL);
+    case Type_TAG_EnumDef: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"EnumDef", .count = 7ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_FuncDef: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"FunctionDef", .count = 11ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_FuncPtr: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"Fn", .count = 2ULL, .cap = TIL_CAP_LIT}; _lit; });
+    case Type_TAG_Dynamic: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_LIT}; _lit; });
     case Type_TAG_Custom: return Str_clone(&type->data.Custom);
     }
-    return Str_lit("?", 1ULL);
+    return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"?", .count = 1ULL, .cap = TIL_CAP_LIT}; _lit; });
 }
 
 int main(void) {
