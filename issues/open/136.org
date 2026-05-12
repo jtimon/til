@@ -16,28 +16,49 @@ Reopened: an earlier "fix" landed (Vec.move_from / Vec.push_take work,
      runtime call. The ~lolalolo~ / ~lalei~ strings the test asserts on
      are computed at runtime, not at compile time.
 
-   Bails / exceptions added in src/self/precomp.til (none of these are
-   in rstil; remove one by one until ~test_lolalalo~ folds and the rest
-   of the suite still passes):
+   Status update (post-rstil-parity merges): items 3, 6, 7, 9 below
+   are no longer in master. ~test_lolalalo~ AND ~test_string_concat~
+   both fold to ~Str_lit("...", N)~ at compile time now (see
+   ~src/test/constfold.c~). What's left is the residual exception
+   list, plus one DCE-shaped follow-up surfaced by trying to remove
+   item 1 -- documented inline below.
 
-   1. ~try_eval_call~ bails when ~_fd.func_type.is(FuncType.ExtFunc)~.
-      Workaround for user .so not dlopen'd at precomp time. Built-in
-      ext_funcs (I64_add etc.) are statically linked and *would* be
-      dispatchable; this bail is a sledgehammer over a finer-grained
-      "is this ext_func resolvable right now?" check.
+   Bails / exceptions added in src/self/precomp.til (none of these are
+   in rstil; remove one by one until the suite still passes with
+   fewer of them):
+
+   1. ~try_eval_call~ bails when ~_fd.func_type.is(FuncType.ExtFunc)~
+      (gated on ~is_macro_mode.not()~ since #191). Workaround for
+      user .so not dlopen'd at precomp time. Built-in ext_funcs
+      (I64_add etc.) are statically linked and ~ext_dispatch_ffi~
+      would dispatch them gracefully (it returns false on
+      unregistered names, so a user .so that wasn't dlopen'd at
+      precomp time would just refuse to fold rather than crash).
+      Tried removing the bail (master ~7bf0cc9~): folds proceeded
+      but ~test_runner.til~ failed compile with
+      ~-Werror=unused-variable~ on temps like ~_t_I64_858 = -2~ in
+      ~main()~'s top-level init -- the fold replaced
+      ~CAP_LIT = something(...)~ with ~CAP_LIT = 4294967295~ and
+      orphaned the arg temps. ~ee487a5~ (Body-level DCE for
+      post-precomp dead temps) handles function-body Decls but does
+      NOT walk ~main()~'s top-level init sequence, so the dead
+      temps slip through and gcc rejects them. Real fix: extend
+      DCE to the main()/init codegen path before this bail can
+      come out.
 
    2. ~try_eval_call~ FA-callee path bails when the receiver Ident
       isn't a registered struct namespace and isn't a known constant
       (~known.has(_ri).not()~). Excludes value-receiver method calls
       (~p.diff()~) from fold attempts.
 
-   3. ~func_uses_unknown_globals~ flags any Ident named
-      ~clone~/~delete~/~concat~/~substr~/~format~ as "unknown",
-      bailing the whole fold. Workaround for precomp's interpreter
-      scope not having top-level constants like ~CAP_VIEW~ that
-      ~Str.delete~ reads on scope exit. Same check on FieldAccess
-      method names. This is what blocks ~make_poem~ from folding --
-      its body is built around ~concat~.
+   3. (REMOVED in rstil-parity merge.) ~func_uses_unknown_globals~
+      no longer flags ~clone~/~delete~/~concat~/~substr~/~format~ as
+      unknown -- the old workaround was unblocked by tracking
+      ~CAP_VIEW~ / ~CAP_LIT~ in the precomp interpreter scope at
+      precomp_imported time (see ~scope_set_owned(global,
+      "CAP_VIEW", ...)~ in ~precomp.til~) and by the transitive
+      ~func_uses_unknown_globals~ walk via the ~visiting~ Set.
+      ~test_lolalalo~ now folds.
 
    4. ~func_uses_unknown_globals~ flags Assign nodes whose LHS isn't
       a body-local. Workaround for funcs like
@@ -49,27 +70,32 @@ Reopened: an earlier "fix" landed (Vec.move_from / Vec.push_take work,
       Avoids baking compile-time aliases / dlsym-truncated pointers
       into the AST.
 
-   6. ~fold_subtree~ skips eval-fold when the parent is ~NodeType.Body~
-      (statement-level FCalls). Replacing them with a literal silently
-      discards side effects (~test_add_points()~ at top level was the
-      first casualty when this wasn't gated).
+   6. (NOT IN MASTER.) The "skip when parent is NodeType.Body" guard
+      isn't in current ~fold_subtree~ -- the loop folds any FCall
+      child that ~is_func_call~ / ~is_macro_call~ identifies. Statement-
+      level pure-func calls technically would be folded if the args
+      are comptime, dropping the call. In practice the codebase
+      doesn't have stmt-level pure-func-call-with-comptime-args
+      (most stmt-level calls are procs, which ~is_func_call~ skips).
+      Worth keeping an eye on if a future fold drops a side effect.
 
-   7. ~fold_subtree~ skips eval-fold when the FCall callee isn't an
-      ~NodeType.Ident~. Disables FA-callee folds entirely. Method
-      calls like ~x.add(y)~ that the typer leaves as
-      ~FA(x, add)~ never fold; only ~add(x, y)~-shaped flat calls do.
+   7. (NOT IN MASTER.) ~is_macro_call~ / ~is_func_call~ both handle
+      ~NodeType.FieldAccess~ callees via ~fa_recv_type_name +
+      precomp_has_*~. Method-shaped folds like ~Str.size()~ work.
 
    8. ~value_to_expr~ returns NULL for ~Value.Float~. ~F32_to_str~
       uses ~%g~ which can yield ~6.28318e+06~ that doesn't round-trip
       through ~Str.to_f32~. Until the AST has a faithful F32 literal
       repr, F32-returning calls can't fold.
 
-   9. ~value_to_expr~ returns NULL for ~Value.Struct(non-Str)~.
-      Folded Strs themselves can also carry NULs / non-ASCII that
-      don't round-trip through a C source literal -- so
-      ~try_eval_call~ also drops ~Value.Struct~ from its
-      ~can_convert~ list. This is what blocks any string-returning
-      func from folding even when the call is otherwise safe.
+   9. (PARTIALLY REMOVED.) ~value_to_expr~ now folds
+      ~Value.Struct(Str)~ via the ~from_source_form~ /
+      ~str_to_source_form~ escape round-trip introduced in the
+      rstil-parity merge; ~test_string_concat~ and ~test_lolalalo~
+      both produce ~Str_lit("hello world", 11ULL)~ and the 248-byte
+      permutation poem at compile time. Other ~Value.Struct(...)~
+      shapes (non-Str payloads) still return NULL -- the AST has no
+      faithful literal repr for them.
 
    10. ~fold_subtree~ tracks Decl literals only when the name starts
        with ~_t_~ (typer-hoisted temps). User-named locals
