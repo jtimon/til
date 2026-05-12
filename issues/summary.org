@@ -57,6 +57,5 @@
 * WIP
 ** High
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
-*** [[./open/198.org][#198]] Add throw/catch error handling, rstil-style, with desugaring in typer
 ** Medium
 ** Low

@@ -87,4 +87,16 @@ namespace:
         if call_free { free(own self) }
     }
     size := func() returns USize { return 8 }
+
+    /// Issue #198: division that throws DivideByZero when dividing by
+    /// zero. Use I64.div for the panicking variant.
+    safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+        if b.eq(0) {
+            throw DivideByZero()
+        }
+        return a.div(b)
+    }
 }
+
+/// Error thrown by I64.safe_div when dividing by zero.
+DivideByZero := struct {}

@@ -152,6 +152,19 @@ mut current_type_name := ""
 // name (only the original parent function and any of its other lifted
 // descendants can).
 mut current_top_func_name := ""
+// Issue #198: global error type registry. extend_throwing_func_sigs
+// populates this with every error type that appears in any throws
+// clause / Throw / Catch in the program; lowering uses
+// throw_type_global_tag(name) so caller and callee always agree on
+// the integer tag for a given type.
+mut throw_type_registry := Vec.new(Str)
+// Global name -> throws_types map for ALL throwing functions seen
+// across all type-checked files. Built incrementally by
+// extend_throwing_func_sigs and read by inject_throw_args_in_body
+// so call sites in user files can resolve throws of functions
+// defined in core/ imports.
+mut throws_names_global := Vec.new(Str)
+mut throws_per_global := Vec.new(Vec)
 // #187 step 2: nesting depth of auto-generated FuncDef bodies
 // (clone/delete/size/etc emitted by initer). The unused-priv-member
 // check ignores reads inside these so genuinely-unused priv fields
@@ -2344,6 +2357,29 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         }
         saved_in_shallow_ret := typer_in_shallow_return
         typer_in_shallow_return = fdef.return_own_type.is(OwnType.Shallow)
+        // Issue #198: lower throw/catch BEFORE infer_body so the
+        // synthesised mut _err_kind / _err_<T> locals + if-guards
+        // get type-checked normally and reach all downstream stages
+        // (interpreter and builder) as plain til. Then inject the
+        // extra err args at every does_throw call site so the
+        // typer's arity check passes. UFCS calls keep their
+        // FieldAccess(method) callee at this stage; the inject
+        // matches by method name so the appended args end up at
+        // the end of the eventual rewritten FCall.
+        if fdef.auto_generated.not() {
+            lower_throw_catch_in_func_body(expr.child(0), fdef.throw_types)
+            // Append fallback return for throwing functions whose
+            // last stmt is a return (now guarded by if _err_kind==0).
+            // The C builder wants every path to return.
+            if fdef.throw_types.len().gt(0).and(fdef.return_type.len().gt(0)) {
+                append_fallback_return(expr.child(0), fdef.return_type)
+            }
+            // Use the global throws map populated incrementally by
+            // extend_throwing_func_sigs across all files. This way
+            // calls in user code can resolve throws of functions
+            // defined in core/ imports.
+            inject_throw_args_in_body(expr.child(0), throws_names_global, throws_per_global)
+        }
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
         typer_in_shallow_return = saved_in_shallow_ret
         if fdef.auto_generated {
@@ -4103,6 +4139,689 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     return true
 }
 
+// ---------------------------------------------------------------
+// Issue #198: typer-side lowering for throw/catch.
+//
+// Walks a function body and rewrites Throw/Catch into plain til
+// (mut _err_kind + _err_<T> slots, assignments, if-guards) so the
+// interpreter and builder both run throw/catch programs without
+// any new error-handling code paths. Single implementation, two
+// pipelines.
+//
+// The lowering is conservative on what it recognises:
+//  - throw <Ident>(...) -- type is the Ident text (constructor)
+//  - throw "..."        -- type is "Str"
+//  - throw <num>        -- type is "I64"
+//  - other shapes       -- left as-is; typer's existing machinery
+//                          will surface a clear error.
+// Cross-call propagation (~?~ on calls) is not lowered yet -- a
+// follow-up will extend this pass.
+// ---------------------------------------------------------------
+
+// Recursively walk e looking for a Decl(name=var_name) whose RHS
+// looks like a constructor or typed literal we can infer from
+// syntactically. Returns "" if not found. Best-effort pre-typer
+// lookup so `throw my_var` can find the type of my_var from its
+// declaration. Read-only; safe to call before destructive lowering.
+priv guess_local_type := proc(e: Expr, var_name: Str) returns Str {
+    if e.node_type.is(NodeType.Decl) {
+        switch e.node_type {
+        case NodeType.Decl(dn):
+            if dn.name.eq(var_name) {
+                if dn.explicit_type.len().gt(0) { return dn.explicit_type.clone() }
+                if e.children.len().gt(0) {
+                    ref rhs : Expr = e.child(0)
+                    switch rhs.node_type {
+                    case NodeType.FCall:
+                        if rhs.children.len().gt(0) {
+                            switch rhs.child(0).node_type {
+                            case NodeType.Ident(rhsn): return rhsn.clone()
+                            case:
+                            }
+                        }
+                    case NodeType.LiteralStr: return "Str"
+                    case NodeType.LiteralNum: return "I64"
+                    case:
+                    }
+                }
+            }
+        case:
+        }
+    }
+    for c : Expr in e.children {
+        guess := guess_local_type(c, var_name)
+        if guess.len().gt(0) { return guess }
+    }
+    return ""
+}
+
+priv throw_type_name_for_with_body := proc(e: Expr, body: Expr) returns Str {
+    switch e.node_type {
+    case NodeType.LiteralStr: return "Str"
+    case NodeType.LiteralNum: return "I64"
+    case NodeType.FCall:
+        if e.children.len().eq(0) { return "" }
+        switch e.child(0).node_type {
+        case NodeType.Ident(name): return name.clone()
+        case: return ""
+        }
+    case NodeType.Ident(idn):
+        return guess_local_type(body, idn)
+    case: return ""
+    }
+}
+
+
+priv subtree_has_throw_catch := func(e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.Throw).or(e.node_type.is(NodeType.Catch)) {
+        return true
+    }
+    if e.node_type.is(NodeType.FCall) {
+        switch e.node_type {
+        case NodeType.FCall(fcd):
+            if fcd.does_throw { return true }
+        case:
+        }
+    }
+    for c : Expr in e.children {
+        if subtree_has_throw_catch(c) { return true }
+    }
+    return false
+}
+
+// Walk e and annotate each Throw node's til_type with the
+// syntactically-resolved type of the thrown expression. Lookups
+// run BEFORE any destructive mutation by the lowering pass, so
+// the lowering can read each Throw's til_type directly. This
+// also handles `throw <Ident>` by walking to the Ident's Decl.
+priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
+    if e.node_type.is(NodeType.Throw) {
+        if e.children.len().eq(1) {
+            tn := throw_type_name_for_with_body(e.child(0), root_body)
+            if tn.len().gt(0) {
+                e.til_type = Type.Custom(tn.clone())
+            }
+        }
+    }
+    for ci in 0..e.children.len() {
+        ref mut sub : Expr = e.child(ci)
+        annotate_throw_types_in(sub, root_body)
+    }
+}
+
+priv collect_throw_types_in := proc(e: Expr, mut out: Vec) {
+    if e.node_type.is(NodeType.Throw) {
+        tn := til_type_name(e.til_type)
+        if tn.len().gt(0) {
+            mut already := false
+            for existing : Str in out {
+                if existing.eq(tn) { already = true }
+            }
+            if already.not() { out.push(own tn.clone()) }
+        }
+    }
+    if e.node_type.is(NodeType.Catch) {
+        if e.children.len().eq(3) {
+            switch e.child(1).node_type {
+            case NodeType.Ident(ctn):
+                mut already_c := false
+                for existing : Str in out {
+                    if existing.eq(ctn) { already_c = true }
+                }
+                if already_c.not() { out.push(own ctn.clone()) }
+            case:
+            }
+        }
+    }
+    for c : Expr in e.children {
+        collect_throw_types_in(c, out)
+    }
+}
+
+priv collect_throw_types := proc(e: Expr, mut out: Vec) {
+    collect_throw_types_in(e, out)
+}
+
+priv err_slot_name := func(t: Str) returns Str {
+    return "_err_".concat(t)
+}
+
+priv make_int_lit := func(shallow n: I64, shallow line: U32, shallow col: U32) returns Expr {
+    return Expr.new(NodeType.LiteralNum(n.to_str()), line, col)
+}
+
+priv make_typed_mut_decl := func(name: Str, type_name: Str, init: Expr, shallow line: U32, shallow col: U32) returns Expr {
+    mut dd := Declaration(
+        name = name.clone(),
+        explicit_type = type_name.clone(),
+        til_type = til_type_from_explicit_type(type_name),
+        is_mut = true
+    )
+    mut decl := Expr.new(NodeType.Decl(dd), line, col)
+    decl.add_child(own init.clone())
+    return decl
+}
+
+priv make_assign_stmt := func(name: Str, rhs: Expr, shallow line: U32, shallow col: U32) returns Expr {
+    mut a := Expr.new(NodeType.Assign(AssignData(name = name.clone())), line, col)
+    a.add_child(own rhs.clone())
+    return a
+}
+
+priv make_default_value_expr := func(type_name: Str, shallow line: U32, shallow col: U32) returns Expr {
+    if type_name.eq("Str") { return Expr.new(NodeType.LiteralStr(""), line, col) }
+    if type_name.eq("Bool") { return Expr.new(NodeType.LiteralBool(false), line, col) }
+    if type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("I16"))
+    .or(type_name.eq("I32")).or(type_name.eq("U32")).or(type_name.eq("U64"))
+    .or(type_name.eq("F32")) {
+        return Expr.new(NodeType.LiteralNum("0"), line, col)
+    }
+    mut tident := Expr.new(NodeType.Ident(type_name.clone()), line, col)
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    call.add_child(own tident)
+    return call
+}
+
+priv tag_for_type := func(type_name: Str, _type_to_tag_names: Vec) returns I64 {
+    // Issue #198: read from the global throw_type_registry so the
+    // tag for a given type is the same in every function (caller
+    // and callee agree). The local Vec param is kept for backward
+    // shape but no longer consulted.
+    for i in 0..throw_type_registry.len() {
+        ref n : Str = throw_type_registry.get(i)
+        if n.eq(type_name) { return i.to_i64().add(1) }
+    }
+    return 0
+}
+
+priv register_throw_type := func(name: Str) {
+    if name.len().eq(0) { return }
+    for existing : Str in throw_type_registry {
+        if existing.eq(name) { return }
+    }
+    throw_type_registry.push(own name.clone())
+}
+
+priv make_if_kind_eq_zero_wrap := func(stmt: Expr, shallow line: U32, shallow col: U32) returns Expr {
+    mut wrap_body := Expr.new(NodeType.Body, line, col)
+    wrap_body.add_child(own stmt.clone())
+    mut zero_lit := make_int_lit(0, line, col)
+    mut kind_id := Expr.new(NodeType.Ident("_err_kind"), line, col)
+    mut cond := make_field_access_call1(kind_id, "eq", zero_lit, line, col)
+    mut if_node := Expr.new(NodeType.If, line, col)
+    if_node.add_child(own cond)
+    if_node.add_child(own wrap_body)
+    return if_node
+}
+
+// Recursively replace Ident(old_name) with Ident(new_name) in e.
+priv rewrite_ident := proc(mut e: Expr, old_name: Str, new_name: Str) {
+    switch e.node_type {
+    case NodeType.Ident(ridn):
+        if ridn.eq(old_name) {
+            e.node_type = NodeType.Ident(new_name.clone())
+        }
+    case:
+    }
+    for ci in 0..e.children.len() {
+        ref mut sub : Expr = e.child(ci)
+        rewrite_ident(sub, old_name, new_name)
+    }
+}
+
+priv lower_catch_node := proc(catch_node: Expr, type_to_tag_names: Vec) returns Expr {
+    line := catch_node.line
+    col := catch_node.col
+    mut var_name := ""
+    switch catch_node.child(0).node_type {
+    case NodeType.Ident(n): var_name = n.clone()
+    case: UNREACHABLE(__LOC__)
+    }
+    mut type_name := ""
+    switch catch_node.child(1).node_type {
+    case NodeType.Ident(n): type_name = n.clone()
+    case: UNREACHABLE(__LOC__)
+    }
+    tag := tag_for_type(type_name, type_to_tag_names)
+    mut new_body := Expr.new(NodeType.Body, line, col)
+    new_body.add_child(own make_assign_stmt("_err_kind", make_int_lit(0, line, col), line, col))
+    // Rewrite references to the user's err var inside the catch body
+    // to point at the _err_<T> slot directly. Avoids needing a local
+    // binding (which would trip the unused-variable check when the
+    // body doesn't touch err) and keeps ownership semantics simple.
+    ref orig_body : Expr = catch_node.child(2)
+    slot := err_slot_name(type_name)
+    for cb : Expr in orig_body.children {
+        mut cb_clone := cb.clone()
+        rewrite_ident(cb_clone, var_name, slot)
+        new_body.add_child(own cb_clone)
+    }
+    mut kind_id := Expr.new(NodeType.Ident("_err_kind"), line, col)
+    mut tag_lit := make_int_lit(tag, line, col)
+    mut cond := make_field_access_call1(kind_id, "eq", tag_lit, line, col)
+    mut if_node := Expr.new(NodeType.If, line, col)
+    if_node.add_child(own cond)
+    if_node.add_child(own new_body)
+    return if_node
+}
+
+lower_throw_catch_in_block := proc(mut body: Expr, root_body: Expr, type_to_tag_names: Vec) {
+    if body.node_type.is(NodeType.Body).not() { return }
+    if body.children.len().eq(0) { return }
+    if subtree_has_throw_catch(body).not() { return }
+
+    mut old := Vec.new(Expr)
+    old.move_from(body.children)
+    mut new_ch := Vec.new(Expr)
+
+    mut seen_throwing := false
+    for j in 0..old.len() {
+        ref mut stmt : Expr = old.get(j)
+        if stmt.node_type.is(NodeType.Throw) {
+            line := stmt.line
+            col := stmt.col
+            mut handled := false
+            if stmt.children.len().eq(1) {
+                ref thrown : Expr = stmt.child(0)
+                // Use the type annotated by annotate_throw_types_in
+                // (read-only pre-pass on the original body before any
+                // destructive lowering). Lookups by the lowering itself
+                // would race with its own move/push_take mutations.
+                tn := til_type_name(stmt.til_type)
+                tag := tag_for_type(tn, type_to_tag_names)
+                if tag.gt(0) {
+                    new_ch.push(own make_assign_stmt(err_slot_name(tn), thrown.clone(), line, col))
+                    new_ch.push(own make_assign_stmt("_err_kind", make_int_lit(tag, line, col), line, col))
+                    seen_throwing = true
+                    handled = true
+                }
+            }
+            if handled.not() { new_ch.push_take(old, j) }
+        } else if stmt.node_type.is(NodeType.Catch) {
+            mut if_node := lower_catch_node(stmt, type_to_tag_names)
+            new_ch.push(own if_node)
+            seen_throwing = false
+        } else {
+            // Check BEFORE lowering -- after lowering the throws in
+            // the subtree are gone, so subtree_has_throw_catch would
+            // return false even when this stmt could leave _err_kind
+            // != 0 to subsequent stmts.
+            had_throw_subtree := subtree_has_throw_catch(stmt)
+            switch stmt.node_type {
+            case NodeType.If:
+                for ci in 1..stmt.children.len() {
+                    ref mut sub : Expr = stmt.child(ci)
+                    lower_throw_catch_in_block(sub, root_body, type_to_tag_names)
+                }
+            case NodeType.While:
+                if stmt.children.len().gte(2) {
+                    ref mut wb : Expr = stmt.child(1)
+                    lower_throw_catch_in_block(wb, root_body, type_to_tag_names)
+                }
+            case NodeType.ForIn:
+                if stmt.children.len().gte(2) {
+                    ref mut fb : Expr = stmt.child(1)
+                    lower_throw_catch_in_block(fb, root_body, type_to_tag_names)
+                }
+            case NodeType.Switch:
+                for ci in 1..stmt.children.len() {
+                    ref mut cn : Expr = stmt.child(ci)
+                    if cn.node_type.is(NodeType.Case) {
+                        for cci in 0..cn.children.len() {
+                            ref mut ccn : Expr = cn.child(cci)
+                            if ccn.node_type.is(NodeType.Body) {
+                                lower_throw_catch_in_block(ccn, root_body, type_to_tag_names)
+                            }
+                        }
+                    }
+                }
+            case NodeType.Body:
+                lower_throw_catch_in_block(stmt, root_body, type_to_tag_names)
+            case:
+            }
+            line := stmt.line
+            col := stmt.col
+            if seen_throwing {
+                mut wrapped := make_if_kind_eq_zero_wrap(stmt.clone(), line, col)
+                new_ch.push(own wrapped)
+            } else {
+                new_ch.push_take(old, j)
+                if had_throw_subtree { seen_throwing = true }
+            }
+        }
+    }
+    body.children.move_from(new_ch)
+}
+
+// Issue #198: extend the signature of every throwing function in
+// the program AST with synthetic err-out params:
+//   mut _err_kind: I64
+//   mut _err_<T>: T   -- one per declared throw type
+// Cross-call propagation (~?~ at call sites) passes the caller's
+// matching slots as the extra args. Idempotent: skips functions
+// whose params already contain _err_kind. Recurses into nested
+// FuncDef bodies so inner lambdas with throws also get extended.
+priv register_func_throws := func(name: Str, throws_list: Vec) {
+    if name.len().eq(0) { return }
+    if throws_list.len().eq(0) { return }
+    for existing : Str in throws_names_global {
+        if existing.eq(name) { return }
+    }
+    throws_names_global.push(own name.clone())
+    mut tt := Vec.new(Str)
+    for t : Str in throws_list {
+        tt.push(own t.clone())
+    }
+    throws_per_global.push(own tt)
+}
+
+extend_throwing_func_sigs := proc(mut e: Expr) {
+    // Register Decl(name) -> FuncDef in the global throws map.
+    if e.node_type.is(NodeType.Decl) {
+        if e.children.len().gt(0) {
+            switch e.node_type {
+            case NodeType.Decl(dn):
+                ref rhs : Expr = e.child(0)
+                if rhs.node_type.is(NodeType.FuncDef) {
+                    switch rhs.node_type {
+                    case NodeType.FuncDef(rfd):
+                        register_func_throws(dn.name, rfd.throw_types)
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    }
+    if e.node_type.is(NodeType.FuncDef) {
+        switch e.node_type {
+        case NodeType.FuncDef(efd):
+            // Register all declared throw types in the global registry.
+            for tn : Str in efd.throw_types {
+                register_throw_type(tn)
+            }
+            if efd.throw_types.len().gt(0) {
+                mut already := false
+                for p : Declaration in efd.params {
+                    if p.name.eq("_err_kind") { already = true }
+                }
+                if already.not() {
+                    mut kp := Declaration(name = "_err_kind",
+                        explicit_type = "I64",
+                        til_type = Type.I64,
+                        is_mut = true,
+                        own_type = OwnType.Ref,
+                        used = true)
+                    efd.params.push(own kp)
+                    for tn : Str in efd.throw_types {
+                        mut tp := Declaration(name = err_slot_name(tn),
+                            explicit_type = tn.clone(),
+                            til_type = til_type_from_explicit_type(tn),
+                            is_mut = true,
+                            own_type = OwnType.Ref,
+                            used = true)
+                        efd.params.push(own tp)
+                    }
+                }
+            }
+        case:
+        }
+    }
+    // Also register types from Throw and Catch nodes so locally-only
+    // throws (not in any throws clause) still get a stable tag.
+    if e.node_type.is(NodeType.Throw) {
+        if e.children.len().eq(1) {
+            tn := throw_type_name_for_with_body(e.child(0), e)
+            if tn.len().gt(0) { register_throw_type(tn) }
+        }
+    }
+    if e.node_type.is(NodeType.Catch) {
+        if e.children.len().eq(3) {
+            switch e.child(1).node_type {
+            case NodeType.Ident(ctn): register_throw_type(ctn.clone())
+            case:
+            }
+        }
+    }
+    // Also recurse into namespace method bodies (ns_decls' default_value
+    // Exprs hold the method FuncDef bodies; they're not in children).
+    // Register namespace methods by their bare name (matches the UFCS
+    // call-site lookup in inject_throw_args_in_body, which matches the
+    // FieldAccess field name without the namespace prefix).
+    switch e.node_type {
+    case NodeType.StructDef(esd_ns):
+        for ci in 0..esd_ns.ns_decls.len() {
+            ref mut nd : Declaration = esd_ns.ns_decls.get(ci)
+            ref dv : Expr = nd.default_value
+            if dv.node_type.is(NodeType.FuncDef) {
+                switch dv.node_type {
+                case NodeType.FuncDef(rfd_reg):
+                    register_func_throws(nd.name, rfd_reg.throw_types)
+                case:
+                }
+            }
+            extend_throwing_func_sigs(nd.default_value)
+        }
+    case NodeType.EnumDef(eed_ns):
+        for ci in 0..eed_ns.ns_decls.len() {
+            ref mut nd : Declaration = eed_ns.ns_decls.get(ci)
+            ref dv : Expr = nd.default_value
+            if dv.node_type.is(NodeType.FuncDef) {
+                switch dv.node_type {
+                case NodeType.FuncDef(rfd_reg_e):
+                    register_func_throws(nd.name, rfd_reg_e.throw_types)
+                case:
+                }
+            }
+            extend_throwing_func_sigs(nd.default_value)
+        }
+    case:
+    }
+    for ci in 0..e.children.len() {
+        ref mut sub : Expr = e.child(ci)
+        extend_throwing_func_sigs(sub)
+    }
+}
+
+// Build a parallel-Vec map of FuncName -> Vec[Str] (throws) for
+// every throwing top-level function in the program. Recurses into
+// nested FuncDefs. Used by the call-site rewrite in
+// inject_throw_args_in_body. Names is by Decl name (works for
+// bare-name calls and for UFCS-rewritten calls, which look like
+// bare-name FCalls after the typer's UFCS pass).
+priv build_throws_map := proc(e: Expr, mut names: Vec, mut throws_per: Vec) {
+    if e.node_type.is(NodeType.Decl) {
+        if e.children.len().gt(0) {
+            switch e.node_type {
+            case NodeType.Decl(dn):
+                ref rhs : Expr = e.child(0)
+                if rhs.node_type.is(NodeType.FuncDef) {
+                    switch rhs.node_type {
+                    case NodeType.FuncDef(rfd):
+                        if rfd.throw_types.len().gt(0) {
+                            names.push(own dn.name.clone())
+                            mut tt := Vec.new(Str)
+                            for t : Str in rfd.throw_types {
+                                tt.push(own t.clone())
+                            }
+                            throws_per.push(own tt)
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    }
+    // Also walk namespace method declarations.
+    switch e.node_type {
+    case NodeType.StructDef(esd_bm):
+        for ci in 0..esd_bm.ns_decls.len() {
+            ref nd : Declaration = esd_bm.ns_decls.get(ci)
+            ref dv : Expr = nd.default_value
+            if dv.node_type.is(NodeType.FuncDef) {
+                switch dv.node_type {
+                case NodeType.FuncDef(rfd_ns):
+                    if rfd_ns.throw_types.len().gt(0) {
+                        names.push(own nd.name.clone())
+                        mut tt := Vec.new(Str)
+                        for t : Str in rfd_ns.throw_types {
+                            tt.push(own t.clone())
+                        }
+                        throws_per.push(own tt)
+                    }
+                case:
+                }
+            }
+        }
+    case NodeType.EnumDef(eed_bm):
+        for ci in 0..eed_bm.ns_decls.len() {
+            ref nd : Declaration = eed_bm.ns_decls.get(ci)
+            ref dv : Expr = nd.default_value
+            if dv.node_type.is(NodeType.FuncDef) {
+                switch dv.node_type {
+                case NodeType.FuncDef(rfd_ne):
+                    if rfd_ne.throw_types.len().gt(0) {
+                        names.push(own nd.name.clone())
+                        mut tt := Vec.new(Str)
+                        for t : Str in rfd_ne.throw_types {
+                            tt.push(own t.clone())
+                        }
+                        throws_per.push(own tt)
+                    }
+                case:
+                }
+            }
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        build_throws_map(c, names, throws_per)
+    }
+}
+
+// Walk a (lowered + typed) body, find every FCall whose
+// does_throw is set, and rewrite it to pass the caller's err
+// slots as extra args. The slots must already exist in scope
+// (as locals declared by lower_throw_catch_in_func_body or as
+// params on a throwing caller). Clears does_throw on the FCall
+// after rewriting so downstream stages don't act on the marker.
+priv inject_throw_args_in_body := proc(mut e: Expr, names: Vec, throws_per: Vec) {
+    if e.node_type.is(NodeType.FCall) {
+        switch e.node_type {
+        case NodeType.FCall(fcd):
+            if fcd.does_throw {
+                if e.children.len().gt(0) {
+                    ref callee : Expr = e.child(0)
+                    mut cname := ""
+                    switch callee.node_type {
+                    case NodeType.Ident(idn): cname = idn.clone()
+                    case NodeType.FieldAccess(mn): cname = mn.clone()
+                    case:
+                    }
+                    if cname.len().gt(0) {
+                        mut idx : I64 = -1
+                        for i in 0..names.len() {
+                            ref nm : Str = names.get(i)
+                            if nm.eq(cname) { idx = i.to_i64() }
+                        }
+                        if idx.gte(0) {
+                            ref tts : Vec = throws_per.get(idx.to_u32())
+                            mut kind_id := Expr.new(NodeType.Ident("_err_kind"), e.line, e.col)
+                            kind_id.til_type = Type.I64
+                            e.add_child(own kind_id)
+                            for tn : Str in tts {
+                                mut slot_id := Expr.new(NodeType.Ident(err_slot_name(tn)), e.line, e.col)
+                                slot_id.til_type = til_type_from_explicit_type(tn)
+                                e.add_child(own slot_id)
+                            }
+                        }
+                    }
+                }
+                fcd.does_throw = false
+            }
+        case:
+        }
+    }
+    for ci in 0..e.children.len() {
+        ref mut sub : Expr = e.child(ci)
+        inject_throw_args_in_body(sub, names, throws_per)
+    }
+}
+
+// Append a fallback `return <default(return_type)>` to body for
+// throwing functions whose original body relied on the error path
+// to bypass the return statement. After lowering, the return is
+// guarded by `if _err_kind == 0`; the C builder needs a literal
+// return on the error path so all paths return.
+priv append_fallback_return := func(mut body: Expr, return_type: Str) {
+    if return_type.len().eq(0) { return }
+    line := body.line
+    col := body.col
+    mut ret := Expr.new(NodeType.Return, line, col)
+    ret.add_child(own make_default_value_expr(return_type, line, col))
+    body.add_child(own ret)
+}
+
+lower_throw_catch_in_func_body := proc(mut body: Expr, fdef_throws: Vec) {
+    has_body_throw_catch := subtree_has_throw_catch(body)
+    has_fdef_throws := fdef_throws.len().gt(0)
+    if has_body_throw_catch.not().and(has_fdef_throws.not()) { return }
+
+    // Pre-pass: annotate every Throw with its resolved type.
+    if has_body_throw_catch { annotate_throw_types_in(body, body) }
+
+    // Collect distinct slot types from the body (Throws + Catches)
+    // and from this function's declared throws clause. Both feed the
+    // same _err_<T> slot pool the lowering will use; the function's
+    // declared throws also become the synthetic out-params (added by
+    // extend_throwing_func_sigs), so we must NOT declare locals
+    // shadowing them.
+    mut types := Vec.new(Str)
+    if has_body_throw_catch { collect_throw_types(body, types) }
+    for t : Str in fdef_throws {
+        mut already := false
+        for ex : Str in types {
+            if ex.eq(t) { already = true }
+        }
+        if already.not() { types.push(own t.clone()) }
+    }
+    if types.len().eq(0) { return }
+
+    line := body.line
+    col := body.col
+
+    mut old := Vec.new(Expr)
+    old.move_from(body.children)
+
+    mut new_ch := Vec.new(Expr)
+    // Declare local slots ONLY for types not in fdef_throws (those
+    // are params already, declared by extend_throwing_func_sigs).
+    if has_fdef_throws.not() {
+        new_ch.push(own make_typed_mut_decl("_err_kind", "I64", make_int_lit(0, line, col), line, col))
+    }
+    for i in 0..types.len() {
+        ref tn : Str = types.get(i)
+        mut is_param := false
+        for ft : Str in fdef_throws {
+            if ft.eq(tn) { is_param = true }
+        }
+        if is_param.not() {
+            new_ch.push(own make_typed_mut_decl(err_slot_name(tn), tn,
+                make_default_value_expr(tn, line, col), line, col))
+        }
+    }
+
+    mut tmp_body := Expr.new(NodeType.Body, line, col)
+    tmp_body.children.move_from(old)
+    lower_throw_catch_in_block(tmp_body, tmp_body, types)
+
+    for j in 0..tmp_body.children.len() {
+        new_ch.push_take(tmp_body.children, j)
+    }
+    body.children.move_from(new_ch)
+}
+
 is_compile_directive := func(e: Expr) returns shallow Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(1) { return false }
@@ -4468,6 +5187,10 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
     // this in the typer (rather than as a pre-typer pass in init_file)
     // keeps the parser dumb and avoids adding a #158-style extra walk.
     typer_lift_lambdas(scope, program)
+    // Issue #198: extend signatures of throwing functions BEFORE
+    // any body type-checking so call-site rewrites in
+    // inject_throw_args_in_body see the post-extension param list.
+    extend_throwing_func_sigs(program)
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
     return errors

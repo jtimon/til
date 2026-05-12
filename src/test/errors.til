@@ -1,0 +1,267 @@
+mode test
+
+// Issue #198: throw/catch error handling, rstil-style.
+// Lowering lives in the typer so the interpreter and builder both
+// run these without any new error-handling code paths.
+
+AAAError := struct {}
+
+test_simplest_catch := test() {
+    mut catched := false
+    if I64.eq(1, 1) {
+        throw AAAError()
+    }
+    assert(__LOC__, false)  // unreachable on the error path
+    catch (err: AAAError) {
+        catched = true
+    }
+    assert(__LOC__, catched)
+}
+
+ErrorWithMessage := struct {
+    mut msg: Str = "default error message"
+}
+
+test_catch_with_fields := test() {
+    mut caught_msg := ""
+    mut catched := false
+    if I64.eq(1, 1) {
+        my_error := ErrorWithMessage()
+        throw my_error
+    }
+    catch (err: ErrorWithMessage) {
+        caught_msg = err.msg
+        catched = true
+    }
+    assert(__LOC__, catched)
+    assert(__LOC__, caught_msg.eq("default error message"))
+}
+
+// DivideByZero is defined in src/core/i64.til alongside I64.safe_div.
+
+unsafe_div := func(a: I64, b: I64) returns I64 {
+    result := a.safe_div(b)?
+    catch (err: DivideByZero) {
+        return 0
+    }
+    return result
+}
+
+test_unsafe_div := test() {
+    assert(__LOC__, unsafe_div(42, 0).eq(0))
+    assert(__LOC__, unsafe_div(42, 2).eq(21))
+}
+
+test_catch_str_error := test() {
+    mut caught := false
+    mut error_msg := ""
+    if I64.eq(1, 1) {
+        throw "This is a test error message"
+    }
+    catch (err: Str) {
+        caught = true
+        error_msg = err
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, error_msg.eq("This is a test error message"))
+}
+
+test_catch_error_with_str_field := test() {
+    mut caught := false
+    mut caught_msg := ""
+    if I64.eq(1, 1) {
+        mut my_error := ErrorWithMessage()
+        my_error.msg = "Custom error message"
+        throw my_error
+    }
+    catch (err: ErrorWithMessage) {
+        caught = true
+        caught_msg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, caught_msg.eq("Custom error message"))
+}
+
+// ==========================================================
+// Bug #34 regression: code AFTER catch runs in both paths;
+// code BETWEEN throwing call and catch is skipped on error.
+// ==========================================================
+
+Bug34Error := struct {
+    mut msg: Str = ""
+}
+
+bug34_maybe_throw := func(should_throw: Bool) throws Bug34Error {
+    if should_throw {
+        throw Bug34Error()
+    }
+}
+
+test_bug34_after_catch_success := test() {
+    mut after_catch_ran := false
+    bug34_maybe_throw(false)?
+    catch (err: Bug34Error) {
+    }
+    after_catch_ran = true
+    assert(__LOC__, after_catch_ran)
+}
+
+test_bug34_after_catch_error := test() {
+    mut after_catch_ran := false
+    bug34_maybe_throw(true)?
+    catch (err: Bug34Error) {
+    }
+    after_catch_ran = true
+    assert(__LOC__, after_catch_ran)
+}
+
+test_bug34_between_throw_and_catch := test() {
+    mut caught := false
+    bug34_maybe_throw(true)?
+    caught = false  // should NOT run on error path
+    catch (err: Bug34Error) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_bug34_between_success := test() {
+    mut between_ran := false
+    mut caught := false
+    bug34_maybe_throw(false)?
+    between_ran = true
+    catch (err: Bug34Error) {
+        caught = true
+    }
+    assert(__LOC__, caught.not())
+    assert(__LOC__, between_ran)
+}
+
+// ==========================================================
+// Multi-catch tests
+// ==========================================================
+
+TestErrorA := struct {}
+TestErrorB := struct {}
+
+throw_a_maybe := func(should_throw: Bool) throws TestErrorA {
+    if should_throw {
+        throw TestErrorA()
+    }
+}
+
+throw_b_maybe := func(should_throw: Bool) throws TestErrorB {
+    if should_throw {
+        throw TestErrorB()
+    }
+}
+
+test_non_consecutive_catches := test() {
+    mut after_a_ran := false
+    mut after_b_ran := false
+    mut caught_a := false
+    mut caught_b := false
+
+    throw_a_maybe(true)?
+    after_a_ran = true
+    catch (err: TestErrorA) {
+        caught_a = true
+    }
+
+    throw_b_maybe(true)?
+    after_b_ran = true
+    catch (err: TestErrorB) {
+        caught_b = true
+    }
+
+    assert(__LOC__, after_a_ran.not())
+    assert(__LOC__, after_b_ran.not())
+    assert(__LOC__, caught_a)
+    assert(__LOC__, caught_b)
+}
+
+MultiThrowError := struct {}
+
+multi_throw_maybe := func(should_throw: Bool) throws MultiThrowError {
+    if should_throw {
+        throw MultiThrowError()
+    }
+}
+
+test_multi_throw_single_catch := test() {
+    mut after_first_ran := false
+    mut after_second_ran := false
+    mut caught := false
+
+    multi_throw_maybe(true)?
+    after_first_ran = true
+    multi_throw_maybe(false)?
+    after_second_ran = true
+    catch (err: MultiThrowError) {
+        caught = true
+    }
+
+    assert(__LOC__, after_first_ran.not())
+    assert(__LOC__, after_second_ran.not())
+    assert(__LOC__, caught)
+}
+
+test_multi_throw_success := test() {
+    mut after_first_ran := false
+    mut after_second_ran := false
+    mut caught := false
+
+    multi_throw_maybe(false)?
+    after_first_ran = true
+    multi_throw_maybe(false)?
+    after_second_ran = true
+    catch (err: MultiThrowError) {
+        caught = true
+    }
+
+    assert(__LOC__, after_first_ran)
+    assert(__LOC__, after_second_ran)
+    assert(__LOC__, caught.not())
+}
+
+// ==========================================================
+// Caller/callee with different throws sets
+// ==========================================================
+
+CallerCalleeErrorA := struct {}
+CallerCalleeErrorB := struct {}
+
+callee2_throws_both := func(throw_a: Bool, throw_b: Bool) throws CallerCalleeErrorA, CallerCalleeErrorB {
+    if throw_b {
+        throw CallerCalleeErrorB()
+    }
+    if throw_a {
+        throw CallerCalleeErrorA()
+    }
+}
+
+callee1_throws_a_only := func(throw_a: Bool, throw_b: Bool) returns Bool throws CallerCalleeErrorA {
+    mut caught_b := false
+    callee2_throws_both(throw_a, throw_b)?
+    catch (err: CallerCalleeErrorB) {
+        caught_b = true
+    }
+    return caught_b
+}
+
+test_caller_callee_different_throws := test() {
+    caught_b_internally := callee1_throws_a_only(false, true)?
+    catch (err: CallerCalleeErrorA) {
+    }
+    assert(__LOC__, caught_b_internally)
+
+    mut after_callee1_ran := false
+    mut caught_a := false
+    _ := callee1_throws_a_only(true, false)?
+    after_callee1_ran = true
+    catch (err: CallerCalleeErrorA) {
+        caught_a = true
+    }
+    assert(__LOC__, after_callee1_ran.not())
+    assert(__LOC__, caught_a)
+}
