@@ -38,7 +38,6 @@
 *** [[./open/193.org][#193]] Add lower-level File cursor APIs
 *** [[./open/195.org][#195]] Consider removing ~mode test~
 *** [[./open/197.org][#197]] Issue summary generator silently drops some open issues
-*** [[./open/199.org][#199]] Guard clauses in switch cases
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)

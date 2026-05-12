@@ -529,3 +529,69 @@ test_enum_with_struct_pattern_fallthrough := test() {
     }
     assert_eq_str(__LOC__, hit, "dot-3,4")
 }
+
+# --- guard clauses (#199) ---
+
+ColorG := enum { Unknown, Number: I64, Name: Str }
+
+test_guard_positive := test() {
+    c := ColorG.Number(42)
+    mut r := ""
+    switch c {
+    case ColorG.Unknown: r = "unknown"
+    case ColorG.Number(code) if code.gt(0): r = "positive"
+    case ColorG.Number(code): r = format("non-pos-", code.to_str())
+    case ColorG.Name(name): r = format("named-", name)
+    }
+    assert_eq_str(__LOC__, r, "positive")
+}
+
+test_guard_falls_through := test() {
+    c := ColorG.Number(-5)
+    mut r := ""
+    switch c {
+    case ColorG.Unknown: r = "unknown"
+    case ColorG.Number(code) if code.gt(0): r = "positive"
+    case ColorG.Number(code): r = format("non-pos-", code.to_str())
+    case ColorG.Name(_name): r = "named"
+    }
+    assert_eq_str(__LOC__, r, "non-pos--5")
+}
+
+test_guard_uses_binding := test() {
+    c := ColorG.Number(7)
+    mut hit := 0
+    switch c {
+    case ColorG.Number(v) if v.eq(7): hit = v
+    case ColorG.Number(_v): hit = -1
+    case ColorG.Unknown: hit = -2
+    case ColorG.Name(_n): hit = -3
+    }
+    assert_eq(__LOC__, hit, 7)
+}
+
+test_guard_bare_variant := test() {
+    flag := true
+    c := ColorG.Unknown
+    mut r := ""
+    switch c {
+    case ColorG.Unknown if flag: r = "yes"
+    case ColorG.Unknown: r = "no"
+    case ColorG.Number(_n): r = "num"
+    case ColorG.Name(_n): r = "name"
+    }
+    assert_eq_str(__LOC__, r, "yes")
+}
+
+test_guard_bare_variant_false := test() {
+    flag := false
+    c := ColorG.Unknown
+    mut r := ""
+    switch c {
+    case ColorG.Unknown if flag: r = "yes"
+    case ColorG.Unknown: r = "no"
+    case ColorG.Number(_n): r = "num"
+    case ColorG.Name(_n): r = "name"
+    }
+    assert_eq_str(__LOC__, r, "no")
+}

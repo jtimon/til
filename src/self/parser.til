@@ -1410,6 +1410,15 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
             mut cn := Expr.new(NodeType.Case, peek_line(p), peek_col(p))
             if check(p, TokenType.Colon).not() {
                 cn.add_child(own parse_expression(p))
+                // Issue #199: optional guard clause `case <pattern> if <expr>:`.
+                // Stored as a third child of the Case node so the typer can
+                // distinguish `[pattern, body]` (regular) from
+                // `[pattern, guard, body]` (guarded). A bare `case if <expr>:`
+                // is not allowed -- KwIf only follows a pattern.
+                if check(p, TokenType.KwIf) {
+                    advance(p)
+                    cn.add_child(own parse_expression(p))
+                }
             }
             expect_token(p, TokenType.Colon)
             mut cb := Expr.new(NodeType.Body, peek_line(p), peek_col(p))

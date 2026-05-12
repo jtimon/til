@@ -35,3 +35,17 @@ test_missing_nested_inner := test() {
     }
     println(r)
 }
+
+# #199: a guarded case does not cover its variant -- the guard can fail at
+# runtime, so the variant remains a "missing case" without a default arm.
+test_missing_guarded_case := test() {
+    flag := true
+    c := Color.Red
+    mut r := ""
+    switch c {
+    case Color.Red if flag: r = "red-guarded"
+    case Color.Green:       r = "green"
+    case Color.Blue:        r = "blue"
+    }
+    println(r)
+}

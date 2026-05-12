@@ -1,0 +1,48 @@
+# priority: low
+** #199 Guard clauses in switch cases
+
+Switch case patterns now accept an optional `if <expr>` guard between
+the pattern and the `:`. Example::
+
+  switch c {
+  case Color.Unknown: return "unknown"
+  case Color.Number(code) if code.gt(0): return "positive"
+  case Color.Number(code): return "non-positive"
+  case Color.Name(name): return format("named: ", name)
+  }
+
+If the guard fails at runtime, control falls through to the next case
+arm (matching Rust's match semantics).
+
+*** Implementation
+
+  - Parser (~src/self/parser.til~): after ~parse_expression~ for the
+    case pattern, optionally consume ~KwIf~ + ~parse_expression~ and
+    store it as a third child of the ~Case~ node. A Case is now one
+    of ~[body]~ (default), ~[pattern, body]~ (regular), or
+    ~[pattern, guard, body]~ (guarded).
+  - Typer (~src/self/typer.til~): when ANY case in a switch has a
+    guard, the desugar can no longer use a plain if/elif chain --
+    a failed guard must fall through to the next case, which an
+    if/elif chain cannot express. Instead the typer hoists a
+    ~mut _sw_matched_<n> := false~ flag and emits each case as an
+    independent ~if _sw_matched_<n>.not().and(pattern_cond) { ...;
+    _sw_matched_<n> = true }~ statement. Guards become an inner
+    ~if <guard> { user_body; _sw_matched_<n> = true }~ wrapped
+    around the user body, so a failed guard leaves the flag
+    ~false~ and the next case runs. Plain switches (no guards)
+    keep the cheaper if/elif chain.
+  - Exhaustiveness: guarded cases do NOT mark their pattern as
+    covered, because the guard can fail at runtime. A switch like
+    ~case Color.Red if cond:~ alongside other variants still requires
+    a default arm (or an unguarded ~case Color.Red:~) to be
+    exhaustive.
+
+*** Tests
+
+  - ~test_guard_positive~ / ~test_guard_falls_through~ /
+    ~test_guard_uses_binding~ / ~test_guard_bare_variant~ /
+    ~test_guard_bare_variant_false~ in ~src/test/enums.til~.
+  - ~test_missing_guarded_case~ in
+    ~src/test/enum_switch_missing_case.til~ (typer-error count
+    bumps from 3 to 4 in ~src/tests.til~).

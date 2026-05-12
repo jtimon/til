@@ -3556,10 +3556,35 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         sw_ref = Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col)
     }
 
+    // Issue #199: a Case with 3 children is `[pattern, guard, body]`; with
+    // 2 children it's `[pattern, body]`. When ANY case in this switch has
+    // a guard we can't use a plain if/elif chain -- a failed guard must
+    // fall through to the next case, which an if/elif chain cannot model.
+    // Instead we hoist a `_sw_matched_<n> := false` flag and emit each
+    // case as an independent `if _sw_matched.not().and(cond) { body;
+    // _sw_matched = true }`. Guards become an inner `if <guard> { ...
+    // _sw_matched = true }` wrapped around the user body so a failed
+    // guard leaves _sw_matched false and the next case runs. Plain
+    // switches keep the cheaper if/elif chain.
+    mut any_guard := false
+    for ag_ci in 1..stmt.children.len() {
+        ref ag_cn : Expr = stmt.child(ag_ci)
+        if ag_cn.children.len().eq(3) { any_guard = true }
+    }
+
     mut first_if := Expr.new(NodeType.Body, stmt.line, stmt.col)
     mut has_first_if := false
     mut default_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
     mut has_default_body := false
+
+    mut matched_name := ""
+    if any_guard {
+        matched_name = "_sw_matched_".concat(hoist_counter.to_str())
+        hoist_counter++
+        mut matched_decl := Expr.new(NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, explicit_type = "Bool".clone(), til_type = Type.Bool, own_type = OwnType.Shallow)), stmt.line, stmt.col)
+        matched_decl.add_child(own Expr.new(NodeType.LiteralBool(false), stmt.line, stmt.col))
+        block.add_child(own matched_decl)
+    }
 
     for ci in 1..stmt.children.len() {
         ref case_node : Expr = stmt.child(ci)
@@ -3569,30 +3594,104 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
             has_default_case = true
             continue
         }
+        mut has_guard := false
+        mut body_idx : U32 = 1
+        if case_node.children.len().eq(3) {
+            has_guard = true
+            body_idx = 2
+        }
         ref mut match_expr : Expr = case_node.child(0)
-        ref mut case_body : Expr = case_node.child(1)
-        if has_switch_enum_def {
+        ref mut case_body : Expr = case_node.child(body_idx)
+        // Guards may fail at runtime, so they don't mark the pattern as
+        // covered for exhaustiveness.
+        if has_switch_enum_def.and(has_guard.not()) {
             mark_pattern_coverage(scope, coverage, sw_expr_sname, match_expr)
         }
+        user_stmt_count := case_body.children.len()
         condition := make_switch_case_condition(scope, case_body, match_expr, sw_ref, sw_line, sw_col)
 
-        mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
-        if_node.add_child(own condition)
-        if_node.add_child(own case_body.clone())
+        if any_guard {
+            // Build the case_body for the flag-based desugar:
+            //   [bindings..., if <guard> { user_stmts; _sw_matched = true }]
+            //   or (no guard)
+            //   [bindings..., user_stmts..., _sw_matched = true]
+            total_count := case_body.children.len()
+            n_bindings := total_count.sub(user_stmt_count)
+            mut all_children := Vec.new(Expr)
+            all_children.move_from(case_body.children)
+            mut new_body := Vec.new(Expr)
+            for bi in 0..n_bindings {
+                new_body.push_take(all_children, bi)
+            }
+            mut user_stmts := Expr.new(NodeType.Body, case_node.line, case_node.col)
+            for ui in 0..user_stmt_count {
+                user_stmts.children.push_take(all_children, n_bindings.add(ui))
+            }
+            mut matched_assign := Expr.new(NodeType.Assign(AssignData(name = matched_name.clone())), case_node.line, case_node.col)
+            matched_assign.add_child(own Expr.new(NodeType.LiteralBool(true), case_node.line, case_node.col))
+            user_stmts.add_child(own matched_assign)
 
-        if has_first_if.not() {
-            first_if = if_node
-            has_first_if = true
+            if has_guard {
+                ref guard_expr : Expr = case_node.child(1)
+                mut guard_if := Expr.new(NodeType.If, case_node.line, case_node.col)
+                guard_if.add_child(own guard_expr.clone())
+                guard_if.add_child(own user_stmts)
+                new_body.push(own guard_if)
+            } else {
+                for us_i in 0..user_stmts.children.len() {
+                    new_body.push_take(user_stmts.children, us_i)
+                }
+            }
+            case_body.children.move_from(new_body)
+
+            // Outer condition: _sw_matched.not().and(pattern_cond)
+            mut not_id := Expr.new(NodeType.Ident(matched_name.clone()), case_node.line, case_node.col)
+            mut not_acc := Expr.new(NodeType.FieldAccess("not"), case_node.line, case_node.col)
+            not_acc.add_child(own not_id)
+            mut not_call := Expr.new(NodeType.FCall(FCallData()), case_node.line, case_node.col)
+            not_call.add_child(own not_acc)
+            mut and_acc := Expr.new(NodeType.FieldAccess("and"), case_node.line, case_node.col)
+            and_acc.add_child(own not_call)
+            mut gated_cond := Expr.new(NodeType.FCall(FCallData()), case_node.line, case_node.col)
+            gated_cond.add_child(own and_acc)
+            gated_cond.add_child(own condition)
+
+            mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
+            if_node.add_child(own gated_cond)
+            if_node.add_child(own case_body.clone())
+            block.add_child(own if_node)
         } else {
-            append_switch_else_if(first_if, if_node)
+            mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
+            if_node.add_child(own condition)
+            if_node.add_child(own case_body.clone())
+            if has_first_if.not() {
+                first_if = if_node
+                has_first_if = true
+            } else {
+                append_switch_else_if(first_if, if_node)
+            }
         }
     }
 
-    if has_default_body.and(has_first_if) {
-        attach_switch_default_body(first_if, default_body)
-    } else if has_default_body.and(has_first_if.not()) {
-        first_if = default_body.clone()
-        has_first_if = true
+    if any_guard {
+        if has_default_body {
+            mut nid2 := Expr.new(NodeType.Ident(matched_name.clone()), stmt.line, stmt.col)
+            mut nacc2 := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col)
+            nacc2.add_child(own nid2)
+            mut ncall2 := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+            ncall2.add_child(own nacc2)
+            mut def_if := Expr.new(NodeType.If, stmt.line, stmt.col)
+            def_if.add_child(own ncall2)
+            def_if.add_child(own default_body.clone())
+            block.add_child(own def_if)
+        }
+    } else {
+        if has_default_body.and(has_first_if) {
+            attach_switch_default_body(first_if, default_body)
+        } else if has_default_body.and(has_first_if.not()) {
+            first_if = default_body.clone()
+            has_first_if = true
+        }
     }
 
     if has_switch_enum_def.and(has_default_case.not()) {

@@ -455,10 +455,10 @@ main := proc(args: ..Str) {
               "unused priv", 7,
               asan_safe_cmd(format(til_bin, " build src/test/priv_unused_error.til"), til_bin))
     add_count(tests, "enum_switch_missing_case_interp", "typer",
-              "non-exhaustive switch on enum", 3,
+              "non-exhaustive switch on enum", 4,
               asan_safe_cmd(format(til_bin, " interpret src/test/enum_switch_missing_case.til"), til_bin))
     add_count(tests, "enum_switch_missing_case_build", "typer",
-              "non-exhaustive switch on enum", 3,
+              "non-exhaustive switch on enum", 4,
               asan_safe_cmd(format(til_bin, " build src/test/enum_switch_missing_case.til"), til_bin))
 
     // === CLI tests ===
