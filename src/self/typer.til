@@ -222,6 +222,91 @@ priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) retur
     return -1.to_i32()
 }
 
+// Read-only mirror of mark_pattern_coverage: true iff every value the
+// pattern could match has already been captured by an earlier (unguarded)
+// arm in this switch -- i.e. the arm carrying this pattern is dead.
+// Patterns the trie doesn't statically describe (value literals, struct
+// patterns, non-enum subjects) return false so a more permissive checker
+// or guard-protected arm doesn't get a false positive.
+priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expected_type_name: Str, pattern: Expr) returns shallow Bool {
+    if expected_type_name.len().eq(0) { return false }
+    ref enum_def : Expr = scope.get_struct(expected_type_name)
+    if is_null(enum_def) { return false }
+    if enum_def.node_type.is(NodeType.EnumDef).not() { return false }
+
+    if pattern.node_type.is(NodeType.FieldAccess) {
+        if pattern.children.len().gt(0) {
+            if pattern.child(0).node_type.is(NodeType.Ident) {
+                mut type_name := ""
+                mut variant_name := ""
+                switch pattern.child(0).node_type {
+                case NodeType.Ident(tn): type_name = tn.clone()
+                case:
+                }
+                switch pattern.node_type {
+                case NodeType.FieldAccess(vn): variant_name = vn.clone()
+                case:
+                }
+                if type_name.eq(expected_type_name) {
+                    idx := coverage_sub_index(coverage, variant_name)
+                    if idx.gte(0.to_i32()) {
+                        ref sub : CoverageNode = coverage.sub_nodes.get(idx.to_u32())
+                        return sub.fully_covered
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    if pattern.node_type.is(NodeType.FCall) {
+        if pattern.children.len().eq(2) {
+            ref callee : Expr = pattern.child(0)
+            if callee.node_type.is(NodeType.FieldAccess) {
+                if callee.children.len().gt(0) {
+                    if callee.child(0).node_type.is(NodeType.Ident) {
+                        mut type_name2 := ""
+                        mut variant_name2 := ""
+                        switch callee.child(0).node_type {
+                        case NodeType.Ident(tn2): type_name2 = tn2.clone()
+                        case:
+                        }
+                        switch callee.node_type {
+                        case NodeType.FieldAccess(vn2): variant_name2 = vn2.clone()
+                        case:
+                        }
+                        if type_name2.eq(expected_type_name) {
+                            idx2 := coverage_sub_index(coverage, variant_name2)
+                            if idx2.gte(0.to_i32()) {
+                                ref sub2 : CoverageNode = coverage.sub_nodes.get(idx2.to_u32())
+                                if sub2.fully_covered { return true }
+                                ref inner_pat : Expr = pattern.child(1)
+                                if inner_pat.node_type.is(NodeType.Ident) {
+                                    return false
+                                }
+                                vt_tag := enum_variant_tag(enum_def, variant_name2)
+                                if vt_tag.gte(0.to_i32()) {
+                                    inner_type_name := enum_variant_type(enum_def, vt_tag)
+                                    if inner_type_name.len().gt(0) {
+                                        ref inner_def : Expr = scope.get_struct(inner_type_name)
+                                        if is_null(inner_def).not().and(inner_def.node_type.is(NodeType.EnumDef)) {
+                                            if sub2.sub_names.len().gt(0) {
+                                                return is_pattern_covered(scope, sub2, inner_type_name, inner_pat)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false
+    }
+    return false
+}
+
 // Walk a case pattern against the (expected) enum type and update the
 // coverage trie. Returns silently for patterns that don't statically
 // describe a variant of `expected_type_name` (e.g. ~case 42:~, or a
@@ -3586,12 +3671,21 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         block.add_child(own matched_decl)
     }
 
+    // Dead-arm detection: any case after a default arm is unreachable
+    // (the default absorbs everything earlier cases didn't match). Tracked
+    // here as a flag rather than re-scanning the case vec per case.
+    mut saw_default := false
+
     for ci in 1..stmt.children.len() {
         ref case_node : Expr = stmt.child(ci)
         if case_node.children.len().eq(1) {
+            if saw_default {
+                type_error(case_node, "unreachable default arm; an earlier `case:` already covers everything")
+            }
             default_body = case_node.child(0).clone()
             has_default_body = true
             has_default_case = true
+            saw_default = true
             continue
         }
         mut has_guard := false
@@ -3602,6 +3696,13 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         }
         ref mut match_expr : Expr = case_node.child(0)
         ref mut case_body : Expr = case_node.child(body_idx)
+        if saw_default {
+            type_error(case_node, "unreachable case; an earlier `case:` default already covers everything")
+        } else if has_switch_enum_def.and(has_guard.not()) {
+            if is_pattern_covered(scope, coverage, sw_expr_sname, match_expr) {
+                type_error(case_node, "unreachable case; the variant is already fully covered by an earlier arm")
+            }
+        }
         // Guards may fail at runtime, so they don't mark the pattern as
         // covered for exhaustiveness.
         if has_switch_enum_def.and(has_guard.not()) {

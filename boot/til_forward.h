@@ -1102,6 +1102,7 @@ void CoverageNode_delete(CoverageNode * self, Bool * call_free);
 U32 CoverageNode_size(void);
 void init_coverage_for_enum(CoverageNode * node, Expr * enum_def);
 I32 coverage_sub_index(CoverageNode * coverage, Str * variant_name);
+Bool is_pattern_covered(TypeScope * scope, CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
 void mark_pattern_coverage(TypeScope * scope, CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
 void collect_missing_paths(TypeScope * scope, CoverageNode * coverage, Expr * enum_def, Str * prefix, Vec * out);
 void type_error(Expr * e, Str * msg);

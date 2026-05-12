@@ -419,3 +419,38 @@ reach_outside_mangled := func() returns I64 {
     return h.x
 }
 reach_outside_mangled()
+
+// dead arm: duplicate bare variant -- second arm unreachable.
+TerrDeadColor := enum { Red, Green, Blue }
+terr_dead_color := TerrDeadColor.Red
+switch terr_dead_color {
+case TerrDeadColor.Red: println("red")
+case TerrDeadColor.Red: println("red-dup")
+case TerrDeadColor.Green: println("green")
+case TerrDeadColor.Blue: println("blue")
+}
+
+// dead arm: a binding case fully covers the variant, so a later more
+// specific arm on the same variant is unreachable.
+TerrDeadTok := enum { Num: I64, Name: Str, Eof }
+terr_dead_tok := TerrDeadTok.Num(1)
+switch terr_dead_tok {
+case TerrDeadTok.Num(n): println(n.to_str())
+case TerrDeadTok.Num(_z): println("dup")
+case TerrDeadTok.Name(_s): println("name")
+case TerrDeadTok.Eof: println("eof")
+}
+
+// dead arm: anything after a default arm is unreachable.
+switch terr_dead_color {
+case TerrDeadColor.Red: println("red")
+case: println("other")
+case TerrDeadColor.Blue: println("blue")
+}
+
+// dead arm: two `case:` defaults in the same switch -- second is dead.
+switch terr_dead_color {
+case TerrDeadColor.Red: println("red")
+case: println("other")
+case: println("dup-default")
+}
