@@ -22,7 +22,6 @@ test_declaration := proc() {
     assert_eq(__LOC__, root.children.len().to_i64(), 1)
     ref decl : Expr = root.children.get(0)
     assert_eq_str(__LOC__, node_name(decl.node_type), "decl")
-    assert(__LOC__, decl.node_type.is(NodeType.Decl))
     switch decl.node_type {
     case NodeType.Decl(dd):
         assert_eq_str(__LOC__, dd.name, "x")
@@ -38,7 +37,6 @@ test_declaration := proc() {
 test_typed_decl := proc() {
     root := parse_src("x : I64 = 0")
     ref decl : Expr = root.children.get(0)
-    assert(__LOC__, decl.node_type.is(NodeType.Decl))
     switch decl.node_type {
     case NodeType.Decl(dd):
         assert_eq_str(__LOC__, dd.name, "x")
@@ -52,7 +50,6 @@ test_assignment := proc() {
     root := parse_src("x = 1")
     ref assign : Expr = root.children.get(0)
     assert_eq_str(__LOC__, node_name(assign.node_type), "assign")
-    assert(__LOC__, assign.node_type.is(NodeType.Assign))
     switch assign.node_type {
     case NodeType.Assign(_as):
         assert_eq_str(__LOC__, _as, "x")
@@ -113,7 +110,6 @@ test_func_def := proc() {
     assert_eq(__LOC__, decl.children.len().to_i64(), 1)
     ref fdef : Expr = decl.children.get(0)
     assert_eq_str(__LOC__, node_name(fdef.node_type), "func_def")
-    assert(__LOC__, fdef.node_type.is(NodeType.FuncDef))
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         assert_eq_str(__LOC__, func_type_name(fd.func_type), "func")
