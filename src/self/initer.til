@@ -1,7 +1,6 @@
 mode lib
 
 import("parser")
-import("lifter")
 
 TypeBinding := struct {
     mut name := ""
@@ -2265,6 +2264,233 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     return errors
 }
 
+// Issue #93: lift nested struct/enum/func definitions out of function
+// bodies up to the program top level.
+//
+// Folded into init_declarations_unit's existing single AST walk: when
+// that walk visits a top-level FuncDef-with-body, it calls
+// init_lift_in_body on the body. Inner Decls whose RHS is StructDef,
+// EnumDef, or FuncDef-with-body are mangled to `<parent>_<orig>`,
+// appended to program.children, and replaced in the original body slot
+// with an empty inner Body (no-op `{}` in C). References to the
+// original name within the parent body (Ident, FieldAccess base,
+// FCall callee, Decl explicit_type, FuncDef return_type and param
+// types, struct field types, enum variant payload types) are
+// rewritten in-place through a single recursive walk in
+// init_rewrite_refs.
+//
+// The main init walk's while loop re-checks program.children.len()
+// each iteration, so the lifted decls get registered by the same walk
+// in subsequent iterations -- one walk does both jobs.
+//
+// ext_func / ext_proc forward declarations stay in place (they refer
+// to externally-linked C symbols).
+
+priv init_is_lift_target := func(stmt: Expr) returns shallow Bool {
+    if stmt.node_type.is(NodeType.Decl).not() { return false }
+    if stmt.children.len().eq(0) { return false }
+    ref rhs : Expr = stmt.child(0)
+    if rhs.node_type.is(NodeType.StructDef) { return true }
+    if rhs.node_type.is(NodeType.EnumDef) { return true }
+    if rhs.node_type.is(NodeType.FuncDef) {
+        if rhs.children.len().eq(0) { return false }
+        switch rhs.node_type {
+        case NodeType.FuncDef(rhs_fd):
+            if rhs_fd.func_type.is(FuncType.ExtFunc) { return false }
+            if rhs_fd.func_type.is(FuncType.ExtProc) { return false }
+            return true
+        case:
+            return false
+        }
+    }
+    return false
+}
+
+priv init_lookup_name := func(renamings: Map, name: Str) returns Str {
+    if name.len().eq(0) { return "" }
+    if renamings.has(name).not() { return "" }
+    ref s : Str = renamings.get(name)
+    return s.clone()
+}
+
+priv init_rename_ident_in_place := func(mut e: Expr, renamings: Map) {
+    switch e.node_type {
+    case NodeType.Ident(name):
+        new_name := init_lookup_name(renamings, name)
+        if new_name.len().gt(0) {
+            e.node_type = NodeType.Ident(new_name.clone())
+        }
+    case:
+    }
+}
+
+priv init_rename_decl_in_place := func(mut dd: Declaration, renamings: Map) {
+    if dd.explicit_type.len().eq(0) { return }
+    new_t := init_lookup_name(renamings, dd.explicit_type)
+    if new_t.len().gt(0) {
+        dd.explicit_type = new_t
+    }
+}
+
+priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
+    if is_null(e) { return }
+    init_rename_ident_in_place(e, renamings)
+    switch e.node_type {
+    case NodeType.Decl(dd):
+        init_rename_decl_in_place(dd, renamings)
+    case NodeType.FuncDef(fd):
+        if fd.return_type.len().gt(0) {
+            new_rt := init_lookup_name(renamings, fd.return_type)
+            if new_rt.len().gt(0) {
+                fd.return_type = new_rt
+            }
+        }
+        for mut pd : Declaration in fd.params {
+            init_rename_decl_in_place(pd, renamings)
+            if is_null(pd.default_value).not() {
+                init_rewrite_refs(pd.default_value, renamings)
+            }
+        }
+    case NodeType.StructDef(sdd):
+        for mut sf : Declaration in sdd.fields {
+            init_rename_decl_in_place(sf, renamings)
+            if is_null(sf.default_value).not() {
+                init_rewrite_refs(sf.default_value, renamings)
+            }
+        }
+        for mut nd : Declaration in sdd.ns_decls {
+            init_rename_decl_in_place(nd, renamings)
+            if is_null(nd.default_value).not() {
+                init_rewrite_refs(nd.default_value, renamings)
+            }
+        }
+    case NodeType.EnumDef(edd):
+        for vi in 0..edd.variants.len() {
+            vidx := vi.to_i64()
+            if edd.payload_types.has(vidx).not() { continue }
+            ref pt_old : Str = edd.payload_types.get(vidx)
+            new_pt := init_lookup_name(renamings, pt_old)
+            if new_pt.len().gt(0) {
+                edd.payload_types.set(own vidx.clone(), own new_pt.clone())
+            }
+        }
+        for mut nd : Declaration in edd.ns_decls {
+            init_rename_decl_in_place(nd, renamings)
+            if is_null(nd.default_value).not() {
+                init_rewrite_refs(nd.default_value, renamings)
+            }
+        }
+    case:
+    }
+    for i in 0..e.children.len() {
+        ref mut c : Expr = e.child(i)
+        init_rewrite_refs(c, renamings)
+    }
+}
+
+priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec) {
+    if is_null(body) { return }
+    if body.node_type.is(NodeType.Body).not() { return }
+
+    mut renamings := Map.new(Str, Str)
+    mut lifted_indices := Vec.new(USize)
+
+    for i in 0..body.children.len() {
+        ref child : Expr = body.child(i)
+        if init_is_lift_target(child).not() { continue }
+        switch child.node_type {
+        case NodeType.Decl(child_dd):
+            mangled := parent_prefix.concat("_").concat(child_dd.name)
+            renamings.set(own child_dd.name.clone(), own mangled.clone())
+            child_dd.orig_name = child_dd.name.clone()
+            child_dd.name = mangled.clone()
+            child_dd.is_priv = true
+            mut idx := i
+            lifted_indices.push(own idx)
+        case:
+        }
+    }
+
+    if renamings.len().gt(0) {
+        for i in 0..body.children.len() {
+            ref mut c : Expr = body.child(i)
+            init_rewrite_refs(c, renamings)
+        }
+    }
+
+    for idx : USize in lifted_indices {
+        ref mut slot : Expr = body.child(idx)
+        switch slot.node_type {
+        case NodeType.Decl(slot_dd):
+            ref mut slot_rhs : Expr = slot.child(0)
+            if slot_rhs.node_type.is(NodeType.FuncDef) {
+                if slot_rhs.children.len().gt(0) {
+                    ref mut fbody : Expr = slot_rhs.child(0)
+                    init_lift_in_body(fbody, slot_dd.name.clone(), top_level)
+                }
+            } else if slot_rhs.node_type.is(NodeType.StructDef).or(slot_rhs.node_type.is(NodeType.EnumDef)) {
+                init_lift_in_ns_decls(slot_rhs, slot_dd.name.clone(), top_level)
+            }
+            top_level.push(own slot.clone())
+        case:
+            UNREACHABLE(__LOC__)
+        }
+        mut empty_body := Expr.new(NodeType.Body, slot.line, slot.col)
+        body.children.set(idx, own empty_body)
+    }
+
+    init_recurse_into_subbodies(body, parent_prefix, top_level)
+}
+
+priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_level: Vec) {
+    if is_null(def) { return }
+    switch def.node_type {
+    case NodeType.StructDef(ld_sdd):
+        for mut nd : Declaration in ld_sdd.ns_decls {
+            if is_null(nd.default_value) { continue }
+            if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+            if nd.default_value.children.len().eq(0) { continue }
+            ref mut nbody : Expr = nd.default_value.child(0)
+            init_lift_in_body(nbody, parent_prefix.clone(), top_level)
+        }
+    case NodeType.EnumDef(ld_edd):
+        for mut nd : Declaration in ld_edd.ns_decls {
+            if is_null(nd.default_value) { continue }
+            if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+            if nd.default_value.children.len().eq(0) { continue }
+            ref mut nbody : Expr = nd.default_value.child(0)
+            init_lift_in_body(nbody, parent_prefix.clone(), top_level)
+        }
+    case:
+    }
+}
+
+priv init_recurse_into_subbodies := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec) {
+    for i in 0..body.children.len() {
+        ref mut c : Expr = body.child(i)
+        init_recurse_into_expr(c, parent_prefix, top_level)
+    }
+}
+
+priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_level: Vec) {
+    if is_null(e) { return }
+    if e.node_type.is(NodeType.Body) {
+        init_lift_in_body(e, parent_prefix, top_level)
+        return
+    }
+    if e.node_type.is(NodeType.FuncDef) {
+        if e.children.len().gt(0) {
+            ref mut fbody : Expr = e.child(0)
+            init_lift_in_body(fbody, parent_prefix, top_level)
+        }
+        return
+    }
+    for i in 0..e.children.len() {
+        ref mut c : Expr = e.child(i)
+        init_recurse_into_expr(c, parent_prefix, top_level)
+    }
+}
+
 // rstil-style unit initializer: index declarations for one file, but do not
 // run global layout/method generation that must see the whole program.
 init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
@@ -2280,6 +2506,52 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
     alias_idxs := Vec.new(U32)
     func_idxs := Vec.new(U32)
     value_idxs := Vec.new(U32)
+    // Issue #93: nested struct/enum/func definitions inside a FuncDef
+    // body are lifted to the program top level (with names mangled
+    // `<parent>_<orig>`) inline during this walk. The lifted decls are
+    // appended to program.children; the while loop re-checks
+    // program.children.len() each iteration so they get registered by
+    // the same walk without an extra pass.
+    // Issue #93: nested struct/enum/func definitions inside a FuncDef
+    // body are lifted to the program top level (with names mangled
+    // `<parent>_<orig>`) inline during this walk. The lifted decls are
+    // appended to program.children; the while loop re-checks
+    // program.children.len() each iteration so they get registered by
+    // the same walk without an extra pass.
+    // Issue #93: nested struct/enum/func definitions inside a FuncDef
+    // body are lifted to the program top level (with names mangled
+    // `<parent>_<orig>`) before the registration walk. Lifted decls
+    // are appended to program.children; the same walk below registers
+    // them along with the original top-level decls. Splitting the
+    // lift from the walk avoids mutating program.children while we
+    // hold refs into it (which previously corrupted memory).
+    mut nested_lifted := Vec.new(Expr)
+    for li in 0..program.children.len() {
+        ref lstmt : Expr = program.child(li)
+        if lstmt.node_type.is(NodeType.Decl).not() { continue }
+        if lstmt.children.len().eq(0) { continue }
+        ref lrhs : Expr = lstmt.child(0)
+        if lrhs.node_type.is(NodeType.FuncDef).not() { continue }
+        if lrhs.children.len().eq(0) { continue }
+        switch lrhs.node_type {
+        case NodeType.FuncDef(lift_fd):
+            if lift_fd.func_type.is(FuncType.ExtFunc) { continue }
+            if lift_fd.func_type.is(FuncType.ExtProc) { continue }
+        case:
+            continue
+        }
+        switch lstmt.node_type {
+        case NodeType.Decl(lift_dd):
+            ref mut lbody : Expr = lrhs.child(0)
+            init_lift_in_body(lbody, lift_dd.name.clone(), nested_lifted)
+        case:
+            UNREACHABLE(__LOC__)
+        }
+    }
+    for l : Expr in nested_lifted {
+        program.children.push(own l.clone())
+    }
+
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -2422,12 +2694,6 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
     ctx.imports_init_done.add(own path.clone())
 
     ref iu : ImportUnit = ctx.imported.get(path)
-
-    // Issue #93: hoist nested struct/enum/func defs from function
-    // bodies to the top level (with mangled names like `<parent>_<orig>`).
-    // Runs once per file before any registration so the rest of the
-    // pipeline only sees flat top-level decls.
-    lift_nested_defs(iu.ast)
 
     // Walk the AST in source order and recurse on each ~import("...")~ FCall.
     // iu.imports is kept as a side table that maps the i-th import FCall to
