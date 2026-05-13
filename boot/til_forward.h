@@ -1201,8 +1201,6 @@ void attach_switch_default_body(Expr * root_if, Expr * default_body);
 void validate_struct_pattern_rest(TypeScope * scope, Expr * pattern);
 void infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 void replace_body_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
-Expr * make_field_access_call0(Expr * base, Str * field, U32 line, U32 col);
-Expr * make_field_access_call1(Expr * base, Str * field, Expr * arg, U32 line, U32 col);
 Expr * make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * elem_type, Bool var_is_mut);
 Bool desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Bool desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
