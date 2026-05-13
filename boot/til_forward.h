@@ -1094,6 +1094,7 @@ OwnType fa_own_type(Expr * e, TypeScope * scope);
 LocalInfo * LocalInfo_clone(LocalInfo * self);
 void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U32 LocalInfo_size(void);
+void free_expr_slot_in_place(Expr * e);
 CtorArg * CtorArg_Unfilled(void);
 CtorArg * CtorArg_Filled(Expr * val);
 Bool CtorArg_is(CtorArg * self, CtorArg * other);

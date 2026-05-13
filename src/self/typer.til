@@ -195,6 +195,15 @@ priv LocalInfo := struct {
     mut is_heap := false
 }
 
+// Free the heap allocations inside an Expr that lives inline in a Vec
+// buffer. Used before children.set(...) replaces a slot so the prior Expr
+// payload does not leak.
+priv free_expr_slot_in_place := func(mut e: Expr) {
+    NodeType.delete(own e.node_type, false)
+    Type.delete(own e.til_type, false)
+    Vec.delete(own e.children, false)
+}
+
 priv CtorArg := enum {
     Unfilled,
     Filled: Expr,
@@ -585,8 +594,8 @@ try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
     }
     if ufcs_match.eq(0) { return false }
     mut fn_ident := Expr.new(NodeType.Ident(method.clone()), fa.line, fa.col)
-    e.children.set(0, own fn_ident)
     mut instance := obj
+    e.children.set(0, own fn_ident)
     mut new_children := Vec.new(Expr)
     new_children.push(own e.child(0).clone())
     new_children.push(own instance.clone())
@@ -1064,9 +1073,9 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
         }
         mut va_args := Vec.new(Expr)
         mut kw_args := Vec.new(Expr)
-        mut new_args := Vec.new(CtorArg)
+        mut new_args := Vec.new(Expr)
         for _ in 0..nparam {
-            new_args.push(own CtorArg.Unfilled())
+            new_args.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
         }
         mut pos_idx : U32 = 0
         mut seen_named := false
@@ -1092,11 +1101,12 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
                         type_error(arg, format("'", name, "' has no parameter '", aname, "'"))
                     }
                 } else {
-                    ref slot_arg : CtorArg = new_args.get(slot.to_u32())
-                    if slot_arg.is(CtorArg.Filled) {
+                    ref slot_arg : Expr = new_args.get(slot.to_u32())
+                    if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
                         type_error(arg, format("duplicate argument for parameter '", aname, "'"))
                     } else {
-                        new_args.set(slot.to_u32(), own CtorArg.Filled(arg.child(0).clone()))
+                        free_expr_slot_in_place(new_args.get(slot.to_u32()))
+                        new_args.set(slot.to_u32(), own arg.child(0).clone())
                     }
                 }
             case:
@@ -1107,10 +1117,12 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
                     if pos_idx.gte(fixed_count) {
                         va_args.push(own arg.clone())
                     } else if pos_idx.lt(nparam) {
-                        new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
+                        free_expr_slot_in_place(new_args.get(pos_idx))
+                        new_args.set(pos_idx, own arg.clone())
                     }
                 } else if pos_idx.lt(nparam) {
-                    new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
+                    free_expr_slot_in_place(new_args.get(pos_idx))
+                    new_args.set(pos_idx, own arg.clone())
                 }
                 pos_idx = pos_idx.add(1)
             }
@@ -1118,11 +1130,12 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
         for i in 0..nparam {
             if i.to_i32().eq(vi) { continue }
             if i.to_i32().eq(kwi) { continue }
-            ref slot_arg : CtorArg = new_args.get(i)
-            if slot_arg.is(CtorArg.Filled).not() {
+            ref slot_arg : Expr = new_args.get(i)
+            if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                 ref param : Declaration = fdef_data.params.get(i)
                 if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
-                    new_args.set(i, own CtorArg.Filled(param.default_value.clone()))
+                    free_expr_slot_in_place(new_args.get(i))
+                    new_args.set(i, own param.default_value.clone())
                 } else {
                     type_error(e, format("missing argument for parameter '", param.name, "'"))
                 }
@@ -1164,12 +1177,11 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
                     UNREACHABLE(__LOC__)
                 }
             } else {
-                ref slot_arg : CtorArg = new_args.get(i)
-                switch slot_arg {
-                case CtorArg.Filled(filled_arg):
-                    new_ch.push(own filled_arg.clone())
-                case:
+                ref slot_arg : Expr = new_args.get(i)
+                if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                     UNREACHABLE(__LOC__)
+                } else {
+                    new_ch.push_take(new_args, i)
                 }
             }
         }
@@ -1303,11 +1315,11 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                                     if vk_arg.til_type.is(vptype).not() {
                                         if vk_arg.til_type.is(Type.Dynamic).not().and(vk_arg.til_type.is(Type.Unknown).not()) {
                                             arg_tname := type_to_name(vk_arg.til_type)
-                                            if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
-                                                if type_has_to_str(scope, arg_tname) {
-                                                    e.children.set(ci.add(vk), own make_to_str_call(arg_tname, vk_arg))
-                                                    continue
-                                                }
+                                                if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
+                                                    if type_has_to_str(scope, arg_tname) {
+                                                        e.children.set(ci.add(vk), own make_to_str_call(arg_tname, vk_arg))
+                                                        continue
+                                                    }
                                             }
                                         }
                                     }
@@ -2582,13 +2594,13 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                     if b.own_type.is(OwnType.Ref).and(b.is_alias.not()).and(b.is_param.not()) {
                         type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'")
                     }
-                    if b.own_type.is(OwnType.Ref).and(b.is_alias).or(b.is_param.and(b.own_type.is(OwnType.Own).not())) {
-                        tname := type_to_name(stmt.til_type)
-                        if tname.len().gt(0) {
-                            mc := make_clone_call(tname, stmt.til_type, stmt.child(0), stmt)
-                            stmt.children.set(0, own mc)
+                        if b.own_type.is(OwnType.Ref).and(b.is_alias).or(b.is_param.and(b.own_type.is(OwnType.Own).not())) {
+                            tname := type_to_name(stmt.til_type)
+                            if tname.len().gt(0) {
+                                mc := make_clone_call(tname, stmt.til_type, stmt.child(0), stmt)
+                                stmt.children.set(0, own mc)
+                            }
                         }
-                    }
                 case:
                 }
             case:
@@ -3604,7 +3616,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
 }
 
 replace_switch_stmt_with_block := func(mut body: Expr, shallow stmt_idx: U32, mut block: Expr) {
-    body.children.set(stmt_idx, own block.clone())
+    free_expr_slot_in_place(body.children.get(stmt_idx))
+    move(body.children.get(stmt_idx), block, Expr.size())
 }
 
 append_switch_else_if := proc(mut root_if: Expr, if_node: Expr) {
@@ -3890,7 +3903,8 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
 }
 
 replace_body_stmt_with_block := func(mut body: Expr, shallow stmt_idx: U32, mut block: Expr) {
-    body.children.set(stmt_idx, own block.clone())
+    free_expr_slot_in_place(body.children.get(stmt_idx))
+    move(body.children.get(stmt_idx), block, Expr.size())
 }
 
 make_field_access_call0 := func(base: Expr, field: Str, shallow line: U32, shallow col: U32) returns Expr {
@@ -8254,6 +8268,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
                             if _clone_arg_name.eq(local.name) {
                                 mut _bare := Expr.new(NodeType.Ident(local.name.clone()), _fa_rhs.line, _fa_rhs.col)
                                 _bare.til_type = local.type.clone()
+                                free_expr_slot_in_place(stmt.children.get(1))
                                 stmt.children.set(1, own _bare)
                                 free_call := make_free_call(local.name, local.type, stmt)
                                 if is_null(free_call).not() {
