@@ -26,7 +26,7 @@
   -- and is tracked by [[./164.org][#164]] (warn/error on ~mut~ qualifiers that
   are never used to write).
 
-  Regression tests added in [[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] for both
+  Regression tests added in [[file:../../test/typer_errors.til][test/typer_errors.til]] for both
   laundering cases (immutable ref local and non-mut param). Count
   in ~src/tests.til~ bumped from 59 to 61.
 

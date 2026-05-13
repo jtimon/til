@@ -66,12 +66,12 @@ Add a ~til test myfile.til~ command that finds all test() functions in
       filter; ~discover_test_names~ + ~cmd_test_compile~ helpers in
       ~src/self/builder.til~ for the parent driver.
   - Regression coverage:
-    - ~src/test/test_in_namespace.til~ -- a ~mode test~ file with
+    - ~test/test_in_namespace.til~ -- a ~mode test~ file with
       ~test()~ decls inside both a struct and an enum namespace, plus a
       top-level test, registered via ~add_mode~ in ~src/tests.til~ so
       the harness runs it interpreted and compiled.
     - ~til_test_cmd~ ~add_single~ entry runs ~bin/til test
-      src/test/test_in_namespace.til~ end-to-end and asserts that
+      test/test_in_namespace.til~ end-to-end and asserts that
       ~tests passed~ appears twice in the output (once per backend).
 
   Follow-up filed as #195 (consider whether ~mode test~ is still

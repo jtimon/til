@@ -82,7 +82,7 @@
     ~infer_return_stmt~ when ~returns_ref != 0~ and the return
     expression is an FCall returning own.
 
-  Tests: regression cases in [[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] for
+  Tests: regression cases in [[file:../../test/typer_errors.til][test/typer_errors.til]] for
   every shape; ~typer_errors~ count went from 71 to 88. 96/96
   pass.
 

@@ -74,7 +74,7 @@ default case.
 * Current tests to extend
 
 Main reference file:
-- ~src/test/enums.til~
+- ~test/enums.til~
 
 Good follow-up coverage:
 - ~is~ on no-payload enums

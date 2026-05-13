@@ -27,7 +27,7 @@ can each declare a local `Point := struct {...}` without colliding.
 refer to externally-linked C symbols and the existing local-extern
 pattern in src/core/u64.til and src/core/f32.til keeps working.
 
-Coverage: src/test/local_defs.til exercises local struct, enum,
+Coverage: test/local_defs.til exercises local struct, enum,
 payload-enum, func, struct-then-func, inside-a-bare-block, same-name
 across functions, and field-name-equals-local in both interpret and
 compile modes (8 tests, both backends).

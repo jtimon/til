@@ -28,6 +28,6 @@
     alias workarounds in ~compute_struct_layout~ and
     ~resolve_field_struct_defs~ to ~for mut fd : Declaration in ...~.
 
-  Tests in [[file:../../src/test/loops.til][src/test/loops.til]]: ~test_for_in_mut_collection~,
+  Tests in [[file:../../test/loops.til][test/loops.til]]: ~test_for_in_mut_collection~,
   ~test_for_in_mut_range~.
 

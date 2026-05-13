@@ -14,7 +14,7 @@
     - ~Str *~
     - ~ffi_type *~
     - similar pointer/ref-like scratch payloads
-  - added focused coverage in [[file:../../src/test/vecs.til][src/test/vecs.til]]
+  - added focused coverage in [[file:../../test/vecs.til][test/vecs.til]]
 
   Result:
   - pointer/ref container storage is no longer the ambiguous empty-type

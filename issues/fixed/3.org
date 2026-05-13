@@ -26,6 +26,6 @@
     own fields, emit_as_ptr skips & for own fields, field assign emits
     pointer assign.
   - Interpreter: no changes needed (all struct instances are heap Values).
-  - Tests: src/test/own_fields.til (access, defaults, clone, nested assign,
+  - Tests: test/own_fields.til (access, defaults, clone, nested assign,
     replace, clone independence).
 

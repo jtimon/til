@@ -24,7 +24,7 @@
   - ~apply(func(I64) returns I64 = (x) { return x.mul(2) }, 5)~
   - ~f : BinaryOp = func(I64, I64) returns I64 = (a, b) { return a.sub(b) }~
 
-  Tests: src/test/first_class.til (13 tests, both interpret and run).
+  Tests: test/first_class.til (13 tests, both interpret and run).
 
   No captures -- pure lambdas only. Closures (captures) are #54.
   Storing function pointers in collections is tracked under #58.

@@ -45,7 +45,7 @@
   - 96/96 tests still pass -- verified.
   - ASAN baseline does not regress -- verified
     (slightly improved: -953 bytes, -175 allocations on
-    ~translate src/test/strings.til~).
+    ~translate test/strings.til~).
   - Documented pattern for adding the next table -- inline comments
     in ~Context~ field declarations.
 

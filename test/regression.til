@@ -63,9 +63,9 @@ bug150 := test() {
 }
 
 // Tests for #185 (ref-Dynamic narrowed into typed-primitive call sites)
-// live in src/test/dynamic.til as bug185_bool_dyn_arg_chain and
+// live in test/dynamic.til as bug185_bool_dyn_arg_chain and
 // bug185_u8_dyn_arg -- the test relies on dynamic.til's vec/Dynamic
 // shapes. Tests for #186 (nested variadic-in-variadic) live in
-// src/test/variadic.til as bug186_variadic_nested_in_variadic.
+// test/variadic.til as bug186_variadic_nested_in_variadic.
 // Tests for #188 (nested kwargs-in-kwargs) live in
-// src/test/kwargs.til as bug188_kwargs_nested_in_kwargs.
+// test/kwargs.til as bug188_kwargs_nested_in_kwargs.

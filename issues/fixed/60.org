@@ -7,5 +7,5 @@
   enum variant declarations, struct constructors, method call args, map/set
   literals, FuncSig type params.
 
-  Regression test: src/test/trailing.til
+  Regression test: test/trailing.til
 

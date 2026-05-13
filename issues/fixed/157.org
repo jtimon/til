@@ -53,7 +53,7 @@
     ~init_declarations_global~ -> ~normalize_scope_bindings~ ->
     ~type_file~) so the REPL's typed AST stays in sync with what
     ~til interpret~ sees.
-  - On-demand smoke test: [[file:../../src/test/repl_help.til][src/test/repl_help.til]] (a TIL ~mode cli~
+  - On-demand smoke test: [[file:../../test/repl_help.til][test/repl_help.til]] (a TIL ~mode cli~
     script) pipes ~help("println")~ into ~bin/til~, captures the
     output, and asserts the expected core doc text appears. Wired
     via the ~make test_repl_help~ Makefile target -- NOT into
@@ -112,7 +112,7 @@
   into ~make test~ -- a full doc gen on ~src/til.til~ runs the
   init+typer pipeline end-to-end and adds ~1 minute of wall time,
   which would dominate the test suite. The first version of this
-  fix DID wire a ~doc_cmd~ smoke test through ~src/test/doc_cmd.sh~
+  fix DID wire a ~doc_cmd~ smoke test through ~test/doc_cmd.sh~
   but it pushed totals.csv up by ~60 s, so it was pulled out and
   replaced with the ~doc~ Makefile target. Refresh ~doc/gen/~
   alongside notable doc-affecting changes; the ~.gitignore~

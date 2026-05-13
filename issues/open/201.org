@@ -22,12 +22,12 @@
      callers handle it. The error type ~IndexOutOfBoundsError~
      should carry a ~msg: Str~ with the formatted
      ~"file:line:col:Array.get: index out of bounds"~ shape that
-     ~src/test/errors.til~'s rstil twin expects.
+     ~test/errors.til~'s rstil twin expects.
    - Optional: ~Str.parse_i64~ throwing ~ParseError~ for the
      fallible-parse pattern.
 
    For each new built-in error type, add a corresponding regression
-   in ~src/test/errors.til~ that exercises a successful return and
+   in ~test/errors.til~ that exercises a successful return and
    a catch on the throw path.
 
    *** Things to check while adding these

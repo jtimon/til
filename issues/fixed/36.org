@@ -25,7 +25,7 @@ under this issue. Five distinct changes shipped:
 
   Tests: ~test_nested_payload_*~, ~test_nested_bare_inner~,
   ~test_nested_outer_b~, ~test_nested_triple~,
-  ~test_nested_triple_fallthrough~ in ~src/test/enums.til~.
+  ~test_nested_triple_fallthrough~ in ~test/enums.til~.
 
 *** Deep exhaustiveness (was [[./200.org][#200]])
 
@@ -45,7 +45,7 @@ under this issue. Five distinct changes shipped:
   check -- ~case OuterE.WrapperB(0):~ alone does not cover WrapperB.
 
   Test: ~test_missing_nested_inner~ in
-  ~src/test/enum_switch_missing_case.til~.
+  ~test/enum_switch_missing_case.til~.
 
 *** Struct field matching (with `..` rest-pattern)
 
@@ -86,8 +86,8 @@ under this issue. Five distinct changes shipped:
   Tests: ~test_struct_field_literal~, ~test_struct_field_origin~,
   ~test_struct_field_bind_only~, ~test_enum_payload_then_struct_pattern~,
   ~test_enum_with_struct_pattern~, ~test_enum_with_struct_pattern_fallthrough~,
-  ~test_rest_partial~, ~test_rest_only~ in ~src/test/enums.til~;
-  a missing-field case in ~src/test/typer_errors.til~.
+  ~test_rest_partial~, ~test_rest_only~ in ~test/enums.til~;
+  a missing-field case in ~test/typer_errors.til~.
 
 *** Guard clauses (was [[./199.org][#199]])
 
@@ -126,7 +126,7 @@ under this issue. Five distinct changes shipped:
   are out of scope of this simple checker; a full Maranget pass
   would catch them.
 
-  Tests: four cases at the end of ~src/test/typer_errors.til~.
+  Tests: four cases at the end of ~test/typer_errors.til~.
 
 *** Notes
 

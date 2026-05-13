@@ -18,7 +18,7 @@
   - kwargs parameters now parse and lower as ~DynMap~, not ~Map~
   - ~desugar_kwargs_calls~ now builds ~DynMap.new()~ plus
     ~DynMap.set(key, type_name, type_size, value)~
-  - [[file:../../src/test/kwargs.til][src/test/kwargs.til]] and its test-harness entry were restored
+  - [[file:../../test/kwargs.til][test/kwargs.til]] and its test-harness entry were restored
 
   Result:
   - kwargs no longer depend on the old empty-~val_type~ raw-map escape

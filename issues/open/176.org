@@ -77,7 +77,7 @@ Symptom:
      callee-side cast helpers in ~src/self/builder.til~ bridge the two
      where users pass ~Str.c_str~ (~U8 *~) into libc functions.
 
-   Regression test ~src/test/ext_libc.til~ binds ~setenv~, ~getenv~,
+   Regression test ~test/ext_libc.til~ binds ~setenv~, ~getenv~,
    and ~unsetenv~ directly via ~ext_func~ and asserts the round-trip
    works. 117/117 tests pass with const emission turned on.
 

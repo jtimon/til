@@ -102,7 +102,7 @@ to avoid re-discovering the same things.
   cycle (~13s wall, ~300s CPU). This is tracked as issue #183.
 - *Source change*: any code change to ~.til~ files. Always requires
   ~make clean && make test~ + ASAN before committing.
-- File change to ~src/test/repl_help.sh~ or ~src/tests.til~ that only
+- File change to ~test/repl_help.til~ or ~src/tests.til~ that only
   adds/removes a test registration line: test-only, still requires
   make test but may skip ASAN if no core code changed.
 

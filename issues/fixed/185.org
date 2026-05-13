@@ -43,7 +43,7 @@
   re-narrows via another ~ref~ binding, both of which were
   unaffected.
 
-  Tests: two new regression tests in [[file:../../src/test/dynamic.til][src/test/dynamic.til]]:
+  Tests: two new regression tests in [[file:../../test/dynamic.til][test/dynamic.til]]:
   ~bug185_bool_dyn_arg_chain~ (UFCS receiver and positional arg into
   ~not~/~and~/~or~) and ~bug185_u8_dyn_arg~ (mixed typed/Dynamic args
   into a typed-primitive method ~y.add(x)~). Both fail to compile

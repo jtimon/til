@@ -37,8 +37,8 @@
   the (unreachable in practice) ~elem_type~-null edge case.
 
   Regression tests: ~bug189_sibling_variadic~ in
-  [[file:../../src/test/variadic.til][src/test/variadic.til]] (regular outer over two variadic
+  [[file:../../test/variadic.til][test/variadic.til]] (regular outer over two variadic
   siblings, plus mixed sibling + raw arg) and
-  ~bug189_sibling_kwargs~ in [[file:../../src/test/kwargs.til][src/test/kwargs.til]] (regular outer
+  ~bug189_sibling_kwargs~ in [[file:../../test/kwargs.til][test/kwargs.til]] (regular outer
   over two kwargs siblings). All 100 tests pass.
 

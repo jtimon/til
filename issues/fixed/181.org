@@ -1,6 +1,6 @@
 ** #181 Declared-type inference for literal expressions
    The exact regression the issue called for is in
-   [[file:../../src/test/types.til][src/test/types.til:73]] inside ~test_typed_literal_coercion~:
+   [[file:../../test/types.til][test/types.til:73]] inside ~test_typed_literal_coercion~:
 
    #+begin_src til
    half : F32 = 1 / 2

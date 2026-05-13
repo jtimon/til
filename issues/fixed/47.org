@@ -19,6 +19,6 @@
   - [[file:../../src/c/initer.c][src/c/initer.c]] — redeclaration checks for structs and enums
   - [[file:../../src/c/typer.c][src/c/typer.c]] — redeclaration check (defense in depth)
   - ~src/ctil.c~ — check init_declarations return value
-  - [[file:../../src/test/test_47.til][src/test/test_47.til]] — updated to test cross-namespace calls
+  - [[file:../../test/test_47.til][test/test_47.til]] — updated to test cross-namespace calls
     (without redeclaration)
 

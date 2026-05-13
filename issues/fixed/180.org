@@ -37,6 +37,6 @@
   or otherwise treated a Dynamic-wrapped Struct specially. Master
   + the fix passes all 99 tests, including a new
   ~test_dynamic_ref_keeps_ptr~ regression test in
-  [[file:../../src/test/dynamic.til][src/test/dynamic.til]] that exercises both the ref-decl path and
+  [[file:../../test/dynamic.til][test/dynamic.til]] that exercises both the ref-decl path and
   the subsequent ~ref Bool = x~ re-narrowing.
 

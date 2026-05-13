@@ -125,7 +125,7 @@ bin/tests: bin/til $(CORE) $(SELF) src/tests.til
 
 test: bin/til bin/test_runner bin/plot bin/tests
 	xvfb-run --auto-servernum bin/tests $(if $(J),-j$(J))
-	cp gen/til/constfold.c src/test/constfold.c
+	cp gen/til/constfold.c test/constfold.c
 
 # Two-pass equivalent of `make test`. Runs pass 2 first so bin/til reflects
 # the self-applied compiler before tests build dependents from it. Use this
@@ -167,9 +167,9 @@ tmp:
 # the expected core doc text appears. Run on demand because the REPL
 # spawns bin/til + a til interpret subprocess per turn, which dominates
 # `make test` wall time. The test driver itself is a TIL script
-# (mode cli) -- src/test/repl_help.til.
+# (mode cli) -- test/repl_help.til.
 test_repl_help: bin/til tmp
-	bin/til run src/test/repl_help.til
+	bin/til run test/repl_help.til
 
 # --- Windows cross-compilation ---
 

@@ -216,7 +216,7 @@ stack-owned for locals.
       (~auto_generated == false~) and DO mark their reads, so
       ~priv~ fields used only by a user-supplied clone are not
       misreported as unused (regression test in
-      ~src/test/priv.til:test_user_clone_marks_priv_used~).
+      ~test/priv.til:test_user_clone_marks_priv_used~).
 
 *** Parser-synthesised declarations
 

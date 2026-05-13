@@ -131,6 +131,6 @@
    | src/c/initer.c     | Str as regular struct, size() from fields          |
    | src/c/precomp.c    | Str as TIL_TYPE_STRUCT                            |
    | examples/ffi/greet.c | Updated to use til_Str                      |
-   | src/test/vecs.til  | Updated size expectations                         |
+   | test/vecs.til  | Updated size expectations                         |
    | tests.sh           | Added arrays.til to test list                     |
 

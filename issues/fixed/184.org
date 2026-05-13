@@ -51,7 +51,7 @@ Goal: remove the remaining bare ~get_payload(...)~ calls in the
     NodeType.Ident("get_payload") child, so the check passes.
 
     The three earlier ~test_get_payload*~ tests in
-    [[file:../../src/test/enums.til][src/test/enums.til]] were redundant: switch case bindings
+    [[file:../../test/enums.til][test/enums.til]] were redundant: switch case bindings
     already exercise the same get_payload code path through the
     typer's desugar, so dropping them loses no coverage.
 

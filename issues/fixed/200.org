@@ -29,5 +29,5 @@ A literal-match like ~case OuterE.WrapperB(0):~ leaves the variant
 uncovered -- the user must add a binding case or a default to satisfy
 the checker.
 
-See ~src/test/enum_switch_missing_case.til~ (test_missing_nested_inner)
-and the existing nested tests in ~src/test/enums.til~.
+See ~test/enum_switch_missing_case.til~ (test_missing_nested_inner)
+and the existing nested tests in ~test/enums.til~.

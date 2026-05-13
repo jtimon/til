@@ -24,7 +24,7 @@
     require_known param (macros error on unknown args, funcs silently skip).
   - Scavenger naturally removes macro defs (all calls folded) and func defs
     where all call sites were folded away. No scavenger changes needed.
-  - Tests: src/test/macros.til (macros: I64 arithmetic, constants, Str concat,
+  - Tests: test/macros.til (macros: I64 arithmetic, constants, Str concat,
     proc calls in macro body, macro in func, Bool return; constant folding:
     basic func folding, nested folding, constant arg, Str-returning func).
 

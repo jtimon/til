@@ -5,7 +5,7 @@
   (TypeScope chains via parent pointers and finds the variable), but the
   interpreter crashed or errored.
 
-  Reproduction: src/test/globals.til, src/test/globals_cli.til
+  Reproduction: test/globals.til, test/globals_cli.til
 
   func case: "error: undefined variable 'x'" — clean error from NODE_IDENT
   NULL check. proc case: SEGFAULT — NODE_DECL move-semantics path had no
@@ -63,7 +63,7 @@
       they are pointer aliases (local to main), not owned values that
       other functions need to access.
 
-   Tests: src/test/globals.til (script mode), src/test/globals_cli.til (cli mode).
+   Tests: test/globals.til (script mode), test/globals_cli.til (cli mode).
 
    Explicit capture syntax split out as #54.
 

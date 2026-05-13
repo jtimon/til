@@ -53,7 +53,7 @@
     ~default_next_boards~).
   - UFCS namespace method receivers (the implicit ~self~ passed by
     ~x.method()~): ~unity~ in [[file:../../src/core/{u8,i16,i32,u32,u64,i64}.til][src/core/{u8,i16,i32,u32,u64,i64}.til]]
-    and [[file:../../src/test/misc.til][src/test/misc.til]], ~to_str~/~eq~ in [[file:../../src/core/ast.til][src/core/ast.til]] and
+    and [[file:../../test/misc.til][test/misc.til]], ~to_str~/~eq~ in [[file:../../src/core/ast.til][src/core/ast.til]] and
     ~src/tests.til~.
   - Dispatch-table handlers matching ~DispatchFn := proc(Scope, Expr,
     mut Value) returns shallow Bool~: ~h_print_flush~, ~h_clock_ms~,
@@ -61,11 +61,11 @@
   - For-loop iteration variables and switch case payload bindings
     that don't consume their value: the language grammar requires a
     name, so ~for _i in 0..n~ and ~case Token.Name(_s)~ stay.
-  - Deliberate fixtures in [[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] that exist to
+  - Deliberate fixtures in [[file:../../test/typer_errors.til][test/typer_errors.til]] that exist to
     trigger a different type error; renaming them would change the
     error the test exercises.
 
-  src/test/typer_errors.til gained explicit unused-param and
+  test/typer_errors.til gained explicit unused-param and
   unused-local test cases. The expected type-error count in
   ~src/tests.til~ moved from 51 to 54 (52 with the new unused-param
   case, then 54 because the pre-existing block-scope test on ~inner~

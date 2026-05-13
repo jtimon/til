@@ -29,6 +29,6 @@
      malloc+compound-literal pattern ~({ E *_oa = malloc(sizeof(E));
      *_oa = (E){.tag = E_TAG_A}; _oa; })~.
 
-  The regression test [[file:../../src/test/bug150.til][src/test/bug150.til]] covers both this crash
+  The regression test [[file:../../test/bug150.til][test/bug150.til]] covers both this crash
   and [[./153.org][#153]] on the default interpret + run registration.
 

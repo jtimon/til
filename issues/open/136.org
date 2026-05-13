@@ -6,7 +6,7 @@ Reopened: an earlier "fix" landed (Vec.move_from / Vec.push_take work,
    ~add(1, 2)~ at compile time still reaches runtime. The current
    precomp eval-fold (commit 4b4c2e2) folds simple integer arithmetic
    but bails on the more interesting cases. Goal is rstil parity:
-   src/test/constfold.til ~test_lolalalo~ should compile to a constant
+   test/constfold.til ~test_lolalalo~ should compile to a constant
    string the same way rstil's does.
 
    Status:
@@ -19,7 +19,7 @@ Reopened: an earlier "fix" landed (Vec.move_from / Vec.push_take work,
    Status update (post-rstil-parity merges): items 3, 6, 7, 9 below
    are no longer in master. ~test_lolalalo~ AND ~test_string_concat~
    both fold to ~Str_lit("...", N)~ at compile time now (see
-   ~src/test/constfold.c~). What's left is the residual exception
+   ~test/constfold.c~). What's left is the residual exception
    list, plus one DCE-shaped follow-up surfaced by trying to remove
    item 1 -- documented inline below.
 

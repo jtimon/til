@@ -7,5 +7,5 @@
   library). Imported files cannot declare mode. Zero downstream changes
   — init, typer, precomp, scavenger, codegen, interpreter all untouched.
 
-  Tests: src/test/imports.til, src/test/import_diamond.til (+ helpers).
+  Tests: test/imports.til, test/import_diamond.til (+ helpers).
 

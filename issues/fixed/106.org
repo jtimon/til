@@ -2,7 +2,7 @@
   This fell out of the [[./50.org][#50]] stack-local rework; no extra code change was
   needed afterward.
 
-  Re-checked in generated C from [[file:../../src/test/arrays.til][src/test/arrays.til]]:
+  Re-checked in generated C from [[file:../../test/arrays.til][test/arrays.til]]:
 
   - collection temp is a value local:
     ~Array _fc_Array_304;~

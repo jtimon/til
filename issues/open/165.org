@@ -10,7 +10,7 @@ Status (high level):
    - core.til is alphabetized and is now a pure import list; per-file
      explicit imports landed across all src/core/*.til (see [[../fixed/][issues/fixed/]]
      [[./162.org][#162]]).
-   - Step 6 regression tests landed in src/test/forward_refs.til
+   - Step 6 regression tests landed in test/forward_refs.til
      (~test_alias_top_of_file~, ~test_alias_bottom_of_file~).
      Cross-file forward refs (alias declared in importer, used by
      importee) intentionally not tested -- future feature, not a
@@ -315,7 +315,7 @@ Status (high level):
         list with no top-level decls.
       - ~USize := U32~ moved into its own [[file:../../src/core/usize.til][src/core/usize.til]].
       - Scenario (b) regression tests landed in
-        src/test/forward_refs.til as ~test_alias_top_of_file~ and
+        test/forward_refs.til as ~test_alias_top_of_file~ and
         ~test_alias_bottom_of_file~ (covers builtin-primitive alias
         at top of a file and after the struct that uses it).
 

@@ -13,7 +13,7 @@
 
   Re-verified after the final steps:
 
-  - generated C from [[file:../../src/test/arrays.til][src/test/arrays.til]] shows:
+  - generated C from [[file:../../test/arrays.til][test/arrays.til]] shows:
     - ~Array _fc_Array_304;~
     - ~U32 _fi_USize_304 = 0;~
     - ~U32 _rc_U32_492 = 0;~

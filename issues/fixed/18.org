@@ -8,7 +8,7 @@
   type_at(i), size_at(i), clone(), delete(). Data buffer grows
   dynamically on push. Offset computation sums preceding element sizes.
 
-  Tests in src/test/tuples.til: homogeneous I64, homogeneous Str,
+  Tests in test/tuples.til: homogeneous I64, homogeneous Str,
   mixed types (I64+Str+Bool), type/size introspection, clone, growth.
 
   Tuple literal syntax ((10, 20), .0/.1 access, compile-time type

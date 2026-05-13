@@ -42,7 +42,7 @@
      eq/clone/delete C implementations), forward declarations, variant
      initialization in main
    - scavenger/precomp: NODE_ENUM_DEF alongside NODE_STRUCT_DEF
-   - Test: src/test/enums.til (basic enum, eq, to_str, clone, func params,
+   - Test: test/enums.til (basic enum, eq, to_str, clone, func params,
      namespace section with custom method)
 
 ** FIXED Phase 2: payloads (tagged unions)
@@ -79,6 +79,6 @@
    - dispatch.c: VAL_ENUM case in free function
    - precomp.c: skip childless variant entries in process_body and
      top-level loop
-   - Test: src/test/enums.til (construction, is_Variant, get_Variant,
+   - Test: test/enums.til (construction, is_Variant, get_Variant,
      to_str, eq, clone, payload enum in func params)
 

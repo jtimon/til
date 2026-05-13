@@ -14,7 +14,7 @@
 
   - keep ~mode test~ as a convenience (running plain
     ~til interpret some_test_file.til~ will still run its tests), or
-  - deprecate / remove it and migrate ~src/test/*.til~ + the makefile
+  - deprecate / remove it and migrate ~test/*.til~ + the makefile
     harness to use the host file's natural mode plus ~til test~.
 
   If we keep it, doc/self.org should explicitly note that mode test
@@ -22,7 +22,7 @@
 
   Possibility worth considering as part of this work: replace
   ~src/test_runner.til~ + ~src/tests.til~ + ~bin/tests~ with direct
-  ~bin/til test src/test/X.til~ invocations from the Makefile.  The
+  ~bin/til test test/X.til~ invocations from the Makefile.  The
   current harness wraps separate ~til interpret~ and ~til build~
   invocations because ~til test~ didn't exist; now it does, and
   collapses to one subcommand per file.  The harness also tracks

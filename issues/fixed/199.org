@@ -42,7 +42,7 @@ arm (matching Rust's match semantics).
 
   - ~test_guard_positive~ / ~test_guard_falls_through~ /
     ~test_guard_uses_binding~ / ~test_guard_bare_variant~ /
-    ~test_guard_bare_variant_false~ in ~src/test/enums.til~.
+    ~test_guard_bare_variant_false~ in ~test/enums.til~.
   - ~test_missing_guarded_case~ in
-    ~src/test/enum_switch_missing_case.til~ (typer-error count
+    ~test/enum_switch_missing_case.til~ (typer-error count
     bumps from 3 to 4 in ~src/tests.til~).

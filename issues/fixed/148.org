@@ -23,7 +23,7 @@
   works qualified: ~MyNamespace.urmom~ from inside the namespace's
   own methods, same as the existing ~[[./65.org][#65]]~ tests.
 
-  Regression test added in [[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] for the
+  Regression test added in [[file:../../test/typer_errors.til][test/typer_errors.til]] for the
   standalone-namespace case (count in ~src/tests.til~ bumped from
   58 to 59).
 

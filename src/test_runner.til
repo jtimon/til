@@ -9,7 +9,7 @@ mode cli
 
 TIL := "bin/til"
 
-// Extract basename from path: "src/test/types.til" → "types"
+// Extract basename from path: "test/types.til" -> "types"
 test_basename := func(path: Str) returns Str {
     mut last_slash : USize = 0
     mut has_slash := 0

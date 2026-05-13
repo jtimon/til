@@ -52,7 +52,7 @@ in ~read_field~/~write_field~ regardless of ~own_type~. The fix also
 recovers ~ftype~ from ~dd.til_type~ when ~explicit_type~ is empty (the
 typer leaves it empty for ~own~/~ref~ enum fields), and falls back to
 ~dd.field_struct_def~ when ~lookup_interp_type_def(ftype)~ returns
-NULL. Tests added in ~src/test/own_fields.til~ exercise both default
+NULL. Tests added in ~test/own_fields.til~ exercise both default
 and explicit-assign paths.
 
 *** [FIXED] Bug B: nested switch case-binding on a hoisted enum subject
@@ -105,7 +105,7 @@ expose via CAP_VIEW pointers in callers like ~ffi_register~). Treating
 enum-typed subjects like simple lvalues -- re-evaluating ~sw_expr~ per
 case condition -- avoids both classes of aliasing.
 
-Tested by ~src/test/issue_196_b.til~ which exercises the
+Tested by ~test/issue_196_b.til~ which exercises the
 ~recv.fcall().enum_field~ pattern with a payloaded variant whose
 content owns heap data, both inside and outside the case body.
 

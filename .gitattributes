@@ -8,4 +8,4 @@ boot/** linguist-generated=true
 lib/** linguist-vendored=true
 
 # Generated/transpiled C output used as a regression input
-src/test/constfold.c linguist-generated=true
+test/constfold.c linguist-generated=true

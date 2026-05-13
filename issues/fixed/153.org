@@ -24,6 +24,6 @@
 
   Discovered while fixing [[./150.org][#150]] (module-level enum Map literal in
   compiled mode) and initially registered with ~-no-interp~ as a
-  workaround; now [[file:../../src/test/bug150.til][src/test/bug150.til]] exercises both fixes on the
+  workaround; now [[file:../../test/bug150.til][test/bug150.til]] exercises both fixes on the
   default ~flags~ (interpret + compile + run).
 

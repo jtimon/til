@@ -36,7 +36,7 @@ git reset --soft HEAD~1 && git checkout HEAD -- doc/totals.csv img/totals.svg
     Use ~git checkout HEAD~ to restore individual files:
     #+begin_src shell
     git checkout HEAD -- Makefile src/tests.til           # modified files
-    git checkout HEAD -- src/test/deleted_file.sh          # deleted files
+    git checkout HEAD -- test/deleted_file.sh          # deleted files
     git checkout HEAD -- doc/totals.csv img/totals.svg     # auto-generated
     #+end_src
 
@@ -103,8 +103,8 @@ checking out the prior commit.
 
 | Channel   | Bytes    | Allocs |
 |-----------+----------+--------|
-| interpret | 94891    | 18235  |
-| translate | 93127    | 18049  |
+| interpret | 94877    | 18231  |
+| translate | 93110    | 18045  |
 
 Build the ASAN binary:
 #+begin_src shell
@@ -113,12 +113,12 @@ make bin/til_asan > tmp/asan_build.log 2>&1
 
 Check interpreted mode:
 #+begin_src shell
-ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret src/test/strings.til > tmp/asan_interpret.log 2>&1; grep "SUMMARY" tmp/asan_interpret.log
+ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til > tmp/asan_interpret.log 2>&1; grep "SUMMARY" tmp/asan_interpret.log
 #+end_src
 
 Check compiled (translate) mode:
 #+begin_src shell
-ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate src/test/strings.til > tmp/asan_translate.log 2>&1; grep "SUMMARY" tmp/asan_translate.log
+ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til > tmp/asan_translate.log 2>&1; grep "SUMMARY" tmp/asan_translate.log
 #+end_src
 
 Compute the delta against the recorded baseline above. Report it to the

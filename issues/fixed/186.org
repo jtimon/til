@@ -28,7 +28,7 @@
   the setter is pushed into ~new_ch~.
 
   Regression test ~bug186_variadic_nested_in_variadic~ in
-  [[file:../../src/test/variadic.til][src/test/variadic.til]] exercises both shapes: a user-defined
+  [[file:../../test/variadic.til][test/variadic.til]] exercises both shapes: a user-defined
   variadic returning ~Str~, and the result of one variadic call
   passed as variadic args to another variadic call. The original
   CLI repro (~println(say(true, false, true))~) and the [[./185.org][#185]]

@@ -16,5 +16,5 @@
   Also added ~inc()~/~dec()~ ext_func to all integer types (I64, U8, I16,
   I32, U32) as prerequisite for future ~++~/~--~ sugar ([[./22.org][#22]]).
 
-  Tests: src/test/loops.til (16 tests), 3 typer error cases.
+  Tests: test/loops.til (16 tests), 3 typer error cases.
 

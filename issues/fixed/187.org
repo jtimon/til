@@ -48,7 +48,7 @@
 
    Tests:
 
-   - [[file:../../src/test/priv_unused_error.til][src/test/priv_unused_error.til]] extended with
+   - [[file:../../test/priv_unused_error.til][test/priv_unused_error.til]] extended with
      ~StructWithUnusedField~ (unused priv field) and
      ~StructWithUnusedNs~ (unused priv ns method). The count
      test in ~src/tests.til~ rises from 5 to 7

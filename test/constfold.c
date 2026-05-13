@@ -1802,7 +1802,7 @@ void println(Array * parts) {
 
 void test_simple_add(void) {
     I64 result = 3;
-    Str _t_Str_3017 = (Str){.c_str = (U8 *)"src/test/constfold.til:15:15", .count = 28ULL, .cap = TIL_CAP_LIT};
+    Str _t_Str_3017 = (Str){.c_str = (U8 *)"test/constfold.til:15:15", .count = 24ULL, .cap = TIL_CAP_LIT};
     I64 _t_I64_3018 = 3;
     assert_eq(&_t_Str_3017, &result, &_t_I64_3018);
     ;
@@ -1812,7 +1812,7 @@ void test_simple_add(void) {
 
 void test_nested_arithmetic(void) {
     I64 result = 15;
-    Str _t_Str_3025 = (Str){.c_str = (U8 *)"src/test/constfold.til:21:15", .count = 28ULL, .cap = TIL_CAP_LIT};
+    Str _t_Str_3025 = (Str){.c_str = (U8 *)"test/constfold.til:21:15", .count = 24ULL, .cap = TIL_CAP_LIT};
     I64 _t_I64_3026 = 15;
     assert_eq(&_t_Str_3025, &result, &_t_I64_3026);
     ;
@@ -1822,7 +1822,7 @@ void test_nested_arithmetic(void) {
 
 void test_deeply_nested(void) {
     I64 result = 26;
-    Str _t_Str_3033 = (Str){.c_str = (U8 *)"src/test/constfold.til:27:15", .count = 28ULL, .cap = TIL_CAP_LIT};
+    Str _t_Str_3033 = (Str){.c_str = (U8 *)"test/constfold.til:27:15", .count = 24ULL, .cap = TIL_CAP_LIT};
     I64 _t_I64_3034 = 26;
     assert_eq(&_t_Str_3033, &result, &_t_I64_3034);
     ;
@@ -1832,7 +1832,7 @@ void test_deeply_nested(void) {
 
 void test_string_concat(void) {
     Str result = (Str){.c_str = (U8 *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
-    Str _t_Str_3037 = (Str){.c_str = (U8 *)"src/test/constfold.til:33:19", .count = 28ULL, .cap = TIL_CAP_LIT};
+    Str _t_Str_3037 = (Str){.c_str = (U8 *)"test/constfold.til:33:19", .count = 24ULL, .cap = TIL_CAP_LIT};
     Str _t_Str_3038 = (Str){.c_str = (U8 *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
     assert_eq_str(&_t_Str_3037, &result, &_t_Str_3038);
     Str_delete(&_t_Str_3037, &(Bool){0});
@@ -1841,22 +1841,22 @@ void test_string_concat(void) {
 }
 
 void test_lolalalo(void) {
-    Str _t_Str_3066 = (Str){.c_str = (U8 *)"src/test/constfold.til:62:12", .count = 28ULL, .cap = TIL_CAP_LIT};
+    Str _t_Str_3066 = (Str){.c_str = (U8 *)"test/constfold.til:62:12", .count = 24ULL, .cap = TIL_CAP_LIT};
     Bool _t_Bool_3067 = 1;
     assert(&_t_Str_3066, &_t_Bool_3067);
     ;
     Str_delete(&_t_Str_3066, &(Bool){0});
-    Str _t_Str_3070 = (Str){.c_str = (U8 *)"src/test/constfold.til:63:12", .count = 28ULL, .cap = TIL_CAP_LIT};
+    Str _t_Str_3070 = (Str){.c_str = (U8 *)"test/constfold.til:63:12", .count = 24ULL, .cap = TIL_CAP_LIT};
     Bool _t_Bool_3071 = 1;
     assert(&_t_Str_3070, &_t_Bool_3071);
     ;
     Str_delete(&_t_Str_3070, &(Bool){0});
-    Str _t_Str_3074 = (Str){.c_str = (U8 *)"src/test/constfold.til:65:12", .count = 28ULL, .cap = TIL_CAP_LIT};
+    Str _t_Str_3074 = (Str){.c_str = (U8 *)"test/constfold.til:65:12", .count = 24ULL, .cap = TIL_CAP_LIT};
     Bool _t_Bool_3075 = 1;
     assert(&_t_Str_3074, &_t_Bool_3075);
     ;
     Str_delete(&_t_Str_3074, &(Bool){0});
-    Str _t_Str_3078 = (Str){.c_str = (U8 *)"src/test/constfold.til:66:12", .count = 28ULL, .cap = TIL_CAP_LIT};
+    Str _t_Str_3078 = (Str){.c_str = (U8 *)"test/constfold.til:66:12", .count = 24ULL, .cap = TIL_CAP_LIT};
     Bool _t_Bool_3079 = 1;
     assert(&_t_Str_3078, &_t_Bool_3079);
     ;

@@ -9,5 +9,5 @@
 
   Changes: lexer.til (DotDotDot token), parser.c, ast.h, ast.c, typer.c
   (desugar_kwargs_calls), builder.c, initer.c.
-  Test: src/test/kwargs.til
+  Test: test/kwargs.til
 

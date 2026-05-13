@@ -1,7 +1,7 @@
 # priority: high
 ** DONE #198 Add throw/catch error handling, rstil-style, with desugaring in typer
 
-   Shipped. ~src/test/errors.til~ exercises throw/catch end to end on
+   Shipped. ~test/errors.til~ exercises throw/catch end to end on
    both ~bin/til interpret~ and ~bin/til build~ (13 tests, all pass).
    ~make test~ stays green at 116/116.
 
@@ -87,7 +87,7 @@
       ~DivideByZero~ + ~I64.safe_div~. ~IndexOutOfBoundsError~
       can ride along once Array.get is wired up.
    10. Step 8 -- port rstil's src/test/errors.til as
-       ~src/test/errors.til~, wire into ~src/tests.til~, run on
+       ~test/errors.til~, wire into ~src/tests.til~, run on
        both ~bin/til interpret~ and ~bin/til build~ + ASAN.
 
 
@@ -99,7 +99,7 @@
 
    Reference: rstil at https://github.com/jtimon/rstil. Canonical
    surface tests live in [[https://github.com/jtimon/rstil/blob/master/src/test/errors.til][rstil's src/test/errors.til]] -- copy that
-   file (or its core subset) verbatim into ~src/test/errors.til~ and
+   file (or its core subset) verbatim into ~test/errors.til~ and
    make it pass on both pipelines.
 
    *** Surface syntax (mirror rstil)
@@ -318,7 +318,7 @@
 
    *** Test plan
 
-   1. Drop rstil's ~src/test/errors.til~ into ~src/test/errors.til~
+   1. Drop rstil's ~src/test/errors.til~ into ~test/errors.til~
       essentially verbatim. It already covers:
       - simplest catch
       - catch with struct fields and Str field access on err
@@ -334,7 +334,7 @@
         throws sets, multi-throw single-catch.
    2. Wire it into ~src/tests.til~ alongside existing tests.
    3. Run on both pipelines:
-      ~bin/til interpret src/test/errors.til~ (interpreter path)
+      ~bin/til interpret test/errors.til~ (interpreter path)
       and the equivalent ~bin/til build~ + run (builder path).
       Both must produce identical output.
    4. ~make test~ green; ~make test_asan~ no new leaks (the
@@ -376,4 +376,3 @@
    - It composes with the existing leak/destructor passes for free:
      the lowered locals are ordinary locals and ~insert_exit_deletes~
      handles them on every exit edge.
-

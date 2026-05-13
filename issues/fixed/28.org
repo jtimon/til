@@ -26,7 +26,7 @@
   - ASAP lifetime extension already handles refs transitively via
     fixed-point propagation — works for alias chains too.
 
-  Tests: src/test/aliases.til (17 tests covering I64/Str/Bool/struct
+  Tests: test/aliases.til (17 tests covering I64/Str/Bool/struct
   aliases, alias chaining, deep chains, returned aliases, mut exclusion,
   struct field cloning, param cloning).
 

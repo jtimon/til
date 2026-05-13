@@ -3,12 +3,12 @@
 
    Shipped. The postfix ~!~ operator now works as the panic-on-throw
    shorthand. Tested on both ~bin/til interpret~ and ~bin/til build~
-   in [[file:../../src/test/errors.til][src/test/errors.til]] (test_bang_success, test_bang_in_return).
+   in [[file:../../test/errors.til][test/errors.til]] (test_bang_success, test_bang_in_return).
 
    Diagnostics: ~!~ on a non-throwing call emits
    "function does not throw, remove the '!' after the call" at the
    call site, parallel to the ~?~-on-non-throwing rule
-   ([[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] terr_bang_on_non_throwing).
+   ([[file:../../test/typer_errors.til][test/typer_errors.til]] terr_bang_on_non_throwing).
 
    *** What landed
 
@@ -50,7 +50,7 @@
 
    The lexer already has the ~Bang~ token. The parser also already
    tolerates the syntax in some positions (the lexer keyword test
-   in ~src/test/lexing.til~ exercises ~!~). What's missing:
+   in ~test/lexing.til~ exercises ~!~). What's missing:
 
    1. Parser: a postfix-on-call branch that sets an
       ~FCallData.is_bang~ flag (parallel to the existing
@@ -61,7 +61,7 @@
       ~src/rs/desugarer.rs~ is the reference.
    3. Validation: ~!~ on a non-throwing call is the same error as
       ~?~ on a non-throwing call.
-   4. Test: a ~test_bang_panics~ in ~src/test/errors.til~ that
+   4. Test: a ~test_bang_panics~ in ~test/errors.til~ that
       asserts ~exit(1)~ on the bang path; needs the test harness
       to support "expected-failure" mode tests (rstil's tests put
       this in a separate single-test file).

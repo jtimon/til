@@ -36,10 +36,10 @@
     uniformly: module scope, func/proc bodies, test/macro bodies.
     The function/error message renamed from "ref local" to "ref
     binding" to reflect the broader scope.
-  - The old ~test_null_ref_local~ in [[file:../../src/test/ref.til][src/test/ref.til]] relied on
+  - The old ~test_null_ref_local~ in [[file:../../test/ref.til][test/ref.til]] relied on
     the gate's accidental looseness for ~test()~ bodies; removed
     (with a one-line breadcrumb pointing at [[./177.org][#177]]). Two new
-    negative cases added in [[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] for
+    negative cases added in [[file:../../test/typer_errors.til][test/typer_errors.til]] for
     module-scope ~ref/~ref mut~ NULL inits, bumping the expected
     error count from 88 to 90.
 
@@ -58,5 +58,5 @@
   - Conservative [[./168.org][#168]] rule extended to module scope -- done.
   - 99/99 tests still pass -- verified.
   - ASAN baseline does not regress (improved by ~3895 bytes /
-    345 allocations on translate src/test/strings.til).
+    345 allocations on translate test/strings.til).
 

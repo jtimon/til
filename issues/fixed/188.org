@@ -26,7 +26,7 @@
   before the setter is pushed.
 
   Regression test ~bug188_kwargs_nested_in_kwargs~ in
-  [[file:../../src/test/kwargs.til][src/test/kwargs.til]] exercises ~greet("World", prefix =
+  [[file:../../test/kwargs.til][test/kwargs.til]] exercises ~greet("World", prefix =
   greet("Hi"))~ -- the recursive form is the simplest shape that
   hits the nested-kwargs codepath in test mode. All 100 tests
   pass under ~make clean && make test~.

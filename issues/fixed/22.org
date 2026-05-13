@@ -16,7 +16,7 @@
   parentheses support. Negative literals (-N from [[./68.org][#68]]) handled in
   parse_primary with priority over binary subtraction.
 
-  Tests: 5 new test functions in src/test/operators.til covering arithmetic,
+  Tests: 5 new test functions in test/operators.til covering arithmetic,
   comparison, precedence, variables, and mixed operator/method usage.
 
   Note: bootstrap regeneration required -- source changes in parser.til and

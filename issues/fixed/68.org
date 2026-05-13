@@ -14,7 +14,7 @@
   ~a : I32 = -34.add(-35)~, and enables target-directed typed expressions like
   ~a : F32 = 1 / 2~.
 
-  Regression coverage lives in ~src/test/types.til~.
+  Regression coverage lives in ~test/types.til~.
 
   Related to [[./67.org][#67]] (implicit numeric widening in for-in ranges).
 

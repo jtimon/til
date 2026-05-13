@@ -57,7 +57,7 @@
   Prints ~106~ in both ~bin/til run~ and ~bin/til interpret~.
 
   Regression test: ~test_combo_variadic_and_kwargs~ in
-  [[file:../../src/test/kwargs.til][src/test/kwargs.til]] exercises five edge cases against the
+  [[file:../../test/kwargs.til][test/kwargs.til]] exercises five edge cases against the
   same combo signature: neither supplied (both ranges empty),
   variadic only, kwargs only, both, and extra kwargs ignored.
   All 100 tests pass.

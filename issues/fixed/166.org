@@ -25,7 +25,7 @@
   practice only the Bool case was reachable, since ~eval_arg~ is only
   called from the and/or/not handlers.
 
-  Test: ~test_bool_vec_get_chain~ in [[file:../../src/test/dynamic.til][src/test/dynamic.til]] checks
+  Test: ~test_bool_vec_get_chain~ in [[file:../../test/dynamic.til][test/dynamic.til]] checks
   both stored ~true~ and stored ~false~ round-tripping through
   chained ~not~, ~and~, and ~or~ calls.
 
