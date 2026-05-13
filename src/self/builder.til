@@ -3055,7 +3055,15 @@ emit_header_func_fwds_prog := proc(f: File, prog: Expr, shallow is_core_pass: Bo
                 switch rhs.node_type {
                 case NodeType.FuncDef(fd):
                     if rhs.children.len().eq(0) { continue }
-                    if is_core_pass.and(fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc))) { continue }
+                    // Issue #176: top-level ext_func / ext_proc are
+                    // emitted by emit_ext_func_declarations (with the FFI
+                    // const convention). Skip them here regardless of
+                    // is_core_pass so til_forward.h / monolithic headers
+                    // don't contain a second prototype that disagrees on
+                    // const-ness with the canonical one. Namespace
+                    // ext_func / ext_proc methods (the branch above) keep
+                    // emitting -- no other emit path covers them.
+                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                     fc := func_to_c(dd.name)
                     emit_func_forward_decl(f, fc, rhs)
                 case:
