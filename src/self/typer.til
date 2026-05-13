@@ -4918,6 +4918,107 @@ priv build_bang_catch := func(err_var: Str, error_type: Str, shallow line: U32, 
 // flag, push the (now ?-marked) stmt, then append a catch block
 // per declared throw type of the callee. Recurses into nested
 // if/while/for/switch arms.
+// Issue #202 follow-up: hoist a bang FCall at parent.child(child_idx)
+// out into a `_bang_ret_<n> := <call>?` Decl + catch blocks pushed
+// into pre_stmts. Replaces parent.child(child_idx) with an Ident
+// reference to the temp. Skips nested defs and Body children (those
+// are handled by desugar_bang_in_body's recursion). Postorder so an
+// inner `g(f()!)!` hoists f first, then g.
+priv hoist_walk := proc(mut parent: Expr, child_idx: USize, mut pre_stmts: Vec) {
+    ref mut child : Expr = parent.child(child_idx)
+    if child.node_type.is(NodeType.FuncDef)
+        .or(child.node_type.is(NodeType.StructDef))
+        .or(child.node_type.is(NodeType.EnumDef)) { return }
+    if child.node_type.is(NodeType.Body) { return }
+    // Postorder: recurse into grandchildren first so the innermost
+    // bang gets hoisted before its enclosing bang.
+    for gi in 0..child.children.len() {
+        hoist_walk(child, gi, pre_stmts)
+    }
+    if child.node_type.is(NodeType.FCall).not() { return }
+    mut is_bang_here := false
+    switch child.node_type {
+    case NodeType.FCall(fcd_check): is_bang_here = fcd_check.is_bang
+    case:
+    }
+    if is_bang_here.not() { return }
+    if child.children.len().eq(0) { return }
+    ref callee : Expr = child.child(0)
+    mut cname := ""
+    switch callee.node_type {
+    case NodeType.Ident(n): cname = n.clone()
+    case NodeType.FieldAccess(fnam): cname = fnam.clone()
+    case:
+    }
+    if cname.len().eq(0) { return }
+    mut found_idx : I64 = 0
+    for i in 0..throws_names_global.len() {
+        ref n : Str = throws_names_global.get(i)
+        if n.eq(cname) { found_idx = i.to_i64().add(1) }
+    }
+    // Unknown callee or non-throwing: leave the is_bang flag for
+    // validate_throws_in_expr to surface the right error.
+    if found_idx.eq(0) { return }
+
+    line := child.line
+    col := child.col
+    tmp_name := format("_bang_ret_", bang_counter.to_str())
+    bang_counter = bang_counter.add(1)
+    // Clone the FCall and clear its bang flag (sets does_throw=true).
+    mut cloned := child.clone()
+    clear_bang_flag(cloned)
+    // Build the Decl that captures the call's result.
+    mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone())), line, col)
+    tmp_decl.add_child(own cloned)
+    pre_stmts.push(own tmp_decl)
+    // Append a catch (e: T) { panic } per declared throw type of the callee.
+    ref tts : Vec = throws_per_global.get(found_idx.sub(1).to_u32())
+    for tn : Str in tts {
+        err_var := format("_bang_err_", bang_counter.to_str())
+        bang_counter = bang_counter.add(1)
+        pre_stmts.push(own build_bang_catch(err_var, tn, line, col))
+    }
+    // Replace the bang FCall in its parent with a reference to the temp.
+    parent.children.set(child_idx, own Expr.new(NodeType.Ident(tmp_name.clone()), line, col))
+}
+
+// Walk stmt's expression tree, hoisting every nested bang FCall into
+// pre_stmts. The stmt-root bang (if any) is intentionally NOT hoisted
+// -- the existing direct handler in desugar_bang_in_body produces a
+// cleaner lowering (avoids an extra temp) for that shape.
+priv hoist_nested_bangs_in_stmt := proc(mut stmt: Expr, mut pre_stmts: Vec) {
+    cname := find_bang_callee_name(stmt)
+    if cname.len().eq(0) {
+        // No stmt-root bang. Walk every child for nested bangs.
+        for ci in 0..stmt.children.len() {
+            hoist_walk(stmt, ci, pre_stmts)
+        }
+        return
+    }
+    // Stmt-root bang exists; skip the FCall that holds it and only
+    // walk the surrounding context.
+    if stmt.node_type.is(NodeType.FCall) {
+        // The stmt IS the bang FCall. Walk its args (skip child(0) =
+        // callee Ident/FieldAccess).
+        for ai in 1..stmt.children.len() {
+            hoist_walk(stmt, ai, pre_stmts)
+        }
+        return
+    }
+    // Decl/Assign/FieldAssign/Return: the bang FCall lives at
+    // stmt.child(0). Walk the FCall's args (skipping the FCall
+    // itself) plus any other children of stmt.
+    ref mut root_fcall : Expr = stmt.child(0)
+    if root_fcall.node_type.is(NodeType.FCall) {
+        for ai in 1..root_fcall.children.len() {
+            hoist_walk(root_fcall, ai, pre_stmts)
+        }
+    }
+    for ci in 1..stmt.children.len() {
+        hoist_walk(stmt, ci, pre_stmts)
+    }
+}
+
 desugar_bang_in_body := proc(mut body: Expr) {
     if body.node_type.is(NodeType.Body).not() { return }
     if subtree_has_bang(body).not() { return }
@@ -4965,6 +5066,17 @@ desugar_bang_in_body := proc(mut body: Expr) {
                 desugar_bang_in_body(cbody)
             }
         case:
+        }
+
+        // Issue #202 follow-up: hoist nested bangs (bangs inside
+        // expression positions, not at stmt root) into pre-stmts
+        // before processing the stmt-root bang (if any). After this
+        // pass the stmt has at most ONE bang remaining (the one at
+        // its root), which the existing direct handler below covers.
+        mut pre_stmts := Vec.new(Expr)
+        hoist_nested_bangs_in_stmt(stmt, pre_stmts)
+        for pi in 0..pre_stmts.len() {
+            new_ch.push_take(pre_stmts, pi)
         }
 
         cname := find_bang_callee_name(stmt)

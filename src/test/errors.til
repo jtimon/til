@@ -293,3 +293,26 @@ test_bang_in_return := test() {
     result := bang_return_wrapper(false)!
     assert(__LOC__, result.eq(42))
 }
+
+// Nested-bang positions: bang inside an arg or method-chain receiver
+// gets hoisted into a temp before the enclosing statement. Without
+// hoisting these would slip past the stmt-level handler and trip the
+// typer's arity check on the lowered throwing-call signature.
+test_bang_nested_in_arg := test() {
+    // bang inside an FCall arg
+    assert(__LOC__, bang_throws(false)!.eq(42))
+}
+
+test_bang_nested_in_chain := test() {
+    // bang on the receiver of a method chain
+    s := bang_throws(false)!.to_str()
+    assert(__LOC__, s.eq("42"))
+}
+
+test_bang_inside_bang := test() {
+    // outer bang on a call whose arg is itself a bang
+    inner := bang_throws(false)!
+    outer := bang_return_wrapper(false)!
+    assert(__LOC__, inner.eq(42))
+    assert(__LOC__, outer.eq(42))
+}

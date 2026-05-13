@@ -1200,6 +1200,8 @@ void inject_throw_args_in_body(Expr * e, Vec * names, Vec * throws_per);
 void clear_bang_flag(Expr * e);
 Str * find_bang_callee_name(Expr * e);
 Expr * build_bang_catch(Str * err_var, Str * error_type, U32 line, U32 col);
+void hoist_walk(Expr * parent, U32 * child_idx, Vec * pre_stmts);
+void hoist_nested_bangs_in_stmt(Expr * stmt, Vec * pre_stmts);
 void desugar_bang_in_body(Expr * body);
 void append_fallback_return(Expr * body, Str * return_type);
 I64 * find_callee_throws_idx(Expr * fcall);
