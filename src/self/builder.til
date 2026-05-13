@@ -723,6 +723,21 @@ priv rhs_is_pure_byvalue_for_emit := func(e: Expr) returns shallow Bool {
     return false
 }
 
+// Collect every Ident reference under `e` into `refs`. Used by the
+// function-body entry pass to decide which params actually need the
+// `(void)<name>;` unused-arg suppressor.
+priv collect_ident_refs := proc(e: Expr, mut refs: Set) {
+    if is_null(e) { return }
+    switch e.node_type {
+    case NodeType.Ident(name): refs.add(own name.clone())
+    case NodeType.Assign(ad):  refs.add(own ad.name.clone())
+    case:
+    }
+    for c : Expr in e.children {
+        collect_ident_refs(c, refs)
+    }
+}
+
 emit_til_default := proc(f: File, shallow t: Type) {
     if t.is(Type.I64).or(t.is(Type.I16)).or(t.is(Type.I32))
     .or(t.is(Type.U32)).or(t.is(Type.U64)).or(t.is(Type.F32))
@@ -2391,9 +2406,14 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         f.write(ret); f.write(" "); fc := func_to_c(name); f.write(fc); f.write("(")
         emit_param_list(f, func_def, true, false)
         f.write(") {\n")
+        body_refs := Set.new(Str)
+        collect_ident_refs(body, body_refs)
         for p : Declaration in fd.params {
-            f.write("    (void)"); f.write(p.name); f.write(";\n")
+            if body_refs.has(p.name).not() {
+                f.write("    (void)"); f.write(p.name); f.write(";\n")
+            }
         }
+        Set.delete(own body_refs, false)
         in_func_def = true
         ref mut lp : LoadedProgram = codegen_lp()
         lp.ctx.current_fdef = func_def

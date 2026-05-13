@@ -1484,6 +1484,7 @@ void emit_i32(File * f, I32 v);
 void emit_indent(File * f, I32 depth);
 U32 * c_lit_byte_count(Str * s);
 Bool rhs_is_pure_byvalue_for_emit(Expr * e);
+void collect_ident_refs(Expr * e, Set * refs);
 void emit_til_default(File * f, Type t);
 Str * param_ctype(FunctionDef * fd, U32 i);
 void emit_param_list(File * f, Expr * fdef, Bool with_names, Bool for_ext_decl);
