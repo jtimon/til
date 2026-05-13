@@ -3907,23 +3907,6 @@ replace_body_stmt_with_block := func(mut body: Expr, shallow stmt_idx: U32, mut 
     move(body.children.get(stmt_idx), block, Expr.size())
 }
 
-make_field_access_call0 := func(base: Expr, field: Str, shallow line: U32, shallow col: U32) returns Expr {
-    mut fa := Expr.new(NodeType.FieldAccess(field.clone()), line, col)
-    fa.add_child(own base.clone())
-    mut fc := Expr.new(NodeType.FCall(FCallData()), line, col)
-    fc.add_child(own fa)
-    return fc
-}
-
-make_field_access_call1 := func(base: Expr, field: Str, arg: Expr, shallow line: U32, shallow col: U32) returns Expr {
-    mut fa := Expr.new(NodeType.FieldAccess(field.clone()), line, col)
-    fa.add_child(own base.clone())
-    mut fc := Expr.new(NodeType.FCall(FCallData()), line, col)
-    fc.add_child(own fa)
-    fc.add_child(own arg.clone())
-    return fc
-}
-
 make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool) returns Expr {
     mut wb := Expr.new(NodeType.Body, line, col)
 
@@ -3933,7 +3916,7 @@ make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, fo
     wb.add_child(own vd)
 
     mut step_ident := Expr.new(NodeType.Ident(cur_name.clone()), line, col)
-    wb.add_child(own make_field_access_call0(step_ident, step, line, col))
+    wb.add_child(own make_method_call_fcall(own step_ident, step, line, col))
 
     for e_bi : Expr in for_body.children {
         wb.add_child(own e_bi.clone())
@@ -4017,21 +4000,27 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
     block.add_child(own cur_decl)
 
     mut cur_ident_lt := Expr.new(NodeType.Ident(cur_name.clone()), line, col)
+    mut lt_call := make_method_call_fcall(own cur_ident_lt, "lt", line, col)
     mut end_ident_lt := Expr.new(NodeType.Ident(end_name.clone()), line, col)
+    lt_call.add_child(own end_ident_lt)
     mut asc_while := Expr.new(NodeType.While, line, col)
-    asc_while.add_child(own make_field_access_call1(cur_ident_lt, "lt", end_ident_lt, line, col))
+    asc_while.add_child(own lt_call)
     asc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, elem_type, forin_is_mut))
 
     mut cur_ident_gt := Expr.new(NodeType.Ident(cur_name.clone()), line, col)
+    mut gt_call := make_method_call_fcall(own cur_ident_gt, "gt", line, col)
     mut end_ident_gt := Expr.new(NodeType.Ident(end_name.clone()), line, col)
+    gt_call.add_child(own end_ident_gt)
     mut desc_while := Expr.new(NodeType.While, line, col)
-    desc_while.add_child(own make_field_access_call1(cur_ident_gt, "gt", end_ident_gt, line, col))
+    desc_while.add_child(own gt_call)
     desc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, elem_type, forin_is_mut))
 
     mut if_node := Expr.new(NodeType.If, line, col)
     mut cur_ident_lte := Expr.new(NodeType.Ident(cur_name.clone()), line, col)
+    mut lte_call := make_method_call_fcall(own cur_ident_lte, "lte", line, col)
     mut end_ident_lte := Expr.new(NodeType.Ident(end_name.clone()), line, col)
-    if_node.add_child(own make_field_access_call1(cur_ident_lte, "lte", end_ident_lte, line, col))
+    lte_call.add_child(own end_ident_lte)
+    if_node.add_child(own lte_call)
 
     mut then_body := Expr.new(NodeType.Body, line, col)
     then_body.add_child(own asc_while)
@@ -4162,9 +4151,10 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     mut while_node := Expr.new(NodeType.While, line, col)
 
     mut idx_ident_cond := Expr.new(NodeType.Ident(idx_name.clone()), line, col)
+    mut cond_call := make_method_call_fcall(own idx_ident_cond, "lt", line, col)
     mut col_ident_len := Expr.new(NodeType.Ident(col_name.clone()), line, col)
-    len_call := make_field_access_call0(col_ident_len, "len", line, col)
-    while_node.add_child(own make_field_access_call1(idx_ident_cond, "lt", len_call, line, col))
+    cond_call.add_child(own make_method_call_fcall(own col_ident_len, "len", line, col))
+    while_node.add_child(own cond_call)
 
     mut wbody := Expr.new(NodeType.Body, line, col)
 
@@ -4172,14 +4162,18 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     if get_returns_ref { forin_own = OwnType.Ref }
     mut elem_decl := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), til_type = til_type_from_explicit_type(elem_type), own_type = forin_own, is_mut = forin_is_mut)), line, col)
     mut col_ident_get := Expr.new(NodeType.Ident(col_name.clone()), line, col)
+    mut get_call := make_method_call_fcall(own col_ident_get, "get", line, col)
     mut idx_ident_get := Expr.new(NodeType.Ident(idx_name.clone()), line, col)
-    elem_decl.add_child(own make_field_access_call1(col_ident_get, "get", idx_ident_get, line, col))
+    get_call.add_child(own idx_ident_get)
+    elem_decl.add_child(own get_call)
     wbody.add_child(own elem_decl)
 
     mut idx_assign := Expr.new(NodeType.Assign(AssignData(name = idx_name.clone())), line, col)
     mut idx_ident_inc := Expr.new(NodeType.Ident(idx_name.clone()), line, col)
+    mut add_call := make_method_call_fcall(own idx_ident_inc, "add", line, col)
     mut one := Expr.new(NodeType.LiteralNum("1"), line, col)
-    idx_assign.add_child(own make_field_access_call1(idx_ident_inc, "add", one, line, col))
+    add_call.add_child(own one)
+    idx_assign.add_child(own add_call)
     wbody.add_child(own idx_assign)
 
     for e_bi : Expr in for_body.children {
@@ -4417,9 +4411,10 @@ priv register_throw_type := func(name: Str) {
 priv make_if_kind_eq_zero_wrap := func(stmt: Expr, shallow line: U32, shallow col: U32) returns Expr {
     mut wrap_body := Expr.new(NodeType.Body, line, col)
     wrap_body.add_child(own stmt.clone())
-    mut zero_lit := make_int_lit(0, line, col)
     mut kind_id := Expr.new(NodeType.Ident("_err_kind"), line, col)
-    mut cond := make_field_access_call1(kind_id, "eq", zero_lit, line, col)
+    mut cond := make_method_call_fcall(own kind_id, "eq", line, col)
+    mut zero_lit := make_int_lit(0, line, col)
+    cond.add_child(own zero_lit)
     mut if_node := Expr.new(NodeType.If, line, col)
     if_node.add_child(own cond)
     if_node.add_child(own wrap_body)
@@ -4469,8 +4464,9 @@ priv lower_catch_node := proc(catch_node: Expr, type_to_tag_names: Vec) returns 
         new_body.add_child(own cb_clone)
     }
     mut kind_id := Expr.new(NodeType.Ident("_err_kind"), line, col)
+    mut cond := make_method_call_fcall(own kind_id, "eq", line, col)
     mut tag_lit := make_int_lit(tag, line, col)
-    mut cond := make_field_access_call1(kind_id, "eq", tag_lit, line, col)
+    cond.add_child(own tag_lit)
     mut if_node := Expr.new(NodeType.If, line, col)
     if_node.add_child(own cond)
     if_node.add_child(own new_body)
