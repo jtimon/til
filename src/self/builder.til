@@ -759,7 +759,7 @@ param_ctype := func(fd: FunctionDef, shallow i: USize) returns Str {
     return type_name_to_c(p.explicit_type)
 }
 
-emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool) {
+emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool, shallow for_ext_decl: Bool) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len().eq(0) {
@@ -767,13 +767,28 @@ emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool) {
         } else {
             for i in 0..fd.params.len() {
                 if i.gt(0) { f.write(", ") }
+                ii := i.to_i32()
+                // Issue #176 bullet 1: emit `const` for non-mut Ref pointer
+                // params at the FFI boundary. Variadic / kwargs are excluded
+                // (their C type is fixed by codegen, not the user's qualifier);
+                // shallow / own params are excluded (const adds nothing or is
+                // wrong). `mut` stays as the escape hatch.
+                mut const_prefix := false
+                if for_ext_decl.and(ii.neq(fd.variadic_index)).and(ii.neq(fd.kwargs_index)) {
+                    ref pp : Declaration = fd.params.get(i)
+                    if pp.own_type.is(OwnType.Ref).and(pp.is_mut.not()) {
+                        const_prefix = true
+                    }
+                }
                 ptype := param_ctype(fd, i)
                 if with_names {
                     ref p : Declaration = fd.params.get(i)
+                    if const_prefix { f.write("const ") }
                     f.write(ptype)
                     f.write(" ")
                     f.write(p.name)
                 } else {
+                    if const_prefix { f.write("const ") }
                     f.write(ptype)
                 }
             }
@@ -2374,7 +2389,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         // Signature
         if is_static { f.write("static __attribute__((unused)) ") }
         f.write(ret); f.write(" "); fc := func_to_c(name); f.write(fc); f.write("(")
-        emit_param_list(f, func_def, true)
+        emit_param_list(f, func_def, true, false)
         f.write(") {\n")
         for p : Declaration in fd.params {
             f.write("    (void)"); f.write(p.name); f.write(";\n")
@@ -2787,7 +2802,7 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr) {
     case NodeType.FuncDef(fd):
         ret := func_return_ctype(fd)
         f.write(ret); f.write(" "); f.write(name); f.write("(")
-        emit_param_list(f, fdef, true)
+        emit_param_list(f, fdef, true, false)
         f.write(");\n")
     case:
         UNREACHABLE(__LOC__)
@@ -2799,7 +2814,7 @@ emit_funcsig_typedef := proc(f: File, name: Str, fdef: Expr) {
     case NodeType.FuncDef(fd):
         ret := func_return_ctype(fd)
         f.write("typedef "); f.write(ret); f.write(" (*"); f.write(name); f.write(")(")
-        emit_param_list(f, fdef, false)
+        emit_param_list(f, fdef, false, false)
         f.write(");\n")
     case:
         UNREACHABLE(__LOC__)
@@ -5563,6 +5578,26 @@ emit_ext_func_declarations := proc(f: File, program: Expr) {
             switch stmt.node_type {
             case NodeType.Decl(dd):
                 if is_skip_ext_decl(dd.name) { continue }
+                // Issue #176: builder.til (and similar units) use the
+                // ext_func / ext_proc declaration as a forward-decl
+                // shim so a regular func / proc body defined later can be
+                // referenced earlier. When a real func / proc with the
+                // same name exists, the canonical prototype + body comes
+                // from that definition's own forward-decl emit path; the
+                // ext_decl here would be a redundant prototype that
+                // disagrees with the body on const-ness, so skip it.
+                ref shadow_fdef : Expr = find_callee_fdef(dd.name)
+                mut shadowed_by_func := false
+                if is_null(shadow_fdef).not() {
+                    switch shadow_fdef.node_type {
+                    case NodeType.FuncDef(sfd):
+                        if sfd.func_type.is(FuncType.ExtFunc).not().and(sfd.func_type.is(FuncType.ExtProc).not()) {
+                            shadowed_by_func = true
+                        }
+                    case:
+                    }
+                }
+                if shadowed_by_func { continue }
                 if fd.return_type.len().gt(0) {
                     mut rt := ""
                     if fd.return_own_type.is(OwnType.Shallow) { rt = type_name_to_c_value(fd.return_type) }
@@ -5571,7 +5606,7 @@ emit_ext_func_declarations := proc(f: File, program: Expr) {
                 } else {
                     f.write("void "); fc := func_to_c(dd.name); f.write(fc); f.write("(")
                 }
-                emit_param_list(f, fdef, false)
+                emit_param_list(f, fdef, false, true)
                 f.write(");\n")
             case:
                 UNREACHABLE(__LOC__)

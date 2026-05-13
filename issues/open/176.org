@@ -37,13 +37,13 @@ Symptom:
 
 ** Progress
 
-   Done (commit on this branch):
+   Done (commits on this branch):
 
    - ~is_skip_ext_decl~ in ~src/self/builder.til~ now suppresses emitted
      prototypes for ~setenv~, ~getenv~, ~unsetenv~, ~putenv~, ~system~,
      ~atoi~, ~atol~, ~atof~ so the libc declarations in ~stdlib.h~ are not
      overridden by a conflicting til-generated prototype.
-   - At each call site of those libc functions, the generated C now emits
+   - At each call site of those libc functions, the generated C emits
      explicit ~(char *)~ casts around ~U8~ / ~I8~ ref arguments and wraps
      the call expression in a ~(U8 *)~ / ~(I8 *)~ cast when the libc
      prototype returns a ~char *~ (e.g. ~getenv~). The casts make the
@@ -52,21 +52,44 @@ Symptom:
      diagnostics being silenced. Helpers ~is_libc_str_fn~,
      ~callee_param_needs_char_cast~ and ~libc_call_return_cast~ in
      ~src/self/builder.til~ drive this.
-   - Regression test ~src/test/ext_libc.til~ binds ~setenv~, ~getenv~,
-     and ~unsetenv~ directly via ~ext_func~ and asserts the round-trip
-     works.
+   - Const-correct C emission for ~ext_func~ / ~ext_proc~ prototypes:
+     ~emit_param_list~ takes a ~for_ext_decl~ flag and, when true,
+     prepends ~const~ to non-~mut~ Ref pointer params. Variadic /
+     kwargs / shallow / own params are unchanged. ~mut~ remains the
+     escape hatch. ~emit_ext_func_declarations~ also detects when an
+     ~ext_func~ name is shadowed by a regular ~func~ / ~proc~
+     definition (the forward-decl-via-ext_func trick used in
+     ~src/self/builder.til~ for ~callee_return_ctype~ /
+     ~resolve_callee_name~) and skips emitting a redundant prototype
+     in that case -- the func body's own forward-decl emission is
+     authoritative. For example, ~greet := ext_func(name: Str) returns
+     Str {}~ in ~examples/ffi/ext_module.til~ now emits
+     ~Str * greet(const Str *)~, and ~InitWindow(... title: U8)~ in
+     ~src/lib/raylib.til~ emits ~void InitWindow(I32, I32, const U8 *)~,
+     while ~callee_return_ctype~ in ~src/self/builder.til~ keeps just
+     the func-body forward decl with no const (matching the body).
+   - Bullet 2 ("FFI types ~CStr~ / ~char *~ distinct from ~U8 *~ /
+     ~I8 *~") is covered by til's existing ~I8~ primitive: per
+     ~src/c/ext.h~, ~I8~ is a typedef for C ~char~, so ~ref I8~ params
+     emit ~I8 *~ (= ~char *~) and ~const I8 *~ (= ~const char *~) with
+     the const-correct emission. No new primitive type is needed.
+     ~U8~ stays as ~unsigned char~ for raw byte buffers and the
+     callee-side cast helpers in ~src/self/builder.til~ bridge the two
+     where users pass ~Str.c_str~ (~U8 *~) into libc functions.
+
+   Regression test ~src/test/ext_libc.til~ binds ~setenv~, ~getenv~,
+   and ~unsetenv~ directly via ~ext_func~ and asserts the round-trip
+   works. 117/117 tests pass with const emission turned on.
 
    Not done yet:
 
-   - First "Desired fix" bullet (const-correct emission) is not
-     implemented in general: non-~mut~ Ref args still emit ~Type *~ (not
-     ~const Type *~) in til-generated prototypes. Doing this safely
-     would require auditing internal callers and the matching
-     definitions in ~src/c/ext.c~ for const-correctness; left for a
-     separate change.
-   - Second "Desired fix" bullet (FFI types ~CStr~ / ~char *~ distinct
-     from ~U8 *~ / ~I8 *~) is not implemented: there is no new primitive
-     type that emits ~char *~ in til signatures. The cast-at-call-site
-     approach makes ~U8 *~ work at libc boundaries but does not give
-     users an opt-in type. Adding a new primitive ~Type~ variant would
-     touch the typer/initer/codegen and is left for a separate change.
+   - The const-correct ~ext_func~ emission only fires for the ~units~
+     side (user file + mode auto-import + transitive imports through
+     them, which covers ~src/lib/*~ and ~src/modes/*~). Bindings
+     declared in ~src/core/*.til~ (loaded via core auto-import) get
+     their C prototypes from the hand-written ~src/c/ext.h~, which
+     still declares them without ~const~. Making that fully
+     const-correct means updating ~src/c/ext.h~ and the matching
+     ~src/c/ext.c~ definitions by hand. The mechanical sweep is
+     entirely additive (no behavioural change at the ABI level) but
+     spread across many functions; left for a separate change.

@@ -1466,7 +1466,7 @@ Bool rhs_is_pure_byvalue_for_emit(Expr * e);
 void emit_til_default(File * f, Type t);
 Str * callee_return_ctype(Str * callee_name);
 Str * param_ctype(FunctionDef * fd, U32 i);
-void emit_param_list(File * f, Expr * fdef, Bool with_names);
+void emit_param_list(File * f, Expr * fdef, Bool with_names, Bool for_ext_decl);
 void collect_dyn_methods(Expr * e, Vec * methods);
 void collect_collection_builtins(Expr * e, Vec * infos);
 void emit_field(File * f, Str * var, Str * field);
