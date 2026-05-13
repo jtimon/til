@@ -29,7 +29,7 @@ typedef struct Str Str;
 #define UPTR_REF(x) ((void *)&(UPtr){(UPtr)(x)})
 
 // I64 clone
-I64 I64_clone(I64 *v);
+I64 I64_clone(const I64 *v);
 
 // I64 arithmetic (shallow params)
 I64 I64_add(I64 a, I64 b);
@@ -67,10 +67,10 @@ U32 U8_to_u32(U8 a);
 USize U8_to_usize(U8 a);
 F32 U8_to_f32(U8 a);
 U8 I64_to_u8(I64 a);
-U8 U8_from_i64_ext(I64 *a);
+U8 U8_from_i64_ext(const I64 *a);
 
 // U8 clone
-U8 U8_clone(U8 *v);
+U8 U8_clone(const U8 *v);
 
 // I8 arithmetic
 I8 I8_add(I8 a, I8 b);
@@ -90,10 +90,10 @@ I64 I8_cmp(I8 a, I8 b);
 I64 I8_to_i64(I8 a);
 U64 I8_to_u64(I8 a);
 I8 I64_to_i8(I64 a);
-I8 I8_from_i64_ext(I64 *a);
+I8 I8_from_i64_ext(const I64 *a);
 
 // I8 clone
-I8 I8_clone(I8 *v);
+I8 I8_clone(const I8 *v);
 
 // I16 arithmetic
 I16 I16_add(I16 a, I16 b);
@@ -121,10 +121,10 @@ U32 I32_to_u32(I32 a);
 U64 I64_to_u64(I64 a);
 USize I64_to_usize(I64 a);
 F32 I64_to_f32(I64 a);
-I16 I16_from_i64_ext(I64 *a);
+I16 I16_from_i64_ext(const I64 *a);
 
 // I16 clone
-I16 I16_clone(I16 *v);
+I16 I16_clone(const I16 *v);
 
 // I16 CLI
 I16 *cli_parse_i16(const char *s);
@@ -149,10 +149,10 @@ I64 I32_to_i64(I32 a);
 U64 I32_to_u64(I32 a);
 USize I32_to_usize(I32 a);
 F32 I32_to_f32(I32 a);
-I32 I32_from_i64_ext(I64 *a);
+I32 I32_from_i64_ext(const I64 *a);
 
 // I32 clone
-I32 I32_clone(I32 *v);
+I32 I32_clone(const I32 *v);
 
 // I32 CLI
 I32 *cli_parse_i32(const char *s);
@@ -169,11 +169,11 @@ I64 F32_cmp(F32 a, F32 b);
 
 // F32 conversions
 I64 F32_to_i64(F32 a);
-F32 F32_from_i64_ext(I64 *a);
+F32 F32_from_i64_ext(const I64 *a);
 Str *F32_to_str(F32 v);
 
 // F32 clone
-F32 F32_clone(F32 *v);
+F32 F32_clone(const F32 *v);
 
 // U32 arithmetic
 U32 U32_add(U32 a, U32 b);
@@ -194,10 +194,10 @@ I64 U32_to_i64(U32 a);
 U64 U32_to_u64(U32 a);
 I32 U32_to_i32(U32 a);
 F32 U32_to_f32(U32 a);
-U32 U32_from_i64_ext(I64 *a);
+U32 U32_from_i64_ext(const I64 *a);
 
 // U32 clone
-U32 U32_clone(U32 *v);
+U32 U32_clone(const U32 *v);
 
 // U64 arithmetic
 U64 U64_add(U64 a, U64 b);
@@ -219,11 +219,11 @@ U32 U64_to_u32(U64 a);
 I32 U64_to_i32(U64 a);
 USize U64_to_usize(U64 a);
 F32 U64_to_f32(U64 a);
-U64 U64_from_i64_ext(I64 *a);
+U64 U64_from_i64_ext(const I64 *a);
 Str *U64_to_str_ext(U64 v);
 
 // U64 clone
-U64 U64_clone(U64 *v);
+U64 U64_clone(const U64 *v);
 
 // Bool ops (shallow params)
 Bool Bool_eq(Bool a, Bool b);
@@ -232,9 +232,17 @@ Bool or(Bool a, Bool b);
 Bool not(Bool a);
 
 // Bool clone
-Bool Bool_clone(Bool *v);
+Bool Bool_clone(const Bool *v);
 
-// Pointer primitives (custom, not in libc)
+// Pointer primitives (custom, not in libc). Inputs stay non-const for
+// the pointer-returning ones (ptr_add, to_ptr, deref, get_payload),
+// which hand back interior pointers the caller is expected to write
+// through, and for write_ptr which mutates dest. is_null and ptr_eq
+// only read the pointer values, but adding `const` there makes gcc's
+// "may be used uninitialized" analysis stricter on til-emitted call
+// sites that follow a buf := alloc-or-NULL ; if (is_null(buf)) {} ;
+// use(buf) pattern; the analysis is correct in the abstract but
+// chases a real-world non-bug, so keep these non-const for now.
 void *ptr_add(void *buf, UPtr offset);
 void *to_ptr(void *a);
 void *deref(void *slot);
@@ -252,29 +260,32 @@ UPtr *cli_parse_uptr(const char *s);
 Bool *cli_parse_bool(const char *s);
 
 // System primitives
-Str *File_readfile(Str *path);
-void File_writefile(Str *path, Str *content);
-I64 *spawn_cmd(Str *cmd);
+Str *File_readfile(const Str *path);
+void File_writefile(const Str *path, const Str *content);
+I64 *spawn_cmd(const Str *cmd);
 I64 check_cmd_status(I64 pid);
 void sleep_ms(I64 ms);
-I64 file_mtime(Str *path);
+I64 file_mtime(const Str *path);
 I64 clock_ms(void);
 I64 get_thread_count(void);
 U64 peak_rss_bytes(void);
 U64 current_rss_bytes(I64 pid);
 Str *host_os(void);
-I32 mkdir_p(Str *path);
-I32 copy_file(Str *src, Str *dst);
-I32 copy_tree(Str *src, Str *dst);
-USize c_str_len(U8 *s);
+I32 mkdir_p(const Str *path);
+I32 copy_file(const Str *src, const Str *dst);
+I32 copy_tree(const Str *src, const Str *dst);
+USize c_str_len(const U8 *s);
 Bool ptr_eq(void *a, void *b);
-void eprint_single(Str *s);
+void eprint_single(const Str *s);
 
-// File handle I/O
-void *cfile_open(Str *path, Bool is_write);
+// File handle I/O. The void * handle is opaque; til-side bindings take
+// it non-mut, but the underlying FILE * state is mutated by the call,
+// so handle stays non-const.
+void *cfile_open(const Str *path, Bool is_write);
 void cfile_close(void *handle);
-void cfile_write_str(void *handle, Str *s);
+void cfile_write_str(void *handle, const Str *s);
 Str *cfile_read_all(void *handle);
 
-// Line input
+// Line input. The til-side binding declares `mut line: Str`, so line
+// is mutated by this call -- keep it non-const.
 Bool in_read_line(Str *line);

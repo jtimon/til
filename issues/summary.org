@@ -56,7 +56,6 @@
 
 * WIP
 ** High
-*** [[./open/176.org][#176]] FFI: support const char* params (avoid libc prototype conflicts)
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
 ** Medium
 ** Low

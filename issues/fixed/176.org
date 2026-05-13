@@ -1,5 +1,5 @@
 # priority: high
-** WIP #176 FFI: support const char* params (avoid libc prototype conflicts)
+** FIXED #176 FFI: support const char* params (avoid libc prototype conflicts)
 
 Symptom:
 
@@ -77,19 +77,33 @@ Symptom:
      callee-side cast helpers in ~src/self/builder.til~ bridge the two
      where users pass ~Str.c_str~ (~U8 *~) into libc functions.
 
+   - Const-correct C emission for the rest of the forward-decl paths:
+     a follow-up commit pulled the top-level-ext_func filter inside
+     ~emit_func_forward_decl~ (gated by a ~top_level: Bool~ argument),
+     so the per-unit and per-pass loops in
+     ~emit_header_defs_and_funcs_lp~ /
+     ~emit_monolithic_header_func_decls_prog~ / etc. no longer leak a
+     non-const prototype for symbols like ~realpath_str~ /
+     ~system_cmd~ / ~stderr_print~ / ~ffi_*~ into ~til_forward.h~.
+   - Hand-written FFI surface: ~src/c/ext.h~ and the matching
+     ~src/c/ext.c~ definitions now use ~const~ for non-mut Ref
+     pointer params on the clone / from_i64_ext / File_* / cfile_* /
+     spawn_cmd / file_mtime / mkdir_p / copy_file / copy_tree /
+     c_str_len / eprint_single / til_setenv / til_realpath /
+     til_system / til_str_left / realpath_str / system_cmd /
+     stderr_print / unlink_path / ffi_load_global_lib /
+     ffi_open_user_so / ffi_user_symbol / ffi_global_symbol
+     functions. Bodies got a matching ~(const char *)x->c_str~ on
+     the few cast sites where it mattered. The low-level pointer
+     primitives (~ptr_add~, ~to_ptr~, ~deref~, ~write_ptr~,
+     ~get_payload~, ~is~, ~is_null~, ~ptr_eq~) deliberately stay
+     non-const: the first five hand back / mutate interior pointers,
+     and adding ~const~ to ~is_null~ / ~is~ / ~ptr_eq~ triggered
+     gcc's stricter "may be used uninitialized" analysis on real
+     til-emitted call sites that pattern-match
+     ~buf := ... ; if (is_null(buf)) {} ; use(buf)~ -- a real-world
+     non-bug.
+
    Regression test ~test/ext_libc.til~ binds ~setenv~, ~getenv~,
    and ~unsetenv~ directly via ~ext_func~ and asserts the round-trip
-   works. 117/117 tests pass with const emission turned on.
-
-   Not done yet:
-
-   - The const-correct ~ext_func~ emission only fires for the ~units~
-     side (user file + mode auto-import + transitive imports through
-     them, which covers ~src/lib/*~ and ~src/modes/*~). Bindings
-     declared in ~src/core/*.til~ (loaded via core auto-import) get
-     their C prototypes from the hand-written ~src/c/ext.h~, which
-     still declares them without ~const~. Making that fully
-     const-correct means updating ~src/c/ext.h~ and the matching
-     ~src/c/ext.c~ definitions by hand. The mechanical sweep is
-     entirely additive (no behavioural change at the ABI level) but
-     spread across many functions; left for a separate change.
+   works. 117/117 tests pass.

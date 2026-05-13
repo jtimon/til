@@ -242,7 +242,7 @@ static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r
 
 // Avoid declaring libc symbols directly in generated C (signature mismatches
 // vs stdlib.h can cause compile errors). Provide stable wrappers instead.
-I32 til_setenv(U8 *name, U8 *value, I32 overwrite)
+I32 til_setenv(const U8 *name, const U8 *value, I32 overwrite)
 {
 #ifdef _WIN32
     // setenv is not portable to Windows; use Win32 environment APIs.
@@ -259,7 +259,7 @@ I32 til_setenv(U8 *name, U8 *value, I32 overwrite)
 }
 
 // I64 clone
-I64 I64_clone(I64 *v) { return *v; }
+I64 I64_clone(const I64 *v) { return *v; }
 
 // I64 arithmetic (shallow params, shallow return)
 I64 I64_add(I64 a, I64 b) { return a + b; }
@@ -307,10 +307,10 @@ U64 I64_to_u64(I64 a) { return (U64)a; }
 USize I64_to_usize(I64 a) { return (USize)a; }
 F32 I64_to_f32(I64 a) { return (F32)a; }
 U8 U8_from_i64(I64 v) { return (U8)v; }
-U8 U8_from_i64_ext(I64 *a) { return (U8)*a; }
+U8 U8_from_i64_ext(const I64 *a) { return (U8)*a; }
 
 // U8 clone
-U8 U8_clone(U8 *v) { return *v; }
+U8 U8_clone(const U8 *v) { return *v; }
 
 // I8 arithmetic
 I8 I8_add(I8 a, I8 b) { return a + b; }
@@ -330,10 +330,10 @@ I64 I8_cmp(I8 a, I8 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 I64 I8_to_i64(I8 a) { return (I64)a; }
 U64 I8_to_u64(I8 a) { return (U64)(I64)a; }
 I8 I8_from_i64(I64 v) { return (I8)v; }
-I8 I8_from_i64_ext(I64 *a) { return (I8)*a; }
+I8 I8_from_i64_ext(const I64 *a) { return (I8)*a; }
 
 // I8 clone
-I8 I8_clone(I8 *v) { return *v; }
+I8 I8_clone(const I8 *v) { return *v; }
 
 
 // I16 arithmetic
@@ -356,11 +356,11 @@ U64 I16_to_u64(I16 a) { return (U64)(I64)a; }
 U32 I16_to_u32(I16 a) { return (U32)(I32)a; }
 F32 I16_to_f32(I16 a) { return (F32)a; }
 I16 I16_from_i64(I64 v) { return (I16)v; }
-I16 I16_from_i64_ext(I64 *a) { return (I16)*a; }
+I16 I16_from_i64_ext(const I64 *a) { return (I16)*a; }
 
 
 // I16 clone
-I16 I16_clone(I16 *v) { return *v; }
+I16 I16_clone(const I16 *v) { return *v; }
 
 // I16 CLI
 I16 *cli_parse_i16(const char *s) {
@@ -394,11 +394,11 @@ U64 I32_to_u64(I32 a) { return (U64)(I64)a; }
 USize I32_to_usize(I32 a) { return (USize)a; }
 F32 I32_to_f32(I32 a) { return (F32)a; }
 I32 I32_from_i64(I64 v) { return (I32)v; }
-I32 I32_from_i64_ext(I64 *a) { return (I32)*a; }
+I32 I32_from_i64_ext(const I64 *a) { return (I32)*a; }
 
 
 // I32 clone
-I32 I32_clone(I32 *v) { return *v; }
+I32 I32_clone(const I32 *v) { return *v; }
 
 // I32 CLI
 I32 *cli_parse_i32(const char *s) {
@@ -425,7 +425,7 @@ I64 F32_cmp(F32 a, F32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 // F32 conversions
 I64 F32_to_i64(F32 a) { return (I64)a; }
-F32 F32_from_i64_ext(I64 *a) { return (F32)*a; }
+F32 F32_from_i64_ext(const I64 *a) { return (F32)*a; }
 
 // F32 to_str
 Str *F32_to_str(F32 v) {
@@ -442,7 +442,7 @@ Str *F32_to_str(F32 v) {
 
 
 // F32 clone
-F32 F32_clone(F32 *v) { return *v; }
+F32 F32_clone(const F32 *v) { return *v; }
 
 // U32 arithmetic
 U32 U32_add(U32 a, U32 b) { return a + b; }
@@ -464,11 +464,11 @@ U64 U32_to_u64(U32 a) { return (U64)a; }
 I32 U32_to_i32(U32 a) { return (I32)a; }
 F32 U32_to_f32(U32 a) { return (F32)a; }
 U32 U32_from_i64(I64 v) { return (U32)v; }
-U32 U32_from_i64_ext(I64 *a) { return (U32)*a; }
+U32 U32_from_i64_ext(const I64 *a) { return (U32)*a; }
 
 
 // U32 clone
-U32 U32_clone(U32 *v) { return *v; }
+U32 U32_clone(const U32 *v) { return *v; }
 
 // U64 arithmetic
 U64 U64_add(U64 a, U64 b) { return a + b; }
@@ -490,7 +490,7 @@ U32 U64_to_u32(U64 a) { return (U32)a; }
 I32 U64_to_i32(U64 a) { return (I32)a; }
 USize U64_to_usize(U64 a) { return (USize)a; }
 F32 U64_to_f32(U64 a) { return (F32)a; }
-U64 U64_from_i64_ext(I64 *a) { return (U64)*a; }
+U64 U64_from_i64_ext(const I64 *a) { return (U64)*a; }
 
 // U64 to_str
 Str *U64_to_str_ext(U64 v) {
@@ -507,7 +507,7 @@ Str *U64_to_str_ext(U64 v) {
 
 
 // U64 clone
-U64 U64_clone(U64 *v) { return *v; }
+U64 U64_clone(const U64 *v) { return *v; }
 
 // Bool ops (shallow params, shallow return)
 Bool Bool_eq(Bool a, Bool b) { return a == b; }
@@ -517,9 +517,10 @@ Bool not(Bool a) { return !a; }
 
 
 // Bool clone
-Bool Bool_clone(Bool *v) { return *v; }
+Bool Bool_clone(const Bool *v) { return *v; }
 
-// Pointer primitives (custom, not in libc)
+// Pointer primitives (custom, not in libc). See ext.h for why these
+// keep non-const inputs.
 void *ptr_add(void *buf, UPtr offset) {
     return (char *)buf + offset;
 }
@@ -528,7 +529,7 @@ void *deref(void *slot) { return *(void **)slot; }
 void write_ptr(void *dest, void *val) { *(void **)dest = val; }
 Bool is_null(void *p) { return p == NULL; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
-void eprint_single(Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
+void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
 Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }
 void *get_payload(void *self) { return (U8*)self + sizeof(I64); }
 
@@ -597,8 +598,8 @@ Bool *cli_parse_bool(const char *s) {
 // --- System primitives ---
 // These use the codegen Str layout: { U8 *c_str, U64 count, U64 cap }.
 
-Str *File_readfile(Str *path) {
-    char *p = dup_n((char *)path->c_str, path->count);
+Str *File_readfile(const Str *path) {
+    char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, "rb");
     if (!f) {
         fprintf(stderr, "File.readfile: could not open '%s'\n", p);
@@ -619,8 +620,8 @@ Str *File_readfile(Str *path) {
     return s;
 }
 
-void File_writefile(Str *path, Str *content) {
-    char *p = dup_n((char *)path->c_str, path->count);
+void File_writefile(const Str *path, const Str *content) {
+    char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, "wb");
     if (!f) {
         fprintf(stderr, "File.writefile: could not open '%s'\n", p);
@@ -634,8 +635,8 @@ void File_writefile(Str *path, Str *content) {
 
 // --- File handle I/O ---
 
-void *cfile_open(Str *path, Bool is_write) {
-    char *p = dup_n((char *)path->c_str, path->count);
+void *cfile_open(const Str *path, Bool is_write) {
+    char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, is_write ? "wb" : "rb");
     if (!f) {
         fprintf(stderr, "cfile_open: could not open '%s'\n", p);
@@ -650,7 +651,7 @@ void cfile_close(void *handle) {
     if (handle) fclose((FILE *)handle);
 }
 
-void cfile_write_str(void *handle, Str *s) {
+void cfile_write_str(void *handle, const Str *s) {
     if (!handle) {
         fprintf(stderr, "cfile_write_str: file not open\n");
         exit(1);
@@ -719,7 +720,7 @@ Str *get_cwd_str(void) {
     return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen(buf), .cap = CAP_VIEW});
 }
 
-Str *realpath_str(Str *path) {
+Str *realpath_str(const Str *path) {
     char *p = malloc(path->count + 1);
     memcpy(p, path->c_str, path->count);
     p[path->count] = '\0';
@@ -740,7 +741,7 @@ Str *realpath_str(Str *path) {
     return s;
 }
 
-I32 system_cmd(Str *cmd) {
+I32 system_cmd(const Str *cmd) {
     char *c = malloc(cmd->count + 1);
     memcpy(c, cmd->c_str, cmd->count);
     c[cmd->count] = '\0';
@@ -830,7 +831,7 @@ Str *host_os(void) {
 }
 
 #ifdef _WIN32
-I64 *spawn_cmd(Str *cmd) {
+I64 *spawn_cmd(const Str *cmd) {
     char *c = malloc(cmd->count + 1);
     memcpy(c, cmd->c_str, cmd->count);
     c[cmd->count] = '\0';
@@ -864,8 +865,8 @@ void sleep_ms(I64 ms) {
     Sleep((DWORD)ms);
 }
 #else
-I64 *spawn_cmd(Str *cmd) {
-    char *c = dup_n((char *)cmd->c_str, cmd->count);
+I64 *spawn_cmd(const Str *cmd) {
+    char *c = dup_n((const char *)cmd->c_str, cmd->count);
     pid_t pid = fork();
     if (pid == 0) {
         execl("/bin/sh", "sh", "-c", c, NULL);
@@ -897,8 +898,8 @@ void sleep_ms(I64 ms) {
 }
 #endif
 
-I64 file_mtime(Str *path) {
-    char *p = dup_n((char *)path->c_str, path->count);
+I64 file_mtime(const Str *path) {
+    char *p = dup_n((const char *)path->c_str, path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
@@ -906,17 +907,17 @@ I64 file_mtime(Str *path) {
     return (I64)st.st_mtime;
 }
 
-I32 mkdir_p(Str *path) {
-    char *p = dup_n((char *)path->c_str, path->count);
+I32 mkdir_p(const Str *path) {
+    char *p = dup_n((const char *)path->c_str, path->count);
     int rc = mkdir_p_cstr(p);
     if (rc != 0) fprintf(stderr, "mkdir_p: failed for '%s'\n", p);
     free(p);
     return (I32)rc;
 }
 
-I32 copy_file(Str *src, Str *dst) {
-    char *s = dup_n((char *)src->c_str, src->count);
-    char *d = dup_n((char *)dst->c_str, dst->count);
+I32 copy_file(const Str *src, const Str *dst) {
+    char *s = dup_n((const char *)src->c_str, src->count);
+    char *d = dup_n((const char *)dst->c_str, dst->count);
     int rc = copy_file_cstr(s, d);
     if (rc != 0) fprintf(stderr, "copy_file: failed from '%s' to '%s'\n", s, d);
     free(s);
@@ -924,9 +925,9 @@ I32 copy_file(Str *src, Str *dst) {
     return (I32)rc;
 }
 
-I32 copy_tree(Str *src, Str *dst) {
-    char *s = dup_n((char *)src->c_str, src->count);
-    char *d = dup_n((char *)dst->c_str, dst->count);
+I32 copy_tree(const Str *src, const Str *dst) {
+    char *s = dup_n((const char *)src->c_str, src->count);
+    char *d = dup_n((const char *)dst->c_str, dst->count);
     int rc = copy_tree_cstr(s, d);
     if (rc != 0) fprintf(stderr, "copy_tree: failed from '%s' to '%s'\n", s, d);
     free(s);
@@ -1051,11 +1052,11 @@ Str *til_bin_dir(void) {
     return get_bin_dir();
 }
 
-Str *til_realpath(Str *path) {
+Str *til_realpath(const Str *path) {
     return realpath_str(path);
 }
 
-I32 til_system(Str *cmd) {
+I32 til_system(const Str *cmd) {
     int status = system((const char *)cmd->c_str);
 #ifdef _WIN32
     return (I32)status;
@@ -1066,11 +1067,11 @@ I32 til_system(Str *cmd) {
 }
 
 #ifdef _WIN32
-Bool ffi_load_global_lib(Str *soname) {
+Bool ffi_load_global_lib(const Str *soname) {
     return LoadLibraryA((const char *)soname->c_str) != NULL;
 }
 
-Bool ffi_open_user_so(Str *path) {
+Bool ffi_open_user_so(const Str *path) {
     ffi_handle = LoadLibraryA((const char *)path->c_str);
     return ffi_handle != NULL;
 }
@@ -1082,12 +1083,12 @@ void ffi_close_user_so(void) {
     }
 }
 
-U8 *ffi_user_symbol(Str *name) {
+U8 *ffi_user_symbol(const Str *name) {
     if (!ffi_handle) return NULL;
     return (U8 *)GetProcAddress(ffi_handle, (const char *)name->c_str);
 }
 
-U8 *ffi_global_symbol(Str *name) {
+U8 *ffi_global_symbol(const Str *name) {
     // Walk loaded modules looking for the symbol. Mirrors RTLD_DEFAULT
     // semantics well enough for the built-in libs til links against.
     HMODULE mods[256];
@@ -1118,11 +1119,11 @@ Str *ffi_last_error(void) {
     return Str_clone(&(Str){.c_str = (U8 *)buf, .count = (USize)n, .cap = CAP_VIEW});
 }
 #else
-Bool ffi_load_global_lib(Str *soname) {
+Bool ffi_load_global_lib(const Str *soname) {
     return dlopen((const char *)soname->c_str, RTLD_NOW | RTLD_GLOBAL) != NULL;
 }
 
-Bool ffi_open_user_so(Str *path) {
+Bool ffi_open_user_so(const Str *path) {
     ffi_handle = dlopen((const char *)path->c_str, RTLD_NOW);
     return ffi_handle != NULL;
 }
@@ -1134,12 +1135,12 @@ void ffi_close_user_so(void) {
     }
 }
 
-U8 *ffi_user_symbol(Str *name) {
+U8 *ffi_user_symbol(const Str *name) {
     if (!ffi_handle) return NULL;
     return dlsym(ffi_handle, (const char *)name->c_str);
 }
 
-U8 *ffi_global_symbol(Str *name) {
+U8 *ffi_global_symbol(const Str *name) {
     return dlsym(RTLD_DEFAULT, (const char *)name->c_str);
 }
 
@@ -1152,12 +1153,12 @@ Str *ffi_last_error(void) {
 }
 #endif
 
-I32 stderr_print(Str *msg) {
+I32 stderr_print(const Str *msg) {
     fprintf(stderr, "%.*s", (int)msg->count, msg->c_str ? (char *)msg->c_str : "");
     return 0;
 }
 
-void unlink_path(Str *path) {
+void unlink_path(const Str *path) {
 #ifdef _WIN32
     _unlink((const char *)path->c_str);
 #else
@@ -1173,7 +1174,7 @@ I32 process_id(void) {
 #endif
 }
 
-Str *til_str_left(Str *s, U64 n) {
+Str *til_str_left(const Str *s, U64 n) {
     if (!s || n == 0) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
     USize len = (USize)s->count;
     if (n > len) n = len;
@@ -1185,4 +1186,4 @@ Str *til_str_left(Str *s, U64 n) {
     return result;
 }
 
-USize c_str_len(U8 *s) { return (USize)strlen((const char *)s); }
+USize c_str_len(const U8 *s) { return (USize)strlen((const char *)s); }
