@@ -466,6 +466,7 @@ U8 * Str_get(Str * self, U32 * i) {
         Str _t_Str_406 = (Str){.c_str = (U8 *)"./src/core/str.til:39:19", .count = 24ULL, .cap = TIL_CAP_LIT};
         panic(&_t_Str_406, _va_Array_9);
         Str_delete(&_t_Str_406, &(Bool){0});
+        free(_va_Array_9);
     }
     ;
     void *_t_v_408 = ptr_add(self->c_str, DEREF(i));
@@ -608,6 +609,7 @@ void Str_push_str(Str * self, Str * s) {
         Str _t_Str_432 = (Str){.c_str = (U8 *)"./src/core/str.til:82:19", .count = 24ULL, .cap = TIL_CAP_LIT};
         panic(&_t_Str_432, _va_Array_10);
         Str_delete(&_t_Str_432, &(Bool){0});
+        free(_va_Array_10);
     }
     ;
     U32 new_len = U32_add(self->count, s->count);
@@ -630,6 +632,7 @@ void Str_push_str(Str * self, Str * s) {
         Str _t_Str_438 = (Str){.c_str = (U8 *)"./src/core/str.til:86:19", .count = 24ULL, .cap = TIL_CAP_LIT};
         panic(&_t_Str_438, _va_Array_11);
         Str_delete(&_t_Str_438, &(Bool){0});
+        free(_va_Array_11);
     }
     ;
     void *_t_v_441 = ptr_add(self->c_str, self->count);
@@ -1297,6 +1300,7 @@ Array * Array_new_type_name(Str * elem_type, U32 * cap) {
         Str _t_Str_2442 = (Str){.c_str = (U8 *)"./src/core/array.til:23:41", .count = 26ULL, .cap = TIL_CAP_LIT};
         panic(&_t_Str_2442, _va_Array_73);
         Str_delete(&_t_Str_2442, &(Bool){0});
+        free(_va_Array_73);
     }
     ;
     U32 elem_size = dyn_size_of(elem_type);
@@ -1373,6 +1377,7 @@ void * Array_get(Array * self, U32 * i) {
         Str _t_Str_2462 = (Str){.c_str = (U8 *)"./src/core/array.til:41:19", .count = 26ULL, .cap = TIL_CAP_LIT};
         panic(&_t_Str_2462, _va_Array_74);
         Str_delete(&_t_Str_2462, &(Bool){0});
+        free(_va_Array_74);
     }
     ;
     U32 _t_U64_2464 = U32_mul(DEREF(i), self->elem_size);
@@ -1425,6 +1430,7 @@ void Array_set(Array * self, U32 * i, void * val) {
         Str _t_Str_2479 = (Str){.c_str = (U8 *)"./src/core/array.til:50:19", .count = 26ULL, .cap = TIL_CAP_LIT};
         panic(&_t_Str_2479, _va_Array_75);
         Str_delete(&_t_Str_2479, &(Bool){0});
+        free(_va_Array_75);
     }
     ;
     U32 _t_U64_2481 = U32_mul(DEREF(i), self->elem_size);
@@ -1636,6 +1642,7 @@ void panic(Str * loc_str, Array * parts) {
     Array_set(_va_Array_92, &_t_U32_2758, _t_Str_2759);
     ;
     println(_va_Array_92);
+    free(_va_Array_92);
     I64 _t_I64_2760 = 1;
     exit(_t_I64_2760);
     ;
@@ -1661,6 +1668,7 @@ Bool * assert(Str * loc_str, Bool * cond) {
         Array_set(_va_Array_95, &_t_U32_2777, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t_Str_2778; _oa; }));
         ;
         panic(loc_str, _va_Array_95);
+        free(_va_Array_95);
     }
     ;
     Bool _t_Bool_2780 = 1;
@@ -1706,6 +1714,7 @@ void assert_eq(Str * loc_str, I64 * a, I64 * b) {
         Array_set(_va_Array_97, &_t_U32_2801, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t_Str_2802; _oa; }));
         ;
         panic(loc_str, _va_Array_97);
+        free(_va_Array_97);
     }
     ;
 }
@@ -1752,6 +1761,7 @@ void assert_eq_str(Str * loc_str, Str * a, Str * b) {
         Array_set(_va_Array_98, &_t_U32_2815, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t_Str_2816; _oa; }));
         ;
         panic(loc_str, _va_Array_98);
+        free(_va_Array_98);
     }
     ;
 }
