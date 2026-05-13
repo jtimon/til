@@ -229,6 +229,9 @@ typedef struct ExtStr ExtStr;
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
+typedef struct Vector3 Vector3;
+typedef struct Texture Texture;
+typedef struct Camera3D Camera3D;
 typedef struct CliArgs CliArgs;
 
 typedef void * (*CloneFn)(void *);
@@ -502,7 +505,7 @@ typedef struct {
     I32 abi;
     U32 nargs;
     void * *arg_types;
-    void * *rtype;
+    ffi_type *rtype;
     U32 bytes;
     U32 flags;
 } ffi_cif;
@@ -534,6 +537,31 @@ typedef struct ExprPtrBox {
 typedef struct FFITypePtrBox {
     ffi_type *ptr;
 } FFITypePtrBox;
+
+
+typedef struct Vector3 {
+    F32 x;
+    F32 y;
+    F32 z;
+} Vector3;
+
+
+typedef struct Texture {
+    U32 id;
+    I32 width;
+    I32 height;
+    I32 mipmaps;
+    I32 format;
+} Texture;
+
+
+typedef struct Camera3D {
+    Vector3 position;
+    Vector3 target;
+    Vector3 up;
+    F32 fovy;
+    I32 projection;
+} Camera3D;
 
 
 typedef struct CliArgs {
@@ -1767,6 +1795,15 @@ void ffi_register(Str * name, void * fn, Expr * fdef);
 void ffi_init_scan_program(Expr * program);
 I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags);
 void ffi_cleanup(void);
+Vector3 * Vector3_clone(Vector3 * self);
+void Vector3_delete(Vector3 * self, Bool * call_free);
+U32 Vector3_size(void);
+Texture * Texture_clone(Texture * self);
+void Texture_delete(Texture * self, Bool * call_free);
+U32 Texture_size(void);
+Camera3D * Camera3D_clone(Camera3D * self);
+void Camera3D_delete(Camera3D * self, Bool * call_free);
+U32 Camera3D_size(void);
 Str * get_bin_dir(void);
 Str * get_cwd_str(void);
 Str * repl_read_line(Str * mode_name);
@@ -1949,6 +1986,24 @@ extern Bool ffi_loaded;
 extern Vec ffi_type_cache;
 extern Bool ffi_type_cache_inited;
 extern Bool ffi_map_inited;
+extern I32 CAMERA_PERSPECTIVE;
+extern I32 CAMERA_ORTHOGRAPHIC;
+extern U32 FLAG_WINDOW_RESIZABLE;
+extern U32 FLAG_WINDOW_MAXIMIZED;
+extern I64 KEY_SPACE;
+extern I64 KEY_A;
+extern I64 KEY_D;
+extern I64 KEY_G;
+extern I64 KEY_M;
+extern I64 KEY_S;
+extern I64 KEY_W;
+extern I64 KEY_ESCAPE;
+extern I64 KEY_ENTER;
+extern I64 KEY_RIGHT;
+extern I64 KEY_LEFT;
+extern I64 KEY_DOWN;
+extern I64 KEY_UP;
+extern I64 KEY_F11;
 extern Str BASE_VERSION;
 extern Str VERSION;
 

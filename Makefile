@@ -14,12 +14,15 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all clean test test_asan test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass
+.PHONY: all bindings clean test test_asan test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass
 
 all: bin/til
 
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
+LIB_TIL := $(wildcard src/lib/*.til)
+BINDING_GEN := examples/bindings_gen.til
+RAW_BINDINGS := src/lib/libffi.til src/lib/raylib.til src/lib/tinyfd.til
 LD_FLAGS := -rdynamic -ldl
 
 RAYLIB_LIB := lib/raylib/src/libraylib.a
@@ -32,6 +35,7 @@ LIBFFI_DIR := lib/libffi
 LIBFFI_INCDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/include))
 LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
 LIBFFI_FLAGS = -I$(LIBFFI_INCDIR) -L$(LIBFFI_LIBDIR) -lffi
+LIBFFI_BINDGEN_INCDIR := $(LIBFFI_DIR)/x86_64-pc-linux-gnu/include
 
 $(RAYLIB_LIB):
 	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP \
@@ -45,6 +49,17 @@ lib/libffi/.built:
 	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --disable-docs --quiet
 	$(MAKE) -C $(LIBFFI_DIR)
 	touch $@
+
+bindings: $(RAW_BINDINGS)
+
+src/lib/raylib.til: $(BINDING_GEN) lib/raylib/src/raylib.h bin/til_boot
+	bin/til_boot run $(BINDING_GEN) raylib lib/raylib/src/raylib.h src/lib/raylib.til
+
+src/lib/tinyfd.til: $(BINDING_GEN) lib/tinyfiledialogs/tinyfiledialogs.h bin/til_boot
+	bin/til_boot run $(BINDING_GEN) tinyfd lib/tinyfiledialogs/tinyfiledialogs.h src/lib/tinyfd.til
+
+src/lib/libffi.til: $(BINDING_GEN) lib/libffi/.built $(LIBFFI_BINDGEN_INCDIR)/ffi.h $(LIBFFI_BINDGEN_INCDIR)/ffitarget.h bin/til_boot
+	bin/til_boot run $(BINDING_GEN) libffi $(LIBFFI_BINDGEN_INCDIR)/ffi.h src/lib/libffi.til
 
 # --- Boot compiler (from last commit, always safe) ---
 
@@ -60,7 +75,7 @@ bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) lib/libffi/.built
 
 # --- Self-hosted compiler (current code) + regenerate boot/ ---
 
-bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
+bin/til: bin/til_boot $(CORE) $(SELF) $(LIB_TIL) src/til.til
 	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til_boot build -o bin/til src/til.til
 	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true
 
@@ -200,6 +215,7 @@ help:
 	echo "make test           Build + run tests"
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
+	echo "make bindings       Regenerate raw FFI bindings from C headers"
 	echo "make doc            Regenerate doc/gen/ and UML docs"
 	echo "make install        Install til under PREFIX (default /usr/local)"
 	echo "make clean          Remove build artifacts"

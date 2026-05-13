@@ -63,7 +63,7 @@ ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().to_u64())
 
 ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns shallow Bool {
     if is_null(cif.rtype) { return false }
-    ref rt : ffi_type = to_ptr(cif.rtype)
+    ref rt : ffi_type = cif.rtype
     return rt.type.eq(FFI_TYPE_STRUCT)
 }
 

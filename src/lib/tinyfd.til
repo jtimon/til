@@ -4,5 +4,5 @@ mode lib
 
 link("lib/tinyfiledialogs/libtinyfd.a")
 
-tinyfd_saveFileDialog := ext_func(title: U8, defaultPathAndFile: U8, shallow numOfFilterPatterns: I32, shallow filterPatterns: I64, shallow singleFilterDescription: I64) returns ref U8 {}
-tinyfd_openFileDialog := ext_func(title: U8, defaultPathAndFile: U8, shallow numOfFilterPatterns: I32, shallow filterPatterns: I64, shallow singleFilterDescription: I64, shallow allowMultipleSelects: I32) returns ref U8 {}
+tinyfd_saveFileDialog := ext_func(title : U8, defaultPathAndFile : U8, shallow numOfFilterPatterns : I32, filterPatterns : Dynamic, singleFilterDescription : U8) returns ref U8 {}
+tinyfd_openFileDialog := ext_func(title : U8, defaultPathAndFile : U8, shallow numOfFilterPatterns : I32, filterPatterns : Dynamic, singleFilterDescription : U8, shallow allowMultipleSelects : I32) returns ref U8 {}

@@ -101,9 +101,9 @@ play_sound := proc(sound: Sound) { PlaySound(sound) }
 stop_sound := proc(sound: Sound) { StopSound(sound) }
 unload_sound := proc(sound: Sound) { UnloadSound(sound) }
 
-// Color helper: pack r,g,b,a into a U32
-color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns U32 {
-    return r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)).to_u32()
+// Color helper: build a raylib Color value from RGBA bytes.
+color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns Color {
+    return Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8())
 }
 
 // Backward-compatible snake_case API
@@ -143,10 +143,6 @@ draw_circle := proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I6
 get_screen_width := func() returns I64 { return GetScreenWidth().to_i64() }
 get_screen_height := func() returns I64 { return GetScreenHeight().to_i64() }
 
-// Window config flags
-FLAG_WINDOW_RESIZABLE : U32 = 4
-FLAG_WINDOW_MAXIMIZED : U32 = 1024
-
 set_config_flags := proc(flags: U32) { SetConfigFlags(flags) }
 set_exit_key := proc(key: I64) { SetExitKey(key.to_i32()) }
 is_window_resized := func() returns Bool { return IsWindowResized() }
@@ -173,7 +169,7 @@ close_audio_device := proc() { CloseAudioDevice() }
 
 // Font wrappers
 load_font := func(path: Str, size: I64) returns Font {
-    return LoadFontEx(path.c_str, size.to_i32(), 0, 0)
+    return LoadFontEx(path.c_str, size.to_i32(), NULL, 0)
 }
 unload_font := proc(font: Font) { UnloadFont(font) }
 draw_text_font := proc(font: Font, text: Str, x: I64, y: I64, font_size: I64, spacing: I64, r: I64, g: I64, b: I64, a: I64) {
@@ -190,13 +186,13 @@ c_str_len := ext_func(s: U8) returns shallow USize {}
 
 // File dialog helpers -- return file path or empty string on cancel
 save_file_dialog := func(title: Str, default_path: Str) returns Str {
-    ref result : U8 = tinyfd_saveFileDialog(title.c_str, default_path.c_str, 0, 0, 0)
+    ref result : U8 = tinyfd_saveFileDialog(title.c_str, default_path.c_str, 0, NULL, NULL)
     if is_null(result) { return "" }
     view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
     return view.clone()
 }
 open_file_dialog := func(title: Str, default_path: Str) returns Str {
-    ref result : U8 = tinyfd_openFileDialog(title.c_str, default_path.c_str, 0, 0, 0, 0)
+    ref result : U8 = tinyfd_openFileDialog(title.c_str, default_path.c_str, 0, NULL, NULL, 0)
     if is_null(result) { return "" }
     view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
     return view.clone()

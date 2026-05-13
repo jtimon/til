@@ -15,13 +15,15 @@ ffi_cif := ext_struct("") {
     mut abi : I32 = 0
     mut nargs : U32 = 0
     ref mut arg_types : Dynamic = NULL
-    ref mut rtype : Dynamic = NULL
+    ref mut rtype : ffi_type = NULL
     mut bytes : U32 = 0
     mut flags : U32 = 0
 }
 
-FFI_DEFAULT_ABI := 2.to_i32()
-FFI_TYPE_STRUCT := 13.to_i16()
+FFI_DEFAULT_ABI : I32 = 2.to_i32()
 
-ffi_prep_cif := ext_func(cif: ffi_cif, shallow abi: I32, shallow nargs: U32, rtype: ffi_type, atypes: Dynamic) returns shallow I32 {}
-ffi_call := ext_proc(cif: ffi_cif, fn: Dynamic, rvalue: Dynamic, avalue: Dynamic) {}
+FFI_TYPE_STRUCT : I16 = 13.to_i16()
+
+ffi_prep_cif := ext_func(cif : ffi_cif, shallow abi : I32, shallow nargs : U32, rtype : ffi_type, atypes : Dynamic) returns shallow I32 {}
+
+ffi_call := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : Dynamic) {}

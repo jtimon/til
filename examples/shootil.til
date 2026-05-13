@@ -26,22 +26,6 @@ WINDOW_H := 768
 MOVE_STEP := 1.to_f32().div(10.to_f32())
 MOUSE_SENS := 5.to_f32().div(100.to_f32())
 
-// Raylib key codes
-KEY_RIGHT := 262
-KEY_LEFT := 263
-KEY_DOWN := 264
-KEY_UP := 265
-KEY_ESCAPE := 256
-KEY_ENTER := 257
-KEY_A := 65
-KEY_D := 68
-KEY_G := 71
-KEY_M := 77
-KEY_S := 83
-KEY_W := 87
-KEY_SPACE := 32
-KEY_F11 := 300
-
 MENU_FULLSCREEN := 0
 MENU_FPS := 1
 MENU_QUIT := 2
@@ -78,7 +62,7 @@ mut camera := Camera3D(
     target = INIT_TARGET,
     up = v3(0, 1, 0),
     fovy = 60.to_f32(),
-    projection = 0.to_i32(),
+    projection = CAMERA_PERSPECTIVE,
 )
 
 reset_camera := func() {
