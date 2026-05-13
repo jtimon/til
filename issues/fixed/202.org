@@ -1,0 +1,73 @@
+# priority: low
+** DONE #202 Bang operator (!) -- panic on throw
+
+   Shipped. The postfix ~!~ operator now works as the panic-on-throw
+   shorthand. Tested on both ~bin/til interpret~ and ~bin/til build~
+   in [[file:../../src/test/errors.til][src/test/errors.til]] (test_bang_success, test_bang_in_return).
+
+   Diagnostics: ~!~ on a non-throwing call emits
+   "function does not throw, remove the '!' after the call" at the
+   call site, parallel to the ~?~-on-non-throwing rule
+   ([[file:../../src/test/typer_errors.til][src/test/typer_errors.til]] terr_bang_on_non_throwing).
+
+   *** What landed
+
+   1. Parser: postfix ~!~ on calls (bare and UFCS) sets
+      ~FCallData.is_bang~, parallel to the ~?~/does_throw plumbing.
+   2. Typer: ~desugar_bang_in_body~ runs per-function-body BEFORE
+      ~validate_throws_in_func_body~ and rewrites ~f(args)!~ into
+      ~f(args)?~ + one ~catch (_bang_err_<n>: T) { panic(loc, T) }~
+      block per declared throw type in the callee. The panic
+      message is the type name (we don't reach into ~err.msg~,
+      which would tie the bang to a specific error-field shape).
+   3. Return special case: ~return f()!~ would put the catch
+      block AFTER the return where it's unreachable, so the
+      desugar hoists the call to a ~_bang_ret_<n>~ local before
+      the catches and rewrites the return to ~return _bang_ret_<n>~.
+   4. Validation: any leftover ~is_bang~ flag at validation time
+      means the callee couldn't be resolved as throwing, so the
+      validator emits the "remove '!'" error and clears the flag
+      to keep downstream stages from panicking on a half-shaped
+      call.
+
+   *** Original plan (kept for reference)
+
+   rstil supports postfix ~!~ on calls as a "panic if this throws"
+   shortcut, e.g.
+
+   #+begin_src til
+   x := I64.safe_div(10, 0)!  // panics if it throws
+   #+end_src
+
+   instead of the verbose
+
+   #+begin_src til
+   x := I64.safe_div(10, 0)?
+   catch (err: DivideByZero) {
+       panic(loc(), err.msg)
+   }
+   #+end_src
+
+   The lexer already has the ~Bang~ token. The parser also already
+   tolerates the syntax in some positions (the lexer keyword test
+   in ~src/test/lexing.til~ exercises ~!~). What's missing:
+
+   1. Parser: a postfix-on-call branch that sets an
+      ~FCallData.is_bang~ flag (parallel to the existing
+      ~does_throw~).
+   2. Typer: desugar ~f(args)!~ into ~f(args)?~ + an immediate
+      ~catch (err: T) { panic(loc(), err.msg) }~ for each ~T~ in
+      the callee's throws clause. ~build_bang_catch~ in rstil's
+      ~src/rs/desugarer.rs~ is the reference.
+   3. Validation: ~!~ on a non-throwing call is the same error as
+      ~?~ on a non-throwing call.
+   4. Test: a ~test_bang_panics~ in ~src/test/errors.til~ that
+      asserts ~exit(1)~ on the bang path; needs the test harness
+      to support "expected-failure" mode tests (rstil's tests put
+      this in a separate single-test file).
+
+   *** Why low priority
+
+   The full ~?~ + ~catch~ form works today and is more honest about
+   error handling. ~!~ is a convenience.
+

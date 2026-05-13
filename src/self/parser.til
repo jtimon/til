@@ -641,6 +641,17 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
             UNREACHABLE(__LOC__)
         }
     }
+    // Issue #202: postfix ~!~ -- panic if the call throws. The typer
+    // desugars to ~?~ + auto-catch+panic per declared throw type.
+    if check(p, TokenType.Bang) {
+        advance(p)
+        switch call.node_type {
+        case NodeType.FCall(fcd_b):
+            fcd_b.is_bang = true
+        case:
+            UNREACHABLE(__LOC__)
+        }
+    }
     return call
 }
 
@@ -867,6 +878,16 @@ parse_primary := proc(mut p: Parser) returns Expr {
                 switch mcall.node_type {
                 case NodeType.FCall(mcd):
                     mcd.does_throw = true
+                case:
+                    UNREACHABLE(__LOC__)
+                }
+            }
+            // Issue #202: postfix ~!~ on method call.
+            if check(p, TokenType.Bang) {
+                advance(p)
+                switch mcall.node_type {
+                case NodeType.FCall(mcd_b):
+                    mcd_b.is_bang = true
                 case:
                     UNREACHABLE(__LOC__)
                 }

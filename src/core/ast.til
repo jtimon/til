@@ -174,6 +174,11 @@ FCallData := struct {
     // marking it as a call to a throwing function. The typer
     // validates that does_throw matches the callee's throws set.
     mut does_throw := false
+    // Issue #202: parser sets this when the call is followed by ~!~,
+    // the "panic on throw" sugar. The typer desugars f(args)! into
+    // f(args)? followed by an auto-injected catch (e: T) { panic } per
+    // declared throw type, then clears the flag.
+    mut is_bang := false
     mut own_args : U64 = 0
 namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {

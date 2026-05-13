@@ -516,6 +516,12 @@ terr_uncaught_undeclared_throw := func() {
 terr_declared_never_thrown := func() throws TerrErrA {
 }
 
+// '!' on a non-throwing call -- same error category as '?' on
+// non-throwing.
+terr_bang_on_non_throwing := func() {
+    _ := terr_no_throws()!
+}
+
 // Calling these so the unused-priv-func diagnostic doesn't mask
 // the throw/catch diagnostics above.
 terr_missing_question()
@@ -523,3 +529,4 @@ terr_question_on_non_throwing()
 terr_catch_not_thrown()
 terr_uncaught_undeclared_throw()
 terr_declared_never_thrown()
+terr_bang_on_non_throwing()

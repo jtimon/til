@@ -297,6 +297,7 @@ typedef struct FCallData {
     U32 kwargs_count;
     Bool is_splat;
     Bool does_throw;
+    Bool is_bang;
     U64 own_args;
 } FCallData;
 
@@ -1178,6 +1179,7 @@ Bool desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx
 Str * guess_local_type(Expr * e, Str * var_name);
 Str * throw_type_name_for_with_body(Expr * e, Expr * body);
 Bool subtree_has_throw_catch(Expr * e);
+Bool subtree_has_bang(Expr * e);
 void annotate_throw_types_in(Expr * e, Expr * root_body);
 void collect_throw_types_in(Expr * e, Vec * out);
 void collect_throw_types(Expr * e, Vec * out);
@@ -1195,6 +1197,10 @@ void lower_throw_catch_in_block(Expr * body, Expr * root_body, Vec * type_to_tag
 void register_func_throws(Str * name, Vec * throws_list);
 void extend_throwing_func_sigs(Expr * e);
 void inject_throw_args_in_body(Expr * e, Vec * names, Vec * throws_per);
+void clear_bang_flag(Expr * e);
+Str * find_bang_callee_name(Expr * e);
+Expr * build_bang_catch(Str * err_var, Str * error_type, U32 line, U32 col);
+void desugar_bang_in_body(Expr * body);
 void append_fallback_return(Expr * body, Str * return_type);
 I64 * find_callee_throws_idx(Expr * fcall);
 Bool pending_remove_all_matching(Vec * pending, Str * type_name);
@@ -1908,6 +1914,7 @@ extern Str U64Name;
 extern Str F32Name;
 extern Str BoolName;
 extern Str typer_path;
+extern I64 bang_counter;
 extern Set macros;
 extern Set funcs;
 extern Map known;

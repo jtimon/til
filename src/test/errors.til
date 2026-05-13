@@ -265,3 +265,31 @@ test_caller_callee_different_throws := test() {
     assert(__LOC__, after_callee1_ran.not())
     assert(__LOC__, caught_a)
 }
+
+// ==========================================================
+// Issue #202: bang operator -- panic-on-throw shorthand
+// ==========================================================
+
+bang_throws := func(should_throw: Bool) returns I64 throws CallerCalleeErrorA {
+    if should_throw {
+        throw CallerCalleeErrorA()
+    }
+    return 42
+}
+
+// Success path: bang on a call that doesn't throw returns normally.
+test_bang_success := test() {
+    result := bang_throws(false)!
+    assert(__LOC__, result.eq(42))
+}
+
+// Bang inside a Return: hoisted to a temp so the catch+panic
+// executes BEFORE the return statement, otherwise unreachable.
+bang_return_wrapper := func(x: Bool) returns I64 throws CallerCalleeErrorA {
+    return bang_throws(x)!
+}
+
+test_bang_in_return := test() {
+    result := bang_return_wrapper(false)!
+    assert(__LOC__, result.eq(42))
+}

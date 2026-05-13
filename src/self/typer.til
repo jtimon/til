@@ -2368,6 +2368,10 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         // matches by method name so the appended args end up at
         // the end of the eventual rewritten FCall.
         if fdef.auto_generated.not() {
+            // Issue #202: desugar bang FCalls (f(args)!) into ?-calls
+            // plus auto-injected catch+panic blocks, BEFORE validation
+            // so the validator sees only normal ?-call shapes.
+            desugar_bang_in_body(expr.child(0))
             // Issue #198 follow-up: rstil-parity validation runs on
             // the ORIGINAL body (before lowering eats Throw/Catch
             // nodes) so diagnostics point at the user's source
@@ -4281,12 +4285,31 @@ priv subtree_has_throw_catch := func(e: Expr) returns shallow Bool {
     if e.node_type.is(NodeType.FCall) {
         switch e.node_type {
         case NodeType.FCall(fcd):
+            // does_throw OR leftover is_bang both signal that this
+            // FCall is a throwing-call shape the validator should
+            // inspect.
             if fcd.does_throw { return true }
+            if fcd.is_bang { return true }
         case:
         }
     }
     for c : Expr in e.children {
         if subtree_has_throw_catch(c) { return true }
+    }
+    return false
+}
+
+// Issue #202: any subtree FCall with is_bang flag set?
+priv subtree_has_bang := func(e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.FCall) {
+        switch e.node_type {
+        case NodeType.FCall(fcd_b):
+            if fcd_b.is_bang { return true }
+        case:
+        }
+    }
+    for c : Expr in e.children {
+        if subtree_has_bang(c) { return true }
     }
     return false
 }
@@ -4811,6 +4834,211 @@ priv inject_throw_args_in_body := proc(mut e: Expr, names: Vec, throws_per: Vec)
     }
 }
 
+// ---------------------------------------------------------------
+// Issue #202: bang operator (!) -- "panic on throw" sugar.
+//
+//   f(args)!
+//
+// desugars to
+//
+//   f(args)?
+//   catch (e: T) { panic(loc(), "T") }   // one per declared throw type
+//
+// The user keeps the right to use the verbose ~?~ + ~catch~ form
+// when they need to inspect err fields; ~!~ is for "fail loudly,
+// don't care about the message" call sites.
+// ---------------------------------------------------------------
+
+priv mut bang_counter : I64 = 0
+
+// Walk e: for every FCall with is_bang set, clear is_bang and set
+// does_throw. Idempotent; safe to call multiple times.
+priv clear_bang_flag := proc(mut e: Expr) {
+    switch e.node_type {
+    case NodeType.FCall(fcd_clr):
+        if fcd_clr.is_bang {
+            fcd_clr.is_bang = false
+            fcd_clr.does_throw = true
+        }
+    case:
+    }
+    for ci in 0..e.children.len() {
+        ref mut sub : Expr = e.child(ci)
+        clear_bang_flag(sub)
+    }
+}
+
+// Find the immediate bang FCall in a stmt (direct or wrapped in
+// Decl/Assign/FieldAssign/Return). Returns the callee name, or "".
+priv find_bang_callee_name := func(e: Expr) returns Str {
+    switch e.node_type {
+    case NodeType.FCall(fcd_f):
+        if fcd_f.is_bang.not() { return "" }
+        if e.children.len().eq(0) { return "" }
+        switch e.child(0).node_type {
+        case NodeType.Ident(n): return n.clone()
+        case NodeType.FieldAccess(fnam): return fnam.clone()
+        case: return ""
+        }
+    case NodeType.Decl:
+        if e.children.len().eq(0) { return "" }
+        return find_bang_callee_name(e.child(0))
+    case NodeType.Assign:
+        if e.children.len().eq(0) { return "" }
+        return find_bang_callee_name(e.child(0))
+    case NodeType.FieldAssign:
+        if e.children.len().eq(0) { return "" }
+        return find_bang_callee_name(e.child(0))
+    case NodeType.Return:
+        if e.children.len().eq(0) { return "" }
+        return find_bang_callee_name(e.child(0))
+    case: return ""
+    }
+}
+
+// Build  catch (<err_var>: <error_type>) { panic("<file>:<line>:<col>", "<error_type>") }
+// We construct the location string at lowering time as a LiteralStr,
+// equivalent to what the parser does for __LOC__.
+priv build_bang_catch := func(err_var: Str, error_type: Str, shallow line: U32, shallow col: U32) returns Expr {
+    loc_str := format(typer_path, ":", line.to_str(), ":", col.to_str())
+    mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    panic_call.add_child(own Expr.new(NodeType.Ident("panic"), line, col))
+    panic_call.add_child(own Expr.new(NodeType.LiteralStr(loc_str), line, col))
+    panic_call.add_child(own Expr.new(NodeType.LiteralStr(error_type.clone()), line, col))
+    mut body := Expr.new(NodeType.Body, line, col)
+    body.add_child(own panic_call)
+    mut catch_node := Expr.new(NodeType.Catch, line, col)
+    catch_node.add_child(own Expr.new(NodeType.Ident(err_var.clone()), line, col))
+    catch_node.add_child(own Expr.new(NodeType.Ident(error_type.clone()), line, col))
+    catch_node.add_child(own body)
+    return catch_node
+}
+
+// Process a Body Expr in place: for each bang-stmt, clear the bang
+// flag, push the (now ?-marked) stmt, then append a catch block
+// per declared throw type of the callee. Recurses into nested
+// if/while/for/switch arms.
+desugar_bang_in_body := proc(mut body: Expr) {
+    if body.node_type.is(NodeType.Body).not() { return }
+    if subtree_has_bang(body).not() { return }
+    if body.children.len().eq(0) { return }
+
+    mut old := Vec.new(Expr)
+    old.move_from(body.children)
+    mut new_ch := Vec.new(Expr)
+
+    for j in 0..old.len() {
+        ref mut stmt : Expr = old.get(j)
+        // Recurse into nested bodies first so inner bang stmts
+        // get their catches before the outer pass moves on.
+        switch stmt.node_type {
+        case NodeType.If:
+            for ci in 1..stmt.children.len() {
+                ref mut sub_if : Expr = stmt.child(ci)
+                desugar_bang_in_body(sub_if)
+            }
+        case NodeType.While:
+            if stmt.children.len().gte(2) {
+                ref mut sub_while : Expr = stmt.child(1)
+                desugar_bang_in_body(sub_while)
+            }
+        case NodeType.ForIn:
+            if stmt.children.len().gte(2) {
+                ref mut sub_for : Expr = stmt.child(1)
+                desugar_bang_in_body(sub_for)
+            }
+        case NodeType.Switch:
+            for ci in 1..stmt.children.len() {
+                ref mut cn : Expr = stmt.child(ci)
+                if cn.node_type.is(NodeType.Case) {
+                    for cci in 0..cn.children.len() {
+                        ref mut ccn : Expr = cn.child(cci)
+                        if ccn.node_type.is(NodeType.Body) {
+                            desugar_bang_in_body(ccn)
+                        }
+                    }
+                }
+            }
+        case NodeType.Catch:
+            if stmt.children.len().eq(3) {
+                ref mut cbody : Expr = stmt.child(2)
+                desugar_bang_in_body(cbody)
+            }
+        case:
+        }
+
+        cname := find_bang_callee_name(stmt)
+        if cname.len().eq(0) {
+            new_ch.push_take(old, j)
+            continue
+        }
+        mut found_idx : I64 = 0
+        for i in 0..throws_names_global.len() {
+            ref n : Str = throws_names_global.get(i)
+            if n.eq(cname) { found_idx = i.to_i64().add(1) }
+        }
+        if found_idx.eq(0) {
+            // Bang call to unknown/non-throwing function. Leave the
+            // is_bang flag in place; validation emits a clearer
+            // error for this shape (analogous to ?-on-non-throwing).
+            new_ch.push_take(old, j)
+            continue
+        }
+        ref tts : Vec = throws_per_global.get(found_idx.sub(1).to_u32())
+
+        // Special case: `return f()!`. The catch must execute BEFORE
+        // the return, otherwise it's unreachable. Hoist the FCall
+        // into a temp local, append the catches, then return the
+        // temp.
+        if stmt.node_type.is(NodeType.Return) {
+            stmt_line := stmt.line
+            stmt_col := stmt.col
+            tmp_name := format("_bang_ret_", bang_counter.to_str())
+            bang_counter = bang_counter.add(1)
+            // Walk into the Return's child to find the bang FCall
+            // and clear its bang flag. The child is the expression
+            // that produces the return value; once cleared it's a
+            // normal ?-call.
+            ref mut ret_child : Expr = stmt.child(0)
+            clear_bang_flag(ret_child)
+            // Decl: tmp := ret_child  (move ret_child out via clone)
+            mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone())), stmt_line, stmt_col)
+            tmp_decl.add_child(own ret_child.clone())
+            new_ch.push(own tmp_decl)
+            // Catches
+            for tn : Str in tts {
+                err_var := format("_bang_err_", bang_counter.to_str())
+                bang_counter = bang_counter.add(1)
+                mut catch_node := build_bang_catch(err_var, tn, stmt_line, stmt_col)
+                new_ch.push(own catch_node)
+            }
+            // Rewritten return: return tmp
+            mut new_ret := Expr.new(NodeType.Return, stmt_line, stmt_col)
+            new_ret.add_child(own Expr.new(NodeType.Ident(tmp_name.clone()), stmt_line, stmt_col))
+            new_ch.push(own new_ret)
+            continue
+        }
+
+        // Generic case (Decl/Assign/bare FCall/FieldAssign): convert
+        // is_bang -> does_throw on the stmt's bang FCall, push the
+        // (now ?-marked) stmt, then append catch blocks per declared
+        // throw type. Cache line/col before push_take -- the latter
+        // zeroes out old[j] so a post-take read of stmt would yield
+        // 0:0.
+        stmt_line := stmt.line
+        stmt_col := stmt.col
+        clear_bang_flag(stmt)
+        new_ch.push_take(old, j)
+        for tn : Str in tts {
+            err_var := format("_bang_err_", bang_counter.to_str())
+            bang_counter = bang_counter.add(1)
+            mut catch_node := build_bang_catch(err_var, tn, stmt_line, stmt_col)
+            new_ch.push(own catch_node)
+        }
+    }
+    body.children.move_from(new_ch)
+}
+
 // Append a fallback `return <default(return_type)>` to body for
 // throwing functions whose original body relied on the error path
 // to bypass the return statement. After lowering, the return is
@@ -4902,9 +5130,25 @@ priv validate_throws_in_expr := proc(mut e: Expr, mut pending: Vec, mut seen: Ve
     }
     if e.node_type.is(NodeType.FCall) {
         mut does_throw := false
+        mut is_bang_left := false
         switch e.node_type {
-        case NodeType.FCall(fcd): does_throw = fcd.does_throw
+        case NodeType.FCall(fcd):
+            does_throw = fcd.does_throw
+            is_bang_left = fcd.is_bang
         case:
+        }
+        // Issue #202: any leftover is_bang at validation time means
+        // the desugar pass couldn't resolve the callee's throws
+        // (i.e. the callee doesn't throw at all). Emit the bang
+        // analog of the ?-on-non-throwing error and clear the flag.
+        if is_bang_left {
+            type_error_at(path, e.line, e.col, "function does not throw, remove the '!' after the call")
+            switch e.node_type {
+            case NodeType.FCall(fcd_clr_b):
+                fcd_clr_b.is_bang = false
+                fcd_clr_b.does_throw = false
+            case:
+            }
         }
         idx := find_callee_throws_idx(e)
         callee_is_throwing := idx.gt(0)
