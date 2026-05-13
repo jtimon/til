@@ -193,6 +193,17 @@ priv align_up := func(shallow offset: I32, shallow align: I32) returns shallow I
     return offset.add(align).sub(1).and(align.sub(1).xor(-1.to_i32()))
 }
 
+// Build a UFCS-style method call FCall ~recv.method(args...)~. Returns
+// the FCall with the FieldAccess(method) callee installed; the caller
+// pushes any argument children with ~call.add_child(own arg)~.
+make_method_call_fcall := func(own recv: Expr, method: Str, shallow line: U32, shallow col: U32) returns Expr {
+    mut acc := Expr.new(NodeType.FieldAccess(method.clone()), line, col)
+    acc.add_child(own recv)
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    call.add_child(own acc)
+    return call
+}
+
 // Build the typer/initer-internal ~get_payload(arg)~ FCall used to
 // destructure enum payloads in generated method bodies and switch
 // case desugar. The til_type is set so infer_fcall_expr's
@@ -412,10 +423,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
                     if fref.eq(1) {
                         named.add_child(own field_acc)
                     } else {
-                        mut clone_acc := Expr.new(NodeType.FieldAccess("clone"), stmt.line, stmt.col)
-                        clone_acc.add_child(own field_acc)
-                        mut clone_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-                        clone_call.add_child(own clone_acc)
+                        mut clone_call := make_method_call_fcall(own field_acc, "clone", stmt.line, stmt.col)
                         named.add_child(own clone_call)
                     }
                     ctor.add_child(own named)
@@ -651,10 +659,7 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
             is_funcsig := type_from_name_init(vtype, scope).is(Type.FuncPtr)
 
             mut is_call2 := make_is_tag_check_fcall("other", ename, vn, line, col)
-            mut not_acc := Expr.new(NodeType.FieldAccess("not"), line, col)
-            not_acc.add_child(own is_call2)
-            mut not_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-            not_call.add_child(own not_acc)
+            mut not_call := make_method_call_fcall(own is_call2, "not", line, col)
 
             mut ret_false := Expr.new(NodeType.Return, line, col)
             mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col)
@@ -678,11 +683,8 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
                 then_body.add_child(own make_payload_ref_decl(own other_arg, "_op", vtype, line, col))
 
                 mut sp_id := Expr.new(NodeType.Ident("_sp"), line, col)
-                mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line, col)
-                eq_acc.add_child(own sp_id)
+                mut eq_call := make_method_call_fcall(own sp_id, "eq", line, col)
                 mut op_id := Expr.new(NodeType.Ident("_op"), line, col)
-                mut eq_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-                eq_call.add_child(own eq_acc)
                 eq_call.add_child(own op_id)
 
                 mut ret_eq := Expr.new(NodeType.Return, line, col)
@@ -828,10 +830,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
                 fmt_call.add_child(own prefix)
 
                 mut p_id := Expr.new(NodeType.Ident(pn), line, col)
-                mut tostr_acc := Expr.new(NodeType.FieldAccess("to_str"), line, col)
-                tostr_acc.add_child(own p_id)
-                mut tostr_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-                tostr_call.add_child(own tostr_acc)
+                mut tostr_call := make_method_call_fcall(own p_id, "to_str", line, col)
                 fmt_call.add_child(own tostr_call)
 
                 mut suffix := Expr.new(NodeType.LiteralStr(")"), line, col)
@@ -853,15 +852,11 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
             func_body.add_child(own if_node)
         } else {
             mut self_id := Expr.new(NodeType.Ident("self"), line, col)
-            mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line, col)
-            eq_acc.add_child(own self_id)
+            mut eq_call := make_method_call_fcall(own self_id, "eq", line, col)
 
             mut ename_id := Expr.new(NodeType.Ident(ename.clone()), line, col)
             mut var_acc := Expr.new(NodeType.FieldAccess(vn.clone()), line, col)
             var_acc.add_child(own ename_id)
-
-            mut eq_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-            eq_call.add_child(own eq_acc)
             eq_call.add_child(own var_acc)
 
             mut ret_str := Expr.new(NodeType.LiteralStr(vn.clone()), line, col)
@@ -938,15 +933,11 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32
                 cond = make_is_tag_check_fcall("self", ename, vname, line.to_u32(), col.to_u32())
             } else {
                 mut self_id := Expr.new(NodeType.Ident("self"), line.to_u32(), col.to_u32())
-                mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), line.to_u32(), col.to_u32())
-                eq_acc.add_child(own self_id)
+                mut cond_call := make_method_call_fcall(own self_id, "eq", line.to_u32(), col.to_u32())
 
                 mut en2 := Expr.new(NodeType.Ident(ename.clone()), line.to_u32(), col.to_u32())
                 mut va2 := Expr.new(NodeType.FieldAccess(vname.clone()), line.to_u32(), col.to_u32())
                 va2.add_child(own en2)
-
-                mut cond_call := Expr.new(NodeType.FCall(FCallData()), line.to_u32(), col.to_u32())
-                cond_call.add_child(own eq_acc)
                 cond_call.add_child(own va2)
                 cond = cond_call
             }
@@ -1481,15 +1472,9 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
         mut self1 := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
         mut self2 := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
 
-        mut unity_acc := Expr.new(NodeType.FieldAccess("unity"), stmt.line, stmt.col)
-        unity_acc.add_child(own self2)
-        mut unity_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        unity_call.add_child(own unity_acc)
+        mut unity_call := make_method_call_fcall(own self2, "unity", stmt.line, stmt.col)
 
-        mut op_acc := Expr.new(NodeType.FieldAccess(op.clone()), stmt.line, stmt.col)
-        op_acc.add_child(own self1)
-        mut op_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        op_call.add_child(own op_acc)
+        mut op_call := make_method_call_fcall(own self1, op, stmt.line, stmt.col)
         op_call.add_child(own unity_call)
 
         mut assign := Expr.new(NodeType.Assign(AssignData(name = "self")), stmt.line, stmt.col)
@@ -1560,16 +1545,10 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
 
     if has_eq.not() {
         mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+        mut cmp_call := make_method_call_fcall(own a_id, "cmp", stmt.line, stmt.col)
         mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
-        mut cmp_acc := Expr.new(NodeType.FieldAccess("cmp"), stmt.line, stmt.col)
-        cmp_acc.add_child(own a_id)
-        mut cmp_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        cmp_call.add_child(own cmp_acc)
         cmp_call.add_child(own b_id)
-        mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col)
-        eq_acc.add_child(own cmp_call)
-        mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        eq_call.add_child(own eq_acc)
+        mut eq_call := make_method_call_fcall(own cmp_call, "eq", stmt.line, stmt.col)
         mut zero := Expr.new(NodeType.LiteralNum("0"), stmt.line, stmt.col)
         eq_call.add_child(own zero)
         mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
@@ -1600,21 +1579,12 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
 
     if has_lt.not() {
         mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+        mut cmp_call := make_method_call_fcall(own a_id, "cmp", stmt.line, stmt.col)
         mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
-        mut cmp_acc := Expr.new(NodeType.FieldAccess("cmp"), stmt.line, stmt.col)
-        cmp_acc.add_child(own a_id)
-        mut cmp_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        cmp_call.add_child(own cmp_acc)
         cmp_call.add_child(own b_id)
-        mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col)
-        eq_acc.add_child(own cmp_call)
-        mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        eq_call.add_child(own eq_acc)
+        mut eq_call := make_method_call_fcall(own cmp_call, "eq", stmt.line, stmt.col)
         mut zero := Expr.new(NodeType.LiteralNum("0"), stmt.line, stmt.col)
-        mut sub_acc := Expr.new(NodeType.FieldAccess("sub"), stmt.line, stmt.col)
-        sub_acc.add_child(own zero)
-        mut neg1_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        neg1_call.add_child(own sub_acc)
+        mut neg1_call := make_method_call_fcall(own zero, "sub", stmt.line, stmt.col)
         mut one := Expr.new(NodeType.LiteralNum("1"), stmt.line, stmt.col)
         neg1_call.add_child(own one)
         eq_call.add_child(own neg1_call)
@@ -1646,16 +1616,10 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
 
     if has_gt.not() {
         mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+        mut cmp_call := make_method_call_fcall(own a_id, "cmp", stmt.line, stmt.col)
         mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
-        mut cmp_acc := Expr.new(NodeType.FieldAccess("cmp"), stmt.line, stmt.col)
-        cmp_acc.add_child(own a_id)
-        mut cmp_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        cmp_call.add_child(own cmp_acc)
         cmp_call.add_child(own b_id)
-        mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col)
-        eq_acc.add_child(own cmp_call)
-        mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        eq_call.add_child(own eq_acc)
+        mut eq_call := make_method_call_fcall(own cmp_call, "eq", stmt.line, stmt.col)
         mut one := Expr.new(NodeType.LiteralNum("1"), stmt.line, stmt.col)
         eq_call.add_child(own one)
         mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
@@ -1686,16 +1650,10 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
 
     if has_neq.not() {
         mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+        mut eq_call := make_method_call_fcall(own a_id, "eq", stmt.line, stmt.col)
         mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
-        mut eq_acc := Expr.new(NodeType.FieldAccess("eq"), stmt.line, stmt.col)
-        eq_acc.add_child(own a_id)
-        mut eq_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        eq_call.add_child(own eq_acc)
         eq_call.add_child(own b_id)
-        mut not_acc := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col)
-        not_acc.add_child(own eq_call)
-        mut not_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        not_call.add_child(own not_acc)
+        mut not_call := make_method_call_fcall(own eq_call, "not", stmt.line, stmt.col)
         mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
         ret.add_child(own not_call)
         mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
@@ -1724,16 +1682,10 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
 
     if has_lte.not() {
         mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+        mut gt_call := make_method_call_fcall(own a_id, "gt", stmt.line, stmt.col)
         mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
-        mut gt_acc := Expr.new(NodeType.FieldAccess("gt"), stmt.line, stmt.col)
-        gt_acc.add_child(own a_id)
-        mut gt_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        gt_call.add_child(own gt_acc)
         gt_call.add_child(own b_id)
-        mut not_acc := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col)
-        not_acc.add_child(own gt_call)
-        mut not_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        not_call.add_child(own not_acc)
+        mut not_call := make_method_call_fcall(own gt_call, "not", stmt.line, stmt.col)
         mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
         ret.add_child(own not_call)
         mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
@@ -1762,16 +1714,10 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
 
     if has_gte.not() {
         mut a_id := Expr.new(NodeType.Ident("a"), stmt.line, stmt.col)
+        mut lt_call := make_method_call_fcall(own a_id, "lt", stmt.line, stmt.col)
         mut b_id := Expr.new(NodeType.Ident("b"), stmt.line, stmt.col)
-        mut lt_acc := Expr.new(NodeType.FieldAccess("lt"), stmt.line, stmt.col)
-        lt_acc.add_child(own a_id)
-        mut lt_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        lt_call.add_child(own lt_acc)
         lt_call.add_child(own b_id)
-        mut not_acc := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col)
-        not_acc.add_child(own lt_call)
-        mut not_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        not_call.add_child(own not_acc)
+        mut not_call := make_method_call_fcall(own lt_call, "not", stmt.line, stmt.col)
         mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
         ret.add_child(own not_call)
         mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)

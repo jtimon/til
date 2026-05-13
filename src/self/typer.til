@@ -3280,10 +3280,7 @@ priv fold_and_chain := func(conds: Vec, shallow line: U32, shallow col: U32) ret
     }
     mut acc := first_c.clone()
     for fi in 1..conds.len() {
-        mut and_acc := Expr.new(NodeType.FieldAccess("and"), line, col)
-        and_acc.add_child(own acc.clone())
-        mut next_chain := Expr.new(NodeType.FCall(FCallData()), line, col)
-        next_chain.add_child(own and_acc)
+        mut next_chain := make_method_call_fcall(own acc.clone(), "and", line, col)
         ref next_c : Expr = conds.get(fi)
         next_chain.add_child(own next_c.clone())
         acc = next_chain.clone()
@@ -3307,23 +3304,14 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 ref end_expr : Expr = match_expr.child(2)
 
                                 mut sw1 := sw_ref.clone()
-                                mut gte_acc := Expr.new(NodeType.FieldAccess("gte"), sw_line, sw_col)
-                                gte_acc.add_child(own sw1)
-                                mut gte_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
-                                gte_call.add_child(own gte_acc)
+                                mut gte_call := make_method_call_fcall(own sw1, "gte", sw_line, sw_col)
                                 gte_call.add_child(own start_expr.clone())
 
                                 mut sw2 := sw_ref.clone()
-                                mut lte_acc := Expr.new(NodeType.FieldAccess("lte"), sw_line, sw_col)
-                                lte_acc.add_child(own sw2)
-                                mut lte_call := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
-                                lte_call.add_child(own lte_acc)
+                                mut lte_call := make_method_call_fcall(own sw2, "lte", sw_line, sw_col)
                                 lte_call.add_child(own end_expr.clone())
 
-                                mut and_acc := Expr.new(NodeType.FieldAccess("and"), sw_line, sw_col)
-                                and_acc.add_child(own gte_call)
-                                condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
-                                condition.add_child(own and_acc)
+                                condition = make_method_call_fcall(own gte_call, "and", sw_line, sw_col)
                                 condition.add_child(own lte_call)
                                 has_condition = true
                             }
@@ -3458,10 +3446,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         inner_cond3 := make_switch_case_condition(scope, case_body, inner_pat, inner_sw_ref, sw_line, sw_col)
 
                                         // Combined: outer_cond.and(inner_cond)
-                                        mut and_acc3 := Expr.new(NodeType.FieldAccess("and"), sw_line, sw_col)
-                                        and_acc3.add_child(own outer_cond3)
-                                        condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
-                                        condition.add_child(own and_acc3)
+                                        condition = make_method_call_fcall(own outer_cond3, "and", sw_line, sw_col)
                                         condition.add_child(own inner_cond3)
                                         has_condition = true
                                     }
@@ -3612,10 +3597,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
 
     if has_condition.not() {
         mut sw_ident := sw_ref.clone()
-        mut eq_access := Expr.new(NodeType.FieldAccess("eq"), sw_line, sw_col)
-        eq_access.add_child(own sw_ident)
-        condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
-        condition.add_child(own eq_access)
+        condition = make_method_call_fcall(own sw_ident, "eq", sw_line, sw_col)
         condition.add_child(own match_expr.clone())
     }
     return condition
@@ -3849,14 +3831,8 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
 
             // Outer condition: _sw_matched.not().and(pattern_cond)
             mut not_id := Expr.new(NodeType.Ident(matched_name.clone()), case_node.line, case_node.col)
-            mut not_acc := Expr.new(NodeType.FieldAccess("not"), case_node.line, case_node.col)
-            not_acc.add_child(own not_id)
-            mut not_call := Expr.new(NodeType.FCall(FCallData()), case_node.line, case_node.col)
-            not_call.add_child(own not_acc)
-            mut and_acc := Expr.new(NodeType.FieldAccess("and"), case_node.line, case_node.col)
-            and_acc.add_child(own not_call)
-            mut gated_cond := Expr.new(NodeType.FCall(FCallData()), case_node.line, case_node.col)
-            gated_cond.add_child(own and_acc)
+            mut not_call := make_method_call_fcall(own not_id, "not", case_node.line, case_node.col)
+            mut gated_cond := make_method_call_fcall(own not_call, "and", case_node.line, case_node.col)
             gated_cond.add_child(own condition)
 
             mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
@@ -3879,10 +3855,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     if any_guard {
         if has_default_body {
             mut nid2 := Expr.new(NodeType.Ident(matched_name.clone()), stmt.line, stmt.col)
-            mut nacc2 := Expr.new(NodeType.FieldAccess("not"), stmt.line, stmt.col)
-            nacc2.add_child(own nid2)
-            mut ncall2 := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-            ncall2.add_child(own nacc2)
+            mut ncall2 := make_method_call_fcall(own nid2, "not", stmt.line, stmt.col)
             mut def_if := Expr.new(NodeType.If, stmt.line, stmt.col)
             def_if.add_child(own ncall2)
             def_if.add_child(own default_body.clone())

@@ -1004,6 +1004,7 @@ Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool * call_free);
 U32 Context_size(void);
 I32 align_up(I32 offset, I32 align);
+Expr * make_method_call_fcall(Expr * recv, Str * method, U32 line, U32 col);
 Expr * make_get_payload_fcall(Expr * arg, Type payload_type, U32 line, U32 col);
 Expr * make_is_tag_check_fcall(Str * arg_name, Str * ename, Str * vname, U32 line, U32 col);
 Expr * make_payload_ref_decl(Expr * arg, Str * bind_name, Str * vtype, U32 line, U32 col);
