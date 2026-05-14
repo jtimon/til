@@ -1703,6 +1703,7 @@ void ffi_reset(void);
 ffi_type * ffi_type_pointer_ref(void);
 ffi_type * ffi_type_sint64_ref(void);
 ffi_type * ffi_type_uint8_ref(void);
+ffi_type * ffi_type_sint8_ref(void);
 ffi_type * ffi_type_sint16_ref(void);
 ffi_type * ffi_type_sint32_ref(void);
 ffi_type * ffi_type_uint32_ref(void);
