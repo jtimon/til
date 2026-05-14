@@ -6366,7 +6366,21 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     return call
 }
 
+// A delete for a stack-by-value primitive temp with call_free=false
+// has nothing to do at runtime: the value lives on the stack and there
+// is no heap to release. The builder emits these as a bare `;` stmt,
+// which leaves visible lonely-semicolon noise in the generated C. Skip
+// generating the call in the first place when the work is provably nil.
+priv delete_call_is_noop := func(shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool) returns shallow Bool {
+    if arg_is_own.or(call_free) { return false }
+    return type.is(Type.I64).or(type.is(Type.U64))
+        .or(type.is(Type.I32)).or(type.is(Type.U32))
+        .or(type.is(Type.I16)).or(type.is(Type.U8))
+        .or(type.is(Type.F32)).or(type.is(Type.Bool))
+}
+
 make_delete_call := func(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
+    if delete_call_is_noop(type, arg_is_own, call_free) { return NULL }
     tname := type_to_name(type)
     if tname.len().eq(0) { return NULL }
 
@@ -8069,7 +8083,7 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: 
                 if type_to_name(local.type).len().gt(0) {
                     heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                    new_ch.push(own del)
+                    if is_null(del).not() { new_ch.push(own del) }
                 }
             }
         }
@@ -8129,7 +8143,7 @@ insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: V
                 if type_to_name(local.type).len().gt(0) {
                     heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                    new_ch.push(own del)
+                    if is_null(del).not() { new_ch.push(own del) }
                 }
             }
         }
@@ -8223,14 +8237,14 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
                 del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                new_ch.push(own del)
+                if is_null(del).not() { new_ch.push(own del) }
             }
         }
         if local.last_use.eq(-1.to_i32()).and(local.decl_index.eq(stmt_idx.to_i32())) {
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
                 del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                new_ch.push(own del)
+                if is_null(del).not() { new_ch.push(own del) }
             }
         }
     }
@@ -8251,7 +8265,7 @@ insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
                     if type_to_name(local.type).len().gt(0) {
                         heap := local.is_heap
                         del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                        new_ch.push(own del)
+                        if is_null(del).not() { new_ch.push(own del) }
                     }
                 }
             }
