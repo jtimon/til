@@ -2441,6 +2441,12 @@ check_unused_locals := proc(scope: TypeScope, path: Str) {
         if is_null(b.func_def).not() { continue }
         if b.name.len().eq(0) { continue }
         if b.name.starts_with("_") { continue }
+        // Hoist temps are compiler-internal and always have their use
+        // substituted into the AST after typing, so `b.used` is never
+        // flipped by the regular Ident-lookup path. Body DCE catches
+        // any of these that go dead after precomp; the typer's job
+        // here is just to report user bugs.
+        if b.name.starts_with("hoisted__") { continue }
         if b.used { continue }
         type_error_at(path, b.line, b.col, "unused variable '".concat(b.name).concat("'"))
     }
@@ -8401,7 +8407,12 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
 
 hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow is_own: Bool) returns Expr {
     tp := type_prefix(val.til_type)
-    tname := "_t_".concat(tp).concat("_").concat(hoist_counter.to_str())
+    // Non-underscore prefix so the builder's `_x`-deliberately-unused
+    // exemption doesn't free-pass these compiler temps. If a hoisted
+    // temp survives DCE and goes unused, that's a DCE bug worth
+    // surfacing (as a C -Werror=unused-but-set-variable) rather than
+    // hiding behind a `(void)<name>;` guard.
+    tname := "hoisted__".concat(tp).concat("_").concat(hoist_counter.to_str())
     hoist_counter++
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), val.line, val.col)

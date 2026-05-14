@@ -239,7 +239,7 @@ scavenge_filter := func(mut program: Expr, visited: Set) {
 // --- Body-level DCE (post-precomp dead temp elimination) -----------------
 
 // Constant folding in precomp replaces FCall nodes with literals, but the
-// arg-temps that the typer hoisted (`_t_<Type>_<n>`) remain as sibling
+// arg-temps that the typer hoisted (`hoisted__<Type>_<n>`) remain as sibling
 // Decls with no remaining references. They're side-effect-free (literal
 // RHS, by-value primitive type), so we can drop them outright instead of
 // papering over the unused-variable warning with a `(void)<name>;`.
@@ -401,7 +401,12 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set) {
     }
 }
 
-priv dce_one_body := proc(mut body: Expr) returns shallow Bool {
+// `at_top_level` is true for the program-root body (which becomes
+// main() for non-library modes). At top level we restrict candidates
+// to compiler-internal `hoisted__*` names so we never drop a
+// user-named global -- those may be exported and referenced from
+// outside this body's view.
+priv dce_one_body := proc(mut body: Expr, shallow at_top_level: Bool) returns shallow Bool {
     n := body.children.len()
     if n.eq(0) { return false }
 
@@ -424,11 +429,22 @@ priv dce_one_body := proc(mut body: Expr) returns shallow Bool {
         case NodeType.Decl(dd):
             if dd.is_mut { continue }
             if dd.own_type.is(OwnType.Own) { continue }
-            if dd.own_type.is(OwnType.Ref) { continue }
+            // At top level only ever drop compiler-internal temps;
+            // user-named globals may be exported.
+            if at_top_level.and(dd.name.starts_with("hoisted__").not()) { continue }
             ref rhs : Expr = stmt.child(0)
-            if rhs_is_pure_byvalue(rhs) {
+            if dd.own_type.is(OwnType.Ref) {
+                // Ref-typed hoisted temps come from stmt-level FCalls
+                // whose declared return is `ref T` (e.g. advance(p)):
+                // the borrow binding is never read, but the FCall has
+                // the real side effect we need to keep.
+                if rhs.node_type.is(NodeType.FCall).and(dd.name.starts_with("hoisted__")) {
+                    candidates.add(own dd.name.clone())
+                    candidates_replace.add(own dd.name.clone())
+                }
+            } else if rhs_is_pure_byvalue(rhs) {
                 candidates.add(own dd.name.clone())
-            } else if rhs.node_type.is(NodeType.FCall).and(dd.name.starts_with("_t_")) {
+            } else if rhs.node_type.is(NodeType.FCall).and(dd.name.starts_with("hoisted__")) {
                 candidates.add(own dd.name.clone())
                 candidates_replace.add(own dd.name.clone())
             }
@@ -580,15 +596,19 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
 
 // Recurse into nested bodies bottom-up; iterate to a fixed point so that
 // removing a Decl in an inner body can free up references that let an
-// outer Decl drop too.
-priv body_dce_walk := proc(mut e: Expr) {
+// outer Decl drop too. `at_top_level` is true only for the program-root
+// body; recursion turns it off when descending into any nested Body
+// (which is by definition inside a function/test/proc).
+priv body_dce_walk := proc(mut e: Expr, shallow at_top_level: Bool) {
     if is_null(e) { return }
+    is_body := e.node_type.is(NodeType.Body)
+    child_top := at_top_level.and(is_body.not())
     for i in 0..e.children.len() {
-        body_dce_walk(e.child(i))
+        body_dce_walk(e.child(i), child_top)
     }
-    if e.node_type.is(NodeType.Body) {
+    if is_body {
         fix_stale_litstr_in_body(e)
-        while dce_one_body(e) {}
+        while dce_one_body(e, at_top_level) {}
     }
 }
 
@@ -599,17 +619,21 @@ priv body_dce_ns := proc(rhs: Expr) {
         if is_null(nsd.default_value) { continue }
         if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_value.children.len().eq(0) { continue }
-        body_dce_walk(nsd.default_value.child(0))
+        body_dce_walk(nsd.default_value.child(0), false)
     }
 }
 
 dce_program_bodies := proc(mut program: Expr) {
+    // Walk the program-root body (becomes main() for non-library
+    // modes) and every function/test/proc body inside it.
+    // body_dce_walk descends through Expr.children, so namespace
+    // methods (which live in StructDef.ns_decls outside the children
+    // tree) need a separate walk.
+    body_dce_walk(program, true)
     for stmt : Expr in program.children {
         if is_def(stmt).not() { continue }
         ref rhs : Expr = stmt.child(0)
-        if rhs.node_type.is(NodeType.FuncDef) {
-            if rhs.children.len().gt(0) { body_dce_walk(rhs.child(0)) }
-        } else if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+        if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
             body_dce_ns(rhs)
         }
     }

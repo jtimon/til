@@ -275,9 +275,7 @@ is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
     }
     switch stmt.node_type {
     case NodeType.Decl(decl):
-        if decl.name.len().gte(3) {
-            if decl.name.substr(0, 3).eq("_t_") { return false }
-        }
+        if decl.name.starts_with("hoisted__") { return false }
         return true
     case:
         UNREACHABLE(__LOC__)
@@ -706,21 +704,6 @@ priv c_lit_byte_count := func(s: Str) returns USize {
         count = count.add(1)
     }
     return count
-}
-
-// Mirror of scavenger.til's rhs_is_pure_byvalue: by-value primitive
-// literal RHSes are exactly the cases body DCE will drop when the temp
-// is unreferenced, so the builder can skip the `(void)<name>;` guard.
-priv rhs_is_pure_byvalue_for_emit := func(e: Expr) returns shallow Bool {
-    if is_null(e) { return false }
-    switch e.node_type {
-    case NodeType.LiteralNum:  return true
-    case NodeType.LiteralBool: return true
-    case NodeType.LiteralNull: return true
-    case NodeType.LiteralStr:  return true
-    case:
-    }
-    return false
 }
 
 // Collect every Ident reference under `e` into `refs`. Used by the
@@ -1159,10 +1142,10 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
             if is_rg { f.write(dd.name); f.write(" = ") }
             else { f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ") }
             emit_as_ptr(f, rhs, depth, false); f.write(";\n")
-            // Ref decls named `_x` (til's "deliberately unused" convention,
-            // e.g. switch-case payload binds) need a (void) guard since C
-            // has no such convention. Real names should always be used --
-            // if not, it's a real bug worth surfacing as a C warning.
+            // `_x` Ref decls (e.g. switch-case payload binds named `_s`)
+            // are til's deliberately-unused convention; the typer skips
+            // them in check_unused_locals, so we need a (void) guard to
+            // keep C's -Wunused-variable quiet.
             if dd.name.starts_with("_") {
                 emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
             }
@@ -1278,13 +1261,11 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                 }
             }
         }
-        // Only `_x` names (til's "deliberately unused" convention -- the
-        // typer's `_t_*` hoisted temps and user-written `_foo` binds) get
-        // a (void) guard. C has no such convention, so a user-named local
-        // that goes unused is a real bug worth letting -Werror surface.
-        // Pure literal RHSes are handled by body DCE upstream and need
-        // no guard either way.
-        if dd.name.starts_with("_").and(rhs_is_pure_byvalue_for_emit(rhs).not()) {
+        // `_x` locals are til's deliberately-unused convention; the
+        // typer skips them in check_unused_locals, so we need a (void)
+        // guard for C. Any non-_-prefixed local that reaches here is
+        // either used or a typer bug -- gcc surfacing it is fine.
+        if dd.name.starts_with("_") {
             emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
         }
     }
@@ -2406,6 +2387,10 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         f.write(ret); f.write(" "); fc := func_to_c(name); f.write(fc); f.write("(")
         emit_param_list(f, func_def, true, false)
         f.write(") {\n")
+        // Suppress -Wunused-parameter for params that aren't referenced
+        // in the body. At this point any non-_ param is body-referenced
+        // (otherwise check_unused_params would have errored), so this
+        // narrows to `_x`-prefixed deliberately-unused params.
         body_refs := Set.new(Str)
         collect_ident_refs(body, body_refs)
         for p : Declaration in fd.params {
