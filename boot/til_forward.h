@@ -1277,7 +1277,6 @@ Expr * find_array_vec_fcall(Expr * e);
 Str * type_prefix(Type * t);
 Str * type_to_name(Type * t);
 Expr * make_field_delete(Expr * field_assign, OwnType field_own_type);
-Bool delete_call_is_noop(Type type, Bool arg_is_own, Bool call_free);
 Expr * make_delete_call(Str * var_name, Type type, Bool arg_is_own, Bool call_free, Expr * src);
 Bool transfer_is_shallow_field_value_copy(Expr * e, Str * var_name, TypeScope * scope);
 Expr * make_free_call(Str * var_name, Type type, Expr * src);
