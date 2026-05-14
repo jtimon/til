@@ -23,7 +23,7 @@ namespace:
     inc := func(mut self: I8) { self = self.add(1.to_i8()) }
     dec := func(mut self: I8) { self = self.sub(1.to_i8()) }
     /// Return the multiplicative identity (1) for this type.
-    unity := func(self: I8) returns I8 { return 1.to_i8() }
+    unity := func(_self: I8) returns I8 { return 1.to_i8() }
     eq := ext_func(shallow a: I8, shallow b: I8) returns shallow Bool {}
     cmp := ext_func(shallow a: I8, shallow b: I8) returns shallow I64 {}
     /// Negate the value.

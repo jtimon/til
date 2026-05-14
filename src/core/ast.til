@@ -24,6 +24,13 @@ Type := enum {
     Enum: Str, EnumDef,
     FuncDef, FuncPtr, Dynamic,
     Custom: Str,
+    // I8 is appended at the end (rather than next to U8) so the tag
+    // values for existing variants are preserved -- master's til_boot
+    // has its tag values baked into its compiled C, and inserting a
+    // new variant in the middle would shift everything after it and
+    // mis-decode Type values created by master's compiled code while
+    // bootstrapping.
+    I8,
 namespace:
     /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
     /// compare equal regardless of variant if their name payloads match.
@@ -46,6 +53,7 @@ namespace:
         if a.is(Type.None)      { return b.is(Type.None) }
         if a.is(Type.I64)       { return b.is(Type.I64) }
         if a.is(Type.U8)        { return b.is(Type.U8) }
+        if a.is(Type.I8)        { return b.is(Type.I8) }
         if a.is(Type.I16)       { return b.is(Type.I16) }
         if a.is(Type.I32)       { return b.is(Type.I32) }
         if a.is(Type.U32)       { return b.is(Type.U32) }
@@ -67,6 +75,7 @@ til_type_name_c := func(t: Type) returns Str {
     case Type.None:      return "None"
     case Type.I64:       return "I64"
     case Type.U8:        return "U8"
+    case Type.I8:        return "I8"
     case Type.I16:       return "I16"
     case Type.I32:       return "I32"
     case Type.U32:       return "U32"

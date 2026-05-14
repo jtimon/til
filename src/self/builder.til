@@ -197,6 +197,7 @@ use_dot_access := func(obj: Expr) returns shallow Bool {
 is_primitive_type := func(name: Str) returns shallow Bool {
     if name.eq("I64") { return true }
     if name.eq("U8") { return true }
+    if name.eq("I8") { return true }
     if name.eq("I16") { return true }
     if name.eq("I32") { return true }
     if name.eq("U32") { return true }
@@ -214,6 +215,7 @@ is_funcsig_type := func(name: Str) returns shallow Bool {
 
 is_ext_h_type := func(name: Str) returns shallow Bool {
     if name.eq("U8") { return true }
+    if name.eq("I8") { return true }
     if name.eq("I16") { return true }
     if name.eq("I32") { return true }
     if name.eq("F32") { return true }
@@ -254,6 +256,7 @@ is_skip_ext_decl := func(name: Str) returns shallow Bool {
 
 is_scalar_method_type := func(name: Str) returns shallow Bool {
     if name.eq("U8") { return true }
+    if name.eq("I8") { return true }
     if name.eq("I16") { return true }
     if name.eq("I32") { return true }
     if name.eq("F32") { return true }
@@ -572,6 +575,7 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     switch t {
     case Type.I64:     return "I64"
     case Type.U8:      return "U8"
+    case Type.I8:      return "I8"
     case Type.I16:     return "I16"
     case Type.I32:     return "I32"
     case Type.U32:     return "U32"
@@ -635,6 +639,7 @@ func_to_c := func(name: Str) returns Str {
 type_name_to_c := func(name: Str) returns Str {
     if name.eq("I64") { return "I64 *" }
     if name.eq("U8") { return "U8 *" }
+    if name.eq("I8") { return "I8 *" }
     if name.eq("I16") { return "I16 *" }
     if name.eq("I32") { return "I32 *" }
     if name.eq("U32") { return "U32 *" }
@@ -652,6 +657,7 @@ type_name_to_c := func(name: Str) returns Str {
 type_name_to_c_value := func(name: Str) returns Str {
     if name.eq("I64") { return "I64" }
     if name.eq("U8") { return "U8" }
+    if name.eq("I8") { return "I8" }
     if name.eq("I16") { return "I16" }
     if name.eq("I32") { return "I32" }
     if name.eq("U32") { return "U32" }
@@ -722,7 +728,7 @@ priv collect_ident_refs := proc(e: Expr, mut refs: Set) {
 }
 
 emit_til_default := proc(f: File, shallow t: Type) {
-    if t.is(Type.I64).or(t.is(Type.I16)).or(t.is(Type.I32))
+    if t.is(Type.I64).or(t.is(Type.I8)).or(t.is(Type.I16)).or(t.is(Type.I32))
     .or(t.is(Type.U32)).or(t.is(Type.U64)).or(t.is(Type.F32))
     .or(t.is(Type.U8)) {
         f.write("0")
@@ -2269,6 +2275,8 @@ emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
         f.write("    I64 *"); f.write(pname); f.write(" = cli_parse_i64(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("U8") {
         f.write("    U8 *"); f.write(pname); f.write(" = cli_parse_u8(argv["); emit_i32(f, argi); f.write("]);\n")
+    } else if ptype.eq("I8") {
+        f.write("    I8 *"); f.write(pname); f.write(" = cli_parse_i8(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("I16") {
         f.write("    I16 *"); f.write(pname); f.write(" = cli_parse_i16(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("I32") {
@@ -2363,6 +2371,8 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                         f.write("        I64 *_val = cli_parse_i64(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("U8") {
                         f.write("        U8 *_val = cli_parse_u8(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
+                    } else if p.explicit_type.eq("I8") {
+                        f.write("        I8 *_val = cli_parse_i8(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("I16") {
                         f.write("        I16 *_val = cli_parse_i16(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("I32") {
@@ -3110,7 +3120,7 @@ emit_header_func_fwds_prog := proc(f: File, prog: Expr, shallow is_core_pass: Bo
 
 emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
     mut emitted_h := Set.new(Str)
-    emitted_h.add(own "U8".clone()); emitted_h.add(own "I16".clone()); emitted_h.add(own "I32".clone())
+    emitted_h.add(own "U8".clone()); emitted_h.add(own "I8".clone()); emitted_h.add(own "I16".clone()); emitted_h.add(own "I32".clone())
     emitted_h.add(own "U32".clone()); emitted_h.add(own "U64".clone()); emitted_h.add(own "I64".clone())
     emitted_h.add(own "F32".clone()); emitted_h.add(own "Bool".clone())
     if is_null(core_program).not() { topo_emit_struct_enum_defs(f, core_program, emitted_h) }
@@ -3176,7 +3186,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
 
 emit_header_defs_and_funcs_lp := proc(f: File) {
     mut emitted_h := Set.new(Str)
-    emitted_h.add(own "U8".clone()); emitted_h.add(own "I16".clone()); emitted_h.add(own "I32".clone())
+    emitted_h.add(own "U8".clone()); emitted_h.add(own "I8".clone()); emitted_h.add(own "I16".clone()); emitted_h.add(own "I32".clone())
     emitted_h.add(own "U32".clone()); emitted_h.add(own "U64".clone()); emitted_h.add(own "I64".clone())
     emitted_h.add(own "F32".clone()); emitted_h.add(own "Bool".clone())
     topo_emit_struct_enum_defs_lp(f, emitted_h)
@@ -3546,6 +3556,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
 type_name_to_ctypes := func(name: Str) returns Str {
     if name.eq("I64") { return "ctypes.c_longlong" }
     if name.eq("U8") { return "ctypes.c_ubyte" }
+    if name.eq("I8") { return "ctypes.c_byte" }
     if name.eq("I16") { return "ctypes.c_short" }
     if name.eq("I32") { return "ctypes.c_int" }
     if name.eq("U32") { return "ctypes.c_uint" }
@@ -3650,6 +3661,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                         switch fdd.til_type {
                         case Type.I64:  ct = "ctypes.POINTER(ctypes.c_longlong)"
                         case Type.U8:   ct = "ctypes.POINTER(ctypes.c_ubyte)"
+                        case Type.I8:   ct = "ctypes.POINTER(ctypes.c_byte)"
                         case Type.I16:  ct = "ctypes.POINTER(ctypes.c_short)"
                         case Type.I32:  ct = "ctypes.POINTER(ctypes.c_int)"
                         case Type.U32:  ct = "ctypes.POINTER(ctypes.c_uint)"
@@ -4259,7 +4271,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
 
     // Topo-sort struct/enum defs
     mut emitted_mh := Set.new(Str)
-    emitted_mh.add(own "U8".clone()); emitted_mh.add(own "I16".clone()); emitted_mh.add(own "I32".clone())
+    emitted_mh.add(own "U8".clone()); emitted_mh.add(own "I8".clone()); emitted_mh.add(own "I16".clone()); emitted_mh.add(own "I32".clone())
     emitted_mh.add(own "U32".clone()); emitted_mh.add(own "U64".clone()); emitted_mh.add(own "I64".clone())
     emitted_mh.add(own "F32".clone()); emitted_mh.add(own "Bool".clone())
     if is_null(core_program).not() { topo_emit_struct_enum_defs(f, core_program, emitted_mh) }
@@ -4328,7 +4340,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
 
     // Topo-sort struct/enum defs across all units
     mut emitted_mh := Set.new(Str)
-    emitted_mh.add(own "U8".clone()); emitted_mh.add(own "I16".clone()); emitted_mh.add(own "I32".clone())
+    emitted_mh.add(own "U8".clone()); emitted_mh.add(own "I8".clone()); emitted_mh.add(own "I16".clone()); emitted_mh.add(own "I32".clone())
     emitted_mh.add(own "U32".clone()); emitted_mh.add(own "U64".clone()); emitted_mh.add(own "I64".clone())
     emitted_mh.add(own "F32".clone()); emitted_mh.add(own "Bool".clone())
     topo_emit_struct_enum_defs_lp(f, emitted_mh)
@@ -5045,6 +5057,7 @@ emit_dyn_type_to_str_body := proc(f: File) {
     emit_tag_case(f, "Type_TAG_None", "")
     emit_tag_case(f, "Type_TAG_I64", "I64")
     emit_tag_case(f, "Type_TAG_U8", "U8")
+    emit_tag_case(f, "Type_TAG_I8", "I8")
     emit_tag_case(f, "Type_TAG_I16", "I16")
     emit_tag_case(f, "Type_TAG_I32", "I32")
     emit_tag_case(f, "Type_TAG_U32", "U32")

@@ -454,6 +454,10 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
             r = make_str_value("U8".c_str, 2)
             return true
         }
+        if tag.eq(enum_variant_tag(til_type_def, "I8")) {
+            r = make_str_value("I8".c_str, 2)
+            return true
+        }
         if tag.eq(enum_variant_tag(til_type_def, "I16")) {
             r = make_str_value("I16".c_str, 3)
             return true

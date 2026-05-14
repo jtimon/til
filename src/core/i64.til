@@ -5,6 +5,7 @@ import("dyn")
 import("f32")
 import("i16")
 import("i32")
+import("i8")
 import("str")
 import("u32")
 import("u64")
@@ -48,6 +49,7 @@ namespace:
         return Str(c_str = buf, count = total, cap = total)
     }
     to_u8 := ext_func(shallow val: I64) returns shallow U8 {}
+    to_i8 := ext_func(shallow val: I64) returns shallow I8 {}
     to_i16 := ext_func(shallow val: I64) returns shallow I16 {}
     to_i32 := ext_func(shallow val: I64) returns shallow I32 {}
     to_u32 := ext_func(shallow val: I64) returns shallow U32 {}

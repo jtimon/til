@@ -23,7 +23,8 @@ typedef enum {
     Type_TAG_FuncDef,
     Type_TAG_FuncPtr,
     Type_TAG_Dynamic,
-    Type_TAG_Custom
+    Type_TAG_Custom,
+    Type_TAG_I8
 } Type_tag;
 typedef struct Type Type;
 typedef enum {
@@ -1923,6 +1924,7 @@ extern I32 auto_gen_depth;
 extern Bool typer_in_shallow_return;
 extern Str I64Name;
 extern Str U8Name;
+extern Str I8Name;
 extern Str I16Name;
 extern Str I32Name;
 extern Str U32Name;

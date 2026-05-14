@@ -1187,3 +1187,5 @@ Str *til_str_left(const Str *s, U64 n) {
 }
 
 USize c_str_len(const U8 *s) { return (USize)strlen((const char *)s); }
+I8 *c_str_to_i8(const U8 *s) { return (I8 *)(uintptr_t)s; }
+U8 *c_str_from_i8(const I8 *s) { return (U8 *)(uintptr_t)s; }
