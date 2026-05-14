@@ -1607,6 +1607,7 @@ Str *dyn_type_to_str(Type *type) {
     case Type_TAG_FuncPtr: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"Fn", .count = 2ULL, .cap = TIL_CAP_LIT}; _lit; });
     case Type_TAG_Dynamic: return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_LIT}; _lit; });
     case Type_TAG_Custom: return Str_clone(&type->data.Custom);
+    default: break;
     }
     return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)"?", .count = 1ULL, .cap = TIL_CAP_LIT}; _lit; });
 }

@@ -5039,6 +5039,11 @@ emit_dyn_type_to_str_body := proc(f: File) {
     emit_tag_case(f, "Type_TAG_FuncPtr", "Fn")
     emit_tag_case(f, "Type_TAG_Dynamic", "Dynamic")
     f.write("    case Type_TAG_Custom: return Str_clone(&type->data.Custom);\n")
+    // Default case so future Type enum variants don't break the build
+    // before this function (which is emit-hardcoded) is updated to
+    // recognise them. The fallback below is also reachable when -Werror
+    // doesn't enforce switch exhaustiveness.
+    f.write("    default: break;\n")
     f.write("    }\n")
     f.write("    return ")
     emit_str_lit_expr(f, "?")
