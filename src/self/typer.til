@@ -5831,8 +5831,21 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
         UNREACHABLE(__LOC__)
         return
     }
+    // A write isn't a read. Don't flip `used = true` on the assign
+    // target for plain mut locals -- that's the accidental exception
+    // that masks write-only locals like `mut y := x; y = 99` as
+    // not-unused.
+    //
+    // Two carve-outs where the write IS observable:
+    // - Params: a `mut foo: T` param is an output channel watched by
+    //   the caller.
+    // - Ref bindings: `ref mut x : T = &slot` followed by `x = v` is
+    //   the explicit write-through-ref pattern -- the assign is the
+    //   whole point of the binding.
     ref mut ub : TypeBinding = scope.get_binding(aname)
-    if is_null(ub).not() { ub.used = true }
+    if is_null(ub).not() {
+        if ub.is_param.or(ub.own_type.is(OwnType.Ref)) { ub.used = true }
+    }
     existing := scope.get_type(aname)
     if existing.is(Type.Unknown) {
         type_error(stmt, "undefined symbol '".concat(aname).concat("'"))
@@ -7434,11 +7447,15 @@ hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Type
 
 hoist_stmt_fcall := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     hoist_expr(stmt, hoisted, scope)
-    if stmt.til_type.is(Type.None).not() {
-        hoist_to_temp(stmt, hoisted, scope, false)
-        popped : Expr = hoisted.pop()
-        stmt = popped
-    }
+    // Stmt-level FCalls whose result is None or non-Own don't need the
+    // hoist-into-temp dance: nothing on the heap to clean up, so the
+    // call can stay as a bare FCall stmt. Only Own returns require the
+    // wrap so the matching delete frees the heap box.
+    if stmt.til_type.is(Type.None) { return }
+    if fcall_returns_own(stmt, scope).not() { return }
+    hoist_to_temp(stmt, hoisted, scope, false)
+    popped : Expr = hoisted.pop()
+    stmt = popped
 }
 
 rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
