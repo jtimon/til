@@ -1503,6 +1503,7 @@ void emit_stmt_decl(File * f, Expr * e, I32 depth);
 Str * emit_return_ctype(Expr * rv);
 void emit_return_box(File * f, Expr * rv, I32 depth);
 void emit_stmt_return(File * f, Expr * e, I32 depth);
+Bool is_noop_delete_stmt(Expr * e);
 void emit_stmt(File * f, Expr * e, I32 depth);
 void emit_fcall_funcptr_cast(File * f, Expr * e, Expr * sig);
 void emit_fcall_funcptr_args(File * f, Expr * e, Expr * sig, I32 depth);
