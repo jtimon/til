@@ -1619,22 +1619,22 @@ void test_string_concat(void) {
 void test_lolalalo(void) {
     Str hoisted__Str_3115 = (Str){.c_str = (U8 *)"test/constfold.til:62:12", .count = 24ULL, .cap = TIL_CAP_LIT};
     Bool hoisted__Bool_3116 = 1;
-    { Bool *_hp = (Bool *)assert(&hoisted__Str_3115, &hoisted__Bool_3116); free(_hp); }
+    Bool_delete(assert(&hoisted__Str_3115, &hoisted__Bool_3116), &(Bool){1});
     ;
     Str_delete(&hoisted__Str_3115, &(Bool){0});
     Str hoisted__Str_3119 = (Str){.c_str = (U8 *)"test/constfold.til:63:12", .count = 24ULL, .cap = TIL_CAP_LIT};
     Bool hoisted__Bool_3120 = 1;
-    { Bool *_hp = (Bool *)assert(&hoisted__Str_3119, &hoisted__Bool_3120); free(_hp); }
+    Bool_delete(assert(&hoisted__Str_3119, &hoisted__Bool_3120), &(Bool){1});
     ;
     Str_delete(&hoisted__Str_3119, &(Bool){0});
     Str hoisted__Str_3123 = (Str){.c_str = (U8 *)"test/constfold.til:65:12", .count = 24ULL, .cap = TIL_CAP_LIT};
     Bool hoisted__Bool_3124 = 1;
-    { Bool *_hp = (Bool *)assert(&hoisted__Str_3123, &hoisted__Bool_3124); free(_hp); }
+    Bool_delete(assert(&hoisted__Str_3123, &hoisted__Bool_3124), &(Bool){1});
     ;
     Str_delete(&hoisted__Str_3123, &(Bool){0});
     Str hoisted__Str_3127 = (Str){.c_str = (U8 *)"test/constfold.til:66:12", .count = 24ULL, .cap = TIL_CAP_LIT};
     Bool hoisted__Bool_3128 = 1;
-    { Bool *_hp = (Bool *)assert(&hoisted__Str_3127, &hoisted__Bool_3128); free(_hp); }
+    Bool_delete(assert(&hoisted__Str_3127, &hoisted__Bool_3128), &(Bool){1});
     ;
     Str_delete(&hoisted__Str_3127, &(Bool){0});
 }

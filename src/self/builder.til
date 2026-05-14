@@ -1538,18 +1538,21 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
         //    have nothing on the heap, plain `<fcall>;` is correct.
         //  - body DCE replaced an `hoisted__T_X := <fcall>` Decl with
         //    the bare FCall (the temp was unused). The return is an
-        //    Own heap pointer; without freeing it, we leak.
-        // Wrap Own-returning bare FCalls in `{ T *_hp = ...; free(_hp); }`
-        // so the heap box is released either way.
+        //    Own heap pointer; without cleaning it up, we leak. `free`
+        //    would also leak for compound types (Str's inner c_str,
+        //    Vec's inner buffer, ...). Hand off to `T.delete(self,
+        //    call_free=true)` -- the same ASAP path the typer would
+        //    have taken if the temp had survived.
         if e.til_type.is(Type.None).not() {
             ref mut clp : LoadedProgram = codegen_lp()
             if fcall_returns_own(e, clp.ctx.scope) {
-                mut htype := fcall_return_ctype(e)
-                if htype.len().eq(0) { htype = c_type_name(e.til_type, e_sname) }
-                f.write("{ "); f.write(htype); f.write(" *_hp = ("); f.write(htype); f.write(" *)")
-                emit_expr(f, e, depth)
-                f.write("; free(_hp); }\n")
-                return
+                tname := type_to_name(e.til_type)
+                if tname.len().gt(0) {
+                    f.write(tname); f.write("_delete(")
+                    emit_expr(f, e, depth)
+                    f.write(", &(Bool){1});\n")
+                    return
+                }
             }
         }
         emit_expr(f, e, depth); f.write(";\n")
