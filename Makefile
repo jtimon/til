@@ -61,7 +61,7 @@ c_lib/libffi/.built:
 # `!gen/bindings/**` exception in .gitignore for easy diffing) and then
 # copied to src/lib/ for the build to consume. Libraries that are still
 # hand-written in src/lib/ have no gen/bindings/ -> src/lib/ copy step.
-bindings: $(RAW_BINDINGS) src/lib/tinyfd.til
+bindings: $(RAW_BINDINGS) src/lib/tinyfd.til src/lib/libffi.til
 
 gen/bindings:
 	mkdir -p gen/bindings
@@ -75,10 +75,13 @@ gen/bindings/tinyfd.til: $(BINDING_GEN) c_lib/tinyfiledialogs/tinyfiledialogs.h 
 gen/bindings/libffi.til: $(BINDING_GEN) c_lib/libffi/.built $(LIBFFI_BINDGEN_INCDIR)/ffi.h $(LIBFFI_BINDGEN_INCDIR)/ffitarget.h bin/til_boot | gen/bindings
 	bin/til_boot run $(BINDING_GEN) $(LIBFFI_BINDGEN_INCDIR)/ffi.h gen/bindings/libffi.til
 
-# Replace the in-tree binding with the freshly generated one. Callers that
-# `import("lib/tinyfd")` add the matching link() directive next to the
+# Replace the in-tree bindings with the freshly generated ones. Callers that
+# `import("lib/<name>")` add the matching link() directive next to the
 # import (no link() in the generated file itself).
 src/lib/tinyfd.til: gen/bindings/tinyfd.til
+	cp $< $@
+
+src/lib/libffi.til: gen/bindings/libffi.til
 	cp $< $@
 
 # --- Boot compiler (from last commit, always safe) ---

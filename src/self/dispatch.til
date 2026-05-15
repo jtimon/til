@@ -1,6 +1,7 @@
 mode lib
 
 import("../lib/libffi")
+link("c_lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
 
 priv ExtStr := struct {
     ref mut data : U8 = NULL
@@ -65,7 +66,7 @@ ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().to_u64())
 ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns shallow Bool {
     if is_null(cif.rtype) { return false }
     ref rt : ffi_type = cif.rtype
-    return rt.type.eq(FFI_TYPE_STRUCT)
+    return rt.type.eq(FFI_TYPE_STRUCT.to_i16())
 }
 
 ffi_load_global_lib := ext_func(soname: Str) returns shallow Bool {}
@@ -642,7 +643,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
         ref mut stp : ffi_type = to_ptr(st)
         stp.size = 0
         stp.alignment = 0.to_i16()
-        stp.type = FFI_TYPE_STRUCT
+        stp.type = FFI_TYPE_STRUCT.to_i16()
         stp.elements = elements
         box := FFITypePtrBox(ptr = stp)
         ffi_type_cache.push(own box)
