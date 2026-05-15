@@ -21,8 +21,7 @@ all: bin/til
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
 LIB_TIL := $(wildcard src/lib/*.til)
-BINDING_GEN := examples/bindings_gen.til
-BINDING_GEN_LIBFFI := examples/bindings_libffi.til
+BINDING_GEN := examples/bindings_gen2.til
 RAW_BINDINGS := gen/bindings/libffi.til gen/bindings/raylib.til gen/bindings/tinyfd.til
 LD_FLAGS := -rdynamic -ldl
 
@@ -54,21 +53,26 @@ lib/libffi/.built:
 # The auto-generated bindings live under gen/bindings/ (kept in git via the
 # `!gen/bindings/` exception in .gitignore) so the hand-written
 # src/lib/libffi.til / src/lib/raylib.til / src/lib/tinyfd.til used by the build
-# stay untouched while the header-driven generator is still WIP -- see issue
-# #203 for the remaining field/function-name corruption.
+# stay untouched while bindings_gen2.til is still WIP.
+#
+# bindings_gen2.til is generic: it takes a header path and an output path,
+# preprocesses with `cc -E -CC -dD`, filters back to the input directory, and
+# emits a `mode lib` til file. No library-specific knowledge baked in.
+# Callers add their own `link("...")` directives wherever they `import` the
+# generated file.
 bindings: $(RAW_BINDINGS)
 
 gen/bindings:
 	mkdir -p gen/bindings
 
 gen/bindings/raylib.til: $(BINDING_GEN) lib/raylib/src/raylib.h bin/til_boot | gen/bindings
-	bin/til_boot run $(BINDING_GEN) raylib lib/raylib/src/raylib.h gen/bindings/raylib.til
+	bin/til_boot run $(BINDING_GEN) lib/raylib/src/raylib.h gen/bindings/raylib.til
 
 gen/bindings/tinyfd.til: $(BINDING_GEN) lib/tinyfiledialogs/tinyfiledialogs.h bin/til_boot | gen/bindings
-	bin/til_boot run $(BINDING_GEN) tinyfd lib/tinyfiledialogs/tinyfiledialogs.h gen/bindings/tinyfd.til
+	bin/til_boot run $(BINDING_GEN) lib/tinyfiledialogs/tinyfiledialogs.h gen/bindings/tinyfd.til
 
-gen/bindings/libffi.til: $(BINDING_GEN_LIBFFI) lib/libffi/.built $(LIBFFI_BINDGEN_INCDIR)/ffi.h $(LIBFFI_BINDGEN_INCDIR)/ffitarget.h bin/til_boot | gen/bindings
-	bin/til_boot run $(BINDING_GEN_LIBFFI) $(LIBFFI_BINDGEN_INCDIR)/ffi.h gen/bindings/libffi.til
+gen/bindings/libffi.til: $(BINDING_GEN) lib/libffi/.built $(LIBFFI_BINDGEN_INCDIR)/ffi.h $(LIBFFI_BINDGEN_INCDIR)/ffitarget.h bin/til_boot | gen/bindings
+	bin/til_boot run $(BINDING_GEN) $(LIBFFI_BINDGEN_INCDIR)/ffi.h gen/bindings/libffi.til
 
 # --- Boot compiler (from last commit, always safe) ---
 

@@ -1,22 +1,22 @@
 mode cli
 
-// libffi-focused bindings generator. Runs alongside examples/bindings_gen.til
-// (the WIP general-purpose walker) so we can iterate on a simpler shape
-// without breaking what's already on the branch. Strategy:
+// Generic C header → til bindings translator. Takes one header path and an
+// output path; produces a `mode lib` til file that mirrors every typedef,
+// enum, function declaration and numeric #define from the header (and any
+// header it #includes that lives in the same directory).
 //
-//   * Read the .h file directly (no cc preprocessing) and walk it line-by-line.
-//   * Block-comments and line-comments are translated to til `// ...` and
-//     written verbatim into the output. Comments are not generated -- they
-//     come straight from the upstream header.
-//   * C declarations (typedef struct, typedef enum, #define, FFI_API funcs)
-//     are translated via inline byte-iteration. We never return Str from a
-//     helper, never store a Str returned from a helper into a local, and
-//     never build a DeclShape-style struct of Strs -- those patterns triggered
-//     heap corruption in the older script (issue #203).
-//   * Output is built as one Str in memory, then written via File.writefile
-//     at the end.
+// What it does NOT do:
+//   * emit `link("...")` -- callers add that themselves where they `import`.
+//   * carry any library-specific knowledge (no ffi_status, no RLAPI, no
+//     library-specific type renames). Everything is driven by the C source.
+//
+// Implementation note: every helper emits straight into the output `Str`
+// using positional (USize) indices and `substr` views into the source. We
+// never bind a `Str` returned from a helper into a `:=` local -- that path
+// triggers the heap-corruption issue tracked as #203. Builds the output as
+// one `Str.with_capacity` allocation and writes once.
 
-// --- low-level character helpers ----------------------------------------
+// --- char helpers ------------------------------------------------------
 
 is_ws := func(c: U8) returns shallow Bool {
     return c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq('\n'))
@@ -36,9 +36,8 @@ is_alnum := func(c: U8) returns shallow Bool {
     return is_alpha(c).or(is_digit(c))
 }
 
-// --- view helpers (no allocation) ---------------------------------------
+// --- view helpers (no allocation) --------------------------------------
 
-// Index of the first non-ws byte in `s` at or after `from`.
 skip_ws := func(s: Str, shallow from: USize) returns USize {
     mut i := from
     while i.lt(s.len()) {
@@ -49,8 +48,7 @@ skip_ws := func(s: Str, shallow from: USize) returns USize {
 }
 
 // Index of the first non-identifier byte (ws, punctuation, paren, comma...)
-// in `s` at or after `from`, or s.len() if none. Used to lex one C identifier
-// or one keyword in place.
+// in `s` at or after `from`, or s.len() if none.
 skip_word := func(s: Str, shallow from: USize) returns USize {
     mut i := from
     while i.lt(s.len()) {
@@ -60,7 +58,6 @@ skip_word := func(s: Str, shallow from: USize) returns USize {
     return i
 }
 
-// Trim trailing ws by index. Returns the exclusive end-index.
 trim_right := func(s: Str, shallow from: USize, shallow to: USize) returns USize {
     mut end := to
     while end.gt(from) {
@@ -70,8 +67,9 @@ trim_right := func(s: Str, shallow from: USize, shallow to: USize) returns USize
     return end
 }
 
-// True iff the byte range `[start, end)` of `s` literally equals `lit`.
 range_eq_lit := func(s: Str, shallow start: USize, shallow end: USize, lit: Str) returns shallow Bool {
+    if start.gt(s.len()) { return false }
+    if end.gt(s.len()) { return false }
     if end.sub(start).neq(lit.len()) { return false }
     mut i : USize = 0
     while i.lt(lit.len()) {
@@ -81,15 +79,11 @@ range_eq_lit := func(s: Str, shallow start: USize, shallow end: USize, lit: Str)
     return true
 }
 
-// --- C-type to til-type mapping -----------------------------------------
+// --- C-type to til-type mapping ----------------------------------------
+// Standard C primitives only. Any non-primitive identifier passes through
+// verbatim, on the assumption it's a typedef declared elsewhere in the
+// same generated output (struct typedef, enum typedef, plain alias).
 
-// Push the til equivalent of a (trimmed) C base-type spelling onto `out`.
-// Returns true if `c` is a known primitive (so the caller can also use
-// push_til_default afterwards); returns false if `c` is unknown and was
-// pushed verbatim. The callers never store the til type string in a
-// local because returning Str from a helper and storing it in a `:=`
-// binding triggers heap corruption in the current runtime; pushing
-// directly through `out` sidesteps that.
 push_til_base := func(mut out: Str, c: Str) returns Bool {
     if c.eq("void") { out.push_str("Dynamic"); return true }
     if c.eq("char").or(c.eq("unsigned char")) { out.push_str("U8"); return true }
@@ -98,11 +92,15 @@ push_til_base := func(mut out: Str, c: Str) returns Bool {
     if c.eq("unsigned short").or(c.eq("unsigned short int")) { out.push_str("I16"); return true }
     if c.eq("int").or(c.eq("signed int")).or(c.eq("signed")) { out.push_str("I32"); return true }
     if c.eq("unsigned").or(c.eq("unsigned int")) { out.push_str("U32"); return true }
-    if c.eq("long").or(c.eq("long int")).or(c.eq("long long")).or(c.eq("long long int")) { out.push_str("I64"); return true }
+    if c.eq("long").or(c.eq("long int"))
+    .or(c.eq("signed long")).or(c.eq("signed long int"))
+    .or(c.eq("long long")).or(c.eq("long long int"))
+    .or(c.eq("signed long long")).or(c.eq("signed long long int")) { out.push_str("I64"); return true }
     if c.eq("unsigned long").or(c.eq("unsigned long int"))
     .or(c.eq("unsigned long long")).or(c.eq("unsigned long long int")) { out.push_str("U64"); return true }
     if c.eq("size_t") { out.push_str("USize"); return true }
     if c.eq("ssize_t") { out.push_str("I64"); return true }
+    if c.eq("ptrdiff_t") { out.push_str("I64"); return true }
     if c.eq("intptr_t") { out.push_str("I64"); return true }
     if c.eq("uintptr_t") { out.push_str("U64"); return true }
     if c.eq("int8_t") { out.push_str("I8"); return true }
@@ -116,20 +114,12 @@ push_til_base := func(mut out: Str, c: Str) returns Bool {
     if c.eq("bool").or(c.eq("_Bool")) { out.push_str("Bool"); return true }
     if c.eq("float") { out.push_str("F32"); return true }
     if c.eq("double").or(c.eq("long double")) { out.push_str("F64"); return true }
-    // libffi-specific: ffi_status / ffi_abi are tagged enums whose underlying
-    // type is int from libffi's perspective.
-    if c.eq("ffi_status").or(c.eq("ffi_abi")) { out.push_str("I32"); return true }
-    if c.eq("ffi_sarg") { out.push_str("I64"); return true }
-    if c.eq("ffi_arg") { out.push_str("U64"); return true }
-    // Unknown: pass through verbatim (lets user-defined struct names from
-    // earlier typedefs flow through, e.g. `ffi_type`).
+    // Unknown -- pass through. Typedefs from the same header land here and
+    // resolve via the alias declarations the walker emits earlier.
     out.push_str(c)
     return false
 }
 
-// Push the default initializer for whichever til base `push_til_base(c)`
-// would have emitted (numeric primitives -> `0`, Bool -> `false`,
-// Dynamic -> `0`, anything else -> `Type()`). Mirrors push_til_base.
 push_til_default := func(mut out: Str, c: Str) {
     if c.eq("bool").or(c.eq("_Bool")) { out.push_str("false"); return }
     if c.eq("void") { out.push_str("0"); return }
@@ -139,39 +129,33 @@ push_til_default := func(mut out: Str, c: Str) {
     .or(c.eq("int")).or(c.eq("signed int")).or(c.eq("signed"))
     .or(c.eq("unsigned")).or(c.eq("unsigned int"))
     .or(c.eq("long")).or(c.eq("long int"))
+    .or(c.eq("signed long")).or(c.eq("signed long int"))
     .or(c.eq("long long")).or(c.eq("long long int"))
+    .or(c.eq("signed long long")).or(c.eq("signed long long int"))
     .or(c.eq("unsigned long")).or(c.eq("unsigned long int"))
     .or(c.eq("unsigned long long")).or(c.eq("unsigned long long int"))
-    .or(c.eq("size_t")).or(c.eq("ssize_t"))
+    .or(c.eq("size_t")).or(c.eq("ssize_t")).or(c.eq("ptrdiff_t"))
     .or(c.eq("intptr_t")).or(c.eq("uintptr_t"))
     .or(c.eq("int8_t")).or(c.eq("uint8_t"))
     .or(c.eq("int16_t")).or(c.eq("uint16_t"))
     .or(c.eq("int32_t")).or(c.eq("uint32_t"))
     .or(c.eq("int64_t")).or(c.eq("uint64_t"))
-    .or(c.eq("float")).or(c.eq("double")).or(c.eq("long double"))
-    .or(c.eq("ffi_status")).or(c.eq("ffi_abi"))
-    .or(c.eq("ffi_sarg")).or(c.eq("ffi_arg")) { out.push_str("0"); return }
-    // Unknown -- assume it's a compound type defined elsewhere in this file.
+    .or(c.eq("float")).or(c.eq("double")).or(c.eq("long double")) {
+        out.push_str("0")
+        return
+    }
+    // Unknown -- assume struct-like, default to `Type()`.
     out.push_str(c)
     out.push_str("()")
 }
 
-// --- field declaration --------------------------------------------------
+// --- field declaration -------------------------------------------------
 
-// Parse one C field declaration line (already stripped of any trailing
-// `;` and inline `/* ... */` block comment) and append the matching til
-// declaration to `out`. Returns false on shapes we don't translate
-// (arrays, multi-var, function pointers, bitfields).
-//
-// `line` is the raw line from the header (with leading whitespace etc).
-// `comment` is the optional trailing `// ...`-style comment (without the
-// leading `//`).
 emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
     n := line.len()
     if n.eq(0) { return true }
-    // Pre-filter unsupported shapes. Reject anything we can't tokenize as
-    // (type-words + name) -- arrays, function pointers, bitfields, multi-var,
-    // and nested union/struct/enum bodies (which carry braces).
+    // Pre-filter unsupported shapes (arrays, function pointers, bitfields,
+    // multi-var, nested struct/union/enum bodies).
     mut p : USize = 0
     while p.lt(n) {
         ref b : U8 = line.byte_at(p)
@@ -179,15 +163,9 @@ emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
         .or(b.eq('{')).or(b.eq('}')) { return false }
         p = p.add(1)
     }
-    // Tokenize using INDICES only -- no mut Str accumulator. We rotate words
-    // through three positions:
-    //   * the "current name candidate" (start, end)
-    //   * the previous candidate (which is now confirmed to belong to the
-    //     base type once a newer name candidate arrives)
-    //   * the first base-type word's start index (set on the first rotation)
-    // After the loop, the last name candidate IS the field name, and the base
-    // type spans `[base_first, prev_end)` of `line`. Qualifiers
-    // (const/volatile/restrict) are skipped on the way in.
+    // Token-walk with USize indices. We rotate `name candidates` so the
+    // last one is the field name and `[base_first, prev_end)` is the base
+    // type span in `line`.
     mut ptrs : I32 = 0
     mut name_start : USize = 0
     mut name_end : USize = 0
@@ -204,10 +182,7 @@ emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
             continue
         }
         ws := skip_word(line, p)
-        if ws.eq(p) {
-            // Unknown char -- bail rather than spin.
-            return false
-        }
+        if ws.eq(p) { return false }
         if range_eq_lit(line, p, ws, "const")
         .or(range_eq_lit(line, p, ws, "volatile"))
         .or(range_eq_lit(line, p, ws, "restrict"))
@@ -219,7 +194,6 @@ emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
             continue
         }
         if name_set {
-            // The previous name candidate was really a base-type word.
             prev_end = name_end
             if base_set.not() {
                 base_first = name_start
@@ -232,18 +206,17 @@ emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
         p = skip_ws(line, ws)
     }
     if name_set.not() { return false }
-    // Single-word line (e.g. `FFI_EXTRA_CIF_FIELDS;` inside a #ifdef). Skip
-    // silently without breaking the surrounding struct.
     if base_set.not() {
+        // Single useful word (e.g. a macro placeholder like FFI_EXTRA_CIF_FIELDS).
+        // Skip silently so the surrounding struct can still emit.
         out.push_str("    // SKIP (macro placeholder): ")
         out.push_str(line.substr(name_start, name_end.sub(name_start)))
         out.push_str("\n")
         return true
     }
     word_len := name_end.sub(name_start)
-    // Strip a leading `struct ` from the base view if present, since
-    // `struct _ffi_type` should map to `ffi_type` (which is also the typedef
-    // in this file).
+    // Strip a leading `struct ` / `enum ` from the base view -- those
+    // reference the named tag rather than a separate type.
     mut base_off := base_first
     if base_first.add(7).lte(prev_end).and(range_eq_lit(line, base_first, base_first.add(7), "struct ")) {
         base_off = base_first.add(7)
@@ -283,15 +256,11 @@ emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
     return true
 }
 
-// --- comment translation ------------------------------------------------
+// --- comment translation ----------------------------------------------
 
-// Translate any number of `/* ... */` block comments and `// ...` line
-// comments on `line` into one or more til `// ...` lines appended to
-// `out`. Designed for header content where comments dominate.
 emit_comment_line := func(mut out: Str, line: Str) {
     n := line.len()
     mut i : USize = 0
-    // Reuse the same leading-indent as the source line.
     while i.lt(n) {
         ref b : U8 = line.byte_at(i)
         if is_ws(b).not() { break }
@@ -299,7 +268,6 @@ emit_comment_line := func(mut out: Str, line: Str) {
         i = i.add(1)
     }
     if i.add(1).lt(n).and(line.byte_at(i).eq('/')).and(line.byte_at(i.add(1)).eq('/')) {
-        // Already a line comment -- copy verbatim.
         out.push_str(line.substr(i, n.sub(i)))
         out.push_str("\n")
         return
@@ -307,7 +275,6 @@ emit_comment_line := func(mut out: Str, line: Str) {
     if i.add(1).lt(n).and(line.byte_at(i).eq('/')).and(line.byte_at(i.add(1)).eq('*')) {
         out.push_str("//")
         body := line.substr(i.add(2), n.sub(i).sub(2))
-        // Strip a trailing `*/` if present on the same line.
         b_end := body.len()
         if b_end.gte(2).and(body.byte_at(b_end.sub(2)).eq('*')).and(body.byte_at(b_end.sub(1)).eq('/')) {
             out.push_str(body.substr(0, b_end.sub(2)))
@@ -317,7 +284,6 @@ emit_comment_line := func(mut out: Str, line: Str) {
         out.push_str("\n")
         return
     }
-    // Continuation of a block comment (line starts with `*` or actual text).
     if i.lt(n).and(line.byte_at(i).eq('*')) {
         out.push_str("//")
         body := line.substr(i.add(1), n.sub(i).sub(1))
@@ -330,108 +296,45 @@ emit_comment_line := func(mut out: Str, line: Str) {
         out.push_str("\n")
         return
     }
-    // Default: prefix the whole line with `// `.
     out.push_str("// ")
     out.push_str(line.substr(i, n.sub(i)))
     out.push_str("\n")
 }
 
-// --- line classification ------------------------------------------------
+// --- struct body ------------------------------------------------------
 
-// Classify the trimmed line by its starting token. Returned codes are
-// purely internal:
-//   0 = blank
-//   1 = line comment or block-comment fragment
-//   2 = preprocessor (#include / #if / #endif / #pragma)
-//   3 = #define
-//   4 = typedef
-//   5 = FFI_API (function declaration head)
-//   6 = FFI_EXTERN (extern var declaration head)
-//   7 = `extern "C"` / closing `}`
-//   8 = something else (most likely a continuation line)
-
-priv classify := func(line: Str, shallow lead: USize) returns shallow I32 {
-    n := line.len()
-    if lead.eq(n) { return 0 }
-    ref b : U8 = line.byte_at(lead)
-    if b.eq('/') {
-        if lead.add(1).lt(n) {
-            ref b2 : U8 = line.byte_at(lead.add(1))
-            if b2.eq('/').or(b2.eq('*')) { return 1 }
-        }
-    }
-    if b.eq('*') { return 1 }
-    if b.eq('#') {
-        if range_eq_lit(line, lead, lead.add(8), "#define ") { return 3 }
-        return 2
-    }
-    if range_eq_lit(line, lead, lead.add(8), "typedef ").or(range_eq_lit(line, lead, lead.add(7), "typedef")) {
-        return 4
-    }
-    if range_eq_lit(line, lead, lead.add(7), "FFI_API")
-    .or(range_eq_lit(line, lead, lead.add(8), "FFI_API ")) { return 5 }
-    if range_eq_lit(line, lead, lead.add(10), "FFI_EXTERN")
-    .or(range_eq_lit(line, lead, lead.add(11), "FFI_EXTERN ")) { return 6 }
-    if range_eq_lit(line, lead, lead.add(8), "extern \"") { return 7 }
-    if b.eq('}') { return 7 }
-    return 8
-}
-
-// --- struct body --------------------------------------------------------
-
-// Emit fields between `open` and `close` (both line indices into `lines`).
-// Returns true if all fields parse cleanly; on false the caller should fall
-// back to an opaque `ext_struct(...) {}` declaration.
 emit_struct_body := func(mut out: Str, lines: Vec, shallow open: USize, shallow close: USize) returns Bool {
     for i in open.add(1)..close {
         ref line : Str = lines.get(i)
         n := line.len()
         lead := skip_ws(line, 0)
-        // Blank line inside the struct body: drop it to keep the output tight.
         if lead.eq(n) { continue }
         ref b : U8 = line.byte_at(lead)
-        // Comments inside the body: pass through.
         if b.eq('/').and(lead.add(1).lt(n)) {
             emit_comment_line(out, line)
             continue
         }
         if b.eq('*') {
-            // Block-comment continuation.
             emit_comment_line(out, line)
             continue
         }
-        if b.eq('#') {
-            // Preprocessor conditional inside a struct body: skip (callers
-            // get the most common platform via cc preprocessing for non-raw
-            // generation; for the raw path we just drop the directive line).
-            continue
-        }
-        // Strip trailing whitespace.
+        if b.eq('#') { continue }
         end := trim_right(line, lead, n)
-        // Drop trailing `;` plus any whitespace before it.
         mut code_end := end
-        if code_end.gt(lead).and(line.byte_at(code_end.sub(1)).eq(';')) {
-            code_end = code_end.sub(1)
-            code_end = trim_right(line, lead, code_end)
-        }
-        // Pull off any trailing `/* ... */` or `// ...` inline comment.
-        mut comment_text := ""
-        // Look for the last `/*` on the line.
-        mut j := code_end
-        mut found_blk := false
-        while j.gt(lead.add(1)) {
-            if line.byte_at(j.sub(2)).eq('/').and(line.byte_at(j.sub(1)).eq('*')) {
-                // Not a comment OPENER; we want the start, not the end of the line.
-                break
+        if code_end.gt(lead) {
+            if line.byte_at(code_end.sub(1)).eq(';') {
+                code_end = code_end.sub(1)
+                code_end = trim_right(line, lead, code_end)
             }
-            j = j.sub(1)
         }
-        // Simpler: scan forward for the FIRST `/*` after the code starts.
+        // Pull off the FIRST inline `/* ... */` block comment, if any.
+        mut comment_start : USize = 0
+        mut comment_end : USize = 0
+        mut found_blk := false
         mut k := lead
-        mut blk_start : USize = 0
         while k.add(1).lt(code_end) {
             if line.byte_at(k).eq('/').and(line.byte_at(k.add(1)).eq('*')) {
-                blk_start = k
+                comment_start = k.add(2)
                 found_blk = true
                 break
             }
@@ -439,56 +342,77 @@ emit_struct_body := func(mut out: Str, lines: Vec, shallow open: USize, shallow 
         }
         mut new_code_end := code_end
         if found_blk {
-            // Look for the matching `*/`.
-            mut m := blk_start.add(2)
+            mut m := comment_start
             while m.add(1).lt(code_end) {
                 if line.byte_at(m).eq('*').and(line.byte_at(m.add(1)).eq('/')) {
-                    comment_text = line.substr(blk_start.add(2), m.sub(blk_start.add(2))).clone()
-                    new_code_end = trim_right(line, lead, blk_start)
+                    comment_end = m
+                    new_code_end = trim_right(line, lead, comment_start.sub(2))
                     break
                 }
                 m = m.add(1)
             }
         }
-        // Slice out the cleaned code portion.
+        // Trim ws around the comment slice. `Bool.and` is strict (not
+        // short-circuiting), so we have to gate the byte_at on the bound
+        // check explicitly to avoid an OOB read when ce/comment_end is 0.
+        mut cs := comment_start
+        while cs.lt(comment_end) {
+            if is_ws(line.byte_at(cs)).not() { break }
+            cs = cs.add(1)
+        }
+        mut ce := comment_end
+        while ce.gt(cs) {
+            if is_ws(line.byte_at(ce.sub(1))).not() { break }
+            ce = ce.sub(1)
+        }
+        comment_view := line.substr(cs, ce.sub(cs))
         code_view := line.substr(lead, new_code_end.sub(lead))
-        // The comment_text we extracted may have leading/trailing ws.
-        mut cstart : USize = 0
-        while cstart.lt(comment_text.len()) {
-            if is_ws(comment_text.byte_at(cstart)).not() { break }
-            cstart = cstart.add(1)
-        }
-        mut cend := comment_text.len()
-        while cend.gt(cstart) {
-            if is_ws(comment_text.byte_at(cend.sub(1))).not() { break }
-            cend = cend.sub(1)
-        }
-        comment_clean := comment_text.substr(cstart, cend.sub(cstart))
-        if emit_field(out, code_view, comment_clean).not() {
-            // Stop on the first unrepresentable field; caller will switch
-            // to opaque.
+        if emit_field(out, code_view, comment_view).not() {
             return false
         }
     }
     return true
 }
 
-// --- typedef struct / typedef enum / typedef alias ----------------------
+// --- typedef struct ---------------------------------------------------
 
-// Emit a `typedef struct` block. `start` is the `typedef struct ...` head
-// line; `open` is the line carrying the opening `{`; `close` is the
-// `} NAME;` line. Returns next-line index past the block.
 emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
-    // Tag: between `typedef struct` and `{`, joined across [start, open].
-    // For raw ffi.h all our typedef-struct headers either fit on one line
-    // (`typedef struct _ffi_type {`) or have the brace on the immediately-
-    // following line (`typedef struct\n{` or `typedef struct NAME\n{`).
+    ref close_line : Str = lines.get(close)
+    cn := close_line.len()
+    clead := skip_ws(close_line, 0)
+    if clead.gte(cn).or(close_line.byte_at(clead).neq('}')) { return start.add(1) }
+    mut cp := clead.add(1)
+    cp = skip_ws(close_line, cp)
+    mut cright := trim_right(close_line, cp, cn)
+    if cright.gt(cp).and(close_line.byte_at(cright.sub(1)).eq(';')) {
+        cright = cright.sub(1)
+        cright = trim_right(close_line, cp, cright)
+    }
+    if cp.gte(cright) { return start.add(1) }
+    // Name is the LAST whitespace-separated token in [cp, cright).
+    mut name_start := cp
+    mut nk := cp
+    while nk.lt(cright) {
+        if is_ws(close_line.byte_at(nk)) { name_start = nk.add(1) }
+        nk = nk.add(1)
+    }
+    while name_start.lt(cright).and(is_ws(close_line.byte_at(name_start))) {
+        name_start = name_start.add(1)
+    }
+    name_len := cright.sub(name_start)
+    if name_len.eq(0) { return start.add(1) }
+
+    // Tag: walk [start, open] looking for the bytes between "typedef struct"
+    // and `{`. Two-line variants (`typedef struct\n{` / `typedef struct X\n{`)
+    // are supported.
     mut have_tag := false
+    mut tag_line_idx := start
+    mut t_start : USize = 0
+    mut t_end : USize = 0
     for i in start..open.add(1) {
         ref line : Str = lines.get(i)
         n := line.len()
         lead := skip_ws(line, 0)
-        // First line: skip past "typedef struct".
         mut p := lead
         if i.eq(start) {
             if range_eq_lit(line, p, p.add(14), "typedef struct").not() {
@@ -497,52 +421,26 @@ emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shal
             p = p.add(14)
             p = skip_ws(line, p)
         }
-        // Take everything up to `{` (or end of line) as part of the tag.
         mut q := p
         while q.lt(n) {
             if line.byte_at(q).eq('{') { break }
             q = q.add(1)
         }
         end := trim_right(line, p, q)
-        if end.gt(p) { have_tag = true }
+        if end.gt(p) {
+            tag_line_idx = i
+            t_start = p
+            t_end = end
+            have_tag = true
+        }
         if q.lt(n).and(line.byte_at(q).eq('{')) { break }
     }
-    // Name lives on the close line as `} NAME;` (possibly `} attr NAME;`).
-    ref close_line : Str = lines.get(close)
-    cn := close_line.len()
-    clead := skip_ws(close_line, 0)
-    if clead.gte(cn).or(close_line.byte_at(clead).neq('}')) { return start.add(1) }
-    mut cp := clead.add(1)
-    cp = skip_ws(close_line, cp)
-    // Trim trailing `;` and ws.
-    mut cright := trim_right(close_line, cp, cn)
-    if cright.gt(cp).and(close_line.byte_at(cright.sub(1)).eq(';')) {
-        cright = cright.sub(1)
-        cright = trim_right(close_line, cp, cright)
-    }
-    if cp.gte(cright) { return start.add(1) }
-    // The name is the last whitespace-separated token in [cp, cright).
-    mut name_start := cp
-    mut nk := cp
-    while nk.lt(cright) {
-        if is_ws(close_line.byte_at(nk)) { name_start = nk.add(1) }
-        nk = nk.add(1)
-    }
-    // skip leading ws on name_start side
-    while name_start.lt(cright).and(is_ws(close_line.byte_at(name_start))) {
-        name_start = name_start.add(1)
-    }
-    name_len := cright.sub(name_start)
-    if name_len.eq(0) { return start.add(1) }
 
-    // Try to render the body. If a field fails, we'll fall back to an
-    // opaque declaration -- but we need to emit the header first, so we
-    // build the body into a tmp Str.
-    mut body_buf := Str.with_capacity(16384)
+    // Render the body into a tmp Str so a mid-body failure can downgrade
+    // to opaque without leaving a half-written declaration in `out`.
+    mut body_buf := Str.with_capacity(65536)
     body_ok := emit_struct_body(body_buf, lines, open, close)
 
-    // Pick the right form. struct{} when tag matches name; ext_struct("tag")
-    // when tag differs; ext_struct("") for anonymous.
     out.push_str(close_line.substr(name_start, name_len))
     if have_tag.not() {
         if body_ok {
@@ -554,69 +452,14 @@ emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shal
         }
         return close.add(1)
     }
-    // Re-extract tag from the right line. Tag is in [tag_start, tag_end) of
-    // either the start line or the open line. We saved the indices into a
-    // single tag_start/tag_end, but they were taken from the line we last
-    // processed in the loop above -- that line is either start or open.
-    // We detect which by re-checking: if start.eq(open), it's start; else it's
-    // whichever line currently has a non-`{` non-ws token before the brace.
-    // Simpler: refetch by walking the start line first.
-    ref start_line : Str = lines.get(start)
-    sn := start_line.len()
-    slead := skip_ws(start_line, 0)
-    mut sp := slead.add(14)  // past "typedef struct"
-    sp = skip_ws(start_line, sp)
-    mut sq := sp
-    while sq.lt(sn) {
-        if start_line.byte_at(sq).eq('{') { break }
-        sq = sq.add(1)
-    }
-    send := trim_right(start_line, sp, sq)
-    mut tag_line_is_start := true
-    mut t_start := sp
-    mut t_end := send
-    if send.eq(sp) {
-        // No tag on start line -- check the open line.
-        tag_line_is_start = false
-        if open.neq(start) {
-            ref ol : Str = lines.get(open)
-            oln := ol.len()
-            olead := skip_ws(ol, 0)
-            mut oq := olead
-            while oq.lt(oln) {
-                if ol.byte_at(oq).eq('{') { break }
-                oq = oq.add(1)
-            }
-            t_start = olead
-            t_end = trim_right(ol, olead, oq)
-        }
-    }
-    tag_len_actual := t_end.sub(t_start)
-    if tag_len_actual.eq(0) {
-        // Treat as anonymous after all.
-        if body_ok {
-            out.push_str(" := ext_struct(\"\") {\n")
-            out.push_str(body_buf)
-            out.push_str("}\n\n")
-        } else {
-            out.push_str(" := ext_struct(\"\") {}  // opaque: unsupported field shape\n\n")
-        }
-        return close.add(1)
-    }
-    // Compare tag bytes with name bytes inline. If they match, use `struct {`,
-    // otherwise `ext_struct("tag") {`.
-    mut tag_eq_name := tag_len_actual.eq(name_len)
+    // Detect tag == name by byte compare against the right source line.
+    tag_len := t_end.sub(t_start)
+    mut tag_eq_name := tag_len.eq(name_len)
     if tag_eq_name {
+        ref tline : Str = lines.get(tag_line_idx)
         mut m : USize = 0
         while m.lt(name_len) {
-            mut a : U8 = 0
-            if tag_line_is_start {
-                a = start_line.byte_at(t_start.add(m))
-            } else {
-                ref ol2 : Str = lines.get(open)
-                a = ol2.byte_at(t_start.add(m))
-            }
-            if a.neq(close_line.byte_at(name_start.add(m))) {
+            if tline.byte_at(t_start.add(m)).neq(close_line.byte_at(name_start.add(m))) {
                 tag_eq_name = false
                 break
             }
@@ -629,8 +472,6 @@ emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shal
             out.push_str(body_buf)
             out.push_str("}\n\n")
         } else {
-            // Same-tag opaque uses ext_struct("name") form so the C tag and
-            // the binding agree.
             out.push_str(" := ext_struct(\"")
             out.push_str(close_line.substr(name_start, name_len))
             out.push_str("\") {}  // opaque: unsupported field shape\n\n")
@@ -638,12 +479,8 @@ emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shal
         return close.add(1)
     }
     out.push_str(" := ext_struct(\"")
-    if tag_line_is_start {
-        out.push_str(start_line.substr(t_start, tag_len_actual))
-    } else {
-        ref ol3 : Str = lines.get(open)
-        out.push_str(ol3.substr(t_start, tag_len_actual))
-    }
+    ref tag_line : Str = lines.get(tag_line_idx)
+    out.push_str(tag_line.substr(t_start, tag_len))
     if body_ok {
         out.push_str("\") {\n")
         out.push_str(body_buf)
@@ -654,8 +491,8 @@ emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shal
     return close.add(1)
 }
 
-// Emit a typedef enum block: each member becomes a typed `I32 = N`
-// constant. Returns the next-line index past the block.
+// --- typedef enum -----------------------------------------------------
+
 emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
     ref close_line : Str = lines.get(close)
     cn := close_line.len()
@@ -668,12 +505,11 @@ emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallo
         cright = cright.sub(1)
         cright = trim_right(close_line, cp, cright)
     }
-    // We don't strictly need the typedef name (members become top-level
-    // constants), but we'll emit it as a `// enum NAME` header for context.
+    // Emit the enum type as an I32 alias so downstream uses of the
+    // typedef name as a C type resolve cleanly.
     if cp.lt(cright) {
-        out.push_str("// enum ")
         out.push_str(close_line.substr(cp, cright.sub(cp)))
-        out.push_str("\n")
+        out.push_str(" := I32\n\n")
     }
 
     mut next_val : I64 = 0
@@ -688,7 +524,6 @@ emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallo
             continue
         }
         if b.eq('#') { continue }
-        // Member line: NAME [= VALUE] [,] [/* comment */]
         end := trim_right(line, lead, n)
         mut tok_end := lead
         while tok_end.lt(end) {
@@ -699,12 +534,10 @@ emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallo
         if tok_end.eq(lead) { continue }
         member_start := lead
         member_end := tok_end
-        // Find `=` or `,` after the name to see if a value is given.
         mut p := skip_ws(line, tok_end)
         mut val : I64 = next_val
         if p.lt(end).and(line.byte_at(p).eq('=')) {
             p = skip_ws(line, p.add(1))
-            // Take chars until `,` or end as the value text.
             mut v_end := p
             while v_end.lt(end) {
                 ref c : U8 = line.byte_at(v_end)
@@ -712,8 +545,6 @@ emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallo
                 v_end = v_end.add(1)
             }
             v_end = trim_right(line, p, v_end)
-            // Numeric literal only (we don't resolve identifier references
-            // here -- libffi's enum is all explicit/sequential).
             if v_end.gt(p).and(is_digit(line.byte_at(p))) {
                 val = line.substr(p, v_end.sub(p)).to_i64()
             }
@@ -728,10 +559,8 @@ emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallo
     return close.add(1)
 }
 
-// --- single-line typedef alias ------------------------------------------
+// --- typedef alias (single line) --------------------------------------
 
-// Emit `typedef X Y;`. Returns true if recognised. Handles only the simple
-// shape: no `(` (function pointers), no `[` (arrays).
 emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
     n := line.len()
     lead := skip_ws(line, 0)
@@ -742,10 +571,8 @@ emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
         body_end = body_end.sub(1)
         body_end = trim_right(line, body_start, body_end)
     }
-    // Token-walk the body to count `*`s, drop qualifiers, and remember the
-    // LAST useful word (the alias name) plus the run of base-type words
-    // (`[base_first, prev_end)`). Index-only -- no Str accumulator that
-    // could be corrupted before we get to the emit.
+    // Index-walk: count `*`, drop qualifiers, last useful word is the
+    // alias name, everything before is the base.
     mut ptrs : I32 = 0
     mut name_start : USize = 0
     mut name_end : USize = 0
@@ -778,9 +605,7 @@ emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
         name_set = true
         p = word_end
     }
-    if name_set.not() { return false }
-    if base_set.not() { return false }
-    // Strip a leading `struct ` from the base range, mirroring emit_field.
+    if name_set.not().or(base_set.not()) { return false }
     mut base_off := base_first
     if base_off.add(7).lte(prev_end).and(range_eq_lit(line, base_off, base_off.add(7), "struct ")) {
         base_off = base_off.add(7)
@@ -799,7 +624,30 @@ emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
     return true
 }
 
-// --- #define numeric constant -------------------------------------------
+// --- typedef function-pointer (one line) ------------------------------
+
+emit_typedef_fnptr := func(mut out: Str, line: Str) returns Bool {
+    // `typedef RET (*NAME)(ARGS);` -> emit `NAME := Dynamic`.
+    n := line.len()
+    lead := skip_ws(line, 0)
+    if range_eq_lit(line, lead, lead.add(8), "typedef ").not() { return false }
+    // Find `(*`.
+    mut p := lead.add(8)
+    while p.add(1).lt(n) {
+        if line.byte_at(p).eq('(').and(line.byte_at(p.add(1)).eq('*')) { break }
+        p = p.add(1)
+    }
+    if p.add(1).gte(n) { return false }
+    name_start := p.add(2)
+    mut name_end := name_start
+    while name_end.lt(n).and(line.byte_at(name_end).neq(')')) { name_end = name_end.add(1) }
+    if name_end.eq(name_start) { return false }
+    out.push_str(line.substr(name_start, name_end.sub(name_start)))
+    out.push_str(" := Dynamic\n\n")
+    return true
+}
+
+// --- #define numeric constant -----------------------------------------
 
 emit_define := func(mut out: Str, line: Str) returns Bool {
     n := line.len()
@@ -813,24 +661,20 @@ emit_define := func(mut out: Str, line: Str) returns Bool {
         name_end = name_end.add(1)
     }
     if name_end.eq(p) { return false }
-    // Reject function-like macros (`NAME(...)`).
-    if name_end.lt(n).and(line.byte_at(name_end).eq('(')) { return false }
+    if name_end.lt(n).and(line.byte_at(name_end).eq('(')) { return false }  // function-like
     val_start := skip_ws(line, name_end)
     if val_start.eq(n) { return false }
-    // Strip trailing comment / whitespace for the value.
     val_end := trim_right(line, val_start, n)
-    // Only accept a bare integer literal as the RHS for now.
+    // Only accept a bare integer literal (with optional L/U suffix).
     mut q := val_start
     mut digits := false
     while q.lt(val_end) {
         ref c : U8 = line.byte_at(q)
         if is_digit(c) { digits = true; q = q.add(1); continue }
-        // Allow `L`/`LL`/`U`/`UL` suffix.
         if c.eq('L').or(c.eq('l')).or(c.eq('U')).or(c.eq('u')) { q = q.add(1); continue }
         return false
     }
     if digits.not() { return false }
-    // Compute the numeric value.
     mut int_end := val_start
     while int_end.lt(val_end) {
         ref c : U8 = line.byte_at(int_end)
@@ -845,26 +689,18 @@ emit_define := func(mut out: Str, line: Str) returns Bool {
     return true
 }
 
-// --- FFI_API function declaration ---------------------------------------
+// --- function declaration ---------------------------------------------
 
-// Build the joined-and-trimmed signature into `sig` and return true if
-// we successfully captured one starting at `start`. `end_out` receives the
-// last line index of the declaration.
-emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out: USize) returns Bool {
-    n_lines := lines.len()
-    // Build the joined signature with push_str onto a single allocation;
-    // reassigning `sig = format(...)` per line is the same shape that
-    // corrupted base_buf in emit_field, so we stay on a stable growable
-    // buffer here.
-    mut sig := Str.with_capacity(2048)
-    mut i := start
-    mut ended := false
-    while i.lt(n_lines) {
+emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow end: USize) returns Bool {
+    // Join [start, end] into one signature, dropping line comments. End-of-
+    // signature is a `);` on `lines.get(end)`. Use Str.with_capacity +
+    // push_str so we never re-bind a function-returning Str to a local.
+    mut sig := Str.with_capacity(16384)
+    for i in start..end.add(1) {
         ref line : Str = lines.get(i)
         ln := line.len()
         lead := skip_ws(line, 0)
         right := trim_right(line, lead, ln)
-        // Drop trailing inline `// ...` comment for sig purposes.
         mut piece_end := right
         mut s := lead
         while s.add(1).lt(right) {
@@ -878,39 +714,31 @@ emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out
         if piece_end.gt(lead) {
             if sig.len().gt(0) { sig.push_str(" ") }
             sig.push_str(line.substr(lead, piece_end.sub(lead)))
-            // Did we see the closing `);` on this line?
-            if piece_end.gt(lead.add(1))
-            .and(line.byte_at(piece_end.sub(1)).eq(';'))
-            .and(line.byte_at(piece_end.sub(2)).eq(')')) {
-                ended = true
-                end_out = i
-                break
-            }
         }
-        i = i.add(1)
     }
-    if ended.not() { return false }
-    // Strip leading `FFI_API ` (and any duplicate FFI_API tokens, e.g.
-    // `FFI_API` on its own line followed by `FFI_API status name(...)`),
-    // attribute decorations, and the trailing `;`.
+    // Strip common decoration tokens. cc -E -dD usually expands FFI_API /
+    // RLAPI to empty already, but keep these belt-and-braces in case the
+    // generator is run against a raw header.
     sig = sig.replace("FFI_API ", "")
+    sig = sig.replace("RLAPI ", "")
+    sig = sig.replace("extern \"C\" ", "")
+    sig = sig.replace("extern ", "")
     sig = sig.replace(" __attribute__((deprecated))", "")
     sig = sig.replace("__attribute__((deprecated)) ", "")
     sig = sig.replace(" __attribute__((noreturn))", "")
     sig = sig.replace("__attribute__((noreturn)) ", "")
-    if sig.len().gt(0).and(sig.byte_at(sig.len().sub(1)).eq(';')) {
+    if sig.len().eq(0) { return false }
+    if sig.byte_at(sig.len().sub(1)).eq(';') {
         sig = sig.substr(0, sig.len().sub(1)).clone()
     }
-    // Find `(` -- everything before is return-type + function-name; everything
-    // between matching `(` and the final `)` is the parameter list.
     op := sig.find("(")
     cp := sig.rfind(")")
     if op.eq(-1).or(cp.eq(-1)) { return false }
     op_u := op.to_usize()
     cp_u := cp.to_usize()
-    // Function name = last identifier before `(`.
     mut before_end := op_u
-    while before_end.gt(0).and(is_ws(sig.byte_at(before_end.sub(1)))) {
+    while before_end.gt(0) {
+        if is_ws(sig.byte_at(before_end.sub(1))).not() { break }
         before_end = before_end.sub(1)
     }
     if before_end.eq(0) { return false }
@@ -921,17 +749,12 @@ emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out
         name_start = name_start.sub(1)
     }
     if name_start.eq(before_end) { return false }
-    // Return type spelling = sig[0..name_start), trimmed, with trailing `*`
-    // counted.
     mut ret_end := name_start
-    while ret_end.gt(0).and(is_ws(sig.byte_at(ret_end.sub(1)))) {
+    while ret_end.gt(0) {
+        if is_ws(sig.byte_at(ret_end.sub(1))).not() { break }
         ret_end = ret_end.sub(1)
     }
-    // Walk [0, ret_end) of `sig`. Count pointer `*` characters, and remember
-    // the LAST alnum word's [start, end) -- that's the return base type.
-    // Skip `const`/`volatile` tokens. Keeping everything as positional
-    // indices into `sig` avoids the heap-corruption pattern that
-    // replace()/clone() trigger when the result is stored back into a local.
+    // Walk [0, ret_end) of sig for the return-type's base + pointer depth.
     mut ret_ptrs : I32 = 0
     mut ret_base_start : USize = 0
     mut ret_base_end : USize = 0
@@ -942,11 +765,7 @@ emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out
         if rc.eq('*') { ret_ptrs = ret_ptrs.add(1); rt = rt.add(1); continue }
         if is_ws(rc) { rt = rt.add(1); continue }
         rw := skip_word(sig, rt)
-        if rw.eq(rt) {
-            // Unknown char in the return-type position; bail out so we don't
-            // spin and don't emit a malformed declaration.
-            return false
-        }
+        if rw.eq(rt) { return false }
         if range_eq_lit(sig, rt, rw, "const")
         .or(range_eq_lit(sig, rt, rw, "volatile")) {
             rt = rw
@@ -958,28 +777,18 @@ emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out
         rt = rw
     }
     if ret_base_set.not() { return false }
-    // Strip a leading `struct ` from the recorded range -- handled by
-    // skipping a `struct` token above and letting the next word win.
     ret_base_len := ret_base_end.sub(ret_base_start)
-    // `void` detection uses a literal compare against the recorded slice.
     ret_is_void := range_eq_lit(sig, ret_base_start, ret_base_end, "void")
 
-    // Emit head.
-    // Build the parameter list into a tmp buffer FIRST, so a mid-signature
-    // failure can return false without leaving a half-written declaration
-    // ending in a bare `ext_func(` and running into the next line.
-    mut params_buf := Str.with_capacity(1024)
-
-    // Parameters: split between `(` and `)` on top-level commas. Top-level
-    // because we want to keep function-pointer params (which contain commas)
-    // as a single Dynamic param.
+    // Render params into a tmp buffer so a mid-signature failure can return
+    // false without leaving a dangling `ext_func(` head.
+    mut params_buf := Str.with_capacity(8192)
     params_view := sig.substr(op_u.add(1), cp_u.sub(op_u).sub(1))
     pn := params_view.len()
     mut pp : USize = 0
     mut emitted_any := false
     mut failed := false
     while pp.lt(pn) {
-        // Find next top-level comma.
         depth : I32 = 0
         mut e := pp
         mut dep := depth
@@ -990,16 +799,13 @@ emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out
             else if c.eq(',').and(dep.eq(0)) { break }
             e = e.add(1)
         }
-        // Process one param in [pp, e).
         mut a := pp
         while a.lt(e).and(is_ws(params_view.byte_at(a))) { a = a.add(1) }
         mut b := trim_right(params_view, a, e)
         if a.lt(b) {
-            // Skip `void` placeholder for empty arg lists.
             if range_eq_lit(params_view, a, b, "void").not() {
                 if range_eq_lit(params_view, a, b, "...") { failed = true; break }
                 if emitted_any { params_buf.push_str(", ") }
-                // Function-pointer arg: contains `(*name)(...)`.
                 mut has_fnptr := false
                 mut s := a
                 while s.add(1).lt(b) {
@@ -1021,8 +827,6 @@ emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out
                         break
                     }
                 } else {
-                    // Regular param: tokenize with indices only (same shape
-                    // as emit_field).
                     mut p_ptrs : I32 = 0
                     mut p_name_start : USize = 0
                     mut p_name_end : USize = 0
@@ -1036,7 +840,6 @@ emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out
                         if is_ws(c) { t = t.add(1); continue }
                         if c.eq('*') { p_ptrs = p_ptrs.add(1); t = t.add(1); continue }
                         if c.eq('[') {
-                            // Array-typed param -- treat as pointer.
                             p_ptrs = p_ptrs.add(1)
                             while t.lt(b).and(params_view.byte_at(t).neq(']')) { t = t.add(1) }
                             if t.lt(b) { t = t.add(1) }
@@ -1065,22 +868,15 @@ emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out
                         t = word_end
                     }
                     if failed { break }
-                    // Anonymous param (`void *`, `int *` style with no name).
                     anon := p_name_set.and(p_base_set.not())
-                    if p_name_set.not() {
-                        // Param had no useful tokens at all -- bail.
-                        failed = true
-                        break
-                    }
+                    if p_name_set.not() { failed = true; break }
                     mut p_base_off : USize = 0
                     if anon {
-                        // Single useful word -- it IS the base type.
                         p_base_off = p_name_start
                         p_prev_end = p_name_end
                     } else {
                         p_base_off = p_base_first
                     }
-                    // Strip a leading `struct ` from the recorded base range.
                     if p_base_off.add(7).lte(p_prev_end)
                     .and(range_eq_lit(params_view, p_base_off, p_base_off.add(7), "struct ")) {
                         p_base_off = p_base_off.add(7)
@@ -1116,7 +912,6 @@ emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out
     }
     if failed { return false }
 
-    // All checks passed -- emit the full declaration in one shot.
     if ret_ptrs.eq(0).and(ret_is_void) {
         out.push_str(sig.substr(name_start, before_end.sub(name_start)))
         out.push_str(" := ext_proc(")
@@ -1143,83 +938,123 @@ emit_ffi_api := func(mut out: Str, lines: Vec, shallow start: USize, mut end_out
     return true
 }
 
-// --- main walker --------------------------------------------------------
+// --- main walker ------------------------------------------------------
+//
+// Per-line classification:
+//   * blank -> emit blank
+//   * /* ... */ or // ... or *... continuation -> translate to `// ...`
+//   * #define NAME N -> numeric constant (drop on non-numeric)
+//   * # otherwise (#if / #include / #pragma / #endif / #else ...) -> drop
+//   * typedef struct [TAG] [{...} NAME;] / typedef struct X X;
+//   * typedef enum {...} NAME;
+//   * typedef union ... -> drop with SKIP comment
+//   * typedef RET (*NAME)(ARGS); -> Dynamic alias
+//   * typedef X Y; -> alias
+//   * other top-level decl containing `(...);` (possibly across lines) ->
+//     function
+//   * other top-level `Type name;` -> drop (extern var)
 
-walk_header := proc(mut out: Str, lines: Vec) {
-    print_flush()  // satisfies proc-needs-proc-call; produces no visible output.
+walk_header := func(mut out: Str, lines: Vec) {
     n_lines := lines.len()
     mut i : USize = 0
+    // Track whether we're currently inside an unterminated `/* ... */`
+    // block comment so multi-line file-header banners don't get re-parsed
+    // as code by the C-decl classifier below.
+    mut in_block_comment := false
     while i.lt(n_lines) {
         ref line : Str = lines.get(i)
         ln := line.len()
         lead := skip_ws(line, 0)
-        if lead.eq(ln) {
-            out.push_str("\n")
+        if in_block_comment {
+            emit_comment_line(out, line)
+            if line.contains("*/") { in_block_comment = false }
             i = i.add(1)
             continue
         }
-        kind := classify(line, lead)
-        if kind.eq(0) {
-            out.push_str("\n")
-            i = i.add(1)
-            continue
+        if lead.eq(ln) { out.push_str("\n"); i = i.add(1); continue }
+        ref b : U8 = line.byte_at(lead)
+        // Line comment (`// ...`) -- copy as-is.
+        mut is_line_comment := false
+        if b.eq('/') {
+            if lead.add(1).lt(ln) {
+                if line.byte_at(lead.add(1)).eq('/') { is_line_comment = true }
+            }
         }
-        if kind.eq(1) {
-            // Comment line / block-comment fragment: translate and copy.
+        if is_line_comment {
             emit_comment_line(out, line)
             i = i.add(1)
             continue
         }
-        if kind.eq(2) {
-            // Preprocessor (not #define). Always drop a single line and keep
-            // walking. The outer header-guard `#ifndef LIBFFI_H` is then a
-            // no-op rather than swallowing the entire file body, and platform-
-            // specific `#define` lines we can't translate (function-like or
-            // non-numeric) get rejected by emit_define on their own merit.
+        // Block-comment opener. May terminate on the same line; if it
+        // doesn't, switch to in_block_comment mode for subsequent lines.
+        mut is_block_open := false
+        if b.eq('/') {
+            if lead.add(1).lt(ln) {
+                if line.byte_at(lead.add(1)).eq('*') { is_block_open = true }
+            }
+        }
+        if is_block_open {
+            emit_comment_line(out, line)
+            if line.contains("*/").not() { in_block_comment = true }
             i = i.add(1)
             continue
         }
-        if kind.eq(3) {
-            // #define numeric -- translate; if not numeric, drop silently.
-            emit_define(out, line)
+        if b.eq('*') {
+            // Block-comment continuation that the cc preprocessor merged
+            // onto its own line.
+            emit_comment_line(out, line)
             i = i.add(1)
             continue
         }
-        if kind.eq(4) {
-            // typedef ... Inspect for struct/enum/union/alias.
-            // typedef struct ...: body block (multi-line) or forward decl.
-            // typedef enum ...: body block.
-            // typedef union ...: drop with a SKIP comment.
-            // typedef X Y;: single-line alias.
-            // First sniff for "typedef struct" / "typedef enum" / "typedef union".
-            mut p := lead.add(8)  // past "typedef "
-            p = skip_ws(line, p)
-            if range_eq_lit(line, p, p.add(6), "struct") {
-                // typedef struct [TAG] [{ ... } NAME;]  OR  typedef struct TAG NAME;
-                // (forward declaration).
-                // Decide which by looking for `;` on the current line without `{`.
+        // Preprocessor.
+        if b.eq('#') {
+            if range_eq_lit(line, lead, lead.add(8), "#define ") {
+                emit_define(out, line)
+            }
+            i = i.add(1)
+            continue
+        }
+        // typedef ...
+        if range_eq_lit(line, lead, lead.add(8), "typedef ") {
+            // Function-pointer typedef?
+            mut has_fnptr := false
+            mut s := lead
+            while s.add(1).lt(ln) {
+                if line.byte_at(s).eq('(').and(line.byte_at(s.add(1)).eq('*')) {
+                    has_fnptr = true
+                    break
+                }
+                s = s.add(1)
+            }
+            if has_fnptr.and(trim_right(line, lead, ln).gt(0))
+            .and(line.byte_at(trim_right(line, lead, ln).sub(1)).eq(';')) {
+                emit_typedef_fnptr(out, line)
+                i = i.add(1)
+                continue
+            }
+            // Discriminate by the word after "typedef ".
+            tp := skip_ws(line, lead.add(8))
+            if range_eq_lit(line, tp, tp.add(6), "struct") {
+                // typedef struct ...
                 end := trim_right(line, lead, ln)
                 mut has_brace := false
                 mut has_semi := false
-                mut s := lead
-                while s.lt(end) {
-                    ref c : U8 = line.byte_at(s)
+                mut k := lead
+                while k.lt(end) {
+                    ref c : U8 = line.byte_at(k)
                     if c.eq('{') { has_brace = true }
                     if c.eq(';') { has_semi = true }
-                    s = s.add(1)
+                    k = k.add(1)
                 }
                 if has_brace.not().and(has_semi) {
-                    // Forward decl: `typedef struct X X;`. Emit as opaque
-                    // ext_struct("X") {}.
-                    // Parse: skip "typedef struct ", then take two whitespace-
-                    // separated tokens.
-                    p = skip_ws(line, p.add(6))
-                    mut tag_a := p
-                    mut tag_b := skip_word(line, p)
+                    // Forward decl: `typedef struct X X;`.
+                    mut p := skip_ws(line, tp.add(6))
+                    tag_a := p
+                    tag_b := skip_word(line, p)
                     p = skip_ws(line, tag_b)
                     if p.lt(end).and(line.byte_at(p).neq(';')) {
-                        mut alias_a := p
-                        mut alias_b := skip_word(line, p)
+                        alias_a := p
+                        alias_b := skip_word(line, p)
                         if alias_b.gt(alias_a) {
                             out.push_str(line.substr(alias_a, alias_b.sub(alias_a)))
                             out.push_str(" := ext_struct(\"")
@@ -1230,8 +1065,7 @@ walk_header := proc(mut out: Str, lines: Vec) {
                     i = i.add(1)
                     continue
                 }
-                // Find the line carrying the matching `{` (may be on current
-                // line) and then the matching `} NAME;`.
+                // Find `{` line (current or subsequent) then matching `}`.
                 mut open := i
                 if has_brace.not() {
                     mut j := i.add(1)
@@ -1240,13 +1074,9 @@ walk_header := proc(mut out: Str, lines: Vec) {
                         l2n := l2.len()
                         l2lead := skip_ws(l2, 0)
                         if l2lead.lt(l2n).and(l2.byte_at(l2lead).eq('{')) { open = j; break }
-                        if l2lead.eq(l2n) { j = j.add(1); continue }
-                        // Tag continuation lines are permitted.
-                        // Stop only if we hit a `;` outside braces.
                         j = j.add(1)
                     }
                 }
-                // Find the matching close line by brace depth.
                 mut depth : I32 = 0
                 mut found_open := false
                 mut close : USize = open
@@ -1255,39 +1085,30 @@ walk_header := proc(mut out: Str, lines: Vec) {
                 while j2.lt(n_lines).and(done.not()) {
                     ref l3 : Str = lines.get(j2)
                     l3n := l3.len()
-                    mut k : USize = 0
-                    while k.lt(l3n) {
-                        ref cc : U8 = l3.byte_at(k)
+                    mut k2 : USize = 0
+                    while k2.lt(l3n) {
+                        ref cc : U8 = l3.byte_at(k2)
                         if cc.eq('{') { depth = depth.add(1); found_open = true }
                         else if cc.eq('}') {
                             depth = depth.sub(1)
-                            if found_open.and(depth.eq(0)) {
-                                close = j2
-                                done = true
-                                break
-                            }
+                            if found_open.and(depth.eq(0)) { close = j2; done = true; break }
                         }
-                        k = k.add(1)
+                        k2 = k2.add(1)
                     }
                     if done.not() { j2 = j2.add(1) }
                 }
-                if done.not() {
-                    // Malformed; bail by advancing one line.
-                    i = i.add(1)
-                    continue
-                }
+                if done.not() { i = i.add(1); continue }
                 i = emit_typedef_struct(out, lines, i, open, close)
                 continue
             }
-            if range_eq_lit(line, p, p.add(4), "enum") {
-                // typedef enum [TAG] { ... } NAME;
+            if range_eq_lit(line, tp, tp.add(4), "enum") {
                 mut open := i
                 end := trim_right(line, lead, ln)
                 mut has_brace := false
-                mut s := lead
-                while s.lt(end) {
-                    if line.byte_at(s).eq('{') { has_brace = true; break }
-                    s = s.add(1)
+                mut k := lead
+                while k.lt(end) {
+                    if line.byte_at(k).eq('{') { has_brace = true; break }
+                    k = k.add(1)
                 }
                 if has_brace.not() {
                     mut j := i.add(1)
@@ -1307,33 +1128,25 @@ walk_header := proc(mut out: Str, lines: Vec) {
                 while j2.lt(n_lines).and(done.not()) {
                     ref l3 : Str = lines.get(j2)
                     l3n := l3.len()
-                    mut k : USize = 0
-                    while k.lt(l3n) {
-                        ref cc : U8 = l3.byte_at(k)
+                    mut k2 : USize = 0
+                    while k2.lt(l3n) {
+                        ref cc : U8 = l3.byte_at(k2)
                         if cc.eq('{') { depth = depth.add(1); found_open = true }
                         else if cc.eq('}') {
                             depth = depth.sub(1)
-                            if found_open.and(depth.eq(0)) {
-                                close = j2
-                                done = true
-                                break
-                            }
+                            if found_open.and(depth.eq(0)) { close = j2; done = true; break }
                         }
-                        k = k.add(1)
+                        k2 = k2.add(1)
                     }
                     if done.not() { j2 = j2.add(1) }
                 }
-                if done.not() {
-                    i = i.add(1)
-                    continue
-                }
+                if done.not() { i = i.add(1); continue }
                 i = emit_typedef_enum(out, lines, i, open, close)
                 continue
             }
-            if range_eq_lit(line, p, p.add(5), "union") {
-                // typedef union ... } NAME;  -- skip the whole block with a SKIP comment.
+            if range_eq_lit(line, tp, tp.add(5), "union") {
+                // Drop the entire union block.
                 out.push_str("// SKIP: typedef union (no til equivalent)\n\n")
-                // Find matching `}` line.
                 mut depth : I32 = 0
                 mut found_open := false
                 mut j2 := i
@@ -1341,73 +1154,123 @@ walk_header := proc(mut out: Str, lines: Vec) {
                 while j2.lt(n_lines).and(done.not()) {
                     ref l3 : Str = lines.get(j2)
                     l3n := l3.len()
-                    mut k : USize = 0
-                    while k.lt(l3n) {
-                        ref cc : U8 = l3.byte_at(k)
+                    mut k2 : USize = 0
+                    while k2.lt(l3n) {
+                        ref cc : U8 = l3.byte_at(k2)
                         if cc.eq('{') { depth = depth.add(1); found_open = true }
                         else if cc.eq('}') {
                             depth = depth.sub(1)
                             if found_open.and(depth.eq(0)) { done = true; break }
                         }
-                        k = k.add(1)
+                        k2 = k2.add(1)
                     }
                     if done.not() { j2 = j2.add(1) }
                 }
                 i = j2.add(1)
                 continue
             }
-            // Plain alias on a single line.
-            if emit_typedef_alias(out, line).not() {
-                // Drop with no output; the source comment usually carries the intent.
+            // Plain alias on one line.
+            emit_typedef_alias(out, line)
+            i = i.add(1)
+            continue
+        }
+        // Otherwise: scan forward for a `);` terminator. If found, this is
+        // a function declaration; if we hit a bare `;` first, it's an
+        // extern variable and we skip it.
+        mut j := i
+        mut found_end := false
+        mut is_func := false
+        mut paren_depth : I32 = 0
+        mut saw_paren := false
+        while j.lt(n_lines).and(found_end.not()) {
+            ref l2 : Str = lines.get(j)
+            l2n := l2.len()
+            mut k : USize = 0
+            while k.lt(l2n) {
+                ref c : U8 = l2.byte_at(k)
+                if c.eq('(') { paren_depth = paren_depth.add(1); saw_paren = true }
+                else if c.eq(')') { paren_depth = paren_depth.sub(1) }
+                else if c.eq(';').and(paren_depth.eq(0)) {
+                    found_end = true
+                    is_func = saw_paren
+                    break
+                }
+                k = k.add(1)
             }
-            i = i.add(1)
-            continue
+            if found_end.not() { j = j.add(1) }
         }
-        if kind.eq(5) {
-            // FFI_API function declaration -- spans 1+ lines.
-            mut end_idx := i
-            emit_ffi_api(out, lines, i, end_idx)
-            // emit_ffi_api set end_idx via out-param (we passed by value, so
-            // grab the next-line by re-scanning).
-            // Simpler: scan forward ourselves for the line with `;`.
-            mut j := i
-            while j.lt(n_lines) {
-                ref l2 : Str = lines.get(j)
-                l2n := l2.len()
-                l2end := trim_right(l2, 0, l2n)
-                if l2end.gt(0).and(l2.byte_at(l2end.sub(1)).eq(';')) { break }
-                j = j.add(1)
-            }
-            i = j.add(1)
-            continue
+        if found_end.not() { i = i.add(1); continue }
+        if is_func {
+            emit_function(out, lines, i, j)
         }
-        if kind.eq(6) {
-            // FFI_EXTERN var -- skip (callers use ffi_global_symbol()).
-            i = i.add(1)
-            continue
-        }
-        if kind.eq(7) {
-            // extern "C" or stray closing brace -- skip.
-            i = i.add(1)
-            continue
-        }
-        // Anything else: drop silently.
-        i = i.add(1)
+        i = j.add(1)
     }
 }
 
-// --- driver -------------------------------------------------------------
+// --- driver / filter --------------------------------------------------
+
+priv dir_of := func(path: Str) returns Str {
+    slash := path.rfind("/")
+    if slash.eq(-1) { return "." }
+    return path.substr(0, slash.to_usize()).clone()
+}
+
+// Returns true if `marker_path` lives inside `incdir` (i.e. starts with
+// `incdir/`). Used to filter cc -E line markers so we keep declarations
+// from the input header and any header it #includes from the same
+// directory, and drop content from system headers.
+priv path_in_dir := func(marker_path: Str, incdir: Str) returns shallow Bool {
+    if incdir.eq(".") {
+        // Everything passes -- caller didn't restrict.
+        return true
+    }
+    if marker_path.len().lt(incdir.len().add(1)) { return false }
+    mut i : USize = 0
+    while i.lt(incdir.len()) {
+        if marker_path.byte_at(i).neq(incdir.byte_at(i)) { return false }
+        i = i.add(1)
+    }
+    return marker_path.byte_at(incdir.len()).eq('/')
+}
+
+priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
+    mut out := Vec.new(Str)
+    mut keep := false
+    lines := pre.split("\n")
+    for line : Str in lines {
+        n := line.len()
+        if n.gt(0).and(line.byte_at(0).eq('#')) {
+            // cc -E line marker: `# N "path" [flags]`. Note: -dD also emits
+            // `#define ...` directives starting with `#`; those should be
+            // passed through to the walker, not used as markers.
+            if n.gte(2).and(line.byte_at(1).eq(' ')) {
+                // Locate the first `"` to read the path argument.
+                q1 := line.find("\"")
+                if q1.neq(-1) {
+                    rest := line.substr(q1.to_usize().add(1), n.sub(q1.to_usize().add(1)))
+                    q2 := rest.find("\"")
+                    if q2.neq(-1) {
+                        marker_path := rest.substr(0, q2.to_usize())
+                        keep = path_in_dir(marker_path, incdir)
+                    }
+                    continue
+                }
+            }
+        }
+        if keep { out.push(own line.clone()) }
+    }
+    return out
+}
 
 main := proc(in_path: Str, out_path: Str) {
-    content := File.readfile(in_path)
-    lines := content.split("\n")
-    mut out := Str.with_capacity(524288)
+    incdir := dir_of(in_path)
+    mut pre := ""
+    ec := run_cmd(pre, "cc", "-E", "-CC", "-dD", format("-I", incdir), in_path)
+    if ec.neq(0) { panic(__LOC__, "cc preprocessing failed for ", in_path) }
+    lines := filter_preprocessed(pre, incdir)
+    if lines.len().eq(0) { panic(__LOC__, "no lines from ", in_path, " after filtering by ", incdir) }
+    mut out := Str.with_capacity(262144)
     out.push_str("mode lib\n\n")
-    out.push_str("// libffi FFI bindings (lib/libffi/, the external C library).\n")
-    out.push_str("// Auto-generated by examples/bindings_libffi.til from ")
-    out.push_str(in_path)
-    out.push_str("\n\n")
-    out.push_str("link(\"lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a\")\n\n")
     walk_header(out, lines)
     File.writefile(out_path, out)
 }
