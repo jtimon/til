@@ -3773,6 +3773,8 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     // (the default absorbs everything earlier cases didn't match). Tracked
     // here as a flag rather than re-scanning the case vec per case.
     mut saw_default := false
+    mut default_line : U32 = 0
+    mut default_col : U32 = 0
 
     for ci in 1..stmt.children.len() {
         ref case_node : Expr = stmt.child(ci)
@@ -3784,6 +3786,8 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
             has_default_body = true
             has_default_case = true
             saw_default = true
+            default_line = case_node.line
+            default_col = case_node.col
             continue
         }
         mut has_guard := false
@@ -3887,11 +3891,15 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         }
     }
 
-    if has_switch_enum_def.and(has_default_case.not()) {
+    if has_switch_enum_def {
         ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
         mut missing_paths := Vec.new(Str)
         collect_missing_paths(scope, coverage, switch_enum_def, "", missing_paths)
-        if missing_paths.len().gt(0) {
+        if has_default_case {
+            if missing_paths.len().eq(0) {
+                type_error_at(typer_path, default_line, default_col, "unnecessary default `case:`; all variants of enum '".concat(sw_expr_sname).concat("' are already covered"))
+            }
+        } else if missing_paths.len().gt(0) {
             mut msg := "non-exhaustive switch on enum '".concat(sw_expr_sname).concat("'; missing cases:")
             for mi in 0..missing_paths.len() {
                 ref mp : Str = missing_paths.get(mi)

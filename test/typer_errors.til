@@ -455,6 +455,24 @@ case: println("other")
 case: println("dup-default")
 }
 
+// unnecessary `case:` -- every variant of a bare enum is already listed.
+switch terr_dead_color {
+case TerrDeadColor.Red: println("red")
+case TerrDeadColor.Green: println("green")
+case TerrDeadColor.Blue: println("blue")
+case: println("other")
+}
+
+// unnecessary `case:` -- every variant of a payload enum is also covered.
+TerrExhaustTok := enum { Num: I64, Name: Str, Eof }
+terr_exhaust_tok := TerrExhaustTok.Eof
+switch terr_exhaust_tok {
+case TerrExhaustTok.Num(_n): println("num")
+case TerrExhaustTok.Name(_s): println("name")
+case TerrExhaustTok.Eof:     println("eof")
+case: println("other")
+}
+
 // struct pattern that omits a field without `..` is rejected; either
 // bind all fields or use `..` to make the partial match explicit.
 TerrRestPoint := struct {
