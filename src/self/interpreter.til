@@ -285,9 +285,6 @@ namespace:
         case Value.Ptr(payload):
             ref raw : U64 = payload
             return Value.Ptr(ptr_add(NULL, raw))
-        case:
-            UNREACHABLE(__LOC__)
-            return Value.None
         }
     }
 }

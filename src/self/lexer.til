@@ -156,7 +156,6 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.KwNull: return "NULL"
     case TokenType.KwPriv: return "priv"
     case TokenType.Error: return "error"
-    case: return "?"
     }
 }
 
