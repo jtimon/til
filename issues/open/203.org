@@ -35,7 +35,7 @@
 
    #+begin_src sh
    bin/til_boot run examples/bindings_gen.til tinyfd \
-       lib/tinyfiledialogs/tinyfiledialogs.h tmp/tinyfd.til
+       c_lib/tinyfiledialogs/tinyfiledialogs.h tmp/tinyfd.til
    # tinyfd hangs in `emit_function` for several minutes (likely
    # `Str.replace` underflow combined with the corruption); on the
    # tiny test header `tmp/mini.h` it completes with output like

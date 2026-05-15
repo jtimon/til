@@ -2,7 +2,7 @@ mode lib
 
 import("../lib/raylib")
 import("../lib/tinyfd")
-link("lib/tinyfiledialogs/libtinyfd.a")
+link("c_lib/tinyfiledialogs/libtinyfd.a")
 
 link("dl")
 

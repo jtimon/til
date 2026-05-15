@@ -1,8 +1,8 @@
 mode lib
 
-// raylib FFI bindings (lib/raylib/, the external C library).
+// raylib FFI bindings (c_lib/raylib/, the external C library).
 
-link("lib/raylib/src/libraylib.a")
+link("c_lib/raylib/src/libraylib.a")
 link("m")
 link("pthread")
 link("rt")

@@ -216,7 +216,7 @@ target_system_libs := func(target: Target) returns Str {
 // platforms come online.
 target_ffi_lib := func(target: Target) returns Str {
     switch target {
-    case Target.LinuxX64:     return "lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a"
+    case Target.LinuxX64:     return "c_lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a"
     case: return ""
     }
     return ""
@@ -228,9 +228,9 @@ target_ffi_lib := func(target: Target) returns Str {
 target_gui_libs := func(target: Target) returns Str {
     switch target {
     case Target.LinuxX64:
-        return "lib/raylib/src/libraylib.a lib/tinyfiledialogs/libtinyfd.a"
+        return "c_lib/raylib/src/libraylib.a c_lib/tinyfiledialogs/libtinyfd.a"
     case Target.WindowsX64:
-        return "lib/raylib/src/libraylib-win64.a lib/tinyfiledialogs/libtinyfd-win64.a -lgdi32 -lopengl32 -lwinmm -lole32 -luuid -lcomdlg32 -limm32"
+        return "c_lib/raylib/src/libraylib-win64.a c_lib/tinyfiledialogs/libtinyfd-win64.a -lgdi32 -lopengl32 -lwinmm -lole32 -luuid -lcomdlg32 -limm32"
     case: return ""
     }
     return ""

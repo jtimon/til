@@ -1,8 +1,8 @@
 mode lib
 
-// libffi FFI bindings (lib/libffi/, the external C library).
+// libffi FFI bindings (c_lib/libffi/, the external C library).
 
-link("lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
+link("c_lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
 
 ffi_type := ext_struct("_ffi_type") {
     mut size : USize = 0

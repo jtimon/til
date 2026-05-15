@@ -25,27 +25,27 @@ BINDING_GEN := examples/bindings_gen2.til
 RAW_BINDINGS := gen/bindings/libffi.til gen/bindings/raylib.til gen/bindings/tinyfd.til
 LD_FLAGS := -rdynamic -ldl
 
-RAYLIB_LIB := lib/raylib/src/libraylib.a
-RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lm -lpthread -lrt
+RAYLIB_LIB := c_lib/raylib/src/libraylib.a
+RAYLIB_FLAGS := -Lc_lib/raylib/src -lraylib -lm -lpthread -lrt
 
-TINYFD_LIB := lib/tinyfiledialogs/libtinyfd.a
-TINYFD_FLAGS := -Llib/tinyfiledialogs -ltinyfd
+TINYFD_LIB := c_lib/tinyfiledialogs/libtinyfd.a
+TINYFD_FLAGS := -Lc_lib/tinyfiledialogs -ltinyfd
 
-LIBFFI_DIR := lib/libffi
+LIBFFI_DIR := c_lib/libffi
 LIBFFI_INCDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/include))
 LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
 LIBFFI_FLAGS = -I$(LIBFFI_INCDIR) -L$(LIBFFI_LIBDIR) -lffi
 LIBFFI_BINDGEN_INCDIR := $(LIBFFI_DIR)/x86_64-pc-linux-gnu/include
 
 $(RAYLIB_LIB):
-	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP \
-	  CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/lib/x11/include"
+	$(MAKE) -C c_lib/raylib/src PLATFORM=PLATFORM_DESKTOP \
+	  CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/c_lib/x11/include"
 
 $(TINYFD_LIB):
-	cc -Wall -Wextra -c -o lib/tinyfiledialogs/tinyfiledialogs.o lib/tinyfiledialogs/tinyfiledialogs.c
-	ar rcs $@ lib/tinyfiledialogs/tinyfiledialogs.o
+	cc -Wall -Wextra -c -o c_lib/tinyfiledialogs/tinyfiledialogs.o c_lib/tinyfiledialogs/tinyfiledialogs.c
+	ar rcs $@ c_lib/tinyfiledialogs/tinyfiledialogs.o
 
-lib/libffi/.built:
+c_lib/libffi/.built:
 	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --disable-docs --quiet
 	$(MAKE) -C $(LIBFFI_DIR)
 	touch $@
@@ -66,13 +66,13 @@ bindings: $(RAW_BINDINGS) src/lib/tinyfd.til
 gen/bindings:
 	mkdir -p gen/bindings
 
-gen/bindings/raylib.til: $(BINDING_GEN) lib/raylib/src/raylib.h bin/til_boot | gen/bindings
-	bin/til_boot run $(BINDING_GEN) lib/raylib/src/raylib.h gen/bindings/raylib.til
+gen/bindings/raylib.til: $(BINDING_GEN) c_lib/raylib/src/raylib.h bin/til_boot | gen/bindings
+	bin/til_boot run $(BINDING_GEN) c_lib/raylib/src/raylib.h gen/bindings/raylib.til
 
-gen/bindings/tinyfd.til: $(BINDING_GEN) lib/tinyfiledialogs/tinyfiledialogs.h bin/til_boot | gen/bindings
-	bin/til_boot run $(BINDING_GEN) lib/tinyfiledialogs/tinyfiledialogs.h gen/bindings/tinyfd.til
+gen/bindings/tinyfd.til: $(BINDING_GEN) c_lib/tinyfiledialogs/tinyfiledialogs.h bin/til_boot | gen/bindings
+	bin/til_boot run $(BINDING_GEN) c_lib/tinyfiledialogs/tinyfiledialogs.h gen/bindings/tinyfd.til
 
-gen/bindings/libffi.til: $(BINDING_GEN) lib/libffi/.built $(LIBFFI_BINDGEN_INCDIR)/ffi.h $(LIBFFI_BINDGEN_INCDIR)/ffitarget.h bin/til_boot | gen/bindings
+gen/bindings/libffi.til: $(BINDING_GEN) c_lib/libffi/.built $(LIBFFI_BINDGEN_INCDIR)/ffi.h $(LIBFFI_BINDGEN_INCDIR)/ffitarget.h bin/til_boot | gen/bindings
 	bin/til_boot run $(BINDING_GEN) $(LIBFFI_BINDGEN_INCDIR)/ffi.h gen/bindings/libffi.til
 
 # Replace the in-tree binding with the freshly generated one. Callers that
@@ -83,7 +83,7 @@ src/lib/tinyfd.til: gen/bindings/tinyfd.til
 
 # --- Boot compiler (from last commit, always safe) ---
 
-bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) lib/libffi/.built
+bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) c_lib/libffi/.built
 	mkdir -p bin tmp/boot/boot tmp/boot/src/c
 	for f in $$(git ls-tree --name-only HEAD boot/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
@@ -194,17 +194,17 @@ test_repl_help: bin/til tmp
 # --- Windows cross-compilation ---
 
 # Mingw-cross builds of raylib + tinyfd. Linux native builds stay in
-# lib/raylib/src/libraylib.a / lib/tinyfiledialogs/libtinyfd.a; the
+# c_lib/raylib/src/libraylib.a / c_lib/tinyfiledialogs/libtinyfd.a; the
 # Windows variants land alongside with -win64 suffixes. raylib's
 # Makefile builds .o files in its own src/ dir, so we copy the sources
 # into tmp/raylib-win/ first to avoid clobbering Linux .o files.
-RAYLIB_WIN_LIB := lib/raylib/src/libraylib-win64.a
-TINYFD_WIN_LIB := lib/tinyfiledialogs/libtinyfd-win64.a
+RAYLIB_WIN_LIB := c_lib/raylib/src/libraylib-win64.a
+TINYFD_WIN_LIB := c_lib/tinyfiledialogs/libtinyfd-win64.a
 
 $(RAYLIB_WIN_LIB):
 	rm -rf tmp/raylib-win
 	mkdir -p tmp/raylib-win
-	cp -r lib/raylib/src/. tmp/raylib-win/
+	cp -r c_lib/raylib/src/. tmp/raylib-win/
 	$(MAKE) -C tmp/raylib-win clean
 	$(MAKE) -C tmp/raylib-win \
 	  PLATFORM=PLATFORM_DESKTOP PLATFORM_OS=WINDOWS \
@@ -214,7 +214,7 @@ $(RAYLIB_WIN_LIB):
 
 $(TINYFD_WIN_LIB):
 	mkdir -p tmp
-	x86_64-w64-mingw32-gcc -c -o tmp/tinyfiledialogs-win.o lib/tinyfiledialogs/tinyfiledialogs.c
+	x86_64-w64-mingw32-gcc -c -o tmp/tinyfiledialogs-win.o c_lib/tinyfiledialogs/tinyfiledialogs.c
 	x86_64-w64-mingw32-ar rcs $@ tmp/tinyfiledialogs-win.o
 
 # raylib.til is a "direct raylib FFI" demo with hardcoded Linux link()
@@ -251,6 +251,6 @@ clean:
 	rm -rf bin/* gen/*
 	rm -rf tmp/boot
 # REM uncoment when upgrading dependency libraries
-#	$(MAKE) -C lib/raylib/src clean
+#	$(MAKE) -C c_lib/raylib/src clean
 #	cd $(LIBFFI_DIR) && $(MAKE) clean && rm -f .built
-#	rm -f lib/tinyfiledialogs/tinyfiledialogs.o lib/tinyfiledialogs/libtinyfd.a
+#	rm -f c_lib/tinyfiledialogs/tinyfiledialogs.o c_lib/tinyfiledialogs/libtinyfd.a
