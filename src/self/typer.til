@@ -3753,6 +3753,12 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     mut has_first_if := false
     mut default_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
     mut has_default_body := false
+    // For an exhaustive enum switch with no `case:`, the if/elif chain
+    // would have no terminal else and C's -Wreturn-type would fire on
+    // value-returning funcs. Stash the last non-guarded case body so we
+    // can attach it as the synthetic terminal else after the loop.
+    mut last_case_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    mut has_last_case_body := false
 
     mut matched_name := ""
     if any_guard {
@@ -3858,6 +3864,8 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
             } else {
                 append_switch_else_if(first_if, if_node)
             }
+            last_case_body = case_body.clone()
+            has_last_case_body = true
         }
     }
 
@@ -3891,6 +3899,13 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
                 msg = msg.concat(" ").concat(mp)
             }
             type_error(stmt, msg)
+        } else if any_guard.not().and(has_first_if).and(has_last_case_body) {
+            // Exhaustive enum switch, no `case:`, no guards: attach a clone
+            // of the last case body as the chain's terminal else so C sees
+            // an unconditional return path. By exhaustiveness the duplicate
+            // body never runs at the source level; it exists purely so the
+            // generated C compiles under -Wreturn-type.
+            attach_switch_default_body(first_if, last_case_body)
         }
     }
 
