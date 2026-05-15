@@ -258,6 +258,18 @@ emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
 
 // --- comment translation ----------------------------------------------
 
+// True iff the byte range `body[0..body.len())` ends with `*/`. The naive
+// `b_end.gte(2).and(body.byte_at(b_end.sub(2)).eq('*'))` chain segfaults on
+// short `body` because `Bool.and` is strict (not short-circuiting), so
+// `b_end.sub(2)` underflows USize before the bound check has any effect.
+priv ends_with_block_close := func(body: Str) returns shallow Bool {
+    b_end := body.len()
+    if b_end.lt(2) { return false }
+    if body.byte_at(b_end.sub(2)).neq('*') { return false }
+    if body.byte_at(b_end.sub(1)).neq('/') { return false }
+    return true
+}
+
 emit_comment_line := func(mut out: Str, line: Str) {
     n := line.len()
     mut i : USize = 0
@@ -267,34 +279,40 @@ emit_comment_line := func(mut out: Str, line: Str) {
         out.push_str(Str.from_byte(b))
         i = i.add(1)
     }
-    if i.add(1).lt(n).and(line.byte_at(i).eq('/')).and(line.byte_at(i.add(1)).eq('/')) {
-        out.push_str(line.substr(i, n.sub(i)))
-        out.push_str("\n")
-        return
-    }
-    if i.add(1).lt(n).and(line.byte_at(i).eq('/')).and(line.byte_at(i.add(1)).eq('*')) {
-        out.push_str("//")
-        body := line.substr(i.add(2), n.sub(i).sub(2))
-        b_end := body.len()
-        if b_end.gte(2).and(body.byte_at(b_end.sub(2)).eq('*')).and(body.byte_at(b_end.sub(1)).eq('/')) {
-            out.push_str(body.substr(0, b_end.sub(2)))
-        } else {
-            out.push_str(body)
+    if i.add(1).lt(n) {
+        if line.byte_at(i).eq('/').and(line.byte_at(i.add(1)).eq('/')) {
+            out.push_str(line.substr(i, n.sub(i)))
+            out.push_str("\n")
+            return
         }
-        out.push_str("\n")
-        return
     }
-    if i.lt(n).and(line.byte_at(i).eq('*')) {
-        out.push_str("//")
-        body := line.substr(i.add(1), n.sub(i).sub(1))
-        b_end := body.len()
-        if b_end.gte(2).and(body.byte_at(b_end.sub(2)).eq('*')).and(body.byte_at(b_end.sub(1)).eq('/')) {
-            out.push_str(body.substr(0, b_end.sub(2)))
-        } else {
-            out.push_str(body)
+    if i.add(1).lt(n) {
+        if line.byte_at(i).eq('/').and(line.byte_at(i.add(1)).eq('*')) {
+            out.push_str("//")
+            body := line.substr(i.add(2), n.sub(i).sub(2))
+            if ends_with_block_close(body) {
+                out.push_str(body.substr(0, body.len().sub(2)))
+            } else {
+                out.push_str(body)
+            }
+            out.push_str("\n")
+            return
         }
-        out.push_str("\n")
-        return
+    }
+    if i.lt(n) {
+        if line.byte_at(i).eq('*') {
+            // Block-comment continuation that the cc preprocessor split onto
+            // its own line.
+            out.push_str("//")
+            body := line.substr(i.add(1), n.sub(i).sub(1))
+            if ends_with_block_close(body) {
+                out.push_str(body.substr(0, body.len().sub(2)))
+            } else {
+                out.push_str(body)
+            }
+            out.push_str("\n")
+            return
+        }
     }
     out.push_str("// ")
     out.push_str(line.substr(i, n.sub(i)))
@@ -716,6 +734,36 @@ emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow en
             sig.push_str(line.substr(lead, piece_end.sub(lead)))
         }
     }
+    // Drop every `/* ... */` chunk from `sig`. tinyfiledialogs.h decorates
+    // each parameter with an inline default-value reminder comment, and the
+    // param splitter / tokenizer below would choke on those. Done after
+    // we've located the end-of-sig because the closing `);` already lives
+    // on `end_out`.
+    mut sig_no_blk := Str.with_capacity(sig.len().add(8))
+    mut sk : USize = 0
+    while sk.lt(sig.len()) {
+        mut handled := false
+        if sk.add(1).lt(sig.len()) {
+            if sig.byte_at(sk).eq('/').and(sig.byte_at(sk.add(1)).eq('*')) {
+                mut sm := sk.add(2)
+                while sm.add(1).lt(sig.len()) {
+                    if sig.byte_at(sm).eq('*').and(sig.byte_at(sm.add(1)).eq('/')) {
+                        sm = sm.add(2)
+                        break
+                    }
+                    sm = sm.add(1)
+                }
+                sk = sm
+                sig_no_blk.push_str(" ")
+                handled = true
+            }
+        }
+        if handled.not() {
+            sig_no_blk.push_str(Str.from_byte(sig.byte_at(sk)))
+            sk = sk.add(1)
+        }
+    }
+    sig = sig_no_blk
     // Strip common decoration tokens. cc -E -dD usually expands FFI_API /
     // RLAPI to empty already, but keep these belt-and-braces in case the
     // generator is run against a raw header.
