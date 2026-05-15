@@ -9,7 +9,7 @@ link("dl")
 sinf := ext_func(shallow x: F32) returns shallow F32 {}
 
 // libc wrappers (implemented in src/c/ext.c)
-til_setenv := ext_func(name: U8, value: U8, shallow overwrite: I32) returns shallow I32 {}
+til_setenv := ext_func(name: I8, value: I8, shallow overwrite: I32) returns shallow I32 {}
 
 // Audio state
 mut prev_tone := Sound()
@@ -108,7 +108,7 @@ color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) re
 
 // Backward-compatible snake_case API
 init_window := proc(w: I64, h: I64, title: Str) {
-    InitWindow(w.to_i32(), h.to_i32(), c_str_to_i8(title.c_str))
+    InitWindow(w.to_i32(), h.to_i32(), title.c_str)
 
     if IsWindowReady().not() {
         // Fallback: force Mesa+llvmpipe when the default GLX vendor fails.
@@ -116,7 +116,7 @@ init_window := proc(w: I64, h: I64, title: Str) {
         til_setenv("__GLX_VENDOR_LIBRARY_NAME".c_str, "mesa".c_str, 0)
         til_setenv("LIBGL_ALWAYS_SOFTWARE".c_str, "1".c_str, 0)
         til_setenv("MESA_LOADER_DRIVER_OVERRIDE".c_str, "llvmpipe".c_str, 0)
-        InitWindow(w.to_i32(), h.to_i32(), c_str_to_i8(title.c_str))
+        InitWindow(w.to_i32(), h.to_i32(), title.c_str)
     }
 }
 window_should_close := func() returns Bool {
@@ -134,7 +134,7 @@ draw_rectangle := proc(x: I64, y: I64, w: I64, h: I64, r: I64, g: I64, b: I64, a
     DrawRectangle(x.to_i32(), y.to_i32(), w.to_i32(), h.to_i32(), color(r, g, b, a))
 }
 draw_text := proc(text: Str, x: I64, y: I64, font_size: I64, r: I64, g: I64, b: I64, a: I64) {
-    DrawText(c_str_to_i8(text.c_str), x.to_i32(), y.to_i32(), font_size.to_i32(), color(r, g, b, a))
+    DrawText(text.c_str, x.to_i32(), y.to_i32(), font_size.to_i32(), color(r, g, b, a))
 }
 draw_circle := proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I64) {
     DrawCircle(cx.to_i32(), cy.to_i32(), radius.to_f32(), color(r, g, b, a))
@@ -169,38 +169,31 @@ close_audio_device := proc() { CloseAudioDevice() }
 
 // Font wrappers
 load_font := func(path: Str, size: I64) returns Font {
-    return LoadFontEx(c_str_to_i8(path.c_str), size.to_i32(), NULL, 0)
+    return LoadFontEx(path.c_str, size.to_i32(), NULL, 0)
 }
 unload_font := proc(font: Font) { UnloadFont(font) }
 draw_text_font := proc(font: Font, text: Str, x: I64, y: I64, font_size: I64, spacing: I64, r: I64, g: I64, b: I64, a: I64) {
     pos := Vector2(x=x.to_f32(), y=y.to_f32())
-    DrawTextEx(font, c_str_to_i8(text.c_str), pos, font_size.to_f32(), spacing.to_f32(), color(r, g, b, a))
+    DrawTextEx(font, text.c_str, pos, font_size.to_f32(), spacing.to_f32(), color(r, g, b, a))
 }
 measure_text_font := func(font: Font, text: Str, font_size: I64, spacing: I64) returns I64 {
-    v := MeasureTextEx(font, c_str_to_i8(text.c_str), font_size.to_f32(), spacing.to_f32())
+    v := MeasureTextEx(font, text.c_str, font_size.to_f32(), spacing.to_f32())
     return v.x.to_i64()
 }
 
 // til-own C bridge
-c_str_len := ext_func(s: U8) returns shallow USize {}
-// I8 (= C char) and U8 (= unsigned char) point at the same bytes; these
-// helpers just retype the pointer for bindings that spell their char-
-// pointer params as I8 (matching upstream `const char *`).
-c_str_to_i8 := ext_func(s: U8) returns ref I8 {}
-c_str_from_i8 := ext_func(s: I8) returns ref U8 {}
+c_str_len := ext_func(s: I8) returns shallow USize {}
 
 // File dialog helpers -- return file path or empty string on cancel
 save_file_dialog := func(title: Str, default_path: Str) returns Str {
-    ref result : I8 = tinyfd_saveFileDialog(c_str_to_i8(title.c_str), c_str_to_i8(default_path.c_str), 0, NULL, NULL)
+    ref result : I8 = tinyfd_saveFileDialog(title.c_str, default_path.c_str, 0, NULL, NULL)
     if is_null(result) { return "" }
-    ref u8_result : U8 = c_str_from_i8(result)
-    view := Str(c_str = u8_result, count = c_str_len(u8_result), cap = CAP_VIEW)
+    view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
     return view.clone()
 }
 open_file_dialog := func(title: Str, default_path: Str) returns Str {
-    ref result : I8 = tinyfd_openFileDialog(c_str_to_i8(title.c_str), c_str_to_i8(default_path.c_str), 0, NULL, NULL, 0)
+    ref result : I8 = tinyfd_openFileDialog(title.c_str, default_path.c_str, 0, NULL, NULL, 0)
     if is_null(result) { return "" }
-    ref u8_result : U8 = c_str_from_i8(result)
-    view := Str(c_str = u8_result, count = c_str_len(u8_result), cap = CAP_VIEW)
+    view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
     return view.clone()
 }

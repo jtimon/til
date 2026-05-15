@@ -719,7 +719,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         mut byte_val := 0
         if ch.len().gt(0).and(ch.get(0).eq('\\')) {
             if ch.len().gt(1) {
-                ref c2 : U8 = ch.get(1)
+                ref c2 : I8 = ch.get(1)
                 if c2.eq('n') { byte_val = 10 }
                 else if c2.eq('t') { byte_val = 9 }
                 else if c2.eq('r') { byte_val = 13 }

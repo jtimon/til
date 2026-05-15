@@ -54,7 +54,7 @@ parse_issue := func(fname: Str) returns Str {
     hp : USize = hash_pos.to_usize()
     mut num_end := hp.add(1)
     while num_end.lt(title_owned.len()) {
-        ref ch : U8 = title_owned.get(num_end)
+        ref ch : I8 = title_owned.get(num_end)
         if ch.eq('0').or(ch.eq('1')).or(ch.eq('2')).or(ch.eq('3'))
             .or(ch.eq('4')).or(ch.eq('5')).or(ch.eq('6')).or(ch.eq('7'))
             .or(ch.eq('8')).or(ch.eq('9'))

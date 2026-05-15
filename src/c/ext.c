@@ -242,7 +242,7 @@ static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r
 
 // Avoid declaring libc symbols directly in generated C (signature mismatches
 // vs stdlib.h can cause compile errors). Provide stable wrappers instead.
-I32 til_setenv(const U8 *name, const U8 *value, I32 overwrite)
+I32 til_setenv(const I8 *name, const I8 *value, I32 overwrite)
 {
 #ifdef _WIN32
     // setenv is not portable to Windows; use Win32 environment APIs.
@@ -614,7 +614,7 @@ Str *File_readfile(const Str *path) {
     fread(buf, 1, len, f);
     fclose(f);
     Str *s = malloc(sizeof(Str));
-    s->c_str = (U8 *)buf;
+    s->c_str = (I8 *)buf;
     s->count = len;
     s->cap = len;
     return s;
@@ -685,7 +685,7 @@ Bool in_read_line(Str *line) {
     if (line->c_str && line->cap != CAP_LIT && line->cap != CAP_VIEW) {
         free(line->c_str);
     }
-    line->c_str = (U8 *)buf;
+    line->c_str = (I8 *)buf;
     line->count = (U32)len;
     line->cap = (U32)len;
     return 1;
@@ -703,7 +703,7 @@ Str *cfile_read_all(void *handle) {
     char *buf = malloc(len);
     fread(buf, 1, len, f);
     Str *s = malloc(sizeof(Str));
-    s->c_str = (U8 *)buf;
+    s->c_str = (I8 *)buf;
     s->count = len;
     s->cap = len;
     return s;
@@ -712,12 +712,12 @@ Str *cfile_read_all(void *handle) {
 Str *get_cwd_str(void) {
     char buf[PATH_MAX];
 #ifdef _WIN32
-    if (!_getcwd(buf, sizeof(buf))) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    if (!_getcwd(buf, sizeof(buf))) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
     for (char *q = buf; *q; q++) if (*q == '\\') *q = '/';
 #else
-    if (!getcwd(buf, sizeof(buf))) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    if (!getcwd(buf, sizeof(buf))) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
 #endif
-    return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen(buf), .cap = CAP_VIEW});
+    return Str_clone(&(Str){.c_str = (I8*)(buf), .count = (USize)strlen(buf), .cap = CAP_VIEW});
 }
 
 Str *realpath_str(const Str *path) {
@@ -727,16 +727,16 @@ Str *realpath_str(const Str *path) {
 #ifdef _WIN32
     char *abs = _fullpath(NULL, p, 0);
     free(p);
-    if (!abs) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    if (!abs) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
     // Normalize backslashes to forward slashes so path comparisons stay
     // consistent across Unix and Windows codepaths.
     for (char *q = abs; *q; q++) if (*q == '\\') *q = '/';
 #else
     char *abs = realpath(p, NULL);
     free(p);
-    if (!abs) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    if (!abs) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
 #endif
-    Str *s = Str_clone(&(Str){.c_str = (U8*)(abs), .count = (USize)strlen((const char*)(abs)), .cap = CAP_VIEW});
+    Str *s = Str_clone(&(Str){.c_str = (I8*)(abs), .count = (USize)strlen((const char*)(abs)), .cap = CAP_VIEW});
     free(abs);
     return s;
 }
@@ -760,12 +760,12 @@ Str *get_bin_dir(void) {
 #ifdef _WIN32
     DWORD len = GetModuleFileNameA(NULL, buf, (DWORD)sizeof(buf));
     if (len == 0 || len >= sizeof(buf)) {
-        return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+        return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
     }
     for (DWORD i = 0; i < len; i++) if (buf[i] == '\\') buf[i] = '/';
 #else
     ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    if (len <= 0) return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+    if (len <= 0) return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
     buf[len] = '\0';
 #endif
     char *slash = strrchr(buf, '/');
@@ -774,9 +774,9 @@ Str *get_bin_dir(void) {
         char test[PATH_MAX * 2];
         snprintf(test, sizeof(test), "%s/src/core/core.til", buf);
 #ifdef _WIN32
-        if (_access(test, 0) == 0) return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
+        if (_access(test, 0) == 0) return Str_clone(&(Str){.c_str = (I8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
 #else
-        if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
+        if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (I8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
 #endif
         char *parent = strrchr(buf, '/');
         if (parent) {
@@ -803,14 +803,14 @@ Str *get_bin_dir(void) {
                 }
                 memcpy(install_root, buf, parent_len);
                 memcpy(install_root + parent_len, root_suffix, root_suffix_len + 1);
-                return Str_clone(&(Str){.c_str = (U8*)(install_root), .count = (USize)strlen((const char*)(install_root)), .cap = CAP_VIEW});
+                return Str_clone(&(Str){.c_str = (I8*)(install_root), .count = (USize)strlen((const char*)(install_root)), .cap = CAP_VIEW});
             }
         }
         slash = strrchr(buf, '/');
         if (!slash) break;
         *slash = '\0';
     }
-    return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+    return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
 }
 
 // Returns the OS family the running .exe is on. Mirrors target_to_str() OS
@@ -818,15 +818,15 @@ Str *get_bin_dir(void) {
 // "wasm" / "templeos". This is the host, not the build target.
 Str *host_os(void) {
 #if defined(_WIN32)
-    return Str_clone(&(Str){.c_str = (U8*)"windows", .count = 7, .cap = CAP_LIT});
+    return Str_clone(&(Str){.c_str = (I8*)"windows", .count = 7, .cap = CAP_LIT});
 #elif defined(__APPLE__)
-    return Str_clone(&(Str){.c_str = (U8*)"macos", .count = 5, .cap = CAP_LIT});
+    return Str_clone(&(Str){.c_str = (I8*)"macos", .count = 5, .cap = CAP_LIT});
 #elif defined(__linux__)
-    return Str_clone(&(Str){.c_str = (U8*)"linux", .count = 5, .cap = CAP_LIT});
+    return Str_clone(&(Str){.c_str = (I8*)"linux", .count = 5, .cap = CAP_LIT});
 #elif defined(__wasm__) || defined(__wasm32__)
-    return Str_clone(&(Str){.c_str = (U8*)"wasm", .count = 4, .cap = CAP_LIT});
+    return Str_clone(&(Str){.c_str = (I8*)"wasm", .count = 4, .cap = CAP_LIT});
 #else
-    return Str_clone(&(Str){.c_str = (U8*)"unknown", .count = 7, .cap = CAP_LIT});
+    return Str_clone(&(Str){.c_str = (I8*)"unknown", .count = 7, .cap = CAP_LIT});
 #endif
 }
 
@@ -1106,7 +1106,7 @@ U8 *ffi_global_symbol(const Str *name) {
 Str *ffi_last_error(void) {
     DWORD err = GetLastError();
     if (!err) {
-        return Str_clone(&(Str){.c_str = (U8 *)"", .count = 0, .cap = CAP_LIT});
+        return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
     }
     char buf[512];
     DWORD n = FormatMessageA(
@@ -1116,7 +1116,7 @@ Str *ffi_last_error(void) {
         snprintf(buf, sizeof(buf), "Windows error %lu", (unsigned long)err);
         n = (DWORD)strlen(buf);
     }
-    return Str_clone(&(Str){.c_str = (U8 *)buf, .count = (USize)n, .cap = CAP_VIEW});
+    return Str_clone(&(Str){.c_str = (I8 *)buf, .count = (USize)n, .cap = CAP_VIEW});
 }
 #else
 Bool ffi_load_global_lib(const Str *soname) {
@@ -1147,9 +1147,9 @@ U8 *ffi_global_symbol(const Str *name) {
 Str *ffi_last_error(void) {
     char *msg = dlerror();
     if (!msg) {
-        return Str_clone(&(Str){.c_str = (U8 *)"", .count = 0, .cap = CAP_LIT});
+        return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
     }
-    return Str_clone(&(Str){.c_str = (U8 *)msg, .count = (USize)strlen(msg), .cap = CAP_VIEW});
+    return Str_clone(&(Str){.c_str = (I8 *)msg, .count = (USize)strlen(msg), .cap = CAP_VIEW});
 }
 #endif
 
@@ -1175,17 +1175,15 @@ I32 process_id(void) {
 }
 
 Str *til_str_left(const Str *s, U64 n) {
-    if (!s || n == 0) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    if (!s || n == 0) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
     USize len = (USize)s->count;
     if (n > len) n = len;
     char *buf = malloc(n + 1);
     memcpy(buf, s->c_str, n);
     buf[n] = '\0';
-    Str *result = Str_clone(&(Str){.c_str = (U8*)buf, .count = n, .cap = CAP_VIEW});
+    Str *result = Str_clone(&(Str){.c_str = (I8*)buf, .count = n, .cap = CAP_VIEW});
     free(buf);
     return result;
 }
 
-USize c_str_len(const U8 *s) { return (USize)strlen((const char *)s); }
-I8 *c_str_to_i8(const U8 *s) { return (I8 *)(uintptr_t)s; }
-U8 *c_str_from_i8(const I8 *s) { return (U8 *)(uintptr_t)s; }
+USize c_str_len(const I8 *s) { return (USize)strlen((const char *)s); }

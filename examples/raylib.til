@@ -7,7 +7,7 @@ link("dl")
 link("rt")
 
 // Direct raylib FFI — no companion .c needed
-InitWindow := ext_proc(shallow w: I32, shallow h: I32, title: U8) {}
+InitWindow := ext_proc(shallow w: I32, shallow h: I32, title: I8) {}
 WindowShouldClose := ext_func() returns shallow Bool {}
 BeginDrawing := ext_proc() {}
 EndDrawing := ext_proc() {}

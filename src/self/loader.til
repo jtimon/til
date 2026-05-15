@@ -865,17 +865,17 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 // both paths happy when synthesised doc text contains newlines or quotes.
 escape_doc_for_literal_str := func(raw: Str) returns Str {
     mut out := ""
-    for c : U8 in raw {
+    for c : I8 in raw {
         if c.eq('\\') {
             out = out.concat("\\\\")
         } else if c.eq('"') {
             out = out.concat("\\\"")
-        } else if c.eq(10.to_u8()) {
+        } else if c.eq(10.to_i8()) {
             out = out.concat("\\n")
-        } else if c.eq(9.to_u8()) {
+        } else if c.eq(9.to_i8()) {
             out = out.concat("\\t")
         } else {
-            out = out.concat(Str.from_byte(c))
+            out = out.concat(Str.from_byte(c.to_i64().and(255).to_u8()))
         }
     }
     return out
@@ -973,8 +973,8 @@ append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
     if doc.is_empty() { return }
     mut start : USize = 0
     for i in 0..doc.len() {
-        ref c : U8 = doc.byte_at(i)
-        if c.eq(10.to_u8()) {
+        ref c : I8 = doc.byte_at(i)
+        if c.eq(10.to_i8()) {
             out.push_str(indent)
             out.push_str("/// ")
             if i.gt(start) { out.push_str(doc.substr(start, i.sub(start))) }

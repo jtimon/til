@@ -63,17 +63,17 @@ Token := struct {
 // --- Character helpers ---
 // Replaces C's isdigit(), isalpha() from <ctype.h>
 
-priv is_digit := func(c: U8) returns Bool {
+priv is_digit := func(c: I8) returns Bool {
     return c.gte('0').and(c.lte('9'))
 }
 
-priv is_alpha := func(c: U8) returns Bool {
+priv is_alpha := func(c: I8) returns Bool {
     return c.gte('a').and(c.lte('z'))
     .or(c.gte('A').and(c.lte('Z')))
     .or(c.eq('_'))
 }
 
-is_alnum := func(c: U8) returns Bool {
+is_alnum := func(c: I8) returns Bool {
     return is_alpha(c).or(is_digit(c))
 }
 
@@ -166,7 +166,7 @@ tok_name := func(type: TokenType) returns Str {
 // Using a func avoids the mut-reassign-then-clone pattern that leaked
 // one TokenType heap allocation per case.
 
-priv lookup_single_char := func(c: U8) returns shallow TokenType {
+priv lookup_single_char := func(c: I8) returns shallow TokenType {
     switch c {
     case '(': return TokenType.LParen
     case ')': return TokenType.RParen
@@ -198,7 +198,7 @@ priv lookup_single_char := func(c: U8) returns shallow TokenType {
 // Returns TokenType.Eof when (c, c2) is not a recognised two-char
 // token. Same leak-avoidance rationale as lookup_single_char.
 
-lookup_two_char := func(c: U8, c2: U8) returns shallow TokenType {
+lookup_two_char := func(c: I8, c2: I8) returns shallow TokenType {
     if c.eq(':').and(c2.eq('=')) { return TokenType.ColonEq }
     if c.eq('=').and(c2.eq('=')) { return TokenType.EqEq }
     if c.eq('!').and(c2.eq('=')) { return TokenType.Neq }
@@ -267,7 +267,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
     src_len := src.len()
 
     while pos.lt(src_len) {
-        ref c : U8 = src.byte_at(pos)
+        ref c : I8 = src.byte_at(pos)
 
         // Skip whitespace (spaces, tabs, \r, semicolons)
         if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq(';')) {
@@ -293,7 +293,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             continue
         }
         if c.eq('/').and(pos.add(1).lt(src_len)) {
-            ref c2 : U8 = src.byte_at(pos.add(1))
+            ref c2 : I8 = src.byte_at(pos.add(1))
             if c2.eq('/') {
                 // Check for /// doc comment
                 is_doc := pos.add(2).lt(src_len).and(src.byte_at(pos.add(2)).eq('/'))
@@ -327,8 +327,8 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                 while pos.lt(src_len) {
                     if depth.lte(0) { break }
                     if pos.add(1).lt(src_len) {
-                        ref b1 : U8 = src.byte_at(pos)
-                        ref b2 : U8 = src.byte_at(pos.add(1))
+                        ref b1 : I8 = src.byte_at(pos)
+                        ref b2 : I8 = src.byte_at(pos.add(1))
                         if b1.eq('/').and(b2.eq('*')) {
                             depth = depth.add(1)
                             pos = pos.add(2)
@@ -439,10 +439,10 @@ if c.eq('\'') {
 
 // Two-character tokens
 if pos.add(1).lt(src_len) {
-    ref c2 : U8 = src.byte_at(pos.add(1))
+    ref c2 : I8 = src.byte_at(pos.add(1))
     // Check for ... (three dots) before the two-char dispatch below
     if c.eq('.').and(c2.eq('.')).and(pos.add(2).lt(src_len)) {
-        ref c3 : U8 = src.byte_at(pos.add(2))
+        ref c3 : I8 = src.byte_at(pos.add(2))
         if c3.eq('.') {
             tokens.push(own Token(type = TokenType.DotDotDot,
                 text = src.substr(start, 3).clone(),

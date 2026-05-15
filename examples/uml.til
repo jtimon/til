@@ -64,7 +64,7 @@ ordered_paths := func() returns Vec {
 trim_ws := func(s: Str) returns Str {
     mut start : USize = 0
     while start.lt(s.len()) {
-        ref c : U8 = s.get(start)
+        ref c : I8 = s.get(start)
         if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')) {
             start = start.add(1)
         } else {
@@ -73,7 +73,7 @@ trim_ws := func(s: Str) returns Str {
     }
     mut end := s.len()
     while end.gt(start) {
-        ref c : U8 = s.get(end.sub(1))
+        ref c : I8 = s.get(end.sub(1))
         if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')) {
             end = end.sub(1)
         } else {
@@ -83,11 +83,11 @@ trim_ws := func(s: Str) returns Str {
     return s.substr(start, end.sub(start)).clone()
 }
 
-count_char := func(s: Str, ch: U8) returns I64 {
+count_char := func(s: Str, ch: I8) returns I64 {
     mut n := 0
     mut i : USize = 0
     while i.lt(s.len()) {
-        ref c : U8 = s.get(i)
+        ref c : I8 = s.get(i)
         if c.eq(ch) { n = n.add(1) }
         i = i.add(1)
     }
@@ -162,7 +162,7 @@ append_token_text := func(mut out: Str, tok: Token) returns Str {
     if tok.type.is(TokenType.Eof) { return out }
     if out.len().gt(0) {
         no_space_before := tok.type.is(TokenType.RParen).or(tok.type.is(TokenType.Colon)).or(tok.type.is(TokenType.Comma))
-        ref prev : U8 = out.byte_at(out.len().sub(1))
+        ref prev : I8 = out.byte_at(out.len().sub(1))
         no_space_after_prev := prev.eq('(').or(prev.eq(':'))
         if no_space_before.not().and(no_space_after_prev.not()) {
             out = out.concat(" ")
@@ -350,7 +350,7 @@ svg_text := func(x: I64, y: I64, klass: Str, body: Str) returns Str {
 
 xml_escape := func(s: Str) returns Str {
     mut out := ""
-    for c : U8 in s {
+    for c : I8 in s {
         if c.eq('&') {
             out = out.concat("&amp;")
         } else if c.eq('<') {

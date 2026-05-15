@@ -128,22 +128,22 @@ extract_paths := func(svg: Str) returns Vec {
 
 // --- Path data tokenizer ---
 
-is_ws := func(b: U8) returns Bool {
+is_ws := func(b: I8) returns Bool {
     return b.eq(' ').or(b.eq('\t')).or(b.eq('\n')).or(b.eq('\r')).or(b.eq(','))
 }
 
-is_digit_ch := func(b: U8) returns Bool {
+is_digit_ch := func(b: I8) returns Bool {
     return b.gte('0').and(b.lte('9'))
 }
 
-is_cmd_ch := func(b: U8) returns Bool {
+is_cmd_ch := func(b: I8) returns Bool {
     return b.gte('A').and(b.lte('Z')).or(b.gte('a').and(b.lte('z')))
 }
 
 skip_ws := func(d: Str, shallow i: USize) returns USize {
     mut j := i
     while j.lt(d.len()) {
-        ref b : U8 = d.byte_at(j)
+        ref b : I8 = d.byte_at(j)
         if is_ws(b).not() { break }
         j = j.add(1)
     }
@@ -156,14 +156,14 @@ parse_int := func(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
     mut j := skip_ws(d, i)
     mut neg := false
     if j.lt(d.len()) {
-        ref b : U8 = d.byte_at(j)
+        ref b : I8 = d.byte_at(j)
         if b.eq('-') { neg = true; j = j.add(1) }
         else if b.eq('+') { j = j.add(1) }
     }
     mut val : I64 = 0
     mut digits := 0
     while j.lt(d.len()) {
-        ref b : U8 = d.byte_at(j)
+        ref b : I8 = d.byte_at(j)
         if is_digit_ch(b).not() { break }
         val = val.mul(10).add(b.to_i64().sub(48))
         digits = digits.add(1)
@@ -202,19 +202,19 @@ parse_path_d := func(d: Str, mut segments: Vec) {
     mut cur_y : I64 = 0
     mut start_x : I64 = 0
     mut start_y : I64 = 0
-    mut last_cmd : U8 = 0.to_u8()
+    mut last_cmd : I8 = 0.to_i8()
 
     while i.lt(d.len()) {
         i = skip_ws(d, i)
         if i.gte(d.len()) { break }
-        ref first : U8 = d.byte_at(i)
-        mut cmd : U8 = last_cmd
+        ref first : I8 = d.byte_at(i)
+        mut cmd : I8 = last_cmd
         if is_cmd_ch(first) {
             cmd = first
             i = i.add(1)
             i = skip_ws(d, i)
         }
-        if cmd.eq(0.to_u8()) {
+        if cmd.eq(0.to_i8()) {
             panic(__LOC__, "path data must start with a command")
         }
 
@@ -282,10 +282,10 @@ parse_path_d := func(d: Str, mut segments: Vec) {
             cur_x = start_x
             cur_y = start_y
             segments.push(own Segment(kind = SegKind.Close))
-            last_cmd = 0.to_u8()
+            last_cmd = 0.to_i8()
         } else {
             panic(__LOC__, "unsupported SVG path command '",
-                  Str.from_byte(cmd), "'")
+                  Str.from_byte(cmd.to_i64().and(255).to_u8()), "'")
         }
     }
 }

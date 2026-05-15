@@ -274,14 +274,7 @@ Str *host_os(void);
 I32 mkdir_p(const Str *path);
 I32 copy_file(const Str *src, const Str *dst);
 I32 copy_tree(const Str *src, const Str *dst);
-USize c_str_len(const U8 *s);
-// Pointer-cast helpers between U8 (unsigned char) and I8 (char) buffers --
-// the underlying memory is identical, only the C pointer type differs.
-// Used by lib bindings whose upstream C signatures take `const char *`
-// (raylib text params, tinyfd dialogs) where the til-side string lives
-// in Str.c_str (U8 *) and the binding's param is `I8` (= I8 *).
-I8 *c_str_to_i8(const U8 *s);
-U8 *c_str_from_i8(const I8 *s);
+USize c_str_len(const I8 *s);
 Bool ptr_eq(void *a, void *b);
 void eprint_single(const Str *s);
 

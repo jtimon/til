@@ -5,6 +5,7 @@ import("dyn")
 import("f32")
 import("i32")
 import("i64")
+import("i8")
 import("u8")
 import("vec")
 
@@ -24,9 +25,11 @@ format := func(parts: ..Str) returns Str {
     return out
 }
 
-/// UTF-8 string with owned heap storage.
+/// UTF-8 string with owned heap storage. The byte buffer is typed as
+/// I8 (= C `char`) so direct FFI bindings against `const char *` APIs
+/// can pass `s.c_str` without an intermediate pointer-cast helper.
 Str := struct {
-    own mut c_str : U8 = 0
+    own mut c_str : I8 = 0
     mut count : USize = 0
     mut cap : USize = 0
 
@@ -34,15 +37,15 @@ namespace:
     len := func(self: Str) returns shallow USize { return self.count }
 
     /// Return a ref to byte `i`. Panics if `i` is out of bounds.
-    get := func(self: Str, i: USize) returns ref U8 {
+    get := func(self: Str, i: USize) returns ref I8 {
         if i.gte(self.count) {
             panic(__LOC__, "Str.get: index out of bounds")
         }
         return ptr_add(self.c_str, i)
     }
 
-    /// Unchecked byte access — caller must ensure i < self.len().
-    byte_at := func(self: Str, i: USize) returns ref U8 {
+    /// Unchecked byte access -- caller must ensure i < self.len().
+    byte_at := func(self: Str, i: USize) returns ref I8 {
         return ptr_add(self.c_str, i)
     }
 
@@ -52,8 +55,8 @@ namespace:
         mut min_len := a.count
         if b.count.lt(a.count) { min_len = b.count }
         for i in 0..min_len {
-            ref ab : U8 = a.get(i)
-            ref bb : U8 = b.get(i)
+            ref ab : I8 = a.get(i)
+            ref bb : I8 = b.get(i)
             c := ab.cmp(bb)
             if c.neq(0) { return c }
         }
@@ -125,8 +128,8 @@ namespace:
         for i in 0..a.count.sub(b.count).add(1) {
             mut found := true
             for j in 0..b.count {
-                ref ac : U8 = a.get(i.add(j))
-                ref bc : U8 = b.get(j)
+                ref ac : I8 = a.get(i.add(j))
+                ref bc : I8 = b.get(j)
                 if ac.neq(bc) { found = false }
             }
             if found { return true }
@@ -138,8 +141,8 @@ namespace:
     starts_with := func(a: Str, b: Str) returns shallow Bool {
         if b.count.gt(a.count) { return false }
         for i in 0..b.count {
-            ref ac : U8 = a.get(i)
-            ref bc : U8 = b.get(i)
+            ref ac : I8 = a.get(i)
+            ref bc : I8 = b.get(i)
             if ac.neq(bc) { return false }
         }
         return true
@@ -150,8 +153,8 @@ namespace:
         if b.count.gt(a.count) { return false }
         offset := a.count.sub(b.count)
         for i in 0..b.count {
-            ref ac : U8 = a.get(offset.add(i))
-            ref bc : U8 = b.get(i)
+            ref ac : I8 = a.get(offset.add(i))
+            ref bc : I8 = b.get(i)
             if ac.neq(bc) { return false }
         }
         return true
@@ -169,8 +172,8 @@ namespace:
         for i in 0..self.count.sub(needle.count).add(1) {
             mut found := true
             for j in 0..needle.count {
-                ref ac : U8 = self.get(i.add(j))
-                ref bc : U8 = needle.get(j)
+                ref ac : I8 = self.get(i.add(j))
+                ref bc : I8 = needle.get(j)
                 if ac.neq(bc) { found = false }
             }
             if found { return i.to_i64() }
@@ -186,8 +189,8 @@ namespace:
         for i in 0..self.count.sub(needle.count).add(1) {
             mut found := true
             for j in 0..needle.count {
-                ref ac : U8 = self.get(i.add(j))
-                ref bc : U8 = needle.get(j)
+                ref ac : I8 = self.get(i.add(j))
+                ref bc : I8 = needle.get(j)
                 if ac.neq(bc) { found = false }
             }
             if found { last = i.to_i64() }
@@ -267,14 +270,14 @@ namespace:
         mut result := 0
         mut start : USize = 0
         mut neg := false
-        ref first : U8 = self.get(0)
+        ref first : I8 = self.get(0)
         if first.eq(45) {
             neg = true
             start = 1
         }
         if start.eq(self.count) { panic(__LOC__, "Str.to_i64: no digits") }
         for i in start..self.count {
-            ref ch : U8 = self.get(i)
+            ref ch : I8 = self.get(i)
             d := ch.to_i64().sub(48)
             if d.lt(0).or(d.gt(9)) {
                 panic(__LOC__, "Str.to_i64: invalid char in '", self, "'")

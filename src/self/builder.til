@@ -694,9 +694,9 @@ priv c_lit_byte_count := func(s: Str) returns USize {
     mut count : USize = 0
     mut i : USize = 0
     while i.lt(n) {
-        ref b : U8 = s.byte_at(i)
+        ref b : I8 = s.byte_at(i)
         if b.eq('\\').and(i.add(1).lt(n)) {
-            ref nx : U8 = s.byte_at(i.add(1))
+            ref nx : I8 = s.byte_at(i.add(1))
             if nx.eq('x').and(i.add(3).lt(n)) {
                 i = i.add(4)
                 count = count.add(1)

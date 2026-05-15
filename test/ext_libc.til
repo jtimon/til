@@ -13,9 +13,9 @@ mode cli
 // the matching diagnostic pragmas at the top of the generated .c so the call
 // site compiles cleanly.
 
-setenv := ext_func(name: U8, value: U8, shallow overwrite: I32) returns shallow I32 {}
-getenv := ext_func(name: U8) returns ref U8 {}
-unsetenv := ext_func(name: U8) returns shallow I32 {}
+setenv := ext_func(name: I8, value: I8, shallow overwrite: I32) returns shallow I32 {}
+getenv := ext_func(name: I8) returns ref I8 {}
+unsetenv := ext_func(name: I8) returns shallow I32 {}
 
 main := proc() {
     rc1 := setenv("TIL_ISSUE_176".c_str, "expected".c_str, 1.to_i32())
@@ -23,7 +23,7 @@ main := proc() {
         println("setenv failed")
         return
     }
-    ref v : U8 = getenv("TIL_ISSUE_176".c_str)
+    ref v : I8 = getenv("TIL_ISSUE_176".c_str)
     if is_null(v) {
         println("getenv returned NULL")
         return
