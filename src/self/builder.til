@@ -1385,7 +1385,35 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
     }
 }
 
+// Trivial no-op delete: `Type.delete(stack_local_primitive, ...)` -- the
+// typer emits these for hoisted stack temps whose type has no destructor
+// work to do. The builder previously suppressed the call body but still
+// wrote indent+";", littering generated C with lonely semicolons. Detect
+// the shape here so emit_stmt can skip the indent too.
+priv is_noop_delete_stmt := func(e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len().lt(2.to_u32()) { return false }
+    ref c0 : Expr = e.child(0)
+    switch c0.node_type {
+    case NodeType.FieldAccess(del_name):
+        if del_name.eq("delete").not() { return false }
+    case:
+        return false
+    }
+    ref c1 : Expr = e.child(1)
+    switch c1.node_type {
+    case NodeType.Ident(del_arg):
+        if is_stack_local(del_arg).not() { return false }
+        if c1.til_type.is(Type.Struct) { return false }
+        if c1.til_type.is(Type.Enum) { return false }
+        return true
+    case:
+        return false
+    }
+}
+
 priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
+    if is_noop_delete_stmt(e) { return }
     emit_indent(f, depth)
     switch e.node_type {
     case NodeType.Decl:
@@ -1490,9 +1518,9 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                     ref c1 : Expr = e.child(1)
                     switch c1.node_type {
                     case NodeType.Ident(del_arg):
-                        if is_stack_local(del_arg).and(c1.til_type.is(Type.Struct).not()).and(c1.til_type.is(Type.Enum).not()) {
-                            f.write(";\n"); return
-                        }
+                        // Stack-local primitive deletes are filtered out by
+                        // is_noop_delete_stmt above before any indent is
+                        // written, so we never reach here for them.
                         // Stack-local Str (compound-literal init). The typer
                         // may have generated this delete with arg_is_own=true
                         // and call_free=true because the binding's own_type
