@@ -33,10 +33,10 @@ test_string_concat := test() {
     assert_eq_str(__LOC__, result, "hello world")
 }
 
-// Test 5: lolalalo -- recursive func with comptime args. Generates the
-// 4-syllable permutation poem at compile time. Inspired by
-// rstil/src/examples/lolalalo.til. Uses a top-level `poem` so the
-// recursion doesn't need first-class nested funcs.
+// Test 5: lolalalo -- recursive vs iterative. Generates the 4-syllable
+// permutation poem at compile time. Inspired by rstil/src/examples/lolalalo.til.
+// Top-level `poem` so the recursion doesn't need first-class nested funcs.
+// Iterative version uses simple nested range loops.
 
 poem := func(depth: I64, current: Str, s1: Str, s2: Str) returns Str {
     if depth.eq(4) {
@@ -51,17 +51,38 @@ poem := func(depth: I64, current: Str, s1: Str, s2: Str) returns Str {
     return result
 }
 
-make_poem := func(s1: Str, s2: Str) returns Str {
+make_poem_rec := func(s1: Str, s2: Str) returns Str {
     return poem(0, "", s1, s2)
 }
 
+make_poem_it := func(s1: Str, s2: Str) returns Str {
+    mut result := ""
+    for i0 in 0..2 {
+        for i1 in 0..2 {
+            for i2 in 0..3 {
+                for i3 in 0..2 {
+                    mut s0 := s1
+                    if i0.neq(0) { s0 = s2 }
+                    mut s1v := s1
+                    if i1.neq(0) { s1v = s2 }
+                    mut s2v := s1
+                    if i2.eq(1) { s2v = s2 }
+                    if i2.eq(2) { s2v = "lei" }
+                    mut s3 := s1
+                    if i3.neq(0) { s3 = s2 }
+                    result = result.concat(s0.concat(s1v).concat(s2v).concat(s3).concat("\n"))
+                }
+            }
+        }
+    }
+    return result
+}
+
 test_lolalalo := test() {
-    lo_la := make_poem("lo", "la")
-    la_lo := make_poem("la", "lo")
-    // "lolalolo" appears as one of the 4-syllable permutations in lo_la
-    assert(__LOC__, lo_la.contains("lolalolo"))
-    assert(__LOC__, la_lo.contains("lalalala"))
-    // "lei" appears at depth 2 in both
-    assert(__LOC__, lo_la.contains("lolei"))
-    assert(__LOC__, la_lo.contains("lalei"))
+    lola_rec := make_poem_rec("lo", "la")
+    lola_it := make_poem_it("lo", "la")
+    lalo_rec := make_poem_rec("la", "lo")
+    lalo_it := make_poem_it("la", "lo")
+    assert_eq_str(__LOC__, lola_rec, lola_it)
+    assert_eq_str(__LOC__, lalo_rec, lalo_it)
 }
