@@ -235,20 +235,6 @@ is_skip_ext_decl := func(name: Str) returns shallow Bool {
     if name.eq("memcpy") { return true }
     if name.eq("memmove") { return true }
     if name.eq("memset") { return true }
-    // Issue #176: libc string-pointer APIs declare 'const char *' parameters
-    // in stdlib.h, but til codegen emits 'U8 *' (no const, distinct char vs
-    // unsigned char). Skip emitting our own prototypes for these libc symbols
-    // so the system header wins and we avoid "conflicting types" errors at
-    // C compile time. The accompanying pragmas in the generated .c silence
-    // pointer-sign and discarded-qualifier warnings at the call sites.
-    if name.eq("setenv") { return true }
-    if name.eq("getenv") { return true }
-    if name.eq("unsetenv") { return true }
-    if name.eq("putenv") { return true }
-    if name.eq("system") { return true }
-    if name.eq("atoi") { return true }
-    if name.eq("atol") { return true }
-    if name.eq("atof") { return true }
     if name.eq("print_single") { return true }
     if name.eq("print_flush") { return true }
     return false
@@ -478,56 +464,6 @@ callee_param_is_own := func(callee_name: Str, shallow arg_index: U32) returns sh
         return p.own_type.is(OwnType.Own)
     case:
         return false
-    }
-}
-
-// Issue #176: libc functions whose declared til-side param/return types are
-// U8/I8 byte pointers but whose libc prototypes use 'char *' / 'const char *'.
-// At the call site, U8/I8 ref args get an explicit (char *) cast and a
-// U8/I8 ref return value gets the whole call wrapped in (U8 *) / (I8 *) so
-// the generated C compiles cleanly without -Wpointer-sign or
-// -Wdiscarded-qualifiers being raised.
-is_libc_str_fn := func(callee_name: Str) returns shallow Bool {
-    if callee_name.eq("setenv") { return true }
-    if callee_name.eq("getenv") { return true }
-    if callee_name.eq("unsetenv") { return true }
-    if callee_name.eq("putenv") { return true }
-    if callee_name.eq("system") { return true }
-    if callee_name.eq("atoi") { return true }
-    if callee_name.eq("atol") { return true }
-    if callee_name.eq("atof") { return true }
-    return false
-}
-
-callee_param_needs_char_cast := func(callee_name: Str, shallow arg_index: U32) returns shallow Bool {
-    if is_libc_str_fn(callee_name).not() { return false }
-    ref fdef : Expr = find_callee_fdef(callee_name)
-    if is_null(fdef) { return false }
-    switch fdef.node_type {
-    case NodeType.FuncDef(fd):
-        if arg_index.gte(fd.params.len()) { return false }
-        ref p : Declaration = fd.params.get(arg_index)
-        if p.own_type.is(OwnType.Shallow) { return false }
-        return p.explicit_type.eq("U8").or(p.explicit_type.eq("I8"))
-    case:
-        return false
-    }
-}
-
-// Returns the C pointer type til expects from a libc call when the libc
-// prototype actually returns 'char *'. Empty Str when no cast is needed.
-libc_call_return_cast := func(callee_name: Str) returns Str {
-    if is_libc_str_fn(callee_name).not() { return "" }
-    ref fdef : Expr = find_callee_fdef(callee_name)
-    if is_null(fdef) { return "" }
-    switch fdef.node_type {
-    case NodeType.FuncDef(fd):
-        if fd.return_own_type.is(OwnType.Shallow) { return "" }
-        if fd.return_type.eq("U8") { return "U8 *" }
-        if fd.return_type.eq("I8") { return "I8 *" }
-        return ""
-    case:
-        return ""
     }
 }
 
@@ -1834,8 +1770,6 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             } else {
                 // User-defined function call
                 fc := func_to_c(name)
-                ret_cast := libc_call_return_cast(name)
-                if ret_cast.len().gt(0) { f.write("("); f.write(ret_cast); f.write(")") }
                 f.write(fc)
                 f.write("(")
                 for i in 1..e.children.len() {
@@ -1847,7 +1781,6 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                     } else if callee_param_is_uptr(name, i.sub(1)).and(callee_param_is_own(name, i.sub(1)).not()) {
                         emit_uptr_ref(f, e.child(i), depth)
                     } else {
-                        if callee_param_needs_char_cast(name, i.sub(1)) { f.write("(char *)") }
                         emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i))
                     }
                 }
