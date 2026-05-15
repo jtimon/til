@@ -31,6 +31,20 @@ typedef enum {
 } Type_tag;
 typedef struct Type Type;
 typedef struct Array Array;
+typedef struct CfVec2 CfVec2;
+typedef struct CfRect CfRect;
+typedef enum {
+    Color_TAG_Red,
+    Color_TAG_Green,
+    Color_TAG_Blue
+} Color_tag;
+typedef struct Color Color;
+typedef enum {
+    Token_TAG_Num,
+    Token_TAG_Name,
+    Token_TAG_Eof
+} Token_tag;
+typedef struct Token Token;
 
 typedef void * (*CloneFn)(void *);
 typedef void (*DeleteFn)(void *, Bool *);
@@ -71,6 +85,30 @@ typedef struct Array {
     void * elem_delete;
 } Array;
 
+
+typedef struct CfVec2 {
+    I64 x;
+    I64 y;
+} CfVec2;
+
+
+typedef struct CfRect {
+    CfVec2 top_left;
+    CfVec2 bottom_right;
+} CfRect;
+
+
+struct Color {
+    Color_tag tag;
+};
+
+struct Token {
+    Token_tag tag;
+    union {
+        I64 Num;
+        Str Name;
+    } data;
+};
 
 void U64_delete(U64 * self, Bool * call_free);
 U32 * U64_size(void);
@@ -122,6 +160,7 @@ void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
 U32 Array_size(void);
 void panic(Str * loc_str, Array * parts);
+Bool * assert(Str * loc_str, Bool * cond);
 void assert_eq(Str * loc_str, I64 * a, I64 * b);
 void assert_eq_str(Str * loc_str, Str * a, Str * b);
 void println(Array * parts);
@@ -130,6 +169,38 @@ void test_nested_arithmetic(void);
 void test_deeply_nested(void);
 void test_string_concat(void);
 void test_lolalalo(void);
+void test_fold_variable(void);
+void test_loc_folded(void);
+CfVec2 * CfVec2_magic(void);
+CfVec2 * CfVec2_at(I64 * x, I64 * y);
+CfVec2 * CfVec2_clone(CfVec2 * self);
+void CfVec2_delete(CfVec2 * self, Bool * call_free);
+U32 CfVec2_size(void);
+void test_struct_fold_simple(void);
+void test_struct_fold_values(void);
+CfRect * CfRect_sample(void);
+CfRect * CfRect_clone(CfRect * self);
+void CfRect_delete(CfRect * self, Bool * call_free);
+U32 CfRect_size(void);
+void test_struct_fold_nested(void);
+Bool Color_eq(Color * self, Color * other);
+void Color_delete(Color * self, Bool * call_free);
+Color * Color_clone(Color * self);
+U32 Color_size(void);
+void test_enum_fold(void);
+Bool Token_is(Token * self, Token * other);
+void Token_delete(Token * self, Bool * call_free);
+Token * Token_clone(Token * self);
+U32 Token_size(void);
+void test_enum_payload_fold(void);
+Bool Color_eq(Color *, Color *);
+Color *Color_Red();
+Color *Color_Green();
+Color *Color_Blue();
+Bool * Token_eq(Token *, Token *);
+Token *Token_Num(I64 *);
+Token *Token_Name(Str *);
+Token *Token_Eof();
 #include "ext.h"
 
 
@@ -186,6 +257,7 @@ void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
 U32 Array_size(void);
 void panic(Str * loc_str, Array * parts);
+Bool * assert(Str * loc_str, Bool * cond);
 void assert_eq(Str * loc_str, I64 * a, I64 * b);
 void assert_eq_str(Str * loc_str, Str * a, Str * b);
 void println(Array * parts);
@@ -194,6 +266,33 @@ void test_nested_arithmetic(void);
 void test_deeply_nested(void);
 void test_string_concat(void);
 void test_lolalalo(void);
+void test_fold_variable(void);
+void test_loc_folded(void);
+CfVec2 * CfVec2_magic(void);
+CfVec2 * CfVec2_at(I64 * x, I64 * y);
+CfVec2 * CfVec2_clone(CfVec2 * self);
+void CfVec2_delete(CfVec2 * self, Bool * call_free);
+U32 CfVec2_size(void);
+void test_struct_fold_simple(void);
+void test_struct_fold_values(void);
+CfRect * CfRect_sample(void);
+CfRect * CfRect_clone(CfRect * self);
+void CfRect_delete(CfRect * self, Bool * call_free);
+U32 CfRect_size(void);
+void test_struct_fold_nested(void);
+Bool Color_eq(Color * self, Color * other);
+void Color_delete(Color * self, Bool * call_free);
+Color * Color_clone(Color * self);
+U32 Color_size(void);
+void test_enum_fold(void);
+Token * Token_Num(I64 * val);
+Token * Token_Name(Str * val);
+Token * Token_Eof(void);
+Bool Token_is(Token * self, Token * other);
+void Token_delete(Token * self, Bool * call_free);
+Token * Token_clone(Token * self);
+U32 Token_size(void);
+void test_enum_payload_fold(void);
 Bool * Type_eq(Type *, Type *);
 Type *Type_Unknown();
 Type *Type_None();
@@ -214,6 +313,14 @@ Type *Type_FuncPtr();
 Type *Type_Dynamic();
 Type *Type_Custom(Str *);
 Type *Type_I8();
+Bool Color_eq(Color *, Color *);
+Color *Color_Red();
+Color *Color_Green();
+Color *Color_Blue();
+Bool * Token_eq(Token *, Token *);
+Token *Token_Num(I64 *);
+Token *Token_Name(Str *);
+Token *Token_Eof();
 
 void *dyn_fn(Str *type_name, Str *method);
 U32 dyn_size_of(Str *type_name);
@@ -1203,6 +1310,26 @@ void panic(Str * loc_str, Array * parts) {
     exit(hoisted__I64_2809);
 }
 
+Bool * assert(Str * loc_str, Bool * cond) {
+    Bool hoisted__Bool_2828 = not(DEREF(cond));
+    if (hoisted__Bool_2828) {
+        Str hoisted__Str_2823 = (Str){.c_str = (U8 *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT};
+        Type *hoisted__Type_2824 = Type_Struct(&hoisted__Str_2823);
+        Str_delete(&hoisted__Str_2823, &(Bool){0});
+        U32 hoisted__U32_2825 = 1;
+        Array *_va_Array_95 = Array_new(hoisted__Type_2824, &hoisted__U32_2825);
+        (void)_va_Array_95;
+        Type_delete(hoisted__Type_2824, &(Bool){1});
+        U32 hoisted__U32_2826 = 0;
+        Str hoisted__Str_2827 = (Str){.c_str = (U8 *)"assert failed", .count = 13ULL, .cap = TIL_CAP_LIT};
+        Array_set(_va_Array_95, &hoisted__U32_2826, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_2827; _oa; }));
+        panic(loc_str, _va_Array_95);
+        free(_va_Array_95);
+    }
+    Bool hoisted__Bool_2829 = 1;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = hoisted__Bool_2829; return _r; }
+}
+
 void assert_eq(Str * loc_str, I64 * a, I64 * b) {
     Bool hoisted__Bool_2852 = I64_neq(a, b);
     if (hoisted__Bool_2852) {
@@ -1341,6 +1468,307 @@ void test_lolalalo(void) {
     Str_delete(&lalo_rec, &(Bool){0});
 }
 
+void test_fold_variable(void) {
+    I64 result = 8;
+    Str hoisted__Str_3421 = (Str){.c_str = (U8 *)"test/constfold.til:94:15", .count = 24ULL, .cap = TIL_CAP_LIT};
+    I64 hoisted__I64_3422 = 8;
+    assert_eq(&hoisted__Str_3421, &result, &hoisted__I64_3422);
+    Str_delete(&hoisted__Str_3421, &(Bool){0});
+}
+
+void test_loc_folded(void) {
+    Str hoisted__Str_3425 = (Str){.c_str = (U8 *)"test/constfold.til:99:12", .count = 24ULL, .cap = TIL_CAP_LIT};
+    Bool hoisted__Bool_3426 = 1;
+    Bool_delete(assert(&hoisted__Str_3425, &hoisted__Bool_3426), &(Bool){1});
+    Str_delete(&hoisted__Str_3425, &(Bool){0});
+    Str hoisted__Str_3430 = (Str){.c_str = (U8 *)"test/constfold.til:100:12", .count = 25ULL, .cap = TIL_CAP_LIT};
+    Bool hoisted__Bool_3431 = 1;
+    Bool_delete(assert(&hoisted__Str_3430, &hoisted__Bool_3431), &(Bool){1});
+    Str_delete(&hoisted__Str_3430, &(Bool){0});
+}
+
+CfVec2 * CfVec2_magic(void) {
+    I64 hoisted__I64_3433 = 42;
+    I64 hoisted__I64_3434 = 99;
+    CfVec2 *hoisted__CfVec2_3435 = malloc(sizeof(CfVec2));
+    hoisted__CfVec2_3435->x = hoisted__I64_3433;
+    hoisted__CfVec2_3435->y = hoisted__I64_3434;
+    return hoisted__CfVec2_3435;
+}
+
+CfVec2 * CfVec2_at(I64 * x, I64 * y) {
+    CfVec2 *hoisted__CfVec2_3436 = malloc(sizeof(CfVec2));
+    hoisted__CfVec2_3436->x = DEREF(x);
+    hoisted__CfVec2_3436->y = DEREF(y);
+    return hoisted__CfVec2_3436;
+}
+
+CfVec2 * CfVec2_clone(CfVec2 * self) {
+    I64 hoisted__I64_3437 = I64_clone(&self->x);
+    I64 hoisted__I64_3438 = I64_clone(&self->y);
+    CfVec2 *hoisted__CfVec2_3439 = malloc(sizeof(CfVec2));
+    hoisted__CfVec2_3439->x = hoisted__I64_3437;
+    hoisted__CfVec2_3439->y = hoisted__I64_3438;
+    return hoisted__CfVec2_3439;
+}
+
+void CfVec2_delete(CfVec2 * self, Bool * call_free) {
+    Bool hoisted__Bool_3440 = 0;
+    I64_delete(&self->x, &hoisted__Bool_3440);
+    Bool hoisted__Bool_3441 = 0;
+    I64_delete(&self->y, &hoisted__Bool_3441);
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
+U32 CfVec2_size(void) {
+    I64 hoisted__I64_3442 = 16;
+    return hoisted__I64_3442;
+}
+
+void test_struct_fold_simple(void) {
+    CfVec2 *v = CfVec2_magic();
+    Str hoisted__Str_3443 = (Str){.c_str = (U8 *)"test/constfold.til:122:15", .count = 25ULL, .cap = TIL_CAP_LIT};
+    I64 hoisted__I64_3444 = 42;
+    assert_eq(&hoisted__Str_3443, &v->x, &hoisted__I64_3444);
+    Str_delete(&hoisted__Str_3443, &(Bool){0});
+    Str hoisted__Str_3445 = (Str){.c_str = (U8 *)"test/constfold.til:123:15", .count = 25ULL, .cap = TIL_CAP_LIT};
+    I64 hoisted__I64_3446 = 99;
+    assert_eq(&hoisted__Str_3445, &v->y, &hoisted__I64_3446);
+    Str_delete(&hoisted__Str_3445, &(Bool){0});
+    CfVec2_delete(v, &(Bool){1});
+}
+
+void test_struct_fold_values(void) {
+    I64 hoisted__I64_3447 = 10;
+    I64 hoisted__I64_3448 = 20;
+    CfVec2 *p = CfVec2_at(&hoisted__I64_3447, &hoisted__I64_3448);
+    Str hoisted__Str_3449 = (Str){.c_str = (U8 *)"test/constfold.til:129:15", .count = 25ULL, .cap = TIL_CAP_LIT};
+    I64 hoisted__I64_3450 = 10;
+    assert_eq(&hoisted__Str_3449, &p->x, &hoisted__I64_3450);
+    Str_delete(&hoisted__Str_3449, &(Bool){0});
+    Str hoisted__Str_3451 = (Str){.c_str = (U8 *)"test/constfold.til:130:15", .count = 25ULL, .cap = TIL_CAP_LIT};
+    I64 hoisted__I64_3452 = 20;
+    assert_eq(&hoisted__Str_3451, &p->y, &hoisted__I64_3452);
+    Str_delete(&hoisted__Str_3451, &(Bool){0});
+    CfVec2_delete(p, &(Bool){1});
+}
+
+CfRect * CfRect_sample(void) {
+    I64 hoisted__I64_3453 = 5;
+    I64 hoisted__I64_3454 = 10;
+    I64 hoisted__I64_3455 = 100;
+    I64 hoisted__I64_3456 = 200;
+    CfRect *hoisted__CfRect_3457 = malloc(sizeof(CfRect));
+    CfVec2 *_cs1 = malloc(sizeof(CfVec2));
+    _cs1->x = hoisted__I64_3453;
+    _cs1->y = hoisted__I64_3454;
+    hoisted__CfRect_3457->top_left = *_cs1; free(_cs1);
+    CfVec2 *_cs2 = malloc(sizeof(CfVec2));
+    _cs2->x = hoisted__I64_3455;
+    _cs2->y = hoisted__I64_3456;
+    hoisted__CfRect_3457->bottom_right = *_cs2; free(_cs2);
+    return hoisted__CfRect_3457;
+}
+
+CfRect * CfRect_clone(CfRect * self) {
+    CfRect *hoisted__CfRect_3458 = malloc(sizeof(CfRect));
+    { CfVec2 *_ca = CfVec2_clone(&self->top_left); hoisted__CfRect_3458->top_left = *_ca; free(_ca); }
+    { CfVec2 *_ca = CfVec2_clone(&self->bottom_right); hoisted__CfRect_3458->bottom_right = *_ca; free(_ca); }
+    return hoisted__CfRect_3458;
+}
+
+void CfRect_delete(CfRect * self, Bool * call_free) {
+    Bool hoisted__Bool_3459 = 0;
+    CfVec2_delete(&self->top_left, &hoisted__Bool_3459);
+    Bool hoisted__Bool_3460 = 0;
+    CfVec2_delete(&self->bottom_right, &hoisted__Bool_3460);
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
+U32 CfRect_size(void) {
+    I64 hoisted__I64_3461 = 32;
+    return hoisted__I64_3461;
+}
+
+void test_struct_fold_nested(void) {
+    CfRect *r = CfRect_sample();
+    Str hoisted__Str_3462 = (Str){.c_str = (U8 *)"test/constfold.til:146:15", .count = 25ULL, .cap = TIL_CAP_LIT};
+    I64 hoisted__I64_3463 = 5;
+    assert_eq(&hoisted__Str_3462, &r->top_left.x, &hoisted__I64_3463);
+    Str_delete(&hoisted__Str_3462, &(Bool){0});
+    Str hoisted__Str_3464 = (Str){.c_str = (U8 *)"test/constfold.til:147:15", .count = 25ULL, .cap = TIL_CAP_LIT};
+    I64 hoisted__I64_3465 = 10;
+    assert_eq(&hoisted__Str_3464, &r->top_left.y, &hoisted__I64_3465);
+    Str_delete(&hoisted__Str_3464, &(Bool){0});
+    Str hoisted__Str_3466 = (Str){.c_str = (U8 *)"test/constfold.til:148:15", .count = 25ULL, .cap = TIL_CAP_LIT};
+    I64 hoisted__I64_3467 = 100;
+    assert_eq(&hoisted__Str_3466, &r->bottom_right.x, &hoisted__I64_3467);
+    Str_delete(&hoisted__Str_3466, &(Bool){0});
+    Str hoisted__Str_3468 = (Str){.c_str = (U8 *)"test/constfold.til:149:15", .count = 25ULL, .cap = TIL_CAP_LIT};
+    I64 hoisted__I64_3469 = 200;
+    assert_eq(&hoisted__Str_3468, &r->bottom_right.y, &hoisted__I64_3469);
+    Str_delete(&hoisted__Str_3468, &(Bool){0});
+    CfRect_delete(r, &(Bool){1});
+}
+
+Color *Color_Red() {
+    Color *r = malloc(sizeof(Color));
+    *r = (Color){ .tag = Color_TAG_Red };
+    return r;
+}
+Color *Color_Green() {
+    Color *r = malloc(sizeof(Color));
+    *r = (Color){ .tag = Color_TAG_Green };
+    return r;
+}
+Color *Color_Blue() {
+    Color *r = malloc(sizeof(Color));
+    *r = (Color){ .tag = Color_TAG_Blue };
+    return r;
+}
+Bool Color_eq(Color * self, Color * other) {
+    Bool hoisted__Bool_3474 = is(self, &(Color){.tag = Color_TAG_Red});
+    if (hoisted__Bool_3474) {
+        Bool hoisted__Bool_3471 = is(other, &(Color){.tag = Color_TAG_Red});
+        return hoisted__Bool_3471;
+    }
+    Bool hoisted__Bool_3475 = is(self, &(Color){.tag = Color_TAG_Green});
+    if (hoisted__Bool_3475) {
+        Bool hoisted__Bool_3472 = is(other, &(Color){.tag = Color_TAG_Green});
+        return hoisted__Bool_3472;
+    }
+    Bool hoisted__Bool_3476 = is(self, &(Color){.tag = Color_TAG_Blue});
+    if (hoisted__Bool_3476) {
+        Bool hoisted__Bool_3473 = is(other, &(Color){.tag = Color_TAG_Blue});
+        return hoisted__Bool_3473;
+    }
+    Bool hoisted__Bool_3477 = 0;
+    return hoisted__Bool_3477;
+}
+
+void Color_delete(Color * self, Bool * call_free) {
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
+Color * Color_clone(Color * self) {
+    Bool hoisted__Bool_3485 = Color_eq(self, &(Color){.tag = Color_TAG_Red});
+    if (hoisted__Bool_3485) {
+        { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Red; return _r; }
+    }
+    Bool hoisted__Bool_3486 = Color_eq(self, &(Color){.tag = Color_TAG_Green});
+    if (hoisted__Bool_3486) {
+        { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Green; return _r; }
+    }
+    { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Blue; return _r; }
+}
+
+U32 Color_size(void) {
+    I64 hoisted__I64_3487 = 4;
+    return hoisted__I64_3487;
+}
+
+
+void test_enum_fold(void) {
+    Color c; { Color *_hp = (Color *)Color_clone(&(Color){.tag = Color_TAG_Red}); c = *_hp; free(_hp); }
+    Str hoisted__Str_3488 = (Str){.c_str = (U8 *)"test/constfold.til:159:12", .count = 25ULL, .cap = TIL_CAP_LIT};
+    Bool hoisted__Bool_3489 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
+    Bool_delete(assert(&hoisted__Str_3488, &hoisted__Bool_3489), &(Bool){1});
+    Str_delete(&hoisted__Str_3488, &(Bool){0});
+    Bool hoisted__Bool_3491 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
+    Color_delete(&c, &(Bool){0});
+    Str hoisted__Str_3492 = (Str){.c_str = (U8 *)"test/constfold.til:160:12", .count = 25ULL, .cap = TIL_CAP_LIT};
+    Bool hoisted__Bool_3493 = not(hoisted__Bool_3491);
+    Bool_delete(assert(&hoisted__Str_3492, &hoisted__Bool_3493), &(Bool){1});
+    Str_delete(&hoisted__Str_3492, &(Bool){0});
+}
+
+Token *Token_Num(I64 * val) {
+    Token *r = malloc(sizeof(Token));
+    r->tag = Token_TAG_Num;
+    r->data.Num = *val;
+    return r;
+}
+Token *Token_Name(Str * val) {
+    Token *r = malloc(sizeof(Token));
+    r->tag = Token_TAG_Name;
+    { Str * _tmp = Str_clone(val); r->data.Name = *_tmp; free(_tmp); }
+    return r;
+}
+Token *Token_Eof() {
+    Token *r = malloc(sizeof(Token));
+    r->tag = Token_TAG_Eof;
+    return r;
+}
+Bool Token_is(Token * self, Token * other) {
+    Bool hoisted__Bool_3495 = is(self, other);
+    return hoisted__Bool_3495;
+}
+
+void Token_delete(Token * self, Bool * call_free) {
+    Bool hoisted__Bool_3513 = is(self, &(Token){.tag = Token_TAG_Num});
+    if (hoisted__Bool_3513) {
+        I64 *hoisted__I64_3509 = get_payload(self);
+        Bool hoisted__Bool_3510 = 0;
+        I64_delete(hoisted__I64_3509, &hoisted__Bool_3510);
+    }
+    Bool hoisted__Bool_3514 = is(self, &(Token){.tag = Token_TAG_Name});
+    if (hoisted__Bool_3514) {
+        Str *hoisted__Str_3511 = get_payload(self);
+        Bool hoisted__Bool_3512 = 0;
+        Str_delete(hoisted__Str_3511, &hoisted__Bool_3512);
+    }
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
+Token * Token_clone(Token * self) {
+    Bool hoisted__Bool_3542 = is(self, &(Token){.tag = Token_TAG_Num});
+    if (hoisted__Bool_3542) {
+        I64 *_clone_payload_Num_0 = get_payload(self);
+        (void)_clone_payload_Num_0;
+        (void)_clone_payload_Num_0;
+        Token *hoisted__Token_3540 = Token_Num(_clone_payload_Num_0);
+        return hoisted__Token_3540;
+    }
+    Bool hoisted__Bool_3543 = is(self, &(Token){.tag = Token_TAG_Name});
+    if (hoisted__Bool_3543) {
+        Str *_clone_payload_Name_1 = get_payload(self);
+        (void)_clone_payload_Name_1;
+        (void)_clone_payload_Name_1;
+        Token *hoisted__Token_3541 = Token_Name(_clone_payload_Name_1);
+        return hoisted__Token_3541;
+    }
+    { Token *_r = malloc(sizeof(Token)); _r->tag = Token_TAG_Eof; return _r; }
+}
+
+U32 Token_size(void) {
+    I64 hoisted__I64_3544 = 24;
+    return hoisted__I64_3544;
+}
+
+
+void test_enum_payload_fold(void) {
+    I64 hoisted__I64_3545 = 42;
+    Token t; { Token *_hp = (Token *)Token_Num(&hoisted__I64_3545); t = *_hp; free(_hp); }
+    Str hoisted__Str_3546 = (Str){.c_str = (U8 *)"test/constfold.til:168:12", .count = 25ULL, .cap = TIL_CAP_LIT};
+    Bool hoisted__Bool_3547 = Token_is(&t, &(Token){.tag = Token_TAG_Num});
+    Bool_delete(assert(&hoisted__Str_3546, &hoisted__Bool_3547), &(Bool){1});
+    Str_delete(&hoisted__Str_3546, &(Bool){0});
+    Bool hoisted__Bool_3549 = Token_is(&t, &(Token){.tag = Token_TAG_Eof});
+    Token_delete(&t, &(Bool){0});
+    Str hoisted__Str_3550 = (Str){.c_str = (U8 *)"test/constfold.til:169:12", .count = 25ULL, .cap = TIL_CAP_LIT};
+    Bool hoisted__Bool_3551 = not(hoisted__Bool_3549);
+    Bool_delete(assert(&hoisted__Str_3550, &hoisted__Bool_3551), &(Bool){1});
+    Str_delete(&hoisted__Str_3550, &(Bool){0});
+}
+
 void *U64_add_dyn(void *_a0, void *_a1) {
     U64 *_r = malloc(sizeof(U64)); *_r = U64_add(*(U64 *)_a0, *(U64 *)_a1); return _r;
 }
@@ -1461,6 +1889,24 @@ void *Type_size_dyn(void) {
 void *Array_size_dyn(void) {
     U32 *_r = malloc(sizeof(U32)); *_r = Array_size(); return _r;
 }
+void *CfVec2_size_dyn(void) {
+    U32 *_r = malloc(sizeof(U32)); *_r = CfVec2_size(); return _r;
+}
+void *CfRect_size_dyn(void) {
+    U32 *_r = malloc(sizeof(U32)); *_r = CfRect_size(); return _r;
+}
+void *Color_eq_dyn(void *_a0, void *_a1) {
+    Bool *_r = malloc(sizeof(Bool)); *_r = Color_eq(_a0, _a1); return _r;
+}
+void *Color_size_dyn(void) {
+    U32 *_r = malloc(sizeof(U32)); *_r = Color_size(); return _r;
+}
+void *Token_is_dyn(void *_a0, void *_a1) {
+    Bool *_r = malloc(sizeof(Bool)); *_r = Token_is(_a0, _a1); return _r;
+}
+void *Token_size_dyn(void) {
+    U32 *_r = malloc(sizeof(U32)); *_r = Token_size(); return _r;
+}
 void *dyn_fn(Str *type_name, Str *method) {
     (void)type_name; (void)method;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "add", 3ULL) == 0) return (void*)U64_add_dyn;
@@ -1554,6 +2000,26 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Array_delete;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)Array_clone;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Array_size_dyn;
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "magic", 5ULL) == 0) return (void*)CfVec2_magic;
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "at", 2ULL) == 0) return (void*)CfVec2_at;
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)CfVec2_clone;
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)CfVec2_delete;
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)CfVec2_size_dyn;
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "sample", 6ULL) == 0) return (void*)CfRect_sample;
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)CfRect_clone;
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)CfRect_delete;
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)CfRect_size_dyn;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "eq", 2ULL) == 0) return (void*)Color_eq_dyn;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Color_delete;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)Color_clone;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Color_size_dyn;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "Num", 3ULL) == 0) return (void*)Token_Num;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "Name", 4ULL) == 0) return (void*)Token_Name;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "Eof", 3ULL) == 0) return (void*)Token_Eof;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "is", 2ULL) == 0) return (void*)Token_is_dyn;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Token_delete;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)Token_clone;
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Token_size_dyn;
     fprintf(stderr, "dyn_fn: unknown %s.%s\n", (char*)type_name->c_str, (char*)method->c_str);
     exit(1);
 }
@@ -1571,6 +2037,10 @@ U32 dyn_size_of(Str *type_name) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) return sizeof(Bool);
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0) return sizeof(Type);
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0) return sizeof(Array);
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) return sizeof(CfVec2);
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) return sizeof(CfRect);
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0) return sizeof(Color);
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) return sizeof(Token);
     fprintf(stderr, "dyn_size_of: unknown type %.*s\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
 }
@@ -1624,6 +2094,20 @@ int main(void) {
     fprintf(stderr, "  pass: %s\n", "test_string_concat");
     test_lolalalo();
     fprintf(stderr, "  pass: %s\n", "test_lolalalo");
-    fprintf(stderr, "5/5 tests passed\n");
+    test_fold_variable();
+    fprintf(stderr, "  pass: %s\n", "test_fold_variable");
+    test_loc_folded();
+    fprintf(stderr, "  pass: %s\n", "test_loc_folded");
+    test_struct_fold_simple();
+    fprintf(stderr, "  pass: %s\n", "test_struct_fold_simple");
+    test_struct_fold_values();
+    fprintf(stderr, "  pass: %s\n", "test_struct_fold_values");
+    test_struct_fold_nested();
+    fprintf(stderr, "  pass: %s\n", "test_struct_fold_nested");
+    test_enum_fold();
+    fprintf(stderr, "  pass: %s\n", "test_enum_fold");
+    test_enum_payload_fold();
+    fprintf(stderr, "  pass: %s\n", "test_enum_payload_fold");
+    fprintf(stderr, "12/12 tests passed\n");
     return 0;
 }

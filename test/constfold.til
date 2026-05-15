@@ -86,3 +86,85 @@ test_lolalalo := test() {
     assert_eq_str(__LOC__, lola_rec, lola_it)
     assert_eq_str(__LOC__, lalo_rec, lalo_it)
 }
+
+// Test 6: Const-folding through immutable variable bindings.
+test_fold_variable := test() {
+    x := 5
+    result := add(x, 3)
+    assert_eq(__LOC__, result, 8)
+}
+
+// Test 7: __LOC__ is a comptime string containing the source location.
+test_loc_folded := test() {
+    assert(__LOC__, __LOC__.contains("constfold.til"))
+    assert(__LOC__, __LOC__.contains(":"))
+}
+
+// --- Struct comptime folding ---
+
+CfVec2 := struct {
+    mut x := 0
+    mut y := 0
+
+    namespace:
+    magic := func() returns CfVec2 {
+        return CfVec2(x=42, y=99)
+    }
+
+    at := func(x: I64, y: I64) returns CfVec2 {
+        return CfVec2(x=x, y=y)
+    }
+}
+
+// Test 8: Simple struct with pure constructor.
+test_struct_fold_simple := test() {
+    v := CfVec2.magic()
+    assert_eq(__LOC__, v.x, 42)
+    assert_eq(__LOC__, v.y, 99)
+}
+
+// Test 9: Struct constructor with comptime argument values.
+test_struct_fold_values := test() {
+    p := CfVec2.at(10, 20)
+    assert_eq(__LOC__, p.x, 10)
+    assert_eq(__LOC__, p.y, 20)
+}
+
+// Test 10: Nested struct.
+CfRect := struct {
+    mut top_left := CfVec2()
+    mut bottom_right := CfVec2()
+
+    namespace:
+    sample := func() returns CfRect {
+        return CfRect(top_left=CfVec2(x=5, y=10), bottom_right=CfVec2(x=100, y=200))
+    }
+}
+
+test_struct_fold_nested := test() {
+    r := CfRect.sample()
+    assert_eq(__LOC__, r.top_left.x, 5)
+    assert_eq(__LOC__, r.top_left.y, 10)
+    assert_eq(__LOC__, r.bottom_right.x, 100)
+    assert_eq(__LOC__, r.bottom_right.y, 200)
+}
+
+// --- Enum comptime folding ---
+
+Color := enum { Red, Green, Blue }
+
+// Test 11: Enum variant comparison folded at compile time.
+test_enum_fold := test() {
+    c := Color.Red
+    assert(__LOC__, c.eq(Color.Red))
+    assert(__LOC__, c.eq(Color.Green).not())
+}
+
+Token := enum { Num: I64, Name: Str, Eof }
+
+// Test 12: Payload enum construction folded at compile time.
+test_enum_payload_fold := test() {
+    t := Token.Num(42)
+    assert(__LOC__, t.is(Token.Num))
+    assert(__LOC__, t.is(Token.Eof).not())
+}
