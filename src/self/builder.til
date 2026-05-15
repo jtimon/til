@@ -1197,7 +1197,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                     // Vec_push, etc.) emit_as_ptr's stack_local + is_own=true
                     // branch does the usual malloc round-trip so `free(own
                     // val)` still operates on a heap wrapper.
-                    f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = (Str){.c_str = (U8 *)\"")
+                    f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = (Str){.c_str = (void *)\"")
                     switch rhs.node_type {
                     case NodeType.LiteralStr(s):
                         f.write(s)
@@ -1671,7 +1671,7 @@ emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, shallow depth: I32)
 // The `own` contract for callers like Array_set / Vec_push that
 // `free(own val)` the wrapper continues to hold.
 emit_str_lit_expr := proc(f: File, s: Str) {
-    f.write("({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (U8 *)\"")
+    f.write("({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)\"")
     f.write(s)
     f.write("\", .count = ")
     emit_u64(f, c_lit_byte_count(s).to_u64())
@@ -1770,7 +1770,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 ref method_arg : Expr = e.child(2)
                 switch method_arg.node_type {
                 case NodeType.LiteralStr(ms):
-                    f.write("&(Str){.c_str=(U8*)\"")
+                    f.write("&(Str){.c_str=(void*)\"")
                     f.write(ms)
                     f.write("\", .count=")
                     emit_u64(f, ms.len().to_u64())
@@ -2179,7 +2179,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
                 f.write(")")
             }
         case NodeType.LiteralStr(s):
-            f.write("(Str){.c_str=(U8*)\"")
+            f.write("(Str){.c_str=(void*)\"")
             f.write(s)
             f.write("\", .count=")
             emit_u64(f, c_lit_byte_count(s).to_u64())
@@ -2301,7 +2301,7 @@ emit_uptr_ref := proc(f: File, e: Expr, shallow depth: I32) {
 
 emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
     if ptype.eq("Str") {
-        f.write("    Str *"); f.write(pname); f.write(" = Str_clone(&(Str){.c_str = (U8 *)argv["); emit_i32(f, argi); f.write("], .count = strlen(argv["); emit_i32(f, argi); f.write("]), .cap = TIL_CAP_LIT});\n")
+        f.write("    Str *"); f.write(pname); f.write(" = Str_clone(&(Str){.c_str = (void *)argv["); emit_i32(f, argi); f.write("], .count = strlen(argv["); emit_i32(f, argi); f.write("]), .cap = TIL_CAP_LIT});\n")
     } else if ptype.eq("I64") {
         f.write("    I64 *"); f.write(pname); f.write(" = cli_parse_i64(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("U8") {
@@ -2393,11 +2393,11 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                     // Variadic array
                     f.write("    int _va_argc = argc - "); emit_i32(f, argi); f.write(";\n")
                     f.write("    USize _va_cap = _va_argc;\n")
-                    f.write("    Array *"); f.write(p.name); f.write(" = Array_new_type_name(&(Str){.c_str = (U8 *)\""); f.write(p.explicit_type); f.write("\", .count = "); emit_u64(f, p.explicit_type.len().to_u64()); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_cap});\n")
+                    f.write("    Array *"); f.write(p.name); f.write(" = Array_new_type_name(&(Str){.c_str = (void *)\""); f.write(p.explicit_type); f.write("\", .count = "); emit_u64(f, p.explicit_type.len().to_u64()); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_cap});\n")
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     if p.explicit_type.eq("Str") {
-                        f.write("        Str *_val = Str_clone(&(Str){.c_str = (U8 *)argv["); emit_i32(f, argi); f.write(" + _i], .count = strlen(argv["); emit_i32(f, argi); f.write(" + _i]), .cap = TIL_CAP_LIT});\n")
+                        f.write("        Str *_val = Str_clone(&(Str){.c_str = (void *)argv["); emit_i32(f, argi); f.write(" + _i], .count = strlen(argv["); emit_i32(f, argi); f.write(" + _i]), .cap = TIL_CAP_LIT});\n")
                     } else if p.explicit_type.eq("I64") {
                         f.write("        I64 *_val = cli_parse_i64(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("U8") {
@@ -5416,7 +5416,7 @@ emit_collection_helpers := proc(f: File) {
         if ci.is_vec.neq(0) {
             f.write("Vec *vec_of_"); f.write(et); f.write("(int count, ...) {\n")
             f.write("    USize _esz = sizeof("); f.write(et); f.write(");\n")
-            f.write("    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
+            f.write("    Vec *_v = Vec_new(&(Str){.c_str = (void *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
             cn := et.format("_clone")
@@ -5434,7 +5434,7 @@ emit_collection_helpers := proc(f: File) {
         } else {
             f.write("Array *array_of_"); f.write(et); f.write("(int count, ...) {\n")
             f.write("    USize _cap = count;\n")
-            f.write("    Array *_a = Array_new_type_name(&(Str){.c_str = (U8 *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_cap});\n")
+            f.write("    Array *_a = Array_new_type_name(&(Str){.c_str = (void *)\""); f.write(et); f.write("\", .count = "); emit_u64(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_cap});\n")
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
             f.write("        USize _idx = _i;\n")
