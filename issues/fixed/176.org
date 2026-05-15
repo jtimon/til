@@ -73,9 +73,18 @@ Symptom:
      ~src/c/ext.h~, ~I8~ is a typedef for C ~char~, so ~ref I8~ params
      emit ~I8 *~ (= ~char *~) and ~const I8 *~ (= ~const char *~) with
      the const-correct emission. No new primitive type is needed.
-     ~U8~ stays as ~unsigned char~ for raw byte buffers and the
-     callee-side cast helpers in ~src/self/builder.til~ bridge the two
-     where users pass ~Str.c_str~ (~U8 *~) into libc functions.
+
+   - Final state (post follow-ups): ~I8~ is a full first-class
+     primitive (~Type.I8~, scalar+FFI plumbing through typer / initer /
+     builder / dispatch), and ~Str.c_str~ itself is now ~I8 *~ (= C
+     ~char *~). The raylib / tinyfd char-pointer bindings declare
+     their string params as ~I8~ directly, and ~test/ext_libc.til~
+     binds libc ~setenv~ / ~getenv~ / ~unsetenv~ with ~const char *~
+     parameters end-to-end -- no wrappers, no per-call-site casts at
+     the til level. The ~c_str_to_i8~ / ~c_str_from_i8~ helpers from
+     the transitional U8/I8 bridge have been removed; ~U8~ is left
+     for genuine unsigned-byte buffers (~Color~ RGBA, ~Image~ data,
+     binary font output, etc.).
 
    - Const-correct C emission for the rest of the forward-decl paths:
      a follow-up commit pulled the top-level-ext_func filter inside

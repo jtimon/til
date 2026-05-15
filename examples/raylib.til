@@ -1,28 +1,17 @@
 mode script
 
-link("c_lib/raylib/src/libraylib.a")
-link("m")
-link("pthread")
-link("dl")
-link("rt")
+// Direct raylib FFI -- no companion .c needed. All bindings + the
+// link() calls come from `src/lib/raylib.til`; this file only wires a
+// render loop on top.
+import("lib/raylib")
 
-// Direct raylib FFI — no companion .c needed
-InitWindow := ext_proc(shallow w: I32, shallow h: I32, title: I8) {}
-WindowShouldClose := ext_func() returns shallow Bool {}
-BeginDrawing := ext_proc() {}
-EndDrawing := ext_proc() {}
-CloseWindow := ext_proc() {}
-ClearBackground := ext_proc(shallow color: U32) {}
-SetTargetFPS := ext_proc(shallow fps: I32) {}
-DrawRectangle := ext_proc(shallow x: I32, shallow y: I32, shallow w: I32, shallow h: I32, shallow color: U32) {}
-
-// Color: pack r,g,b,a bytes into U32 matching raylib's Color struct layout
-color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns U32 {
-    return r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)).to_u32()
+// Helper: build a Color struct from R/G/B/A in 0..255.
+color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns Color {
+    return Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8())
 }
 
-InitWindow(800, 450, "hello from til!".c_str)
-SetTargetFPS(60)
+InitWindow(800.to_i32(), 450.to_i32(), "hello from til!".c_str)
+SetTargetFPS(60.to_i32())
 
 black := color(0, 0, 0, 255)
 red := color(230, 41, 55, 255)
@@ -34,7 +23,7 @@ while WindowShouldClose().not() {
     y = y.add(1)
     BeginDrawing()
     ClearBackground(black)
-    DrawRectangle(x.to_i32(), y.to_i32(), 50, 50, red)
+    DrawRectangle(x.to_i32(), y.to_i32(), 50.to_i32(), 50.to_i32(), red)
     EndDrawing()
 }
 CloseWindow()

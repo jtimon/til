@@ -4,7 +4,7 @@
 
 #+begin_src til
 Str := struct {
-    own mut c_str : U8 = 0   # pointer to buffer
+    own mut c_str : I8 = 0   # pointer to buffer (C `char *`)
     mut count := 0           # content length in bytes
     mut cap := 0             # allocated capacity, or sentinel
 }
@@ -75,7 +75,7 @@ Clone always creates an owned copy regardless of source cap:
 
 #+begin_src til
 clone := func(val: Str) returns Str {
-    own new_data : U8 = malloc(val.count)
+    own new_data : I8 = malloc(val.count)
     memcpy(new_data, val.c_str, val.count)
     return Str(c_str = new_data, count = val.count, cap = val.count)
 }
