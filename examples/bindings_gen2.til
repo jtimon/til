@@ -330,9 +330,10 @@ emit_comment_line := func(mut out: Str, line: Str) {
     while i.lt(n) {
         ref b : I8 = line.byte_at(i)
         if is_ws(b).not() { break }
-        out.push_str(Str.from_byte(b))
         i = i.add(1)
     }
+    // Preserve the source's leading indent in the output.
+    if i.gt(0) { out.push_str(line.substr(0, i)) }
     if i.add(1).lt(n) {
         if line.byte_at(i).eq('/').and(line.byte_at(i.add(1)).eq('/')) {
             out.push_str(line.substr(i, n.sub(i)))
@@ -820,7 +821,9 @@ emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow en
             }
         }
         if handled.not() {
-            sig_no_blk.push_str(Str.from_byte(sig.byte_at(sk)))
+            // One-byte copy via substr view; no Str.from_byte (which still
+            // takes U8 while Str.c_str is I8 -- avoids the round-trip).
+            sig_no_blk.push_str(sig.substr(sk, 1))
             sk = sk.add(1)
         }
     }
