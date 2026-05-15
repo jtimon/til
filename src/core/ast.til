@@ -90,7 +90,6 @@ til_type_name_c := func(t: Type) returns Str {
     case Type.FuncPtr:   return "Fn"
     case Type.Dynamic:   return "Dynamic"
     case Type.Custom(name): return name.clone()
-    case: return "?"
     }
 }
 
@@ -417,7 +416,6 @@ func_type_variant_name := func(ft: FuncType) returns Str {
     case FuncType.Macro:   return "Macro"
     case FuncType.ExtFunc: return "ExtFunc"
     case FuncType.ExtProc: return "ExtProc"
-    case: return "?"
     }
 }
 
