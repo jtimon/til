@@ -19,6 +19,7 @@ import("self/interpreter")
 import("self/dispatch")
 import("lib/raylib")
 import("lib/tinyfd")
+link("lib/tinyfiledialogs/libtinyfd.a")
 
 link("dl")
 
