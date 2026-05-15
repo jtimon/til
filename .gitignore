@@ -1,6 +1,13 @@
 bin/
-gen/
+gen/*
 !doc/gen/
+# Temporary: keep the auto-generated bindings under git while
+# examples/bindings_libffi.til (and its raylib/tinyfd siblings, once we have
+# them) are still WIP, so progress is visible at HEAD. Remove this exception
+# once the generator output replaces the hand-written
+# src/lib/libffi.til / src/lib/raylib.til / src/lib/tinyfd.til (issue #203).
+!gen/bindings/
+!gen/bindings/**
 tmp/
 bots/local_memento/
 lib/raylib/src/libraylib.a

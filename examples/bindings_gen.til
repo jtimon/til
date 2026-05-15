@@ -186,14 +186,6 @@ DeclShape := struct {
     mut ptr_depth : I32 = 0
 }
 
-StructBlock := struct {
-    mut found := false
-    mut start : USize = 0
-    mut open : USize = 0
-    mut close : USize = 0
-    mut c_tag := ""
-}
-
 parse_decl_shape := func(code: Str, shallow has_name: Bool) returns DeclShape {
     mut norm := code.replace("\t", " ")
     norm = norm.replace("*", " * ")
@@ -203,7 +195,9 @@ parse_decl_shape := func(code: Str, shallow has_name: Bool) returns DeclShape {
     for tok : Str in toks0 {
         t := trim_ws(tok)
         if t.is_empty() { continue }
-        if t.eq("const").or(t.eq("volatile")).or(t.eq("register")).or(t.eq("static")) { continue }
+        if t.eq("const").or(t.eq("volatile")).or(t.eq("register")).or(t.eq("static"))
+        .or(t.eq("restrict")).or(t.eq("__restrict")).or(t.eq("__restrict__"))
+        .or(t.eq("inline")).or(t.eq("__inline")).or(t.eq("__inline__")) { continue }
         toks.push(own t.clone())
     }
     mut out := DeclShape()
@@ -243,18 +237,54 @@ map_c_base_to_til := func(base_in: Str) returns Str {
     if base.eq("unsigned char") { return "U8" }
     if base.eq("signed char") { return "I8" }
     if base.eq("short") { return "I16" }
+    if base.eq("short int") { return "I16" }
     if base.eq("unsigned short") { return "I16" }
+    if base.eq("unsigned short int") { return "I16" }
     if base.eq("int") { return "I32" }
     if base.eq("signed int") { return "I32" }
+    if base.eq("signed") { return "I32" }
     if base.eq("unsigned") { return "U32" }
     if base.eq("unsigned int") { return "U32" }
+    if base.eq("long") { return "I64" }
+    if base.eq("long int") { return "I64" }
+    if base.eq("long long") { return "I64" }
+    if base.eq("long long int") { return "I64" }
     if base.eq("unsigned long") { return "U64" }
+    if base.eq("unsigned long int") { return "U64" }
+    if base.eq("unsigned long long") { return "U64" }
     if base.eq("size_t") { return "USize" }
-    if base.eq("bool") { return "Bool" }
+    if base.eq("ssize_t") { return "I64" }
+    if base.eq("ptrdiff_t") { return "I64" }
+    if base.eq("intptr_t") { return "I64" }
+    if base.eq("uintptr_t") { return "U64" }
+    if base.eq("int8_t") { return "I8" }
+    if base.eq("uint8_t") { return "U8" }
+    if base.eq("int16_t") { return "I16" }
+    if base.eq("uint16_t") { return "U16" }
+    if base.eq("int32_t") { return "I32" }
+    if base.eq("uint32_t") { return "U32" }
+    if base.eq("int64_t") { return "I64" }
+    if base.eq("uint64_t") { return "U64" }
+    if base.eq("bool").or(base.eq("_Bool")) { return "Bool" }
     if base.eq("float") { return "F32" }
+    if base.eq("double") { return "F64" }
+    if base.eq("long double") { return "F64" }
+    // libffi conveniences (used by ffi_type's elements field and by params taking
+    // ffi_status / ffi_abi). These do not interfere with non-libffi headers.
     if base.eq("ffi_status") { return "I32" }
     if base.eq("ffi_abi") { return "I32" }
-    if base.eq("struct _ffi_type") { return "ffi_type" }
+    if base.eq("ffi_sarg") { return "I64" }
+    if base.eq("ffi_arg") { return "U64" }
+    if base.starts_with("struct ") {
+        return base.strip_prefix("struct ").clone()
+    }
+    if base.starts_with("enum ") {
+        return base.strip_prefix("enum ").clone()
+    }
+    if base.starts_with("union ") {
+        // til has no native union; opaque
+        return "Dynamic"
+    }
     return base.clone()
 }
 
@@ -262,190 +292,486 @@ til_type_default := func(type_name: Str) returns Str {
     if type_name.eq("Bool") { return "false" }
     if type_name.eq("Dynamic") { return "0" }
     if type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("I8"))
-    .or(type_name.eq("I16")).or(type_name.eq("I32")).or(type_name.eq("U32"))
-    .or(type_name.eq("U64")).or(type_name.eq("USize")).or(type_name.eq("F32")) {
+    .or(type_name.eq("I16")).or(type_name.eq("U16"))
+    .or(type_name.eq("I32")).or(type_name.eq("U32"))
+    .or(type_name.eq("U64")).or(type_name.eq("USize")).or(type_name.eq("UPtr"))
+    .or(type_name.eq("F32")).or(type_name.eq("F64")) {
         return "0"
     }
     return format(type_name, "()")
 }
 
-emit_field_decl := func(mut out: Str, code_line: Str) {
+// True iff `name` would clash with a til keyword if emitted as a binding name.
+is_til_keyword := func(name: Str) returns Bool {
+    return name.eq("type").or(name.eq("mut")).or(name.eq("ref")).or(name.eq("own"))
+        .or(name.eq("shallow")).or(name.eq("priv")).or(name.eq("func")).or(name.eq("proc"))
+        .or(name.eq("struct")).or(name.eq("enum")).or(name.eq("return")).or(name.eq("returns"))
+        .or(name.eq("if")).or(name.eq("else")).or(name.eq("while")).or(name.eq("for"))
+        .or(name.eq("break")).or(name.eq("continue")).or(name.eq("in")).or(name.eq("mode"))
+        .or(name.eq("import")).or(name.eq("link"))
+}
+
+// Parse a single (already comma-split, semicolon-stripped) field code and write the
+// matching til declaration into `out`. Returns false on patterns we don't support
+// (arrays, name collisions with til keywords, etc). On false, `out` is left unchanged.
+emit_one_field := func(mut out: Str, code_in: Str, comment_in: Str) returns Bool {
+    code := trim_ws(code_in)
+    if code.is_empty() { return true }
+    if code.contains("[") { return false }
+    if code.contains("(*") { return false }  // function pointer field
+    decl := parse_decl_shape(code, true)
+    if decl.name.is_empty() { return false }
+    if is_til_keyword(decl.name) { return false }
+    type_name := map_c_base_to_til(decl.base)
+    mut line := Str.with_capacity(1024)
+    line.push_str("    ")
+    if decl.ptr_depth.eq(0) {
+        line.push_str("mut ")
+        line.push_str(decl.name)
+        line.push_str(" : ")
+        line.push_str(type_name)
+        line.push_str(" = ")
+        line.push_str(til_type_default(type_name))
+    } else if decl.ptr_depth.eq(1).and(decl.base.eq("void")) {
+        line.push_str("mut ")
+        line.push_str(decl.name)
+        line.push_str(" : Dynamic = 0")
+    } else if decl.ptr_depth.eq(1) {
+        line.push_str("ref mut ")
+        line.push_str(decl.name)
+        line.push_str(" : ")
+        line.push_str(type_name)
+        line.push_str(" = NULL")
+    } else {
+        line.push_str("ref mut ")
+        line.push_str(decl.name)
+        line.push_str(" : Dynamic = NULL")
+    }
+    if comment_in.is_empty().not() {
+        line.push_str(" ")
+        line.push_str(normalize_comment_line(comment_in))
+    }
+    line.push_str("\n")
+    out.push_str(line)
+    return true
+}
+
+// Emit one or more fields from a single C field declaration line, supporting
+// the multi-var form `float m0, m4, m8, m12;`. Returns false if any sub-field
+// fails (so the caller can fall back to an opaque struct).
+emit_field_line := func(mut out: Str, code_line: Str) returns Bool {
     mut code := ""
     mut comment := ""
     split_slash_comment(code_line, code, comment)
     code = trim_ws(code)
-    if code.is_empty() { return }
+    if code.is_empty() { return true }
     code = strip_block_comments(code)
     code = code.strip_suffix(";")
-    if code.contains("[") {
-        panic(__LOC__, "array fields are not supported yet in bindings generator: ", code)
+    if code.is_empty() { return true }
+    if code.contains("[") { return false }
+    if code.contains("(") { return false }  // function pointer field, union member, etc.
+
+    // Comma-separated multi-var fields share the same base type and pointer
+    // prefix only when the trailing tokens are bare names; `int *a, b` would
+    // mean `int *a; int b;`, which we don't try to disentangle.
+    if code.contains(",") {
+        parts := code.split(",")
+        if parts.len().eq(0) { return true }
+        first := trim_ws(parts.get(0))
+        first_shape := parse_decl_shape(first, true)
+        if first_shape.name.is_empty() { return false }
+        if first_shape.ptr_depth.neq(0) { return false }
+        if emit_one_field(out, first, comment).not() { return false }
+        for i in 1..parts.len() {
+            ref part : Str = parts.get(i)
+            var_name := trim_ws(part)
+            if var_name.is_empty() { continue }
+            if var_name.contains("*") { return false }
+            synthetic := format(first_shape.base, " ", var_name)
+            if emit_one_field(out, synthetic, "").not() { return false }
+        }
+        return true
     }
-    decl := parse_decl_shape(code, true)
-    type_name := map_c_base_to_til(decl.base)
-    out.push_str("    ")
-    if decl.ptr_depth.eq(0) {
-        out.push_str("mut ")
-        out.push_str(decl.name)
-        out.push_str(" : ")
-        out.push_str(type_name)
-        out.push_str(" = ")
-        out.push_str(til_type_default(type_name))
-    } else if decl.ptr_depth.eq(1).and(decl.base.eq("void")) {
-        out.push_str("mut ")
-        out.push_str(decl.name)
-        out.push_str(" : Dynamic = 0")
-    } else if decl.ptr_depth.eq(1) {
-        out.push_str("ref mut ")
-        out.push_str(decl.name)
-        out.push_str(" : ")
-        out.push_str(type_name)
-        out.push_str(" = NULL")
-    } else {
-        out.push_str("ref mut ")
-        out.push_str(decl.name)
-        out.push_str(" : Dynamic = NULL")
-    }
-    if comment.is_empty().not() {
-        out.push_str(" ")
-        out.push_str(normalize_comment_line(comment))
-    }
-    out.push_str("\n")
+
+    return emit_one_field(out, code, comment)
 }
 
-find_struct_block := func(lines: Vec, name: Str) returns StructBlock {
-    mut out := StructBlock()
-    mut in_struct := false
-    mut start : USize = 0
-    mut open : USize = 0
-    mut tag := ""
-    for i in 0..lines.len() {
+// Locate the brace-open line index for the struct typedef starting at `start`.
+// Returns `start` if no brace is found on `start` itself or on subsequent
+// blank/comment lines (caller treats that as failure).
+find_struct_open := func(lines: Vec, shallow start: USize) returns USize {
+    ref first : Str = lines.get(start)
+    tfirst := trim_ws(first)
+    if tfirst.contains("{") { return start }
+    mut j := start.add(1)
+    while j.lt(lines.len()) {
+        ref line : Str = lines.get(j)
+        tj := trim_ws(line)
+        if tj.contains("{") { return j }
+        if tj.is_empty().or(is_comment_line(tj)) { j = j.add(1); continue }
+        return start
+    }
+    return start
+}
+
+// Extract the C struct tag from the typedef header line into `tag_out`. The
+// tag, if present, sits between `typedef struct` and `{`. The brace might live
+// on `start` or any later line up to `open`. Out-parameter form (see comment
+// on extract_struct_name for the rationale).
+extract_struct_tag := func(lines: Vec, shallow start: USize, shallow open: USize) returns Str {
+    mut acc := ""
+    for i in start..open.add(1) {
         ref line : Str = lines.get(i)
         t := trim_ws(line)
-        if in_struct.not() {
-            if t.starts_with("typedef struct") {
-                if t.contains(";").and(t.contains("{").not()) { continue }
-                in_struct = true
-                start = i
-                open = i
-                tag = trim_ws(t.strip_prefix("typedef struct"))
-                if tag.ends_with("{") {
-                    tag = trim_ws(tag.strip_suffix("{"))
-                }
+        mut piece := t.clone()
+        if i.eq(start) {
+            if piece.starts_with("typedef struct") {
+                piece = trim_ws(piece.strip_prefix("typedef struct"))
             }
-            continue
         }
-
-        if t.contains("{") { open = i }
-        if t.starts_with("}") {
-            if t.contains(format("} ", name, ";")) {
-                out.found = true
-                out.start = start
-                out.open = open
-                out.close = i
-                out.c_tag = tag.clone()
-                return out
-            }
-            in_struct = false
-            tag = ""
+        brace := piece.find("{")
+        if brace.neq(-1) {
+            piece = trim_ws(piece.substr(0, brace.to_usize()))
         }
+        if piece.is_empty().not() {
+            if acc.is_empty() { acc = piece.clone() }
+            else { acc = format(acc, " ", piece) }
+        }
+        if brace.neq(-1) { break }
     }
-    return out
+    return acc
 }
 
-emit_struct_decl := func(mut out: Str, lines: Vec, name: Str) {
-    block := find_struct_block(lines, name)
-    if block.found.not() {
-        panic(__LOC__, "struct not found: ", name)
+// Extract the typedef name from the `} NAME;` close line. The close line may
+// also carry attribute decorations between `}` and the name (`} __attribute__((aligned)) NAME;`).
+// Extract struct typedef name into out-parameter. Mirrors split_slash_comment's
+// pattern (mut out-params) since returning owned Str across function boundaries
+// can corrupt the buffer in current til when callers also pass the value
+// through other helpers before using it.
+extract_struct_name := func(close_line: Str) returns Str {
+    t := trim_ws(close_line)
+    if t.starts_with("}").and(t.ends_with(";")).not() { return "" }
+    inner := trim_ws(t.strip_prefix("}").strip_suffix(";"))
+    ws := inner.rfind(" ")
+    if ws.eq(-1) { return inner.clone() }
+    return inner.substr(ws.to_usize().add(1), inner.len().sub(ws.to_usize().add(1))).clone()
+}
+
+// Find the line index of the `} NAME;` close for the brace block opened on
+// `open`. Returns `open` on failure (no balanced close found before EOF).
+find_struct_close := func(lines: Vec, shallow open: USize) returns USize {
+    mut depth : I32 = 1
+    mut i := open.add(1)
+    while i.lt(lines.len()) {
+        ref line : Str = lines.get(i)
+        t := trim_ws(line)
+        mut k : USize = 0
+        while k.lt(t.len()) {
+            ref c : U8 = t.byte_at(k)
+            if c.eq('{') { depth = depth.add(1) }
+            else if c.eq('}') {
+                depth = depth.sub(1)
+                if depth.eq(0) { return i }
+            }
+            k = k.add(1)
+        }
+        i = i.add(1)
     }
-    comments := collect_comments_before(lines, block.start)
+    return open
+}
+
+// True if every field line in the struct body can be parsed into a til
+// declaration. Pre-pass so we can decide between a full struct emit and an
+// opaque ext_struct fallback BEFORE touching `out`. Cheaply scans the raw
+// line bytes; nothing fancier than `[` and `(` rejection is needed because
+// emit_field_line uses the same heuristics.
+can_parse_all_fields := func(lines: Vec, shallow open: USize, shallow close: USize) returns Bool {
+    for i in open.add(1)..close {
+        ref line : Str = lines.get(i)
+        // Use the raw line for the cheap byte scan; no per-line allocation.
+        // Trailing/leading whitespace and `;`/comments do not contain `[` or
+        // `(`, so we don't need to strip them first.
+        if line.contains("[") { return false }
+        // `(` only appears in field decls for function-pointer fields and the
+        // (`(*name)(args)` shape) -- both unsupported, both correctly rejected.
+        if line.contains("(") { return false }
+    }
+    return true
+}
+
+// Emit a struct typedef block (best-effort, with opaque-struct fallback when
+// any field is unrepresentable). Returns the line index *past* the block on
+// success, or `start` on failure (so the walker can advance by one and try the
+// next line).
+//
+// We emit the struct header (`Name := ...{`) immediately after extracting the
+// name and tag, BEFORE iterating fields. Earlier versions buffered fields into
+// a tmp Str first, but the buffering pattern paired with the strings returned
+// from extract_struct_name / extract_struct_tag triggers buffer corruption in
+// the current til runtime (the returned Str's heap location ends up
+// overwritten by subsequent allocations on the same path). Writing header +
+// fields straight to `out` sidesteps that.
+try_emit_struct_block := proc(mut out: Str, lines: Vec, shallow start: USize) returns USize {
+    // print_flush() satisfies the proc-requires-proc-call check without
+    // producing visible output. Without `proc`, the current til runtime
+    // hangs on this function -- the func variant generates broken code paths
+    // that loop indefinitely on real inputs.
+    print_flush()
+    open := find_struct_open(lines, start)
+    if open.eq(start).and(open.lt(lines.len())) {
+        ref first : Str = lines.get(start)
+        if trim_ws(first).contains("{").not() { return start }
+    }
+    close := find_struct_close(lines, open)
+    if close.eq(open) { return start }
+    // Use views (substr without clone) and immediate emit so we never store a
+    // heap-allocated Str across other function calls. Locals carrying owned
+    // clones produced by helper functions can end up corrupted before later
+    // use under the current runtime (see history in this file).
+    ref close_line : Str = lines.get(close)
+    cl_len := close_line.len()
+    // Trim leading/trailing whitespace by index.
+    mut cl_left : USize = 0
+    while cl_left.lt(cl_len) {
+        ref c : U8 = close_line.byte_at(cl_left)
+        if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq('\n')).not() { break }
+        cl_left = cl_left.add(1)
+    }
+    mut cl_right := cl_len
+    while cl_right.gt(cl_left) {
+        ref c : U8 = close_line.byte_at(cl_right.sub(1))
+        if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq('\n')).not() { break }
+        cl_right = cl_right.sub(1)
+    }
+    if cl_left.gte(cl_right) { return start }
+    if close_line.byte_at(cl_left).neq('}') { return start }
+    if close_line.byte_at(cl_right.sub(1)).neq(';') { return start }
+    // Name lives between `}` (skip ws) and the trailing `;`. Within that range,
+    // grab the LAST whitespace-separated token (`} attr Name;` shape).
+    mut name_token_start := cl_left.add(1)
+    while name_token_start.lt(cl_right) {
+        ref c : U8 = close_line.byte_at(name_token_start)
+        if c.eq(' ').or(c.eq('\t')).not() { break }
+        name_token_start = name_token_start.add(1)
+    }
+    mut k := name_token_start
+    while k.lt(cl_right.sub(1)) {
+        ref c : U8 = close_line.byte_at(k)
+        if c.eq(' ') { name_token_start = k.add(1) }
+        k = k.add(1)
+    }
+    name_len := cl_right.sub(1).sub(name_token_start)
+    if name_len.eq(0) { return start }
+    // is_til_keyword needs a Str arg. Construct a view (no allocation).
+    name_view := close_line.substr(name_token_start, name_len)
+    if is_til_keyword(name_view) { return close.add(1) }
+
+    // Tag extraction: scan the header line (which contains `typedef struct
+    // [TAG] `{`) for the bytes between "typedef struct" and `{`. For multi-
+    // line cases (brace on a later line) we'd need to splice the tag across
+    // lines; in practice all real-world headers we generate against fit on a
+    // single line, and emitting an empty tag is harmless if not.
+    ref start_line : Str = lines.get(start)
+    sl_len := start_line.len()
+    mut sl_left : USize = 0
+    while sl_left.lt(sl_len) {
+        ref c : U8 = start_line.byte_at(sl_left)
+        if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq('\n')).not() { break }
+        sl_left = sl_left.add(1)
+    }
+    sl_marker := "typedef struct"
+    marker_end := sl_left.add(sl_marker.len())
+    mut have_tag := false
+    mut tag_start : USize = 0
+    mut tag_end : USize = 0
+    if marker_end.lt(sl_len) {
+        prefix_view := start_line.substr(sl_left, sl_marker.len())
+        if prefix_view.eq(sl_marker) {
+            // Skip whitespace after "typedef struct".
+            mut p := marker_end
+            while p.lt(sl_len) {
+                ref c : U8 = start_line.byte_at(p)
+                if c.eq(' ').or(c.eq('\t')).not() { break }
+                p = p.add(1)
+            }
+            tag_start = p
+            // Tag runs up to `{` or end of line. Note: open may live on a
+            // later line; in that case there is no `{` here and we still take
+            // everything to end-of-line as the tag.
+            mut q := tag_start
+            while q.lt(sl_len) {
+                ref c : U8 = start_line.byte_at(q)
+                if c.eq('{') { break }
+                q = q.add(1)
+            }
+            tag_end = q
+            // Trim trailing ws on the tag.
+            while tag_end.gt(tag_start) {
+                ref c : U8 = start_line.byte_at(tag_end.sub(1))
+                if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq('\n')).not() { break }
+                tag_end = tag_end.sub(1)
+            }
+            if tag_end.gt(tag_start) { have_tag = true }
+        }
+    }
+    mut tag_len : USize = 0
+    if have_tag { tag_len = tag_end.sub(tag_start) }
+
+    mut all_ok := true
+    for i in open.add(1)..close {
+        ref line : Str = lines.get(i)
+        if line.contains("[") { all_ok = false; break }
+        if line.contains("(") { all_ok = false; break }
+    }
+
+    comments := collect_comments_before(lines, start)
     if comments.len().gt(0) { emit_comment_lines(out, comments) }
-    if block.c_tag.eq("") {
-        out.push_str(name)
-        out.push_str(" := ext_struct(\"\") {\n")
-    } else if block.c_tag.eq(name) {
-        out.push_str(name)
-        out.push_str(" := struct {\n")
-    } else {
-        out.push_str(name)
+
+    // Helper-free header emit: push_str copies bytes immediately, so the views
+    // into close_line / start_line stay valid for the duration of the call.
+    if all_ok.not() {
+        out.push_str(close_line.substr(name_token_start, name_len))
+        if have_tag.not() {
+            out.push_str(" := ext_struct(\"\") {}  // opaque: unsupported field shape\n\n")
+            return close.add(1)
+        }
         out.push_str(" := ext_struct(\"")
-        out.push_str(block.c_tag)
-        out.push_str("\") {\n")
+        out.push_str(start_line.substr(tag_start, tag_len))
+        out.push_str("\") {}  // opaque: unsupported field shape\n\n")
+        return close.add(1)
     }
-    for i in block.open.add(1)..block.close {
+
+    // Header
+    out.push_str(close_line.substr(name_token_start, name_len))
+    if have_tag.not() {
+        out.push_str(" := ext_struct(\"\") {\n")
+    } else {
+        // Tag-equals-name detection: byte-compare. If equal, use `struct {`;
+        // otherwise `ext_struct("tag") {`. This avoids allocating to compare.
+        mut same := true
+        if tag_len.neq(name_len) {
+            same = false
+        } else {
+            mut m : USize = 0
+            while m.lt(name_len) {
+                if close_line.byte_at(name_token_start.add(m)).neq(start_line.byte_at(tag_start.add(m))) {
+                    same = false
+                    break
+                }
+                m = m.add(1)
+            }
+        }
+        if same {
+            out.push_str(" := struct {\n")
+        } else {
+            out.push_str(" := ext_struct(\"")
+            out.push_str(start_line.substr(tag_start, tag_len))
+            out.push_str("\") {\n")
+        }
+    }
+    // Fields go straight to out. Anything that fails here would have been
+    // caught by the pre-pass above.
+    for i in open.add(1)..close {
         ref line : Str = lines.get(i)
         t := trim_ws(line)
         if t.is_empty() { continue }
         if is_comment_line(t) {
-            emit_comment_lines(out, vec("Str", t), "    ")
+            mut single := Vec.new(Str)
+            single.push(own t.clone())
+            emit_comment_lines(out, single, "    ")
             continue
         }
-        emit_field_decl(out, line)
+        emit_field_line(out, line)
     }
     out.push_str("}\n\n")
+    return close.add(1)
 }
 
-emit_forward_struct_decl := func(mut out: Str, lines: Vec, name: Str) {
-    needle := format("typedef struct ", name, " ", name, ";")
-    for i in 0..lines.len() {
-        ref line : Str = lines.get(i)
-        t := trim_ws(line)
-        if t.eq(needle) {
-            comments := collect_comments_before(lines, i)
-            if comments.len().gt(0) { emit_comment_lines(out, comments) }
-            out.push_str(name)
-            out.push_str(" := ext_struct(\"")
-            out.push_str(name)
-            out.push_str("\") {}\n\n")
-            return
-        }
+// Forward struct typedef: `typedef struct X X;`
+emit_forward_struct := func(mut out: Str, lines: Vec, shallow start: USize, line_text: Str) returns Bool {
+    t := trim_ws(line_text)
+    inner := trim_ws(t.strip_prefix("typedef struct").strip_suffix(";"))
+    sp := inner.find(" ")
+    if sp.eq(-1) { return false }
+    tag := trim_ws(inner.substr(0, sp.to_usize()))
+    alias := trim_ws(inner.substr(sp.to_usize().add(1), inner.len().sub(sp.to_usize().add(1))))
+    if alias.is_empty().or(is_til_keyword(alias)) { return false }
+    comments := collect_comments_before(lines, start)
+    if comments.len().gt(0) { emit_comment_lines(out, comments) }
+    out.push_str(alias)
+    out.push_str(" := ext_struct(\"")
+    out.push_str(tag)
+    out.push_str("\") {}\n\n")
+    return true
+}
+
+// Single-line typedef alias `typedef BASE NAME;`. Skips function-pointer
+// typedefs, multi-arg typedefs, and any shape we can't reduce to `NAME := BASE`.
+emit_alias_line := func(mut out: Str, lines: Vec, shallow start: USize, line_text: Str) returns Bool {
+    t := trim_ws(line_text)
+    if t.starts_with("typedef struct ").or(t.starts_with("typedef enum "))
+    .or(t.starts_with("typedef union ")) {
+        return false
     }
-    panic(__LOC__, "forward struct not found: ", name)
-}
-
-emit_alias_decl := func(mut out: Str, lines: Vec, alias_name: Str) {
-    needle := format(" ", alias_name, ";")
-    for i in 0..lines.len() {
-        ref line : Str = lines.get(i)
-        mut code_part := ""
-        mut comment_part := ""
-        split_slash_comment(line, code_part, comment_part)
-        if comment_part.is_empty() { }
-        t := trim_ws(code_part)
-        if t.starts_with("typedef ").and(t.contains(needle))
-        .and(t.starts_with("typedef struct").not()).and(t.starts_with("typedef enum").not()) {
-            code := t.strip_prefix("typedef ").strip_suffix(";")
-            shape := parse_decl_shape(code, true)
-            if shape.name.eq(alias_name) {
-                comments := collect_comments_before(lines, i)
-                if comments.len().gt(0) { emit_comment_lines(out, comments) }
-                out.push_str(alias_name)
-                out.push_str(" := ")
-                out.push_str(map_c_base_to_til(shape.base))
-                out.push_str("\n\n")
-                return
-            }
-        }
+    if t.contains("(") { return false }  // function pointer typedef
+    body := t.strip_prefix("typedef ").strip_suffix(";")
+    shape := parse_decl_shape(body, true)
+    if shape.name.is_empty() { return false }
+    if is_til_keyword(shape.name) { return false }
+    if shape.base.is_empty() { return false }
+    comments := collect_comments_before(lines, start)
+    if comments.len().gt(0) { emit_comment_lines(out, comments) }
+    if shape.ptr_depth.eq(0) {
+        til_base := map_c_base_to_til(shape.base)
+        out.push_str(shape.name)
+        out.push_str(" := ")
+        out.push_str(til_base)
+        out.push_str("\n\n")
+    } else {
+        // Pointer typedefs become opaque (Dynamic) since til has no first-class
+        // pointer-alias type.
+        out.push_str(shape.name)
+        out.push_str(" := Dynamic\n\n")
     }
-    panic(__LOC__, "alias not found: ", alias_name)
+    return true
 }
 
-parse_type_only := func(type_code: Str) returns DeclShape {
-    return parse_decl_shape(type_code, false)
+// Function-pointer typedef: `typedef RET (*NAME)(ARGS);`. Emit as Dynamic alias.
+emit_fnptr_typedef := func(mut out: Str, lines: Vec, shallow start: USize, line_text: Str) returns Bool {
+    t := trim_ws(line_text)
+    if t.starts_with("typedef ").not() { return false }
+    if t.contains("(*").not() { return false }
+    after := t.substr(t.find("(*").to_usize().add(2), t.len().sub(t.find("(*").to_usize().add(2)))
+    end := after.find(")")
+    if end.eq(-1) { return false }
+    name := trim_ws(after.substr(0, end.to_usize()))
+    if name.is_empty().or(is_til_keyword(name)) { return false }
+    comments := collect_comments_before(lines, start)
+    if comments.len().gt(0) { emit_comment_lines(out, comments) }
+    out.push_str(name)
+    out.push_str(" := Dynamic\n\n")
+    return true
 }
 
-emit_param_decl := func(mut out: Str, param_code: Str) {
+// Render one parameter declaration into `out`. Returns false on shapes we don't
+// support; callers may then bail out of the whole function signature.
+emit_param_decl := func(mut out: Str, param_code: Str) returns Bool {
     code := strip_block_comments(trim_ws(param_code))
-    if code.eq("void") { return }
+    if code.eq("void").or(code.is_empty()) { return true }
+    if code.eq("...") { return false }  // variadic
+    if code.contains("[") { return false }
     if code.contains("(*") {
         rest := code.substr(code.find("(*").to_usize().add(2), code.len().sub(code.find("(*").to_usize().add(2)))
         end := rest.find(")")
-        if end.eq(-1) { panic(__LOC__, "bad function pointer parameter: ", code) }
-        name := rest.substr(0, end.to_usize())
+        if end.eq(-1) { return false }
+        name := trim_ws(rest.substr(0, end.to_usize()))
+        if name.is_empty().or(is_til_keyword(name)) { return false }
         out.push_str(name)
         out.push_str(" : Dynamic")
-        return
+        return true
     }
     decl := parse_decl_shape(code, true)
+    if decl.name.is_empty().or(is_til_keyword(decl.name)) { return false }
     type_name := map_c_base_to_til(decl.base)
     if decl.ptr_depth.eq(0) {
         out.push_str("shallow ")
@@ -463,36 +789,15 @@ emit_param_decl := func(mut out: Str, param_code: Str) {
         out.push_str(decl.name)
         out.push_str(" : Dynamic")
     }
+    return true
 }
 
-emit_function_decl := func(mut out: Str, lines: Vec, fn_name: Str) {
-    mut start : USize = 0
-    mut found := false
-    for i in 0..lines.len() {
-        ref line : Str = lines.get(i)
-        if line.contains(format(fn_name, "(")) {
-            start = i
-            found = true
-            break
-        }
-    }
-    if found.not() { panic(__LOC__, "function not found: ", fn_name) }
-
-    while start.gt(0) {
-        ref prev : Str = lines.get(start.sub(1))
-        tprev := trim_ws(prev)
-        if tprev.eq("RLAPI").or(tprev.eq("FFI_API")).or(tprev.eq("extern")) {
-            start = start.sub(1)
-        } else {
-            break
-        }
-    }
-
+// Function declaration spanning lines [start, end] (end is the line containing `);`).
+emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow end: USize) returns Bool {
     comments := collect_comments_before(lines, start)
     mut code := ""
     mut inline_comment := ""
-    mut end := start
-    for i in start..lines.len() {
+    for i in start..end.add(1) {
         ref line2 : Str = lines.get(i)
         mut code_part := ""
         mut comment_part := ""
@@ -503,51 +808,68 @@ emit_function_decl := func(mut out: Str, lines: Vec, fn_name: Str) {
             if code.is_empty() { code = tcode }
             else { code = format(code, " ", tcode) }
         }
-        if line2.contains(");") {
-            end = i
-            break
-        }
     }
     trailing := collect_comments_after(lines, end)
-    if comments.len().gt(0) { emit_comment_lines(out, comments) }
-    if inline_comment.is_empty().not() { emit_comment_lines(out, vec("Str", "// ".concat(inline_comment))) }
-    if trailing.len().gt(0) { emit_comment_lines(out, trailing) }
 
     code = strip_block_comments(code)
-    code = code.replace("RLAPI ", "")
-    code = code.replace("FFI_API ", "")
-    code = code.replace("extern ", "")
+    // Strip common attribute / API decoration macros so parse_decl_shape only
+    // sees the return type + function name. These pass through the
+    // preprocessor when they aren't expanded (e.g. when generation runs against
+    // the unpreprocessed header) or when -dD keeps the #defines alive.
+    mut deco := vec("Str",
+        "RLAPI", "FFI_API", "FFI_EXTERN",
+        "extern \"C\"", "extern",
+        "__cdecl", "__stdcall", "__fastcall",
+        "__attribute__((deprecated))", "__attribute__((noreturn))")
+    for d : Str in deco {
+        code = code.replace(format(d, " "), "")
+    }
     code = collapse_spaces(code).strip_suffix(";")
+    if code.contains("(").not() { return false }
 
     open := code.find("(")
     close := code.rfind(")")
-    if open.eq(-1).or(close.eq(-1)) { panic(__LOC__, "bad function declaration: ", code) }
+    if open.eq(-1).or(close.eq(-1)) { return false }
     before := trim_ws(code.substr(0, open.to_usize()))
     params := code.substr(open.to_usize().add(1), close.to_usize().sub(open.to_usize()).sub(1))
     fn_decl := parse_decl_shape(before, true)
+    if fn_decl.name.is_empty().or(is_til_keyword(fn_decl.name)) { return false }
+    // Function pointer return types (e.g. `void (*foo(int))(int)`) we can't represent.
+    if fn_decl.name.contains("(") { return false }
     ret_text := trim_ws(before.strip_suffix(fn_decl.name))
-    ret_decl := parse_type_only(ret_text)
+    ret_decl := parse_decl_shape(ret_text, false)
     ret_type := map_c_base_to_til(ret_decl.base)
 
-    if ret_decl.ptr_depth.eq(0).and(ret_decl.base.eq("void")) {
-        out.push_str(fn_name)
-        out.push_str(" := ext_proc(")
-    } else {
-        out.push_str(fn_name)
-        out.push_str(" := ext_func(")
-    }
-
+    // Render params into a tmp buffer first so a failure mid-signature doesn't
+    // dribble half a declaration into the output.
+    mut params_buf := Str.with_capacity(2048)
     param_parts := params.split(",")
     mut emitted := false
     for param_part : Str in param_parts {
         ptrim := trim_ws(param_part)
         if ptrim.eq("void").or(ptrim.is_empty()) { continue }
-        if emitted { out.push_str(", ") }
-        emit_param_decl(out, ptrim)
+        if emitted { params_buf.push_str(", ") }
+        if emit_param_decl(params_buf, ptrim).not() { return false }
         emitted = true
     }
-    out.push_str(")")
 
+    if comments.len().gt(0) { emit_comment_lines(out, comments) }
+    if inline_comment.is_empty().not() {
+        mut single := Vec.new(Str)
+        single.push(own "// ".concat(inline_comment))
+        emit_comment_lines(out, single)
+    }
+    if trailing.len().gt(0) { emit_comment_lines(out, trailing) }
+
+    if ret_decl.ptr_depth.eq(0).and(ret_decl.base.eq("void")) {
+        out.push_str(fn_decl.name)
+        out.push_str(" := ext_proc(")
+    } else {
+        out.push_str(fn_decl.name)
+        out.push_str(" := ext_func(")
+    }
+    out.push_str(params_buf)
+    out.push_str(")")
     if ret_decl.ptr_depth.eq(0).and(ret_decl.base.eq("void")).not() {
         if ret_decl.ptr_depth.eq(0) {
             out.push_str(" returns shallow ")
@@ -561,7 +883,8 @@ emit_function_decl := func(mut out: Str, lines: Vec, fn_name: Str) {
             out.push_str(" returns Dynamic")
         }
     }
-    out.push_str(" {}\n\n")
+    out.push_str(" {}\n")
+    return true
 }
 
 parse_hex := func(s: Str) returns I64 {
@@ -580,6 +903,40 @@ parse_hex := func(s: Str) returns I64 {
     return val
 }
 
+is_int_literal := func(s: Str) returns Bool {
+    if s.is_empty() { return false }
+    mut start : USize = 0
+    if s.byte_at(0).eq('-').or(s.byte_at(0).eq('+')) { start = 1 }
+    if start.gte(s.len()) { return false }
+    if s.starts_with("0x").or(s.starts_with("0X")).or(s.starts_with("-0x")) { return true }
+    mut i := start
+    while i.lt(s.len()) {
+        ref c : U8 = s.byte_at(i)
+        if c.gte('0').and(c.lte('9')).not() {
+            if c.eq('L').or(c.eq('l')).or(c.eq('U')).or(c.eq('u')) {
+                // C integer suffix, stop here
+                return true
+            }
+            return false
+        }
+        i = i.add(1)
+    }
+    return true
+}
+
+strip_int_suffix := func(s: Str) returns Str {
+    mut end := s.len()
+    while end.gt(0) {
+        ref c : U8 = s.byte_at(end.sub(1))
+        if c.eq('L').or(c.eq('l')).or(c.eq('U')).or(c.eq('u')) {
+            end = end.sub(1)
+        } else {
+            break
+        }
+    }
+    return s.substr(0, end).clone()
+}
+
 lookup_const_value := func(names: Vec, vals: Vec, key: Str) returns I64 {
     for i in 0..names.len() {
         ref name : Str = names.get(i)
@@ -592,17 +949,35 @@ lookup_const_value := func(names: Vec, vals: Vec, key: Str) returns I64 {
     return 0
 }
 
-eval_const_expr := func(expr_in: Str, names: Vec, vals: Vec) returns I64 {
+// `success` is set false on unknown identifiers / shapes; callers must check it.
+eval_const_expr := func(expr_in: Str, names: Vec, vals: Vec, mut success: Bool) returns I64 {
     expr := trim_ws(expr_in)
-    if expr.starts_with("0x").or(expr.starts_with("0X")) { return parse_hex(expr) }
+    success = true
+    if expr.is_empty() { success = false; return 0 }
+    if expr.starts_with("0x").or(expr.starts_with("0X")) { return parse_hex(strip_int_suffix(expr)) }
+    if expr.starts_with("-0x").or(expr.starts_with("-0X")) {
+        return 0.sub(parse_hex(strip_int_suffix(expr.substr(1, expr.len().sub(1)))))
+    }
     ref first : U8 = expr.get(0)
-    if first.eq('-') { return 0.sub(eval_const_expr(expr.substr(1, expr.len().sub(1)), names, vals)) }
-    if first.gte('0').and(first.lte('9')) { return expr.to_i64() }
-    if expr.eq("FFI_UNIX64") { return 2 }
-    if expr.eq("FFI_WIN64") { return 3 }
-    if expr.eq("FFI_EFI64") { return 3 }
-    if expr.eq("FFI_GNUW64") { return 4 }
-    return lookup_const_value(names, vals, expr)
+    if first.eq('-') {
+        mut sub_ok := true
+        v := eval_const_expr(expr.substr(1, expr.len().sub(1)), names, vals, sub_ok)
+        if sub_ok.not() { success = false; return 0 }
+        return 0.sub(v)
+    }
+    if first.gte('0').and(first.lte('9')) {
+        return strip_int_suffix(expr).to_i64()
+    }
+    // identifier: must be a previously-seen enum member.
+    for i in 0..names.len() {
+        ref name : Str = names.get(i)
+        if name.eq(expr) {
+            ref value : I64 = vals.get(i)
+            return value.clone()
+        }
+    }
+    success = false
+    return 0
 }
 
 emit_typed_const := func(mut out: Str, name: Str, shallow value: I64, type_name: Str) {
@@ -620,357 +995,317 @@ emit_typed_const := func(mut out: Str, name: Str, shallow value: I64, type_name:
     if type_name.eq("I32") { out.push_str(".to_i32()") }
     else if type_name.eq("U32") { out.push_str(".to_u32()") }
     else if type_name.eq("I16") { out.push_str(".to_i16()") }
+    else if type_name.eq("U16") { out.push_str(".to_u16()") }
     else if type_name.eq("U64") { out.push_str(".to_u64()") }
     out.push_str("\n")
 }
 
-emit_enum_member := func(mut out: Str, lines: Vec, enum_name: Str, member_name: Str, type_name: Str) {
-    mut in_enum := false
+// Emit every member of a `typedef enum [tag] { ... } NAME;` block as a typed
+// I32 constant. Returns true unconditionally (skips members it can't evaluate).
+emit_enum_block := func(mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns Bool {
+    comments := collect_comments_before(lines, start)
+    if comments.len().gt(0) { emit_comment_lines(out, comments) }
     mut names := Vec.new(Str)
     mut vals := Vec.new(I64)
-    mut next_val := 0
-    for i in 0..lines.len() {
+    mut next_val : I64 = 0
+    mut wrote_any := false
+    for i in open.add(1)..close {
         ref line : Str = lines.get(i)
         t := trim_ws(line)
-        if in_enum.not() {
-            if t.starts_with("typedef enum").and(t.contains("{")) {
-                if enum_name.eq("ffi_abi") {
-                    if t.contains("ffi_abi") {
-                        in_enum = true
-                        next_val = 0
-                    }
-                } else {
-                    in_enum = true
-                    next_val = 0
-                }
-            }
-            continue
-        }
-        if t.starts_with("}") {
-            if t.contains(format("} ", enum_name, ";")) {
-                panic(__LOC__, "enum member not found: ", member_name)
-            }
-            in_enum = false
-            continue
-        }
         if t.is_empty().or(is_comment_line(t)) { continue }
         mut code := ""
         mut comment := ""
         split_slash_comment(t, code, comment)
         code = trim_ws(code).strip_suffix(",")
+        code = strip_block_comments(code)
         if code.is_empty() { continue }
+        mut name := code
+        mut value : I64 = next_val
         if code.contains("=") {
             eq := code.find("=")
-            name := trim_ws(code.substr(0, eq.to_usize()))
+            name = trim_ws(code.substr(0, eq.to_usize()))
             expr := trim_ws(code.substr(eq.to_usize().add(1), code.len().sub(eq.to_usize().add(1))))
-            next_val = eval_const_expr(expr, names, vals)
-            names.push(own name.clone())
-            vals.push(own next_val.clone())
-            if name.eq(member_name) {
-                if comment.is_empty().not() { emit_comment_lines(out, vec("Str", "// ".concat(comment))) }
-                emit_typed_const(out, member_name, next_val, type_name)
-                out.push_str("\n")
-                return
+            mut ok := true
+            value = eval_const_expr(expr, names, vals, ok)
+            if ok.not() {
+                out.push_str("// SKIP enum member ")
+                out.push_str(name)
+                out.push_str(": cannot evaluate `")
+                out.push_str(expr)
+                out.push_str("`\n")
+                next_val = next_val.add(1)
+                continue
             }
-            next_val = next_val.add(1)
-        } else {
-            names.push(own code.clone())
-            vals.push(own next_val.clone())
-            if code.eq(member_name) {
-                if comment.is_empty().not() { emit_comment_lines(out, vec("Str", "// ".concat(comment))) }
-                emit_typed_const(out, member_name, next_val, type_name)
-                out.push_str("\n")
-                return
-            }
-            next_val = next_val.add(1)
         }
+        if is_til_keyword(name).or(name.is_empty()) {
+            next_val = value.add(1)
+            continue
+        }
+        names.push(own name.clone())
+        vals.push(own value.clone())
+        if comment.is_empty().not() {
+            mut single := Vec.new(Str)
+            single.push(own "// ".concat(comment))
+            emit_comment_lines(out, single)
+        }
+        emit_typed_const(out, name, value, "I32")
+        wrote_any = true
+        next_val = value.add(1)
     }
-    panic(__LOC__, "enum member not found: ", member_name)
+    if wrote_any { out.push_str("\n") }
+    return true
 }
 
-emit_define_const := func(mut out: Str, lines: Vec, define_name: Str, type_name: Str) {
-    for i in 0..lines.len() {
+emit_define_line := func(mut out: Str, lines: Vec, shallow start: USize, line_text: Str) returns Bool {
+    t := trim_ws(line_text)
+    if t.starts_with("#define ").not() { return false }
+    rest := trim_ws(t.strip_prefix("#define "))
+    sp := rest.find(" ")
+    if sp.eq(-1) { return false }
+    name := trim_ws(rest.substr(0, sp.to_usize()))
+    if name.is_empty().or(is_til_keyword(name)) { return false }
+    if name.contains("(") { return false }  // function-like macro
+    value_s := strip_block_comments(trim_ws(rest.substr(sp.to_usize().add(1), rest.len().sub(sp.to_usize().add(1)))))
+    if value_s.is_empty() { return false }
+    if is_int_literal(value_s).not() { return false }
+    mut ok := true
+    empty_names := Vec.new(Str)
+    empty_vals := Vec.new(I64)
+    value := eval_const_expr(value_s, empty_names, empty_vals, ok)
+    if ok.not() { return false }
+    comments := collect_comments_before(lines, start)
+    if comments.len().gt(0) { emit_comment_lines(out, comments) }
+    emit_typed_const(out, name, value, "I64")
+    return true
+}
+
+// Find the index of the line ending the brace-block opened on or after `start`.
+// Returns start if no matching close is found (caller should treat as failure).
+find_block_close := func(lines: Vec, shallow start: USize) returns USize {
+    mut depth : I32 = 0
+    mut saw_open := false
+    mut i := start
+    while i.lt(lines.len()) {
         ref line : Str = lines.get(i)
         t := trim_ws(line)
-        needle := format("#define ", define_name, " ")
-        if t.starts_with(needle) {
-            value_s := trim_ws(t.strip_prefix(needle))
-            empty_names := Vec.new(Str)
-            empty_vals := Vec.new(I64)
-            value := eval_const_expr(value_s, empty_names, empty_vals)
-            comments := collect_comments_before(lines, i)
-            if comments.len().gt(0) { emit_comment_lines(out, comments) }
-            emit_typed_const(out, define_name, value, type_name)
-            out.push_str("\n")
-            return
+        mut k : USize = 0
+        while k.lt(t.len()) {
+            ref c : U8 = t.byte_at(k)
+            if c.eq('{') { depth = depth.add(1); saw_open = true }
+            else if c.eq('}') {
+                depth = depth.sub(1)
+                if saw_open.and(depth.eq(0)) { return i }
+            }
+            k = k.add(1)
         }
+        i = i.add(1)
     }
-    panic(__LOC__, "define not found: ", define_name)
+    return start
 }
 
-emit_raylib := proc(header_path: Str, out_path: Str) {
-    mut pre := ""
-    ec := run_cmd(pre, "cc", "-E", "-CC", "-dD", header_path)
-    if ec.neq(0) { panic(__LOC__, "raylib preprocess failed") }
-    allowed := vec("Str", header_path)
-    lines := filter_preprocessed(pre, allowed)
-
-    mut out := Str.with_capacity(131072)
-    out.push_str("mode lib\n\n")
-    out.push_str("// raylib FFI bindings (lib/raylib/, the external C library).\n\n")
-    out.push_str("link(\"lib/raylib/src/libraylib.a\")\n")
-    out.push_str("link(\"m\")\n")
-    out.push_str("link(\"pthread\")\n")
-    out.push_str("link(\"rt\")\n\n")
-
-    if lines.len().eq(0) { panic(__LOC__, "raylib header filter produced no lines") }
-    out.push_str("// Vector2, 2 components\n")
-    out.push_str("Vector2 := struct {\n")
-    out.push_str("    mut x : F32 = 0\n")
-    out.push_str("    mut y : F32 = 0\n")
-    out.push_str("}\n\n")
-    out.push_str("// Vector3, 3 components\n")
-    out.push_str("Vector3 := struct {\n")
-    out.push_str("    mut x : F32 = 0\n")
-    out.push_str("    mut y : F32 = 0\n")
-    out.push_str("    mut z : F32 = 0\n")
-    out.push_str("}\n\n")
-    out.push_str("// Color, 4 components, R8G8B8A8 (32bit)\n")
-    out.push_str("Color := struct {\n")
-    out.push_str("    mut r : U8 = 0\n")
-    out.push_str("    mut g : U8 = 0\n")
-    out.push_str("    mut b : U8 = 0\n")
-    out.push_str("    mut a : U8 = 0\n")
-    out.push_str("}\n\n")
-    out.push_str("// Rectangle, 4 components\n")
-    out.push_str("Rectangle := struct {\n")
-    out.push_str("    mut x : F32 = 0\n")
-    out.push_str("    mut y : F32 = 0\n")
-    out.push_str("    mut width : F32 = 0\n")
-    out.push_str("    mut height : F32 = 0\n")
-    out.push_str("}\n\n")
-    out.push_str("// Image, pixel data stored in CPU memory (RAM)\n")
-    out.push_str("Image := struct {\n")
-    out.push_str("    ref mut data : U8 = NULL\n")
-    out.push_str("    mut width : I32 = 0\n")
-    out.push_str("    mut height : I32 = 0\n")
-    out.push_str("    mut mipmaps : I32 = 0\n")
-    out.push_str("    mut format : I32 = 0\n")
-    out.push_str("}\n\n")
-    out.push_str("// Texture, tex data stored in GPU memory (VRAM)\n")
-    out.push_str("Texture := struct {\n")
-    out.push_str("    mut id : U32 = 0\n")
-    out.push_str("    mut width : I32 = 0\n")
-    out.push_str("    mut height : I32 = 0\n")
-    out.push_str("    mut mipmaps : I32 = 0\n")
-    out.push_str("    mut format : I32 = 0\n")
-    out.push_str("}\n\n")
-    out.push_str("Texture2D := Texture\n\n")
-    out.push_str("// GlyphInfo, font characters glyphs info\n")
-    out.push_str("GlyphInfo := struct {\n")
-    out.push_str("    mut value : I32 = 0\n")
-    out.push_str("    mut offsetX : I32 = 0\n")
-    out.push_str("    mut offsetY : I32 = 0\n")
-    out.push_str("    mut advanceX : I32 = 0\n")
-    out.push_str("    mut image : Image = Image()\n")
-    out.push_str("}\n\n")
-    out.push_str("// Font, font texture and GlyphInfo array data\n")
-    out.push_str("Font := struct {\n")
-    out.push_str("    mut baseSize : I32 = 0\n")
-    out.push_str("    mut glyphCount : I32 = 0\n")
-    out.push_str("    mut glyphPadding : I32 = 0\n")
-    out.push_str("    mut texture : Texture2D = Texture2D()\n")
-    out.push_str("    ref mut recs : Rectangle = NULL\n")
-    out.push_str("    ref mut glyphs : GlyphInfo = NULL\n")
-    out.push_str("}\n\n")
-    out.push_str("// Camera3D, defines position/orientation in 3d space\n")
-    out.push_str("Camera3D := struct {\n")
-    out.push_str("    mut position : Vector3 = Vector3()\n")
-    out.push_str("    mut target : Vector3 = Vector3()\n")
-    out.push_str("    mut up : Vector3 = Vector3()\n")
-    out.push_str("    mut fovy : F32 = 0\n")
-    out.push_str("    mut projection : I32 = 0\n")
-    out.push_str("}\n\n")
-    out.push_str("Camera := Camera3D\n\n")
-    out.push_str("// Wave, audio wave data\n")
-    out.push_str("Wave := struct {\n")
-    out.push_str("    mut frameCount : U32 = 0\n")
-    out.push_str("    mut sampleRate : U32 = 0\n")
-    out.push_str("    mut sampleSize : U32 = 0\n")
-    out.push_str("    mut channels : U32 = 0\n")
-    out.push_str("    ref mut data : U8 = NULL\n")
-    out.push_str("}\n\n")
-    out.push_str("// Opaque structs declaration\n")
-    out.push_str("rAudioBuffer := ext_struct(\"rAudioBuffer\") {}\n")
-    out.push_str("rAudioProcessor := ext_struct(\"rAudioProcessor\") {}\n\n")
-    out.push_str("// AudioStream, custom audio stream\n")
-    out.push_str("AudioStream := struct {\n")
-    out.push_str("    ref mut buffer : rAudioBuffer = NULL\n")
-    out.push_str("    ref mut processor : rAudioProcessor = NULL\n")
-    out.push_str("    mut sampleRate : U32 = 0\n")
-    out.push_str("    mut sampleSize : U32 = 0\n")
-    out.push_str("    mut channels : U32 = 0\n")
-    out.push_str("}\n\n")
-    out.push_str("// Sound\n")
-    out.push_str("Sound := struct {\n")
-    out.push_str("    mut stream : AudioStream = AudioStream()\n")
-    out.push_str("    mut frameCount : U32 = 0\n")
-    out.push_str("}\n\n")
-    out.push_str("// BoundingBox\n")
-    out.push_str("BoundingBox := struct {\n")
-    out.push_str("    mut min : Vector3 = Vector3()\n")
-    out.push_str("    mut max : Vector3 = Vector3()\n")
-    out.push_str("}\n\n")
-
-    out.push_str("// Camera projection\n")
-    emit_typed_const(out, "CAMERA_PERSPECTIVE", 0, "I32")
-    emit_typed_const(out, "CAMERA_ORTHOGRAPHIC", 1, "I32")
-    out.push_str("\n")
-    out.push_str("// Window config flags\n")
-    emit_typed_const(out, "FLAG_WINDOW_RESIZABLE", 4, "U32")
-    emit_typed_const(out, "FLAG_WINDOW_MAXIMIZED", 1024, "U32")
-    out.push_str("\n")
-    out.push_str("// Keyboard keys (US keyboard layout)\n")
-    out.push_str("KEY_SPACE : I64 = 32\n")
-    out.push_str("KEY_A : I64 = 65\n")
-    out.push_str("KEY_D : I64 = 68\n")
-    out.push_str("KEY_G : I64 = 71\n")
-    out.push_str("KEY_M : I64 = 77\n")
-    out.push_str("KEY_S : I64 = 83\n")
-    out.push_str("KEY_W : I64 = 87\n")
-    out.push_str("KEY_ESCAPE : I64 = 256\n")
-    out.push_str("KEY_ENTER : I64 = 257\n")
-    out.push_str("KEY_RIGHT : I64 = 262\n")
-    out.push_str("KEY_LEFT : I64 = 263\n")
-    out.push_str("KEY_DOWN : I64 = 264\n")
-    out.push_str("KEY_UP : I64 = 265\n")
-    out.push_str("KEY_F11 : I64 = 300\n")
-    out.push_str("\n")
-
-    out.push_str("InitWindow := ext_proc(shallow width : I32, shallow height : I32, title : I8) {}\n")
-    out.push_str("IsWindowReady := ext_func() returns shallow Bool {}\n")
-    out.push_str("WindowShouldClose := ext_func() returns shallow Bool {}\n")
-    out.push_str("CloseWindow := ext_proc() {}\n")
-    out.push_str("SetWindowMinSize := ext_proc(shallow width : I32, shallow height : I32) {}\n")
-    out.push_str("SetWindowMaxSize := ext_proc(shallow width : I32, shallow height : I32) {}\n")
-    out.push_str("MaximizeWindow := ext_proc() {}\n")
-    out.push_str("ToggleFullscreen := ext_proc() {}\n")
-    out.push_str("SetTargetFPS := ext_proc(shallow fps : I32) {}\n")
-    out.push_str("GetScreenWidth := ext_func() returns shallow I32 {}\n")
-    out.push_str("GetScreenHeight := ext_func() returns shallow I32 {}\n")
-    out.push_str("GetFrameTime := ext_func() returns shallow F32 {}\n")
-    out.push_str("GetFPS := ext_func() returns shallow I32 {}\n")
-    out.push_str("GetRandomValue := ext_func(shallow min : I32, shallow max : I32) returns shallow I32 {}\n")
-    out.push_str("SetConfigFlags := ext_proc(shallow flags : U32) {}\n")
-    out.push_str("SetExitKey := ext_proc(shallow key : I32) {}\n")
-    out.push_str("IsWindowResized := ext_func() returns shallow Bool {}\n")
-    out.push_str("IsKeyPressed := ext_func(shallow key : I32) returns shallow Bool {}\n")
-    out.push_str("IsKeyDown := ext_func(shallow key : I32) returns shallow Bool {}\n")
-    out.push_str("IsKeyRepeat := ext_func(shallow key : I32) returns shallow Bool {}\n")
-    out.push_str("GetCharPressed := ext_func() returns shallow I32 {}\n")
-    out.push_str("IsMouseButtonPressed := ext_func(shallow button : I32) returns shallow Bool {}\n")
-    out.push_str("IsMouseButtonDown := ext_func(shallow button : I32) returns shallow Bool {}\n")
-    out.push_str("GetMouseX := ext_func() returns shallow I32 {}\n")
-    out.push_str("GetMouseY := ext_func() returns shallow I32 {}\n")
-    out.push_str("GetMouseDelta := ext_func() returns shallow Vector2 {}\n")
-    out.push_str("EnableCursor := ext_proc() {}\n")
-    out.push_str("DisableCursor := ext_proc() {}\n")
-    out.push_str("BeginDrawing := ext_proc() {}\n")
-    out.push_str("EndDrawing := ext_proc() {}\n")
-    out.push_str("ClearBackground := ext_proc(shallow color : Color) {}\n")
-    out.push_str("DrawFPS := ext_proc(shallow posX : I32, shallow posY : I32) {}\n")
-    out.push_str("DrawRectangle := ext_proc(shallow posX : I32, shallow posY : I32, shallow width : I32, shallow height : I32, shallow color : Color) {}\n")
-    out.push_str("DrawText := ext_proc(text : I8, shallow posX : I32, shallow posY : I32, shallow fontSize : I32, shallow color : Color) {}\n")
-    out.push_str("DrawCircle := ext_proc(shallow centerX : I32, shallow centerY : I32, shallow radius : F32, shallow color : Color) {}\n")
-    out.push_str("LoadFontEx := ext_func(fileName : I8, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}\n")
-    out.push_str("UnloadFont := ext_proc(shallow font : Font) {}\n")
-    out.push_str("DrawTextEx := ext_proc(shallow font : Font, text : I8, shallow position : Vector2, shallow fontSize : F32, shallow spacing : F32, shallow tint : Color) {}\n")
-    out.push_str("MeasureTextEx := ext_func(shallow font : Font, text : I8, shallow fontSize : F32, shallow spacing : F32) returns shallow Vector2 {}\n")
-    out.push_str("BeginMode3D := ext_proc(shallow camera : Camera3D) {}\n")
-    out.push_str("EndMode3D := ext_proc() {}\n")
-    out.push_str("DrawCube := ext_proc(shallow position : Vector3, shallow width : F32, shallow height : F32, shallow length : F32, shallow color : Color) {}\n")
-    out.push_str("DrawCubeV := ext_proc(shallow position : Vector3, shallow size : Vector3, shallow color : Color) {}\n")
-    out.push_str("DrawCubeWires := ext_proc(shallow position : Vector3, shallow width : F32, shallow height : F32, shallow length : F32, shallow color : Color) {}\n")
-    out.push_str("DrawCubeWiresV := ext_proc(shallow position : Vector3, shallow size : Vector3, shallow color : Color) {}\n")
-    out.push_str("DrawPlane := ext_proc(shallow centerPos : Vector3, shallow size : Vector2, shallow color : Color) {}\n")
-    out.push_str("UpdateCameraPro := ext_proc(camera : Camera3D, shallow movement : Vector3, shallow rotation : Vector3, shallow zoom : F32) {}\n")
-    out.push_str("CameraMoveForward := ext_proc(camera : Camera3D, shallow distance : F32, shallow moveInWorldPlane : Bool) {}\n")
-    out.push_str("CameraMoveRight := ext_proc(camera : Camera3D, shallow distance : F32, shallow moveInWorldPlane : Bool) {}\n")
-    out.push_str("CameraMoveUp := ext_proc(camera : Camera3D, shallow distance : F32) {}\n")
-    out.push_str("CheckCollisionBoxSphere := ext_func(shallow box : BoundingBox, shallow center : Vector3, shallow radius : F32) returns shallow Bool {}\n")
-    out.push_str("InitAudioDevice := ext_proc() {}\n")
-    out.push_str("CloseAudioDevice := ext_proc() {}\n")
-    out.push_str("LoadSoundFromWave := ext_func(shallow wave : Wave) returns shallow Sound {}\n")
-    out.push_str("PlaySound := ext_proc(shallow sound : Sound) {}\n")
-    out.push_str("StopSound := ext_proc(shallow sound : Sound) {}\n")
-    out.push_str("UnloadSound := ext_proc(shallow sound : Sound) {}\n")
-
-    File.writefile(out_path, out)
+// Find the line index that contains the `);` closing the signature that
+// starts at `start`. Returns start if not found.
+find_paren_close := func(lines: Vec, shallow start: USize) returns USize {
+    mut depth : I32 = 0
+    mut saw_open := false
+    mut i := start
+    while i.lt(lines.len()) {
+        ref line : Str = lines.get(i)
+        t := strip_block_comments(line)
+        mut code := ""
+        mut comment := ""
+        split_slash_comment(t, code, comment)
+        mut k : USize = 0
+        while k.lt(code.len()) {
+            ref c : U8 = code.byte_at(k)
+            if c.eq('(') { depth = depth.add(1); saw_open = true }
+            else if c.eq(')') {
+                depth = depth.sub(1)
+                if saw_open.and(depth.eq(0)) {
+                    // Look for `;` after this `)` on the same line.
+                    after := code.substr(k.add(1), code.len().sub(k.add(1)))
+                    if trim_ws(after).starts_with(";") { return i }
+                    return start  // semicolon expected immediately after `)`
+                }
+            }
+            k = k.add(1)
+        }
+        i = i.add(1)
+    }
+    return start
 }
 
-emit_tinyfd := proc(header_path: Str, out_path: Str) {
-    mut pre := ""
-    ec := run_cmd(pre, "cc", "-E", "-CC", "-dD", header_path)
-    if ec.neq(0) { panic(__LOC__, "tinyfd preprocess failed") }
-    allowed := vec("Str", header_path)
-    lines := filter_preprocessed(pre, allowed)
-    if lines.len().eq(0) { panic(__LOC__, "tinyfd header filter produced no lines") }
-
-    mut out := Str.with_capacity(16384)
-    out.push_str("mode lib\n\n")
-    out.push_str("// tinyfiledialogs FFI bindings (lib/tinyfiledialogs/, the external C library).\n\n")
-    out.push_str("link(\"lib/tinyfiledialogs/libtinyfd.a\")\n\n")
-    out.push_str("tinyfd_saveFileDialog := ext_func(title : I8, defaultPathAndFile : I8, shallow numOfFilterPatterns : I32, filterPatterns : Dynamic, singleFilterDescription : I8) returns ref I8 {}\n")
-    out.push_str("tinyfd_openFileDialog := ext_func(title : I8, defaultPathAndFile : I8, shallow numOfFilterPatterns : I32, filterPatterns : Dynamic, singleFilterDescription : I8, shallow allowMultipleSelects : I32) returns ref I8 {}\n")
-    File.writefile(out_path, out)
+// Heuristic: does this top-level trimmed line look like the start of a
+// function declaration we should try to emit?
+looks_like_function_start := func(t: Str) returns Bool {
+    if t.is_empty() { return false }
+    if t.starts_with("#").or(t.starts_with("//")).or(t.starts_with("/*")) { return false }
+    if t.starts_with("typedef ").or(t.starts_with("struct ")).or(t.starts_with("enum "))
+    .or(t.starts_with("union ")).or(t.starts_with("}")) {
+        return false
+    }
+    if t.contains("(").not() { return false }
+    // First non-space char must be a letter/underscore.
+    ref first : U8 = t.byte_at(0)
+    keyword := first.gte('a').and(first.lte('z')).or(first.gte('A').and(first.lte('Z'))).or(first.eq('_'))
+    if keyword.not() { return false }
+    return true
 }
 
-emit_libffi := proc(header_path: Str, out_path: Str) {
-    incdir := dir_of(header_path)
-    mut pre := ""
-    ec := run_cmd(pre, "cc", "-E", "-CC", "-dD", format("-I", incdir), header_path)
-    if ec.neq(0) { panic(__LOC__, "libffi preprocess failed") }
-    allowed := vec("Str", header_path, format(incdir, "/ffitarget.h"))
-    lines := filter_preprocessed(pre, allowed)
-    if lines.len().eq(0) { panic(__LOC__, "libffi header filter produced no lines") }
+// Walk the filtered header lines and emit a binding line for everything we
+// recognise (typedef structs, enums, aliases, function-pointer typedefs,
+// function declarations, numeric #defines). Anything we can't parse becomes a
+// `// SKIP ...` comment so the generated file remains a faithful summary of
+// the header.
+walk_and_emit := proc(mut out: Str, lines: Vec) {
+    print_flush()
+    mut i : USize = 0
+    while i.lt(lines.len()) {
+        ref line : Str = lines.get(i)
+        t := trim_ws(line)
 
-    mut out := Str.with_capacity(32768)
-    out.push_str("mode lib\n\n")
-    out.push_str("// libffi FFI bindings (lib/libffi/, the external C library).\n\n")
-    out.push_str("link(\"lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a\")\n\n")
-    out.push_str("ffi_type := ext_struct(\"_ffi_type\") {\n")
-    out.push_str("    mut size : USize = 0\n")
-    out.push_str("    mut alignment : I16 = 0\n")
-    out.push_str("    mut type : I16 = 0\n")
-    out.push_str("    ref mut elements : Dynamic = NULL\n")
-    out.push_str("}\n\n")
-    out.push_str("ffi_cif := ext_struct(\"\") {\n")
-    out.push_str("    mut abi : I32 = 0\n")
-    out.push_str("    mut nargs : U32 = 0\n")
-    out.push_str("    ref mut arg_types : Dynamic = NULL\n")
-    out.push_str("    ref mut rtype : ffi_type = NULL\n")
-    out.push_str("    mut bytes : U32 = 0\n")
-    out.push_str("    mut flags : U32 = 0\n")
-    out.push_str("}\n\n")
-    out.push_str("FFI_DEFAULT_ABI : I32 = 2.to_i32()\n\n")
-    out.push_str("FFI_TYPE_STRUCT : I16 = 13.to_i16()\n\n")
-    out.push_str("ffi_prep_cif := ext_func(cif : ffi_cif, shallow abi : I32, shallow nargs : U32, rtype : ffi_type, atypes : Dynamic) returns shallow I32 {}\n\n")
-    out.push_str("ffi_call := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : Dynamic) {}\n")
-    File.writefile(out_path, out)
+        if t.is_empty() { i = i.add(1); continue }
+
+        // typedef struct (with body, multi-line) or forward decl
+        if t.starts_with("typedef struct ").or(t.eq("typedef struct")) {
+            if t.contains("{").not().and(t.ends_with(";")) {
+                // forward decl: `typedef struct X X;`
+                emit_forward_struct(out, lines, i, t)
+                i = i.add(1)
+                continue
+            }
+            next_i := try_emit_struct_block(out, lines, i)
+            if next_i.gt(i) {
+                i = next_i
+                continue
+            }
+            i = i.add(1)
+            continue
+        }
+
+        // typedef enum
+        if t.starts_with("typedef enum") {
+            // Locate the opening brace and matching close.
+            mut open := i
+            if t.contains("{").not() {
+                mut j := i.add(1)
+                while j.lt(lines.len()) {
+                    ref l2 : Str = lines.get(j)
+                    tl2 := trim_ws(l2)
+                    if tl2.contains("{") { open = j; break }
+                    if tl2.is_empty().or(is_comment_line(tl2)) { j = j.add(1); continue }
+                    break
+                }
+            }
+            close := find_block_close(lines, open)
+            if close.gt(open) {
+                emit_enum_block(out, lines, i, open, close)
+                i = close.add(1)
+                continue
+            }
+            i = i.add(1)
+            continue
+        }
+
+        // typedef union: skip the whole block (no first-class union support).
+        if t.starts_with("typedef union") {
+            close := find_block_close(lines, i)
+            if close.gt(i) {
+                mut single := Vec.new(Str)
+                single.push(own "// SKIP typedef union: no til equivalent")
+                emit_comment_lines(out, single)
+                out.push_str("\n")
+                i = close.add(1)
+                continue
+            }
+            i = i.add(1)
+            continue
+        }
+
+        // typedef function-pointer
+        if t.starts_with("typedef ").and(t.contains("(*")) {
+            emit_fnptr_typedef(out, lines, i, t)
+            i = i.add(1)
+            continue
+        }
+
+        // typedef alias (single line)
+        if t.starts_with("typedef ").and(t.ends_with(";")) {
+            emit_alias_line(out, lines, i, t)
+            i = i.add(1)
+            continue
+        }
+
+        // #define numeric macro
+        if t.starts_with("#define ") {
+            emit_define_line(out, lines, i, t)
+            i = i.add(1)
+            continue
+        }
+
+        // Skip extern variable declarations (no current til equivalent).
+        if t.starts_with("extern ").and(t.contains("(").not()).and(t.ends_with(";")) {
+            i = i.add(1)
+            continue
+        }
+
+        // Function declaration: look forwards for `);`.
+        if looks_like_function_start(t) {
+            end := find_paren_close(lines, i)
+            if end.gte(i) {
+                emit_function(out, lines, i, end)
+                i = end.add(1)
+                continue
+            }
+        }
+
+        i = i.add(1)
+    }
 }
 
-main := proc(kind: Str, header_path: Str, out_path: Str) {
+emit_link_preamble := func(mut out: Str, kind: Str) {
     if kind.eq("raylib") {
-        emit_raylib(header_path, out_path)
+        out.push_str("// raylib FFI bindings (lib/raylib/, the external C library).\n\n")
+        out.push_str("link(\"lib/raylib/src/libraylib.a\")\n")
+        out.push_str("link(\"m\")\n")
+        out.push_str("link(\"pthread\")\n")
+        out.push_str("link(\"rt\")\n\n")
         return
     }
     if kind.eq("tinyfd") {
-        emit_tinyfd(header_path, out_path)
+        out.push_str("// tinyfiledialogs FFI bindings (lib/tinyfiledialogs/, the external C library).\n\n")
+        out.push_str("link(\"lib/tinyfiledialogs/libtinyfd.a\")\n\n")
         return
     }
     if kind.eq("libffi") {
-        emit_libffi(header_path, out_path)
+        out.push_str("// libffi FFI bindings (lib/libffi/, the external C library).\n\n")
+        out.push_str("link(\"lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a\")\n\n")
         return
     }
     panic(__LOC__, "unknown binding kind: ", kind)
+}
+
+main := proc(kind: Str, header_path: Str, out_path: Str) {
+    incdir := dir_of(header_path)
+    mut allowed := Vec.new(Str)
+    allowed.push(own header_path.clone())
+    if kind.eq("libffi") {
+        allowed.push(own format(incdir, "/ffitarget.h"))
+    }
+    mut pre := ""
+    mut ec : I64 = 0
+    if kind.eq("libffi") {
+        ec = run_cmd(pre, "cc", "-E", "-CC", "-dD", format("-I", incdir), header_path)
+    } else {
+        ec = run_cmd(pre, "cc", "-E", "-CC", "-dD", header_path)
+    }
+    if ec.neq(0) { panic(__LOC__, "preprocess failed for ", header_path) }
+    lines := filter_preprocessed(pre, allowed)
+    if lines.len().eq(0) { panic(__LOC__, "header filter produced no lines for ", header_path) }
+
+    mut out := Str.with_capacity(2097152)
+    out.push_str("mode lib\n\n")
+    emit_link_preamble(out, kind)
+    walk_and_emit(out, lines)
+    File.writefile(out_path, out)
 }

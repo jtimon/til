@@ -1,0 +1,77 @@
+# priority: medium
+** OPEN #203 bindings_gen: parse_decl_shape returns corrupt Str on real headers
+
+   Follow-up to the WIP commit on
+   ~claude/auto-generate-bindings-YTPOd~ that rewrote
+   ~examples/bindings_gen.til~ from three hardcoded
+   ~emit_raylib~/~emit_tinyfd~/~emit_libffi~ paths into a generic
+   header walker. The walker now picks up every ~typedef
+   struct~/~typedef enum~/~typedef~ alias / function declaration /
+   numeric ~#define~ from the preprocessed header on its own.
+
+   The struct-header branch is already wired correctly: it byte-
+   iterates over views into the lines Vec to derive the typedef
+   name and the C tag, then emits the right form per shape
+   (~Name := struct {~ when the tag matches the name, ~Name :=
+   ext_struct("tag") {~ when they differ, ~Name :=
+   ext_struct("") {~ for anonymous tags, opaque ~ext_struct(...)
+   {}~ fallback when any field is unrepresentable, and forward
+   ~ext_struct("name") {}~ for ~typedef struct X X;~).
+
+   What this issue tracks: field declarations inside the struct
+   body, function declarations, and the function-pointer typedef
+   path all route through ~parse_decl_shape~, which returns a
+   ~DeclShape~ struct with owned ~Str~ fields. After
+   ~parse_decl_shape~ returns, the caller reads
+   ~decl.name~/~decl.base~ as garbage bytes (the heap buffer
+   behind the Str's ~c_str~ is gone before the caller uses it).
+   The same corruption shows up on direct ~Str~ returns from
+   ~extract_struct_name~/~extract_struct_tag~ if the caller calls
+   another helper between extraction and emit, which is why the
+   struct-header path was rewritten to byte iteration without any
+   Str return values.
+
+   Reproduce:
+
+   #+begin_src sh
+   bin/til_boot run examples/bindings_gen.til tinyfd \
+       lib/tinyfiledialogs/tinyfiledialogs.h tmp/tinyfd.til
+   # tinyfd hangs in `emit_function` for several minutes (likely
+   # `Str.replace` underflow combined with the corruption); on the
+   # tiny test header `tmp/mini.h` it completes with output like
+   #     Vec2 := struct {
+   #         mut ��Z~�U  :  = ()
+   #     }
+   #     �U  i_init := ext_func(...
+   # i.e. the struct header is correct but the field name / field
+   # type / function name come out as garbage.
+   #+end_src
+
+   *** What needs to happen
+
+   - Refactor ~parse_decl_shape~ to use out-parameters (~mut name_out:
+     Str, mut base_out: Str, mut ptr_depth_out: I32~) matching
+     ~split_slash_comment~'s proven pattern, and update its three
+     callers (~emit_one_field~, ~emit_param_decl~, ~emit_function~).
+   - Apply the same view-based byte iteration that ~try_emit_struct_block~
+     uses to ~emit_field_line~ and ~emit_function~ so no owned Str
+     traverses a function boundary on the field/function path.
+   - Investigate why declaring ~walk_and_emit~ and
+     ~try_emit_struct_block~ as ~func~ produces a binary that hangs
+     in a CPU-bound loop; the current workaround is to declare them
+     ~proc~ with a no-op ~print_flush()~ to satisfy the proc-requires-
+     proc-call check.
+   - Investigate ~Str.replace~: when ~from.count > self.count~ the
+     loop ~while start.lte(self.count.sub(from.count))~ underflows
+     ~USize~ to a huge value. ~emit_function~'s decoration-strip
+     loop (~code.replace(format(d, " "), "")~) can hit this on short
+     lines and may be why ~tinyfd~ hangs there.
+
+   *** Why medium priority
+
+   The hand-written ~src/lib/raylib.til~ / ~src/lib/tinyfd.til~ /
+   ~src/lib/libffi.til~ still ship correct bindings and the
+   self-hosted compiler keeps building from them. The Makefile
+   rules that regenerate those files via ~bindings_gen~ will
+   produce broken output today, so ~make bindings~ should not be
+   run from this branch until the field/function path is fixed.
