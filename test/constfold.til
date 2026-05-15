@@ -33,10 +33,12 @@ test_string_concat := test() {
     assert_eq_str(__LOC__, result, "hello world")
 }
 
-// Test 5: lolalalo -- recursive func with comptime args. Generates the
-// 4-syllable permutation poem at compile time. Inspired by
-// rstil/src/examples/lolalalo.til. Uses a top-level `poem` so the
-// recursion doesn't need first-class nested funcs.
+// Test 5: lolalalo -- both recursive and iterative `func`s with comptime
+// args. Each generates the same 4-syllable permutation poem at compile
+// time. Inspired by rstil/src/examples/lolalalo.til; the test asserts
+// recursive == iterative so the two implementations cross-check each
+// other and constfold collapses both calls (and the __LOC__ string)
+// to literals in the generated C.
 
 poem := func(depth: I64, current: Str, s1: Str, s2: Str) returns Str {
     if depth.eq(4) {
@@ -51,17 +53,45 @@ poem := func(depth: I64, current: Str, s1: Str, s2: Str) returns Str {
     return result
 }
 
-make_poem := func(s1: Str, s2: Str) returns Str {
+make_poem_recursive := func(s1: Str, s2: Str) returns Str {
     return poem(0, "", s1, s2)
 }
 
+// Iterative version: four nested loops mirror the four syllables.
+// The third position (i2) takes an extra "lei" case, matching the
+// `if depth.eq(2)` branch in the recursive version. Order of emission
+// (s1 before s2 before lei) matches the recursive walk.
+make_poem_iterative := func(s1: Str, s2: Str) returns Str {
+    mut result := ""
+    for i0 in 0..2 {
+        for i1 in 0..2 {
+            for i2 in 0..3 {
+                for i3 in 0..2 {
+                    mut line := ""
+                    if i0.eq(0) { line = line.concat(s1) } else { line = line.concat(s2) }
+                    if i1.eq(0) { line = line.concat(s1) } else { line = line.concat(s2) }
+                    if i2.eq(0) {
+                        line = line.concat(s1)
+                    } else if i2.eq(1) {
+                        line = line.concat(s2)
+                    } else {
+                        line = line.concat("lei")
+                    }
+                    if i3.eq(0) { line = line.concat(s1) } else { line = line.concat(s2) }
+                    line = line.concat("\n")
+                    result = result.concat(line)
+                }
+            }
+        }
+    }
+    return result
+}
+
 test_lolalalo := test() {
-    lo_la := make_poem("lo", "la")
-    la_lo := make_poem("la", "lo")
-    // "lolalolo" appears as one of the 4-syllable permutations in lo_la
-    assert(__LOC__, lo_la.contains("lolalolo"))
-    assert(__LOC__, la_lo.contains("lalalala"))
-    // "lei" appears at depth 2 in both
-    assert(__LOC__, lo_la.contains("lolei"))
-    assert(__LOC__, la_lo.contains("lalei"))
+    lola_rec := make_poem_recursive("lo", "la")
+    lola_it  := make_poem_iterative("lo", "la")
+    lalo_rec := make_poem_recursive("la", "lo")
+    lalo_it  := make_poem_iterative("la", "lo")
+    assert_eq_str(__LOC__, lola_rec, lola_it)
+    assert_eq_str(__LOC__, lalo_rec, lalo_it)
 }

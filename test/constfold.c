@@ -122,7 +122,6 @@ void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
 U32 Array_size(void);
 void panic(Str * loc_str, Array * parts);
-Bool * assert(Str * loc_str, Bool * cond);
 void assert_eq(Str * loc_str, I64 * a, I64 * b);
 void assert_eq_str(Str * loc_str, Str * a, Str * b);
 void println(Array * parts);
@@ -187,7 +186,6 @@ void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
 U32 Array_size(void);
 void panic(Str * loc_str, Array * parts);
-Bool * assert(Str * loc_str, Bool * cond);
 void assert_eq(Str * loc_str, I64 * a, I64 * b);
 void assert_eq_str(Str * loc_str, Str * a, Str * b);
 void println(Array * parts);
@@ -1445,29 +1443,6 @@ void panic(Str * loc_str, Array * parts) {
     ;
 }
 
-Bool * assert(Str * loc_str, Bool * cond) {
-    Bool hoisted__Bool_2828 = not(DEREF(cond));
-    if (hoisted__Bool_2828) {
-        Str hoisted__Str_2823 = (Str){.c_str = (U8 *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT};
-        Type *hoisted__Type_2824 = Type_Struct(&hoisted__Str_2823);
-        Str_delete(&hoisted__Str_2823, &(Bool){0});
-        U32 hoisted__U32_2825 = 1;
-        Array *_va_Array_95 = Array_new(hoisted__Type_2824, &hoisted__U32_2825);
-        (void)_va_Array_95;
-        Type_delete(hoisted__Type_2824, &(Bool){1});
-        ;
-        U32 hoisted__U32_2826 = 0;
-        Str hoisted__Str_2827 = (Str){.c_str = (U8 *)"assert failed", .count = 13ULL, .cap = TIL_CAP_LIT};
-        Array_set(_va_Array_95, &hoisted__U32_2826, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_2827; _oa; }));
-        ;
-        panic(loc_str, _va_Array_95);
-        free(_va_Array_95);
-    }
-    ;
-    Bool hoisted__Bool_2829 = 1;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = hoisted__Bool_2829; return _r; }
-}
-
 void assert_eq(Str * loc_str, I64 * a, I64 * b) {
     Bool hoisted__Bool_2852 = I64_neq(a, b);
     if (hoisted__Bool_2852) {
@@ -1617,26 +1592,20 @@ void test_string_concat(void) {
 }
 
 void test_lolalalo(void) {
-    Str hoisted__Str_3115 = (Str){.c_str = (U8 *)"test/constfold.til:62:12", .count = 24ULL, .cap = TIL_CAP_LIT};
-    Bool hoisted__Bool_3116 = 1;
-    Bool_delete(assert(&hoisted__Str_3115, &hoisted__Bool_3116), &(Bool){1});
-    ;
-    Str_delete(&hoisted__Str_3115, &(Bool){0});
-    Str hoisted__Str_3119 = (Str){.c_str = (U8 *)"test/constfold.til:63:12", .count = 24ULL, .cap = TIL_CAP_LIT};
-    Bool hoisted__Bool_3120 = 1;
-    Bool_delete(assert(&hoisted__Str_3119, &hoisted__Bool_3120), &(Bool){1});
-    ;
-    Str_delete(&hoisted__Str_3119, &(Bool){0});
-    Str hoisted__Str_3123 = (Str){.c_str = (U8 *)"test/constfold.til:65:12", .count = 24ULL, .cap = TIL_CAP_LIT};
-    Bool hoisted__Bool_3124 = 1;
-    Bool_delete(assert(&hoisted__Str_3123, &hoisted__Bool_3124), &(Bool){1});
-    ;
-    Str_delete(&hoisted__Str_3123, &(Bool){0});
-    Str hoisted__Str_3127 = (Str){.c_str = (U8 *)"test/constfold.til:66:12", .count = 24ULL, .cap = TIL_CAP_LIT};
-    Bool hoisted__Bool_3128 = 1;
-    Bool_delete(assert(&hoisted__Str_3127, &hoisted__Bool_3128), &(Bool){1});
-    ;
-    Str_delete(&hoisted__Str_3127, &(Bool){0});
+    Str lola_rec = (Str){.c_str = (U8 *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
+    Str lola_it = (Str){.c_str = (U8 *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
+    Str lalo_rec = (Str){.c_str = (U8 *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
+    Str lalo_it = (Str){.c_str = (U8 *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
+    Str hoisted__Str_3370 = (Str){.c_str = (U8 *)"test/constfold.til:95:19", .count = 24ULL, .cap = TIL_CAP_LIT};
+    assert_eq_str(&hoisted__Str_3370, &lola_rec, &lola_it);
+    Str_delete(&hoisted__Str_3370, &(Bool){0});
+    Str_delete(&lola_it, &(Bool){0});
+    Str_delete(&lola_rec, &(Bool){0});
+    Str hoisted__Str_3371 = (Str){.c_str = (U8 *)"test/constfold.til:96:19", .count = 24ULL, .cap = TIL_CAP_LIT};
+    assert_eq_str(&hoisted__Str_3371, &lalo_rec, &lalo_it);
+    Str_delete(&hoisted__Str_3371, &(Bool){0});
+    Str_delete(&lalo_it, &(Bool){0});
+    Str_delete(&lalo_rec, &(Bool){0});
 }
 
 void *U64_add_dyn(void *_a0, void *_a1) {
