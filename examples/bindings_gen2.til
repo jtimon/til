@@ -79,6 +79,58 @@ range_eq_lit := func(s: Str, shallow start: USize, shallow end: USize, lit: Str)
     return true
 }
 
+// Parse an integer literal from `s[from..to)`. Handles decimal and `0x`/`0X`
+// hex forms, and tolerates a trailing `L` / `LL` / `U` / `UL` / `LU` C
+// suffix. `success` is set to false on shapes we don't recognise so callers
+// can fall back without panicking. Index-only, no string-clone path that
+// would risk the corruption pattern.
+parse_c_int_literal := func(s: Str, shallow from: USize, shallow to: USize, mut success: Bool) returns I64 {
+    success = true
+    mut p := from
+    mut negate := false
+    if p.lt(to).and(s.byte_at(p).eq('-')) { negate = true; p = p.add(1) }
+    else if p.lt(to).and(s.byte_at(p).eq('+')) { p = p.add(1) }
+    // Trim a trailing `L`/`LL`/`U`/`UL`/`LU` suffix.
+    mut e := to
+    while e.gt(p) {
+        ref c : I8 = s.byte_at(e.sub(1))
+        if c.eq('L').or(c.eq('l')).or(c.eq('U')).or(c.eq('u')) { e = e.sub(1); continue }
+        break
+    }
+    if p.gte(e) { success = false; return 0 }
+    // Hex?
+    mut hex := false
+    if p.add(2).lte(e) {
+        if s.byte_at(p).eq('0') {
+            ref c1 : I8 = s.byte_at(p.add(1))
+            if c1.eq('x').or(c1.eq('X')) { hex = true; p = p.add(2) }
+        }
+    }
+    if p.gte(e) { success = false; return 0 }
+    mut val : I64 = 0
+    if hex {
+        while p.lt(e) {
+            ref c : I8 = s.byte_at(p)
+            mut digit : I64 = -1
+            if c.gte('0').and(c.lte('9')) { digit = c.to_i64().sub('0'.to_i64()) }
+            else if c.gte('a').and(c.lte('f')) { digit = 10.add(c.to_i64().sub('a'.to_i64())) }
+            else if c.gte('A').and(c.lte('F')) { digit = 10.add(c.to_i64().sub('A'.to_i64())) }
+            else { success = false; return 0 }
+            val = val.mul(16).add(digit)
+            p = p.add(1)
+        }
+    } else {
+        while p.lt(e) {
+            ref c : I8 = s.byte_at(p)
+            if c.gte('0').and(c.lte('9')).not() { success = false; return 0 }
+            val = val.mul(10).add(c.to_i64().sub('0'.to_i64()))
+            p = p.add(1)
+        }
+    }
+    if negate { val = 0.sub(val) }
+    return val
+}
+
 // --- C-type to til-type mapping ----------------------------------------
 // Standard C primitives only. Any non-primitive identifier passes through
 // verbatim, on the assumption it's a typedef declared elsewhere in the
@@ -86,8 +138,10 @@ range_eq_lit := func(s: Str, shallow start: USize, shallow end: USize, lit: Str)
 
 push_til_base := func(mut out: Str, c: Str) returns Bool {
     if c.eq("void") { out.push_str("Dynamic"); return true }
-    if c.eq("char").or(c.eq("unsigned char")) { out.push_str("U8"); return true }
-    if c.eq("signed char") { out.push_str("I8"); return true }
+    // Plain `char` -> I8, matching Str.c_str's signedness. `unsigned char`
+    // stays U8 (raw-byte buffers).
+    if c.eq("char").or(c.eq("signed char")) { out.push_str("I8"); return true }
+    if c.eq("unsigned char") { out.push_str("U8"); return true }
     if c.eq("short").or(c.eq("short int")) { out.push_str("I16"); return true }
     if c.eq("unsigned short").or(c.eq("unsigned short int")) { out.push_str("I16"); return true }
     if c.eq("int").or(c.eq("signed int")).or(c.eq("signed")) { out.push_str("I32"); return true }
@@ -338,37 +392,56 @@ emit_struct_body := func(mut out: Str, lines: Vec, shallow open: USize, shallow 
         }
         if b.eq('#') { continue }
         end := trim_right(line, lead, n)
+        // Find the comment boundary: scan for the FIRST `//` or `/*` (whichever
+        // comes first) so the code part and the trailing-comment part can be
+        // split before we look at the `;` terminator. Inline comments are
+        // common in raylib field decls (`float x; // Vector x component`).
         mut code_end := end
+        mut comment_start : USize = 0
+        mut comment_end : USize = end
+        mut found_line_cmt := false
+        mut found_blk := false
+        mut k := lead
+        while k.add(1).lt(end) {
+            if line.byte_at(k).eq('/') {
+                if line.byte_at(k.add(1)).eq('/') {
+                    code_end = k
+                    comment_start = k.add(2)
+                    comment_end = end
+                    found_line_cmt = true
+                    break
+                }
+                if line.byte_at(k.add(1)).eq('*') {
+                    code_end = k
+                    comment_start = k.add(2)
+                    found_blk = true
+                    break
+                }
+            }
+            k = k.add(1)
+        }
+        // Now drop a trailing `;` from the code-only span.
+        code_end = trim_right(line, lead, code_end)
         if code_end.gt(lead) {
             if line.byte_at(code_end.sub(1)).eq(';') {
                 code_end = code_end.sub(1)
                 code_end = trim_right(line, lead, code_end)
             }
         }
-        // Pull off the FIRST inline `/* ... */` block comment, if any.
-        mut comment_start : USize = 0
-        mut comment_end : USize = 0
-        mut found_blk := false
-        mut k := lead
-        while k.add(1).lt(code_end) {
-            if line.byte_at(k).eq('/').and(line.byte_at(k.add(1)).eq('*')) {
-                comment_start = k.add(2)
-                found_blk = true
-                break
-            }
-            k = k.add(1)
-        }
         mut new_code_end := code_end
         if found_blk {
             mut m := comment_start
-            while m.add(1).lt(code_end) {
+            while m.add(1).lt(end) {
                 if line.byte_at(m).eq('*').and(line.byte_at(m.add(1)).eq('/')) {
                     comment_end = m
-                    new_code_end = trim_right(line, lead, comment_start.sub(2))
                     break
                 }
                 m = m.add(1)
             }
+        }
+        if found_line_cmt.not().and(found_blk.not()) {
+            comment_start = end
+            comment_end = end
         }
         // Trim ws around the comment slice. `Bool.and` is strict (not
         // short-circuiting), so we have to gate the byte_at on the bound
@@ -563,8 +636,10 @@ emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallo
                 v_end = v_end.add(1)
             }
             v_end = trim_right(line, p, v_end)
-            if v_end.gt(p).and(is_digit(line.byte_at(p))) {
-                val = line.substr(p, v_end.sub(p)).to_i64()
+            if v_end.gt(p) {
+                mut ok := true
+                parsed := parse_c_int_literal(line, p, v_end, ok)
+                if ok { val = parsed }
             }
         }
         out.push_str(line.substr(member_start, member_end.sub(member_start)))
@@ -683,23 +758,9 @@ emit_define := func(mut out: Str, line: Str) returns Bool {
     val_start := skip_ws(line, name_end)
     if val_start.eq(n) { return false }
     val_end := trim_right(line, val_start, n)
-    // Only accept a bare integer literal (with optional L/U suffix).
-    mut q := val_start
-    mut digits := false
-    while q.lt(val_end) {
-        ref c : I8 = line.byte_at(q)
-        if is_digit(c) { digits = true; q = q.add(1); continue }
-        if c.eq('L').or(c.eq('l')).or(c.eq('U')).or(c.eq('u')) { q = q.add(1); continue }
-        return false
-    }
-    if digits.not() { return false }
-    mut int_end := val_start
-    while int_end.lt(val_end) {
-        ref c : I8 = line.byte_at(int_end)
-        if is_digit(c).not() { break }
-        int_end = int_end.add(1)
-    }
-    val := line.substr(val_start, int_end.sub(val_start)).to_i64()
+    mut ok := true
+    val := parse_c_int_literal(line, val_start, val_end, ok)
+    if ok.not() { return false }
     out.push_str(line.substr(p, name_end.sub(p)))
     out.push_str(" : I64 = ")
     out.push_str(val.to_str())
@@ -1012,14 +1073,50 @@ walk_header := func(mut out: Str, lines: Vec) {
     while i.lt(n_lines) {
         ref line : Str = lines.get(i)
         ln := line.len()
-        lead := skip_ws(line, 0)
         if in_block_comment {
             emit_comment_line(out, line)
             if line.contains("*/") { in_block_comment = false }
             i = i.add(1)
             continue
         }
-        if lead.eq(ln) { out.push_str("\n"); i = i.add(1); continue }
+        // Compute an effective lead that skips both whitespace AND any
+        // leading `/* ... */` block-comment prefixes. raylib's RLAPI macro
+        // expands to a leading `/* ... */` comment on the SAME line as the
+        // function declaration; without this we'd misclassify those as
+        // pure-comment lines and drop every RLAPI function.
+        mut lead := skip_ws(line, 0)
+        mut had_block_prefix := false
+        mut stuck_in_block := false
+        while true {
+            if lead.add(1).gte(ln) { break }
+            if line.byte_at(lead).neq('/') { break }
+            if line.byte_at(lead.add(1)).neq('*') { break }
+            // Scan for the closing `*/`.
+            mut q := lead.add(2)
+            mut closed := false
+            while q.add(1).lt(ln) {
+                if line.byte_at(q).eq('*').and(line.byte_at(q.add(1)).eq('/')) {
+                    closed = true
+                    break
+                }
+                q = q.add(1)
+            }
+            if closed.not() {
+                emit_comment_line(out, line)
+                in_block_comment = true
+                stuck_in_block = true
+                break
+            }
+            had_block_prefix = true
+            lead = skip_ws(line, q.add(2))
+        }
+        if stuck_in_block { i = i.add(1); continue }
+        if lead.eq(ln) {
+            if had_block_prefix { emit_comment_line(out, line) }
+            else { out.push_str("\n") }
+            i = i.add(1)
+            continue
+        }
         ref b : I8 = line.byte_at(lead)
         // Line comment (`// ...`) -- copy as-is.
         mut is_line_comment := false
@@ -1030,20 +1127,6 @@ walk_header := func(mut out: Str, lines: Vec) {
         }
         if is_line_comment {
             emit_comment_line(out, line)
-            i = i.add(1)
-            continue
-        }
-        // Block-comment opener. May terminate on the same line; if it
-        // doesn't, switch to in_block_comment mode for subsequent lines.
-        mut is_block_open := false
-        if b.eq('/') {
-            if lead.add(1).lt(ln) {
-                if line.byte_at(lead.add(1)).eq('*') { is_block_open = true }
-            }
-        }
-        if is_block_open {
-            emit_comment_line(out, line)
-            if line.contains("*/").not() { in_block_comment = true }
             i = i.add(1)
             continue
         }
