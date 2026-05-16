@@ -22,7 +22,7 @@ CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
 LIB_TIL := $(wildcard src/lib/*.til)
 BINDING_GEN := examples/bindings_gen.til
-RAW_BINDINGS := gen/bindings/libffi.til gen/bindings/raylib.til gen/bindings/tinyfd.til
+RAW_BINDINGS := gen/bindings/libffi.til gen/bindings/raylib.til gen/bindings/rcamera.til gen/bindings/tinyfd.til
 LD_FLAGS := -rdynamic -ldl
 
 RAYLIB_LIB := c_lib/raylib/src/libraylib.a
@@ -66,8 +66,17 @@ bindings: $(RAW_BINDINGS) src/lib/tinyfd.til src/lib/libffi.til src/lib/raylib.t
 gen/bindings:
 	mkdir -p gen/bindings
 
-gen/bindings/raylib.til: $(BINDING_GEN) c_lib/raylib/src/raylib.h c_lib/raylib/src/rcamera.h c_lib/raylib/src/raylib_bindings.h bin/til_boot | gen/bindings
-	bin/til_boot run $(BINDING_GEN) c_lib/raylib/src/raylib_bindings.h gen/bindings/raylib.til
+gen/bindings/raylib.til: $(BINDING_GEN) c_lib/raylib/src/raylib.h bin/til_boot | gen/bindings
+	bin/til_boot run $(BINDING_GEN) c_lib/raylib/src/raylib.h gen/bindings/raylib.til
+
+# rcamera.h declares CameraMoveForward/Right/Up etc. -- raylib.h does not
+# include it, so we generate it as its own raw til binding and concatenate
+# below. rcamera.h references Camera / Vector3 / Matrix without including
+# raylib.h, but cc -E only preprocesses (no type checking) so the
+# generator just emits the function decls verbatim; the types resolve
+# against the raylib.h-derived block when the two are joined.
+gen/bindings/rcamera.til: $(BINDING_GEN) c_lib/raylib/src/rcamera.h bin/til_boot | gen/bindings
+	bin/til_boot run $(BINDING_GEN) c_lib/raylib/src/rcamera.h gen/bindings/rcamera.til
 
 gen/bindings/tinyfd.til: $(BINDING_GEN) c_lib/tinyfiledialogs/tinyfiledialogs.h bin/til_boot | gen/bindings
 	bin/til_boot run $(BINDING_GEN) c_lib/tinyfiledialogs/tinyfiledialogs.h gen/bindings/tinyfd.til
@@ -84,8 +93,12 @@ src/lib/tinyfd.til: gen/bindings/tinyfd.til
 src/lib/libffi.til: gen/bindings/libffi.til
 	cp $< $@
 
-src/lib/raylib.til: gen/bindings/raylib.til
-	cp $< $@
+# Join the raylib.h-derived bindings with rcamera.h's. Strip the leading
+# `mode lib` declaration from the rcamera block before appending so the
+# combined file has exactly one mode header.
+src/lib/raylib.til: gen/bindings/raylib.til gen/bindings/rcamera.til
+	cp gen/bindings/raylib.til $@
+	sed -e '/^mode lib$$/d' gen/bindings/rcamera.til >> $@
 
 # --- Boot compiler (from last commit, always safe) ---
 

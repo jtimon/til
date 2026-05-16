@@ -1,10 +1,6 @@
 mode lib
 
 
-// Aggregate header for binding-generation. Pulls in raylib.h plus the
-// `rcamera` helpers (declared in rcamera.h, which raylib.h does not
-// include) so the generated til bindings cover the same surface the
-// hand-written src/lib/raylib.til used to expose.
 //*********************************************************************************************
 //
 //   raylib v6.0 - A simple and easy-to-use library to enjoy videogames programming (www.raylib.com)
@@ -1766,6 +1762,9 @@ DetachAudioStreamProcessor := ext_proc(shallow stream : AudioStream, processor :
 
 AttachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
 DetachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
+
+
+
 //******************************************************************************************
 //
 //   rcamera - Basic camera system with support for multiple camera modes
@@ -1816,6 +1815,12 @@ DetachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
 
 // Function specifiers in case library is build/used as a shared library (Windows)
 // NOTE: Microsoft specifiers to tell compiler that symbols are imported/exported from a .dll
+
+
+
+
+
+
 
 
 //----------------------------------------------------------------------------------
