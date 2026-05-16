@@ -139,3 +139,8 @@ make test
 * Performance
 
 [[file:img/totals.svg]]
+
+* Videos
+
+- [[https://www.youtube.com/watch?v=Qm1xI9BT2Ac]]
+- [[https://www.youtube.com/watch?v=-EdT_J6pmh0]]
