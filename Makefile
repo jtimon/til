@@ -61,13 +61,13 @@ c_lib/libffi/.built:
 # `!gen/bindings/**` exception in .gitignore for easy diffing) and then
 # copied to src/lib/ for the build to consume. Libraries that are still
 # hand-written in src/lib/ have no gen/bindings/ -> src/lib/ copy step.
-bindings: $(RAW_BINDINGS) src/lib/tinyfd.til src/lib/libffi.til
+bindings: $(RAW_BINDINGS) src/lib/tinyfd.til src/lib/libffi.til src/lib/raylib.til
 
 gen/bindings:
 	mkdir -p gen/bindings
 
-gen/bindings/raylib.til: $(BINDING_GEN) c_lib/raylib/src/raylib.h bin/til_boot | gen/bindings
-	bin/til_boot run $(BINDING_GEN) c_lib/raylib/src/raylib.h gen/bindings/raylib.til
+gen/bindings/raylib.til: $(BINDING_GEN) c_lib/raylib/src/raylib.h c_lib/raylib/src/rcamera.h c_lib/raylib/src/raylib_bindings.h bin/til_boot | gen/bindings
+	bin/til_boot run $(BINDING_GEN) c_lib/raylib/src/raylib_bindings.h gen/bindings/raylib.til
 
 gen/bindings/tinyfd.til: $(BINDING_GEN) c_lib/tinyfiledialogs/tinyfiledialogs.h bin/til_boot | gen/bindings
 	bin/til_boot run $(BINDING_GEN) c_lib/tinyfiledialogs/tinyfiledialogs.h gen/bindings/tinyfd.til
@@ -82,6 +82,9 @@ src/lib/tinyfd.til: gen/bindings/tinyfd.til
 	cp $< $@
 
 src/lib/libffi.til: gen/bindings/libffi.til
+	cp $< $@
+
+src/lib/raylib.til: gen/bindings/raylib.til
 	cp $< $@
 
 # --- Boot compiler (from last commit, always safe) ---

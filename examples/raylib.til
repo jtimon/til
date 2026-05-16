@@ -1,9 +1,13 @@
 mode script
 
-// Direct raylib FFI -- no companion .c needed. All bindings + the
-// link() calls come from `src/lib/raylib.til`; this file only wires a
-// render loop on top.
+// Direct raylib FFI -- no companion .c needed. Bindings come from
+// `src/lib/raylib.til` (auto-generated); each importer adds the matching
+// link() lines next to the import.
 import("lib/raylib")
+link("c_lib/raylib/src/libraylib.a")
+link("m")
+link("pthread")
+link("rt")
 
 // Helper: build a Color struct from R/G/B/A in 0..255.
 color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns Color {

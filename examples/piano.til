@@ -104,7 +104,7 @@ main := proc() {
         // -- Input: reset key_down, then set from keyboard + mouse --
         for i in 0..NUM_KEYS {
             ref kc : U64 = KEYCODES.get(i)
-            if is_key_down(kc.to_i64()) {
+            if is_key_down(kc.to_i32()) {
                 key_down.set(i, own 1)
             } else {
                 key_down.set(i, own 0)

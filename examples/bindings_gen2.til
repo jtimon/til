@@ -167,7 +167,10 @@ push_til_base := func(mut out: Str, c: Str) returns Bool {
     if c.eq("uint64_t") { out.push_str("U64"); return true }
     if c.eq("bool").or(c.eq("_Bool")) { out.push_str("Bool"); return true }
     if c.eq("float") { out.push_str("F32"); return true }
-    if c.eq("double").or(c.eq("long double")) { out.push_str("F64"); return true }
+    // til has no 64-bit float type; map `double` / `long double` onto F32
+    // (precision-truncation) so bindings still type-check. Functions that
+    // genuinely need 64-bit precision must be hand-edited.
+    if c.eq("double").or(c.eq("long double")) { out.push_str("F32"); return true }
     // Unknown -- pass through. Typedefs from the same header land here and
     // resolve via the alias declarations the walker emits earlier.
     out.push_str(c)
@@ -175,20 +178,33 @@ push_til_base := func(mut out: Str, c: Str) returns Bool {
 }
 
 // Names that have been emitted earlier in this run as `NAME := <primitive>`
-// (typedef enums and typedef aliases that resolve to a scalar) or as
-// `NAME := Dynamic` (opaque/union/function-pointer). Their default value is
-// `0` rather than `NAME()` because the alias resolves to a builtin type
-// that can't be instantiated with a constructor call. Stored as a single
-// `|NAME|...|` Str so the lookup is a `.contains("|NAME|")` substring check
+// (typedef enums and typedef aliases that resolve to a scalar). Default
+// value is `0` rather than `NAME()` because the alias resolves to a
+// builtin scalar that can't be instantiated with a constructor call.
+// Stored as a single `|NAME|...|` Str so the lookup is a `.contains` check
 // with no Vec<Str> ownership to manage.
 mut alias_to_primitive := "|"
+
+// Names that have been emitted earlier as `NAME := Dynamic` (typedef
+// function-pointer, typedef pointer-to-X, typedef union -> Dynamic).
+// Fields/params of these types are pointer-shaped: emit `ref mut` and
+// default `NULL` so the typer doesn't expect heap-owning Dynamic.
+mut alias_to_dynamic := "|"
 
 priv register_alias := func(name: Str) {
     alias_to_primitive = format(alias_to_primitive, name, "|")
 }
 
+priv register_dynamic_alias := func(name: Str) {
+    alias_to_dynamic = format(alias_to_dynamic, name, "|")
+}
+
 priv is_alias_to_primitive := func(name: Str) returns shallow Bool {
     return alias_to_primitive.contains(format("|", name, "|"))
+}
+
+priv is_alias_to_dynamic := func(name: Str) returns shallow Bool {
+    return alias_to_dynamic.contains(format("|", name, "|"))
 }
 
 push_til_default := func(mut out: Str, c: Str) {
@@ -304,7 +320,17 @@ emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
     base_view := line.substr(base_off, prev_end.sub(base_off))
 
     out.push_str("    ")
-    if ptrs.eq(0) {
+    if ptrs.eq(0).and(is_alias_to_dynamic(base_view)) {
+        // Field is typed as a previously-emitted Dynamic alias (typedef'd
+        // pointer or function pointer). Treat it like a `*` field, and
+        // inline `Dynamic` rather than the alias name -- chasing a Dynamic
+        // alias from inside a struct field trips til_boot's type resolver
+        // into infinite recursion (originally seen with raylib's
+        // `ref mut bindPose : ModelAnimPose = NULL`).
+        out.push_str("ref mut ")
+        out.push_str(line.substr(name_start, word_len))
+        out.push_str(" : Dynamic = NULL")
+    } else if ptrs.eq(0) {
         out.push_str("mut ")
         out.push_str(line.substr(name_start, word_len))
         out.push_str(" : ")
@@ -312,9 +338,9 @@ emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
         out.push_str(" = ")
         push_til_default(out, base_view)
     } else if ptrs.eq(1).and(range_eq_lit(line, base_first, prev_end, "void")) {
-        out.push_str("mut ")
+        out.push_str("ref mut ")
         out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : Dynamic = 0")
+        out.push_str(" : Dynamic = NULL")
     } else if ptrs.eq(1) {
         out.push_str("ref mut ")
         out.push_str(line.substr(name_start, word_len))
@@ -724,9 +750,19 @@ emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallo
 // --- typedef alias (single line) --------------------------------------
 
 emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
-    n := line.len()
+    mut n := line.len()
     lead := skip_ws(line, 0)
     if range_eq_lit(line, lead, lead.add(8), "typedef ").not() { return false }
+    // Trim trailing `// ...` or `/* ... */` so the token walk doesn't trip
+    // on the comment body (e.g. raylib: `typedef Camera3D Camera; // ...`).
+    mut q : USize = lead
+    while q.add(1).lt(n) {
+        if line.byte_at(q).eq('/') {
+            ref c1 : I8 = line.byte_at(q.add(1))
+            if c1.eq('/').or(c1.eq('*')) { n = q; break }
+        }
+        q = q.add(1)
+    }
     body_start := skip_ws(line, lead.add(8))
     mut body_end := trim_right(line, body_start, n)
     if body_end.gt(body_start).and(line.byte_at(body_end.sub(1)).eq(';')) {
@@ -779,7 +815,7 @@ emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
     out.push_str(" := ")
     if ptrs.gt(0) {
         out.push_str("Dynamic")
-        register_alias(line.substr(name_start, name_end.sub(name_start)))
+        register_dynamic_alias(line.substr(name_start, name_end.sub(name_start)))
     } else {
         // If the base resolves to a known primitive (or a previously-emitted
         // primitive alias), the new alias is also primitive-shaped.
@@ -788,6 +824,8 @@ emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
             register_alias(line.substr(name_start, name_end.sub(name_start)))
         } else if is_alias_to_primitive(c) {
             register_alias(line.substr(name_start, name_end.sub(name_start)))
+        } else if is_alias_to_dynamic(c) {
+            register_dynamic_alias(line.substr(name_start, name_end.sub(name_start)))
         }
     }
     out.push_str("\n\n")
@@ -814,7 +852,7 @@ emit_typedef_fnptr := func(mut out: Str, line: Str) returns Bool {
     if name_end.eq(name_start) { return false }
     out.push_str(line.substr(name_start, name_end.sub(name_start)))
     out.push_str(" := Dynamic\n\n")
-    register_alias(line.substr(name_start, name_end.sub(name_start)))
+    register_dynamic_alias(line.substr(name_start, name_end.sub(name_start)))
     return true
 }
 
@@ -1077,10 +1115,24 @@ emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow en
                     p_is_void := range_eq_lit(params_view, p_base_off, p_prev_end, "void")
 
                     if p_ptrs.eq(0) {
-                        params_buf.push_str("shallow ")
+                        p_base_view := params_view.substr(p_base_off, p_base_len)
+                        is_dyn_alias := is_alias_to_dynamic(p_base_view)
+                        // Dynamic-alias params (typedef'd function-pointer /
+                        // pointer-to-X) aren't scalar, so the typer rejects
+                        // `shallow`. Drop the qualifier so the default Ref
+                        // applies, matching the underlying C pointer.
+                        if is_dyn_alias.not() {
+                            params_buf.push_str("shallow ")
+                        }
                         if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
                         params_buf.push_str(" : ")
-                        push_til_base(params_buf, params_view.substr(p_base_off, p_base_len))
+                        if is_dyn_alias {
+                            // Inline Dynamic instead of the alias name (see
+                            // the field-emit branch above for why).
+                            params_buf.push_str("Dynamic")
+                        } else {
+                            push_til_base(params_buf, p_base_view)
+                        }
                     } else if p_ptrs.eq(1).and(p_is_void) {
                         if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
                         params_buf.push_str(" : Dynamic")
@@ -1227,18 +1279,30 @@ walk_header := func(mut out: Str, lines: Vec) {
         }
         // typedef ...
         if range_eq_lit(line, lead, lead.add(8), "typedef ") {
+            // Locate end-of-statement, ignoring trailing `//` or `/*` comments
+            // so e.g. `typedef void (*Foo)(...); // doc` still ends at `;`.
+            mut stmt_end := ln
+            mut sp : USize = lead
+            while sp.add(1).lt(ln) {
+                if line.byte_at(sp).eq('/') {
+                    ref nc : I8 = line.byte_at(sp.add(1))
+                    if nc.eq('/').or(nc.eq('*')) { stmt_end = sp; break }
+                }
+                sp = sp.add(1)
+            }
             // Function-pointer typedef?
             mut has_fnptr := false
             mut s := lead
-            while s.add(1).lt(ln) {
+            while s.add(1).lt(stmt_end) {
                 if line.byte_at(s).eq('(').and(line.byte_at(s.add(1)).eq('*')) {
                     has_fnptr = true
                     break
                 }
                 s = s.add(1)
             }
-            if has_fnptr.and(trim_right(line, lead, ln).gt(0))
-            .and(line.byte_at(trim_right(line, lead, ln).sub(1)).eq(';')) {
+            stmt_right := trim_right(line, lead, stmt_end)
+            if has_fnptr.and(stmt_right.gt(0))
+            .and(line.byte_at(stmt_right.sub(1)).eq(';')) {
                 emit_typedef_fnptr(out, line)
                 i = i.add(1)
                 continue
@@ -1409,7 +1473,7 @@ walk_header := func(mut out: Str, lines: Vec) {
                         if name_a.lt(cl_right) {
                             out.push_str(close_l.substr(name_a, cl_right.sub(name_a)))
                             out.push_str(" := Dynamic  // typedef union from C, opaque here\n\n")
-                            register_alias(close_l.substr(name_a, cl_right.sub(name_a)))
+                            register_dynamic_alias(close_l.substr(name_a, cl_right.sub(name_a)))
                         }
                     }
                 } else {
@@ -1482,18 +1546,45 @@ priv path_in_dir := func(marker_path: Str, incdir: Str) returns shallow Bool {
     return marker_path.byte_at(incdir.len()).eq('/')
 }
 
+// A "macro fragment" line is what cc -E leaves behind when a macro from a
+// system header expands inside a user header (e.g. raylib's `bool hit;` ->
+// `_Bool`-on-its-own-line, `hit;`-on-the-next). The fragment is short, has
+// no terminator (`;{}`), and is just identifiers/`*`/whitespace.
+priv looks_like_macro_fragment := func(line: Str) returns shallow Bool {
+    n := line.len()
+    mut i : USize = 0
+    mut had_word := false
+    while i.lt(n) {
+        ref b : I8 = line.byte_at(i)
+        if b.eq(';').or(b.eq('{')).or(b.eq('}')).or(b.eq('('))
+        .or(b.eq(')')).or(b.eq(',')).or(b.eq('/')) { return false }
+        if is_ws(b).or(b.eq('*')) {
+            i = i.add(1)
+            continue
+        }
+        if is_alnum(b) {
+            had_word = true
+            i = i.add(1)
+            continue
+        }
+        return false
+    }
+    return had_word
+}
+
 priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
-    mut out := Vec.new(Str)
+    // Build (line, came_from_system_macro) pairs. We store the flag as a
+    // sentinel prefix on the kept line: "S\t" for system-header origin,
+    // "U\t" for normal user-header origin. The second pass strips the
+    // prefix and uses the flag to decide whether to merge.
+    mut raw := Vec.new(Str)
     mut keep := false
+    mut from_sys := false
     lines := pre.split("\n")
     for line : Str in lines {
         n := line.len()
         if n.gt(0).and(line.byte_at(0).eq('#')) {
-            // cc -E line marker: `# N "path" [flags]`. Note: -dD also emits
-            // `#define ...` directives starting with `#`; those should be
-            // passed through to the walker, not used as markers.
             if n.gte(2).and(line.byte_at(1).eq(' ')) {
-                // Locate the first `"` to read the path argument.
                 q1 := line.find("\"")
                 if q1.neq(-1) {
                     rest := line.substr(q1.to_usize().add(1), n.sub(q1.to_usize().add(1)))
@@ -1501,12 +1592,128 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
                     if q2.neq(-1) {
                         marker_path := rest.substr(0, q2.to_usize())
                         keep = path_in_dir(marker_path, incdir)
+                        // Flag `3` in the line marker means the following
+                        // text is system-header content (a macro from
+                        // <stdbool.h> etc. expanded inside the user header).
+                        from_sys = false
+                        flags_view := rest.substr(q2.to_usize().add(1), rest.len().sub(q2.to_usize().add(1)))
+                        mut fi : USize = 0
+                        while fi.add(2).lte(flags_view.len()) {
+                            if flags_view.byte_at(fi).eq(' ').and(flags_view.byte_at(fi.add(1)).eq('3')) {
+                                ref nxt : I8 = flags_view.byte_at(fi.add(2))
+                                if nxt.eq(' ').or(nxt.eq('\t')).or(nxt.eq('\r')).or(nxt.eq('\n')) {
+                                    from_sys = true
+                                    break
+                                }
+                                if fi.add(2).eq(flags_view.len()) {
+                                    from_sys = true
+                                    break
+                                }
+                            }
+                            fi = fi.add(1)
+                        }
                     }
                     continue
                 }
             }
         }
-        if keep { out.push(own line.clone()) }
+        if keep {
+            mut tag := "U\t"
+            if from_sys { tag = "S\t" }
+            raw.push(own format(tag, line))
+        }
+    }
+    // Second pass: fold partial declarations forward. Two cases:
+    //   * system-header fragment (S-flagged single-token line, e.g.
+    //     `_Bool` between stdbool markers)
+    //   * a user line that ends mid-declaration without `;{}` and would
+    //     not parse on its own (e.g. raylib's `typedef` on its own line
+    //     before the `_Bool (*Foo)(...);` continuation).
+    // A legit lone-token user line that's followed by `}` (the trailing
+    // enum-member case, e.g. `FFI_BAD_ARGTYPE` before `} ffi_status;`)
+    // stays put -- the next-line peek handles that.
+    mut out := Vec.new(Str)
+    mut carry := ""
+    n_raw := raw.len()
+    for ri in 0..n_raw {
+        ref tagged : Str = raw.get(ri)
+        tn := tagged.len()
+        sys := tn.gt(0).and(tagged.byte_at(0).eq('S'))
+        line := tagged.substr(2, tn.sub(2))
+        ln := line.len()
+        // Trim trailing line/block comments and whitespace to inspect the
+        // last meaningful byte.
+        mut stmt_end := ln
+        mut sp : USize = 0
+        while sp.add(1).lt(ln) {
+            if line.byte_at(sp).eq('/') {
+                ref nc : I8 = line.byte_at(sp.add(1))
+                if nc.eq('/').or(nc.eq('*')) { stmt_end = sp; break }
+            }
+            sp = sp.add(1)
+        }
+        right := trim_right(line, 0, stmt_end)
+        mut last : I8 = ' '
+        if right.gt(0) { last = line.byte_at(right.sub(1)) }
+        // Treat `,` as a statement terminator too -- enum members end with
+        // a comma and should not be glued onto the following member.
+        ends_with_term := last.eq(';').or(last.eq('{')).or(last.eq('}')).or(last.eq(','))
+        // Detect comment-only lines (block-comment continuations like
+        // `   can hold a pointer.  */`, line `// ...`, leading `/* ...`
+        // or `* ...`) and preprocessor directives (`#define ...`). These
+        // are passed through as-is, never merged.
+        first_idx := skip_ws(line, 0)
+        mut is_comment_line := false
+        if first_idx.lt(ln) {
+            ref c0 : I8 = line.byte_at(first_idx)
+            if c0.eq('#') { is_comment_line = true }
+            else if c0.eq('*') { is_comment_line = true }
+            else if first_idx.add(1).lt(ln) {
+                ref c1 : I8 = line.byte_at(first_idx.add(1))
+                if c0.eq('/').and(c1.eq('/')) { is_comment_line = true }
+                else if c0.eq('/').and(c1.eq('*')) { is_comment_line = true }
+            }
+        }
+        // A continuation line of a multi-line `/* ... */` block: ends in
+        // `*/` and doesn't start with code we care about. Avoid merging.
+        if right.gte(2) {
+            if line.byte_at(right.sub(2)).eq('*').and(line.byte_at(right.sub(1)).eq('/')) {
+                is_comment_line = true
+            }
+        }
+        // Peek the next line's first non-ws byte.
+        mut next_starts_close := false
+        if ri.add(1).lt(n_raw) {
+            ref nxt_tagged : Str = raw.get(ri.add(1))
+            ntn := nxt_tagged.len()
+            if ntn.gt(2) {
+                nxt := nxt_tagged.substr(2, ntn.sub(2))
+                nl := skip_ws(nxt, 0)
+                if nl.lt(nxt.len()).and(nxt.byte_at(nl).eq('}')) {
+                    next_starts_close = true
+                }
+            }
+        }
+        is_fragment := sys.and(looks_like_macro_fragment(line))
+        is_partial_user := sys.not().and(right.gt(0)).and(ends_with_term.not())
+            .and(next_starts_close.not()).and(is_comment_line.not())
+        if is_fragment.or(is_partial_user) {
+            if carry.is_empty() {
+                carry = line.clone()
+            } else {
+                carry = format(carry, " ", line)
+            }
+            continue
+        }
+        if carry.is_empty().not() {
+            out.push(own format(carry, " ", line))
+            carry = ""
+            continue
+        }
+        out.push(own line.clone())
+    }
+    if carry.is_empty().not() {
+        out.push(own carry.clone())
     }
     return out
 }

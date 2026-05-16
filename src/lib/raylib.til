@@ -1,203 +1,1867 @@
 mode lib
 
-// raylib FFI bindings (c_lib/raylib/, the external C library).
 
-link("c_lib/raylib/src/libraylib.a")
-link("m")
-link("pthread")
-link("rt")
+// Aggregate header for binding-generation. Pulls in raylib.h plus the
+// `rcamera` helpers (declared in rcamera.h, which raylib.h does not
+// include) so the generated til bindings cover the same surface the
+// hand-written src/lib/raylib.til used to expose.
+//*********************************************************************************************
+//
+//   raylib v6.0 - A simple and easy-to-use library to enjoy videogames programming (www.raylib.com)
+//
+//   FEATURES:
+//       - NO external dependencies, all required libraries included with raylib
+//       - Multiplatform: Windows, Linux, macOS, FreeBSD, Web, Android, Raspberry Pi, DRM native...
+//       - Written in plain C code (C99) in PascalCase/camelCase notation
+//       - Hardware accelerated with OpenGL (1.1, 2.1, 3.3, 4.3, ES2, ES3 - choose at compile)
+//       - Custom OpenGL abstraction layer (usable as standalone module): [rlgl]
+//       - Multiple Fonts formats supported (TTF, OTF, FNT, BDF, Sprite fonts)
+//       - Many texture formats supportted, including compressed formats (DXT, ETC, ASTC)
+//       - Full 3d support for 3d Shapes, Models, Billboards, Heightmaps and more!
+//       - Flexible Materials system, supporting classic maps and PBR maps
+//       - Animated 3D models supported (skeletal bones animation) (IQM, M3D, GLTF)
+//       - Shaders support, including Model shaders and Postprocessing shaders
+//       - Powerful math module for Vector, Matrix and Quaternion operations: [raymath]
+//       - Audio loading and playing with streaming support (WAV, OGG, MP3, FLAC, QOA, XM, MOD)
+//       - VR stereo rendering with configurable HMD device parameters
+//       - Bindings to multiple programming languages available!
+//
+//   NOTES:
+//       - One default Font is loaded on InitWindow()->LoadFontDefault() [core, text]
+//       - One default Texture2D is loaded on rlglInit(), 1x1 white pixel R8G8B8A8 [rlgl] (OpenGL 3.3 or ES2)
+//       - One default Shader is loaded on rlglInit()->rlLoadShaderDefault() [rlgl] (OpenGL 3.3 or ES2)
+//       - One default RenderBatch is loaded on rlglInit()->rlLoadRenderBatch() [rlgl] (OpenGL 3.3 or ES2)
+//
+//   DEPENDENCIES:
+//       [rcore] Depends on the selected platform backend, check rcore.c header for details
+//       [rlgl] glad/glad_gles2 (David Herberth - github.com/Dav1dde/glad) for OpenGL extensions loading
+//       [raudio] miniaudio (David Reid - github.com/mackron/miniaudio) for audio device/context management
+//
+//   OPTIONAL DEPENDENCIES (included):
+//       [rcore] sinfl (Micha Mettke) for DEFLATE decompression algorithm
+//       [rcore] sdefl (Micha Mettke) for DEFLATE compression algorithm
+//       [rcore] rprand (Ramon Santamaria) for pseudo-random numbers generation
+//       [rtextures] qoi (Dominic Szablewski - https://phoboslab.org) for QOI image manage
+//       [rtextures] stb_image (Sean Barret) for images loading (BMP, TGA, PNG, JPEG, HDR...)
+//       [rtextures] stb_image_write (Sean Barret) for image writing (BMP, TGA, PNG, JPG)
+//       [rtextures] stb_image_resize2 (Sean Barret) for image resizing algorithms
+//       [rtextures] stb_perlin (Sean Barret) for Perlin Noise image generation
+//       [rtextures] rl_gputex (Ramon Santamaria) for GPU-compressed texture formats
+//       [rtext] stb_truetype (Sean Barret) for ttf fonts loading
+//       [rtext] stb_rect_pack (Sean Barret) for rectangles packing
+//       [rmodels] par_shapes (Philip Rideout) for parametric 3d shapes generation
+//       [rmodels] tinyobj_loader_c (Syoyo Fujita) for models loading (OBJ, MTL)
+//       [rmodels] cgltf (Johannes Kuhlmann) for models loading (glTF)
+//       [rmodels] m3d (bzt) for models loading (M3D, https://bztsrc.gitlab.io/model3d)
+//       [rmodels] vox_loader (Johann Nadalutti) for models loading (VOX)
+//       [raudio] dr_wav (David Reid) for WAV audio file loading
+//       [raudio] dr_flac (David Reid) for FLAC audio file loading
+//       [raudio] dr_mp3 (David Reid) for MP3 audio file loading
+//       [raudio] stb_vorbis (Sean Barret) for OGG audio loading
+//       [raudio] jar_xm (Joshua Reisenauer) for XM audio module loading
+//       [raudio] jar_mod (Joshua Reisenauer) for MOD audio module loading
+//       [raudio] qoa (Dominic Szablewski - https://phoboslab.org) for QOA audio manage
+//
+//
+//   LICENSE: zlib/libpng
+//
+//   raylib is licensed under an unmodified zlib/libpng license, which is an OSI-certified,
+//   BSD-like license that allows static linking with closed source software:
+//
+//   Copyright (c) 2013-2026 Ramon Santamaria (@raysan5)
+//
+//   This software is provided "as-is", without any express or implied warranty. In no event
+//   will the authors be held liable for any damages arising from the use of this software.
+//
+//   Permission is granted to anyone to use this software for any purpose, including commercial
+//   applications, and to alter it and redistribute it freely, subject to the following restrictions:
+//
+//     1. The origin of this software must not be misrepresented; you must not claim that you
+//     wrote the original software. If you use this software in a product, an acknowledgment
+//     in the product documentation would be appreciated but is not required.
+//
+//     2. Altered source versions must be plainly marked as such, and must not be misrepresented
+//     as being the original software.
+//
+//     3. This notice may not be removed or altered from any source distribution.
+//
+//********************************************************************************************
+
+
+
+
+RAYLIB_VERSION_MAJOR : I64 = 6
+RAYLIB_VERSION_MINOR : I64 = 0
+RAYLIB_VERSION_PATCH : I64 = 0
+
+
+// Function specifiers in case library is build/used as a shared library
+// NOTE: Microsoft specifiers to tell compiler that symbols are imported/exported from a .dll
+// NOTE: visibility("default") attribute makes symbols "visible" when compiled with -fvisibility=hidden
+
+
+//----------------------------------------------------------------------------------
+// Defines and Macros
+//----------------------------------------------------------------------------------
+
+
+
+
+
+
+
+// Allow custom memory allocators
+// NOTE: Require recompiling raylib sources
+
+
+
+
+
+
+
+
+
+// NOTE: MSVC C++ compiler does not support compound literals (C99 feature)
+// Plain structures in C++ (without constructors) can be initialized with { }
+// This is called aggregate initialization (C++11 feature)
+
+
+
+
+
+// Some compilers (mostly macos clang) default to C++98,
+// where aggregate initialization can't be used
+// So, give a more clear error stating how to fix this
+
+
+
+
+// NOTE: Set some defines with some data types declared by raylib
+// Other modules (raymath, rlgl) also require some of those types, so,
+// to be able to use those other modules as standalone (not depending on raylib)
+// this defines are useful for internal check and avoid type (re)definitions
+
+// Some Basic Colors
+// NOTE: Custom raylib color palette for amazing visuals on WHITE background
+
+
+//----------------------------------------------------------------------------------
+// Types and Structures Definition
+//----------------------------------------------------------------------------------
+// Boolean type
+
+
+
+
+
+
 
 // Vector2, 2 components
 Vector2 := struct {
-    mut x : F32 = 0
-    mut y : F32 = 0
+    mut x : F32 = 0  // Vector x component
+    mut y : F32 = 0  // Vector y component
 }
+
 
 // Vector3, 3 components
 Vector3 := struct {
-    mut x : F32 = 0
-    mut y : F32 = 0
-    mut z : F32 = 0
+    mut x : F32 = 0  // Vector x component
+    mut y : F32 = 0  // Vector y component
+    mut z : F32 = 0  // Vector z component
 }
+
+
+// Vector4, 4 components
+Vector4 := struct {
+    mut x : F32 = 0  // Vector x component
+    mut y : F32 = 0  // Vector y component
+    mut z : F32 = 0  // Vector z component
+    mut w : F32 = 0  // Vector w component
+}
+
+
+// Quaternion, 4 components (Vector4 alias)
+Quaternion := Vector4
+
+
+// Matrix, 4x4 components, column major, OpenGL style, right-handed
+Matrix := ext_struct("Matrix") {}  // opaque: unsupported field shape
+
 
 // Color, 4 components, R8G8B8A8 (32bit)
 Color := struct {
-    mut r : U8 = 0
-    mut g : U8 = 0
-    mut b : U8 = 0
-    mut a : U8 = 0
+    mut r : U8 = 0  // Color red value
+    mut g : U8 = 0  // Color green value
+    mut b : U8 = 0  // Color blue value
+    mut a : U8 = 0  // Color alpha value
 }
+
 
 // Rectangle, 4 components
 Rectangle := struct {
-    mut x : F32 = 0
-    mut y : F32 = 0
-    mut width : F32 = 0
-    mut height : F32 = 0
+    mut x : F32 = 0  // Rectangle top-left corner position x
+    mut y : F32 = 0  // Rectangle top-left corner position y
+    mut width : F32 = 0  // Rectangle width
+    mut height : F32 = 0  // Rectangle height
 }
+
 
 // Image, pixel data stored in CPU memory (RAM)
 Image := struct {
-    ref mut data : U8 = NULL
-    mut width : I32 = 0
-    mut height : I32 = 0
-    mut mipmaps : I32 = 0
-    mut format : I32 = 0
+    ref mut data : Dynamic = NULL  // Image raw data
+    mut width : I32 = 0  // Image base width
+    mut height : I32 = 0  // Image base height
+    mut mipmaps : I32 = 0  // Mipmap levels, 1 by default
+    mut format : I32 = 0  // Data format (PixelFormat type)
 }
+
 
 // Texture, tex data stored in GPU memory (VRAM)
 Texture := struct {
-    mut id : U32 = 0
-    mut width : I32 = 0
-    mut height : I32 = 0
-    mut mipmaps : I32 = 0
-    mut format : I32 = 0
+    mut id : U32 = 0  // OpenGL texture id
+    mut width : I32 = 0  // Texture base width
+    mut height : I32 = 0  // Texture base height
+    mut mipmaps : I32 = 0  // Mipmap levels, 1 by default
+    mut format : I32 = 0  // Data format (PixelFormat type)
 }
 
+
+// Texture2D, same as Texture
 Texture2D := Texture
+
+
+// TextureCubemap, same as Texture
+TextureCubemap := Texture
+
+
+// RenderTexture, fbo for texture rendering
+RenderTexture := struct {
+    mut id : U32 = 0  // OpenGL framebuffer object id
+    mut texture : Texture = Texture()  // Color buffer attachment texture
+    mut depth : Texture = Texture()  // Depth buffer attachment texture
+}
+
+
+// RenderTexture2D, same as RenderTexture
+RenderTexture2D := RenderTexture
+
+
+// NPatchInfo, n-patch layout info
+NPatchInfo := struct {
+    mut source : Rectangle = Rectangle()  // Texture source rectangle
+    mut left : I32 = 0  // Left border offset
+    mut top : I32 = 0  // Top border offset
+    mut right : I32 = 0  // Right border offset
+    mut bottom : I32 = 0  // Bottom border offset
+    mut layout : I32 = 0  // Layout of the n-patch: 3x3, 1x3 or 3x1
+}
+
 
 // GlyphInfo, font characters glyphs info
 GlyphInfo := struct {
-    mut value : I32 = 0
-    mut offsetX : I32 = 0
-    mut offsetY : I32 = 0
-    mut advanceX : I32 = 0
-    mut image : Image = Image()
+    mut value : I32 = 0  // Character value (Unicode)
+    mut offsetX : I32 = 0  // Character offset X when drawing
+    mut offsetY : I32 = 0  // Character offset Y when drawing
+    mut advanceX : I32 = 0  // Character advance position X
+    mut image : Image = Image()  // Character image data
 }
+
 
 // Font, font texture and GlyphInfo array data
 Font := struct {
-    mut baseSize : I32 = 0
-    mut glyphCount : I32 = 0
-    mut glyphPadding : I32 = 0
-    mut texture : Texture2D = Texture2D()
-    ref mut recs : Rectangle = NULL
-    ref mut glyphs : GlyphInfo = NULL
+    mut baseSize : I32 = 0  // Base size (default chars height)
+    mut glyphCount : I32 = 0  // Number of glyph characters
+    mut glyphPadding : I32 = 0  // Padding around the glyph characters
+    mut texture : Texture2D = Texture2D()  // Texture atlas containing the glyphs
+    ref mut recs : Rectangle = NULL  // Rectangles in texture for the glyphs
+    ref mut glyphs : GlyphInfo = NULL  // Glyphs info data
 }
 
-// Camera3D, defines position/orientation in 3d space
+
+// Camera, defines position/orientation in 3d space
 Camera3D := struct {
-    mut position : Vector3 = Vector3()
-    mut target : Vector3 = Vector3()
-    mut up : Vector3 = Vector3()
-    mut fovy : F32 = 0
-    mut projection : I32 = 0
+    mut position : Vector3 = Vector3()  // Camera position
+    mut target : Vector3 = Vector3()  // Camera target it looks-at
+    mut up : Vector3 = Vector3()  // Camera up vector (rotation over its axis)
+    mut fovy : F32 = 0  // Camera field-of-view aperture in Y (degrees) in perspective, used as near plane height in world units in orthographic
+    mut projection : I32 = 0  // Camera projection: CAMERA_PERSPECTIVE or CAMERA_ORTHOGRAPHIC
 }
+
 
 Camera := Camera3D
 
-// Wave, audio wave data
-Wave := struct {
-    mut frameCount : U32 = 0
-    mut sampleRate : U32 = 0
-    mut sampleSize : U32 = 0
-    mut channels : U32 = 0
-    ref mut data : U8 = NULL
+
+// Camera2D, defines position/orientation in 2d space
+Camera2D := struct {
+    mut offset : Vector2 = Vector2()  // Camera offset (screen space offset from window origin)
+    mut target : Vector2 = Vector2()  // Camera target (world space target point that is mapped to screen space offset)
+    mut rotation : F32 = 0  // Camera rotation in degrees (pivots around target)
+    mut zoom : F32 = 0  // Camera zoom (scaling around target), must not be set to 0, set to 1.0f for no scale
 }
 
-// Opaque structs declaration
-rAudioBuffer := ext_struct("rAudioBuffer") {}
-rAudioProcessor := ext_struct("rAudioProcessor") {}
 
-// AudioStream, custom audio stream
-AudioStream := struct {
-    ref mut buffer : rAudioBuffer = NULL
-    ref mut processor : rAudioProcessor = NULL
-    mut sampleRate : U32 = 0
-    mut sampleSize : U32 = 0
-    mut channels : U32 = 0
+// Mesh, vertex data and vao/vbo
+Mesh := struct {
+    mut vertexCount : I32 = 0  // Number of vertices stored in arrays
+    mut triangleCount : I32 = 0  // Number of triangles stored (indexed or not)
+    // Vertex attributes data
+    ref mut vertices : F32 = NULL  // Vertex position (XYZ - 3 components per vertex) (shader-location = 0)
+    ref mut texcoords : F32 = NULL  // Vertex texture coordinates (UV - 2 components per vertex) (shader-location = 1)
+    ref mut texcoords2 : F32 = NULL  // Vertex texture second coordinates (UV - 2 components per vertex) (shader-location = 5)
+    ref mut normals : F32 = NULL  // Vertex normals (XYZ - 3 components per vertex) (shader-location = 2)
+    ref mut tangents : F32 = NULL  // Vertex tangents (XYZW - 4 components per vertex) (shader-location = 4)
+    ref mut colors : U8 = NULL  // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
+    ref mut indices : I16 = NULL  // Vertex indices (in case vertex data comes indexed)
+    // Skin data for animation
+    mut boneCount : I32 = 0  // Number of bones (MAX: 256 bones)
+    ref mut boneIndices : U8 = NULL  // Vertex bone indices, up to 4 bones influence by vertex (skinning) (shader-location = 6)
+    ref mut boneWeights : F32 = NULL  // Vertex bone weight, up to 4 bones influence by vertex (skinning) (shader-location = 7)
+    // Runtime animation vertex data (CPU skinning)
+    // NOTE: In case of GPU skinning, not used, pointers are NULL
+    ref mut animVertices : F32 = NULL  // Animated vertex positions (after bones transformations)
+    ref mut animNormals : F32 = NULL  // Animated normals (after bones transformations)
+    // OpenGL identifiers
+    mut vaoId : U32 = 0  // OpenGL Vertex Array Object id
+    ref mut vboId : U32 = NULL  // OpenGL Vertex Buffer Objects id (default vertex data)
 }
 
-// Sound
-Sound := struct {
-    mut stream : AudioStream = AudioStream()
-    mut frameCount : U32 = 0
+
+// Shader
+Shader := struct {
+    mut id : U32 = 0  // Shader program id
+    ref mut locs : I32 = NULL  // Shader locations array (RL_MAX_SHADER_LOCATIONS)
 }
+
+
+// MaterialMap
+MaterialMap := struct {
+    mut texture : Texture2D = Texture2D()  // Material map texture
+    mut color : Color = Color()  // Material map color
+    mut value : F32 = 0  // Material map value
+}
+
+
+// Material, includes shader and maps
+Material := ext_struct("Material") {}  // opaque: unsupported field shape
+
+
+// Transform, vertex transformation data
+Transform := struct {
+    mut translation : Vector3 = Vector3()  // Translation
+    mut rotation : Quaternion = Quaternion()  // Rotation
+    mut scale : Vector3 = Vector3()  // Scale
+}
+
+
+// Anim pose, an array of Transform[]
+ModelAnimPose := Dynamic
+
+
+// Bone, skeletal animation bone
+BoneInfo := ext_struct("BoneInfo") {}  // opaque: unsupported field shape
+
+
+// Skeleton, animation bones hierarchy
+ModelSkeleton := struct {
+    mut boneCount : I32 = 0  // Number of bones
+    ref mut bones : BoneInfo = NULL  // Bones information (skeleton)
+    ref mut bindPose : Dynamic = NULL  // Bones base transformation (Transform[])
+}
+
+
+// Model, meshes, materials and animation data
+Model := struct {
+    mut transform : Matrix = Matrix()  // Local transform matrix
+    mut meshCount : I32 = 0  // Number of meshes
+    mut materialCount : I32 = 0  // Number of materials
+    ref mut meshes : Mesh = NULL  // Meshes array
+    ref mut materials : Material = NULL  // Materials array
+    ref mut meshMaterial : I32 = NULL  // Mesh material number
+    // Animation data
+    mut skeleton : ModelSkeleton = ModelSkeleton()  // Skeleton for animation
+    // Runtime animation data (CPU/GPU skinning)
+    ref mut currentPose : Dynamic = NULL  // Current animation pose (Transform[])
+    ref mut boneMatrices : Matrix = NULL  // Bones animated transformation matrices
+}
+
+
+// ModelAnimation, contains a full animation sequence
+ModelAnimation := ext_struct("ModelAnimation") {}  // opaque: unsupported field shape
+
+
+// Ray, ray for raycasting
+Ray := struct {
+    mut position : Vector3 = Vector3()  // Ray position (origin)
+    mut direction : Vector3 = Vector3()  // Ray direction (normalized)
+}
+
+
+// RayCollision, ray hit information
+RayCollision := struct {
+    mut hit : Bool = false  // Did the ray hit something?
+    mut distance : F32 = 0  // Distance to the nearest hit
+    mut point : Vector3 = Vector3()  // Point of the nearest hit
+    mut normal : Vector3 = Vector3()  // Surface normal of hit
+}
+
 
 // BoundingBox
 BoundingBox := struct {
-    mut min : Vector3 = Vector3()
-    mut max : Vector3 = Vector3()
+    mut min : Vector3 = Vector3()  // Minimum vertex box-corner
+    mut max : Vector3 = Vector3()  // Maximum vertex box-corner
 }
 
+
+// Wave, audio wave data
+Wave := struct {
+    mut frameCount : U32 = 0  // Total number of frames (considering channels)
+    mut sampleRate : U32 = 0  // Frequency (samples per second)
+    mut sampleSize : U32 = 0  // Bit depth (bits per sample): 8, 16, 32 (24 not supported)
+    mut channels : U32 = 0  // Number of channels (1-mono, 2-stereo, ...)
+    ref mut data : Dynamic = NULL  // Buffer data pointer
+}
+
+
+// Opaque structs declaration
+// NOTE: Actual structs are defined internally in raudio module
+rAudioBuffer := ext_struct("rAudioBuffer") {}
+
+rAudioProcessor := ext_struct("rAudioProcessor") {}
+
+
+// AudioStream, custom audio stream
+AudioStream := struct {
+    ref mut buffer : rAudioBuffer = NULL  // Pointer to internal data used by the audio system
+    ref mut processor : rAudioProcessor = NULL  // Pointer to internal data processor, useful for audio effects
+    mut sampleRate : U32 = 0  // Frequency (samples per second)
+    mut sampleSize : U32 = 0  // Bit depth (bits per sample): 8, 16, 32 (24 not supported)
+    mut channels : U32 = 0  // Number of channels (1-mono, 2-stereo, ...)
+}
+
+
+// Sound
+Sound := struct {
+    mut stream : AudioStream = AudioStream()  // Audio stream
+    mut frameCount : U32 = 0  // Total number of frames (considering channels)
+}
+
+
+// Music, audio stream, anything longer than ~10 seconds should be streamed
+Music := struct {
+    mut stream : AudioStream = AudioStream()  // Audio stream
+    mut frameCount : U32 = 0  // Total number of frames (considering channels)
+    mut looping : Bool = false  // Music looping enable
+    mut ctxType : I32 = 0  // Type of music context (audio filetype)
+    ref mut ctxData : Dynamic = NULL  // Audio context data, depends on type
+}
+
+
+// VrDeviceInfo, Head-Mounted-Display device parameters
+VrDeviceInfo := ext_struct("VrDeviceInfo") {}  // opaque: unsupported field shape
+
+
+// VrStereoConfig, VR stereo rendering configuration for simulator
+VrStereoConfig := ext_struct("VrStereoConfig") {}  // opaque: unsupported field shape
+
+
+// File path list
+FilePathList := struct {
+    mut count : U32 = 0  // Filepaths entries count
+    ref mut paths : Dynamic = NULL  // Filepaths entries
+}
+
+
+// Automation event
+AutomationEvent := ext_struct("AutomationEvent") {}  // opaque: unsupported field shape
+
+
+// Automation event list
+AutomationEventList := struct {
+    mut capacity : U32 = 0  // Events max entries (MAX_AUTOMATION_EVENTS)
+    mut count : U32 = 0  // Events entries count
+    ref mut events : AutomationEvent = NULL  // Events entries
+}
+
+
+//----------------------------------------------------------------------------------
+// Enumerators Definition
+//----------------------------------------------------------------------------------
+// System/Window config flags
+// NOTE: Every bit registers one state (use it with bit masks)
+// By default all flags are set to 0
+ConfigFlags := I32
+
+FLAG_VSYNC_HINT : I32 = 64.to_i32()
+FLAG_FULLSCREEN_MODE : I32 = 2.to_i32()
+FLAG_WINDOW_RESIZABLE : I32 = 4.to_i32()
+FLAG_WINDOW_UNDECORATED : I32 = 8.to_i32()
+FLAG_WINDOW_HIDDEN : I32 = 128.to_i32()
+FLAG_WINDOW_MINIMIZED : I32 = 512.to_i32()
+FLAG_WINDOW_MAXIMIZED : I32 = 1024.to_i32()
+FLAG_WINDOW_UNFOCUSED : I32 = 2048.to_i32()
+FLAG_WINDOW_TOPMOST : I32 = 4096.to_i32()
+FLAG_WINDOW_ALWAYS_RUN : I32 = 256.to_i32()
+FLAG_WINDOW_TRANSPARENT : I32 = 16.to_i32()
+FLAG_WINDOW_HIGHDPI : I32 = 8192.to_i32()
+FLAG_WINDOW_MOUSE_PASSTHROUGH : I32 = 16384.to_i32()
+FLAG_BORDERLESS_WINDOWED_MODE : I32 = 32768.to_i32()
+FLAG_MSAA_4X_HINT : I32 = 32.to_i32()
+FLAG_INTERLACED_HINT : I32 = 33.to_i32()
+
+
+// Trace log level
+// NOTE: Organized by priority level
+TraceLogLevel := I32
+
+LOG_ALL : I32 = 0.to_i32()
+LOG_TRACE : I32 = 1.to_i32()
+LOG_DEBUG : I32 = 2.to_i32()
+LOG_INFO : I32 = 3.to_i32()
+LOG_WARNING : I32 = 4.to_i32()
+LOG_ERROR : I32 = 5.to_i32()
+LOG_FATAL : I32 = 6.to_i32()
+LOG_NONE : I32 = 7.to_i32()
+
+
+// Keyboard keys (US keyboard layout)
+// NOTE: Use GetKeyPressed() to allow redefining required keys for alternative layouts
+KeyboardKey := I32
+
+KEY_NULL : I32 = 0.to_i32()
+    // Alphanumeric keys
+KEY_APOSTROPHE : I32 = 39.to_i32()
+KEY_COMMA : I32 = 44.to_i32()
+KEY_MINUS : I32 = 45.to_i32()
+KEY_PERIOD : I32 = 46.to_i32()
+KEY_SLASH : I32 = 47.to_i32()
+KEY_ZERO : I32 = 48.to_i32()
+KEY_ONE : I32 = 49.to_i32()
+KEY_TWO : I32 = 50.to_i32()
+KEY_THREE : I32 = 51.to_i32()
+KEY_FOUR : I32 = 52.to_i32()
+KEY_FIVE : I32 = 53.to_i32()
+KEY_SIX : I32 = 54.to_i32()
+KEY_SEVEN : I32 = 55.to_i32()
+KEY_EIGHT : I32 = 56.to_i32()
+KEY_NINE : I32 = 57.to_i32()
+KEY_SEMICOLON : I32 = 59.to_i32()
+KEY_EQUAL : I32 = 61.to_i32()
+KEY_A : I32 = 65.to_i32()
+KEY_B : I32 = 66.to_i32()
+KEY_C : I32 = 67.to_i32()
+KEY_D : I32 = 68.to_i32()
+KEY_E : I32 = 69.to_i32()
+KEY_F : I32 = 70.to_i32()
+KEY_G : I32 = 71.to_i32()
+KEY_H : I32 = 72.to_i32()
+KEY_I : I32 = 73.to_i32()
+KEY_J : I32 = 74.to_i32()
+KEY_K : I32 = 75.to_i32()
+KEY_L : I32 = 76.to_i32()
+KEY_M : I32 = 77.to_i32()
+KEY_N : I32 = 78.to_i32()
+KEY_O : I32 = 79.to_i32()
+KEY_P : I32 = 80.to_i32()
+KEY_Q : I32 = 81.to_i32()
+KEY_R : I32 = 82.to_i32()
+KEY_S : I32 = 83.to_i32()
+KEY_T : I32 = 84.to_i32()
+KEY_U : I32 = 85.to_i32()
+KEY_V : I32 = 86.to_i32()
+KEY_W : I32 = 87.to_i32()
+KEY_X : I32 = 88.to_i32()
+KEY_Y : I32 = 89.to_i32()
+KEY_Z : I32 = 90.to_i32()
+KEY_LEFT_BRACKET : I32 = 91.to_i32()
+KEY_BACKSLASH : I32 = 92.to_i32()
+KEY_RIGHT_BRACKET : I32 = 93.to_i32()
+KEY_GRAVE : I32 = 96.to_i32()
+    // Function keys
+KEY_SPACE : I32 = 32.to_i32()
+KEY_ESCAPE : I32 = 256.to_i32()
+KEY_ENTER : I32 = 257.to_i32()
+KEY_TAB : I32 = 258.to_i32()
+KEY_BACKSPACE : I32 = 259.to_i32()
+KEY_INSERT : I32 = 260.to_i32()
+KEY_DELETE : I32 = 261.to_i32()
+KEY_RIGHT : I32 = 262.to_i32()
+KEY_LEFT : I32 = 263.to_i32()
+KEY_DOWN : I32 = 264.to_i32()
+KEY_UP : I32 = 265.to_i32()
+KEY_PAGE_UP : I32 = 266.to_i32()
+KEY_PAGE_DOWN : I32 = 267.to_i32()
+KEY_HOME : I32 = 268.to_i32()
+KEY_END : I32 = 269.to_i32()
+KEY_CAPS_LOCK : I32 = 280.to_i32()
+KEY_SCROLL_LOCK : I32 = 281.to_i32()
+KEY_NUM_LOCK : I32 = 282.to_i32()
+KEY_PRINT_SCREEN : I32 = 283.to_i32()
+KEY_PAUSE : I32 = 284.to_i32()
+KEY_F1 : I32 = 290.to_i32()
+KEY_F2 : I32 = 291.to_i32()
+KEY_F3 : I32 = 292.to_i32()
+KEY_F4 : I32 = 293.to_i32()
+KEY_F5 : I32 = 294.to_i32()
+KEY_F6 : I32 = 295.to_i32()
+KEY_F7 : I32 = 296.to_i32()
+KEY_F8 : I32 = 297.to_i32()
+KEY_F9 : I32 = 298.to_i32()
+KEY_F10 : I32 = 299.to_i32()
+KEY_F11 : I32 = 300.to_i32()
+KEY_F12 : I32 = 301.to_i32()
+KEY_LEFT_SHIFT : I32 = 340.to_i32()
+KEY_LEFT_CONTROL : I32 = 341.to_i32()
+KEY_LEFT_ALT : I32 = 342.to_i32()
+KEY_LEFT_SUPER : I32 = 343.to_i32()
+KEY_RIGHT_SHIFT : I32 = 344.to_i32()
+KEY_RIGHT_CONTROL : I32 = 345.to_i32()
+KEY_RIGHT_ALT : I32 = 346.to_i32()
+KEY_RIGHT_SUPER : I32 = 347.to_i32()
+KEY_KB_MENU : I32 = 348.to_i32()
+    // Keypad keys
+KEY_KP_0 : I32 = 320.to_i32()
+KEY_KP_1 : I32 = 321.to_i32()
+KEY_KP_2 : I32 = 322.to_i32()
+KEY_KP_3 : I32 = 323.to_i32()
+KEY_KP_4 : I32 = 324.to_i32()
+KEY_KP_5 : I32 = 325.to_i32()
+KEY_KP_6 : I32 = 326.to_i32()
+KEY_KP_7 : I32 = 327.to_i32()
+KEY_KP_8 : I32 = 328.to_i32()
+KEY_KP_9 : I32 = 329.to_i32()
+KEY_KP_DECIMAL : I32 = 330.to_i32()
+KEY_KP_DIVIDE : I32 = 331.to_i32()
+KEY_KP_MULTIPLY : I32 = 332.to_i32()
+KEY_KP_SUBTRACT : I32 = 333.to_i32()
+KEY_KP_ADD : I32 = 334.to_i32()
+KEY_KP_ENTER : I32 = 335.to_i32()
+KEY_KP_EQUAL : I32 = 336.to_i32()
+    // Android key buttons
+KEY_BACK : I32 = 4.to_i32()
+KEY_MENU : I32 = 5.to_i32()
+KEY_VOLUME_UP : I32 = 24.to_i32()
+KEY_VOLUME_DOWN : I32 = 25.to_i32()
+
+
+// Add backwards compatibility support for deprecated names
+
+// Mouse buttons
+MouseButton := I32
+
+MOUSE_BUTTON_LEFT : I32 = 0.to_i32()
+MOUSE_BUTTON_RIGHT : I32 = 1.to_i32()
+MOUSE_BUTTON_MIDDLE : I32 = 2.to_i32()
+MOUSE_BUTTON_SIDE : I32 = 3.to_i32()
+MOUSE_BUTTON_EXTRA : I32 = 4.to_i32()
+MOUSE_BUTTON_FORWARD : I32 = 5.to_i32()
+MOUSE_BUTTON_BACK : I32 = 6.to_i32()
+
+
+// Mouse cursor
+MouseCursor := I32
+
+MOUSE_CURSOR_DEFAULT : I32 = 0.to_i32()
+MOUSE_CURSOR_ARROW : I32 = 1.to_i32()
+MOUSE_CURSOR_IBEAM : I32 = 2.to_i32()
+MOUSE_CURSOR_CROSSHAIR : I32 = 3.to_i32()
+MOUSE_CURSOR_POINTING_HAND : I32 = 4.to_i32()
+MOUSE_CURSOR_RESIZE_EW : I32 = 5.to_i32()
+MOUSE_CURSOR_RESIZE_NS : I32 = 6.to_i32()
+MOUSE_CURSOR_RESIZE_NWSE : I32 = 7.to_i32()
+MOUSE_CURSOR_RESIZE_NESW : I32 = 8.to_i32()
+MOUSE_CURSOR_RESIZE_ALL : I32 = 9.to_i32()
+MOUSE_CURSOR_NOT_ALLOWED : I32 = 10.to_i32()
+
+
+// Gamepad buttons
+GamepadButton := I32
+
+GAMEPAD_BUTTON_UNKNOWN : I32 = 0.to_i32()
+GAMEPAD_BUTTON_LEFT_FACE_UP : I32 = 1.to_i32()
+GAMEPAD_BUTTON_LEFT_FACE_RIGHT : I32 = 2.to_i32()
+GAMEPAD_BUTTON_LEFT_FACE_DOWN : I32 = 3.to_i32()
+GAMEPAD_BUTTON_LEFT_FACE_LEFT : I32 = 4.to_i32()
+GAMEPAD_BUTTON_RIGHT_FACE_UP : I32 = 5.to_i32()
+GAMEPAD_BUTTON_RIGHT_FACE_RIGHT : I32 = 6.to_i32()
+GAMEPAD_BUTTON_RIGHT_FACE_DOWN : I32 = 7.to_i32()
+GAMEPAD_BUTTON_RIGHT_FACE_LEFT : I32 = 8.to_i32()
+GAMEPAD_BUTTON_LEFT_TRIGGER_1 : I32 = 9.to_i32()
+GAMEPAD_BUTTON_LEFT_TRIGGER_2 : I32 = 10.to_i32()
+GAMEPAD_BUTTON_RIGHT_TRIGGER_1 : I32 = 11.to_i32()
+GAMEPAD_BUTTON_RIGHT_TRIGGER_2 : I32 = 12.to_i32()
+GAMEPAD_BUTTON_MIDDLE_LEFT : I32 = 13.to_i32()
+GAMEPAD_BUTTON_MIDDLE : I32 = 14.to_i32()
+GAMEPAD_BUTTON_MIDDLE_RIGHT : I32 = 15.to_i32()
+GAMEPAD_BUTTON_LEFT_THUMB : I32 = 16.to_i32()
+GAMEPAD_BUTTON_RIGHT_THUMB : I32 = 17.to_i32()
+
+
+// Gamepad axes
+GamepadAxis := I32
+
+GAMEPAD_AXIS_LEFT_X : I32 = 0.to_i32()
+GAMEPAD_AXIS_LEFT_Y : I32 = 1.to_i32()
+GAMEPAD_AXIS_RIGHT_X : I32 = 2.to_i32()
+GAMEPAD_AXIS_RIGHT_Y : I32 = 3.to_i32()
+GAMEPAD_AXIS_LEFT_TRIGGER : I32 = 4.to_i32()
+GAMEPAD_AXIS_RIGHT_TRIGGER : I32 = 5.to_i32()
+
+
+// Material map index
+MaterialMapIndex := I32
+
+MATERIAL_MAP_ALBEDO : I32 = 0.to_i32()
+MATERIAL_MAP_METALNESS : I32 = 1.to_i32()
+MATERIAL_MAP_NORMAL : I32 = 2.to_i32()
+MATERIAL_MAP_ROUGHNESS : I32 = 3.to_i32()
+MATERIAL_MAP_OCCLUSION : I32 = 4.to_i32()
+MATERIAL_MAP_EMISSION : I32 = 5.to_i32()
+MATERIAL_MAP_HEIGHT : I32 = 6.to_i32()
+MATERIAL_MAP_CUBEMAP : I32 = 7.to_i32()
+MATERIAL_MAP_IRRADIANCE : I32 = 8.to_i32()
+MATERIAL_MAP_PREFILTER : I32 = 9.to_i32()
+MATERIAL_MAP_BRDF : I32 = 10.to_i32()
+
+
+
+// Shader location index
+// NOTE: Some locations are tried to be set automatically on shader loading,
+// but only if default attributes/uniforms names are found, check config.h for names
+ShaderLocationIndex := I32
+
+SHADER_LOC_VERTEX_POSITION : I32 = 0.to_i32()
+SHADER_LOC_VERTEX_TEXCOORD01 : I32 = 1.to_i32()
+SHADER_LOC_VERTEX_TEXCOORD02 : I32 = 2.to_i32()
+SHADER_LOC_VERTEX_NORMAL : I32 = 3.to_i32()
+SHADER_LOC_VERTEX_TANGENT : I32 = 4.to_i32()
+SHADER_LOC_VERTEX_COLOR : I32 = 5.to_i32()
+SHADER_LOC_MATRIX_MVP : I32 = 6.to_i32()
+SHADER_LOC_MATRIX_VIEW : I32 = 7.to_i32()
+SHADER_LOC_MATRIX_PROJECTION : I32 = 8.to_i32()
+SHADER_LOC_MATRIX_MODEL : I32 = 9.to_i32()
+SHADER_LOC_MATRIX_NORMAL : I32 = 10.to_i32()
+SHADER_LOC_VECTOR_VIEW : I32 = 11.to_i32()
+SHADER_LOC_COLOR_DIFFUSE : I32 = 12.to_i32()
+SHADER_LOC_COLOR_SPECULAR : I32 = 13.to_i32()
+SHADER_LOC_COLOR_AMBIENT : I32 = 14.to_i32()
+SHADER_LOC_MAP_ALBEDO : I32 = 15.to_i32()
+SHADER_LOC_MAP_METALNESS : I32 = 16.to_i32()
+SHADER_LOC_MAP_NORMAL : I32 = 17.to_i32()
+SHADER_LOC_MAP_ROUGHNESS : I32 = 18.to_i32()
+SHADER_LOC_MAP_OCCLUSION : I32 = 19.to_i32()
+SHADER_LOC_MAP_EMISSION : I32 = 20.to_i32()
+SHADER_LOC_MAP_HEIGHT : I32 = 21.to_i32()
+SHADER_LOC_MAP_CUBEMAP : I32 = 22.to_i32()
+SHADER_LOC_MAP_IRRADIANCE : I32 = 23.to_i32()
+SHADER_LOC_MAP_PREFILTER : I32 = 24.to_i32()
+SHADER_LOC_MAP_BRDF : I32 = 25.to_i32()
+SHADER_LOC_VERTEX_BONEIDS : I32 = 26.to_i32()
+SHADER_LOC_VERTEX_BONEWEIGHTS : I32 = 27.to_i32()
+SHADER_LOC_MATRIX_BONETRANSFORMS : I32 = 28.to_i32()
+SHADER_LOC_VERTEX_INSTANCETRANSFORM : I32 = 29.to_i32()
+
+
+
+// Shader uniform data type
+ShaderUniformDataType := I32
+
+SHADER_UNIFORM_FLOAT : I32 = 0.to_i32()
+SHADER_UNIFORM_VEC2 : I32 = 1.to_i32()
+SHADER_UNIFORM_VEC3 : I32 = 2.to_i32()
+SHADER_UNIFORM_VEC4 : I32 = 3.to_i32()
+SHADER_UNIFORM_INT : I32 = 4.to_i32()
+SHADER_UNIFORM_IVEC2 : I32 = 5.to_i32()
+SHADER_UNIFORM_IVEC3 : I32 = 6.to_i32()
+SHADER_UNIFORM_IVEC4 : I32 = 7.to_i32()
+SHADER_UNIFORM_UINT : I32 = 8.to_i32()
+SHADER_UNIFORM_UIVEC2 : I32 = 9.to_i32()
+SHADER_UNIFORM_UIVEC3 : I32 = 10.to_i32()
+SHADER_UNIFORM_UIVEC4 : I32 = 11.to_i32()
+SHADER_UNIFORM_SAMPLER2D : I32 = 12.to_i32()
+
+
+// Shader attribute data types
+ShaderAttributeDataType := I32
+
+SHADER_ATTRIB_FLOAT : I32 = 0.to_i32()
+SHADER_ATTRIB_VEC2 : I32 = 1.to_i32()
+SHADER_ATTRIB_VEC3 : I32 = 2.to_i32()
+SHADER_ATTRIB_VEC4 : I32 = 3.to_i32()
+
+
+// Pixel formats
+// NOTE: Support depends on OpenGL version and platform
+PixelFormat := I32
+
+PIXELFORMAT_UNCOMPRESSED_GRAYSCALE : I32 = 1.to_i32()
+PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA : I32 = 2.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R5G6B5 : I32 = 3.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R8G8B8 : I32 = 4.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R5G5B5A1 : I32 = 5.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R4G4B4A4 : I32 = 6.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 : I32 = 7.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R32 : I32 = 8.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R32G32B32 : I32 = 9.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R32G32B32A32 : I32 = 10.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R16 : I32 = 11.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R16G16B16 : I32 = 12.to_i32()
+PIXELFORMAT_UNCOMPRESSED_R16G16B16A16 : I32 = 13.to_i32()
+PIXELFORMAT_COMPRESSED_DXT1_RGB : I32 = 14.to_i32()
+PIXELFORMAT_COMPRESSED_DXT1_RGBA : I32 = 15.to_i32()
+PIXELFORMAT_COMPRESSED_DXT3_RGBA : I32 = 16.to_i32()
+PIXELFORMAT_COMPRESSED_DXT5_RGBA : I32 = 17.to_i32()
+PIXELFORMAT_COMPRESSED_ETC1_RGB : I32 = 18.to_i32()
+PIXELFORMAT_COMPRESSED_ETC2_RGB : I32 = 19.to_i32()
+PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA : I32 = 20.to_i32()
+PIXELFORMAT_COMPRESSED_PVRT_RGB : I32 = 21.to_i32()
+PIXELFORMAT_COMPRESSED_PVRT_RGBA : I32 = 22.to_i32()
+PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA : I32 = 23.to_i32()
+PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA : I32 = 24.to_i32()
+
+
+// Texture parameters: filter mode
+// NOTE 1: Filtering considers mipmaps if available in the texture
+// NOTE 2: Filter is accordingly set for minification and magnification
+TextureFilter := I32
+
+TEXTURE_FILTER_POINT : I32 = 0.to_i32()
+TEXTURE_FILTER_BILINEAR : I32 = 1.to_i32()
+TEXTURE_FILTER_TRILINEAR : I32 = 2.to_i32()
+TEXTURE_FILTER_ANISOTROPIC_4X : I32 = 3.to_i32()
+TEXTURE_FILTER_ANISOTROPIC_8X : I32 = 4.to_i32()
+TEXTURE_FILTER_ANISOTROPIC_16X : I32 = 5.to_i32()
+
+
+// Texture parameters: wrap mode
+TextureWrap := I32
+
+TEXTURE_WRAP_REPEAT : I32 = 0.to_i32()
+TEXTURE_WRAP_CLAMP : I32 = 1.to_i32()
+TEXTURE_WRAP_MIRROR_REPEAT : I32 = 2.to_i32()
+TEXTURE_WRAP_MIRROR_CLAMP : I32 = 3.to_i32()
+
+
+// Cubemap layouts
+CubemapLayout := I32
+
+CUBEMAP_LAYOUT_AUTO_DETECT : I32 = 0.to_i32()
+CUBEMAP_LAYOUT_LINE_VERTICAL : I32 = 1.to_i32()
+CUBEMAP_LAYOUT_LINE_HORIZONTAL : I32 = 2.to_i32()
+CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR : I32 = 3.to_i32()
+CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE : I32 = 4.to_i32()
+
+
+// Font type, defines generation method
+FontType := I32
+
+FONT_DEFAULT : I32 = 0.to_i32()
+FONT_BITMAP : I32 = 1.to_i32()
+FONT_SDF : I32 = 2.to_i32()
+
+
+// Color blending modes (pre-defined)
+BlendMode := I32
+
+BLEND_ALPHA : I32 = 0.to_i32()
+BLEND_ADDITIVE : I32 = 1.to_i32()
+BLEND_MULTIPLIED : I32 = 2.to_i32()
+BLEND_ADD_COLORS : I32 = 3.to_i32()
+BLEND_SUBTRACT_COLORS : I32 = 4.to_i32()
+BLEND_ALPHA_PREMULTIPLY : I32 = 5.to_i32()
+BLEND_CUSTOM : I32 = 6.to_i32()
+BLEND_CUSTOM_SEPARATE : I32 = 7.to_i32()
+
+
+// Gesture
+// NOTE: Provided as bit-wise flags to enable only desired gestures
+Gesture := I32
+
+GESTURE_NONE : I32 = 0.to_i32()
+GESTURE_TAP : I32 = 1.to_i32()
+GESTURE_DOUBLETAP : I32 = 2.to_i32()
+GESTURE_HOLD : I32 = 4.to_i32()
+GESTURE_DRAG : I32 = 8.to_i32()
+GESTURE_SWIPE_RIGHT : I32 = 16.to_i32()
+GESTURE_SWIPE_LEFT : I32 = 32.to_i32()
+GESTURE_SWIPE_UP : I32 = 64.to_i32()
+GESTURE_SWIPE_DOWN : I32 = 128.to_i32()
+GESTURE_PINCH_IN : I32 = 256.to_i32()
+GESTURE_PINCH_OUT : I32 = 257.to_i32()
+
+
+// Camera system modes
+CameraMode := I32
+
+CAMERA_CUSTOM : I32 = 0.to_i32()
+CAMERA_FREE : I32 = 1.to_i32()
+CAMERA_ORBITAL : I32 = 2.to_i32()
+CAMERA_FIRST_PERSON : I32 = 3.to_i32()
+CAMERA_THIRD_PERSON : I32 = 4.to_i32()
+
+
 // Camera projection
+CameraProjection := I32
+
 CAMERA_PERSPECTIVE : I32 = 0.to_i32()
 CAMERA_ORTHOGRAPHIC : I32 = 1.to_i32()
 
-// Window config flags
-FLAG_WINDOW_RESIZABLE : U32 = 4.to_u32()
-FLAG_WINDOW_MAXIMIZED : U32 = 1024.to_u32()
 
-// Keyboard keys (US keyboard layout)
-KEY_SPACE : I64 = 32
-KEY_A : I64 = 65
-KEY_D : I64 = 68
-KEY_G : I64 = 71
-KEY_M : I64 = 77
-KEY_S : I64 = 83
-KEY_W : I64 = 87
-KEY_ESCAPE : I64 = 256
-KEY_ENTER : I64 = 257
-KEY_RIGHT : I64 = 262
-KEY_LEFT : I64 = 263
-KEY_DOWN : I64 = 264
-KEY_UP : I64 = 265
-KEY_F11 : I64 = 300
+// N-patch layout
+NPatchLayout := I32
 
+NPATCH_NINE_PATCH : I32 = 0.to_i32()
+NPATCH_THREE_PATCH_VERTICAL : I32 = 1.to_i32()
+NPATCH_THREE_PATCH_HORIZONTAL : I32 = 2.to_i32()
+
+
+// Callbacks to hook some internal functions
+// WARNING: These callbacks are intended for advanced users
+TraceLogCallback := Dynamic
+
+LoadFileDataCallback := Dynamic
+
+SaveFileDataCallback := Dynamic
+
+LoadFileTextCallback := Dynamic
+
+SaveFileTextCallback := Dynamic
+
+
+//------------------------------------------------------------------------------------
+// Global Variables Definition
+//------------------------------------------------------------------------------------
+// It's lonely here...
+
+//------------------------------------------------------------------------------------
+// Window and Graphics Device Functions (Module: core)
+//------------------------------------------------------------------------------------
+
+
+
+
+
+// Window-related functions
 InitWindow := ext_proc(shallow width : I32, shallow height : I32, title : I8) {}
-IsWindowReady := ext_func() returns shallow Bool {}
-WindowShouldClose := ext_func() returns shallow Bool {}
 CloseWindow := ext_proc() {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+WindowShouldClose := ext_func() returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsWindowReady := ext_func() returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsWindowFullscreen := ext_func() returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsWindowHidden := ext_func() returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsWindowMinimized := ext_func() returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsWindowMaximized := ext_func() returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsWindowFocused := ext_func() returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsWindowResized := ext_func() returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsWindowState := ext_func(shallow flag : U32) returns shallow Bool {}
+SetWindowState := ext_proc(shallow flags : U32) {}
+ClearWindowState := ext_proc(shallow flags : U32) {}
+ToggleFullscreen := ext_proc() {}
+ToggleBorderlessWindowed := ext_proc() {}
+MaximizeWindow := ext_proc() {}
+MinimizeWindow := ext_proc() {}
+RestoreWindow := ext_proc() {}
+SetWindowIcon := ext_proc(shallow image : Image) {}
+SetWindowIcons := ext_proc(images : Image, shallow count : I32) {}
+SetWindowTitle := ext_proc(title : I8) {}
+SetWindowPosition := ext_proc(shallow x : I32, shallow y : I32) {}
+SetWindowMonitor := ext_proc(shallow monitor : I32) {}
 SetWindowMinSize := ext_proc(shallow width : I32, shallow height : I32) {}
 SetWindowMaxSize := ext_proc(shallow width : I32, shallow height : I32) {}
-MaximizeWindow := ext_proc() {}
-ToggleFullscreen := ext_proc() {}
-SetTargetFPS := ext_proc(shallow fps : I32) {}
+SetWindowSize := ext_proc(shallow width : I32, shallow height : I32) {}
+SetWindowOpacity := ext_proc(shallow opacity : F32) {}
+SetWindowFocused := ext_proc() {}
+GetWindowHandle := ext_func() returns Dynamic {}
 GetScreenWidth := ext_func() returns shallow I32 {}
 GetScreenHeight := ext_func() returns shallow I32 {}
-GetFrameTime := ext_func() returns shallow F32 {}
-GetFPS := ext_func() returns shallow I32 {}
-GetRandomValue := ext_func(shallow min : I32, shallow max : I32) returns shallow I32 {}
-SetConfigFlags := ext_proc(shallow flags : U32) {}
-SetExitKey := ext_proc(shallow key : I32) {}
-IsWindowResized := ext_func() returns shallow Bool {}
-IsKeyPressed := ext_func(shallow key : I32) returns shallow Bool {}
-IsKeyDown := ext_func(shallow key : I32) returns shallow Bool {}
-IsKeyRepeat := ext_func(shallow key : I32) returns shallow Bool {}
-GetCharPressed := ext_func() returns shallow I32 {}
-IsMouseButtonPressed := ext_func(shallow button : I32) returns shallow Bool {}
-IsMouseButtonDown := ext_func(shallow button : I32) returns shallow Bool {}
-GetMouseX := ext_func() returns shallow I32 {}
-GetMouseY := ext_func() returns shallow I32 {}
-GetMouseDelta := ext_func() returns shallow Vector2 {}
+GetRenderWidth := ext_func() returns shallow I32 {}
+GetRenderHeight := ext_func() returns shallow I32 {}
+GetMonitorCount := ext_func() returns shallow I32 {}
+GetCurrentMonitor := ext_func() returns shallow I32 {}
+GetMonitorPosition := ext_func(shallow monitor : I32) returns shallow Vector2 {}
+GetMonitorWidth := ext_func(shallow monitor : I32) returns shallow I32 {}
+GetMonitorHeight := ext_func(shallow monitor : I32) returns shallow I32 {}
+GetMonitorPhysicalWidth := ext_func(shallow monitor : I32) returns shallow I32 {}
+GetMonitorPhysicalHeight := ext_func(shallow monitor : I32) returns shallow I32 {}
+GetMonitorRefreshRate := ext_func(shallow monitor : I32) returns shallow I32 {}
+GetWindowPosition := ext_func() returns shallow Vector2 {}
+GetWindowScaleDPI := ext_func() returns shallow Vector2 {}
+GetMonitorName := ext_func(shallow monitor : I32) returns ref I8 {}
+SetClipboardText := ext_proc(text : I8) {}
+GetClipboardText := ext_func() returns ref I8 {}
+GetClipboardImage := ext_func() returns shallow Image {}
+EnableEventWaiting := ext_proc() {}
+DisableEventWaiting := ext_proc() {}
+
+// Cursor-related functions
+ShowCursor := ext_proc() {}
+HideCursor := ext_proc() {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsCursorHidden := ext_func() returns shallow Bool {}
 EnableCursor := ext_proc() {}
 DisableCursor := ext_proc() {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsCursorOnScreen := ext_func() returns shallow Bool {}
+
+// Drawing-related functions
+ClearBackground := ext_proc(shallow color : Color) {}
 BeginDrawing := ext_proc() {}
 EndDrawing := ext_proc() {}
-ClearBackground := ext_proc(shallow color : Color) {}
-DrawFPS := ext_proc(shallow posX : I32, shallow posY : I32) {}
-DrawRectangle := ext_proc(shallow posX : I32, shallow posY : I32, shallow width : I32, shallow height : I32, shallow color : Color) {}
-DrawText := ext_proc(text : I8, shallow posX : I32, shallow posY : I32, shallow fontSize : I32, shallow color : Color) {}
-DrawCircle := ext_proc(shallow centerX : I32, shallow centerY : I32, shallow radius : F32, shallow color : Color) {}
-LoadFontEx := ext_func(fileName : I8, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}
-UnloadFont := ext_proc(shallow font : Font) {}
-DrawTextEx := ext_proc(shallow font : Font, text : I8, shallow position : Vector2, shallow fontSize : F32, shallow spacing : F32, shallow tint : Color) {}
-MeasureTextEx := ext_func(shallow font : Font, text : I8, shallow fontSize : F32, shallow spacing : F32) returns shallow Vector2 {}
+BeginMode2D := ext_proc(shallow camera : Camera2D) {}
+EndMode2D := ext_proc() {}
 BeginMode3D := ext_proc(shallow camera : Camera3D) {}
 EndMode3D := ext_proc() {}
+BeginTextureMode := ext_proc(shallow target : RenderTexture2D) {}
+EndTextureMode := ext_proc() {}
+BeginShaderMode := ext_proc(shallow shader : Shader) {}
+EndShaderMode := ext_proc() {}
+BeginBlendMode := ext_proc(shallow mode : I32) {}
+EndBlendMode := ext_proc() {}
+BeginScissorMode := ext_proc(shallow x : I32, shallow y : I32, shallow width : I32, shallow height : I32) {}
+EndScissorMode := ext_proc() {}
+BeginVrStereoMode := ext_proc(shallow config : VrStereoConfig) {}
+EndVrStereoMode := ext_proc() {}
+
+// VR stereo config functions for VR simulator
+LoadVrStereoConfig := ext_func(shallow device : VrDeviceInfo) returns shallow VrStereoConfig {}
+UnloadVrStereoConfig := ext_proc(shallow config : VrStereoConfig) {}
+
+// Shader management functions
+// NOTE: Shader functionality is not available on OpenGL 1.1
+LoadShader := ext_func(vsFileName : I8, fsFileName : I8) returns shallow Shader {}
+LoadShaderFromMemory := ext_func(vsCode : I8, fsCode : I8) returns shallow Shader {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsShaderValid := ext_func(shallow shader : Shader) returns shallow Bool {}
+GetShaderLocation := ext_func(shallow shader : Shader, uniformName : I8) returns shallow I32 {}
+GetShaderLocationAttrib := ext_func(shallow shader : Shader, attribName : I8) returns shallow I32 {}
+SetShaderValue := ext_proc(shallow shader : Shader, shallow locIndex : I32, value : Dynamic, shallow uniformType : I32) {}
+SetShaderValueV := ext_proc(shallow shader : Shader, shallow locIndex : I32, value : Dynamic, shallow uniformType : I32, shallow count : I32) {}
+SetShaderValueMatrix := ext_proc(shallow shader : Shader, shallow locIndex : I32, shallow mat : Matrix) {}
+SetShaderValueTexture := ext_proc(shallow shader : Shader, shallow locIndex : I32, shallow texture : Texture2D) {}
+UnloadShader := ext_proc(shallow shader : Shader) {}
+
+// Screen-space-related functions
+GetScreenToWorldRay := ext_func(shallow position : Vector2, shallow camera : Camera) returns shallow Ray {}
+GetScreenToWorldRayEx := ext_func(shallow position : Vector2, shallow camera : Camera, shallow width : I32, shallow height : I32) returns shallow Ray {}
+GetWorldToScreen := ext_func(shallow position : Vector3, shallow camera : Camera) returns shallow Vector2 {}
+GetWorldToScreenEx := ext_func(shallow position : Vector3, shallow camera : Camera, shallow width : I32, shallow height : I32) returns shallow Vector2 {}
+GetWorldToScreen2D := ext_func(shallow position : Vector2, shallow camera : Camera2D) returns shallow Vector2 {}
+GetScreenToWorld2D := ext_func(shallow position : Vector2, shallow camera : Camera2D) returns shallow Vector2 {}
+GetCameraMatrix := ext_func(shallow camera : Camera) returns shallow Matrix {}
+GetCameraMatrix2D := ext_func(shallow camera : Camera2D) returns shallow Matrix {}
+
+// Timing-related functions
+SetTargetFPS := ext_proc(shallow fps : I32) {}
+GetFrameTime := ext_func() returns shallow F32 {}
+GetTime := ext_func() returns shallow F32 {}
+GetFPS := ext_func() returns shallow I32 {}
+
+// Custom frame control functions
+// NOTE: Those functions are intended for advanced users that want full control over the frame processing
+// By default EndDrawing() does this job: draws everything + SwapScreenBuffer() + manage frame timing + PollInputEvents()
+// To avoid that behaviour and control frame processes manually, enable in config.h: SUPPORT_CUSTOM_FRAME_CONTROL
+SwapScreenBuffer := ext_proc() {}
+PollInputEvents := ext_proc() {}
+WaitTime := ext_proc(shallow seconds : F32) {}
+
+// Random values generation functions
+SetRandomSeed := ext_proc(shallow seed : U32) {}
+GetRandomValue := ext_func(shallow min : I32, shallow max : I32) returns shallow I32 {}
+LoadRandomSequence := ext_func(shallow count : U32, shallow min : I32, shallow max : I32) returns ref I32 {}
+UnloadRandomSequence := ext_proc(sequence : I32) {}
+
+// Misc. functions
+TakeScreenshot := ext_proc(fileName : I8) {}
+SetConfigFlags := ext_proc(shallow flags : U32) {}
+OpenURL := ext_proc(url : I8) {}
+
+// Logging system
+SetTraceLogLevel := ext_proc(shallow logLevel : I32) {}
+SetTraceLogCallback := ext_proc(callback : Dynamic) {}
+
+// Memory management, using internal allocators
+MemAlloc := ext_func(shallow size : U32) returns Dynamic {}
+MemRealloc := ext_func(ptr : Dynamic, shallow size : U32) returns Dynamic {}
+MemFree := ext_proc(ptr : Dynamic) {}
+
+// File system management functions
+LoadFileData := ext_func(fileName : I8, dataSize : I32) returns ref I8 {}
+UnloadFileData := ext_proc(data : U8) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+SaveFileData := ext_func(fileName : I8, data : Dynamic, shallow dataSize : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ExportDataAsCode := ext_func(data : U8, shallow dataSize : I32, fileName : I8) returns shallow Bool {}
+LoadFileText := ext_func(fileName : I8) returns ref I8 {}
+UnloadFileText := ext_proc(text : I8) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+SaveFileText := ext_func(fileName : I8, text : I8) returns shallow Bool {}
+
+// File access custom callbacks
+// WARNING: Callbacks setup is intended for advanced users
+SetLoadFileDataCallback := ext_proc(callback : Dynamic) {}
+SetSaveFileDataCallback := ext_proc(callback : Dynamic) {}
+SetLoadFileTextCallback := ext_proc(callback : Dynamic) {}
+SetSaveFileTextCallback := ext_proc(callback : Dynamic) {}
+
+FileRename := ext_func(fileName : I8, fileRename : I8) returns shallow I32 {}
+FileRemove := ext_func(fileName : I8) returns shallow I32 {}
+FileCopy := ext_func(srcPath : I8, dstPath : I8) returns shallow I32 {}
+FileMove := ext_func(srcPath : I8, dstPath : I8) returns shallow I32 {}
+FileTextReplace := ext_func(fileName : I8, search : I8, replacement : I8) returns shallow I32 {}
+FileTextFindIndex := ext_func(fileName : I8, search : I8) returns shallow I32 {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+FileExists := ext_func(fileName : I8) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+DirectoryExists := ext_func(dirPath : I8) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsFileExtension := ext_func(fileName : I8, ext : I8) returns shallow Bool {}
+GetFileLength := ext_func(fileName : I8) returns shallow I32 {}
+GetFileModTime := ext_func(fileName : I8) returns shallow I64 {}
+GetFileExtension := ext_func(fileName : I8) returns ref I8 {}
+GetFileName := ext_func(filePath : I8) returns ref I8 {}
+GetFileNameWithoutExt := ext_func(filePath : I8) returns ref I8 {}
+GetDirectoryPath := ext_func(filePath : I8) returns ref I8 {}
+GetPrevDirectoryPath := ext_func(dirPath : I8) returns ref I8 {}
+GetWorkingDirectory := ext_func() returns ref I8 {}
+GetApplicationDirectory := ext_func() returns ref I8 {}
+MakeDirectory := ext_func(dirPath : I8) returns shallow I32 {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ChangeDirectory := ext_func(dirPath : I8) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsPathFile := ext_func(path : I8) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsFileNameValid := ext_func(fileName : I8) returns shallow Bool {}
+LoadDirectoryFiles := ext_func(dirPath : I8) returns shallow FilePathList {}
+LoadDirectoryFilesEx := ext_func(basePath : I8, filter : I8, shallow scanSubdirs : Bool) returns shallow FilePathList {}
+UnloadDirectoryFiles := ext_proc(shallow files : FilePathList) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsFileDropped := ext_func() returns shallow Bool {}
+LoadDroppedFiles := ext_func() returns shallow FilePathList {}
+UnloadDroppedFiles := ext_proc(shallow files : FilePathList) {}
+GetDirectoryFileCount := ext_func(dirPath : I8) returns shallow I32 {}
+GetDirectoryFileCountEx := ext_func(basePath : I8, filter : I8, shallow scanSubdirs : Bool) returns shallow I32 {}
+
+// Compression/Encoding functionality
+CompressData := ext_func(data : U8, shallow dataSize : I32, compDataSize : I32) returns ref I8 {}
+DecompressData := ext_func(compData : U8, shallow compDataSize : I32, dataSize : I32) returns ref I8 {}
+EncodeDataBase64 := ext_func(data : U8, shallow dataSize : I32, outputSize : I32) returns ref I8 {}
+DecodeDataBase64 := ext_func(text : I8, outputSize : I32) returns ref I8 {}
+ComputeCRC32 := ext_func(data : U8, shallow dataSize : I32) returns shallow I32 {}
+ComputeMD5 := ext_func(data : U8, shallow dataSize : I32) returns ref I32 {}
+ComputeSHA1 := ext_func(data : U8, shallow dataSize : I32) returns ref I32 {}
+ComputeSHA256 := ext_func(data : U8, shallow dataSize : I32) returns ref I32 {}
+
+// Automation events functionality
+LoadAutomationEventList := ext_func(fileName : I8) returns shallow AutomationEventList {}
+UnloadAutomationEventList := ext_proc(shallow list : AutomationEventList) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ExportAutomationEventList := ext_func(shallow list : AutomationEventList, fileName : I8) returns shallow Bool {}
+SetAutomationEventList := ext_proc(list : AutomationEventList) {}
+SetAutomationEventBaseFrame := ext_proc(shallow frame : I32) {}
+StartAutomationEventRecording := ext_proc() {}
+StopAutomationEventRecording := ext_proc() {}
+PlayAutomationEvent := ext_proc(shallow event : AutomationEvent) {}
+
+//------------------------------------------------------------------------------------
+// Input Handling Functions (Module: core)
+//------------------------------------------------------------------------------------
+
+// Input-related functions: keyboard
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsKeyPressed := ext_func(shallow key : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsKeyPressedRepeat := ext_func(shallow key : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsKeyDown := ext_func(shallow key : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsKeyReleased := ext_func(shallow key : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsKeyUp := ext_func(shallow key : I32) returns shallow Bool {}
+GetKeyPressed := ext_func() returns shallow I32 {}
+GetCharPressed := ext_func() returns shallow I32 {}
+GetKeyName := ext_func(shallow key : I32) returns ref I8 {}
+SetExitKey := ext_proc(shallow key : I32) {}
+
+// Input-related functions: gamepads
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsGamepadAvailable := ext_func(shallow gamepad : I32) returns shallow Bool {}
+GetGamepadName := ext_func(shallow gamepad : I32) returns ref I8 {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsGamepadButtonPressed := ext_func(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsGamepadButtonDown := ext_func(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsGamepadButtonReleased := ext_func(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsGamepadButtonUp := ext_func(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
+GetGamepadButtonPressed := ext_func() returns shallow I32 {}
+GetGamepadAxisCount := ext_func(shallow gamepad : I32) returns shallow I32 {}
+GetGamepadAxisMovement := ext_func(shallow gamepad : I32, shallow axis : I32) returns shallow F32 {}
+SetGamepadMappings := ext_func(mappings : I8) returns shallow I32 {}
+SetGamepadVibration := ext_proc(shallow gamepad : I32, shallow leftMotor : F32, shallow rightMotor : F32, shallow duration : F32) {}
+
+// Input-related functions: mouse
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsMouseButtonPressed := ext_func(shallow button : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsMouseButtonDown := ext_func(shallow button : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsMouseButtonReleased := ext_func(shallow button : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsMouseButtonUp := ext_func(shallow button : I32) returns shallow Bool {}
+GetMouseX := ext_func() returns shallow I32 {}
+GetMouseY := ext_func() returns shallow I32 {}
+GetMousePosition := ext_func() returns shallow Vector2 {}
+GetMouseDelta := ext_func() returns shallow Vector2 {}
+SetMousePosition := ext_proc(shallow x : I32, shallow y : I32) {}
+SetMouseOffset := ext_proc(shallow offsetX : I32, shallow offsetY : I32) {}
+SetMouseScale := ext_proc(shallow scaleX : F32, shallow scaleY : F32) {}
+GetMouseWheelMove := ext_func() returns shallow F32 {}
+GetMouseWheelMoveV := ext_func() returns shallow Vector2 {}
+SetMouseCursor := ext_proc(shallow cursor : I32) {}
+
+// Input-related functions: touch
+GetTouchX := ext_func() returns shallow I32 {}
+GetTouchY := ext_func() returns shallow I32 {}
+GetTouchPosition := ext_func(shallow index : I32) returns shallow Vector2 {}
+GetTouchPointId := ext_func(shallow index : I32) returns shallow I32 {}
+GetTouchPointCount := ext_func() returns shallow I32 {}
+
+//------------------------------------------------------------------------------------
+// Gestures and Touch Handling Functions (Module: rgestures)
+//------------------------------------------------------------------------------------
+SetGesturesEnabled := ext_proc(shallow flags : U32) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsGestureDetected := ext_func(shallow gesture : U32) returns shallow Bool {}
+GetGestureDetected := ext_func() returns shallow I32 {}
+GetGestureHoldDuration := ext_func() returns shallow F32 {}
+GetGestureDragVector := ext_func() returns shallow Vector2 {}
+GetGestureDragAngle := ext_func() returns shallow F32 {}
+GetGesturePinchVector := ext_func() returns shallow Vector2 {}
+GetGesturePinchAngle := ext_func() returns shallow F32 {}
+
+//------------------------------------------------------------------------------------
+// Camera System Functions (Module: rcamera)
+//------------------------------------------------------------------------------------
+UpdateCamera := ext_proc(camera : Camera, shallow mode : I32) {}
+UpdateCameraPro := ext_proc(camera : Camera, shallow movement : Vector3, shallow rotation : Vector3, shallow zoom : F32) {}
+
+//------------------------------------------------------------------------------------
+// Basic Shapes Drawing Functions (Module: shapes)
+//------------------------------------------------------------------------------------
+// Set texture and rectangle to be used on shapes drawing
+// NOTE: It can be useful when using basic shapes and one single font,
+// defining a font char white rectangle would allow drawing everything in a single draw call
+SetShapesTexture := ext_proc(shallow texture : Texture2D, shallow source : Rectangle) {}
+GetShapesTexture := ext_func() returns shallow Texture2D {}
+GetShapesTextureRectangle := ext_func() returns shallow Rectangle {}
+
+// Basic shapes drawing functions
+DrawPixel := ext_proc(shallow posX : I32, shallow posY : I32, shallow color : Color) {}
+DrawPixelV := ext_proc(shallow position : Vector2, shallow color : Color) {}
+DrawLine := ext_proc(shallow startPosX : I32, shallow startPosY : I32, shallow endPosX : I32, shallow endPosY : I32, shallow color : Color) {}
+DrawLineV := ext_proc(shallow startPos : Vector2, shallow endPos : Vector2, shallow color : Color) {}
+DrawLineEx := ext_proc(shallow startPos : Vector2, shallow endPos : Vector2, shallow thick : F32, shallow color : Color) {}
+DrawLineStrip := ext_proc(points : Vector2, shallow pointCount : I32, shallow color : Color) {}
+DrawLineBezier := ext_proc(shallow startPos : Vector2, shallow endPos : Vector2, shallow thick : F32, shallow color : Color) {}
+DrawLineDashed := ext_proc(shallow startPos : Vector2, shallow endPos : Vector2, shallow dashSize : I32, shallow spaceSize : I32, shallow color : Color) {}
+DrawCircle := ext_proc(shallow centerX : I32, shallow centerY : I32, shallow radius : F32, shallow color : Color) {}
+DrawCircleSector := ext_proc(shallow center : Vector2, shallow radius : F32, shallow startAngle : F32, shallow endAngle : F32, shallow segments : I32, shallow color : Color) {}
+DrawCircleSectorLines := ext_proc(shallow center : Vector2, shallow radius : F32, shallow startAngle : F32, shallow endAngle : F32, shallow segments : I32, shallow color : Color) {}
+DrawCircleGradient := ext_proc(shallow centerX : I32, shallow centerY : I32, shallow radius : F32, shallow inner : Color, shallow outer : Color) {}
+DrawCircleV := ext_proc(shallow center : Vector2, shallow radius : F32, shallow color : Color) {}
+DrawCircleLines := ext_proc(shallow centerX : I32, shallow centerY : I32, shallow radius : F32, shallow color : Color) {}
+DrawCircleLinesV := ext_proc(shallow center : Vector2, shallow radius : F32, shallow color : Color) {}
+DrawEllipse := ext_proc(shallow centerX : I32, shallow centerY : I32, shallow radiusH : F32, shallow radiusV : F32, shallow color : Color) {}
+DrawEllipseV := ext_proc(shallow center : Vector2, shallow radiusH : F32, shallow radiusV : F32, shallow color : Color) {}
+DrawEllipseLines := ext_proc(shallow centerX : I32, shallow centerY : I32, shallow radiusH : F32, shallow radiusV : F32, shallow color : Color) {}
+DrawEllipseLinesV := ext_proc(shallow center : Vector2, shallow radiusH : F32, shallow radiusV : F32, shallow color : Color) {}
+DrawRing := ext_proc(shallow center : Vector2, shallow innerRadius : F32, shallow outerRadius : F32, shallow startAngle : F32, shallow endAngle : F32, shallow segments : I32, shallow color : Color) {}
+DrawRingLines := ext_proc(shallow center : Vector2, shallow innerRadius : F32, shallow outerRadius : F32, shallow startAngle : F32, shallow endAngle : F32, shallow segments : I32, shallow color : Color) {}
+DrawRectangle := ext_proc(shallow posX : I32, shallow posY : I32, shallow width : I32, shallow height : I32, shallow color : Color) {}
+DrawRectangleV := ext_proc(shallow position : Vector2, shallow size : Vector2, shallow color : Color) {}
+DrawRectangleRec := ext_proc(shallow rec : Rectangle, shallow color : Color) {}
+DrawRectanglePro := ext_proc(shallow rec : Rectangle, shallow origin : Vector2, shallow rotation : F32, shallow color : Color) {}
+DrawRectangleGradientV := ext_proc(shallow posX : I32, shallow posY : I32, shallow width : I32, shallow height : I32, shallow top : Color, shallow bottom : Color) {}
+DrawRectangleGradientH := ext_proc(shallow posX : I32, shallow posY : I32, shallow width : I32, shallow height : I32, shallow left : Color, shallow right : Color) {}
+DrawRectangleGradientEx := ext_proc(shallow rec : Rectangle, shallow topLeft : Color, shallow bottomLeft : Color, shallow bottomRight : Color, shallow topRight : Color) {}
+DrawRectangleLines := ext_proc(shallow posX : I32, shallow posY : I32, shallow width : I32, shallow height : I32, shallow color : Color) {}
+DrawRectangleLinesEx := ext_proc(shallow rec : Rectangle, shallow lineThick : F32, shallow color : Color) {}
+DrawRectangleRounded := ext_proc(shallow rec : Rectangle, shallow roundness : F32, shallow segments : I32, shallow color : Color) {}
+DrawRectangleRoundedLines := ext_proc(shallow rec : Rectangle, shallow roundness : F32, shallow segments : I32, shallow color : Color) {}
+DrawRectangleRoundedLinesEx := ext_proc(shallow rec : Rectangle, shallow roundness : F32, shallow segments : I32, shallow lineThick : F32, shallow color : Color) {}
+DrawTriangle := ext_proc(shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow color : Color) {}
+DrawTriangleLines := ext_proc(shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow color : Color) {}
+DrawTriangleFan := ext_proc(points : Vector2, shallow pointCount : I32, shallow color : Color) {}
+DrawTriangleStrip := ext_proc(points : Vector2, shallow pointCount : I32, shallow color : Color) {}
+DrawPoly := ext_proc(shallow center : Vector2, shallow sides : I32, shallow radius : F32, shallow rotation : F32, shallow color : Color) {}
+DrawPolyLines := ext_proc(shallow center : Vector2, shallow sides : I32, shallow radius : F32, shallow rotation : F32, shallow color : Color) {}
+DrawPolyLinesEx := ext_proc(shallow center : Vector2, shallow sides : I32, shallow radius : F32, shallow rotation : F32, shallow lineThick : F32, shallow color : Color) {}
+
+// Splines drawing functions
+DrawSplineLinear := ext_proc(points : Vector2, shallow pointCount : I32, shallow thick : F32, shallow color : Color) {}
+DrawSplineBasis := ext_proc(points : Vector2, shallow pointCount : I32, shallow thick : F32, shallow color : Color) {}
+DrawSplineCatmullRom := ext_proc(points : Vector2, shallow pointCount : I32, shallow thick : F32, shallow color : Color) {}
+DrawSplineBezierQuadratic := ext_proc(points : Vector2, shallow pointCount : I32, shallow thick : F32, shallow color : Color) {}
+DrawSplineBezierCubic := ext_proc(points : Vector2, shallow pointCount : I32, shallow thick : F32, shallow color : Color) {}
+DrawSplineSegmentLinear := ext_proc(shallow p1 : Vector2, shallow p2 : Vector2, shallow thick : F32, shallow color : Color) {}
+DrawSplineSegmentBasis := ext_proc(shallow p1 : Vector2, shallow p2 : Vector2, shallow p3 : Vector2, shallow p4 : Vector2, shallow thick : F32, shallow color : Color) {}
+DrawSplineSegmentCatmullRom := ext_proc(shallow p1 : Vector2, shallow p2 : Vector2, shallow p3 : Vector2, shallow p4 : Vector2, shallow thick : F32, shallow color : Color) {}
+DrawSplineSegmentBezierQuadratic := ext_proc(shallow p1 : Vector2, shallow c2 : Vector2, shallow p3 : Vector2, shallow thick : F32, shallow color : Color) {}
+DrawSplineSegmentBezierCubic := ext_proc(shallow p1 : Vector2, shallow c2 : Vector2, shallow c3 : Vector2, shallow p4 : Vector2, shallow thick : F32, shallow color : Color) {}
+
+// Spline segment point evaluation functions, for a given t [0.0f .. 1.0f]
+GetSplinePointLinear := ext_func(shallow startPos : Vector2, shallow endPos : Vector2, shallow t : F32) returns shallow Vector2 {}
+GetSplinePointBasis := ext_func(shallow p1 : Vector2, shallow p2 : Vector2, shallow p3 : Vector2, shallow p4 : Vector2, shallow t : F32) returns shallow Vector2 {}
+GetSplinePointCatmullRom := ext_func(shallow p1 : Vector2, shallow p2 : Vector2, shallow p3 : Vector2, shallow p4 : Vector2, shallow t : F32) returns shallow Vector2 {}
+GetSplinePointBezierQuad := ext_func(shallow p1 : Vector2, shallow c2 : Vector2, shallow p3 : Vector2, shallow t : F32) returns shallow Vector2 {}
+GetSplinePointBezierCubic := ext_func(shallow p1 : Vector2, shallow c2 : Vector2, shallow c3 : Vector2, shallow p4 : Vector2, shallow t : F32) returns shallow Vector2 {}
+
+// Basic shapes collision detection functions
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionRecs := ext_func(shallow rec1 : Rectangle, shallow rec2 : Rectangle) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionCircles := ext_func(shallow center1 : Vector2, shallow radius1 : F32, shallow center2 : Vector2, shallow radius2 : F32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionCircleRec := ext_func(shallow center : Vector2, shallow radius : F32, shallow rec : Rectangle) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionCircleLine := ext_func(shallow center : Vector2, shallow radius : F32, shallow p1 : Vector2, shallow p2 : Vector2) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionPointRec := ext_func(shallow point : Vector2, shallow rec : Rectangle) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionPointCircle := ext_func(shallow point : Vector2, shallow center : Vector2, shallow radius : F32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionPointTriangle := ext_func(shallow point : Vector2, shallow p1 : Vector2, shallow p2 : Vector2, shallow p3 : Vector2) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionPointLine := ext_func(shallow point : Vector2, shallow p1 : Vector2, shallow p2 : Vector2, shallow threshold : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionPointPoly := ext_func(shallow point : Vector2, points : Vector2, shallow pointCount : I32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionLines := ext_func(shallow startPos1 : Vector2, shallow endPos1 : Vector2, shallow startPos2 : Vector2, shallow endPos2 : Vector2, collisionPoint : Vector2) returns shallow Bool {}
+GetCollisionRec := ext_func(shallow rec1 : Rectangle, shallow rec2 : Rectangle) returns shallow Rectangle {}
+
+//------------------------------------------------------------------------------------
+// Texture Loading and Drawing Functions (Module: textures)
+//------------------------------------------------------------------------------------
+
+// Image loading functions
+// NOTE: These functions do not require GPU access
+LoadImage := ext_func(fileName : I8) returns shallow Image {}
+LoadImageRaw := ext_func(fileName : I8, shallow width : I32, shallow height : I32, shallow format : I32, shallow headerSize : I32) returns shallow Image {}
+LoadImageAnim := ext_func(fileName : I8, frames : I32) returns shallow Image {}
+LoadImageAnimFromMemory := ext_func(fileType : I8, fileData : U8, shallow dataSize : I32, frames : I32) returns shallow Image {}
+LoadImageFromMemory := ext_func(fileType : I8, fileData : U8, shallow dataSize : I32) returns shallow Image {}
+LoadImageFromTexture := ext_func(shallow texture : Texture2D) returns shallow Image {}
+LoadImageFromScreen := ext_func() returns shallow Image {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsImageValid := ext_func(shallow image : Image) returns shallow Bool {}
+UnloadImage := ext_proc(shallow image : Image) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ExportImage := ext_func(shallow image : Image, fileName : I8) returns shallow Bool {}
+ExportImageToMemory := ext_func(shallow image : Image, fileType : I8, fileSize : I32) returns ref I8 {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ExportImageAsCode := ext_func(shallow image : Image, fileName : I8) returns shallow Bool {}
+
+// Image generation functions
+GenImageColor := ext_func(shallow width : I32, shallow height : I32, shallow color : Color) returns shallow Image {}
+GenImageGradientLinear := ext_func(shallow width : I32, shallow height : I32, shallow direction : I32, shallow start : Color, shallow end : Color) returns shallow Image {}
+GenImageGradientRadial := ext_func(shallow width : I32, shallow height : I32, shallow density : F32, shallow inner : Color, shallow outer : Color) returns shallow Image {}
+GenImageGradientSquare := ext_func(shallow width : I32, shallow height : I32, shallow density : F32, shallow inner : Color, shallow outer : Color) returns shallow Image {}
+GenImageChecked := ext_func(shallow width : I32, shallow height : I32, shallow checksX : I32, shallow checksY : I32, shallow col1 : Color, shallow col2 : Color) returns shallow Image {}
+GenImageWhiteNoise := ext_func(shallow width : I32, shallow height : I32, shallow factor : F32) returns shallow Image {}
+GenImagePerlinNoise := ext_func(shallow width : I32, shallow height : I32, shallow offsetX : I32, shallow offsetY : I32, shallow scale : F32) returns shallow Image {}
+GenImageCellular := ext_func(shallow width : I32, shallow height : I32, shallow tileSize : I32) returns shallow Image {}
+GenImageText := ext_func(shallow width : I32, shallow height : I32, text : I8) returns shallow Image {}
+
+// Image manipulation functions
+ImageCopy := ext_func(shallow image : Image) returns shallow Image {}
+ImageFromImage := ext_func(shallow image : Image, shallow rec : Rectangle) returns shallow Image {}
+ImageFromChannel := ext_func(shallow image : Image, shallow selectedChannel : I32) returns shallow Image {}
+ImageText := ext_func(text : I8, shallow fontSize : I32, shallow color : Color) returns shallow Image {}
+ImageTextEx := ext_func(shallow font : Font, text : I8, shallow fontSize : F32, shallow spacing : F32, shallow tint : Color) returns shallow Image {}
+ImageFormat := ext_proc(image : Image, shallow newFormat : I32) {}
+ImageToPOT := ext_proc(image : Image, shallow fill : Color) {}
+ImageCrop := ext_proc(image : Image, shallow crop : Rectangle) {}
+ImageAlphaCrop := ext_proc(image : Image, shallow threshold : F32) {}
+ImageAlphaClear := ext_proc(image : Image, shallow color : Color, shallow threshold : F32) {}
+ImageAlphaMask := ext_proc(image : Image, shallow alphaMask : Image) {}
+ImageAlphaPremultiply := ext_proc(image : Image) {}
+ImageBlurGaussian := ext_proc(image : Image, shallow blurSize : I32) {}
+ImageKernelConvolution := ext_proc(image : Image, kernel : F32, shallow kernelSize : I32) {}
+ImageResize := ext_proc(image : Image, shallow newWidth : I32, shallow newHeight : I32) {}
+ImageResizeNN := ext_proc(image : Image, shallow newWidth : I32, shallow newHeight : I32) {}
+ImageResizeCanvas := ext_proc(image : Image, shallow newWidth : I32, shallow newHeight : I32, shallow offsetX : I32, shallow offsetY : I32, shallow fill : Color) {}
+ImageMipmaps := ext_proc(image : Image) {}
+ImageDither := ext_proc(image : Image, shallow rBpp : I32, shallow gBpp : I32, shallow bBpp : I32, shallow aBpp : I32) {}
+ImageFlipVertical := ext_proc(image : Image) {}
+ImageFlipHorizontal := ext_proc(image : Image) {}
+ImageRotate := ext_proc(image : Image, shallow degrees : I32) {}
+ImageRotateCW := ext_proc(image : Image) {}
+ImageRotateCCW := ext_proc(image : Image) {}
+ImageColorTint := ext_proc(image : Image, shallow color : Color) {}
+ImageColorInvert := ext_proc(image : Image) {}
+ImageColorGrayscale := ext_proc(image : Image) {}
+ImageColorContrast := ext_proc(image : Image, shallow contrast : F32) {}
+ImageColorBrightness := ext_proc(image : Image, shallow brightness : I32) {}
+ImageColorReplace := ext_proc(image : Image, shallow color : Color, shallow replace : Color) {}
+LoadImageColors := ext_func(shallow image : Image) returns ref Color {}
+LoadImagePalette := ext_func(shallow image : Image, shallow maxPaletteSize : I32, colorCount : I32) returns ref Color {}
+UnloadImageColors := ext_proc(colors : Color) {}
+UnloadImagePalette := ext_proc(colors : Color) {}
+GetImageAlphaBorder := ext_func(shallow image : Image, shallow threshold : F32) returns shallow Rectangle {}
+GetImageColor := ext_func(shallow image : Image, shallow x : I32, shallow y : I32) returns shallow Color {}
+
+// Image drawing functions
+// NOTE: Image software-rendering functions (CPU)
+ImageClearBackground := ext_proc(dst : Image, shallow color : Color) {}
+ImageDrawPixel := ext_proc(dst : Image, shallow posX : I32, shallow posY : I32, shallow color : Color) {}
+ImageDrawPixelV := ext_proc(dst : Image, shallow position : Vector2, shallow color : Color) {}
+ImageDrawLine := ext_proc(dst : Image, shallow startPosX : I32, shallow startPosY : I32, shallow endPosX : I32, shallow endPosY : I32, shallow color : Color) {}
+ImageDrawLineV := ext_proc(dst : Image, shallow start : Vector2, shallow end : Vector2, shallow color : Color) {}
+ImageDrawLineEx := ext_proc(dst : Image, shallow start : Vector2, shallow end : Vector2, shallow thick : I32, shallow color : Color) {}
+ImageDrawCircle := ext_proc(dst : Image, shallow centerX : I32, shallow centerY : I32, shallow radius : I32, shallow color : Color) {}
+ImageDrawCircleV := ext_proc(dst : Image, shallow center : Vector2, shallow radius : I32, shallow color : Color) {}
+ImageDrawCircleLines := ext_proc(dst : Image, shallow centerX : I32, shallow centerY : I32, shallow radius : I32, shallow color : Color) {}
+ImageDrawCircleLinesV := ext_proc(dst : Image, shallow center : Vector2, shallow radius : I32, shallow color : Color) {}
+ImageDrawRectangle := ext_proc(dst : Image, shallow posX : I32, shallow posY : I32, shallow width : I32, shallow height : I32, shallow color : Color) {}
+ImageDrawRectangleV := ext_proc(dst : Image, shallow position : Vector2, shallow size : Vector2, shallow color : Color) {}
+ImageDrawRectangleRec := ext_proc(dst : Image, shallow rec : Rectangle, shallow color : Color) {}
+ImageDrawRectangleLines := ext_proc(dst : Image, shallow rec : Rectangle, shallow thick : I32, shallow color : Color) {}
+ImageDrawTriangle := ext_proc(dst : Image, shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow color : Color) {}
+ImageDrawTriangleEx := ext_proc(dst : Image, shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow c1 : Color, shallow c2 : Color, shallow c3 : Color) {}
+ImageDrawTriangleLines := ext_proc(dst : Image, shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow color : Color) {}
+ImageDrawTriangleFan := ext_proc(dst : Image, points : Vector2, shallow pointCount : I32, shallow color : Color) {}
+ImageDrawTriangleStrip := ext_proc(dst : Image, points : Vector2, shallow pointCount : I32, shallow color : Color) {}
+ImageDraw := ext_proc(dst : Image, shallow src : Image, shallow srcRec : Rectangle, shallow dstRec : Rectangle, shallow tint : Color) {}
+ImageDrawText := ext_proc(dst : Image, text : I8, shallow posX : I32, shallow posY : I32, shallow fontSize : I32, shallow color : Color) {}
+ImageDrawTextEx := ext_proc(dst : Image, shallow font : Font, text : I8, shallow position : Vector2, shallow fontSize : F32, shallow spacing : F32, shallow tint : Color) {}
+
+// Texture loading functions
+// NOTE: These functions require GPU access
+LoadTexture := ext_func(fileName : I8) returns shallow Texture2D {}
+LoadTextureFromImage := ext_func(shallow image : Image) returns shallow Texture2D {}
+LoadTextureCubemap := ext_func(shallow image : Image, shallow layout : I32) returns shallow TextureCubemap {}
+LoadRenderTexture := ext_func(shallow width : I32, shallow height : I32) returns shallow RenderTexture2D {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsTextureValid := ext_func(shallow texture : Texture2D) returns shallow Bool {}
+UnloadTexture := ext_proc(shallow texture : Texture2D) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsRenderTextureValid := ext_func(shallow target : RenderTexture2D) returns shallow Bool {}
+UnloadRenderTexture := ext_proc(shallow target : RenderTexture2D) {}
+UpdateTexture := ext_proc(shallow texture : Texture2D, pixels : Dynamic) {}
+UpdateTextureRec := ext_proc(shallow texture : Texture2D, shallow rec : Rectangle, pixels : Dynamic) {}
+
+// Texture configuration functions
+GenTextureMipmaps := ext_proc(texture : Texture2D) {}
+SetTextureFilter := ext_proc(shallow texture : Texture2D, shallow filter : I32) {}
+SetTextureWrap := ext_proc(shallow texture : Texture2D, shallow wrap : I32) {}
+
+// Texture drawing functions
+DrawTexture := ext_proc(shallow texture : Texture2D, shallow posX : I32, shallow posY : I32, shallow tint : Color) {}
+DrawTextureV := ext_proc(shallow texture : Texture2D, shallow position : Vector2, shallow tint : Color) {}
+DrawTextureEx := ext_proc(shallow texture : Texture2D, shallow position : Vector2, shallow rotation : F32, shallow scale : F32, shallow tint : Color) {}
+DrawTextureRec := ext_proc(shallow texture : Texture2D, shallow source : Rectangle, shallow position : Vector2, shallow tint : Color) {}
+DrawTexturePro := ext_proc(shallow texture : Texture2D, shallow source : Rectangle, shallow dest : Rectangle, shallow origin : Vector2, shallow rotation : F32, shallow tint : Color) {}
+DrawTextureNPatch := ext_proc(shallow texture : Texture2D, shallow nPatchInfo : NPatchInfo, shallow dest : Rectangle, shallow origin : Vector2, shallow rotation : F32, shallow tint : Color) {}
+
+// Color/pixel related functions
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ColorIsEqual := ext_func(shallow col1 : Color, shallow col2 : Color) returns shallow Bool {}
+Fade := ext_func(shallow color : Color, shallow alpha : F32) returns shallow Color {}
+ColorToInt := ext_func(shallow color : Color) returns shallow I32 {}
+ColorNormalize := ext_func(shallow color : Color) returns shallow Vector4 {}
+ColorFromNormalized := ext_func(shallow normalized : Vector4) returns shallow Color {}
+ColorToHSV := ext_func(shallow color : Color) returns shallow Vector3 {}
+ColorFromHSV := ext_func(shallow hue : F32, shallow saturation : F32, shallow value : F32) returns shallow Color {}
+ColorTint := ext_func(shallow color : Color, shallow tint : Color) returns shallow Color {}
+ColorBrightness := ext_func(shallow color : Color, shallow factor : F32) returns shallow Color {}
+ColorContrast := ext_func(shallow color : Color, shallow contrast : F32) returns shallow Color {}
+ColorAlpha := ext_func(shallow color : Color, shallow alpha : F32) returns shallow Color {}
+ColorAlphaBlend := ext_func(shallow dst : Color, shallow src : Color, shallow tint : Color) returns shallow Color {}
+ColorLerp := ext_func(shallow color1 : Color, shallow color2 : Color, shallow factor : F32) returns shallow Color {}
+GetColor := ext_func(shallow hexValue : U32) returns shallow Color {}
+GetPixelColor := ext_func(srcPtr : Dynamic, shallow format : I32) returns shallow Color {}
+SetPixelColor := ext_proc(dstPtr : Dynamic, shallow color : Color, shallow format : I32) {}
+GetPixelDataSize := ext_func(shallow width : I32, shallow height : I32, shallow format : I32) returns shallow I32 {}
+
+//------------------------------------------------------------------------------------
+// Font Loading and Text Drawing Functions (Module: text)
+//------------------------------------------------------------------------------------
+
+// Font loading/unloading functions
+GetFontDefault := ext_func() returns shallow Font {}
+LoadFont := ext_func(fileName : I8) returns shallow Font {}
+LoadFontEx := ext_func(fileName : I8, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}
+LoadFontFromImage := ext_func(shallow image : Image, shallow key : Color, shallow firstChar : I32) returns shallow Font {}
+LoadFontFromMemory := ext_func(fileType : I8, fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsFontValid := ext_func(shallow font : Font) returns shallow Bool {}
+LoadFontData := ext_func(fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32, shallow type : I32, glyphCount : I32) returns ref GlyphInfo {}
+GenImageFontAtlas := ext_func(glyphs : GlyphInfo, glyphRecs : Dynamic, shallow glyphCount : I32, shallow fontSize : I32, shallow padding : I32, shallow packMethod : I32) returns shallow Image {}
+UnloadFontData := ext_proc(glyphs : GlyphInfo, shallow glyphCount : I32) {}
+UnloadFont := ext_proc(shallow font : Font) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ExportFontAsCode := ext_func(shallow font : Font, fileName : I8) returns shallow Bool {}
+
+// Text drawing functions
+DrawFPS := ext_proc(shallow posX : I32, shallow posY : I32) {}
+DrawText := ext_proc(text : I8, shallow posX : I32, shallow posY : I32, shallow fontSize : I32, shallow color : Color) {}
+DrawTextEx := ext_proc(shallow font : Font, text : I8, shallow position : Vector2, shallow fontSize : F32, shallow spacing : F32, shallow tint : Color) {}
+DrawTextPro := ext_proc(shallow font : Font, text : I8, shallow position : Vector2, shallow origin : Vector2, shallow rotation : F32, shallow fontSize : F32, shallow spacing : F32, shallow tint : Color) {}
+DrawTextCodepoint := ext_proc(shallow font : Font, shallow codepoint : I32, shallow position : Vector2, shallow fontSize : F32, shallow tint : Color) {}
+DrawTextCodepoints := ext_proc(shallow font : Font, codepoints : I32, shallow codepointCount : I32, shallow position : Vector2, shallow fontSize : F32, shallow spacing : F32, shallow tint : Color) {}
+
+// Text font info functions
+SetTextLineSpacing := ext_proc(shallow spacing : I32) {}
+MeasureText := ext_func(text : I8, shallow fontSize : I32) returns shallow I32 {}
+MeasureTextEx := ext_func(shallow font : Font, text : I8, shallow fontSize : F32, shallow spacing : F32) returns shallow Vector2 {}
+MeasureTextCodepoints := ext_func(shallow font : Font, codepoints : I32, shallow length : I32, shallow fontSize : F32, shallow spacing : F32) returns shallow Vector2 {}
+GetGlyphIndex := ext_func(shallow font : Font, shallow codepoint : I32) returns shallow I32 {}
+GetGlyphInfo := ext_func(shallow font : Font, shallow codepoint : I32) returns shallow GlyphInfo {}
+GetGlyphAtlasRec := ext_func(shallow font : Font, shallow codepoint : I32) returns shallow Rectangle {}
+
+// Text codepoints management functions (unicode characters)
+LoadUTF8 := ext_func(codepoints : I32, shallow length : I32) returns ref I8 {}
+UnloadUTF8 := ext_proc(text : I8) {}
+LoadCodepoints := ext_func(text : I8, count : I32) returns ref I32 {}
+UnloadCodepoints := ext_proc(codepoints : I32) {}
+GetCodepointCount := ext_func(text : I8) returns shallow I32 {}
+GetCodepoint := ext_func(text : I8, codepointSize : I32) returns shallow I32 {}
+GetCodepointNext := ext_func(text : I8, codepointSize : I32) returns shallow I32 {}
+GetCodepointPrevious := ext_func(text : I8, codepointSize : I32) returns shallow I32 {}
+CodepointToUTF8 := ext_func(shallow codepoint : I32, utf8Size : I32) returns ref I8 {}
+
+// Text strings management functions (no UTF-8 strings, only byte chars)
+// WARNING 1: Most of these functions use internal static buffers[], it's recommended to store returned data on user-side for re-use
+// WARNING 2: Some strings allocate memory internally for the returned strings, those strings must be free by user using MemFree()
+LoadTextLines := ext_func(text : I8, count : I32) returns Dynamic {}
+UnloadTextLines := ext_proc(text : Dynamic, shallow lineCount : I32) {}
+TextCopy := ext_func(dst : I8, src : I8) returns shallow I32 {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+TextIsEqual := ext_func(text1 : I8, text2 : I8) returns shallow Bool {}
+TextLength := ext_func(text : I8) returns shallow I32 {}
+TextSubtext := ext_func(text : I8, shallow position : I32, shallow length : I32) returns ref I8 {}
+TextRemoveSpaces := ext_func(text : I8) returns ref I8 {}
+GetTextBetween := ext_func(text : I8, begin : I8, end : I8) returns ref I8 {}
+TextReplace := ext_func(text : I8, search : I8, replacement : I8) returns ref I8 {}
+TextReplaceBetween := ext_func(text : I8, begin : I8, end : I8, replacement : I8) returns ref I8 {}
+TextInsert := ext_func(text : I8, insert : I8, shallow position : I32) returns ref I8 {}
+TextJoin := ext_func(textList : Dynamic, shallow count : I32, delimiter : I8) returns ref I8 {}
+TextSplit := ext_func(text : I8, shallow delimiter : I8, count : I32) returns Dynamic {}
+TextAppend := ext_proc(text : I8, append : I8, position : I32) {}
+TextFindIndex := ext_func(text : I8, search : I8) returns shallow I32 {}
+TextToUpper := ext_func(text : I8) returns ref I8 {}
+TextToLower := ext_func(text : I8) returns ref I8 {}
+TextToPascal := ext_func(text : I8) returns ref I8 {}
+TextToSnake := ext_func(text : I8) returns ref I8 {}
+TextToCamel := ext_func(text : I8) returns ref I8 {}
+TextToInteger := ext_func(text : I8) returns shallow I32 {}
+TextToFloat := ext_func(text : I8) returns shallow F32 {}
+
+//------------------------------------------------------------------------------------
+// Basic 3d Shapes Drawing Functions (Module: models)
+//------------------------------------------------------------------------------------
+
+// Basic geometric 3D shapes drawing functions
+DrawLine3D := ext_proc(shallow startPos : Vector3, shallow endPos : Vector3, shallow color : Color) {}
+DrawPoint3D := ext_proc(shallow position : Vector3, shallow color : Color) {}
+DrawCircle3D := ext_proc(shallow center : Vector3, shallow radius : F32, shallow rotationAxis : Vector3, shallow rotationAngle : F32, shallow color : Color) {}
+DrawTriangle3D := ext_proc(shallow v1 : Vector3, shallow v2 : Vector3, shallow v3 : Vector3, shallow color : Color) {}
+DrawTriangleStrip3D := ext_proc(points : Vector3, shallow pointCount : I32, shallow color : Color) {}
 DrawCube := ext_proc(shallow position : Vector3, shallow width : F32, shallow height : F32, shallow length : F32, shallow color : Color) {}
 DrawCubeV := ext_proc(shallow position : Vector3, shallow size : Vector3, shallow color : Color) {}
 DrawCubeWires := ext_proc(shallow position : Vector3, shallow width : F32, shallow height : F32, shallow length : F32, shallow color : Color) {}
 DrawCubeWiresV := ext_proc(shallow position : Vector3, shallow size : Vector3, shallow color : Color) {}
+DrawSphere := ext_proc(shallow centerPos : Vector3, shallow radius : F32, shallow color : Color) {}
+DrawSphereEx := ext_proc(shallow centerPos : Vector3, shallow radius : F32, shallow rings : I32, shallow slices : I32, shallow color : Color) {}
+DrawSphereWires := ext_proc(shallow centerPos : Vector3, shallow radius : F32, shallow rings : I32, shallow slices : I32, shallow color : Color) {}
+DrawCylinder := ext_proc(shallow position : Vector3, shallow radiusTop : F32, shallow radiusBottom : F32, shallow height : F32, shallow slices : I32, shallow color : Color) {}
+DrawCylinderEx := ext_proc(shallow startPos : Vector3, shallow endPos : Vector3, shallow startRadius : F32, shallow endRadius : F32, shallow sides : I32, shallow color : Color) {}
+DrawCylinderWires := ext_proc(shallow position : Vector3, shallow radiusTop : F32, shallow radiusBottom : F32, shallow height : F32, shallow slices : I32, shallow color : Color) {}
+DrawCylinderWiresEx := ext_proc(shallow startPos : Vector3, shallow endPos : Vector3, shallow startRadius : F32, shallow endRadius : F32, shallow sides : I32, shallow color : Color) {}
+DrawCapsule := ext_proc(shallow startPos : Vector3, shallow endPos : Vector3, shallow radius : F32, shallow slices : I32, shallow rings : I32, shallow color : Color) {}
+DrawCapsuleWires := ext_proc(shallow startPos : Vector3, shallow endPos : Vector3, shallow radius : F32, shallow slices : I32, shallow rings : I32, shallow color : Color) {}
 DrawPlane := ext_proc(shallow centerPos : Vector3, shallow size : Vector2, shallow color : Color) {}
-UpdateCameraPro := ext_proc(camera : Camera3D, shallow movement : Vector3, shallow rotation : Vector3, shallow zoom : F32) {}
-CameraMoveForward := ext_proc(camera : Camera3D, shallow distance : F32, shallow moveInWorldPlane : Bool) {}
-CameraMoveRight := ext_proc(camera : Camera3D, shallow distance : F32, shallow moveInWorldPlane : Bool) {}
-CameraMoveUp := ext_proc(camera : Camera3D, shallow distance : F32) {}
+DrawRay := ext_proc(shallow ray : Ray, shallow color : Color) {}
+DrawGrid := ext_proc(shallow slices : I32, shallow spacing : F32) {}
+
+//------------------------------------------------------------------------------------
+// Model 3d Loading and Drawing Functions (Module: models)
+//------------------------------------------------------------------------------------
+
+// Model management functions
+LoadModel := ext_func(fileName : I8) returns shallow Model {}
+LoadModelFromMesh := ext_func(shallow mesh : Mesh) returns shallow Model {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsModelValid := ext_func(shallow model : Model) returns shallow Bool {}
+UnloadModel := ext_proc(shallow model : Model) {}
+GetModelBoundingBox := ext_func(shallow model : Model) returns shallow BoundingBox {}
+
+// Model drawing functions
+DrawModel := ext_proc(shallow model : Model, shallow position : Vector3, shallow scale : F32, shallow tint : Color) {}
+DrawModelEx := ext_proc(shallow model : Model, shallow position : Vector3, shallow rotationAxis : Vector3, shallow rotationAngle : F32, shallow scale : Vector3, shallow tint : Color) {}
+DrawModelWires := ext_proc(shallow model : Model, shallow position : Vector3, shallow scale : F32, shallow tint : Color) {}
+DrawModelWiresEx := ext_proc(shallow model : Model, shallow position : Vector3, shallow rotationAxis : Vector3, shallow rotationAngle : F32, shallow scale : Vector3, shallow tint : Color) {}
+DrawModelPoints := ext_proc(shallow model : Model, shallow position : Vector3, shallow scale : F32, shallow tint : Color) {}
+DrawModelPointsEx := ext_proc(shallow model : Model, shallow position : Vector3, shallow rotationAxis : Vector3, shallow rotationAngle : F32, shallow scale : Vector3, shallow tint : Color) {}
+DrawBoundingBox := ext_proc(shallow box : BoundingBox, shallow color : Color) {}
+DrawBillboard := ext_proc(shallow camera : Camera, shallow texture : Texture2D, shallow position : Vector3, shallow scale : F32, shallow tint : Color) {}
+DrawBillboardRec := ext_proc(shallow camera : Camera, shallow texture : Texture2D, shallow source : Rectangle, shallow position : Vector3, shallow size : Vector2, shallow tint : Color) {}
+DrawBillboardPro := ext_proc(shallow camera : Camera, shallow texture : Texture2D, shallow source : Rectangle, shallow position : Vector3, shallow up : Vector3, shallow size : Vector2, shallow origin : Vector2, shallow rotation : F32, shallow tint : Color) {}
+
+// Mesh management functions
+UploadMesh := ext_proc(mesh : Mesh, shallow dynamic : Bool) {}
+UpdateMeshBuffer := ext_proc(shallow mesh : Mesh, shallow index : I32, data : Dynamic, shallow dataSize : I32, shallow offset : I32) {}
+UnloadMesh := ext_proc(shallow mesh : Mesh) {}
+DrawMesh := ext_proc(shallow mesh : Mesh, shallow material : Material, shallow transform : Matrix) {}
+DrawMeshInstanced := ext_proc(shallow mesh : Mesh, shallow material : Material, transforms : Matrix, shallow instances : I32) {}
+GetMeshBoundingBox := ext_func(shallow mesh : Mesh) returns shallow BoundingBox {}
+GenMeshTangents := ext_proc(mesh : Mesh) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ExportMesh := ext_func(shallow mesh : Mesh, fileName : I8) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ExportMeshAsCode := ext_func(shallow mesh : Mesh, fileName : I8) returns shallow Bool {}
+
+// Mesh generation functions
+GenMeshPoly := ext_func(shallow sides : I32, shallow radius : F32) returns shallow Mesh {}
+GenMeshPlane := ext_func(shallow width : F32, shallow length : F32, shallow resX : I32, shallow resZ : I32) returns shallow Mesh {}
+GenMeshCube := ext_func(shallow width : F32, shallow height : F32, shallow length : F32) returns shallow Mesh {}
+GenMeshSphere := ext_func(shallow radius : F32, shallow rings : I32, shallow slices : I32) returns shallow Mesh {}
+GenMeshHemiSphere := ext_func(shallow radius : F32, shallow rings : I32, shallow slices : I32) returns shallow Mesh {}
+GenMeshCylinder := ext_func(shallow radius : F32, shallow height : F32, shallow slices : I32) returns shallow Mesh {}
+GenMeshCone := ext_func(shallow radius : F32, shallow height : F32, shallow slices : I32) returns shallow Mesh {}
+GenMeshTorus := ext_func(shallow radius : F32, shallow size : F32, shallow radSeg : I32, shallow sides : I32) returns shallow Mesh {}
+GenMeshKnot := ext_func(shallow radius : F32, shallow size : F32, shallow radSeg : I32, shallow sides : I32) returns shallow Mesh {}
+GenMeshHeightmap := ext_func(shallow heightmap : Image, shallow size : Vector3) returns shallow Mesh {}
+GenMeshCubicmap := ext_func(shallow cubicmap : Image, shallow cubeSize : Vector3) returns shallow Mesh {}
+
+// Material loading/unloading functions
+LoadMaterials := ext_func(fileName : I8, materialCount : I32) returns ref Material {}
+LoadMaterialDefault := ext_func() returns shallow Material {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsMaterialValid := ext_func(shallow material : Material) returns shallow Bool {}
+UnloadMaterial := ext_proc(shallow material : Material) {}
+SetMaterialTexture := ext_proc(material : Material, shallow mapType : I32, shallow texture : Texture2D) {}
+SetModelMeshMaterial := ext_proc(model : Model, shallow meshId : I32, shallow materialId : I32) {}
+
+// Model animations loading/unloading functions
+LoadModelAnimations := ext_func(fileName : I8, animCount : I32) returns ref ModelAnimation {}
+UpdateModelAnimation := ext_proc(shallow model : Model, shallow anim : ModelAnimation, shallow frame : F32) {}
+UpdateModelAnimationEx := ext_proc(shallow model : Model, shallow animA : ModelAnimation, shallow frameA : F32, shallow animB : ModelAnimation, shallow frameB : F32, shallow blend : F32) {}
+UnloadModelAnimations := ext_proc(animations : ModelAnimation, shallow animCount : I32) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsModelAnimationValid := ext_func(shallow model : Model, shallow anim : ModelAnimation) returns shallow Bool {}
+
+// Collision detection functions
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionSpheres := ext_func(shallow center1 : Vector3, shallow radius1 : F32, shallow center2 : Vector3, shallow radius2 : F32) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+CheckCollisionBoxes := ext_func(shallow box1 : BoundingBox, shallow box2 : BoundingBox) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
 CheckCollisionBoxSphere := ext_func(shallow box : BoundingBox, shallow center : Vector3, shallow radius : F32) returns shallow Bool {}
+GetRayCollisionSphere := ext_func(shallow ray : Ray, shallow center : Vector3, shallow radius : F32) returns shallow RayCollision {}
+GetRayCollisionBox := ext_func(shallow ray : Ray, shallow box : BoundingBox) returns shallow RayCollision {}
+GetRayCollisionMesh := ext_func(shallow ray : Ray, shallow mesh : Mesh, shallow transform : Matrix) returns shallow RayCollision {}
+GetRayCollisionTriangle := ext_func(shallow ray : Ray, shallow p1 : Vector3, shallow p2 : Vector3, shallow p3 : Vector3) returns shallow RayCollision {}
+GetRayCollisionQuad := ext_func(shallow ray : Ray, shallow p1 : Vector3, shallow p2 : Vector3, shallow p3 : Vector3, shallow p4 : Vector3) returns shallow RayCollision {}
+
+//------------------------------------------------------------------------------------
+// Audio Loading and Playing Functions (Module: audio)
+//------------------------------------------------------------------------------------
+AudioCallback := Dynamic
+
+
+// Audio device management functions
 InitAudioDevice := ext_proc() {}
 CloseAudioDevice := ext_proc() {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsAudioDeviceReady := ext_func() returns shallow Bool {}
+SetMasterVolume := ext_proc(shallow volume : F32) {}
+GetMasterVolume := ext_func() returns shallow F32 {}
+
+// Wave/Sound loading/unloading functions
+LoadWave := ext_func(fileName : I8) returns shallow Wave {}
+LoadWaveFromMemory := ext_func(fileType : I8, fileData : U8, shallow dataSize : I32) returns shallow Wave {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsWaveValid := ext_func(shallow wave : Wave) returns shallow Bool {}
+LoadSound := ext_func(fileName : I8) returns shallow Sound {}
 LoadSoundFromWave := ext_func(shallow wave : Wave) returns shallow Sound {}
+LoadSoundAlias := ext_func(shallow source : Sound) returns shallow Sound {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsSoundValid := ext_func(shallow sound : Sound) returns shallow Bool {}
+UpdateSound := ext_proc(shallow sound : Sound, data : Dynamic, shallow sampleCount : I32) {}
+UnloadWave := ext_proc(shallow wave : Wave) {}
+UnloadSound := ext_proc(shallow sound : Sound) {}
+UnloadSoundAlias := ext_proc(shallow alias : Sound) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ExportWave := ext_func(shallow wave : Wave, fileName : I8) returns shallow Bool {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+ExportWaveAsCode := ext_func(shallow wave : Wave, fileName : I8) returns shallow Bool {}
+
+// Wave/Sound management functions
 PlaySound := ext_proc(shallow sound : Sound) {}
 StopSound := ext_proc(shallow sound : Sound) {}
-UnloadSound := ext_proc(shallow sound : Sound) {}
+PauseSound := ext_proc(shallow sound : Sound) {}
+ResumeSound := ext_proc(shallow sound : Sound) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsSoundPlaying := ext_func(shallow sound : Sound) returns shallow Bool {}
+SetSoundVolume := ext_proc(shallow sound : Sound, shallow volume : F32) {}
+SetSoundPitch := ext_proc(shallow sound : Sound, shallow pitch : F32) {}
+SetSoundPan := ext_proc(shallow sound : Sound, shallow pan : F32) {}
+WaveCopy := ext_func(shallow wave : Wave) returns shallow Wave {}
+WaveCrop := ext_proc(wave : Wave, shallow initFrame : I32, shallow finalFrame : I32) {}
+WaveFormat := ext_proc(wave : Wave, shallow sampleRate : I32, shallow sampleSize : I32, shallow channels : I32) {}
+LoadWaveSamples := ext_func(shallow wave : Wave) returns ref F32 {}
+UnloadWaveSamples := ext_proc(samples : F32) {}
+
+// Music management functions
+LoadMusicStream := ext_func(fileName : I8) returns shallow Music {}
+LoadMusicStreamFromMemory := ext_func(fileType : I8, data : U8, shallow dataSize : I32) returns shallow Music {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsMusicValid := ext_func(shallow music : Music) returns shallow Bool {}
+UnloadMusicStream := ext_proc(shallow music : Music) {}
+PlayMusicStream := ext_proc(shallow music : Music) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsMusicStreamPlaying := ext_func(shallow music : Music) returns shallow Bool {}
+UpdateMusicStream := ext_proc(shallow music : Music) {}
+StopMusicStream := ext_proc(shallow music : Music) {}
+PauseMusicStream := ext_proc(shallow music : Music) {}
+ResumeMusicStream := ext_proc(shallow music : Music) {}
+SeekMusicStream := ext_proc(shallow music : Music, shallow position : F32) {}
+SetMusicVolume := ext_proc(shallow music : Music, shallow volume : F32) {}
+SetMusicPitch := ext_proc(shallow music : Music, shallow pitch : F32) {}
+SetMusicPan := ext_proc(shallow music : Music, shallow pan : F32) {}
+GetMusicTimeLength := ext_func(shallow music : Music) returns shallow F32 {}
+GetMusicTimePlayed := ext_func(shallow music : Music) returns shallow F32 {}
+
+// AudioStream management functions
+LoadAudioStream := ext_func(shallow sampleRate : U32, shallow sampleSize : U32, shallow channels : U32) returns shallow AudioStream {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsAudioStreamValid := ext_func(shallow stream : AudioStream) returns shallow Bool {}
+UnloadAudioStream := ext_proc(shallow stream : AudioStream) {}
+UpdateAudioStream := ext_proc(shallow stream : AudioStream, data : Dynamic, shallow frameCount : I32) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsAudioStreamProcessed := ext_func(shallow stream : AudioStream) returns shallow Bool {}
+PlayAudioStream := ext_proc(shallow stream : AudioStream) {}
+PauseAudioStream := ext_proc(shallow stream : AudioStream) {}
+ResumeAudioStream := ext_proc(shallow stream : AudioStream) {}
+// Functions defined as 'extern' by default (implicit specifiers)*/ 
+IsAudioStreamPlaying := ext_func(shallow stream : AudioStream) returns shallow Bool {}
+StopAudioStream := ext_proc(shallow stream : AudioStream) {}
+SetAudioStreamVolume := ext_proc(shallow stream : AudioStream, shallow volume : F32) {}
+SetAudioStreamPitch := ext_proc(shallow stream : AudioStream, shallow pitch : F32) {}
+SetAudioStreamPan := ext_proc(shallow stream : AudioStream, shallow pan : F32) {}
+SetAudioStreamBufferSizeDefault := ext_proc(shallow size : I32) {}
+SetAudioStreamCallback := ext_proc(shallow stream : AudioStream, callback : Dynamic) {}
+
+AttachAudioStreamProcessor := ext_proc(shallow stream : AudioStream, processor : Dynamic) {}
+DetachAudioStreamProcessor := ext_proc(shallow stream : AudioStream, processor : Dynamic) {}
+
+AttachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
+DetachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
+//******************************************************************************************
+//
+//   rcamera - Basic camera system with support for multiple camera modes
+//
+//   CONFIGURATION:
+//       #define RCAMERA_IMPLEMENTATION
+//           Generates the implementation of the library into the included file.
+//           If not defined, the library is in header only mode and can be included in other headers
+//           or source files without problems. But only ONE file should hold the implementation.
+//
+//       #define RCAMERA_STANDALONE
+//           If defined, the library can be used as standalone as a camera system but some
+//           functions must be redefined to manage inputs accordingly.
+//
+//   CONTRIBUTORS:
+//       Ramon Santamaria:   Supervision, review, update and maintenance
+//       Christoph Wagner:   Complete redesign, using raymath (2022)
+//       Marc Palau:         Initial implementation (2014)
+//
+//
+//   LICENSE: zlib/libpng
+//
+//   Copyright (c) 2022-2026 Christoph Wagner (@Crydsch) and Ramon Santamaria (@raysan5)
+//
+//   This software is provided "as-is", without any express or implied warranty. In no event
+//   will the authors be held liable for any damages arising from the use of this software.
+//
+//   Permission is granted to anyone to use this software for any purpose, including commercial
+//   applications, and to alter it and redistribute it freely, subject to the following restrictions:
+//
+//     1. The origin of this software must not be misrepresented; you must not claim that you
+//     wrote the original software. If you use this software in a product, an acknowledgment
+//     in the product documentation would be appreciated but is not required.
+//
+//     2. Altered source versions must be plainly marked as such, and must not be misrepresented
+//     as being the original software.
+//
+//     3. This notice may not be removed or altered from any source distribution.
+//
+//********************************************************************************************
+
+
+
+//----------------------------------------------------------------------------------
+// Defines and Macros
+//----------------------------------------------------------------------------------
+// Function specifiers definition
+
+// Function specifiers in case library is build/used as a shared library (Windows)
+// NOTE: Microsoft specifiers to tell compiler that symbols are imported/exported from a .dll
+
+
+//----------------------------------------------------------------------------------
+// Types and Structures Definition
+// NOTE: Below types are required for standalone usage
+//----------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------
+// Global Variables Definition
+//----------------------------------------------------------------------------------
+//...
+
+//----------------------------------------------------------------------------------
+// Module Functions Declaration
+//----------------------------------------------------------------------------------
+
+
+
+
+
+GetCameraForward := ext_func(camera : Camera) returns shallow Vector3 {}
+GetCameraUp := ext_func(camera : Camera) returns shallow Vector3 {}
+GetCameraRight := ext_func(camera : Camera) returns shallow Vector3 {}
+
+// Camera movement
+CameraMoveForward := ext_proc(camera : Camera, shallow distance : F32, shallow moveInWorldPlane : Bool) {}
+CameraMoveUp := ext_proc(camera : Camera, shallow distance : F32) {}
+CameraMoveRight := ext_proc(camera : Camera, shallow distance : F32, shallow moveInWorldPlane : Bool) {}
+CameraMoveToTarget := ext_proc(camera : Camera, shallow delta : F32) {}
+
+// Camera rotation
+CameraYaw := ext_proc(camera : Camera, shallow angle : F32, shallow rotateAroundTarget : Bool) {}
+CameraPitch := ext_proc(camera : Camera, shallow angle : F32, shallow lockView : Bool, shallow rotateAroundTarget : Bool, shallow rotateUp : Bool) {}
+CameraRoll := ext_proc(camera : Camera, shallow angle : F32) {}
+
+GetCameraViewMatrix := ext_func(camera : Camera) returns shallow Matrix {}
+GetCameraProjectionMatrix := ext_func(camera : Camera, shallow aspect : F32) returns shallow Matrix {}
+
+
+
+
+
+
+
+//**********************************************************************************
+//
+//   CAMERA IMPLEMENTATION
+//
+//**********************************************************************************
+
