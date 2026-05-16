@@ -899,6 +899,15 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
 
 generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32, shallow col: I32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
     mut func_body := Expr.new(NodeType.Body, line.to_u32(), col.to_u32())
+    // Tag-only enums (no variant carries a payload) need an if-guard
+    // for every variant so the auto-gen body always reads ~self~ at
+    // least once -- otherwise check_unused_params rejects the
+    // generated clone for a single-variant enum, where the existing
+    // "last variant" branch below would otherwise emit just an
+    // unconditional return. The trailing UNREACHABLE/return after
+    // the loop satisfies C's -Wreturn-type without changing
+    // observable behaviour (the enum is exhaustive).
+    guard_every := has_payloads.not()
     for j in 0..variant_names.len() {
         ref vname : Str = variant_names.get(j)
 
@@ -929,7 +938,8 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32
         mut ret := Expr.new(NodeType.Return, line.to_u32(), col.to_u32())
         ret.add_child(own ctor_expr)
 
-        if j.lt(variant_names.len().sub(1)) {
+        emit_guard := guard_every.or(j.lt(variant_names.len().sub(1)))
+        if emit_guard {
             mut cond := Expr.new(NodeType.LiteralNull, line.to_u32(), col.to_u32())
             if has_payloads {
                 cond = make_is_tag_check_fcall("self", ename, vname, line.to_u32(), col.to_u32())
@@ -960,6 +970,25 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32
             }
             func_body.add_child(own ret)
         }
+    }
+    if guard_every {
+        ref first_vname : Str = variant_names.get(0)
+        // ~__LOC__~ is a parser-time directive; we're past parse, so
+        // emit a synthetic loc string directly.
+        loc_text := format(ename, ".clone:", line.to_str(), ":", col.to_str())
+        mut unr_id := Expr.new(NodeType.Ident("UNREACHABLE"), line.to_u32(), col.to_u32())
+        mut loc_lit := Expr.new(NodeType.LiteralStr(loc_text), line.to_u32(), col.to_u32())
+        mut unr_call := Expr.new(NodeType.FCall(FCallData()), line.to_u32(), col.to_u32())
+        unr_call.add_child(own unr_id)
+        unr_call.add_child(own loc_lit)
+        func_body.add_child(own unr_call)
+
+        mut tail_ename_id := Expr.new(NodeType.Ident(ename.clone()), line.to_u32(), col.to_u32())
+        mut tail_ctor := Expr.new(NodeType.FieldAccess(first_vname.clone()), line.to_u32(), col.to_u32())
+        tail_ctor.add_child(own tail_ename_id)
+        mut tail_ret := Expr.new(NodeType.Return, line.to_u32(), col.to_u32())
+        tail_ret.add_child(own tail_ctor)
+        func_body.add_child(own tail_ret)
     }
 
     mut fdecl := FunctionDef(auto_generated = true)

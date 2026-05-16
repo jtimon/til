@@ -5009,38 +5009,127 @@ emit_tag_case := proc(f: File, tag: Str, name: Str) {
     f.write(";\n")
 }
 
+// Display strings for variants that don't follow the
+// "case Type_TAG_<vn>: return <vn>" default (legacy idiosyncrasies
+// preserved so dyn_type_to_str output stays stable).
+priv dyn_type_str_display := func(vn: Str) returns Str {
+    if vn.eq("Unknown") { return "" }
+    if vn.eq("None")    { return "" }
+    if vn.eq("FuncDef") { return "FunctionDef" }
+    if vn.eq("FuncPtr") { return "Fn" }
+    return vn.clone()
+}
+
+// Locate the variants of an enum definition by name in the loaded
+// program. Returns true iff found. The first hit wins; out-vecs are
+// only written on a hit.
+priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec, mut variant_types: Vec) returns shallow Bool {
+    ref lp : LoadedProgram = codegen_lp()
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                if is_struct_or_enum(stmt).not() { continue }
+                switch stmt.node_type {
+                case NodeType.Decl(dd):
+                    if dd.name.eq(ename).not() { continue }
+                    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+                    mut hp := false
+                    collect_enum_variants(stmt.child(0), variant_names, variant_types, hp)
+                    return true
+                case:
+                }
+            }
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for stmt : Expr in iu.ast.children {
+            if is_struct_or_enum(stmt).not() { continue }
+            switch stmt.node_type {
+            case NodeType.Decl(dd):
+                if dd.name.eq(ename).not() { continue }
+                if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+                mut hp := false
+                collect_enum_variants(stmt.child(0), variant_names, variant_types, hp)
+                return true
+            case:
+            }
+        }
+    }
+    return false
+}
+
+// Data-driven: walk the user's ~Type~ enum and emit one case per
+// variant. Tag-only -> literal string return. Str payload ->
+// Str_clone(&type->data.<v>). Enum payload (e.g. Primitive) ->
+// inner switch over the payload enum's variants. Issue #203: this
+// replaces the previous hardcoded list of emit_tag_case calls so
+// migrating a primitive in/out of Type doesn't require editing
+// this function in lockstep.
 emit_dyn_type_to_str_body := proc(f: File) {
     f.write("Str *dyn_type_to_str(Type *type) {\n")
     f.write("    switch (type->tag) {\n")
-    emit_tag_case(f, "Type_TAG_Unknown", "")
-    emit_tag_case(f, "Type_TAG_None", "")
-    emit_tag_case(f, "Type_TAG_I64", "I64")
-    emit_tag_case(f, "Type_TAG_U8", "U8")
-    emit_tag_case(f, "Type_TAG_I8", "I8")
-    emit_tag_case(f, "Type_TAG_I16", "I16")
-    emit_tag_case(f, "Type_TAG_I32", "I32")
-    emit_tag_case(f, "Type_TAG_U32", "U32")
-    emit_tag_case(f, "Type_TAG_U64", "U64")
-    emit_tag_case(f, "Type_TAG_F32", "F32")
-    emit_tag_case(f, "Type_TAG_Bool", "Bool")
-    f.write("    case Type_TAG_Struct: return Str_clone(&type->data.Struct);\n")
-    emit_tag_case(f, "Type_TAG_StructDef", "StructDef")
-    f.write("    case Type_TAG_Enum: return Str_clone(&type->data.Enum);\n")
-    emit_tag_case(f, "Type_TAG_EnumDef", "EnumDef")
-    emit_tag_case(f, "Type_TAG_FuncDef", "FunctionDef")
-    emit_tag_case(f, "Type_TAG_FuncPtr", "Fn")
-    emit_tag_case(f, "Type_TAG_Dynamic", "Dynamic")
-    f.write("    case Type_TAG_Custom: return Str_clone(&type->data.Custom);\n")
-    // Default case so future Type enum variants don't break the build
-    // before this function (which is emit-hardcoded) is updated to
-    // recognise them. The fallback below is also reachable when -Werror
-    // doesn't enforce switch exhaustiveness.
+    mut variant_names := Vec.new(Str)
+    mut variant_types := Vec.new(Str)
+    if find_loaded_enum_variants("Type", variant_names, variant_types).not() {
+        panic(__LOC__, "emit_dyn_type_to_str_body: cannot find Type enum in loaded program")
+    }
+    for j in 0..variant_names.len() {
+        ref vn : Str = variant_names.get(j)
+        ref vt : Str = variant_types.get(j)
+        if vt.len().eq(0) {
+            display := dyn_type_str_display(vn)
+            f.write("    case Type_TAG_")
+            f.write(vn)
+            f.write(": return ")
+            emit_str_lit_expr(f, display)
+            f.write(";\n")
+        } else if vt.eq("Str") {
+            f.write("    case Type_TAG_")
+            f.write(vn)
+            f.write(": return Str_clone(&type->data.")
+            f.write(vn)
+            f.write(");\n")
+        } else {
+            mut inner_names := Vec.new(Str)
+            mut inner_types := Vec.new(Str)
+            if find_loaded_enum_variants(vt, inner_names, inner_types).not() {
+                panic(__LOC__, "emit_dyn_type_to_str_body: cannot find payload enum '", vt, "'")
+            }
+            f.write("    case Type_TAG_")
+            f.write(vn)
+            f.write(":\n")
+            f.write("        switch (type->data.")
+            f.write(vn)
+            f.write(".tag) {\n")
+            for k in 0..inner_names.len() {
+                ref ivn : Str = inner_names.get(k)
+                f.write("        case ")
+                f.write(vt)
+                f.write("_TAG_")
+                f.write(ivn)
+                f.write(": return ")
+                emit_str_lit_expr(f, ivn)
+                f.write(";\n")
+            }
+            f.write("        }\n")
+            f.write("        break;\n")
+            Vec.delete(own inner_names, false)
+            Vec.delete(own inner_types, false)
+        }
+    }
+    // Fallback: reachable only for runtime tag values that don't
+    // match any variant we emitted (corrupted Type, future shape
+    // mismatch). The ~?~ string mirrors til_type_name_c's default.
     f.write("    default: break;\n")
     f.write("    }\n")
     f.write("    return ")
     emit_str_lit_expr(f, "?")
     f.write(";\n")
     f.write("}\n\n")
+    Vec.delete(own variant_names, false)
+    Vec.delete(own variant_types, false)
 }
 
 emit_dyn_call_bodies := proc(f: File) {
