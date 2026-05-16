@@ -17,6 +17,7 @@ import("self/loader")
 import("self/builder")
 import("self/interpreter")
 import("self/dispatch")
+import("self/binder")
 import("lib/raylib")
 link("c_lib/raylib/src/libraylib.a")
 link("m")
@@ -335,6 +336,7 @@ usage := proc() {
     println("  test       Run test() functions interpreted, then compiled")
     println("  doc        Emit org-mode docs under doc/gen/")
     println("  ast        Print the parsed AST as a Lisp-like S-expression")
+    println("  bindings   Generate a `mode lib` .til binding from a C header")
     println("  help       Print this message")
 }
 
@@ -411,6 +413,7 @@ parse_args := proc(args: Array) returns CliArgs {
         .and(cli.command.eq("test").not())
         .and(cli.command.eq("doc").not())
         .and(cli.command.eq("ast").not())
+        .and(cli.command.eq("bindings").not())
         .and(cli.command.eq("help").not())
         .and(cli.command.eq("--help").not())
         .and(cli.command.eq("--version").not())
@@ -493,6 +496,19 @@ main := proc(args: ..Str) {
 
     if cli.command.eq("help").or(cli.command.eq("--help")) {
         usage()
+        return
+    }
+
+    // `bindings` runs the C-header -> til translator (src/self/binder.til).
+    // Skip the load_program pipeline -- the input is a .h, not a .til, and
+    // -o carries the output path.
+    if cli.command.eq("bindings") {
+        if cli.custom_bin.len().eq(0) {
+            println("error: bindings requires -o <output.til>")
+            usage()
+            exit(1)
+        }
+        generate_bindings(cli.path, cli.custom_bin)
         return
     }
 

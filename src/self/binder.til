@@ -1,9 +1,15 @@
-mode cli
+mode lib
 
-// Generic C header → til bindings translator. Takes one header path and an
-// output path; produces a `mode lib` til file that mirrors every typedef,
-// enum, function declaration and numeric #define from the header (and any
-// header it #includes that lives in the same directory).
+// Generic C header -> til bindings translator. `generate_bindings(in_path,
+// out_path)` reads one C header and produces a `mode lib` til file that
+// mirrors every typedef, enum, function declaration and numeric #define
+// from the header (and any header it #includes that lives in the same
+// directory). Driven from `bin/til bindings <header> -o <out>` via
+// src/til.til; the Makefile invokes that for each src/lib/<name>.til.
+
+// Lexer exports is_digit / is_alpha / is_alnum (same I8 -> Bool helpers
+// that classify identifier bytes), so reuse them rather than redefining.
+import("lexer")
 //
 // What it does NOT do:
 //   * emit `link("...")` -- callers add that themselves where they `import`.
@@ -17,31 +23,20 @@ mode cli
 // one `Str.with_capacity` allocation and writes once.
 
 // --- char helpers ------------------------------------------------------
+// is_digit / is_alpha / is_alnum live in src/self/lexer.til; we use those
+// here rather than redefining. Whitespace detection is binder-local --
+// the lexer skips raw whitespace inline and has no is_ws helper to share.
 
-is_ws := func(c: I8) returns shallow Bool {
+priv bind_is_ws := func(c: I8) returns shallow Bool {
     return c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq('\n'))
-}
-
-is_digit := func(c: I8) returns shallow Bool {
-    return c.gte('0').and(c.lte('9'))
-}
-
-is_alpha := func(c: I8) returns shallow Bool {
-    return c.gte('a').and(c.lte('z'))
-        .or(c.gte('A').and(c.lte('Z')))
-        .or(c.eq('_'))
-}
-
-is_alnum := func(c: I8) returns shallow Bool {
-    return is_alpha(c).or(is_digit(c))
 }
 
 // --- view helpers (no allocation) --------------------------------------
 
-skip_ws := func(s: Str, shallow from: USize) returns USize {
+priv skip_ws := func(s: Str, shallow from: USize) returns USize {
     mut i := from
     while i.lt(s.len()) {
-        if is_ws(s.byte_at(i)).not() { break }
+        if bind_is_ws(s.byte_at(i)).not() { break }
         i = i.add(1)
     }
     return i
@@ -49,7 +44,7 @@ skip_ws := func(s: Str, shallow from: USize) returns USize {
 
 // Index of the first non-identifier byte (ws, punctuation, paren, comma...)
 // in `s` at or after `from`, or s.len() if none.
-skip_word := func(s: Str, shallow from: USize) returns USize {
+priv skip_word := func(s: Str, shallow from: USize) returns USize {
     mut i := from
     while i.lt(s.len()) {
         if is_alnum(s.byte_at(i)).not() { break }
@@ -58,16 +53,16 @@ skip_word := func(s: Str, shallow from: USize) returns USize {
     return i
 }
 
-trim_right := func(s: Str, shallow from: USize, shallow to: USize) returns USize {
+priv trim_right := func(s: Str, shallow from: USize, shallow to: USize) returns USize {
     mut end := to
     while end.gt(from) {
-        if is_ws(s.byte_at(end.sub(1))).not() { break }
+        if bind_is_ws(s.byte_at(end.sub(1))).not() { break }
         end = end.sub(1)
     }
     return end
 }
 
-range_eq_lit := func(s: Str, shallow start: USize, shallow end: USize, lit: Str) returns shallow Bool {
+priv range_eq_lit := func(s: Str, shallow start: USize, shallow end: USize, lit: Str) returns shallow Bool {
     if start.gt(s.len()) { return false }
     if end.gt(s.len()) { return false }
     if end.sub(start).neq(lit.len()) { return false }
@@ -84,7 +79,7 @@ range_eq_lit := func(s: Str, shallow start: USize, shallow end: USize, lit: Str)
 // suffix. `success` is set to false on shapes we don't recognise so callers
 // can fall back without panicking. Index-only, no string-clone path that
 // would risk the corruption pattern.
-parse_c_int_literal := func(s: Str, shallow from: USize, shallow to: USize, mut success: Bool) returns I64 {
+priv parse_c_int_literal := func(s: Str, shallow from: USize, shallow to: USize, mut success: Bool) returns I64 {
     success = true
     mut p := from
     mut negate := false
@@ -136,7 +131,7 @@ parse_c_int_literal := func(s: Str, shallow from: USize, shallow to: USize, mut 
 // verbatim, on the assumption it's a typedef declared elsewhere in the
 // same generated output (struct typedef, enum typedef, plain alias).
 
-push_til_base := func(mut out: Str, c: Str) returns Bool {
+priv push_til_base := func(mut out: Str, c: Str) returns Bool {
     if c.eq("void") { out.push_str("Dynamic"); return true }
     // Plain `char` -> I8, matching Str.c_str's signedness. `unsigned char`
     // stays U8 (raw-byte buffers).
@@ -207,7 +202,7 @@ priv is_alias_to_dynamic := func(name: Str) returns shallow Bool {
     return alias_to_dynamic.contains(format("|", name, "|"))
 }
 
-push_til_default := func(mut out: Str, c: Str) {
+priv push_til_default := func(mut out: Str, c: Str) {
     if c.eq("bool").or(c.eq("_Bool")) { out.push_str("false"); return }
     if c.eq("void") { out.push_str("0"); return }
     if c.eq("char").or(c.eq("unsigned char")).or(c.eq("signed char"))
@@ -245,7 +240,7 @@ push_til_default := func(mut out: Str, c: Str) {
 
 // --- field declaration -------------------------------------------------
 
-emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
+priv bind_emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
     n := line.len()
     if n.eq(0) { return true }
     // Pre-filter unsupported shapes (arrays, function pointers, bitfields,
@@ -374,12 +369,12 @@ priv ends_with_block_close := func(body: Str) returns shallow Bool {
     return true
 }
 
-emit_comment_line := func(mut out: Str, line: Str) {
+priv emit_comment_line := func(mut out: Str, line: Str) {
     n := line.len()
     mut i : USize = 0
     while i.lt(n) {
         ref b : I8 = line.byte_at(i)
-        if is_ws(b).not() { break }
+        if bind_is_ws(b).not() { break }
         i = i.add(1)
     }
     // Preserve the source's leading indent in the output.
@@ -426,7 +421,7 @@ emit_comment_line := func(mut out: Str, line: Str) {
 
 // --- struct body ------------------------------------------------------
 
-emit_struct_body := func(mut out: Str, lines: Vec, shallow open: USize, shallow close: USize) returns Bool {
+priv emit_struct_body := func(mut out: Str, lines: Vec, shallow open: USize, shallow close: USize) returns Bool {
     for i in open.add(1)..close {
         ref line : Str = lines.get(i)
         n := line.len()
@@ -499,17 +494,17 @@ emit_struct_body := func(mut out: Str, lines: Vec, shallow open: USize, shallow 
         // check explicitly to avoid an OOB read when ce/comment_end is 0.
         mut cs := comment_start
         while cs.lt(comment_end) {
-            if is_ws(line.byte_at(cs)).not() { break }
+            if bind_is_ws(line.byte_at(cs)).not() { break }
             cs = cs.add(1)
         }
         mut ce := comment_end
         while ce.gt(cs) {
-            if is_ws(line.byte_at(ce.sub(1))).not() { break }
+            if bind_is_ws(line.byte_at(ce.sub(1))).not() { break }
             ce = ce.sub(1)
         }
         comment_view := line.substr(cs, ce.sub(cs))
         code_view := line.substr(lead, new_code_end.sub(lead))
-        if emit_field(out, code_view, comment_view).not() {
+        if bind_emit_field(out, code_view, comment_view).not() {
             return false
         }
     }
@@ -518,7 +513,7 @@ emit_struct_body := func(mut out: Str, lines: Vec, shallow open: USize, shallow 
 
 // --- typedef struct ---------------------------------------------------
 
-emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
+priv emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
     ref close_line : Str = lines.get(close)
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
@@ -535,10 +530,10 @@ emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shal
     mut name_start := cp
     mut nk := cp
     while nk.lt(cright) {
-        if is_ws(close_line.byte_at(nk)) { name_start = nk.add(1) }
+        if bind_is_ws(close_line.byte_at(nk)) { name_start = nk.add(1) }
         nk = nk.add(1)
     }
-    while name_start.lt(cright).and(is_ws(close_line.byte_at(name_start))) {
+    while name_start.lt(cright).and(bind_is_ws(close_line.byte_at(name_start))) {
         name_start = name_start.add(1)
     }
     name_len := cright.sub(name_start)
@@ -635,7 +630,7 @@ emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shal
 
 // --- typedef enum -----------------------------------------------------
 
-emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
+priv emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
     ref close_line : Str = lines.get(close)
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
@@ -749,7 +744,7 @@ emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallo
 
 // --- typedef alias (single line) --------------------------------------
 
-emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
+priv emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
     mut n := line.len()
     lead := skip_ws(line, 0)
     if range_eq_lit(line, lead, lead.add(8), "typedef ").not() { return false }
@@ -782,7 +777,7 @@ emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
     while p.lt(body_end) {
         ref c : I8 = line.byte_at(p)
         if c.eq('(').or(c.eq('[')) { return false }
-        if is_ws(c) { p = p.add(1); continue }
+        if bind_is_ws(c) { p = p.add(1); continue }
         if c.eq('*') { ptrs = ptrs.add(1); p = p.add(1); continue }
         word_end := skip_word(line, p)
         if word_end.eq(p) { return false }
@@ -834,7 +829,7 @@ emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
 
 // --- typedef function-pointer (one line) ------------------------------
 
-emit_typedef_fnptr := func(mut out: Str, line: Str) returns Bool {
+priv emit_typedef_fnptr := func(mut out: Str, line: Str) returns Bool {
     // `typedef RET (*NAME)(ARGS);` -> emit `NAME := Dynamic`.
     n := line.len()
     lead := skip_ws(line, 0)
@@ -858,7 +853,7 @@ emit_typedef_fnptr := func(mut out: Str, line: Str) returns Bool {
 
 // --- #define numeric constant -----------------------------------------
 
-emit_define := func(mut out: Str, line: Str) returns Bool {
+priv emit_define := func(mut out: Str, line: Str) returns Bool {
     n := line.len()
     lead := skip_ws(line, 0)
     if range_eq_lit(line, lead, lead.add(8), "#define ").not() { return false }
@@ -886,7 +881,7 @@ emit_define := func(mut out: Str, line: Str) returns Bool {
 
 // --- function declaration ---------------------------------------------
 
-emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow end: USize) returns Bool {
+priv emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow end: USize) returns Bool {
     // Join [start, end] into one signature, dropping line comments. End-of-
     // signature is a `);` on `lines.get(end)`. Use Str.with_capacity +
     // push_str so we never re-bind a function-returning Str to a local.
@@ -965,7 +960,7 @@ emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow en
     cp_u := cp.to_usize()
     mut before_end := op_u
     while before_end.gt(0) {
-        if is_ws(sig.byte_at(before_end.sub(1))).not() { break }
+        if bind_is_ws(sig.byte_at(before_end.sub(1))).not() { break }
         before_end = before_end.sub(1)
     }
     if before_end.eq(0) { return false }
@@ -978,7 +973,7 @@ emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow en
     if name_start.eq(before_end) { return false }
     mut ret_end := name_start
     while ret_end.gt(0) {
-        if is_ws(sig.byte_at(ret_end.sub(1))).not() { break }
+        if bind_is_ws(sig.byte_at(ret_end.sub(1))).not() { break }
         ret_end = ret_end.sub(1)
     }
     // Walk [0, ret_end) of sig for the return-type's base + pointer depth.
@@ -990,7 +985,7 @@ emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow en
     while rt.lt(ret_end) {
         ref rc : I8 = sig.byte_at(rt)
         if rc.eq('*') { ret_ptrs = ret_ptrs.add(1); rt = rt.add(1); continue }
-        if is_ws(rc) { rt = rt.add(1); continue }
+        if bind_is_ws(rc) { rt = rt.add(1); continue }
         rw := skip_word(sig, rt)
         if rw.eq(rt) { return false }
         if range_eq_lit(sig, rt, rw, "const")
@@ -1027,7 +1022,7 @@ emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow en
             e = e.add(1)
         }
         mut a := pp
-        while a.lt(e).and(is_ws(params_view.byte_at(a))) { a = a.add(1) }
+        while a.lt(e).and(bind_is_ws(params_view.byte_at(a))) { a = a.add(1) }
         mut b := trim_right(params_view, a, e)
         if a.lt(b) {
             if range_eq_lit(params_view, a, b, "void").not() {
@@ -1064,7 +1059,7 @@ emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow en
                     mut t := a
                     while t.lt(b) {
                         ref c : I8 = params_view.byte_at(t)
-                        if is_ws(c) { t = t.add(1); continue }
+                        if bind_is_ws(c) { t = t.add(1); continue }
                         if c.eq('*') { p_ptrs = p_ptrs.add(1); t = t.add(1); continue }
                         if c.eq('[') {
                             p_ptrs = p_ptrs.add(1)
@@ -1195,7 +1190,7 @@ emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow en
 //     function
 //   * other top-level `Type name;` -> drop (extern var)
 
-walk_header := func(mut out: Str, lines: Vec) {
+priv walk_header := func(mut out: Str, lines: Vec) {
     n_lines := lines.len()
     mut i : USize = 0
     // Track whether we're currently inside an unterminated `/* ... */`
@@ -1464,10 +1459,10 @@ walk_header := func(mut out: Str, lines: Vec) {
                         mut name_a := cl_p
                         mut nk := cl_p
                         while nk.lt(cl_right) {
-                            if is_ws(close_l.byte_at(nk)) { name_a = nk.add(1) }
+                            if bind_is_ws(close_l.byte_at(nk)) { name_a = nk.add(1) }
                             nk = nk.add(1)
                         }
-                        while name_a.lt(cl_right).and(is_ws(close_l.byte_at(name_a))) {
+                        while name_a.lt(cl_right).and(bind_is_ws(close_l.byte_at(name_a))) {
                             name_a = name_a.add(1)
                         }
                         if name_a.lt(cl_right) {
@@ -1522,7 +1517,7 @@ walk_header := func(mut out: Str, lines: Vec) {
 
 // --- driver / filter --------------------------------------------------
 
-priv dir_of := func(path: Str) returns Str {
+priv header_dir_of := func(path: Str) returns Str {
     slash := path.rfind("/")
     if slash.eq(-1) { return "." }
     return path.substr(0, slash.to_usize()).clone()
@@ -1558,7 +1553,7 @@ priv looks_like_macro_fragment := func(line: Str) returns shallow Bool {
         ref b : I8 = line.byte_at(i)
         if b.eq(';').or(b.eq('{')).or(b.eq('}')).or(b.eq('('))
         .or(b.eq(')')).or(b.eq(',')).or(b.eq('/')) { return false }
-        if is_ws(b).or(b.eq('*')) {
+        if bind_is_ws(b).or(b.eq('*')) {
             i = i.add(1)
             continue
         }
@@ -1718,8 +1713,8 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
     return out
 }
 
-main := proc(in_path: Str, out_path: Str) {
-    incdir := dir_of(in_path)
+generate_bindings := proc(in_path: Str, out_path: Str) {
+    incdir := header_dir_of(in_path)
     mut pre := ""
     ec := run_cmd(pre, "cc", "-E", "-CC", "-dD", format("-I", incdir), in_path)
     if ec.neq(0) { panic(__LOC__, "cc preprocessing failed for ", in_path) }

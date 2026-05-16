@@ -63,11 +63,11 @@ Token := struct {
 // --- Character helpers ---
 // Replaces C's isdigit(), isalpha() from <ctype.h>
 
-priv is_digit := func(c: I8) returns Bool {
+is_digit := func(c: I8) returns Bool {
     return c.gte('0').and(c.lte('9'))
 }
 
-priv is_alpha := func(c: I8) returns Bool {
+is_alpha := func(c: I8) returns Bool {
     return c.gte('a').and(c.lte('z'))
     .or(c.gte('A').and(c.lte('Z')))
     .or(c.eq('_'))
