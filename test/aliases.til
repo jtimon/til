@@ -315,3 +315,24 @@ test_uptr_memory_api := test() {
     assert_eq(__LOC__, b.to_i64(), 66)
     free(own buf)
 }
+
+# === Dynamic aliases in struct fields (regression for the reregister
+#     pass broadcasting alias_target across unrelated aliases) ===
+#
+# The shape that used to crash the typer: two unrelated Dynamic
+# aliases plus a struct field typed as the second one. The reregister
+# pass would rewrite the first alias's target to point at itself.
+
+DynA := Dynamic
+DynB := DynA
+
+DynAliasHolder := struct {
+    ref mut a : DynA = NULL
+    ref mut b : DynB = NULL
+}
+
+test_dyn_alias_struct_field := test() {
+    mut h := DynAliasHolder()
+    assert(__LOC__, is_null(h.a))
+    assert(__LOC__, is_null(h.b))
+}

@@ -5554,14 +5554,19 @@ reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                 if rb.alias_target.is_empty().not() {
                     switch rstmt.child(0).node_type {
                     case NodeType.Ident(target_name):
-                        old_at := rb.alias_target.clone()
+                        // Refresh just this alias's target. We deliberately
+                        // do NOT broadcast to other bindings whose
+                        // alias_target string happened to match the old
+                        // value -- two unrelated aliases can share a target
+                        // (e.g. `A := Dynamic` and `B := Dynamic`), and
+                        // rewriting them in lockstep here created
+                        // self-referential chains (`ffi_raw := Dynamic`
+                        // followed by `ffi_java_raw := ffi_raw` used to
+                        // leave ffi_raw.alias_target = "ffi_raw", and
+                        // type_from_name would loop until stack overflow).
+                        // The struct/func re-binding above is fine because
+                        // it pivots on ptr_eq of the old Expr.
                         rb.alias_target = target_name.clone()
-                        for bi in 0..scope.bindings.len() {
-                            ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
-                            if ptr_eq(b, rb).not().and(b.alias_target.eq(old_at)) {
-                                b.alias_target = target_name.clone()
-                            }
-                        }
                     case:
                     }
                 }
