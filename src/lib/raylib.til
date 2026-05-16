@@ -301,7 +301,7 @@ BoneInfo := ext_struct("BoneInfo") {}  // opaque: unsupported field shape
 ModelSkeleton := struct {
     mut boneCount : I32 = 0  // Number of bones
     ref mut bones : BoneInfo = NULL  // Bones information (skeleton)
-    ref mut bindPose : Dynamic = NULL  // Bones base transformation (Transform[])
+    ref mut bindPose : ModelAnimPose = NULL  // Bones base transformation (Transform[])
 }
 
 // Model, meshes, materials and animation data
@@ -315,7 +315,7 @@ Model := struct {
     // Animation data
     mut skeleton : ModelSkeleton = ModelSkeleton()  // Skeleton for animation
     // Runtime animation data (CPU/GPU skinning)
-    ref mut currentPose : Dynamic = NULL  // Current animation pose (Transform[])
+    ref mut currentPose : ModelAnimPose = NULL  // Current animation pose (Transform[])
     ref mut boneMatrices : Matrix = NULL  // Bones animated transformation matrices
 }
 
@@ -976,7 +976,7 @@ OpenURL := ext_proc(url : I8) {}
 
 // Logging system
 SetTraceLogLevel := ext_proc(shallow logLevel : I32) {}
-SetTraceLogCallback := ext_proc(callback : Dynamic) {}
+SetTraceLogCallback := ext_proc(callback : TraceLogCallback) {}
 
 // Memory management, using internal allocators
 MemAlloc := ext_func(shallow size : U32) returns Dynamic {}
@@ -997,10 +997,10 @@ SaveFileText := ext_func(fileName : I8, text : I8) returns shallow Bool {}
 
 // File access custom callbacks
 // WARNING: Callbacks setup is intended for advanced users
-SetLoadFileDataCallback := ext_proc(callback : Dynamic) {}
-SetSaveFileDataCallback := ext_proc(callback : Dynamic) {}
-SetLoadFileTextCallback := ext_proc(callback : Dynamic) {}
-SetSaveFileTextCallback := ext_proc(callback : Dynamic) {}
+SetLoadFileDataCallback := ext_proc(callback : LoadFileDataCallback) {}
+SetSaveFileDataCallback := ext_proc(callback : SaveFileDataCallback) {}
+SetLoadFileTextCallback := ext_proc(callback : LoadFileTextCallback) {}
+SetSaveFileTextCallback := ext_proc(callback : SaveFileTextCallback) {}
 
 FileRename := ext_func(fileName : I8, fileRename : I8) returns shallow I32 {}
 FileRemove := ext_func(fileName : I8) returns shallow I32 {}
@@ -1650,13 +1650,13 @@ SetAudioStreamVolume := ext_proc(shallow stream : AudioStream, shallow volume : 
 SetAudioStreamPitch := ext_proc(shallow stream : AudioStream, shallow pitch : F32) {}
 SetAudioStreamPan := ext_proc(shallow stream : AudioStream, shallow pan : F32) {}
 SetAudioStreamBufferSizeDefault := ext_proc(shallow size : I32) {}
-SetAudioStreamCallback := ext_proc(shallow stream : AudioStream, callback : Dynamic) {}
+SetAudioStreamCallback := ext_proc(shallow stream : AudioStream, callback : AudioCallback) {}
 
-AttachAudioStreamProcessor := ext_proc(shallow stream : AudioStream, processor : Dynamic) {}
-DetachAudioStreamProcessor := ext_proc(shallow stream : AudioStream, processor : Dynamic) {}
+AttachAudioStreamProcessor := ext_proc(shallow stream : AudioStream, processor : AudioCallback) {}
+DetachAudioStreamProcessor := ext_proc(shallow stream : AudioStream, processor : AudioCallback) {}
 
-AttachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
-DetachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
+AttachAudioMixedProcessor := ext_proc(processor : AudioCallback) {}
+DetachAudioMixedProcessor := ext_proc(processor : AudioCallback) {}
 
 
 //******************************************************************************************

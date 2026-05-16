@@ -317,14 +317,12 @@ priv bind_emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool
     out.push_str("    ")
     if ptrs.eq(0).and(is_alias_to_dynamic(base_view)) {
         // Field is typed as a previously-emitted Dynamic alias (typedef'd
-        // pointer or function pointer). Treat it like a `*` field, and
-        // inline `Dynamic` rather than the alias name -- chasing a Dynamic
-        // alias from inside a struct field trips til_boot's type resolver
-        // into infinite recursion (originally seen with raylib's
-        // `ref mut bindPose : ModelAnimPose = NULL`).
+        // pointer or function pointer). Treat it like a pointer field.
         out.push_str("ref mut ")
         out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : Dynamic = NULL")
+        out.push_str(" : ")
+        push_til_base(out, base_view)
+        out.push_str(" = NULL")
     } else if ptrs.eq(0) {
         out.push_str("mut ")
         out.push_str(line.substr(name_start, word_len))
@@ -1111,23 +1109,16 @@ priv emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shall
 
                     if p_ptrs.eq(0) {
                         p_base_view := params_view.substr(p_base_off, p_base_len)
-                        is_dyn_alias := is_alias_to_dynamic(p_base_view)
                         // Dynamic-alias params (typedef'd function-pointer /
                         // pointer-to-X) aren't scalar, so the typer rejects
                         // `shallow`. Drop the qualifier so the default Ref
                         // applies, matching the underlying C pointer.
-                        if is_dyn_alias.not() {
+                        if is_alias_to_dynamic(p_base_view).not() {
                             params_buf.push_str("shallow ")
                         }
                         if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
                         params_buf.push_str(" : ")
-                        if is_dyn_alias {
-                            // Inline Dynamic instead of the alias name (see
-                            // the field-emit branch above for why).
-                            params_buf.push_str("Dynamic")
-                        } else {
-                            push_til_base(params_buf, p_base_view)
-                        }
+                        push_til_base(params_buf, p_base_view)
                     } else if p_ptrs.eq(1).and(p_is_void) {
                         if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
                         params_buf.push_str(" : Dynamic")
