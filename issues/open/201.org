@@ -13,7 +13,10 @@
      ~I64_Overflow~ with a ~msg: Str~ field, plus the equivalent
      on ~I32~, ~U32~, ~U64~, ~U8~, ~I16~, ~I8~. ~I64_Overflow~
      should be a single type used by all integer widths (or one
-     per width -- decide once and document).
+     per width -- decide once and document). Note: the ~I8~ variant
+     is now mechanically unblocked -- issue #176's follow-up landed
+     ~Type.I8~ as a first-class primitive with arithmetic methods,
+     so ~I8.safe_add~ et al. drop in alongside the rest.
    - ~F32.safe_div~ throwing ~DivideByZero~ (reuse the existing
      type).
    - ~Array.get(self, index: I64) returns Ptr throws IndexOutOfBoundsError~

@@ -54,6 +54,16 @@ Revisit whether ~ext_struct~ should exist as a separate concept at all.
   - so the current ~I8~ blocker is not the lack of another ~ext_struct~
     mechanism, but the broader primitive special-casing model
 
+  *Update (issue #176 follow-up):* the specific I8 blocker is now
+  resolved -- ~Type.I8~ is a full first-class primitive (~typer~ /
+  ~initer~ / ~builder~ / ~dispatch~ all carry it), ~Str.c_str~ is
+  ~I8 *~ (= C ~char *~), and the lib bindings + ~test/ext_libc.til~
+  bind ~const char *~ libc APIs end-to-end. But the broader observation
+  is now /worse/: that change shipped by adding one more row to every
+  primitive-special-cases list. The remaining ~remove/simplify
+  ext_struct~ + ~reduce hardcoded primitive lists~ work is unchanged
+  in spirit and slightly larger in scope.
+
   That pushes this issue in a clearer direction:
 
   - simplify/remove ~ext_struct~
