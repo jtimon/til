@@ -1,19 +1,19 @@
 #+TITLE: src/core/str.til
 #+OPTIONS: toc:t
 
-* _t_I64_851
+* hoisted__I64_895
 #+begin_src til
-_t_I64_851 is a I64
+hoisted__I64_895 is a I64
 #+end_src
 
-* _t_I64_852
+* hoisted__I64_896
 #+begin_src til
-_t_I64_852 is a I64
+hoisted__I64_896 is a I64
 #+end_src
 
-* _t_I64_853
+* hoisted__I64_897
 #+begin_src til
-_t_I64_853 is a I64
+hoisted__I64_897 is a I64
 #+end_src
 
 * CAP_LIT
@@ -21,19 +21,19 @@ _t_I64_853 is a I64
 CAP_LIT is a USize
 #+end_src
 
-* _t_I64_854
+* hoisted__I64_898
 #+begin_src til
-_t_I64_854 is a I64
+hoisted__I64_898 is a I64
 #+end_src
 
-* _t_I64_855
+* hoisted__I64_899
 #+begin_src til
-_t_I64_855 is a I64
+hoisted__I64_899 is a I64
 #+end_src
 
-* _t_I64_856
+* hoisted__I64_900
 #+begin_src til
-_t_I64_856 is a I64
+hoisted__I64_900 is a I64
 #+end_src
 
 * CAP_VIEW
@@ -49,19 +49,21 @@ func format(parts: ..Str) returns Str
 #+end_src
 
 * Str
-UTF-8 string with owned heap storage.
+UTF-8 string with owned heap storage. The byte buffer is typed as
+I8 (= C `char`) so direct FFI bindings against `const char *` APIs
+can pass `s.c_str` without an intermediate pointer-cast helper.
 
 #+begin_src til
 struct Str {
-    own mut c_str : U8
+    own mut c_str : I8
     mut count : U32
     mut cap : U32
 namespace:
     func len(self: Str) returns shallow U32
     /// Return a ref to byte `i`. Panics if `i` is out of bounds.
-    func get(self: Str, i: U32) returns ref U8
-    /// Unchecked byte access — caller must ensure i < self.len().
-    func byte_at(self: Str, i: U32) returns ref U8
+    func get(self: Str, i: U32) returns ref I8
+    /// Unchecked byte access -- caller must ensure i < self.len().
+    func byte_at(self: Str, i: U32) returns ref I8
     /// Lexicographic comparison. Returns 0 if equal, negative if a < b,
     /// positive if a > b.
     func cmp(a: Str, b: Str) returns shallow I64
@@ -110,6 +112,12 @@ namespace:
     func to_u8(self: Str) returns shallow U8
     /// Parse as base-10 signed 32-bit integer.
     func to_i32(self: Str) returns shallow I32
+    /// Parse as base-10 unsigned 32-bit integer.
+    func to_u32(self: Str) returns shallow U32
+    /// Parse as base-10 unsigned 64-bit integer.
+    func to_u64(self: Str) returns shallow U64
+    /// Parse as base-10 USize (collection sizes/indices).
+    func to_usize(self: Str) returns shallow U32
     /// Parse as a decimal floating-point number.
     func to_f32(self: Str) returns shallow F32
     /// Split the string on `delim`, returning a Vec of Str clones.

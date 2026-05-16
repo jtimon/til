@@ -8,6 +8,10 @@ Unsigned 64-bit integer.
 struct U64 {
 namespace:
     ext_func to_i64(shallow val: U64) returns shallow I64
+    ext_func to_u32(shallow val: U64) returns shallow U32
+    ext_func to_i32(shallow val: U64) returns shallow I32
+    ext_func to_usize(shallow val: U64) returns shallow U32
+    ext_func to_f32(shallow val: U64) returns shallow F32
     /// Convert to decimal string representation.
     func to_str(shallow val: U64) returns Str
     /// Convert from I64. Panics if negative.

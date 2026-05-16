@@ -9,6 +9,8 @@ struct U32 {
 namespace:
     ext_func to_i64(shallow val: U32) returns shallow I64
     ext_func to_u64(shallow val: U32) returns shallow U64
+    ext_func to_i32(shallow val: U32) returns shallow I32
+    ext_func to_f32(shallow val: U32) returns shallow F32
     /// Convert to decimal string representation.
     func to_str(val: U32) returns Str
     ext_func add(shallow a: U32, shallow b: U32) returns shallow U32

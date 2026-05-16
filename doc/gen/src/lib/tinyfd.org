@@ -1,13 +1,38 @@
 #+TITLE: src/lib/tinyfd.til
 #+OPTIONS: toc:t
 
+* tinyfd_messageBox
+#+begin_src til
+ext_func tinyfd_messageBox(aTitle: I8, aMessage: I8, aDialogType: I8, aIconType: I8, shallow aDefaultButton: I32) returns shallow I32
+#+end_src
+
+* tinyfd_inputBox
+#+begin_src til
+ext_func tinyfd_inputBox(aTitle: I8, aMessage: I8, aDefaultInput: I8) returns ref I8
+#+end_src
+
 * tinyfd_saveFileDialog
 #+begin_src til
-ext_func tinyfd_saveFileDialog(title: U8, defaultPathAndFile: U8, shallow numOfFilterPatterns: I32, shallow filterPatterns: I64, shallow singleFilterDescription: I64) returns ref U8
+ext_func tinyfd_saveFileDialog(aTitle: I8, aDefaultPathAndFile: I8, shallow aNumOfFilterPatterns: I32, aFilterPatterns: Dynamic, aSingleFilterDescription: I8) returns ref I8
 #+end_src
 
 * tinyfd_openFileDialog
 #+begin_src til
-ext_func tinyfd_openFileDialog(title: U8, defaultPathAndFile: U8, shallow numOfFilterPatterns: I32, shallow filterPatterns: I64, shallow singleFilterDescription: I64, shallow allowMultipleSelects: I32) returns ref U8
+ext_func tinyfd_openFileDialog(aTitle: I8, aDefaultPathAndFile: I8, shallow aNumOfFilterPatterns: I32, aFilterPatterns: Dynamic, aSingleFilterDescription: I8, shallow aAllowMultipleSelects: I32) returns ref I8
+#+end_src
+
+* tinyfd_selectFolderDialog
+#+begin_src til
+ext_func tinyfd_selectFolderDialog(aTitle: I8, aDefaultPath: I8) returns ref I8
+#+end_src
+
+* tinyfd_colorChooser
+#+begin_src til
+ext_func tinyfd_colorChooser(aTitle: I8, aDefaultHexRGB: I8, aDefaultRGB: U8, aoResultRGB: U8) returns ref I8
+#+end_src
+
+* tinyfd_arrayDialog
+#+begin_src til
+ext_func tinyfd_arrayDialog(aTitle: I8, shallow aNumOfColumns: I32, aColumns: Dynamic, shallow aNumOfRows: I32, aCells: Dynamic) returns ref I8
 #+end_src
 

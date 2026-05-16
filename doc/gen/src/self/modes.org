@@ -33,24 +33,24 @@ func context_set_mode_from_path(mut ctx: Context, path: Str)
 func context_enter_file(mut ctx: Context, path: Str)
 #+end_src
 
-* _t_Str_9794
+* hoisted__Str_9092
 #+begin_src til
-_t_Str_9794 is a Str
+hoisted__Str_9092 is a Str
 #+end_src
 
-* _t_Str_9795
+* hoisted__Str_9093
 #+begin_src til
-_t_Str_9795 is a Str
+hoisted__Str_9093 is a Str
 #+end_src
 
-* _t_Type_9796
+* hoisted__Type_9094
 #+begin_src til
-_t_Type_9796 is a Type
+hoisted__Type_9094 is a Type
 #+end_src
 
-* _t_Type_9797
+* hoisted__Type_9095
 #+begin_src til
-_t_Type_9797 is a Type
+hoisted__Type_9095 is a Type
 #+end_src
 
 * core_modes
@@ -58,324 +58,324 @@ _t_Type_9797 is a Type
 core_modes is a Map
 #+end_src
 
-* _t_Bool_9798
+* hoisted__Bool_9096
 #+begin_src til
-_t_Bool_9798 is a Bool
+hoisted__Bool_9096 is a Bool
 #+end_src
 
-* _t_Bool_9799
+* hoisted__Bool_9097
 #+begin_src til
-_t_Bool_9799 is a Bool
+hoisted__Bool_9097 is a Bool
 #+end_src
 
-* _t_Bool_9800
+* hoisted__Bool_9098
 #+begin_src til
-_t_Bool_9800 is a Bool
+hoisted__Bool_9098 is a Bool
 #+end_src
 
-* _t_Bool_9801
+* hoisted__Bool_9099
 #+begin_src til
-_t_Bool_9801 is a Bool
+hoisted__Bool_9099 is a Bool
 #+end_src
 
-* _t_Bool_9802
+* hoisted__Bool_9100
 #+begin_src til
-_t_Bool_9802 is a Bool
+hoisted__Bool_9100 is a Bool
 #+end_src
 
-* _t_Bool_9803
+* hoisted__Bool_9101
 #+begin_src til
-_t_Bool_9803 is a Bool
+hoisted__Bool_9101 is a Bool
 #+end_src
 
-* _t_Str_9804
+* hoisted__Str_9102
 #+begin_src til
-_t_Str_9804 is a Str
+hoisted__Str_9102 is a Str
 #+end_src
 
-* _t_Mode_9805
+* hoisted__Mode_9103
 #+begin_src til
-_t_Mode_9805 is a Mode
+hoisted__Mode_9103 is a Mode
 #+end_src
 
-* _t_Bool_9806
+* hoisted__Bool_9104
 #+begin_src til
-_t_Bool_9806 is a Bool
+hoisted__Bool_9104 is a Bool
 #+end_src
 
-* _t_Bool_9807
+* hoisted__Bool_9105
 #+begin_src til
-_t_Bool_9807 is a Bool
+hoisted__Bool_9105 is a Bool
 #+end_src
 
-* _t_Bool_9808
+* hoisted__Bool_9106
 #+begin_src til
-_t_Bool_9808 is a Bool
+hoisted__Bool_9106 is a Bool
 #+end_src
 
-* _t_Bool_9809
+* hoisted__Bool_9107
 #+begin_src til
-_t_Bool_9809 is a Bool
+hoisted__Bool_9107 is a Bool
 #+end_src
 
-* _t_Bool_9810
+* hoisted__Bool_9108
 #+begin_src til
-_t_Bool_9810 is a Bool
+hoisted__Bool_9108 is a Bool
 #+end_src
 
-* _t_Bool_9811
+* hoisted__Bool_9109
 #+begin_src til
-_t_Bool_9811 is a Bool
+hoisted__Bool_9109 is a Bool
 #+end_src
 
-* _t_Str_9812
+* hoisted__Str_9110
 #+begin_src til
-_t_Str_9812 is a Str
+hoisted__Str_9110 is a Str
 #+end_src
 
-* _t_Mode_9813
+* hoisted__Mode_9111
 #+begin_src til
-_t_Mode_9813 is a Mode
+hoisted__Mode_9111 is a Mode
 #+end_src
 
-* _t_Bool_9814
+* hoisted__Bool_9112
 #+begin_src til
-_t_Bool_9814 is a Bool
+hoisted__Bool_9112 is a Bool
 #+end_src
 
-* _t_Bool_9815
+* hoisted__Bool_9113
 #+begin_src til
-_t_Bool_9815 is a Bool
+hoisted__Bool_9113 is a Bool
 #+end_src
 
-* _t_Bool_9816
+* hoisted__Bool_9114
 #+begin_src til
-_t_Bool_9816 is a Bool
+hoisted__Bool_9114 is a Bool
 #+end_src
 
-* _t_Bool_9817
+* hoisted__Bool_9115
 #+begin_src til
-_t_Bool_9817 is a Bool
+hoisted__Bool_9115 is a Bool
 #+end_src
 
-* _t_Bool_9818
+* hoisted__Bool_9116
 #+begin_src til
-_t_Bool_9818 is a Bool
+hoisted__Bool_9116 is a Bool
 #+end_src
 
-* _t_Bool_9819
+* hoisted__Bool_9117
 #+begin_src til
-_t_Bool_9819 is a Bool
+hoisted__Bool_9117 is a Bool
 #+end_src
 
-* _t_Str_9820
+* hoisted__Str_9118
 #+begin_src til
-_t_Str_9820 is a Str
+hoisted__Str_9118 is a Str
 #+end_src
 
-* _t_Mode_9821
+* hoisted__Mode_9119
 #+begin_src til
-_t_Mode_9821 is a Mode
+hoisted__Mode_9119 is a Mode
 #+end_src
 
-* _t_Bool_9822
+* hoisted__Bool_9120
 #+begin_src til
-_t_Bool_9822 is a Bool
+hoisted__Bool_9120 is a Bool
 #+end_src
 
-* _t_Bool_9823
+* hoisted__Bool_9121
 #+begin_src til
-_t_Bool_9823 is a Bool
+hoisted__Bool_9121 is a Bool
 #+end_src
 
-* _t_Bool_9824
+* hoisted__Bool_9122
 #+begin_src til
-_t_Bool_9824 is a Bool
+hoisted__Bool_9122 is a Bool
 #+end_src
 
-* _t_Bool_9825
+* hoisted__Bool_9123
 #+begin_src til
-_t_Bool_9825 is a Bool
+hoisted__Bool_9123 is a Bool
 #+end_src
 
-* _t_Bool_9826
+* hoisted__Bool_9124
 #+begin_src til
-_t_Bool_9826 is a Bool
+hoisted__Bool_9124 is a Bool
 #+end_src
 
-* _t_Bool_9827
+* hoisted__Bool_9125
 #+begin_src til
-_t_Bool_9827 is a Bool
+hoisted__Bool_9125 is a Bool
 #+end_src
 
-* _t_Str_9828
+* hoisted__Str_9126
 #+begin_src til
-_t_Str_9828 is a Str
+hoisted__Str_9126 is a Str
 #+end_src
 
-* _t_Mode_9829
+* hoisted__Mode_9127
 #+begin_src til
-_t_Mode_9829 is a Mode
+hoisted__Mode_9127 is a Mode
 #+end_src
 
-* _t_Bool_9830
+* hoisted__Bool_9128
 #+begin_src til
-_t_Bool_9830 is a Bool
+hoisted__Bool_9128 is a Bool
 #+end_src
 
-* _t_Bool_9831
+* hoisted__Bool_9129
 #+begin_src til
-_t_Bool_9831 is a Bool
+hoisted__Bool_9129 is a Bool
 #+end_src
 
-* _t_Bool_9832
+* hoisted__Bool_9130
 #+begin_src til
-_t_Bool_9832 is a Bool
+hoisted__Bool_9130 is a Bool
 #+end_src
 
-* _t_Bool_9833
+* hoisted__Bool_9131
 #+begin_src til
-_t_Bool_9833 is a Bool
+hoisted__Bool_9131 is a Bool
 #+end_src
 
-* _t_Bool_9834
+* hoisted__Bool_9132
 #+begin_src til
-_t_Bool_9834 is a Bool
+hoisted__Bool_9132 is a Bool
 #+end_src
 
-* _t_Bool_9835
+* hoisted__Bool_9133
 #+begin_src til
-_t_Bool_9835 is a Bool
+hoisted__Bool_9133 is a Bool
 #+end_src
 
-* _t_Str_9836
+* hoisted__Str_9134
 #+begin_src til
-_t_Str_9836 is a Str
+hoisted__Str_9134 is a Str
 #+end_src
 
-* _t_Mode_9837
+* hoisted__Mode_9135
 #+begin_src til
-_t_Mode_9837 is a Mode
+hoisted__Mode_9135 is a Mode
 #+end_src
 
-* _t_Bool_9838
+* hoisted__Bool_9136
 #+begin_src til
-_t_Bool_9838 is a Bool
+hoisted__Bool_9136 is a Bool
 #+end_src
 
-* _t_Bool_9839
+* hoisted__Bool_9137
 #+begin_src til
-_t_Bool_9839 is a Bool
+hoisted__Bool_9137 is a Bool
 #+end_src
 
-* _t_Bool_9840
+* hoisted__Bool_9138
 #+begin_src til
-_t_Bool_9840 is a Bool
+hoisted__Bool_9138 is a Bool
 #+end_src
 
-* _t_Bool_9841
+* hoisted__Bool_9139
 #+begin_src til
-_t_Bool_9841 is a Bool
+hoisted__Bool_9139 is a Bool
 #+end_src
 
-* _t_Bool_9842
+* hoisted__Bool_9140
 #+begin_src til
-_t_Bool_9842 is a Bool
+hoisted__Bool_9140 is a Bool
 #+end_src
 
-* _t_Bool_9843
+* hoisted__Bool_9141
 #+begin_src til
-_t_Bool_9843 is a Bool
+hoisted__Bool_9141 is a Bool
 #+end_src
 
-* _t_Str_9844
+* hoisted__Str_9142
 #+begin_src til
-_t_Str_9844 is a Str
+hoisted__Str_9142 is a Str
 #+end_src
 
-* _t_Mode_9845
+* hoisted__Mode_9143
 #+begin_src til
-_t_Mode_9845 is a Mode
+hoisted__Mode_9143 is a Mode
 #+end_src
 
-* _t_Bool_9846
+* hoisted__Bool_9144
 #+begin_src til
-_t_Bool_9846 is a Bool
+hoisted__Bool_9144 is a Bool
 #+end_src
 
-* _t_Bool_9847
+* hoisted__Bool_9145
 #+begin_src til
-_t_Bool_9847 is a Bool
+hoisted__Bool_9145 is a Bool
 #+end_src
 
-* _t_Bool_9848
+* hoisted__Bool_9146
 #+begin_src til
-_t_Bool_9848 is a Bool
+hoisted__Bool_9146 is a Bool
 #+end_src
 
-* _t_Bool_9849
+* hoisted__Bool_9147
 #+begin_src til
-_t_Bool_9849 is a Bool
+hoisted__Bool_9147 is a Bool
 #+end_src
 
-* _t_Bool_9850
+* hoisted__Bool_9148
 #+begin_src til
-_t_Bool_9850 is a Bool
+hoisted__Bool_9148 is a Bool
 #+end_src
 
-* _t_Bool_9851
+* hoisted__Bool_9149
 #+begin_src til
-_t_Bool_9851 is a Bool
+hoisted__Bool_9149 is a Bool
 #+end_src
 
-* _t_Str_9852
+* hoisted__Str_9150
 #+begin_src til
-_t_Str_9852 is a Str
+hoisted__Str_9150 is a Str
 #+end_src
 
-* _t_Mode_9853
+* hoisted__Mode_9151
 #+begin_src til
-_t_Mode_9853 is a Mode
+hoisted__Mode_9151 is a Mode
 #+end_src
 
-* _t_Bool_9854
+* hoisted__Bool_9152
 #+begin_src til
-_t_Bool_9854 is a Bool
+hoisted__Bool_9152 is a Bool
 #+end_src
 
-* _t_Bool_9855
+* hoisted__Bool_9153
 #+begin_src til
-_t_Bool_9855 is a Bool
+hoisted__Bool_9153 is a Bool
 #+end_src
 
-* _t_Bool_9856
+* hoisted__Bool_9154
 #+begin_src til
-_t_Bool_9856 is a Bool
+hoisted__Bool_9154 is a Bool
 #+end_src
 
-* _t_Bool_9857
+* hoisted__Bool_9155
 #+begin_src til
-_t_Bool_9857 is a Bool
+hoisted__Bool_9155 is a Bool
 #+end_src
 
-* _t_Bool_9858
+* hoisted__Bool_9156
 #+begin_src til
-_t_Bool_9858 is a Bool
+hoisted__Bool_9156 is a Bool
 #+end_src
 
-* _t_Bool_9859
+* hoisted__Bool_9157
 #+begin_src til
-_t_Bool_9859 is a Bool
+hoisted__Bool_9157 is a Bool
 #+end_src
 
-* _t_Str_9860
+* hoisted__Str_9158
 #+begin_src til
-_t_Str_9860 is a Str
+hoisted__Str_9158 is a Str
 #+end_src
 
-* _t_Mode_9861
+* hoisted__Mode_9159
 #+begin_src til
-_t_Mode_9861 is a Mode
+hoisted__Mode_9159 is a Mode
 #+end_src
 
 * mode_resolve

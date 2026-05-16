@@ -21,6 +21,7 @@ struct TypeBinding {
     ref mut func_def : Expr
     mut is_builtin : Bool
     mut used : Bool
+    mut orig_name : Str
 namespace:
     func eq(a: TypeBinding, b: TypeBinding) returns shallow Bool
     func to_str(self: TypeBinding) returns Str
@@ -126,6 +127,26 @@ namespace:
 * align_up
 #+begin_src til
 func align_up(shallow offset: I32, shallow align: I32) returns shallow I32
+#+end_src
+
+* make_method_call_fcall
+#+begin_src til
+func make_method_call_fcall(own recv: Expr, method: Str, shallow line: U32, shallow col: U32) returns Expr
+#+end_src
+
+* make_get_payload_fcall
+#+begin_src til
+func make_get_payload_fcall(own arg: Expr, shallow payload_type: Type, shallow line: U32, shallow col: U32) returns Expr
+#+end_src
+
+* make_is_tag_check_fcall
+#+begin_src til
+func make_is_tag_check_fcall(arg_name: Str, ename: Str, vname: Str, shallow line: U32, shallow col: U32) returns Expr
+#+end_src
+
+* make_payload_ref_decl
+#+begin_src til
+func make_payload_ref_decl(own arg: Expr, bind_name: Str, vtype: Str, shallow line: U32, shallow col: U32) returns Expr
 #+end_src
 
 * type_from_name_init
@@ -331,6 +352,51 @@ func infer_top_level_decl_type(stmt: Expr, scope: TypeScope, mut out_type: Type)
 * init_declarations
 #+begin_src til
 proc init_declarations(program: Expr, scope: TypeScope) returns shallow I32
+#+end_src
+
+* init_is_lift_target
+#+begin_src til
+func init_is_lift_target(stmt: Expr) returns shallow Bool
+#+end_src
+
+* init_lookup_name
+#+begin_src til
+func init_lookup_name(renamings: Map, name: Str) returns Str
+#+end_src
+
+* init_rename_ident_in_place
+#+begin_src til
+func init_rename_ident_in_place(mut e: Expr, renamings: Map)
+#+end_src
+
+* init_rename_decl_in_place
+#+begin_src til
+func init_rename_decl_in_place(mut dd: Declaration, renamings: Map)
+#+end_src
+
+* init_rewrite_refs
+#+begin_src til
+proc init_rewrite_refs(mut e: Expr, renamings: Map)
+#+end_src
+
+* init_lift_in_body
+#+begin_src til
+proc init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec)
+#+end_src
+
+* init_lift_in_ns_decls
+#+begin_src til
+proc init_lift_in_ns_decls(mut def: Expr, parent_prefix: Str, mut top_level: Vec)
+#+end_src
+
+* init_recurse_into_subbodies
+#+begin_src til
+proc init_recurse_into_subbodies(mut body: Expr, parent_prefix: Str, mut top_level: Vec)
+#+end_src
+
+* init_recurse_into_expr
+#+begin_src til
+proc init_recurse_into_expr(mut e: Expr, parent_prefix: Str, mut top_level: Vec)
 #+end_src
 
 * init_declarations_unit

@@ -25,6 +25,7 @@ enum Type {
     FuncPtr
     Dynamic
     Custom: Str
+    I8
 namespace:
     /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
     /// compare equal regardless of variant if their name payloads match.
@@ -47,6 +48,7 @@ namespace:
     ext_func FuncPtr() returns Type
     ext_func Dynamic() returns Type
     ext_func Custom(val: Str) returns Type
+    ext_func I8() returns Type
     func is(self: Type, other: Type) returns shallow Bool
     func delete(own self: Type, call_free: Bool)
     func to_str(self: Type) returns Str
@@ -137,6 +139,7 @@ struct Declaration {
     mut field_size : I32
     ref mut field_struct_def : Expr
     own mut default_value : Expr
+    mut orig_name : Str
 namespace:
     func eq(a: Declaration, b: Declaration) returns Bool
     func to_str(self: Declaration) returns Str
@@ -154,6 +157,7 @@ struct FunctionDef {
     mut func_type : FuncType
     mut params : Vec
     mut return_type : Str
+    mut throw_types : Vec
     mut variadic_index : I32
     mut kwargs_index : I32
     mut return_own_type : OwnType
@@ -177,6 +181,8 @@ struct FCallData {
     mut kwargs_index : I32
     mut kwargs_count : U32
     mut is_splat : Bool
+    mut does_throw : Bool
+    mut is_bang : Bool
     mut own_args : U64
 namespace:
     func eq(a: FCallData, b: FCallData) returns Bool
@@ -296,6 +302,9 @@ enum NodeType {
     Switch
     Case
     NoDefaultArg
+    Throw
+    Catch
+    RestPattern
 namespace:
     ext_func Body() returns NodeType
     ext_func LiteralStr(val: Str) returns NodeType
@@ -323,6 +332,9 @@ namespace:
     ext_func Switch() returns NodeType
     ext_func Case() returns NodeType
     ext_func NoDefaultArg() returns NodeType
+    ext_func Throw() returns NodeType
+    ext_func Catch() returns NodeType
+    ext_func RestPattern() returns NodeType
     func is(self: NodeType, other: NodeType) returns shallow Bool
     func eq(self: NodeType, other: NodeType) returns shallow Bool
     func delete(own self: NodeType, call_free: Bool)
@@ -368,9 +380,14 @@ namespace:
 }
 #+end_src
 
-* func_type_pascal
+* expr_til_type
 #+begin_src til
-func func_type_pascal(ft: FuncType) returns Str
+func expr_til_type(e: Expr) returns Type
+#+end_src
+
+* func_type_variant_name
+#+begin_src til
+func func_type_variant_name(ft: FuncType) returns Str
 #+end_src
 
 * node_head_str

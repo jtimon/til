@@ -136,7 +136,7 @@ func scavenge_visited_imported(lp: LoadedProgram) returns Set
 
 * scavenge_imported
 #+begin_src til
-func scavenge_imported(mut lp: LoadedProgram)
+proc scavenge_imported(mut lp: LoadedProgram)
 #+end_src
 
 * extract_link_info

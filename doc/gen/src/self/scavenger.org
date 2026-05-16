@@ -41,3 +41,68 @@ func collect_refs(e: Expr, mut refs: Vec)
 func scavenge_filter(mut program: Expr, visited: Set)
 #+end_src
 
+* dyn_call_real_arg_count
+#+begin_src til
+func dyn_call_real_arg_count(e: Expr) returns shallow U32
+#+end_src
+
+* collect_body_refs
+#+begin_src til
+proc collect_body_refs(e: Expr, mut refs: Set, candidates: Set)
+#+end_src
+
+* match_trivial_delete
+#+begin_src til
+func match_trivial_delete(stmt: Expr) returns Str
+#+end_src
+
+* rhs_is_pure_byvalue
+#+begin_src til
+func rhs_is_pure_byvalue(e: Expr) returns shallow Bool
+#+end_src
+
+* MARK_DELETE
+#+begin_src til
+MARK_DELETE is a U8
+#+end_src
+
+* MARK_REPLACE_RHS
+#+begin_src til
+MARK_REPLACE_RHS is a U8
+#+end_src
+
+* prune_trivial_deletes
+#+begin_src til
+proc prune_trivial_deletes(mut e: Expr, dropped: Set)
+#+end_src
+
+* dce_one_body
+#+begin_src til
+proc dce_one_body(mut body: Expr, shallow at_top_level: Bool) returns shallow Bool
+#+end_src
+
+* match_named_delete
+#+begin_src til
+func match_named_delete(stmt: Expr, name: Str) returns shallow Bool
+#+end_src
+
+* fix_stale_litstr_in_body
+#+begin_src til
+func fix_stale_litstr_in_body(mut body: Expr)
+#+end_src
+
+* body_dce_walk
+#+begin_src til
+proc body_dce_walk(mut e: Expr, shallow at_top_level: Bool)
+#+end_src
+
+* body_dce_ns
+#+begin_src til
+proc body_dce_ns(rhs: Expr)
+#+end_src
+
+* dce_program_bodies
+#+begin_src til
+proc dce_program_bodies(mut program: Expr)
+#+end_src
+

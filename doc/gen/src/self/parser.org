@@ -8,7 +8,6 @@ struct Parser {
     mut pos : U32
     mut path : Str
     mut fn_sig_decls : Vec
-    mut lambda_decls : Vec
     mut pending_doc : Str
 namespace:
     func clone(self: Parser) returns Parser
@@ -60,11 +59,6 @@ func til_type_from_explicit_type(name: Str) returns Type
 * parse_fn_signature
 #+begin_src til
 func parse_fn_signature(mut p: Parser, shallow line: U32, shallow col: U32) returns Str
-#+end_src
-
-* maybe_lift_lambda
-#+begin_src til
-func maybe_lift_lambda(mut p: Parser, own e: Expr) returns Expr
 #+end_src
 
 * parse_block

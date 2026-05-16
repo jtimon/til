@@ -176,17 +176,17 @@ namespace:
 
 * is_digit
 #+begin_src til
-func is_digit(c: U8) returns Bool
+func is_digit(c: I8) returns Bool
 #+end_src
 
 * is_alpha
 #+begin_src til
-func is_alpha(c: U8) returns Bool
+func is_alpha(c: I8) returns Bool
 #+end_src
 
 * is_alnum
 #+begin_src til
-func is_alnum(c: U8) returns Bool
+func is_alnum(c: I8) returns Bool
 #+end_src
 
 * tok_name
@@ -196,12 +196,12 @@ func tok_name(type: TokenType) returns Str
 
 * lookup_single_char
 #+begin_src til
-func lookup_single_char(c: U8) returns shallow TokenType
+func lookup_single_char(c: I8) returns shallow TokenType
 #+end_src
 
 * lookup_two_char
 #+begin_src til
-func lookup_two_char(c: U8, c2: U8) returns shallow TokenType
+func lookup_two_char(c: I8, c2: I8) returns shallow TokenType
 #+end_src
 
 * lookup_keyword

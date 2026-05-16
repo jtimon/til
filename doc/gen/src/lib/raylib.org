@@ -1,35 +1,19 @@
 #+TITLE: src/lib/raylib.til
 #+OPTIONS: toc:t
 
-* Wave
+* RAYLIB_VERSION_MAJOR
 #+begin_src til
-struct Wave {
-    mut frameCount : U32
-    mut sampleRate : U32
-    mut sampleSize : U32
-    mut channels : U32
-    ref data : U8
-namespace:
-    func clone(self: Wave) returns Wave
-    func delete(own self: Wave, call_free: Bool)
-    func size() returns shallow U32
-}
+RAYLIB_VERSION_MAJOR is a I64
 #+end_src
 
-* Sound
+* RAYLIB_VERSION_MINOR
 #+begin_src til
-struct Sound {
-    mut stream_buffer : I64
-    mut stream_processor : I64
-    mut stream_sampleRate : U32
-    mut stream_sampleSize : U32
-    mut stream_channels : U32
-    mut frameCount : U32
-namespace:
-    func clone(self: Sound) returns Sound
-    func delete(own self: Sound, call_free: Bool)
-    func size() returns shallow U32
-}
+RAYLIB_VERSION_MINOR is a I64
+#+end_src
+
+* RAYLIB_VERSION_PATCH
+#+begin_src til
+RAYLIB_VERSION_PATCH is a I64
 #+end_src
 
 * Vector2
@@ -44,236 +28,6 @@ namespace:
 }
 #+end_src
 
-* Font
-#+begin_src til
-struct Font {
-    mut baseSize : I32
-    mut glyphCount : I32
-    mut glyphPadding : I32
-    mut texture_id : U32
-    mut texture_width : I32
-    mut texture_height : I32
-    mut texture_mipmaps : I32
-    mut texture_format : I32
-    ref recs : U8
-    ref glyphs : U8
-namespace:
-    func clone(self: Font) returns Font
-    func delete(own self: Font, call_free: Bool)
-    func size() returns shallow U32
-}
-#+end_src
-
-* LoadSoundFromWave
-#+begin_src til
-ext_func LoadSoundFromWave(shallow wave: Wave) returns shallow Sound
-#+end_src
-
-* PlaySound
-#+begin_src til
-ext_proc PlaySound(shallow sound: Sound)
-#+end_src
-
-* UnloadSound
-#+begin_src til
-ext_proc UnloadSound(shallow sound: Sound)
-#+end_src
-
-* StopSound
-#+begin_src til
-ext_proc StopSound(shallow sound: Sound)
-#+end_src
-
-* LoadFontEx
-#+begin_src til
-ext_func LoadFontEx(fileName: U8, shallow fontSize: I32, shallow codepoints: I64, shallow codepointCount: I32) returns shallow Font
-#+end_src
-
-* DrawTextEx
-#+begin_src til
-ext_proc DrawTextEx(shallow font: Font, text: U8, shallow position: Vector2, shallow fontSize: F32, shallow spacing: F32, shallow color: U32)
-#+end_src
-
-* UnloadFont
-#+begin_src til
-ext_proc UnloadFont(shallow font: Font)
-#+end_src
-
-* MeasureTextEx
-#+begin_src til
-ext_func MeasureTextEx(shallow font: Font, text: U8, shallow fontSize: F32, shallow spacing: F32) returns shallow Vector2
-#+end_src
-
-* InitWindow
-#+begin_src til
-ext_proc InitWindow(shallow w: I32, shallow h: I32, title: U8)
-#+end_src
-
-* IsWindowReady
-#+begin_src til
-ext_func IsWindowReady() returns shallow Bool
-#+end_src
-
-* WindowShouldClose
-#+begin_src til
-ext_func WindowShouldClose() returns shallow Bool
-#+end_src
-
-* BeginDrawing
-#+begin_src til
-ext_proc BeginDrawing()
-#+end_src
-
-* EndDrawing
-#+begin_src til
-ext_proc EndDrawing()
-#+end_src
-
-* CloseWindow
-#+begin_src til
-ext_proc CloseWindow()
-#+end_src
-
-* SetTargetFPS
-#+begin_src til
-ext_proc SetTargetFPS(shallow fps: I32)
-#+end_src
-
-* ClearBackground
-#+begin_src til
-ext_proc ClearBackground(shallow color: U32)
-#+end_src
-
-* DrawRectangle
-#+begin_src til
-ext_proc DrawRectangle(shallow x: I32, shallow y: I32, shallow w: I32, shallow h: I32, shallow color: U32)
-#+end_src
-
-* DrawText
-#+begin_src til
-ext_proc DrawText(text: U8, shallow x: I32, shallow y: I32, shallow font_size: I32, shallow color: U32)
-#+end_src
-
-* DrawCircle
-#+begin_src til
-ext_proc DrawCircle(shallow cx: I32, shallow cy: I32, shallow radius: F32, shallow color: U32)
-#+end_src
-
-* GetScreenWidth
-#+begin_src til
-ext_func GetScreenWidth() returns shallow I32
-#+end_src
-
-* GetScreenHeight
-#+begin_src til
-ext_func GetScreenHeight() returns shallow I32
-#+end_src
-
-* GetFrameTime
-#+begin_src til
-ext_func GetFrameTime() returns shallow F32
-#+end_src
-
-* SetConfigFlags
-#+begin_src til
-ext_proc SetConfigFlags(shallow flags: U32)
-#+end_src
-
-* SetExitKey
-#+begin_src til
-ext_proc SetExitKey(shallow key: I32)
-#+end_src
-
-* IsWindowResized
-#+begin_src til
-ext_func IsWindowResized() returns shallow Bool
-#+end_src
-
-* SetWindowMinSize
-#+begin_src til
-ext_proc SetWindowMinSize(shallow w: I32, shallow h: I32)
-#+end_src
-
-* SetWindowMaxSize
-#+begin_src til
-ext_proc SetWindowMaxSize(shallow w: I32, shallow h: I32)
-#+end_src
-
-* MaximizeWindow
-#+begin_src til
-ext_proc MaximizeWindow()
-#+end_src
-
-* ToggleFullscreen
-#+begin_src til
-ext_proc ToggleFullscreen()
-#+end_src
-
-* IsKeyPressed
-#+begin_src til
-ext_func IsKeyPressed(shallow key: I32) returns shallow Bool
-#+end_src
-
-* IsKeyDown
-#+begin_src til
-ext_func IsKeyDown(shallow key: I32) returns shallow Bool
-#+end_src
-
-* IsKeyRepeat
-#+begin_src til
-ext_func IsKeyRepeat(shallow key: I32) returns shallow Bool
-#+end_src
-
-* IsMouseButtonPressed
-#+begin_src til
-ext_func IsMouseButtonPressed(shallow button: I32) returns shallow Bool
-#+end_src
-
-* IsMouseButtonDown
-#+begin_src til
-ext_func IsMouseButtonDown(shallow button: I32) returns shallow Bool
-#+end_src
-
-* GetRandomValue
-#+begin_src til
-ext_func GetRandomValue(shallow min: I32, shallow max: I32) returns shallow I32
-#+end_src
-
-* GetMouseX
-#+begin_src til
-ext_func GetMouseX() returns shallow I32
-#+end_src
-
-* GetMouseY
-#+begin_src til
-ext_func GetMouseY() returns shallow I32
-#+end_src
-
-* GetCharPressed
-#+begin_src til
-ext_func GetCharPressed() returns shallow I32
-#+end_src
-
-* GetFPS
-#+begin_src til
-ext_func GetFPS() returns shallow I32
-#+end_src
-
-* DrawFPS
-#+begin_src til
-ext_proc DrawFPS(shallow x: I32, shallow y: I32)
-#+end_src
-
-* InitAudioDevice
-#+begin_src til
-ext_proc InitAudioDevice()
-#+end_src
-
-* CloseAudioDevice
-#+begin_src til
-ext_proc CloseAudioDevice()
-#+end_src
-
 * Vector3
 #+begin_src til
 struct Vector3 {
@@ -283,6 +37,168 @@ struct Vector3 {
 namespace:
     func clone(self: Vector3) returns Vector3
     func delete(own self: Vector3, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vector4
+#+begin_src til
+struct Vector4 {
+    mut x : F32
+    mut y : F32
+    mut z : F32
+    mut w : F32
+namespace:
+    func clone(self: Vector4) returns Vector4
+    func delete(own self: Vector4, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Quaternion
+#+begin_src til
+Quaternion is a Vector4
+#+end_src
+
+* Matrix
+#+begin_src til
+struct Matrix {
+namespace:
+    func clone(_self: Matrix) returns Matrix
+    func delete(own self: Matrix, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Color
+#+begin_src til
+struct Color {
+    mut r : U8
+    mut g : U8
+    mut b : U8
+    mut a : U8
+namespace:
+    func clone(self: Color) returns Color
+    func delete(own self: Color, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Rectangle
+#+begin_src til
+struct Rectangle {
+    mut x : F32
+    mut y : F32
+    mut width : F32
+    mut height : F32
+namespace:
+    func clone(self: Rectangle) returns Rectangle
+    func delete(own self: Rectangle, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Image
+#+begin_src til
+struct Image {
+    ref mut data : Dynamic
+    mut width : I32
+    mut height : I32
+    mut mipmaps : I32
+    mut format : I32
+namespace:
+    func clone(self: Image) returns Image
+    func delete(own self: Image, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Texture
+#+begin_src til
+struct Texture {
+    mut id : U32
+    mut width : I32
+    mut height : I32
+    mut mipmaps : I32
+    mut format : I32
+namespace:
+    func clone(self: Texture) returns Texture
+    func delete(own self: Texture, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Texture2D
+#+begin_src til
+Texture2D is a Texture
+#+end_src
+
+* TextureCubemap
+#+begin_src til
+TextureCubemap is a Texture
+#+end_src
+
+* RenderTexture
+#+begin_src til
+struct RenderTexture {
+    mut id : U32
+    mut texture : Texture
+    mut depth : Texture
+namespace:
+    func clone(self: RenderTexture) returns RenderTexture
+    func delete(own self: RenderTexture, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* RenderTexture2D
+#+begin_src til
+RenderTexture2D is a RenderTexture
+#+end_src
+
+* NPatchInfo
+#+begin_src til
+struct NPatchInfo {
+    mut source : Rectangle
+    mut left : I32
+    mut top : I32
+    mut right : I32
+    mut bottom : I32
+    mut layout : I32
+namespace:
+    func clone(self: NPatchInfo) returns NPatchInfo
+    func delete(own self: NPatchInfo, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* GlyphInfo
+#+begin_src til
+struct GlyphInfo {
+    mut value : I32
+    mut offsetX : I32
+    mut offsetY : I32
+    mut advanceX : I32
+    mut image : Image
+namespace:
+    func clone(self: GlyphInfo) returns GlyphInfo
+    func delete(own self: GlyphInfo, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Font
+#+begin_src til
+struct Font {
+    mut baseSize : I32
+    mut glyphCount : I32
+    mut glyphPadding : I32
+    mut texture : Texture
+    ref mut recs : Rectangle
+    ref mut glyphs : GlyphInfo
+namespace:
+    func clone(self: Font) returns Font
+    func delete(own self: Font, call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
@@ -302,6 +218,3806 @@ namespace:
 }
 #+end_src
 
+* Camera
+#+begin_src til
+Camera is a Camera3D
+#+end_src
+
+* Camera2D
+#+begin_src til
+struct Camera2D {
+    mut offset : Vector2
+    mut target : Vector2
+    mut rotation : F32
+    mut zoom : F32
+namespace:
+    func clone(self: Camera2D) returns Camera2D
+    func delete(own self: Camera2D, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Mesh
+#+begin_src til
+struct Mesh {
+    mut vertexCount : I32
+    mut triangleCount : I32
+    ref mut vertices : F32
+    ref mut texcoords : F32
+    ref mut texcoords2 : F32
+    ref mut normals : F32
+    ref mut tangents : F32
+    ref mut colors : U8
+    ref mut indices : I16
+    mut boneCount : I32
+    ref mut boneIndices : U8
+    ref mut boneWeights : F32
+    ref mut animVertices : F32
+    ref mut animNormals : F32
+    mut vaoId : U32
+    ref mut vboId : U32
+namespace:
+    func clone(self: Mesh) returns Mesh
+    func delete(own self: Mesh, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Shader
+#+begin_src til
+struct Shader {
+    mut id : U32
+    ref mut locs : I32
+namespace:
+    func clone(self: Shader) returns Shader
+    func delete(own self: Shader, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* MaterialMap
+#+begin_src til
+struct MaterialMap {
+    mut texture : Texture
+    mut color : Color
+    mut value : F32
+namespace:
+    func clone(self: MaterialMap) returns MaterialMap
+    func delete(own self: MaterialMap, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Material
+#+begin_src til
+struct Material {
+namespace:
+    func clone(_self: Material) returns Material
+    func delete(own self: Material, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Transform
+#+begin_src til
+struct Transform {
+    mut translation : Vector3
+    mut rotation : Vector4
+    mut scale : Vector3
+namespace:
+    func clone(self: Transform) returns Transform
+    func delete(own self: Transform, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ModelAnimPose
+#+begin_src til
+ModelAnimPose is a Dynamic
+#+end_src
+
+* BoneInfo
+#+begin_src til
+struct BoneInfo {
+namespace:
+    func clone(_self: BoneInfo) returns BoneInfo
+    func delete(own self: BoneInfo, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ModelSkeleton
+#+begin_src til
+struct ModelSkeleton {
+    mut boneCount : I32
+    ref mut bones : BoneInfo
+    ref mut bindPose : Dynamic
+namespace:
+    func clone(self: ModelSkeleton) returns ModelSkeleton
+    func delete(own self: ModelSkeleton, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Model
+#+begin_src til
+struct Model {
+    mut transform : Matrix
+    mut meshCount : I32
+    mut materialCount : I32
+    ref mut meshes : Mesh
+    ref mut materials : Material
+    ref mut meshMaterial : I32
+    mut skeleton : ModelSkeleton
+    ref mut currentPose : Dynamic
+    ref mut boneMatrices : Matrix
+namespace:
+    func clone(self: Model) returns Model
+    func delete(own self: Model, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ModelAnimation
+#+begin_src til
+struct ModelAnimation {
+namespace:
+    func clone(_self: ModelAnimation) returns ModelAnimation
+    func delete(own self: ModelAnimation, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Ray
+#+begin_src til
+struct Ray {
+    mut position : Vector3
+    mut direction : Vector3
+namespace:
+    func clone(self: Ray) returns Ray
+    func delete(own self: Ray, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* RayCollision
+#+begin_src til
+struct RayCollision {
+    mut hit : Bool
+    mut distance : F32
+    mut point : Vector3
+    mut normal : Vector3
+namespace:
+    func clone(self: RayCollision) returns RayCollision
+    func delete(own self: RayCollision, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* BoundingBox
+#+begin_src til
+struct BoundingBox {
+    mut min : Vector3
+    mut max : Vector3
+namespace:
+    func clone(self: BoundingBox) returns BoundingBox
+    func delete(own self: BoundingBox, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Wave
+#+begin_src til
+struct Wave {
+    mut frameCount : U32
+    mut sampleRate : U32
+    mut sampleSize : U32
+    mut channels : U32
+    ref mut data : Dynamic
+namespace:
+    func clone(self: Wave) returns Wave
+    func delete(own self: Wave, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* rAudioBuffer
+#+begin_src til
+struct rAudioBuffer {
+namespace:
+    func clone(_self: rAudioBuffer) returns rAudioBuffer
+    func delete(own self: rAudioBuffer, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* rAudioProcessor
+#+begin_src til
+struct rAudioProcessor {
+namespace:
+    func clone(_self: rAudioProcessor) returns rAudioProcessor
+    func delete(own self: rAudioProcessor, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* AudioStream
+#+begin_src til
+struct AudioStream {
+    ref mut buffer : rAudioBuffer
+    ref mut processor : rAudioProcessor
+    mut sampleRate : U32
+    mut sampleSize : U32
+    mut channels : U32
+namespace:
+    func clone(self: AudioStream) returns AudioStream
+    func delete(own self: AudioStream, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Sound
+#+begin_src til
+struct Sound {
+    mut stream : AudioStream
+    mut frameCount : U32
+namespace:
+    func clone(self: Sound) returns Sound
+    func delete(own self: Sound, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Music
+#+begin_src til
+struct Music {
+    mut stream : AudioStream
+    mut frameCount : U32
+    mut looping : Bool
+    mut ctxType : I32
+    ref mut ctxData : Dynamic
+namespace:
+    func clone(self: Music) returns Music
+    func delete(own self: Music, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* VrDeviceInfo
+#+begin_src til
+struct VrDeviceInfo {
+namespace:
+    func clone(_self: VrDeviceInfo) returns VrDeviceInfo
+    func delete(own self: VrDeviceInfo, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* VrStereoConfig
+#+begin_src til
+struct VrStereoConfig {
+namespace:
+    func clone(_self: VrStereoConfig) returns VrStereoConfig
+    func delete(own self: VrStereoConfig, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* FilePathList
+#+begin_src til
+struct FilePathList {
+    mut count : U32
+    ref mut paths : Dynamic
+namespace:
+    func clone(self: FilePathList) returns FilePathList
+    func delete(own self: FilePathList, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* AutomationEvent
+#+begin_src til
+struct AutomationEvent {
+namespace:
+    func clone(_self: AutomationEvent) returns AutomationEvent
+    func delete(own self: AutomationEvent, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* AutomationEventList
+#+begin_src til
+struct AutomationEventList {
+    mut capacity : U32
+    mut count : U32
+    ref mut events : AutomationEvent
+namespace:
+    func clone(self: AutomationEventList) returns AutomationEventList
+    func delete(own self: AutomationEventList, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ConfigFlags
+#+begin_src til
+ConfigFlags is a I32
+#+end_src
+
+* hoisted__I64_34765
+#+begin_src til
+hoisted__I64_34765 is a I64
+#+end_src
+
+* FLAG_VSYNC_HINT
+#+begin_src til
+FLAG_VSYNC_HINT is a I32
+#+end_src
+
+* hoisted__I64_34766
+#+begin_src til
+hoisted__I64_34766 is a I64
+#+end_src
+
+* FLAG_FULLSCREEN_MODE
+#+begin_src til
+FLAG_FULLSCREEN_MODE is a I32
+#+end_src
+
+* hoisted__I64_34767
+#+begin_src til
+hoisted__I64_34767 is a I64
+#+end_src
+
+* FLAG_WINDOW_RESIZABLE
+#+begin_src til
+FLAG_WINDOW_RESIZABLE is a I32
+#+end_src
+
+* hoisted__I64_34768
+#+begin_src til
+hoisted__I64_34768 is a I64
+#+end_src
+
+* FLAG_WINDOW_UNDECORATED
+#+begin_src til
+FLAG_WINDOW_UNDECORATED is a I32
+#+end_src
+
+* hoisted__I64_34769
+#+begin_src til
+hoisted__I64_34769 is a I64
+#+end_src
+
+* FLAG_WINDOW_HIDDEN
+#+begin_src til
+FLAG_WINDOW_HIDDEN is a I32
+#+end_src
+
+* hoisted__I64_34770
+#+begin_src til
+hoisted__I64_34770 is a I64
+#+end_src
+
+* FLAG_WINDOW_MINIMIZED
+#+begin_src til
+FLAG_WINDOW_MINIMIZED is a I32
+#+end_src
+
+* hoisted__I64_34771
+#+begin_src til
+hoisted__I64_34771 is a I64
+#+end_src
+
+* FLAG_WINDOW_MAXIMIZED
+#+begin_src til
+FLAG_WINDOW_MAXIMIZED is a I32
+#+end_src
+
+* hoisted__I64_34772
+#+begin_src til
+hoisted__I64_34772 is a I64
+#+end_src
+
+* FLAG_WINDOW_UNFOCUSED
+#+begin_src til
+FLAG_WINDOW_UNFOCUSED is a I32
+#+end_src
+
+* hoisted__I64_34773
+#+begin_src til
+hoisted__I64_34773 is a I64
+#+end_src
+
+* FLAG_WINDOW_TOPMOST
+#+begin_src til
+FLAG_WINDOW_TOPMOST is a I32
+#+end_src
+
+* hoisted__I64_34774
+#+begin_src til
+hoisted__I64_34774 is a I64
+#+end_src
+
+* FLAG_WINDOW_ALWAYS_RUN
+#+begin_src til
+FLAG_WINDOW_ALWAYS_RUN is a I32
+#+end_src
+
+* hoisted__I64_34775
+#+begin_src til
+hoisted__I64_34775 is a I64
+#+end_src
+
+* FLAG_WINDOW_TRANSPARENT
+#+begin_src til
+FLAG_WINDOW_TRANSPARENT is a I32
+#+end_src
+
+* hoisted__I64_34776
+#+begin_src til
+hoisted__I64_34776 is a I64
+#+end_src
+
+* FLAG_WINDOW_HIGHDPI
+#+begin_src til
+FLAG_WINDOW_HIGHDPI is a I32
+#+end_src
+
+* hoisted__I64_34777
+#+begin_src til
+hoisted__I64_34777 is a I64
+#+end_src
+
+* FLAG_WINDOW_MOUSE_PASSTHROUGH
+#+begin_src til
+FLAG_WINDOW_MOUSE_PASSTHROUGH is a I32
+#+end_src
+
+* hoisted__I64_34778
+#+begin_src til
+hoisted__I64_34778 is a I64
+#+end_src
+
+* FLAG_BORDERLESS_WINDOWED_MODE
+#+begin_src til
+FLAG_BORDERLESS_WINDOWED_MODE is a I32
+#+end_src
+
+* hoisted__I64_34779
+#+begin_src til
+hoisted__I64_34779 is a I64
+#+end_src
+
+* FLAG_MSAA_4X_HINT
+#+begin_src til
+FLAG_MSAA_4X_HINT is a I32
+#+end_src
+
+* hoisted__I64_34780
+#+begin_src til
+hoisted__I64_34780 is a I64
+#+end_src
+
+* FLAG_INTERLACED_HINT
+#+begin_src til
+FLAG_INTERLACED_HINT is a I32
+#+end_src
+
+* TraceLogLevel
+#+begin_src til
+TraceLogLevel is a I32
+#+end_src
+
+* hoisted__I64_34781
+#+begin_src til
+hoisted__I64_34781 is a I64
+#+end_src
+
+* LOG_ALL
+#+begin_src til
+LOG_ALL is a I32
+#+end_src
+
+* hoisted__I64_34782
+#+begin_src til
+hoisted__I64_34782 is a I64
+#+end_src
+
+* LOG_TRACE
+#+begin_src til
+LOG_TRACE is a I32
+#+end_src
+
+* hoisted__I64_34783
+#+begin_src til
+hoisted__I64_34783 is a I64
+#+end_src
+
+* LOG_DEBUG
+#+begin_src til
+LOG_DEBUG is a I32
+#+end_src
+
+* hoisted__I64_34784
+#+begin_src til
+hoisted__I64_34784 is a I64
+#+end_src
+
+* LOG_INFO
+#+begin_src til
+LOG_INFO is a I32
+#+end_src
+
+* hoisted__I64_34785
+#+begin_src til
+hoisted__I64_34785 is a I64
+#+end_src
+
+* LOG_WARNING
+#+begin_src til
+LOG_WARNING is a I32
+#+end_src
+
+* hoisted__I64_34786
+#+begin_src til
+hoisted__I64_34786 is a I64
+#+end_src
+
+* LOG_ERROR
+#+begin_src til
+LOG_ERROR is a I32
+#+end_src
+
+* hoisted__I64_34787
+#+begin_src til
+hoisted__I64_34787 is a I64
+#+end_src
+
+* LOG_FATAL
+#+begin_src til
+LOG_FATAL is a I32
+#+end_src
+
+* hoisted__I64_34788
+#+begin_src til
+hoisted__I64_34788 is a I64
+#+end_src
+
+* LOG_NONE
+#+begin_src til
+LOG_NONE is a I32
+#+end_src
+
+* KeyboardKey
+#+begin_src til
+KeyboardKey is a I32
+#+end_src
+
+* hoisted__I64_34789
+#+begin_src til
+hoisted__I64_34789 is a I64
+#+end_src
+
+* KEY_NULL
+#+begin_src til
+KEY_NULL is a I32
+#+end_src
+
+* hoisted__I64_34790
+#+begin_src til
+hoisted__I64_34790 is a I64
+#+end_src
+
+* KEY_APOSTROPHE
+#+begin_src til
+KEY_APOSTROPHE is a I32
+#+end_src
+
+* hoisted__I64_34791
+#+begin_src til
+hoisted__I64_34791 is a I64
+#+end_src
+
+* KEY_COMMA
+#+begin_src til
+KEY_COMMA is a I32
+#+end_src
+
+* hoisted__I64_34792
+#+begin_src til
+hoisted__I64_34792 is a I64
+#+end_src
+
+* KEY_MINUS
+#+begin_src til
+KEY_MINUS is a I32
+#+end_src
+
+* hoisted__I64_34793
+#+begin_src til
+hoisted__I64_34793 is a I64
+#+end_src
+
+* KEY_PERIOD
+#+begin_src til
+KEY_PERIOD is a I32
+#+end_src
+
+* hoisted__I64_34794
+#+begin_src til
+hoisted__I64_34794 is a I64
+#+end_src
+
+* KEY_SLASH
+#+begin_src til
+KEY_SLASH is a I32
+#+end_src
+
+* hoisted__I64_34795
+#+begin_src til
+hoisted__I64_34795 is a I64
+#+end_src
+
+* KEY_ZERO
+#+begin_src til
+KEY_ZERO is a I32
+#+end_src
+
+* hoisted__I64_34796
+#+begin_src til
+hoisted__I64_34796 is a I64
+#+end_src
+
+* KEY_ONE
+#+begin_src til
+KEY_ONE is a I32
+#+end_src
+
+* hoisted__I64_34797
+#+begin_src til
+hoisted__I64_34797 is a I64
+#+end_src
+
+* KEY_TWO
+#+begin_src til
+KEY_TWO is a I32
+#+end_src
+
+* hoisted__I64_34798
+#+begin_src til
+hoisted__I64_34798 is a I64
+#+end_src
+
+* KEY_THREE
+#+begin_src til
+KEY_THREE is a I32
+#+end_src
+
+* hoisted__I64_34799
+#+begin_src til
+hoisted__I64_34799 is a I64
+#+end_src
+
+* KEY_FOUR
+#+begin_src til
+KEY_FOUR is a I32
+#+end_src
+
+* hoisted__I64_34800
+#+begin_src til
+hoisted__I64_34800 is a I64
+#+end_src
+
+* KEY_FIVE
+#+begin_src til
+KEY_FIVE is a I32
+#+end_src
+
+* hoisted__I64_34801
+#+begin_src til
+hoisted__I64_34801 is a I64
+#+end_src
+
+* KEY_SIX
+#+begin_src til
+KEY_SIX is a I32
+#+end_src
+
+* hoisted__I64_34802
+#+begin_src til
+hoisted__I64_34802 is a I64
+#+end_src
+
+* KEY_SEVEN
+#+begin_src til
+KEY_SEVEN is a I32
+#+end_src
+
+* hoisted__I64_34803
+#+begin_src til
+hoisted__I64_34803 is a I64
+#+end_src
+
+* KEY_EIGHT
+#+begin_src til
+KEY_EIGHT is a I32
+#+end_src
+
+* hoisted__I64_34804
+#+begin_src til
+hoisted__I64_34804 is a I64
+#+end_src
+
+* KEY_NINE
+#+begin_src til
+KEY_NINE is a I32
+#+end_src
+
+* hoisted__I64_34805
+#+begin_src til
+hoisted__I64_34805 is a I64
+#+end_src
+
+* KEY_SEMICOLON
+#+begin_src til
+KEY_SEMICOLON is a I32
+#+end_src
+
+* hoisted__I64_34806
+#+begin_src til
+hoisted__I64_34806 is a I64
+#+end_src
+
+* KEY_EQUAL
+#+begin_src til
+KEY_EQUAL is a I32
+#+end_src
+
+* hoisted__I64_34807
+#+begin_src til
+hoisted__I64_34807 is a I64
+#+end_src
+
+* KEY_A
+#+begin_src til
+KEY_A is a I32
+#+end_src
+
+* hoisted__I64_34808
+#+begin_src til
+hoisted__I64_34808 is a I64
+#+end_src
+
+* KEY_B
+#+begin_src til
+KEY_B is a I32
+#+end_src
+
+* hoisted__I64_34809
+#+begin_src til
+hoisted__I64_34809 is a I64
+#+end_src
+
+* KEY_C
+#+begin_src til
+KEY_C is a I32
+#+end_src
+
+* hoisted__I64_34810
+#+begin_src til
+hoisted__I64_34810 is a I64
+#+end_src
+
+* KEY_D
+#+begin_src til
+KEY_D is a I32
+#+end_src
+
+* hoisted__I64_34811
+#+begin_src til
+hoisted__I64_34811 is a I64
+#+end_src
+
+* KEY_E
+#+begin_src til
+KEY_E is a I32
+#+end_src
+
+* hoisted__I64_34812
+#+begin_src til
+hoisted__I64_34812 is a I64
+#+end_src
+
+* KEY_F
+#+begin_src til
+KEY_F is a I32
+#+end_src
+
+* hoisted__I64_34813
+#+begin_src til
+hoisted__I64_34813 is a I64
+#+end_src
+
+* KEY_G
+#+begin_src til
+KEY_G is a I32
+#+end_src
+
+* hoisted__I64_34814
+#+begin_src til
+hoisted__I64_34814 is a I64
+#+end_src
+
+* KEY_H
+#+begin_src til
+KEY_H is a I32
+#+end_src
+
+* hoisted__I64_34815
+#+begin_src til
+hoisted__I64_34815 is a I64
+#+end_src
+
+* KEY_I
+#+begin_src til
+KEY_I is a I32
+#+end_src
+
+* hoisted__I64_34816
+#+begin_src til
+hoisted__I64_34816 is a I64
+#+end_src
+
+* KEY_J
+#+begin_src til
+KEY_J is a I32
+#+end_src
+
+* hoisted__I64_34817
+#+begin_src til
+hoisted__I64_34817 is a I64
+#+end_src
+
+* KEY_K
+#+begin_src til
+KEY_K is a I32
+#+end_src
+
+* hoisted__I64_34818
+#+begin_src til
+hoisted__I64_34818 is a I64
+#+end_src
+
+* KEY_L
+#+begin_src til
+KEY_L is a I32
+#+end_src
+
+* hoisted__I64_34819
+#+begin_src til
+hoisted__I64_34819 is a I64
+#+end_src
+
+* KEY_M
+#+begin_src til
+KEY_M is a I32
+#+end_src
+
+* hoisted__I64_34820
+#+begin_src til
+hoisted__I64_34820 is a I64
+#+end_src
+
+* KEY_N
+#+begin_src til
+KEY_N is a I32
+#+end_src
+
+* hoisted__I64_34821
+#+begin_src til
+hoisted__I64_34821 is a I64
+#+end_src
+
+* KEY_O
+#+begin_src til
+KEY_O is a I32
+#+end_src
+
+* hoisted__I64_34822
+#+begin_src til
+hoisted__I64_34822 is a I64
+#+end_src
+
+* KEY_P
+#+begin_src til
+KEY_P is a I32
+#+end_src
+
+* hoisted__I64_34823
+#+begin_src til
+hoisted__I64_34823 is a I64
+#+end_src
+
+* KEY_Q
+#+begin_src til
+KEY_Q is a I32
+#+end_src
+
+* hoisted__I64_34824
+#+begin_src til
+hoisted__I64_34824 is a I64
+#+end_src
+
+* KEY_R
+#+begin_src til
+KEY_R is a I32
+#+end_src
+
+* hoisted__I64_34825
+#+begin_src til
+hoisted__I64_34825 is a I64
+#+end_src
+
+* KEY_S
+#+begin_src til
+KEY_S is a I32
+#+end_src
+
+* hoisted__I64_34826
+#+begin_src til
+hoisted__I64_34826 is a I64
+#+end_src
+
+* KEY_T
+#+begin_src til
+KEY_T is a I32
+#+end_src
+
+* hoisted__I64_34827
+#+begin_src til
+hoisted__I64_34827 is a I64
+#+end_src
+
+* KEY_U
+#+begin_src til
+KEY_U is a I32
+#+end_src
+
+* hoisted__I64_34828
+#+begin_src til
+hoisted__I64_34828 is a I64
+#+end_src
+
+* KEY_V
+#+begin_src til
+KEY_V is a I32
+#+end_src
+
+* hoisted__I64_34829
+#+begin_src til
+hoisted__I64_34829 is a I64
+#+end_src
+
+* KEY_W
+#+begin_src til
+KEY_W is a I32
+#+end_src
+
+* hoisted__I64_34830
+#+begin_src til
+hoisted__I64_34830 is a I64
+#+end_src
+
+* KEY_X
+#+begin_src til
+KEY_X is a I32
+#+end_src
+
+* hoisted__I64_34831
+#+begin_src til
+hoisted__I64_34831 is a I64
+#+end_src
+
+* KEY_Y
+#+begin_src til
+KEY_Y is a I32
+#+end_src
+
+* hoisted__I64_34832
+#+begin_src til
+hoisted__I64_34832 is a I64
+#+end_src
+
+* KEY_Z
+#+begin_src til
+KEY_Z is a I32
+#+end_src
+
+* hoisted__I64_34833
+#+begin_src til
+hoisted__I64_34833 is a I64
+#+end_src
+
+* KEY_LEFT_BRACKET
+#+begin_src til
+KEY_LEFT_BRACKET is a I32
+#+end_src
+
+* hoisted__I64_34834
+#+begin_src til
+hoisted__I64_34834 is a I64
+#+end_src
+
+* KEY_BACKSLASH
+#+begin_src til
+KEY_BACKSLASH is a I32
+#+end_src
+
+* hoisted__I64_34835
+#+begin_src til
+hoisted__I64_34835 is a I64
+#+end_src
+
+* KEY_RIGHT_BRACKET
+#+begin_src til
+KEY_RIGHT_BRACKET is a I32
+#+end_src
+
+* hoisted__I64_34836
+#+begin_src til
+hoisted__I64_34836 is a I64
+#+end_src
+
+* KEY_GRAVE
+#+begin_src til
+KEY_GRAVE is a I32
+#+end_src
+
+* hoisted__I64_34837
+#+begin_src til
+hoisted__I64_34837 is a I64
+#+end_src
+
+* KEY_SPACE
+#+begin_src til
+KEY_SPACE is a I32
+#+end_src
+
+* hoisted__I64_34838
+#+begin_src til
+hoisted__I64_34838 is a I64
+#+end_src
+
+* KEY_ESCAPE
+#+begin_src til
+KEY_ESCAPE is a I32
+#+end_src
+
+* hoisted__I64_34839
+#+begin_src til
+hoisted__I64_34839 is a I64
+#+end_src
+
+* KEY_ENTER
+#+begin_src til
+KEY_ENTER is a I32
+#+end_src
+
+* hoisted__I64_34840
+#+begin_src til
+hoisted__I64_34840 is a I64
+#+end_src
+
+* KEY_TAB
+#+begin_src til
+KEY_TAB is a I32
+#+end_src
+
+* hoisted__I64_34841
+#+begin_src til
+hoisted__I64_34841 is a I64
+#+end_src
+
+* KEY_BACKSPACE
+#+begin_src til
+KEY_BACKSPACE is a I32
+#+end_src
+
+* hoisted__I64_34842
+#+begin_src til
+hoisted__I64_34842 is a I64
+#+end_src
+
+* KEY_INSERT
+#+begin_src til
+KEY_INSERT is a I32
+#+end_src
+
+* hoisted__I64_34843
+#+begin_src til
+hoisted__I64_34843 is a I64
+#+end_src
+
+* KEY_DELETE
+#+begin_src til
+KEY_DELETE is a I32
+#+end_src
+
+* hoisted__I64_34844
+#+begin_src til
+hoisted__I64_34844 is a I64
+#+end_src
+
+* KEY_RIGHT
+#+begin_src til
+KEY_RIGHT is a I32
+#+end_src
+
+* hoisted__I64_34845
+#+begin_src til
+hoisted__I64_34845 is a I64
+#+end_src
+
+* KEY_LEFT
+#+begin_src til
+KEY_LEFT is a I32
+#+end_src
+
+* hoisted__I64_34846
+#+begin_src til
+hoisted__I64_34846 is a I64
+#+end_src
+
+* KEY_DOWN
+#+begin_src til
+KEY_DOWN is a I32
+#+end_src
+
+* hoisted__I64_34847
+#+begin_src til
+hoisted__I64_34847 is a I64
+#+end_src
+
+* KEY_UP
+#+begin_src til
+KEY_UP is a I32
+#+end_src
+
+* hoisted__I64_34848
+#+begin_src til
+hoisted__I64_34848 is a I64
+#+end_src
+
+* KEY_PAGE_UP
+#+begin_src til
+KEY_PAGE_UP is a I32
+#+end_src
+
+* hoisted__I64_34849
+#+begin_src til
+hoisted__I64_34849 is a I64
+#+end_src
+
+* KEY_PAGE_DOWN
+#+begin_src til
+KEY_PAGE_DOWN is a I32
+#+end_src
+
+* hoisted__I64_34850
+#+begin_src til
+hoisted__I64_34850 is a I64
+#+end_src
+
+* KEY_HOME
+#+begin_src til
+KEY_HOME is a I32
+#+end_src
+
+* hoisted__I64_34851
+#+begin_src til
+hoisted__I64_34851 is a I64
+#+end_src
+
+* KEY_END
+#+begin_src til
+KEY_END is a I32
+#+end_src
+
+* hoisted__I64_34852
+#+begin_src til
+hoisted__I64_34852 is a I64
+#+end_src
+
+* KEY_CAPS_LOCK
+#+begin_src til
+KEY_CAPS_LOCK is a I32
+#+end_src
+
+* hoisted__I64_34853
+#+begin_src til
+hoisted__I64_34853 is a I64
+#+end_src
+
+* KEY_SCROLL_LOCK
+#+begin_src til
+KEY_SCROLL_LOCK is a I32
+#+end_src
+
+* hoisted__I64_34854
+#+begin_src til
+hoisted__I64_34854 is a I64
+#+end_src
+
+* KEY_NUM_LOCK
+#+begin_src til
+KEY_NUM_LOCK is a I32
+#+end_src
+
+* hoisted__I64_34855
+#+begin_src til
+hoisted__I64_34855 is a I64
+#+end_src
+
+* KEY_PRINT_SCREEN
+#+begin_src til
+KEY_PRINT_SCREEN is a I32
+#+end_src
+
+* hoisted__I64_34856
+#+begin_src til
+hoisted__I64_34856 is a I64
+#+end_src
+
+* KEY_PAUSE
+#+begin_src til
+KEY_PAUSE is a I32
+#+end_src
+
+* hoisted__I64_34857
+#+begin_src til
+hoisted__I64_34857 is a I64
+#+end_src
+
+* KEY_F1
+#+begin_src til
+KEY_F1 is a I32
+#+end_src
+
+* hoisted__I64_34858
+#+begin_src til
+hoisted__I64_34858 is a I64
+#+end_src
+
+* KEY_F2
+#+begin_src til
+KEY_F2 is a I32
+#+end_src
+
+* hoisted__I64_34859
+#+begin_src til
+hoisted__I64_34859 is a I64
+#+end_src
+
+* KEY_F3
+#+begin_src til
+KEY_F3 is a I32
+#+end_src
+
+* hoisted__I64_34860
+#+begin_src til
+hoisted__I64_34860 is a I64
+#+end_src
+
+* KEY_F4
+#+begin_src til
+KEY_F4 is a I32
+#+end_src
+
+* hoisted__I64_34861
+#+begin_src til
+hoisted__I64_34861 is a I64
+#+end_src
+
+* KEY_F5
+#+begin_src til
+KEY_F5 is a I32
+#+end_src
+
+* hoisted__I64_34862
+#+begin_src til
+hoisted__I64_34862 is a I64
+#+end_src
+
+* KEY_F6
+#+begin_src til
+KEY_F6 is a I32
+#+end_src
+
+* hoisted__I64_34863
+#+begin_src til
+hoisted__I64_34863 is a I64
+#+end_src
+
+* KEY_F7
+#+begin_src til
+KEY_F7 is a I32
+#+end_src
+
+* hoisted__I64_34864
+#+begin_src til
+hoisted__I64_34864 is a I64
+#+end_src
+
+* KEY_F8
+#+begin_src til
+KEY_F8 is a I32
+#+end_src
+
+* hoisted__I64_34865
+#+begin_src til
+hoisted__I64_34865 is a I64
+#+end_src
+
+* KEY_F9
+#+begin_src til
+KEY_F9 is a I32
+#+end_src
+
+* hoisted__I64_34866
+#+begin_src til
+hoisted__I64_34866 is a I64
+#+end_src
+
+* KEY_F10
+#+begin_src til
+KEY_F10 is a I32
+#+end_src
+
+* hoisted__I64_34867
+#+begin_src til
+hoisted__I64_34867 is a I64
+#+end_src
+
+* KEY_F11
+#+begin_src til
+KEY_F11 is a I32
+#+end_src
+
+* hoisted__I64_34868
+#+begin_src til
+hoisted__I64_34868 is a I64
+#+end_src
+
+* KEY_F12
+#+begin_src til
+KEY_F12 is a I32
+#+end_src
+
+* hoisted__I64_34869
+#+begin_src til
+hoisted__I64_34869 is a I64
+#+end_src
+
+* KEY_LEFT_SHIFT
+#+begin_src til
+KEY_LEFT_SHIFT is a I32
+#+end_src
+
+* hoisted__I64_34870
+#+begin_src til
+hoisted__I64_34870 is a I64
+#+end_src
+
+* KEY_LEFT_CONTROL
+#+begin_src til
+KEY_LEFT_CONTROL is a I32
+#+end_src
+
+* hoisted__I64_34871
+#+begin_src til
+hoisted__I64_34871 is a I64
+#+end_src
+
+* KEY_LEFT_ALT
+#+begin_src til
+KEY_LEFT_ALT is a I32
+#+end_src
+
+* hoisted__I64_34872
+#+begin_src til
+hoisted__I64_34872 is a I64
+#+end_src
+
+* KEY_LEFT_SUPER
+#+begin_src til
+KEY_LEFT_SUPER is a I32
+#+end_src
+
+* hoisted__I64_34873
+#+begin_src til
+hoisted__I64_34873 is a I64
+#+end_src
+
+* KEY_RIGHT_SHIFT
+#+begin_src til
+KEY_RIGHT_SHIFT is a I32
+#+end_src
+
+* hoisted__I64_34874
+#+begin_src til
+hoisted__I64_34874 is a I64
+#+end_src
+
+* KEY_RIGHT_CONTROL
+#+begin_src til
+KEY_RIGHT_CONTROL is a I32
+#+end_src
+
+* hoisted__I64_34875
+#+begin_src til
+hoisted__I64_34875 is a I64
+#+end_src
+
+* KEY_RIGHT_ALT
+#+begin_src til
+KEY_RIGHT_ALT is a I32
+#+end_src
+
+* hoisted__I64_34876
+#+begin_src til
+hoisted__I64_34876 is a I64
+#+end_src
+
+* KEY_RIGHT_SUPER
+#+begin_src til
+KEY_RIGHT_SUPER is a I32
+#+end_src
+
+* hoisted__I64_34877
+#+begin_src til
+hoisted__I64_34877 is a I64
+#+end_src
+
+* KEY_KB_MENU
+#+begin_src til
+KEY_KB_MENU is a I32
+#+end_src
+
+* hoisted__I64_34878
+#+begin_src til
+hoisted__I64_34878 is a I64
+#+end_src
+
+* KEY_KP_0
+#+begin_src til
+KEY_KP_0 is a I32
+#+end_src
+
+* hoisted__I64_34879
+#+begin_src til
+hoisted__I64_34879 is a I64
+#+end_src
+
+* KEY_KP_1
+#+begin_src til
+KEY_KP_1 is a I32
+#+end_src
+
+* hoisted__I64_34880
+#+begin_src til
+hoisted__I64_34880 is a I64
+#+end_src
+
+* KEY_KP_2
+#+begin_src til
+KEY_KP_2 is a I32
+#+end_src
+
+* hoisted__I64_34881
+#+begin_src til
+hoisted__I64_34881 is a I64
+#+end_src
+
+* KEY_KP_3
+#+begin_src til
+KEY_KP_3 is a I32
+#+end_src
+
+* hoisted__I64_34882
+#+begin_src til
+hoisted__I64_34882 is a I64
+#+end_src
+
+* KEY_KP_4
+#+begin_src til
+KEY_KP_4 is a I32
+#+end_src
+
+* hoisted__I64_34883
+#+begin_src til
+hoisted__I64_34883 is a I64
+#+end_src
+
+* KEY_KP_5
+#+begin_src til
+KEY_KP_5 is a I32
+#+end_src
+
+* hoisted__I64_34884
+#+begin_src til
+hoisted__I64_34884 is a I64
+#+end_src
+
+* KEY_KP_6
+#+begin_src til
+KEY_KP_6 is a I32
+#+end_src
+
+* hoisted__I64_34885
+#+begin_src til
+hoisted__I64_34885 is a I64
+#+end_src
+
+* KEY_KP_7
+#+begin_src til
+KEY_KP_7 is a I32
+#+end_src
+
+* hoisted__I64_34886
+#+begin_src til
+hoisted__I64_34886 is a I64
+#+end_src
+
+* KEY_KP_8
+#+begin_src til
+KEY_KP_8 is a I32
+#+end_src
+
+* hoisted__I64_34887
+#+begin_src til
+hoisted__I64_34887 is a I64
+#+end_src
+
+* KEY_KP_9
+#+begin_src til
+KEY_KP_9 is a I32
+#+end_src
+
+* hoisted__I64_34888
+#+begin_src til
+hoisted__I64_34888 is a I64
+#+end_src
+
+* KEY_KP_DECIMAL
+#+begin_src til
+KEY_KP_DECIMAL is a I32
+#+end_src
+
+* hoisted__I64_34889
+#+begin_src til
+hoisted__I64_34889 is a I64
+#+end_src
+
+* KEY_KP_DIVIDE
+#+begin_src til
+KEY_KP_DIVIDE is a I32
+#+end_src
+
+* hoisted__I64_34890
+#+begin_src til
+hoisted__I64_34890 is a I64
+#+end_src
+
+* KEY_KP_MULTIPLY
+#+begin_src til
+KEY_KP_MULTIPLY is a I32
+#+end_src
+
+* hoisted__I64_34891
+#+begin_src til
+hoisted__I64_34891 is a I64
+#+end_src
+
+* KEY_KP_SUBTRACT
+#+begin_src til
+KEY_KP_SUBTRACT is a I32
+#+end_src
+
+* hoisted__I64_34892
+#+begin_src til
+hoisted__I64_34892 is a I64
+#+end_src
+
+* KEY_KP_ADD
+#+begin_src til
+KEY_KP_ADD is a I32
+#+end_src
+
+* hoisted__I64_34893
+#+begin_src til
+hoisted__I64_34893 is a I64
+#+end_src
+
+* KEY_KP_ENTER
+#+begin_src til
+KEY_KP_ENTER is a I32
+#+end_src
+
+* hoisted__I64_34894
+#+begin_src til
+hoisted__I64_34894 is a I64
+#+end_src
+
+* KEY_KP_EQUAL
+#+begin_src til
+KEY_KP_EQUAL is a I32
+#+end_src
+
+* hoisted__I64_34895
+#+begin_src til
+hoisted__I64_34895 is a I64
+#+end_src
+
+* KEY_BACK
+#+begin_src til
+KEY_BACK is a I32
+#+end_src
+
+* hoisted__I64_34896
+#+begin_src til
+hoisted__I64_34896 is a I64
+#+end_src
+
+* KEY_MENU
+#+begin_src til
+KEY_MENU is a I32
+#+end_src
+
+* hoisted__I64_34897
+#+begin_src til
+hoisted__I64_34897 is a I64
+#+end_src
+
+* KEY_VOLUME_UP
+#+begin_src til
+KEY_VOLUME_UP is a I32
+#+end_src
+
+* hoisted__I64_34898
+#+begin_src til
+hoisted__I64_34898 is a I64
+#+end_src
+
+* KEY_VOLUME_DOWN
+#+begin_src til
+KEY_VOLUME_DOWN is a I32
+#+end_src
+
+* MouseButton
+#+begin_src til
+MouseButton is a I32
+#+end_src
+
+* hoisted__I64_34899
+#+begin_src til
+hoisted__I64_34899 is a I64
+#+end_src
+
+* MOUSE_BUTTON_LEFT
+#+begin_src til
+MOUSE_BUTTON_LEFT is a I32
+#+end_src
+
+* hoisted__I64_34900
+#+begin_src til
+hoisted__I64_34900 is a I64
+#+end_src
+
+* MOUSE_BUTTON_RIGHT
+#+begin_src til
+MOUSE_BUTTON_RIGHT is a I32
+#+end_src
+
+* hoisted__I64_34901
+#+begin_src til
+hoisted__I64_34901 is a I64
+#+end_src
+
+* MOUSE_BUTTON_MIDDLE
+#+begin_src til
+MOUSE_BUTTON_MIDDLE is a I32
+#+end_src
+
+* hoisted__I64_34902
+#+begin_src til
+hoisted__I64_34902 is a I64
+#+end_src
+
+* MOUSE_BUTTON_SIDE
+#+begin_src til
+MOUSE_BUTTON_SIDE is a I32
+#+end_src
+
+* hoisted__I64_34903
+#+begin_src til
+hoisted__I64_34903 is a I64
+#+end_src
+
+* MOUSE_BUTTON_EXTRA
+#+begin_src til
+MOUSE_BUTTON_EXTRA is a I32
+#+end_src
+
+* hoisted__I64_34904
+#+begin_src til
+hoisted__I64_34904 is a I64
+#+end_src
+
+* MOUSE_BUTTON_FORWARD
+#+begin_src til
+MOUSE_BUTTON_FORWARD is a I32
+#+end_src
+
+* hoisted__I64_34905
+#+begin_src til
+hoisted__I64_34905 is a I64
+#+end_src
+
+* MOUSE_BUTTON_BACK
+#+begin_src til
+MOUSE_BUTTON_BACK is a I32
+#+end_src
+
+* MouseCursor
+#+begin_src til
+MouseCursor is a I32
+#+end_src
+
+* hoisted__I64_34906
+#+begin_src til
+hoisted__I64_34906 is a I64
+#+end_src
+
+* MOUSE_CURSOR_DEFAULT
+#+begin_src til
+MOUSE_CURSOR_DEFAULT is a I32
+#+end_src
+
+* hoisted__I64_34907
+#+begin_src til
+hoisted__I64_34907 is a I64
+#+end_src
+
+* MOUSE_CURSOR_ARROW
+#+begin_src til
+MOUSE_CURSOR_ARROW is a I32
+#+end_src
+
+* hoisted__I64_34908
+#+begin_src til
+hoisted__I64_34908 is a I64
+#+end_src
+
+* MOUSE_CURSOR_IBEAM
+#+begin_src til
+MOUSE_CURSOR_IBEAM is a I32
+#+end_src
+
+* hoisted__I64_34909
+#+begin_src til
+hoisted__I64_34909 is a I64
+#+end_src
+
+* MOUSE_CURSOR_CROSSHAIR
+#+begin_src til
+MOUSE_CURSOR_CROSSHAIR is a I32
+#+end_src
+
+* hoisted__I64_34910
+#+begin_src til
+hoisted__I64_34910 is a I64
+#+end_src
+
+* MOUSE_CURSOR_POINTING_HAND
+#+begin_src til
+MOUSE_CURSOR_POINTING_HAND is a I32
+#+end_src
+
+* hoisted__I64_34911
+#+begin_src til
+hoisted__I64_34911 is a I64
+#+end_src
+
+* MOUSE_CURSOR_RESIZE_EW
+#+begin_src til
+MOUSE_CURSOR_RESIZE_EW is a I32
+#+end_src
+
+* hoisted__I64_34912
+#+begin_src til
+hoisted__I64_34912 is a I64
+#+end_src
+
+* MOUSE_CURSOR_RESIZE_NS
+#+begin_src til
+MOUSE_CURSOR_RESIZE_NS is a I32
+#+end_src
+
+* hoisted__I64_34913
+#+begin_src til
+hoisted__I64_34913 is a I64
+#+end_src
+
+* MOUSE_CURSOR_RESIZE_NWSE
+#+begin_src til
+MOUSE_CURSOR_RESIZE_NWSE is a I32
+#+end_src
+
+* hoisted__I64_34914
+#+begin_src til
+hoisted__I64_34914 is a I64
+#+end_src
+
+* MOUSE_CURSOR_RESIZE_NESW
+#+begin_src til
+MOUSE_CURSOR_RESIZE_NESW is a I32
+#+end_src
+
+* hoisted__I64_34915
+#+begin_src til
+hoisted__I64_34915 is a I64
+#+end_src
+
+* MOUSE_CURSOR_RESIZE_ALL
+#+begin_src til
+MOUSE_CURSOR_RESIZE_ALL is a I32
+#+end_src
+
+* hoisted__I64_34916
+#+begin_src til
+hoisted__I64_34916 is a I64
+#+end_src
+
+* MOUSE_CURSOR_NOT_ALLOWED
+#+begin_src til
+MOUSE_CURSOR_NOT_ALLOWED is a I32
+#+end_src
+
+* GamepadButton
+#+begin_src til
+GamepadButton is a I32
+#+end_src
+
+* hoisted__I64_34917
+#+begin_src til
+hoisted__I64_34917 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_UNKNOWN
+#+begin_src til
+GAMEPAD_BUTTON_UNKNOWN is a I32
+#+end_src
+
+* hoisted__I64_34918
+#+begin_src til
+hoisted__I64_34918 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_LEFT_FACE_UP
+#+begin_src til
+GAMEPAD_BUTTON_LEFT_FACE_UP is a I32
+#+end_src
+
+* hoisted__I64_34919
+#+begin_src til
+hoisted__I64_34919 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_LEFT_FACE_RIGHT
+#+begin_src til
+GAMEPAD_BUTTON_LEFT_FACE_RIGHT is a I32
+#+end_src
+
+* hoisted__I64_34920
+#+begin_src til
+hoisted__I64_34920 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_LEFT_FACE_DOWN
+#+begin_src til
+GAMEPAD_BUTTON_LEFT_FACE_DOWN is a I32
+#+end_src
+
+* hoisted__I64_34921
+#+begin_src til
+hoisted__I64_34921 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_LEFT_FACE_LEFT
+#+begin_src til
+GAMEPAD_BUTTON_LEFT_FACE_LEFT is a I32
+#+end_src
+
+* hoisted__I64_34922
+#+begin_src til
+hoisted__I64_34922 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_RIGHT_FACE_UP
+#+begin_src til
+GAMEPAD_BUTTON_RIGHT_FACE_UP is a I32
+#+end_src
+
+* hoisted__I64_34923
+#+begin_src til
+hoisted__I64_34923 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_RIGHT_FACE_RIGHT
+#+begin_src til
+GAMEPAD_BUTTON_RIGHT_FACE_RIGHT is a I32
+#+end_src
+
+* hoisted__I64_34924
+#+begin_src til
+hoisted__I64_34924 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_RIGHT_FACE_DOWN
+#+begin_src til
+GAMEPAD_BUTTON_RIGHT_FACE_DOWN is a I32
+#+end_src
+
+* hoisted__I64_34925
+#+begin_src til
+hoisted__I64_34925 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_RIGHT_FACE_LEFT
+#+begin_src til
+GAMEPAD_BUTTON_RIGHT_FACE_LEFT is a I32
+#+end_src
+
+* hoisted__I64_34926
+#+begin_src til
+hoisted__I64_34926 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_LEFT_TRIGGER_1
+#+begin_src til
+GAMEPAD_BUTTON_LEFT_TRIGGER_1 is a I32
+#+end_src
+
+* hoisted__I64_34927
+#+begin_src til
+hoisted__I64_34927 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_LEFT_TRIGGER_2
+#+begin_src til
+GAMEPAD_BUTTON_LEFT_TRIGGER_2 is a I32
+#+end_src
+
+* hoisted__I64_34928
+#+begin_src til
+hoisted__I64_34928 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_RIGHT_TRIGGER_1
+#+begin_src til
+GAMEPAD_BUTTON_RIGHT_TRIGGER_1 is a I32
+#+end_src
+
+* hoisted__I64_34929
+#+begin_src til
+hoisted__I64_34929 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_RIGHT_TRIGGER_2
+#+begin_src til
+GAMEPAD_BUTTON_RIGHT_TRIGGER_2 is a I32
+#+end_src
+
+* hoisted__I64_34930
+#+begin_src til
+hoisted__I64_34930 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_MIDDLE_LEFT
+#+begin_src til
+GAMEPAD_BUTTON_MIDDLE_LEFT is a I32
+#+end_src
+
+* hoisted__I64_34931
+#+begin_src til
+hoisted__I64_34931 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_MIDDLE
+#+begin_src til
+GAMEPAD_BUTTON_MIDDLE is a I32
+#+end_src
+
+* hoisted__I64_34932
+#+begin_src til
+hoisted__I64_34932 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_MIDDLE_RIGHT
+#+begin_src til
+GAMEPAD_BUTTON_MIDDLE_RIGHT is a I32
+#+end_src
+
+* hoisted__I64_34933
+#+begin_src til
+hoisted__I64_34933 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_LEFT_THUMB
+#+begin_src til
+GAMEPAD_BUTTON_LEFT_THUMB is a I32
+#+end_src
+
+* hoisted__I64_34934
+#+begin_src til
+hoisted__I64_34934 is a I64
+#+end_src
+
+* GAMEPAD_BUTTON_RIGHT_THUMB
+#+begin_src til
+GAMEPAD_BUTTON_RIGHT_THUMB is a I32
+#+end_src
+
+* GamepadAxis
+#+begin_src til
+GamepadAxis is a I32
+#+end_src
+
+* hoisted__I64_34935
+#+begin_src til
+hoisted__I64_34935 is a I64
+#+end_src
+
+* GAMEPAD_AXIS_LEFT_X
+#+begin_src til
+GAMEPAD_AXIS_LEFT_X is a I32
+#+end_src
+
+* hoisted__I64_34936
+#+begin_src til
+hoisted__I64_34936 is a I64
+#+end_src
+
+* GAMEPAD_AXIS_LEFT_Y
+#+begin_src til
+GAMEPAD_AXIS_LEFT_Y is a I32
+#+end_src
+
+* hoisted__I64_34937
+#+begin_src til
+hoisted__I64_34937 is a I64
+#+end_src
+
+* GAMEPAD_AXIS_RIGHT_X
+#+begin_src til
+GAMEPAD_AXIS_RIGHT_X is a I32
+#+end_src
+
+* hoisted__I64_34938
+#+begin_src til
+hoisted__I64_34938 is a I64
+#+end_src
+
+* GAMEPAD_AXIS_RIGHT_Y
+#+begin_src til
+GAMEPAD_AXIS_RIGHT_Y is a I32
+#+end_src
+
+* hoisted__I64_34939
+#+begin_src til
+hoisted__I64_34939 is a I64
+#+end_src
+
+* GAMEPAD_AXIS_LEFT_TRIGGER
+#+begin_src til
+GAMEPAD_AXIS_LEFT_TRIGGER is a I32
+#+end_src
+
+* hoisted__I64_34940
+#+begin_src til
+hoisted__I64_34940 is a I64
+#+end_src
+
+* GAMEPAD_AXIS_RIGHT_TRIGGER
+#+begin_src til
+GAMEPAD_AXIS_RIGHT_TRIGGER is a I32
+#+end_src
+
+* MaterialMapIndex
+#+begin_src til
+MaterialMapIndex is a I32
+#+end_src
+
+* hoisted__I64_34941
+#+begin_src til
+hoisted__I64_34941 is a I64
+#+end_src
+
+* MATERIAL_MAP_ALBEDO
+#+begin_src til
+MATERIAL_MAP_ALBEDO is a I32
+#+end_src
+
+* hoisted__I64_34942
+#+begin_src til
+hoisted__I64_34942 is a I64
+#+end_src
+
+* MATERIAL_MAP_METALNESS
+#+begin_src til
+MATERIAL_MAP_METALNESS is a I32
+#+end_src
+
+* hoisted__I64_34943
+#+begin_src til
+hoisted__I64_34943 is a I64
+#+end_src
+
+* MATERIAL_MAP_NORMAL
+#+begin_src til
+MATERIAL_MAP_NORMAL is a I32
+#+end_src
+
+* hoisted__I64_34944
+#+begin_src til
+hoisted__I64_34944 is a I64
+#+end_src
+
+* MATERIAL_MAP_ROUGHNESS
+#+begin_src til
+MATERIAL_MAP_ROUGHNESS is a I32
+#+end_src
+
+* hoisted__I64_34945
+#+begin_src til
+hoisted__I64_34945 is a I64
+#+end_src
+
+* MATERIAL_MAP_OCCLUSION
+#+begin_src til
+MATERIAL_MAP_OCCLUSION is a I32
+#+end_src
+
+* hoisted__I64_34946
+#+begin_src til
+hoisted__I64_34946 is a I64
+#+end_src
+
+* MATERIAL_MAP_EMISSION
+#+begin_src til
+MATERIAL_MAP_EMISSION is a I32
+#+end_src
+
+* hoisted__I64_34947
+#+begin_src til
+hoisted__I64_34947 is a I64
+#+end_src
+
+* MATERIAL_MAP_HEIGHT
+#+begin_src til
+MATERIAL_MAP_HEIGHT is a I32
+#+end_src
+
+* hoisted__I64_34948
+#+begin_src til
+hoisted__I64_34948 is a I64
+#+end_src
+
+* MATERIAL_MAP_CUBEMAP
+#+begin_src til
+MATERIAL_MAP_CUBEMAP is a I32
+#+end_src
+
+* hoisted__I64_34949
+#+begin_src til
+hoisted__I64_34949 is a I64
+#+end_src
+
+* MATERIAL_MAP_IRRADIANCE
+#+begin_src til
+MATERIAL_MAP_IRRADIANCE is a I32
+#+end_src
+
+* hoisted__I64_34950
+#+begin_src til
+hoisted__I64_34950 is a I64
+#+end_src
+
+* MATERIAL_MAP_PREFILTER
+#+begin_src til
+MATERIAL_MAP_PREFILTER is a I32
+#+end_src
+
+* hoisted__I64_34951
+#+begin_src til
+hoisted__I64_34951 is a I64
+#+end_src
+
+* MATERIAL_MAP_BRDF
+#+begin_src til
+MATERIAL_MAP_BRDF is a I32
+#+end_src
+
+* ShaderLocationIndex
+#+begin_src til
+ShaderLocationIndex is a I32
+#+end_src
+
+* hoisted__I64_34952
+#+begin_src til
+hoisted__I64_34952 is a I64
+#+end_src
+
+* SHADER_LOC_VERTEX_POSITION
+#+begin_src til
+SHADER_LOC_VERTEX_POSITION is a I32
+#+end_src
+
+* hoisted__I64_34953
+#+begin_src til
+hoisted__I64_34953 is a I64
+#+end_src
+
+* SHADER_LOC_VERTEX_TEXCOORD01
+#+begin_src til
+SHADER_LOC_VERTEX_TEXCOORD01 is a I32
+#+end_src
+
+* hoisted__I64_34954
+#+begin_src til
+hoisted__I64_34954 is a I64
+#+end_src
+
+* SHADER_LOC_VERTEX_TEXCOORD02
+#+begin_src til
+SHADER_LOC_VERTEX_TEXCOORD02 is a I32
+#+end_src
+
+* hoisted__I64_34955
+#+begin_src til
+hoisted__I64_34955 is a I64
+#+end_src
+
+* SHADER_LOC_VERTEX_NORMAL
+#+begin_src til
+SHADER_LOC_VERTEX_NORMAL is a I32
+#+end_src
+
+* hoisted__I64_34956
+#+begin_src til
+hoisted__I64_34956 is a I64
+#+end_src
+
+* SHADER_LOC_VERTEX_TANGENT
+#+begin_src til
+SHADER_LOC_VERTEX_TANGENT is a I32
+#+end_src
+
+* hoisted__I64_34957
+#+begin_src til
+hoisted__I64_34957 is a I64
+#+end_src
+
+* SHADER_LOC_VERTEX_COLOR
+#+begin_src til
+SHADER_LOC_VERTEX_COLOR is a I32
+#+end_src
+
+* hoisted__I64_34958
+#+begin_src til
+hoisted__I64_34958 is a I64
+#+end_src
+
+* SHADER_LOC_MATRIX_MVP
+#+begin_src til
+SHADER_LOC_MATRIX_MVP is a I32
+#+end_src
+
+* hoisted__I64_34959
+#+begin_src til
+hoisted__I64_34959 is a I64
+#+end_src
+
+* SHADER_LOC_MATRIX_VIEW
+#+begin_src til
+SHADER_LOC_MATRIX_VIEW is a I32
+#+end_src
+
+* hoisted__I64_34960
+#+begin_src til
+hoisted__I64_34960 is a I64
+#+end_src
+
+* SHADER_LOC_MATRIX_PROJECTION
+#+begin_src til
+SHADER_LOC_MATRIX_PROJECTION is a I32
+#+end_src
+
+* hoisted__I64_34961
+#+begin_src til
+hoisted__I64_34961 is a I64
+#+end_src
+
+* SHADER_LOC_MATRIX_MODEL
+#+begin_src til
+SHADER_LOC_MATRIX_MODEL is a I32
+#+end_src
+
+* hoisted__I64_34962
+#+begin_src til
+hoisted__I64_34962 is a I64
+#+end_src
+
+* SHADER_LOC_MATRIX_NORMAL
+#+begin_src til
+SHADER_LOC_MATRIX_NORMAL is a I32
+#+end_src
+
+* hoisted__I64_34963
+#+begin_src til
+hoisted__I64_34963 is a I64
+#+end_src
+
+* SHADER_LOC_VECTOR_VIEW
+#+begin_src til
+SHADER_LOC_VECTOR_VIEW is a I32
+#+end_src
+
+* hoisted__I64_34964
+#+begin_src til
+hoisted__I64_34964 is a I64
+#+end_src
+
+* SHADER_LOC_COLOR_DIFFUSE
+#+begin_src til
+SHADER_LOC_COLOR_DIFFUSE is a I32
+#+end_src
+
+* hoisted__I64_34965
+#+begin_src til
+hoisted__I64_34965 is a I64
+#+end_src
+
+* SHADER_LOC_COLOR_SPECULAR
+#+begin_src til
+SHADER_LOC_COLOR_SPECULAR is a I32
+#+end_src
+
+* hoisted__I64_34966
+#+begin_src til
+hoisted__I64_34966 is a I64
+#+end_src
+
+* SHADER_LOC_COLOR_AMBIENT
+#+begin_src til
+SHADER_LOC_COLOR_AMBIENT is a I32
+#+end_src
+
+* hoisted__I64_34967
+#+begin_src til
+hoisted__I64_34967 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_ALBEDO
+#+begin_src til
+SHADER_LOC_MAP_ALBEDO is a I32
+#+end_src
+
+* hoisted__I64_34968
+#+begin_src til
+hoisted__I64_34968 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_METALNESS
+#+begin_src til
+SHADER_LOC_MAP_METALNESS is a I32
+#+end_src
+
+* hoisted__I64_34969
+#+begin_src til
+hoisted__I64_34969 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_NORMAL
+#+begin_src til
+SHADER_LOC_MAP_NORMAL is a I32
+#+end_src
+
+* hoisted__I64_34970
+#+begin_src til
+hoisted__I64_34970 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_ROUGHNESS
+#+begin_src til
+SHADER_LOC_MAP_ROUGHNESS is a I32
+#+end_src
+
+* hoisted__I64_34971
+#+begin_src til
+hoisted__I64_34971 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_OCCLUSION
+#+begin_src til
+SHADER_LOC_MAP_OCCLUSION is a I32
+#+end_src
+
+* hoisted__I64_34972
+#+begin_src til
+hoisted__I64_34972 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_EMISSION
+#+begin_src til
+SHADER_LOC_MAP_EMISSION is a I32
+#+end_src
+
+* hoisted__I64_34973
+#+begin_src til
+hoisted__I64_34973 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_HEIGHT
+#+begin_src til
+SHADER_LOC_MAP_HEIGHT is a I32
+#+end_src
+
+* hoisted__I64_34974
+#+begin_src til
+hoisted__I64_34974 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_CUBEMAP
+#+begin_src til
+SHADER_LOC_MAP_CUBEMAP is a I32
+#+end_src
+
+* hoisted__I64_34975
+#+begin_src til
+hoisted__I64_34975 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_IRRADIANCE
+#+begin_src til
+SHADER_LOC_MAP_IRRADIANCE is a I32
+#+end_src
+
+* hoisted__I64_34976
+#+begin_src til
+hoisted__I64_34976 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_PREFILTER
+#+begin_src til
+SHADER_LOC_MAP_PREFILTER is a I32
+#+end_src
+
+* hoisted__I64_34977
+#+begin_src til
+hoisted__I64_34977 is a I64
+#+end_src
+
+* SHADER_LOC_MAP_BRDF
+#+begin_src til
+SHADER_LOC_MAP_BRDF is a I32
+#+end_src
+
+* hoisted__I64_34978
+#+begin_src til
+hoisted__I64_34978 is a I64
+#+end_src
+
+* SHADER_LOC_VERTEX_BONEIDS
+#+begin_src til
+SHADER_LOC_VERTEX_BONEIDS is a I32
+#+end_src
+
+* hoisted__I64_34979
+#+begin_src til
+hoisted__I64_34979 is a I64
+#+end_src
+
+* SHADER_LOC_VERTEX_BONEWEIGHTS
+#+begin_src til
+SHADER_LOC_VERTEX_BONEWEIGHTS is a I32
+#+end_src
+
+* hoisted__I64_34980
+#+begin_src til
+hoisted__I64_34980 is a I64
+#+end_src
+
+* SHADER_LOC_MATRIX_BONETRANSFORMS
+#+begin_src til
+SHADER_LOC_MATRIX_BONETRANSFORMS is a I32
+#+end_src
+
+* hoisted__I64_34981
+#+begin_src til
+hoisted__I64_34981 is a I64
+#+end_src
+
+* SHADER_LOC_VERTEX_INSTANCETRANSFORM
+#+begin_src til
+SHADER_LOC_VERTEX_INSTANCETRANSFORM is a I32
+#+end_src
+
+* ShaderUniformDataType
+#+begin_src til
+ShaderUniformDataType is a I32
+#+end_src
+
+* hoisted__I64_34982
+#+begin_src til
+hoisted__I64_34982 is a I64
+#+end_src
+
+* SHADER_UNIFORM_FLOAT
+#+begin_src til
+SHADER_UNIFORM_FLOAT is a I32
+#+end_src
+
+* hoisted__I64_34983
+#+begin_src til
+hoisted__I64_34983 is a I64
+#+end_src
+
+* SHADER_UNIFORM_VEC2
+#+begin_src til
+SHADER_UNIFORM_VEC2 is a I32
+#+end_src
+
+* hoisted__I64_34984
+#+begin_src til
+hoisted__I64_34984 is a I64
+#+end_src
+
+* SHADER_UNIFORM_VEC3
+#+begin_src til
+SHADER_UNIFORM_VEC3 is a I32
+#+end_src
+
+* hoisted__I64_34985
+#+begin_src til
+hoisted__I64_34985 is a I64
+#+end_src
+
+* SHADER_UNIFORM_VEC4
+#+begin_src til
+SHADER_UNIFORM_VEC4 is a I32
+#+end_src
+
+* hoisted__I64_34986
+#+begin_src til
+hoisted__I64_34986 is a I64
+#+end_src
+
+* SHADER_UNIFORM_INT
+#+begin_src til
+SHADER_UNIFORM_INT is a I32
+#+end_src
+
+* hoisted__I64_34987
+#+begin_src til
+hoisted__I64_34987 is a I64
+#+end_src
+
+* SHADER_UNIFORM_IVEC2
+#+begin_src til
+SHADER_UNIFORM_IVEC2 is a I32
+#+end_src
+
+* hoisted__I64_34988
+#+begin_src til
+hoisted__I64_34988 is a I64
+#+end_src
+
+* SHADER_UNIFORM_IVEC3
+#+begin_src til
+SHADER_UNIFORM_IVEC3 is a I32
+#+end_src
+
+* hoisted__I64_34989
+#+begin_src til
+hoisted__I64_34989 is a I64
+#+end_src
+
+* SHADER_UNIFORM_IVEC4
+#+begin_src til
+SHADER_UNIFORM_IVEC4 is a I32
+#+end_src
+
+* hoisted__I64_34990
+#+begin_src til
+hoisted__I64_34990 is a I64
+#+end_src
+
+* SHADER_UNIFORM_UINT
+#+begin_src til
+SHADER_UNIFORM_UINT is a I32
+#+end_src
+
+* hoisted__I64_34991
+#+begin_src til
+hoisted__I64_34991 is a I64
+#+end_src
+
+* SHADER_UNIFORM_UIVEC2
+#+begin_src til
+SHADER_UNIFORM_UIVEC2 is a I32
+#+end_src
+
+* hoisted__I64_34992
+#+begin_src til
+hoisted__I64_34992 is a I64
+#+end_src
+
+* SHADER_UNIFORM_UIVEC3
+#+begin_src til
+SHADER_UNIFORM_UIVEC3 is a I32
+#+end_src
+
+* hoisted__I64_34993
+#+begin_src til
+hoisted__I64_34993 is a I64
+#+end_src
+
+* SHADER_UNIFORM_UIVEC4
+#+begin_src til
+SHADER_UNIFORM_UIVEC4 is a I32
+#+end_src
+
+* hoisted__I64_34994
+#+begin_src til
+hoisted__I64_34994 is a I64
+#+end_src
+
+* SHADER_UNIFORM_SAMPLER2D
+#+begin_src til
+SHADER_UNIFORM_SAMPLER2D is a I32
+#+end_src
+
+* ShaderAttributeDataType
+#+begin_src til
+ShaderAttributeDataType is a I32
+#+end_src
+
+* hoisted__I64_34995
+#+begin_src til
+hoisted__I64_34995 is a I64
+#+end_src
+
+* SHADER_ATTRIB_FLOAT
+#+begin_src til
+SHADER_ATTRIB_FLOAT is a I32
+#+end_src
+
+* hoisted__I64_34996
+#+begin_src til
+hoisted__I64_34996 is a I64
+#+end_src
+
+* SHADER_ATTRIB_VEC2
+#+begin_src til
+SHADER_ATTRIB_VEC2 is a I32
+#+end_src
+
+* hoisted__I64_34997
+#+begin_src til
+hoisted__I64_34997 is a I64
+#+end_src
+
+* SHADER_ATTRIB_VEC3
+#+begin_src til
+SHADER_ATTRIB_VEC3 is a I32
+#+end_src
+
+* hoisted__I64_34998
+#+begin_src til
+hoisted__I64_34998 is a I64
+#+end_src
+
+* SHADER_ATTRIB_VEC4
+#+begin_src til
+SHADER_ATTRIB_VEC4 is a I32
+#+end_src
+
+* PixelFormat
+#+begin_src til
+PixelFormat is a I32
+#+end_src
+
+* hoisted__I64_34999
+#+begin_src til
+hoisted__I64_34999 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_GRAYSCALE
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_GRAYSCALE is a I32
+#+end_src
+
+* hoisted__I64_35000
+#+begin_src til
+hoisted__I64_35000 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA is a I32
+#+end_src
+
+* hoisted__I64_35001
+#+begin_src til
+hoisted__I64_35001 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R5G6B5
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R5G6B5 is a I32
+#+end_src
+
+* hoisted__I64_35002
+#+begin_src til
+hoisted__I64_35002 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R8G8B8
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R8G8B8 is a I32
+#+end_src
+
+* hoisted__I64_35003
+#+begin_src til
+hoisted__I64_35003 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R5G5B5A1
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R5G5B5A1 is a I32
+#+end_src
+
+* hoisted__I64_35004
+#+begin_src til
+hoisted__I64_35004 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R4G4B4A4
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R4G4B4A4 is a I32
+#+end_src
+
+* hoisted__I64_35005
+#+begin_src til
+hoisted__I64_35005 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 is a I32
+#+end_src
+
+* hoisted__I64_35006
+#+begin_src til
+hoisted__I64_35006 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R32
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R32 is a I32
+#+end_src
+
+* hoisted__I64_35007
+#+begin_src til
+hoisted__I64_35007 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R32G32B32
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R32G32B32 is a I32
+#+end_src
+
+* hoisted__I64_35008
+#+begin_src til
+hoisted__I64_35008 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R32G32B32A32
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R32G32B32A32 is a I32
+#+end_src
+
+* hoisted__I64_35009
+#+begin_src til
+hoisted__I64_35009 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R16
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R16 is a I32
+#+end_src
+
+* hoisted__I64_35010
+#+begin_src til
+hoisted__I64_35010 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R16G16B16
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R16G16B16 is a I32
+#+end_src
+
+* hoisted__I64_35011
+#+begin_src til
+hoisted__I64_35011 is a I64
+#+end_src
+
+* PIXELFORMAT_UNCOMPRESSED_R16G16B16A16
+#+begin_src til
+PIXELFORMAT_UNCOMPRESSED_R16G16B16A16 is a I32
+#+end_src
+
+* hoisted__I64_35012
+#+begin_src til
+hoisted__I64_35012 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_DXT1_RGB
+#+begin_src til
+PIXELFORMAT_COMPRESSED_DXT1_RGB is a I32
+#+end_src
+
+* hoisted__I64_35013
+#+begin_src til
+hoisted__I64_35013 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_DXT1_RGBA
+#+begin_src til
+PIXELFORMAT_COMPRESSED_DXT1_RGBA is a I32
+#+end_src
+
+* hoisted__I64_35014
+#+begin_src til
+hoisted__I64_35014 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_DXT3_RGBA
+#+begin_src til
+PIXELFORMAT_COMPRESSED_DXT3_RGBA is a I32
+#+end_src
+
+* hoisted__I64_35015
+#+begin_src til
+hoisted__I64_35015 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_DXT5_RGBA
+#+begin_src til
+PIXELFORMAT_COMPRESSED_DXT5_RGBA is a I32
+#+end_src
+
+* hoisted__I64_35016
+#+begin_src til
+hoisted__I64_35016 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_ETC1_RGB
+#+begin_src til
+PIXELFORMAT_COMPRESSED_ETC1_RGB is a I32
+#+end_src
+
+* hoisted__I64_35017
+#+begin_src til
+hoisted__I64_35017 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_ETC2_RGB
+#+begin_src til
+PIXELFORMAT_COMPRESSED_ETC2_RGB is a I32
+#+end_src
+
+* hoisted__I64_35018
+#+begin_src til
+hoisted__I64_35018 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA
+#+begin_src til
+PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA is a I32
+#+end_src
+
+* hoisted__I64_35019
+#+begin_src til
+hoisted__I64_35019 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_PVRT_RGB
+#+begin_src til
+PIXELFORMAT_COMPRESSED_PVRT_RGB is a I32
+#+end_src
+
+* hoisted__I64_35020
+#+begin_src til
+hoisted__I64_35020 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_PVRT_RGBA
+#+begin_src til
+PIXELFORMAT_COMPRESSED_PVRT_RGBA is a I32
+#+end_src
+
+* hoisted__I64_35021
+#+begin_src til
+hoisted__I64_35021 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA
+#+begin_src til
+PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA is a I32
+#+end_src
+
+* hoisted__I64_35022
+#+begin_src til
+hoisted__I64_35022 is a I64
+#+end_src
+
+* PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA
+#+begin_src til
+PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA is a I32
+#+end_src
+
+* TextureFilter
+#+begin_src til
+TextureFilter is a I32
+#+end_src
+
+* hoisted__I64_35023
+#+begin_src til
+hoisted__I64_35023 is a I64
+#+end_src
+
+* TEXTURE_FILTER_POINT
+#+begin_src til
+TEXTURE_FILTER_POINT is a I32
+#+end_src
+
+* hoisted__I64_35024
+#+begin_src til
+hoisted__I64_35024 is a I64
+#+end_src
+
+* TEXTURE_FILTER_BILINEAR
+#+begin_src til
+TEXTURE_FILTER_BILINEAR is a I32
+#+end_src
+
+* hoisted__I64_35025
+#+begin_src til
+hoisted__I64_35025 is a I64
+#+end_src
+
+* TEXTURE_FILTER_TRILINEAR
+#+begin_src til
+TEXTURE_FILTER_TRILINEAR is a I32
+#+end_src
+
+* hoisted__I64_35026
+#+begin_src til
+hoisted__I64_35026 is a I64
+#+end_src
+
+* TEXTURE_FILTER_ANISOTROPIC_4X
+#+begin_src til
+TEXTURE_FILTER_ANISOTROPIC_4X is a I32
+#+end_src
+
+* hoisted__I64_35027
+#+begin_src til
+hoisted__I64_35027 is a I64
+#+end_src
+
+* TEXTURE_FILTER_ANISOTROPIC_8X
+#+begin_src til
+TEXTURE_FILTER_ANISOTROPIC_8X is a I32
+#+end_src
+
+* hoisted__I64_35028
+#+begin_src til
+hoisted__I64_35028 is a I64
+#+end_src
+
+* TEXTURE_FILTER_ANISOTROPIC_16X
+#+begin_src til
+TEXTURE_FILTER_ANISOTROPIC_16X is a I32
+#+end_src
+
+* TextureWrap
+#+begin_src til
+TextureWrap is a I32
+#+end_src
+
+* hoisted__I64_35029
+#+begin_src til
+hoisted__I64_35029 is a I64
+#+end_src
+
+* TEXTURE_WRAP_REPEAT
+#+begin_src til
+TEXTURE_WRAP_REPEAT is a I32
+#+end_src
+
+* hoisted__I64_35030
+#+begin_src til
+hoisted__I64_35030 is a I64
+#+end_src
+
+* TEXTURE_WRAP_CLAMP
+#+begin_src til
+TEXTURE_WRAP_CLAMP is a I32
+#+end_src
+
+* hoisted__I64_35031
+#+begin_src til
+hoisted__I64_35031 is a I64
+#+end_src
+
+* TEXTURE_WRAP_MIRROR_REPEAT
+#+begin_src til
+TEXTURE_WRAP_MIRROR_REPEAT is a I32
+#+end_src
+
+* hoisted__I64_35032
+#+begin_src til
+hoisted__I64_35032 is a I64
+#+end_src
+
+* TEXTURE_WRAP_MIRROR_CLAMP
+#+begin_src til
+TEXTURE_WRAP_MIRROR_CLAMP is a I32
+#+end_src
+
+* CubemapLayout
+#+begin_src til
+CubemapLayout is a I32
+#+end_src
+
+* hoisted__I64_35033
+#+begin_src til
+hoisted__I64_35033 is a I64
+#+end_src
+
+* CUBEMAP_LAYOUT_AUTO_DETECT
+#+begin_src til
+CUBEMAP_LAYOUT_AUTO_DETECT is a I32
+#+end_src
+
+* hoisted__I64_35034
+#+begin_src til
+hoisted__I64_35034 is a I64
+#+end_src
+
+* CUBEMAP_LAYOUT_LINE_VERTICAL
+#+begin_src til
+CUBEMAP_LAYOUT_LINE_VERTICAL is a I32
+#+end_src
+
+* hoisted__I64_35035
+#+begin_src til
+hoisted__I64_35035 is a I64
+#+end_src
+
+* CUBEMAP_LAYOUT_LINE_HORIZONTAL
+#+begin_src til
+CUBEMAP_LAYOUT_LINE_HORIZONTAL is a I32
+#+end_src
+
+* hoisted__I64_35036
+#+begin_src til
+hoisted__I64_35036 is a I64
+#+end_src
+
+* CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR
+#+begin_src til
+CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR is a I32
+#+end_src
+
+* hoisted__I64_35037
+#+begin_src til
+hoisted__I64_35037 is a I64
+#+end_src
+
+* CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE
+#+begin_src til
+CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE is a I32
+#+end_src
+
+* FontType
+#+begin_src til
+FontType is a I32
+#+end_src
+
+* hoisted__I64_35038
+#+begin_src til
+hoisted__I64_35038 is a I64
+#+end_src
+
+* FONT_DEFAULT
+#+begin_src til
+FONT_DEFAULT is a I32
+#+end_src
+
+* hoisted__I64_35039
+#+begin_src til
+hoisted__I64_35039 is a I64
+#+end_src
+
+* FONT_BITMAP
+#+begin_src til
+FONT_BITMAP is a I32
+#+end_src
+
+* hoisted__I64_35040
+#+begin_src til
+hoisted__I64_35040 is a I64
+#+end_src
+
+* FONT_SDF
+#+begin_src til
+FONT_SDF is a I32
+#+end_src
+
+* BlendMode
+#+begin_src til
+BlendMode is a I32
+#+end_src
+
+* hoisted__I64_35041
+#+begin_src til
+hoisted__I64_35041 is a I64
+#+end_src
+
+* BLEND_ALPHA
+#+begin_src til
+BLEND_ALPHA is a I32
+#+end_src
+
+* hoisted__I64_35042
+#+begin_src til
+hoisted__I64_35042 is a I64
+#+end_src
+
+* BLEND_ADDITIVE
+#+begin_src til
+BLEND_ADDITIVE is a I32
+#+end_src
+
+* hoisted__I64_35043
+#+begin_src til
+hoisted__I64_35043 is a I64
+#+end_src
+
+* BLEND_MULTIPLIED
+#+begin_src til
+BLEND_MULTIPLIED is a I32
+#+end_src
+
+* hoisted__I64_35044
+#+begin_src til
+hoisted__I64_35044 is a I64
+#+end_src
+
+* BLEND_ADD_COLORS
+#+begin_src til
+BLEND_ADD_COLORS is a I32
+#+end_src
+
+* hoisted__I64_35045
+#+begin_src til
+hoisted__I64_35045 is a I64
+#+end_src
+
+* BLEND_SUBTRACT_COLORS
+#+begin_src til
+BLEND_SUBTRACT_COLORS is a I32
+#+end_src
+
+* hoisted__I64_35046
+#+begin_src til
+hoisted__I64_35046 is a I64
+#+end_src
+
+* BLEND_ALPHA_PREMULTIPLY
+#+begin_src til
+BLEND_ALPHA_PREMULTIPLY is a I32
+#+end_src
+
+* hoisted__I64_35047
+#+begin_src til
+hoisted__I64_35047 is a I64
+#+end_src
+
+* BLEND_CUSTOM
+#+begin_src til
+BLEND_CUSTOM is a I32
+#+end_src
+
+* hoisted__I64_35048
+#+begin_src til
+hoisted__I64_35048 is a I64
+#+end_src
+
+* BLEND_CUSTOM_SEPARATE
+#+begin_src til
+BLEND_CUSTOM_SEPARATE is a I32
+#+end_src
+
+* Gesture
+#+begin_src til
+Gesture is a I32
+#+end_src
+
+* hoisted__I64_35049
+#+begin_src til
+hoisted__I64_35049 is a I64
+#+end_src
+
+* GESTURE_NONE
+#+begin_src til
+GESTURE_NONE is a I32
+#+end_src
+
+* hoisted__I64_35050
+#+begin_src til
+hoisted__I64_35050 is a I64
+#+end_src
+
+* GESTURE_TAP
+#+begin_src til
+GESTURE_TAP is a I32
+#+end_src
+
+* hoisted__I64_35051
+#+begin_src til
+hoisted__I64_35051 is a I64
+#+end_src
+
+* GESTURE_DOUBLETAP
+#+begin_src til
+GESTURE_DOUBLETAP is a I32
+#+end_src
+
+* hoisted__I64_35052
+#+begin_src til
+hoisted__I64_35052 is a I64
+#+end_src
+
+* GESTURE_HOLD
+#+begin_src til
+GESTURE_HOLD is a I32
+#+end_src
+
+* hoisted__I64_35053
+#+begin_src til
+hoisted__I64_35053 is a I64
+#+end_src
+
+* GESTURE_DRAG
+#+begin_src til
+GESTURE_DRAG is a I32
+#+end_src
+
+* hoisted__I64_35054
+#+begin_src til
+hoisted__I64_35054 is a I64
+#+end_src
+
+* GESTURE_SWIPE_RIGHT
+#+begin_src til
+GESTURE_SWIPE_RIGHT is a I32
+#+end_src
+
+* hoisted__I64_35055
+#+begin_src til
+hoisted__I64_35055 is a I64
+#+end_src
+
+* GESTURE_SWIPE_LEFT
+#+begin_src til
+GESTURE_SWIPE_LEFT is a I32
+#+end_src
+
+* hoisted__I64_35056
+#+begin_src til
+hoisted__I64_35056 is a I64
+#+end_src
+
+* GESTURE_SWIPE_UP
+#+begin_src til
+GESTURE_SWIPE_UP is a I32
+#+end_src
+
+* hoisted__I64_35057
+#+begin_src til
+hoisted__I64_35057 is a I64
+#+end_src
+
+* GESTURE_SWIPE_DOWN
+#+begin_src til
+GESTURE_SWIPE_DOWN is a I32
+#+end_src
+
+* hoisted__I64_35058
+#+begin_src til
+hoisted__I64_35058 is a I64
+#+end_src
+
+* GESTURE_PINCH_IN
+#+begin_src til
+GESTURE_PINCH_IN is a I32
+#+end_src
+
+* hoisted__I64_35059
+#+begin_src til
+hoisted__I64_35059 is a I64
+#+end_src
+
+* GESTURE_PINCH_OUT
+#+begin_src til
+GESTURE_PINCH_OUT is a I32
+#+end_src
+
+* CameraMode
+#+begin_src til
+CameraMode is a I32
+#+end_src
+
+* hoisted__I64_35060
+#+begin_src til
+hoisted__I64_35060 is a I64
+#+end_src
+
+* CAMERA_CUSTOM
+#+begin_src til
+CAMERA_CUSTOM is a I32
+#+end_src
+
+* hoisted__I64_35061
+#+begin_src til
+hoisted__I64_35061 is a I64
+#+end_src
+
+* CAMERA_FREE
+#+begin_src til
+CAMERA_FREE is a I32
+#+end_src
+
+* hoisted__I64_35062
+#+begin_src til
+hoisted__I64_35062 is a I64
+#+end_src
+
+* CAMERA_ORBITAL
+#+begin_src til
+CAMERA_ORBITAL is a I32
+#+end_src
+
+* hoisted__I64_35063
+#+begin_src til
+hoisted__I64_35063 is a I64
+#+end_src
+
+* CAMERA_FIRST_PERSON
+#+begin_src til
+CAMERA_FIRST_PERSON is a I32
+#+end_src
+
+* hoisted__I64_35064
+#+begin_src til
+hoisted__I64_35064 is a I64
+#+end_src
+
+* CAMERA_THIRD_PERSON
+#+begin_src til
+CAMERA_THIRD_PERSON is a I32
+#+end_src
+
+* CameraProjection
+#+begin_src til
+CameraProjection is a I32
+#+end_src
+
+* hoisted__I64_35065
+#+begin_src til
+hoisted__I64_35065 is a I64
+#+end_src
+
+* CAMERA_PERSPECTIVE
+#+begin_src til
+CAMERA_PERSPECTIVE is a I32
+#+end_src
+
+* hoisted__I64_35066
+#+begin_src til
+hoisted__I64_35066 is a I64
+#+end_src
+
+* CAMERA_ORTHOGRAPHIC
+#+begin_src til
+CAMERA_ORTHOGRAPHIC is a I32
+#+end_src
+
+* NPatchLayout
+#+begin_src til
+NPatchLayout is a I32
+#+end_src
+
+* hoisted__I64_35067
+#+begin_src til
+hoisted__I64_35067 is a I64
+#+end_src
+
+* NPATCH_NINE_PATCH
+#+begin_src til
+NPATCH_NINE_PATCH is a I32
+#+end_src
+
+* hoisted__I64_35068
+#+begin_src til
+hoisted__I64_35068 is a I64
+#+end_src
+
+* NPATCH_THREE_PATCH_VERTICAL
+#+begin_src til
+NPATCH_THREE_PATCH_VERTICAL is a I32
+#+end_src
+
+* hoisted__I64_35069
+#+begin_src til
+hoisted__I64_35069 is a I64
+#+end_src
+
+* NPATCH_THREE_PATCH_HORIZONTAL
+#+begin_src til
+NPATCH_THREE_PATCH_HORIZONTAL is a I32
+#+end_src
+
+* TraceLogCallback
+#+begin_src til
+TraceLogCallback is a Dynamic
+#+end_src
+
+* LoadFileDataCallback
+#+begin_src til
+LoadFileDataCallback is a Dynamic
+#+end_src
+
+* SaveFileDataCallback
+#+begin_src til
+SaveFileDataCallback is a Dynamic
+#+end_src
+
+* LoadFileTextCallback
+#+begin_src til
+LoadFileTextCallback is a Dynamic
+#+end_src
+
+* SaveFileTextCallback
+#+begin_src til
+SaveFileTextCallback is a Dynamic
+#+end_src
+
+* InitWindow
+#+begin_src til
+ext_proc InitWindow(shallow width: I32, shallow height: I32, title: I8)
+#+end_src
+
+* CloseWindow
+#+begin_src til
+ext_proc CloseWindow()
+#+end_src
+
+* WindowShouldClose
+#+begin_src til
+ext_func WindowShouldClose() returns shallow Bool
+#+end_src
+
+* IsWindowReady
+#+begin_src til
+ext_func IsWindowReady() returns shallow Bool
+#+end_src
+
+* IsWindowFullscreen
+#+begin_src til
+ext_func IsWindowFullscreen() returns shallow Bool
+#+end_src
+
+* IsWindowHidden
+#+begin_src til
+ext_func IsWindowHidden() returns shallow Bool
+#+end_src
+
+* IsWindowMinimized
+#+begin_src til
+ext_func IsWindowMinimized() returns shallow Bool
+#+end_src
+
+* IsWindowMaximized
+#+begin_src til
+ext_func IsWindowMaximized() returns shallow Bool
+#+end_src
+
+* IsWindowFocused
+#+begin_src til
+ext_func IsWindowFocused() returns shallow Bool
+#+end_src
+
+* IsWindowResized
+#+begin_src til
+ext_func IsWindowResized() returns shallow Bool
+#+end_src
+
+* IsWindowState
+#+begin_src til
+ext_func IsWindowState(shallow flag: U32) returns shallow Bool
+#+end_src
+
+* SetWindowState
+#+begin_src til
+ext_proc SetWindowState(shallow flags: U32)
+#+end_src
+
+* ClearWindowState
+#+begin_src til
+ext_proc ClearWindowState(shallow flags: U32)
+#+end_src
+
+* ToggleFullscreen
+#+begin_src til
+ext_proc ToggleFullscreen()
+#+end_src
+
+* ToggleBorderlessWindowed
+#+begin_src til
+ext_proc ToggleBorderlessWindowed()
+#+end_src
+
+* MaximizeWindow
+#+begin_src til
+ext_proc MaximizeWindow()
+#+end_src
+
+* MinimizeWindow
+#+begin_src til
+ext_proc MinimizeWindow()
+#+end_src
+
+* RestoreWindow
+#+begin_src til
+ext_proc RestoreWindow()
+#+end_src
+
+* SetWindowIcon
+#+begin_src til
+ext_proc SetWindowIcon(shallow image: Image)
+#+end_src
+
+* SetWindowIcons
+#+begin_src til
+ext_proc SetWindowIcons(images: Image, shallow count: I32)
+#+end_src
+
+* SetWindowTitle
+#+begin_src til
+ext_proc SetWindowTitle(title: I8)
+#+end_src
+
+* SetWindowPosition
+#+begin_src til
+ext_proc SetWindowPosition(shallow x: I32, shallow y: I32)
+#+end_src
+
+* SetWindowMonitor
+#+begin_src til
+ext_proc SetWindowMonitor(shallow monitor: I32)
+#+end_src
+
+* SetWindowMinSize
+#+begin_src til
+ext_proc SetWindowMinSize(shallow width: I32, shallow height: I32)
+#+end_src
+
+* SetWindowMaxSize
+#+begin_src til
+ext_proc SetWindowMaxSize(shallow width: I32, shallow height: I32)
+#+end_src
+
+* SetWindowSize
+#+begin_src til
+ext_proc SetWindowSize(shallow width: I32, shallow height: I32)
+#+end_src
+
+* SetWindowOpacity
+#+begin_src til
+ext_proc SetWindowOpacity(shallow opacity: F32)
+#+end_src
+
+* SetWindowFocused
+#+begin_src til
+ext_proc SetWindowFocused()
+#+end_src
+
+* GetWindowHandle
+#+begin_src til
+ext_func GetWindowHandle() returns Dynamic
+#+end_src
+
+* GetScreenWidth
+#+begin_src til
+ext_func GetScreenWidth() returns shallow I32
+#+end_src
+
+* GetScreenHeight
+#+begin_src til
+ext_func GetScreenHeight() returns shallow I32
+#+end_src
+
+* GetRenderWidth
+#+begin_src til
+ext_func GetRenderWidth() returns shallow I32
+#+end_src
+
+* GetRenderHeight
+#+begin_src til
+ext_func GetRenderHeight() returns shallow I32
+#+end_src
+
+* GetMonitorCount
+#+begin_src til
+ext_func GetMonitorCount() returns shallow I32
+#+end_src
+
+* GetCurrentMonitor
+#+begin_src til
+ext_func GetCurrentMonitor() returns shallow I32
+#+end_src
+
+* GetMonitorPosition
+#+begin_src til
+ext_func GetMonitorPosition(shallow monitor: I32) returns shallow Vector2
+#+end_src
+
+* GetMonitorWidth
+#+begin_src til
+ext_func GetMonitorWidth(shallow monitor: I32) returns shallow I32
+#+end_src
+
+* GetMonitorHeight
+#+begin_src til
+ext_func GetMonitorHeight(shallow monitor: I32) returns shallow I32
+#+end_src
+
+* GetMonitorPhysicalWidth
+#+begin_src til
+ext_func GetMonitorPhysicalWidth(shallow monitor: I32) returns shallow I32
+#+end_src
+
+* GetMonitorPhysicalHeight
+#+begin_src til
+ext_func GetMonitorPhysicalHeight(shallow monitor: I32) returns shallow I32
+#+end_src
+
+* GetMonitorRefreshRate
+#+begin_src til
+ext_func GetMonitorRefreshRate(shallow monitor: I32) returns shallow I32
+#+end_src
+
+* GetWindowPosition
+#+begin_src til
+ext_func GetWindowPosition() returns shallow Vector2
+#+end_src
+
+* GetWindowScaleDPI
+#+begin_src til
+ext_func GetWindowScaleDPI() returns shallow Vector2
+#+end_src
+
+* GetMonitorName
+#+begin_src til
+ext_func GetMonitorName(shallow monitor: I32) returns ref I8
+#+end_src
+
+* SetClipboardText
+#+begin_src til
+ext_proc SetClipboardText(text: I8)
+#+end_src
+
+* GetClipboardText
+#+begin_src til
+ext_func GetClipboardText() returns ref I8
+#+end_src
+
+* GetClipboardImage
+#+begin_src til
+ext_func GetClipboardImage() returns shallow Image
+#+end_src
+
+* EnableEventWaiting
+#+begin_src til
+ext_proc EnableEventWaiting()
+#+end_src
+
+* DisableEventWaiting
+#+begin_src til
+ext_proc DisableEventWaiting()
+#+end_src
+
+* ShowCursor
+#+begin_src til
+ext_proc ShowCursor()
+#+end_src
+
+* HideCursor
+#+begin_src til
+ext_proc HideCursor()
+#+end_src
+
+* IsCursorHidden
+#+begin_src til
+ext_func IsCursorHidden() returns shallow Bool
+#+end_src
+
+* EnableCursor
+#+begin_src til
+ext_proc EnableCursor()
+#+end_src
+
+* DisableCursor
+#+begin_src til
+ext_proc DisableCursor()
+#+end_src
+
+* IsCursorOnScreen
+#+begin_src til
+ext_func IsCursorOnScreen() returns shallow Bool
+#+end_src
+
+* ClearBackground
+#+begin_src til
+ext_proc ClearBackground(shallow color: Color)
+#+end_src
+
+* BeginDrawing
+#+begin_src til
+ext_proc BeginDrawing()
+#+end_src
+
+* EndDrawing
+#+begin_src til
+ext_proc EndDrawing()
+#+end_src
+
+* BeginMode2D
+#+begin_src til
+ext_proc BeginMode2D(shallow camera: Camera2D)
+#+end_src
+
+* EndMode2D
+#+begin_src til
+ext_proc EndMode2D()
+#+end_src
+
 * BeginMode3D
 #+begin_src til
 ext_proc BeginMode3D(shallow camera: Camera3D)
@@ -312,39 +4028,669 @@ ext_proc BeginMode3D(shallow camera: Camera3D)
 ext_proc EndMode3D()
 #+end_src
 
-* DrawCube
+* BeginTextureMode
 #+begin_src til
-ext_proc DrawCube(shallow position: Vector3, shallow w: F32, shallow h: F32, shallow l: F32, shallow color: U32)
+ext_proc BeginTextureMode(shallow target: RenderTexture)
 #+end_src
 
-* DrawCubeV
+* EndTextureMode
 #+begin_src til
-ext_proc DrawCubeV(shallow position: Vector3, shallow size: Vector3, shallow color: U32)
+ext_proc EndTextureMode()
 #+end_src
 
-* DrawCubeWires
+* BeginShaderMode
 #+begin_src til
-ext_proc DrawCubeWires(shallow position: Vector3, shallow w: F32, shallow h: F32, shallow l: F32, shallow color: U32)
+ext_proc BeginShaderMode(shallow shader: Shader)
 #+end_src
 
-* DrawCubeWiresV
+* EndShaderMode
 #+begin_src til
-ext_proc DrawCubeWiresV(shallow position: Vector3, shallow size: Vector3, shallow color: U32)
+ext_proc EndShaderMode()
 #+end_src
 
-* DrawPlane
+* BeginBlendMode
 #+begin_src til
-ext_proc DrawPlane(shallow center: Vector3, shallow size: Vector2, shallow color: U32)
+ext_proc BeginBlendMode(shallow mode: I32)
 #+end_src
 
-* DisableCursor
+* EndBlendMode
 #+begin_src til
-ext_proc DisableCursor()
+ext_proc EndBlendMode()
 #+end_src
 
-* EnableCursor
+* BeginScissorMode
 #+begin_src til
-ext_proc EnableCursor()
+ext_proc BeginScissorMode(shallow x: I32, shallow y: I32, shallow width: I32, shallow height: I32)
+#+end_src
+
+* EndScissorMode
+#+begin_src til
+ext_proc EndScissorMode()
+#+end_src
+
+* BeginVrStereoMode
+#+begin_src til
+ext_proc BeginVrStereoMode(shallow config: VrStereoConfig)
+#+end_src
+
+* EndVrStereoMode
+#+begin_src til
+ext_proc EndVrStereoMode()
+#+end_src
+
+* LoadVrStereoConfig
+#+begin_src til
+ext_func LoadVrStereoConfig(shallow device: VrDeviceInfo) returns shallow VrStereoConfig
+#+end_src
+
+* UnloadVrStereoConfig
+#+begin_src til
+ext_proc UnloadVrStereoConfig(shallow config: VrStereoConfig)
+#+end_src
+
+* LoadShader
+#+begin_src til
+ext_func LoadShader(vsFileName: I8, fsFileName: I8) returns shallow Shader
+#+end_src
+
+* LoadShaderFromMemory
+#+begin_src til
+ext_func LoadShaderFromMemory(vsCode: I8, fsCode: I8) returns shallow Shader
+#+end_src
+
+* IsShaderValid
+#+begin_src til
+ext_func IsShaderValid(shallow shader: Shader) returns shallow Bool
+#+end_src
+
+* GetShaderLocation
+#+begin_src til
+ext_func GetShaderLocation(shallow shader: Shader, uniformName: I8) returns shallow I32
+#+end_src
+
+* GetShaderLocationAttrib
+#+begin_src til
+ext_func GetShaderLocationAttrib(shallow shader: Shader, attribName: I8) returns shallow I32
+#+end_src
+
+* SetShaderValue
+#+begin_src til
+ext_proc SetShaderValue(shallow shader: Shader, shallow locIndex: I32, value: Dynamic, shallow uniformType: I32)
+#+end_src
+
+* SetShaderValueV
+#+begin_src til
+ext_proc SetShaderValueV(shallow shader: Shader, shallow locIndex: I32, value: Dynamic, shallow uniformType: I32, shallow count: I32)
+#+end_src
+
+* SetShaderValueMatrix
+#+begin_src til
+ext_proc SetShaderValueMatrix(shallow shader: Shader, shallow locIndex: I32, shallow mat: Matrix)
+#+end_src
+
+* SetShaderValueTexture
+#+begin_src til
+ext_proc SetShaderValueTexture(shallow shader: Shader, shallow locIndex: I32, shallow texture: Texture)
+#+end_src
+
+* UnloadShader
+#+begin_src til
+ext_proc UnloadShader(shallow shader: Shader)
+#+end_src
+
+* GetScreenToWorldRay
+#+begin_src til
+ext_func GetScreenToWorldRay(shallow position: Vector2, shallow camera: Camera3D) returns shallow Ray
+#+end_src
+
+* GetScreenToWorldRayEx
+#+begin_src til
+ext_func GetScreenToWorldRayEx(shallow position: Vector2, shallow camera: Camera3D, shallow width: I32, shallow height: I32) returns shallow Ray
+#+end_src
+
+* GetWorldToScreen
+#+begin_src til
+ext_func GetWorldToScreen(shallow position: Vector3, shallow camera: Camera3D) returns shallow Vector2
+#+end_src
+
+* GetWorldToScreenEx
+#+begin_src til
+ext_func GetWorldToScreenEx(shallow position: Vector3, shallow camera: Camera3D, shallow width: I32, shallow height: I32) returns shallow Vector2
+#+end_src
+
+* GetWorldToScreen2D
+#+begin_src til
+ext_func GetWorldToScreen2D(shallow position: Vector2, shallow camera: Camera2D) returns shallow Vector2
+#+end_src
+
+* GetScreenToWorld2D
+#+begin_src til
+ext_func GetScreenToWorld2D(shallow position: Vector2, shallow camera: Camera2D) returns shallow Vector2
+#+end_src
+
+* GetCameraMatrix
+#+begin_src til
+ext_func GetCameraMatrix(shallow camera: Camera3D) returns shallow Matrix
+#+end_src
+
+* GetCameraMatrix2D
+#+begin_src til
+ext_func GetCameraMatrix2D(shallow camera: Camera2D) returns shallow Matrix
+#+end_src
+
+* SetTargetFPS
+#+begin_src til
+ext_proc SetTargetFPS(shallow fps: I32)
+#+end_src
+
+* GetFrameTime
+#+begin_src til
+ext_func GetFrameTime() returns shallow F32
+#+end_src
+
+* GetTime
+#+begin_src til
+ext_func GetTime() returns shallow F32
+#+end_src
+
+* GetFPS
+#+begin_src til
+ext_func GetFPS() returns shallow I32
+#+end_src
+
+* SwapScreenBuffer
+#+begin_src til
+ext_proc SwapScreenBuffer()
+#+end_src
+
+* PollInputEvents
+#+begin_src til
+ext_proc PollInputEvents()
+#+end_src
+
+* WaitTime
+#+begin_src til
+ext_proc WaitTime(shallow seconds: F32)
+#+end_src
+
+* SetRandomSeed
+#+begin_src til
+ext_proc SetRandomSeed(shallow seed: U32)
+#+end_src
+
+* GetRandomValue
+#+begin_src til
+ext_func GetRandomValue(shallow min: I32, shallow max: I32) returns shallow I32
+#+end_src
+
+* LoadRandomSequence
+#+begin_src til
+ext_func LoadRandomSequence(shallow count: U32, shallow min: I32, shallow max: I32) returns ref I32
+#+end_src
+
+* UnloadRandomSequence
+#+begin_src til
+ext_proc UnloadRandomSequence(sequence: I32)
+#+end_src
+
+* TakeScreenshot
+#+begin_src til
+ext_proc TakeScreenshot(fileName: I8)
+#+end_src
+
+* SetConfigFlags
+#+begin_src til
+ext_proc SetConfigFlags(shallow flags: U32)
+#+end_src
+
+* OpenURL
+#+begin_src til
+ext_proc OpenURL(url: I8)
+#+end_src
+
+* SetTraceLogLevel
+#+begin_src til
+ext_proc SetTraceLogLevel(shallow logLevel: I32)
+#+end_src
+
+* SetTraceLogCallback
+#+begin_src til
+ext_proc SetTraceLogCallback(callback: Dynamic)
+#+end_src
+
+* MemAlloc
+#+begin_src til
+ext_func MemAlloc(shallow size: U32) returns Dynamic
+#+end_src
+
+* MemRealloc
+#+begin_src til
+ext_func MemRealloc(ptr: Dynamic, shallow size: U32) returns Dynamic
+#+end_src
+
+* MemFree
+#+begin_src til
+ext_proc MemFree(ptr: Dynamic)
+#+end_src
+
+* LoadFileData
+#+begin_src til
+ext_func LoadFileData(fileName: I8, dataSize: I32) returns ref I8
+#+end_src
+
+* UnloadFileData
+#+begin_src til
+ext_proc UnloadFileData(data: U8)
+#+end_src
+
+* SaveFileData
+#+begin_src til
+ext_func SaveFileData(fileName: I8, data: Dynamic, shallow dataSize: I32) returns shallow Bool
+#+end_src
+
+* ExportDataAsCode
+#+begin_src til
+ext_func ExportDataAsCode(data: U8, shallow dataSize: I32, fileName: I8) returns shallow Bool
+#+end_src
+
+* LoadFileText
+#+begin_src til
+ext_func LoadFileText(fileName: I8) returns ref I8
+#+end_src
+
+* UnloadFileText
+#+begin_src til
+ext_proc UnloadFileText(text: I8)
+#+end_src
+
+* SaveFileText
+#+begin_src til
+ext_func SaveFileText(fileName: I8, text: I8) returns shallow Bool
+#+end_src
+
+* SetLoadFileDataCallback
+#+begin_src til
+ext_proc SetLoadFileDataCallback(callback: Dynamic)
+#+end_src
+
+* SetSaveFileDataCallback
+#+begin_src til
+ext_proc SetSaveFileDataCallback(callback: Dynamic)
+#+end_src
+
+* SetLoadFileTextCallback
+#+begin_src til
+ext_proc SetLoadFileTextCallback(callback: Dynamic)
+#+end_src
+
+* SetSaveFileTextCallback
+#+begin_src til
+ext_proc SetSaveFileTextCallback(callback: Dynamic)
+#+end_src
+
+* FileRename
+#+begin_src til
+ext_func FileRename(fileName: I8, fileRename: I8) returns shallow I32
+#+end_src
+
+* FileRemove
+#+begin_src til
+ext_func FileRemove(fileName: I8) returns shallow I32
+#+end_src
+
+* FileCopy
+#+begin_src til
+ext_func FileCopy(srcPath: I8, dstPath: I8) returns shallow I32
+#+end_src
+
+* FileMove
+#+begin_src til
+ext_func FileMove(srcPath: I8, dstPath: I8) returns shallow I32
+#+end_src
+
+* FileTextReplace
+#+begin_src til
+ext_func FileTextReplace(fileName: I8, search: I8, replacement: I8) returns shallow I32
+#+end_src
+
+* FileTextFindIndex
+#+begin_src til
+ext_func FileTextFindIndex(fileName: I8, search: I8) returns shallow I32
+#+end_src
+
+* FileExists
+#+begin_src til
+ext_func FileExists(fileName: I8) returns shallow Bool
+#+end_src
+
+* DirectoryExists
+#+begin_src til
+ext_func DirectoryExists(dirPath: I8) returns shallow Bool
+#+end_src
+
+* IsFileExtension
+#+begin_src til
+ext_func IsFileExtension(fileName: I8, ext: I8) returns shallow Bool
+#+end_src
+
+* GetFileLength
+#+begin_src til
+ext_func GetFileLength(fileName: I8) returns shallow I32
+#+end_src
+
+* GetFileModTime
+#+begin_src til
+ext_func GetFileModTime(fileName: I8) returns shallow I64
+#+end_src
+
+* GetFileExtension
+#+begin_src til
+ext_func GetFileExtension(fileName: I8) returns ref I8
+#+end_src
+
+* GetFileName
+#+begin_src til
+ext_func GetFileName(filePath: I8) returns ref I8
+#+end_src
+
+* GetFileNameWithoutExt
+#+begin_src til
+ext_func GetFileNameWithoutExt(filePath: I8) returns ref I8
+#+end_src
+
+* GetDirectoryPath
+#+begin_src til
+ext_func GetDirectoryPath(filePath: I8) returns ref I8
+#+end_src
+
+* GetPrevDirectoryPath
+#+begin_src til
+ext_func GetPrevDirectoryPath(dirPath: I8) returns ref I8
+#+end_src
+
+* GetWorkingDirectory
+#+begin_src til
+ext_func GetWorkingDirectory() returns ref I8
+#+end_src
+
+* GetApplicationDirectory
+#+begin_src til
+ext_func GetApplicationDirectory() returns ref I8
+#+end_src
+
+* MakeDirectory
+#+begin_src til
+ext_func MakeDirectory(dirPath: I8) returns shallow I32
+#+end_src
+
+* ChangeDirectory
+#+begin_src til
+ext_func ChangeDirectory(dirPath: I8) returns shallow Bool
+#+end_src
+
+* IsPathFile
+#+begin_src til
+ext_func IsPathFile(path: I8) returns shallow Bool
+#+end_src
+
+* IsFileNameValid
+#+begin_src til
+ext_func IsFileNameValid(fileName: I8) returns shallow Bool
+#+end_src
+
+* LoadDirectoryFiles
+#+begin_src til
+ext_func LoadDirectoryFiles(dirPath: I8) returns shallow FilePathList
+#+end_src
+
+* LoadDirectoryFilesEx
+#+begin_src til
+ext_func LoadDirectoryFilesEx(basePath: I8, filter: I8, shallow scanSubdirs: Bool) returns shallow FilePathList
+#+end_src
+
+* UnloadDirectoryFiles
+#+begin_src til
+ext_proc UnloadDirectoryFiles(shallow files: FilePathList)
+#+end_src
+
+* IsFileDropped
+#+begin_src til
+ext_func IsFileDropped() returns shallow Bool
+#+end_src
+
+* LoadDroppedFiles
+#+begin_src til
+ext_func LoadDroppedFiles() returns shallow FilePathList
+#+end_src
+
+* UnloadDroppedFiles
+#+begin_src til
+ext_proc UnloadDroppedFiles(shallow files: FilePathList)
+#+end_src
+
+* GetDirectoryFileCount
+#+begin_src til
+ext_func GetDirectoryFileCount(dirPath: I8) returns shallow I32
+#+end_src
+
+* GetDirectoryFileCountEx
+#+begin_src til
+ext_func GetDirectoryFileCountEx(basePath: I8, filter: I8, shallow scanSubdirs: Bool) returns shallow I32
+#+end_src
+
+* CompressData
+#+begin_src til
+ext_func CompressData(data: U8, shallow dataSize: I32, compDataSize: I32) returns ref I8
+#+end_src
+
+* DecompressData
+#+begin_src til
+ext_func DecompressData(compData: U8, shallow compDataSize: I32, dataSize: I32) returns ref I8
+#+end_src
+
+* EncodeDataBase64
+#+begin_src til
+ext_func EncodeDataBase64(data: U8, shallow dataSize: I32, outputSize: I32) returns ref I8
+#+end_src
+
+* DecodeDataBase64
+#+begin_src til
+ext_func DecodeDataBase64(text: I8, outputSize: I32) returns ref I8
+#+end_src
+
+* ComputeCRC32
+#+begin_src til
+ext_func ComputeCRC32(data: U8, shallow dataSize: I32) returns shallow I32
+#+end_src
+
+* ComputeMD5
+#+begin_src til
+ext_func ComputeMD5(data: U8, shallow dataSize: I32) returns ref I32
+#+end_src
+
+* ComputeSHA1
+#+begin_src til
+ext_func ComputeSHA1(data: U8, shallow dataSize: I32) returns ref I32
+#+end_src
+
+* ComputeSHA256
+#+begin_src til
+ext_func ComputeSHA256(data: U8, shallow dataSize: I32) returns ref I32
+#+end_src
+
+* LoadAutomationEventList
+#+begin_src til
+ext_func LoadAutomationEventList(fileName: I8) returns shallow AutomationEventList
+#+end_src
+
+* UnloadAutomationEventList
+#+begin_src til
+ext_proc UnloadAutomationEventList(shallow list: AutomationEventList)
+#+end_src
+
+* ExportAutomationEventList
+#+begin_src til
+ext_func ExportAutomationEventList(shallow list: AutomationEventList, fileName: I8) returns shallow Bool
+#+end_src
+
+* SetAutomationEventList
+#+begin_src til
+ext_proc SetAutomationEventList(list: AutomationEventList)
+#+end_src
+
+* SetAutomationEventBaseFrame
+#+begin_src til
+ext_proc SetAutomationEventBaseFrame(shallow frame: I32)
+#+end_src
+
+* StartAutomationEventRecording
+#+begin_src til
+ext_proc StartAutomationEventRecording()
+#+end_src
+
+* StopAutomationEventRecording
+#+begin_src til
+ext_proc StopAutomationEventRecording()
+#+end_src
+
+* PlayAutomationEvent
+#+begin_src til
+ext_proc PlayAutomationEvent(shallow event: AutomationEvent)
+#+end_src
+
+* IsKeyPressed
+#+begin_src til
+ext_func IsKeyPressed(shallow key: I32) returns shallow Bool
+#+end_src
+
+* IsKeyPressedRepeat
+#+begin_src til
+ext_func IsKeyPressedRepeat(shallow key: I32) returns shallow Bool
+#+end_src
+
+* IsKeyDown
+#+begin_src til
+ext_func IsKeyDown(shallow key: I32) returns shallow Bool
+#+end_src
+
+* IsKeyReleased
+#+begin_src til
+ext_func IsKeyReleased(shallow key: I32) returns shallow Bool
+#+end_src
+
+* IsKeyUp
+#+begin_src til
+ext_func IsKeyUp(shallow key: I32) returns shallow Bool
+#+end_src
+
+* GetKeyPressed
+#+begin_src til
+ext_func GetKeyPressed() returns shallow I32
+#+end_src
+
+* GetCharPressed
+#+begin_src til
+ext_func GetCharPressed() returns shallow I32
+#+end_src
+
+* GetKeyName
+#+begin_src til
+ext_func GetKeyName(shallow key: I32) returns ref I8
+#+end_src
+
+* SetExitKey
+#+begin_src til
+ext_proc SetExitKey(shallow key: I32)
+#+end_src
+
+* IsGamepadAvailable
+#+begin_src til
+ext_func IsGamepadAvailable(shallow gamepad: I32) returns shallow Bool
+#+end_src
+
+* GetGamepadName
+#+begin_src til
+ext_func GetGamepadName(shallow gamepad: I32) returns ref I8
+#+end_src
+
+* IsGamepadButtonPressed
+#+begin_src til
+ext_func IsGamepadButtonPressed(shallow gamepad: I32, shallow button: I32) returns shallow Bool
+#+end_src
+
+* IsGamepadButtonDown
+#+begin_src til
+ext_func IsGamepadButtonDown(shallow gamepad: I32, shallow button: I32) returns shallow Bool
+#+end_src
+
+* IsGamepadButtonReleased
+#+begin_src til
+ext_func IsGamepadButtonReleased(shallow gamepad: I32, shallow button: I32) returns shallow Bool
+#+end_src
+
+* IsGamepadButtonUp
+#+begin_src til
+ext_func IsGamepadButtonUp(shallow gamepad: I32, shallow button: I32) returns shallow Bool
+#+end_src
+
+* GetGamepadButtonPressed
+#+begin_src til
+ext_func GetGamepadButtonPressed() returns shallow I32
+#+end_src
+
+* GetGamepadAxisCount
+#+begin_src til
+ext_func GetGamepadAxisCount(shallow gamepad: I32) returns shallow I32
+#+end_src
+
+* GetGamepadAxisMovement
+#+begin_src til
+ext_func GetGamepadAxisMovement(shallow gamepad: I32, shallow axis: I32) returns shallow F32
+#+end_src
+
+* SetGamepadMappings
+#+begin_src til
+ext_func SetGamepadMappings(mappings: I8) returns shallow I32
+#+end_src
+
+* SetGamepadVibration
+#+begin_src til
+ext_proc SetGamepadVibration(shallow gamepad: I32, shallow leftMotor: F32, shallow rightMotor: F32, shallow duration: F32)
+#+end_src
+
+* IsMouseButtonPressed
+#+begin_src til
+ext_func IsMouseButtonPressed(shallow button: I32) returns shallow Bool
+#+end_src
+
+* IsMouseButtonDown
+#+begin_src til
+ext_func IsMouseButtonDown(shallow button: I32) returns shallow Bool
+#+end_src
+
+* IsMouseButtonReleased
+#+begin_src til
+ext_func IsMouseButtonReleased(shallow button: I32) returns shallow Bool
+#+end_src
+
+* IsMouseButtonUp
+#+begin_src til
+ext_func IsMouseButtonUp(shallow button: I32) returns shallow Bool
+#+end_src
+
+* GetMouseX
+#+begin_src til
+ext_func GetMouseX() returns shallow I32
+#+end_src
+
+* GetMouseY
+#+begin_src til
+ext_func GetMouseY() returns shallow I32
+#+end_src
+
+* GetMousePosition
+#+begin_src til
+ext_func GetMousePosition() returns shallow Vector2
 #+end_src
 
 * GetMouseDelta
@@ -352,19 +4698,2034 @@ ext_proc EnableCursor()
 ext_func GetMouseDelta() returns shallow Vector2
 #+end_src
 
+* SetMousePosition
+#+begin_src til
+ext_proc SetMousePosition(shallow x: I32, shallow y: I32)
+#+end_src
+
+* SetMouseOffset
+#+begin_src til
+ext_proc SetMouseOffset(shallow offsetX: I32, shallow offsetY: I32)
+#+end_src
+
+* SetMouseScale
+#+begin_src til
+ext_proc SetMouseScale(shallow scaleX: F32, shallow scaleY: F32)
+#+end_src
+
+* GetMouseWheelMove
+#+begin_src til
+ext_func GetMouseWheelMove() returns shallow F32
+#+end_src
+
+* GetMouseWheelMoveV
+#+begin_src til
+ext_func GetMouseWheelMoveV() returns shallow Vector2
+#+end_src
+
+* SetMouseCursor
+#+begin_src til
+ext_proc SetMouseCursor(shallow cursor: I32)
+#+end_src
+
+* GetTouchX
+#+begin_src til
+ext_func GetTouchX() returns shallow I32
+#+end_src
+
+* GetTouchY
+#+begin_src til
+ext_func GetTouchY() returns shallow I32
+#+end_src
+
+* GetTouchPosition
+#+begin_src til
+ext_func GetTouchPosition(shallow index: I32) returns shallow Vector2
+#+end_src
+
+* GetTouchPointId
+#+begin_src til
+ext_func GetTouchPointId(shallow index: I32) returns shallow I32
+#+end_src
+
+* GetTouchPointCount
+#+begin_src til
+ext_func GetTouchPointCount() returns shallow I32
+#+end_src
+
+* SetGesturesEnabled
+#+begin_src til
+ext_proc SetGesturesEnabled(shallow flags: U32)
+#+end_src
+
+* IsGestureDetected
+#+begin_src til
+ext_func IsGestureDetected(shallow gesture: U32) returns shallow Bool
+#+end_src
+
+* GetGestureDetected
+#+begin_src til
+ext_func GetGestureDetected() returns shallow I32
+#+end_src
+
+* GetGestureHoldDuration
+#+begin_src til
+ext_func GetGestureHoldDuration() returns shallow F32
+#+end_src
+
+* GetGestureDragVector
+#+begin_src til
+ext_func GetGestureDragVector() returns shallow Vector2
+#+end_src
+
+* GetGestureDragAngle
+#+begin_src til
+ext_func GetGestureDragAngle() returns shallow F32
+#+end_src
+
+* GetGesturePinchVector
+#+begin_src til
+ext_func GetGesturePinchVector() returns shallow Vector2
+#+end_src
+
+* GetGesturePinchAngle
+#+begin_src til
+ext_func GetGesturePinchAngle() returns shallow F32
+#+end_src
+
+* UpdateCamera
+#+begin_src til
+ext_proc UpdateCamera(camera: Camera3D, shallow mode: I32)
+#+end_src
+
 * UpdateCameraPro
 #+begin_src til
 ext_proc UpdateCameraPro(camera: Camera3D, shallow movement: Vector3, shallow rotation: Vector3, shallow zoom: F32)
 #+end_src
 
-* CameraMoveForward
+* SetShapesTexture
 #+begin_src til
-ext_proc CameraMoveForward(camera: Camera3D, shallow distance: F32, shallow move_in_world_plane: Bool)
+ext_proc SetShapesTexture(shallow texture: Texture, shallow source: Rectangle)
 #+end_src
 
-* CameraMoveRight
+* GetShapesTexture
 #+begin_src til
-ext_proc CameraMoveRight(camera: Camera3D, shallow distance: F32, shallow move_in_world_plane: Bool)
+ext_func GetShapesTexture() returns shallow Texture
+#+end_src
+
+* GetShapesTextureRectangle
+#+begin_src til
+ext_func GetShapesTextureRectangle() returns shallow Rectangle
+#+end_src
+
+* DrawPixel
+#+begin_src til
+ext_proc DrawPixel(shallow posX: I32, shallow posY: I32, shallow color: Color)
+#+end_src
+
+* DrawPixelV
+#+begin_src til
+ext_proc DrawPixelV(shallow position: Vector2, shallow color: Color)
+#+end_src
+
+* DrawLine
+#+begin_src til
+ext_proc DrawLine(shallow startPosX: I32, shallow startPosY: I32, shallow endPosX: I32, shallow endPosY: I32, shallow color: Color)
+#+end_src
+
+* DrawLineV
+#+begin_src til
+ext_proc DrawLineV(shallow startPos: Vector2, shallow endPos: Vector2, shallow color: Color)
+#+end_src
+
+* DrawLineEx
+#+begin_src til
+ext_proc DrawLineEx(shallow startPos: Vector2, shallow endPos: Vector2, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawLineStrip
+#+begin_src til
+ext_proc DrawLineStrip(points: Vector2, shallow pointCount: I32, shallow color: Color)
+#+end_src
+
+* DrawLineBezier
+#+begin_src til
+ext_proc DrawLineBezier(shallow startPos: Vector2, shallow endPos: Vector2, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawLineDashed
+#+begin_src til
+ext_proc DrawLineDashed(shallow startPos: Vector2, shallow endPos: Vector2, shallow dashSize: I32, shallow spaceSize: I32, shallow color: Color)
+#+end_src
+
+* DrawCircle
+#+begin_src til
+ext_proc DrawCircle(shallow centerX: I32, shallow centerY: I32, shallow radius: F32, shallow color: Color)
+#+end_src
+
+* DrawCircleSector
+#+begin_src til
+ext_proc DrawCircleSector(shallow center: Vector2, shallow radius: F32, shallow startAngle: F32, shallow endAngle: F32, shallow segments: I32, shallow color: Color)
+#+end_src
+
+* DrawCircleSectorLines
+#+begin_src til
+ext_proc DrawCircleSectorLines(shallow center: Vector2, shallow radius: F32, shallow startAngle: F32, shallow endAngle: F32, shallow segments: I32, shallow color: Color)
+#+end_src
+
+* DrawCircleGradient
+#+begin_src til
+ext_proc DrawCircleGradient(shallow centerX: I32, shallow centerY: I32, shallow radius: F32, shallow inner: Color, shallow outer: Color)
+#+end_src
+
+* DrawCircleV
+#+begin_src til
+ext_proc DrawCircleV(shallow center: Vector2, shallow radius: F32, shallow color: Color)
+#+end_src
+
+* DrawCircleLines
+#+begin_src til
+ext_proc DrawCircleLines(shallow centerX: I32, shallow centerY: I32, shallow radius: F32, shallow color: Color)
+#+end_src
+
+* DrawCircleLinesV
+#+begin_src til
+ext_proc DrawCircleLinesV(shallow center: Vector2, shallow radius: F32, shallow color: Color)
+#+end_src
+
+* DrawEllipse
+#+begin_src til
+ext_proc DrawEllipse(shallow centerX: I32, shallow centerY: I32, shallow radiusH: F32, shallow radiusV: F32, shallow color: Color)
+#+end_src
+
+* DrawEllipseV
+#+begin_src til
+ext_proc DrawEllipseV(shallow center: Vector2, shallow radiusH: F32, shallow radiusV: F32, shallow color: Color)
+#+end_src
+
+* DrawEllipseLines
+#+begin_src til
+ext_proc DrawEllipseLines(shallow centerX: I32, shallow centerY: I32, shallow radiusH: F32, shallow radiusV: F32, shallow color: Color)
+#+end_src
+
+* DrawEllipseLinesV
+#+begin_src til
+ext_proc DrawEllipseLinesV(shallow center: Vector2, shallow radiusH: F32, shallow radiusV: F32, shallow color: Color)
+#+end_src
+
+* DrawRing
+#+begin_src til
+ext_proc DrawRing(shallow center: Vector2, shallow innerRadius: F32, shallow outerRadius: F32, shallow startAngle: F32, shallow endAngle: F32, shallow segments: I32, shallow color: Color)
+#+end_src
+
+* DrawRingLines
+#+begin_src til
+ext_proc DrawRingLines(shallow center: Vector2, shallow innerRadius: F32, shallow outerRadius: F32, shallow startAngle: F32, shallow endAngle: F32, shallow segments: I32, shallow color: Color)
+#+end_src
+
+* DrawRectangle
+#+begin_src til
+ext_proc DrawRectangle(shallow posX: I32, shallow posY: I32, shallow width: I32, shallow height: I32, shallow color: Color)
+#+end_src
+
+* DrawRectangleV
+#+begin_src til
+ext_proc DrawRectangleV(shallow position: Vector2, shallow size: Vector2, shallow color: Color)
+#+end_src
+
+* DrawRectangleRec
+#+begin_src til
+ext_proc DrawRectangleRec(shallow rec: Rectangle, shallow color: Color)
+#+end_src
+
+* DrawRectanglePro
+#+begin_src til
+ext_proc DrawRectanglePro(shallow rec: Rectangle, shallow origin: Vector2, shallow rotation: F32, shallow color: Color)
+#+end_src
+
+* DrawRectangleGradientV
+#+begin_src til
+ext_proc DrawRectangleGradientV(shallow posX: I32, shallow posY: I32, shallow width: I32, shallow height: I32, shallow top: Color, shallow bottom: Color)
+#+end_src
+
+* DrawRectangleGradientH
+#+begin_src til
+ext_proc DrawRectangleGradientH(shallow posX: I32, shallow posY: I32, shallow width: I32, shallow height: I32, shallow left: Color, shallow right: Color)
+#+end_src
+
+* DrawRectangleGradientEx
+#+begin_src til
+ext_proc DrawRectangleGradientEx(shallow rec: Rectangle, shallow topLeft: Color, shallow bottomLeft: Color, shallow bottomRight: Color, shallow topRight: Color)
+#+end_src
+
+* DrawRectangleLines
+#+begin_src til
+ext_proc DrawRectangleLines(shallow posX: I32, shallow posY: I32, shallow width: I32, shallow height: I32, shallow color: Color)
+#+end_src
+
+* DrawRectangleLinesEx
+#+begin_src til
+ext_proc DrawRectangleLinesEx(shallow rec: Rectangle, shallow lineThick: F32, shallow color: Color)
+#+end_src
+
+* DrawRectangleRounded
+#+begin_src til
+ext_proc DrawRectangleRounded(shallow rec: Rectangle, shallow roundness: F32, shallow segments: I32, shallow color: Color)
+#+end_src
+
+* DrawRectangleRoundedLines
+#+begin_src til
+ext_proc DrawRectangleRoundedLines(shallow rec: Rectangle, shallow roundness: F32, shallow segments: I32, shallow color: Color)
+#+end_src
+
+* DrawRectangleRoundedLinesEx
+#+begin_src til
+ext_proc DrawRectangleRoundedLinesEx(shallow rec: Rectangle, shallow roundness: F32, shallow segments: I32, shallow lineThick: F32, shallow color: Color)
+#+end_src
+
+* DrawTriangle
+#+begin_src til
+ext_proc DrawTriangle(shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow color: Color)
+#+end_src
+
+* DrawTriangleLines
+#+begin_src til
+ext_proc DrawTriangleLines(shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow color: Color)
+#+end_src
+
+* DrawTriangleFan
+#+begin_src til
+ext_proc DrawTriangleFan(points: Vector2, shallow pointCount: I32, shallow color: Color)
+#+end_src
+
+* DrawTriangleStrip
+#+begin_src til
+ext_proc DrawTriangleStrip(points: Vector2, shallow pointCount: I32, shallow color: Color)
+#+end_src
+
+* DrawPoly
+#+begin_src til
+ext_proc DrawPoly(shallow center: Vector2, shallow sides: I32, shallow radius: F32, shallow rotation: F32, shallow color: Color)
+#+end_src
+
+* DrawPolyLines
+#+begin_src til
+ext_proc DrawPolyLines(shallow center: Vector2, shallow sides: I32, shallow radius: F32, shallow rotation: F32, shallow color: Color)
+#+end_src
+
+* DrawPolyLinesEx
+#+begin_src til
+ext_proc DrawPolyLinesEx(shallow center: Vector2, shallow sides: I32, shallow radius: F32, shallow rotation: F32, shallow lineThick: F32, shallow color: Color)
+#+end_src
+
+* DrawSplineLinear
+#+begin_src til
+ext_proc DrawSplineLinear(points: Vector2, shallow pointCount: I32, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawSplineBasis
+#+begin_src til
+ext_proc DrawSplineBasis(points: Vector2, shallow pointCount: I32, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawSplineCatmullRom
+#+begin_src til
+ext_proc DrawSplineCatmullRom(points: Vector2, shallow pointCount: I32, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawSplineBezierQuadratic
+#+begin_src til
+ext_proc DrawSplineBezierQuadratic(points: Vector2, shallow pointCount: I32, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawSplineBezierCubic
+#+begin_src til
+ext_proc DrawSplineBezierCubic(points: Vector2, shallow pointCount: I32, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawSplineSegmentLinear
+#+begin_src til
+ext_proc DrawSplineSegmentLinear(shallow p1: Vector2, shallow p2: Vector2, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawSplineSegmentBasis
+#+begin_src til
+ext_proc DrawSplineSegmentBasis(shallow p1: Vector2, shallow p2: Vector2, shallow p3: Vector2, shallow p4: Vector2, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawSplineSegmentCatmullRom
+#+begin_src til
+ext_proc DrawSplineSegmentCatmullRom(shallow p1: Vector2, shallow p2: Vector2, shallow p3: Vector2, shallow p4: Vector2, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawSplineSegmentBezierQuadratic
+#+begin_src til
+ext_proc DrawSplineSegmentBezierQuadratic(shallow p1: Vector2, shallow c2: Vector2, shallow p3: Vector2, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* DrawSplineSegmentBezierCubic
+#+begin_src til
+ext_proc DrawSplineSegmentBezierCubic(shallow p1: Vector2, shallow c2: Vector2, shallow c3: Vector2, shallow p4: Vector2, shallow thick: F32, shallow color: Color)
+#+end_src
+
+* GetSplinePointLinear
+#+begin_src til
+ext_func GetSplinePointLinear(shallow startPos: Vector2, shallow endPos: Vector2, shallow t: F32) returns shallow Vector2
+#+end_src
+
+* GetSplinePointBasis
+#+begin_src til
+ext_func GetSplinePointBasis(shallow p1: Vector2, shallow p2: Vector2, shallow p3: Vector2, shallow p4: Vector2, shallow t: F32) returns shallow Vector2
+#+end_src
+
+* GetSplinePointCatmullRom
+#+begin_src til
+ext_func GetSplinePointCatmullRom(shallow p1: Vector2, shallow p2: Vector2, shallow p3: Vector2, shallow p4: Vector2, shallow t: F32) returns shallow Vector2
+#+end_src
+
+* GetSplinePointBezierQuad
+#+begin_src til
+ext_func GetSplinePointBezierQuad(shallow p1: Vector2, shallow c2: Vector2, shallow p3: Vector2, shallow t: F32) returns shallow Vector2
+#+end_src
+
+* GetSplinePointBezierCubic
+#+begin_src til
+ext_func GetSplinePointBezierCubic(shallow p1: Vector2, shallow c2: Vector2, shallow c3: Vector2, shallow p4: Vector2, shallow t: F32) returns shallow Vector2
+#+end_src
+
+* CheckCollisionRecs
+#+begin_src til
+ext_func CheckCollisionRecs(shallow rec1: Rectangle, shallow rec2: Rectangle) returns shallow Bool
+#+end_src
+
+* CheckCollisionCircles
+#+begin_src til
+ext_func CheckCollisionCircles(shallow center1: Vector2, shallow radius1: F32, shallow center2: Vector2, shallow radius2: F32) returns shallow Bool
+#+end_src
+
+* CheckCollisionCircleRec
+#+begin_src til
+ext_func CheckCollisionCircleRec(shallow center: Vector2, shallow radius: F32, shallow rec: Rectangle) returns shallow Bool
+#+end_src
+
+* CheckCollisionCircleLine
+#+begin_src til
+ext_func CheckCollisionCircleLine(shallow center: Vector2, shallow radius: F32, shallow p1: Vector2, shallow p2: Vector2) returns shallow Bool
+#+end_src
+
+* CheckCollisionPointRec
+#+begin_src til
+ext_func CheckCollisionPointRec(shallow point: Vector2, shallow rec: Rectangle) returns shallow Bool
+#+end_src
+
+* CheckCollisionPointCircle
+#+begin_src til
+ext_func CheckCollisionPointCircle(shallow point: Vector2, shallow center: Vector2, shallow radius: F32) returns shallow Bool
+#+end_src
+
+* CheckCollisionPointTriangle
+#+begin_src til
+ext_func CheckCollisionPointTriangle(shallow point: Vector2, shallow p1: Vector2, shallow p2: Vector2, shallow p3: Vector2) returns shallow Bool
+#+end_src
+
+* CheckCollisionPointLine
+#+begin_src til
+ext_func CheckCollisionPointLine(shallow point: Vector2, shallow p1: Vector2, shallow p2: Vector2, shallow threshold: I32) returns shallow Bool
+#+end_src
+
+* CheckCollisionPointPoly
+#+begin_src til
+ext_func CheckCollisionPointPoly(shallow point: Vector2, points: Vector2, shallow pointCount: I32) returns shallow Bool
+#+end_src
+
+* CheckCollisionLines
+#+begin_src til
+ext_func CheckCollisionLines(shallow startPos1: Vector2, shallow endPos1: Vector2, shallow startPos2: Vector2, shallow endPos2: Vector2, collisionPoint: Vector2) returns shallow Bool
+#+end_src
+
+* GetCollisionRec
+#+begin_src til
+ext_func GetCollisionRec(shallow rec1: Rectangle, shallow rec2: Rectangle) returns shallow Rectangle
+#+end_src
+
+* LoadImage
+#+begin_src til
+ext_func LoadImage(fileName: I8) returns shallow Image
+#+end_src
+
+* LoadImageRaw
+#+begin_src til
+ext_func LoadImageRaw(fileName: I8, shallow width: I32, shallow height: I32, shallow format: I32, shallow headerSize: I32) returns shallow Image
+#+end_src
+
+* LoadImageAnim
+#+begin_src til
+ext_func LoadImageAnim(fileName: I8, frames: I32) returns shallow Image
+#+end_src
+
+* LoadImageAnimFromMemory
+#+begin_src til
+ext_func LoadImageAnimFromMemory(fileType: I8, fileData: U8, shallow dataSize: I32, frames: I32) returns shallow Image
+#+end_src
+
+* LoadImageFromMemory
+#+begin_src til
+ext_func LoadImageFromMemory(fileType: I8, fileData: U8, shallow dataSize: I32) returns shallow Image
+#+end_src
+
+* LoadImageFromTexture
+#+begin_src til
+ext_func LoadImageFromTexture(shallow texture: Texture) returns shallow Image
+#+end_src
+
+* LoadImageFromScreen
+#+begin_src til
+ext_func LoadImageFromScreen() returns shallow Image
+#+end_src
+
+* IsImageValid
+#+begin_src til
+ext_func IsImageValid(shallow image: Image) returns shallow Bool
+#+end_src
+
+* UnloadImage
+#+begin_src til
+ext_proc UnloadImage(shallow image: Image)
+#+end_src
+
+* ExportImage
+#+begin_src til
+ext_func ExportImage(shallow image: Image, fileName: I8) returns shallow Bool
+#+end_src
+
+* ExportImageToMemory
+#+begin_src til
+ext_func ExportImageToMemory(shallow image: Image, fileType: I8, fileSize: I32) returns ref I8
+#+end_src
+
+* ExportImageAsCode
+#+begin_src til
+ext_func ExportImageAsCode(shallow image: Image, fileName: I8) returns shallow Bool
+#+end_src
+
+* GenImageColor
+#+begin_src til
+ext_func GenImageColor(shallow width: I32, shallow height: I32, shallow color: Color) returns shallow Image
+#+end_src
+
+* GenImageGradientLinear
+#+begin_src til
+ext_func GenImageGradientLinear(shallow width: I32, shallow height: I32, shallow direction: I32, shallow start: Color, shallow end: Color) returns shallow Image
+#+end_src
+
+* GenImageGradientRadial
+#+begin_src til
+ext_func GenImageGradientRadial(shallow width: I32, shallow height: I32, shallow density: F32, shallow inner: Color, shallow outer: Color) returns shallow Image
+#+end_src
+
+* GenImageGradientSquare
+#+begin_src til
+ext_func GenImageGradientSquare(shallow width: I32, shallow height: I32, shallow density: F32, shallow inner: Color, shallow outer: Color) returns shallow Image
+#+end_src
+
+* GenImageChecked
+#+begin_src til
+ext_func GenImageChecked(shallow width: I32, shallow height: I32, shallow checksX: I32, shallow checksY: I32, shallow col1: Color, shallow col2: Color) returns shallow Image
+#+end_src
+
+* GenImageWhiteNoise
+#+begin_src til
+ext_func GenImageWhiteNoise(shallow width: I32, shallow height: I32, shallow factor: F32) returns shallow Image
+#+end_src
+
+* GenImagePerlinNoise
+#+begin_src til
+ext_func GenImagePerlinNoise(shallow width: I32, shallow height: I32, shallow offsetX: I32, shallow offsetY: I32, shallow scale: F32) returns shallow Image
+#+end_src
+
+* GenImageCellular
+#+begin_src til
+ext_func GenImageCellular(shallow width: I32, shallow height: I32, shallow tileSize: I32) returns shallow Image
+#+end_src
+
+* GenImageText
+#+begin_src til
+ext_func GenImageText(shallow width: I32, shallow height: I32, text: I8) returns shallow Image
+#+end_src
+
+* ImageCopy
+#+begin_src til
+ext_func ImageCopy(shallow image: Image) returns shallow Image
+#+end_src
+
+* ImageFromImage
+#+begin_src til
+ext_func ImageFromImage(shallow image: Image, shallow rec: Rectangle) returns shallow Image
+#+end_src
+
+* ImageFromChannel
+#+begin_src til
+ext_func ImageFromChannel(shallow image: Image, shallow selectedChannel: I32) returns shallow Image
+#+end_src
+
+* ImageText
+#+begin_src til
+ext_func ImageText(text: I8, shallow fontSize: I32, shallow color: Color) returns shallow Image
+#+end_src
+
+* ImageTextEx
+#+begin_src til
+ext_func ImageTextEx(shallow font: Font, text: I8, shallow fontSize: F32, shallow spacing: F32, shallow tint: Color) returns shallow Image
+#+end_src
+
+* ImageFormat
+#+begin_src til
+ext_proc ImageFormat(image: Image, shallow newFormat: I32)
+#+end_src
+
+* ImageToPOT
+#+begin_src til
+ext_proc ImageToPOT(image: Image, shallow fill: Color)
+#+end_src
+
+* ImageCrop
+#+begin_src til
+ext_proc ImageCrop(image: Image, shallow crop: Rectangle)
+#+end_src
+
+* ImageAlphaCrop
+#+begin_src til
+ext_proc ImageAlphaCrop(image: Image, shallow threshold: F32)
+#+end_src
+
+* ImageAlphaClear
+#+begin_src til
+ext_proc ImageAlphaClear(image: Image, shallow color: Color, shallow threshold: F32)
+#+end_src
+
+* ImageAlphaMask
+#+begin_src til
+ext_proc ImageAlphaMask(image: Image, shallow alphaMask: Image)
+#+end_src
+
+* ImageAlphaPremultiply
+#+begin_src til
+ext_proc ImageAlphaPremultiply(image: Image)
+#+end_src
+
+* ImageBlurGaussian
+#+begin_src til
+ext_proc ImageBlurGaussian(image: Image, shallow blurSize: I32)
+#+end_src
+
+* ImageKernelConvolution
+#+begin_src til
+ext_proc ImageKernelConvolution(image: Image, kernel: F32, shallow kernelSize: I32)
+#+end_src
+
+* ImageResize
+#+begin_src til
+ext_proc ImageResize(image: Image, shallow newWidth: I32, shallow newHeight: I32)
+#+end_src
+
+* ImageResizeNN
+#+begin_src til
+ext_proc ImageResizeNN(image: Image, shallow newWidth: I32, shallow newHeight: I32)
+#+end_src
+
+* ImageResizeCanvas
+#+begin_src til
+ext_proc ImageResizeCanvas(image: Image, shallow newWidth: I32, shallow newHeight: I32, shallow offsetX: I32, shallow offsetY: I32, shallow fill: Color)
+#+end_src
+
+* ImageMipmaps
+#+begin_src til
+ext_proc ImageMipmaps(image: Image)
+#+end_src
+
+* ImageDither
+#+begin_src til
+ext_proc ImageDither(image: Image, shallow rBpp: I32, shallow gBpp: I32, shallow bBpp: I32, shallow aBpp: I32)
+#+end_src
+
+* ImageFlipVertical
+#+begin_src til
+ext_proc ImageFlipVertical(image: Image)
+#+end_src
+
+* ImageFlipHorizontal
+#+begin_src til
+ext_proc ImageFlipHorizontal(image: Image)
+#+end_src
+
+* ImageRotate
+#+begin_src til
+ext_proc ImageRotate(image: Image, shallow degrees: I32)
+#+end_src
+
+* ImageRotateCW
+#+begin_src til
+ext_proc ImageRotateCW(image: Image)
+#+end_src
+
+* ImageRotateCCW
+#+begin_src til
+ext_proc ImageRotateCCW(image: Image)
+#+end_src
+
+* ImageColorTint
+#+begin_src til
+ext_proc ImageColorTint(image: Image, shallow color: Color)
+#+end_src
+
+* ImageColorInvert
+#+begin_src til
+ext_proc ImageColorInvert(image: Image)
+#+end_src
+
+* ImageColorGrayscale
+#+begin_src til
+ext_proc ImageColorGrayscale(image: Image)
+#+end_src
+
+* ImageColorContrast
+#+begin_src til
+ext_proc ImageColorContrast(image: Image, shallow contrast: F32)
+#+end_src
+
+* ImageColorBrightness
+#+begin_src til
+ext_proc ImageColorBrightness(image: Image, shallow brightness: I32)
+#+end_src
+
+* ImageColorReplace
+#+begin_src til
+ext_proc ImageColorReplace(image: Image, shallow color: Color, shallow replace: Color)
+#+end_src
+
+* LoadImageColors
+#+begin_src til
+ext_func LoadImageColors(shallow image: Image) returns ref Color
+#+end_src
+
+* LoadImagePalette
+#+begin_src til
+ext_func LoadImagePalette(shallow image: Image, shallow maxPaletteSize: I32, colorCount: I32) returns ref Color
+#+end_src
+
+* UnloadImageColors
+#+begin_src til
+ext_proc UnloadImageColors(colors: Color)
+#+end_src
+
+* UnloadImagePalette
+#+begin_src til
+ext_proc UnloadImagePalette(colors: Color)
+#+end_src
+
+* GetImageAlphaBorder
+#+begin_src til
+ext_func GetImageAlphaBorder(shallow image: Image, shallow threshold: F32) returns shallow Rectangle
+#+end_src
+
+* GetImageColor
+#+begin_src til
+ext_func GetImageColor(shallow image: Image, shallow x: I32, shallow y: I32) returns shallow Color
+#+end_src
+
+* ImageClearBackground
+#+begin_src til
+ext_proc ImageClearBackground(dst: Image, shallow color: Color)
+#+end_src
+
+* ImageDrawPixel
+#+begin_src til
+ext_proc ImageDrawPixel(dst: Image, shallow posX: I32, shallow posY: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawPixelV
+#+begin_src til
+ext_proc ImageDrawPixelV(dst: Image, shallow position: Vector2, shallow color: Color)
+#+end_src
+
+* ImageDrawLine
+#+begin_src til
+ext_proc ImageDrawLine(dst: Image, shallow startPosX: I32, shallow startPosY: I32, shallow endPosX: I32, shallow endPosY: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawLineV
+#+begin_src til
+ext_proc ImageDrawLineV(dst: Image, shallow start: Vector2, shallow end: Vector2, shallow color: Color)
+#+end_src
+
+* ImageDrawLineEx
+#+begin_src til
+ext_proc ImageDrawLineEx(dst: Image, shallow start: Vector2, shallow end: Vector2, shallow thick: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawCircle
+#+begin_src til
+ext_proc ImageDrawCircle(dst: Image, shallow centerX: I32, shallow centerY: I32, shallow radius: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawCircleV
+#+begin_src til
+ext_proc ImageDrawCircleV(dst: Image, shallow center: Vector2, shallow radius: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawCircleLines
+#+begin_src til
+ext_proc ImageDrawCircleLines(dst: Image, shallow centerX: I32, shallow centerY: I32, shallow radius: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawCircleLinesV
+#+begin_src til
+ext_proc ImageDrawCircleLinesV(dst: Image, shallow center: Vector2, shallow radius: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawRectangle
+#+begin_src til
+ext_proc ImageDrawRectangle(dst: Image, shallow posX: I32, shallow posY: I32, shallow width: I32, shallow height: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawRectangleV
+#+begin_src til
+ext_proc ImageDrawRectangleV(dst: Image, shallow position: Vector2, shallow size: Vector2, shallow color: Color)
+#+end_src
+
+* ImageDrawRectangleRec
+#+begin_src til
+ext_proc ImageDrawRectangleRec(dst: Image, shallow rec: Rectangle, shallow color: Color)
+#+end_src
+
+* ImageDrawRectangleLines
+#+begin_src til
+ext_proc ImageDrawRectangleLines(dst: Image, shallow rec: Rectangle, shallow thick: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawTriangle
+#+begin_src til
+ext_proc ImageDrawTriangle(dst: Image, shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow color: Color)
+#+end_src
+
+* ImageDrawTriangleEx
+#+begin_src til
+ext_proc ImageDrawTriangleEx(dst: Image, shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow c1: Color, shallow c2: Color, shallow c3: Color)
+#+end_src
+
+* ImageDrawTriangleLines
+#+begin_src til
+ext_proc ImageDrawTriangleLines(dst: Image, shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow color: Color)
+#+end_src
+
+* ImageDrawTriangleFan
+#+begin_src til
+ext_proc ImageDrawTriangleFan(dst: Image, points: Vector2, shallow pointCount: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawTriangleStrip
+#+begin_src til
+ext_proc ImageDrawTriangleStrip(dst: Image, points: Vector2, shallow pointCount: I32, shallow color: Color)
+#+end_src
+
+* ImageDraw
+#+begin_src til
+ext_proc ImageDraw(dst: Image, shallow src: Image, shallow srcRec: Rectangle, shallow dstRec: Rectangle, shallow tint: Color)
+#+end_src
+
+* ImageDrawText
+#+begin_src til
+ext_proc ImageDrawText(dst: Image, text: I8, shallow posX: I32, shallow posY: I32, shallow fontSize: I32, shallow color: Color)
+#+end_src
+
+* ImageDrawTextEx
+#+begin_src til
+ext_proc ImageDrawTextEx(dst: Image, shallow font: Font, text: I8, shallow position: Vector2, shallow fontSize: F32, shallow spacing: F32, shallow tint: Color)
+#+end_src
+
+* LoadTexture
+#+begin_src til
+ext_func LoadTexture(fileName: I8) returns shallow Texture
+#+end_src
+
+* LoadTextureFromImage
+#+begin_src til
+ext_func LoadTextureFromImage(shallow image: Image) returns shallow Texture
+#+end_src
+
+* LoadTextureCubemap
+#+begin_src til
+ext_func LoadTextureCubemap(shallow image: Image, shallow layout: I32) returns shallow Texture
+#+end_src
+
+* LoadRenderTexture
+#+begin_src til
+ext_func LoadRenderTexture(shallow width: I32, shallow height: I32) returns shallow RenderTexture
+#+end_src
+
+* IsTextureValid
+#+begin_src til
+ext_func IsTextureValid(shallow texture: Texture) returns shallow Bool
+#+end_src
+
+* UnloadTexture
+#+begin_src til
+ext_proc UnloadTexture(shallow texture: Texture)
+#+end_src
+
+* IsRenderTextureValid
+#+begin_src til
+ext_func IsRenderTextureValid(shallow target: RenderTexture) returns shallow Bool
+#+end_src
+
+* UnloadRenderTexture
+#+begin_src til
+ext_proc UnloadRenderTexture(shallow target: RenderTexture)
+#+end_src
+
+* UpdateTexture
+#+begin_src til
+ext_proc UpdateTexture(shallow texture: Texture, pixels: Dynamic)
+#+end_src
+
+* UpdateTextureRec
+#+begin_src til
+ext_proc UpdateTextureRec(shallow texture: Texture, shallow rec: Rectangle, pixels: Dynamic)
+#+end_src
+
+* GenTextureMipmaps
+#+begin_src til
+ext_proc GenTextureMipmaps(texture: Texture)
+#+end_src
+
+* SetTextureFilter
+#+begin_src til
+ext_proc SetTextureFilter(shallow texture: Texture, shallow filter: I32)
+#+end_src
+
+* SetTextureWrap
+#+begin_src til
+ext_proc SetTextureWrap(shallow texture: Texture, shallow wrap: I32)
+#+end_src
+
+* DrawTexture
+#+begin_src til
+ext_proc DrawTexture(shallow texture: Texture, shallow posX: I32, shallow posY: I32, shallow tint: Color)
+#+end_src
+
+* DrawTextureV
+#+begin_src til
+ext_proc DrawTextureV(shallow texture: Texture, shallow position: Vector2, shallow tint: Color)
+#+end_src
+
+* DrawTextureEx
+#+begin_src til
+ext_proc DrawTextureEx(shallow texture: Texture, shallow position: Vector2, shallow rotation: F32, shallow scale: F32, shallow tint: Color)
+#+end_src
+
+* DrawTextureRec
+#+begin_src til
+ext_proc DrawTextureRec(shallow texture: Texture, shallow source: Rectangle, shallow position: Vector2, shallow tint: Color)
+#+end_src
+
+* DrawTexturePro
+#+begin_src til
+ext_proc DrawTexturePro(shallow texture: Texture, shallow source: Rectangle, shallow dest: Rectangle, shallow origin: Vector2, shallow rotation: F32, shallow tint: Color)
+#+end_src
+
+* DrawTextureNPatch
+#+begin_src til
+ext_proc DrawTextureNPatch(shallow texture: Texture, shallow nPatchInfo: NPatchInfo, shallow dest: Rectangle, shallow origin: Vector2, shallow rotation: F32, shallow tint: Color)
+#+end_src
+
+* ColorIsEqual
+#+begin_src til
+ext_func ColorIsEqual(shallow col1: Color, shallow col2: Color) returns shallow Bool
+#+end_src
+
+* Fade
+#+begin_src til
+ext_func Fade(shallow color: Color, shallow alpha: F32) returns shallow Color
+#+end_src
+
+* ColorToInt
+#+begin_src til
+ext_func ColorToInt(shallow color: Color) returns shallow I32
+#+end_src
+
+* ColorNormalize
+#+begin_src til
+ext_func ColorNormalize(shallow color: Color) returns shallow Vector4
+#+end_src
+
+* ColorFromNormalized
+#+begin_src til
+ext_func ColorFromNormalized(shallow normalized: Vector4) returns shallow Color
+#+end_src
+
+* ColorToHSV
+#+begin_src til
+ext_func ColorToHSV(shallow color: Color) returns shallow Vector3
+#+end_src
+
+* ColorFromHSV
+#+begin_src til
+ext_func ColorFromHSV(shallow hue: F32, shallow saturation: F32, shallow value: F32) returns shallow Color
+#+end_src
+
+* ColorTint
+#+begin_src til
+ext_func ColorTint(shallow color: Color, shallow tint: Color) returns shallow Color
+#+end_src
+
+* ColorBrightness
+#+begin_src til
+ext_func ColorBrightness(shallow color: Color, shallow factor: F32) returns shallow Color
+#+end_src
+
+* ColorContrast
+#+begin_src til
+ext_func ColorContrast(shallow color: Color, shallow contrast: F32) returns shallow Color
+#+end_src
+
+* ColorAlpha
+#+begin_src til
+ext_func ColorAlpha(shallow color: Color, shallow alpha: F32) returns shallow Color
+#+end_src
+
+* ColorAlphaBlend
+#+begin_src til
+ext_func ColorAlphaBlend(shallow dst: Color, shallow src: Color, shallow tint: Color) returns shallow Color
+#+end_src
+
+* ColorLerp
+#+begin_src til
+ext_func ColorLerp(shallow color1: Color, shallow color2: Color, shallow factor: F32) returns shallow Color
+#+end_src
+
+* GetColor
+#+begin_src til
+ext_func GetColor(shallow hexValue: U32) returns shallow Color
+#+end_src
+
+* GetPixelColor
+#+begin_src til
+ext_func GetPixelColor(srcPtr: Dynamic, shallow format: I32) returns shallow Color
+#+end_src
+
+* SetPixelColor
+#+begin_src til
+ext_proc SetPixelColor(dstPtr: Dynamic, shallow color: Color, shallow format: I32)
+#+end_src
+
+* GetPixelDataSize
+#+begin_src til
+ext_func GetPixelDataSize(shallow width: I32, shallow height: I32, shallow format: I32) returns shallow I32
+#+end_src
+
+* GetFontDefault
+#+begin_src til
+ext_func GetFontDefault() returns shallow Font
+#+end_src
+
+* LoadFont
+#+begin_src til
+ext_func LoadFont(fileName: I8) returns shallow Font
+#+end_src
+
+* LoadFontEx
+#+begin_src til
+ext_func LoadFontEx(fileName: I8, shallow fontSize: I32, codepoints: I32, shallow codepointCount: I32) returns shallow Font
+#+end_src
+
+* LoadFontFromImage
+#+begin_src til
+ext_func LoadFontFromImage(shallow image: Image, shallow key: Color, shallow firstChar: I32) returns shallow Font
+#+end_src
+
+* LoadFontFromMemory
+#+begin_src til
+ext_func LoadFontFromMemory(fileType: I8, fileData: U8, shallow dataSize: I32, shallow fontSize: I32, codepoints: I32, shallow codepointCount: I32) returns shallow Font
+#+end_src
+
+* IsFontValid
+#+begin_src til
+ext_func IsFontValid(shallow font: Font) returns shallow Bool
+#+end_src
+
+* LoadFontData
+#+begin_src til
+ext_func LoadFontData(fileData: U8, shallow dataSize: I32, shallow fontSize: I32, codepoints: I32, shallow codepointCount: I32, shallow type: I32, glyphCount: I32) returns ref GlyphInfo
+#+end_src
+
+* GenImageFontAtlas
+#+begin_src til
+ext_func GenImageFontAtlas(glyphs: GlyphInfo, glyphRecs: Dynamic, shallow glyphCount: I32, shallow fontSize: I32, shallow padding: I32, shallow packMethod: I32) returns shallow Image
+#+end_src
+
+* UnloadFontData
+#+begin_src til
+ext_proc UnloadFontData(glyphs: GlyphInfo, shallow glyphCount: I32)
+#+end_src
+
+* UnloadFont
+#+begin_src til
+ext_proc UnloadFont(shallow font: Font)
+#+end_src
+
+* ExportFontAsCode
+#+begin_src til
+ext_func ExportFontAsCode(shallow font: Font, fileName: I8) returns shallow Bool
+#+end_src
+
+* DrawFPS
+#+begin_src til
+ext_proc DrawFPS(shallow posX: I32, shallow posY: I32)
+#+end_src
+
+* DrawText
+#+begin_src til
+ext_proc DrawText(text: I8, shallow posX: I32, shallow posY: I32, shallow fontSize: I32, shallow color: Color)
+#+end_src
+
+* DrawTextEx
+#+begin_src til
+ext_proc DrawTextEx(shallow font: Font, text: I8, shallow position: Vector2, shallow fontSize: F32, shallow spacing: F32, shallow tint: Color)
+#+end_src
+
+* DrawTextPro
+#+begin_src til
+ext_proc DrawTextPro(shallow font: Font, text: I8, shallow position: Vector2, shallow origin: Vector2, shallow rotation: F32, shallow fontSize: F32, shallow spacing: F32, shallow tint: Color)
+#+end_src
+
+* DrawTextCodepoint
+#+begin_src til
+ext_proc DrawTextCodepoint(shallow font: Font, shallow codepoint: I32, shallow position: Vector2, shallow fontSize: F32, shallow tint: Color)
+#+end_src
+
+* DrawTextCodepoints
+#+begin_src til
+ext_proc DrawTextCodepoints(shallow font: Font, codepoints: I32, shallow codepointCount: I32, shallow position: Vector2, shallow fontSize: F32, shallow spacing: F32, shallow tint: Color)
+#+end_src
+
+* SetTextLineSpacing
+#+begin_src til
+ext_proc SetTextLineSpacing(shallow spacing: I32)
+#+end_src
+
+* MeasureText
+#+begin_src til
+ext_func MeasureText(text: I8, shallow fontSize: I32) returns shallow I32
+#+end_src
+
+* MeasureTextEx
+#+begin_src til
+ext_func MeasureTextEx(shallow font: Font, text: I8, shallow fontSize: F32, shallow spacing: F32) returns shallow Vector2
+#+end_src
+
+* MeasureTextCodepoints
+#+begin_src til
+ext_func MeasureTextCodepoints(shallow font: Font, codepoints: I32, shallow length: I32, shallow fontSize: F32, shallow spacing: F32) returns shallow Vector2
+#+end_src
+
+* GetGlyphIndex
+#+begin_src til
+ext_func GetGlyphIndex(shallow font: Font, shallow codepoint: I32) returns shallow I32
+#+end_src
+
+* GetGlyphInfo
+#+begin_src til
+ext_func GetGlyphInfo(shallow font: Font, shallow codepoint: I32) returns shallow GlyphInfo
+#+end_src
+
+* GetGlyphAtlasRec
+#+begin_src til
+ext_func GetGlyphAtlasRec(shallow font: Font, shallow codepoint: I32) returns shallow Rectangle
+#+end_src
+
+* LoadUTF8
+#+begin_src til
+ext_func LoadUTF8(codepoints: I32, shallow length: I32) returns ref I8
+#+end_src
+
+* UnloadUTF8
+#+begin_src til
+ext_proc UnloadUTF8(text: I8)
+#+end_src
+
+* LoadCodepoints
+#+begin_src til
+ext_func LoadCodepoints(text: I8, count: I32) returns ref I32
+#+end_src
+
+* UnloadCodepoints
+#+begin_src til
+ext_proc UnloadCodepoints(codepoints: I32)
+#+end_src
+
+* GetCodepointCount
+#+begin_src til
+ext_func GetCodepointCount(text: I8) returns shallow I32
+#+end_src
+
+* GetCodepoint
+#+begin_src til
+ext_func GetCodepoint(text: I8, codepointSize: I32) returns shallow I32
+#+end_src
+
+* GetCodepointNext
+#+begin_src til
+ext_func GetCodepointNext(text: I8, codepointSize: I32) returns shallow I32
+#+end_src
+
+* GetCodepointPrevious
+#+begin_src til
+ext_func GetCodepointPrevious(text: I8, codepointSize: I32) returns shallow I32
+#+end_src
+
+* CodepointToUTF8
+#+begin_src til
+ext_func CodepointToUTF8(shallow codepoint: I32, utf8Size: I32) returns ref I8
+#+end_src
+
+* LoadTextLines
+#+begin_src til
+ext_func LoadTextLines(text: I8, count: I32) returns Dynamic
+#+end_src
+
+* UnloadTextLines
+#+begin_src til
+ext_proc UnloadTextLines(text: Dynamic, shallow lineCount: I32)
+#+end_src
+
+* TextCopy
+#+begin_src til
+ext_func TextCopy(dst: I8, src: I8) returns shallow I32
+#+end_src
+
+* TextIsEqual
+#+begin_src til
+ext_func TextIsEqual(text1: I8, text2: I8) returns shallow Bool
+#+end_src
+
+* TextLength
+#+begin_src til
+ext_func TextLength(text: I8) returns shallow I32
+#+end_src
+
+* TextSubtext
+#+begin_src til
+ext_func TextSubtext(text: I8, shallow position: I32, shallow length: I32) returns ref I8
+#+end_src
+
+* TextRemoveSpaces
+#+begin_src til
+ext_func TextRemoveSpaces(text: I8) returns ref I8
+#+end_src
+
+* GetTextBetween
+#+begin_src til
+ext_func GetTextBetween(text: I8, begin: I8, end: I8) returns ref I8
+#+end_src
+
+* TextReplace
+#+begin_src til
+ext_func TextReplace(text: I8, search: I8, replacement: I8) returns ref I8
+#+end_src
+
+* TextReplaceBetween
+#+begin_src til
+ext_func TextReplaceBetween(text: I8, begin: I8, end: I8, replacement: I8) returns ref I8
+#+end_src
+
+* TextInsert
+#+begin_src til
+ext_func TextInsert(text: I8, insert: I8, shallow position: I32) returns ref I8
+#+end_src
+
+* TextJoin
+#+begin_src til
+ext_func TextJoin(textList: Dynamic, shallow count: I32, delimiter: I8) returns ref I8
+#+end_src
+
+* TextSplit
+#+begin_src til
+ext_func TextSplit(text: I8, shallow delimiter: I8, count: I32) returns Dynamic
+#+end_src
+
+* TextAppend
+#+begin_src til
+ext_proc TextAppend(text: I8, append: I8, position: I32)
+#+end_src
+
+* TextFindIndex
+#+begin_src til
+ext_func TextFindIndex(text: I8, search: I8) returns shallow I32
+#+end_src
+
+* TextToUpper
+#+begin_src til
+ext_func TextToUpper(text: I8) returns ref I8
+#+end_src
+
+* TextToLower
+#+begin_src til
+ext_func TextToLower(text: I8) returns ref I8
+#+end_src
+
+* TextToPascal
+#+begin_src til
+ext_func TextToPascal(text: I8) returns ref I8
+#+end_src
+
+* TextToSnake
+#+begin_src til
+ext_func TextToSnake(text: I8) returns ref I8
+#+end_src
+
+* TextToCamel
+#+begin_src til
+ext_func TextToCamel(text: I8) returns ref I8
+#+end_src
+
+* TextToInteger
+#+begin_src til
+ext_func TextToInteger(text: I8) returns shallow I32
+#+end_src
+
+* TextToFloat
+#+begin_src til
+ext_func TextToFloat(text: I8) returns shallow F32
+#+end_src
+
+* DrawLine3D
+#+begin_src til
+ext_proc DrawLine3D(shallow startPos: Vector3, shallow endPos: Vector3, shallow color: Color)
+#+end_src
+
+* DrawPoint3D
+#+begin_src til
+ext_proc DrawPoint3D(shallow position: Vector3, shallow color: Color)
+#+end_src
+
+* DrawCircle3D
+#+begin_src til
+ext_proc DrawCircle3D(shallow center: Vector3, shallow radius: F32, shallow rotationAxis: Vector3, shallow rotationAngle: F32, shallow color: Color)
+#+end_src
+
+* DrawTriangle3D
+#+begin_src til
+ext_proc DrawTriangle3D(shallow v1: Vector3, shallow v2: Vector3, shallow v3: Vector3, shallow color: Color)
+#+end_src
+
+* DrawTriangleStrip3D
+#+begin_src til
+ext_proc DrawTriangleStrip3D(points: Vector3, shallow pointCount: I32, shallow color: Color)
+#+end_src
+
+* DrawCube
+#+begin_src til
+ext_proc DrawCube(shallow position: Vector3, shallow width: F32, shallow height: F32, shallow length: F32, shallow color: Color)
+#+end_src
+
+* DrawCubeV
+#+begin_src til
+ext_proc DrawCubeV(shallow position: Vector3, shallow size: Vector3, shallow color: Color)
+#+end_src
+
+* DrawCubeWires
+#+begin_src til
+ext_proc DrawCubeWires(shallow position: Vector3, shallow width: F32, shallow height: F32, shallow length: F32, shallow color: Color)
+#+end_src
+
+* DrawCubeWiresV
+#+begin_src til
+ext_proc DrawCubeWiresV(shallow position: Vector3, shallow size: Vector3, shallow color: Color)
+#+end_src
+
+* DrawSphere
+#+begin_src til
+ext_proc DrawSphere(shallow centerPos: Vector3, shallow radius: F32, shallow color: Color)
+#+end_src
+
+* DrawSphereEx
+#+begin_src til
+ext_proc DrawSphereEx(shallow centerPos: Vector3, shallow radius: F32, shallow rings: I32, shallow slices: I32, shallow color: Color)
+#+end_src
+
+* DrawSphereWires
+#+begin_src til
+ext_proc DrawSphereWires(shallow centerPos: Vector3, shallow radius: F32, shallow rings: I32, shallow slices: I32, shallow color: Color)
+#+end_src
+
+* DrawCylinder
+#+begin_src til
+ext_proc DrawCylinder(shallow position: Vector3, shallow radiusTop: F32, shallow radiusBottom: F32, shallow height: F32, shallow slices: I32, shallow color: Color)
+#+end_src
+
+* DrawCylinderEx
+#+begin_src til
+ext_proc DrawCylinderEx(shallow startPos: Vector3, shallow endPos: Vector3, shallow startRadius: F32, shallow endRadius: F32, shallow sides: I32, shallow color: Color)
+#+end_src
+
+* DrawCylinderWires
+#+begin_src til
+ext_proc DrawCylinderWires(shallow position: Vector3, shallow radiusTop: F32, shallow radiusBottom: F32, shallow height: F32, shallow slices: I32, shallow color: Color)
+#+end_src
+
+* DrawCylinderWiresEx
+#+begin_src til
+ext_proc DrawCylinderWiresEx(shallow startPos: Vector3, shallow endPos: Vector3, shallow startRadius: F32, shallow endRadius: F32, shallow sides: I32, shallow color: Color)
+#+end_src
+
+* DrawCapsule
+#+begin_src til
+ext_proc DrawCapsule(shallow startPos: Vector3, shallow endPos: Vector3, shallow radius: F32, shallow slices: I32, shallow rings: I32, shallow color: Color)
+#+end_src
+
+* DrawCapsuleWires
+#+begin_src til
+ext_proc DrawCapsuleWires(shallow startPos: Vector3, shallow endPos: Vector3, shallow radius: F32, shallow slices: I32, shallow rings: I32, shallow color: Color)
+#+end_src
+
+* DrawPlane
+#+begin_src til
+ext_proc DrawPlane(shallow centerPos: Vector3, shallow size: Vector2, shallow color: Color)
+#+end_src
+
+* DrawRay
+#+begin_src til
+ext_proc DrawRay(shallow ray: Ray, shallow color: Color)
+#+end_src
+
+* DrawGrid
+#+begin_src til
+ext_proc DrawGrid(shallow slices: I32, shallow spacing: F32)
+#+end_src
+
+* LoadModel
+#+begin_src til
+ext_func LoadModel(fileName: I8) returns shallow Model
+#+end_src
+
+* LoadModelFromMesh
+#+begin_src til
+ext_func LoadModelFromMesh(shallow mesh: Mesh) returns shallow Model
+#+end_src
+
+* IsModelValid
+#+begin_src til
+ext_func IsModelValid(shallow model: Model) returns shallow Bool
+#+end_src
+
+* UnloadModel
+#+begin_src til
+ext_proc UnloadModel(shallow model: Model)
+#+end_src
+
+* GetModelBoundingBox
+#+begin_src til
+ext_func GetModelBoundingBox(shallow model: Model) returns shallow BoundingBox
+#+end_src
+
+* DrawModel
+#+begin_src til
+ext_proc DrawModel(shallow model: Model, shallow position: Vector3, shallow scale: F32, shallow tint: Color)
+#+end_src
+
+* DrawModelEx
+#+begin_src til
+ext_proc DrawModelEx(shallow model: Model, shallow position: Vector3, shallow rotationAxis: Vector3, shallow rotationAngle: F32, shallow scale: Vector3, shallow tint: Color)
+#+end_src
+
+* DrawModelWires
+#+begin_src til
+ext_proc DrawModelWires(shallow model: Model, shallow position: Vector3, shallow scale: F32, shallow tint: Color)
+#+end_src
+
+* DrawModelWiresEx
+#+begin_src til
+ext_proc DrawModelWiresEx(shallow model: Model, shallow position: Vector3, shallow rotationAxis: Vector3, shallow rotationAngle: F32, shallow scale: Vector3, shallow tint: Color)
+#+end_src
+
+* DrawModelPoints
+#+begin_src til
+ext_proc DrawModelPoints(shallow model: Model, shallow position: Vector3, shallow scale: F32, shallow tint: Color)
+#+end_src
+
+* DrawModelPointsEx
+#+begin_src til
+ext_proc DrawModelPointsEx(shallow model: Model, shallow position: Vector3, shallow rotationAxis: Vector3, shallow rotationAngle: F32, shallow scale: Vector3, shallow tint: Color)
+#+end_src
+
+* DrawBoundingBox
+#+begin_src til
+ext_proc DrawBoundingBox(shallow box: BoundingBox, shallow color: Color)
+#+end_src
+
+* DrawBillboard
+#+begin_src til
+ext_proc DrawBillboard(shallow camera: Camera3D, shallow texture: Texture, shallow position: Vector3, shallow scale: F32, shallow tint: Color)
+#+end_src
+
+* DrawBillboardRec
+#+begin_src til
+ext_proc DrawBillboardRec(shallow camera: Camera3D, shallow texture: Texture, shallow source: Rectangle, shallow position: Vector3, shallow size: Vector2, shallow tint: Color)
+#+end_src
+
+* DrawBillboardPro
+#+begin_src til
+ext_proc DrawBillboardPro(shallow camera: Camera3D, shallow texture: Texture, shallow source: Rectangle, shallow position: Vector3, shallow up: Vector3, shallow size: Vector2, shallow origin: Vector2, shallow rotation: F32, shallow tint: Color)
+#+end_src
+
+* UploadMesh
+#+begin_src til
+ext_proc UploadMesh(mesh: Mesh, shallow dynamic: Bool)
+#+end_src
+
+* UpdateMeshBuffer
+#+begin_src til
+ext_proc UpdateMeshBuffer(shallow mesh: Mesh, shallow index: I32, data: Dynamic, shallow dataSize: I32, shallow offset: I32)
+#+end_src
+
+* UnloadMesh
+#+begin_src til
+ext_proc UnloadMesh(shallow mesh: Mesh)
+#+end_src
+
+* DrawMesh
+#+begin_src til
+ext_proc DrawMesh(shallow mesh: Mesh, shallow material: Material, shallow transform: Matrix)
+#+end_src
+
+* DrawMeshInstanced
+#+begin_src til
+ext_proc DrawMeshInstanced(shallow mesh: Mesh, shallow material: Material, transforms: Matrix, shallow instances: I32)
+#+end_src
+
+* GetMeshBoundingBox
+#+begin_src til
+ext_func GetMeshBoundingBox(shallow mesh: Mesh) returns shallow BoundingBox
+#+end_src
+
+* GenMeshTangents
+#+begin_src til
+ext_proc GenMeshTangents(mesh: Mesh)
+#+end_src
+
+* ExportMesh
+#+begin_src til
+ext_func ExportMesh(shallow mesh: Mesh, fileName: I8) returns shallow Bool
+#+end_src
+
+* ExportMeshAsCode
+#+begin_src til
+ext_func ExportMeshAsCode(shallow mesh: Mesh, fileName: I8) returns shallow Bool
+#+end_src
+
+* GenMeshPoly
+#+begin_src til
+ext_func GenMeshPoly(shallow sides: I32, shallow radius: F32) returns shallow Mesh
+#+end_src
+
+* GenMeshPlane
+#+begin_src til
+ext_func GenMeshPlane(shallow width: F32, shallow length: F32, shallow resX: I32, shallow resZ: I32) returns shallow Mesh
+#+end_src
+
+* GenMeshCube
+#+begin_src til
+ext_func GenMeshCube(shallow width: F32, shallow height: F32, shallow length: F32) returns shallow Mesh
+#+end_src
+
+* GenMeshSphere
+#+begin_src til
+ext_func GenMeshSphere(shallow radius: F32, shallow rings: I32, shallow slices: I32) returns shallow Mesh
+#+end_src
+
+* GenMeshHemiSphere
+#+begin_src til
+ext_func GenMeshHemiSphere(shallow radius: F32, shallow rings: I32, shallow slices: I32) returns shallow Mesh
+#+end_src
+
+* GenMeshCylinder
+#+begin_src til
+ext_func GenMeshCylinder(shallow radius: F32, shallow height: F32, shallow slices: I32) returns shallow Mesh
+#+end_src
+
+* GenMeshCone
+#+begin_src til
+ext_func GenMeshCone(shallow radius: F32, shallow height: F32, shallow slices: I32) returns shallow Mesh
+#+end_src
+
+* GenMeshTorus
+#+begin_src til
+ext_func GenMeshTorus(shallow radius: F32, shallow size: F32, shallow radSeg: I32, shallow sides: I32) returns shallow Mesh
+#+end_src
+
+* GenMeshKnot
+#+begin_src til
+ext_func GenMeshKnot(shallow radius: F32, shallow size: F32, shallow radSeg: I32, shallow sides: I32) returns shallow Mesh
+#+end_src
+
+* GenMeshHeightmap
+#+begin_src til
+ext_func GenMeshHeightmap(shallow heightmap: Image, shallow size: Vector3) returns shallow Mesh
+#+end_src
+
+* GenMeshCubicmap
+#+begin_src til
+ext_func GenMeshCubicmap(shallow cubicmap: Image, shallow cubeSize: Vector3) returns shallow Mesh
+#+end_src
+
+* LoadMaterials
+#+begin_src til
+ext_func LoadMaterials(fileName: I8, materialCount: I32) returns ref Material
+#+end_src
+
+* LoadMaterialDefault
+#+begin_src til
+ext_func LoadMaterialDefault() returns shallow Material
+#+end_src
+
+* IsMaterialValid
+#+begin_src til
+ext_func IsMaterialValid(shallow material: Material) returns shallow Bool
+#+end_src
+
+* UnloadMaterial
+#+begin_src til
+ext_proc UnloadMaterial(shallow material: Material)
+#+end_src
+
+* SetMaterialTexture
+#+begin_src til
+ext_proc SetMaterialTexture(material: Material, shallow mapType: I32, shallow texture: Texture)
+#+end_src
+
+* SetModelMeshMaterial
+#+begin_src til
+ext_proc SetModelMeshMaterial(model: Model, shallow meshId: I32, shallow materialId: I32)
+#+end_src
+
+* LoadModelAnimations
+#+begin_src til
+ext_func LoadModelAnimations(fileName: I8, animCount: I32) returns ref ModelAnimation
+#+end_src
+
+* UpdateModelAnimation
+#+begin_src til
+ext_proc UpdateModelAnimation(shallow model: Model, shallow anim: ModelAnimation, shallow frame: F32)
+#+end_src
+
+* UpdateModelAnimationEx
+#+begin_src til
+ext_proc UpdateModelAnimationEx(shallow model: Model, shallow animA: ModelAnimation, shallow frameA: F32, shallow animB: ModelAnimation, shallow frameB: F32, shallow blend: F32)
+#+end_src
+
+* UnloadModelAnimations
+#+begin_src til
+ext_proc UnloadModelAnimations(animations: ModelAnimation, shallow animCount: I32)
+#+end_src
+
+* IsModelAnimationValid
+#+begin_src til
+ext_func IsModelAnimationValid(shallow model: Model, shallow anim: ModelAnimation) returns shallow Bool
+#+end_src
+
+* CheckCollisionSpheres
+#+begin_src til
+ext_func CheckCollisionSpheres(shallow center1: Vector3, shallow radius1: F32, shallow center2: Vector3, shallow radius2: F32) returns shallow Bool
+#+end_src
+
+* CheckCollisionBoxes
+#+begin_src til
+ext_func CheckCollisionBoxes(shallow box1: BoundingBox, shallow box2: BoundingBox) returns shallow Bool
+#+end_src
+
+* CheckCollisionBoxSphere
+#+begin_src til
+ext_func CheckCollisionBoxSphere(shallow box: BoundingBox, shallow center: Vector3, shallow radius: F32) returns shallow Bool
+#+end_src
+
+* GetRayCollisionSphere
+#+begin_src til
+ext_func GetRayCollisionSphere(shallow ray: Ray, shallow center: Vector3, shallow radius: F32) returns shallow RayCollision
+#+end_src
+
+* GetRayCollisionBox
+#+begin_src til
+ext_func GetRayCollisionBox(shallow ray: Ray, shallow box: BoundingBox) returns shallow RayCollision
+#+end_src
+
+* GetRayCollisionMesh
+#+begin_src til
+ext_func GetRayCollisionMesh(shallow ray: Ray, shallow mesh: Mesh, shallow transform: Matrix) returns shallow RayCollision
+#+end_src
+
+* GetRayCollisionTriangle
+#+begin_src til
+ext_func GetRayCollisionTriangle(shallow ray: Ray, shallow p1: Vector3, shallow p2: Vector3, shallow p3: Vector3) returns shallow RayCollision
+#+end_src
+
+* GetRayCollisionQuad
+#+begin_src til
+ext_func GetRayCollisionQuad(shallow ray: Ray, shallow p1: Vector3, shallow p2: Vector3, shallow p3: Vector3, shallow p4: Vector3) returns shallow RayCollision
+#+end_src
+
+* AudioCallback
+#+begin_src til
+AudioCallback is a Dynamic
+#+end_src
+
+* InitAudioDevice
+#+begin_src til
+ext_proc InitAudioDevice()
+#+end_src
+
+* CloseAudioDevice
+#+begin_src til
+ext_proc CloseAudioDevice()
+#+end_src
+
+* IsAudioDeviceReady
+#+begin_src til
+ext_func IsAudioDeviceReady() returns shallow Bool
+#+end_src
+
+* SetMasterVolume
+#+begin_src til
+ext_proc SetMasterVolume(shallow volume: F32)
+#+end_src
+
+* GetMasterVolume
+#+begin_src til
+ext_func GetMasterVolume() returns shallow F32
+#+end_src
+
+* LoadWave
+#+begin_src til
+ext_func LoadWave(fileName: I8) returns shallow Wave
+#+end_src
+
+* LoadWaveFromMemory
+#+begin_src til
+ext_func LoadWaveFromMemory(fileType: I8, fileData: U8, shallow dataSize: I32) returns shallow Wave
+#+end_src
+
+* IsWaveValid
+#+begin_src til
+ext_func IsWaveValid(shallow wave: Wave) returns shallow Bool
+#+end_src
+
+* LoadSound
+#+begin_src til
+ext_func LoadSound(fileName: I8) returns shallow Sound
+#+end_src
+
+* LoadSoundFromWave
+#+begin_src til
+ext_func LoadSoundFromWave(shallow wave: Wave) returns shallow Sound
+#+end_src
+
+* LoadSoundAlias
+#+begin_src til
+ext_func LoadSoundAlias(shallow source: Sound) returns shallow Sound
+#+end_src
+
+* IsSoundValid
+#+begin_src til
+ext_func IsSoundValid(shallow sound: Sound) returns shallow Bool
+#+end_src
+
+* UpdateSound
+#+begin_src til
+ext_proc UpdateSound(shallow sound: Sound, data: Dynamic, shallow sampleCount: I32)
+#+end_src
+
+* UnloadWave
+#+begin_src til
+ext_proc UnloadWave(shallow wave: Wave)
+#+end_src
+
+* UnloadSound
+#+begin_src til
+ext_proc UnloadSound(shallow sound: Sound)
+#+end_src
+
+* UnloadSoundAlias
+#+begin_src til
+ext_proc UnloadSoundAlias(shallow alias: Sound)
+#+end_src
+
+* ExportWave
+#+begin_src til
+ext_func ExportWave(shallow wave: Wave, fileName: I8) returns shallow Bool
+#+end_src
+
+* ExportWaveAsCode
+#+begin_src til
+ext_func ExportWaveAsCode(shallow wave: Wave, fileName: I8) returns shallow Bool
+#+end_src
+
+* PlaySound
+#+begin_src til
+ext_proc PlaySound(shallow sound: Sound)
+#+end_src
+
+* StopSound
+#+begin_src til
+ext_proc StopSound(shallow sound: Sound)
+#+end_src
+
+* PauseSound
+#+begin_src til
+ext_proc PauseSound(shallow sound: Sound)
+#+end_src
+
+* ResumeSound
+#+begin_src til
+ext_proc ResumeSound(shallow sound: Sound)
+#+end_src
+
+* IsSoundPlaying
+#+begin_src til
+ext_func IsSoundPlaying(shallow sound: Sound) returns shallow Bool
+#+end_src
+
+* SetSoundVolume
+#+begin_src til
+ext_proc SetSoundVolume(shallow sound: Sound, shallow volume: F32)
+#+end_src
+
+* SetSoundPitch
+#+begin_src til
+ext_proc SetSoundPitch(shallow sound: Sound, shallow pitch: F32)
+#+end_src
+
+* SetSoundPan
+#+begin_src til
+ext_proc SetSoundPan(shallow sound: Sound, shallow pan: F32)
+#+end_src
+
+* WaveCopy
+#+begin_src til
+ext_func WaveCopy(shallow wave: Wave) returns shallow Wave
+#+end_src
+
+* WaveCrop
+#+begin_src til
+ext_proc WaveCrop(wave: Wave, shallow initFrame: I32, shallow finalFrame: I32)
+#+end_src
+
+* WaveFormat
+#+begin_src til
+ext_proc WaveFormat(wave: Wave, shallow sampleRate: I32, shallow sampleSize: I32, shallow channels: I32)
+#+end_src
+
+* LoadWaveSamples
+#+begin_src til
+ext_func LoadWaveSamples(shallow wave: Wave) returns ref F32
+#+end_src
+
+* UnloadWaveSamples
+#+begin_src til
+ext_proc UnloadWaveSamples(samples: F32)
+#+end_src
+
+* LoadMusicStream
+#+begin_src til
+ext_func LoadMusicStream(fileName: I8) returns shallow Music
+#+end_src
+
+* LoadMusicStreamFromMemory
+#+begin_src til
+ext_func LoadMusicStreamFromMemory(fileType: I8, data: U8, shallow dataSize: I32) returns shallow Music
+#+end_src
+
+* IsMusicValid
+#+begin_src til
+ext_func IsMusicValid(shallow music: Music) returns shallow Bool
+#+end_src
+
+* UnloadMusicStream
+#+begin_src til
+ext_proc UnloadMusicStream(shallow music: Music)
+#+end_src
+
+* PlayMusicStream
+#+begin_src til
+ext_proc PlayMusicStream(shallow music: Music)
+#+end_src
+
+* IsMusicStreamPlaying
+#+begin_src til
+ext_func IsMusicStreamPlaying(shallow music: Music) returns shallow Bool
+#+end_src
+
+* UpdateMusicStream
+#+begin_src til
+ext_proc UpdateMusicStream(shallow music: Music)
+#+end_src
+
+* StopMusicStream
+#+begin_src til
+ext_proc StopMusicStream(shallow music: Music)
+#+end_src
+
+* PauseMusicStream
+#+begin_src til
+ext_proc PauseMusicStream(shallow music: Music)
+#+end_src
+
+* ResumeMusicStream
+#+begin_src til
+ext_proc ResumeMusicStream(shallow music: Music)
+#+end_src
+
+* SeekMusicStream
+#+begin_src til
+ext_proc SeekMusicStream(shallow music: Music, shallow position: F32)
+#+end_src
+
+* SetMusicVolume
+#+begin_src til
+ext_proc SetMusicVolume(shallow music: Music, shallow volume: F32)
+#+end_src
+
+* SetMusicPitch
+#+begin_src til
+ext_proc SetMusicPitch(shallow music: Music, shallow pitch: F32)
+#+end_src
+
+* SetMusicPan
+#+begin_src til
+ext_proc SetMusicPan(shallow music: Music, shallow pan: F32)
+#+end_src
+
+* GetMusicTimeLength
+#+begin_src til
+ext_func GetMusicTimeLength(shallow music: Music) returns shallow F32
+#+end_src
+
+* GetMusicTimePlayed
+#+begin_src til
+ext_func GetMusicTimePlayed(shallow music: Music) returns shallow F32
+#+end_src
+
+* LoadAudioStream
+#+begin_src til
+ext_func LoadAudioStream(shallow sampleRate: U32, shallow sampleSize: U32, shallow channels: U32) returns shallow AudioStream
+#+end_src
+
+* IsAudioStreamValid
+#+begin_src til
+ext_func IsAudioStreamValid(shallow stream: AudioStream) returns shallow Bool
+#+end_src
+
+* UnloadAudioStream
+#+begin_src til
+ext_proc UnloadAudioStream(shallow stream: AudioStream)
+#+end_src
+
+* UpdateAudioStream
+#+begin_src til
+ext_proc UpdateAudioStream(shallow stream: AudioStream, data: Dynamic, shallow frameCount: I32)
+#+end_src
+
+* IsAudioStreamProcessed
+#+begin_src til
+ext_func IsAudioStreamProcessed(shallow stream: AudioStream) returns shallow Bool
+#+end_src
+
+* PlayAudioStream
+#+begin_src til
+ext_proc PlayAudioStream(shallow stream: AudioStream)
+#+end_src
+
+* PauseAudioStream
+#+begin_src til
+ext_proc PauseAudioStream(shallow stream: AudioStream)
+#+end_src
+
+* ResumeAudioStream
+#+begin_src til
+ext_proc ResumeAudioStream(shallow stream: AudioStream)
+#+end_src
+
+* IsAudioStreamPlaying
+#+begin_src til
+ext_func IsAudioStreamPlaying(shallow stream: AudioStream) returns shallow Bool
+#+end_src
+
+* StopAudioStream
+#+begin_src til
+ext_proc StopAudioStream(shallow stream: AudioStream)
+#+end_src
+
+* SetAudioStreamVolume
+#+begin_src til
+ext_proc SetAudioStreamVolume(shallow stream: AudioStream, shallow volume: F32)
+#+end_src
+
+* SetAudioStreamPitch
+#+begin_src til
+ext_proc SetAudioStreamPitch(shallow stream: AudioStream, shallow pitch: F32)
+#+end_src
+
+* SetAudioStreamPan
+#+begin_src til
+ext_proc SetAudioStreamPan(shallow stream: AudioStream, shallow pan: F32)
+#+end_src
+
+* SetAudioStreamBufferSizeDefault
+#+begin_src til
+ext_proc SetAudioStreamBufferSizeDefault(shallow size: I32)
+#+end_src
+
+* SetAudioStreamCallback
+#+begin_src til
+ext_proc SetAudioStreamCallback(shallow stream: AudioStream, callback: Dynamic)
+#+end_src
+
+* AttachAudioStreamProcessor
+#+begin_src til
+ext_proc AttachAudioStreamProcessor(shallow stream: AudioStream, processor: Dynamic)
+#+end_src
+
+* DetachAudioStreamProcessor
+#+begin_src til
+ext_proc DetachAudioStreamProcessor(shallow stream: AudioStream, processor: Dynamic)
+#+end_src
+
+* AttachAudioMixedProcessor
+#+begin_src til
+ext_proc AttachAudioMixedProcessor(processor: Dynamic)
+#+end_src
+
+* DetachAudioMixedProcessor
+#+begin_src til
+ext_proc DetachAudioMixedProcessor(processor: Dynamic)
+#+end_src
+
+* GetCameraForward
+#+begin_src til
+ext_func GetCameraForward(camera: Camera3D) returns shallow Vector3
+#+end_src
+
+* GetCameraUp
+#+begin_src til
+ext_func GetCameraUp(camera: Camera3D) returns shallow Vector3
+#+end_src
+
+* GetCameraRight
+#+begin_src til
+ext_func GetCameraRight(camera: Camera3D) returns shallow Vector3
+#+end_src
+
+* CameraMoveForward
+#+begin_src til
+ext_proc CameraMoveForward(camera: Camera3D, shallow distance: F32, shallow moveInWorldPlane: Bool)
 #+end_src
 
 * CameraMoveUp
@@ -372,20 +6733,38 @@ ext_proc CameraMoveRight(camera: Camera3D, shallow distance: F32, shallow move_i
 ext_proc CameraMoveUp(camera: Camera3D, shallow distance: F32)
 #+end_src
 
-* BoundingBox
+* CameraMoveRight
 #+begin_src til
-struct BoundingBox {
-    min : Vector3
-    max : Vector3
-namespace:
-    func clone(self: BoundingBox) returns BoundingBox
-    func delete(own self: BoundingBox, call_free: Bool)
-    func size() returns shallow U32
-}
+ext_proc CameraMoveRight(camera: Camera3D, shallow distance: F32, shallow moveInWorldPlane: Bool)
 #+end_src
 
-* CheckCollisionBoxSphere
+* CameraMoveToTarget
 #+begin_src til
-ext_func CheckCollisionBoxSphere(shallow box: BoundingBox, shallow center: Vector3, shallow radius: F32) returns shallow Bool
+ext_proc CameraMoveToTarget(camera: Camera3D, shallow delta: F32)
+#+end_src
+
+* CameraYaw
+#+begin_src til
+ext_proc CameraYaw(camera: Camera3D, shallow angle: F32, shallow rotateAroundTarget: Bool)
+#+end_src
+
+* CameraPitch
+#+begin_src til
+ext_proc CameraPitch(camera: Camera3D, shallow angle: F32, shallow lockView: Bool, shallow rotateAroundTarget: Bool, shallow rotateUp: Bool)
+#+end_src
+
+* CameraRoll
+#+begin_src til
+ext_proc CameraRoll(camera: Camera3D, shallow angle: F32)
+#+end_src
+
+* GetCameraViewMatrix
+#+begin_src til
+ext_func GetCameraViewMatrix(camera: Camera3D) returns shallow Matrix
+#+end_src
+
+* GetCameraProjectionMatrix
+#+begin_src til
+ext_func GetCameraProjectionMatrix(camera: Camera3D, shallow aspect: F32) returns shallow Matrix
 #+end_src
 

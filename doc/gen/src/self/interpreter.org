@@ -148,24 +148,24 @@ has_continue is a Bool
 return_value is a Value
 #+end_src
 
-* _t_Str_30982
+* hoisted__Str_32923
 #+begin_src til
-_t_Str_30982 is a Str
+hoisted__Str_32923 is a Str
 #+end_src
 
-* _t_Str_30983
+* hoisted__Str_32924
 #+begin_src til
-_t_Str_30983 is a Str
+hoisted__Str_32924 is a Str
 #+end_src
 
-* _t_Type_30984
+* hoisted__Type_32925
 #+begin_src til
-_t_Type_30984 is a Type
+hoisted__Type_32925 is a Type
 #+end_src
 
-* _t_Type_30985
+* hoisted__Type_32926
 #+begin_src til
-_t_Type_30985 is a Type
+hoisted__Type_32926 is a Type
 #+end_src
 
 * ns_fields
@@ -178,24 +178,24 @@ ns_fields is a Map
 ns_keys is a Vec
 #+end_src
 
-* _t_Str_30986
+* hoisted__Str_32927
 #+begin_src til
-_t_Str_30986 is a Str
+hoisted__Str_32927 is a Str
 #+end_src
 
-* _t_Str_30987
+* hoisted__Str_32928
 #+begin_src til
-_t_Str_30987 is a Str
+hoisted__Str_32928 is a Str
 #+end_src
 
-* _t_Type_30988
+* hoisted__Type_32929
 #+begin_src til
-_t_Type_30988 is a Type
+hoisted__Type_32929 is a Type
 #+end_src
 
-* _t_Type_30989
+* hoisted__Type_32930
 #+begin_src til
-_t_Type_30989 is a Type
+hoisted__Type_32930 is a Type
 #+end_src
 
 * interp_type_defs
@@ -253,9 +253,9 @@ func val_f32(shallow v: F32) returns shallow Value
 func val_bool(shallow v: Bool) returns shallow Value
 #+end_src
 
-* _t_I64_30990
+* hoisted__I64_32931
 #+begin_src til
-_t_I64_30990 is a I64
+hoisted__I64_32931 is a I64
 #+end_src
 
 * ENUM_PAYLOAD_OFFSET
@@ -373,6 +373,11 @@ func scope_set_owned(mut s: Scope, name: Str, val: Value)
 func scope_set_borrowed(mut s: Scope, name: Str, cell: Cell)
 #+end_src
 
+* free_expr_in_place
+#+begin_src til
+func free_expr_in_place(mut e: Expr)
+#+end_src
+
 * scope_free
 #+begin_src til
 func scope_free(own s: Scope)
@@ -436,6 +441,11 @@ func ns_set(sname: Str, fname: Str, shallow val: Value)
 * make_str_value
 #+begin_src til
 func make_str_value(data: Dynamic, shallow len: U64) returns shallow Value
+#+end_src
+
+* make_str_value_view
+#+begin_src til
+func make_str_value_view(data: Dynamic, shallow len: U64) returns shallow Value
 #+end_src
 
 * make_str_value_own

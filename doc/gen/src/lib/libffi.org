@@ -1,6 +1,196 @@
 #+TITLE: src/lib/libffi.til
 #+OPTIONS: toc:t
 
+* FFI_TYPE_VOID
+#+begin_src til
+FFI_TYPE_VOID is a I64
+#+end_src
+
+* FFI_TYPE_INT
+#+begin_src til
+FFI_TYPE_INT is a I64
+#+end_src
+
+* FFI_TYPE_FLOAT
+#+begin_src til
+FFI_TYPE_FLOAT is a I64
+#+end_src
+
+* FFI_TYPE_DOUBLE
+#+begin_src til
+FFI_TYPE_DOUBLE is a I64
+#+end_src
+
+* FFI_TYPE_LONGDOUBLE
+#+begin_src til
+FFI_TYPE_LONGDOUBLE is a I64
+#+end_src
+
+* FFI_TYPE_UINT8
+#+begin_src til
+FFI_TYPE_UINT8 is a I64
+#+end_src
+
+* FFI_TYPE_SINT8
+#+begin_src til
+FFI_TYPE_SINT8 is a I64
+#+end_src
+
+* FFI_TYPE_UINT16
+#+begin_src til
+FFI_TYPE_UINT16 is a I64
+#+end_src
+
+* FFI_TYPE_SINT16
+#+begin_src til
+FFI_TYPE_SINT16 is a I64
+#+end_src
+
+* FFI_TYPE_UINT32
+#+begin_src til
+FFI_TYPE_UINT32 is a I64
+#+end_src
+
+* FFI_TYPE_SINT32
+#+begin_src til
+FFI_TYPE_SINT32 is a I64
+#+end_src
+
+* FFI_TYPE_UINT64
+#+begin_src til
+FFI_TYPE_UINT64 is a I64
+#+end_src
+
+* FFI_TYPE_SINT64
+#+begin_src til
+FFI_TYPE_SINT64 is a I64
+#+end_src
+
+* FFI_TYPE_STRUCT
+#+begin_src til
+FFI_TYPE_STRUCT is a I64
+#+end_src
+
+* FFI_TYPE_POINTER
+#+begin_src til
+FFI_TYPE_POINTER is a I64
+#+end_src
+
+* FFI_TYPE_COMPLEX
+#+begin_src til
+FFI_TYPE_COMPLEX is a I64
+#+end_src
+
+* ffi_arg
+#+begin_src til
+ffi_arg is a U64
+#+end_src
+
+* ffi_sarg
+#+begin_src til
+ffi_sarg is a I64
+#+end_src
+
+* ffi_abi
+#+begin_src til
+ffi_abi is a I32
+#+end_src
+
+* hoisted__I64_32958
+#+begin_src til
+hoisted__I64_32958 is a I64
+#+end_src
+
+* FFI_FIRST_ABI
+#+begin_src til
+FFI_FIRST_ABI is a I32
+#+end_src
+
+* hoisted__I64_32959
+#+begin_src til
+hoisted__I64_32959 is a I64
+#+end_src
+
+* FFI_UNIX64
+#+begin_src til
+FFI_UNIX64 is a I32
+#+end_src
+
+* hoisted__I64_32960
+#+begin_src til
+hoisted__I64_32960 is a I64
+#+end_src
+
+* FFI_WIN64
+#+begin_src til
+FFI_WIN64 is a I32
+#+end_src
+
+* hoisted__I64_32961
+#+begin_src til
+hoisted__I64_32961 is a I64
+#+end_src
+
+* FFI_EFI64
+#+begin_src til
+FFI_EFI64 is a I32
+#+end_src
+
+* hoisted__I64_32962
+#+begin_src til
+hoisted__I64_32962 is a I64
+#+end_src
+
+* FFI_GNUW64
+#+begin_src til
+FFI_GNUW64 is a I32
+#+end_src
+
+* hoisted__I64_32963
+#+begin_src til
+hoisted__I64_32963 is a I64
+#+end_src
+
+* FFI_LAST_ABI
+#+begin_src til
+FFI_LAST_ABI is a I32
+#+end_src
+
+* hoisted__I64_32964
+#+begin_src til
+hoisted__I64_32964 is a I64
+#+end_src
+
+* FFI_DEFAULT_ABI
+#+begin_src til
+FFI_DEFAULT_ABI is a I32
+#+end_src
+
+* FFI_CLOSURES
+#+begin_src til
+FFI_CLOSURES is a I64
+#+end_src
+
+* FFI_GO_CLOSURES
+#+begin_src til
+FFI_GO_CLOSURES is a I64
+#+end_src
+
+* FFI_TRAMPOLINE_SIZE
+#+begin_src til
+FFI_TRAMPOLINE_SIZE is a I64
+#+end_src
+
+* FFI_NATIVE_RAW_API
+#+begin_src til
+FFI_NATIVE_RAW_API is a I64
+#+end_src
+
+* FFI_64_BIT_MAX
+#+begin_src til
+FFI_64_BIT_MAX is a I64
+#+end_src
+
 * ffi_type
 #+begin_src til
 struct ffi_type {
@@ -15,13 +205,58 @@ namespace:
 }
 #+end_src
 
+* ffi_status
+#+begin_src til
+ffi_status is a I32
+#+end_src
+
+* hoisted__I64_32965
+#+begin_src til
+hoisted__I64_32965 is a I64
+#+end_src
+
+* FFI_OK
+#+begin_src til
+FFI_OK is a I32
+#+end_src
+
+* hoisted__I64_32966
+#+begin_src til
+hoisted__I64_32966 is a I64
+#+end_src
+
+* FFI_BAD_TYPEDEF
+#+begin_src til
+FFI_BAD_TYPEDEF is a I32
+#+end_src
+
+* hoisted__I64_32967
+#+begin_src til
+hoisted__I64_32967 is a I64
+#+end_src
+
+* FFI_BAD_ABI
+#+begin_src til
+FFI_BAD_ABI is a I32
+#+end_src
+
+* hoisted__I64_32968
+#+begin_src til
+hoisted__I64_32968 is a I64
+#+end_src
+
+* FFI_BAD_ARGTYPE
+#+begin_src til
+FFI_BAD_ARGTYPE is a I32
+#+end_src
+
 * ffi_cif
 #+begin_src til
 struct ffi_cif {
     mut abi : I32
     mut nargs : U32
     ref mut arg_types : Dynamic
-    ref mut rtype : Dynamic
+    ref mut rtype : ffi_type
     mut bytes : U32
     mut flags : U32
 namespace:
@@ -31,24 +266,144 @@ namespace:
 }
 #+end_src
 
-* _t_I64_31009
+* FFI_SIZEOF_ARG
 #+begin_src til
-_t_I64_31009 is a I64
+FFI_SIZEOF_ARG is a I64
 #+end_src
 
-* FFI_DEFAULT_ABI
+* ffi_raw
 #+begin_src til
-FFI_DEFAULT_ABI is a I32
+ffi_raw is a Dynamic
 #+end_src
 
-* _t_I64_31010
+* ffi_java_raw
 #+begin_src til
-_t_I64_31010 is a I64
+ffi_java_raw is a Dynamic
 #+end_src
 
-* FFI_TYPE_STRUCT
+* ffi_raw_call
 #+begin_src til
-FFI_TYPE_STRUCT is a I16
+ext_proc ffi_raw_call(cif: ffi_cif, fn: Dynamic, rvalue: Dynamic, avalue: Dynamic)
+#+end_src
+
+* ffi_ptrarray_to_raw
+#+begin_src til
+ext_proc ffi_ptrarray_to_raw(cif: ffi_cif, args: Dynamic, raw: Dynamic)
+#+end_src
+
+* ffi_raw_to_ptrarray
+#+begin_src til
+ext_proc ffi_raw_to_ptrarray(cif: ffi_cif, raw: Dynamic, args: Dynamic)
+#+end_src
+
+* ffi_raw_size
+#+begin_src til
+ext_func ffi_raw_size(cif: ffi_cif) returns shallow U32
+#+end_src
+
+* ffi_java_raw_call
+#+begin_src til
+ext_proc ffi_java_raw_call(cif: ffi_cif, fn: Dynamic, rvalue: Dynamic, avalue: Dynamic)
+#+end_src
+
+* ffi_java_ptrarray_to_raw
+#+begin_src til
+ext_proc ffi_java_ptrarray_to_raw(cif: ffi_cif, args: Dynamic, raw: Dynamic)
+#+end_src
+
+* ffi_java_raw_to_ptrarray
+#+begin_src til
+ext_proc ffi_java_raw_to_ptrarray(cif: ffi_cif, raw: Dynamic, args: Dynamic)
+#+end_src
+
+* ffi_java_raw_size
+#+begin_src til
+ext_func ffi_java_raw_size(cif: ffi_cif) returns shallow U32
+#+end_src
+
+* ffi_closure
+#+begin_src til
+struct ffi_closure {
+namespace:
+    func clone(_self: ffi_closure) returns ffi_closure
+    func delete(own self: ffi_closure, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ffi_closure_alloc
+#+begin_src til
+ext_func ffi_closure_alloc(shallow size: U32, code: Dynamic) returns Dynamic
+#+end_src
+
+* ffi_closure_free
+#+begin_src til
+ext_proc ffi_closure_free(_arg: Dynamic)
+#+end_src
+
+* ffi_prep_closure_loc
+#+begin_src til
+ext_func ffi_prep_closure_loc(_arg: ffi_closure, _arg: ffi_cif, fun: Dynamic, user_data: Dynamic, codeloc: Dynamic) returns shallow I32
+#+end_src
+
+* ffi_raw_closure
+#+begin_src til
+struct ffi_raw_closure {
+namespace:
+    func clone(_self: ffi_raw_closure) returns ffi_raw_closure
+    func delete(own self: ffi_raw_closure, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ffi_java_raw_closure
+#+begin_src til
+struct ffi_java_raw_closure {
+namespace:
+    func clone(_self: ffi_java_raw_closure) returns ffi_java_raw_closure
+    func delete(own self: ffi_java_raw_closure, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ffi_prep_raw_closure
+#+begin_src til
+ext_func ffi_prep_raw_closure(_arg: ffi_raw_closure, cif: ffi_cif, fun: Dynamic, user_data: Dynamic) returns shallow I32
+#+end_src
+
+* ffi_prep_raw_closure_loc
+#+begin_src til
+ext_func ffi_prep_raw_closure_loc(_arg: ffi_raw_closure, cif: ffi_cif, fun: Dynamic, user_data: Dynamic, codeloc: Dynamic) returns shallow I32
+#+end_src
+
+* ffi_prep_java_raw_closure
+#+begin_src til
+ext_func ffi_prep_java_raw_closure(_arg: ffi_java_raw_closure, cif: ffi_cif, fun: Dynamic, user_data: Dynamic) returns shallow I32
+#+end_src
+
+* ffi_prep_java_raw_closure_loc
+#+begin_src til
+ext_func ffi_prep_java_raw_closure_loc(_arg: ffi_java_raw_closure, cif: ffi_cif, fun: Dynamic, user_data: Dynamic, codeloc: Dynamic) returns shallow I32
+#+end_src
+
+* ffi_go_closure
+#+begin_src til
+struct ffi_go_closure {
+namespace:
+    func clone(_self: ffi_go_closure) returns ffi_go_closure
+    func delete(own self: ffi_go_closure, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ffi_prep_go_closure
+#+begin_src til
+ext_func ffi_prep_go_closure(_arg: ffi_go_closure, _arg: ffi_cif, fun: Dynamic) returns shallow I32
+#+end_src
+
+* ffi_call_go
+#+begin_src til
+ext_proc ffi_call_go(cif: ffi_cif, fn: Dynamic, rvalue: Dynamic, avalue: Dynamic, closure: Dynamic)
 #+end_src
 
 * ffi_prep_cif
@@ -56,8 +411,18 @@ FFI_TYPE_STRUCT is a I16
 ext_func ffi_prep_cif(cif: ffi_cif, shallow abi: I32, shallow nargs: U32, rtype: ffi_type, atypes: Dynamic) returns shallow I32
 #+end_src
 
+* ffi_prep_cif_var
+#+begin_src til
+ext_func ffi_prep_cif_var(cif: ffi_cif, shallow abi: I32, shallow nfixedargs: U32, shallow ntotalargs: U32, rtype: ffi_type, atypes: Dynamic) returns shallow I32
+#+end_src
+
 * ffi_call
 #+begin_src til
 ext_proc ffi_call(cif: ffi_cif, fn: Dynamic, rvalue: Dynamic, avalue: Dynamic)
+#+end_src
+
+* ffi_get_struct_offsets
+#+begin_src til
+ext_func ffi_get_struct_offsets(shallow abi: I32, struct_type: ffi_type, offsets: U32) returns shallow I32
 #+end_src
 

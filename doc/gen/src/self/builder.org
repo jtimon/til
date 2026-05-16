@@ -276,6 +276,16 @@ proc emit_i32(f: File, shallow v: I32)
 proc emit_indent(f: File, shallow depth: I32)
 #+end_src
 
+* c_lit_byte_count
+#+begin_src til
+func c_lit_byte_count(s: Str) returns U32
+#+end_src
+
+* collect_ident_refs
+#+begin_src til
+proc collect_ident_refs(e: Expr, mut refs: Set)
+#+end_src
+
 * emit_til_default
 #+begin_src til
 proc emit_til_default(f: File, shallow t: Type)
@@ -293,7 +303,7 @@ func param_ctype(fd: FunctionDef, shallow i: U32) returns Str
 
 * emit_param_list
 #+begin_src til
-proc emit_param_list(f: File, fdef: Expr, shallow with_names: Bool)
+proc emit_param_list(f: File, fdef: Expr, shallow with_names: Bool, shallow for_ext_decl: Bool)
 #+end_src
 
 * collect_dyn_methods
@@ -376,6 +386,11 @@ proc emit_return_box(f: File, rv: Expr, shallow depth: I32)
 proc emit_stmt_return(f: File, e: Expr, shallow depth: I32)
 #+end_src
 
+* is_noop_delete_stmt
+#+begin_src til
+func is_noop_delete_stmt(e: Expr) returns shallow Bool
+#+end_src
+
 * emit_stmt
 #+begin_src til
 proc emit_stmt(f: File, e: Expr, shallow depth: I32)
@@ -389,6 +404,11 @@ proc emit_fcall_funcptr_cast(f: File, e: Expr, sig: Expr)
 * emit_fcall_funcptr_args
 #+begin_src til
 proc emit_fcall_funcptr_args(f: File, e: Expr, sig: Expr, shallow depth: I32)
+#+end_src
+
+* emit_str_lit_expr
+#+begin_src til
+proc emit_str_lit_expr(f: File, s: Str)
 #+end_src
 
 * emit_expr
@@ -488,7 +508,7 @@ func func_return_ctype(fd: FunctionDef) returns Str
 
 * emit_func_forward_decl
 #+begin_src til
-proc emit_func_forward_decl(f: File, name: Str, fdef: Expr)
+proc emit_func_forward_decl(f: File, name: Str, fdef: Expr, shallow top_level: Bool)
 #+end_src
 
 * emit_funcsig_typedef
@@ -694,6 +714,11 @@ proc emit_dyn_fn_wrappers(f: File)
 * emit_dyn_size_of_body
 #+begin_src til
 proc emit_dyn_size_of_body(f: File)
+#+end_src
+
+* emit_tag_case
+#+begin_src til
+proc emit_tag_case(f: File, tag: Str, name: Str)
 #+end_src
 
 * emit_dyn_type_to_str_body

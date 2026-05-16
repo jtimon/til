@@ -8,6 +8,9 @@ Signed 16-bit integer.
 struct I16 {
 namespace:
     ext_func to_i64(shallow val: I16) returns shallow I64
+    ext_func to_u64(shallow val: I16) returns shallow U64
+    ext_func to_u32(shallow val: I16) returns shallow U32
+    ext_func to_f32(shallow val: I16) returns shallow F32
     /// Convert to decimal string representation.
     func to_str(val: I16) returns Str
     ext_func add(shallow a: I16, shallow b: I16) returns shallow I16
