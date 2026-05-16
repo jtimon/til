@@ -1,7 +1,7 @@
 mode lib
 
 import("../lib/libffi")
-link("c_lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
+link("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
 
 priv ExtStr := struct {
     ref mut data : U8 = NULL

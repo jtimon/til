@@ -1,12 +1,12 @@
 mode lib
 
 import("../lib/raylib")
-link("c_lib/raylib/src/libraylib.a")
+link("vendor/raylib/src/libraylib.a")
 link("m")
 link("pthread")
 link("rt")
 import("../lib/tinyfd")
-link("c_lib/tinyfiledialogs/libtinyfd.a")
+link("vendor/tinyfiledialogs/libtinyfd.a")
 
 link("dl")
 

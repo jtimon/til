@@ -3988,9 +3988,9 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     if target.is(Target.WindowsX64) {
         lf = lf.replace(" -ldl", "")
         lf = lf.replace(" -lrt", "")
-        lf = lf.replace(" c_lib/raylib/src/libraylib.a", "")
-        lf = lf.replace(" c_lib/tinyfiledialogs/libtinyfd.a", "")
-        lf = lf.replace(" c_lib/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
+        lf = lf.replace(" vendor/raylib/src/libraylib.a", "")
+        lf = lf.replace(" vendor/tinyfiledialogs/libtinyfd.a", "")
+        lf = lf.replace(" vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
     }
 
     // Per-target system + ffi + (gui) link flags. Tables in

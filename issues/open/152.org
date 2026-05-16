@@ -22,7 +22,7 @@
      blocks added for windows-x64 are a decent starting audit of which
      functions need this treatment.
   2. Precompile ~ext.c~ once per target on a native runner in CI, ship
-     the resulting ~c_lib/ext-{target}.o~ (e.g. ~ext-macos-x64.o~,
+     the resulting ~vendor/ext-{target}.o~ (e.g. ~ext-macos-x64.o~,
      ~ext-macos-arm64.o~) alongside the sources. For macOS that means a
      ~runs-on: macos-latest~ / ~macos-15-intel~ job whose only output
      is the committed ext object.
