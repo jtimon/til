@@ -226,15 +226,10 @@ is_ext_h_type := func(name: Str) returns shallow Bool {
     return false
 }
 
+// print_single / print_flush have hand-written prototypes emitted as
+// part of the standard prelude (see emit_header_defs_and_funcs_lp);
+// suppressing the ext_proc-side emission avoids a duplicate decl.
 is_skip_ext_decl := func(name: Str) returns shallow Bool {
-    if name.eq("exit") { return true }
-    if name.eq("free") { return true }
-    if name.eq("malloc") { return true }
-    if name.eq("calloc") { return true }
-    if name.eq("realloc") { return true }
-    if name.eq("memcpy") { return true }
-    if name.eq("memmove") { return true }
-    if name.eq("memset") { return true }
     if name.eq("print_single") { return true }
     if name.eq("print_flush") { return true }
     return false

@@ -39,19 +39,18 @@ Symptom:
 
    Done (commits on this branch):
 
-   - ~is_skip_ext_decl~ in ~src/self/builder.til~ now suppresses emitted
-     prototypes for ~setenv~, ~getenv~, ~unsetenv~, ~putenv~, ~system~,
-     ~atoi~, ~atol~, ~atof~ so the libc declarations in ~stdlib.h~ are not
-     overridden by a conflicting til-generated prototype.
-   - At each call site of those libc functions, the generated C emits
-     explicit ~(char *)~ casts around ~U8~ / ~I8~ ref arguments and wraps
-     the call expression in a ~(U8 *)~ / ~(I8 *)~ cast when the libc
-     prototype returns a ~char *~ (e.g. ~getenv~). The casts make the
-     U8/char and unsigned/const conversions explicit, so the generated
-     code compiles under ~-Wall -Wextra -Werror~ without any new
-     diagnostics being silenced. Helpers ~is_libc_str_fn~,
-     ~callee_param_needs_char_cast~ and ~libc_call_return_cast~ in
-     ~src/self/builder.til~ drive this.
+   - First pass (intermediate state, since superseded -- see Final
+     state below): ~is_skip_ext_decl~ in ~src/self/builder.til~
+     suppressed emitted prototypes for ~setenv~ / ~getenv~ /
+     ~unsetenv~ / ~putenv~ / ~system~ / ~atoi~ / ~atol~ / ~atof~ so
+     ~stdlib.h~'s declaration won, and a trio of helpers
+     (~is_libc_str_fn~, ~callee_param_needs_char_cast~,
+     ~libc_call_return_cast~) wrapped libc call sites with explicit
+     ~(char *)~ casts on ~U8~ / ~I8~ ref args and ~(U8 *)~ /
+     ~(I8 *)~ casts on the call's return so the U8-vs-char and
+     unsigned-vs-const conversions compiled cleanly under
+     ~-Wall -Wextra -Werror~.
+
    - Const-correct C emission for ~ext_func~ / ~ext_proc~ prototypes:
      ~emit_param_list~ takes a ~for_ext_decl~ flag and, when true,
      prepends ~const~ to non-~mut~ Ref pointer params. Variadic /
@@ -64,8 +63,9 @@ Symptom:
      in that case -- the func body's own forward-decl emission is
      authoritative. For example, ~greet := ext_func(name: Str) returns
      Str {}~ in ~examples/ffi/ext_module.til~ now emits
-     ~Str * greet(const Str *)~, and ~InitWindow(... title: U8)~ in
-     ~src/lib/raylib.til~ emits ~void InitWindow(I32, I32, const U8 *)~,
+     ~Str * greet(const Str *)~, and ~InitWindow(... title: I8)~ in
+     ~src/lib/raylib.til~ emits
+     ~void InitWindow(I32, I32, const I8 *)~ (= ~const char *~),
      while ~callee_return_ctype~ in ~src/self/builder.til~ keeps just
      the func-body forward decl with no const (matching the body).
    - Bullet 2 ("FFI types ~CStr~ / ~char *~ distinct from ~U8 *~ /
@@ -84,7 +84,15 @@ Symptom:
      the til level. The ~c_str_to_i8~ / ~c_str_from_i8~ helpers from
      the transitional U8/I8 bridge have been removed; ~U8~ is left
      for genuine unsigned-byte buffers (~Color~ RGBA, ~Image~ data,
-     binary font output, etc.).
+     binary font output, etc.). The libc-string call-site cast
+     machinery (~is_libc_str_fn~, ~callee_param_needs_char_cast~,
+     ~libc_call_return_cast~) and the libc string-pointer entries
+     (~setenv~ / ~getenv~ / ~unsetenv~ / ~putenv~ / ~system~ /
+     ~atoi~ / ~atol~ / ~atof~) in ~is_skip_ext_decl~ have been
+     retired: the generated ~const I8 *~ prototype matches
+     ~stdlib.h~'s ~const char *~ declaration exactly, so til can
+     emit its own prototype without conflict and call libc without a
+     cast.
 
    - Const-correct C emission for the rest of the forward-decl paths:
      a follow-up commit pulled the top-level-ext_func filter inside
