@@ -1819,6 +1819,7 @@ Str * header_dir_of(Str * path);
 Bool path_in_dir(Str * marker_path, Str * incdir);
 Bool looks_like_macro_fragment(Str * line);
 Vec * filter_preprocessed(Str * pre, Str * incdir);
+Str * collapse_blank_runs(Str * s);
 void generate_bindings(Str * in_path, Str * out_path);
 Vector3 * Vector3_clone(Vector3 * self);
 void Vector3_delete(Vector3 * self, Bool * call_free);

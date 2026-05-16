@@ -1713,6 +1713,36 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
     return out
 }
 
+// Collapse runs of consecutive blank lines down to a single blank, i.e.
+// any sequence of 3+ newlines becomes exactly two. The walker leaves
+// long blank runs behind whenever it strips a block comment or a
+// non-numeric `#define`; collapsing them keeps the generated output
+// scannable without dropping the visual paragraph breaks.
+priv collapse_blank_runs := func(s: Str) returns Str {
+    n := s.len()
+    mut out := Str.with_capacity(n)
+    mut i : USize = 0
+    while i.lt(n) {
+        ref c : I8 = s.byte_at(i)
+        if c.eq('\n') {
+            // Find the end of this newline run.
+            mut j := i.add(1)
+            while j.lt(n).and(s.byte_at(j).eq('\n')) { j = j.add(1) }
+            run := j.sub(i)
+            if run.gte(2) {
+                out.push_str("\n\n")
+            } else {
+                out.push_str("\n")
+            }
+            i = j
+            continue
+        }
+        out.push_str(s.substr(i, 1))
+        i = i.add(1)
+    }
+    return out
+}
+
 generate_bindings := proc(in_path: Str, out_path: Str) {
     incdir := header_dir_of(in_path)
     mut pre := ""
@@ -1723,5 +1753,6 @@ generate_bindings := proc(in_path: Str, out_path: Str) {
     mut out := Str.with_capacity(262144)
     out.push_str("mode lib\n\n")
     walk_header(out, lines)
-    File.writefile(out_path, out)
+    collapsed := collapse_blank_runs(out)
+    File.writefile(out_path, collapsed)
 }

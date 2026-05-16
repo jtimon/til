@@ -1,6 +1,5 @@
 mode lib
 
-
 // -----------------------------------------------------------------*-C-*-
    // libffi 3.4.6      - Copyright (c) 2011, 2014, 2019, 2021, 2022, 2024 Anthony Green      - Copyright (c) 1996-2003, 2007, 2008 Red Hat, Inc. 
    // Permission is hereby granted, free of charge, to any person    obtaining a copy of this software and associated documentation    files (the ``Software''), to deal in the Software without    restriction, including without limitation the rights to use, copy,
@@ -20,15 +19,7 @@ mode lib
    // and 
    // http://gcc.gnu.org/ml/java/1999-q3/msg00174.html    -------------------------------------------------------------------- */
 
-
-
-
-
-
-
 // Specify which architecture libffi is configured for. 
-
-
 
 // ---- System configuration information --------------------------------- 
 
@@ -39,8 +30,6 @@ FFI_TYPE_FLOAT : I64 = 2
 FFI_TYPE_DOUBLE : I64 = 3
 
 FFI_TYPE_LONGDOUBLE : I64 = 4
-
-
 
 FFI_TYPE_UINT8 : I64 = 5
 FFI_TYPE_SINT8 : I64 = 6
@@ -68,25 +57,14 @@ FFI_TYPE_COMPLEX : I64 = 15
    // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER    DEALINGS IN THE SOFTWARE. 
    // ----------------------------------------------------------------------- */
 
-
-
-
-
-
-
 // ---- System specific configurations ----------------------------------- 
 
 // For code common to all platforms on x86 and x86_64. 
-
-
 
 // ---- Generic type definitions ----------------------------------------- 
 ffi_arg := U64
 
 ffi_sarg := I64
-
-
-
 
 ffi_abi := I32
 
@@ -98,39 +76,20 @@ FFI_GNUW64 : I32 = 4.to_i32()
 FFI_LAST_ABI : I32 = 5.to_i32()
 FFI_DEFAULT_ABI : I32 = 2.to_i32()
 
-
-
 // ---- Definitions for closures ----------------------------------------- 
 
 FFI_CLOSURES : I64 = 1
 FFI_GO_CLOSURES : I64 = 1
-
-
-
 
 // 4 bytes of ENDBR64 + 7 bytes of LEA + 6 bytes of JMP + 7 bytes of NOP
    // + 8 bytes of pointer.  */
 FFI_TRAMPOLINE_SIZE : I64 = 32
 FFI_NATIVE_RAW_API : I64 = 0
 
-
-
-
-
-
-
-
-
-
-
 // LONG_LONG_MAX is not always defined (not if STRICT_ANSI, for example).
    // But we can find it either under the correct ANSI name, or under GNU    C's internal name.  */
 
 FFI_64_BIT_MAX : I64 = 9223372036854775807
-
-
-
-
 
 // The closure code assumes that this works on pointers, i.e. a size_t
    // can hold a pointer.  */
@@ -142,41 +101,13 @@ ffi_type := ext_struct("_ffi_type") {
     ref mut elements : Dynamic = NULL
 }
 
-
 // Need minimal decorations for DLLs to work on Windows.  GCC has
    // autoimport and autoexport.  Always mark externally visible symbols    as dllimport for MSVC clients, even if it means an extra indirection    when using the static version of the library.    Besides, as a workaround, they can define FFI_BUILDING if they    *know* they are going to link with the static library.  */
-
-
-
-
-
-
-
-
 
 // The externally visible type declarations also need the MSVC DLL
    // decorations, or they will not be exported from the object file.  */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // These are defined in types.c.  
-
-
-
-
 
 ffi_status := I32
 
@@ -184,7 +115,6 @@ FFI_OK : I32 = 0.to_i32()
 FFI_BAD_TYPEDEF : I32 = 1.to_i32()
 FFI_BAD_ABI : I32 = 2.to_i32()
 FFI_BAD_ARGTYPE : I32 = 3.to_i32()
-
 
 ffi_cif := ext_struct("") {
     mut abi : ffi_abi = 0
@@ -195,27 +125,13 @@ ffi_cif := ext_struct("") {
     mut flags : U32 = 0
 }
 
-
 // ---- Definitions for the raw API -------------------------------------- 
 
-
-
-
-
 FFI_SIZEOF_ARG : I64 = 8
-
-
-
-
-
 
 ffi_raw := Dynamic  // typedef union from C, opaque here
 
 ffi_java_raw := ffi_raw
-
-
-
-
 
 ffi_raw_call := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : ffi_raw) {}
 
@@ -226,11 +142,7 @@ ffi_raw_size := ext_func(cif : ffi_cif) returns shallow USize {}
 // This is analogous to the raw API, except it uses Java parameter
    // packing, even on 64-bit machines.  I.e. on 64-bit machines longs    and doubles are followed by an empty 64-bit word.  */
 
-
-
 ffi_java_raw_call := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : ffi_java_raw) {}
-
-
 
 ffi_java_ptrarray_to_raw := ext_proc(cif : ffi_cif, args : Dynamic, raw : ffi_java_raw) {}
 
@@ -240,78 +152,42 @@ ffi_java_raw_size := ext_func(cif : ffi_cif) returns shallow USize {}
 
 // ---- Definitions for closures ----------------------------------------- 
 
-
-
-
-
-
 ffi_closure := ext_struct("") {}  // opaque: unsupported field shape
-
-
-
-
-
-
-
 
 ffi_closure_alloc := ext_func(shallow size : USize, code : Dynamic) returns Dynamic {}
 ffi_closure_free := ext_proc(_arg : Dynamic) {}
 
-
 ffi_prep_closure_loc := ext_func(_arg : ffi_closure, _arg : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
-
-
-
 
 ffi_raw_closure := ext_struct("") {}  // opaque: unsupported field shape
 
-
 ffi_java_raw_closure := ext_struct("") {}  // opaque: unsupported field shape
-
 
 ffi_prep_raw_closure := ext_func(_arg : ffi_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic) returns shallow ffi_status {}
 
 ffi_prep_raw_closure_loc := ext_func(_arg : ffi_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
 
-
 ffi_prep_java_raw_closure := ext_func(_arg : ffi_java_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic) returns shallow ffi_status {}
 
 ffi_prep_java_raw_closure_loc := ext_func(_arg : ffi_java_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
 
-
-
-
-
-
 ffi_go_closure := ext_struct("") {}  // opaque: unsupported field shape
-
 
 ffi_prep_go_closure := ext_func(_arg : ffi_go_closure, _arg : ffi_cif, fun : Dynamic) returns shallow ffi_status {}
 
 ffi_call_go := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : Dynamic, closure : Dynamic) {}
 
-
-
 // ---- Public interface definition -------------------------------------- 
-
 
 ffi_prep_cif := ext_func(cif : ffi_cif, shallow abi : ffi_abi, shallow nargs : U32, rtype : ffi_type, atypes : Dynamic) returns shallow ffi_status {}
 
-
 ffi_prep_cif_var := ext_func(cif : ffi_cif, shallow abi : ffi_abi, shallow nfixedargs : U32, shallow ntotalargs : U32, rtype : ffi_type, atypes : Dynamic) returns shallow ffi_status {}
 
-
 ffi_call := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : Dynamic) {}
-
 
 ffi_get_struct_offsets := ext_func(shallow abi : ffi_abi, struct_type : ffi_type, offsets : USize) returns shallow ffi_status {}
 
 // Convert between closure and function pointers.  
-
-
-
-
-
 
 // ---- Definitions shared with assembly code ---------------------------- 
 

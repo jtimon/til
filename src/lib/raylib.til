@@ -1,6 +1,5 @@
 mode lib
 
-
 //*********************************************************************************************
 //
 //   raylib v6.0 - A simple and easy-to-use library to enjoy videogames programming (www.raylib.com)
@@ -83,54 +82,28 @@ mode lib
 //
 //********************************************************************************************
 
-
-
-
 RAYLIB_VERSION_MAJOR : I64 = 6
 RAYLIB_VERSION_MINOR : I64 = 0
 RAYLIB_VERSION_PATCH : I64 = 0
-
 
 // Function specifiers in case library is build/used as a shared library
 // NOTE: Microsoft specifiers to tell compiler that symbols are imported/exported from a .dll
 // NOTE: visibility("default") attribute makes symbols "visible" when compiled with -fvisibility=hidden
 
-
 //----------------------------------------------------------------------------------
 // Defines and Macros
 //----------------------------------------------------------------------------------
 
-
-
-
-
-
-
 // Allow custom memory allocators
 // NOTE: Require recompiling raylib sources
-
-
-
-
-
-
-
-
 
 // NOTE: MSVC C++ compiler does not support compound literals (C99 feature)
 // Plain structures in C++ (without constructors) can be initialized with { }
 // This is called aggregate initialization (C++11 feature)
 
-
-
-
-
 // Some compilers (mostly macos clang) default to C++98,
 // where aggregate initialization can't be used
 // So, give a more clear error stating how to fix this
-
-
-
 
 // NOTE: Set some defines with some data types declared by raylib
 // Other modules (raymath, rlgl) also require some of those types, so,
@@ -140,17 +113,10 @@ RAYLIB_VERSION_PATCH : I64 = 0
 // Some Basic Colors
 // NOTE: Custom raylib color palette for amazing visuals on WHITE background
 
-
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 // Boolean type
-
-
-
-
-
-
 
 // Vector2, 2 components
 Vector2 := struct {
@@ -158,14 +124,12 @@ Vector2 := struct {
     mut y : F32 = 0  // Vector y component
 }
 
-
 // Vector3, 3 components
 Vector3 := struct {
     mut x : F32 = 0  // Vector x component
     mut y : F32 = 0  // Vector y component
     mut z : F32 = 0  // Vector z component
 }
-
 
 // Vector4, 4 components
 Vector4 := struct {
@@ -175,14 +139,11 @@ Vector4 := struct {
     mut w : F32 = 0  // Vector w component
 }
 
-
 // Quaternion, 4 components (Vector4 alias)
 Quaternion := Vector4
 
-
 // Matrix, 4x4 components, column major, OpenGL style, right-handed
 Matrix := ext_struct("Matrix") {}  // opaque: unsupported field shape
-
 
 // Color, 4 components, R8G8B8A8 (32bit)
 Color := struct {
@@ -192,7 +153,6 @@ Color := struct {
     mut a : U8 = 0  // Color alpha value
 }
 
-
 // Rectangle, 4 components
 Rectangle := struct {
     mut x : F32 = 0  // Rectangle top-left corner position x
@@ -200,7 +160,6 @@ Rectangle := struct {
     mut width : F32 = 0  // Rectangle width
     mut height : F32 = 0  // Rectangle height
 }
-
 
 // Image, pixel data stored in CPU memory (RAM)
 Image := struct {
@@ -211,7 +170,6 @@ Image := struct {
     mut format : I32 = 0  // Data format (PixelFormat type)
 }
 
-
 // Texture, tex data stored in GPU memory (VRAM)
 Texture := struct {
     mut id : U32 = 0  // OpenGL texture id
@@ -221,14 +179,11 @@ Texture := struct {
     mut format : I32 = 0  // Data format (PixelFormat type)
 }
 
-
 // Texture2D, same as Texture
 Texture2D := Texture
 
-
 // TextureCubemap, same as Texture
 TextureCubemap := Texture
-
 
 // RenderTexture, fbo for texture rendering
 RenderTexture := struct {
@@ -237,10 +192,8 @@ RenderTexture := struct {
     mut depth : Texture = Texture()  // Depth buffer attachment texture
 }
 
-
 // RenderTexture2D, same as RenderTexture
 RenderTexture2D := RenderTexture
-
 
 // NPatchInfo, n-patch layout info
 NPatchInfo := struct {
@@ -252,7 +205,6 @@ NPatchInfo := struct {
     mut layout : I32 = 0  // Layout of the n-patch: 3x3, 1x3 or 3x1
 }
 
-
 // GlyphInfo, font characters glyphs info
 GlyphInfo := struct {
     mut value : I32 = 0  // Character value (Unicode)
@@ -261,7 +213,6 @@ GlyphInfo := struct {
     mut advanceX : I32 = 0  // Character advance position X
     mut image : Image = Image()  // Character image data
 }
-
 
 // Font, font texture and GlyphInfo array data
 Font := struct {
@@ -273,7 +224,6 @@ Font := struct {
     ref mut glyphs : GlyphInfo = NULL  // Glyphs info data
 }
 
-
 // Camera, defines position/orientation in 3d space
 Camera3D := struct {
     mut position : Vector3 = Vector3()  // Camera position
@@ -283,9 +233,7 @@ Camera3D := struct {
     mut projection : I32 = 0  // Camera projection: CAMERA_PERSPECTIVE or CAMERA_ORTHOGRAPHIC
 }
 
-
 Camera := Camera3D
-
 
 // Camera2D, defines position/orientation in 2d space
 Camera2D := struct {
@@ -294,7 +242,6 @@ Camera2D := struct {
     mut rotation : F32 = 0  // Camera rotation in degrees (pivots around target)
     mut zoom : F32 = 0  // Camera zoom (scaling around target), must not be set to 0, set to 1.0f for no scale
 }
-
 
 // Mesh, vertex data and vao/vbo
 Mesh := struct {
@@ -321,13 +268,11 @@ Mesh := struct {
     ref mut vboId : U32 = NULL  // OpenGL Vertex Buffer Objects id (default vertex data)
 }
 
-
 // Shader
 Shader := struct {
     mut id : U32 = 0  // Shader program id
     ref mut locs : I32 = NULL  // Shader locations array (RL_MAX_SHADER_LOCATIONS)
 }
-
 
 // MaterialMap
 MaterialMap := struct {
@@ -336,10 +281,8 @@ MaterialMap := struct {
     mut value : F32 = 0  // Material map value
 }
 
-
 // Material, includes shader and maps
 Material := ext_struct("Material") {}  // opaque: unsupported field shape
-
 
 // Transform, vertex transformation data
 Transform := struct {
@@ -348,14 +291,11 @@ Transform := struct {
     mut scale : Vector3 = Vector3()  // Scale
 }
 
-
 // Anim pose, an array of Transform[]
 ModelAnimPose := Dynamic
 
-
 // Bone, skeletal animation bone
 BoneInfo := ext_struct("BoneInfo") {}  // opaque: unsupported field shape
-
 
 // Skeleton, animation bones hierarchy
 ModelSkeleton := struct {
@@ -363,7 +303,6 @@ ModelSkeleton := struct {
     ref mut bones : BoneInfo = NULL  // Bones information (skeleton)
     ref mut bindPose : Dynamic = NULL  // Bones base transformation (Transform[])
 }
-
 
 // Model, meshes, materials and animation data
 Model := struct {
@@ -380,17 +319,14 @@ Model := struct {
     ref mut boneMatrices : Matrix = NULL  // Bones animated transformation matrices
 }
 
-
 // ModelAnimation, contains a full animation sequence
 ModelAnimation := ext_struct("ModelAnimation") {}  // opaque: unsupported field shape
-
 
 // Ray, ray for raycasting
 Ray := struct {
     mut position : Vector3 = Vector3()  // Ray position (origin)
     mut direction : Vector3 = Vector3()  // Ray direction (normalized)
 }
-
 
 // RayCollision, ray hit information
 RayCollision := struct {
@@ -400,13 +336,11 @@ RayCollision := struct {
     mut normal : Vector3 = Vector3()  // Surface normal of hit
 }
 
-
 // BoundingBox
 BoundingBox := struct {
     mut min : Vector3 = Vector3()  // Minimum vertex box-corner
     mut max : Vector3 = Vector3()  // Maximum vertex box-corner
 }
-
 
 // Wave, audio wave data
 Wave := struct {
@@ -417,13 +351,11 @@ Wave := struct {
     ref mut data : Dynamic = NULL  // Buffer data pointer
 }
 
-
 // Opaque structs declaration
 // NOTE: Actual structs are defined internally in raudio module
 rAudioBuffer := ext_struct("rAudioBuffer") {}
 
 rAudioProcessor := ext_struct("rAudioProcessor") {}
-
 
 // AudioStream, custom audio stream
 AudioStream := struct {
@@ -434,13 +366,11 @@ AudioStream := struct {
     mut channels : U32 = 0  // Number of channels (1-mono, 2-stereo, ...)
 }
 
-
 // Sound
 Sound := struct {
     mut stream : AudioStream = AudioStream()  // Audio stream
     mut frameCount : U32 = 0  // Total number of frames (considering channels)
 }
-
 
 // Music, audio stream, anything longer than ~10 seconds should be streamed
 Music := struct {
@@ -451,14 +381,11 @@ Music := struct {
     ref mut ctxData : Dynamic = NULL  // Audio context data, depends on type
 }
 
-
 // VrDeviceInfo, Head-Mounted-Display device parameters
 VrDeviceInfo := ext_struct("VrDeviceInfo") {}  // opaque: unsupported field shape
 
-
 // VrStereoConfig, VR stereo rendering configuration for simulator
 VrStereoConfig := ext_struct("VrStereoConfig") {}  // opaque: unsupported field shape
-
 
 // File path list
 FilePathList := struct {
@@ -466,10 +393,8 @@ FilePathList := struct {
     ref mut paths : Dynamic = NULL  // Filepaths entries
 }
 
-
 // Automation event
 AutomationEvent := ext_struct("AutomationEvent") {}  // opaque: unsupported field shape
-
 
 // Automation event list
 AutomationEventList := struct {
@@ -477,7 +402,6 @@ AutomationEventList := struct {
     mut count : U32 = 0  // Events entries count
     ref mut events : AutomationEvent = NULL  // Events entries
 }
-
 
 //----------------------------------------------------------------------------------
 // Enumerators Definition
@@ -504,7 +428,6 @@ FLAG_BORDERLESS_WINDOWED_MODE : I32 = 32768.to_i32()
 FLAG_MSAA_4X_HINT : I32 = 32.to_i32()
 FLAG_INTERLACED_HINT : I32 = 33.to_i32()
 
-
 // Trace log level
 // NOTE: Organized by priority level
 TraceLogLevel := I32
@@ -517,7 +440,6 @@ LOG_WARNING : I32 = 4.to_i32()
 LOG_ERROR : I32 = 5.to_i32()
 LOG_FATAL : I32 = 6.to_i32()
 LOG_NONE : I32 = 7.to_i32()
-
 
 // Keyboard keys (US keyboard layout)
 // NOTE: Use GetKeyPressed() to allow redefining required keys for alternative layouts
@@ -638,7 +560,6 @@ KEY_MENU : I32 = 5.to_i32()
 KEY_VOLUME_UP : I32 = 24.to_i32()
 KEY_VOLUME_DOWN : I32 = 25.to_i32()
 
-
 // Add backwards compatibility support for deprecated names
 
 // Mouse buttons
@@ -651,7 +572,6 @@ MOUSE_BUTTON_SIDE : I32 = 3.to_i32()
 MOUSE_BUTTON_EXTRA : I32 = 4.to_i32()
 MOUSE_BUTTON_FORWARD : I32 = 5.to_i32()
 MOUSE_BUTTON_BACK : I32 = 6.to_i32()
-
 
 // Mouse cursor
 MouseCursor := I32
@@ -667,7 +587,6 @@ MOUSE_CURSOR_RESIZE_NWSE : I32 = 7.to_i32()
 MOUSE_CURSOR_RESIZE_NESW : I32 = 8.to_i32()
 MOUSE_CURSOR_RESIZE_ALL : I32 = 9.to_i32()
 MOUSE_CURSOR_NOT_ALLOWED : I32 = 10.to_i32()
-
 
 // Gamepad buttons
 GamepadButton := I32
@@ -691,7 +610,6 @@ GAMEPAD_BUTTON_MIDDLE_RIGHT : I32 = 15.to_i32()
 GAMEPAD_BUTTON_LEFT_THUMB : I32 = 16.to_i32()
 GAMEPAD_BUTTON_RIGHT_THUMB : I32 = 17.to_i32()
 
-
 // Gamepad axes
 GamepadAxis := I32
 
@@ -701,7 +619,6 @@ GAMEPAD_AXIS_RIGHT_X : I32 = 2.to_i32()
 GAMEPAD_AXIS_RIGHT_Y : I32 = 3.to_i32()
 GAMEPAD_AXIS_LEFT_TRIGGER : I32 = 4.to_i32()
 GAMEPAD_AXIS_RIGHT_TRIGGER : I32 = 5.to_i32()
-
 
 // Material map index
 MaterialMapIndex := I32
@@ -717,8 +634,6 @@ MATERIAL_MAP_CUBEMAP : I32 = 7.to_i32()
 MATERIAL_MAP_IRRADIANCE : I32 = 8.to_i32()
 MATERIAL_MAP_PREFILTER : I32 = 9.to_i32()
 MATERIAL_MAP_BRDF : I32 = 10.to_i32()
-
-
 
 // Shader location index
 // NOTE: Some locations are tried to be set automatically on shader loading,
@@ -756,8 +671,6 @@ SHADER_LOC_VERTEX_BONEWEIGHTS : I32 = 27.to_i32()
 SHADER_LOC_MATRIX_BONETRANSFORMS : I32 = 28.to_i32()
 SHADER_LOC_VERTEX_INSTANCETRANSFORM : I32 = 29.to_i32()
 
-
-
 // Shader uniform data type
 ShaderUniformDataType := I32
 
@@ -775,7 +688,6 @@ SHADER_UNIFORM_UIVEC3 : I32 = 10.to_i32()
 SHADER_UNIFORM_UIVEC4 : I32 = 11.to_i32()
 SHADER_UNIFORM_SAMPLER2D : I32 = 12.to_i32()
 
-
 // Shader attribute data types
 ShaderAttributeDataType := I32
 
@@ -783,7 +695,6 @@ SHADER_ATTRIB_FLOAT : I32 = 0.to_i32()
 SHADER_ATTRIB_VEC2 : I32 = 1.to_i32()
 SHADER_ATTRIB_VEC3 : I32 = 2.to_i32()
 SHADER_ATTRIB_VEC4 : I32 = 3.to_i32()
-
 
 // Pixel formats
 // NOTE: Support depends on OpenGL version and platform
@@ -814,7 +725,6 @@ PIXELFORMAT_COMPRESSED_PVRT_RGBA : I32 = 22.to_i32()
 PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA : I32 = 23.to_i32()
 PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA : I32 = 24.to_i32()
 
-
 // Texture parameters: filter mode
 // NOTE 1: Filtering considers mipmaps if available in the texture
 // NOTE 2: Filter is accordingly set for minification and magnification
@@ -827,7 +737,6 @@ TEXTURE_FILTER_ANISOTROPIC_4X : I32 = 3.to_i32()
 TEXTURE_FILTER_ANISOTROPIC_8X : I32 = 4.to_i32()
 TEXTURE_FILTER_ANISOTROPIC_16X : I32 = 5.to_i32()
 
-
 // Texture parameters: wrap mode
 TextureWrap := I32
 
@@ -835,7 +744,6 @@ TEXTURE_WRAP_REPEAT : I32 = 0.to_i32()
 TEXTURE_WRAP_CLAMP : I32 = 1.to_i32()
 TEXTURE_WRAP_MIRROR_REPEAT : I32 = 2.to_i32()
 TEXTURE_WRAP_MIRROR_CLAMP : I32 = 3.to_i32()
-
 
 // Cubemap layouts
 CubemapLayout := I32
@@ -846,14 +754,12 @@ CUBEMAP_LAYOUT_LINE_HORIZONTAL : I32 = 2.to_i32()
 CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR : I32 = 3.to_i32()
 CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE : I32 = 4.to_i32()
 
-
 // Font type, defines generation method
 FontType := I32
 
 FONT_DEFAULT : I32 = 0.to_i32()
 FONT_BITMAP : I32 = 1.to_i32()
 FONT_SDF : I32 = 2.to_i32()
-
 
 // Color blending modes (pre-defined)
 BlendMode := I32
@@ -866,7 +772,6 @@ BLEND_SUBTRACT_COLORS : I32 = 4.to_i32()
 BLEND_ALPHA_PREMULTIPLY : I32 = 5.to_i32()
 BLEND_CUSTOM : I32 = 6.to_i32()
 BLEND_CUSTOM_SEPARATE : I32 = 7.to_i32()
-
 
 // Gesture
 // NOTE: Provided as bit-wise flags to enable only desired gestures
@@ -884,7 +789,6 @@ GESTURE_SWIPE_DOWN : I32 = 128.to_i32()
 GESTURE_PINCH_IN : I32 = 256.to_i32()
 GESTURE_PINCH_OUT : I32 = 257.to_i32()
 
-
 // Camera system modes
 CameraMode := I32
 
@@ -894,13 +798,11 @@ CAMERA_ORBITAL : I32 = 2.to_i32()
 CAMERA_FIRST_PERSON : I32 = 3.to_i32()
 CAMERA_THIRD_PERSON : I32 = 4.to_i32()
 
-
 // Camera projection
 CameraProjection := I32
 
 CAMERA_PERSPECTIVE : I32 = 0.to_i32()
 CAMERA_ORTHOGRAPHIC : I32 = 1.to_i32()
-
 
 // N-patch layout
 NPatchLayout := I32
@@ -908,7 +810,6 @@ NPatchLayout := I32
 NPATCH_NINE_PATCH : I32 = 0.to_i32()
 NPATCH_THREE_PATCH_VERTICAL : I32 = 1.to_i32()
 NPATCH_THREE_PATCH_HORIZONTAL : I32 = 2.to_i32()
-
 
 // Callbacks to hook some internal functions
 // WARNING: These callbacks are intended for advanced users
@@ -922,7 +823,6 @@ LoadFileTextCallback := Dynamic
 
 SaveFileTextCallback := Dynamic
 
-
 //------------------------------------------------------------------------------------
 // Global Variables Definition
 //------------------------------------------------------------------------------------
@@ -931,10 +831,6 @@ SaveFileTextCallback := Dynamic
 //------------------------------------------------------------------------------------
 // Window and Graphics Device Functions (Module: core)
 //------------------------------------------------------------------------------------
-
-
-
-
 
 // Window-related functions
 InitWindow := ext_proc(shallow width : I32, shallow height : I32, title : I8) {}
@@ -1673,7 +1569,6 @@ GetRayCollisionQuad := ext_func(shallow ray : Ray, shallow p1 : Vector3, shallow
 //------------------------------------------------------------------------------------
 AudioCallback := Dynamic
 
-
 // Audio device management functions
 InitAudioDevice := ext_proc() {}
 CloseAudioDevice := ext_proc() {}
@@ -1764,7 +1659,6 @@ AttachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
 DetachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
 
 
-
 //******************************************************************************************
 //
 //   rcamera - Basic camera system with support for multiple camera modes
@@ -1806,8 +1700,6 @@ DetachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
 //
 //********************************************************************************************
 
-
-
 //----------------------------------------------------------------------------------
 // Defines and Macros
 //----------------------------------------------------------------------------------
@@ -1815,13 +1707,6 @@ DetachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
 
 // Function specifiers in case library is build/used as a shared library (Windows)
 // NOTE: Microsoft specifiers to tell compiler that symbols are imported/exported from a .dll
-
-
-
-
-
-
-
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
@@ -1835,10 +1720,6 @@ DetachAudioMixedProcessor := ext_proc(processor : Dynamic) {}
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
-
-
-
-
 
 GetCameraForward := ext_func(camera : Camera) returns shallow Vector3 {}
 GetCameraUp := ext_func(camera : Camera) returns shallow Vector3 {}
@@ -1857,12 +1738,6 @@ CameraRoll := ext_proc(camera : Camera, shallow angle : F32) {}
 
 GetCameraViewMatrix := ext_func(camera : Camera) returns shallow Matrix {}
 GetCameraProjectionMatrix := ext_func(camera : Camera, shallow aspect : F32) returns shallow Matrix {}
-
-
-
-
-
-
 
 //**********************************************************************************
 //

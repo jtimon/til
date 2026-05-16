@@ -1,6 +1,5 @@
 mode lib
 
-
 //_________
  // /         \ tinyfiledialogs.h v2.9.3 [July 12, 2017] zlib licence  |tiny file| Unique header file created [November 9, 2014]  | dialogs | Copyright (c) 2014 - 2017 Guillaume Vareille http://ysengrin.com  \____  ___/ http://tinyfiledialogs.sourceforge.net       \|                                 git://git.code.sf.net/p/tinyfiledialogs/code 		 ______________________________________________ 		|                                              | 		|     email: tinyfiledialogs@ysengrin.com      | 		|______________________________________________| 
 // A big thank you to Don Heyse http://ldglite.sf.net for                    his code contributions, bug corrections & thorough testing! 		
@@ -22,8 +21,6 @@ mode lib
 // including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions: 
 // 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software.  If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required. 2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software. 3. This notice may not be removed or altered from any source distribution. */
 
-
-
 // #define TINYFD_NOLIB 
 // On windows, define TINYFD_NOLIB here
 // if you don't want to include the code creating the graphic dialogs. Then you won't need to link against Comdlg32.lib and Ole32.lib */
@@ -33,9 +30,6 @@ mode lib
 // and the corresponding closing bracket near the end of this file:
 // }
 ///
-
-
-
 
 // for unix & windows: 0 (graphic mode) or 1 (console mode).
 // 0: try to use a graphic solution, if it fails then it uses console mode. 1: forces all dialogs into console mode even when an X server is present,
@@ -66,7 +60,6 @@ tinyfd_colorChooser := ext_func(aTitle : I8, aDefaultHexRGB : I8, aDefaultRGB : 
   // aDefaultRGB is used only if aDefaultHexRGB is NULL 
   // aDefaultRGB and aoResultRGB can be the same array 
   // returns NULL on cancel 
-
 
 //*********** NOT CROSS PLATFORM SECTION STARTS HERE ***********************
 // unix zenity only 
