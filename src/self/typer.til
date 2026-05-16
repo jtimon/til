@@ -3212,8 +3212,10 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
         switch stmt.node_type {
         case NodeType.Decl(td_decl):
             saved_type_name := current_type_name.clone()
+            Str.delete(own current_type_name)
             current_type_name = td_decl.name.clone()
             infer_expr(scope, stmt.child(0), in_func, ctx)
+            Str.delete(own current_type_name)
             current_type_name = saved_type_name
         case:
             UNREACHABLE(__LOC__)
@@ -3236,6 +3238,7 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
             }
             if stmt.child(0).node_type.is(NodeType.FuncDef) {
                 if stmt.child(0).children.len().gt(0) {
+                    Str.delete(own current_top_func_name)
                     current_top_func_name = sdecl.name.clone()
                     tracked_func = true
                 }
@@ -3244,6 +3247,7 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
         }
         infer_expr(scope, stmt.child(0), in_func, ctx)
         if tracked_func {
+            Str.delete(own current_top_func_name)
             current_top_func_name = saved_top_func
         }
     }

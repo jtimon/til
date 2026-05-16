@@ -501,12 +501,10 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
             if_node.add_child(own then_body)
             proc_body.add_child(own if_node)
 
-            mut default_true := Expr.new(NodeType.LiteralBool(true), stmt.line, stmt.col)
-
             mut proc_decl := FunctionDef(auto_generated = true)
             proc_decl.func_type = FuncType.Func
             proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Own))
-            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
+            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = Expr.new(NodeType.LiteralBool(true), stmt.line, stmt.col)))
             proc_decl.variadic_index = -1.to_i32()
             proc_decl.kwargs_index = -1.to_i32()
 
