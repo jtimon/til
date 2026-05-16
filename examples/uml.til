@@ -360,7 +360,7 @@ xml_escape := func(s: Str) returns Str {
         } else if c.eq(Q.byte_at(0)) {
             out = out.concat("&quot;")
         } else {
-            out = out.concat(Str.from_byte(c))
+            out = out.concat(Str.from_byte(c.to_i64().and(255).to_u8()))
         }
     }
     return out
