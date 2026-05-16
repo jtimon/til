@@ -98,6 +98,7 @@
 *** FuncPtr
 *** Dynamic
 *** Custom:Str
+*** I8
 ** FuncType: EnumDef
 *** None
 *** Func
@@ -123,10 +124,12 @@
 *** mut field_size : I32 = 0
 *** ref mut field_struct_def : Expr = NULL
 *** own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
+*** mut orig_name := ""
 ** FunctionDef: StructDef
 *** mut func_type := FuncType.Func
 *** mut params := Vec.new(Declaration)
 *** mut return_type := ""
+*** mut throw_types := Vec.new(Str)
 *** mut variadic_index : I32 = -1.to_i32()
 *** mut kwargs_index : I32 = -1.to_i32()
 *** mut return_own_type := OwnType.Own
@@ -137,6 +140,8 @@
 *** mut kwargs_index : I32 = -1.to_i32()
 *** mut kwargs_count : USize = 0
 *** mut is_splat := false
+*** mut does_throw := false
+*** mut is_bang := false
 *** mut own_args : U64 = 0
 ** StructDef: StructDef
 *** mut total_struct_size : I32 = 0
@@ -181,6 +186,9 @@
 *** Switch
 *** Case
 *** NoDefaultArg
+*** Throw
+*** Catch
+*** RestPattern
 ** Expr: StructDef
 *** mut node_type := NodeType.Body
 *** mut til_type := Type.Unknown
@@ -193,7 +201,6 @@
 *** mut pos : USize = 0
 *** mut path := ""
 *** mut fn_sig_decls := Vec.new(Expr)
-*** mut lambda_decls := Vec.new(Expr)
 *** mut pending_doc := ""
 * initer
 ** TypeBinding: StructDef
@@ -214,6 +221,7 @@
 *** ref mut func_def : Expr = NULL
 *** mut is_builtin := false
 *** mut used := false
+*** mut orig_name := ""
 ** ScopeFind: EnumDef
 *** NotFound
 *** Found:TypeBinding }
@@ -266,6 +274,10 @@
 ** CtorArg: EnumDef
 *** Unfilled
 *** Filled:Expr
+** CoverageNode: StructDef
+*** mut fully_covered := false
+*** mut sub_names := Vec.new(Str)
+*** mut sub_nodes := Vec.new(CoverageNode)
 * precomp
 * scavenger
 * builder
