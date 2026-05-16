@@ -7988,14 +7988,23 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
         li.own_transfer = own_transfer
         li.skip_scope_delete = skip_scope_delete
         li.is_heap = b.own_type.is(OwnType.Own).and(b.is_param.not())
-        // LiteralStr-RHS decls live on the stack (compound literal in the
-        // builder); their delete must use call_free=false. Force is_heap
-        // false regardless of the binding's own_type (which constfold may
-        // leave at Own from the original FCall return).
+        // Decls whose RHS the builder will stack-allocate must use
+        // call_free=false in their cleanup or `free()` would touch a
+        // stack pointer. Two flavors:
+        //   - LiteralStr RHS: builder emits a stack compound literal.
+        //   - FCall RHS where the callee returns `shallow T`: builder
+        //     stack-allocates the value via fcall_is_shallow_return.
+        // Force is_heap=false regardless of the binding's own_type
+        // (which constfold may leave at Own from the original FCall
+        // return, and which the typer otherwise leaves at Own for
+        // Struct-returning FCalls).
         if decl_idx.gte(0.to_i32()) {
             ref _li_stmt : Expr = body.child(decl_idx.to_u32())
             if _li_stmt.node_type.is(NodeType.Decl).and(_li_stmt.children.len().gt(0)) {
-                if _li_stmt.child(0).node_type.is(NodeType.LiteralStr) {
+                ref _li_rhs : Expr = _li_stmt.child(0)
+                if _li_rhs.node_type.is(NodeType.LiteralStr) {
+                    li.is_heap = false
+                } else if _li_rhs.node_type.is(NodeType.FCall).and(fcall_returns_shallow(_li_rhs, scope).neq(0)) {
                     li.is_heap = false
                 }
             }
@@ -8463,6 +8472,54 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
                             switch fd.default_value.node_type {
                             case NodeType.FuncDef(_ffd):
                                 return _ffd.return_own_type.is(OwnType.Ref)
+                            case:
+                            }
+                        }
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+    return 0.to_i32()
+}
+
+// Parallel to fcall_returns_ref: returns 1 when the FCall's callee is
+// declared `returns shallow T`. Used by collect_scope_locals to keep
+// the typer-emitted cleanup's call_free bool consistent with the
+// builder's shallow-return stack-alloc path (no malloc, so freeing
+// would touch a stack pointer).
+fcall_returns_shallow := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
+    if fcall.node_type.is(NodeType.FCall).not() { return 0.to_i32() }
+    if fcall.children.len().eq(0) { return 0.to_i32() }
+    ref callee : Expr = fcall.child(0)
+    switch callee.node_type {
+    case NodeType.Ident(_cn):
+        ref cb : TypeBinding = scope.get_binding(_cn)
+        if is_null(cb).not() {
+            if is_null(cb.func_def) { return 0.to_i32() }
+            switch cb.func_def.node_type {
+            case NodeType.FuncDef(_cfd):
+                return _cfd.return_own_type.is(OwnType.Shallow)
+            case:
+                return 0.to_i32()
+            }
+        }
+        return 0.to_i32()
+    case NodeType.FieldAccess(_cfa):
+        if fa_is_ns(callee, scope) {
+            switch callee.child(0).node_type {
+            case NodeType.Ident(_cti):
+                ref sdef : Expr = scope.get_struct(_cti)
+                if is_null(sdef) { return 0.to_i32() }
+                ref cfa_ns : Vec = def_ns_decls(sdef)
+                for fd : Declaration in cfa_ns {
+                    if fd.name.eq(_cfa) {
+                        if is_null(fd.default_value).not() {
+                            switch fd.default_value.node_type {
+                            case NodeType.FuncDef(_ffd):
+                                return _ffd.return_own_type.is(OwnType.Shallow)
                             case:
                             }
                         }

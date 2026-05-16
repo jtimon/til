@@ -1352,6 +1352,7 @@ Bool insert_free_calls(Expr * body, TypeScope * scope, I32 scope_exit);
 void infer_literal_expr(Expr * expr);
 void narrow_dynamic(Expr * expr, Type * target);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
+I32 fcall_returns_shallow(Expr * fcall, TypeScope * scope);
 Expr * hoist_to_temp(Expr * val, Vec * hoisted, TypeScope * scope, Bool is_own);
 Bool precomp_has_macro(Str * name);
 Bool precomp_has_func(Str * name);
