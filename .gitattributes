@@ -5,7 +5,7 @@
 boot/** linguist-generated=true
 
 # Vendored libraries — exclude from language stats
-c_lib/** linguist-vendored=true
+vendor/** linguist-vendored=true
 
 # Generated/transpiled C output used as a regression input
 test/constfold.c linguist-generated=true

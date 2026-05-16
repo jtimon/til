@@ -102,9 +102,9 @@ This is more predictable, but sill not completely deterministic. And can be more
 Bundled internal dependency licenses:
 
 - project: [[file:LICENSE/TIL.txt]]
-- ~c_lib/libffi/~ — [[file:LICENSE/libffi.txt]]
-- ~c_lib/raylib/~ — [[file:LICENSE/raylib.txt]]
-- ~c_lib/tinyfiledialogs/~ — [[file:LICENSE/tinyfiledialogs.txt]]
+- ~vendor/libffi/~ — [[file:LICENSE/libffi.txt]]
+- ~vendor/raylib/~ — [[file:LICENSE/raylib.txt]]
+- ~vendor/tinyfiledialogs/~ — [[file:LICENSE/tinyfiledialogs.txt]]
 
 * Usage
 

@@ -4,7 +4,7 @@ mode script
 // `src/lib/raylib.til` (auto-generated); each importer adds the matching
 // link() lines next to the import.
 import("lib/raylib")
-link("c_lib/raylib/src/libraylib.a")
+link("vendor/raylib/src/libraylib.a")
 link("m")
 link("pthread")
 link("rt")
