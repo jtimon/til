@@ -593,6 +593,7 @@ typedef struct CliArgs {
     Str install_prefix;
     U32 path_idx;
     Bool early_return;
+    Bool asan;
 } CliArgs;
 
 
@@ -1559,8 +1560,8 @@ Str * type_name_to_ctypes(Str * name);
 Str * type_name_to_ctypes_param(Str * name, Bool is_shallow);
 Str * type_name_to_ctypes_return(Str * name, Bool is_shallow);
 I32 build_python_binding(Expr * program, Str * py_path, Str * lib_name);
-I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override);
-I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override, Str * mode_auto_import);
+I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override, Bool * asan);
+I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override, Str * mode_auto_import, Bool * asan);
 void register_funcsig_prog(Expr * prog);
 void emit_global_inits_prog(File * f, Expr * prog);
 void emit_global_inits(File * f);
@@ -1592,9 +1593,9 @@ BuildPaths * derive_build_paths(LoadedProgram * lp, Str * custom_bin, Str * cust
 void make_build_dirs(BuildPaths * paths);
 I32 translate_ast(LoadedProgram * lp, BuildPaths * paths);
 void print_translate_success(BuildPaths * paths);
-I32 compile_ast(LoadedProgram * lp, BuildPaths * paths, Target * target, Str * cc_override);
+I32 compile_ast(LoadedProgram * lp, BuildPaths * paths, Target * target, Str * cc_override, Bool * asan);
 I32 cmd_translate(LoadedProgram * lp, Str * custom_c, Target * target);
-I32 cmd_build(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override);
+I32 cmd_build(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override, Bool * asan);
 I32 check_install_rc(I32 * rc, Str * what);
 Str * builder_compiler_root(LoadedProgram * lp);
 Str * support_root(Str * prefix);
@@ -1603,9 +1604,9 @@ I32 install_tree(Str * src, Str * dst, Str * what);
 Bool is_compiler_install(LoadedProgram * lp, BuildPaths * paths);
 I32 install_compiler_support(LoadedProgram * lp, Str * prefix);
 void print_install_success(Str * path);
-I32 cmd_install(LoadedProgram * lp, Str * install_prefix_in, Target * target, Str * cc_override);
-I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv, Target * target, Str * cc_override);
-I32 cmd_test_build_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override);
+I32 cmd_install(LoadedProgram * lp, Str * install_prefix_in, Target * target, Str * cc_override, Bool * asan);
+I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv, Target * target, Str * cc_override, Bool * asan);
+I32 cmd_test_build_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override, Bool * asan);
 Str * format_unit_doc_org(Str * unit_path, Expr * ast, TypeScope * scope);
 Str * til_doc_out_path(Str * unit_path);
 void ensure_parent_dir(Str * path);

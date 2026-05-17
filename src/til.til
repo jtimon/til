@@ -350,6 +350,7 @@ CliArgs := struct {
     mut install_prefix := ""
     mut path_idx : USize = 1
     mut early_return := false
+    mut asan := false
 }
 
 parse_args := proc(args: Array) returns CliArgs {
@@ -450,6 +451,9 @@ parse_args := proc(args: Array) returns CliArgs {
             cli.path_idx = cli.path_idx.add(2)
         } else if flag.starts_with("--prefix=") {
             cli.install_prefix = flag.substr(9, flag.len().sub(9)).clone()
+            cli.path_idx = cli.path_idx.add(1)
+        } else if flag.eq("--asan") {
+            cli.asan = true
             cli.path_idx = cli.path_idx.add(1)
         } else {
             break
@@ -552,16 +556,16 @@ main := proc(args: ..Str) {
         result = cmd_interpret(lp, user_argv)
         if result.eq(0) {
             eprint_single("=== compile + run ===\n")
-            result = cmd_test_build_run(lp, cli.custom_bin, cli.custom_c, target, cli.cc)
+            result = cmd_test_build_run(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan)
         }
     } else if cli.command.eq("translate") {
         result = cmd_translate(lp, cli.custom_c, target)
     } else if cli.command.eq("build") {
-        result = cmd_build(lp, cli.custom_bin, cli.custom_c, target, cli.cc)
+        result = cmd_build(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan)
     } else if cli.command.eq("install") {
-        result = cmd_install(lp, cli.install_prefix, target, cli.cc)
+        result = cmd_install(lp, cli.install_prefix, target, cli.cc, cli.asan)
     } else if cli.command.eq("run") {
-        result = cmd_run(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc)
+        result = cmd_run(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc, cli.asan)
     } else {
         println(format("error: unknown command '", cli.command, "'"))
         usage()

@@ -114,12 +114,13 @@ two_pass: bin/til
 	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true
 
 # --- ASAN build (for memory debugging) ---
-
+#
+# Delegates to `bin/til build --asan`, which threads the sanitizer flags
+# through src/self/builder.til. Same recipe is reusable for any .til
+# program ("bin/til build --asan -o foo foo.til") so we can asan-test
+# compiled outputs, not just the compiler itself.
 bin/til_asan: bin/til
-	cc -fsanitize=address -fno-omit-frame-pointer -g -Wno-all \
-	  -Iboot -Isrc -Isrc/c boot/til.c src/c/*.c \
-	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) \
-	  -fsanitize=address -o bin/til_asan
+	bin/til build --asan -o bin/til_asan src/til.til
 
 # --- Debug build (for gdb) ---
 
