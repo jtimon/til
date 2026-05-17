@@ -209,6 +209,48 @@ is_primitive_type := func(name: Str) returns shallow Bool {
     return false
 }
 
+// A POD enum has no variant payloads, so every variant is fully
+// representable as a single `tag` field assignment.  The typer wraps
+// `c := Color.Red` as `c := Color.clone(Color.Red)` for ownership
+// semantics, but for POD enums the wrap is a wasteful round-trip
+// (malloc + deref + free of a stack compound literal).  The Decl
+// emission path recognises the wrap and emits the value directly.
+is_pod_enum := func(enum_name: Str) returns shallow Bool {
+    if enum_name.len().eq(0) { return false }
+    ref ed : Expr = find_struct_def(enum_name)
+    if is_null(ed) { return false }
+    if ed.node_type.is(NodeType.EnumDef).not() { return false }
+    if enum_has_payloads(ed) { return false }
+    return true
+}
+
+// Match the typer-emitted `<Enum>.clone(<value>)` wrap that
+// finalize_decl_binding inserts around Ident / FieldAccess RHSes of
+// Enum type.  Returns true only when the callee resolves to a POD
+// enum's `.clone` method; callers can then skip the wrap and emit the
+// arg directly.
+priv is_pod_enum_clone_call := func(e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len().lt(2) { return false }
+    ref callee : Expr = e.child(0)
+    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
+    mut is_clone := false
+    switch callee.node_type {
+    case NodeType.FieldAccess(m): is_clone = m.eq("clone")
+    case:
+    }
+    if is_clone.not() { return false }
+    if callee.children.len().eq(0) { return false }
+    ref type_id : Expr = callee.child(0)
+    if type_id.node_type.is(NodeType.Ident).not() { return false }
+    mut tname := ""
+    switch type_id.node_type {
+    case NodeType.Ident(n): tname = n
+    case:
+    }
+    return is_pod_enum(tname)
+}
+
 // A POD struct has only Shallow-owned fields that are themselves
 // stack-cheap: primitives, or nested POD structs. No Str / Vec /
 // Array / Own-marked fields that would need recursive heap cleanup.
@@ -1279,6 +1321,35 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                         emit_expr(f, rhs, depth); f.write(";\n")
                         lp.ctx.stack_locals.add(own dd.name.clone())
                         lp.ctx.stack_local_types.set(own dd.name.clone(), own htype.clone())
+                    } else if can_hoist.and(is_pod_enum_clone_call(rhs)) {
+                        // POD enum clone wrap: typer wraps
+                        // `c := Color.Red` as `c := Color.clone(Color.Red)`
+                        // for ownership semantics.  For payload-less
+                        // enums the clone is a wasteful malloc+deref+
+                        // free of a stack compound literal -- emit the
+                        // value directly via the clone's arg.  When the
+                        // arg is a ns-Enum variant access we know the
+                        // exact compound-literal shape; emit it inline
+                        // so we don't produce the cosmetic `(*&...)`
+                        // round-trip that emit_deref would generate.
+                        f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = ")
+                        ref pe_arg : Expr = rhs.child(1)
+                        mut pe_inlined := false
+                        if pe_arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(pe_arg)).and(pe_arg.til_type.is(Type.Enum)) {
+                            switch pe_arg.node_type {
+                            case NodeType.FieldAccess(pe_vn):
+                                ref pe_obj : Expr = pe_arg.child(0)
+                                pe_sname := til_type_name(pe_obj.til_type)
+                                f.write("("); f.write(pe_sname); f.write("){.tag = ")
+                                f.write(pe_sname); f.write("_TAG_"); f.write(pe_vn); f.write("}")
+                                pe_inlined = true
+                            case:
+                            }
+                        }
+                        if pe_inlined.not() { emit_deref(f, pe_arg, depth) }
+                        f.write(";\n")
+                        lp.ctx.stack_locals.add(own dd.name.clone())
+                        lp.ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else if can_hoist.and(rhs.node_type.is(NodeType.FCall)) {
                         mut htype := fcall_return_ctype(rhs)
                         if htype.len().eq(0) { htype = ctype.clone() }

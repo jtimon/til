@@ -1758,7 +1758,7 @@ U32 Color_size(void) {
 
 
 void test_enum_fold(void) {
-    Color c; { Color *_hp = (Color *)Color_clone(&(Color){.tag = Color_TAG_Red}); c = *_hp; free(_hp); }
+    Color c = (Color){.tag = Color_TAG_Red};
     Str hoisted__Str_3522 = (Str){.c_str = (void *)"test/constfold.til:159:12", .count = 25ULL, .cap = TIL_CAP_LIT};
     Bool hoisted__Bool_3523 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
     Bool_delete(assert(&hoisted__Str_3522, &hoisted__Bool_3523), &(Bool){1});
