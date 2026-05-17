@@ -34,7 +34,11 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     via ~bin/til_asan~ AND passes ~--asan~ down. Both compiler and
     compiled binaries are sanitized. Compiler leaks suppressed via
     ~asan_safe_cmd~ (~ASAN_OPTIONS=detect_leaks=0~); use-after-free /
-    heap-buffer-overflow from either side still fail the run.
+    heap-buffer-overflow from either side still fail the run. Strict
+    superset of ~test_asan~: ~cmd_run~ / ~cmd_test_build_run~
+    explicitly re-set ~ASAN_OPTIONS=detect_leaks=1~ when spawning the
+    compiled binary so the child's leak check doesn't inherit the
+    suppression from its asan-built parent compiler.
 
   Plumbing: ~tests.til~ parses ~--asan~ and ~asan_flag = " --asan"~ is
   inserted after every ~build~/~run~/~test~ subcommand;

@@ -200,12 +200,12 @@ add_cli_pair := func(tests: Vec, name: Str, file: Str,
                      til: Str, asan_flag: Str) {
     mut cmd_i := format(til, " interpret ", file)
     if cli_args.len().gt(0) { cmd_i = format(cmd_i, " ", cli_args) }
-    add_single(tests, format(name, "_i"), "cli", expected_exit, expected_out, cmd_i)
+    add_single(tests, format(name, "_i"), "cli", expected_exit, expected_out, asan_safe_cmd(cmd_i, til))
     mut cmd_r := format(til, " run", asan_flag, " -o bin/c/", name,
         " -c gen/c/", name, ".c ",
         file)
     if cli_args.len().gt(0) { cmd_r = format(cmd_r, " ", cli_args) }
-    add_single(tests, format(name, "_r"), "cli", expected_exit, expected_out, cmd_r)
+    add_single(tests, format(name, "_r"), "cli", expected_exit, expected_out, asan_safe_cmd(cmd_r, til))
 }
 
 asan_safe_cmd := func(cmd: Str, til_bin: Str) returns Str {
@@ -485,9 +485,9 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_args_hello", "examples/cli_args.til",
                  "hello world", 0, format(exp, "cli_args_hello.out"), til_bin, asan_flag)
     add_single(tests, "cli_args_default_args", "cli", 0, format(exp, "cli_args_hello.out"),
-               format(til_bin, " examples/cli_args.til hello world"))
+               asan_safe_cmd(format(til_bin, " examples/cli_args.til hello world"), til_bin))
     add_single(tests, "cli_args_dd_default_args", "cli", 0, format(exp, "cli_args_hello.out"),
-               format(til_bin, " -- examples/cli_args.til hello world"))
+               asan_safe_cmd(format(til_bin, " -- examples/cli_args.til hello world"), til_bin))
 
     File.writefile(format(exp, "cli_args_empty.out"), "")
     add_cli_pair(tests, "cli_args_empty", "examples/cli_args.til",
@@ -525,11 +525,11 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "hello_cli", "examples/hello_cli.til",
                  "", 0, format(exp, "hello_cli.out"), til_bin, asan_flag)
     add_single(tests, "hello_cli_dd_default", "cli", 0, format(exp, "hello_cli.out"),
-               format(til_bin, " -- examples/hello_cli.til"))
+               asan_safe_cmd(format(til_bin, " -- examples/hello_cli.til"), til_bin))
     add_single(tests, "hello_cli_dd_i", "cli", 0, format(exp, "hello_cli.out"),
-               format(til_bin, " interpret -- examples/hello_cli.til"))
+               asan_safe_cmd(format(til_bin, " interpret -- examples/hello_cli.til"), til_bin))
     add_single(tests, "hello_cli_dd_r", "cli", 0, format(exp, "hello_cli.out"),
-               format(til_bin, " run", asan_flag, " -o bin/c/hello_cli_dd -c gen/c/hello_cli_dd.c -- examples/hello_cli.til"))
+               asan_safe_cmd(format(til_bin, " run", asan_flag, " -o bin/c/hello_cli_dd -c gen/c/hello_cli_dd.c -- examples/hello_cli.til"), til_bin))
 
     File.writefile(format(exp, "variadic_add.out"), format("60", NL))
     add_cli_pair(tests, "variadic_add", "examples/cli_variadic_i64.til",
@@ -563,21 +563,21 @@ main := proc(args: ..Str) {
     // into build_ms rather than cli_ms in totals.
     run("mkdir -p fonts")
     add_single(tests, "svg2ttf_ok", "build", 0, "",
-               format(til_bin,
+               asan_safe_cmd(format(til_bin,
                       " run", asan_flag, " -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ",
                       "examples/svg2ttf.til ",
-                      "img/logo-transparent.svg fonts/til_logo.ttf"))
+                      "img/logo-transparent.svg fonts/til_logo.ttf"), til_bin))
     add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
-               format(til_bin,
+               asan_safe_cmd(format(til_bin,
                       " run", asan_flag, " -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ",
                       "examples/svg2ttf.til ",
-                      "img/logo.svg tmp/svg2ttf_fail.ttf"))
+                      "img/logo.svg tmp/svg2ttf_fail.ttf"), til_bin))
     // issues.til is fast enough to keep in the regular suite; it refreshes
     // issues/summary.org from the current issue files.
     add_single(tests, "issues_summary", "build", 0, "",
-               format(til_bin,
+               asan_safe_cmd(format(til_bin,
                       " run", asan_flag, " -o bin/c/issues_summary -c gen/c/issues_summary.c ",
-                      "examples/issues.til"))
+                      "examples/issues.til"), til_bin))
     // === library mode checks ===
     add_single(tests, "pure_build", "library", 0, "",
                asan_safe_cmd(format(til_bin, " build", asan_flag, " test/pure.til"), til_bin))

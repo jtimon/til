@@ -6247,6 +6247,18 @@ cmd_install := proc(lp: LoadedProgram, install_prefix_in: Str, target: Target, c
     return 0
 }
 
+// Prefix used when spawning a child binary that was just built with --asan.
+// til may itself be running under ASAN with detect_leaks=0 (the asan_safe_cmd
+// wrap in tests.til, used to suppress the compiler's own known leaks). Without
+// this override the child process tree inherits detect_leaks=0 and the
+// compiled binary's leak check is silently skipped. Forcing detect_leaks=1
+// keeps the child's leak detection on regardless of how the compiler was
+// invoked, so `til run --asan` / `til test --asan` are self-contained.
+asan_child_prefix := func(asan: Bool) returns Str {
+    if asan { return "ASAN_OPTIONS=detect_leaks=1 " }
+    return ""
+}
+
 cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str, asan: Bool) returns shallow I32 {
     if lp.cur_mode.is_library {
         panic(__LOC__, "cannot run a library -- use translate or build")
@@ -6256,7 +6268,7 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
     mut result := translate_ast(lp, paths)
     if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan) }
     if result.eq(0) {
-        mut cmd := paths.bin_path
+        mut cmd := asan_child_prefix(asan).concat(paths.bin_path)
         for uarg : Str in user_argv {
             cmd = cmd.format(" '", uarg, "'")
         }
@@ -6274,7 +6286,7 @@ cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
     if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan) }
-    if result.eq(0) { result = system_cmd(paths.bin_path) }
+    if result.eq(0) { result = system_cmd(asan_child_prefix(asan).concat(paths.bin_path)) }
     return result
 }
 

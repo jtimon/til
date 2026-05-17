@@ -1622,6 +1622,7 @@ Bool is_compiler_install(LoadedProgram * lp, BuildPaths * paths);
 I32 install_compiler_support(LoadedProgram * lp, Str * prefix);
 void print_install_success(Str * path);
 I32 cmd_install(LoadedProgram * lp, Str * install_prefix_in, Target * target, Str * cc_override, Bool * asan);
+Str * asan_child_prefix(Bool * asan);
 I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv, Target * target, Str * cc_override, Bool * asan);
 I32 cmd_test_build_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override, Bool * asan);
 Str * format_unit_doc_org(Str * unit_path, Expr * ast, TypeScope * scope);
