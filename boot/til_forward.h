@@ -1472,6 +1472,7 @@ Bool is_ref_global(Str * name);
 Bool is_ref_local(Str * name);
 Bool use_dot_access(Expr * obj);
 Bool is_primitive_type(Str * name);
+Bool is_pod_struct(Str * struct_name);
 Bool is_funcsig_type(Str * name);
 Bool is_ext_h_type(Str * name);
 Bool is_skip_ext_decl(Str * name);

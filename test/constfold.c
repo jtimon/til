@@ -1512,26 +1512,20 @@ void test_loc_folded(void) {
 CfVec2 * CfVec2_magic(void) {
     I64 hoisted__I64_3437 = 42;
     I64 hoisted__I64_3438 = 99;
-    CfVec2 *hoisted__CfVec2_3439 = malloc(sizeof(CfVec2));
-    hoisted__CfVec2_3439->x = hoisted__I64_3437;
-    hoisted__CfVec2_3439->y = hoisted__I64_3438;
-    return hoisted__CfVec2_3439;
+    CfVec2 hoisted__CfVec2_3439 = (CfVec2){.x = hoisted__I64_3437, .y = hoisted__I64_3438};
+    { CfVec2 *_r = malloc(sizeof(CfVec2)); *_r = hoisted__CfVec2_3439; return _r; }
 }
 
 CfVec2 * CfVec2_at(I64 * x, I64 * y) {
-    CfVec2 *hoisted__CfVec2_3440 = malloc(sizeof(CfVec2));
-    hoisted__CfVec2_3440->x = DEREF(x);
-    hoisted__CfVec2_3440->y = DEREF(y);
-    return hoisted__CfVec2_3440;
+    CfVec2 hoisted__CfVec2_3440 = (CfVec2){.x = DEREF(x), .y = DEREF(y)};
+    { CfVec2 *_r = malloc(sizeof(CfVec2)); *_r = hoisted__CfVec2_3440; return _r; }
 }
 
 CfVec2 * CfVec2_clone(CfVec2 * self) {
     I64 hoisted__I64_3441 = I64_clone(&self->x);
     I64 hoisted__I64_3442 = I64_clone(&self->y);
-    CfVec2 *hoisted__CfVec2_3443 = malloc(sizeof(CfVec2));
-    hoisted__CfVec2_3443->x = hoisted__I64_3441;
-    hoisted__CfVec2_3443->y = hoisted__I64_3442;
-    return hoisted__CfVec2_3443;
+    CfVec2 hoisted__CfVec2_3443 = (CfVec2){.x = hoisted__I64_3441, .y = hoisted__I64_3442};
+    { CfVec2 *_r = malloc(sizeof(CfVec2)); *_r = hoisted__CfVec2_3443; return _r; }
 }
 
 void CfVec2_delete(CfVec2 * self, Bool * call_free) {

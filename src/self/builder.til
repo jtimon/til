@@ -209,6 +209,32 @@ is_primitive_type := func(name: Str) returns shallow Bool {
     return false
 }
 
+// A POD struct has only Shallow-owned primitive fields -- no Str /
+// Vec / Array / nested struct/enum fields that would need recursive
+// cleanup. Ctor Decls for these structs can live on the stack as a
+// compound literal (no malloc / no recursive free), same pattern as
+// LiteralStr Decls. Callers must still pair this with a non-freeing
+// delete at scope end (call_free=false) so the cleanup doesn't try
+// to free a stack pointer.
+is_pod_struct := func(struct_name: Str) returns shallow Bool {
+    if struct_name.len().eq(0) { return false }
+    if is_primitive_type(struct_name) { return false }
+    ref sdef : Expr = find_struct_def(struct_name)
+    if is_null(sdef) { return false }
+    switch sdef.node_type {
+    case NodeType.StructDef(sdd):
+        if sdd.fields.len().eq(0) { return false }
+        for fd : Declaration in sdd.fields {
+            if fd.own_type.is(OwnType.Own) { return false }
+            if fd.own_type.is(OwnType.Ref) { return false }
+            if is_primitive_type(fd.explicit_type).not() { return false }
+        }
+        return true
+    case:
+    }
+    return false
+}
+
 is_funcsig_type := func(name: Str) returns shallow Bool {
     return codegen_lp().ctx.funcsig_names.has(name)
 }
@@ -1114,10 +1140,40 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                 if is_ctor {
                     if is_global {
                         f.write("memset(&"); f.write(dd.name); f.write(", 0, sizeof("); f.write(ctype); f.write("));\n")
+                        emit_ctor_fields(f, dd.name, rhs, depth)
+                    } else if is_pod_struct(rhs_sname) {
+                        // POD struct ctor: emit as a stack value
+                        // initialized with a C compound literal,
+                        // mirroring the LiteralStr Decl path. Matching
+                        // delete is forced to call_free=false in the
+                        // shim at emit_stmt (NodeType.FCall case) so
+                        // we never call free() on the stack pointer.
+                        f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = (")
+                        f.write(ctype); f.write("){")
+                        ref pod_def : Expr = find_struct_def(rhs_sname)
+                        mut pod_fi : U32 = 0
+                        switch pod_def.node_type {
+                        case NodeType.StructDef(pod_sdd):
+                            for i in 1..rhs.children.len() {
+                                if i.gt(1) { f.write(", ") }
+                                mut pod_fname := ""
+                                if pod_fi.lt(pod_sdd.fields.len()) {
+                                    ref pod_fd : Declaration = pod_sdd.fields.get(pod_fi)
+                                    pod_fname = pod_fd.name
+                                    pod_fi = pod_fi.add(1)
+                                }
+                                f.write("."); f.write(pod_fname); f.write(" = ")
+                                emit_deref(f, rhs.child(i), depth)
+                            }
+                        case:
+                        }
+                        f.write("};\n")
+                        lp.ctx.stack_locals.add(own dd.name.clone())
+                        lp.ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
                         f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = malloc(sizeof("); f.write(ctype); f.write("));\n")
+                        emit_ctor_fields(f, dd.name, rhs, depth)
                     }
-                    emit_ctor_fields(f, dd.name, rhs, depth)
                 } else if rhs.node_type.is(NodeType.LiteralStr).and(is_global.not()) {
                     // Str literal: emit as a stack-allocated compound-literal
                     // Str value -- no malloc, no Str_lit. Pairs with the
@@ -1484,7 +1540,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                         // doesn't trip.
                         if is_stack_local(del_arg).and(c1.til_type.is(Type.Struct)) {
                             ref _del_ct : Str = get_stack_local_ctype(del_arg)
-                            if is_null(_del_ct).not().and(_del_ct.eq("Str")) {
+                            if is_null(_del_ct).not().and(_del_ct.eq("Str").or(is_pod_struct(_del_ct))) {
                                 if e.children.len().gte(3) {
                                     ref _cf_arg : Expr = e.child(2)
                                     switch _cf_arg.node_type {
@@ -1493,7 +1549,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                                     case:
                                     }
                                 }
-                                f.write("Str_delete(&"); f.write(del_arg); f.write(", &(Bool){0});\n"); return
+                                f.write(_del_ct); f.write("_delete(&"); f.write(del_arg); f.write(", &(Bool){0});\n"); return
                             }
                         }
                     case:
