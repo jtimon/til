@@ -9,6 +9,85 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   End goal (from [[./110.org][#110]], absorbed): switch ~make test~ to ~bin/til_asan~
   once leaks are at zero.
 
+  *** 2026-05 ~til --asan~ flag + ~test_asan~ split (NEW)
+
+  The Makefile-only ~bin/til_asan~ recipe now lives behind a real CLI
+  flag: ~til build --asan~ (and ~run~/~test~/~install~) threads
+  ~-fsanitize=address -fno-omit-frame-pointer~ through
+  ~compile_c~/~compile_lib~ in [[file:../../src/self/builder.til][src/self/builder.til]] and swaps
+  ~-Werror~ for ~-Wno-all~ to match the historical recipe. Same flag is
+  reusable for any .til program: ~bin/til build --asan -o foo foo.til~
+  produces an ASAN-instrumented binary. The Makefile's ~bin/til_asan~
+  target collapsed to a single ~bin/til build --asan~ call.
+
+  ~make test_asan~ split into two targets:
+
+  - ~test_asan~ (NEW): runs the suite with the regular ~bin/til~ but
+    passes ~--asan~ through to ~tests.til~, which splices it into
+    every ~til build~/~run~/~test~ invocation. The compiler isn't
+    sanitized so its leaks don't show up; only the *compiled*
+    test/example binaries run under ASAN. Cheap way to find leaks +
+    correctness bugs in codegen output without the noise of til's
+    own leaks. Failing today, see below.
+
+  - ~test_asan_full~ (renamed from old ~test_asan~): runs the suite
+    via ~bin/til_asan~ AND passes ~--asan~ down. Both compiler and
+    compiled binaries are sanitized. Compiler leaks suppressed via
+    ~asan_safe_cmd~ (~ASAN_OPTIONS=detect_leaks=0~); use-after-free /
+    heap-buffer-overflow from either side still fail the run.
+
+  Plumbing: ~tests.til~ parses ~--asan~ and ~asan_flag = " --asan"~ is
+  inserted after every ~build~/~run~/~test~ subcommand;
+  ~add_cli_pair~ takes the flag for its ~run~-pair, ~mode_flags~ for
+  the mode tests. ~test_runner.til~'s ~mode~ subcommand accepts the
+  same flag and forwards it to its ~til build~ call.
+
+  **First ~test_asan~ run -- 17/117 fail (100/117 pass):**
+
+  Leaks in compiled binaries (mode tests):
+
+  | binary           | bytes leaked | allocs |
+  |------------------+--------------+--------|
+  | functions        |            8 |      1 |
+  | ref              |           16 |      1 |
+  | enums_lifecycle  |            2 |      1 |
+  | dynamic          |            4 |      1 |
+  | regression       |           60 |      4 |
+  | globals          |           28 |      2 |
+  | import_diamond   |           84 |      6 |
+  | kwargs           |          384 |     24 |
+
+  Leaks in single tests:
+
+  | binary               | bytes leaked | allocs |
+  |----------------------+--------------+--------|
+  | ffi_run              |          228 |      9 |
+  | ext_libc_run         |           64 |      4 |
+  | cli_typed_alice42_r  |           30 |      3 |
+  | variadic_add_r       |           20 |      2 |
+  | variadic_mul_r       |           20 |      2 |
+  | variadic_add0_r      |           20 |      2 |
+
+  Non-leak ASAN findings (these are real correctness bugs the
+  pre-split ~test_asan~ couldn't see -- the compiler runs ASAN-clean
+  on these programs, only the compiled output trips ASAN):
+
+  - ~test/vecs.til~ panics ~test/vecs.til:105:12: assert failed:
+    distinct dynamic pointers stay distinct~ when compiled under
+    ASAN. ASAN's malloc replacement breaks the test's allocator
+    assumption -- either a test bug (overly strict assumption) or a
+    real dynamic pointer aliasing issue that only the ASAN allocator
+    exposes.
+  - ~svg2ttf_ok~: ~AddressSanitizer: global-buffer-overflow~ in
+    ~memcpy~. Out-of-bounds read/write in the SVG-to-TTF code; real
+    bug, just not caught before because the compiler-side ASAN
+    didn't instrument the compiled binary.
+  - ~issues_summary~: ~AddressSanitizer: heap-use-after-free~ at
+    ~gen/c/issues_summary.c:380~ in ~I8_neq~. Real use-after-free in
+    generated code; same story -- compiled-binary ASAN flushed it
+    out. Worth tracing back to which .til source pattern emits the
+    UAF in ~I8_neq~.
+
   Related issues:
   - ~[[./175.org][#175]]~ ([[../fixed/][FIXED, issues/fixed/]]) -- switch case-binding mut Str leak.
     Several follow-ups in the 2026-05 [[./175.org][#175]] series below.

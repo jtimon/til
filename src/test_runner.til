@@ -75,7 +75,7 @@ main := proc(args: ..Str) {
     // mode subcommand
     if subcmd.eq("mode") {
         if args.len().lt(2) {
-            println("Usage: test_runner mode <file> [-no-interp] [-no-run] [-no-match]")
+            println("Usage: test_runner mode <file> [-no-interp] [-no-run] [-no-match] [--asan]")
             exit(1)
         }
 
@@ -83,11 +83,13 @@ main := proc(args: ..Str) {
         mut en_interp := 1
         mut en_run := 1
         mut en_match := 1
+        mut asan_flag := ""
         for i in 2..args.len() {
             ref arg : Str = args.get(i)
             if arg.eq("-no-interp") { en_interp = 0 }
             if arg.eq("-no-run") { en_run = 0 }
             if arg.eq("-no-match") { en_match = 0 }
+            if arg.eq("--asan") { asan_flag = " --asan" }
         }
 
         basename := test_basename(file)
@@ -122,7 +124,7 @@ main := proc(args: ..Str) {
 
         if en_run.eq(1) {
             // Compile
-            build_cmd := TIL.format(" build -o ", bin_path, " '", file, "' 2>/dev/null")
+            build_cmd := TIL.format(" build", asan_flag, " -o ", bin_path, " '", file, "' 2>/dev/null")
             phase := run_phase(build_cmd)
             compile_ms = phase.ms
             compile_mem = phase.mem

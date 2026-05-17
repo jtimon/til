@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all bindings clean test test_asan test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass
+.PHONY: all bindings clean test test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass
 
 all: bin/til
 
@@ -155,8 +155,21 @@ test_two_pass:
 	$(MAKE) two_pass
 	$(MAKE) test
 
-test_asan: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
-	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan $(if $(J),-j$(J))
+# test_asan: regular bin/til (so compiler-side leaks aren't reported), but
+# tests.til passes --asan through to every `til build` / `til run` / `til test`
+# invocation -- which makes the compiled test/example binaries ASAN-instrumented.
+# Detects leaks (and other ASAN issues) in *compiled* programs without the
+# noise of til's own leaks.
+test_asan: bin/til bin/test_runner bin/plot bin/tests
+	xvfb-run --auto-servernum bin/tests --asan $(if $(J),-j$(J))
+
+# test_asan_full: do both -- run the suite via the ASAN-instrumented compiler
+# (bin/til_asan) AND pass --asan through so compiled binaries are sanitized too.
+# Maximally strict. Compiler leaks are suppressed via asan_safe_cmd (the
+# compiler itself is known to leak), but use-after-free / heap-buffer-overflow
+# from either side still fail the run.
+test_asan_full: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
+	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
 
 test_nogui: bin/til bin/test_runner bin/plot bin/tests
 	bin/tests --no-gui $(if $(J),-j$(J))
