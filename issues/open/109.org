@@ -59,7 +59,7 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   | regression       |           60 |      4 |
   | globals          |           28 |      2 |
   | import_diamond   |           84 |      6 |
-  | kwargs           |          384 |     24 |
+  | kwargs           |          384 |     24 | (FIXED, see Kwargs elem_type below)
 
   Leaks in single tests:
 
@@ -86,6 +86,23 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     ~memcpy~. Out-of-bounds read/write in the SVG-to-TTF code; real
     bug, just not caught before because the compiler-side ASAN
     didn't instrument the compiled binary.
+  - **Kwargs ~elem_type~ leak** (FIXED). ~test/kwargs.til~ compiled
+    leaked 384 bytes / 24 allocations (16 bytes per kwarg-fcall
+    invocation -- one ~sizeof(Str)~ per call). Root cause:
+    ~build_kwargs_dynmap_set~ in [[file:../../src/self/typer.til][src/self/typer.til]] was calling
+    ~set_own_arg~ on the ~elem_type~ arg of the generated ~DynMap.set~
+    call, but ~DynMap.set~'s signature in [[file:../../src/core/dyn_map.til][src/core/dyn_map.til]]
+    declares ~elem_type~ as a borrowed ~Str~ (no ~own~ qualifier). The
+    builder honored the bogus own bit and emitted
+    ~({ Str *_oa = malloc(sizeof(Str)); *_oa = literal; _oa; })~ for
+    the arg; ~DynMap.set~ then stored only the type-name *contents*
+    inside the per-key Tuple (not the wrapper) and never freed the
+    malloc'd wrapper. Fix: drop the ~set_own_arg~ line; codegen now
+    emits ~&hoisted__Str_NNNN~ (stack pointer) for ~elem_type~,
+    matching the borrowed contract. test_asan: 101/117 -> 102/117.
+    The ~build_variadic_array_set~ and Map-literal ~set~ siblings
+    were checked and are correct (their value args really are owned).
+
   - ~issues_summary~: ~AddressSanitizer: heap-use-after-free~ at
     ~gen/c/issues_summary.c:380~ in ~I8_neq~ -- FIXED (workaround).
     Root cause: ~Str.substr~ returns a view (~.cap=CAP_VIEW~,

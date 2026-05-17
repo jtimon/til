@@ -6637,7 +6637,11 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     tname := type_to_name(val.til_type)
     mut type_lit := Expr.new(NodeType.LiteralStr(tname.clone()), fcall.line, fcall.col)
     type_lit.til_type = Type.Struct("Str".clone())
-    set_own_arg(set_call, set_call.children.len())
+    // elem_type is a borrowed Str param in DynMap.set -- do NOT mark it
+    // own. Marking it own makes the builder emit `malloc(sizeof(Str)) +
+    // *_oa = literal` for the arg, but DynMap.set never frees it (the
+    // value type-name is held as a borrowed view inside the entry's
+    // Tuple, not adopted), so each call leaks 16 bytes (Issue #109).
     set_call.add_child(own type_lit)
 
     mut size_call := make_ns_call(tname, "size", usize_type(scope), fcall)
