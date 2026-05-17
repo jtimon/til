@@ -7987,7 +7987,7 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
         li.last_use = last_use
         li.own_transfer = own_transfer
         li.skip_scope_delete = skip_scope_delete
-        li.is_heap = b.own_type.is(OwnType.Own).and(b.is_param.not())
+        li.is_heap = b.own_type.is(OwnType.Own)
         // Decls whose RHS the builder will stack-allocate must use
         // call_free=false in their cleanup or `free()` would touch a
         // stack pointer. Two flavors:
@@ -8238,23 +8238,16 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
             // field is Own/Ref, passing X as `own` arg to a function that
             // takes ownership of the wrapper) already consume the wrapper, so
             // adding a `free` here would double-free.
-            if local.is_heap.and(local.type.is(Type.Struct)) {
+            if local.is_heap.and(local.type.is(Type.Struct).or(local.type.is(Type.Enum))) {
                 if local.own_transfer.eq(stmt_idx.to_i32()) {
                     if type_to_name(local.type).len().gt(0) {
-                        // Two patterns where the local's wrapper would
-                        // otherwise leak after ownership "transfers":
-                        //   1. Decl(field = local) where the receiving
-                        //      Shallow field value-copies the inner
-                        //      struct (transfer_is_shallow_field_value_copy).
-                        //   2. Variadic Array passed as own to a user
-                        //      function: the typer auto-creates
-                        //      _va_Array_N (heap), passes as own to a
-                        //      callee whose Own param auto-delete uses
-                        //      call_free=false (frees contents, leaks
-                        //      wrapper). Detect by the synthesized
-                        //      _va_Array_ name prefix.
-                        is_va_arr := local.name.starts_with("_va_Array_")
-                        if transfer_is_shallow_field_value_copy(stmt, local.name, scope).or(is_va_arr) {
+                        // Decl(field = local) where the receiving Shallow
+                        // field value-copies the inner struct: the field's
+                        // own destructor frees the inner data, but nothing
+                        // would free the local's wrapper. Emit a raw
+                        // `free(local)` after the transfer stmt to release
+                        // the wrapper without touching the inner data.
+                        if transfer_is_shallow_field_value_copy(stmt, local.name, scope) {
                             free_call := make_free_call(local.name, local.type, stmt)
                             if is_null(free_call).not() {
                                 new_ch.push(own free_call)
