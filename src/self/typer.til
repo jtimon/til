@@ -599,10 +599,10 @@ try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
     mut instance := obj
     e.children.set(0, own fn_ident)
     mut new_children := Vec.new(Expr)
-    new_children.push(own e.child(0).clone())
+    new_children.push_take(e.children, 0)
     new_children.push(own instance.clone())
     for i in 1..e.children.len() {
-        new_children.push(own e.child(i).clone())
+        new_children.push_take(e.children, i)
     }
     e.children = new_children
     return true
@@ -1027,8 +1027,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
             }
         }
         mut new_ch := Vec.new(Expr)
-        ref callee : Expr = e.child(0)
-        new_ch.push(own callee.clone())
+        new_ch.push_take(e.children, 0)
         for i in 0..nfields {
             ref slot_arg : CtorArg = field_vals.get(i)
             switch slot_arg {
@@ -1160,10 +1159,11 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
                 switch e.node_type {
                 case NodeType.FCall(fcall_data):
                     fcall_data.variadic_index = new_ch.len().to_i32()
-                    for va : Expr in va_args {
-                        new_ch.push(own va.clone())
+                    va_count := va_args.len()
+                    for vai in 0..va_count {
+                        new_ch.push_take(va_args, vai)
                     }
-                    fcall_data.variadic_count = va_args.len()
+                    fcall_data.variadic_count = va_count
                 case:
                     UNREACHABLE(__LOC__)
                 }
@@ -1171,10 +1171,11 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
                 switch e.node_type {
                 case NodeType.FCall(fcall_data):
                     fcall_data.kwargs_index = new_ch.len().to_i32()
-                    for kw : Expr in kw_args {
-                        new_ch.push(own kw.clone())
+                    kw_count := kw_args.len()
+                    for kwi2 in 0..kw_count {
+                        new_ch.push_take(kw_args, kwi2)
                     }
-                    fcall_data.kwargs_count = kw_args.len()
+                    fcall_data.kwargs_count = kw_count
                 case:
                     UNREACHABLE(__LOC__)
                 }
@@ -1592,10 +1593,10 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             UNREACHABLE(__LOC__)
         }
         mut new_children := Vec.new(Expr)
-        new_children.push(own e.child(0).clone())
+        new_children.push_take(e.children, 0)
         new_children.push(own instance)
         for i in 1..e.children.len() {
-            new_children.push(own e.child(i).clone())
+            new_children.push_take(e.children, i)
         }
         e.children = new_children
         ref mut fa2 : Expr = e.child(0)
