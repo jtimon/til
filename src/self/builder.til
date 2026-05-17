@@ -533,7 +533,7 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     case Type.I64:     return "I64"
     case Type.U8:      return "U8"
     case Type.I8:      return "I8"
-    case Type.I16:     return "I16"
+    case Type.Primitive(Primitive.I16):     return "I16"
     case Type.I32:     return "I32"
     case Type.U32:     return "U32"
     case Type.U64:     return "U64"
@@ -685,7 +685,7 @@ priv collect_ident_refs := proc(e: Expr, mut refs: Set) {
 }
 
 emit_til_default := proc(f: File, shallow t: Type) {
-    if t.is(Type.I64).or(t.is(Type.I8)).or(t.is(Type.I16)).or(t.is(Type.I32))
+    if t.is(Type.I64).or(t.is(Type.I8)).or(t.is(Type.Primitive(Primitive.I16))).or(t.is(Type.I32))
     .or(t.is(Type.U32)).or(t.is(Type.U64)).or(t.is(Type.F32))
     .or(t.is(Type.U8)) {
         f.write("0")
@@ -3697,7 +3697,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                         case Type.I64:  ct = "ctypes.POINTER(ctypes.c_longlong)"
                         case Type.U8:   ct = "ctypes.POINTER(ctypes.c_ubyte)"
                         case Type.I8:   ct = "ctypes.POINTER(ctypes.c_byte)"
-                        case Type.I16:  ct = "ctypes.POINTER(ctypes.c_short)"
+                        case Type.Primitive(Primitive.I16):  ct = "ctypes.POINTER(ctypes.c_short)"
                         case Type.I32:  ct = "ctypes.POINTER(ctypes.c_int)"
                         case Type.U32:  ct = "ctypes.POINTER(ctypes.c_uint)"
                         case Type.U64:  ct = "ctypes.POINTER(ctypes.c_ulonglong)"

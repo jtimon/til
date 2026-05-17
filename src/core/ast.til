@@ -13,24 +13,33 @@ import("vec")
 
 // builtin types
 
+// --- Primitive enum ---
+
+/// Real primitive types. Issue #203 migrates them one at a time;
+/// I16 first because it has the smallest call-site surface.
+Primitive := enum {
+    I16,
+}
+
 // --- Type enum ---
 
 /// Type representation for the til compiler. Carries payload for named
 /// types (Struct/Enum/Custom) and is tag-only for builtins.
 Type := enum {
     Unknown, None,
-    I64, U8, I16, I32, U32, U64, F32, Bool,
+    I64, U8, I32, U32, U64, F32, Bool,
     Struct: Str, StructDef,
     Enum: Str, EnumDef,
     FuncDef, FuncPtr, Dynamic,
     Custom: Str,
-    // I8 is appended at the end (rather than next to U8) so the tag
-    // values for existing variants are preserved -- master's til_boot
-    // has its tag values baked into its compiled C, and inserting a
-    // new variant in the middle would shift everything after it and
-    // mis-decode Type values created by master's compiled code while
-    // bootstrapping.
+    // I8 / Primitive are appended at the end (rather than where I16
+    // used to sit) so the tag values for existing variants are
+    // preserved -- master's til_boot has its tag values baked into
+    // its compiled C, and inserting a new variant in the middle
+    // would shift everything after it and mis-decode Type values
+    // created by master's compiled code while bootstrapping.
     I8,
+    Primitive: Primitive,
 namespace:
     /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
     /// compare equal regardless of variant if their name payloads match.
@@ -54,7 +63,7 @@ namespace:
         if a.is(Type.I64)       { return b.is(Type.I64) }
         if a.is(Type.U8)        { return b.is(Type.U8) }
         if a.is(Type.I8)        { return b.is(Type.I8) }
-        if a.is(Type.I16)       { return b.is(Type.I16) }
+        if a.is(Type.Primitive(Primitive.I16))       { return b.is(Type.Primitive(Primitive.I16)) }
         if a.is(Type.I32)       { return b.is(Type.I32) }
         if a.is(Type.U32)       { return b.is(Type.U32) }
         if a.is(Type.U64)       { return b.is(Type.U64) }
@@ -76,7 +85,7 @@ til_type_name_c := func(t: Type) returns Str {
     case Type.I64:       return "I64"
     case Type.U8:        return "U8"
     case Type.I8:        return "I8"
-    case Type.I16:       return "I16"
+    case Type.Primitive(Primitive.I16):       return "I16"
     case Type.I32:       return "I32"
     case Type.U32:       return "U32"
     case Type.U64:       return "U64"

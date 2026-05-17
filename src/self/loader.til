@@ -899,7 +899,7 @@ til_type_user := func(t: Type) returns Str {
     case Type.I64:       return "I64"
     case Type.U8:        return "U8"
     case Type.I8:        return "I8"
-    case Type.I16:       return "I16"
+    case Type.Primitive(Primitive.I16):       return "I16"
     case Type.I32:       return "I32"
     case Type.U32:       return "U32"
     case Type.U64:       return "U64"

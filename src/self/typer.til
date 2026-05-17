@@ -56,7 +56,7 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     case Type.I64:       variant_name = "I64"
     case Type.U8:        variant_name = "U8"
     case Type.I8:        variant_name = "I8"
-    case Type.I16:       variant_name = "I16"
+    case Type.Primitive(Primitive.I16):       variant_name = "I16"
     case Type.I32:       variant_name = "I32"
     case Type.U32:       variant_name = "U32"
     case Type.U64:       variant_name = "U64"
@@ -1499,7 +1499,7 @@ obj_method_type_name := func(obj: Expr) returns Str {
     if obj.til_type.is(Type.I64)
     .or(obj.til_type.is(Type.U8))
     .or(obj.til_type.is(Type.I8))
-    .or(obj.til_type.is(Type.I16))
+    .or(obj.til_type.is(Type.Primitive(Primitive.I16)))
     .or(obj.til_type.is(Type.I32))
     .or(obj.til_type.is(Type.U32))
     .or(obj.til_type.is(Type.U64))
@@ -2323,7 +2323,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                 is_scalar := pt.is(Type.I64)
                 .or(pt.is(Type.U8))
                 .or(pt.is(Type.I8))
-                .or(pt.is(Type.I16))
+                .or(pt.is(Type.Primitive(Primitive.I16)))
                 .or(pt.is(Type.I32))
                 .or(pt.is(Type.U32))
                 .or(pt.is(Type.U64))
@@ -2913,7 +2913,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
         if sname.eq("I64") { builtin_type = Type.I64; is_builtin = true }
         else if sname.eq("U8") { builtin_type = Type.U8; is_builtin = true }
         else if sname.eq("I8") { builtin_type = Type.I8; is_builtin = true }
-        else if sname.eq("I16") { builtin_type = Type.I16; is_builtin = true }
+        else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
         else if sname.eq("I32") { builtin_type = Type.I32; is_builtin = true }
         else if sname.eq("U32") { builtin_type = Type.U32; is_builtin = true }
         else if sname.eq("U64") { builtin_type = Type.U64; is_builtin = true }
@@ -5998,7 +5998,7 @@ is_numeric_type := func(t: Type) returns shallow Bool {
     case Type.I64: return true
     case Type.U8:  return true
     case Type.I8:  return true
-    case Type.I16: return true
+    case Type.Primitive(Primitive.I16): return true
     case Type.I32: return true
     case Type.U32: return true
     case Type.U64: return true
@@ -6012,7 +6012,7 @@ is_integral_numeric_type := func(t: Type) returns shallow Bool {
     case Type.I64: return true
     case Type.U8:  return true
     case Type.I8:  return true
-    case Type.I16: return true
+    case Type.Primitive(Primitive.I16): return true
     case Type.I32: return true
     case Type.U32: return true
     case Type.U64: return true
@@ -6068,7 +6068,7 @@ literal_in_range := func(val_str: Str, target: Type) returns shallow Bool {
     case Type.I8:
         val := val_str.to_i64()
         return val.gte(-128).and(val.lte(127))
-    case Type.I16:
+    case Type.Primitive(Primitive.I16):
         val := val_str.to_i64()
         return val.gte(-32768).and(val.lte(32767))
     case Type.I32:
@@ -6089,7 +6089,7 @@ can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
     switch from {
     case Type.U8:
         switch to {
-        case Type.I16: return true
+        case Type.Primitive(Primitive.I16): return true
         case Type.I32: return true
         case Type.I64: return true
         case Type.U32: return true
@@ -6098,12 +6098,12 @@ can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
         }
     case Type.I8:
         switch to {
-        case Type.I16: return true
+        case Type.Primitive(Primitive.I16): return true
         case Type.I32: return true
         case Type.I64: return true
         case: return false
         }
-    case Type.I16:
+    case Type.Primitive(Primitive.I16):
         switch to {
         case Type.I32: return true
         case Type.I64: return true
@@ -6142,7 +6142,7 @@ type_from_name := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("I64")  { return Type.I64 }
     if name.eq("U8")   { return Type.U8 }
     if name.eq("I8")   { return Type.I8 }
-    if name.eq("I16")  { return Type.I16 }
+    if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
     if name.eq("I32")  { return Type.I32 }
     if name.eq("U32")  { return Type.U32 }
     if name.eq("U64")  { return Type.U64 }
@@ -6356,7 +6356,7 @@ type_prefix := func(t: Type) returns Str {
     case Type.I64: return "I64"
     case Type.U8: return "U8"
     case Type.I8: return "I8"
-    case Type.I16: return "I16"
+    case Type.Primitive(Primitive.I16): return "I16"
     case Type.I32: return "I32"
     case Type.U32: return "U32"
     case Type.U64: return "U64"
@@ -6387,7 +6387,7 @@ type_to_name := func(t: Type) returns Str {
     case Type.I64: return I64Name.clone()
     case Type.U8: return U8Name.clone()
     case Type.I8: return I8Name.clone()
-    case Type.I16: return I16Name.clone()
+    case Type.Primitive(Primitive.I16): return I16Name.clone()
     case Type.I32: return I32Name.clone()
     case Type.U32: return U32Name.clone()
     case Type.U64: return U64Name.clone()

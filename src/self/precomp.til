@@ -192,7 +192,7 @@ value_to_expr := func(shallow val: Value, src: Expr) returns ref Expr {
         return e
     case Value.Short(x):
         mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = Type.I16
+        e.til_type = Type.Primitive(Primitive.I16)
         return e
     case Value.Int32(x):
         mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
@@ -244,7 +244,7 @@ expr_to_value := func(e: Expr) returns shallow Value {
         case Type.U8:  return val_u8(num.to_u8())
         case Type.U32: return val_u32(num.to_i64())
         case Type.U64: return val_u64(num.to_u64())
-        case Type.I16: return val_i16(num.to_i64())
+        case Type.Primitive(Primitive.I16): return val_i16(num.to_i64())
         case Type.I32: return val_i32(num.to_i64())
         case Type.F32: return val_f32(num.to_f32())
         case: return val_i64(num.to_i64())
@@ -634,7 +634,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                         continue
                     case Value.Short(sv):
                         mut lit := Expr.new(NodeType.LiteralNum(sv.to_str()), arg.line, arg.col)
-                        lit.til_type = Type.I16
+                        lit.til_type = Type.Primitive(Primitive.I16)
                         ec.add_child(own lit)
                         continue
                     case Value.Int32(iv):

@@ -6,11 +6,14 @@ typedef struct Str Str;
 typedef struct Dynamic Dynamic;
 typedef struct Map Map;
 typedef enum {
+    Primitive_TAG_I16
+} Primitive_tag;
+typedef struct Primitive Primitive;
+typedef enum {
     Type_TAG_Unknown,
     Type_TAG_None,
     Type_TAG_I64,
     Type_TAG_U8,
-    Type_TAG_I16,
     Type_TAG_I32,
     Type_TAG_U32,
     Type_TAG_U64,
@@ -24,7 +27,8 @@ typedef enum {
     Type_TAG_FuncPtr,
     Type_TAG_Dynamic,
     Type_TAG_Custom,
-    Type_TAG_I8
+    Type_TAG_I8,
+    Type_TAG_Primitive
 } Type_tag;
 typedef struct Type Type;
 typedef enum {
@@ -263,12 +267,17 @@ typedef struct Dynamic {
 
 
 
+struct Primitive {
+    Primitive_tag tag;
+};
+
 struct Type {
     Type_tag tag;
     union {
         Str Struct;
         Str Enum;
         Str Custom;
+        Primitive Primitive;
     } data;
 };
 
@@ -887,6 +896,10 @@ void Map_set(Map * self, void * key, void * val);
 void Map_delete(Map * self, Bool * call_free);
 Map * Map_clone(Map * self);
 U32 Map_size(void);
+Bool Primitive_eq(Primitive * self, Primitive * other);
+void Primitive_delete(Primitive * self, Bool * call_free);
+Primitive * Primitive_clone(Primitive * self);
+U32 Primitive_size(void);
 Bool Type_eq(Type * a, Type * b);
 Bool Type_is(Type * self, Type * other);
 void Type_delete(Type * self, Bool * call_free);
