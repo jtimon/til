@@ -1806,7 +1806,6 @@ Bool is_alias_to_primitive(Str * name);
 Bool is_alias_to_dynamic(Str * name);
 void push_til_default(Str * out, Str * c);
 Bool * bind_emit_field(Str * out, Str * line, Str * comment);
-Bool ends_with_block_close(Str * body);
 void emit_comment_line(Str * out, Str * line);
 Bool * emit_struct_body(Str * out, Vec * lines, U32 open, U32 close);
 U32 * emit_typedef_struct(Str * out, Vec * lines, U32 start, U32 open, U32 close);

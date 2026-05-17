@@ -1,76 +1,192 @@
 mode lib
 
-//_________
- // /         \ tinyfiledialogs.h v2.9.3 [July 12, 2017] zlib licence  |tiny file| Unique header file created [November 9, 2014]  | dialogs | Copyright (c) 2014 - 2017 Guillaume Vareille http://ysengrin.com  \____  ___/ http://tinyfiledialogs.sourceforge.net       \|                                 git://git.code.sf.net/p/tinyfiledialogs/code 		 ______________________________________________ 		|                                              | 		|     email: tinyfiledialogs@ysengrin.com      | 		|______________________________________________| 
-// A big thank you to Don Heyse http://ldglite.sf.net for                    his code contributions, bug corrections & thorough testing! 		
-            // git://git.code.sf.net/p/tinyfiledialogs/code 
-// Please 	1) let me know 	- if you are including tiny file dialogs,
-	  // I'll be happy to add your link to the list of projects using it. 	- If you are using it on different hardware / OS / compiler. 	2) leave a review on Sourceforge. Thanks. 
-// tiny file dialogs (cross-platform C C++) InputBox PasswordBox MessageBox ColorPicker OpenFileDialog SaveFileDialog SelectFolderDialog Native dialog library for WINDOWS MAC OSX GTK+ QT CONSOLE & more SSH supported via automatic switch to console mode or X11 forwarding 
-// One C file (add it to your C or C++ project) with 6 functions: - message & question - input & password - save file - open file(s) - select folder - color picker 
-// Complements OpenGL GLFW GLUT GLUI VTK SFML TGUI SDL Ogre Unity3d ION OpenCV CEGUI MathGL GLM CPW GLOW IMGUI MyGUI GLT NGL STB & GUI less programs 
-// NO INIT NO MAIN LOOP NO LINKING NO INCLUDE 
-// The dialogs can be forced into console mode 
-// Windows (XP to 10) ASCII MBCS UTF-8 UTF-16 - native code & vbs create the graphic dialogs - enhanced console mode can use dialog.exe from http://andrear.altervista.org/home/cdialog.php - basic console input 
-// Unix (command line calls) ASCII UTF-8 - applescript - zenity / matedialog / qarma (zenity for qt) - kdialog - Xdialog - python2 tkinter - dialog (opens a console if needed) - basic console input The same executable can run across desktops & distributions 
-// tested with C & C++ compilers on VisualStudio MinGW Mac Linux Bsd Solaris Minix Raspbian using Gnome Kde Enlightenment Mate Cinnamon Unity Lxde Lxqt Xfce WindowMaker IceWm Cde Jds OpenBox Awesome Jwm 
-// bindings for LUA and C# dll included in LWJGL(java), rust, Allegrobasic 
-// - License - 
-// This software is provided 'as-is', without any express or implied warranty.  In no event will the authors be held liable for any damages arising from the use of this software. 
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions: 
-// 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software.  If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required. 2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software. 3. This notice may not be removed or altered from any source distribution. */
+/*_________
+ /         \ tinyfiledialogs.h v2.9.3 [July 12, 2017] zlib licence
+ |tiny file| Unique header file created [November 9, 2014]
+ | dialogs | Copyright (c) 2014 - 2017 Guillaume Vareille http://ysengrin.com
+ \____  ___/ http://tinyfiledialogs.sourceforge.net
+      \|
+                                git://git.code.sf.net/p/tinyfiledialogs/code
+		 ______________________________________________
+		|                                              |
+		|     email: tinyfiledialogs@ysengrin.com      |
+		|______________________________________________|
 
-// #define TINYFD_NOLIB 
-// On windows, define TINYFD_NOLIB here
-// if you don't want to include the code creating the graphic dialogs. Then you won't need to link against Comdlg32.lib and Ole32.lib */
+A big thank you to Don Heyse http://ldglite.sf.net for
+                   his code contributions, bug corrections & thorough testing!
+		
+            git://git.code.sf.net/p/tinyfiledialogs/code
 
-// if tinydialogs.c is compiled with a C++ compiler rather than with a C compiler
-// (ie. you change the extension from .c to .cpp), you need to comment out: extern "C" {
-// and the corresponding closing bracket near the end of this file:
-// }
-///
+Please
+	1) let me know
+	- if you are including tiny file dialogs,
+	  I'll be happy to add your link to the list of projects using it.
+	- If you are using it on different hardware / OS / compiler.
+	2) leave a review on Sourceforge. Thanks.
 
-// for unix & windows: 0 (graphic mode) or 1 (console mode).
-// 0: try to use a graphic solution, if it fails then it uses console mode. 1: forces all dialogs into console mode even when an X server is present,
-  // if the package dialog (and a console is present) or dialog.exe is installed.   on windows it only make sense for console applications */
+tiny file dialogs (cross-platform C C++)
+InputBox PasswordBox MessageBox ColorPicker
+OpenFileDialog SaveFileDialog SelectFolderDialog
+Native dialog library for WINDOWS MAC OSX GTK+ QT CONSOLE & more
+SSH supported via automatic switch to console mode or X11 forwarding
 
-// if you pass "tinyfd_query" as aTitle,
-// the functions will not display the dialogs but will return 0 for console mode, 1 for graphic mode. tinyfd_response is then filled with the retain solution. possible values for tinyfd_response are (all lowercase) for the graphic mode:   windows applescript zenity zenity3 matedialog qarma kdialog   xdialog tkinter gdialog gxmessage xmessage for the console mode:   dialog whiptail basicinput */
+One C file (add it to your C or C++ project) with 6 functions:
+- message & question
+- input & password
+- save file
+- open file(s)
+- select folder
+- color picker
+
+Complements OpenGL GLFW GLUT GLUI VTK SFML TGUI SDL Ogre Unity3d ION OpenCV
+CEGUI MathGL GLM CPW GLOW IMGUI MyGUI GLT NGL STB & GUI less programs
+
+NO INIT
+NO MAIN LOOP
+NO LINKING
+NO INCLUDE
+
+The dialogs can be forced into console mode
+
+Windows (XP to 10) ASCII MBCS UTF-8 UTF-16
+- native code & vbs create the graphic dialogs
+- enhanced console mode can use dialog.exe from
+http://andrear.altervista.org/home/cdialog.php
+- basic console input
+
+Unix (command line calls) ASCII UTF-8
+- applescript
+- zenity / matedialog / qarma (zenity for qt)
+- kdialog
+- Xdialog
+- python2 tkinter
+- dialog (opens a console if needed)
+- basic console input
+The same executable can run across desktops & distributions
+
+tested with C & C++ compilers
+on VisualStudio MinGW Mac Linux Bsd Solaris Minix Raspbian
+using Gnome Kde Enlightenment Mate Cinnamon Unity
+Lxde Lxqt Xfce WindowMaker IceWm Cde Jds OpenBox Awesome Jwm
+
+bindings for LUA and C# dll
+included in LWJGL(java), rust, Allegrobasic
+
+- License -
+
+This software is provided 'as-is', without any express or implied
+warranty.  In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+claim that you wrote the original software.  If you use this software
+in a product, an acknowledgment in the product documentation would be
+appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+*/
+
+/* #define TINYFD_NOLIB */
+/* On windows, define TINYFD_NOLIB here
+if you don't want to include the code creating the graphic dialogs.
+Then you won't need to link against Comdlg32.lib and Ole32.lib */
+
+/* if tinydialogs.c is compiled with a C++ compiler rather than with a C compiler
+(ie. you change the extension from .c to .cpp), you need to comment out:
+extern "C" {
+and the corresponding closing bracket near the end of this file:
+}
+*/
+
+/* for unix & windows: 0 (graphic mode) or 1 (console mode).
+0: try to use a graphic solution, if it fails then it uses console mode.
+1: forces all dialogs into console mode even when an X server is present,
+  if the package dialog (and a console is present) or dialog.exe is installed.
+  on windows it only make sense for console applications */
+
+/* if you pass "tinyfd_query" as aTitle,
+the functions will not display the dialogs
+but will return 0 for console mode, 1 for graphic mode.
+tinyfd_response is then filled with the retain solution.
+possible values for tinyfd_response are (all lowercase)
+for the graphic mode:
+  windows applescript zenity zenity3 matedialog qarma kdialog
+  xdialog tkinter gdialog gxmessage xmessage
+for the console mode:
+  dialog whiptail basicinput */
 
 tinyfd_messageBox := ext_func(aTitle : I8, aMessage : I8, aDialogType : I8, aIconType : I8, shallow aDefaultButton : I32) returns shallow I32 {}
-  // 0 for cancel/no , 1 for ok/yes , 2 for no in yesnocancel 
+  /* 0 for cancel/no , 1 for ok/yes , 2 for no in yesnocancel */
 
 tinyfd_inputBox := ext_func(aTitle : I8, aMessage : I8, aDefaultInput : I8) returns ref I8 {}
-  // returns NULL on cancel 
+  /* returns NULL on cancel */
 
 tinyfd_saveFileDialog := ext_func(aTitle : I8, aDefaultPathAndFile : I8, shallow aNumOfFilterPatterns : I32, aFilterPatterns : Dynamic, aSingleFilterDescription : I8) returns ref I8 {}
-  // returns NULL on cancel 
+  /* returns NULL on cancel */
 
 tinyfd_openFileDialog := ext_func(aTitle : I8, aDefaultPathAndFile : I8, shallow aNumOfFilterPatterns : I32, aFilterPatterns : Dynamic, aSingleFilterDescription : I8, shallow aAllowMultipleSelects : I32) returns ref I8 {}
-  // in case of multiple files, the separator is | 
-  // returns NULL on cancel 
+  /* in case of multiple files, the separator is | */
+  /* returns NULL on cancel */
 
 tinyfd_selectFolderDialog := ext_func(aTitle : I8, aDefaultPath : I8) returns ref I8 {}
-  // returns NULL on cancel 
+  /* returns NULL on cancel */
 
 tinyfd_colorChooser := ext_func(aTitle : I8, aDefaultHexRGB : I8, aDefaultRGB : U8, aoResultRGB : U8) returns ref I8 {}
-  // returns the hexcolor as a string "#FF0000" 
-  // aoResultRGB also contains the result 
-  // aDefaultRGB is used only if aDefaultHexRGB is NULL 
-  // aDefaultRGB and aoResultRGB can be the same array 
-  // returns NULL on cancel 
+  /* returns the hexcolor as a string "#FF0000" */
+  /* aoResultRGB also contains the result */
+  /* aDefaultRGB is used only if aDefaultHexRGB is NULL */
+  /* aDefaultRGB and aoResultRGB can be the same array */
+  /* returns NULL on cancel */
 
-//*********** NOT CROSS PLATFORM SECTION STARTS HERE ***********************
-// unix zenity only 
+/************ NOT CROSS PLATFORM SECTION STARTS HERE ************************/
+/* unix zenity only */
 tinyfd_arrayDialog := ext_func(aTitle : I8, shallow aNumOfColumns : I32, aColumns : Dynamic, shallow aNumOfRows : I32, aCells : Dynamic) returns ref I8 {}
-  // {"Row1 Col1","Row1 Col2","Row2 Col1","Row2 Col2"} 
-//
-// - This is not for android nor ios. - The code is pure C, perfectly compatible with C++. - the windows only wchar_t (utf-16) prototypes are in the header file - windows is fully supported from XP to 10 (maybe even older versions) - C# & LUA via dll, see example files - OSX supported from 10.4 to 10.11 (maybe even older versions) - Avoid using " and ' in titles and messages. - There's one file filter only, it may contain several patterns. - If no filter description is provided,
-  // the list of patterns will become the description. - char const * filterPatterns[3] = { "*.obj" , "*.stl" , "*.dxf" } ;
-// - On windows link against Comdlg32.lib and Ole32.lib   This linking is not compulsary for console mode (see above). - On unix: it tries command line calls, so no such need. - On unix you need applescript, zenity, matedialog, qarma, kdialog, Xdialog,
-  // python2/tkinter or dialog (will open a terminal if running without console). - One of those is already included on most (if not all) desktops. - In the absence of those it will use gdialog, gxmessage or whiptail   with a textinputbox. - If nothing is found, it switches to basic console input,
-  // it opens a console if needed (requires xterm + bash). - Use windows separators on windows and unix separators on unix. - String memory is preallocated statically for all the returned values. - File and path names are tested before return, they are valid. - If you pass only a path instead of path + filename,
-  // make sure it ends with a separator. - tinyfd_forceConsole=1; at run time, forces dialogs into console mode. - On windows, console mode only make sense for console applications. - Mutiple selects are not allowed in console mode. - The package dialog must be installed to run in enhanced console mode.   It is already installed on most unix systems. - On osx, the package dialog can be installed via http://macports.org - On windows, for enhanced console mode,
-  // dialog.exe should be copied somewhere on your executable path.   It can be found at the bottom of the following page:   http://andrear.altervista.org/home/cdialog.php - If dialog is missing, it will switch to basic console input. - You can query the type of dialog that will be use. - MinGW needs gcc >= v4.9 otherwise some headers are incomplete. - The Hello World (and a bit more) is on the sourceforge site: */
+  /* {"Row1 Col1","Row1 Col2","Row2 Col1","Row2 Col2"} */
+/*
+- This is not for android nor ios.
+- The code is pure C, perfectly compatible with C++.
+- the windows only wchar_t (utf-16) prototypes are in the header file
+- windows is fully supported from XP to 10 (maybe even older versions)
+- C# & LUA via dll, see example files
+- OSX supported from 10.4 to 10.11 (maybe even older versions)
+- Avoid using " and ' in titles and messages.
+- There's one file filter only, it may contain several patterns.
+- If no filter description is provided,
+  the list of patterns will become the description.
+- char const * filterPatterns[3] = { "*.obj" , "*.stl" , "*.dxf" } ;
+- On windows link against Comdlg32.lib and Ole32.lib
+  This linking is not compulsary for console mode (see above).
+- On unix: it tries command line calls, so no such need.
+- On unix you need applescript, zenity, matedialog, qarma, kdialog, Xdialog,
+  python2/tkinter or dialog (will open a terminal if running without console).
+- One of those is already included on most (if not all) desktops.
+- In the absence of those it will use gdialog, gxmessage or whiptail
+  with a textinputbox.
+- If nothing is found, it switches to basic console input,
+  it opens a console if needed (requires xterm + bash).
+- Use windows separators on windows and unix separators on unix.
+- String memory is preallocated statically for all the returned values.
+- File and path names are tested before return, they are valid.
+- If you pass only a path instead of path + filename,
+  make sure it ends with a separator.
+- tinyfd_forceConsole=1; at run time, forces dialogs into console mode.
+- On windows, console mode only make sense for console applications.
+- Mutiple selects are not allowed in console mode.
+- The package dialog must be installed to run in enhanced console mode.
+  It is already installed on most unix systems.
+- On osx, the package dialog can be installed via http://macports.org
+- On windows, for enhanced console mode,
+  dialog.exe should be copied somewhere on your executable path.
+  It can be found at the bottom of the following page:
+  http://andrear.altervista.org/home/cdialog.php
+- If dialog is missing, it will switch to basic console input.
+- You can query the type of dialog that will be use.
+- MinGW needs gcc >= v4.9 otherwise some headers are incomplete.
+- The Hello World (and a bit more) is on the sourceforge site:
+*/
 

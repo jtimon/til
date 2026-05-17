@@ -359,61 +359,13 @@ priv bind_emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool
 // `b_end.gte(2).and(body.byte_at(b_end.sub(2)).eq('*'))` chain segfaults on
 // short `body` because `Bool.and` is strict (not short-circuiting), so
 // `b_end.sub(2)` underflows USize before the bound check has any effect.
-priv ends_with_block_close := func(body: Str) returns shallow Bool {
-    b_end := body.len()
-    if b_end.lt(2) { return false }
-    if body.byte_at(b_end.sub(2)).neq('*') { return false }
-    if body.byte_at(b_end.sub(1)).neq('/') { return false }
-    return true
-}
-
 priv emit_comment_line := func(mut out: Str, line: Str) {
-    n := line.len()
-    mut i : USize = 0
-    while i.lt(n) {
-        ref b : I8 = line.byte_at(i)
-        if bind_is_ws(b).not() { break }
-        i = i.add(1)
-    }
-    // Preserve the source's leading indent in the output.
-    if i.gt(0) { out.push_str(line.substr(0, i)) }
-    if i.add(1).lt(n) {
-        if line.byte_at(i).eq('/').and(line.byte_at(i.add(1)).eq('/')) {
-            out.push_str(line.substr(i, n.sub(i)))
-            out.push_str("\n")
-            return
-        }
-    }
-    if i.add(1).lt(n) {
-        if line.byte_at(i).eq('/').and(line.byte_at(i.add(1)).eq('*')) {
-            out.push_str("//")
-            body := line.substr(i.add(2), n.sub(i).sub(2))
-            if ends_with_block_close(body) {
-                out.push_str(body.substr(0, body.len().sub(2)))
-            } else {
-                out.push_str(body)
-            }
-            out.push_str("\n")
-            return
-        }
-    }
-    if i.lt(n) {
-        if line.byte_at(i).eq('*') {
-            // Block-comment continuation that the cc preprocessor split onto
-            // its own line.
-            out.push_str("//")
-            body := line.substr(i.add(1), n.sub(i).sub(1))
-            if ends_with_block_close(body) {
-                out.push_str(body.substr(0, body.len().sub(2)))
-            } else {
-                out.push_str(body)
-            }
-            out.push_str("\n")
-            return
-        }
-    }
-    out.push_str("// ")
-    out.push_str(line.substr(i, n.sub(i)))
+    // til supports both `// ...` line comments and `/* ... */` block
+    // comments (nestable), so pass each comment line through verbatim
+    // rather than rewriting `/*` -> `//` etc. The filter_preprocessed
+    // pass already prevents these lines from being glued onto adjacent
+    // declarations, so a multi-line C block comment lands intact.
+    out.push_str(line)
     out.push_str("\n")
 }
 
@@ -1620,6 +1572,13 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
     // stays put -- the next-line peek handles that.
     mut out := Vec.new(Str)
     mut carry := ""
+    // Tracks whether we're inside an open /* ... */ block as we walk the
+    // kept lines in order. Lines inside the block are always treated as
+    // comment-only (never partial-merged), regardless of whether they
+    // start with `*` -- many C codebases write block comments without
+    // a leading-star continuation, and gluing those onto the next
+    // declaration corrupts both the comment and the next line.
+    mut in_block := false
     n_raw := raw.len()
     for ri in 0..n_raw {
         ref tagged : Str = raw.get(ri)
@@ -1627,6 +1586,25 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
         sys := tn.gt(0).and(tagged.byte_at(0).eq('S'))
         line := tagged.substr(2, tn.sub(2))
         ln := line.len()
+        // Walk the line to update in_block for the NEXT iteration: every
+        // unmatched `/*` opens the block, every `*/` closes it (the
+        // single-line `/* ... */` case opens and closes without state
+        // change).
+        was_in_block := in_block
+        mut scan : USize = 0
+        while scan.add(1).lt(ln) {
+            ref c0 : I8 = line.byte_at(scan)
+            ref c1 : I8 = line.byte_at(scan.add(1))
+            if in_block {
+                if c0.eq('*').and(c1.eq('/')) { in_block = false; scan = scan.add(2); continue }
+            } else {
+                if c0.eq('/').and(c1.eq('*')) { in_block = true; scan = scan.add(2); continue }
+                // A `//` line-comment terminates the scan -- nothing on
+                // the rest of the line can open a block.
+                if c0.eq('/').and(c1.eq('/')) { break }
+            }
+            scan = scan.add(1)
+        }
         // Trim trailing line/block comments and whitespace to inspect the
         // last meaningful byte.
         mut stmt_end := ln
@@ -1647,10 +1625,12 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
         // Detect comment-only lines (block-comment continuations like
         // `   can hold a pointer.  */`, line `// ...`, leading `/* ...`
         // or `* ...`) and preprocessor directives (`#define ...`). These
-        // are passed through as-is, never merged.
+        // are passed through as-is, never merged. A line we entered while
+        // inside an open /* ... */ block also counts -- those continuation
+        // lines often have no leading `*`.
         first_idx := skip_ws(line, 0)
-        mut is_comment_line := false
-        if first_idx.lt(ln) {
+        mut is_comment_line := was_in_block.or(in_block)
+        if is_comment_line.not().and(first_idx.lt(ln)) {
             ref c0 : I8 = line.byte_at(first_idx)
             if c0.eq('#') { is_comment_line = true }
             else if c0.eq('*') { is_comment_line = true }

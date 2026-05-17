@@ -1,29 +1,54 @@
 mode lib
 
-// -----------------------------------------------------------------*-C-*-
-   // libffi 3.4.6      - Copyright (c) 2011, 2014, 2019, 2021, 2022, 2024 Anthony Green      - Copyright (c) 1996-2003, 2007, 2008 Red Hat, Inc. 
-   // Permission is hereby granted, free of charge, to any person    obtaining a copy of this software and associated documentation    files (the ``Software''), to deal in the Software without    restriction, including without limitation the rights to use, copy,
-   // modify, merge, publish, distribute, sublicense, and/or sell copies    of the Software, and to permit persons to whom the Software is    furnished to do so, subject to the following conditions: 
-   // The above copyright notice and this permission notice shall be    included in all copies or substantial portions of the Software. 
-   // THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
-   // EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND    NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT    HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-   // WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-   // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER    DEALINGS IN THE SOFTWARE. 
-   // ----------------------------------------------------------------------- */
+/* -----------------------------------------------------------------*-C-*-
+   libffi 3.4.6
+     - Copyright (c) 2011, 2014, 2019, 2021, 2022, 2024 Anthony Green
+     - Copyright (c) 1996-2003, 2007, 2008 Red Hat, Inc.
 
-// -------------------------------------------------------------------
-   // Most of the API is documented in doc/libffi.texi. 
-   // The raw API is designed to bypass some of the argument packing and    unpacking on architectures for which it can be avoided.  Routines    are provided to emulate the raw API if the underlying platform    doesn't allow faster implementation. 
-   // More details on the raw API can be found in: 
-   // http://gcc.gnu.org/ml/java/1999-q3/msg00138.html 
-   // and 
-   // http://gcc.gnu.org/ml/java/1999-q3/msg00174.html    -------------------------------------------------------------------- */
+   Permission is hereby granted, free of charge, to any person
+   obtaining a copy of this software and associated documentation
+   files (the ``Software''), to deal in the Software without
+   restriction, including without limitation the rights to use, copy,
+   modify, merge, publish, distribute, sublicense, and/or sell copies
+   of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
 
-// Specify which architecture libffi is configured for. 
+   The above copyright notice and this permission notice shall be
+   included in all copies or substantial portions of the Software.
 
-// ---- System configuration information --------------------------------- 
+   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
 
-// If these change, update src/mips/ffitarget.h. 
+   ----------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------
+   Most of the API is documented in doc/libffi.texi.
+
+   The raw API is designed to bypass some of the argument packing and
+   unpacking on architectures for which it can be avoided.  Routines
+   are provided to emulate the raw API if the underlying platform
+   doesn't allow faster implementation.
+
+   More details on the raw API can be found in:
+
+   http://gcc.gnu.org/ml/java/1999-q3/msg00138.html
+
+   and
+
+   http://gcc.gnu.org/ml/java/1999-q3/msg00174.html
+   -------------------------------------------------------------------- */
+
+/* Specify which architecture libffi is configured for. */
+
+/* ---- System configuration information --------------------------------- */
+
+/* If these change, update src/mips/ffitarget.h. */
 FFI_TYPE_VOID : I64 = 0
 FFI_TYPE_INT : I64 = 1
 FFI_TYPE_FLOAT : I64 = 2
@@ -43,25 +68,42 @@ FFI_TYPE_STRUCT : I64 = 13
 FFI_TYPE_POINTER : I64 = 14
 FFI_TYPE_COMPLEX : I64 = 15
 
-// This should always refer to the last type code (for sanity checks).  
+/* This should always refer to the last type code (for sanity checks).  */
 
-// -----------------------------------------------------------------*-C-*-
-   // ffitarget.h - Copyright (c) 2012, 2014, 2018  Anthony Green                  Copyright (c) 1996-2003, 2010  Red Hat, Inc.                  Copyright (C) 2008  Free Software Foundation, Inc. 
-   // Target configuration macros for x86 and x86-64. 
-   // Permission is hereby granted, free of charge, to any person obtaining    a copy of this software and associated documentation files (the    ``Software''), to deal in the Software without restriction, including    without limitation the rights to use, copy, modify, merge, publish,
-   // distribute, sublicense, and/or sell copies of the Software, and to    permit persons to whom the Software is furnished to do so, subject to    the following conditions: 
-   // The above copyright notice and this permission notice shall be included    in all copies or substantial portions of the Software. 
-   // THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
-   // EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND    NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT    HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-   // WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-   // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER    DEALINGS IN THE SOFTWARE. 
-   // ----------------------------------------------------------------------- */
+/* -----------------------------------------------------------------*-C-*-
+   ffitarget.h - Copyright (c) 2012, 2014, 2018  Anthony Green
+                 Copyright (c) 1996-2003, 2010  Red Hat, Inc.
+                 Copyright (C) 2008  Free Software Foundation, Inc.
 
-// ---- System specific configurations ----------------------------------- 
+   Target configuration macros for x86 and x86-64.
 
-// For code common to all platforms on x86 and x86_64. 
+   Permission is hereby granted, free of charge, to any person obtaining
+   a copy of this software and associated documentation files (the
+   ``Software''), to deal in the Software without restriction, including
+   without limitation the rights to use, copy, modify, merge, publish,
+   distribute, sublicense, and/or sell copies of the Software, and to
+   permit persons to whom the Software is furnished to do so, subject to
+   the following conditions:
 
-// ---- Generic type definitions ----------------------------------------- 
+   The above copyright notice and this permission notice shall be included
+   in all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+
+   ----------------------------------------------------------------------- */
+
+/* ---- System specific configurations ----------------------------------- */
+
+/* For code common to all platforms on x86 and x86_64. */
+
+/* ---- Generic type definitions ----------------------------------------- */
 ffi_arg := U64
 
 ffi_sarg := I64
@@ -76,23 +118,24 @@ FFI_GNUW64 : I32 = 4.to_i32()
 FFI_LAST_ABI : I32 = 5.to_i32()
 FFI_DEFAULT_ABI : I32 = 2.to_i32()
 
-// ---- Definitions for closures ----------------------------------------- 
+/* ---- Definitions for closures ----------------------------------------- */
 
 FFI_CLOSURES : I64 = 1
 FFI_GO_CLOSURES : I64 = 1
 
-// 4 bytes of ENDBR64 + 7 bytes of LEA + 6 bytes of JMP + 7 bytes of NOP
-   // + 8 bytes of pointer.  */
+/* 4 bytes of ENDBR64 + 7 bytes of LEA + 6 bytes of JMP + 7 bytes of NOP
+   + 8 bytes of pointer.  */
 FFI_TRAMPOLINE_SIZE : I64 = 32
 FFI_NATIVE_RAW_API : I64 = 0
 
-// LONG_LONG_MAX is not always defined (not if STRICT_ANSI, for example).
-   // But we can find it either under the correct ANSI name, or under GNU    C's internal name.  */
+/* LONG_LONG_MAX is not always defined (not if STRICT_ANSI, for example).
+   But we can find it either under the correct ANSI name, or under GNU
+   C's internal name.  */
 
 FFI_64_BIT_MAX : I64 = 9223372036854775807
 
-// The closure code assumes that this works on pointers, i.e. a size_t
-   // can hold a pointer.  */
+/* The closure code assumes that this works on pointers, i.e. a size_t
+   can hold a pointer.  */
 
 ffi_type := ext_struct("_ffi_type") {
     mut size : USize = 0
@@ -101,13 +144,17 @@ ffi_type := ext_struct("_ffi_type") {
     ref mut elements : Dynamic = NULL
 }
 
-// Need minimal decorations for DLLs to work on Windows.  GCC has
-   // autoimport and autoexport.  Always mark externally visible symbols    as dllimport for MSVC clients, even if it means an extra indirection    when using the static version of the library.    Besides, as a workaround, they can define FFI_BUILDING if they    *know* they are going to link with the static library.  */
+/* Need minimal decorations for DLLs to work on Windows.  GCC has
+   autoimport and autoexport.  Always mark externally visible symbols
+   as dllimport for MSVC clients, even if it means an extra indirection
+   when using the static version of the library.
+   Besides, as a workaround, they can define FFI_BUILDING if they
+   *know* they are going to link with the static library.  */
 
-// The externally visible type declarations also need the MSVC DLL
-   // decorations, or they will not be exported from the object file.  */
+/* The externally visible type declarations also need the MSVC DLL
+   decorations, or they will not be exported from the object file.  */
 
-// These are defined in types.c.  
+/* These are defined in types.c.  */
 
 ffi_status := I32
 
@@ -125,7 +172,7 @@ ffi_cif := ext_struct("") {
     mut flags : U32 = 0
 }
 
-// ---- Definitions for the raw API -------------------------------------- 
+/* ---- Definitions for the raw API -------------------------------------- */
 
 FFI_SIZEOF_ARG : I64 = 8
 
@@ -139,8 +186,9 @@ ffi_ptrarray_to_raw := ext_proc(cif : ffi_cif, args : Dynamic, raw : ffi_raw) {}
 ffi_raw_to_ptrarray := ext_proc(cif : ffi_cif, raw : ffi_raw, args : Dynamic) {}
 ffi_raw_size := ext_func(cif : ffi_cif) returns shallow USize {}
 
-// This is analogous to the raw API, except it uses Java parameter
-   // packing, even on 64-bit machines.  I.e. on 64-bit machines longs    and doubles are followed by an empty 64-bit word.  */
+/* This is analogous to the raw API, except it uses Java parameter
+   packing, even on 64-bit machines.  I.e. on 64-bit machines longs
+   and doubles are followed by an empty 64-bit word.  */
 
 ffi_java_raw_call := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : ffi_java_raw) {}
 
@@ -150,7 +198,7 @@ ffi_java_raw_to_ptrarray := ext_proc(cif : ffi_cif, raw : ffi_java_raw, args : D
 
 ffi_java_raw_size := ext_func(cif : ffi_cif) returns shallow USize {}
 
-// ---- Definitions for closures ----------------------------------------- 
+/* ---- Definitions for closures ----------------------------------------- */
 
 ffi_closure := ext_struct("") {}  // opaque: unsupported field shape
 
@@ -177,7 +225,7 @@ ffi_prep_go_closure := ext_func(_arg : ffi_go_closure, _arg : ffi_cif, fun : Dyn
 
 ffi_call_go := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : Dynamic, closure : Dynamic) {}
 
-// ---- Public interface definition -------------------------------------- 
+/* ---- Public interface definition -------------------------------------- */
 
 ffi_prep_cif := ext_func(cif : ffi_cif, shallow abi : ffi_abi, shallow nargs : U32, rtype : ffi_type, atypes : Dynamic) returns shallow ffi_status {}
 
@@ -187,7 +235,7 @@ ffi_call := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : Dyn
 
 ffi_get_struct_offsets := ext_func(shallow abi : ffi_abi, struct_type : ffi_type, offsets : USize) returns shallow ffi_status {}
 
-// Convert between closure and function pointers.  
+/* Convert between closure and function pointers.  */
 
-// ---- Definitions shared with assembly code ---------------------------- 
+/* ---- Definitions shared with assembly code ---------------------------- */
 
