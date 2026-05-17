@@ -1,11 +1,11 @@
 mode lib
 
-import("../lib/raylib")
+import("../../vendor/bindings/raylib")
 link("vendor/raylib/src/libraylib.a")
 link("m")
 link("pthread")
 link("rt")
-import("../lib/tinyfd")
+import("../../vendor/bindings/tinyfd")
 link("vendor/tinyfiledialogs/libtinyfd.a")
 
 link("dl")

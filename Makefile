@@ -20,7 +20,7 @@ all: bin/til
 
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
-LIB_TIL := $(wildcard src/lib/*.til)
+LIB_TIL := $(wildcard src/lib/*.til) $(wildcard vendor/bindings/*.til)
 LD_FLAGS := -rdynamic -ldl
 
 RAYLIB_LIB := vendor/raylib/src/libraylib.a
@@ -53,14 +53,15 @@ vendor/libffi/.built:
 # C header, preprocesses with `cc -E -CC -dD`, filters back to the input
 # directory, and writes a `mode lib` til file. No library-specific
 # knowledge baked in -- callers add their own `link("...")` directive
-# next to the `import("lib/...")` site (see src/til.til and
-# src/modes/gui.til for tinyfd).
+# next to the `import(...)` site (see src/til.til and src/modes/gui.til).
 #
-# On-demand only: `make bindings` regenerates the in-tree src/lib/*.til
-# files. Normal `make` / `make test` consumes whatever is committed at
-# src/lib/. Phony so it always runs end-to-end (the recipe writes its
-# own outputs); src/lib/*.til intentionally have no per-file recipes to
-# avoid a cycle with bin/til, which already depends on $(LIB_TIL).
+# On-demand only: `make bindings` regenerates the in-tree
+# vendor/bindings/*.til files. Normal `make` / `make test` consumes
+# whatever is committed there. Phony so it always runs end-to-end (the
+# recipe writes its own outputs); vendor/bindings/*.til intentionally
+# have no per-file recipes to avoid a cycle with bin/til, which already
+# depends on $(LIB_TIL). src/lib/*.til stays for hand-written library
+# code; binding outputs live next to the vendored C sources.
 #
 # raylib needs two headers: raylib.h plus rcamera.h (which raylib.h does
 # not include but ships the CameraMoveForward/Right/Up helpers we need).
@@ -71,12 +72,13 @@ vendor/libffi/.built:
 # binder emits those decls verbatim and they resolve against the
 # raylib.h block once the two are joined.
 bindings: bin/til | tmp
-	bin/til bindings -o src/lib/tinyfd.til vendor/tinyfiledialogs/tinyfiledialogs.h
-	bin/til bindings -o src/lib/libffi.til $(LIBFFI_BINDGEN_INCDIR)/ffi.h
+	mkdir -p vendor/bindings
+	bin/til bindings -o vendor/bindings/tinyfd.til vendor/tinyfiledialogs/tinyfiledialogs.h
+	bin/til bindings -o vendor/bindings/libffi.til $(LIBFFI_BINDGEN_INCDIR)/ffi.h
 	bin/til bindings -o tmp/raylib_main.til vendor/raylib/src/raylib.h
 	bin/til bindings -o tmp/rcamera.til vendor/raylib/src/rcamera.h
-	cp tmp/raylib_main.til src/lib/raylib.til
-	sed -e '/^mode lib$$/d' tmp/rcamera.til >> src/lib/raylib.til
+	cp tmp/raylib_main.til vendor/bindings/raylib.til
+	sed -e '/^mode lib$$/d' tmp/rcamera.til >> vendor/bindings/raylib.til
 
 # --- Boot compiler (from last commit, always safe) ---
 
