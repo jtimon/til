@@ -1260,10 +1260,30 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
                     f.write("return "); emit_as_ptr(f, rv, depth, false); f.write(";\n"); return
                 }
                 if fd.return_own_type.is(OwnType.Shallow) {
-                    f.write("return ")
-                    if rv.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rv)) { emit_expr(f, rv, depth) }
-                    else { emit_deref(f, rv, depth) }
-                    f.write(";\n"); return
+                    if rv.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rv)) {
+                        f.write("return "); emit_expr(f, rv, depth); f.write(";\n"); return
+                    }
+                    // Asap fix: shallow return of a hoisted compiler temp
+                    // (hoist_to_temp always heap-promotes Own for FCall /
+                    // Literal*) -- the typer's insert_exit_deletes_into_stmt
+                    // skips locals used in the return expr, so the wrapper
+                    // would otherwise leak. Capture by value, raw-free the
+                    // wrapper, return the captured value.
+                    if rv.node_type.is(NodeType.Ident) {
+                        switch rv.node_type {
+                        case NodeType.Ident(rv_name):
+                            if rv_name.starts_with("hoisted__").and(
+                                is_stack_local(rv_name).not()).and(
+                                is_value_global(rv_name).not()).and(
+                                rv.til_type.is(Type.Dynamic).not()) {
+                                ctype := emit_return_ctype(rv)
+                                f.write("{ "); f.write(ctype); f.write(" _ret = DEREF("); f.write(rv_name); f.write("); free("); f.write(rv_name); f.write("); return _ret; }\n")
+                                return
+                            }
+                        case:
+                        }
+                    }
+                    f.write("return "); emit_deref(f, rv, depth); f.write(";\n"); return
                 }
             case:
             }
