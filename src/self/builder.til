@@ -209,13 +209,15 @@ is_primitive_type := func(name: Str) returns shallow Bool {
     return false
 }
 
-// A POD struct has only Shallow-owned primitive fields -- no Str /
-// Vec / Array / nested struct/enum fields that would need recursive
-// cleanup. Ctor Decls for these structs can live on the stack as a
-// compound literal (no malloc / no recursive free), same pattern as
-// LiteralStr Decls. Callers must still pair this with a non-freeing
-// delete at scope end (call_free=false) so the cleanup doesn't try
-// to free a stack pointer.
+// A POD struct has only Shallow-owned fields that are themselves
+// stack-cheap: primitives, or nested POD structs. No Str / Vec /
+// Array / Own-marked fields that would need recursive heap cleanup.
+// Ctor Decls for these structs can live on the stack as a C compound
+// literal (no malloc / no recursive free), and the same emission
+// works inline as an expression when a non-POD parent struct has a
+// POD field set from a ctor FCall.  Callers must still pair this with
+// a non-freeing delete at scope end (call_free=false) so the cleanup
+// doesn't try to free a stack pointer.
 is_pod_struct := func(struct_name: Str) returns shallow Bool {
     if struct_name.len().eq(0) { return false }
     if is_primitive_type(struct_name) { return false }
@@ -227,7 +229,9 @@ is_pod_struct := func(struct_name: Str) returns shallow Bool {
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
             if fd.own_type.is(OwnType.Ref) { return false }
-            if is_primitive_type(fd.explicit_type).not() { return false }
+            if is_primitive_type(fd.explicit_type) { continue }
+            if is_pod_struct(fd.explicit_type) { continue }
+            return false
         }
         return true
     case:
@@ -1049,6 +1053,79 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
     }
 }
 
+// True when `e` is a struct constructor FCall (callee is the
+// struct-name Ident), not a method call like Point.clone(...) whose
+// callee is a FieldAccess. The POD compound-literal path uses this
+// to decide whether the FCall's children are positional field
+// initializers (ctor) vs an arbitrary call (which would type-clash
+// inside a `.field = ...` initializer).
+priv fcall_is_struct_ctor := func(e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len().eq(0) { return false }
+    sname := til_type_name(e.til_type)
+    if sname.len().eq(0) { return false }
+    switch e.child(0).node_type {
+    case NodeType.Ident(ci): return ci.eq(sname)
+    case:
+    }
+    return false
+}
+
+// True when every FCall arg of `ctor` is either non-FCall or itself a
+// POD-struct ctor (recursively safe). The POD compound-literal path
+// requires this -- a non-ctor FCall arg (e.g. Point.clone(...)) would
+// either type-clash with the positional field assumption or return a
+// pointer that can't be assigned into a value field.
+priv pod_ctor_args_are_safe := func(ctor: Expr) returns shallow Bool {
+    for i in 1..ctor.children.len() {
+        ref arg : Expr = ctor.child(i)
+        if arg.node_type.is(NodeType.FCall).not() { continue }
+        if fcall_is_struct_ctor(arg).not() { return false }
+        arg_sname := til_type_name(arg.til_type)
+        if is_pod_struct(arg_sname).not() { return false }
+        if pod_ctor_args_are_safe(arg).not() { return false }
+    }
+    return true
+}
+
+// Emit a C compound literal initializer for a POD-struct ctor FCall:
+// `(Type){.f1 = v1, .f2 = v2, ...}`.  Nested POD ctor args recurse so
+// `(Line){.start = (Point){.x = ..., .y = ...}, .end = ...}` works.
+// Caller must have verified is_pod_struct(ctor type) AND
+// pod_ctor_args_are_safe(ctor). Caller is responsible for trailing
+// punctuation -- this emits the `(...){...}` expression with no
+// semicolon.
+emit_pod_compound_literal := proc(f: File, ctor: Expr, shallow depth: I32) {
+    ctor_sname := til_type_name(ctor.til_type)
+    ctype := c_type_name(ctor.til_type, ctor_sname)
+    f.write("("); f.write(ctype); f.write("){")
+    ref pod_def : Expr = find_struct_def(ctor_sname)
+    if is_null(pod_def).not() {
+        switch pod_def.node_type {
+        case NodeType.StructDef(pod_sdd):
+            mut pod_fi : U32 = 0
+            for i in 1..ctor.children.len() {
+                if i.gt(1) { f.write(", ") }
+                mut pod_fname := ""
+                if pod_fi.lt(pod_sdd.fields.len()) {
+                    ref pod_fd : Declaration = pod_sdd.fields.get(pod_fi)
+                    pod_fname = pod_fd.name
+                    pod_fi = pod_fi.add(1)
+                }
+                f.write("."); f.write(pod_fname); f.write(" = ")
+                ref arg : Expr = ctor.child(i)
+                if fcall_is_struct_ctor(arg) {
+                    emit_pod_compound_literal(f, arg, depth)
+                } else {
+                    emit_deref(f, arg, depth)
+                }
+            }
+        case:
+        }
+    }
+    f.write("}")
+}
+
 // Emit layer
 emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
     if e.children.len().eq(0) { return }
@@ -1141,33 +1218,16 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                     if is_global {
                         f.write("memset(&"); f.write(dd.name); f.write(", 0, sizeof("); f.write(ctype); f.write("));\n")
                         emit_ctor_fields(f, dd.name, rhs, depth)
-                    } else if is_pod_struct(rhs_sname) {
+                    } else if is_pod_struct(rhs_sname).and(pod_ctor_args_are_safe(rhs)) {
                         // POD struct ctor: emit as a stack value
                         // initialized with a C compound literal,
                         // mirroring the LiteralStr Decl path. Matching
                         // delete is forced to call_free=false in the
                         // shim at emit_stmt (NodeType.FCall case) so
                         // we never call free() on the stack pointer.
-                        f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = (")
-                        f.write(ctype); f.write("){")
-                        ref pod_def : Expr = find_struct_def(rhs_sname)
-                        mut pod_fi : U32 = 0
-                        switch pod_def.node_type {
-                        case NodeType.StructDef(pod_sdd):
-                            for i in 1..rhs.children.len() {
-                                if i.gt(1) { f.write(", ") }
-                                mut pod_fname := ""
-                                if pod_fi.lt(pod_sdd.fields.len()) {
-                                    ref pod_fd : Declaration = pod_sdd.fields.get(pod_fi)
-                                    pod_fname = pod_fd.name
-                                    pod_fi = pod_fi.add(1)
-                                }
-                                f.write("."); f.write(pod_fname); f.write(" = ")
-                                emit_deref(f, rhs.child(i), depth)
-                            }
-                        case:
-                        }
-                        f.write("};\n")
+                        f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = ")
+                        emit_pod_compound_literal(f, rhs, depth)
+                        f.write(";\n")
                         lp.ctx.stack_locals.add(own dd.name.clone())
                         lp.ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
@@ -2005,6 +2065,16 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                 switch ac0.node_type {
                 case NodeType.Ident(callee_ident):
                     if callee_ident.eq(arg_sname2) {
+                        // POD nested ctor: emit the field assign with
+                        // a direct compound literal, skipping the
+                        // malloc-deref-free dance below.
+                        if is_pod_struct(arg_sname2).and(pod_ctor_args_are_safe(arg)) {
+                            emit_field(f, var, fname)
+                            f.write(" = ")
+                            emit_pod_compound_literal(f, arg, depth)
+                            f.write(";\n")
+                            is_ctor_call = true
+                        } else {
                         ct := c_type_name(arg.til_type, arg_sname2)
                         ctor_seq = ctor_seq.add(1.to_i32())
                         id := ctor_seq
@@ -2024,6 +2094,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                         f.write(tmp)
                         f.write(");\n")
                         is_ctor_call = true
+                        }
                     }
                 case:
                 }

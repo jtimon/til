@@ -1644,16 +1644,8 @@ CfRect * CfRect_sample(void) {
     I64 hoisted__I64_3486 = 10;
     I64 hoisted__I64_3487 = 100;
     I64 hoisted__I64_3488 = 200;
-    CfRect *hoisted__CfRect_3489 = malloc(sizeof(CfRect));
-    CfVec2 *_cs1 = malloc(sizeof(CfVec2));
-    _cs1->x = hoisted__I64_3485;
-    _cs1->y = hoisted__I64_3486;
-    hoisted__CfRect_3489->top_left = *_cs1; free(_cs1);
-    CfVec2 *_cs2 = malloc(sizeof(CfVec2));
-    _cs2->x = hoisted__I64_3487;
-    _cs2->y = hoisted__I64_3488;
-    hoisted__CfRect_3489->bottom_right = *_cs2; free(_cs2);
-    return hoisted__CfRect_3489;
+    CfRect hoisted__CfRect_3489 = (CfRect){.top_left = (CfVec2){.x = hoisted__I64_3485, .y = hoisted__I64_3486}, .bottom_right = (CfVec2){.x = hoisted__I64_3487, .y = hoisted__I64_3488}};
+    { CfRect *_r = malloc(sizeof(CfRect)); *_r = hoisted__CfRect_3489; return _r; }
 }
 
 CfRect * CfRect_clone(CfRect * self) {
