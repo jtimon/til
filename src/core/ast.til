@@ -360,6 +360,9 @@ namespace:
             other.children.data, other.children.count.mul(other.children.elem_size))
         self.children.count = needed
         other.children.count = 0
+        // Free other's source buffer before nulling: the bytes were
+        // memcpy'd into self, but other's malloc'd buffer would leak.
+        free(own other.children.data)
         other.children.data = NULL
     }
     /// Shortcut to get a ref to the i-th child of `parent`.
