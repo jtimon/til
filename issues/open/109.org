@@ -87,10 +87,28 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     bug, just not caught before because the compiler-side ASAN
     didn't instrument the compiled binary.
   - ~issues_summary~: ~AddressSanitizer: heap-use-after-free~ at
-    ~gen/c/issues_summary.c:380~ in ~I8_neq~. Real use-after-free in
-    generated code; same story -- compiled-binary ASAN flushed it
-    out. Worth tracing back to which .til source pattern emits the
-    UAF in ~I8_neq~.
+    ~gen/c/issues_summary.c:380~ in ~I8_neq~ -- FIXED (workaround).
+    Root cause: ~Str.substr~ returns a view (~.cap=CAP_VIEW~,
+    ~c_str~ borrows the source's buffer) and the typer's ASAP-delete
+    pass doesn't track view-borrow chains. In ~parse_issue~, the
+    only direct use of ~content~ after the ~after_first~ substr was
+    the substr itself, so the typer scheduled
+    ~Str_delete(content)~ between the substr and its first use --
+    dangling every downstream view (~after_first~,
+    ~first_line~, ~title~, ~num_str~, ~after_num~). Even chaining
+    ~content.substr(...).clone()~ doesn't help: the typer lowers the
+    chain into separate C statements and inserts the delete *between*
+    ~Str_substr~ and ~Str_clone~. Workaround: extract the parse body
+    into ~parse_issue_body(fname, content: Str)~ -- borrowed params
+    aren't subject to ASAP-delete, so ~content~ stays live for the
+    whole body. Real fix is typer-level: teach
+    ~extend_ref_local_lifetimes~ (or its equivalent) to recognize
+    view-returning callees and extend the source's lifetime through
+    the view's last use. Same fix would let the widespread
+    ~substr(...).clone()~ idiom in ~src/til.til~ /
+    ~src/self/builder.til~ / ~src/self/lexer.til~ be safe for owned
+    locals too (currently only safe for borrowed sources like
+    function params / struct fields).
 
   Related issues:
   - ~[[./175.org][#175]]~ ([[../fixed/][FIXED, issues/fixed/]]) -- switch case-binding mut Str leak.
