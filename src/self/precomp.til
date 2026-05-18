@@ -939,6 +939,59 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, shallow at_global: 
         case:
         }
     }
+    // DCE: after folding, scan for `hoisted__`-prefixed Decls whose RHS is
+    // a pure literal (no side effects) and whose name no longer appears
+    // anywhere in the body. These are the typer's `own <literal>` hoists
+    // that got orphaned when precomp folded away their only consumer
+    // (a pure func call like `fn_identity(own 100)` -> `100`). The asap
+    // pass already marked them own_transfer'd to the now-folded FCall,
+    // so insert_post_stmt_deletes skips them and the heap malloc leaks.
+    // Removing the Decl drops the entire allocation. Only literal RHS is
+    // safe (no side effects to preserve).
+    mut keep := Vec.new(Expr)
+    for di in 0..body.children.len() {
+        ref dstmt : Expr = body.child(di)
+        mut drop := false
+        switch dstmt.node_type {
+        case NodeType.Decl(dd):
+            if dd.name.starts_with("hoisted__") {
+                if dstmt.children.len().gt(0) {
+                    ref drhs : Expr = dstmt.child(0)
+                    is_lit := drhs.node_type.is(NodeType.LiteralStr)
+                        .or(drhs.node_type.is(NodeType.LiteralNum))
+                        .or(drhs.node_type.is(NodeType.LiteralBool))
+                        .or(drhs.node_type.is(NodeType.LiteralNull))
+                    if is_lit {
+                        mut used_elsewhere := false
+                        for ui in 0..body.children.len() {
+                            if ui.eq(di) { continue }
+                            if expr_uses_var_p(body.child(ui), dd.name) {
+                                used_elsewhere = true
+                                break
+                            }
+                        }
+                        if used_elsewhere.not() { drop = true }
+                    }
+                }
+            }
+        case:
+        }
+        if drop.not() { keep.push_take(body.children, di) }
+    }
+    body.children.move_from(keep)
+}
+
+priv expr_uses_var_p := func(e: Expr, name: Str) returns shallow Bool {
+    if is_null(e) { return false }
+    switch e.node_type {
+    case NodeType.Ident(eid):
+        if eid.eq(name) { return true }
+    case:
+    }
+    for child : Expr in e.children {
+        if expr_uses_var_p(child, name) { return true }
+    }
+    return false
 }
 
 precomp_scan_names := func(prog: Expr) {

@@ -1396,6 +1396,7 @@ Bool is_macro_call(Expr * e);
 Bool is_func_call(Expr * e);
 void fold_subtree(Scope * scope, Expr * e, Context * ctx);
 void process_body(Scope * scope, Expr * body, Context * ctx, Bool at_global);
+Bool priv___src_self_precomp_til__expr_uses_var_p(Expr * e, Str * name);
 void precomp_scan_names(Expr * prog);
 void precomp_register_defs(Scope * global, Expr * prog);
 void precomp_register_globals(Scope * global, Expr * prog);
