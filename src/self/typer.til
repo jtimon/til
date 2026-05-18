@@ -3390,7 +3390,12 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 case:
                                 }
                                 ref enum_def : Expr = scope.get_struct(type_name)
-                                if is_null(enum_def).not().and(enum_def.node_type.is(NodeType.EnumDef)) {
+                                // Nested if rather than `.and(...)`: til's
+                                // `.and` is strict, so a single combined check
+                                // would still deref `enum_def.node_type` when
+                                // `enum_def` is NULL (e.g. cross-file priv).
+                                if is_null(enum_def).not() {
+                                if enum_def.node_type.is(NodeType.EnumDef) {
                                     vt_tag := enum_variant_tag(enum_def, variant_name)
                                     mut payload_type := ""
                                     if vt_tag.gte(0.to_i32()) {
@@ -3421,6 +3426,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                     case_body.children.move_from(new_ch)
                                         has_condition = true
                                     }
+                                }
                                 }
                             }
                         }
@@ -3458,7 +3464,11 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 case:
                                 }
                                 ref enum_def3 : Expr = scope.get_struct(type_name3)
-                                if is_null(enum_def3).not().and(enum_def3.node_type.is(NodeType.EnumDef)) {
+                                // Nested if rather than `.and(...)`: see the
+                                // matching note in the eager-pattern branch
+                                // above. til's `.and` is strict.
+                                if is_null(enum_def3).not() {
+                                if enum_def3.node_type.is(NodeType.EnumDef) {
                                     vt_tag3 := enum_variant_tag(enum_def3, variant_name3)
                                     mut payload_type3 := ""
                                     if vt_tag3.gte(0.to_i32()) {
@@ -3490,6 +3500,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         has_condition = true
                                     }
                                 }
+                                }
                             }
                         }
                     }
@@ -3515,7 +3526,10 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                     case:
                     }
                     ref enum_def : Expr = scope.get_struct(type_name)
-                    if is_null(enum_def).not().and(enum_def.node_type.is(NodeType.EnumDef)) {
+                    // Nested if rather than `.and(...)`: see matching notes
+                    // above. til's `.and` is strict.
+                    if is_null(enum_def).not() {
+                    if enum_def.node_type.is(NodeType.EnumDef) {
                         vt_tag2 := enum_variant_tag(enum_def, variant_name)
                         if vt_tag2.gte(0.to_i32()) {
                             // `case Variant` (no payload binding) -> sw.is(Type.Variant).
@@ -3534,6 +3548,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                             condition.add_child(own vref)
                             has_condition = true
                         }
+                    }
                     }
                 }
             }
