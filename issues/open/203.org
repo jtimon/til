@@ -69,8 +69,8 @@
 
    *** Why medium priority
 
-   The hand-written ~src/lib/raylib.til~ / ~src/lib/tinyfd.til~ /
-   ~src/lib/libffi.til~ still ship correct bindings and the
+   The hand-written ~vendor/bindings/raylib.til~ / ~vendor/bindings/tinyfd.til~ /
+   ~vendor/bindings/libffi.til~ still ship correct bindings and the
    self-hosted compiler keeps building from them. The Makefile
    rules that regenerate those files via ~bindings_gen~ will
    produce broken output today, so ~make bindings~ should not be

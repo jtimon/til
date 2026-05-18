@@ -8,7 +8,7 @@ mode cli
 // Constraints (panics otherwise):
 //   * At most 2 colours in the SVG (transparent counts as one).
 //   * Expects the exact viewBox/transform used by potrace/ImageMagick SVG
-//     output for the TIL logo. See src/lib/svg.til for the full grammar.
+//     output for the TIL logo. See lib/svg.til for the full grammar.
 
 import("../lib/svg")
 import("../lib/fonts")

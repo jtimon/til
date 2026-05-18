@@ -754,7 +754,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 
     // Resolve user imports (using same resolved set -- skips files already loaded by core)
     units := Vec.new(ProgramUnit)
-    lib_dir := bin_dir.concat("/src/lib")
+    lib_dir := bin_dir.concat("/lib")
     user_import_disps := resolve_import_disps(imports, user_dir, lib_dir, cwd)
     if imports.len().gt(0) {
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,

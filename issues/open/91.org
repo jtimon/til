@@ -8,7 +8,7 @@ Vec/Map/Set currently dispatch clone/delete by type name string via
   pointers once at construction, then all subsequent clone/delete calls
   go through the stored pointers directly.
 
-  Proven pattern: ~AlphaBeta~ struct in ~src/lib/alphabeta.til~ uses
+  Proven pattern: ~AlphaBeta~ struct in ~lib/alphabeta.til~ uses
   the same function-pointer-on-struct approach — ~h~ and ~nexts~ fields
   called via ~self.h(board)~ and ~self.nexts(board)~. All three game
   examples (checkers, chess, go) use it successfully.

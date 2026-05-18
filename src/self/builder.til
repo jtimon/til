@@ -4259,7 +4259,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     if target.is(Target.WindowsX64) { dyn_flag = "" }
 
     // For Windows cross-compile, rewrite link_flags inherited from
-    // src/lib/{raylib,libffi,tinyfd}.til. Their link() directives carry
+    // vendor/bindings/{raylib,libffi,tinyfd}.til. Their link() directives carry
     // hardcoded Linux paths and POSIX-only -l flags; mingw doesn't ship
     // -ldl/-lrt and can't load Linux ELF .a files. The Windows variants
     // are added via target_gui_libs / target_ffi_lib / target_system_libs
@@ -6295,7 +6295,7 @@ install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns shallow
     dst_root := support_root(prefix)
     mut rc := install_tree(root.concat("/src/core"), dst_root.concat("/src/core"), "install compiler core sources")
     if rc.neq(0) { return rc }
-    rc = install_tree(root.concat("/src/lib"), dst_root.concat("/src/lib"), "install compiler library sources")
+    rc = install_tree(root.concat("/lib"), dst_root.concat("/lib"), "install compiler library sources")
     if rc.neq(0) { return rc }
     rc = install_tree(root.concat("/src/modes"), dst_root.concat("/src/modes"), "install compiler mode sources")
     if rc.neq(0) { return rc }
@@ -6328,8 +6328,8 @@ cmd_install := proc(lp: LoadedProgram, install_prefix_in: Str, target: Target, c
         so_dst := format(install_prefix, "/lib/lib", paths.name, ".so")
         a_dst := format(install_prefix, "/lib/lib", paths.name, ".a")
         h_dst := format(install_prefix, "/include/", paths.name, ".h")
-        til_dst := format(support_root(install_prefix), "/src/lib/", paths.name, ".til")
-        py_dst := format(support_root(install_prefix), "/src/lib/", paths.name, ".py")
+        til_dst := format(support_root(install_prefix), "/lib/", paths.name, ".til")
+        py_dst := format(support_root(install_prefix), "/lib/", paths.name, ".py")
 
         result = install_file(format("gen/lib/lib", paths.name, ".so"), so_dst, "install shared library")
         if result.eq(0) { result = install_file(format("gen/lib/lib", paths.name, ".a"), a_dst, "install static library") }

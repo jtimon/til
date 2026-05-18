@@ -5,7 +5,7 @@ mode lib
 // mirrors every typedef, enum, function declaration and numeric #define
 // from the header (and any header it #includes that lives in the same
 // directory). Driven from `bin/til bindings <header> -o <out>` via
-// src/til.til; the Makefile invokes that for each src/lib/<name>.til.
+// src/til.til; the Makefile invokes that for each vendor/bindings/<name>.til.
 
 // Lexer exports is_digit / is_alpha / is_alnum (same I8 -> Bool helpers
 // that classify identifier bytes), so reuse them rather than redefining.

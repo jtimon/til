@@ -20,7 +20,7 @@ all: bin/til
 
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
-LIB_TIL := $(wildcard src/lib/*.til) $(wildcard vendor/bindings/*.til)
+LIB_TIL := $(wildcard lib/*.til) $(wildcard vendor/bindings/*.til)
 LD_FLAGS := -rdynamic -ldl
 
 RAYLIB_LIB := vendor/raylib/src/libraylib.a
@@ -60,7 +60,7 @@ vendor/libffi/.built:
 # whatever is committed there. Phony so it always runs end-to-end (the
 # recipe writes its own outputs); vendor/bindings/*.til intentionally
 # have no per-file recipes to avoid a cycle with bin/til, which already
-# depends on $(LIB_TIL). src/lib/*.til stays for hand-written library
+# depends on $(LIB_TIL). lib/*.til stays for hand-written library
 # code; binding outputs live next to the vendored C sources.
 #
 # raylib needs two headers: raylib.h plus rcamera.h (which raylib.h does

@@ -1,10 +1,10 @@
 mode cli
 
-import("../core/io")
-import("../core/sys")
-import("../core/str")
-import("../core/vec")
-import("../core/i64")
+import("../src/core/io")
+import("../src/core/sys")
+import("../src/core/str")
+import("../src/core/vec")
+import("../src/core/i64")
 
 NL := "\n"
 
