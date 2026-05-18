@@ -6600,6 +6600,58 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr)
     return call
 }
 
+// Set `call.own_args` to match the callee's params.own_type, for a
+// namespace call built by make_ns_call (FCall whose head is
+// FieldAccess(method) over Ident(type_name)). Walks the resolved
+// ns_func.params and ORs bit (i+1) for each Own param -- the +1 skips
+// the callee child at index 0. Caller is responsible for having pushed
+// the receiver and the actual arg Exprs in the same order as the
+// callee's params before calling this.
+//
+// Single source of truth for "which positional args are own?" -- it
+// is derived from the callee's actual signature instead of being
+// hardcoded per build_*_* site. Synthesized FCalls are created during
+// `body_pre_passes`, AFTER the per-stmt type-check pass that runs
+// `validate_fcall_own_args` / `infer_field_access_fcall`, so they
+// never go through the typer's own-args consistency check; this
+// helper plays the role the validator plays for user-written calls.
+//
+// Issue #109: the kwargs DynMap.set leak was a hardcoded set_own_arg
+// for elem_type that didn't match the callee's actual `elem_type: Str`
+// (borrowed) param; the helper plugs the whole bug class.
+sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope) {
+    ref fa : Expr = call.child(0)
+    mut method := ""
+    switch fa.node_type {
+    case NodeType.FieldAccess(m):
+        method = m.clone()
+    case:
+        return
+    }
+    ref obj : Expr = fa.child(0)
+    mut type_name := ""
+    switch obj.node_type {
+    case NodeType.Ident(name):
+        type_name = name.clone()
+    case:
+        return
+    }
+    ref sdef : Expr = scope.get_struct(type_name)
+    if is_null(sdef) { return }
+    ref ns_func : Expr = find_namespace_func(sdef, method)
+    if is_null(ns_func) { return }
+    switch ns_func.node_type {
+    case NodeType.FuncDef(fd):
+        for i in 0..fd.params.len() {
+            ref p : Declaration = fd.params.get(i)
+            if p.own_type.is(OwnType.Own) {
+                set_own_arg(call, i.add(1.to_usize()))
+            }
+        }
+    case:
+    }
+}
+
 build_kwargs_dynmap_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     mut new_call := make_ns_call("DynMap", "new", Type.Struct("DynMap".clone()), fcall)
     mut kw_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
@@ -6631,17 +6683,11 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
 
     mut key_lit := Expr.new(NodeType.LiteralStr(key_name.clone()), fcall.line, fcall.col)
     key_lit.til_type = Type.Struct("Str".clone())
-    set_own_arg(set_call, set_call.children.len())
     set_call.add_child(own key_lit)
 
     tname := type_to_name(val.til_type)
     mut type_lit := Expr.new(NodeType.LiteralStr(tname.clone()), fcall.line, fcall.col)
     type_lit.til_type = Type.Struct("Str".clone())
-    // elem_type is a borrowed Str param in DynMap.set -- do NOT mark it
-    // own. Marking it own makes the builder emit `malloc(sizeof(Str)) +
-    // *_oa = literal` for the arg, but DynMap.set never frees it (the
-    // value type-name is held as a borrowed view inside the entry's
-    // Tuple, not adopted), so each call leaks 16 bytes (Issue #109).
     set_call.add_child(own type_lit)
 
     mut size_call := make_ns_call(tname, "size", usize_type(scope), fcall)
@@ -6653,8 +6699,9 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
             out_val = make_clone_call(tname, val.til_type, val, val)
         }
     }
-    set_own_arg(set_call, set_call.children.len())
     set_call.add_child(own out_val)
+
+    sync_own_args_from_callee(set_call, scope)
     return set_call
 }
 
@@ -6702,8 +6749,9 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
             val = make_clone_call(tname, val_in.til_type, val_in, val_in)
         }
     }
-    set_own_arg(set_call, set_call.children.len())
     set_call.add_child(own val)
+
+    sync_own_args_from_callee(set_call, scope)
     return set_call
 }
 
@@ -6727,7 +6775,7 @@ build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, ve
     return vec_decl
 }
 
-build_builtin_vec_push := func(fcall: Expr, vec_name: Str, shallow j: U32) returns Expr {
+build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, vec_name: Str, shallow j: U32) returns Expr {
     mut push_call := make_ns_call("Vec", "push", Type.None, fcall)
 
     mut self_id := Expr.new(NodeType.Ident(vec_name.clone()), fcall.line, fcall.col)
@@ -6742,8 +6790,9 @@ build_builtin_vec_push := func(fcall: Expr, vec_name: Str, shallow j: U32) retur
             val = make_clone_call(tname, val_in.til_type, val_in, val_in)
         }
     }
-    set_own_arg(push_call, push_call.children.len())
     push_call.add_child(own val)
+
+    sync_own_args_from_callee(push_call, scope)
     return push_call
 }
 
@@ -6775,7 +6824,7 @@ desugar_array_vec_fcall := func(mut fcall: Expr, mut new_ch: Vec, mut scope: Typ
                     scope.set(vec_name, Type.Struct("Vec".clone()), FuncType.None, true, typer_path, fcall.line, fcall.col, false, OwnType.Own)
                     new_ch.push(own vec_decl)
                     for j in 0..count {
-                        mut push_call := build_builtin_vec_push(fcall, vec_name, j)
+                        mut push_call := build_builtin_vec_push(fcall, scope, vec_name, j)
                         new_ch.push(own push_call)
                     }
                     rewrite_collection_fcall_to_ident(fcall, vec_name, Type.Struct("Vec".clone()))
@@ -6837,7 +6886,7 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
                 scope.set(var_name, Type.Struct("Vec".clone()), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
                 new_ch.push(own vec_decl)
                 for j in 0..count {
-                    mut push_call := build_builtin_vec_push(rhs, var_name, j)
+                    mut push_call := build_builtin_vec_push(rhs, scope, var_name, j)
                     new_ch.push(own push_call)
                 }
                 return true
@@ -6931,8 +6980,8 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         self_id.til_type = Type.Struct("Set".clone())
         add_call.add_child(own self_id)
         mut val := e_j.clone()
-        set_own_arg(add_call, add_call.children.len())
         add_call.add_child(own val)
+        sync_own_args_from_callee(add_call, scope)
         new_ch.push(own add_call)
     }
     return true
@@ -7022,11 +7071,10 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
         self_id.til_type = Type.Struct("Map".clone())
         set_call.add_child(own self_id)
         mut key := map_lit.child(j.mul(2)).clone()
-        set_own_arg(set_call, set_call.children.len())
         set_call.add_child(own key)
         mut mval := map_lit.child(j.mul(2).add(1)).clone()
-        set_own_arg(set_call, set_call.children.len())
         set_call.add_child(own mval)
+        sync_own_args_from_callee(set_call, scope)
         new_ch.push(own set_call)
     }
     return true

@@ -88,20 +88,47 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     didn't instrument the compiled binary.
   - **Kwargs ~elem_type~ leak** (FIXED). ~test/kwargs.til~ compiled
     leaked 384 bytes / 24 allocations (16 bytes per kwarg-fcall
-    invocation -- one ~sizeof(Str)~ per call). Root cause:
+    invocation -- one ~sizeof(Str)~ per call). Symptom-level cause:
     ~build_kwargs_dynmap_set~ in [[file:../../src/self/typer.til][src/self/typer.til]] was calling
     ~set_own_arg~ on the ~elem_type~ arg of the generated ~DynMap.set~
     call, but ~DynMap.set~'s signature in [[file:../../src/core/dyn_map.til][src/core/dyn_map.til]]
-    declares ~elem_type~ as a borrowed ~Str~ (no ~own~ qualifier). The
-    builder honored the bogus own bit and emitted
+    declares ~elem_type~ as a borrowed ~Str~ (no ~own~ qualifier).
+    Builder honored the bogus own bit and emitted
     ~({ Str *_oa = malloc(sizeof(Str)); *_oa = literal; _oa; })~ for
-    the arg; ~DynMap.set~ then stored only the type-name *contents*
-    inside the per-key Tuple (not the wrapper) and never freed the
-    malloc'd wrapper. Fix: drop the ~set_own_arg~ line; codegen now
-    emits ~&hoisted__Str_NNNN~ (stack pointer) for ~elem_type~,
-    matching the borrowed contract. test_asan: 101/117 -> 102/117.
-    The ~build_variadic_array_set~ and Map-literal ~set~ siblings
-    were checked and are correct (their value args really are owned).
+    the arg; ~DynMap.set~ stored only the type-name *contents* inside
+    the per-key Tuple (not the wrapper) and never freed the
+    malloc'd wrapper.
+
+    Root cause: every ~build_*_*~ desugar site (~build_kwargs_dynmap_set~,
+    ~build_variadic_array_set~, ~build_builtin_vec_push~, Set-literal
+    ~Set.add~ in ~desugar_set_literal_decl~, Map-literal ~Map.set~ in
+    ~desugar_map_literal_decl~) was *hardcoding* per-arg ~set_own_arg~
+    calls based on its own knowledge of each callee's signature.
+    Synthesized FCalls are created during ~body_pre_passes~, *after*
+    the per-stmt type-check that runs
+    ~validate_fcall_own_args~/~infer_field_access_fcall~, so they
+    never go through the typer's own-args consistency check; the
+    desugar was the only enforcement and it could drift silently from
+    the callee's actual signature (which is what happened with
+    ~elem_type~).
+
+    Fix: new ~sync_own_args_from_callee~ helper next to ~make_ns_call~
+    in [[file:../../src/self/typer.til][src/self/typer.til]] that resolves the synthesized FCall's
+    callee via ~scope.get_struct~ + ~find_namespace_func~ and ORs
+    ~set_own_arg~ bits for each param whose ~own_type~ is
+    ~OwnType.Own~. All 5 build sites drop their manual ~set_own_arg~
+    litanies and end with one call to the helper, so "which positional
+    args are own" is now derived from the callee's actual signature in
+    [[file:../../src/core/dyn_map.til][dyn_map.til]] / [[file:../../src/core/map.til][map.til]] / [[file:../../src/core/vec.til][vec.til]] / [[file:../../src/core/set.til][set.til]] / [[file:../../src/core/array.til][array.til]] instead of
+    redeclared at each desugar site. test_asan: 101/117 -> 102/117.
+    Same fix plugs the entire bug class (any future signature change
+    propagates automatically). The remaining ~set_own_arg~ callers
+    (~make_delete_call~ -- conditional ~arg_is_own~ for the
+    borrowed-wrapper-only delete pattern; ~make_free_call~ -- ~free~
+    is a builtin Ident, not a namespace call; struct-ctor own-field
+    handling at line 1054; UFCS bit-shift at 1789; pure-splat
+    variadic at 7712) are intentionally outside the namespace-call
+    shape the helper resolves.
 
   - ~issues_summary~: ~AddressSanitizer: heap-use-after-free~ at
     ~gen/c/issues_summary.c:380~ in ~I8_neq~ -- FIXED (workaround).
