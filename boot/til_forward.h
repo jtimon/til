@@ -1075,6 +1075,7 @@ Expr * make_payload_ref_decl(Expr * arg, Str * bind_name, Str * vtype, U32 line,
 Type * type_from_name_init(Str * name, TypeScope * scope);
 Type * init_type_from_explicit_type(Str * name, TypeScope * scope);
 I32 register_struct_def_for_stmt(Expr * stmt, TypeScope * scope);
+Str * priv___src_self_initer_til__field_inferred_type_name(Declaration * fd);
 Bool priv___src_self_initer_til__is_pod_type_for_clone(Str * type_name);
 void gen_struct_clone_delete_for_stmt(Expr * stmt, TypeScope * scope);
 I32 register_enum_definition(Expr * stmt, TypeScope * scope);

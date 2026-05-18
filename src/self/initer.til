@@ -398,6 +398,30 @@ register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shall
     }
 }
 
+// Best-effort field type name at initer time.  Fields with an
+// explicit annotation use it directly; otherwise infer from the
+// default value (literal -> primitive, `T()` ctor -> T).  Returns
+// "" when nothing usable is available.
+priv field_inferred_type_name := func(fd: Declaration) returns Str {
+    if fd.explicit_type.len().gt(0) { return fd.explicit_type.clone() }
+    if is_null(fd.default_value) { return "" }
+    ref def_val : Expr = fd.default_value
+    switch def_val.node_type {
+    case NodeType.LiteralNum:  return "I64"
+    case NodeType.LiteralBool: return "Bool"
+    case NodeType.LiteralStr:  return "Str"
+    case NodeType.FCall:
+        if def_val.children.len().eq(0) { return "" }
+        ref callee : Expr = def_val.child(0)
+        switch callee.node_type {
+        case NodeType.Ident(cn): return cn.clone()
+        case:
+        }
+    case:
+    }
+    return ""
+}
+
 // A primitive type's `.clone()` is just a value copy (`return *v`).
 // The auto-gen struct clone uses this to skip the `.clone()` wrap
 // around primitive fields: passing `self.x` directly to the ctor
@@ -461,11 +485,13 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
                     ref_flag = 1
                 } else if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).is(Type.FuncPtr)) {
                     ref_flag = 1
-                } else if fd.explicit_type.len().gt(0).and(is_pod_type_for_clone(fd.explicit_type)) {
+                } else if is_pod_type_for_clone(field_inferred_type_name(fd)) {
                     // Primitive field: value-copy is the clone, so
                     // pass directly and skip the wasteful `.clone()`
-                    // wrap that the builder would otherwise have to
-                    // emit and undo.
+                    // wrap.  Uses field_inferred_type_name so that
+                    // `mut x := 0` (no explicit annotation) also
+                    // benefits -- inference picks I64 from the
+                    // LiteralNum default value.
                     ref_flag = 1
                 }
                 field_refs.push(own ref_flag)
