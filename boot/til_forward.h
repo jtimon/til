@@ -1044,6 +1044,7 @@ Expr * parse(Vec * tokens, Str * path, Str * mode_out);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U32 TypeBinding_size(void);
+Str * priv_c_name(Str * path, Str * name);
 ScopeFind * ScopeFind_NotFound(void);
 ScopeFind * ScopeFind_Found(TypeBinding * val);
 Bool ScopeFind_is(ScopeFind * self, ScopeFind * other);

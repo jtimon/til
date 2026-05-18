@@ -38,6 +38,45 @@ namespace:
 // Active file path for diagnostics / bindings.
 mut initer_path := ""
 
+// Mangled C symbol prefix for `priv` top-level decls. Two `priv X` in
+// different files used to clobber each other at the C symbol level
+// (the C emitter writes `void X()` once per priv, both lands in the
+// generated translation unit and one silently wins). Rewriting each
+// priv decl plus its in-file references to `priv__<path>__<name>` at
+// init time keeps every priv binding distinct without the rest of the
+// pipeline (precomp, scavenger, builder, interpreter) needing to know
+// anything about priv-by-file. The user-visible identifier survives on
+// Declaration.orig_name for diagnostics.
+priv_c_name := func(path: Str, name: Str) returns Str {
+    mut buf := Str.with_capacity(path.len().add(name.len()).add(16))
+    buf.push_str("priv__")
+    // Path bytes that aren't C-identifier-safe become a single `_`, and
+    // runs of consecutive non-ident bytes collapse so we get
+    // `priv__test_priv_helper_til__Mood` rather than
+    // `priv____test_priv_helper_til__Mood` from `./test/priv_helper.til`.
+    mut last_was_underscore := false
+    mut i : USize = 0
+    while i.lt(path.len()) {
+        ref c : I8 = path.byte_at(i)
+        is_alnum := c.gte('a').and(c.lte('z'))
+            .or(c.gte('A').and(c.lte('Z')))
+            .or(c.gte('0').and(c.lte('9')))
+        if is_alnum {
+            buf.push_str(path.substr(i, 1))
+            last_was_underscore = false
+        } else {
+            if last_was_underscore.not() {
+                buf.push_str("_")
+                last_was_underscore = true
+            }
+        }
+        i = i.add(1)
+    }
+    buf.push_str("__")
+    buf.push_str(name)
+    return buf
+}
+
 ScopeFind := enum { NotFound, Found: TypeBinding }
 
 TypeScope := struct {
@@ -52,6 +91,19 @@ namespace:
         if is_null(self.parent).not() {
             ref pb : TypeBinding = self.parent.get_binding(name)
             return pb
+        }
+        // Last resort at the root scope: look for any `priv` binding
+        // whose original (pre-mangle) name matches. Other files' priv
+        // decls live under `priv__<path>__<name>` keys now, so a plain
+        // `name` lookup from a different file misses; returning the
+        // binding here lets check_priv_access print the proper
+        // "X is private to <path>" diagnostic instead of a bare
+        // "undefined name" error.
+        for ki in 0..self.bindings.len() {
+            ref b2 : TypeBinding = Map.val_ptr(self.bindings, ki)
+            if b2.is_priv.and(b2.orig_name.eq(name)) {
+                return b2
+            }
         }
         return NULL
     }
@@ -79,6 +131,18 @@ namespace:
         }
         if is_null(self.parent).not() {
             return self.parent.get_struct(name)
+        }
+        // Mirror get_binding's last-resort priv scan: a priv struct/enum
+        // from another file lives under `priv__<path>__<name>` in the
+        // root scope, so the plain-name lookup above misses. Returning
+        // its struct_def lets the typer surface the proper
+        // "X is private to <path>" diagnostic from the call site instead
+        // of NULL-deref-ing in pattern desugaring.
+        for ki in 0..self.bindings.len() {
+            ref b2 : TypeBinding = Map.val_ptr(self.bindings, ki)
+            if b2.is_priv.and(b2.orig_name.eq(name)).and(is_null(b2.struct_def).not()) {
+                return b2.struct_def
+            }
         }
         return NULL
     }
@@ -2263,6 +2327,14 @@ priv init_rename_ident_in_place := func(mut e: Expr, renamings: Map) {
         if new_name.len().gt(0) {
             e.node_type = NodeType.Ident(new_name.clone())
         }
+    case NodeType.Assign(ad):
+        // Assignments to a renamed top-level priv: `local_counter = ...`
+        // stores the LHS name on AssignData, not as a child Ident, so the
+        // generic Ident rename above misses it.
+        new_name := init_lookup_name(renamings, ad.name)
+        if new_name.len().gt(0) {
+            ad.name = new_name.clone()
+        }
     case:
     }
 }
@@ -2278,6 +2350,18 @@ priv init_rename_decl_in_place := func(mut dd: Declaration, renamings: Map) {
 priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
     if is_null(e) { return }
     init_rename_ident_in_place(e, renamings)
+    // `for x : LocalInfo in xs { ... }` stores the loop's explicit type
+    // on e.til_type as Type.Custom("LocalInfo"). No Declaration is
+    // involved (parser.til:1428), so init_rename_decl_in_place misses
+    // it; patch the Type.Custom payload here.
+    switch e.til_type {
+    case Type.Custom(custom_name):
+        new_custom := init_lookup_name(renamings, custom_name)
+        if new_custom.len().gt(0) {
+            e.til_type = Type.Custom(new_custom.clone())
+        }
+    case:
+    }
     switch e.node_type {
     case NodeType.Decl(dd):
         init_rename_decl_in_place(dd, renamings)
@@ -2493,6 +2577,46 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
     }
     for l : Expr in nested_lifted {
         program.children.push(own l.clone())
+    }
+
+    // Rewrite every top-level `priv` decl (and the lifted-nested ones,
+    // which the lift step above just marked priv) to a file-keyed C
+    // symbol. Same in-file Ident references get rewritten alongside via
+    // init_rewrite_refs, so the rest of the pipeline emits and links
+    // distinct C functions for two files that happen to share a priv
+    // identifier. The original user-facing name lives on dd.orig_name
+    // for diagnostics.
+    mut priv_renamings := Map.new(Str, Str)
+    for pi in 0..program.children.len() {
+        ref pstmt : Expr = program.child(pi)
+        if pstmt.node_type.is(NodeType.Decl).not() { continue }
+        switch pstmt.node_type {
+        case NodeType.Decl(pdd):
+            if pdd.is_priv.not() { continue }
+            if pdd.name.starts_with("priv__") { continue }
+            // Skip lifted-nested decls (the lift step above already set
+            // orig_name on them and mangled their name to `<parent>_<orig>`).
+            // Their function-scope priv check downstream relies on the
+            // parent being extractable from the mangled name -- stacking
+            // a `priv__<path>__` prefix would break that contract and
+            // also let sibling functions reach the lifted decl from
+            // anywhere in the file. Cross-file collisions on a lifted
+            // nested name (same parent + same nested) are rare and the
+            // existing parent prefix already disambiguates within a
+            // file; we accept the residual risk for now.
+            if pdd.orig_name.len().gt(0) { continue }
+            mangled := priv_c_name(path, pdd.name)
+            pdd.orig_name = pdd.name.clone()
+            priv_renamings.set(own pdd.name.clone(), own mangled.clone())
+            pdd.name = mangled.clone()
+        case:
+        }
+    }
+    if priv_renamings.len().gt(0) {
+        for ri in 0..program.children.len() {
+            ref mut rc : Expr = program.child(ri)
+            init_rewrite_refs(rc, priv_renamings)
+        }
     }
 
     for i in 0..program.children.len() {

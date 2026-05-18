@@ -1858,22 +1858,32 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding) {
     if is_null(b) { return }
     if b.is_priv.not() { return }
     if b.path.eq(typer_path).not() {
-        type_error(e, "'".concat(name).concat("' is private to '").concat(b.path)
+        // init_declarations_unit rewrote top-level priv decls to
+        // `priv__<path>__<orig>`. Prefer the original identifier in the
+        // diagnostic so users see the source form, not the mangle.
+        mut display_name := name
+        if b.orig_name.len().gt(0).and(b.name.starts_with("priv__")) {
+            display_name = b.orig_name
+        }
+        type_error(e, "'".concat(display_name).concat("' is private to '").concat(b.path)
             .concat("'; remove 'priv' to expose it"))
         return
     }
+    if b.orig_name.len().eq(0) { return }
+    // Top-level priv decls (mangled `priv__<path>__<orig>`) live at file
+    // scope, so the same-file path check above is sufficient -- skip the
+    // nested-parent check that follows, which assumes the
+    // `<parent>_<orig>` lifted-nested layout.
+    if b.name.starts_with("priv__") { return }
     // Issue #93 follow-up: lifted nested defs are function-scoped within
     // the original parent function. init_declarations_unit sets
     // b.orig_name to the user-facing identifier and mangles b.name as
-    // `<parent>_<orig>`, so
-    // the enclosing parent name is the prefix before the trailing
-    // `_<orig_name>`. Allow references from:
+    // `<parent>_<orig>`. Allow references from:
     //   - the parent function itself (current_top_func_name == parent), or
     //   - any other lifted descendant whose own mangled name starts with
     //     `<parent>_` (sibling helpers and inner ns methods), or
     //   - a ns-method body of a lifted struct/enum (tracked through
     //     current_type_name).
-    if b.orig_name.len().eq(0) { return }
     parent_len := b.name.len().sub(b.orig_name.len()).sub(1)
     parent_name := b.name.substr(0, parent_len)
     parent_underscore := parent_name.concat("_")
@@ -2478,13 +2488,20 @@ check_unused_priv_top_level := proc(scope: TypeScope) returns shallow I32 {
             if b.struct_def.node_type.is(NodeType.EnumDef) { kind = "enum" }
             else { kind = "struct" }
         }
-        // Issue #93: nested defs lifted out of a function body carry the
-        // original identifier on b.orig_name (set by init_declarations_unit
-        // in src/self/initer.til). Report them in source terms -- the
-        // parent function name is the mangled name minus the trailing
-        // "_<orig_name>" -- and suggest
-        // actions that actually make sense for a lifted decl (delete it
-        // or move it to file scope).
+        // Two flavors of mangled priv names land here:
+        //   * top-level `priv X` rewritten by init_declarations_unit to
+        //     `priv__<path>__<orig>` (b.name has the "priv__" prefix).
+        //     Report it as a top-level priv with the original identifier.
+        //   * Issue #93 nested defs hoisted out of a function body, named
+        //     `<parent>_<orig>` (no "priv__" prefix). Report parent +
+        //     local in source terms.
+        if b.name.starts_with("priv__").and(b.orig_name.len().gt(0)) {
+            type_error_at(b.path, b.line, b.col,
+                "unused priv ".concat(kind).concat(" '").concat(b.orig_name)
+                    .concat("'; remove 'priv' to expose it"))
+            found = found.add(1.to_i32())
+            continue
+        }
         if b.orig_name.len().gt(0) {
             mangled_len := b.name.len()
             orig_len := b.orig_name.len()
