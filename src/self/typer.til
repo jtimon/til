@@ -2354,11 +2354,21 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                 }
             }
             if i.to_i32().eq(fdef.variadic_index) {
-                param.own_type = OwnType.Own
-                func_scope.set(param.name, Type.Struct("Array".clone()), FuncType.None, false, typer_path, expr.line, expr.col, true, OwnType.Own)
+                // Regular til funcs get a callee-side auto-cleanup
+                // (Array.delete at scope exit) so the caller can transfer
+                // ownership cleanly. ext_func/ext_proc bodies are
+                // user-written C with no auto-cleanup -- transferring
+                // ownership leaks the synthesized Array. Keep the parser's
+                // Ref setting for ext bindings; force Own elsewhere.
+                // (Issue #109: ffi_run was 228B/9 from exactly this.)
+                is_ext_va := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
+                if is_ext_va.not() { param.own_type = OwnType.Own }
+                func_scope.set(param.name, Type.Struct("Array".clone()), FuncType.None, false, typer_path, expr.line, expr.col, true, param.own_type)
             } else if i.to_i32().eq(fdef.kwargs_index) {
-                param.own_type = OwnType.Own
-                func_scope.set(param.name, Type.Struct("DynMap".clone()), FuncType.None, false, typer_path, expr.line, expr.col, true, OwnType.Own)
+                // Same rationale as variadic above.
+                is_ext_kw := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
+                if is_ext_kw.not() { param.own_type = OwnType.Own }
+                func_scope.set(param.name, Type.Struct("DynMap".clone()), FuncType.None, false, typer_path, expr.line, expr.col, true, param.own_type)
             } else {
                 func_scope.set(param.name, pt, FuncType.None, pmut, typer_path, expr.line, expr.col, true, param.own_type)
                 ref mut pb : TypeBinding = func_scope.get_binding(param.name)

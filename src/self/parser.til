@@ -223,7 +223,18 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 }
                 fd.kwargs_index = fd.params.len().to_i32()
                 is_kwargs = true
-                param_decl.own_type = OwnType.Own // kwargs Map is owned by callee
+                // For regular til funcs the codegen auto-inserts a
+                // DynMap.delete at the callee's scope exit, so the caller
+                // can transfer ownership cleanly. ext_func/ext_proc bodies
+                // are user-written C with no auto-cleanup, so the synthesized
+                // DynMap would leak if ownership were transferred. Keep the
+                // caller as owner for ext bindings -- its normal ASAP delete
+                // at last_use will free the temp.
+                if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
+                    param_decl.own_type = OwnType.Ref
+                } else {
+                    param_decl.own_type = OwnType.Own
+                }
                 param_decl.name = pname.clone()
                 param_decl.explicit_type = "DynMap"
                 param_decl.til_type = til_type_from_explicit_type("DynMap")
@@ -235,7 +246,17 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if fd.variadic_index.neq(-1.to_i32()) { panic(__LOC__, "only one variadic param allowed") }
                 fd.variadic_index = fd.params.len().to_i32()
                 is_variadic = true
-                param_decl.own_type = OwnType.Own // variadic Array is owned by callee
+                // Same as kwargs above: regular til funcs get auto-cleanup
+                // via Array.delete at scope exit; ext_func/ext_proc bodies
+                // (user-written C) don't, so transferring ownership leaks
+                // the synthesized Array. Keep the caller as owner for ext
+                // bindings (Issue #109 -- ffi_run was 228B/9 allocs from
+                // exactly this).
+                if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
+                    param_decl.own_type = OwnType.Ref
+                } else {
+                    param_decl.own_type = OwnType.Own
+                }
                 param_decl.explicit_type = expect_text(p, TokenType.Ident)
                 param_decl.til_type = til_type_from_explicit_type(param_decl.explicit_type)
                 param_decl.name = pname.clone()

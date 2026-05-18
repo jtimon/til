@@ -65,12 +65,38 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
 
   | binary               | bytes leaked | allocs |
   |----------------------+--------------+--------|
-  | ffi_run              |          228 |      9 |
+  | ffi_run              |          228 |      9 | (FIXED, ext-variadic ownership)
   | ext_libc_run         |           64 |      4 |
   | cli_typed_alice42_r  |           30 |      3 |
   | variadic_add_r       |           20 |      2 |
   | variadic_mul_r       |           20 |      2 |
   | variadic_add0_r      |           20 |      2 |
+
+  Fixes that landed (ext-variadic / ext-kwargs ownership):
+
+  - **~ffi_run~ variadic ext_func leak** (FIXED). ~test/kwargs.til~'s
+    sibling shape in ~examples/ffi/ext_module.til~ -- 3 ~sum_all(...)~
+    calls leaked the synthesized ~_va_Array_NNN~ (48-byte Array
+    struct + calloc'd slot buffer + Str_clone of the elem type name)
+    once per call. 228B / 9 allocs total. Root cause: the parser and
+    typer both unconditionally marked variadic / kwargs params as
+    ~OwnType.Own~ (parser.til ~line 238/226, typer.til line 2356/2359
+    in ~infer_func_def_expr~). The convention works for regular til
+    funcs because the codegen auto-inserts ~Array.delete(parts)~ /
+    ~DynMap.delete(opts)~ at the callee's scope exit. ~ext_func~ /
+    ~ext_proc~ bodies are user-written C with no auto-cleanup, so the
+    caller's ~_va_Array_NNN~ / ~_kw_NNN~ local "transferred ownership"
+    to a callee that never freed it -- ~insert_post_stmt_deletes~
+    skipped the local's last_use cleanup (own_transfer.gte(0)),
+    expecting the callee to free. Fix: at both sites
+    (parser parse_func_def variadic/kwargs branches + typer
+    infer_func_def_expr's param-walk override), keep variadic/kwargs
+    params at ~OwnType.Ref~ when the surrounding func is ext_func or
+    ext_proc, leaving the caller as owner. The normal ASAP delete at
+    ~_va_Array_NNN~'s last_use then fires. test_asan: 109/117 ->
+    110/117. Same one-line guard plugs the bug class for any future
+    ext-variadic/ext-kwargs callsites without per-signature
+    bookkeeping.
 
   Non-leak ASAN findings (these are real correctness bugs the
   pre-split ~test_asan~ couldn't see -- the compiler runs ASAN-clean
