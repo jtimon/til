@@ -92,19 +92,6 @@ namespace:
             ref pb : TypeBinding = self.parent.get_binding(name)
             return pb
         }
-        // Last resort at the root scope: look for any `priv` binding
-        // whose original (pre-mangle) name matches. Other files' priv
-        // decls live under `priv__<path>__<name>` keys now, so a plain
-        // `name` lookup from a different file misses; returning the
-        // binding here lets check_priv_access print the proper
-        // "X is private to <path>" diagnostic instead of a bare
-        // "undefined name" error.
-        for ki in 0..self.bindings.len() {
-            ref b2 : TypeBinding = Map.val_ptr(self.bindings, ki)
-            if b2.is_priv.and(b2.orig_name.eq(name)) {
-                return b2
-            }
-        }
         return NULL
     }
     find := func(self: TypeScope, name: Str) returns ScopeFind {
@@ -131,18 +118,6 @@ namespace:
         }
         if is_null(self.parent).not() {
             return self.parent.get_struct(name)
-        }
-        // Mirror get_binding's last-resort priv scan: a priv struct/enum
-        // from another file lives under `priv__<path>__<name>` in the
-        // root scope, so the plain-name lookup above misses. Returning
-        // its struct_def lets the typer surface the proper
-        // "X is private to <path>" diagnostic from the call site instead
-        // of NULL-deref-ing in pattern desugaring.
-        for ki in 0..self.bindings.len() {
-            ref b2 : TypeBinding = Map.val_ptr(self.bindings, ki)
-            if b2.is_priv.and(b2.orig_name.eq(name)).and(is_null(b2.struct_def).not()) {
-                return b2.struct_def
-            }
         }
         return NULL
     }
