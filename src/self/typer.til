@@ -177,6 +177,12 @@ mut auto_gen_depth : I32 = 0
 // transfer, and a heap wrapper would just leak. Set/restored in
 // infer_func_def_expr around the body recursion.
 mut typer_in_shallow_return : Bool = false
+// True while typing main()'s body. main's non-Own params are heap-allocated
+// by the builder's CLI-arg parsing (Str_clone(argv[i]) / cli_parse_*) and
+// owned by main itself -- there is no caller to free them. Unblocks the
+// is_param.and(own_type.is(Own).not()) filter in collect_scope_locals so
+// insert_free_calls emits the scope-end delete.
+mut typer_in_main_func : Bool = false
 I64Name := "I64"
 U8Name := "U8"
 I8Name := "I8"
@@ -2385,6 +2391,8 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         }
         saved_in_shallow_ret := typer_in_shallow_return
         typer_in_shallow_return = fdef.return_own_type.is(OwnType.Shallow)
+        saved_in_main_func := typer_in_main_func
+        typer_in_main_func = current_top_func_name.eq("main").and(is_null(scope.parent))
         // Issue #198: lower throw/catch BEFORE infer_body so the
         // synthesised mut _err_kind / _err_<T> locals + if-guards
         // get type-checked normally and reach all downstream stages
@@ -2404,6 +2412,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         }
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
         typer_in_shallow_return = saved_in_shallow_ret
+        typer_in_main_func = saved_in_main_func
         if fdef.auto_generated {
             auto_gen_depth = auto_gen_depth.sub(1.to_i32())
         }
@@ -7994,7 +8003,10 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow B
 collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
     for i in 0..scope.bindings.len() {
         ref b : TypeBinding = Map.val_ptr(scope.bindings, i)
-        if b.is_param.and(b.own_type.is(OwnType.Own).not()) { continue }
+        // main()'s non-Own params are heap-allocated by the builder's CLI
+        // arg parsing (Str_clone / cli_parse_*) and owned by main itself;
+        // skip the usual is_param filter so they get a scope-end delete.
+        if b.is_param.and(b.own_type.is(OwnType.Own).not()).and(typer_in_main_func.not()) { continue }
         if is_null(b.struct_def).not() { continue }
         if is_null(b.func_def).not() { continue }
 
@@ -8038,7 +8050,15 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
             }
         }
 
-        mut skip_scope_delete := is_program_scope.and(decl_idx.gte(0))
+        // Program-scope locals "live forever" so the asap pass skips
+        // their cleanup. Synthesized hoist temps (`hoisted__` prefix) are
+        // a separate population: the hoist pass lifts FCall args / Type
+        // ctors / etc. into a Decl that is consumed by the very next stmt,
+        // so they need the normal post-stmt-deletes treatment even at
+        // program scope. Without this carveout, top-level `mut X := Foo()`
+        // initializers leak every hoisted temp the typer emits to build
+        // the constructor args (Type_Struct, Type_Enum, ...).
+        mut skip_scope_delete := is_program_scope.and(decl_idx.gte(0)).and(b.name.starts_with("hoisted__").not())
         if skip_scope_delete.not() {
             for j in scan_from..body.children.len() {
                 if is_compile_directive(body.child(j)) { continue }
@@ -8048,7 +8068,12 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
                 }
             }
         }
-        if b.own_type.is(OwnType.Ref) { skip_scope_delete = true }
+        // Ref bindings normally don't own data and skip cleanup, except
+        // main()'s non-Own params: the builder heap-allocates their
+        // wrappers from argv[] and there is no caller to free them, so
+        // they need a scope-end delete despite the Ref default.
+        main_cli_param := typer_in_main_func.and(b.is_param)
+        if b.own_type.is(OwnType.Ref).and(main_cli_param.not()) { skip_scope_delete = true }
 
         mut li := LocalInfo()
         li.name = b.name
@@ -8057,7 +8082,7 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
         li.last_use = last_use
         li.own_transfer = own_transfer
         li.skip_scope_delete = skip_scope_delete
-        li.is_heap = b.own_type.is(OwnType.Own)
+        li.is_heap = b.own_type.is(OwnType.Own).or(main_cli_param)
         // Decls whose RHS the builder will stack-allocate must use
         // call_free=false in their cleanup or `free()` would touch a
         // stack pointer. Two flavors:

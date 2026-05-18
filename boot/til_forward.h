@@ -2001,6 +2001,7 @@ extern Vec throws_names_global;
 extern Vec throws_per_global;
 extern I32 auto_gen_depth;
 extern Bool typer_in_shallow_return;
+extern Bool typer_in_main_func;
 extern Str I64Name;
 extern Str U8Name;
 extern Str I8Name;
