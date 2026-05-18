@@ -1486,6 +1486,7 @@ Bool is_ref_local(Str * name);
 Bool use_dot_access(Expr * obj);
 Bool is_primitive_type(Str * name);
 Bool is_pod_enum(Str * enum_name);
+Bool variant_is_payload_less(Str * enum_name, Str * variant_name);
 Bool is_pod_enum_clone_call(Expr * e);
 Bool is_pod_struct(Str * struct_name);
 Bool is_funcsig_type(Str * name);

@@ -224,11 +224,40 @@ is_pod_enum := func(enum_name: Str) returns shallow Bool {
     return true
 }
 
+// True when `variant_name` is a payload-less variant of `enum_name`
+// (the variant carries only a tag, no inner data).  Used by the
+// POD-enum clone-wrap shortcut to permit value-copy even when the
+// enum has *other* variants with payloads.
+priv variant_is_payload_less := func(enum_name: Str, variant_name: Str) returns shallow Bool {
+    if enum_name.len().eq(0) { return false }
+    if variant_name.len().eq(0) { return false }
+    ref ed : Expr = find_struct_def(enum_name)
+    if is_null(ed) { return false }
+    if ed.node_type.is(NodeType.EnumDef).not() { return false }
+    switch ed.node_type {
+    case NodeType.EnumDef(edd):
+        for j in 0..edd.variants.len() {
+            ref vn : Str = edd.variants.get(j)
+            if vn.eq(variant_name) {
+                idx := j.to_i64()
+                if edd.payload_types.has(idx).not() { return true }
+                ref pt : Str = edd.payload_types.get(idx)
+                return pt.len().eq(0)
+            }
+        }
+    case:
+    }
+    return false
+}
+
 // Match the typer-emitted `<Enum>.clone(<value>)` wrap that
 // finalize_decl_binding inserts around Ident / FieldAccess RHSes of
-// Enum type.  Returns true only when the callee resolves to a POD
-// enum's `.clone` method; callers can then skip the wrap and emit the
-// arg directly.
+// Enum type.  Returns true when the wrap can safely be skipped:
+//   - the whole enum is POD (no variant has a payload), OR
+//   - the clone arg is a ns FieldAccess to a payload-less variant
+//     of an otherwise-payload-carrying enum (e.g. `Token.Eof` where
+//     Token also has `Num: I64` and `Name: Str`).
+// Callers can then emit `(Enum){.tag = ENUM_TAG_Variant}` directly.
 priv is_pod_enum_clone_call := func(e: Expr) returns shallow Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(2) { return false }
@@ -248,7 +277,19 @@ priv is_pod_enum_clone_call := func(e: Expr) returns shallow Bool {
     case NodeType.Ident(n): tname = n
     case:
     }
-    return is_pod_enum(tname)
+    if is_pod_enum(tname) { return true }
+    // Enum has payloads -- bypass only when the clone arg is a
+    // specific payload-less variant access.
+    ref arg : Expr = e.child(1)
+    if arg.node_type.is(NodeType.FieldAccess).not() { return false }
+    if builder_fa_is_ns(arg).not() { return false }
+    if arg.til_type.is(Type.Enum).not() { return false }
+    mut vname := ""
+    switch arg.node_type {
+    case NodeType.FieldAccess(vn): vname = vn
+    case:
+    }
+    return variant_is_payload_less(tname, vname)
 }
 
 // A POD struct has only Shallow-owned fields that are themselves
