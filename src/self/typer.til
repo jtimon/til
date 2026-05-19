@@ -1496,15 +1496,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
 // Avoids the `mut type_name := ""; type_name = ...` reassign pattern
 // that leaked the empty Str default.
 obj_method_type_name := func(obj: Expr) returns Str {
-    if obj.til_type.is(Type.I64)
-    .or(obj.til_type.is(Type.U8))
-    .or(obj.til_type.is(Type.I8))
-    .or(obj.til_type.is(Type.Primitive(Primitive.I16)))
-    .or(obj.til_type.is(Type.I32))
-    .or(obj.til_type.is(Type.U32))
-    .or(obj.til_type.is(Type.U64))
-    .or(obj.til_type.is(Type.F32))
-    .or(obj.til_type.is(Type.Bool)) {
+    if is_primitive(obj.til_type) {
         return til_type_name_c(obj.til_type)
     }
     if obj.til_type.is(Type.Struct).or(obj.til_type.is(Type.Enum)) {
@@ -2330,15 +2322,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             pown := param.own_type.is(OwnType.Own)
             pshallow := param.own_type.is(OwnType.Shallow)
             if pshallow {
-                is_scalar := pt.is(Type.I64)
-                .or(pt.is(Type.U8))
-                .or(pt.is(Type.I8))
-                .or(pt.is(Type.Primitive(Primitive.I16)))
-                .or(pt.is(Type.I32))
-                .or(pt.is(Type.U32))
-                .or(pt.is(Type.U64))
-                .or(pt.is(Type.F32))
-                .or(pt.is(Type.Bool))
+                is_scalar := is_primitive(pt)
                 if is_scalar.not().and(pt.is(Type.Struct).not()).and(pt.is(Type.Enum).not()) {
                     type_error(expr, "shallow parameter '".concat(param.name).concat("' must be a scalar or struct type"))
                 }

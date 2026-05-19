@@ -113,6 +113,23 @@ til_type_name := func(t: Type) returns Str {
     }
 }
 
+// True when ~t~ is one of the scalar primitive types. Centralises the
+// list so callers don't have to OR each variant by hand; the body
+// changes if a primitive moves between ~Type~ and ~Type.Primitive~
+// (or, later, to ~Type.Struct(name)~) but the call sites stay stable.
+is_primitive := func(t: Type) returns shallow Bool {
+    if t.is(Type.I64)  { return true }
+    if t.is(Type.U8)   { return true }
+    if t.is(Type.I8)   { return true }
+    if t.is(Type.I32)  { return true }
+    if t.is(Type.U32)  { return true }
+    if t.is(Type.U64)  { return true }
+    if t.is(Type.F32)  { return true }
+    if t.is(Type.Bool) { return true }
+    if t.is(Type.Primitive) { return true }
+    return false
+}
+
 dyn_type_to_str := ext_func(type: Type) returns Str {}
 
 // --- FuncType enum ---

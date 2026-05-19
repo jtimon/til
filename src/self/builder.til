@@ -772,12 +772,10 @@ priv collect_ident_refs := proc(e: Expr, mut refs: Set) {
 }
 
 emit_til_default := proc(f: File, shallow t: Type) {
-    if t.is(Type.I64).or(t.is(Type.I8)).or(t.is(Type.Primitive(Primitive.I16))).or(t.is(Type.I32))
-    .or(t.is(Type.U32)).or(t.is(Type.U64)).or(t.is(Type.F32))
-    .or(t.is(Type.U8)) {
-        f.write("0")
-    } else if t.is(Type.Bool) {
+    if t.is(Type.Bool) {
         f.write("false")
+    } else if is_primitive(t) {
+        f.write("0")
     } else if t.is(Type.Struct).or(t.is(Type.Enum)) {
         name := til_type_name(t)
         if name.eq("Str") {
