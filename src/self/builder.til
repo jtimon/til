@@ -750,6 +750,15 @@ priv c_lit_byte_count := func(s: Str) returns USize {
             count = count.add(1)
             continue
         }
+        // str_to_source_form emits a `""` (close-quote + open-quote) after
+        // every `\xNN` so the C lexer doesn't greedily consume following
+        // hex/digit chars into the escape. The C compiler concatenates the
+        // two adjacent literals and the `""` contributes zero bytes to the
+        // resulting global array, so don't count them.
+        if b.eq('"').and(i.add(1).lt(n)).and(s.byte_at(i.add(1)).eq('"')) {
+            i = i.add(2)
+            continue
+        }
         i = i.add(1)
         count = count.add(1)
     }

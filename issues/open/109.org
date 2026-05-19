@@ -53,9 +53,9 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   | binary           | bytes leaked | allocs |
   |------------------+--------------+--------|
   | functions        |            8 |      1 |
-  | ref              |           16 |      1 |
-  | enums_lifecycle  |            2 |      1 |
-  | dynamic          |            4 |      1 |
+  | ref              |           16 |      1 | (FIXED, FieldAssign-to-Ref-field)
+  | enums_lifecycle  |            2 |      1 | (FIXED, Vec.replace for drop-old semantics)
+  | dynamic          |            4 |      1 | (FIXED, free(own buf) in test)
   | regression       |           60 |      4 |
   | globals          |           28 |      2 |
   | import_diamond   |           84 |      6 |
@@ -116,20 +116,117 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     baseline unchanged (82,960B / 16,571 allocs on
     ~bin/til_asan interpret test/strings.til~).
 
+  - **~ref~ FieldAssign-to-Ref-field leak** (FIXED). ~test/ref.til~'s
+    ~test_ref_struct_field~ leaked b's 16B RefNode wrapper. Source:
+    ~a := RefNode(value=10); b := RefNode(value=20); a.next = b~,
+    where ~next~ is declared ~ref mut next : RefNode = NULL~. b is
+    borrowed into a -- a keeps b alive but doesn't own it. Two bugs:
+    (1) ~expr_transfers_own~ in [[file:../../src/self/typer.til][src/self/typer.til]] treated any
+    non-Shallow FieldAssign as a transfer, so b's scope-end delete
+    was skipped (own_transfer.gte(0) blocks it in
+    insert_post_stmt_deletes). Master leaked b silently. Fixed by
+    narrowing to ~is(OwnType.Own)~ -- Ref fields take a borrow, not
+    an ownership transfer. (2) Once (1) was fixed, b's last_use was
+    the FieldAssign stmt itself, so the typer emitted
+    ~RefNode_delete(b)~ right after ~a.next = b~ -- dangling
+    ~a.next~ for the later asserts (and for ~c := a.clone()~'s
+    ~c.next~ alias). Fixed by extending b's last_use through the
+    end of the function body: any FieldAssign-to-Ref-field where
+    the RHS is an Ident extends that local's last_use to
+    ~body.children.len() - 1~. Conservative (b lives through
+    every shallow-clone alias of the holder), but safe. Pinning a
+    tighter bound would require alias analysis of clones.
+    test_asan: 112/117 -> 113/117. Compiler baseline: 82,960B/16,571
+    -> 83,227B/16,638 (+267B/+67 allocs from the extension's Str
+    clones; acceptable).
+
+  - **~dynamic~ test_dynamic_local malloc leak** (FIXED). 4B/1 alloc.
+    ~test/dynamic.til~'s ~test_dynamic_local~ allocated a 4-byte
+    buffer via ~buf : Dynamic = malloc(4)~ and never freed it.
+    ~Dynamic~ is the typer's escape hatch for raw ~void*~ -- the
+    type system intentionally doesn't track its lifetime
+    (~type_to_name(Type.Dynamic)~ returns ~""~, so
+    ~make_delete_call~ produces no cleanup; the binding's
+    ~own_type~ stays Shallow because the malloc-RHS Dynamic decl
+    isn't recognized as heap-owned by ~promote_own_transferred_locals~,
+    which only promotes Struct/Enum locals). Auto-freeing arbitrary
+    Dynamic locals is unsafe -- the same ~void*~ slot could hold a
+    non-heap pointer (e.g. ~ref x : Dynamic = vec.get(i)~), and the
+    typer can't tell the difference. Same rule as Str views from
+    ~Str.substr~: cleanup of opaque-pointer-typed locals is the
+    user's responsibility. Fix: add ~free(own buf)~ to the test.
+    test_asan: 113/117 -> 114/117.
+
+  - **~enums_lifecycle~ Vec.set inner Str leak** (FIXED). 2B/1 alloc.
+    ~test/enums_lifecycle.til~'s ~test_vec_payload_clone~ replaced an
+    existing element via ~bag1.items.set(0, own "x")~ where the
+    previous slot held ~"a"~ (a Str with a 2-byte c_str). ~Vec.set~
+    in [[file:../../src/core/vec.til][src/core/vec.til]] is plain
+    ~memcpy(slot, val) + free(val)~ -- the prior slot's inner heap
+    data (here Str.c_str) is silently leaked because the bytes get
+    overwritten without running elem_delete on them first. Root cause
+    is a Vec.set API design choice: drop-old vs bit-overwrite. The
+    compiler's typer relies on bit-overwrite semantics at ~46+
+    ~children.set(i, own X)~ sites where the prior slot was logically
+    a placeholder (NoDefaultArg, Unfilled CtorArg) or had been moved
+    out -- making Vec.set drop-old globally caused a 6x leak baseline
+    regression and a Map.get panic in the interpreter (some sites
+    transitively held shared pointers that elem_delete then double-
+    consumed). Fix: add a new ~Vec.replace(i, own val)~ method that
+    explicitly drops the old slot via elem_delete, leave ~Vec.set~
+    as-is, and update the user-visible call site to use ~replace~.
+    Same model as Rust's ~vec.swap_remove~ vs ~vec[i] = val~ split:
+    bit-overwrite stays the low-level primitive, drop-old is opt-in.
+    test_asan: 114/117 -> 115/117. Compiler baseline unchanged
+    (88,498B/17,782 -> 88,702B/17,718 interp; 85,751B/17,444 ->
+    86,267B/17,459 translate; +204B/-64 and +516B/+15 are noise).
+
   Non-leak ASAN findings (these are real correctness bugs the
   pre-split ~test_asan~ couldn't see -- the compiler runs ASAN-clean
   on these programs, only the compiled output trips ASAN):
 
-  - ~test/vecs.til~ panics ~test/vecs.til:105:12: assert failed:
-    distinct dynamic pointers stay distinct~ when compiled under
-    ASAN. ASAN's malloc replacement breaks the test's allocator
-    assumption -- either a test bug (overly strict assumption) or a
-    real dynamic pointer aliasing issue that only the ASAN allocator
-    exposes.
-  - ~svg2ttf_ok~: ~AddressSanitizer: global-buffer-overflow~ in
-    ~memcpy~. Out-of-bounds read/write in the SVG-to-TTF code; real
-    bug, just not caught before because the compiler-side ASAN
-    didn't instrument the compiled binary.
+  - ~test/vecs.til~ panic (FIXED): ~test_vec_dynamic~ pushed two
+    Dynamic pointers to uninitialized 8-byte malloc'd buffers and
+    relied on the resulting bytes differing across the two slots --
+    Vec.push for an elem_type of Dynamic does ~memcpy(slot, val, 8)~,
+    reading 8 bytes from the *pointee* (the malloc'd buffer's
+    contents), not storing the pointer value itself. Under glibc
+    malloc those buffers happened to contain different garbage so
+    ~is(a, b)~ (4-byte compare) returned false; ASAN's allocator
+    fills new allocations with a consistent magic pattern, making
+    the two slots compare equal. Fix: ~memset~ each buffer with a
+    distinct non-zero sentinel (170, 187) before pushing -- now the
+    test verifies that distinct stored bytes round-trip through
+    Vec.push/get regardless of allocator.
+    Also fixed ~test_vec_pop~'s ~popped : I64 = v.pop()~ leak (8B/1
+    alloc): Vec.pop returns a malloc'd Dynamic but the typer doesn't
+    auto-free heap-owned primitives (only Struct/Enum locals are
+    heap-promoted via ~promote_own_transferred_locals~). Same
+    user-responsibility model as ~free(own buf)~ in test_dynamic_local
+    -- added an explicit ~free(own popped)~. test_asan: 115/117 ->
+    116/117.
+  - ~svg2ttf_ok~ global-buffer-overflow (FIXED). ~build_post~ in
+    ~lib/fonts.til~ constructs a 32-byte big-endian TTF "post"
+    table header; precomp folds it to a Value.Struct(Str) which
+    ~value_to_expr~ rewrites as a LiteralStr after escaping the
+    runtime bytes back to source form (via ~str_to_source_form~).
+    Every ~\xNN~ hex escape gets a trailing ~""~ (close-quote +
+    open-quote) appended so the C lexer doesn't greedily consume
+    the next char into the escape (e.g. ~\x03"" 0~ vs ~\x030~).
+    Codegen's ~c_lit_byte_count~ in
+    [[file:../../src/self/builder.til][src/self/builder.til]] is
+    supposed to compute the actual byte count of the resulting C
+    string (used for ~Str.count~), but treated the two ~"~ chars
+    as regular bytes. The C compiler concatenates the two adjacent
+    string literals and ~""~ contributes zero bytes to the global
+    array -- the emitted ~Str.count~ was thus over-counting by 2
+    for every hex escape, leading to ~Str.clone~ memcpy'ing past
+    the end of the global. ASAN catches it as
+    global-buffer-overflow (33-byte global, 34-byte read). Fix:
+    in ~c_lit_byte_count~, skip two-char ~""~ sequences (advance
+    by 2 without incrementing count). Same shape as the existing
+    ~\xNN~ skip. **test_asan now 117/117 -- the compiled output
+    of every test runs ASAN-clean.**
   - **Kwargs ~elem_type~ leak** (FIXED). ~test/kwargs.til~ compiled
     leaked 384 bytes / 24 allocations (16 bytes per kwarg-fcall
     invocation -- one ~sizeof(Str)~ per call). Symptom-level cause:

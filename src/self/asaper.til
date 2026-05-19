@@ -158,10 +158,61 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
     }
 }
 
-extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec) {
+extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeScope) {
     mut ref_changed := true
     while ref_changed {
         ref_changed = false
+        // (a) FieldAssign-to-Ref-field: `holder.f = src` where f is declared
+        // `ref mut f : T = NULL` borrows src into holder. src must outlive
+        // any later access of holder (via holder.f or holder field-access
+        // chains), or the borrow dangles. Extend src's last_use to match
+        // holder's. Same shape as the `ref local := src` case handled below
+        // (which is the `ref`-Decl form of the same borrow relationship).
+        // (Issue #109: test/ref.til's test_ref_struct_field leaked b's
+        // 16B RefNode wrapper because the typer treated `a.next = b` as a
+        // transfer and skipped b's scope-end delete; with that
+        // misclassification fixed in expr_transfers_own, b would otherwise
+        // be deleted at the FieldAssign itself, dangling `a.next` for the
+        // later asserts.)
+        for i in 0..body.children.len() {
+            ref mut stmt : Expr = body.child(i)
+            if stmt.node_type.is(NodeType.FieldAssign).not() { continue }
+            if fa_own_type(stmt, scope).is(OwnType.Ref).not() { continue }
+            if stmt.children.len().lt(2) { continue }
+            // target side: walk down the FieldAccess chain to find the
+            // root Ident (the holder local's name).
+            ref mut target : Expr = stmt.child(0)
+            while target.node_type.is(NodeType.FieldAccess).and(target.children.len().gt(0)) {
+                target = target.child(0)
+            }
+            mut holder_name := ""
+            switch target.node_type {
+            case NodeType.Ident(_hn): holder_name = _hn.clone()
+            case:
+            }
+            if holder_name.len().eq(0) { continue }
+            // source side: the FieldAssign RHS, if an Ident, names the
+            // local whose lifetime we extend.
+            ref mut value : Expr = stmt.child(1)
+            mut src_name := ""
+            switch value.node_type {
+            case NodeType.Ident(_sn): src_name = _sn.clone()
+            case:
+            }
+            if src_name.len().eq(0) { continue }
+            // Extend src's last_use to the body's final stmt. Conservative:
+            // the borrow could be propagated through shallow clones of the
+            // holder (e.g. `c := a.clone()` makes c.next alias a.next ==
+            // src). Without aliasing analysis we can't pin a tighter bound,
+            // so keep src alive through scope exit.
+            mut body_last := body.children.len().sub(1.to_usize()).to_i32()
+            for local : LocalInfo in locals {
+                if local.name.eq(src_name).and(local.last_use.lt(body_last)) {
+                    local.last_use = body_last
+                    ref_changed = true
+                }
+            }
+        }
         for i in 0..body.children.len() {
             ref mut stmt : Expr = body.child(i)
             if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -539,7 +590,7 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     collect_scope_locals(body, scope, is_program_scope, locals_vec)
     if locals_vec.len().eq(0) { return false }
 
-    extend_ref_local_lifetimes(body, locals_vec)
+    extend_ref_local_lifetimes(body, locals_vec, scope)
     check_use_after_own_transfer(body, locals_vec)
     promote_own_transferred_locals(body, locals_vec)
 

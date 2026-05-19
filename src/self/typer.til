@@ -7910,7 +7910,14 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
 expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool {
     if e.node_type.is(NodeType.FuncDef) { return false }
     if fcall_has_own_arg(e, var_name, scope) { return true }
-    if e.node_type.is(NodeType.FieldAssign).and(fa_own_type(e, scope).is(OwnType.Shallow).not()) {
+    // FieldAssign is a transfer only when the receiving field is Own --
+    // Ref fields take a borrow (caller keeps ownership), Shallow fields
+    // value-copy (caller keeps too). The old check `not Shallow`
+    // misclassified Ref-field assignments as transfers, so a local
+    // assigned into a ref-typed field never got its scope-end delete.
+    // (Issue #109: test/ref.til's `a.next = b` where `next` is `ref mut
+    // next : RefNode` leaked b's 16-byte wrapper.)
+    if e.node_type.is(NodeType.FieldAssign).and(fa_own_type(e, scope).is(OwnType.Own)) {
         if e.children.len().gt(1) {
             switch e.child(1).node_type {
             case NodeType.Ident(_ei):

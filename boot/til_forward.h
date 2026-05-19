@@ -1364,7 +1364,7 @@ void priv___src_self_asaper_til__LocalInfo_delete(priv___src_self_asaper_til__Lo
 U32 priv___src_self_asaper_til__LocalInfo_size(void);
 Bool alias_used_in_stmts(Vec * stmts, Str * name, Expr * expr);
 void collect_scope_locals(Expr * body, TypeScope * scope, Bool is_program_scope, Vec * locals_vec);
-void extend_ref_local_lifetimes(Expr * body, Vec * locals);
+void extend_ref_local_lifetimes(Expr * body, Vec * locals, TypeScope * scope);
 void check_use_after_own_transfer(Expr * body, Vec * locals);
 void insert_exit_deletes(Expr * body, Vec * live, Bool return_only);
 void insert_nested_exit_deletes(Expr * stmt, Vec * locals, U32 stmt_idx);
