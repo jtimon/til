@@ -434,7 +434,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
             // field is Own/Ref, passing X as `own` arg to a function that
             // takes ownership of the wrapper) already consume the wrapper, so
             // adding a `free` here would double-free.
-            if local.is_heap.and(local.type.is(Type.Struct).or(local.type.is(Type.Enum))) {
+            if local.is_heap.and(is_aggregate(local.type)) {
                 if local.own_transfer.eq(stmt_idx.to_i32()) {
                     if type_to_name(local.type).len().gt(0) {
                         // Decl(field = local) where the receiving Shallow
@@ -466,7 +466,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
             // itself (not a wrapping for/if -- last_use would point to the
             // outer stmt in that case, so this match implicitly excludes
             // loop/conditional bodies).
-            if local.is_heap.and(local.type.is(Type.Struct).or(local.type.is(Type.Enum))) {
+            if local.is_heap.and(is_aggregate(local.type)) {
                 if stmt.node_type.is(NodeType.FieldAssign).and(stmt.children.len().gte(2)) {
                     ref _fa_rhs : Expr = stmt.child(1)
                     if rhs_is_clone_fcall(_fa_rhs).and(_fa_rhs.children.len().gte(2)) {
@@ -511,7 +511,7 @@ insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
         vname := ad.name
         for local : LocalInfo in locals {
             if local.name.eq(vname).not() { continue }
-            if local.type.is(Type.Struct).or(local.type.is(Type.Enum)) {
+            if is_aggregate(local.type) {
                 ref rhs : Expr = stmt.child(0)
                 if expr_uses_var(rhs, vname) {
                     ad.save_old_delete = true
@@ -547,7 +547,12 @@ promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
         switch stmt.node_type {
         case NodeType.Decl(dd):
         if dd.own_type.is(OwnType.Ref) { continue }
-        is_struct := local.type.is(Type.Struct)
+        // Issue #205: use is_aggregate, not raw is(Type.Struct).
+        // Primitives modelled as Type.Struct("I32") must NOT be
+        // heap-promoted -- they live in registers and the codegen
+        // emits them as value types. is(Type.Struct) alone would
+        // pull them into the heap-promote branch.
+        is_struct := is_aggregate(local.type)
         if local.own_transfer.lt(0.to_i32()).and(is_struct.not()) { continue }
         // Skip heap-promotion if the only "use" is the function's
         // shallow return: the value-copy at return is the transfer,

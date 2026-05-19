@@ -1221,7 +1221,7 @@ validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_na
     }
     if arg.til_type.is(ptype).not() {
         type_error(arg, "argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.til_type)))
-    } else if ptype.is(Type.Struct).or(ptype.is(Type.Enum)) {
+    } else if is_aggregate(ptype) {
         arg_sname := til_type_name(arg.til_type)
         if arg_sname.len().gt(0) {
             if ptype_name.eq(arg_sname).not() {
@@ -1499,7 +1499,7 @@ obj_method_type_name := func(obj: Expr) returns Str {
     if is_primitive(obj.til_type) {
         return til_type_name_c(obj.til_type)
     }
-    if obj.til_type.is(Type.Struct).or(obj.til_type.is(Type.Enum)) {
+    if is_aggregate(obj.til_type) {
         return til_type_name(obj.til_type)
     }
     return ""
@@ -1754,7 +1754,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                     "argument type mismatch for '", param_name,
                     "': expected ", ptype_name, ", got ", til_type_name_c(arg.til_type),
                 ))
-            } else if ptype.is(Type.Struct).or(ptype.is(Type.Enum)) {
+            } else if is_aggregate(ptype) {
                 arg_sname := til_type_name(arg.til_type)
                 if arg_sname.len().gt(0) {
                     if ptype_name.eq(arg_sname).not() {
@@ -2817,11 +2817,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
     stmt.til_type = Type.None
     if fa_own_type(stmt, scope).is(OwnType.Ref).not().and(
         rhs.node_type.is(NodeType.Ident).or(
-            rhs.node_type.is(NodeType.FieldAccess).and(
-                rhs.til_type.is(Type.Struct).or(
-                    rhs.til_type.is(Type.Enum)
-                )
-            )
+            rhs.node_type.is(NodeType.FieldAccess).and(is_aggregate(rhs.til_type))
         )
     ) {
         tname := type_to_name(rhs.til_type)
@@ -2932,7 +2928,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
         else if sname.eq("U8") { builtin_type = Type.U8; is_builtin = true }
         else if sname.eq("I8") { builtin_type = Type.I8; is_builtin = true }
         else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
-        else if sname.eq("I32") { builtin_type = Type.I32; is_builtin = true }
+        else if sname.eq("I32") { builtin_type = Type.Struct("I32".clone()); is_builtin = true }
         else if sname.eq("U32") { builtin_type = Type.U32; is_builtin = true }
         else if sname.eq("U64") { builtin_type = Type.U64; is_builtin = true }
         else if sname.eq("F32") { builtin_type = Type.F32; is_builtin = true }
@@ -3081,7 +3077,7 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
     .and(declared.is(Type.Dynamic).not()) {
         type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared))
             .concat(" but value is ").concat(type_to_name(val.til_type)))
-    } else if declared.is(Type.Struct).or(declared.is(Type.Enum)) {
+    } else if is_aggregate(declared) {
         val_sname := til_type_name(val.til_type)
         if val_sname.len().gt(0).and(resolve_type_alias(scope, sdecl.explicit_type).eq(val_sname).not()) {
             type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type)
@@ -3090,7 +3086,7 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
     }
     // Resolve type alias in declared til_type so that struct/enum names match
     // the canonical target (e.g. Point2 -> Point).
-    if declared.is(Type.Struct).or(declared.is(Type.Enum)) {
+    if is_aggregate(declared) {
         ref _resolved : Str = resolve_type_alias(scope, sdecl.explicit_type)
         if declared.is(Type.Struct) {
             declared = Type.Struct(_resolved.clone())
@@ -3103,7 +3099,7 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
         val.til_type = declared
     }
     narrow_dynamic(val, declared)
-        if declared.is(Type.Struct).or(declared.is(Type.Enum)) {
+        if is_aggregate(declared) {
             if til_type_name(val.til_type).len().gt(0) {
                 ref resolved : Str = resolve_type_alias(scope, sdecl.explicit_type)
                 if declared.is(Type.Struct) {
@@ -3208,7 +3204,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
         }
         if rhs.node_type.is(NodeType.Ident).or(
             rhs.node_type.is(NodeType.FieldAccess).and(
-                rhs.til_type.is(Type.Struct).or(rhs.til_type.is(Type.Enum))
+                is_aggregate(rhs.til_type)
             )
         ) {
             if sdecl.own_type.is(OwnType.Ref).not() {
@@ -4014,7 +4010,7 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
         } else if end_expr.node_type.is(NodeType.LiteralNum).and(start_expr.node_type.is(NodeType.LiteralNum).not()) {
             type_src = start_expr
         }
-        if type_src.til_type.is(Type.Struct).or(type_src.til_type.is(Type.Enum)) {
+        if is_aggregate(type_src.til_type) {
             ts_sname := til_type_name(type_src.til_type)
             if ts_sname.len().gt(0) {
                 elem_type = ts_sname
@@ -4098,7 +4094,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     infer_expr(scope, iter, in_func, ctx)
 
     mut type_name := ""
-    if iter.til_type.is(Type.Struct).or(iter.til_type.is(Type.Enum)) {
+    if is_aggregate(iter.til_type) {
         iter_sname := til_type_name(iter.til_type)
         if iter_sname.len().gt(0) {
             type_name = iter_sname
@@ -5958,7 +5954,7 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     if is_ref_target.not() {
         if rhs.node_type.is(NodeType.Ident).or(
             rhs.node_type.is(NodeType.FieldAccess).and(
-                rhs.til_type.is(Type.Struct).or(rhs.til_type.is(Type.Enum))
+                is_aggregate(rhs.til_type)
             )
         ) {
             tname := type_to_name(rhs.til_type)
@@ -5966,7 +5962,7 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                 mc := make_clone_call(tname, rhs.til_type, rhs, stmt)
                 stmt.children.set(0, own mc)
                 if scope.bindings.has(aname).not() {
-                    if existing.is(Type.Struct).or(existing.is(Type.Enum)) {
+                    if is_aggregate(existing) {
                         if assign_target_is_func_local(scope, aname) {
                             switch stmt.node_type {
                             case NodeType.Assign(adata2):
@@ -5978,7 +5974,7 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                 }
             }
         } else if rhs.node_type.is(NodeType.FCall).and(fcall_returns_own(rhs, scope)).and(
-            existing.is(Type.Struct).or(existing.is(Type.Enum))
+            is_aggregate(existing)
         ) {
             if scope.bindings.has(aname).not().and(assign_target_is_func_local(scope, aname)) {
                 switch stmt.node_type {
@@ -5988,7 +5984,7 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                 }
             }
         } else if rhs.node_type.is(NodeType.LiteralStr).and(
-            existing.is(Type.Struct).or(existing.is(Type.Enum))
+            is_aggregate(existing)
         ) {
             // mut X := some_str; ... X = "literal" -- the outer-scope local
             // owns a heap-allocated Str clone; the literal RHS just rebinds
@@ -6037,6 +6033,9 @@ is_numeric_type := func(t: Type) returns shallow Bool {
     case Type.U32: return true
     case Type.U64: return true
     case Type.F32: return true
+    case Type.Struct(s):
+        if s.eq("I32") { return true }
+        return false
     case: return false
     }
 }
@@ -6050,6 +6049,9 @@ is_integral_numeric_type := func(t: Type) returns shallow Bool {
     case Type.I32: return true
     case Type.U32: return true
     case Type.U64: return true
+    case Type.Struct(s):
+        if s.eq("I32") { return true }
+        return false
     case: return false
     }
 }
@@ -6114,46 +6116,62 @@ literal_in_range := func(val_str: Str, target: Type) returns shallow Bool {
     case Type.U64:
         val := val_str.to_i64()
         return val.gte(0)
+    case Type.Struct(s):
+        if s.eq("I32") {
+            val := val_str.to_i64()
+            return val.gte(-2147483648).and(val.lte(2147483647))
+        }
+        return true
     case: return true
     }
 }
 
 can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
     if from.eq(to) { return false }
+    // Issue #205: a primitive may arrive as Type.Struct("I32") or as
+    // Type.I32 during the staged migration; both must widen to I64
+    // and accept widening from the smaller primitives.
+    mut to_is_i32 := to.is(Type.I32)
+    if to_is_i32.not() {
+        switch to {
+        case Type.Struct(ts):
+            if ts.eq("I32") { to_is_i32 = true }
+        case:
+        }
+    }
+    to_is_i64 := to.is(Type.I64)
+    to_is_u32 := to.is(Type.U32)
+    to_is_u64 := to.is(Type.U64)
+    to_is_i16 := to.is(Type.Primitive(Primitive.I16))
     switch from {
     case Type.U8:
-        switch to {
-        case Type.Primitive(Primitive.I16): return true
-        case Type.I32: return true
-        case Type.I64: return true
-        case Type.U32: return true
-        case Type.U64: return true
-        case: return false
-        }
+        if to_is_i16 { return true }
+        if to_is_i32 { return true }
+        if to_is_i64 { return true }
+        if to_is_u32 { return true }
+        if to_is_u64 { return true }
+        return false
     case Type.I8:
-        switch to {
-        case Type.Primitive(Primitive.I16): return true
-        case Type.I32: return true
-        case Type.I64: return true
-        case: return false
-        }
+        if to_is_i16 { return true }
+        if to_is_i32 { return true }
+        if to_is_i64 { return true }
+        return false
     case Type.Primitive(Primitive.I16):
-        switch to {
-        case Type.I32: return true
-        case Type.I64: return true
-        case: return false
-        }
+        if to_is_i32 { return true }
+        if to_is_i64 { return true }
+        return false
     case Type.U32:
-        switch to {
-        case Type.U64: return true
-        case Type.I64: return true
-        case: return false
-        }
+        if to_is_u64 { return true }
+        if to_is_i64 { return true }
+        return false
     case Type.I32:
-        switch to {
-        case Type.I64: return true
-        case: return false
+        if to_is_i64 { return true }
+        return false
+    case Type.Struct(fs):
+        if fs.eq("I32") {
+            if to_is_i64 { return true }
         }
+        return false
     case: return false
     }
 }
@@ -6177,7 +6195,7 @@ type_from_name := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("U8")   { return Type.U8 }
     if name.eq("I8")   { return Type.I8 }
     if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
-    if name.eq("I32")  { return Type.I32 }
+    if name.eq("I32")  { return Type.Struct("I32".clone()) }
     if name.eq("U32")  { return Type.U32 }
     if name.eq("U64")  { return Type.U64 }
     if name.eq("F32")  { return Type.F32 }
@@ -7386,9 +7404,10 @@ hoist_param_swap_assign := func(mut stmt: Expr, mut hoisted: Vec, mut scope: Typ
     case ScopeFind.Found(ab):
         if ab.is_param.not() { return }
         if ab.is_mut.not() { return }
-        if ab.type.is(Type.Struct).not() {
-            if ab.type.is(Type.Enum).not() { return }
-        }
+        // Issue #205: only rewrite for compound aggregates -- primitives
+        // (incl. those modelled as Type.Struct("I32")) keep value semantics
+        // and don't need the swap dance.
+        if is_aggregate(ab.type).not() { return }
 
         mut call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
         call.til_type = Type.None
@@ -7478,7 +7497,7 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
                 field_type = h_fd.til_type
             }
             if fld_own.is(OwnType.Own).not() {
-                if field_type.is(Type.Struct).or(field_type.is(Type.Enum)) {
+                if is_aggregate(field_type) {
                     continue
                 }
             }
@@ -7534,7 +7553,7 @@ hoist_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
     switch sf {
     case ScopeFind.Found(ab):
         if ab.is_param.not() {
-            if ab.type.is(Type.Struct).or(ab.type.is(Type.Enum)) {
+            if is_aggregate(ab.type) {
                 do_hoist = false
             }
         }
@@ -7556,7 +7575,7 @@ hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Type
     mut fa_hoist := true
     if fa_own_type(stmt, scope).is(OwnType.Shallow) {
         rhs_type := stmt.child(1).til_type
-        if rhs_type.is(Type.Struct).or(rhs_type.is(Type.Enum)) {
+        if is_aggregate(rhs_type) {
             fa_hoist = false
         }
     }
@@ -7942,7 +7961,7 @@ expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
         case ScopeFind.Found(b):
             if b.own_type.is(OwnType.Ref).or(b.is_param) { return true }
             // Owned compound locals are pointers in C -- valid borrow source
-            if b.type.is(Type.Struct).or(b.type.is(Type.Enum)) { return true }
+            if is_aggregate(b.type) { return true }
         case:
         }
     case:
@@ -7991,7 +8010,7 @@ field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns shallow 
     if fa_own_type(stmt, scope).is(OwnType.Ref) { return false }
     if fa_own_type(stmt, scope).is(OwnType.Shallow).not() { return true }
     ft := stmt.child(1).til_type
-    if ft.is(Type.Struct).or(ft.is(Type.Enum)) { return true }
+    if is_aggregate(ft) { return true }
     return false
 }
 
@@ -8134,7 +8153,7 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow
         val_is_ref = fcall_returns_ref(val, scope).eq(0).not()
     }
 
-    is_compound := val.til_type.is(Type.Struct).or(val.til_type.is(Type.Enum))
+    is_compound := is_aggregate(val.til_type)
     // LiteralStr temps: the builder emits these as stack-allocated
     // compound-literal Str values (no malloc). Leaving own_type at
     // Shallow makes the typer-inserted Str.delete use call_free=false,

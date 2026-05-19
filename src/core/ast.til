@@ -91,7 +91,12 @@ til_type_name_c := func(t: Type) returns Str {
     case Type.U64:       return "U64"
     case Type.F32:       return "F32"
     case Type.Bool:      return "Bool"
-    case Type.Struct:    return "Struct"
+    case Type.Struct(s):
+        // Issue #205: primitives modelled as Type.Struct("I32") etc.
+        // round-trip to their primitive name; only "real" user
+        // structs return the generic "Struct" tag.
+        if s.eq("I32") { return "I32" }
+        return "Struct"
     case Type.StructDef: return "StructDef"
     case Type.Enum:      return "Enum"
     case Type.EnumDef:   return "EnumDef"
@@ -117,17 +122,45 @@ til_type_name := func(t: Type) returns Str {
 // list so callers don't have to OR each variant by hand; the body
 // changes if a primitive moves between ~Type~ and ~Type.Primitive~
 // (or, later, to ~Type.Struct(name)~) but the call sites stay stable.
+//
+// Issue #205: the switch on Type.Struct(s) is in place so that once
+// per-primitive Type variants are dropped and primitives are modelled
+// as Type.Struct("I32") etc., this helper still returns true for them
+// without other callers having to learn about the dual representation.
 is_primitive := func(t: Type) returns shallow Bool {
-    if t.is(Type.I64)  { return true }
-    if t.is(Type.U8)   { return true }
-    if t.is(Type.I8)   { return true }
-    if t.is(Type.I32)  { return true }
-    if t.is(Type.U32)  { return true }
-    if t.is(Type.U64)  { return true }
-    if t.is(Type.F32)  { return true }
-    if t.is(Type.Bool) { return true }
-    if t.is(Type.Primitive) { return true }
-    return false
+    switch t {
+    case Type.I64:  return true
+    case Type.U8:   return true
+    case Type.I8:   return true
+    case Type.I32:  return true
+    case Type.U32:  return true
+    case Type.U64:  return true
+    case Type.F32:  return true
+    case Type.Bool: return true
+    case Type.Primitive: return true
+    case Type.Struct(s):
+        if s.eq("I64")  { return true }
+        if s.eq("U8")   { return true }
+        if s.eq("I8")   { return true }
+        if s.eq("I32")  { return true }
+        if s.eq("U32")  { return true }
+        if s.eq("U64")  { return true }
+        if s.eq("F32")  { return true }
+        if s.eq("Bool") { return true }
+        if s.eq("I16")  { return true }
+        return false
+    case: return false
+    }
+}
+
+// Compound aggregate type: user-defined struct or enum that the
+// codegen represents as a multi-field record (and typically
+// heap-allocates / dispatches a generated delete on). Excludes
+// primitives modelled as Type.Struct("I32") so they keep value
+// semantics.
+is_aggregate := func(t: Type) returns shallow Bool {
+    if is_primitive(t) { return false }
+    return t.is(Type.Struct).or(t.is(Type.Enum))
 }
 
 dyn_type_to_str := ext_func(type: Type) returns Str {}

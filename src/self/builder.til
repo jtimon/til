@@ -629,6 +629,9 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     case Type.None:    return "void"
     case Type.Dynamic: return "void *"
     case Type.FuncPtr: return "void *"
+    case Type.Struct(s):
+        if s.eq("I32") { return "I32" }
+        return "I64"
     case:                 return "I64"
     }
 }
@@ -2890,7 +2893,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set) {
                 case NodeType.StructDef(dep_sdd):
                     for dd : Declaration in dep_sdd.fields {
                         if dd.own_type.is(OwnType.Shallow) {
-                            if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)) {
+                            if is_aggregate(dd.til_type) {
                                 dep_sname := til_type_name(dd.til_type)
                                 if dep_sname.len().gt(0) {
                                     if emitted.has(dep_sname).not() { deps_ok = false }
@@ -3009,7 +3012,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set) {
                 case NodeType.StructDef(dep_sdd):
                     for dd : Declaration in dep_sdd.fields {
                         if dd.own_type.is(OwnType.Shallow) {
-                            if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)) {
+                            if is_aggregate(dd.til_type) {
                                 dep_sname := til_type_name(dd.til_type)
                                 if dep_sname.len().gt(0) {
                                     if emitted.has(dep_sname).not() { deps_ok = false }
@@ -3920,6 +3923,9 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                         case Type.U64:  ct = "ctypes.POINTER(ctypes.c_ulonglong)"
                         case Type.F32:  ct = "ctypes.POINTER(ctypes.c_float)"
                         case Type.Bool: ct = "ctypes.POINTER(ctypes.c_bool)"
+                        case Type.Struct(sname):
+                            if sname.eq("I32") { ct = "ctypes.POINTER(ctypes.c_int)" }
+                            else { ct = "ctypes.c_void_p" }
                         case:              ct = "ctypes.c_void_p"
                         }
                     }

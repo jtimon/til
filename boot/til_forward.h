@@ -908,6 +908,7 @@ U32 Type_size(void);
 Str * til_type_name_c(Type * t);
 Str * til_type_name(Type * t);
 Bool is_primitive(Type * t);
+Bool is_aggregate(Type * t);
 Bool FuncType_is(FuncType * self, FuncType * other);
 Bool FuncType_eq(FuncType * self, FuncType * other);
 void FuncType_delete(FuncType * self, Bool * call_free);
