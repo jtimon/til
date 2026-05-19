@@ -240,22 +240,39 @@ namespace:
     clone := func(self: Value) returns Value {
         switch self {
         case Value.Struct(si):
-            // The Value.Struct enum ctor is a shallow byte-copy of
-            // its arg (own_type=Ref param, memcpy into the variant
-            // payload), so the returned Value shares its data pointer
-            // with `tmp`. tmp's no-op destructor leaks (acknowledged
-            // elsewhere) but freeing here would dangle the data that
-            // the returned Value now owns; the caller drops it via
-            // cleanup_value_payload at end of life.
-            tmp := si.clone()
-            return Value.Struct(tmp)
+            // Value_Struct's body in generated C calls
+            // StructInstance_clone(val) again, so the returned Value
+            // owns a fresh data buffer independent of `tmp`. tmp.data
+            // is orphaned at function return because
+            // StructInstance.delete is a no-op (acknowledged leak in
+            // the destructor TODO); free it explicitly here.
+            // For Str payloads, only free the inner c_str when the
+            // clone allocated a fresh one (count > 0 and cap < CAP_VIEW);
+            // count == 0 keeps the source's c_str shared.
+            mut tmp := si.clone()
+            out := Value.Struct(tmp)
+            if is_null(tmp.data).not() {
+                if tmp.struct_name.eq("Str") {
+                    ref s_str : Str = to_ptr(tmp.data)
+                    if s_str.count.to_i64().gt(0).and(s_str.cap.lt(CAP_VIEW)) {
+                        if is_null(s_str.c_str).not() { free(own s_str.c_str) }
+                    }
+                }
+                free(own tmp.data)
+                tmp.data = NULL
+            }
+            return out
         case Value.Enum(ei):
-            // Same shape as Value.Struct above: the enum ctor shallow-
-            // copies the StructInstance/EnumInstance payload, so the
-            // returned Value owns tmp's data. Freeing here would
-            // dangle the cloned data.
-            tmp := ei.clone()
-            return Value.Enum(tmp)
+            // Same shape: Value_Enum deep-clones via EnumInstance_clone,
+            // so the returned Value's payload owns a fresh buffer.
+            // tmp.data is orphaned and leaks under the no-op delete.
+            mut tmp := ei.clone()
+            out := Value.Enum(tmp)
+            if is_null(tmp.data).not() {
+                free(own tmp.data)
+                tmp.data = NULL
+            }
+            return out
         case Value.Int(v):     return Value.Int(v)
         case Value.Byte(v):    return Value.Byte(v)
         case Value.Short(v):   return Value.Short(v)
