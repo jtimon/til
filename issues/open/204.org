@@ -1,0 +1,65 @@
+# priority: high
+** OPEN #204 Asap destruction is its own phase, not part of the typer
+
+   [[./158.org][#158]] sets the direction: one AST walk per phase, with
+   later phases reading caches the earlier phases left on the
+   ~Context~. The typer phase's job is to resolve names, infer types,
+   and reject invalid programs (see [[../../doc/pipeline.org][doc/pipeline.org]]).
+
+   Today ~infer_body~ / ~infer_body_unit~ in
+   ~src/self/typer.til~ also runs ~insert_free_calls~ at the end of
+   every body. That call drives the whole asap-destruction machinery:
+
+   - ~collect_scope_locals~ - per-binding live-range bookkeeping
+   - ~extend_ref_local_lifetimes~ - propagate Ref aliasing
+   - ~check_use_after_own_transfer~ - diagnose use-after-move
+   - ~promote_own_transferred_locals~ - flip Decl ownership to Own
+     where a stack value would leak
+   - ~insert_exit_deletes~ /
+     ~insert_nested_exit_deletes~ /
+     ~insert_exit_deletes_into_stmt~ - emit deletes on
+     return/break/continue paths
+   - ~insert_post_stmt_deletes~ - emit the per-stmt last-use cleanup
+   - ~insert_assign_delete~ - emit the pre-reassign delete
+   - ~insert_free_calls~ - the orchestrator
+
+   That's a sizable second pass over every body, with its own data
+   model (~LocalInfo~) and several helpers (~field_assign_needs_delete~,
+   ~alias_used_in_stmts~) -- all wedged into the typer for historical
+   reasons. It muddies the pipeline diagram, it doubles the typer's
+   surface area, and it makes it hard to talk about "the typer walk"
+   in [[./158.org][#158]] terms.
+
+   Goal: make asap destruction its own phase that runs after
+   ~type_check~ and before ~precomp~ in
+   [[../../doc/pipeline.org][doc/pipeline.org]].
+
+   Plan, smallest safe steps first:
+
+   1. Extract the asap code into ~src/self/asaper.til~ as its own
+      ~mode lib~ module. Keep call sites in ~infer_body~ for now so
+      behavior doesn't change.
+
+   2. Document the new phase in [[../../doc/pipeline.org][doc/pipeline.org]]
+      and update [[../../doc/facts.org][doc/facts.org]]
+      to say "asaper phase" instead of "inside the typer pass".
+
+   3. Once [[./158.org][#158]]'s caches (per-body scope, per-body
+      lookups) are reachable from the ~Context~, move the
+      ~insert_free_calls~ call out of ~infer_body~ and into a new
+      ~asap_destroy(ast, ctx)~ entry point invoked from
+      ~prepare_program~ (loader.til) right after ~type_check~.
+
+   3 is the part that finishes [[./158.org][#158]]'s "one walk per phase"
+   for the typer: once asap moves out, the typer's per-body work is
+   limited to the in-place infer + ~body_pre_passes~ rebuild +
+   ~reregister_scope_defs~, all of which fit one walk per body.
+
+   Related:
+   - [[./158.org][#158]] - one walk per phase, asaper is one of the
+     resulting phases
+   - [[./146.org][#146]] - the unified ~body_pre_passes~ (now in typer)
+     is the other half of the typer-cleanup story
+   - [[./109.org][#109]] - the leaks that the rebuilds inside
+     ~insert_free_calls~ feed into
+

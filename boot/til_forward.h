@@ -195,13 +195,13 @@ typedef enum {
     Target_TAG_TempleosX86
 } Target_tag;
 typedef struct Target Target;
-typedef struct priv___src_self_typer_til__LocalInfo priv___src_self_typer_til__LocalInfo;
 typedef enum {
     priv___src_self_typer_til__CtorArg_TAG_Unfilled,
     priv___src_self_typer_til__CtorArg_TAG_Filled
 } priv___src_self_typer_til__CtorArg_tag;
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
+typedef struct priv___src_self_asaper_til__LocalInfo priv___src_self_asaper_til__LocalInfo;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
@@ -418,7 +418,7 @@ struct Target {
     Target_tag tag;
 };
 
-typedef struct priv___src_self_typer_til__LocalInfo {
+typedef struct priv___src_self_asaper_til__LocalInfo {
     Str *name;
     Type type;
     I32 decl_index;
@@ -426,7 +426,7 @@ typedef struct priv___src_self_typer_til__LocalInfo {
     I32 own_transfer;
     Bool skip_scope_delete;
     Bool is_heap;
-} priv___src_self_typer_til__LocalInfo;
+} priv___src_self_asaper_til__LocalInfo;
 
 
 typedef struct priv___src_self_loader_til__DeclRef {
@@ -1157,10 +1157,7 @@ Bool type_binding_is_type_token(TypeBinding * b);
 Expr * make_til_type_expr(Expr * src, Type * t);
 void rewrite_til_type_arg(TypeScope * scope, Expr * arg, Type * ptype, I32 in_func, Context * ctx);
 OwnType fa_own_type(Expr * e, TypeScope * scope);
-priv___src_self_typer_til__LocalInfo * priv___src_self_typer_til__LocalInfo_clone(priv___src_self_typer_til__LocalInfo * self);
-void priv___src_self_typer_til__LocalInfo_delete(priv___src_self_typer_til__LocalInfo * self, Bool * call_free);
-U32 priv___src_self_typer_til__LocalInfo_size(void);
-void priv___src_self_typer_til__free_expr_slot_in_place(Expr * e);
+void free_expr_slot_in_place(Expr * e);
 priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_Unfilled(void);
 priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_Filled(Expr * val);
 Bool priv___src_self_typer_til__CtorArg_is(priv___src_self_typer_til__CtorArg * self, priv___src_self_typer_til__CtorArg * other);
@@ -1175,7 +1172,7 @@ I32 priv___src_self_typer_til__coverage_sub_index(priv___src_self_typer_til__Cov
 Bool priv___src_self_typer_til__is_pattern_covered(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
 void priv___src_self_typer_til__mark_pattern_coverage(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
 void priv___src_self_typer_til__collect_missing_paths(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Expr * enum_def, Str * prefix, Vec * out);
-void priv___src_self_typer_til__type_error(Expr * e, Str * msg);
+void type_error(Expr * e, Str * msg);
 void type_error_at(Str * path, U32 line, U32 col, Str * msg);
 Expr * find_namespace_func(Expr * sdef, Str * method);
 Bool expr_is_comptime(Expr * e, TypeScope * scope);
@@ -1356,6 +1353,14 @@ Bool expr_is_borrow_source(Expr * e, TypeScope * scope);
 Bool expr_is_stable_field_base(Expr * e, TypeScope * scope);
 Bool expr_is_ref_decl_source(Expr * e, TypeScope * scope);
 Bool field_assign_needs_delete(Expr * stmt, TypeScope * scope);
+void infer_literal_expr(Expr * expr);
+void narrow_dynamic(Expr * expr, Type * target);
+I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
+I32 fcall_returns_shallow(Expr * fcall, TypeScope * scope);
+Expr * hoist_to_temp(Expr * val, Vec * hoisted, TypeScope * scope, Bool is_own);
+priv___src_self_asaper_til__LocalInfo * priv___src_self_asaper_til__LocalInfo_clone(priv___src_self_asaper_til__LocalInfo * self);
+void priv___src_self_asaper_til__LocalInfo_delete(priv___src_self_asaper_til__LocalInfo * self, Bool * call_free);
+U32 priv___src_self_asaper_til__LocalInfo_size(void);
 Bool alias_used_in_stmts(Vec * stmts, Str * name, Expr * expr);
 void collect_scope_locals(Expr * body, TypeScope * scope, Bool is_program_scope, Vec * locals_vec);
 void extend_ref_local_lifetimes(Expr * body, Vec * locals);
@@ -1366,12 +1371,7 @@ void insert_exit_deletes_into_stmt(Expr * stmt, Vec * body_stmts, Vec * locals, 
 void insert_post_stmt_deletes(Expr * stmt, Vec * locals, U32 stmt_idx, Vec * new_ch, TypeScope * scope);
 void insert_assign_delete(Expr * stmt, Vec * locals, Vec * new_ch);
 void promote_own_transferred_locals(Expr * body, Vec * locals);
-Bool priv___src_self_typer_til__insert_free_calls(Expr * body, TypeScope * scope, I32 scope_exit);
-void infer_literal_expr(Expr * expr);
-void narrow_dynamic(Expr * expr, Type * target);
-I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
-I32 fcall_returns_shallow(Expr * fcall, TypeScope * scope);
-Expr * hoist_to_temp(Expr * val, Vec * hoisted, TypeScope * scope, Bool is_own);
+Bool insert_free_calls(Expr * body, TypeScope * scope, I32 scope_exit);
 Bool precomp_has_macro(Str * name);
 Bool precomp_has_func(Str * name);
 Bool is_side_effecting_name(Str * name);

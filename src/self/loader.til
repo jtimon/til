@@ -5,6 +5,7 @@ import("modes")
 import("initer")
 import("targets")
 import("typer")
+import("asaper")
 import("precomp")
 import("scavenger")
 

@@ -41,7 +41,26 @@ It is intentionally short and code-oriented.
   - lower/check some constructs during typing
   - reject invalid programs
 
-5. Precomp
+5. Asap destruction
+
+- `insert_free_calls(body, scope, owns_scope)` (per body)
+- Implemented in til: [[file:../src/self/asaper.til][src/self/asaper.til]]
+- Responsibilities:
+  - per-binding live-range analysis (~collect_scope_locals~,
+    ~extend_ref_local_lifetimes~)
+  - diagnose use-after-ownership-transfer
+  - promote Decl ownership to Own where needed
+  - insert ~Type.delete()~ / ~free()~ at the last use of every
+    local, before reassignments, and on every early-exit edge
+    (return / break / continue)
+- After asap insertion, every owned local has an explicit cleanup
+  call on every path that leaves its scope.
+- Issue [[file:../issues/open/204.org][#204]] tracks lifting the call
+  out of ~infer_body~ into its own AST walk; until then the entry
+  points live in src/self/asaper.til but are still invoked from the
+  typer once per body.
+
+6. Precomp
 
 - `precomp(ast)`
 - Implemented in til: [[file:../src/self/precomp.til][src/self/precomp.til]]
@@ -51,14 +70,14 @@ It is intentionally short and code-oriented.
   - track known literal values
 - After precomp, macros should be gone from the AST.
 
-6. Scavenge
+7. Scavenge
 
 - `scavenge(ast, mode, run_tests)`
 - Implemented in til: [[file:../src/self/scavenger.til][src/self/scavenger.til]]
 - Usually removes dead/unreachable declarations after earlier passes.
 - This is skipped in some library translate/build paths.
 
-7. Back end
+8. Back end
 
 There are two main back ends.
 
@@ -72,7 +91,7 @@ There are two main back ends.
   - emits C, headers, and optional til bindings
   - then `compile_c(...)` / `compile_lib(...)` compiles the emitted C
 
-8. Runtime/ext layer
+9. Runtime/ext layer
 
 - A small set of primitives is still implemented in handwritten C and linked
   into the self-hosted pipeline:
@@ -87,6 +106,7 @@ There are two main back ends.
 - Parser builds the AST.
 - Initer registers and synthesizes declarations.
 - Typer resolves and validates.
+- Asaper inserts the automatic destructor calls.
 - Precomp folds comptime work.
 - Scavenger removes unused leftovers.
 - Builder/interpreter are the final execution back ends.
@@ -97,6 +117,7 @@ That is the current practical phase order to keep in mind when debugging:
 - parse problem: `src/self/parser.til`
 - missing declaration / auto-generated helper: `src/self/initer.til`
 - name/type resolution or enum switch behavior: `src/self/typer.til`
+- missing/extra `delete`/`free` call, use-after-move: `src/self/asaper.til`
 - comptime folding issue: `src/self/precomp.til`
 - generated C / linkage issue: `src/self/builder.til`
 - runtime behavior mismatch: `src/self/interpreter.til` or `src/c/ext.c`
