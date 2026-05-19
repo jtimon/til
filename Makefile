@@ -144,7 +144,7 @@ bin/tests: bin/til $(CORE) $(SELF) src/tests.til
 # --- Test suite ---
 
 test: bin/til bin/test_runner bin/plot bin/tests
-	xvfb-run --auto-servernum bin/tests $(if $(J),-j$(J))
+	xvfb-run --auto-servernum bin/tests --asan $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
 # Two-pass equivalent of `make test`. Runs pass 2 first so bin/til reflects
@@ -155,13 +155,12 @@ test_two_pass:
 	$(MAKE) two_pass
 	$(MAKE) test
 
-# test_asan: regular bin/til (so compiler-side leaks aren't reported), but
-# tests.til passes --asan through to every `til build` / `til run` / `til test`
-# invocation -- which makes the compiled test/example binaries ASAN-instrumented.
-# Detects leaks (and other ASAN issues) in *compiled* programs without the
-# noise of til's own leaks.
-test_asan: bin/til bin/test_runner bin/plot bin/tests
-	xvfb-run --auto-servernum bin/tests --asan $(if $(J),-j$(J))
+# test_asan: alias for `test` -- the default suite now passes --asan to
+# every `til build` / `til run` / `til test` invocation, so compiled test
+# and example binaries always run ASAN-instrumented. Compiler still uses
+# the regular bin/til so its known leaks aren't reported; see
+# test_asan_full for the bin/til_asan variant.
+test_asan: test
 
 # test_asan_full: do both -- run the suite via the ASAN-instrumented compiler
 # (bin/til_asan) AND pass --asan through so compiled binaries are sanitized too.
