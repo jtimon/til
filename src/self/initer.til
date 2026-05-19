@@ -564,19 +564,29 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
         }
 
         if has_delete.not() {
+            // POD shortcut: when every field is value-copy-safe per
+            // is_pod_type_for_clone, no field needs deep cleanup --
+            // the per-field `.delete(false)` calls would all bottom
+            // out in no-ops -- so emit just the `if call_free: free`
+            // tail and skip the field loop entirely.  Saves both
+            // compile-time codegen and runtime call frames per POD
+            // struct destruction.
+            pod_no_field_deletes := is_pod_type_for_clone(sname, scope)
             del_field_names := Vec.new(Str)
             del_field_owns := Vec.new(Bool)
-            for d_j : Declaration in sdd.fields {
-                ref fd : Declaration = d_j
-                if fd.own_type.is(OwnType.Ref) { continue }
-                if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).is(Type.FuncPtr)) {
-                    continue
-                }
-                del_field_names.push(own fd.name.clone())
-                if fd.own_type.is(OwnType.Own) {
-                    del_field_owns.push(own true)
-                } else {
-                    del_field_owns.push(own false)
+            if pod_no_field_deletes.not() {
+                for d_j : Declaration in sdd.fields {
+                    ref fd : Declaration = d_j
+                    if fd.own_type.is(OwnType.Ref) { continue }
+                    if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).is(Type.FuncPtr)) {
+                        continue
+                    }
+                    del_field_names.push(own fd.name.clone())
+                    if fd.own_type.is(OwnType.Own) {
+                        del_field_owns.push(own true)
+                    } else {
+                        del_field_owns.push(own false)
+                    }
                 }
             }
 
