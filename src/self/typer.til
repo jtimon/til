@@ -5843,10 +5843,9 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
     extend_throwing_func_sigs(program)
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
-    // Program-scope asap insertion. The scope here is the global
-    // ctx.scope; the caller (loader.til) owns it, so we don't
-    // free it. Issue #204.
-    asap_destroy_body(program, scope)
+    // Program-scope asap runs from prepare_program via
+    // asap_destroy(ctx) once all files are typed -- see issue #204
+    // step 3b.
     return errors
 }
 
@@ -8172,6 +8171,7 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow
 type_check := proc(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
     errors = 0.to_i32()
     infer_body(scope, program, 0, 1, 0, 0, 0, ctx)
-    asap_destroy_body(program, scope)
+    // Program-scope asap runs from prepare_program via
+    // asap_destroy(ctx); see issue #204 step 3b.
     return errors
 }

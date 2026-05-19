@@ -52,19 +52,27 @@
        tearing the per-body scope down. ~infer_body~ is now purely
        in-place type inference + ~body_pre_passes~ + ~reregister~.
 
-   3b. TODO. Lift the per-site ~asap_destroy_body~ calls into one
-       ~asap_destroy(ast, ctx)~ walk invoked from
-       ~prepare_program~ (loader.til) right after ~type_check~. The
-       blocker is per-body scope ownership: the typer creates each
-       sub-body scope as a stack local and frees it with
-       ~TypeScope.delete~ once ~infer_body~ returns, so the scope is
-       gone by the time ~prepare_program~ would run. Two viable paths:
-       (a) make per-body scopes first-class entries on ~Context~
-       ([[./158.org][#158]] cache work) so asaper can re-walk the AST
-       and look scopes up by body identity; or (b) have asaper rebuild
-       the per-body scope on the fly from the body's Decls + the
-       enclosing func params + ~ctx.scope~ as the parent. Either is
-       fine; (a) composes better with [[./158.org][#158]].
+   3b. PARTIAL. Lifted the program-body asap call into a new
+       ~asap_destroy(ctx)~ entry point in ~src/self/asaper.til~ and
+       wired it into the tail of ~init_and_type_program~
+       (loader.til) so both ~prepare_program~ and ~cmd_doc~ see the
+       post-asap program AST. ~type_check_unit~ / ~type_check~ no
+       longer call ~asap_destroy_body~ on the program body; that
+       work happens once at the end of typing instead of once per
+       file. The walk uses ~ctx.scope~ as the body's scope (it
+       already lives on ~Context~), which is why the program body
+       could move without scope-cache infrastructure.
+
+       Sub-body asap (function bodies + nested if/while/block/catch
+       scopes) still runs inline from the typer's scope-management
+       sites in ~typer.til~. Per-body scopes are stack locals freed
+       by ~TypeScope.delete~ once ~infer_body~ returns, so they need
+       to either: (a) become first-class entries on ~Context~
+       ([[./158.org][#158]] cache work) so ~asap_destroy~ can re-walk
+       the AST and look scopes up by body identity; or (b) be
+       rebuilt on the fly inside ~asap_destroy~ from each body's
+       Decls + the enclosing FuncDef's params + ~ctx.scope~ as the
+       parent. (a) composes better with [[./158.org][#158]].
 
    3a removes the asap coupling from the typer's per-body machinery;
    3b finishes [[./158.org][#158]]'s "one walk per phase" by turning

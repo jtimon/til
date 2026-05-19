@@ -616,11 +616,42 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
 
 // Per-body asap entry. Called from the typer's scope-management sites
 // (infer_func_def_expr, infer_if_stmt, infer_while_stmt, the Body/Catch
-// arms of infer_body_stmt, and type_check_unit for the program body)
-// after infer_body has settled and before TypeScope.delete. Returns
-// true iff body.children changed, so the caller can decide whether to
-// re-run reregister_scope_defs. See issue #204.
+// arms of infer_body_stmt) after infer_body has settled and before
+// TypeScope.delete. Returns true iff body.children changed, so the
+// caller can decide whether to re-run reregister_scope_defs.
+// See issue #204.
 asap_destroy_body := proc(mut body: Expr, mut scope: TypeScope) returns shallow Bool {
     return insert_free_calls(body, scope, 1.to_i32())
+}
+
+// Phase entry point. Runs the asap-destruction pass on every
+// imported file's program body using the global TypeScope
+// (ctx.scope). Called from the tail of init_and_type_program
+// (loader.til) so both prepare_program (interpret/translate/
+// build/run/test/install paths) and cmd_doc see the post-asap
+// program AST.
+//
+// Sub-body asap (function bodies, if/while/block/catch scopes)
+// still runs inline from the typer's scope-management sites
+// because per-body scopes are stack-locals freed by
+// TypeScope.delete once infer_body returns. Issue #204 step 3b
+// covers lifting the inline calls into this proc; the blocker is
+// per-body scope ownership, which needs either a scope cache on
+// Context (#158) or an on-the-fly scope rebuild in asaper.
+asap_destroy := proc(mut ctx: Context) {
+    saved_path := typer_path.clone()
+    saved_in_main := typer_in_main_func
+    saved_in_shallow := typer_in_shallow_return
+    typer_in_main_func = false
+    typer_in_shallow_return = false
+    for i in 0..ctx.imported.len() {
+        ref path : Str = Map.key_ptr(ctx.imported, i)
+        ref iu : ImportUnit = Map.val_ptr(ctx.imported, i)
+        typer_path = path.clone()
+        insert_free_calls(iu.ast, ctx.scope, 1.to_i32())
+    }
+    typer_path = saved_path
+    typer_in_main_func = saved_in_main
+    typer_in_shallow_return = saved_in_shallow
 }
 
