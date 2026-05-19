@@ -112,7 +112,10 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      replacements for the typer-artifact fields.
    - Step 11 (stretch) -- remove ~Expr.til_type~. Long-term shape is
      rstil's derive-from-Context+AST (no per-Expr storage, no node
-     IDs); see "Implications for removal" below for the path. Once
+     IDs); see "Implications for removal" below for the path. Tracked
+     separately under ~[[./206.org][#206]]~ (hybrid path: push per-variant type
+     storage into NodeType payloads, slice by slice, before the final
+     cut). Once
      ~Expr.til_type~ is gone (or absent on Idents specifically),
      ~narrow_dynamic~ ([[file:../../src/self/typer.til:5224][src/self/typer.til:5224]]) loses its in-place
      mutation target and would have to hoist a typed Decl instead --
@@ -313,6 +316,11 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    need fresh entries and the bookkeeping defeats the savings. ~[[./158.org][#158]]~
    (one pass per phase) and ~[[./146.org][#146]]~ (single typer walk) are the
    prerequisites.
+
+   Tracked under ~[[./206.org][#206]]~ as a standalone issue with a slice-by-slice
+   migration plan (Ident, then literals, then FCall / FieldAccess /
+   collection literals / NamedArg, then dead-variant writes, then the
+   final cut).
 
    **** Dangerous ~ref mut .. : Expr = NULL~ refs (cross-cutting)
 

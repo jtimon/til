@@ -1,0 +1,146 @@
+# priority: medium
+** OPEN #206 Remove Expr.til_type: move type info into NodeType payloads (hybrid path, step 11 of #147)
+
+   Carved out of [[./147.org][#147]] step 11. ~Expr.til_type~ is the per-Expr
+   typer cache field documented in ~[[file:../../src/core/ast.til][src/core/ast.til]]~ at the
+   ~expr_til_type~ chokepoint. It's an AST-as-cache antipattern:
+   parsed-tree storage that the typer mutates and that every later
+   phase reads.
+
+   This issue tracks the *hybrid* approach explicitly named in #147
+   ("Implications for removal" / "Anti-pattern catalog" section): keep
+   the type information on the small set of NodeType variants whose
+   consumers actually pivot on it, and delete the ~Expr~-level field
+   once the last variant has been migrated. The alternative paths
+   ("pure re-derivation" and "side table with node IDs") remain
+   rejected for the reasons #147 documents.
+
+*** Background
+
+   ~Expr~ today (~src/core/ast.til~):
+
+   #+begin_src til
+   Expr := struct {
+       mut node_type := NodeType.Body
+       mut til_type := Type.Unknown
+       mut children := Vec.new(Expr)
+       mut line : U32 = 0
+       mut col : U32 = 0
+   ...
+   #+end_src
+
+   Audit from #147 (kept here so this issue is self-contained):
+
+   | File             | Reads | Writes | Role                                             |
+   |------------------+-------+--------+--------------------------------------------------|
+   | ~typer.til~      |   236 |    123 | self-consumption: propagates types up; rewrites  |
+   | ~builder.til~    |    97 |      0 | pure consumer; pivots on ~is(Type.X)~            |
+   | ~interpreter.til~ |    22 |      0 | pure consumer                                    |
+   | ~precomp.til~    |    14 |     11 | writes when synthesizing literals during folding |
+   | ~initer.til~     |    16 |      7 | writes during synthesized helper generation      |
+   | ~parser.til~     |    12 |     11 | initial writes for literals + resolved Decls     |
+   | ~dispatch.til~   |     5 |      2 |                                                  |
+   | ~scavenger.til~  |     2 |      0 |                                                  |
+   | ~ast.til~        |     2 |      0 | helpers                                          |
+   |------------------+-------+--------+--------------------------------------------------|
+   | TOTAL            |   406 |    154 |                                                  |
+
+   NodeType variants that actually need a type (active assignment in
+   ~typer.til~): ~LiteralStr~, ~LiteralNum~, ~LiteralBool~,
+   ~LiteralNull~, ~Ident~, ~FCall~, ~FieldAccess~, ~MapLit~, ~SetLit~,
+   ~NamedArg~. The other 19 variants (~Body~, ~Decl~, ~Assign~,
+   ~FuncDef~, ~StructDef~, ~EnumDef~, ~FieldAssign~, ~Return~, ~If~,
+   ~While~, ~ForIn~, ~Break~, ~Continue~, ~Switch~, ~Case~,
+   ~NoDefaultArg~, ~Throw~, ~Catch~, ~RestPattern~) are assigned
+   ~Type.Unknown~ and never meaningfully read.
+
+   For the literal variants, the type is *trivially derivable from
+   node_type* (~LiteralStr -> Type.Str~, etc.). Those variants do not
+   strictly need a payload field; they need ~expr_til_type~ to compute
+   the right answer on demand.
+
+*** Proposed slicing
+
+   The migration leans on the existing ~expr_til_type~ chokepoint.
+   Each slice keeps the ~Expr.til_type~ field alive as the fallback
+   so the tree never breaks mid-migration; the field is deleted only
+   in the final slice once every meaningful read goes through a
+   payload-resident or derive-from-node-type path.
+
+   1. *Ident slice* (first concrete move). Add ~til_type : Type~ to
+      ~Ident~'s payload (~IdentData~ or extend ~NodeType.Ident~ to
+      carry a small struct). Route ~expr_til_type~ to read from the
+      Ident payload when the node is an Ident; everything else still
+      falls through to ~Expr.til_type~. Migrate the typer/parser
+      write sites for Ident. ~narrow_dynamic~ in
+      ~src/self/typer.til~ is the interesting interaction;
+      #147 calls out that this is where the in-place mutation
+      currently happens, and where #185's ~Context.ref_dyn_locals~
+      codegen workaround would become deletable in the long run.
+   2. *Literal slice*. ~LiteralStr/Num/Bool/Null~ types are
+      derivable from ~node_type~ alone (and the
+      ~LiteralNum~ payload string for Int vs Float disambiguation
+      where the typer currently picks one). Teach ~expr_til_type~
+      to compute these on demand; remove the writes in
+      ~parser.til~ / ~precomp.til~ / ~initer.til~.
+   3. *FCall slice*. Store the resolved return type on
+      ~FCallData~. Pairs naturally with the #147 step-7 remainder
+      (~variadic_index~ et al) since both want the resolved callee
+      handy.
+   4. *FieldAccess slice*. Add the resolved field type to the
+      ~FieldAccess~ payload (currently just ~Str~ for the field
+      name; needs a payload struct).
+   5. *MapLit / SetLit / NamedArg slice*. ~Map~/~Set~ are
+      always ~Type.Struct("Map")~ / ~Type.Struct("Set")~ -- pure
+      derivation. ~NamedArg~ just propagates the child's type --
+      also derivation.
+   6. *Trim ~Type.Unknown~ writes for the 19 dead variants*. Once
+      the readers above no longer call ~expr_til_type~ on those
+      nodes, remove their typer-side ~Type.Unknown~ assignments.
+   7. *Final cut*. Delete ~Expr.til_type~ and the fallback in
+      ~expr_til_type~. ~expr_til_type~ stays as the read API but
+      dispatches purely on ~node_type~.
+
+   Each slice ends with a clean ~make test~ and no behavior change.
+
+*** Prerequisites and caveats
+
+   #147 flags that step 11 is "worth doing only if the AST becomes
+   immutable-after-typer; otherwise new desugar nodes need fresh
+   entries and the bookkeeping defeats the savings", with [[./158.org][#158]]
+   (one pass per phase) and [[./146.org][#146]] (single typer walk) as
+   prerequisites. That caveat is *load-bearing for the final cut*
+   (slice 7) but not for the early slices: slices 1-5 reduce the
+   surface area of the cache without yet removing it, and each one
+   is independently shippable.
+
+   In particular, the Ident slice can land today: it only adds a
+   second source of truth for one variant and lets ~expr_til_type~
+   reconcile. The literal slice (slice 2) is even safer because
+   the typer's literal writes are already a deterministic function
+   of ~node_type~ + the payload string -- nothing to reconcile,
+   just derive.
+
+*** Out of scope (handled elsewhere)
+
+   - ~Declaration.til_type~ vs ~explicit_type~ duplication -- #147
+     step 5 finish; the right fix there is a parser-driven
+     ~Type.Custom(name)~ initial value, not a reader migration.
+     Adjacent but separate.
+   - Dangerous ~ref mut .. : Expr = NULL~ refs (~field_struct_def~,
+     ~TypeBinding.struct_def~, ~TypeBinding.func_def~) -- #147
+     steps 3/4/7. Different antipattern (raw refs vs cached
+     facts).
+   - ~Context.struct_layouts~ and the layout-cache fields on
+     ~Declaration~ -- [[./165.org][#165]] step 3 / #147 steps 3-4.
+
+*** Definition of done
+
+   - ~Expr.til_type~ removed from ~src/core/ast.til~.
+   - ~expr_til_type~ either deleted (if all readers can be rewritten
+     to dispatch directly on ~node_type~) or kept as a pure function
+     of ~node_type~ + payload, with no per-Expr storage.
+   - ~make clean && make test~ green, including the two-pass
+     bootstrap.
+   - #147 step 11 marked done; status section updated to reflect
+     which slices landed before the final cut.

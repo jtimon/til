@@ -418,14 +418,18 @@ namespace:
     }
 }
 
-// #147 step 11: single chokepoint for Expr.til_type reads. Today this
-// just returns the cached field; future moves migrate to deriving from
+// #147 step 11 / #204: single chokepoint for Expr.til_type reads. Today this
+// returns a clone of the cached field; future moves migrate to deriving from
 // node_type + scope (rstil's get_value_type pattern), per-NodeType-
 // payload storage for the hybrid path, or a mix. Keeping all reads
 // behind one function lets the implementation evolve without revisiting
-// hundreds of call sites.
+// hundreds of call sites. The clone is intentional: callers store the
+// result in a `:=` local or pass it on to a helper that takes Type by
+// value, and either path drops the returned Type at end-of-statement.
+// Without the clone the inner Str of named variants (Struct/Enum/Custom)
+// would alias `e.til_type`'s buffer and the drop would double-free.
 expr_til_type := func(e: Expr) returns Type {
-    return e.til_type
+    return e.til_type.clone()
 }
 
 // --- func_type_variant_name ---
