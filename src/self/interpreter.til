@@ -17,6 +17,34 @@ interp_lang_error := proc(e: Expr, msg: Str) {
     println("  note: this is a bug in the language, please report it")
 }
 
+// True when a StructInstance with this StructDef has a byte layout
+// that the outer memcpy in StructInstance.clone already clones
+// correctly -- i.e. no field contains an owned heap pointer that
+// would alias.  This is the interpreter-side POD predicate; it is
+// strictly more conservative than initer's is_pod_type_for_clone
+// because the interpreter stores enum-with-payloads fields as heap
+// pointers (EnumInstance.data), so even a "POD enum" needs the
+// per-field deep clone here.
+priv struct_def_shallow_safe := func(sdef_data: StructDef) returns shallow Bool {
+    for dd : Declaration in sdef_data.fields {
+        if dd.own_type.is(OwnType.Own) { return false }
+        if dd.own_type.is(OwnType.Ref) { continue }
+        ref ftype : Str = dd.explicit_type
+        if ftype.eq("Str") { return false }
+        if is_null(dd.field_struct_def).not() {
+            ref fsd : Expr = dd.field_struct_def
+            switch fsd.node_type {
+            case NodeType.EnumDef:
+                if enum_has_payloads(fsd) { return false }
+            case NodeType.StructDef(nested_sdef):
+                if struct_def_shallow_safe(nested_sdef).not() { return false }
+            case:
+            }
+        }
+    }
+    return true
+}
+
 StructInstance := struct {
     ref mut struct_name : Str = NULL
     ref mut struct_def : Expr = NULL
@@ -55,6 +83,12 @@ namespace:
                         memset(cloned_str, 0, Str.size().to_u64())
                     }
                 }
+            } else if struct_def_shallow_safe(sdef_data) {
+                // POD shortcut: every field is either a primitive,
+                // a ref (skipped anyway), or a nested shallow-safe
+                // struct stored inline.  The outer memcpy already
+                // cloned the bytes correctly; no per-field work
+                // needed.
             } else {
                 for dd : Declaration in sdef_data.fields {
                     foff := dd.field_offset

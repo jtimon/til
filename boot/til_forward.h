@@ -1645,6 +1645,7 @@ void emit_unit_doc(ProgramUnit * u, LoadedProgram * lp);
 I32 cmd_doc(LoadedProgram * lp);
 void interp_error(Expr * e, Str * msg);
 void interp_lang_error(Expr * e, Str * msg);
+Bool priv___src_self_interpreter_til__struct_def_shallow_safe(StructDef * sdef_data);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);
 void StructInstance_delete(StructInstance * self, Bool * call_free);
