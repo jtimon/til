@@ -525,9 +525,12 @@ promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
     }
 }
 
-// Asap entry point. infer_body / infer_body_unit in typer.til call this
-// once per body after the per-body in-place pass settles. Issue #204
-// tracks lifting the call out of the typer entirely.
+// Asap entry point. The typer's scope-management sites call this
+// once per body after the per-body in-place pass settles, just
+// before they tear down the per-body scope. Issue #204 step 3b
+// tracks lifting the per-site calls into a single asap_destroy(ctx)
+// walk in prepare_program once #158's per-body scope cache is in
+// the Context.
 insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool {
     if scope_exit.eq(0) { return false }
     is_program_scope := is_null(scope.parent)
@@ -559,3 +562,14 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
     body.children.move_from(new_ch)
     return true
 }
+
+// Per-body asap entry. Called from the typer's scope-management sites
+// (infer_func_def_expr, infer_if_stmt, infer_while_stmt, the Body/Catch
+// arms of infer_body_stmt, and type_check_unit for the program body)
+// after infer_body has settled and before TypeScope.delete. Returns
+// true iff body.children changed, so the caller can decide whether to
+// re-run reregister_scope_defs. See issue #204.
+asap_destroy_body := proc(mut body: Expr, mut scope: TypeScope) returns shallow Bool {
+    return insert_free_calls(body, scope, 1.to_i32())
+}
+

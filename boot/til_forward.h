@@ -1373,6 +1373,7 @@ void insert_post_stmt_deletes(Expr * stmt, Vec * locals, U32 stmt_idx, Vec * new
 void insert_assign_delete(Expr * stmt, Vec * locals, Vec * new_ch);
 void promote_own_transferred_locals(Expr * body, Vec * locals);
 Bool insert_free_calls(Expr * body, TypeScope * scope, I32 scope_exit);
+Bool asap_destroy_body(Expr * body, TypeScope * scope);
 Bool precomp_has_macro(Str * name);
 Bool precomp_has_func(Str * name);
 Bool is_side_effecting_name(Str * name);

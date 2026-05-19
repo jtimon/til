@@ -2398,6 +2398,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             process_throw_catch_in_func_body(expr.child(0), fdef.throw_types, fdef.return_type)
         }
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
+        asap_destroy_body(expr.child(0), func_scope)
         typer_in_shallow_return = saved_in_shallow_ret
         typer_in_main_func = saved_in_main_func
         if fdef.auto_generated {
@@ -2634,11 +2635,13 @@ infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, sh
     }
     then_scope := TypeScope(parent = scope)
     infer_body(then_scope, stmt.child(1), in_func, 1, in_loop, returns_ref, 0, ctx)
+    asap_destroy_body(stmt.child(1), then_scope)
     check_unused_locals(then_scope, typer_path)
     TypeScope.delete(own then_scope)
     if stmt.children.len().gt(2) {
         else_scope := TypeScope(parent = scope)
         infer_body(else_scope, stmt.child(2), in_func, 1, in_loop, returns_ref, 0, ctx)
+        asap_destroy_body(stmt.child(2), else_scope)
         check_unused_locals(else_scope, typer_path)
         TypeScope.delete(own else_scope)
     }
@@ -2883,6 +2886,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
     }
     while_scope := TypeScope(parent = scope)
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
+    asap_destroy_body(stmt.child(1), while_scope)
     check_unused_locals(while_scope, typer_path)
     TypeScope.delete(own while_scope)
     stmt.til_type = Type.None
@@ -5509,6 +5513,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
     case NodeType.Body:
         block_scope := TypeScope(parent = scope)
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
+        asap_destroy_body(stmt, block_scope)
         check_unused_locals(block_scope, typer_path)
         TypeScope.delete(own block_scope)
     case NodeType.While:
@@ -5541,6 +5546,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
             ref body_expr : Expr = stmt.child(2)
             catch_scope := TypeScope(parent = scope)
             infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
+            asap_destroy_body(body_expr, catch_scope)
             check_unused_locals(catch_scope, typer_path)
             TypeScope.delete(own catch_scope)
         } else {
@@ -5629,6 +5635,10 @@ reregister_field_struct_defs := func(body: Expr, scope: TypeScope) {
     }
 }
 
+// Type-inference walk for a single body. Issue #204 step 3a: this
+// proc no longer runs the asap-destruction pass; the scope-management
+// sites that call infer_body invoke asap_destroy_body(body, scope)
+// themselves before tearing the scope down.
 infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
     body.til_type = Type.None
     mut i := 0.to_u32()
@@ -5639,13 +5649,9 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         i++
     }
-    // Each pass returns whether it changed body.children (added/replaced
-    // stmts). reregister_scope_defs is O(N*K) so we run it at most once
-    // per body, after both passes, instead of after each.
-    mut body_changed := false
-    if body_pre_passes(body, scope, owns_scope) { body_changed = true }
-    if insert_free_calls(body, scope, owns_scope) { body_changed = true }
-    if body_changed { reregister_scope_defs(body, scope) }
+    if body_pre_passes(body, scope, owns_scope) {
+        reregister_scope_defs(body, scope)
+    }
 }
 
 infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
@@ -5655,13 +5661,9 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         i++
     }
-    // Each pass returns whether it changed body.children (added/replaced
-    // stmts). reregister_scope_defs is O(N*K) so we run it at most once
-    // per body, after both passes, instead of after each.
-    mut body_changed := false
-    if body_pre_passes(body, scope, owns_scope) { body_changed = true }
-    if insert_free_calls(body, scope, owns_scope) { body_changed = true }
-    if body_changed { reregister_scope_defs(body, scope) }
+    if body_pre_passes(body, scope, owns_scope) {
+        reregister_scope_defs(body, scope)
+    }
 }
 
 // Type-check a single file unit. Caller must have registered a mode for path.
@@ -5841,6 +5843,10 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
     extend_throwing_func_sigs(program)
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
+    // Program-scope asap insertion. The scope here is the global
+    // ctx.scope; the caller (loader.til) owns it, so we don't
+    // free it. Issue #204.
+    asap_destroy_body(program, scope)
     return errors
 }
 
@@ -8159,5 +8165,6 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow
 type_check := proc(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
     errors = 0.to_i32()
     infer_body(scope, program, 0, 1, 0, 0, 0, ctx)
+    asap_destroy_body(program, scope)
     return errors
 }

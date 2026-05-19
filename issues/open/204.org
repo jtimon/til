@@ -36,24 +36,39 @@
 
    Plan, smallest safe steps first:
 
-   1. Extract the asap code into ~src/self/asaper.til~ as its own
-      ~mode lib~ module. Keep call sites in ~infer_body~ for now so
-      behavior doesn't change.
+   1. DONE. Extracted the asap code into ~src/self/asaper.til~ as its
+      own ~mode lib~ module. Call sites stayed in ~infer_body~.
 
-   2. Document the new phase in [[../../doc/pipeline.org][doc/pipeline.org]]
-      and update [[../../doc/facts.org][doc/facts.org]]
-      to say "asaper phase" instead of "inside the typer pass".
+   2. DONE. Documented the new phase in
+      [[../../doc/pipeline.org][doc/pipeline.org]] and updated
+      [[../../doc/facts.org][doc/facts.org]] to say "asaper phase".
 
-   3. Once [[./158.org][#158]]'s caches (per-body scope, per-body
-      lookups) are reachable from the ~Context~, move the
-      ~insert_free_calls~ call out of ~infer_body~ and into a new
-      ~asap_destroy(ast, ctx)~ entry point invoked from
-      ~prepare_program~ (loader.til) right after ~type_check~.
+   3a. DONE. Decoupled ~infer_body~ from asap. The proc no longer
+       calls ~insert_free_calls~; the scope-management sites in
+       ~typer.til~ (infer_func_def_expr, infer_if_stmt,
+       infer_while_stmt, the Body/Catch arms of infer_body_stmt, and
+       type_check_unit / type_check for the program body) now invoke
+       ~asap_destroy_body(body, scope)~ from asaper.til just before
+       tearing the per-body scope down. ~infer_body~ is now purely
+       in-place type inference + ~body_pre_passes~ + ~reregister~.
 
-   3 is the part that finishes [[./158.org][#158]]'s "one walk per phase"
-   for the typer: once asap moves out, the typer's per-body work is
-   limited to the in-place infer + ~body_pre_passes~ rebuild +
-   ~reregister_scope_defs~, all of which fit one walk per body.
+   3b. TODO. Lift the per-site ~asap_destroy_body~ calls into one
+       ~asap_destroy(ast, ctx)~ walk invoked from
+       ~prepare_program~ (loader.til) right after ~type_check~. The
+       blocker is per-body scope ownership: the typer creates each
+       sub-body scope as a stack local and frees it with
+       ~TypeScope.delete~ once ~infer_body~ returns, so the scope is
+       gone by the time ~prepare_program~ would run. Two viable paths:
+       (a) make per-body scopes first-class entries on ~Context~
+       ([[./158.org][#158]] cache work) so asaper can re-walk the AST
+       and look scopes up by body identity; or (b) have asaper rebuild
+       the per-body scope on the fly from the body's Decls + the
+       enclosing func params + ~ctx.scope~ as the parent. Either is
+       fine; (a) composes better with [[./158.org][#158]].
+
+   3a removes the asap coupling from the typer's per-body machinery;
+   3b finishes [[./158.org][#158]]'s "one walk per phase" by turning
+   asap into a single top-level walk after type_check.
 
    Related:
    - [[./158.org][#158]] - one walk per phase, asaper is one of the
