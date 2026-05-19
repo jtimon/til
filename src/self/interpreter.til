@@ -500,6 +500,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         case Type.F32: return val_f32(num_str.to_f32())
         case Type.Struct(s):
             if s.eq("I32") { return val_i32(num_str.to_i64()) }
+            if s.eq("U8")  { return val_u8(num_str.to_i64()) }
             return val_i64(num_str.to_i64())
         case: return val_i64(num_str.to_i64())
         }

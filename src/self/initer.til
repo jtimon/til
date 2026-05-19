@@ -290,7 +290,7 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, shallow
 
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("I64")  { return Type.I64 }
-    if name.eq("U8")   { return Type.U8 }
+    if name.eq("U8")   { return Type.Struct("U8".clone()) }
     if name.eq("I8")   { return Type.I8 }
     if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
     if name.eq("I32")  { return Type.Struct("I32".clone()) }
@@ -372,7 +372,7 @@ register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shall
         mut builtin_type := Type.Struct(sname.clone())
         mut is_builtin := false
         if sname.eq("I64") { builtin_type = Type.I64; is_builtin = true }
-        else if sname.eq("U8") { builtin_type = Type.U8; is_builtin = true }
+        else if sname.eq("U8") { builtin_type = Type.Struct("U8".clone()); is_builtin = true }
         else if sname.eq("I8") { builtin_type = Type.I8; is_builtin = true }
         else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
         else if sname.eq("I32") { builtin_type = Type.Struct("I32".clone()); is_builtin = true }

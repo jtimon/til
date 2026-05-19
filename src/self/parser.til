@@ -63,7 +63,7 @@ peek_col := func(p: Parser) returns shallow U32 { return peek(p).col }
 // keeping the name already provided by the user.
 til_type_from_explicit_type := func(name: Str) returns Type {
     if name.eq("I64")     { return Type.I64 }
-    if name.eq("U8")      { return Type.U8 }
+    if name.eq("U8")      { return Type.Struct("U8".clone()) }
     if name.eq("I8")      { return Type.I8 }
     if name.eq("I16")     { return Type.Primitive(Primitive.I16) }
     if name.eq("I32")     { return Type.Struct("I32".clone()) }
@@ -753,7 +753,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             if ch.len().gt(0) { byte_val = ch.get(0).to_i64() }
         }
         e = Expr.new(NodeType.LiteralNum(byte_val.to_str()), t_line, t_col)
-        e.til_type = Type.U8
+        e.til_type = Type.Struct("U8".clone())
         e_set = true
     }
     if e_set.not().and(t.type.is(TokenType.KwTrue).or(t.type.is(TokenType.KwFalse))) {
