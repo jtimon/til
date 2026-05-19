@@ -91,9 +91,15 @@ test_vec_size := test() {
 
 test_vec_dynamic := test() {
     v := Vec.new(Dynamic)
-    // Use pointer-sized allocs so FFI Vec.push reads valid memory
+    // Use pointer-sized allocs so FFI Vec.push reads valid memory.
+    // Fill each with a distinct non-zero sentinel so the post-push
+    // is(a, b) check verifies stored bytes really differ (ASAN's
+    // malloc returns zeroed/uniform bytes, which would otherwise
+    // make uninitialized buffers compare equal).
     p1 : Dynamic = malloc(Dynamic.size())
     p2 : Dynamic = malloc(Dynamic.size())
+    memset(p1, 170, Dynamic.size())
+    memset(p2, 187, Dynamic.size())
     v.push(own p1)
     v.push(own p2)
 
@@ -125,6 +131,7 @@ test_vec_pop := test() {
 
     ref c : I64 = v.get(2)
     assert_eq(__LOC__, c, 44)
+    free(own popped)
 }
 
 test_vec_take_prefix := test() {

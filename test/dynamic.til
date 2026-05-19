@@ -127,6 +127,7 @@ test_bool_vec_get_chain := test() {
 test_dynamic_local := test() {
     buf : Dynamic = malloc(4)
     assert(__LOC__, is_null(buf).not())
+    free(own buf)
 }
 
 // #180 regression: `ref x : Dynamic = some_ptr_value` must keep the
