@@ -37,3 +37,42 @@ in the builder; doing it right once reduces surface area permanently
 and makes the AST trustworthy to linters, alternative backends, and
 future contributors who shouldn't have to reverse-engineer the
 typer/builder disagreement.
+
+** Interpreter read_field returns dangling StructInstance.struct_name
+
+~src/self/interpreter.til:read_field~ for an inline-struct field does:
+
+  mut ftype := dd.explicit_type
+  ...
+  return make_struct_value(ftype, sdef3, ptr, true)
+
+Then ~make_struct_value~ stores ~ftype~ into the returned
+~StructInstance.struct_name~ field, which is declared
+~ref mut struct_name : Str = NULL~ -- a borrow.  But ~ftype~ is a
+local Str, cloned from ~dd.explicit_type~ via the typer's auto-clone
+for Ident/FieldAccess Struct-typed RHSes.  When ~read_field~ returns,
+~ftype~ goes out of scope and its destructor frees its ~c_str~ buffer
+-- the returned ~StructInstance.struct_name~ now points at freed
+memory.
+
+Today's auto-gen ~Line_clone~ never trips this because it wraps each
+field in ~Point.clone(self.start)~, producing an owning ~Value.Struct~
+that the caller copies into the new ~Line~'s start slot immediately,
+before ~ftype~ is freed.  Try to skip the ~.clone()~ wrap (recursive
+POD struct clone-skip in ~initer.til:is_pod_type_for_clone~) and the
+borrowed ~Value.Struct~ flows through ~write_field~'s deep-clone path
+(~val.clone()~ -> ~StructInstance.clone~ -> ~Str_eq~ on the dangling
+~struct_name~), which is the use-after-free ASAN catches in
+~test/structs.til:test_clone~ once recursive POD is enabled.
+
+Compiled path is fine -- C-level struct copy doesn't care about the
+~struct_name~ pointer's validity at that moment.
+
+Long-term answer: ~StructInstance~ should OWN its ~struct_name~ (or
+the interpreter should pull the name from a longer-lived source like
+the ~StructDef~ binding's name, not from per-field declarations).
+Either fix removes the lifetime trap; the second is cheaper because
+struct names are interned in the scope's bindings already.  Closing
+this unblocks recursive POD struct clone-skip (~Line_clone~ becomes a
+single C compound-literal expression), which feeds back into the
+builder's POD-ctor optimisation chain.

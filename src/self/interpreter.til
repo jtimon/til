@@ -240,35 +240,22 @@ namespace:
     clone := func(self: Value) returns Value {
         switch self {
         case Value.Struct(si):
-            // Value.Struct(...) enum ctor clones its arg internally,
-            // so the temp from si.clone() leaks its data buffer when
-            // its no-op delete runs. Drop the temp's data (and the
-            // Str c_str inside it, when applicable) after copy.
-            // StructInstance.clone for "Str" only allocates a fresh
-            // c_str when count > 0; for count == 0 the dst c_str is
-            // memcpy-shared with the source, so freeing it would
-            // double-free.
-            mut tmp := si.clone()
-            out := Value.Struct(tmp)
-            if is_null(tmp.data).not() {
-                if tmp.struct_name.eq("Str") {
-                    ref s_str : Str = to_ptr(tmp.data)
-                    if s_str.count.to_i64().gt(0).and(s_str.cap.lt(CAP_VIEW)) {
-                        if is_null(s_str.c_str).not() { free(own s_str.c_str) }
-                    }
-                }
-                free(own tmp.data)
-                tmp.data = NULL
-            }
-            return out
+            // The Value.Struct enum ctor is a shallow byte-copy of
+            // its arg (own_type=Ref param, memcpy into the variant
+            // payload), so the returned Value shares its data pointer
+            // with `tmp`. tmp's no-op destructor leaks (acknowledged
+            // elsewhere) but freeing here would dangle the data that
+            // the returned Value now owns; the caller drops it via
+            // cleanup_value_payload at end of life.
+            tmp := si.clone()
+            return Value.Struct(tmp)
         case Value.Enum(ei):
-            mut tmp := ei.clone()
-            out := Value.Enum(tmp)
-            if is_null(tmp.data).not() {
-                free(own tmp.data)
-                tmp.data = NULL
-            }
-            return out
+            // Same shape as Value.Struct above: the enum ctor shallow-
+            // copies the StructInstance/EnumInstance payload, so the
+            // returned Value owns tmp's data. Freeing here would
+            // dangle the cloned data.
+            tmp := ei.clone()
+            return Value.Enum(tmp)
         case Value.Int(v):     return Value.Int(v)
         case Value.Byte(v):    return Value.Byte(v)
         case Value.Short(v):   return Value.Short(v)
