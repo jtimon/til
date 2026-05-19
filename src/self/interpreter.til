@@ -1856,6 +1856,17 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
     ref sdef3 : Expr = lookup_interp_type_def(ftype)
     if is_null(sdef3).not() {
         if sdef3.node_type.is(NodeType.StructDef) {
+            // Use the scope binding's owned `name` rather than the
+            // local `ftype` -- ftype is a clone whose destructor runs
+            // at function return, and make_struct_value stores the
+            // pointer in StructInstance.struct_name (a `ref` field).
+            // The binding lives in scope.bindings for the program's
+            // lifetime, so its name is a stable long-lived source.
+            ref lp : LoadedProgram = codegen_lp()
+            ref bnd : TypeBinding = lp.ctx.scope.get_binding(ftype)
+            if is_null(bnd).not() {
+                return make_struct_value(bnd.name, sdef3, ptr, true)
+            }
             return make_struct_value(ftype, sdef3, ptr, true)
         }
     }

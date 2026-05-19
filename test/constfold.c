@@ -1647,10 +1647,8 @@ CfRect * CfRect_sample(void) {
 }
 
 CfRect * CfRect_clone(CfRect * self) {
-    CfRect *hoisted__CfRect_3484 = malloc(sizeof(CfRect));
-    { CfVec2 *_ca = CfVec2_clone(&self->top_left); hoisted__CfRect_3484->top_left = *_ca; free(_ca); }
-    { CfVec2 *_ca = CfVec2_clone(&self->bottom_right); hoisted__CfRect_3484->bottom_right = *_ca; free(_ca); }
-    return hoisted__CfRect_3484;
+    CfRect hoisted__CfRect_3484 = (CfRect){.top_left = self->top_left, .bottom_right = self->bottom_right};
+    { CfRect *_r = malloc(sizeof(CfRect)); *_r = hoisted__CfRect_3484; return _r; }
 }
 
 void CfRect_delete(CfRect * self, Bool * call_free) {
