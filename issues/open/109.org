@@ -66,7 +66,7 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   | binary               | bytes leaked | allocs |
   |----------------------+--------------+--------|
   | ffi_run              |          228 |      9 | (FIXED, ext-variadic ownership)
-  | ext_libc_run         |           64 |      4 |
+  | ext_libc_run         |           64 |      4 | (FIXED, LiteralStr.field stack lit)
   | cli_typed_alice42_r  |           30 |      3 |
   | variadic_add_r       |           20 |      2 |
   | variadic_mul_r       |           20 |      2 |
@@ -97,6 +97,24 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     110/117. Same one-line guard plugs the bug class for any future
     ext-variadic/ext-kwargs callsites without per-signature
     bookkeeping.
+
+  - **~ext_libc_run~ ~LiteralStr.field~ wrapper leak** (FIXED). The
+    binding pattern ~setenv("TIL_ISSUE_176".c_str, ...)~ leaked one
+    ~sizeof(Str)~ (16 bytes) per ~"...".c_str~ site -- three
+    setenv/getenv/unsetenv args plus the setenv value arg = 64B / 4
+    allocs. Root cause: ~emit_str_lit_expr~ in
+    [[file:../../src/self/builder.til][src/self/builder.til]] always emits a heap-allocated wrapper
+    (~({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){...}; _lit; })~)
+    so callsites that consume the literal as ~own val~ (e.g.
+    ~Array.set~, ~Vec.push~) can ~free(own val)~ it. For a
+    ~LiteralStr.field~ read (no ownership transfer), the wrapper is
+    gratuitous and leaks. Fix: special-case ~NodeType.FieldAccess~
+    over a ~LiteralStr~ child in ~emit_expr~ to emit a stack
+    compound literal with dot-access:
+    ~(Str){.c_str = (void *)"...", .count = N, .cap = TIL_CAP_LIT}.field~.
+    No malloc, no leak. test_asan: 111/117 -> 112/117. Compiler
+    baseline unchanged (82,960B / 16,571 allocs on
+    ~bin/til_asan interpret test/strings.til~).
 
   Non-leak ASAN findings (these are real correctness bugs the
   pre-split ~test_asan~ couldn't see -- the compiler runs ASAN-clean

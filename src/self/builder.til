@@ -2078,9 +2078,36 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                     f.write(fname)
                 }
             } else {
-                emit_expr(f, obj, depth)
-                if use_dot_access(obj) { f.write(".") } else { f.write("->") }
-                f.write(fname)
+                // Field access on a Str literal (e.g. `"foo".c_str`): emit a
+                // stack compound literal and dot-access the field. The
+                // default emit_str_lit_expr path mallocs a heap Str wrapper
+                // (for the `own val` callsite contract), but here we only
+                // need to read a field -- the wrapper would leak. (Issue
+                // #109: ext_libc_run was 64B/4 from `"..".c_str` args to
+                // setenv/getenv/unsetenv.)
+                mut obj_is_str_lit := false
+                switch obj.node_type {
+                case NodeType.LiteralStr(_sl):
+                    obj_is_str_lit = true
+                case:
+                }
+                if obj_is_str_lit {
+                    switch obj.node_type {
+                    case NodeType.LiteralStr(slit):
+                        f.write("(Str){.c_str = (void *)\"")
+                        f.write(slit)
+                        f.write("\", .count = ")
+                        emit_u64(f, c_lit_byte_count(slit).to_u64())
+                        f.write("ULL, .cap = TIL_CAP_LIT}.")
+                        f.write(fname)
+                    case:
+                        UNREACHABLE(__LOC__)
+                    }
+                } else {
+                    emit_expr(f, obj, depth)
+                    if use_dot_access(obj) { f.write(".") } else { f.write("->") }
+                    f.write(fname)
+                }
             }
         }
     case:
