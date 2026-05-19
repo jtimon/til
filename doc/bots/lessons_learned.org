@@ -2,7 +2,7 @@
 
 ** Private mementos
 
-  - Keep private, session-local notes under ~bots/local_memento/~, not
+  - Keep private, session-local notes under ~doc/bots/local_memento/~, not
     under ~tmp/~.
   - ~tmp/~ is wiped by ~make clean~, so it is the wrong place for notes
     meant to survive a build/test cycle.

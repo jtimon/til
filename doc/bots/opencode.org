@@ -92,7 +92,7 @@ to avoid re-discovering the same things.
 
 ** Doc vs docgen changes
 - *Doc change*: modifications to documentation-only files (e.g.
-   ~issues/open/189.org~, ~bots/*.org~, ~README~). These do NOT affect the
+   ~issues/open/189.org~, ~doc/bots/*.org~, ~README~). These do NOT affect the
   binary or boot files. Commit with ~Doc: ~ prefix, skip ~make test~.
 - *Docgen change*: adding or modifying ~///~ doc comments in core
   library files (~src/core/vec.til~, etc.). These ARE embedded into

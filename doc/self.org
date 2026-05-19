@@ -66,7 +66,7 @@
   full test suite. Commits depending on this MUST be prefixed
   "Two-pass: " so the local merger reproduces the same regen
   procedure (the merging procedure in
-  ~bots/merging_from_remote.org~ runs ~make test~ by default and
+  ~doc/bots/merging_from_remote.org~ runs ~make test~ by default and
   needs to switch to ~make test_two_pass~ for these).
 
   Choosing between the two approaches:

@@ -16,7 +16,7 @@ Ask the questions one at a time.
 If a question can be answered by exploring the repository, explore it
 instead of asking. In particular, before asking, check:
 
-- ~CLAUDE.md~ (a symlink to ~bots/bots.org~) for project-wide
+- ~CLAUDE.md~ (a symlink to ~doc/bots/bots.org~) for project-wide
   conventions and constraints
 - ~doc/self.org~ for the bootstrap and build model
 - ~issues/process.org~ for the issue-tracking workflow and the

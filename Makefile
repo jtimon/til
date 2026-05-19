@@ -108,7 +108,7 @@ bin/til: bin/til_boot $(CORE) $(SELF) $(LIB_TIL) src/til.til
 # two_pass the same outcome takes two commits (preparation + use, see
 # doc/self.org). Commits relying on this target MUST be prefixed
 # "Two-pass: " so the local merger reproduces the same regen procedure
-# (see bots/merging_from_remote.org).
+# (see doc/bots/merging_from_remote.org).
 two_pass: bin/til
 	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til build -o bin/til src/til.til
 	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true

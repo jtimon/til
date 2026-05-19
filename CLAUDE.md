@@ -1,1 +1,1 @@
-bots/bots.org
+doc/bots/bots.org

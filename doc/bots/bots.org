@@ -99,11 +99,11 @@ Merging to master (local sessions)::
   # 5. Rebuild and test.
   make clean && make test
 
-  # 5b. ASAN leak check (same as bots/merging_from_remote.org Step 6).
+  # 5b. ASAN leak check (same as doc/bots/merging_from_remote.org Step 6).
   make bin/til_asan > tmp/asan_build.log 2>&1
   ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til > tmp/asan_interpret.log 2>&1; grep "SUMMARY" tmp/asan_interpret.log
   ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til > tmp/asan_translate.log 2>&1; grep "SUMMARY" tmp/asan_translate.log
-  # Compute delta vs the baseline recorded in bots/merging_from_remote.org
+  # Compute delta vs the baseline recorded in doc/bots/merging_from_remote.org
   # and report it to the user. If accepted, update the baseline in that
   # file now -- the commit below picks it up.
 
@@ -141,7 +141,7 @@ due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
     grep "SUMMARY" tmp/asan.log
 
 Remote sessions must NOT update the ASAN baseline recorded in
-`bots/merging_from_remote.org`. The baseline is rolled forward by the local
+`doc/bots/merging_from_remote.org`. The baseline is rolled forward by the local
 session doing the master merge (see the "Merging to master (local sessions)"
 section above). A remote session may report its own ASAN numbers for context,
 but should not edit the baseline table or treat small deltas as a blocker --
@@ -289,7 +289,7 @@ The base procedure is:
            These commits depend on the new compiler's self-applied
            output -- pass 1 alone would commit a `boot/til.c` that
            the local merger's `make test_two_pass` (per
-           `bots/merging_from_remote.org`) would regenerate
+           `doc/bots/merging_from_remote.org`) would regenerate
            differently. See `doc/self.org` "Two-pass build" for
            the bootstrap reasoning.
       If the branch mixes prefixes, choose `make test_two_pass` (it

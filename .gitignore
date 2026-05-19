@@ -2,6 +2,7 @@ bin/
 gen/*
 !doc/gen/
 tmp/
+doc/bots/local_memento/
 bots/local_memento/
 vendor/raylib/src/libraylib.a
 vendor/libffi/.built

@@ -38,7 +38,7 @@ Read the full body and any nested headings.
 If you have not already explored the relevant code, do so now. Issue
 titles and bodies should use til's existing vocabulary -- look at
 neighbouring issues in ~issues/open/~ and at ~src/~ for naming.
-Respect the conventions in ~CLAUDE.md~ (a symlink to ~bots/bots.org~)
+Respect the conventions in ~CLAUDE.md~ (a symlink to ~doc/bots/bots.org~)
 and the bootstrap model in ~doc/self.org~ when sequencing slices.
 
 ### 3. Draft vertical slices

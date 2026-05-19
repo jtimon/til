@@ -571,7 +571,7 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
     a context field; the FieldAssign's save_old_delete depends on
     whether the typer marks ~lp.ctx~ field assignments correctly. The
     doc baseline jumped +23135 bytes / +4533 allocs at this commit
-    (~bots/merging_from_remote.org~ records 86863/16394 -> 109998/20927
+    (~doc/bots/merging_from_remote.org~ records 86863/16394 -> 109998/20927
     on ~test/strings.til interpret~), which matches ~4500 small Str
     allocations leaking. The follow-up ~9ffb9ff1~ ("single terminal
     reregister_scope_defs") incidentally drove the baseline back down
