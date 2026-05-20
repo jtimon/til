@@ -6059,6 +6059,15 @@ is_integral_numeric_type := func(t: Type) returns shallow Bool {
 }
 
 type_ctor_consumes := func(t: Type) returns shallow Bool {
+    // Issue #205: primitives modelled as Type.Struct("I32") / Type.Struct("U8")
+    // are value types -- a ctor field default of `0` with explicit type I32
+    // shouldn't trigger "own" semantics. Without this short-circuit, the
+    // generic Type.Struct case below pulls them into set_own_arg in
+    // infer_struct_constructor_fcall, which makes the typer's hoist pass
+    // promote the LiteralNum temp to Own, which makes the builder emit
+    // `I32 *t = malloc(sizeof(I32)); *t = 0;` -- a per-LocalInfo leak that
+    // never gets freed. (Issue #109.)
+    if is_primitive(t) { return false }
     switch t {
     case Type.Struct: return true
     case Type.Enum: return true
