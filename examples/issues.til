@@ -29,17 +29,11 @@ list_dir := proc(dir: Str) returns Vec {
     return files
 }
 
-// All the work happens here: takes `content` as a borrowed Str param so
-// the typer's ASAP-delete pass doesn't free it mid-function. Str.substr
-// returns a view (.cap=CAP_VIEW) whose c_str borrows the source's buffer;
-// the typer doesn't track view-borrow chains, so an owned local like
-// `content := raw_content.clone()` whose last direct use is a substr call
-// would be freed immediately, dangling every after_first / first_line /
-// title / num_str / after_num view derived from it. Borrowed params are
-// not subject to ASAP-delete, so content stays live for the whole body.
-// (Real fix: teach the typer about view-returning callees; tracked
-// alongside the open buckets in issue #109.)
-parse_issue_body := func(fname: Str, content: Str) returns Str {
+// Parse an issue file and return {priority_marker, is_wip, link}
+// Returns "H\nlink" or "HW\nlink" or "L\nlink" or "LW\nlink"
+parse_issue := func(fname: Str) returns Str {
+    path := format("issues/open/", fname)
+    content := File.readfile(path)
     nl1 := content.find(NL)
     if nl1.lt(0) { return "" }
     nl1u : USize = nl1.to_usize()
@@ -80,14 +74,6 @@ parse_issue_body := func(fname: Str, content: Str) returns Str {
     if is_high.not() { tag = "L" }
     if is_wip { tag = format(tag, "W") }
     return format(tag, NL, link)
-}
-
-// Parse an issue file and return {priority_marker, is_wip, link}
-// Returns "H\nlink" or "HW\nlink" or "L\nlink" or "LW\nlink"
-parse_issue := func(fname: Str) returns Str {
-    path := format("issues/open/", fname)
-    raw_content := File.readfile(path)
-    return parse_issue_body(fname, raw_content)
 }
 
 main := proc() {

@@ -286,6 +286,74 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
                 }
             }
         }
+        // (d) Str view-returning callees on a local source extend the
+        // source's lifetime through every transitive view's last use.
+        // `view := source.substr(...)` (or strip_prefix / strip_suffix)
+        // returns a Str whose c_str field borrows source's buffer
+        // (cap=CAP_VIEW); deleting source while view is still live
+        // dangles every byte of view. The typer would otherwise pin
+        // source's last_use at the FCall site and free it right after,
+        // the foot-gun parse_issue in examples/issues.til used to
+        // dodge by splitting into parse_issue + parse_issue_body so
+        // content stays alive as a borrowed param.
+        //
+        // The typer's UFCS rewrite (infer_field_access_fcall) lifts
+        // `source.substr(...)` into `Str.substr(source, ...)` -- the
+        // FCall's child(0) is a FieldAccess named "substr" on
+        // Ident("Str") (the type name), and the original receiver
+        // moves to child(1). So source-of-the-view is e.child(1).
+        //
+        // The same fixpoint loop (ref_changed) handles transitive
+        // chains: `b := a.substr(...); c := b.substr(...)` first
+        // extends b's last_use through c's, then a's through b's new.
+        for i in 0..body.children.len() {
+            ref vstmt : Expr = body.child(i)
+            if vstmt.node_type.is(NodeType.Decl).not() { continue }
+            mut v_name := ""
+            switch vstmt.node_type {
+            case NodeType.Decl(vdd): v_name = vdd.name.clone()
+            case:
+            }
+            if v_name.len().eq(0) { continue }
+            if vstmt.children.len().eq(0) { continue }
+            ref vrhs : Expr = vstmt.child(0)
+            if vrhs.node_type.is(NodeType.FCall).not() { continue }
+            if vrhs.children.len().lt(2) { continue }
+            ref vcallee : Expr = vrhs.child(0)
+            if vcallee.node_type.is(NodeType.FieldAccess).not() { continue }
+            mut vmethod := ""
+            switch vcallee.node_type {
+            case NodeType.FieldAccess(vmn): vmethod = vmn.clone()
+            case:
+            }
+            if vmethod.eq("substr").not()
+                .and(vmethod.eq("strip_prefix").not())
+                .and(vmethod.eq("strip_suffix").not()) { continue }
+            ref vrecv : Expr = vrhs.child(1)
+            mut vsrc_name := ""
+            switch vrecv.node_type {
+            case NodeType.Ident(vsn): vsrc_name = vsn.clone()
+            case:
+            }
+            if vsrc_name.len().eq(0) { continue }
+            mut v_last := i.to_i32()
+            for j in i.add(1)..body.children.len() {
+                if expr_uses_var(body.child(j), v_name) {
+                    v_last = j.to_i32()
+                }
+            }
+            for local : LocalInfo in locals {
+                if local.name.eq(v_name).and(local.last_use.gt(v_last)) {
+                    v_last = local.last_use
+                }
+            }
+            for local : LocalInfo in locals {
+                if local.name.eq(vsrc_name).and(local.last_use.lt(v_last)) {
+                    local.last_use = v_last
+                    ref_changed = true
+                }
+            }
+        }
     }
 }
 
