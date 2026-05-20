@@ -1699,7 +1699,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                 UNREACHABLE(__LOC__)
             }
         }
-        e.children = new_ch
+        // (Issue #109) `e.children = new_ch` is a bitwise overwrite of
+        // the entire Vec struct, which would orphan the old children's
+        // data buffer + cloned elem_type Str.  Move-into-existing
+        // drops the old contents in place, resizes if needed, and
+        // bit-copies the new payload over.
+        e.children.move_from(new_ch)
         // After UFCS rewriting, e.child(1) is the original receiver
         // Expr that was already inferred at the top of this proc. Skip
         // it (and any already-typed positional arg) to avoid firing

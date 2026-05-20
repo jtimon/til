@@ -1,0 +1,55 @@
+# priority: low
+** OPEN #207 Consider removing Vec.move_from
+
+`Vec.move_from(self, other)` in [[file:../../src/core/vec.til][src/core/vec.til]] copies `other`'s
+elements into `self` in place (after dropping `self`'s old elements
+via `elem_delete`).  It exists because at the time `self = other` was
+believed to leak `self`'s owned heap fields (data buffer + cloned
+elem_type Str).
+
+Tracing the typer + asap pass on `e.children = new_ch` (issue #109)
+shows the existing FieldAssign machinery already inserts a
+`<Type>.delete(&lhs, false)` before the bytewise overwrite:
+
+  Vec_delete(&e->children, &(Bool){0});   // frees old data + elem_type c_str
+  e->children = DEREF(new_ch);            // bytewise move
+  free(new_ch);                           // free wrapper
+
+So the bytewise overwrite IS safe for FieldAssign of Vec-typed
+fields -- the LHS's owned heap data is freed first, the RHS's
+owned heap data is transferred via the copied pointers, and the
+RHS wrapper is freed.
+
+That makes `Vec.move_from` largely redundant.  It saves one
+~realloc-then-memcpy round vs the delete-then-bytewise-overwrite
+shape, but at the cost of an extra API surface that has subtle
+edge cases (when batched across 5 typer call sites the leak total
+went UP, +3.7KB / +722 allocs, because some sites had ownership
+invariants the bytewise overwrite was implicitly maintaining).
+
+Open questions:
+
+- Audit all `Vec.move_from` call sites in src/self/* and src/core/*
+  and check whether each one can be a plain `lhs = rhs` assignment.
+- Same audit for `Expr.take_children` (a Vec.move_from sibling on the
+  children Vec).
+- If the audit comes back clean, drop `Vec.move_from` and
+  `Expr.take_children` from src/core/vec.til + src/core/ast.til to
+  shrink the public API.
+- If there are real wins (e.g. avoiding an extra alloc + Str_clone of
+  the elem_type), document them inline so the next contributor
+  doesn't try to remove the helper.
+
+Current uses (by file):
+
+  src/self/typer.til:     22 calls
+  src/self/asaper.til:     4 calls
+  src/self/precomp.til:    1 call
+  src/self/scavenger.til:  3 calls
+  src/core/vec.til:        definition
+
+Context: this fell out of #109's asaper deep dive.  The "land just
+the one verified call site" approach in that commit (Two-pass:
+~e.children = new_ch~ rewrite in the UFCS-method ctor branch) does
+save 41B / 7 allocs on `bin/til_asan interpret tmp/tiny.til`, so the
+helper isn't strictly wasted, but the win is marginal.

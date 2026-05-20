@@ -542,10 +542,14 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
                     ref fref : I32 = field_refs.get(j)
 
                     mut self_id := Expr.new(NodeType.Ident("self"), stmt.line, stmt.col)
-                    mut field_acc := Expr.new(NodeType.FieldAccess(fname.clone()), stmt.line, stmt.col)
+                    // NodeType.FieldAccess/NamedArg's constructors Str_clone their
+                    // payload internally, so an outer fname.clone() at the call
+                    // site is a redundant alloc whose wrapper Str leaks if the
+                    // asap delete misses it. Pass the borrowed `fname` directly.
+                    mut field_acc := Expr.new(NodeType.FieldAccess(fname), stmt.line, stmt.col)
                     field_acc.add_child(own self_id)
 
-                    mut named := Expr.new(NodeType.NamedArg(fname.clone()), stmt.line, stmt.col)
+                    mut named := Expr.new(NodeType.NamedArg(fname), stmt.line, stmt.col)
                     if fref.eq(1) {
                         named.add_child(own field_acc)
                     } else {
