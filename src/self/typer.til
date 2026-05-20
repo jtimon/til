@@ -625,14 +625,19 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
         switch cb.func_def.node_type {
         case NodeType.FuncDef(cb_fdef):
             if cb_fdef.return_type.len().eq(0) { return NULL }
-            sf := scope.find(cb_fdef.return_type)
-            switch sf {
-            case ScopeFind.Found(rsb):
-                if is_null(rsb.func_def) { return NULL }
-                if rsb.func_def.children.len().neq(0) { return NULL }
-                return rsb.func_def
-            case:
-            }
+            // Use scope.get_binding directly instead of scope.find:
+            // `case ScopeFind.Found(rsb):` binds rsb to storage inside
+            // the heap-allocated ScopeFind wrapper, and the asap pass
+            // deletes the wrapper before the ref return reads
+            // rsb.func_def -- a heap-use-after-free that ASAN flags in
+            // strings.til translate (the value happens to still be the
+            // valid Expr pointer because the freed slot is not reused
+            // before the deref, so make test doesn't catch it).
+            ref rsb : TypeBinding = scope.get_binding(cb_fdef.return_type)
+            if is_null(rsb) { return NULL }
+            if is_null(rsb.func_def) { return NULL }
+            if rsb.func_def.children.len().neq(0) { return NULL }
+            return rsb.func_def
         case:
         }
         return NULL
@@ -648,14 +653,13 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
             for fd : Declaration in sdd.fields {
                 if fd.name.eq(method).not() { continue }
                 if fd.explicit_type.len().eq(0) { continue }
-                sf := scope.find(fd.explicit_type)
-                switch sf {
-                case ScopeFind.Found(ftb):
-                    if is_null(ftb.func_def) { return NULL }
-                    if ftb.func_def.children.len().neq(0) { return NULL }
-                    return ftb.func_def
-                case:
-                }
+                // Same UAF guard as the Ident branch above -- use
+                // get_binding directly, not the ScopeFind destructure.
+                ref ftb : TypeBinding = scope.get_binding(fd.explicit_type)
+                if is_null(ftb) { continue }
+                if is_null(ftb.func_def) { continue }
+                if ftb.func_def.children.len().neq(0) { continue }
+                return ftb.func_def
             }
         case:
         }
@@ -2918,7 +2922,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
         if is_enum { builtin_type = Type.Enum(sname.clone()) }
         if sname.eq("I64") { builtin_type = Type.I64; is_builtin = true }
         else if sname.eq("U8") { builtin_type = Type.Struct("U8".clone()); is_builtin = true }
-        else if sname.eq("I8") { builtin_type = Type.I8; is_builtin = true }
+        else if sname.eq("I8") { builtin_type = Type.Struct("I8".clone()); is_builtin = true }
         else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
         else if sname.eq("I32") { builtin_type = Type.Struct("I32".clone()); is_builtin = true }
         else if sname.eq("U32") { builtin_type = Type.U32; is_builtin = true }
@@ -6034,6 +6038,7 @@ is_numeric_type := func(t: Type) returns shallow Bool {
     case Type.Struct(s):
         if s.eq("I32") { return true }
         if s.eq("U8")  { return true }
+        if s.eq("I8")  { return true }
         return false
     case: return false
     }
@@ -6051,6 +6056,7 @@ is_integral_numeric_type := func(t: Type) returns shallow Bool {
     case Type.Struct(s):
         if s.eq("I32") { return true }
         if s.eq("U8")  { return true }
+        if s.eq("I8")  { return true }
         return false
     case: return false
     }
@@ -6134,6 +6140,10 @@ literal_in_range := func(val_str: Str, target: Type) returns shallow Bool {
             val := val_str.to_i64()
             return val.gte(0).and(val.lte(255))
         }
+        if s.eq("I8") {
+            val := val_str.to_i64()
+            return val.gte(-128).and(val.lte(127))
+        }
         return true
     case: return true
     }
@@ -6155,9 +6165,11 @@ can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
     to_is_u64 := to.is(Type.U64)
     to_is_i16 := to.is(Type.Primitive(Primitive.I16))
     mut from_is_u8 := from.is(Type.U8)
+    mut from_is_i8 := from.is(Type.I8)
     switch from {
     case Type.Struct(fs):
         if fs.eq("U8") { from_is_u8 = true }
+        if fs.eq("I8") { from_is_i8 = true }
     case:
     }
     if from_is_u8 {
@@ -6166,6 +6178,12 @@ can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
         if to_is_i64 { return true }
         if to_is_u32 { return true }
         if to_is_u64 { return true }
+        return false
+    }
+    if from_is_i8 {
+        if to_is_i16 { return true }
+        if to_is_i32 { return true }
+        if to_is_i64 { return true }
         return false
     }
     switch from {
@@ -6211,7 +6229,7 @@ type_from_name_at := proc(name: Str, scope: TypeScope, mut e: Expr) returns Type
 type_from_name := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("I64")  { return Type.I64 }
     if name.eq("U8")   { return Type.Struct("U8".clone()) }
-    if name.eq("I8")   { return Type.I8 }
+    if name.eq("I8")   { return Type.Struct("I8".clone()) }
     if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
     if name.eq("I32")  { return Type.Struct("I32".clone()) }
     if name.eq("U32")  { return Type.U32 }

@@ -632,6 +632,7 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     case Type.Struct(s):
         if s.eq("I32") { return "I32" }
         if s.eq("U8")  { return "U8" }
+        if s.eq("I8")  { return "I8" }
         return "I64"
     case:                 return "I64"
     }
@@ -3927,6 +3928,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
                         case Type.Struct(sname):
                             if sname.eq("I32")     { ct = "ctypes.POINTER(ctypes.c_int)" }
                             else if sname.eq("U8") { ct = "ctypes.POINTER(ctypes.c_ubyte)" }
+                            else if sname.eq("I8") { ct = "ctypes.POINTER(ctypes.c_byte)" }
                             else                   { ct = "ctypes.c_void_p" }
                         case:              ct = "ctypes.c_void_p"
                         }

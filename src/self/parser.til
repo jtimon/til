@@ -64,7 +64,7 @@ peek_col := func(p: Parser) returns shallow U32 { return peek(p).col }
 til_type_from_explicit_type := func(name: Str) returns Type {
     if name.eq("I64")     { return Type.I64 }
     if name.eq("U8")      { return Type.Struct("U8".clone()) }
-    if name.eq("I8")      { return Type.I8 }
+    if name.eq("I8")      { return Type.Struct("I8".clone()) }
     if name.eq("I16")     { return Type.Primitive(Primitive.I16) }
     if name.eq("I32")     { return Type.Struct("I32".clone()) }
     if name.eq("U32")     { return Type.U32 }

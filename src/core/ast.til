@@ -97,6 +97,7 @@ til_type_name_c := func(t: Type) returns Str {
         // structs return the generic "Struct" tag.
         if s.eq("I32") { return "I32" }
         if s.eq("U8")  { return "U8" }
+        if s.eq("I8")  { return "I8" }
         return "Struct"
     case Type.StructDef: return "StructDef"
     case Type.Enum:      return "Enum"
