@@ -491,7 +491,8 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         free(own buf)
         return v
     case NodeType.LiteralNum(num_str):
-        switch e.til_type {
+        lit_t := expr_til_type(e)
+        switch lit_t {
         case Type.U8:  return val_u8(num_str.to_i64())
         case Type.U32: return val_u32(num_str.to_i64())
         case Type.U64: return val_u64(num_str.to_u64())
@@ -536,7 +537,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                     sname = ident
                 case:
                     // Primitive receiver (LiteralNum I64, etc.).
-                    sname = til_type_name_c(e.child(0).til_type)
+                    sname = til_type_name_c(expr_til_type(e.child(0)))
                 }
             }
             ref nsv : Value = ns_get(sname, fname)
@@ -545,7 +546,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                 case Value.Int(iv):     return val_i64(iv)
                 case Value.Int32(iv):   return val_i32(iv.to_i64())
                 case Value.Func(fptr):
-                    if e.til_type.is(Type.Enum) {
+                    if expr_til_type(e).is(Type.Enum) {
                         ref fdef : Expr = deref(fptr)
                         switch fdef.node_type {
                         case NodeType.FuncDef(fd):
@@ -581,7 +582,8 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         }
         if obj.is(Value.Ptr) {
             ref obj_expr : Expr = e.child(0)
-            switch obj_expr.til_type {
+            obj_t := expr_til_type(obj_expr)
+            switch obj_t {
             case Type.Struct(obj_sname):
                 resolve_ptr_to_struct(obj, scope, obj_sname)
             case Type.Enum(obj_sname):
@@ -753,7 +755,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
         switch stmt.node_type {
         case NodeType.Decl(dd):
             ref rhs : Expr = stmt.child(0)
-            if stmt.til_type.is(Type.None) {
+            if expr_til_type(stmt).is(Type.None) {
                 if rhs.node_type.is(NodeType.Ident) { continue }
             }
             if dd.own_type.is(OwnType.Ref) {
@@ -793,7 +795,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 interp_error(stmt, "undefined variable '".concat(ad.name).concat("'"))
                 exit(1.to_i32())
             }
-            if stmt.til_type.is(Type.Dynamic) {
+            if expr_til_type(stmt).is(Type.Dynamic) {
                 if rhs.node_type.is(NodeType.Ident) {
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_ident):
@@ -969,7 +971,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         ref func_def : Expr = deref(fn_ptr)
 
         // FuncPtr field: stored function may be ext_func from another type
-        if callee_expr.til_type.is(Type.FuncPtr) {
+        if expr_til_type(callee_expr).is(Type.FuncPtr) {
             mut fp_func_type := FuncType.None
             switch func_def.node_type {
             case NodeType.FuncDef(fp_fdef):
@@ -1013,7 +1015,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             UNREACHABLE(__LOC__)
         }
         if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)) {
-            parent_sname := til_type_name(callee_expr.child(0).til_type)
+            parent_sname := til_type_name(expr_til_type(callee_expr.child(0)))
             ref tc : Cell = scope_get(scope, parent_sname)
             if is_null(tc).not() {
                 switch tc.val {
@@ -1045,12 +1047,12 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                 case:
                 }
             }
-            mut sn := til_type_name(callee_expr.child(0).til_type)
+            mut sn := til_type_name(expr_til_type(callee_expr.child(0)))
             // til_type_name returns "" for primitives. For ext_func
             // dispatch on a primitive receiver (e.g. `0.sub(1)` ->
             // `I64_sub(0, 1)`), fall back to til_type_name_c.
             if sn.is_empty() {
-                tn := til_type_name_c(callee_expr.child(0).til_type)
+                tn := til_type_name_c(expr_til_type(callee_expr.child(0)))
                 if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
                     sn = tn
                 }
@@ -1172,6 +1174,15 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             case NodeType.StructDef(sdd):
                 inst_data : Dynamic = calloc(1, sdd.total_struct_size.to_usize())
                 mut inst := val_none()
+                // NOTE: kept as direct e.til_type field access (not
+                // routed through expr_til_type) because `es` from the
+                // case below is passed to make_struct_value, which
+                // retains it in the returned Value. Routing through
+                // a cloning chokepoint would free the inner Str when
+                // the local clone drops at end-of-switch, leaving
+                // the stored `es` dangling. Migrating this site
+                // wants payload-resident storage (slice 3/FCall in
+                // #206) so the chokepoint can return a borrow.
                 switch e.til_type {
                 case Type.Struct(es):
                     if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false) }
@@ -1595,7 +1606,7 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
 // for Dynamic). Returns NULL when the rhs isn't an Ident or isn't
 // Dynamic, signalling "evaluate the expression normally".
 field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref Cell {
-    if val_expr.til_type.is(Type.Dynamic).not() { return NULL }
+    if expr_til_type(val_expr).is(Type.Dynamic).not() { return NULL }
     switch val_expr.node_type {
     case NodeType.Ident(vi):
         return scope_get(scope, vi)
@@ -1606,7 +1617,7 @@ field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref 
 
 interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
     ref obj_expr : Expr = e.child(0)
-    sname := til_type_name(obj_expr.til_type)
+    sname := til_type_name(expr_til_type(obj_expr))
     if sname.len().gt(0) { return interp_fa_is_ns_inner(scope, e, sname) }
     switch obj_expr.node_type {
     case NodeType.Ident(ident):
@@ -1615,7 +1626,7 @@ interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
     }
     // Primitive receivers (`0.sub(1)`, recv = LiteralNum I64): til_type_name
     // returns "" for I64/U8/etc, fall back to til_type_name_c.
-    tn := til_type_name_c(obj_expr.til_type)
+    tn := til_type_name_c(expr_til_type(obj_expr))
     if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
         return interp_fa_is_ns_inner(scope, e, tn)
     }
@@ -2035,7 +2046,7 @@ interpret_register_defs := func(mut global: Scope, prog: Expr) {
 interpret_register_aliases := func(mut global: Scope, prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
-        else if stmt.til_type.is(Type.None).not() { }
+        else if expr_til_type(stmt).is(Type.None).not() { }
         else if stmt.children.len().eq(0) { }
         else {
             ref rhs : Expr = stmt.child(0)
@@ -2068,7 +2079,7 @@ interpret_register_aliases := func(mut global: Scope, prog: Expr) {
 interpret_copy_alias_ns := func(prog: Expr, global: Scope) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
-        else if stmt.til_type.is(Type.None).not() { }
+        else if expr_til_type(stmt).is(Type.None).not() { }
         else if stmt.children.len().eq(0) { }
         else {
             ref rhs : Expr = stmt.child(0)

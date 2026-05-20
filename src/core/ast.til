@@ -452,17 +452,29 @@ namespace:
     }
 }
 
-// #147 step 11 / #204: single chokepoint for Expr.til_type reads. Today this
-// returns a clone of the cached field; future moves migrate to deriving from
-// node_type + scope (rstil's get_value_type pattern), per-NodeType-
-// payload storage for the hybrid path, or a mix. Keeping all reads
-// behind one function lets the implementation evolve without revisiting
-// hundreds of call sites. The clone is intentional: callers store the
-// result in a `:=` local or pass it on to a helper that takes Type by
-// value, and either path drops the returned Type at end-of-statement.
-// Without the clone the inner Str of named variants (Struct/Enum/Custom)
-// would alias `e.til_type`'s buffer and the drop would double-free.
+// #147 step 11 / #206: single chokepoint for Expr.til_type reads. The
+// cached field is still authoritative for most NodeType variants;
+// however, ~LiteralStr~ and ~LiteralBool~ are derived directly from
+// node_type because their type is deterministic at parse time and
+// ~narrow_dynamic~ short-circuits on ~is(Type.Dynamic).not()~ so the
+// typer never mutates them post-write. Returning derived values from
+// the chokepoint makes the per-Expr writes for these two variants
+// redundant -- they stay for now while we migrate readers, and will
+// drop in follow-up commits per the #206 slice plan.
+//
+// Other variants (Ident, FCall, FieldAccess, MapLit, SetLit, NamedArg,
+// LiteralNum, LiteralNull, ...) still read from the cached field. The
+// clone is intentional: callers store the result in a `:=` local or
+// pass it on to a helper that takes Type by value, and either path
+// drops the returned Type at end-of-statement. Without the clone the
+// inner Str of named variants (Struct/Enum/Custom) would alias
+// ~e.til_type~'s buffer and the drop would double-free.
 expr_til_type := func(e: Expr) returns Type {
+    switch e.node_type {
+    case NodeType.LiteralStr:  return Type.Struct("Str".clone())
+    case NodeType.LiteralBool: return Type.Bool
+    case:
+    }
     return e.til_type.clone()
 }
 

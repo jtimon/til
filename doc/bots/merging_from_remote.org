@@ -103,7 +103,7 @@ checking out the prior commit.
 
 | Channel   | Bytes    | Allocs   | Notes                |
 |-----------+----------+----------+----------------------|
-| interpret | 125869   | 27891    | post I32+U8→Struct   |
+| interpret | 126290   | 27912    | post chokepoint clones|
 | translate | 86244    | 17482    | UAF in resolve_fn_sig |
 
 Build the ASAN binary:
