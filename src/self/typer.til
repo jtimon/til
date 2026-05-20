@@ -153,19 +153,11 @@ mut current_type_name := ""
 // name (only the original parent function and any of its other lifted
 // descendants can).
 mut current_top_func_name := ""
-// Issue #198: global error type registry. extend_throwing_func_sigs
-// populates this with every error type that appears in any throws
-// clause / Throw / Catch in the program; lowering uses
-// throw_type_global_tag(name) so caller and callee always agree on
-// the integer tag for a given type.
-mut throw_type_registry := Vec.new(Str)
-// Global name -> throws_types map for ALL throwing functions seen
-// across all type-checked files. Built incrementally by
-// extend_throwing_func_sigs and read by inject_throw_args_in_body
-// so call sites in user files can resolve throws of functions
-// defined in core/ imports.
-mut throws_names_global := Vec.new(Str)
-mut throws_per_global := Vec.new(Vec)
+// Issue #198: the throw_type_registry / throws_names_global /
+// throws_per_global tables previously declared here moved onto the
+// `Context` struct (see initer.til) so cross-unit typer state lives
+// on the same ctx everything else threads through. The accessors
+// below take `ctx` and the body-walk helpers thread it down.
 // #187 step 2: nesting depth of auto-generated FuncDef bodies
 // (clone/delete/size/etc emitted by initer). The unused-priv-member
 // check ignores reads inside these so genuinely-unused priv fields
@@ -2395,7 +2387,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             // of desugar_bang + validate + lower + inject + fallback
             // return). One walk does the work the five old passes
             // did, integrated per stmt.
-            process_throw_catch_in_func_body(expr.child(0), fdef.throw_types, fdef.return_type)
+            process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type)
         }
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
         asap_destroy_body(expr.child(0), func_scope)
@@ -4437,24 +4429,24 @@ priv make_default_value_expr := func(type_name: Str, shallow line: U32, shallow 
     return call
 }
 
-priv tag_for_type := func(type_name: Str, _type_to_tag_names: Vec) returns I64 {
-    // Issue #198: read from the global throw_type_registry so the
-    // tag for a given type is the same in every function (caller
-    // and callee agree). The local Vec param is kept for backward
-    // shape but no longer consulted.
-    for i in 0..throw_type_registry.len() {
-        ref n : Str = throw_type_registry.get(i)
+priv tag_for_type := func(ctx: Context, type_name: Str, _type_to_tag_names: Vec) returns I64 {
+    // Issue #198: read from ctx.throw_type_registry so the tag for a
+    // given type is the same in every function (caller and callee
+    // agree). The local Vec param is kept for backward shape but no
+    // longer consulted.
+    for i in 0..ctx.throw_type_registry.len() {
+        ref n : Str = ctx.throw_type_registry.get(i)
         if n.eq(type_name) { return i.to_i64().add(1) }
     }
     return 0
 }
 
-priv register_throw_type := func(name: Str) {
+priv register_throw_type := func(mut ctx: Context, name: Str) {
     if name.len().eq(0) { return }
-    for existing : Str in throw_type_registry {
+    for existing : Str in ctx.throw_type_registry {
         if existing.eq(name) { return }
     }
-    throw_type_registry.push(own name.clone())
+    ctx.throw_type_registry.push(own name.clone())
 }
 
 priv make_if_kind_eq_zero_wrap := func(stmt: Expr, shallow line: U32, shallow col: U32) returns Expr {
@@ -4485,7 +4477,7 @@ priv rewrite_ident := proc(mut e: Expr, old_name: Str, new_name: Str) {
     }
 }
 
-priv lower_catch_node := proc(catch_node: Expr, type_to_tag_names: Vec) returns Expr {
+priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names: Vec) returns Expr {
     line := catch_node.line
     col := catch_node.col
     mut var_name := ""
@@ -4498,7 +4490,7 @@ priv lower_catch_node := proc(catch_node: Expr, type_to_tag_names: Vec) returns 
     case NodeType.Ident(n): type_name = n.clone()
     case: UNREACHABLE(__LOC__)
     }
-    tag := tag_for_type(type_name, type_to_tag_names)
+    tag := tag_for_type(ctx, type_name, type_to_tag_names)
     mut new_body := Expr.new(NodeType.Body, line, col)
     new_body.add_child(own make_assign_stmt("_err_kind", make_int_lit(0, line, col), line, col))
     // Rewrite references to the user's err var inside the catch body
@@ -4531,21 +4523,21 @@ priv lower_catch_node := proc(catch_node: Expr, type_to_tag_names: Vec) returns 
 // matching slots as the extra args. Idempotent: skips functions
 // whose params already contain _err_kind. Recurses into nested
 // FuncDef bodies so inner lambdas with throws also get extended.
-priv register_func_throws := func(name: Str, throws_list: Vec) {
+priv register_func_throws := func(mut ctx: Context, name: Str, throws_list: Vec) {
     if name.len().eq(0) { return }
     if throws_list.len().eq(0) { return }
-    for existing : Str in throws_names_global {
+    for existing : Str in ctx.throws_names_global {
         if existing.eq(name) { return }
     }
-    throws_names_global.push(own name.clone())
+    ctx.throws_names_global.push(own name.clone())
     mut tt := Vec.new(Str)
     for t : Str in throws_list {
         tt.push(own t.clone())
     }
-    throws_per_global.push(own tt)
+    ctx.throws_per_global.push(own tt)
 }
 
-extend_throwing_func_sigs := proc(mut e: Expr) {
+extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
     // Register Decl(name) -> FuncDef in the global throws map.
     if e.node_type.is(NodeType.Decl) {
         if e.children.len().gt(0) {
@@ -4555,7 +4547,7 @@ extend_throwing_func_sigs := proc(mut e: Expr) {
                 if rhs.node_type.is(NodeType.FuncDef) {
                     switch rhs.node_type {
                     case NodeType.FuncDef(rfd):
-                        register_func_throws(dn.name, rfd.throw_types)
+                        register_func_throws(ctx, dn.name, rfd.throw_types)
                     case:
                     }
                 }
@@ -4568,7 +4560,7 @@ extend_throwing_func_sigs := proc(mut e: Expr) {
         case NodeType.FuncDef(efd):
             // Register all declared throw types in the global registry.
             for tn : Str in efd.throw_types {
-                register_throw_type(tn)
+                register_throw_type(ctx, tn)
             }
             if efd.throw_types.len().gt(0) {
                 mut already := false
@@ -4602,13 +4594,13 @@ extend_throwing_func_sigs := proc(mut e: Expr) {
     if e.node_type.is(NodeType.Throw) {
         if e.children.len().eq(1) {
             tn := throw_type_name_for_with_body(e.child(0), e)
-            if tn.len().gt(0) { register_throw_type(tn) }
+            if tn.len().gt(0) { register_throw_type(ctx, tn) }
         }
     }
     if e.node_type.is(NodeType.Catch) {
         if e.children.len().eq(3) {
             switch e.child(1).node_type {
-            case NodeType.Ident(ctn): register_throw_type(ctn.clone())
+            case NodeType.Ident(ctn): register_throw_type(ctx, ctn.clone())
             case:
             }
         }
@@ -4626,11 +4618,11 @@ extend_throwing_func_sigs := proc(mut e: Expr) {
             if dv.node_type.is(NodeType.FuncDef) {
                 switch dv.node_type {
                 case NodeType.FuncDef(rfd_reg):
-                    register_func_throws(nd.name, rfd_reg.throw_types)
+                    register_func_throws(ctx, nd.name, rfd_reg.throw_types)
                 case:
                 }
             }
-            extend_throwing_func_sigs(nd.default_value)
+            extend_throwing_func_sigs(ctx, nd.default_value)
         }
     case NodeType.EnumDef(eed_ns):
         for ci in 0..eed_ns.ns_decls.len() {
@@ -4639,17 +4631,17 @@ extend_throwing_func_sigs := proc(mut e: Expr) {
             if dv.node_type.is(NodeType.FuncDef) {
                 switch dv.node_type {
                 case NodeType.FuncDef(rfd_reg_e):
-                    register_func_throws(nd.name, rfd_reg_e.throw_types)
+                    register_func_throws(ctx, nd.name, rfd_reg_e.throw_types)
                 case:
                 }
             }
-            extend_throwing_func_sigs(nd.default_value)
+            extend_throwing_func_sigs(ctx, nd.default_value)
         }
     case:
     }
     for ci in 0..e.children.len() {
         ref mut sub : Expr = e.child(ci)
-        extend_throwing_func_sigs(sub)
+        extend_throwing_func_sigs(ctx, sub)
     }
 }
 
@@ -4774,7 +4766,7 @@ priv find_bang_callee_name := func(e: Expr) returns Str {
 // Look up callee throws by FCall callee name. Returns "" for
 // not-found, otherwise the matching entry's index (encoded +1)
 // in throws_names_global so the caller can read throws_per_global.
-priv find_callee_throws_idx := func(fcall: Expr) returns I64 {
+priv find_callee_throws_idx := func(ctx: Context, fcall: Expr) returns I64 {
     if fcall.children.len().eq(0) { return 0 }
     ref callee : Expr = fcall.child(0)
     mut cname := ""
@@ -4784,8 +4776,8 @@ priv find_callee_throws_idx := func(fcall: Expr) returns I64 {
     case:
     }
     if cname.len().eq(0) { return 0 }
-    for i in 0..throws_names_global.len() {
-        ref n : Str = throws_names_global.get(i)
+    for i in 0..ctx.throws_names_global.len() {
+        ref n : Str = ctx.throws_names_global.get(i)
         if n.eq(cname) { return i.to_i64().add(1) }
     }
     return 0
@@ -4841,6 +4833,7 @@ priv vec_str_push_uniq := func(mut v: Vec, name: Str) {
 // signature, and updates the body-level pending / seen /
 // types_to_declare lists with the callee's declared throw types.
 priv validate_one_fcall_consolidated := proc(
+    ctx: Context,
     mut e: Expr,
     mut pending: Vec,
     mut seen: Vec,
@@ -4865,7 +4858,7 @@ priv validate_one_fcall_consolidated := proc(
         case:
         }
     }
-    idx := find_callee_throws_idx(e)
+    idx := find_callee_throws_idx(ctx, e)
     callee_is_throwing := idx.gt(0)
     if does_throw {
         if callee_is_throwing.not() {
@@ -4875,7 +4868,7 @@ priv validate_one_fcall_consolidated := proc(
             case:
             }
         } else {
-            ref tts : Vec = throws_per_global.get(idx.sub(1).to_u32())
+            ref tts : Vec = ctx.throws_per_global.get(idx.sub(1).to_u32())
             for tn : Str in tts {
                 pending.push(own tn.clone())
                 vec_str_push_uniq(seen, tn)
@@ -4884,7 +4877,7 @@ priv validate_one_fcall_consolidated := proc(
         }
     } else {
         if callee_is_throwing {
-            ref tts2 : Vec = throws_per_global.get(idx.sub(1).to_u32())
+            ref tts2 : Vec = ctx.throws_per_global.get(idx.sub(1).to_u32())
             mut tlist := ""
             for jj in 0..tts2.len() {
                 ref tn2 : Str = tts2.get(jj)
@@ -4908,7 +4901,7 @@ priv validate_one_fcall_consolidated := proc(
 // Per-FCall: if does_throw is set and the callee is in the global
 // throws map, append _err_kind + _err_<T> arg refs, then clear the
 // flag so the call reaches downstream stages as a plain FCall.
-priv inject_err_args_on_one_fcall_consolidated := func(mut e: Expr) {
+priv inject_err_args_on_one_fcall_consolidated := func(ctx: Context, mut e: Expr) {
     if e.node_type.is(NodeType.FCall).not() { return }
     mut does_throw := false
     switch e.node_type {
@@ -4927,12 +4920,12 @@ priv inject_err_args_on_one_fcall_consolidated := func(mut e: Expr) {
     }
     if cname.len().eq(0) { return }
     mut idx : I64 = -1
-    for i in 0..throws_names_global.len() {
-        ref nm : Str = throws_names_global.get(i)
+    for i in 0..ctx.throws_names_global.len() {
+        ref nm : Str = ctx.throws_names_global.get(i)
         if nm.eq(cname) { idx = i.to_i64() }
     }
     if idx.lt(0) { return }
-    ref tts : Vec = throws_per_global.get(idx.to_u32())
+    ref tts : Vec = ctx.throws_per_global.get(idx.to_u32())
     mut kind_id := Expr.new(NodeType.Ident("_err_kind"), e.line, e.col)
     kind_id.til_type = Type.I64
     e.add_child(own kind_id)
@@ -4952,6 +4945,7 @@ priv inject_err_args_on_one_fcall_consolidated := func(mut e: Expr) {
 // those are handled by the body-level walk and the typer's per
 // FuncDef visit, respectively.
 priv validate_and_inject_expr_consolidated := proc(
+    ctx: Context,
     mut e: Expr,
     mut pending: Vec,
     mut seen: Vec,
@@ -4962,11 +4956,11 @@ priv validate_and_inject_expr_consolidated := proc(
         .or(e.node_type.is(NodeType.StructDef))
         .or(e.node_type.is(NodeType.EnumDef)) { return }
     if e.node_type.is(NodeType.Body) { return }
-    validate_one_fcall_consolidated(e, pending, seen, types_to_declare, path)
-    inject_err_args_on_one_fcall_consolidated(e)
+    validate_one_fcall_consolidated(ctx, e, pending, seen, types_to_declare, path)
+    inject_err_args_on_one_fcall_consolidated(ctx, e)
     for ci in 0..e.children.len() {
         ref mut sub : Expr = e.child(ci)
-        validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+        validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
     }
 }
 
@@ -4974,8 +4968,8 @@ priv validate_and_inject_expr_consolidated := proc(
 // avoids an intermediate NodeType.Catch that would need a separate
 // lowering pass to convert. Emits:
 //   if I64.eq(_err_kind, <tag>) { _err_kind = 0; panic("<loc>", "<T>") }
-priv build_bang_lowered := func(error_type: Str, shallow line: U32, shallow col: U32) returns Expr {
-    tag := tag_for_type(error_type, Vec.new(Str))
+priv build_bang_lowered := func(ctx: Context, error_type: Str, shallow line: U32, shallow col: U32) returns Expr {
+    tag := tag_for_type(ctx, error_type, Vec.new(Str))
     loc_str := format(typer_path, ":", line.to_str(), ":", col.to_str())
     mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
     panic_call.add_child(own Expr.new(NodeType.Ident("panic"), line, col))
@@ -5002,6 +4996,7 @@ priv build_bang_lowered := func(error_type: Str, shallow line: U32, shallow col:
 // seen so the function-body wrapper later prepends the right slot
 // decls.
 priv hoist_walk_consolidated := proc(
+    ctx: Context,
     mut parent: Expr,
     child_idx: USize,
     mut pre_stmts: Vec,
@@ -5014,7 +5009,7 @@ priv hoist_walk_consolidated := proc(
         .or(child.node_type.is(NodeType.EnumDef)) { return }
     if child.node_type.is(NodeType.Body) { return }
     for gi in 0..child.children.len() {
-        hoist_walk_consolidated(child, gi, pre_stmts, types_to_declare, seen)
+        hoist_walk_consolidated(ctx, child, gi, pre_stmts, types_to_declare, seen)
     }
     if child.node_type.is(NodeType.FCall).not() { return }
     mut is_bang_here := false
@@ -5033,8 +5028,8 @@ priv hoist_walk_consolidated := proc(
     }
     if cname.len().eq(0) { return }
     mut found_idx : I64 = 0
-    for i in 0..throws_names_global.len() {
-        ref n : Str = throws_names_global.get(i)
+    for i in 0..ctx.throws_names_global.len() {
+        ref n : Str = ctx.throws_names_global.get(i)
         if n.eq(cname) { found_idx = i.to_i64().add(1) }
     }
     if found_idx.eq(0) { return }
@@ -5047,15 +5042,15 @@ priv hoist_walk_consolidated := proc(
     // The hoisted call won't pass through the main loop's per-stmt
     // validate+inject step (pre_stmts go straight into new_ch), so
     // inject err out-args here directly.
-    inject_err_args_on_one_fcall_consolidated(cloned)
+    inject_err_args_on_one_fcall_consolidated(ctx, cloned)
     mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone())), line, col)
     tmp_decl.add_child(own cloned)
     pre_stmts.push(own tmp_decl)
-    ref tts : Vec = throws_per_global.get(found_idx.sub(1).to_u32())
+    ref tts : Vec = ctx.throws_per_global.get(found_idx.sub(1).to_u32())
     for tn : Str in tts {
         vec_str_push_uniq(types_to_declare, tn)
         vec_str_push_uniq(seen, tn)
-        pre_stmts.push(own build_bang_lowered(tn, line, col))
+        pre_stmts.push(own build_bang_lowered(ctx, tn, line, col))
     }
     parent.children.set(child_idx, own Expr.new(NodeType.Ident(tmp_name.clone()), line, col))
 }
@@ -5065,6 +5060,7 @@ priv hoist_walk_consolidated := proc(
 // main per-stmt logic in process_throw_catch_in_body so it
 // produces cleaner output without an extra temp.
 priv hoist_nested_bangs_consolidated := proc(
+    ctx: Context,
     mut stmt: Expr,
     mut pre_stmts: Vec,
     mut types_to_declare: Vec,
@@ -5073,24 +5069,24 @@ priv hoist_nested_bangs_consolidated := proc(
     cname := find_bang_callee_name(stmt)
     if cname.len().eq(0) {
         for ci in 0..stmt.children.len() {
-            hoist_walk_consolidated(stmt, ci, pre_stmts, types_to_declare, seen)
+            hoist_walk_consolidated(ctx, stmt, ci, pre_stmts, types_to_declare, seen)
         }
         return
     }
     if stmt.node_type.is(NodeType.FCall) {
         for ai in 1..stmt.children.len() {
-            hoist_walk_consolidated(stmt, ai, pre_stmts, types_to_declare, seen)
+            hoist_walk_consolidated(ctx, stmt, ai, pre_stmts, types_to_declare, seen)
         }
         return
     }
     ref mut root_fcall : Expr = stmt.child(0)
     if root_fcall.node_type.is(NodeType.FCall) {
         for ai in 1..root_fcall.children.len() {
-            hoist_walk_consolidated(root_fcall, ai, pre_stmts, types_to_declare, seen)
+            hoist_walk_consolidated(ctx, root_fcall, ai, pre_stmts, types_to_declare, seen)
         }
     }
     for ci in 1..stmt.children.len() {
-        hoist_walk_consolidated(stmt, ci, pre_stmts, types_to_declare, seen)
+        hoist_walk_consolidated(ctx, stmt, ci, pre_stmts, types_to_declare, seen)
     }
 }
 
@@ -5108,6 +5104,7 @@ priv hoist_nested_bangs_consolidated := proc(
 //   8. wrap stmt in `if I64.eq(_err_kind, 0)` when a previous stmt
 //      could have set _err_kind
 priv process_throw_catch_in_body := proc(
+    ctx: Context,
     mut body: Expr,
     fdef_throws: Vec,
     mut pending: Vec,
@@ -5152,7 +5149,7 @@ priv process_throw_catch_in_body := proc(
 
         // 1. Hoist nested bangs in stmt's expression tree.
         mut pre_stmts := Vec.new(Expr)
-        hoist_nested_bangs_consolidated(stmt, pre_stmts, types_to_declare, seen)
+        hoist_nested_bangs_consolidated(ctx, stmt, pre_stmts, types_to_declare, seen)
         npre := pre_stmts.len()
         for pi in 0..npre {
             new_ch.push_take(pre_stmts, pi)
@@ -5164,18 +5161,18 @@ priv process_throw_catch_in_body := proc(
             for ci in 1..stmt.children.len() {
                 ref mut sub : Expr = stmt.child(ci)
                 if sub.node_type.is(NodeType.Body) {
-                    process_throw_catch_in_body(sub, fdef_throws, pending, seen, types_to_declare, path)
+                    process_throw_catch_in_body(ctx, sub, fdef_throws, pending, seen, types_to_declare, path)
                 }
             }
         case NodeType.While:
             if stmt.children.len().gte(2) {
                 ref mut wb : Expr = stmt.child(1)
-                process_throw_catch_in_body(wb, fdef_throws, pending, seen, types_to_declare, path)
+                process_throw_catch_in_body(ctx, wb, fdef_throws, pending, seen, types_to_declare, path)
             }
         case NodeType.ForIn:
             if stmt.children.len().gte(2) {
                 ref mut fb : Expr = stmt.child(1)
-                process_throw_catch_in_body(fb, fdef_throws, pending, seen, types_to_declare, path)
+                process_throw_catch_in_body(ctx, fb, fdef_throws, pending, seen, types_to_declare, path)
             }
         case NodeType.Switch:
             for ci in 1..stmt.children.len() {
@@ -5184,7 +5181,7 @@ priv process_throw_catch_in_body := proc(
                     for cci in 0..cn.children.len() {
                         ref mut ccn : Expr = cn.child(cci)
                         if ccn.node_type.is(NodeType.Body) {
-                            process_throw_catch_in_body(ccn, fdef_throws, pending, seen, types_to_declare, path)
+                            process_throw_catch_in_body(ctx, ccn, fdef_throws, pending, seen, types_to_declare, path)
                         }
                     }
                 }
@@ -5192,7 +5189,7 @@ priv process_throw_catch_in_body := proc(
         case NodeType.Catch:
             if stmt.children.len().eq(3) {
                 ref mut cbody : Expr = stmt.child(2)
-                process_throw_catch_in_body(cbody, fdef_throws, pending, seen, types_to_declare, path)
+                process_throw_catch_in_body(ctx, cbody, fdef_throws, pending, seen, types_to_declare, path)
             }
         case:
         }
@@ -5205,12 +5202,12 @@ priv process_throw_catch_in_body := proc(
         mut root_bang_throws := Vec.new(Str)
         if cname_root.len().gt(0) {
             mut found_idx_root : I64 = 0
-            for ti in 0..throws_names_global.len() {
-                ref nm : Str = throws_names_global.get(ti)
+            for ti in 0..ctx.throws_names_global.len() {
+                ref nm : Str = ctx.throws_names_global.get(ti)
                 if nm.eq(cname_root) { found_idx_root = ti.to_i64().add(1) }
             }
             if found_idx_root.gt(0) {
-                ref tts_root : Vec = throws_per_global.get(found_idx_root.sub(1).to_u32())
+                ref tts_root : Vec = ctx.throws_per_global.get(found_idx_root.sub(1).to_u32())
                 for tn : Str in tts_root {
                     root_bang_throws.push(own tn.clone())
                     vec_str_push_uniq(types_to_declare, tn)
@@ -5228,44 +5225,44 @@ priv process_throw_catch_in_body := proc(
         case NodeType.Decl:
             for ci in 0..stmt.children.len() {
                 ref mut sub : Expr = stmt.child(ci)
-                validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
             }
         case NodeType.Assign:
             for ci in 0..stmt.children.len() {
                 ref mut sub : Expr = stmt.child(ci)
-                validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
             }
         case NodeType.FieldAssign:
             for ci in 0..stmt.children.len() {
                 ref mut sub : Expr = stmt.child(ci)
-                validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
             }
         case NodeType.Return:
             if stmt.children.len().gt(0) {
                 ref mut sub : Expr = stmt.child(0)
-                validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
             }
         case NodeType.FCall:
-            validate_and_inject_expr_consolidated(stmt, pending, seen, types_to_declare, path)
+            validate_and_inject_expr_consolidated(ctx, stmt, pending, seen, types_to_declare, path)
         case NodeType.If:
             if stmt.children.len().gt(0) {
                 ref mut sub : Expr = stmt.child(0)
-                validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
             }
         case NodeType.While:
             if stmt.children.len().gt(0) {
                 ref mut sub : Expr = stmt.child(0)
-                validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
             }
         case NodeType.ForIn:
             if stmt.children.len().gt(0) {
                 ref mut sub : Expr = stmt.child(0)
-                validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
             }
         case NodeType.Switch:
             if stmt.children.len().gt(0) {
                 ref mut sub : Expr = stmt.child(0)
-                validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
             }
             for ci in 1..stmt.children.len() {
                 ref mut cn : Expr = stmt.child(ci)
@@ -5273,7 +5270,7 @@ priv process_throw_catch_in_body := proc(
                     for cci in 0..cn.children.len() {
                         ref mut ccn : Expr = cn.child(cci)
                         if ccn.node_type.is(NodeType.Body).not() {
-                            validate_and_inject_expr_consolidated(ccn, pending, seen, types_to_declare, path)
+                            validate_and_inject_expr_consolidated(ctx, ccn, pending, seen, types_to_declare, path)
                         }
                     }
                 }
@@ -5281,12 +5278,12 @@ priv process_throw_catch_in_body := proc(
         case NodeType.Throw:
             if stmt.children.len().gt(0) {
                 ref mut sub : Expr = stmt.child(0)
-                validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
             }
         case:
             for ci in 0..stmt.children.len() {
                 ref mut sub : Expr = stmt.child(ci)
-                validate_and_inject_expr_consolidated(sub, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(ctx, sub, pending, seen, types_to_declare, path)
             }
         }
 
@@ -5294,7 +5291,7 @@ priv process_throw_catch_in_body := proc(
         if stmt.node_type.is(NodeType.Throw) {
             if stmt.children.len().eq(1) {
                 tn := til_type_name(stmt.til_type)
-                tag := tag_for_type(tn, Vec.new(Str))
+                tag := tag_for_type(ctx, tn, Vec.new(Str))
                 if tn.len().gt(0).and(tag.gt(0)) {
                     new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.child(0).clone(), stmt_line, stmt_col))
                     new_ch.push(own make_assign_stmt("_err_kind", make_int_lit(tag, stmt_line, stmt_col), stmt_line, stmt_col))
@@ -5326,7 +5323,7 @@ priv process_throw_catch_in_body := proc(
                     }
                     vec_str_push_uniq(types_to_declare, ctype)
                 }
-                new_ch.push(own lower_catch_node(stmt, Vec.new(Str)))
+                new_ch.push(own lower_catch_node(ctx, stmt, Vec.new(Str)))
                 seen_throwing = false
                 continue
             } else {
@@ -5347,7 +5344,7 @@ priv process_throw_catch_in_body := proc(
                 tmp_decl.add_child(own stmt.child(0).clone())
                 new_ch.push(own tmp_decl)
                 for tn : Str in root_bang_throws {
-                    new_ch.push(own build_bang_lowered(tn, stmt_line, stmt_col))
+                    new_ch.push(own build_bang_lowered(ctx, tn, stmt_line, stmt_col))
                     _matched_b1 := pending_remove_all_matching(pending, tn)
                 }
                 mut new_ret := Expr.new(NodeType.Return, stmt_line, stmt_col)
@@ -5366,7 +5363,7 @@ priv process_throw_catch_in_body := proc(
                 new_ch.push_take(old, j)
             }
             for tn : Str in root_bang_throws {
-                new_ch.push(own build_bang_lowered(tn, stmt_line, stmt_col))
+                new_ch.push(own build_bang_lowered(ctx, tn, stmt_line, stmt_col))
                 _matched_b2 := pending_remove_all_matching(pending, tn)
             }
             seen_throwing = false
@@ -5391,6 +5388,7 @@ priv process_throw_catch_in_body := proc(
 // types touched and (for throwing functions) appends a fallback
 // return so all C paths return.
 process_throw_catch_in_func_body := proc(
+    ctx: Context,
     mut body: Expr,
     fdef_throws: Vec,
     return_type: Str
@@ -5417,7 +5415,7 @@ process_throw_catch_in_func_body := proc(
         vec_str_push_uniq(types_to_declare, ft)
     }
 
-    process_throw_catch_in_body(body, fdef_throws, pending, seen, types_to_declare, typer_path)
+    process_throw_catch_in_body(ctx, body, fdef_throws, pending, seen, types_to_declare, typer_path)
 
     // Final body-level validation: leftover pending types must be
     // declared, and every declared throws entry must have been seen.
@@ -5836,7 +5834,7 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
     // Issue #198: extend signatures of throwing functions BEFORE
     // any body type-checking so call-site rewrites in
     // inject_throw_args_in_body see the post-extension param list.
-    extend_throwing_func_sigs(program)
+    extend_throwing_func_sigs(ctx, program)
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
     // Program-scope asap runs from prepare_program via

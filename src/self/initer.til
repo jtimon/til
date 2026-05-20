@@ -199,6 +199,15 @@ Context := struct {
     mut script_globals := Set.new(Str)
     mut ref_globals := Set.new(Str)
 
+    // Issue #198: typer-owned error-type registries, moved off
+    // module-level globals so they live on the same Context that
+    // crosses unit boundaries. throw_type_registry is the integer-tag
+    // table used by tag_for_type; throws_names/throws_per is the
+    // Decl-name -> throws-types map used by inject_throw_args_in_body.
+    mut throw_type_registry := Vec.new(Str)
+    mut throws_names_global := Vec.new(Str)
+    mut throws_per_global := Vec.new(Vec)
+
     // #178 builder per-function transients. The builder resets these on
     // entering each function body and reads them throughout that body's
     // emission. emit_func_def is not actually recursive (the typer lifts
