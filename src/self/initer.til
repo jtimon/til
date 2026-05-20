@@ -425,11 +425,14 @@ priv field_inferred_type_name := func(fd: Declaration) returns Str {
 // A type is "value-copy safe" -- i.e. a shallow byte-copy is
 // semantically equivalent to its `.clone()` method -- when its
 // underlying Type is a primitive (including aliases), a function
-// pointer, a struct whose fields are all value-copy-safe, or an
-// enum whose payload variants (if any) are all value-copy-safe.
+// pointer, a struct whose non-ref fields are all value-copy-safe, or
+// an enum whose payload variants (if any) are all value-copy-safe.
 // The auto-gen struct clone uses this to skip the `.clone()` wrap
 // around POD fields: passing `self.x` directly works because the
-// containing ctor's NamedArg slot will value-copy.
+// containing ctor's NamedArg slot will value-copy.  Ref fields are
+// non-owning pointer bytes -- value-copying them is correct (the
+// auto-gen clone's Ref branch already does exactly that), so they
+// don't disqualify the containing struct.
 priv is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns shallow Bool {
     if type_name.len().eq(0) { return false }
     t := type_from_name_init(type_name, scope)
@@ -443,7 +446,7 @@ priv is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns sha
         if sdd.fields.len().eq(0) { return false }
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
-            if fd.own_type.is(OwnType.Ref) { return false }
+            if fd.own_type.is(OwnType.Ref) { continue }
             ftn := field_inferred_type_name(fd)
             if is_pod_type_for_clone(ftn, scope).not() { return false }
         }
