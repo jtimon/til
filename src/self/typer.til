@@ -585,7 +585,7 @@ try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
         }
     }
     if ufcs_match.eq(0) { return false }
-    mut fn_ident := Expr.new(NodeType.Ident(method.clone()), fa.line, fa.col)
+    mut fn_ident := Expr.new(NodeType.Ident(method), fa.line, fa.col)
     mut instance := obj
     e.children.set(0, own fn_ident)
     mut new_children := Vec.new(Expr)
@@ -1553,7 +1553,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         }
         ufcs_desugared = true
         mut instance := obj.clone()
-        mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), obj.line, obj.col)
+        mut type_ident := Expr.new(NodeType.Ident(type_name), obj.line, obj.col)
         type_ident.til_type =Type.Struct(type_name.clone())
         fa.children.set(0, own type_ident)
         // Shift own_args bitmask: bits at position >=1 move to position+1
@@ -2841,7 +2841,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         ref mut decl_rhs : Expr = decl.child(0)
         decl_rhs.til_type =Type.Bool
 
-        mut ident := Expr.new(NodeType.Ident(wname.clone()), line, col)
+        mut ident := Expr.new(NodeType.Ident(wname), line, col)
         ident.til_type =Type.Bool
 
         mut if_node := Expr.new(NodeType.If, line, col)
@@ -3391,8 +3391,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                     if payload_type.len().gt(0) {
                                         mut iv_id := Expr.new(NodeType.Ident("is"), sw_line, sw_col)
                                         mut sw_id := sw_ref.clone()
-                                        mut vtype_id := Expr.new(NodeType.Ident(type_name.clone()), sw_line, sw_col)
-                                        mut vref := Expr.new(NodeType.FieldAccess(variant_name.clone()), sw_line, sw_col)
+                                        mut vtype_id := Expr.new(NodeType.Ident(type_name), sw_line, sw_col)
+                                        mut vref := Expr.new(NodeType.FieldAccess(variant_name), sw_line, sw_col)
                                         vref.add_child(own vtype_id)
                                         condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
                                         condition.add_child(own iv_id)
@@ -3465,8 +3465,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         // outer condition: sw_ref.is(Type.Variant)
                                         mut iv_id3 := Expr.new(NodeType.Ident("is"), sw_line, sw_col)
                                         mut sw_id3 := sw_ref.clone()
-                                        mut vtype_id3 := Expr.new(NodeType.Ident(type_name3.clone()), sw_line, sw_col)
-                                        mut vref3 := Expr.new(NodeType.FieldAccess(variant_name3.clone()), sw_line, sw_col)
+                                        mut vtype_id3 := Expr.new(NodeType.Ident(type_name3), sw_line, sw_col)
+                                        mut vref3 := Expr.new(NodeType.FieldAccess(variant_name3), sw_line, sw_col)
                                         vref3.add_child(own vtype_id3)
                                         mut outer_cond3 := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
                                         outer_cond3.add_child(own iv_id3)
@@ -3526,8 +3526,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                             // switch -- e.g. Value.eq).
                             mut iv_id := Expr.new(NodeType.Ident("is"), sw_line, sw_col)
                             mut sw_id := sw_ref.clone()
-                            mut vtype_id := Expr.new(NodeType.Ident(type_name.clone()), sw_line, sw_col)
-                            mut vref := Expr.new(NodeType.FieldAccess(variant_name.clone()), sw_line, sw_col)
+                            mut vtype_id := Expr.new(NodeType.Ident(type_name), sw_line, sw_col)
+                            mut vref := Expr.new(NodeType.FieldAccess(variant_name), sw_line, sw_col)
                             vref.add_child(own vtype_id)
                             condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
                             condition.add_child(own iv_id)
@@ -3596,7 +3596,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 case NodeType.Ident(bn): bind_name = bn.clone()
                                 case:
                                 }
-                                mut field_acc_bind := Expr.new(NodeType.FieldAccess(field_name.clone()), sw_line, sw_col)
+                                mut field_acc_bind := Expr.new(NodeType.FieldAccess(field_name), sw_line, sw_col)
                                 field_acc_bind.add_child(own sw_ref.clone())
                                 mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = bind_name.clone(), own_type = OwnType.Ref)), sw_line, sw_col)
                                 bind_decl.add_child(own field_acc_bind)
@@ -3605,7 +3605,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 // Value match (literal/expr) or nested pattern.
                                 // Recurse with sw_ref = sw.field_name; the recursive
                                 // call may itself prepend bindings to case_body.
-                                mut field_acc_match := Expr.new(NodeType.FieldAccess(field_name.clone()), sw_line, sw_col)
+                                mut field_acc_match := Expr.new(NodeType.FieldAccess(field_name), sw_line, sw_col)
                                 field_acc_match.add_child(own sw_ref.clone())
                                 sub_cond := make_switch_case_condition(scope, case_body, field_pat, field_acc_match, sw_line, sw_col)
                                 sp_conds.push(own sub_cond)
@@ -3763,7 +3763,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
         decl.add_child(own sw_expr.clone())
         block.add_child(own decl)
-        sw_ref = Expr.new(NodeType.Ident(sw_name.clone()), sw_line, sw_col)
+        sw_ref = Expr.new(NodeType.Ident(sw_name), sw_line, sw_col)
     }
 
     // Issue #199: a Case with 3 children is `[pattern, guard, body]`; with
@@ -3882,7 +3882,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
             case_body.children.move_from(new_body)
 
             // Outer condition: _sw_matched.not().and(pattern_cond)
-            mut not_id := Expr.new(NodeType.Ident(matched_name.clone()), case_node.line, case_node.col)
+            mut not_id := Expr.new(NodeType.Ident(matched_name), case_node.line, case_node.col)
             mut not_call := make_method_call_fcall(own not_id, "not", case_node.line, case_node.col)
             mut gated_cond := make_method_call_fcall(own not_call, "and", case_node.line, case_node.col)
             gated_cond.add_child(own condition)
@@ -3908,7 +3908,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
 
     if any_guard {
         if has_default_body {
-            mut nid2 := Expr.new(NodeType.Ident(matched_name.clone()), stmt.line, stmt.col)
+            mut nid2 := Expr.new(NodeType.Ident(matched_name), stmt.line, stmt.col)
             mut ncall2 := make_method_call_fcall(own nid2, "not", stmt.line, stmt.col)
             mut def_if := Expr.new(NodeType.If, stmt.line, stmt.col)
             def_if.add_child(own ncall2)
@@ -3963,11 +3963,11 @@ make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, fo
     mut wb := Expr.new(NodeType.Body, line, col)
 
     mut vd := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), til_type = til_type_from_explicit_type(elem_type), is_mut = var_is_mut)), line, col)
-    mut cur_ident := Expr.new(NodeType.Ident(cur_name.clone()), line, col)
+    mut cur_ident := Expr.new(NodeType.Ident(cur_name), line, col)
     vd.add_child(own cur_ident)
     wb.add_child(own vd)
 
-    mut step_ident := Expr.new(NodeType.Ident(cur_name.clone()), line, col)
+    mut step_ident := Expr.new(NodeType.Ident(cur_name), line, col)
     wb.add_child(own make_method_call_fcall(own step_ident, step, line, col))
 
     for e_bi : Expr in for_body.children {
@@ -4051,26 +4051,26 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
     cur_decl.add_child(own start_expr.clone())
     block.add_child(own cur_decl)
 
-    mut cur_ident_lt := Expr.new(NodeType.Ident(cur_name.clone()), line, col)
+    mut cur_ident_lt := Expr.new(NodeType.Ident(cur_name), line, col)
     mut lt_call := make_method_call_fcall(own cur_ident_lt, "lt", line, col)
-    mut end_ident_lt := Expr.new(NodeType.Ident(end_name.clone()), line, col)
+    mut end_ident_lt := Expr.new(NodeType.Ident(end_name), line, col)
     lt_call.add_child(own end_ident_lt)
     mut asc_while := Expr.new(NodeType.While, line, col)
     asc_while.add_child(own lt_call)
     asc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, elem_type, forin_is_mut))
 
-    mut cur_ident_gt := Expr.new(NodeType.Ident(cur_name.clone()), line, col)
+    mut cur_ident_gt := Expr.new(NodeType.Ident(cur_name), line, col)
     mut gt_call := make_method_call_fcall(own cur_ident_gt, "gt", line, col)
-    mut end_ident_gt := Expr.new(NodeType.Ident(end_name.clone()), line, col)
+    mut end_ident_gt := Expr.new(NodeType.Ident(end_name), line, col)
     gt_call.add_child(own end_ident_gt)
     mut desc_while := Expr.new(NodeType.While, line, col)
     desc_while.add_child(own gt_call)
     desc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, elem_type, forin_is_mut))
 
     mut if_node := Expr.new(NodeType.If, line, col)
-    mut cur_ident_lte := Expr.new(NodeType.Ident(cur_name.clone()), line, col)
+    mut cur_ident_lte := Expr.new(NodeType.Ident(cur_name), line, col)
     mut lte_call := make_method_call_fcall(own cur_ident_lte, "lte", line, col)
-    mut end_ident_lte := Expr.new(NodeType.Ident(end_name.clone()), line, col)
+    mut end_ident_lte := Expr.new(NodeType.Ident(end_name), line, col)
     lte_call.add_child(own end_ident_lte)
     if_node.add_child(own lte_call)
 
@@ -4202,9 +4202,9 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
 
     mut while_node := Expr.new(NodeType.While, line, col)
 
-    mut idx_ident_cond := Expr.new(NodeType.Ident(idx_name.clone()), line, col)
+    mut idx_ident_cond := Expr.new(NodeType.Ident(idx_name), line, col)
     mut cond_call := make_method_call_fcall(own idx_ident_cond, "lt", line, col)
-    mut col_ident_len := Expr.new(NodeType.Ident(col_name.clone()), line, col)
+    mut col_ident_len := Expr.new(NodeType.Ident(col_name), line, col)
     cond_call.add_child(own make_method_call_fcall(own col_ident_len, "len", line, col))
     while_node.add_child(own cond_call)
 
@@ -4213,15 +4213,15 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     mut forin_own := OwnType.Shallow
     if get_returns_ref { forin_own = OwnType.Ref }
     mut elem_decl := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), til_type = til_type_from_explicit_type(elem_type), own_type = forin_own, is_mut = forin_is_mut)), line, col)
-    mut col_ident_get := Expr.new(NodeType.Ident(col_name.clone()), line, col)
+    mut col_ident_get := Expr.new(NodeType.Ident(col_name), line, col)
     mut get_call := make_method_call_fcall(own col_ident_get, "get", line, col)
-    mut idx_ident_get := Expr.new(NodeType.Ident(idx_name.clone()), line, col)
+    mut idx_ident_get := Expr.new(NodeType.Ident(idx_name), line, col)
     get_call.add_child(own idx_ident_get)
     elem_decl.add_child(own get_call)
     wbody.add_child(own elem_decl)
 
     mut idx_assign := Expr.new(NodeType.Assign(AssignData(name = idx_name.clone())), line, col)
-    mut idx_ident_inc := Expr.new(NodeType.Ident(idx_name.clone()), line, col)
+    mut idx_ident_inc := Expr.new(NodeType.Ident(idx_name), line, col)
     mut add_call := make_method_call_fcall(own idx_ident_inc, "add", line, col)
     mut one := Expr.new(NodeType.LiteralNum("1"), line, col)
     add_call.add_child(own one)
@@ -4431,7 +4431,7 @@ priv make_default_value_expr := func(type_name: Str, shallow line: U32, shallow 
     .or(type_name.eq("F32")) {
         return Expr.new(NodeType.LiteralNum("0"), line, col)
     }
-    mut tident := Expr.new(NodeType.Ident(type_name.clone()), line, col)
+    mut tident := Expr.new(NodeType.Ident(type_name), line, col)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
     call.add_child(own tident)
     return call
@@ -4982,7 +4982,7 @@ priv build_bang_lowered := func(ctx: Context, error_type: Str, shallow line: U32
     mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
     panic_call.add_child(own Expr.new(NodeType.Ident("panic"), line, col))
     panic_call.add_child(own Expr.new(NodeType.LiteralStr(loc_str), line, col))
-    panic_call.add_child(own Expr.new(NodeType.LiteralStr(error_type.clone()), line, col))
+    panic_call.add_child(own Expr.new(NodeType.LiteralStr(error_type), line, col))
     mut blk := Expr.new(NodeType.Body, line, col)
     blk.add_child(own make_assign_stmt("_err_kind", make_int_lit(0, line, col), line, col))
     blk.add_child(own panic_call)
@@ -5060,7 +5060,7 @@ priv hoist_walk_consolidated := proc(
         vec_str_push_uniq(seen, tn)
         pre_stmts.push(own build_bang_lowered(ctx, tn, line, col))
     }
-    parent.children.replace(child_idx, own Expr.new(NodeType.Ident(tmp_name.clone()), line, col))
+    parent.children.replace(child_idx, own Expr.new(NodeType.Ident(tmp_name), line, col))
 }
 
 // Walk stmt's expression tree hoisting nested bangs (not the
@@ -5356,7 +5356,7 @@ priv process_throw_catch_in_body := proc(
                     _matched_b1 := pending_remove_all_matching(pending, tn)
                 }
                 mut new_ret := Expr.new(NodeType.Return, stmt_line, stmt_col)
-                new_ret.add_child(own Expr.new(NodeType.Ident(tmp_name.clone()), stmt_line, stmt_col))
+                new_ret.add_child(own Expr.new(NodeType.Ident(tmp_name), stmt_line, stmt_col))
                 new_ch.push(own new_ret)
                 // The lowered bang checks both panic AND reset
                 // _err_kind = 0 on the error path, so subsequent
@@ -5734,7 +5734,7 @@ priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Ve
         mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), dd.default_value.line, dd.default_value.col)
         decl.add_child(own dd.default_value.clone())
         top_level.push(own decl)
-        mut ident := Expr.new(NodeType.Ident(lname.clone()), dd.default_value.line, dd.default_value.col)
+        mut ident := Expr.new(NodeType.Ident(lname), dd.default_value.line, dd.default_value.col)
         ident.til_type =expr_til_type(dd.default_value)
         dd.default_value = ident
     } else {
@@ -5787,7 +5787,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec, mut cou
             mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), c.line, c.col)
             decl.add_child(own c.clone())
             top_level.push(own decl)
-            mut ident := Expr.new(NodeType.Ident(lname.clone()), c.line, c.col)
+            mut ident := Expr.new(NodeType.Ident(lname), c.line, c.col)
             e.children.replace(i, own ident)
         } else {
             counter = typer_lift_lambdas_in_expr(c, top_level, counter)
@@ -6503,7 +6503,7 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     mut call := Expr.new(NodeType.FCall(FCallData()), field_assign.line, field_assign.col)
     call.til_type =Type.None
 
-    mut type_id := Expr.new(NodeType.Ident(tname.clone()), field_assign.line, field_assign.col)
+    mut type_id := Expr.new(NodeType.Ident(tname), field_assign.line, field_assign.col)
     type_id.til_type =Type.Custom(tname.clone())
 
     mut fa := Expr.new(NodeType.FieldAccess("delete"), field_assign.line, field_assign.col)
@@ -6535,14 +6535,14 @@ make_delete_call := func(var_name: Str, shallow type: Type, shallow arg_is_own: 
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.til_type =Type.None
 
-    mut type_id := Expr.new(NodeType.Ident(tname.clone()), src.line, src.col)
+    mut type_id := Expr.new(NodeType.Ident(tname), src.line, src.col)
     type_id.til_type =Type.Custom(tname.clone())
 
     mut fa := Expr.new(NodeType.FieldAccess("delete"), src.line, src.col)
     fa.add_child(own type_id)
     call.add_child(own fa)
 
-    mut arg := Expr.new(NodeType.Ident(var_name.clone()), src.line, src.col)
+    mut arg := Expr.new(NodeType.Ident(var_name), src.line, src.col)
     arg.til_type =type
     if arg_is_own { set_own_arg(call, call.children.len()) }
     call.add_child(own arg)
@@ -6646,7 +6646,7 @@ make_free_call := func(var_name: Str, shallow type: Type, src: Expr) returns Exp
     mut callee := Expr.new(NodeType.Ident("free".clone()), src.line, src.col)
     call.add_child(own callee)
 
-    mut arg := Expr.new(NodeType.Ident(var_name.clone()), src.line, src.col)
+    mut arg := Expr.new(NodeType.Ident(var_name), src.line, src.col)
     arg.til_type =type
     set_own_arg(call, call.children.len())
     call.add_child(own arg)
@@ -6663,7 +6663,7 @@ make_clone_call := func(type_name: Str, shallow type: Type, arg: Expr, src: Expr
         call.til_type =Type.Enum(type_name.clone())
     }
 
-    mut type_id := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col)
+    mut type_id := Expr.new(NodeType.Ident(type_name), src.line, src.col)
     type_id.til_type =Type.Custom(type_name.clone())
 
     mut fa := Expr.new(NodeType.FieldAccess("clone"), src.line, src.col)
@@ -6686,10 +6686,10 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr)
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.til_type =ret_type
 
-    mut type_id := Expr.new(NodeType.Ident(sname.clone()), src.line, src.col)
+    mut type_id := Expr.new(NodeType.Ident(sname), src.line, src.col)
     type_id.til_type =Type.Custom(sname.clone())
 
-    mut fa := Expr.new(NodeType.FieldAccess(method.clone()), src.line, src.col)
+    mut fa := Expr.new(NodeType.FieldAccess(method), src.line, src.col)
     fa.add_child(own type_id)
     call.add_child(own fa)
     return call
@@ -6772,15 +6772,15 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     ref val : Expr = named_arg.child(0)
     mut set_call := make_ns_call("DynMap", "set", Type.None, fcall)
 
-    mut self_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col)
+    mut self_id := Expr.new(NodeType.Ident(kw_name), fcall.line, fcall.col)
     self_id.til_type =Type.Struct("DynMap".clone())
     set_call.add_child(own self_id)
 
-    mut key_lit := Expr.new(NodeType.LiteralStr(key_name.clone()), fcall.line, fcall.col)
+    mut key_lit := Expr.new(NodeType.LiteralStr(key_name), fcall.line, fcall.col)
     set_call.add_child(own key_lit)
 
     tname := type_to_name(expr_til_type(val))
-    mut type_lit := Expr.new(NodeType.LiteralStr(tname.clone()), fcall.line, fcall.col)
+    mut type_lit := Expr.new(NodeType.LiteralStr(tname), fcall.line, fcall.col)
     set_call.add_child(own type_lit)
 
     mut size_call := make_ns_call(tname, "size", usize_type(scope), fcall)
@@ -6805,7 +6805,7 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
     new_call.add_child(own et)
 
     cap_str := vc.to_str()
-    mut cap := Expr.new(NodeType.LiteralNum(cap_str.clone()), fcall.line, fcall.col)
+    mut cap := Expr.new(NodeType.LiteralNum(cap_str), fcall.line, fcall.col)
     cap.til_type =usize_type(scope)
     new_call.add_child(own cap)
 
@@ -6825,12 +6825,12 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
 build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr {
     mut set_call := make_ns_call("Array", "set", Type.None, fcall)
 
-    mut self_id := Expr.new(NodeType.Ident(va_name.clone()), fcall.line, fcall.col)
+    mut self_id := Expr.new(NodeType.Ident(va_name), fcall.line, fcall.col)
     self_id.til_type =Type.Struct("Array".clone())
     set_call.add_child(own self_id)
 
     idx_str := j.to_str()
-    mut idx := Expr.new(NodeType.LiteralNum(idx_str.clone()), fcall.line, fcall.col)
+    mut idx := Expr.new(NodeType.LiteralNum(idx_str), fcall.line, fcall.col)
     idx.til_type =usize_type(scope)
     set_call.add_child(own idx)
 
@@ -6871,7 +6871,7 @@ build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, ve
 build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, vec_name: Str, shallow j: U32) returns Expr {
     mut push_call := make_ns_call("Vec", "push", Type.None, fcall)
 
-    mut self_id := Expr.new(NodeType.Ident(vec_name.clone()), fcall.line, fcall.col)
+    mut self_id := Expr.new(NodeType.Ident(vec_name), fcall.line, fcall.col)
     self_id.til_type =Type.Struct("Vec".clone())
     push_call.add_child(own self_id)
 
@@ -7069,7 +7069,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 
     for e_j : Expr in set_lit.children {
         mut add_call := make_ns_call("Set", "add", Type.None, set_lit)
-        mut self_id := Expr.new(NodeType.Ident(var_name.clone()), set_lit.line, set_lit.col)
+        mut self_id := Expr.new(NodeType.Ident(var_name), set_lit.line, set_lit.col)
         self_id.til_type =Type.Struct("Set".clone())
         add_call.add_child(own self_id)
         mut val := e_j.clone()
@@ -7160,7 +7160,7 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 
     for j in 0..n_pairs {
         mut set_call := make_ns_call("Map", "set", Type.None, map_lit)
-        mut self_id := Expr.new(NodeType.Ident(var_name.clone()), map_lit.line, map_lit.col)
+        mut self_id := Expr.new(NodeType.Ident(var_name), map_lit.line, map_lit.col)
         self_id.til_type =Type.Struct("Map".clone())
         set_call.add_child(own self_id)
         mut key := map_lit.child(j.mul(2)).clone()
@@ -7455,7 +7455,7 @@ hoist_param_swap_assign := func(mut stmt: Expr, mut hoisted: Vec, mut scope: Typ
         call.til_type =Type.None
         mut fn := Expr.new(NodeType.Ident("swap"), stmt.line, stmt.col)
         call.add_child(own fn)
-        mut a := Expr.new(NodeType.Ident(stmt_name.clone()), stmt.line, stmt.col)
+        mut a := Expr.new(NodeType.Ident(stmt_name), stmt.line, stmt.col)
         a.til_type =ab.type
         call.add_child(own a)
         call.add_child(own stmt.child(0).clone())
@@ -7661,7 +7661,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
         for j in 0..old_args.len() {
             if j.to_i32().gte(vi).and(j.to_i32().lt(vi.add(vc.to_i32()))) {
                 if va_inserted.not() {
-                    mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col)
+                    mut va_id := Expr.new(NodeType.Ident(va_name), line, col)
                     va_id.til_type =Type.Struct("Array".clone())
                     mut bit : U64 = 1
                     for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
@@ -7672,7 +7672,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
                 continue
             }
             if j.to_i32().eq(vi).and(va_inserted.not()) {
-                mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col)
+                mut va_id := Expr.new(NodeType.Ident(va_name), line, col)
                 va_id.til_type =Type.Struct("Array".clone())
                 mut bit : U64 = 1
                 for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
@@ -7691,7 +7691,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
             fcall_new_ch.push_take(old_args, j)
         }
         if va_inserted.not() {
-            mut va_id := Expr.new(NodeType.Ident(va_name.clone()), line, col)
+            mut va_id := Expr.new(NodeType.Ident(va_name), line, col)
             va_id.til_type =Type.Struct("Array".clone())
             mut bit : U64 = 1
             for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
@@ -7829,7 +7829,7 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
             ji := j.to_i32()
             if ji.gte(ki).and(ji.lt(ki.add(kc.to_i32()))) {
                 if kw_inserted.not() {
-                    mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col)
+                    mut kw_id := Expr.new(NodeType.Ident(kw_name), fcall.line, fcall.col)
                     kw_id.til_type =Type.Struct("DynMap".clone())
                     mut bit : U64 = 1
                     for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
@@ -7840,7 +7840,7 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
                 continue
             }
             if ji.eq(ki).and(kw_inserted.not()) {
-                mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col)
+                mut kw_id := Expr.new(NodeType.Ident(kw_name), fcall.line, fcall.col)
                 kw_id.til_type =Type.Struct("DynMap".clone())
                 mut bit : U64 = 1
                 for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
@@ -7859,7 +7859,7 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
             fcall_new_ch.push_take(old_args, j)
         }
         if kw_inserted.not() {
-            mut kw_id := Expr.new(NodeType.Ident(kw_name.clone()), fcall.line, fcall.col)
+            mut kw_id := Expr.new(NodeType.Ident(kw_name), fcall.line, fcall.col)
             kw_id.til_type =Type.Struct("DynMap".clone())
             mut bit : U64 = 1
             for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
@@ -8207,7 +8207,7 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow
 
     decl.add_child(own val.clone())
 
-    mut ident := Expr.new(NodeType.Ident(tname.clone()), val.line, val.col)
+    mut ident := Expr.new(NodeType.Ident(tname), val.line, val.col)
     ident.til_type =expr_til_type(val)
     scope.set(tname, expr_til_type(val), FuncType.None, false, typer_path, val.line, val.col, false, OwnType.Shallow)
     ref mut tb : TypeBinding = scope.get_binding(tname)
