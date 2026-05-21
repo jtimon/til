@@ -249,6 +249,12 @@ FCallData := struct {
     // declared throw type, then clears the flag.
     mut is_bang := false
     mut own_args : U64 = 0
+    // Issue #206 slice 3: payload-resident result type. The typer
+    // writes the resolved callee return type here (or Type.None for
+    // proc calls) via the set_fcall_til_type helper, and
+    // ~expr_til_type~ reads it back via the chokepoint's FCall
+    // dispatch case.
+    mut til_type := Type.Unknown
 namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
         return a.variadic_index.eq(b.variadic_index)
@@ -482,9 +488,28 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.NamedArg:
         if e.children.len().eq(0) { return Type.Unknown }
         return expr_til_type(e.child(0))
+    case NodeType.FCall(fcd):
+        // Fall back to the legacy Expr.til_type field when the
+        // payload slot is still unset, so writers can migrate
+        // incrementally without breaking the build halfway.
+        if fcd.til_type.is(Type.Unknown).not() { return fcd.til_type.clone() }
     case:
     }
     return e.til_type.clone()
+}
+
+// Issue #206 slice 3: write helper paired with expr_til_type's
+// FCall dispatch. Call sites that previously did
+// ~<fcall_expr>.til_type = X~ now go through this so the FCallData
+// payload gets the value the chokepoint reads back. ~func~ (not
+// ~proc~) so existing ~make_*_call~ funcs can keep their func-ness.
+set_fcall_til_type := func(mut fcall: Expr, shallow t: Type) {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        fcd.til_type = t
+    case:
+        UNREACHABLE(__LOC__)
+    }
 }
 
 // --- func_type_variant_name ---
