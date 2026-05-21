@@ -1,13 +1,23 @@
 # priority: high
 ** OPEN #109 Fix memory leaks (make test_asan clean)
 
-Status: ~make test_asan~ today fails 19 of 99 tests, all because
-  LSAN reports nonzero leak totals -- not correctness errors. Per-test
-  baselines are down ~68% bytes / ~53% allocations vs the pre-[[./175.org][#175]]
-  state; remaining work is broken into the buckets below.
+Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
+  no test is failing.  ~bin/til_asan~ (the ASAN-instrumented compiler)
+  builds and the suite runs with ~--asan~ threaded through to every
+  ~til build~/~run~/~test~ invocation, so the compiled test/example
+  binaries also run ASAN-instrumented.  Compiler leaks during the
+  suite are suppressed via ~asan_safe_cmd~ (~ASAN_OPTIONS=detect_leaks=0~);
+  use-after-free / heap-buffer-overflow from either side would still
+  fail the run.
 
   End goal (from [[./110.org][#110]], absorbed): switch ~make test~ to ~bin/til_asan~
-  once leaks are at zero.
+  once compiler leaks are at zero.  Step 1 (all tests pass under
+  ~test_asan_full~) is done.  Step 2 (flip ~make test~ to be the
+  current ~test_asan_full~ recipe) is now a one-line Makefile change
+  pending compiler-leak cleanup -- with ~detect_leaks=0~ on the
+  compiler today, flipping immediately would hide the remaining
+  compiler-side leaks rather than catch them.  Drive the per-test
+  compiler baseline (below) to zero, then flip.
 
   *** 2026-05 ~til --asan~ flag + ~test_asan~ split (NEW)
 
@@ -46,31 +56,17 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   the mode tests. ~test_runner.til~'s ~mode~ subcommand accepts the
   same flag and forwards it to its ~til build~ call.
 
-  **First ~test_asan~ run -- 17/117 fail (100/117 pass):**
-
-  Leaks in compiled binaries (mode tests):
-
-  | binary           | bytes leaked | allocs |
-  |------------------+--------------+--------|
-  | functions        |            8 |      1 |
-  | ref              |           16 |      1 | (FIXED, FieldAssign-to-Ref-field)
-  | enums_lifecycle  |            2 |      1 | (FIXED, Vec.replace for drop-old semantics)
-  | dynamic          |            4 |      1 | (FIXED, free(own buf) in test)
-  | regression       |           60 |      4 |
-  | globals          |           28 |      2 |
-  | import_diamond   |           84 |      6 |
-  | kwargs           |          384 |     24 | (FIXED, see Kwargs elem_type below)
-
-  Leaks in single tests:
-
-  | binary               | bytes leaked | allocs |
-  |----------------------+--------------+--------|
-  | ffi_run              |          228 |      9 | (FIXED, ext-variadic ownership)
-  | ext_libc_run         |           64 |      4 | (FIXED, LiteralStr.field stack lit)
-  | cli_typed_alice42_r  |           30 |      3 |
-  | variadic_add_r       |           20 |      2 |
-  | variadic_mul_r       |           20 |      2 |
-  | variadic_add0_r      |           20 |      2 |
+  **Current ~test_asan_full~ run -- 117/117 pass, no failing tests.**
+  All leaks in compiled binaries and in single tests that the first
+  pass surfaced (functions / ref / enums_lifecycle / dynamic /
+  regression / globals / import_diamond / kwargs / ffi_run /
+  ext_libc_run / cli_typed_alice42_r / variadic_add_r / variadic_mul_r
+  / variadic_add0_r) have been resolved by the FIXED bullets below
+  (kwargs, ref, enums_lifecycle, dynamic, ffi_run, ext_libc_run) and
+  by the subsequent ASAP-delete / save_old_delete / shallow-return
+  fixes summarised in the 2026-05 [[./175.org][#175]] series.  The historical first-
+  pass leak tables are preserved in git history at the prior revision
+  of this file.
 
   Fixes that landed (ext-variadic / ext-kwargs ownership):
 
@@ -319,7 +315,18 @@ Status: ~make test_asan~ today fails 19 of 99 tests, all because
   | post-2026-05 [[./175.org][#175]] series (ff6ce78)                  | 106,541 | 20,674 |
   | pre-typer ASAP-delete extensions                    | 106,342 | 20,671 |
   | LiteralStr save_old_delete + FieldAssign clone->move (3671a4f) |  76,350 | 13,959 |
-  | this commit (skip-promote shallow-return Struct)    |  87,593 | 15,805 |
+  | skip-promote shallow-return Struct                  |  87,593 | 15,805 |
+  | 2026-05 (c33adf2, current HEAD)                     |  64,797 | 13,370 |
+
+  And the ~strings.til~ baselines that ~doc/bots/merging_from_remote.org~
+  tracks per merge:
+
+  | channel    | bytes  | allocs | notes                                |
+  |------------+--------+--------+--------------------------------------|
+  | interpret  | 88,429 | 17,985 | merging_from_remote.org "post replace trim" |
+  | translate  | 87,458 | 17,932 | merging_from_remote.org "post replace trim" |
+  | interpret  | 84,351 | 17,063 | 2026-05 (c33adf2, current HEAD)      |
+  | translate  | 83,099 | 16,943 | 2026-05 (c33adf2, current HEAD)      |
 
   Note: this commit's measurable delta on cli_args interpret is 0 vs
   master after [[file:../../issues/fixed/190.org][#190]]+3671a4f. The fix targets ~str_view~
