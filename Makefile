@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean test test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass
+.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass
 
 all: bin/til
 
@@ -149,6 +149,15 @@ test: bin/til bin/test_runner bin/plot bin/tests
 	xvfb-run --auto-servernum bin/tests --asan $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
+# test_fast: like `test` but without --asan. Compiled test/example binaries
+# run without ASAN instrumentation, so the suite is faster (~120s vs ~210s)
+# at the cost of not catching leaks / heap errors in compiled programs.
+# Use for quick iteration; `make test` (with --asan) remains the default
+# before committing.
+test_fast: bin/til bin/test_runner bin/plot bin/tests
+	xvfb-run --auto-servernum bin/tests $(if $(J),-j$(J))
+	cp gen/til/constfold.c test/constfold.c
+
 # Two-pass equivalent of `make test`. Runs pass 2 first so bin/til reflects
 # the self-applied compiler before tests build dependents from it. Use this
 # when committing a "Two-pass: " change (see doc/self.org and the Makefile
@@ -246,7 +255,8 @@ bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 
 help:
 	echo "make                Build bin/til + regenerate boot/"
-	echo "make test           Build + run tests"
+	echo "make test           Build + run tests (with --asan on compiled binaries)"
+	echo "make test_fast      Build + run tests (no --asan; faster, less strict)"
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
 	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
