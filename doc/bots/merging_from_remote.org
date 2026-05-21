@@ -121,10 +121,12 @@ Check compiled (translate) mode:
 ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til > tmp/asan_translate.log 2>&1; grep "SUMMARY" tmp/asan_translate.log
 #+end_src
 
-Compute the delta against the recorded baseline above. Report it to the
-user so they can decide whether to accept the commit. If the commit is
-accepted, update the baseline table above NOW, before proceeding to Step 7
-(where ~git add -A~ picks it up and folds it into the same commit).
+Compute the delta against the recorded baseline above and report it to the
+user. If tests passed and ASAN is unchanged or improved, treat the commit as
+accepted by default: update the baseline table above NOW, before proceeding
+to Step 7 (where ~git add -A~ picks it up and folds it into the same
+commit). Only stop here if the user explicitly rejects the commit or wants to
+discuss a regression.
 
 ** Step 7 -- commit with exact original message
 #+begin_src shell
