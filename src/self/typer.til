@@ -6644,7 +6644,7 @@ make_free_call := func(var_name: Str, shallow type: Type, src: Expr) returns Exp
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.til_type =Type.None
 
-    mut callee := Expr.new(NodeType.Ident("free".clone()), src.line, src.col)
+    mut callee := Expr.new(NodeType.Ident("free"), src.line, src.col)
     call.add_child(own callee)
 
     mut arg := Expr.new(NodeType.Ident(var_name), src.line, src.col)

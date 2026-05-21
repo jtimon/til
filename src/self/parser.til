@@ -63,17 +63,17 @@ peek_col := func(p: Parser) returns shallow U32 { return peek(p).col }
 // keeping the name already provided by the user.
 til_type_from_explicit_type := func(name: Str) returns Type {
     if name.eq("I64")     { return Type.I64 }
-    if name.eq("U8")      { return Type.Struct("U8".clone()) }
-    if name.eq("I8")      { return Type.Struct("I8".clone()) }
+    if name.eq("U8")      { return Type.Struct("U8") }
+    if name.eq("I8")      { return Type.Struct("I8") }
     if name.eq("I16")     { return Type.Primitive(Primitive.I16) }
-    if name.eq("I32")     { return Type.Struct("I32".clone()) }
+    if name.eq("I32")     { return Type.Struct("I32") }
     if name.eq("U32")     { return Type.U32 }
     if name.eq("U64")     { return Type.U64 }
     if name.eq("F32")     { return Type.F32 }
     if name.eq("Bool")    { return Type.Bool }
     if name.eq("Dynamic") { return Type.Dynamic }
     if name.len().eq(0)   { return Type.Unknown }
-    return Type.Custom(name.clone())
+    return Type.Custom(name)
 }
 
 // --- Parsing functions ---
@@ -713,7 +713,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
                 mut zero := Expr.new(NodeType.LiteralNum("0".clone()), t_line, t_col)
-                mut sub_access := Expr.new(NodeType.FieldAccess("sub".clone()), t_line, t_col)
+                mut sub_access := Expr.new(NodeType.FieldAccess("sub"), t_line, t_col)
                 sub_access.add_child(own zero)
                 mut sub_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
                 sub_call.add_child(own sub_access)
@@ -724,7 +724,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             } else {
                 advance(p) // consume '-'
                 mut operand := parse_primary(p)
-                mut neg_access := Expr.new(NodeType.FieldAccess("neg".clone()), t_line, t_col)
+                mut neg_access := Expr.new(NodeType.FieldAccess("neg"), t_line, t_col)
                 neg_access.add_child(own operand)
                 mut neg_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
                 neg_call.add_child(own neg_access)
@@ -926,7 +926,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         pp_line := peek_line(p)
         pp_col := peek_col(p)
         advance(p)
-        mut inc_access := Expr.new(NodeType.FieldAccess("inc".clone()), pp_line, pp_col)
+        mut inc_access := Expr.new(NodeType.FieldAccess("inc"), pp_line, pp_col)
         inc_access.add_child(own e.clone())
         mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col)
         inc_call.add_child(own inc_access)
@@ -936,7 +936,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         mm_line := peek_line(p)
         mm_col := peek_col(p)
         advance(p)
-        mut dec_access := Expr.new(NodeType.FieldAccess("dec".clone()), mm_line, mm_col)
+        mut dec_access := Expr.new(NodeType.FieldAccess("dec"), mm_line, mm_col)
         dec_access.add_child(own e.clone())
         mut dec_call := Expr.new(NodeType.FCall(FCallData()), mm_line, mm_col)
         dec_call.add_child(own dec_access)
@@ -1045,8 +1045,8 @@ parse_expression := proc(mut p: Parser) returns Expr {
         dt_col := peek_col(p)
         advance(p)
         mut rhs := parse_expression(p)
-        mut range_ident := Expr.new(NodeType.Ident("Range".clone()), dt_line, dt_col)
-        mut new_access := Expr.new(NodeType.FieldAccess("new".clone()), dt_line, dt_col)
+        mut range_ident := Expr.new(NodeType.Ident("Range"), dt_line, dt_col)
+        mut new_access := Expr.new(NodeType.FieldAccess("new"), dt_line, dt_col)
         new_access.add_child(own range_ident)
         mut rcall := Expr.new(NodeType.FCall(FCallData()), dt_line, dt_col)
         rcall.add_child(own new_access)
