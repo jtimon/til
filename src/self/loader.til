@@ -634,14 +634,17 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
 extract_link_info := func(mut lp: LoadedProgram) {
     root_dir := compiler_root(lp.ext_c_path)
     // Remove link()/link_c() directives in-place from every user file so the
-    // interpreter never evaluates them.
+    // interpreter never evaluates them. Move iu.ast.children into a local Vec
+    // and push_take kept stmts (no clone); the trailing delete drops the
+    // dropped link directives.
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         base_dir := dir_of(u.path)
+        mut old_children := Vec.new(Expr)
+        old_children.move_from(iu.ast.children)
         mut new_children := Vec.new(Expr)
-        mut old_children := iu.ast.children
-        iu.ast.children = Vec.new(Expr)
-        for stmt : Expr in old_children {
+        for idx in 0..old_children.count {
+            ref stmt : Expr = old_children.get(idx)
             mut keep := true
             if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
                 switch stmt.child(0).node_type {
@@ -677,7 +680,7 @@ extract_link_info := func(mut lp: LoadedProgram) {
                 case:
                 }
             }
-            if keep { new_children.push(own stmt.clone()) }
+            if keep { new_children.push_take(old_children, idx) }
         }
         own old_children.delete()
         iu.ast.children = new_children

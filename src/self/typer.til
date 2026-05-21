@@ -2868,7 +2868,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
 
         mut true_lit := Expr.new(NodeType.LiteralBool(true), line, col)
         true_lit.til_type =Type.Bool
-        stmt.children.set(0, own true_lit)
+        stmt.children.replace(0, own true_lit)
 
         mut old := Vec.new(Expr)
         old.move_from(body.children)
@@ -5789,7 +5789,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec, mut cou
             decl.add_child(own c.clone())
             top_level.push(own decl)
             mut ident := Expr.new(NodeType.Ident(lname.clone()), c.line, c.col)
-            e.children.set(i, own ident)
+            e.children.replace(i, own ident)
         } else {
             counter = typer_lift_lambdas_in_expr(c, top_level, counter)
         }

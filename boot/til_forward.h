@@ -832,6 +832,7 @@ void Vec_move_from(Vec * self, Vec * other);
 void * Vec_get(Vec * self, U32 * i);
 void * Vec_pop(Vec * self);
 void Vec_set(Vec * self, U32 * i, void * val);
+void Vec_replace(Vec * self, U32 * i, void * val);
 void Vec_push_take(Vec * self, Vec * src, U32 i);
 void Vec_delete(Vec * self, Bool * call_free);
 Vec * Vec_clone(Vec * self);
