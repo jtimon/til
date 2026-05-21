@@ -50,13 +50,13 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow B
     return false
 }
 
-collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
+collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
     for i in 0..scope.bindings.len() {
         ref b : TypeBinding = Map.val_ptr(scope.bindings, i)
         // main()'s non-Own params are heap-allocated by the builder's CLI
         // arg parsing (Str_clone / cli_parse_*) and owned by main itself;
         // skip the usual is_param filter so they get a scope-end delete.
-        if b.is_param.and(b.own_type.is(OwnType.Own).not()).and(typer_in_main_func.not()) { continue }
+        if b.is_param.and(b.own_type.is(OwnType.Own).not()).and(ctx.typer_in_main_func.not()) { continue }
         if is_null(b.struct_def).not() { continue }
         if is_null(b.func_def).not() { continue }
 
@@ -122,7 +122,7 @@ collect_scope_locals := func(body: Expr, scope: TypeScope, shallow is_program_sc
         // main()'s non-Own params: the builder heap-allocates their
         // wrappers from argv[] and there is no caller to free them, so
         // they need a scope-end delete despite the Ref default.
-        main_cli_param := typer_in_main_func.and(b.is_param)
+        main_cli_param := ctx.typer_in_main_func.and(b.is_param)
         if b.own_type.is(OwnType.Ref).and(main_cli_param.not()) { skip_scope_delete = true }
 
         mut li := LocalInfo()
@@ -530,7 +530,7 @@ insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
     }
 }
 
-promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
+promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals: Vec) {
     for local : LocalInfo in locals {
         if local.decl_index.lt(0.to_i32()) { continue }
         ref stmt : Expr = body.child(local.decl_index.to_u32())
@@ -560,7 +560,7 @@ promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
         // ~return DEREF(rv)~ without freeing rv). Keeping the local
         // Shallow lets the codegen use a stack value and value-copy
         // out cleanly.
-        if typer_in_shallow_return.and(local.own_transfer.lt(0.to_i32())).and(is_struct) {
+        if ctx.typer_in_shallow_return.and(local.own_transfer.lt(0.to_i32())).and(is_struct) {
             if local.last_use.gte(0.to_i32()) {
                 ref last_stmt : Expr = body.child(local.last_use.to_u32())
                 if last_stmt.node_type.is(NodeType.Return) {
@@ -587,17 +587,17 @@ promote_own_transferred_locals := func(mut body: Expr, mut locals: Vec) {
 // tracks lifting the per-site calls into a single asap_destroy(ctx)
 // walk in prepare_program once #158's per-body scope cache is in
 // the Context.
-insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool {
+insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool {
     if scope_exit.eq(0) { return false }
     is_program_scope := is_null(scope.parent)
 
     mut locals_vec := Vec.new(LocalInfo)
-    collect_scope_locals(body, scope, is_program_scope, locals_vec)
+    collect_scope_locals(ctx, body, scope, is_program_scope, locals_vec)
     if locals_vec.len().eq(0) { return false }
 
     extend_ref_local_lifetimes(body, locals_vec, scope)
     check_use_after_own_transfer(body, locals_vec)
-    promote_own_transferred_locals(body, locals_vec)
+    promote_own_transferred_locals(ctx, body, locals_vec)
 
     mut old := Vec.new(Expr)
     old.move_from(body.children)
@@ -625,8 +625,8 @@ insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_ex
 // TypeScope.delete. Returns true iff body.children changed, so the
 // caller can decide whether to re-run reregister_scope_defs.
 // See issue #204.
-asap_destroy_body := proc(mut body: Expr, mut scope: TypeScope) returns shallow Bool {
-    return insert_free_calls(body, scope, 1.to_i32())
+asap_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool {
+    return insert_free_calls(ctx, body, scope, 1.to_i32())
 }
 
 // Phase entry point. Runs the asap-destruction pass on every
@@ -645,18 +645,18 @@ asap_destroy_body := proc(mut body: Expr, mut scope: TypeScope) returns shallow 
 // Context (#158) or an on-the-fly scope rebuild in asaper.
 asap_destroy := proc(mut ctx: Context) {
     saved_path := typer_path.clone()
-    saved_in_main := typer_in_main_func
-    saved_in_shallow := typer_in_shallow_return
-    typer_in_main_func = false
-    typer_in_shallow_return = false
+    saved_in_main := ctx.typer_in_main_func
+    saved_in_shallow := ctx.typer_in_shallow_return
+    ctx.typer_in_main_func = false
+    ctx.typer_in_shallow_return = false
     for i in 0..ctx.imported.len() {
         ref path : Str = Map.key_ptr(ctx.imported, i)
         ref iu : ImportUnit = Map.val_ptr(ctx.imported, i)
         typer_path = path.clone()
-        insert_free_calls(iu.ast, ctx.scope, 1.to_i32())
+        insert_free_calls(ctx, iu.ast, ctx.scope, 1.to_i32())
     }
     typer_path = saved_path
-    typer_in_main_func = saved_in_main
-    typer_in_shallow_return = saved_in_shallow
+    ctx.typer_in_main_func = saved_in_main
+    ctx.typer_in_shallow_return = saved_in_shallow
 }
 

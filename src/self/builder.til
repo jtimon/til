@@ -21,9 +21,13 @@ priv DynCallInfo := struct {
 // Points at the LoadedProgram passed to cmd_build/cmd_run for the duration of
 // codegen, so helpers can iterate per-file ASTs without building merged views.
 mut codegen_lp_slot : Dynamic = 0
-mut in_func_def := false
-mut in_main_func := false
-mut ctor_seq : I32 = 0
+// in_func_def / in_main_func / ctor_seq previously lived here as
+// module-level mut; they moved to Context (see initer.til). The
+// codegen reads/writes via codegen_lp().ctx.<field> (binding
+// `ref mut lp_X : LoadedProgram = codegen_lp()` first when an
+// assignment is needed -- the parser does not accept call-chain
+// assignments) so the same Context that already owns the rest of
+// the builder lookup tables also owns these flags.
 
 codegen_lp := func() returns ref LoadedProgram {
     if is_null(codegen_lp_slot) {
@@ -1263,7 +1267,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
         // REM Type alias -- no-op
     } else {
         if dd.own_type.is(OwnType.Ref) {
-            is_rg := is_ref_global(dd.name).and(in_func_def.not())
+            is_rg := is_ref_global(dd.name).and(codegen_lp().ctx.in_func_def.not())
             if is_rg.not() {
                 lp.ctx.ref_locals.add(own dd.name.clone())
                 // #185: track ref-Dynamic locals so emit_deref can typed-
@@ -1286,7 +1290,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
             }
         } else {
             ctype := resolve_decl_ctype(expr_til_type(e), expr_til_type(rhs), dd.explicit_type)
-            is_global := is_value_global(dd.name).and(in_func_def.not())
+            is_global := is_value_global(dd.name).and(codegen_lp().ctx.in_func_def.not())
             if expr_til_type(e).is(Type.Dynamic) {
                 if is_global { f.write(dd.name); f.write(" = ") }
                 else { tc := til_type_to_c(expr_til_type(e)); f.write(tc); f.write(" "); f.write(dd.name); f.write(" = ") }
@@ -1471,7 +1475,7 @@ emit_return_box := proc(f: File, rv: Expr, shallow depth: I32) {
 
 emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
     if e.children.len().eq(0) {
-        if in_main_func { f.write("return 0;\n") }
+        if codegen_lp().ctx.in_main_func { f.write("return 0;\n") }
         else { f.write("return;\n") }
     } else {
         ref rv : Expr = e.child(0)
@@ -1993,8 +1997,9 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             } else if til_type_name(expr_til_type(e)).len().gt(0).and(name.eq(til_type_name(expr_til_type(e)))) {
                 // Struct constructor
                 ctype := c_type_name(expr_til_type(e), til_type_name(expr_til_type(e)))
-                ctor_seq = ctor_seq.add(1.to_i32())
-                id := ctor_seq
+                ref mut lp_cs : LoadedProgram = codegen_lp()
+                lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1.to_i32())
+                id := lp_cs.ctx.ctor_seq
                 f.write("({ ")
                 f.write(ctype)
                 f.write(" *_sc")
@@ -2171,8 +2176,9 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                     case NodeType.Ident(callee_ident):
                         if callee_ident.eq(arg_sname) {
                             ct := c_type_name(expr_til_type(arg), arg_sname)
-                            ctor_seq = ctor_seq.add(1.to_i32())
-                            id := ctor_seq
+                            ref mut lp_cs : LoadedProgram = codegen_lp()
+                            lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1.to_i32())
+                            id := lp_cs.ctx.ctor_seq
                             tmp := "_cs".concat(id.to_str())
                             f.write(ct)
                             f.write(" *")
@@ -2227,8 +2233,9 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                             is_ctor_call = true
                         } else {
                         ct := c_type_name(expr_til_type(arg), arg_sname2)
-                        ctor_seq = ctor_seq.add(1.to_i32())
-                        id := ctor_seq
+                        ref mut lp_cs : LoadedProgram = codegen_lp()
+                        lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1.to_i32())
+                        id := lp_cs.ctx.ctor_seq
                         tmp := "_cs".concat(id.to_str())
                         f.write(ct)
                         f.write(" *")
@@ -2452,8 +2459,9 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
             case NodeType.Ident(callee_ident):
                 if callee_ident.eq(e_sname) {
                     ctype := c_type_name(expr_til_type(e), e_sname)
-                    ctor_seq = ctor_seq.add(1.to_i32())
-                    id := ctor_seq
+                    ref mut lp_cs : LoadedProgram = codegen_lp()
+                    lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1.to_i32())
+                    id := lp_cs.ctx.ctor_seq
                     f.write("({ ")
                     f.write(ctype)
                     f.write(" *_sc")
@@ -2661,9 +2669,9 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.ref_dyn_locals = Set.new(Str)
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(body)
-        in_main_func = true
+        lp.ctx.in_main_func = true
         emit_body(f, body, 1.to_i32())
-        in_main_func = false
+        lp.ctx.in_main_func = false
         f.write("    return 0;\n")
         f.write("}\n")
     } else {
@@ -2686,8 +2694,8 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
             }
         }
         Set.delete(own body_refs, false)
-        in_func_def = true
         ref mut lp : LoadedProgram = codegen_lp()
+        lp.ctx.in_func_def = true
         lp.ctx.current_fdef = func_def
         lp.ctx.stack_locals = Set.new(Str)
         lp.ctx.stack_local_types = Map.new(Str, Str)
@@ -2697,7 +2705,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(body)
         emit_body(f, body, 1.to_i32())
-        in_func_def = false
+        lp.ctx.in_func_def = false
         f.write("}\n")
     }
     case:

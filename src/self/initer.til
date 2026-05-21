@@ -35,8 +35,10 @@ namespace:
     }
 }
 
-// Active file path for diagnostics / bindings.
-mut initer_path := ""
+// initer_path previously lived here as a module-level mut copy of
+// ctx.path. The register_*_for_stmt helpers and the dispatchers
+// (init_declarations_unit / init_declarations_global) now thread
+// ctx through and read ctx.path directly, so the mirror is gone.
 
 // Mangled C symbol prefix for `priv` top-level decls. Two `priv X` in
 // different files used to clobber each other at the C symbol level
@@ -208,6 +210,58 @@ Context := struct {
     mut throws_names_global := Vec.new(Str)
     mut throws_per_global := Vec.new(Vec)
 
+    // Issue #202: monotonically-increasing counter for `_bang_ret_<N>`
+    // temps emitted when hoisting nested `f()!` calls. Lives on
+    // ctx so the same Context that already threads the throws
+    // registries also owns the matching temp counter.
+    mut bang_counter : I64 = 0
+
+    // Two typer-scope flags shared with asaper: typer_in_main_func is
+    // set while infer_func_def_expr is checking main(), so the asaper
+    // helpers can give main()'s non-Own params a scope-end delete (no
+    // caller frees them); typer_in_shallow_return is set when the
+    // current function returns `shallow T`, so the asaper keeps a
+    // would-be-moved struct local Shallow for the codegen.
+    mut typer_in_shallow_return : Bool = false
+    mut typer_in_main_func : Bool = false
+
+    // Monotonically-increasing builder counter for synthesised
+    // constructor temp names (`_ctor_<N>`). The codegen never
+    // resets this -- it just needs unique names across the whole
+    // emission, so a single ctx-owned counter is sufficient.
+    mut ctor_seq : I32 = 0
+
+    // Builder emission-state flags. in_func_def is true while
+    // emit_func_def is emitting a function body, so emit_stmt_decl
+    // knows a Decl is a local (not a header global); in_main_func is
+    // true while emitting main()'s body so emit_stmt_return can
+    // append `return 0;` after the user code.
+    mut in_func_def : Bool = false
+    mut in_main_func : Bool = false
+
+    // Typer proc/func validation: proc_def_depth counts the nesting
+    // depth of `proc` definitions currently being typed (>0 means we
+    // are inside one), and proc_calls_count tallies proc/ext_proc
+    // call sites seen in the active proc body. infer_func_def_expr
+    // saves+restores both around each body so a proc that contains
+    // no proc-calls trips the "should be a func" diagnostic.
+    mut proc_calls_count : I32 = 0
+    mut proc_def_depth : I32 = 0
+
+    // Typer unique-name generators. Each counter mints a fresh
+    // suffix for a different family of synthesised temps that the
+    // typer emits during desugar/hoist passes: hoist_counter for
+    // generic hoists (`hoisted__<T>_<N>`, `_wcond_Bool_<N>`,
+    // `_sw_<T>_<N>`, ...), va_counter for variadic-Array packs
+    // (`_va_Array_<N>`), kw_counter for keyword-arg DynMaps
+    // (`_kw<N>`), coll_counter for vec/array literal hoists
+    // (`_vec_<N>`, `_array_<N>`). They never reset -- they only
+    // need to mint unique-across-program names.
+    mut hoist_counter : I32 = 0
+    mut va_counter : I32 = 0
+    mut kw_counter : I32 = 0
+    mut coll_counter : I32 = 0
+
     // #178 builder per-function transients. The builder resets these on
     // entering each function body and reads them throughout that body's
     // emission. emit_func_def is not actually recursive (the typer lifts
@@ -356,7 +410,7 @@ init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
     return til_type_from_explicit_type(resolved)
 }
 
-register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
+register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
     if stmt.node_type.is(NodeType.Decl).not() { return 0.to_i32() }
     if stmt.child(0).node_type.is(NodeType.StructDef).not() { return 0.to_i32() }
 
@@ -369,7 +423,7 @@ register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shall
         case ScopeFind.Found(existing):
             if is_null(existing.struct_def).not() {
                 println(
-                    initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                    ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
                     ": error: struct '", sname, "' already declared at ",
                     existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
                 )
@@ -394,7 +448,7 @@ register_struct_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shall
         else if sname.eq("FunctionDef") { is_builtin = false }
         else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
 
-        scope.set(sname, builtin_type, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sname, builtin_type, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(sname)
         b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
@@ -662,7 +716,7 @@ generate_missing_struct_clones_and_deletes := func(program: Expr, scope: TypeSco
     }
 }
 
-register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
+register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
     switch stmt.node_type {
     case NodeType.Decl(edecl):
         ename := edecl.name
@@ -672,7 +726,7 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
         case ScopeFind.Found(existing):
             if is_null(existing.struct_def).not() {
                 println(
-                    initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                    ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
                     ": error: enum '", ename, "' already declared at ",
                     existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
                 )
@@ -681,7 +735,7 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
         case:
         }
 
-        scope.set(ename, Type.Enum(ename.clone()), FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(ename, Type.Enum(ename.clone()), FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(ename)
         b.struct_def = stmt.child(0)
         b.is_priv = edecl.is_priv
@@ -1145,10 +1199,10 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: I32
     }
 }
 
-register_enum_def_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
+register_enum_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
     if stmt.node_type.is(NodeType.Decl).not() { return 0.to_i32() }
     if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return 0.to_i32() }
-    return register_enum_definition(stmt, scope)
+    return register_enum_definition(ctx, stmt, scope)
 }
 
 gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
@@ -1206,17 +1260,17 @@ gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     Vec.delete(own variant_types, false)
 }
 
-register_enum_and_gen_nonclone_methods_for_stmt := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
-    reg_errors := register_enum_def_for_stmt(stmt, scope)
+register_enum_and_gen_nonclone_methods_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
+    reg_errors := register_enum_def_for_stmt(ctx, stmt, scope)
     if reg_errors.gt(0) { return reg_errors }
     gen_enum_nonclone_methods_for_stmt(stmt, scope)
     return 0.to_i32()
 }
 
-register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeScope) returns shallow I32 {
+register_enums_and_generate_nonclone_methods := proc(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
     for stmt : Expr in program.children {
-        errors = errors.add(register_enum_and_gen_nonclone_methods_for_stmt(stmt, scope))
+        errors = errors.add(register_enum_and_gen_nonclone_methods_for_stmt(ctx, stmt, scope))
     }
     return errors
 }
@@ -1265,12 +1319,12 @@ generate_missing_enum_clones := func(program: Expr) {
     }
 }
 
-register_funcsig_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
+register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
     if is_func_decl(stmt).not() { return }
     if stmt.child(0).children.len().neq(0) { return }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
-        scope.set(sdecl.name, Type.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sdecl.name, Type.FuncPtr, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
         fb.func_def = stmt.child(0)
     case:
@@ -1278,13 +1332,13 @@ register_funcsig_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
     }
 }
 
-register_funcsig_aliases := func(program: Expr, scope: TypeScope) {
+register_funcsig_aliases := func(ctx: Context, program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        register_funcsig_alias_for_stmt(stmt, scope)
+        register_funcsig_alias_for_stmt(ctx, stmt, scope)
     }
 }
 
-register_type_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
+register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref rhs : Expr = stmt.child(0)
     mut target_name := ""
@@ -1308,7 +1362,7 @@ register_type_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
                     return
                 }
             }
-            scope.set(sdecl.name, target.type, target.func_type, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, target.type, target.func_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
             ab.struct_def = target.struct_def
             ab.func_def = target.func_def
@@ -1331,7 +1385,7 @@ register_type_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
             til_type := til_type_from_explicit_type(target_name)
             if til_type.is(Type.Unknown) { return }
             if til_type.is(Type.Custom) { return }
-            scope.set(sdecl.name, til_type, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, til_type, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
             ab.is_type_alias = true
             ab.alias_target = target_name
@@ -1341,13 +1395,13 @@ register_type_alias_for_stmt := func(stmt: Expr, scope: TypeScope) {
     }
 }
 
-register_type_aliases := func(program: Expr, scope: TypeScope) {
+register_type_aliases := func(ctx: Context, program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        register_type_alias_for_stmt(stmt, scope)
+        register_type_alias_for_stmt(ctx, stmt, scope)
     }
 }
 
-register_top_level_value_for_stmt := func(stmt: Expr, scope: TypeScope) {
+register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref rhs : Expr = stmt.child(0)
     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
@@ -1375,7 +1429,7 @@ register_top_level_value_for_stmt := func(stmt: Expr, scope: TypeScope) {
 
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
-        scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut tlv_b : TypeBinding = scope.get_binding(sdecl.name)
         tlv_b.is_priv = sdecl.is_priv
         tlv_b.orig_name = sdecl.orig_name.clone()
@@ -1384,13 +1438,13 @@ register_top_level_value_for_stmt := func(stmt: Expr, scope: TypeScope) {
     }
 }
 
-register_top_level_values := func(program: Expr, scope: TypeScope) {
+register_top_level_values := func(ctx: Context, program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        register_top_level_value_for_stmt(stmt, scope)
+        register_top_level_value_for_stmt(ctx, stmt, scope)
     }
 }
 
-register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
+register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
     if def.node_type.is(NodeType.FuncDef).not() { return }
@@ -1398,7 +1452,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         if def.children.len().eq(0) {
-            scope.set(sdecl.name, Type.FuncPtr, FuncType.None, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, Type.FuncPtr, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
             fb.is_priv = sdecl.is_priv
@@ -1420,7 +1474,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
                                 if fdef.params.len().neq(sigdef.params.len()) {
                                     panic(
                                         __LOC__,
-                                        initer_path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                                        ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
                                         ": error: '", sdecl.name, "' expects ", fdef.params.len().to_str(),
                                         " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.params.len().to_str(),
                                     )
@@ -1457,7 +1511,7 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
             if fdef.return_type.len().gt(0) {
                 rt = init_type_from_explicit_type(fdef.return_type, scope)
             }
-            scope.set(sdecl.name, rt, ft, false, initer_path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, rt, ft, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
             fb.is_priv = sdecl.is_priv
@@ -1473,9 +1527,9 @@ register_function_def_for_stmt := func(stmt: Expr, scope: TypeScope) {
     }
 }
 
-register_function_definitions := func(program: Expr, scope: TypeScope) {
+register_function_definitions := func(ctx: Context, program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        register_function_def_for_stmt(stmt, scope)
+        register_function_def_for_stmt(ctx, stmt, scope)
     }
 }
 
@@ -2254,10 +2308,8 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
     }
 }
 
-init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
+init_declarations := proc(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
-    // Legacy merged init runs with per-statement modes; keep empty path.
-    initer_path = ""
 
     // Single AST walk: register every type name in scope and bucket each Decl
     // into the list it needs. All cross-decl work (alias resolution, struct
@@ -2276,14 +2328,14 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.StructDef) {
-            errors = errors.add(register_struct_def_for_stmt(stmt, scope))
+            errors = errors.add(register_struct_def_for_stmt(ctx, stmt, scope))
             struct_idxs.push(own i)
         } else if rhs.node_type.is(NodeType.EnumDef) {
-            errors = errors.add(register_enum_def_for_stmt(stmt, scope))
+            errors = errors.add(register_enum_def_for_stmt(ctx, stmt, scope))
             enum_idxs.push(own i)
         } else if rhs.node_type.is(NodeType.FuncDef) {
             if rhs.children.len().eq(0) {
-                register_funcsig_alias_for_stmt(stmt, scope)
+                register_funcsig_alias_for_stmt(ctx, stmt, scope)
             } else {
                 func_idxs.push(own i)
             }
@@ -2306,7 +2358,7 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     }
     for ai : U32 in alias_idxs {
         ref stmt : Expr = program.child(ai)
-        register_type_alias_for_stmt(stmt, scope)
+        register_type_alias_for_stmt(ctx, stmt, scope)
     }
     for si : U32 in struct_idxs {
         ref stmt : Expr = program.child(si)
@@ -2330,11 +2382,11 @@ init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     }
     for fi : U32 in func_idxs {
         ref stmt : Expr = program.child(fi)
-        register_function_def_for_stmt(stmt, scope)
+        register_function_def_for_stmt(ctx, stmt, scope)
     }
     for vi : U32 in value_idxs {
         ref stmt : Expr = program.child(vi)
-        register_top_level_value_for_stmt(stmt, scope)
+        register_top_level_value_for_stmt(ctx, stmt, scope)
     }
 
     Vec.delete(own struct_idxs, false)
@@ -2597,7 +2649,6 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
 // run global layout/method generation that must see the whole program.
 init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
     context_enter_file(ctx, path)
-    initer_path = ctx.path.clone()
     mut errors : I32 = 0
 
     // Single AST walk: register every type name in scope (struct, enum,
@@ -2699,13 +2750,13 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.StructDef) {
-            errors = errors.add(register_struct_def_for_stmt(stmt, scope))
+            errors = errors.add(register_struct_def_for_stmt(ctx, stmt, scope))
         } else if rhs.node_type.is(NodeType.EnumDef) {
-            errors = errors.add(register_enum_def_for_stmt(stmt, scope))
+            errors = errors.add(register_enum_def_for_stmt(ctx, stmt, scope))
             enum_idxs.push(own i)
         } else if rhs.node_type.is(NodeType.FuncDef) {
             if rhs.children.len().eq(0) {
-                register_funcsig_alias_for_stmt(stmt, scope)
+                register_funcsig_alias_for_stmt(ctx, stmt, scope)
             } else {
                 func_idxs.push(own i)
             }
@@ -2721,13 +2772,13 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
         gen_enum_nonclone_methods_for_stmt(program.child(ei), scope)
     }
     for ai : U32 in alias_idxs {
-        register_type_alias_for_stmt(program.child(ai), scope)
+        register_type_alias_for_stmt(ctx, program.child(ai), scope)
     }
     for fi : U32 in func_idxs {
-        register_function_def_for_stmt(program.child(fi), scope)
+        register_function_def_for_stmt(ctx, program.child(fi), scope)
     }
     for vi : U32 in value_idxs {
-        register_top_level_value_for_stmt(program.child(vi), scope)
+        register_top_level_value_for_stmt(ctx, program.child(vi), scope)
     }
 
     Vec.delete(own enum_idxs, false)
@@ -2738,7 +2789,7 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
 }
 
 // Run the global init steps that require a full program view.
-init_declarations_global := proc(program: Expr, scope: TypeScope) returns shallow I32 {
+init_declarations_global := proc(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
 
     // Single AST walk: bucket struct and enum decls for post-walk work,
@@ -2797,10 +2848,10 @@ init_declarations_global := proc(program: Expr, scope: TypeScope) returns shallo
     // above (size methods etc) but those go into ns_decls, not program.children.
     // Still re-register here to mirror the original ordering.
     for fi : U32 in func_idxs {
-        register_function_def_for_stmt(program.child(fi), scope)
+        register_function_def_for_stmt(ctx, program.child(fi), scope)
     }
     for vi : U32 in value_idxs {
-        register_top_level_value_for_stmt(program.child(vi), scope)
+        register_top_level_value_for_stmt(ctx, program.child(vi), scope)
     }
 
     Vec.delete(own struct_idxs, false)

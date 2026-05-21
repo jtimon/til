@@ -1322,14 +1322,14 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             lp.ctx.mode = iu.mode.clone()
             context_enter_file(lp.ctx, u.path)
-            init_declarations_global(iu.ast, lp.ctx.scope)
+            init_declarations_global(lp.ctx, iu.ast, lp.ctx.scope)
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         lp.ctx.mode = iu.mode.clone()
         context_enter_file(lp.ctx, u.path)
-        init_declarations_global(iu.ast, lp.ctx.scope)
+        init_declarations_global(lp.ctx, iu.ast, lp.ctx.scope)
     }
 
     retarget_loaded_aliases(lp)
