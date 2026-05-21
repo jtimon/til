@@ -1314,7 +1314,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                                             arg_tname := type_to_name(expr_til_type(vk_arg))
                                                 if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
                                                     if type_has_to_str(scope, arg_tname) {
-                                                        e.children.set(ci.add(vk), own make_to_str_call(arg_tname, vk_arg))
+                                                        e.children.replace(ci.add(vk), own make_to_str_call(arg_tname, vk_arg))
                                                         continue
                                                     }
                                             }
@@ -2602,7 +2602,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                             tname := type_to_name(expr_til_type(stmt))
                             if tname.len().gt(0) {
                                 mc := make_clone_call(tname, expr_til_type(stmt), stmt.child(0), stmt)
-                                stmt.children.set(0, own mc)
+                                stmt.children.replace(0, own mc)
                             }
                         }
                 case:
@@ -2817,7 +2817,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
         tname := type_to_name(expr_til_type(rhs))
         if tname.len().gt(0) {
             mc := make_clone_call(tname, expr_til_type(rhs), rhs, rhs)
-            stmt.children.set(1, own mc)
+            stmt.children.replace(1, own mc)
         }
     }
 }
@@ -3204,7 +3204,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
                 tname := type_to_name(expr_til_type(stmt))
                 if tname.len().gt(0) {
                     mc := make_clone_call(tname, expr_til_type(stmt), rhs, stmt)
-                    stmt.children.set(0, own mc)
+                    stmt.children.replace(0, own mc)
                 }
             }
         }
@@ -5053,7 +5053,7 @@ priv hoist_walk_consolidated := proc(
         vec_str_push_uniq(seen, tn)
         pre_stmts.push(own build_bang_lowered(ctx, tn, line, col))
     }
-    parent.children.set(child_idx, own Expr.new(NodeType.Ident(tmp_name.clone()), line, col))
+    parent.children.replace(child_idx, own Expr.new(NodeType.Ident(tmp_name.clone()), line, col))
 }
 
 // Walk stmt's expression tree hoisting nested bangs (not the
@@ -5959,7 +5959,13 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
             tname := type_to_name(expr_til_type(rhs))
             if tname.len().gt(0) {
                 mc := make_clone_call(tname, expr_til_type(rhs), rhs, stmt)
-                stmt.children.set(0, own mc)
+                // (Issue #109) Use Vec.replace to drop-old: the slot at
+                // index 0 held the original rhs Expr; make_clone_call
+                // already cloned rhs into mc.children, so the original
+                // is now unreachable and its inner heap data (NodeType
+                // payload, til_type c_str, children Vec) would leak
+                // with a plain .set().
+                stmt.children.replace(0, own mc)
                 if scope.bindings.has(aname).not() {
                     if is_aggregate(existing) {
                         if assign_target_is_func_local(scope, aname) {
