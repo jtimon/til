@@ -124,7 +124,7 @@ init_window := proc(w: I64, h: I64, title: Str) {
         InitWindow(w.to_i32(), h.to_i32(), title.c_str)
     }
 }
-window_should_close := func() returns Bool {
+window_should_close := proc() returns Bool {
     return WindowShouldClose()
 }
 begin_drawing := proc() { BeginDrawing() }
@@ -145,8 +145,8 @@ draw_circle := proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I6
     DrawCircle(cx.to_i32(), cy.to_i32(), radius.to_f32(), color(r, g, b, a))
 }
 
-get_screen_width := func() returns I64 { return GetScreenWidth().to_i64() }
-get_screen_height := func() returns I64 { return GetScreenHeight().to_i64() }
+get_screen_width := proc() returns I64 { return GetScreenWidth().to_i64() }
+get_screen_height := proc() returns I64 { return GetScreenHeight().to_i64() }
 
 set_config_flags := proc(flags: I32) { SetConfigFlags(flags.to_u32()) }
 set_exit_key := proc(key: I32) { SetExitKey(key) }
@@ -155,7 +155,7 @@ set_window_min_size := proc(w: I64, h: I64) { SetWindowMinSize(w.to_i32(), h.to_
 set_window_max_size := proc(w: I64, h: I64) { SetWindowMaxSize(w.to_i32(), h.to_i32()) }
 maximize_window := proc() { MaximizeWindow() }
 toggle_fullscreen := proc() { ToggleFullscreen() }
-get_frame_time := func() returns I64 {
+get_frame_time := proc() returns I64 {
     return GetFrameTime().mul(1000.to_f32()).to_i64()
 }
 is_key_pressed := func(key: I32) returns Bool { return IsKeyPressed(key) }
@@ -167,8 +167,8 @@ is_mouse_button_down := func(button: I32) returns Bool { return IsMouseButtonDow
 get_random_value := func(min: I64, max: I64) returns I64 {
     return GetRandomValue(min.to_i32(), max.to_i32()).to_i64()
 }
-get_mouse_x := func() returns I64 { return GetMouseX().to_i64() }
-get_mouse_y := func() returns I64 { return GetMouseY().to_i64() }
+get_mouse_x := proc() returns I64 { return GetMouseX().to_i64() }
+get_mouse_y := proc() returns I64 { return GetMouseY().to_i64() }
 init_audio_device := proc() { InitAudioDevice() }
 close_audio_device := proc() { CloseAudioDevice() }
 

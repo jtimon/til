@@ -836,7 +836,8 @@ SaveFileTextCallback := Dynamic
 InitWindow := ext_proc(shallow width : I32, shallow height : I32, title : I8) {}
 CloseWindow := ext_proc() {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-WindowShouldClose := ext_func() returns shallow Bool {}
+// ext_proc: reads window state set by the platform layer.
+WindowShouldClose := ext_proc() returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsWindowReady := ext_func() returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
@@ -871,8 +872,9 @@ SetWindowSize := ext_proc(shallow width : I32, shallow height : I32) {}
 SetWindowOpacity := ext_proc(shallow opacity : F32) {}
 SetWindowFocused := ext_proc() {}
 GetWindowHandle := ext_func() returns Dynamic {}
-GetScreenWidth := ext_func() returns shallow I32 {}
-GetScreenHeight := ext_func() returns shallow I32 {}
+// ext_proc: depends on current window dimensions.
+GetScreenWidth := ext_proc() returns shallow I32 {}
+GetScreenHeight := ext_proc() returns shallow I32 {}
 GetRenderWidth := ext_func() returns shallow I32 {}
 GetRenderHeight := ext_func() returns shallow I32 {}
 GetMonitorCount := ext_func() returns shallow I32 {}
@@ -951,8 +953,9 @@ GetCameraMatrix2D := ext_func(shallow camera : Camera2D) returns shallow Matrix 
 
 // Timing-related functions
 SetTargetFPS := ext_proc(shallow fps : I32) {}
-GetFrameTime := ext_func() returns shallow F32 {}
-GetTime := ext_func() returns shallow F32 {}
+// ext_proc: reads the frame-clock state maintained by raylib.
+GetFrameTime := ext_proc() returns shallow F32 {}
+GetTime := ext_proc() returns shallow F32 {}
 GetFPS := ext_func() returns shallow I32 {}
 
 // Custom frame control functions
@@ -1108,8 +1111,9 @@ IsMouseButtonDown := ext_func(shallow button : I32) returns shallow Bool {}
 IsMouseButtonReleased := ext_func(shallow button : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsMouseButtonUp := ext_func(shallow button : I32) returns shallow Bool {}
-GetMouseX := ext_func() returns shallow I32 {}
-GetMouseY := ext_func() returns shallow I32 {}
+// ext_proc: reads current mouse cursor state.
+GetMouseX := ext_proc() returns shallow I32 {}
+GetMouseY := ext_proc() returns shallow I32 {}
 GetMousePosition := ext_func() returns shallow Vector2 {}
 GetMouseDelta := ext_func() returns shallow Vector2 {}
 SetMousePosition := ext_proc(shallow x : I32, shallow y : I32) {}

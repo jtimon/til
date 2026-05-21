@@ -898,6 +898,8 @@ void sleep_ms(I64 ms) {
 }
 #endif
 
+void noop_proc(void) {}
+
 I64 file_mtime(const Str *path) {
     char *p = dup_n(path->c_str, path->count);
     struct stat st;

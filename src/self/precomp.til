@@ -54,6 +54,7 @@ is_side_effecting_name := func(name: Str) returns shallow Bool {
     if name.eq("system_cmd") { return true }
     if name.eq("check_cmd_status") { return true }
     if name.eq("sleep_ms") { return true }
+    if name.eq("noop_proc") { return true }
     if name.eq("clock_ms") { return true }
     if name.eq("get_thread_count") { return true }
     if name.eq("peak_rss_bytes") { return true }
@@ -369,15 +370,7 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
                     visiting.add(own name.clone())
                     ref _fdef : Expr = deref(_fp)
                     switch _fdef.node_type {
-                    case NodeType.FuncDef(fd):
-                        // ext_funcs have arbitrary runtime side effects
-                        // (FFI into C: raylib state, libc syscalls, etc).
-                        // Invoking them at compile time would either crash
-                        // (no window, no audio device) or silently return
-                        // zero / uninitialized state and bake that into
-                        // the generated C. Refuse to fold any caller that
-                        // transitively reaches an ext_func.
-                        if fd.func_type.is(FuncType.ExtFunc) { return true }
+                    case NodeType.FuncDef:
                         if _fdef.children.len().gt(0) {
                             ref _called_body : Expr = _fdef.child(0)
                             if func_uses_unknown_globals(_called_body, _fdef, precomp_scope, _called_body, lenient, visiting) {
