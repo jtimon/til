@@ -107,3 +107,28 @@ test_funcsig_form_lambda_as_value := test() {
     f : BinaryOp = func(I64, I64) returns I64 = (a, b) { return a.sub(b) }
     assert_eq(__LOC__, f(10, 3), 7)
 }
+
+// --- FuncSig as first-class Type value (issue #58) ---
+// A bodyless `func(...) returns ...` (FuncSig) is a Type alias for
+// Type.FuncPtr. Using its name where a Type is expected must round-trip
+// to "Fn", not to the function's return type.
+
+fn_add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+fn_mul := func(a: I64, b: I64) returns I64 { return a.mul(b) }
+
+test_dyn_type_to_str_funcsig := test() {
+    assert_eq_str(__LOC__, "Fn", dyn_type_to_str(BinaryOp))
+    assert_eq_str(__LOC__, "Fn", dyn_type_to_str(Type.FuncPtr))
+}
+
+test_vec_funcsig_create := test() {
+    ops := Vec.new(BinaryOp)
+    assert_eq(__LOC__, ops.len().to_i64(), 0)
+}
+
+test_vec_funcsig_push_len := test() {
+    mut ops := Vec.new(BinaryOp)
+    ops.push(own fn_add)
+    ops.push(own fn_mul)
+    assert_eq(__LOC__, ops.len().to_i64(), 2)
+}

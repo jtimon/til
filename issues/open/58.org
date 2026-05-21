@@ -124,15 +124,20 @@
    Vec.new(Type)       // Vec of any type definition
    #+end_src
 
-   Storing function pointers in collections currently fails:
-   ~ops.push(own fn_add)~ where ~ops := Vec.new("BinaryOp", ...)~ panics
-   with ~dyn_fn: unknown BinaryOp.clone~. Vec.push assumes values are
-   heap-allocated boxes and calls elem_clone/elem_delete, but a function
-   pointer is a plain value (not a struct). Needs Vec to support
-   FuncSig-typed elements via a dedicated clone/delete path. Moved here
-   from [[./61.org][#61]] (where it appeared as "storing function pointers in
-   collections") since fixing it requires type-hierarchy work, not
-   lambda-lifting changes.
+   Storing function pointers in collections works for create and push:
+   ~ops := Vec.new(BinaryOp)~ followed by ~ops.push(own fn_add)~ now
+   stores the function pointer in a Fn-typed slot. ~Vec.new_type_name~
+   special-cases ~"Fn"~ to use an 8-byte slot with default no-op
+   clone/delete (function pointers are plain values, not heap boxes),
+   and ~Vec.push~ uses ~write_ptr~ to deposit the pointer value into
+   the slot instead of memcpy + free (which crashed because fn ptrs
+   aren't heap memory).
+
+   Still TODO: calling/retrieving the stored function pointer back out
+   of the Vec (~ops.get(0)~ + invoke). The slot is correct but the
+   ~cast(BinaryOp, ops.get(i))~ and direct-invoke path still needs work
+   to round-trip through ~Type.FuncPtr~ at the receiver side.
+   Originally moved here from [[./61.org][#61]].
 
 *** Introspection
 

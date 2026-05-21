@@ -28,6 +28,14 @@ namespace:
             return Vec(data = malloc(8), cap = 1,
                        elem_size = 8, elem_type = elem_type.clone())
         }
+        // Issue #58: function pointers are 8-byte plain values, not heap
+        // boxes. Use the same path as Dynamic so push/get/delete are
+        // byte-copy + no-op clone/delete instead of trying to dispatch
+        // through a non-existent FuncSig.clone/delete.
+        if elem_type.eq("Fn") {
+            return Vec(data = malloc(8), cap = 1,
+                       elem_size = 8, elem_type = elem_type.clone())
+        }
         mut sz : USize = dyn_size_of(elem_type)
         return Vec(data = malloc(sz), cap = 1,
                    elem_size = sz, elem_type = elem_type.clone(),
@@ -49,6 +57,14 @@ namespace:
             new_cap := self.cap.mul(2)
             self.data = realloc(own self.data, new_cap.mul(self.elem_size))
             self.cap = new_cap
+        }
+        // Issue #58: function pointers arrive as a direct pointer value
+        // (the code address), not a heap box of one. Store the pointer
+        // value itself into the slot and skip the free.
+        if self.elem_type.eq("Fn") {
+            write_ptr(ptr_add(self.data, self.count.mul(self.elem_size)), val)
+            self.count = self.count.add(1)
+            return
         }
         memcpy(ptr_add(self.data, self.count.mul(self.elem_size)), val, self.elem_size)
         free(own val)
