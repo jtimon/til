@@ -1,22 +1,22 @@
 #+TITLE: src/self/dispatch.til
 #+OPTIONS: toc:t
 
-* ExtStr
+* priv___src_self_dispatch_til__ExtStr
 #+begin_src til
-struct ExtStr {
+struct priv___src_self_dispatch_til__ExtStr {
     ref mut data : U8
     mut count : U64
     mut cap : U64
 namespace:
-    func clone(self: ExtStr) returns ExtStr
-    func delete(own self: ExtStr, call_free: Bool)
+    func clone(self: priv___src_self_dispatch_til__ExtStr) returns priv___src_self_dispatch_til__ExtStr
+    func delete(own self: priv___src_self_dispatch_til__ExtStr, call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
 
-* FFIEntry
+* priv___src_self_dispatch_til__FFIEntry
 #+begin_src til
-struct FFIEntry {
+struct priv___src_self_dispatch_til__FFIEntry {
     ref mut fn : U8
     ref mut return_type : Str
     mut nparam : I32
@@ -25,8 +25,8 @@ struct FFIEntry {
     ref mut cif : ffi_cif
     ref mut arg_types : Dynamic
 namespace:
-    func clone(self: FFIEntry) returns FFIEntry
-    func delete(own self: FFIEntry, call_free: Bool)
+    func clone(self: priv___src_self_dispatch_til__FFIEntry) returns priv___src_self_dispatch_til__FFIEntry
+    func delete(own self: priv___src_self_dispatch_til__FFIEntry, call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
@@ -42,25 +42,25 @@ namespace:
 }
 #+end_src
 
-* FFITypePtrBox
+* priv___src_self_dispatch_til__FFITypePtrBox
 #+begin_src til
-struct FFITypePtrBox {
+struct priv___src_self_dispatch_til__FFITypePtrBox {
     ref mut ptr : ffi_type
 namespace:
-    func clone(self: FFITypePtrBox) returns FFITypePtrBox
-    func delete(own self: FFITypePtrBox, call_free: Bool)
+    func clone(self: priv___src_self_dispatch_til__FFITypePtrBox) returns priv___src_self_dispatch_til__FFITypePtrBox
+    func delete(own self: priv___src_self_dispatch_til__FFITypePtrBox, call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
 
-* hoisted__Str_34520
+* hoisted__Str_35954
 #+begin_src til
-hoisted__Str_34520 is a Str
+hoisted__Str_35954 is a Str
 #+end_src
 
-* hoisted__Type_34521
+* hoisted__Type_35955
 #+begin_src til
-hoisted__Type_34521 is a Type
+hoisted__Type_35955 is a Type
 #+end_src
 
 * dispatch_map
@@ -73,24 +73,24 @@ dispatch_map is a Map
 dispatch_inited is a Bool
 #+end_src
 
-* hoisted__Str_34522
+* hoisted__Str_35956
 #+begin_src til
-hoisted__Str_34522 is a Str
+hoisted__Str_35956 is a Str
 #+end_src
 
-* hoisted__Str_34523
+* hoisted__Str_35957
 #+begin_src til
-hoisted__Str_34523 is a Str
+hoisted__Str_35957 is a Str
 #+end_src
 
-* hoisted__Type_34524
+* hoisted__Type_35958
 #+begin_src til
-hoisted__Type_34524 is a Type
+hoisted__Type_35958 is a Type
 #+end_src
 
-* hoisted__Type_34525
+* hoisted__Type_35959
 #+begin_src til
-hoisted__Type_34525 is a Type
+hoisted__Type_35959 is a Type
 #+end_src
 
 * ffi_map
@@ -98,14 +98,14 @@ hoisted__Type_34525 is a Type
 ffi_map is a Map
 #+end_src
 
-* hoisted__Str_34526
+* hoisted__Str_35960
 #+begin_src til
-hoisted__Str_34526 is a Str
+hoisted__Str_35960 is a Str
 #+end_src
 
-* hoisted__Type_34527
+* hoisted__Type_35961
 #+begin_src til
-hoisted__Type_34527 is a Type
+hoisted__Type_35961 is a Type
 #+end_src
 
 * ffi_struct_defs
@@ -118,14 +118,14 @@ ffi_struct_defs is a Map
 ffi_loaded is a Bool
 #+end_src
 
-* hoisted__Str_34528
+* hoisted__Str_35962
 #+begin_src til
-hoisted__Str_34528 is a Str
+hoisted__Str_35962 is a Str
 #+end_src
 
-* hoisted__Type_34529
+* hoisted__Type_35963
 #+begin_src til
-hoisted__Type_34529 is a Type
+hoisted__Type_35963 is a Type
 #+end_src
 
 * ffi_type_cache
@@ -143,14 +143,14 @@ ffi_type_cache_inited is a Bool
 proc ffi_reset()
 #+end_src
 
-* ffi_type_pointer_ref
+* priv___src_self_dispatch_til__ffi_type_pointer_ref
 #+begin_src til
-func ffi_type_pointer_ref() returns ref ffi_type
+func priv___src_self_dispatch_til__ffi_type_pointer_ref() returns ref ffi_type
 #+end_src
 
-* ffi_type_sint64_ref
+* priv___src_self_dispatch_til__ffi_type_sint64_ref
 #+begin_src til
-func ffi_type_sint64_ref() returns ref ffi_type
+func priv___src_self_dispatch_til__ffi_type_sint64_ref() returns ref ffi_type
 #+end_src
 
 * ffi_type_uint8_ref
@@ -168,9 +168,9 @@ func ffi_type_sint8_ref() returns ref ffi_type
 func ffi_type_sint16_ref() returns ref ffi_type
 #+end_src
 
-* ffi_type_sint32_ref
+* priv___src_self_dispatch_til__ffi_type_sint32_ref
 #+begin_src til
-func ffi_type_sint32_ref() returns ref ffi_type
+func priv___src_self_dispatch_til__ffi_type_sint32_ref() returns ref ffi_type
 #+end_src
 
 * ffi_type_uint32_ref
@@ -293,19 +293,19 @@ func uptr_ffi_type() returns ref ffi_type
 func usize_ffi_type() returns ref ffi_type
 #+end_src
 
-* value_to_f32
+* priv___src_self_dispatch_til__value_to_f32
 #+begin_src til
-func value_to_f32(v: Value) returns F32
+func priv___src_self_dispatch_til__value_to_f32(v: Value) returns F32
 #+end_src
 
-* value_variant_name
+* priv___src_self_dispatch_til__value_variant_name
 #+begin_src til
-func value_variant_name(v: Value) returns Str
+func priv___src_self_dispatch_til__value_variant_name(v: Value) returns Str
 #+end_src
 
-* narrow_bool_arg
+* priv___src_self_dispatch_til__narrow_bool_arg
 #+begin_src til
-proc narrow_bool_arg(s: Scope, e: Expr) returns Bool
+proc priv___src_self_dispatch_til__narrow_bool_arg(s: Scope, e: Expr) returns Bool
 #+end_src
 
 * h_Bool_and
@@ -348,9 +348,9 @@ proc h_F32_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
 proc h_U32_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
 #+end_src
 
-* h_print_single
+* priv___src_self_dispatch_til__h_print_single
 #+begin_src til
-proc h_print_single(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc priv___src_self_dispatch_til__h_print_single(s: Scope, e: Expr, mut r: Value) returns shallow Bool
 #+end_src
 
 * h_print_flush
@@ -433,9 +433,9 @@ func h_get_thread_count(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool
 proc h_cfile_open(s: Scope, e: Expr, mut r: Value) returns shallow Bool
 #+end_src
 
-* shallow_ffi_type
+* priv___src_self_dispatch_til__shallow_ffi_type
 #+begin_src til
-func shallow_ffi_type(type_name: Str) returns ref ffi_type
+func priv___src_self_dispatch_til__shallow_ffi_type(type_name: Str) returns ref ffi_type
 #+end_src
 
 * field_ffi_type
@@ -515,17 +515,17 @@ func ffi_decode_scalar(rtype: Str, p: Dynamic, mut result: Value) returns shallo
 
 * ffi_call_ret_struct_def
 #+begin_src til
-func ffi_call_ret_struct_def(fe: FFIEntry) returns ref Expr
+func ffi_call_ret_struct_def(fe: priv___src_self_dispatch_til__FFIEntry) returns ref Expr
 #+end_src
 
-* ffi_shallow_type_info
+* priv___src_self_dispatch_til__ffi_shallow_type_info
 #+begin_src til
-func ffi_shallow_type_info(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool
+func priv___src_self_dispatch_til__ffi_shallow_type_info(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool
 #+end_src
 
-* ffi_write_shallow_arg
+* priv___src_self_dispatch_til__ffi_write_shallow_arg
 #+begin_src til
-func ffi_write_shallow_arg(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic) returns shallow Bool
+func priv___src_self_dispatch_til__ffi_write_shallow_arg(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic) returns shallow Bool
 #+end_src
 
 * ext_dispatch_ffi

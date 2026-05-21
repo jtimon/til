@@ -1,14 +1,14 @@
 #+TITLE: src/self/precomp.til
 #+OPTIONS: toc:t
 
-* hoisted__Str_20337
+* hoisted__Str_21089
 #+begin_src til
-hoisted__Str_20337 is a Str
+hoisted__Str_21089 is a Str
 #+end_src
 
-* hoisted__Type_20338
+* hoisted__Type_21090
 #+begin_src til
-hoisted__Type_20338 is a Type
+hoisted__Type_21090 is a Type
 #+end_src
 
 * macros
@@ -16,14 +16,14 @@ hoisted__Type_20338 is a Type
 macros is a Set
 #+end_src
 
-* hoisted__Str_20339
+* hoisted__Str_21091
 #+begin_src til
-hoisted__Str_20339 is a Str
+hoisted__Str_21091 is a Str
 #+end_src
 
-* hoisted__Type_20340
+* hoisted__Type_21092
 #+begin_src til
-hoisted__Type_20340 is a Type
+hoisted__Type_21092 is a Type
 #+end_src
 
 * funcs
@@ -31,24 +31,24 @@ hoisted__Type_20340 is a Type
 funcs is a Set
 #+end_src
 
-* hoisted__Str_20341
+* hoisted__Str_21093
 #+begin_src til
-hoisted__Str_20341 is a Str
+hoisted__Str_21093 is a Str
 #+end_src
 
-* hoisted__Str_20342
+* hoisted__Str_21094
 #+begin_src til
-hoisted__Str_20342 is a Str
+hoisted__Str_21094 is a Str
 #+end_src
 
-* hoisted__Type_20343
+* hoisted__Type_21095
 #+begin_src til
-hoisted__Type_20343 is a Type
+hoisted__Type_21095 is a Type
 #+end_src
 
-* hoisted__Type_20344
+* hoisted__Type_21096
 #+begin_src til
-hoisted__Type_20344 is a Type
+hoisted__Type_21096 is a Type
 #+end_src
 
 * known
@@ -71,24 +71,24 @@ func precomp_has_func(name: Str) returns shallow Bool
 func is_side_effecting_name(name: Str) returns shallow Bool
 #+end_src
 
-* hex_digit_value
+* priv___src_self_precomp_til__hex_digit_value
 #+begin_src til
-func hex_digit_value(b: I8) returns U8
+func priv___src_self_precomp_til__hex_digit_value(b: I8) returns U8
 #+end_src
 
-* from_source_form
+* priv___src_self_precomp_til__from_source_form
 #+begin_src til
-func from_source_form(s: Str) returns Str
+func priv___src_self_precomp_til__from_source_form(s: Str) returns Str
 #+end_src
 
-* needs_source_escape
+* priv___src_self_precomp_til__needs_source_escape
 #+begin_src til
-func needs_source_escape(s: Str) returns shallow Bool
+func priv___src_self_precomp_til__needs_source_escape(s: Str) returns shallow Bool
 #+end_src
 
-* str_to_source_form
+* priv___src_self_precomp_til__str_to_source_form
 #+begin_src til
-func str_to_source_form(s: Str) returns Str
+func priv___src_self_precomp_til__str_to_source_form(s: Str) returns Str
 #+end_src
 
 * value_to_expr
@@ -121,9 +121,9 @@ proc body_has_local(body: Expr, name: Str) returns shallow Bool
 proc func_uses_unknown_globals(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool, mut visiting: Set) returns shallow Bool
 #+end_src
 
-* extract_trivial_literal_return
+* priv___src_self_precomp_til__extract_trivial_literal_return
 #+begin_src til
-func extract_trivial_literal_return(fdef: Expr) returns ref Expr
+func priv___src_self_precomp_til__extract_trivial_literal_return(fdef: Expr) returns ref Expr
 #+end_src
 
 * ns_lookup_flat
@@ -174,6 +174,11 @@ proc fold_subtree(scope: Scope, mut e: Expr, ctx: Context)
 * process_body
 #+begin_src til
 proc process_body(scope: Scope, body: Expr, ctx: Context, shallow at_global: Bool)
+#+end_src
+
+* priv___src_self_precomp_til__expr_uses_var_p
+#+begin_src til
+func priv___src_self_precomp_til__expr_uses_var_p(e: Expr, name: Str) returns shallow Bool
 #+end_src
 
 * precomp_scan_names

@@ -36,6 +36,11 @@ namespace:
 initer_path is a Str
 #+end_src
 
+* priv_c_name
+#+begin_src til
+func priv_c_name(path: Str, name: Str) returns Str
+#+end_src
+
 * ScopeFind
 #+begin_src til
 enum ScopeFind {
@@ -105,6 +110,9 @@ struct Context {
     mut funcsig_names : Set
     mut script_globals : Set
     mut ref_globals : Set
+    mut throw_type_registry : Vec
+    mut throws_names_global : Vec
+    mut throws_per_global : Vec
     mut stack_locals : Set
     mut stack_local_types : Map
     mut unsafe_to_hoist : Set
@@ -124,9 +132,9 @@ namespace:
 }
 #+end_src
 
-* align_up
+* priv___src_self_initer_til__align_up
 #+begin_src til
-func align_up(shallow offset: I32, shallow align: I32) returns shallow I32
+func priv___src_self_initer_til__align_up(shallow offset: I32, shallow align: I32) returns shallow I32
 #+end_src
 
 * make_method_call_fcall
@@ -164,6 +172,16 @@ func init_type_from_explicit_type(name: Str, scope: TypeScope) returns Type
 proc register_struct_def_for_stmt(stmt: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
+* priv___src_self_initer_til__field_inferred_type_name
+#+begin_src til
+func priv___src_self_initer_til__field_inferred_type_name(fd: Declaration) returns Str
+#+end_src
+
+* priv___src_self_initer_til__is_pod_type_for_clone
+#+begin_src til
+func priv___src_self_initer_til__is_pod_type_for_clone(type_name: Str, scope: TypeScope) returns shallow Bool
+#+end_src
+
 * gen_struct_clone_delete_for_stmt
 #+begin_src til
 func gen_struct_clone_delete_for_stmt(stmt: Expr, scope: TypeScope)
@@ -184,14 +202,14 @@ proc register_enum_definition(stmt: Expr, scope: TypeScope) returns shallow I32
 func collect_enum_variants(enum_def: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool)
 #+end_src
 
-* generate_enum_variant_constructors
+* priv___src_self_initer_til__generate_enum_variant_constructors
 #+begin_src til
-func generate_enum_variant_constructors(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool)
+func priv___src_self_initer_til__generate_enum_variant_constructors(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool)
 #+end_src
 
-* generate_enum_is_method
+* priv___src_self_initer_til__generate_enum_is_method
 #+begin_src til
-func generate_enum_is_method(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32)
+func priv___src_self_initer_til__generate_enum_is_method(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32)
 #+end_src
 
 * generate_enum_eq_method
@@ -354,49 +372,49 @@ func infer_top_level_decl_type(stmt: Expr, scope: TypeScope, mut out_type: Type)
 proc init_declarations(program: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
-* init_is_lift_target
+* priv___src_self_initer_til__init_is_lift_target
 #+begin_src til
-func init_is_lift_target(stmt: Expr) returns shallow Bool
+func priv___src_self_initer_til__init_is_lift_target(stmt: Expr) returns shallow Bool
 #+end_src
 
-* init_lookup_name
+* priv___src_self_initer_til__init_lookup_name
 #+begin_src til
-func init_lookup_name(renamings: Map, name: Str) returns Str
+func priv___src_self_initer_til__init_lookup_name(renamings: Map, name: Str) returns Str
 #+end_src
 
-* init_rename_ident_in_place
+* priv___src_self_initer_til__init_rename_ident_in_place
 #+begin_src til
-func init_rename_ident_in_place(mut e: Expr, renamings: Map)
+func priv___src_self_initer_til__init_rename_ident_in_place(mut e: Expr, renamings: Map)
 #+end_src
 
-* init_rename_decl_in_place
+* priv___src_self_initer_til__init_rename_decl_in_place
 #+begin_src til
-func init_rename_decl_in_place(mut dd: Declaration, renamings: Map)
+func priv___src_self_initer_til__init_rename_decl_in_place(mut dd: Declaration, renamings: Map)
 #+end_src
 
-* init_rewrite_refs
+* priv___src_self_initer_til__init_rewrite_refs
 #+begin_src til
-proc init_rewrite_refs(mut e: Expr, renamings: Map)
+proc priv___src_self_initer_til__init_rewrite_refs(mut e: Expr, renamings: Map)
 #+end_src
 
-* init_lift_in_body
+* priv___src_self_initer_til__init_lift_in_body
 #+begin_src til
-proc init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec)
+proc priv___src_self_initer_til__init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec)
 #+end_src
 
-* init_lift_in_ns_decls
+* priv___src_self_initer_til__init_lift_in_ns_decls
 #+begin_src til
-proc init_lift_in_ns_decls(mut def: Expr, parent_prefix: Str, mut top_level: Vec)
+proc priv___src_self_initer_til__init_lift_in_ns_decls(mut def: Expr, parent_prefix: Str, mut top_level: Vec)
 #+end_src
 
-* init_recurse_into_subbodies
+* priv___src_self_initer_til__init_recurse_into_subbodies
 #+begin_src til
-proc init_recurse_into_subbodies(mut body: Expr, parent_prefix: Str, mut top_level: Vec)
+proc priv___src_self_initer_til__init_recurse_into_subbodies(mut body: Expr, parent_prefix: Str, mut top_level: Vec)
 #+end_src
 
-* init_recurse_into_expr
+* priv___src_self_initer_til__init_recurse_into_expr
 #+begin_src til
-proc init_recurse_into_expr(mut e: Expr, parent_prefix: Str, mut top_level: Vec)
+proc priv___src_self_initer_til__init_recurse_into_expr(mut e: Expr, parent_prefix: Str, mut top_level: Vec)
 #+end_src
 
 * init_declarations_unit

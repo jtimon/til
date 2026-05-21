@@ -21,6 +21,11 @@ proc interp_error(e: Expr, msg: Str)
 proc interp_lang_error(e: Expr, msg: Str)
 #+end_src
 
+* priv___src_self_interpreter_til__struct_def_shallow_safe
+#+begin_src til
+func priv___src_self_interpreter_til__struct_def_shallow_safe(sdef_data: StructDef) returns shallow Bool
+#+end_src
+
 * StructInstance
 #+begin_src til
 struct StructInstance {
@@ -148,24 +153,24 @@ has_continue is a Bool
 return_value is a Value
 #+end_src
 
-* hoisted__Str_32923
+* hoisted__Str_34379
 #+begin_src til
-hoisted__Str_32923 is a Str
+hoisted__Str_34379 is a Str
 #+end_src
 
-* hoisted__Str_32924
+* hoisted__Str_34380
 #+begin_src til
-hoisted__Str_32924 is a Str
+hoisted__Str_34380 is a Str
 #+end_src
 
-* hoisted__Type_32925
+* hoisted__Type_34381
 #+begin_src til
-hoisted__Type_32925 is a Type
+hoisted__Type_34381 is a Type
 #+end_src
 
-* hoisted__Type_32926
+* hoisted__Type_34382
 #+begin_src til
-hoisted__Type_32926 is a Type
+hoisted__Type_34382 is a Type
 #+end_src
 
 * ns_fields
@@ -178,24 +183,24 @@ ns_fields is a Map
 ns_keys is a Vec
 #+end_src
 
-* hoisted__Str_32927
+* hoisted__Str_34383
 #+begin_src til
-hoisted__Str_32927 is a Str
+hoisted__Str_34383 is a Str
 #+end_src
 
-* hoisted__Str_32928
+* hoisted__Str_34384
 #+begin_src til
-hoisted__Str_32928 is a Str
+hoisted__Str_34384 is a Str
 #+end_src
 
-* hoisted__Type_32929
+* hoisted__Type_34385
 #+begin_src til
-hoisted__Type_32929 is a Type
+hoisted__Type_34385 is a Type
 #+end_src
 
-* hoisted__Type_32930
+* hoisted__Type_34386
 #+begin_src til
-hoisted__Type_32930 is a Type
+hoisted__Type_34386 is a Type
 #+end_src
 
 * interp_type_defs
@@ -253,9 +258,9 @@ func val_f32(shallow v: F32) returns shallow Value
 func val_bool(shallow v: Bool) returns shallow Value
 #+end_src
 
-* hoisted__I64_32931
+* hoisted__I64_34387
 #+begin_src til
-hoisted__I64_32931 is a I64
+hoisted__I64_34387 is a I64
 #+end_src
 
 * ENUM_PAYLOAD_OFFSET
@@ -283,9 +288,9 @@ func elem_size_for_type(type_name: Str) returns shallow I32
 func parse_cli_arg(s: Str, type_name: Str) returns shallow Value
 #+end_src
 
-* resolve_ptr_to_struct
+* priv___src_self_interpreter_til__resolve_ptr_to_struct
 #+begin_src til
-func resolve_ptr_to_struct(mut obj: Value, scope: Scope, obj_sname: Str)
+func priv___src_self_interpreter_til__resolve_ptr_to_struct(mut obj: Value, scope: Scope, obj_sname: Str)
 #+end_src
 
 * eval_expr
@@ -383,9 +388,9 @@ func free_expr_in_place(mut e: Expr)
 func scope_free(own s: Scope)
 #+end_src
 
-* interp_fa_is_ns_with_fname
+* priv___src_self_interpreter_til__interp_fa_is_ns_with_fname
 #+begin_src til
-func interp_fa_is_ns_with_fname(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns shallow Bool
+func priv___src_self_interpreter_til__interp_fa_is_ns_with_fname(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns shallow Bool
 #+end_src
 
 * interp_fa_is_ns_inner
@@ -423,9 +428,9 @@ ns_inited is a Bool
 proc interpreter_init_ns(mut ctx: Context, mut global: Scope, program: Expr)
 #+end_src
 
-* ns_qname
+* priv___src_self_interpreter_til__ns_qname
 #+begin_src til
-func ns_qname(sname: Str, fname: Str) returns Str
+func priv___src_self_interpreter_til__ns_qname(sname: Str, fname: Str) returns Str
 #+end_src
 
 * ns_get
@@ -498,9 +503,9 @@ func interpret_copy_alias_ns(prog: Expr, global: Scope)
 proc interpret(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32
 #+end_src
 
-* interpret_units
+* priv___src_self_interpreter_til__interpret_units
 #+begin_src til
-proc interpret_units(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns shallow I32
+proc priv___src_self_interpreter_til__interpret_units(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns shallow I32
 #+end_src
 
 * cmd_interpret

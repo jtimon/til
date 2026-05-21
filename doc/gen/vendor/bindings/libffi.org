@@ -1,4 +1,4 @@
-#+TITLE: src/lib/libffi.til
+#+TITLE: vendor/bindings/libffi.til
 #+OPTIONS: toc:t
 
 * FFI_TYPE_VOID
@@ -96,9 +96,9 @@ ffi_sarg is a I64
 ffi_abi is a I32
 #+end_src
 
-* hoisted__I64_32958
+* hoisted__I64_34400
 #+begin_src til
-hoisted__I64_32958 is a I64
+hoisted__I64_34400 is a I64
 #+end_src
 
 * FFI_FIRST_ABI
@@ -106,9 +106,9 @@ hoisted__I64_32958 is a I64
 FFI_FIRST_ABI is a I32
 #+end_src
 
-* hoisted__I64_32959
+* hoisted__I64_34401
 #+begin_src til
-hoisted__I64_32959 is a I64
+hoisted__I64_34401 is a I64
 #+end_src
 
 * FFI_UNIX64
@@ -116,9 +116,9 @@ hoisted__I64_32959 is a I64
 FFI_UNIX64 is a I32
 #+end_src
 
-* hoisted__I64_32960
+* hoisted__I64_34402
 #+begin_src til
-hoisted__I64_32960 is a I64
+hoisted__I64_34402 is a I64
 #+end_src
 
 * FFI_WIN64
@@ -126,9 +126,9 @@ hoisted__I64_32960 is a I64
 FFI_WIN64 is a I32
 #+end_src
 
-* hoisted__I64_32961
+* hoisted__I64_34403
 #+begin_src til
-hoisted__I64_32961 is a I64
+hoisted__I64_34403 is a I64
 #+end_src
 
 * FFI_EFI64
@@ -136,9 +136,9 @@ hoisted__I64_32961 is a I64
 FFI_EFI64 is a I32
 #+end_src
 
-* hoisted__I64_32962
+* hoisted__I64_34404
 #+begin_src til
-hoisted__I64_32962 is a I64
+hoisted__I64_34404 is a I64
 #+end_src
 
 * FFI_GNUW64
@@ -146,9 +146,9 @@ hoisted__I64_32962 is a I64
 FFI_GNUW64 is a I32
 #+end_src
 
-* hoisted__I64_32963
+* hoisted__I64_34405
 #+begin_src til
-hoisted__I64_32963 is a I64
+hoisted__I64_34405 is a I64
 #+end_src
 
 * FFI_LAST_ABI
@@ -156,9 +156,9 @@ hoisted__I64_32963 is a I64
 FFI_LAST_ABI is a I32
 #+end_src
 
-* hoisted__I64_32964
+* hoisted__I64_34406
 #+begin_src til
-hoisted__I64_32964 is a I64
+hoisted__I64_34406 is a I64
 #+end_src
 
 * FFI_DEFAULT_ABI
@@ -210,9 +210,9 @@ namespace:
 ffi_status is a I32
 #+end_src
 
-* hoisted__I64_32965
+* hoisted__I64_34407
 #+begin_src til
-hoisted__I64_32965 is a I64
+hoisted__I64_34407 is a I64
 #+end_src
 
 * FFI_OK
@@ -220,9 +220,9 @@ hoisted__I64_32965 is a I64
 FFI_OK is a I32
 #+end_src
 
-* hoisted__I64_32966
+* hoisted__I64_34408
 #+begin_src til
-hoisted__I64_32966 is a I64
+hoisted__I64_34408 is a I64
 #+end_src
 
 * FFI_BAD_TYPEDEF
@@ -230,9 +230,9 @@ hoisted__I64_32966 is a I64
 FFI_BAD_TYPEDEF is a I32
 #+end_src
 
-* hoisted__I64_32967
+* hoisted__I64_34409
 #+begin_src til
-hoisted__I64_32967 is a I64
+hoisted__I64_34409 is a I64
 #+end_src
 
 * FFI_BAD_ABI
@@ -240,9 +240,9 @@ hoisted__I64_32967 is a I64
 FFI_BAD_ABI is a I32
 #+end_src
 
-* hoisted__I64_32968
+* hoisted__I64_34410
 #+begin_src til
-hoisted__I64_32968 is a I64
+hoisted__I64_34410 is a I64
 #+end_src
 
 * FFI_BAD_ARGTYPE

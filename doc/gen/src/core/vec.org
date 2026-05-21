@@ -46,8 +46,16 @@ namespace:
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec, n: U32) returns Vec
     /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
+    /// is out of bounds. Does NOT drop the previous slot's contents -- use
+    /// Vec.replace for that (callers like the compiler typer rely on plain
+    /// bit-overwrite semantics when the prior slot was already moved out).
     func set(mut self: Vec, i: U32, own val: Dynamic)
+    /// Drop the existing element at index `i` via elem_delete, then store
+    /// `val` (owned) in its place. Use this when the slot holds a live
+    /// element whose inner heap data must be freed before being overwritten
+    /// (e.g. replacing a Str slot whose c_str would otherwise leak). Panics
+    /// if `i` is out of bounds.
+    func replace(mut self: Vec, i: U32, own val: Dynamic)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).

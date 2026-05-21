@@ -1,0 +1,85 @@
+#+TITLE: src/self/asaper.til
+#+OPTIONS: toc:t
+
+* priv___src_self_asaper_til__LocalInfo
+#+begin_src til
+struct priv___src_self_asaper_til__LocalInfo {
+    ref mut name : Str
+    mut type : Type
+    mut decl_index : I32
+    mut last_use : I32
+    mut own_transfer : I32
+    mut skip_scope_delete : Bool
+    mut is_heap : Bool
+namespace:
+    func clone(self: priv___src_self_asaper_til__LocalInfo) returns priv___src_self_asaper_til__LocalInfo
+    func delete(own self: priv___src_self_asaper_til__LocalInfo, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* alias_used_in_stmts
+#+begin_src til
+func alias_used_in_stmts(stmts: Vec, name: Str, expr: Expr) returns shallow Bool
+#+end_src
+
+* collect_scope_locals
+#+begin_src til
+func collect_scope_locals(body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec)
+#+end_src
+
+* extend_ref_local_lifetimes
+#+begin_src til
+func extend_ref_local_lifetimes(mut body: Expr, mut locals: Vec, scope: TypeScope)
+#+end_src
+
+* check_use_after_own_transfer
+#+begin_src til
+proc check_use_after_own_transfer(body: Expr, mut locals: Vec)
+#+end_src
+
+* insert_exit_deletes
+#+begin_src til
+proc insert_exit_deletes(mut body: Expr, mut live: Vec, shallow return_only: Bool)
+#+end_src
+
+* insert_nested_exit_deletes
+#+begin_src til
+proc insert_nested_exit_deletes(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32)
+#+end_src
+
+* insert_exit_deletes_into_stmt
+#+begin_src til
+func insert_exit_deletes_into_stmt(stmt: Expr, body_stmts: Vec, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec)
+#+end_src
+
+* insert_post_stmt_deletes
+#+begin_src til
+func insert_post_stmt_deletes(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec, scope: TypeScope)
+#+end_src
+
+* insert_assign_delete
+#+begin_src til
+func insert_assign_delete(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec)
+#+end_src
+
+* promote_own_transferred_locals
+#+begin_src til
+func promote_own_transferred_locals(mut body: Expr, mut locals: Vec)
+#+end_src
+
+* insert_free_calls
+#+begin_src til
+proc insert_free_calls(mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool
+#+end_src
+
+* asap_destroy_body
+#+begin_src til
+proc asap_destroy_body(mut body: Expr, mut scope: TypeScope) returns shallow Bool
+#+end_src
+
+* asap_destroy
+#+begin_src til
+proc asap_destroy(mut ctx: Context)
+#+end_src
+

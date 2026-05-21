@@ -79,12 +79,13 @@
 *** line : U32 = 0
 *** col : U32 = 0
 * ast
+** Primitive: EnumDef
+*** I16
 ** Type: EnumDef
 *** Unknown
 *** None
 *** I64
 *** U8
-*** I16
 *** I32
 *** U32
 *** U64
@@ -99,6 +100,7 @@
 *** Dynamic
 *** Custom:Str
 *** I8
+*** Primitive:Primitive
 ** FuncType: EnumDef
 *** None
 *** Func
@@ -250,6 +252,9 @@
 *** mut funcsig_names := Set.new(Str)
 *** mut script_globals := Set.new(Str)
 *** mut ref_globals := Set.new(Str)
+*** mut throw_type_registry := Vec.new(Str)
+*** mut throws_names_global := Vec.new(Str)
+*** mut throws_per_global := Vec.new(Vec)
 *** mut stack_locals := Set.new(Str)
 *** mut stack_local_types := Map.new(Str, Str)
 *** mut unsafe_to_hoist := Set.new(Str)
@@ -263,14 +268,6 @@
 *** ref mut cached_vec_def : Expr = NULL
 *** ref mut cached_vec_name : Str = NULL
 * typer
-** LocalInfo: StructDef
-*** ref mut name : Str = NULL
-*** mut type := Type.Unknown
-*** mut decl_index : I32 = 0
-*** mut last_use : I32 = 0
-*** mut own_transfer : I32 = -1.to_i32()
-*** mut skip_scope_delete := false
-*** mut is_heap := false
 ** CtorArg: EnumDef
 *** Unfilled
 *** Filled:Expr

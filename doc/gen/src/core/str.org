@@ -1,19 +1,19 @@
 #+TITLE: src/core/str.til
 #+OPTIONS: toc:t
 
-* hoisted__I64_895
+* hoisted__I64_921
 #+begin_src til
-hoisted__I64_895 is a I64
+hoisted__I64_921 is a I64
 #+end_src
 
-* hoisted__I64_896
+* hoisted__I64_922
 #+begin_src til
-hoisted__I64_896 is a I64
+hoisted__I64_922 is a I64
 #+end_src
 
-* hoisted__I64_897
+* hoisted__I64_923
 #+begin_src til
-hoisted__I64_897 is a I64
+hoisted__I64_923 is a I64
 #+end_src
 
 * CAP_LIT
@@ -21,19 +21,19 @@ hoisted__I64_897 is a I64
 CAP_LIT is a USize
 #+end_src
 
-* hoisted__I64_898
+* hoisted__I64_924
 #+begin_src til
-hoisted__I64_898 is a I64
+hoisted__I64_924 is a I64
 #+end_src
 
-* hoisted__I64_899
+* hoisted__I64_925
 #+begin_src til
-hoisted__I64_899 is a I64
+hoisted__I64_925 is a I64
 #+end_src
 
-* hoisted__I64_900
+* hoisted__I64_926
 #+begin_src til
-hoisted__I64_900 is a I64
+hoisted__I64_926 is a I64
 #+end_src
 
 * CAP_VIEW

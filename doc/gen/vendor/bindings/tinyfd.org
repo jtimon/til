@@ -1,4 +1,4 @@
-#+TITLE: src/lib/tinyfd.til
+#+TITLE: vendor/bindings/tinyfd.til
 #+OPTIONS: toc:t
 
 * tinyfd_messageBox

@@ -20,9 +20,9 @@ namespace:
 }
 #+end_src
 
-* lang_to_str
+* priv___src_self_targets_til__lang_to_str
 #+begin_src til
-func lang_to_str(lang: Lang) returns Str
+func priv___src_self_targets_til__lang_to_str(lang: Lang) returns Str
 #+end_src
 
 * Target
@@ -59,14 +59,14 @@ namespace:
 func target_from_str(s: Str) returns Target
 #+end_src
 
-* target_to_str
+* priv___src_self_targets_til__target_to_str
 #+begin_src til
-func target_to_str(target: Target) returns Str
+func priv___src_self_targets_til__target_to_str(target: Target) returns Str
 #+end_src
 
-* target_is_32bit
+* priv___src_self_targets_til__target_is_32bit
 #+begin_src til
-func target_is_32bit(target: Target) returns Bool
+func priv___src_self_targets_til__target_is_32bit(target: Target) returns Bool
 #+end_src
 
 * target_uptr_name

@@ -6,14 +6,14 @@
 ext_func realpath_str(path: Str) returns Str
 #+end_src
 
-* str_left
+* priv___src_self_loader_til__str_left
 #+begin_src til
-func str_left(s: Str, n: U32) returns Str
+func priv___src_self_loader_til__str_left(s: Str, n: U32) returns Str
 #+end_src
 
-* normalize_mode_name
+* priv___src_self_loader_til__normalize_mode_name
 #+begin_src til
-func normalize_mode_name(mode_name: Str) returns Str
+func priv___src_self_loader_til__normalize_mode_name(mode_name: Str) returns Str
 #+end_src
 
 * display_path
@@ -21,9 +21,9 @@ func normalize_mode_name(mode_name: Str) returns Str
 func display_path(p: Str, cwd: Str) returns Str
 #+end_src
 
-* require_mode
+* priv___src_self_loader_til__require_mode
 #+begin_src til
-func require_mode(path: Str, mode_name: Str) returns ref Mode
+func priv___src_self_loader_til__require_mode(path: Str, mode_name: Str) returns ref Mode
 #+end_src
 
 * forward_header_path
@@ -112,14 +112,14 @@ func retarget_loaded_aliases(mut lp: LoadedProgram)
 proc precomp_imported(mut lp: LoadedProgram)
 #+end_src
 
-* DeclRef
+* priv___src_self_loader_til__DeclRef
 #+begin_src til
-struct DeclRef {
+struct priv___src_self_loader_til__DeclRef {
     mut path : Str
     mut idx : U32
 namespace:
-    func clone(self: DeclRef) returns DeclRef
-    func delete(own self: DeclRef, call_free: Bool)
+    func clone(self: priv___src_self_loader_til__DeclRef) returns priv___src_self_loader_til__DeclRef
+    func delete(own self: priv___src_self_loader_til__DeclRef, call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src

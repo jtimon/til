@@ -68,6 +68,7 @@ struct CliArgs {
     mut install_prefix : Str
     mut path_idx : U32
     mut early_return : Bool
+    mut asan : Bool
 namespace:
     func clone(self: CliArgs) returns CliArgs
     func delete(own self: CliArgs, call_free: Bool)

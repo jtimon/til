@@ -1,6 +1,24 @@
 #+TITLE: src/core/ast.til
 #+OPTIONS: toc:t
 
+* Primitive
+Real primitive types. Issue #203 migrates them one at a time;
+I16 first because it has the smallest call-site surface.
+
+#+begin_src til
+enum Primitive {
+    I16
+namespace:
+    I16
+    func is(self: Primitive, other: Primitive) returns shallow Bool
+    func eq(self: Primitive, other: Primitive) returns shallow Bool
+    func delete(own self: Primitive, call_free: Bool)
+    func to_str(self: Primitive) returns Str
+    func clone(self: Primitive) returns Primitive
+    func size() returns shallow U32
+}
+#+end_src
+
 * Type
 Type representation for the til compiler. Carries payload for named
 types (Struct/Enum/Custom) and is tag-only for builtins.
@@ -11,7 +29,6 @@ enum Type {
     None
     I64
     U8
-    I16
     I32
     U32
     U64
@@ -26,6 +43,7 @@ enum Type {
     Dynamic
     Custom: Str
     I8
+    Primitive: Primitive
 namespace:
     /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
     /// compare equal regardless of variant if their name payloads match.
@@ -34,7 +52,6 @@ namespace:
     ext_func None() returns Type
     ext_func I64() returns Type
     ext_func U8() returns Type
-    ext_func I16() returns Type
     ext_func I32() returns Type
     ext_func U32() returns Type
     ext_func U64() returns Type
@@ -49,6 +66,7 @@ namespace:
     ext_func Dynamic() returns Type
     ext_func Custom(val: Str) returns Type
     ext_func I8() returns Type
+    ext_func Primitive(val: Primitive) returns Type
     func is(self: Type, other: Type) returns shallow Bool
     func delete(own self: Type, call_free: Bool)
     func to_str(self: Type) returns Str
@@ -65,6 +83,16 @@ func til_type_name_c(t: Type) returns Str
 * til_type_name
 #+begin_src til
 func til_type_name(t: Type) returns Str
+#+end_src
+
+* is_primitive
+#+begin_src til
+func is_primitive(t: Type) returns shallow Bool
+#+end_src
+
+* is_aggregate
+#+begin_src til
+func is_aggregate(t: Type) returns shallow Bool
 #+end_src
 
 * dyn_type_to_str
