@@ -120,23 +120,23 @@ for the graphic mode:
 for the console mode:
   dialog whiptail basicinput */
 
-tinyfd_messageBox := ext_func(aTitle : I8, aMessage : I8, aDialogType : I8, aIconType : I8, shallow aDefaultButton : I32) returns shallow I32 {}
+tinyfd_messageBox := ext_proc(aTitle : I8, aMessage : I8, aDialogType : I8, aIconType : I8, shallow aDefaultButton : I32) returns shallow I32 {}
   /* 0 for cancel/no , 1 for ok/yes , 2 for no in yesnocancel */
 
-tinyfd_inputBox := ext_func(aTitle : I8, aMessage : I8, aDefaultInput : I8) returns ref I8 {}
+tinyfd_inputBox := ext_proc(aTitle : I8, aMessage : I8, aDefaultInput : I8) returns ref I8 {}
   /* returns NULL on cancel */
 
-tinyfd_saveFileDialog := ext_func(aTitle : I8, aDefaultPathAndFile : I8, shallow aNumOfFilterPatterns : I32, aFilterPatterns : Dynamic, aSingleFilterDescription : I8) returns ref I8 {}
+tinyfd_saveFileDialog := ext_proc(aTitle : I8, aDefaultPathAndFile : I8, shallow aNumOfFilterPatterns : I32, aFilterPatterns : Dynamic, aSingleFilterDescription : I8) returns ref I8 {}
   /* returns NULL on cancel */
 
-tinyfd_openFileDialog := ext_func(aTitle : I8, aDefaultPathAndFile : I8, shallow aNumOfFilterPatterns : I32, aFilterPatterns : Dynamic, aSingleFilterDescription : I8, shallow aAllowMultipleSelects : I32) returns ref I8 {}
+tinyfd_openFileDialog := ext_proc(aTitle : I8, aDefaultPathAndFile : I8, shallow aNumOfFilterPatterns : I32, aFilterPatterns : Dynamic, aSingleFilterDescription : I8, shallow aAllowMultipleSelects : I32) returns ref I8 {}
   /* in case of multiple files, the separator is | */
   /* returns NULL on cancel */
 
-tinyfd_selectFolderDialog := ext_func(aTitle : I8, aDefaultPath : I8) returns ref I8 {}
+tinyfd_selectFolderDialog := ext_proc(aTitle : I8, aDefaultPath : I8) returns ref I8 {}
   /* returns NULL on cancel */
 
-tinyfd_colorChooser := ext_func(aTitle : I8, aDefaultHexRGB : I8, aDefaultRGB : U8, aoResultRGB : U8) returns ref I8 {}
+tinyfd_colorChooser := ext_proc(aTitle : I8, aDefaultHexRGB : I8, aDefaultRGB : U8, aoResultRGB : U8) returns ref I8 {}
   /* returns the hexcolor as a string "#FF0000" */
   /* aoResultRGB also contains the result */
   /* aDefaultRGB is used only if aDefaultHexRGB is NULL */
@@ -145,7 +145,7 @@ tinyfd_colorChooser := ext_func(aTitle : I8, aDefaultHexRGB : I8, aDefaultRGB : 
 
 /************ NOT CROSS PLATFORM SECTION STARTS HERE ************************/
 /* unix zenity only */
-tinyfd_arrayDialog := ext_func(aTitle : I8, shallow aNumOfColumns : I32, aColumns : Dynamic, shallow aNumOfRows : I32, aCells : Dynamic) returns ref I8 {}
+tinyfd_arrayDialog := ext_proc(aTitle : I8, shallow aNumOfColumns : I32, aColumns : Dynamic, shallow aNumOfRows : I32, aCells : Dynamic) returns ref I8 {}
   /* {"Row1 Col1","Row1 Col2","Row2 Col1","Row2 Col2"} */
 /*
 - This is not for android nor ios.

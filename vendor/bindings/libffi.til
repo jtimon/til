@@ -184,7 +184,7 @@ ffi_raw_call := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue :
 
 ffi_ptrarray_to_raw := ext_proc(cif : ffi_cif, args : Dynamic, raw : ffi_raw) {}
 ffi_raw_to_ptrarray := ext_proc(cif : ffi_cif, raw : ffi_raw, args : Dynamic) {}
-ffi_raw_size := ext_func(cif : ffi_cif) returns shallow USize {}
+ffi_raw_size := ext_proc(cif : ffi_cif) returns shallow USize {}
 
 /* This is analogous to the raw API, except it uses Java parameter
    packing, even on 64-bit machines.  I.e. on 64-bit machines longs
@@ -196,44 +196,44 @@ ffi_java_ptrarray_to_raw := ext_proc(cif : ffi_cif, args : Dynamic, raw : ffi_ja
 
 ffi_java_raw_to_ptrarray := ext_proc(cif : ffi_cif, raw : ffi_java_raw, args : Dynamic) {}
 
-ffi_java_raw_size := ext_func(cif : ffi_cif) returns shallow USize {}
+ffi_java_raw_size := ext_proc(cif : ffi_cif) returns shallow USize {}
 
 /* ---- Definitions for closures ----------------------------------------- */
 
 ffi_closure := ext_struct("") {}  // opaque: unsupported field shape
 
-ffi_closure_alloc := ext_func(shallow size : USize, code : Dynamic) returns Dynamic {}
+ffi_closure_alloc := ext_proc(shallow size : USize, code : Dynamic) returns Dynamic {}
 ffi_closure_free := ext_proc(_arg : Dynamic) {}
 
-ffi_prep_closure_loc := ext_func(_arg : ffi_closure, _arg : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
+ffi_prep_closure_loc := ext_proc(_arg : ffi_closure, _arg : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
 
 ffi_raw_closure := ext_struct("") {}  // opaque: unsupported field shape
 
 ffi_java_raw_closure := ext_struct("") {}  // opaque: unsupported field shape
 
-ffi_prep_raw_closure := ext_func(_arg : ffi_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic) returns shallow ffi_status {}
+ffi_prep_raw_closure := ext_proc(_arg : ffi_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic) returns shallow ffi_status {}
 
-ffi_prep_raw_closure_loc := ext_func(_arg : ffi_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
+ffi_prep_raw_closure_loc := ext_proc(_arg : ffi_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
 
-ffi_prep_java_raw_closure := ext_func(_arg : ffi_java_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic) returns shallow ffi_status {}
+ffi_prep_java_raw_closure := ext_proc(_arg : ffi_java_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic) returns shallow ffi_status {}
 
-ffi_prep_java_raw_closure_loc := ext_func(_arg : ffi_java_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
+ffi_prep_java_raw_closure_loc := ext_proc(_arg : ffi_java_raw_closure, cif : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
 
 ffi_go_closure := ext_struct("") {}  // opaque: unsupported field shape
 
-ffi_prep_go_closure := ext_func(_arg : ffi_go_closure, _arg : ffi_cif, fun : Dynamic) returns shallow ffi_status {}
+ffi_prep_go_closure := ext_proc(_arg : ffi_go_closure, _arg : ffi_cif, fun : Dynamic) returns shallow ffi_status {}
 
 ffi_call_go := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : Dynamic, closure : Dynamic) {}
 
 /* ---- Public interface definition -------------------------------------- */
 
-ffi_prep_cif := ext_func(cif : ffi_cif, shallow abi : ffi_abi, shallow nargs : U32, rtype : ffi_type, atypes : Dynamic) returns shallow ffi_status {}
+ffi_prep_cif := ext_proc(cif : ffi_cif, shallow abi : ffi_abi, shallow nargs : U32, rtype : ffi_type, atypes : Dynamic) returns shallow ffi_status {}
 
-ffi_prep_cif_var := ext_func(cif : ffi_cif, shallow abi : ffi_abi, shallow nfixedargs : U32, shallow ntotalargs : U32, rtype : ffi_type, atypes : Dynamic) returns shallow ffi_status {}
+ffi_prep_cif_var := ext_proc(cif : ffi_cif, shallow abi : ffi_abi, shallow nfixedargs : U32, shallow ntotalargs : U32, rtype : ffi_type, atypes : Dynamic) returns shallow ffi_status {}
 
 ffi_call := ext_proc(cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : Dynamic) {}
 
-ffi_get_struct_offsets := ext_func(shallow abi : ffi_abi, struct_type : ffi_type, offsets : USize) returns shallow ffi_status {}
+ffi_get_struct_offsets := ext_proc(shallow abi : ffi_abi, struct_type : ffi_type, offsets : USize) returns shallow ffi_status {}
 
 /* Convert between closure and function pointers.  */
 

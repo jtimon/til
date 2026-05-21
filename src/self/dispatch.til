@@ -1071,7 +1071,7 @@ ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     if ext_dispatch_builtin(name, scope, e, result) { return true }
     return ext_dispatch_ffi(name, scope, e, result)
 }
-ffi_register := func(name: Str, fn: Dynamic, fdef: Expr) {
+ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         np := fd.params.len()
@@ -1137,7 +1137,7 @@ ffi_register := func(name: Str, fn: Dynamic, fdef: Expr) {
 }
 
 
-ffi_init_scan_program := func(program: Expr) {
+ffi_init_scan_program := proc(program: Expr) {
     if ffi_map_inited.not() {
         ffi_map = Map.new(Str, FFIEntry)
         ffi_map_inited = true
