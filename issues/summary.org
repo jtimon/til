@@ -21,7 +21,6 @@
 *** [[./open/182.org][#182]] Support ~/** */~ block doc comments (in addition to ~///~)
 *** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
 *** [[./open/204.org][#204]] Asap destruction is its own phase, not part of the typer
-*** [[./open/208.org][#208]] FFI: manual proc/own/ref/shallow on regenerated C bindings + noop_proc escape hatch
 *** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
 ** Medium
 ** Low

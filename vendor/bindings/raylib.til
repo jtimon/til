@@ -839,21 +839,21 @@ CloseWindow := ext_proc() {}
 // ext_proc: reads window state set by the platform layer.
 WindowShouldClose := ext_proc() returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsWindowReady := ext_func() returns shallow Bool {}
+IsWindowReady := ext_proc() returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsWindowFullscreen := ext_func() returns shallow Bool {}
+IsWindowFullscreen := ext_proc() returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsWindowHidden := ext_func() returns shallow Bool {}
+IsWindowHidden := ext_proc() returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsWindowMinimized := ext_func() returns shallow Bool {}
+IsWindowMinimized := ext_proc() returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsWindowMaximized := ext_func() returns shallow Bool {}
+IsWindowMaximized := ext_proc() returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsWindowFocused := ext_func() returns shallow Bool {}
+IsWindowFocused := ext_proc() returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsWindowResized := ext_func() returns shallow Bool {}
+IsWindowResized := ext_proc() returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsWindowState := ext_func(shallow flag : U32) returns shallow Bool {}
+IsWindowState := ext_proc(shallow flag : U32) returns shallow Bool {}
 SetWindowState := ext_proc(shallow flags : U32) {}
 ClearWindowState := ext_proc(shallow flags : U32) {}
 ToggleFullscreen := ext_proc() {}
@@ -871,26 +871,26 @@ SetWindowMaxSize := ext_proc(shallow width : I32, shallow height : I32) {}
 SetWindowSize := ext_proc(shallow width : I32, shallow height : I32) {}
 SetWindowOpacity := ext_proc(shallow opacity : F32) {}
 SetWindowFocused := ext_proc() {}
-GetWindowHandle := ext_func() returns Dynamic {}
+GetWindowHandle := ext_proc() returns Dynamic {}
 // ext_proc: depends on current window dimensions.
 GetScreenWidth := ext_proc() returns shallow I32 {}
 GetScreenHeight := ext_proc() returns shallow I32 {}
-GetRenderWidth := ext_func() returns shallow I32 {}
-GetRenderHeight := ext_func() returns shallow I32 {}
-GetMonitorCount := ext_func() returns shallow I32 {}
-GetCurrentMonitor := ext_func() returns shallow I32 {}
-GetMonitorPosition := ext_func(shallow monitor : I32) returns shallow Vector2 {}
-GetMonitorWidth := ext_func(shallow monitor : I32) returns shallow I32 {}
-GetMonitorHeight := ext_func(shallow monitor : I32) returns shallow I32 {}
-GetMonitorPhysicalWidth := ext_func(shallow monitor : I32) returns shallow I32 {}
-GetMonitorPhysicalHeight := ext_func(shallow monitor : I32) returns shallow I32 {}
-GetMonitorRefreshRate := ext_func(shallow monitor : I32) returns shallow I32 {}
-GetWindowPosition := ext_func() returns shallow Vector2 {}
-GetWindowScaleDPI := ext_func() returns shallow Vector2 {}
-GetMonitorName := ext_func(shallow monitor : I32) returns ref I8 {}
+GetRenderWidth := ext_proc() returns shallow I32 {}
+GetRenderHeight := ext_proc() returns shallow I32 {}
+GetMonitorCount := ext_proc() returns shallow I32 {}
+GetCurrentMonitor := ext_proc() returns shallow I32 {}
+GetMonitorPosition := ext_proc(shallow monitor : I32) returns shallow Vector2 {}
+GetMonitorWidth := ext_proc(shallow monitor : I32) returns shallow I32 {}
+GetMonitorHeight := ext_proc(shallow monitor : I32) returns shallow I32 {}
+GetMonitorPhysicalWidth := ext_proc(shallow monitor : I32) returns shallow I32 {}
+GetMonitorPhysicalHeight := ext_proc(shallow monitor : I32) returns shallow I32 {}
+GetMonitorRefreshRate := ext_proc(shallow monitor : I32) returns shallow I32 {}
+GetWindowPosition := ext_proc() returns shallow Vector2 {}
+GetWindowScaleDPI := ext_proc() returns shallow Vector2 {}
+GetMonitorName := ext_proc(shallow monitor : I32) returns ref I8 {}
 SetClipboardText := ext_proc(text : I8) {}
-GetClipboardText := ext_func() returns ref I8 {}
-GetClipboardImage := ext_func() returns shallow Image {}
+GetClipboardText := ext_proc() returns ref I8 {}
+GetClipboardImage := ext_proc() returns shallow Image {}
 EnableEventWaiting := ext_proc() {}
 DisableEventWaiting := ext_proc() {}
 
@@ -898,11 +898,11 @@ DisableEventWaiting := ext_proc() {}
 ShowCursor := ext_proc() {}
 HideCursor := ext_proc() {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsCursorHidden := ext_func() returns shallow Bool {}
+IsCursorHidden := ext_proc() returns shallow Bool {}
 EnableCursor := ext_proc() {}
 DisableCursor := ext_proc() {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsCursorOnScreen := ext_func() returns shallow Bool {}
+IsCursorOnScreen := ext_proc() returns shallow Bool {}
 
 // Drawing-related functions
 ClearBackground := ext_proc(shallow color : Color) {}
@@ -929,8 +929,8 @@ UnloadVrStereoConfig := ext_proc(shallow config : VrStereoConfig) {}
 
 // Shader management functions
 // NOTE: Shader functionality is not available on OpenGL 1.1
-LoadShader := ext_func(vsFileName : I8, fsFileName : I8) returns shallow Shader {}
-LoadShaderFromMemory := ext_func(vsCode : I8, fsCode : I8) returns shallow Shader {}
+LoadShader := ext_proc(vsFileName : I8, fsFileName : I8) returns shallow Shader {}
+LoadShaderFromMemory := ext_proc(vsCode : I8, fsCode : I8) returns shallow Shader {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsShaderValid := ext_func(shallow shader : Shader) returns shallow Bool {}
 GetShaderLocation := ext_func(shallow shader : Shader, uniformName : I8) returns shallow I32 {}
@@ -942,12 +942,12 @@ SetShaderValueTexture := ext_proc(shallow shader : Shader, shallow locIndex : I3
 UnloadShader := ext_proc(shallow shader : Shader) {}
 
 // Screen-space-related functions
-GetScreenToWorldRay := ext_func(shallow position : Vector2, shallow camera : Camera) returns shallow Ray {}
-GetScreenToWorldRayEx := ext_func(shallow position : Vector2, shallow camera : Camera, shallow width : I32, shallow height : I32) returns shallow Ray {}
-GetWorldToScreen := ext_func(shallow position : Vector3, shallow camera : Camera) returns shallow Vector2 {}
-GetWorldToScreenEx := ext_func(shallow position : Vector3, shallow camera : Camera, shallow width : I32, shallow height : I32) returns shallow Vector2 {}
-GetWorldToScreen2D := ext_func(shallow position : Vector2, shallow camera : Camera2D) returns shallow Vector2 {}
-GetScreenToWorld2D := ext_func(shallow position : Vector2, shallow camera : Camera2D) returns shallow Vector2 {}
+GetScreenToWorldRay := ext_proc(shallow position : Vector2, shallow camera : Camera) returns shallow Ray {}
+GetScreenToWorldRayEx := ext_proc(shallow position : Vector2, shallow camera : Camera, shallow width : I32, shallow height : I32) returns shallow Ray {}
+GetWorldToScreen := ext_proc(shallow position : Vector3, shallow camera : Camera) returns shallow Vector2 {}
+GetWorldToScreenEx := ext_proc(shallow position : Vector3, shallow camera : Camera, shallow width : I32, shallow height : I32) returns shallow Vector2 {}
+GetWorldToScreen2D := ext_proc(shallow position : Vector2, shallow camera : Camera2D) returns shallow Vector2 {}
+GetScreenToWorld2D := ext_proc(shallow position : Vector2, shallow camera : Camera2D) returns shallow Vector2 {}
 GetCameraMatrix := ext_func(shallow camera : Camera) returns shallow Matrix {}
 GetCameraMatrix2D := ext_func(shallow camera : Camera2D) returns shallow Matrix {}
 
@@ -956,7 +956,7 @@ SetTargetFPS := ext_proc(shallow fps : I32) {}
 // ext_proc: reads the frame-clock state maintained by raylib.
 GetFrameTime := ext_proc() returns shallow F32 {}
 GetTime := ext_proc() returns shallow F32 {}
-GetFPS := ext_func() returns shallow I32 {}
+GetFPS := ext_proc() returns shallow I32 {}
 
 // Custom frame control functions
 // NOTE: Those functions are intended for advanced users that want full control over the frame processing
@@ -968,8 +968,8 @@ WaitTime := ext_proc(shallow seconds : F32) {}
 
 // Random values generation functions
 SetRandomSeed := ext_proc(shallow seed : U32) {}
-GetRandomValue := ext_func(shallow min : I32, shallow max : I32) returns shallow I32 {}
-LoadRandomSequence := ext_func(shallow count : U32, shallow min : I32, shallow max : I32) returns ref I32 {}
+GetRandomValue := ext_proc(shallow min : I32, shallow max : I32) returns shallow I32 {}
+LoadRandomSequence := ext_proc(shallow count : U32, shallow min : I32, shallow max : I32) returns ref I32 {}
 UnloadRandomSequence := ext_proc(sequence : I32) {}
 
 // Misc. functions
@@ -982,21 +982,21 @@ SetTraceLogLevel := ext_proc(shallow logLevel : I32) {}
 SetTraceLogCallback := ext_proc(callback : TraceLogCallback) {}
 
 // Memory management, using internal allocators
-MemAlloc := ext_func(shallow size : U32) returns Dynamic {}
-MemRealloc := ext_func(ptr : Dynamic, shallow size : U32) returns Dynamic {}
+MemAlloc := ext_proc(shallow size : U32) returns Dynamic {}
+MemRealloc := ext_proc(ptr : Dynamic, shallow size : U32) returns Dynamic {}
 MemFree := ext_proc(ptr : Dynamic) {}
 
 // File system management functions
-LoadFileData := ext_func(fileName : I8, dataSize : I32) returns ref I8 {}
+LoadFileData := ext_proc(fileName : I8, dataSize : I32) returns ref I8 {}
 UnloadFileData := ext_proc(data : U8) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-SaveFileData := ext_func(fileName : I8, data : Dynamic, shallow dataSize : I32) returns shallow Bool {}
+SaveFileData := ext_proc(fileName : I8, data : Dynamic, shallow dataSize : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-ExportDataAsCode := ext_func(data : U8, shallow dataSize : I32, fileName : I8) returns shallow Bool {}
-LoadFileText := ext_func(fileName : I8) returns ref I8 {}
+ExportDataAsCode := ext_proc(data : U8, shallow dataSize : I32, fileName : I8) returns shallow Bool {}
+LoadFileText := ext_proc(fileName : I8) returns ref I8 {}
 UnloadFileText := ext_proc(text : I8) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-SaveFileText := ext_func(fileName : I8, text : I8) returns shallow Bool {}
+SaveFileText := ext_proc(fileName : I8, text : I8) returns shallow Bool {}
 
 // File access custom callbacks
 // WARNING: Callbacks setup is intended for advanced users
@@ -1005,43 +1005,43 @@ SetSaveFileDataCallback := ext_proc(callback : SaveFileDataCallback) {}
 SetLoadFileTextCallback := ext_proc(callback : LoadFileTextCallback) {}
 SetSaveFileTextCallback := ext_proc(callback : SaveFileTextCallback) {}
 
-FileRename := ext_func(fileName : I8, fileRename : I8) returns shallow I32 {}
-FileRemove := ext_func(fileName : I8) returns shallow I32 {}
-FileCopy := ext_func(srcPath : I8, dstPath : I8) returns shallow I32 {}
-FileMove := ext_func(srcPath : I8, dstPath : I8) returns shallow I32 {}
-FileTextReplace := ext_func(fileName : I8, search : I8, replacement : I8) returns shallow I32 {}
-FileTextFindIndex := ext_func(fileName : I8, search : I8) returns shallow I32 {}
+FileRename := ext_proc(fileName : I8, fileRename : I8) returns shallow I32 {}
+FileRemove := ext_proc(fileName : I8) returns shallow I32 {}
+FileCopy := ext_proc(srcPath : I8, dstPath : I8) returns shallow I32 {}
+FileMove := ext_proc(srcPath : I8, dstPath : I8) returns shallow I32 {}
+FileTextReplace := ext_proc(fileName : I8, search : I8, replacement : I8) returns shallow I32 {}
+FileTextFindIndex := ext_proc(fileName : I8, search : I8) returns shallow I32 {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-FileExists := ext_func(fileName : I8) returns shallow Bool {}
+FileExists := ext_proc(fileName : I8) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-DirectoryExists := ext_func(dirPath : I8) returns shallow Bool {}
+DirectoryExists := ext_proc(dirPath : I8) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsFileExtension := ext_func(fileName : I8, ext : I8) returns shallow Bool {}
-GetFileLength := ext_func(fileName : I8) returns shallow I32 {}
-GetFileModTime := ext_func(fileName : I8) returns shallow I64 {}
+GetFileLength := ext_proc(fileName : I8) returns shallow I32 {}
+GetFileModTime := ext_proc(fileName : I8) returns shallow I64 {}
 GetFileExtension := ext_func(fileName : I8) returns ref I8 {}
 GetFileName := ext_func(filePath : I8) returns ref I8 {}
 GetFileNameWithoutExt := ext_func(filePath : I8) returns ref I8 {}
 GetDirectoryPath := ext_func(filePath : I8) returns ref I8 {}
 GetPrevDirectoryPath := ext_func(dirPath : I8) returns ref I8 {}
-GetWorkingDirectory := ext_func() returns ref I8 {}
-GetApplicationDirectory := ext_func() returns ref I8 {}
-MakeDirectory := ext_func(dirPath : I8) returns shallow I32 {}
+GetWorkingDirectory := ext_proc() returns ref I8 {}
+GetApplicationDirectory := ext_proc() returns ref I8 {}
+MakeDirectory := ext_proc(dirPath : I8) returns shallow I32 {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-ChangeDirectory := ext_func(dirPath : I8) returns shallow Bool {}
+ChangeDirectory := ext_proc(dirPath : I8) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsPathFile := ext_func(path : I8) returns shallow Bool {}
+IsPathFile := ext_proc(path : I8) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsFileNameValid := ext_func(fileName : I8) returns shallow Bool {}
-LoadDirectoryFiles := ext_func(dirPath : I8) returns shallow FilePathList {}
-LoadDirectoryFilesEx := ext_func(basePath : I8, filter : I8, shallow scanSubdirs : Bool) returns shallow FilePathList {}
+LoadDirectoryFiles := ext_proc(dirPath : I8) returns shallow FilePathList {}
+LoadDirectoryFilesEx := ext_proc(basePath : I8, filter : I8, shallow scanSubdirs : Bool) returns shallow FilePathList {}
 UnloadDirectoryFiles := ext_proc(shallow files : FilePathList) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsFileDropped := ext_func() returns shallow Bool {}
-LoadDroppedFiles := ext_func() returns shallow FilePathList {}
+IsFileDropped := ext_proc() returns shallow Bool {}
+LoadDroppedFiles := ext_proc() returns shallow FilePathList {}
 UnloadDroppedFiles := ext_proc(shallow files : FilePathList) {}
-GetDirectoryFileCount := ext_func(dirPath : I8) returns shallow I32 {}
-GetDirectoryFileCountEx := ext_func(basePath : I8, filter : I8, shallow scanSubdirs : Bool) returns shallow I32 {}
+GetDirectoryFileCount := ext_proc(dirPath : I8) returns shallow I32 {}
+GetDirectoryFileCountEx := ext_proc(basePath : I8, filter : I8, shallow scanSubdirs : Bool) returns shallow I32 {}
 
 // Compression/Encoding functionality
 CompressData := ext_func(data : U8, shallow dataSize : I32, compDataSize : I32) returns ref I8 {}
@@ -1054,10 +1054,10 @@ ComputeSHA1 := ext_func(data : U8, shallow dataSize : I32) returns ref I32 {}
 ComputeSHA256 := ext_func(data : U8, shallow dataSize : I32) returns ref I32 {}
 
 // Automation events functionality
-LoadAutomationEventList := ext_func(fileName : I8) returns shallow AutomationEventList {}
+LoadAutomationEventList := ext_proc(fileName : I8) returns shallow AutomationEventList {}
 UnloadAutomationEventList := ext_proc(shallow list : AutomationEventList) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-ExportAutomationEventList := ext_func(shallow list : AutomationEventList, fileName : I8) returns shallow Bool {}
+ExportAutomationEventList := ext_proc(shallow list : AutomationEventList, fileName : I8) returns shallow Bool {}
 SetAutomationEventList := ext_proc(list : AutomationEventList) {}
 SetAutomationEventBaseFrame := ext_proc(shallow frame : I32) {}
 StartAutomationEventRecording := ext_proc() {}
@@ -1070,78 +1070,78 @@ PlayAutomationEvent := ext_proc(shallow event : AutomationEvent) {}
 
 // Input-related functions: keyboard
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsKeyPressed := ext_func(shallow key : I32) returns shallow Bool {}
+IsKeyPressed := ext_proc(shallow key : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsKeyPressedRepeat := ext_func(shallow key : I32) returns shallow Bool {}
+IsKeyPressedRepeat := ext_proc(shallow key : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsKeyDown := ext_func(shallow key : I32) returns shallow Bool {}
+IsKeyDown := ext_proc(shallow key : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsKeyReleased := ext_func(shallow key : I32) returns shallow Bool {}
+IsKeyReleased := ext_proc(shallow key : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsKeyUp := ext_func(shallow key : I32) returns shallow Bool {}
-GetKeyPressed := ext_func() returns shallow I32 {}
-GetCharPressed := ext_func() returns shallow I32 {}
-GetKeyName := ext_func(shallow key : I32) returns ref I8 {}
+IsKeyUp := ext_proc(shallow key : I32) returns shallow Bool {}
+GetKeyPressed := ext_proc() returns shallow I32 {}
+GetCharPressed := ext_proc() returns shallow I32 {}
+GetKeyName := ext_proc(shallow key : I32) returns ref I8 {}
 SetExitKey := ext_proc(shallow key : I32) {}
 
 // Input-related functions: gamepads
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsGamepadAvailable := ext_func(shallow gamepad : I32) returns shallow Bool {}
-GetGamepadName := ext_func(shallow gamepad : I32) returns ref I8 {}
+IsGamepadAvailable := ext_proc(shallow gamepad : I32) returns shallow Bool {}
+GetGamepadName := ext_proc(shallow gamepad : I32) returns ref I8 {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsGamepadButtonPressed := ext_func(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
+IsGamepadButtonPressed := ext_proc(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsGamepadButtonDown := ext_func(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
+IsGamepadButtonDown := ext_proc(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsGamepadButtonReleased := ext_func(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
+IsGamepadButtonReleased := ext_proc(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsGamepadButtonUp := ext_func(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
-GetGamepadButtonPressed := ext_func() returns shallow I32 {}
-GetGamepadAxisCount := ext_func(shallow gamepad : I32) returns shallow I32 {}
-GetGamepadAxisMovement := ext_func(shallow gamepad : I32, shallow axis : I32) returns shallow F32 {}
-SetGamepadMappings := ext_func(mappings : I8) returns shallow I32 {}
+IsGamepadButtonUp := ext_proc(shallow gamepad : I32, shallow button : I32) returns shallow Bool {}
+GetGamepadButtonPressed := ext_proc() returns shallow I32 {}
+GetGamepadAxisCount := ext_proc(shallow gamepad : I32) returns shallow I32 {}
+GetGamepadAxisMovement := ext_proc(shallow gamepad : I32, shallow axis : I32) returns shallow F32 {}
+SetGamepadMappings := ext_proc(mappings : I8) returns shallow I32 {}
 SetGamepadVibration := ext_proc(shallow gamepad : I32, shallow leftMotor : F32, shallow rightMotor : F32, shallow duration : F32) {}
 
 // Input-related functions: mouse
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsMouseButtonPressed := ext_func(shallow button : I32) returns shallow Bool {}
+IsMouseButtonPressed := ext_proc(shallow button : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsMouseButtonDown := ext_func(shallow button : I32) returns shallow Bool {}
+IsMouseButtonDown := ext_proc(shallow button : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsMouseButtonReleased := ext_func(shallow button : I32) returns shallow Bool {}
+IsMouseButtonReleased := ext_proc(shallow button : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsMouseButtonUp := ext_func(shallow button : I32) returns shallow Bool {}
+IsMouseButtonUp := ext_proc(shallow button : I32) returns shallow Bool {}
 // ext_proc: reads current mouse cursor state.
 GetMouseX := ext_proc() returns shallow I32 {}
 GetMouseY := ext_proc() returns shallow I32 {}
-GetMousePosition := ext_func() returns shallow Vector2 {}
-GetMouseDelta := ext_func() returns shallow Vector2 {}
+GetMousePosition := ext_proc() returns shallow Vector2 {}
+GetMouseDelta := ext_proc() returns shallow Vector2 {}
 SetMousePosition := ext_proc(shallow x : I32, shallow y : I32) {}
 SetMouseOffset := ext_proc(shallow offsetX : I32, shallow offsetY : I32) {}
 SetMouseScale := ext_proc(shallow scaleX : F32, shallow scaleY : F32) {}
-GetMouseWheelMove := ext_func() returns shallow F32 {}
-GetMouseWheelMoveV := ext_func() returns shallow Vector2 {}
+GetMouseWheelMove := ext_proc() returns shallow F32 {}
+GetMouseWheelMoveV := ext_proc() returns shallow Vector2 {}
 SetMouseCursor := ext_proc(shallow cursor : I32) {}
 
 // Input-related functions: touch
-GetTouchX := ext_func() returns shallow I32 {}
-GetTouchY := ext_func() returns shallow I32 {}
-GetTouchPosition := ext_func(shallow index : I32) returns shallow Vector2 {}
-GetTouchPointId := ext_func(shallow index : I32) returns shallow I32 {}
-GetTouchPointCount := ext_func() returns shallow I32 {}
+GetTouchX := ext_proc() returns shallow I32 {}
+GetTouchY := ext_proc() returns shallow I32 {}
+GetTouchPosition := ext_proc(shallow index : I32) returns shallow Vector2 {}
+GetTouchPointId := ext_proc(shallow index : I32) returns shallow I32 {}
+GetTouchPointCount := ext_proc() returns shallow I32 {}
 
 //------------------------------------------------------------------------------------
 // Gestures and Touch Handling Functions (Module: rgestures)
 //------------------------------------------------------------------------------------
 SetGesturesEnabled := ext_proc(shallow flags : U32) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsGestureDetected := ext_func(shallow gesture : U32) returns shallow Bool {}
-GetGestureDetected := ext_func() returns shallow I32 {}
-GetGestureHoldDuration := ext_func() returns shallow F32 {}
-GetGestureDragVector := ext_func() returns shallow Vector2 {}
-GetGestureDragAngle := ext_func() returns shallow F32 {}
-GetGesturePinchVector := ext_func() returns shallow Vector2 {}
-GetGesturePinchAngle := ext_func() returns shallow F32 {}
+IsGestureDetected := ext_proc(shallow gesture : U32) returns shallow Bool {}
+GetGestureDetected := ext_proc() returns shallow I32 {}
+GetGestureHoldDuration := ext_proc() returns shallow F32 {}
+GetGestureDragVector := ext_proc() returns shallow Vector2 {}
+GetGestureDragAngle := ext_proc() returns shallow F32 {}
+GetGesturePinchVector := ext_proc() returns shallow Vector2 {}
+GetGesturePinchAngle := ext_proc() returns shallow F32 {}
 
 //------------------------------------------------------------------------------------
 // Camera System Functions (Module: rcamera)
@@ -1156,8 +1156,8 @@ UpdateCameraPro := ext_proc(camera : Camera, shallow movement : Vector3, shallow
 // NOTE: It can be useful when using basic shapes and one single font,
 // defining a font char white rectangle would allow drawing everything in a single draw call
 SetShapesTexture := ext_proc(shallow texture : Texture2D, shallow source : Rectangle) {}
-GetShapesTexture := ext_func() returns shallow Texture2D {}
-GetShapesTextureRectangle := ext_func() returns shallow Rectangle {}
+GetShapesTexture := ext_proc() returns shallow Texture2D {}
+GetShapesTextureRectangle := ext_proc() returns shallow Rectangle {}
 
 // Basic shapes drawing functions
 DrawPixel := ext_proc(shallow posX : I32, shallow posY : I32, shallow color : Color) {}
@@ -1249,21 +1249,21 @@ GetCollisionRec := ext_func(shallow rec1 : Rectangle, shallow rec2 : Rectangle) 
 
 // Image loading functions
 // NOTE: These functions do not require GPU access
-LoadImage := ext_func(fileName : I8) returns shallow Image {}
-LoadImageRaw := ext_func(fileName : I8, shallow width : I32, shallow height : I32, shallow format : I32, shallow headerSize : I32) returns shallow Image {}
-LoadImageAnim := ext_func(fileName : I8, frames : I32) returns shallow Image {}
-LoadImageAnimFromMemory := ext_func(fileType : I8, fileData : U8, shallow dataSize : I32, frames : I32) returns shallow Image {}
-LoadImageFromMemory := ext_func(fileType : I8, fileData : U8, shallow dataSize : I32) returns shallow Image {}
-LoadImageFromTexture := ext_func(shallow texture : Texture2D) returns shallow Image {}
-LoadImageFromScreen := ext_func() returns shallow Image {}
+LoadImage := ext_proc(fileName : I8) returns shallow Image {}
+LoadImageRaw := ext_proc(fileName : I8, shallow width : I32, shallow height : I32, shallow format : I32, shallow headerSize : I32) returns shallow Image {}
+LoadImageAnim := ext_proc(fileName : I8, frames : I32) returns shallow Image {}
+LoadImageAnimFromMemory := ext_proc(fileType : I8, fileData : U8, shallow dataSize : I32, frames : I32) returns shallow Image {}
+LoadImageFromMemory := ext_proc(fileType : I8, fileData : U8, shallow dataSize : I32) returns shallow Image {}
+LoadImageFromTexture := ext_proc(shallow texture : Texture2D) returns shallow Image {}
+LoadImageFromScreen := ext_proc() returns shallow Image {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsImageValid := ext_func(shallow image : Image) returns shallow Bool {}
 UnloadImage := ext_proc(shallow image : Image) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-ExportImage := ext_func(shallow image : Image, fileName : I8) returns shallow Bool {}
-ExportImageToMemory := ext_func(shallow image : Image, fileType : I8, fileSize : I32) returns ref I8 {}
+ExportImage := ext_proc(shallow image : Image, fileName : I8) returns shallow Bool {}
+ExportImageToMemory := ext_proc(shallow image : Image, fileType : I8, fileSize : I32) returns ref I8 {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-ExportImageAsCode := ext_func(shallow image : Image, fileName : I8) returns shallow Bool {}
+ExportImageAsCode := ext_proc(shallow image : Image, fileName : I8) returns shallow Bool {}
 
 // Image generation functions
 GenImageColor := ext_func(shallow width : I32, shallow height : I32, shallow color : Color) returns shallow Image {}
@@ -1341,10 +1341,10 @@ ImageDrawTextEx := ext_proc(dst : Image, shallow font : Font, text : I8, shallow
 
 // Texture loading functions
 // NOTE: These functions require GPU access
-LoadTexture := ext_func(fileName : I8) returns shallow Texture2D {}
-LoadTextureFromImage := ext_func(shallow image : Image) returns shallow Texture2D {}
-LoadTextureCubemap := ext_func(shallow image : Image, shallow layout : I32) returns shallow TextureCubemap {}
-LoadRenderTexture := ext_func(shallow width : I32, shallow height : I32) returns shallow RenderTexture2D {}
+LoadTexture := ext_proc(fileName : I8) returns shallow Texture2D {}
+LoadTextureFromImage := ext_proc(shallow image : Image) returns shallow Texture2D {}
+LoadTextureCubemap := ext_proc(shallow image : Image, shallow layout : I32) returns shallow TextureCubemap {}
+LoadRenderTexture := ext_proc(shallow width : I32, shallow height : I32) returns shallow RenderTexture2D {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsTextureValid := ext_func(shallow texture : Texture2D) returns shallow Bool {}
 UnloadTexture := ext_proc(shallow texture : Texture2D) {}
@@ -1392,19 +1392,19 @@ GetPixelDataSize := ext_func(shallow width : I32, shallow height : I32, shallow 
 //------------------------------------------------------------------------------------
 
 // Font loading/unloading functions
-GetFontDefault := ext_func() returns shallow Font {}
-LoadFont := ext_func(fileName : I8) returns shallow Font {}
-LoadFontEx := ext_func(fileName : I8, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}
-LoadFontFromImage := ext_func(shallow image : Image, shallow key : Color, shallow firstChar : I32) returns shallow Font {}
-LoadFontFromMemory := ext_func(fileType : I8, fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}
+GetFontDefault := ext_proc() returns shallow Font {}
+LoadFont := ext_proc(fileName : I8) returns shallow Font {}
+LoadFontEx := ext_proc(fileName : I8, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}
+LoadFontFromImage := ext_proc(shallow image : Image, shallow key : Color, shallow firstChar : I32) returns shallow Font {}
+LoadFontFromMemory := ext_proc(fileType : I8, fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsFontValid := ext_func(shallow font : Font) returns shallow Bool {}
-LoadFontData := ext_func(fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32, shallow type : I32, glyphCount : I32) returns ref GlyphInfo {}
-GenImageFontAtlas := ext_func(glyphs : GlyphInfo, glyphRecs : Dynamic, shallow glyphCount : I32, shallow fontSize : I32, shallow padding : I32, shallow packMethod : I32) returns shallow Image {}
+LoadFontData := ext_proc(fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32, shallow type : I32, glyphCount : I32) returns ref GlyphInfo {}
+GenImageFontAtlas := ext_proc(glyphs : GlyphInfo, glyphRecs : Dynamic, shallow glyphCount : I32, shallow fontSize : I32, shallow padding : I32, shallow packMethod : I32) returns shallow Image {}
 UnloadFontData := ext_proc(glyphs : GlyphInfo, shallow glyphCount : I32) {}
 UnloadFont := ext_proc(shallow font : Font) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-ExportFontAsCode := ext_func(shallow font : Font, fileName : I8) returns shallow Bool {}
+ExportFontAsCode := ext_proc(shallow font : Font, fileName : I8) returns shallow Bool {}
 
 // Text drawing functions
 DrawFPS := ext_proc(shallow posX : I32, shallow posY : I32) {}
@@ -1416,7 +1416,7 @@ DrawTextCodepoints := ext_proc(shallow font : Font, codepoints : I32, shallow co
 
 // Text font info functions
 SetTextLineSpacing := ext_proc(shallow spacing : I32) {}
-MeasureText := ext_func(text : I8, shallow fontSize : I32) returns shallow I32 {}
+MeasureText := ext_proc(text : I8, shallow fontSize : I32) returns shallow I32 {}
 MeasureTextEx := ext_func(shallow font : Font, text : I8, shallow fontSize : F32, shallow spacing : F32) returns shallow Vector2 {}
 MeasureTextCodepoints := ext_func(shallow font : Font, codepoints : I32, shallow length : I32, shallow fontSize : F32, shallow spacing : F32) returns shallow Vector2 {}
 GetGlyphIndex := ext_func(shallow font : Font, shallow codepoint : I32) returns shallow I32 {}
@@ -1493,8 +1493,8 @@ DrawGrid := ext_proc(shallow slices : I32, shallow spacing : F32) {}
 //------------------------------------------------------------------------------------
 
 // Model management functions
-LoadModel := ext_func(fileName : I8) returns shallow Model {}
-LoadModelFromMesh := ext_func(shallow mesh : Mesh) returns shallow Model {}
+LoadModel := ext_proc(fileName : I8) returns shallow Model {}
+LoadModelFromMesh := ext_proc(shallow mesh : Mesh) returns shallow Model {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsModelValid := ext_func(shallow model : Model) returns shallow Bool {}
 UnloadModel := ext_proc(shallow model : Model) {}
@@ -1521,9 +1521,9 @@ DrawMeshInstanced := ext_proc(shallow mesh : Mesh, shallow material : Material, 
 GetMeshBoundingBox := ext_func(shallow mesh : Mesh) returns shallow BoundingBox {}
 GenMeshTangents := ext_proc(mesh : Mesh) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-ExportMesh := ext_func(shallow mesh : Mesh, fileName : I8) returns shallow Bool {}
+ExportMesh := ext_proc(shallow mesh : Mesh, fileName : I8) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-ExportMeshAsCode := ext_func(shallow mesh : Mesh, fileName : I8) returns shallow Bool {}
+ExportMeshAsCode := ext_proc(shallow mesh : Mesh, fileName : I8) returns shallow Bool {}
 
 // Mesh generation functions
 GenMeshPoly := ext_func(shallow sides : I32, shallow radius : F32) returns shallow Mesh {}
@@ -1539,8 +1539,8 @@ GenMeshHeightmap := ext_func(shallow heightmap : Image, shallow size : Vector3) 
 GenMeshCubicmap := ext_func(shallow cubicmap : Image, shallow cubeSize : Vector3) returns shallow Mesh {}
 
 // Material loading/unloading functions
-LoadMaterials := ext_func(fileName : I8, materialCount : I32) returns ref Material {}
-LoadMaterialDefault := ext_func() returns shallow Material {}
+LoadMaterials := ext_proc(fileName : I8, materialCount : I32) returns ref Material {}
+LoadMaterialDefault := ext_proc() returns shallow Material {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsMaterialValid := ext_func(shallow material : Material) returns shallow Bool {}
 UnloadMaterial := ext_proc(shallow material : Material) {}
@@ -1548,7 +1548,7 @@ SetMaterialTexture := ext_proc(material : Material, shallow mapType : I32, shall
 SetModelMeshMaterial := ext_proc(model : Model, shallow meshId : I32, shallow materialId : I32) {}
 
 // Model animations loading/unloading functions
-LoadModelAnimations := ext_func(fileName : I8, animCount : I32) returns ref ModelAnimation {}
+LoadModelAnimations := ext_proc(fileName : I8, animCount : I32) returns ref ModelAnimation {}
 UpdateModelAnimation := ext_proc(shallow model : Model, shallow anim : ModelAnimation, shallow frame : F32) {}
 UpdateModelAnimationEx := ext_proc(shallow model : Model, shallow animA : ModelAnimation, shallow frameA : F32, shallow animB : ModelAnimation, shallow frameB : F32, shallow blend : F32) {}
 UnloadModelAnimations := ext_proc(animations : ModelAnimation, shallow animCount : I32) {}
@@ -1577,18 +1577,18 @@ AudioCallback := Dynamic
 InitAudioDevice := ext_proc() {}
 CloseAudioDevice := ext_proc() {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsAudioDeviceReady := ext_func() returns shallow Bool {}
+IsAudioDeviceReady := ext_proc() returns shallow Bool {}
 SetMasterVolume := ext_proc(shallow volume : F32) {}
-GetMasterVolume := ext_func() returns shallow F32 {}
+GetMasterVolume := ext_proc() returns shallow F32 {}
 
 // Wave/Sound loading/unloading functions
-LoadWave := ext_func(fileName : I8) returns shallow Wave {}
-LoadWaveFromMemory := ext_func(fileType : I8, fileData : U8, shallow dataSize : I32) returns shallow Wave {}
+LoadWave := ext_proc(fileName : I8) returns shallow Wave {}
+LoadWaveFromMemory := ext_proc(fileType : I8, fileData : U8, shallow dataSize : I32) returns shallow Wave {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsWaveValid := ext_func(shallow wave : Wave) returns shallow Bool {}
-LoadSound := ext_func(fileName : I8) returns shallow Sound {}
-LoadSoundFromWave := ext_func(shallow wave : Wave) returns shallow Sound {}
-LoadSoundAlias := ext_func(shallow source : Sound) returns shallow Sound {}
+LoadSound := ext_proc(fileName : I8) returns shallow Sound {}
+LoadSoundFromWave := ext_proc(shallow wave : Wave) returns shallow Sound {}
+LoadSoundAlias := ext_proc(shallow source : Sound) returns shallow Sound {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsSoundValid := ext_func(shallow sound : Sound) returns shallow Bool {}
 UpdateSound := ext_proc(shallow sound : Sound, data : Dynamic, shallow sampleCount : I32) {}
@@ -1596,9 +1596,9 @@ UnloadWave := ext_proc(shallow wave : Wave) {}
 UnloadSound := ext_proc(shallow sound : Sound) {}
 UnloadSoundAlias := ext_proc(shallow alias : Sound) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-ExportWave := ext_func(shallow wave : Wave, fileName : I8) returns shallow Bool {}
+ExportWave := ext_proc(shallow wave : Wave, fileName : I8) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-ExportWaveAsCode := ext_func(shallow wave : Wave, fileName : I8) returns shallow Bool {}
+ExportWaveAsCode := ext_proc(shallow wave : Wave, fileName : I8) returns shallow Bool {}
 
 // Wave/Sound management functions
 PlaySound := ext_proc(shallow sound : Sound) {}
@@ -1606,7 +1606,7 @@ StopSound := ext_proc(shallow sound : Sound) {}
 PauseSound := ext_proc(shallow sound : Sound) {}
 ResumeSound := ext_proc(shallow sound : Sound) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsSoundPlaying := ext_func(shallow sound : Sound) returns shallow Bool {}
+IsSoundPlaying := ext_proc(shallow sound : Sound) returns shallow Bool {}
 SetSoundVolume := ext_proc(shallow sound : Sound, shallow volume : F32) {}
 SetSoundPitch := ext_proc(shallow sound : Sound, shallow pitch : F32) {}
 SetSoundPan := ext_proc(shallow sound : Sound, shallow pan : F32) {}
@@ -1617,14 +1617,14 @@ LoadWaveSamples := ext_func(shallow wave : Wave) returns ref F32 {}
 UnloadWaveSamples := ext_proc(samples : F32) {}
 
 // Music management functions
-LoadMusicStream := ext_func(fileName : I8) returns shallow Music {}
-LoadMusicStreamFromMemory := ext_func(fileType : I8, data : U8, shallow dataSize : I32) returns shallow Music {}
+LoadMusicStream := ext_proc(fileName : I8) returns shallow Music {}
+LoadMusicStreamFromMemory := ext_proc(fileType : I8, data : U8, shallow dataSize : I32) returns shallow Music {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsMusicValid := ext_func(shallow music : Music) returns shallow Bool {}
 UnloadMusicStream := ext_proc(shallow music : Music) {}
 PlayMusicStream := ext_proc(shallow music : Music) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsMusicStreamPlaying := ext_func(shallow music : Music) returns shallow Bool {}
+IsMusicStreamPlaying := ext_proc(shallow music : Music) returns shallow Bool {}
 UpdateMusicStream := ext_proc(shallow music : Music) {}
 StopMusicStream := ext_proc(shallow music : Music) {}
 PauseMusicStream := ext_proc(shallow music : Music) {}
@@ -1634,21 +1634,21 @@ SetMusicVolume := ext_proc(shallow music : Music, shallow volume : F32) {}
 SetMusicPitch := ext_proc(shallow music : Music, shallow pitch : F32) {}
 SetMusicPan := ext_proc(shallow music : Music, shallow pan : F32) {}
 GetMusicTimeLength := ext_func(shallow music : Music) returns shallow F32 {}
-GetMusicTimePlayed := ext_func(shallow music : Music) returns shallow F32 {}
+GetMusicTimePlayed := ext_proc(shallow music : Music) returns shallow F32 {}
 
 // AudioStream management functions
-LoadAudioStream := ext_func(shallow sampleRate : U32, shallow sampleSize : U32, shallow channels : U32) returns shallow AudioStream {}
+LoadAudioStream := ext_proc(shallow sampleRate : U32, shallow sampleSize : U32, shallow channels : U32) returns shallow AudioStream {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsAudioStreamValid := ext_func(shallow stream : AudioStream) returns shallow Bool {}
 UnloadAudioStream := ext_proc(shallow stream : AudioStream) {}
 UpdateAudioStream := ext_proc(shallow stream : AudioStream, data : Dynamic, shallow frameCount : I32) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsAudioStreamProcessed := ext_func(shallow stream : AudioStream) returns shallow Bool {}
+IsAudioStreamProcessed := ext_proc(shallow stream : AudioStream) returns shallow Bool {}
 PlayAudioStream := ext_proc(shallow stream : AudioStream) {}
 PauseAudioStream := ext_proc(shallow stream : AudioStream) {}
 ResumeAudioStream := ext_proc(shallow stream : AudioStream) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-IsAudioStreamPlaying := ext_func(shallow stream : AudioStream) returns shallow Bool {}
+IsAudioStreamPlaying := ext_proc(shallow stream : AudioStream) returns shallow Bool {}
 StopAudioStream := ext_proc(shallow stream : AudioStream) {}
 SetAudioStreamVolume := ext_proc(shallow stream : AudioStream, shallow volume : F32) {}
 SetAudioStreamPitch := ext_proc(shallow stream : AudioStream, shallow pitch : F32) {}

@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all bindings clean test test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass
+.PHONY: all update_c_libs clean test test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass
 
 all: bin/til
 
@@ -55,13 +55,15 @@ vendor/libffi/.built:
 # knowledge baked in -- callers add their own `link("...")` directive
 # next to the `import(...)` site (see src/til.til and src/modes/gui.til).
 #
-# On-demand only: `make bindings` regenerates the in-tree
-# vendor/bindings/*.til files. Normal `make` / `make test` consumes
-# whatever is committed there. Phony so it always runs end-to-end (the
-# recipe writes its own outputs); vendor/bindings/*.til intentionally
-# have no per-file recipes to avoid a cycle with bin/til, which already
-# depends on $(LIB_TIL). lib/*.til stays for hand-written library
-# code; binding outputs live next to the vendored C sources.
+# Manual only: `make update_c_libs` regenerates the in-tree
+# vendor/bindings/*.til files.  Normal `make` / `make test` consumes
+# whatever is committed there.  This is intentional: the auto-generator
+# can't infer til-level qualifiers (proc vs func for purity, own vs ref
+# for pointer ownership) from C headers alone, so the committed
+# vendor/bindings/*.til files are hand-curated -- they happen to start
+# their life as generator output but are edited in-tree afterwards.
+# Running update_c_libs blows away those edits; redo the audit (see
+# doc/ffi.org) before committing.
 #
 # raylib needs two headers: raylib.h plus rcamera.h (which raylib.h does
 # not include but ships the CameraMoveForward/Right/Up helpers we need).
@@ -71,7 +73,7 @@ vendor/libffi/.built:
 # including raylib.h; cc -E only preprocesses (no type checking) so the
 # binder emits those decls verbatim and they resolve against the
 # raylib.h block once the two are joined.
-bindings: bin/til | tmp
+update_c_libs: bin/til | tmp
 	mkdir -p vendor/bindings
 	bin/til bindings -o vendor/bindings/tinyfd.til vendor/tinyfiledialogs/tinyfiledialogs.h
 	bin/til bindings -o vendor/bindings/libffi.til $(LIBFFI_BINDGEN_INCDIR)/ffi.h
@@ -247,7 +249,7 @@ help:
 	echo "make test           Build + run tests"
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
-	echo "make bindings       Regenerate raw FFI bindings from C headers"
+	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
 	echo "make doc            Regenerate doc/gen/ and UML docs"
 	echo "make install        Install til under PREFIX (default /usr/local)"
 	echo "make clean          Remove build artifacts"

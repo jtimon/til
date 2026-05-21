@@ -1,0 +1,136 @@
+# priority: high
+** FIXED #208 FFI: manual proc/own/ref/shallow on regenerated C bindings + noop_proc escape hatch
+
+The current ~precomp~ workaround for "pure-looking wrappers around
+ext_funcs fold to compile-time zero" (commit ~e7b4580~) is a blunt
+fix in the wrong layer. It makes ~func_uses_unknown_globals~ return
+true whenever it recurses into an ~ext_func~ body, which means *any*
+til function that transitively calls *any* ext_func is now
+unfoldable.  That's overly conservative -- there are pure C
+functions (~sinf~, ~memcmp~, ...) we'd happily fold across.
+
+Root cause: the auto-generated bindings under ~vendor/bindings/~
+spell every C function as ~ext_func~, including the ones that read
+or mutate process / library / OS state (~GetScreenWidth~,
+~GetMouseX~, ~time~, ...).  C doesn't have syntax for any of:
+
+- proc vs func (purity / side effects),
+- ~own~ vs default for pointer args (does the callee take ownership?),
+- ~ref~ vs ~own~ for pointer returns (does the caller own the result?),
+- ~shallow~ is the only piece the generator probably gets right.
+
+So the generator can't possibly infer the right qualifiers from the
+header alone.  Either we accept this and have a human curate the
+output once, or we keep papering over it in the compiler.
+
+*** Plan
+
+1. **Stop auto-regenerating bindings on every build.**  Move
+   binding regeneration out of the default ~make~ / ~make test~ /
+   ~make bindings~ path and into a dedicated ~make update_c_libs~
+   target.  The checked-in ~vendor/bindings/{raylib,tinyfd,libffi}.til~
+   become hand-curated files that happen to start their life as
+   generator output.
+
+2. **Manual review pass after regeneration.**  After
+   ~make update_c_libs~ produces fresh output, a human:
+
+   - flips ~ext_func~ -> ~ext_proc~ for every C function whose
+     return value depends on runtime state (anything that reads a
+     global, opens a socket, allocates, etc).  ~GetScreenWidth~,
+     ~GetMouseX~, ~IsKeyPressed~, ~GetTime~, ... all become
+     ~ext_proc(...) returns shallow I32 {}~.  Calls in user code
+     still get the return value; precomp just stops trying to
+     constant-fold them.
+   - changes ~shallow~-pointer args to ~own~ where the C function
+     takes ownership.
+   - changes ~shallow~-pointer returns to ~ref~ where the caller
+     does not own the returned pointer (raylib's various
+     ~LoadX~/~UnloadX~ pairs need a careful audit).
+   - drops a stray ~ref~ on returns where the C function actually
+     hands ownership over.  (Need to confirm what the binder emits
+     by default for pointer returns -- if it's already ~own~,
+     fine; if ~ref~, audit and flip the owning ones.)
+
+   The generator should keep emitting ~shallow~ correctly for
+   by-value scalar / small-struct params -- that piece is
+   unambiguous from the C header.
+
+3. **~noop_proc~ escape hatch for user code.**  Some user funcs
+   wrap ext_funcs in ways we can't fix at the binding layer (the
+   binding is correct, but the *wrapper* still depends on runtime
+   state -- ~get_screen_width := func() returns I64 { return
+   GetScreenWidth().to_i64() }~).  Add a single new ext_proc:
+
+   #+begin_src til
+   noop_proc := ext_proc() {}
+   #+end_src
+
+   C side in ~src/c/ext.c~:
+
+   #+begin_src c
+   void noop_proc(void) {}
+   #+end_src
+
+   Declared somewhere in ~src/core/~ (~sys.til~ alongside ~sleep_ms~,
+   or a new ~src/core/ffi.til~).  Users that want to force a func
+   to be treated as impure -- without changing its return type or
+   adding a real side effect -- drop a ~noop_proc()~ call somewhere
+   in its body.  Once precomp learns that "body calls any proc"
+   means "do not fold the caller" (which falls out naturally once
+   the bindings are corrected -- procs aren't in the ~funcs~ set
+   that ~precomp_has_func~ checks), this is enough.
+
+4. **Document the convention in ~doc/ffi.org~.**  Spell out:
+   - what each qualifier means at the FFI boundary,
+   - how to run ~make update_c_libs~,
+   - the checklist for the manual review pass,
+   - the ~noop_proc~ idiom for user wrappers,
+   - which existing ext_funcs in ~vendor/bindings/~ are
+     intentionally ~ext_proc~ and why (audit trail).
+
+5. **Remove the precomp workaround.**  Once steps 1-3 are in
+   place, the ~func_uses_unknown_globals~ change in ~e7b4580~ can
+   be reverted.  ~ext_func~ goes back to meaning "pure" -- exactly
+   what precomp wants it to mean.  Verify that ~bin/til build
+   examples/shootil.til~ still emits a real ~get_screen_width()~
+   call (not a hard-coded ~0~) after the revert, with the
+   corrected bindings.
+
+*** Why this is the right shape
+
+- The information lives where the human knows it (the binding
+  file), not buried in compiler heuristics.
+- ~ext_func~ stays useful as a purity claim that precomp can
+  trust, which keeps the cross-call fold optimization (#198)
+  working for the cases it was designed for.
+- The escape hatch is one symbol, not a new keyword or a typer
+  change -- low blast radius, easy to find with ~grep~.
+- The hand-edited bindings file is fine to check in; we already
+  treat ~vendor/~ as linguist-vendored and we already commit
+  generated artifacts (~boot/til.c~, ~gen/til/*.c~ in tests).
+  Issue #203 already documents that the hand-written bindings
+  "still ship correct" while the auto-gen path has bugs of its
+  own.
+
+*** Open questions
+
+- What does the binder currently default to for pointer returns:
+  ~shallow~, ~own~, or ~ref~?  Drives how big the manual audit is.
+- Where exactly does ~noop_proc~ live -- ~src/core/sys.til~ next to
+  ~sleep_ms~, or a new ~src/core/ffi.til~?
+- Do we need a second escape hatch ~noop_func~ (forces something
+  ext_proc-tagged in the bindings to participate in folding from a
+  user wrapper)?  Probably not until something asks for it.
+- Should ~make update_c_libs~ also touch ~src/modes/gui.til~ (which
+  carries hand-written wrappers atop the bindings), or stay
+  strictly to ~vendor/bindings/~?
+
+*** Out of scope
+
+- ~tinyfd~ / ~libffi~ bindings need the same manual review pass but
+  the failure mode is less visible than raylib's; do them in the
+  same sweep but they can come second.
+- Issue #203 (bindings_gen parse_decl_shape corruption) is
+  independent -- it's about the generator itself producing garbage
+  Strs.  Both need fixing; neither blocks the other.

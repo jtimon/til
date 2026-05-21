@@ -1,0 +1,156 @@
+* FFI Bindings
+
+How til talks to C, and the conventions that keep the boundary safe.
+
+** Why bindings need a human reviewer
+
+The til-side qualifiers that govern call semantics --
+~ext_proc~ vs ~ext_func~, ~own~ vs ~ref~ vs ~shallow~ on args,
+and ~own~ vs ~ref~ vs ~shallow~ on returns -- carry information
+that the C header simply does not encode.  C has no syntax for:
+
+- *purity* / side effects.  ~int GetScreenWidth(void)~ and
+  ~int CRC32(const char *)~ look identical to a header parser,
+  but the first reads a process-global and the second is a pure
+  function of its input.  til's precomp pass folds pure calls at
+  compile time; calling ~GetScreenWidth()~ at compile time
+  silently returns 0 (no window) and bakes that 0 into the
+  generated binary.  Folded vs not-folded is a til-side
+  decision: ~ext_func~ means "pure, fold freely",
+  ~ext_proc~ means "side effects, never fold".
+- *pointer ownership on parameters*.  Does ~Foo *foo~ as an arg
+  mean "callee borrows this pointer" or "callee takes ownership
+  and will free it"?  Same C signature, opposite til-side
+  contract.
+- *pointer ownership on returns*.  Does the ~char *~ returned by
+  ~GetClipboardText()~ point at memory the caller must free, or
+  at raylib-internal scratch that mustn't be freed by anyone but
+  raylib?
+
+So the auto-generator (~src/self/binder.til~, run via
+~make update_c_libs~) produces a starting point: structs spelled
+correctly, primitive args mapped through, but every function
+defaults to ~ext_func~ with ~shallow~ everywhere it could
+guess.  A human then walks the output and tags the cases the
+generator could not see.
+
+** The audit checklist
+
+When regenerating ~vendor/bindings/*.til~, scan each ~ext_func~
+in the output and ask:
+
+1. *Does the C function read or modify global state?*  Window
+   metrics, input queues, time, allocator state, file system,
+   GPU, audio device, PRNG seed -- anything that depends on or
+   touches the world outside the call's arguments.  If yes:
+   change ~ext_func~ to ~ext_proc~.  Return type stays
+   (~ext_proc~ may return a value -- the proc/func distinction
+   is purity, not arity).
+
+2. *Does the C function take a pointer arg that it stores or
+   frees?*  By default the binder emits ~shallow~ for primitives
+   and ~ref~ (= borrowed) for compound types.  If the C side
+   takes ownership of the buffer, change the arg to ~own~ -- til
+   will then transfer the heap allocation across the call and
+   not try to free it on this side.
+
+3. *Does the C function return a pointer the caller does not
+   own?*  raylib's ~GetMonitorName~, ~GetClipboardText~,
+   ~GetWorkingDirectory~ return internal static buffers; the
+   matching binding return type should be ~returns ref I8~ (not
+   ~returns I8~, which would mean "caller owns and must free").
+   The binder emits ~ref~ for raw-pointer returns by default,
+   which is the safe choice -- audit the few cases where the C
+   call actually hands ownership over.
+
+If any of (1)-(3) flips, also walk the matching wrapper in
+~src/modes/gui.til~ (or wherever the user-facing surface lives)
+and propagate the same qualifier change.  A ~func~ wrapper
+around an ~ext_proc~ has to itself become a ~proc~, or precomp
+will still try to fold the wrapper.  A ~ref~-returning ext call
+threaded through a ~returns Str~ wrapper would leak the
+caller's expectation that the wrapper owns the buffer.
+
+** Quick reference
+
+Mapping from "what the C function does" to the right binding
+shape.  See [[file:qualifiers.org][doc/qualifiers.org]] for the
+qualifier semantics themselves; this table is just the FFI
+layer.
+
+| C behaviour                                | til binding form                                            |
+|--------------------------------------------+-------------------------------------------------------------|
+| Pure function of args, returns a value     | ~ext_func(args) returns shallow T {}~                       |
+| Reads/mutates global state, returns void   | ~ext_proc(args) {}~                                         |
+| Reads/mutates global state, returns value  | ~ext_proc(args) returns shallow T {}~                       |
+| Takes ownership of a heap pointer arg      | ~ext_proc(own buf : T)~ or ~ext_func(own buf : T) ...~      |
+| Borrows a pointer arg (read-only or scratch)| ~ext_*(buf : T)~ (default; ~ref~ keyword is redundant)     |
+| Returns an internal pointer (do not free)  | ~ext_*(...) returns ref T {}~                               |
+| Returns a heap pointer the caller owns     | ~ext_*(...) returns T {}~ (default; ~own~ keyword redundant) |
+
+For passing scalars and small structs by value (the normal C
+ABI shape), use ~shallow~ on the arg and ~returns shallow T~ on
+the return -- those map to plain ~T arg~ / ~T return~ in the
+generated C.
+
+** noop_proc: forcing precomp to skip a wrapper
+
+Some user-level wrappers depend on runtime state but cannot
+inherit a ~proc~ tag from their callees -- e.g. the wrapper
+delegates to an ~ext_func~ that genuinely is pure on its
+arguments, but the wrapper itself adds context (reads a global,
+queries the current frame, etc) that precomp must not evaluate
+at compile time.  Drop a call to ~noop_proc~ anywhere in the
+function body:
+
+#+begin_src til
+import("core/sys")  // for noop_proc
+
+frame_relative_x := func(world_x: F32) returns F32 {
+    noop_proc()  // mark this func impure; never fold
+    return world_x.sub(camera_offset.x)  // camera_offset is a global
+}
+#+end_src
+
+~noop_proc~ is a one-liner ~void noop_proc(void) {}~ in
+~src/c/ext.c~, declared as ~ext_proc() {}~ in
+~src/core/sys.til~ and listed in
+~is_side_effecting_name~ inside ~src/self/precomp.til~.  The
+call has zero runtime cost (the C body is empty) and exists
+purely as a flag for the constant folder.
+
+This is the escape hatch for "the binding is correct but the
+*wrapper* still depends on state."  When you find yourself
+reaching for it, double-check that the underlying ~ext_func~
+really is pure -- often the right fix is to flip *it* to
+~ext_proc~ instead.
+
+** Regenerating the bindings
+
+~make update_c_libs~ runs ~bin/til bindings~ against
+~vendor/raylib/src/raylib.h~, ~vendor/raylib/src/rcamera.h~,
+~vendor/tinyfiledialogs/tinyfiledialogs.h~, and libffi's
+~ffi.h~, and writes the output to
+~vendor/bindings/{raylib,tinyfd,libffi}.til~.
+
+*This destroys any hand-edits.*  Re-do the audit (see above)
+before committing the regenerated files.  Useful workflow:
+
+1. Save the current ~vendor/bindings/raylib.til~ somewhere
+   outside the repo as a reference for the previous audit.
+2. Run ~make update_c_libs~.
+3. Diff against the saved file; transfer every ~ext_proc~
+   tag, every ~own~/~ref~ override, and every comment that
+   explained a non-obvious choice.  New C-side additions
+   (new raylib functions) get fresh audits.
+4. Run ~make clean && make test~.  If a wrapper in
+   ~src/modes/gui.til~ used a renamed-or-deleted C symbol,
+   the build will tell you.
+5. Verify the games (~bin/shootil~, ~bin/chess~, ~bin/go~) still
+   render their HUDs and respond to mouse / keyboard.  The
+   regressions that motivated this whole layer
+   (issue #208 / commit ~3897ed9~) are interaction-shaped, so
+   the test suite alone won't catch them.
+
+Routine builds (~make~, ~make test~, ~make two_pass~) never
+touch ~vendor/bindings/~ -- they consume the committed files.
