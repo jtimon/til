@@ -309,5 +309,15 @@ The base procedure is:
 Soft-reset + regenerate is only required when (4) the rebase produced
 boot/* conflicts; a clean rebase needs no soft-reset on remote sessions.
 
+Exception: when the user says the rebased branch is *next to merge*
+(no other remote branches will land between this push and the local
+merger picking it up), the soft-reset + regenerate step at (4b) /
+(5) can be skipped. The local merger's `make test` / `make
+test_two_pass` (per `doc/bots/merging_from_remote.org`) regenerates
+boot/* against the rebased source anyway, so the work would just be
+thrown away. Discard doc/totals.csv + img/totals.svg if they are
+modified, then commit and force-push. Only the human can grant this
+exception -- never assume it; redo the regen by default.
+
 NEVER `git rebase --abort` on conflicts in generated files alone. Only
 abort if a source-file conflict is genuinely unresolvable.

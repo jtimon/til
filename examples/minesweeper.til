@@ -28,9 +28,9 @@ main := proc() {
     // Flood fill stack
     mut stack := Vec.new(I64)
 
-    while window_should_close().not() {
+    while WindowShouldClose().not() {
         // Input
-        if is_key_pressed(82) {
+        if IsKeyPressed(82) {
             // R = restart
             mut ri := 0
             while ri.lt(total) {
@@ -47,7 +47,7 @@ main := proc() {
         }
 
         if game_over.not().and(game_won.not()) {
-            if is_mouse_button_pressed(0) {
+            if IsMouseButtonPressed(0) {
                 // Left click - reveal
                 mx := get_mouse_x().div(cell)
                 my := get_mouse_y().sub(top_bar).div(cell)
@@ -176,7 +176,7 @@ main := proc() {
                 }
             }
 
-            if is_mouse_button_pressed(1) {
+            if IsMouseButtonPressed(1) {
                 // Right click - toggle flag
                 mx := get_mouse_x().div(cell)
                 my := get_mouse_y().sub(top_bar).div(cell)
@@ -198,7 +198,7 @@ main := proc() {
         }
 
         // Draw
-        begin_drawing()
+        BeginDrawing()
         clear_background(0, 0, 0, 255)
 
         // Top bar
@@ -261,8 +261,8 @@ main := proc() {
             di = di.add(1)
         }
 
-        end_drawing()
+        EndDrawing()
     }
 
-    close_window()
+    CloseWindow()
 }

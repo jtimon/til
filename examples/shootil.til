@@ -215,14 +215,14 @@ main := proc() {
     mut accumulator := zero_f
     mut wants_jump := false
 
-    while window_should_close().not() {
-        if is_key_pressed(KEY_ESCAPE) { break }
+    while WindowShouldClose().not() {
+        if IsKeyPressed(KEY_ESCAPE) { break }
 
         // TODO: ESC does not work for toggling the menu because Raylib
-        // defaults SetExitKey(KEY_ESCAPE), which makes window_should_close()
-        // return true on the next frame.  set_exit_key(0) could fix this
+        // defaults SetExitKey(KEY_ESCAPE), which makes WindowShouldClose()
+        // return true on the next frame.  SetExitKey(0) could fix this
         // but it regresses the build (the raylib binding is new and untested).
-        if is_key_pressed(KEY_M) {
+        if IsKeyPressed(KEY_M) {
             if menu_open {
                 menu_open = false
                 DisableCursor()
@@ -237,12 +237,12 @@ main := proc() {
         // TODO: fullscreen is broken -- ToggleFullscreen() during gameplay
         // causes visual artifacts.  The disable-cursor state also does not
         // survive a fullscreen toggle.
-        if is_key_pressed(KEY_F11) {
+        if IsKeyPressed(KEY_F11) {
             ToggleFullscreen()
         }
 
         if menu_open.not() {
-            if is_key_pressed(KEY_G) {
+            if IsKeyPressed(KEY_G) {
                 if god_mode {
                     exit_god_mode()
                     print_cam("god->normal")
@@ -262,13 +262,13 @@ main := proc() {
         }
 
         if menu_open {
-            if is_key_pressed(KEY_UP).or(is_key_pressed(KEY_W)) {
+            if IsKeyPressed(KEY_UP).or(IsKeyPressed(KEY_W)) {
                 menu_sel = menu_sel.sub(1).add(MENU_COUNT).mod(MENU_COUNT)
             }
-            if is_key_pressed(KEY_DOWN).or(is_key_pressed(KEY_S)) {
+            if IsKeyPressed(KEY_DOWN).or(IsKeyPressed(KEY_S)) {
                 menu_sel = menu_sel.add(1).mod(MENU_COUNT)
             }
-            if is_key_pressed(KEY_ENTER) {
+            if IsKeyPressed(KEY_ENTER) {
                 if menu_sel.eq(MENU_FULLSCREEN) {
                     ToggleFullscreen()
                 }
@@ -284,22 +284,22 @@ main := proc() {
             mut fwd := zero_f
             mut strafe := zero_f
             mut vertical := zero_f
-            if is_key_down(KEY_W)                            { fwd = one_f }
-            if is_key_down(KEY_S)                            { fwd = zero_f - one_f }
-            if is_key_down(KEY_D).or(is_key_down(KEY_RIGHT)) { strafe = one_f }
-            if is_key_down(KEY_A).or(is_key_down(KEY_LEFT))  { strafe = zero_f - one_f }
+            if IsKeyDown(KEY_W)                            { fwd = one_f }
+            if IsKeyDown(KEY_S)                            { fwd = zero_f - one_f }
+            if IsKeyDown(KEY_D).or(IsKeyDown(KEY_RIGHT)) { strafe = one_f }
+            if IsKeyDown(KEY_A).or(IsKeyDown(KEY_LEFT))  { strafe = zero_f - one_f }
             if god_mode {
-                if is_key_down(KEY_UP)   { vertical = one_f }
-                if is_key_down(KEY_DOWN) { vertical = zero_f - one_f }
+                if IsKeyDown(KEY_UP)   { vertical = one_f }
+                if IsKeyDown(KEY_DOWN) { vertical = zero_f - one_f }
             } else {
-                if is_key_down(KEY_UP)   { fwd = one_f }
-                if is_key_down(KEY_DOWN) { fwd = zero_f - one_f }
+                if IsKeyDown(KEY_UP)   { fwd = one_f }
+                if IsKeyDown(KEY_DOWN) { fwd = zero_f - one_f }
             }
 
             // Latch a jump press.  Persists across frames where no physics
             // step runs (e.g. very high render rate vs PHYSICS_HZ), and is
             // consumed on the first physics step of the next frame.
-            if is_key_pressed(KEY_SPACE).or(is_mouse_button_pressed(1)) {
+            if IsKeyPressed(KEY_SPACE).or(IsMouseButtonPressed(1)) {
                 wants_jump = true
             }
 
@@ -418,7 +418,7 @@ main := proc() {
             camera.target = v3_lerp(prev_target, sim_target, alpha)
         }
 
-        begin_drawing()
+        BeginDrawing()
         ClearBackground(black)
         BeginMode3D(camera)
         DrawPlane(floor_pos, floor_size, white)
@@ -457,7 +457,7 @@ main := proc() {
             draw_menu_item("Quit", base_x, base_y + 50, menu_sel.eq(MENU_QUIT))
             draw_text("M: close   Enter: select", base_x - 40, base_y + 130, 18, 180, 180, 180, 255)
         }
-        end_drawing()
+        EndDrawing()
 
         // Restore camera to the authoritative sim state so the next frame's
         // mouse-look and physics integrate from there, not from the lerped
@@ -468,5 +468,5 @@ main := proc() {
         }
     }
     EnableCursor()
-    close_window()
+    CloseWindow()
 }

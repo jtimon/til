@@ -46,7 +46,7 @@ main := proc(args: ..Str) {
     set_window_min_size(400, 200)
     set_target_fps(60)
 
-    while window_should_close().not() {
+    while WindowShouldClose().not() {
         dt := get_frame_time()
         if status_timer.gt(0) {
             status_timer = status_timer.sub(dt)
@@ -59,10 +59,10 @@ main := proc(args: ..Str) {
         // 341/345 = KEY_LEFT/RIGHT_CONTROL, 342/346 = KEY_LEFT/RIGHT_ALT
         // Check both: GLFW uses physical key position, so xmodmap Ctrl-on-Alt
         // reports as 342 not 341
-        ctrl := is_key_down(341).or(is_key_down(345)).or(is_key_down(342)).or(is_key_down(346))
+        ctrl := IsKeyDown(341).or(IsKeyDown(345)).or(IsKeyDown(342)).or(IsKeyDown(346))
 
         // Ctrl+S = save (opens dialog if no filename)
-        if ctrl.and(is_key_pressed(83)) {
+        if ctrl.and(IsKeyPressed(83)) {
             if filename.len().eq(0) {
                 filename = save_file_dialog("Save file", "")
             }
@@ -76,7 +76,7 @@ main := proc(args: ..Str) {
         }
 
         // Ctrl+O = open file
-        if ctrl.and(is_key_pressed(79)) {
+        if ctrl.and(IsKeyPressed(79)) {
             path := open_file_dialog("Open file", "")
             if path.len().gt(0) {
                 filename = path
@@ -101,9 +101,9 @@ main := proc(args: ..Str) {
         }
 
         // Arrow keys
-        if is_key_pressed(265).or(is_key_down(265).and(is_key_down(265))) {
+        if IsKeyPressed(265).or(IsKeyDown(265).and(IsKeyDown(265))) {
             // Up
-            if is_key_pressed(265) {
+            if IsKeyPressed(265) {
                 if cursor_y.gt(0) {
                     cursor_y = cursor_y.sub(1)
                     ref line : Str = lines.get(cursor_y.to_u32())
@@ -113,7 +113,7 @@ main := proc(args: ..Str) {
                 }
             }
         }
-        if is_key_pressed(264) {
+        if IsKeyPressed(264) {
             // Down
             if cursor_y.lt(lines.len().to_i64().sub(1)) {
                 cursor_y = cursor_y.add(1)
@@ -123,7 +123,7 @@ main := proc(args: ..Str) {
                 }
             }
         }
-        if is_key_pressed(263) {
+        if IsKeyPressed(263) {
             // Left
             if cursor_x.gt(0) {
                 cursor_x = cursor_x.sub(1)
@@ -135,7 +135,7 @@ main := proc(args: ..Str) {
                 }
             }
         }
-        if is_key_pressed(262) {
+        if IsKeyPressed(262) {
             // Right
             ref cur_line : Str = lines.get(cursor_y.to_u32())
             if cursor_x.lt(cur_line.len().to_i64()) {
@@ -149,17 +149,17 @@ main := proc(args: ..Str) {
         }
 
         // Home
-        if is_key_pressed(268) {
+        if IsKeyPressed(268) {
             cursor_x = 0
         }
         // End
-        if is_key_pressed(269) {
+        if IsKeyPressed(269) {
             ref line : Str = lines.get(cursor_y.to_u32())
             cursor_x = line.len().to_i64()
         }
 
         // Enter
-        if is_key_pressed(257) {
+        if IsKeyPressed(257) {
             if ctrl.not() {
                 ref cur_line : Str = lines.get(cursor_y.to_u32())
                 // Split line at cursor
@@ -188,7 +188,7 @@ main := proc(args: ..Str) {
         }
 
         // Backspace
-        if is_key_pressed(259) {
+        if IsKeyPressed(259) {
             if cursor_x.gt(0) {
                 ref cur_line : Str = lines.get(cursor_y.to_u32())
                 new_line := cur_line.substr(0, cursor_x.to_u32().sub(1)).concat(
@@ -239,7 +239,7 @@ main := proc(args: ..Str) {
         }
 
         // Delete key
-        if is_key_pressed(261) {
+        if IsKeyPressed(261) {
             ref cur_line : Str = lines.get(cursor_y.to_u32())
             if cursor_x.lt(cur_line.len().to_i64()) {
                 cursor_x_u : USize = cursor_x.to_u32()
@@ -329,7 +329,7 @@ main := proc(args: ..Str) {
         }
 
         // Draw
-        begin_drawing()
+        BeginDrawing()
         clear_background(30, 30, 40, 255)
 
         // Text area
@@ -382,8 +382,8 @@ main := proc(args: ..Str) {
         // Help
         draw_text("Ctrl+O=Open  Ctrl+S=Save  Esc=Quit", w.sub(400), sy.add(4), 14, 120, 120, 140, 255)
 
-        end_drawing()
+        EndDrawing()
     }
 
-    close_window()
+    CloseWindow()
 }

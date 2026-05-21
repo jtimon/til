@@ -27,21 +27,21 @@ main := proc() {
     mut speed := 6
     mut generation := 0
 
-    while window_should_close().not() {
+    while WindowShouldClose().not() {
         // Input: SPACE to toggle pause/run
-        if is_key_pressed(32) {
+        if IsKeyPressed(32) {
             running = running.not()
         }
 
         // Input: C to clear
-        if is_key_pressed(67) {
+        if IsKeyPressed(67) {
             running = false
             generation = 0
             ca_clear_grid(grid, total)
         }
 
         // Input: mouse click to toggle cells
-        if is_mouse_button_pressed(0) {
+        if IsMouseButtonPressed(0) {
             mx := get_mouse_x().div(cell)
             my := get_mouse_y().sub(bar_h).div(cell)
             if mx.gte(0).and(mx.lt(cols)).and(my.gte(0)).and(my.lt(rows)) {
@@ -68,7 +68,7 @@ main := proc() {
         }
 
         // Draw
-        begin_drawing()
+        BeginDrawing()
         clear_background(0, 0, 0, 255)
 
         // Top bar
@@ -100,8 +100,8 @@ main := proc() {
             di = di.add(1)
         }
 
-        end_drawing()
+        EndDrawing()
     }
 
-    close_window()
+    CloseWindow()
 }

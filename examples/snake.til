@@ -43,7 +43,7 @@ main := proc() {
     mut food_x := 0
     mut food_y := 0
 
-    while window_should_close().not() {
+    while WindowShouldClose().not() {
         // Restart handler (single place for all reset logic)
         if restart {
             restart = false
@@ -89,7 +89,7 @@ main := proc() {
         }
 
         // Mode buttons (always clickable)
-        if is_mouse_button_pressed(0) {
+        if IsMouseButtonPressed(0) {
             mx := get_mouse_x()
             my := get_mouse_y()
             if my.lt(bar_h) {
@@ -109,28 +109,28 @@ main := proc() {
 
         // Game input
         if game_over {
-            if is_key_pressed(82) { restart = true }
+            if IsKeyPressed(82) { restart = true }
         } else {
             // P1: WASD (+ arrows in 1P mode)
-            if is_key_pressed(87).or(two_player.not().and(is_key_pressed(265))) {
+            if IsKeyPressed(87).or(two_player.not().and(IsKeyPressed(265))) {
                 if dy.eq(1).not() {
                     next_dx = 0
                     next_dy = -1
                 }
             }
-            if is_key_pressed(83).or(two_player.not().and(is_key_pressed(264))) {
+            if IsKeyPressed(83).or(two_player.not().and(IsKeyPressed(264))) {
                 if dy.eq(-1).not() {
                     next_dx = 0
                     next_dy = 1
                 }
             }
-            if is_key_pressed(65).or(two_player.not().and(is_key_pressed(263))) {
+            if IsKeyPressed(65).or(two_player.not().and(IsKeyPressed(263))) {
                 if dx.eq(1).not() {
                     next_dx = -1
                     next_dy = 0
                 }
             }
-            if is_key_pressed(68).or(two_player.not().and(is_key_pressed(262))) {
+            if IsKeyPressed(68).or(two_player.not().and(IsKeyPressed(262))) {
                 if dx.eq(-1).not() {
                     next_dx = 1
                     next_dy = 0
@@ -139,25 +139,25 @@ main := proc() {
 
             // P2: Arrow keys (only in 2P mode)
             if two_player {
-                if is_key_pressed(265) {
+                if IsKeyPressed(265) {
                     if dy2.eq(1).not() {
                         next_dx2 = 0
                         next_dy2 = -1
                     }
                 }
-                if is_key_pressed(264) {
+                if IsKeyPressed(264) {
                     if dy2.eq(-1).not() {
                         next_dx2 = 0
                         next_dy2 = 1
                     }
                 }
-                if is_key_pressed(263) {
+                if IsKeyPressed(263) {
                     if dx2.eq(1).not() {
                         next_dx2 = -1
                         next_dy2 = 0
                     }
                 }
-                if is_key_pressed(262) {
+                if IsKeyPressed(262) {
                     if dx2.eq(-1).not() {
                         next_dx2 = 1
                         next_dy2 = 0
@@ -328,7 +328,7 @@ main := proc() {
         }
 
         // Draw
-        begin_drawing()
+        BeginDrawing()
         clear_background(0, 0, 0, 255)
 
         // Button bar
@@ -402,8 +402,8 @@ main := proc() {
             draw_text("press R to restart", w.div(2).sub(90), h.div(2).add(30), 20, 200, 200, 200, 255)
         }
 
-        end_drawing()
+        EndDrawing()
     }
 
-    close_window()
+    CloseWindow()
 }

@@ -41,15 +41,15 @@ main := proc() {
 
     mut sel : USize = 0
 
-    while window_should_close().not() {
-        if is_mouse_button_pressed(0) {
+    while WindowShouldClose().not() {
+        if IsMouseButtonPressed(0) {
             sel = sel.add(1).mod(NUM_FONTS)
         }
-        if is_mouse_button_pressed(1) {
+        if IsMouseButtonPressed(1) {
             sel = sel.add(NUM_FONTS).sub(1).mod(NUM_FONTS)
         }
 
-        begin_drawing()
+        BeginDrawing()
         clear_background(20, 20, 30, 255)
 
         // Header
@@ -75,12 +75,12 @@ main := proc() {
         draw_text_font(cur_font, "Do Re Mi Fa Sol La Si — C D E F G A B — 1234567890", 30, y.add(20), 36, 1, 255, 255, 255, 255)
         draw_text_font(cur_font, "do#-M  reb-m  mi-dim  Fa-M  Sol-M  La-m  Si-dim", 30, y.add(62), 28, 1, 200, 200, 200, 255)
 
-        end_drawing()
+        EndDrawing()
     }
 
     for i in 0..NUM_FONTS {
         ref uf : Font = fonts.get(i)
-        unload_font(uf)
+        UnloadFont(uf)
     }
-    close_window()
+    CloseWindow()
 }

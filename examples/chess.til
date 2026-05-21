@@ -761,9 +761,9 @@ main := proc() {
         i = i.add(1)
     }
 
-    while window_should_close().not() {
+    while WindowShouldClose().not() {
         // --- INPUT: restart + radio buttons ---
-        if is_mouse_button_pressed(0) {
+        if IsMouseButtonPressed(0) {
             raw_mx := get_mouse_x()
             raw_my := get_mouse_y()
             if raw_my.gte(RADIO_Y).and(raw_my.lt(RADIO_Y.add(BTN_H))) {
@@ -898,7 +898,7 @@ main := proc() {
                 is_human_turn = false
             }
 
-            if is_human_turn.and(is_mouse_button_pressed(0)) {
+            if is_human_turn.and(IsMouseButtonPressed(0)) {
                 raw_my := get_mouse_y()
                 if raw_my.gte(BOARD_Y) {
                     mx := get_mouse_x()
@@ -1028,7 +1028,7 @@ main := proc() {
         }
 
         // --- DRAW ---
-        begin_drawing()
+        BeginDrawing()
         clear_background(30, 30, 30, 255)
 
         // Status bar
@@ -1203,8 +1203,8 @@ main := proc() {
         // Captured pieces area - bottom
         draw_text("click a piece to select, click destination to move", 10, WINDOW_HEIGHT.sub(30), 14, 80, 80, 80, 255)
 
-        end_drawing()
+        EndDrawing()
     }
 
-    close_window()
+    CloseWindow()
 }

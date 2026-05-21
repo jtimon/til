@@ -9,7 +9,7 @@ main := proc(args: ..Str) {
 
     init_window(480, 320, "popcorn")
     set_target_fps(60)
-    init_audio_device()
+    InitAudioDevice()
 
     // Popcorn melody (Gershon Kingsley, 1969)
     // Frequencies in Hz, 0 = rest
@@ -36,7 +36,7 @@ main := proc(args: ..Str) {
     mut timer := 0
     mut done := false
 
-    while window_should_close().not() {
+    while WindowShouldClose().not() {
         dt := get_frame_time()
 
         if done.not() {
@@ -55,7 +55,7 @@ main := proc(args: ..Str) {
             }
         }
 
-        begin_drawing()
+        BeginDrawing()
         clear_background(0, 0, 0, 255)
 
         // Title
@@ -89,11 +89,11 @@ main := proc(args: ..Str) {
             draw_rectangle(40, 290, 400, 8, 80, 80, 80, 128)
         }
 
-        end_drawing()
+        EndDrawing()
 
         if done { break }
     }
 
-    close_audio_device()
-    close_window()
+    CloseAudioDevice()
+    CloseWindow()
 }

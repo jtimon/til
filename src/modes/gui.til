@@ -21,12 +21,11 @@ mut prev_tone := Sound()
 mut tone_loaded := false
 mut sound_enabled := true
 
-// Generate and play a sine wave tone
-play_tone := proc(freq: I64, duration_ms: I64) {
-    if sound_enabled.not() { return }
-    if tone_loaded {
-        UnloadSound(prev_tone)
-    }
+// Build a Sound with a sine wave at `freq` for `duration_ms` ms, with
+// linear attack+release envelopes. `amp` is the peak amplitude (0..1).
+// Shared by both the polyphonic `make_tone` (lower amp, mixed with
+// others) and the monophonic `play_tone` (full-volume).
+priv build_tone := proc(freq: I64, duration_ms: I64, shallow amp: F32) returns Sound {
     sr := 44100
     mut n := sr.mul(duration_ms).div(1000)
     if n.lt(1) { n = 1 }
@@ -36,49 +35,6 @@ play_tone := proc(freq: I64, duration_ms: I64) {
     pi2 := 6283185.to_f32().div(1000000.to_f32())
     freq_f := freq.to_f32()
     sr_f := sr.to_f32()
-    amp := 3.to_f32().div(10.to_f32())
-    for i in 0..n.to_u64() {
-        mut env : F32 = 1.to_f32()
-        if i.to_i64().lt(attack) {
-            env = i.to_f32().div(attack.to_f32())
-        }
-        if i.to_i64().gt(n.sub(release)) {
-            env = n.sub(i.to_i64()).to_f32().div(release.to_f32())
-        }
-        sample := sinf(pi2.mul(freq_f).mul(i.to_f32()).div(sr_f)).mul(amp).mul(env)
-        memcpy(ptr_add(buf, i.mul(4)), sample, 4)
-    }
-    w := Wave(
-        frameCount=n.to_u32(),
-        sampleRate=sr.to_u32(),
-        sampleSize=32,
-        channels=1,
-        data=buf
-    )
-    prev_tone = LoadSoundFromWave(w)
-    PlaySound(prev_tone)
-    tone_loaded = true
-    free(own buf)
-}
-
-stop_tone := proc() {
-    if tone_loaded {
-        StopSound(prev_tone)
-    }
-}
-
-// Generate a sine wave tone and return the Sound (for polyphonic use)
-make_tone := proc(freq: I64, duration_ms: I64) returns Sound {
-    sr := 44100
-    mut n := sr.mul(duration_ms).div(1000)
-    if n.lt(1) { n = 1 }
-    buf : Dynamic = malloc(n.mul(4).to_u64())
-    attack := sr.div(100)
-    release := sr.div(100)
-    pi2 := 6283185.to_f32().div(1000000.to_f32())
-    freq_f := freq.to_f32()
-    sr_f := sr.to_f32()
-    amp := 1.to_f32().div(10.to_f32())
     for i in 0..n.to_u64() {
         mut env : F32 = 1.to_f32()
         if i.to_i64().lt(attack) {
@@ -102,21 +58,42 @@ make_tone := proc(freq: I64, duration_ms: I64) returns Sound {
     return result
 }
 
-play_sound := proc(sound: Sound) { PlaySound(sound) }
-stop_sound := proc(sound: Sound) { StopSound(sound) }
-unload_sound := proc(sound: Sound) { UnloadSound(sound) }
+// Generate a sine wave tone and return the Sound (for polyphonic use).
+make_tone := proc(freq: I64, duration_ms: I64) returns Sound {
+    return build_tone(freq, duration_ms, 1.to_f32().div(10.to_f32()))
+}
+
+// Generate and play a sine wave tone.  Replaces any previous monophonic
+// tone (see `prev_tone` shared with stop_tone).
+play_tone := proc(freq: I64, duration_ms: I64) {
+    if sound_enabled.not() { return }
+    if tone_loaded {
+        UnloadSound(prev_tone)
+    }
+    prev_tone = build_tone(freq, duration_ms, 3.to_f32().div(10.to_f32()))
+    PlaySound(prev_tone)
+    tone_loaded = true
+}
+
+stop_tone := proc() {
+    if tone_loaded {
+        StopSound(prev_tone)
+    }
+}
 
 // Color helper: build a raylib Color value from RGBA bytes.
 color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns Color {
     return Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8())
 }
 
-// Backward-compatible snake_case API
+// init_window forces a Mesa+llvmpipe fallback when GLX picks a vendor
+// that fails on this machine; everything else is a thin wrapper that
+// adds either a type conversion (I64 <-> I32) or a Color packing step,
+// neither of which raylib's bindings provide directly.
 init_window := proc(w: I64, h: I64, title: Str) {
     InitWindow(w.to_i32(), h.to_i32(), title.c_str)
 
     if IsWindowReady().not() {
-        // Fallback: force Mesa+llvmpipe when the default GLX vendor fails.
         // overwrite=0 means user-supplied env vars win.
         til_setenv("__GLX_VENDOR_LIBRARY_NAME".c_str, "mesa".c_str, 0)
         til_setenv("LIBGL_ALWAYS_SOFTWARE".c_str, "1".c_str, 0)
@@ -124,12 +101,6 @@ init_window := proc(w: I64, h: I64, title: Str) {
         InitWindow(w.to_i32(), h.to_i32(), title.c_str)
     }
 }
-window_should_close := proc() returns Bool {
-    return WindowShouldClose()
-}
-begin_drawing := proc() { BeginDrawing() }
-end_drawing := proc() { EndDrawing() }
-close_window := proc() { CloseWindow() }
 set_target_fps := proc(fps: I64) { SetTargetFPS(fps.to_i32()) }
 
 clear_background := proc(r: I64, g: I64, b: I64, a: I64) {
@@ -149,34 +120,22 @@ get_screen_width := proc() returns I64 { return GetScreenWidth().to_i64() }
 get_screen_height := proc() returns I64 { return GetScreenHeight().to_i64() }
 
 set_config_flags := proc(flags: I32) { SetConfigFlags(flags.to_u32()) }
-set_exit_key := proc(key: I32) { SetExitKey(key) }
-is_window_resized := proc() returns Bool { return IsWindowResized() }
 set_window_min_size := proc(w: I64, h: I64) { SetWindowMinSize(w.to_i32(), h.to_i32()) }
 set_window_max_size := proc(w: I64, h: I64) { SetWindowMaxSize(w.to_i32(), h.to_i32()) }
-maximize_window := proc() { MaximizeWindow() }
-toggle_fullscreen := proc() { ToggleFullscreen() }
 get_frame_time := proc() returns I64 {
     return GetFrameTime().mul(1000.to_f32()).to_i64()
 }
-is_key_pressed := proc(key: I32) returns Bool { return IsKeyPressed(key) }
-is_key_down := proc(key: I32) returns Bool { return IsKeyDown(key) }
-is_key_repeat := proc(key: I32) returns Bool { return IsKeyPressedRepeat(key) }
 get_char_pressed := proc() returns I64 { return GetCharPressed().to_i64() }
-is_mouse_button_pressed := proc(button: I32) returns Bool { return IsMouseButtonPressed(button) }
-is_mouse_button_down := proc(button: I32) returns Bool { return IsMouseButtonDown(button) }
 get_random_value := proc(min: I64, max: I64) returns I64 {
     return GetRandomValue(min.to_i32(), max.to_i32()).to_i64()
 }
 get_mouse_x := proc() returns I64 { return GetMouseX().to_i64() }
 get_mouse_y := proc() returns I64 { return GetMouseY().to_i64() }
-init_audio_device := proc() { InitAudioDevice() }
-close_audio_device := proc() { CloseAudioDevice() }
 
 // Font wrappers
 load_font := proc(path: Str, size: I64) returns Font {
     return LoadFontEx(path.c_str, size.to_i32(), NULL, 0)
 }
-unload_font := proc(font: Font) { UnloadFont(font) }
 draw_text_font := proc(font: Font, text: Str, x: I64, y: I64, font_size: I64, spacing: I64, r: I64, g: I64, b: I64, a: I64) {
     pos := Vector2(x=x.to_f32(), y=y.to_f32())
     DrawTextEx(font, text.c_str, pos, font_size.to_f32(), spacing.to_f32(), color(r, g, b, a))

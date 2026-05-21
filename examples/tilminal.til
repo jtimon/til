@@ -58,9 +58,9 @@ main := proc(args: ..Str) {
     set_window_min_size(320, 200)
     set_target_fps(60)
 
-    while window_should_close().not() {
+    while WindowShouldClose().not() {
         // Enter: run command
-        if is_key_pressed(257) {
+        if IsKeyPressed(257) {
             if input.len().gt(0) {
                 cmd := input.clone()
                 if cmd.eq("clear") {
@@ -74,7 +74,7 @@ main := proc(args: ..Str) {
         }
 
         // Backspace
-        if is_key_pressed(259) {
+        if IsKeyPressed(259) {
             if input.len().gt(0) {
                 input = input.substr(0, input.len().sub(1))
             }
@@ -89,7 +89,7 @@ main := proc(args: ..Str) {
             ch = get_char_pressed()
         }
 
-        begin_drawing()
+        BeginDrawing()
         clear_background(10, 12, 16, 255)
 
         // Dynamic window dimensions
@@ -121,9 +121,9 @@ main := proc(args: ..Str) {
         draw_text(prompt, pad_x, h.sub(input_h).add(10), 18, 120, 255, 120, 255)
         draw_text("Enter=run  Esc=quit", w.sub(190), h.sub(input_h).add(12), 14, 130, 130, 150, 255)
 
-        end_drawing()
+        EndDrawing()
     }
 
-    close_window()
+    CloseWindow()
 }
 

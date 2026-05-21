@@ -293,7 +293,7 @@ draw_piano := proc(active_chrom: I64, active_oct: USize) {
 main := proc() {
     init_window(WINDOW_WIDTH.to_i64(), WINDOW_HEIGHT.to_i64(), "music")
     set_target_fps(FPS.to_i64())
-    init_audio_device()
+    InitAudioDevice()
 
     fnt := load_font("assets/DejaVuSans.ttf", 48)
 
@@ -319,11 +319,11 @@ main := proc() {
     mut clicked_note := -1
     mut clicked_timer := 0
 
-    while window_should_close().not() {
+    while WindowShouldClose().not() {
         dt := get_frame_time()
 
         // Input: mouse clicks
-        if is_mouse_button_pressed(0) {
+        if IsMouseButtonPressed(0) {
             mx := get_mouse_x()
             my := get_mouse_y()
 
@@ -418,7 +418,7 @@ main := proc() {
         }
 
         // Draw
-        begin_drawing()
+        BeginDrawing()
         clear_background(0, 0, 0, 255)
 
         // -- Note buttons (7 cols x 3 rows) --
@@ -544,10 +544,10 @@ main := proc() {
         // Hint
         draw_text_font(fnt, "click note + mode to play scale", WINDOW_WIDTH.div(3).to_i64(), HINT_Y.to_i64(), FONT.to_i64(), 1, 80, 80, 80, 255)
 
-        end_drawing()
+        EndDrawing()
     }
 
-    unload_font(fnt)
-    close_audio_device()
-    close_window()
+    UnloadFont(fnt)
+    CloseAudioDevice()
+    CloseWindow()
 }

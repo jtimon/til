@@ -615,9 +615,9 @@ main := proc() {
     clear_arr(board, init_total)
     clear_arr(ko_board, init_total)
 
-    while window_should_close().not() {
+    while WindowShouldClose().not() {
         // --- INPUT: restart + radio buttons ---
-        if is_mouse_button_pressed(0) {
+        if IsMouseButtonPressed(0) {
             raw_mx := get_mouse_x()
             raw_my := get_mouse_y()
             if raw_my.gte(RADIO_Y).and(raw_my.lt(RADIO_Y.add(BTN_H))) {
@@ -752,7 +752,7 @@ main := proc() {
 
             if is_human {
                 // Pass with P
-                if is_key_pressed(80) {
+                if IsKeyPressed(80) {
                     pass_count = pass_count.add(1)
                     has_ko = false
                     last_move = -1
@@ -766,7 +766,7 @@ main := proc() {
                 }
 
                 // Click to place (board area only, not radio row)
-                if is_mouse_button_pressed(0) {
+                if IsMouseButtonPressed(0) {
                     raw_my := get_mouse_y()
                     if raw_my.gte(board_py) {
                         mx := get_mouse_x().sub(board_px)
@@ -800,7 +800,7 @@ main := proc() {
         }
 
         // --- DRAW ---
-        begin_drawing()
+        BeginDrawing()
         clear_background(30, 30, 30, 255)
 
         // Board background: extend full window width and cover top/bottom
@@ -1036,8 +1036,8 @@ main := proc() {
 
         draw_text("P=pass", WINDOW_WIDTH.sub(80), status_y, 16, 100, 100, 100, 255)
 
-        end_drawing()
+        EndDrawing()
     }
 
-    close_window()
+    CloseWindow()
 }
