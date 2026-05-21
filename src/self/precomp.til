@@ -224,13 +224,11 @@ value_to_expr := func(shallow val: Value, src: Expr) returns ref Expr {
             // consistent.
             escaped := str_to_source_form(sv)
             mut e := Expr.new(NodeType.LiteralStr(escaped), src.line, src.col)
-            e.til_type = Type.Struct("Str".clone())
             return e
         }
         return NULL
     case Value.Boolean(b):
         mut e := Expr.new(NodeType.LiteralBool(b.clone()), src.line, src.col)
-        e.til_type = Type.Bool
         return e
     case:
         return NULL
@@ -659,7 +657,6 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                         continue
                     case Value.Boolean(bv):
                         mut lit := Expr.new(NodeType.LiteralBool(bv), arg.line, arg.col)
-                        lit.til_type = Type.Bool
                         ec.add_child(own lit)
                         continue
                     case:

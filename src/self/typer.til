@@ -81,7 +81,6 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.add_child(own fa)
     mut payload := Expr.new(NodeType.LiteralStr(payload_name), src.line, src.col)
-    payload.til_type =Type.Struct("Str".clone())
     call.add_child(own payload)
     call.til_type =Type.Enum("Type".clone())
     return call
@@ -1034,7 +1033,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
         }
         e.children = new_ch
         for i in 1..e.children.len() {
-            if e.child(i).til_type.is(Type.Unknown) {
+            if expr_til_type(e.child(i)).is(Type.Unknown) {
                 infer_expr(scope, e.child(i), in_func, ctx)
             }
         }
@@ -1711,7 +1710,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         // priv / member checks twice on the same node. Genuinely
         // unresolved args (Unknown til_type) still get inferred here.
         for i in 1..e.children.len() {
-            if e.child(i).til_type.is(Type.Unknown) {
+            if expr_til_type(e.child(i)).is(Type.Unknown) {
                 infer_expr(scope, e.child(i), in_func, ctx)
             }
         }
@@ -1983,9 +1982,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
 
 priv infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
     switch expr.node_type {
-    case NodeType.LiteralStr:  infer_literal_expr(expr)
     case NodeType.LiteralNum:  infer_literal_expr(expr)
-    case NodeType.LiteralBool: infer_literal_expr(expr)
     case NodeType.LiteralNull: infer_literal_expr(expr)
     case NodeType.Ident:       infer_ident_expr(scope, expr)
     case NodeType.FuncDef:     infer_func_def_expr(scope, expr, ctx)
@@ -2038,8 +2035,6 @@ infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
 infer_named_arg_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
     if expr.children.len().gt(0) {
         infer_expr(scope, expr.child(0), in_func, ctx)
-        ref val : Expr = expr.child(0)
-        expr.til_type =expr_til_type(val)
     }
 }
 
@@ -2047,14 +2042,12 @@ infer_map_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I3
     for e_i : Expr in expr.children {
         infer_expr(scope, e_i, in_func, ctx)
     }
-    expr.til_type =Type.Struct("Map".clone())
 }
 
 infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
     for e_i : Expr in expr.children {
         infer_expr(scope, e_i, in_func, ctx)
     }
-    expr.til_type =Type.Struct("Set".clone())
 }
 
 // Recursively scan `e` for any read or write of `self.<field_name>`
@@ -2595,7 +2588,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str) returns s
 infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context) {
     if stmt.children.len().gt(0) {
         infer_expr(scope, stmt.child(0), in_func, ctx)
-        stmt.til_type =stmt.child(0).til_type
+        stmt.til_type =expr_til_type(stmt.child(0))
         if returns_ref.eq(0) {
             switch stmt.child(0).node_type {
             case NodeType.Ident(rn):
@@ -2631,7 +2624,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
 
 infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
-    if stmt.child(0).til_type.is(Type.Bool).not().and(stmt.child(0).til_type.is(Type.Unknown).not()) {
+    if expr_til_type(stmt.child(0)).is(Type.Bool).not().and(expr_til_type(stmt.child(0)).is(Type.Unknown).not()) {
         type_error(stmt, "if condition must be Bool")
     }
     then_scope := TypeScope(parent = scope)
@@ -2831,8 +2824,8 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
 
 infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
-    if stmt.child(0).til_type.is(Type.Bool).not().and(stmt.child(0).til_type.is(Type.Unknown).not()) {
-        type_error(stmt, "while condition must be Bool, got ".concat(type_to_name(stmt.child(0).til_type)))
+    if expr_til_type(stmt.child(0)).is(Type.Bool).not().and(expr_til_type(stmt.child(0)).is(Type.Unknown).not()) {
+        type_error(stmt, "while condition must be Bool, got ".concat(type_to_name(expr_til_type(stmt.child(0)))))
     }
     if expr_contains_fcall(stmt.child(0)) {
         ref cond : Expr = stmt.child(0)
@@ -2867,7 +2860,6 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         if_node.add_child(own else_body)
 
         mut true_lit := Expr.new(NodeType.LiteralBool(true), line, col)
-        true_lit.til_type =Type.Bool
         stmt.children.replace(0, own true_lit)
 
         mut old := Vec.new(Expr)
@@ -3116,7 +3108,7 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
 }
 
 infer_decl_untyped_value := proc(mut stmt: Expr) {
-    stmt.til_type =stmt.child(0).til_type
+    stmt.til_type =expr_til_type(stmt.child(0))
     if expr_til_type(stmt).is(Type.Dynamic) {
         switch stmt.node_type {
         case NodeType.Decl(sdecl):
@@ -6518,7 +6510,6 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     call.add_child(own field_acc)
 
     mut cf_lit := Expr.new(NodeType.LiteralBool(field_own_type.is(OwnType.Own)), field_assign.line, field_assign.col)
-    cf_lit.til_type =Type.Bool
     call.add_child(own cf_lit)
 
     return call
@@ -6544,7 +6535,6 @@ make_delete_call := func(var_name: Str, shallow type: Type, shallow arg_is_own: 
     call.add_child(own arg)
 
     mut cf_lit := Expr.new(NodeType.LiteralBool(call_free), src.line, src.col)
-    cf_lit.til_type =Type.Bool
     call.add_child(own cf_lit)
 
     return call
@@ -6774,12 +6764,10 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     set_call.add_child(own self_id)
 
     mut key_lit := Expr.new(NodeType.LiteralStr(key_name.clone()), fcall.line, fcall.col)
-    key_lit.til_type =Type.Struct("Str".clone())
     set_call.add_child(own key_lit)
 
     tname := type_to_name(expr_til_type(val))
     mut type_lit := Expr.new(NodeType.LiteralStr(tname.clone()), fcall.line, fcall.col)
-    type_lit.til_type =Type.Struct("Str".clone())
     set_call.add_child(own type_lit)
 
     mut size_call := make_ns_call(tname, "size", usize_type(scope), fcall)
@@ -7615,7 +7603,7 @@ hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Type
     hoist_expr(stmt.child(1), hoisted, scope)
     mut fa_hoist := true
     if fa_own_type(stmt, scope).is(OwnType.Shallow) {
-        rhs_type := stmt.child(1).til_type
+        rhs_type := expr_til_type(stmt.child(1))
         if is_aggregate(rhs_type) {
             fa_hoist = false
         }
@@ -8050,7 +8038,7 @@ expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns shallow Bool 
 field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns shallow Bool {
     if fa_own_type(stmt, scope).is(OwnType.Ref) { return false }
     if fa_own_type(stmt, scope).is(OwnType.Shallow).not() { return true }
-    ft := stmt.child(1).til_type
+    ft := expr_til_type(stmt.child(1))
     if is_aggregate(ft) { return true }
     return false
 }
@@ -8062,16 +8050,19 @@ field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns shallow 
 // insert_exit_deletes_into_stmt / insert_post_stmt_deletes /
 // insert_assign_delete, insert_free_calls) moved to
 // src/self/asaper.til. See issue #204 / doc/pipeline.org step 5.
+// expr_til_type derives Type.Struct("Str") and Type.Bool for LiteralStr
+// and LiteralBool directly from node_type, so this function only needs
+// to handle the two variants with non-trivial inference: LiteralNum's
+// I64-default-unless-already-narrowed (parser writes Type.U8 for char
+// literals) and LiteralNull's initial Type.Dynamic (narrow_dynamic may
+// mutate it post-write, so the field is still authoritative for that
+// variant).
 infer_literal_expr := func(mut expr: Expr) {
     switch expr.node_type {
-    case NodeType.LiteralStr:
-        expr.til_type =Type.Struct("Str".clone())
     case NodeType.LiteralNum:
         if is_numeric_type(expr_til_type(expr)).not() {
             expr.til_type =Type.I64
         }
-    case NodeType.LiteralBool:
-        expr.til_type =Type.Bool
     case NodeType.LiteralNull:
         expr.til_type =Type.Dynamic
     case:
