@@ -250,10 +250,14 @@ FCallData := struct {
     mut is_bang := false
     mut own_args : U64 = 0
     // Issue #206 slice 3: payload-resident result type. The typer
-    // writes the resolved callee return type here (or Type.None for
-    // proc calls) via the set_fcall_til_type helper, and
+    // writes the resolved callee return type here via the
+    // set_fcall_til_type helper at FCall infer time, and
     // ~expr_til_type~ reads it back via the chokepoint's FCall
-    // dispatch case.
+    // dispatch case. Callees declared without a ~returns~ clause
+    // resolve to ~Type.None~ -- common for callees written as
+    // ~proc~, but not a func/proc distinction (per CLAUDE.md
+    // "func vs proc is not Pascal", the only rule is "func cannot
+    // call proc"; both kinds may or may not return a value).
     mut til_type := Type.Unknown
 namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
