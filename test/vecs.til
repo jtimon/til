@@ -108,7 +108,7 @@ test_vec_dynamic := test() {
 
     expect(__LOC__, is_null(a).not(), "first dynamic pointer should not be null")
     expect(__LOC__, is_null(b).not(), "second dynamic pointer should not be null")
-    expect(__LOC__, is(a, b).not(), "distinct dynamic pointers stay distinct")
+    expect(__LOC__, ptr_eq(a, b).not(), "distinct dynamic pointers stay distinct")
 }
 
 test_vec_pop := test() {
