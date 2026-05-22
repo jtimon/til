@@ -1641,13 +1641,8 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                 // wrapper entirely: emit the compound literal directly into
                 // aname after running the old destructor.
                 if rhs.node_type.is(NodeType.LiteralStr) {
-                    f.write("{ ")
-                    f.write(ctype)
-                    f.write("_delete(&")
-                    f.write(aname)
-                    f.write(", &(Bool){0}); ")
-                    f.write(aname)
-                    f.write(" = (Str){.c_str = (void *)\"")
+                    f.write("{ ") f.write(ctype) f.write("_delete(&") f.write(aname) f.write(", &(Bool){0}); ")
+                    f.write(aname) f.write(" = (Str){.c_str = (void *)\"")
                     switch rhs.node_type {
                     case NodeType.LiteralStr(_lit_s):
                         f.write(_lit_s)
@@ -1657,14 +1652,14 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                     }
                     f.write("ULL, .cap = TIL_CAP_LIT}; }\n")
                 } else {
-                    f.write("{ "); f.write(ctype); f.write(" *_new = ("); f.write(ctype); f.write(" *)")
+                    f.write("{ ") f.write(ctype) f.write(" *_new = (") f.write(ctype) f.write(" *)")
                     emit_expr(f, rhs, depth)
-                    f.write("; "); f.write(ctype); f.write("_delete(&"); f.write(aname); f.write(", &(Bool){0}); "); f.write(aname); f.write(" = *_new; free(_new); }\n")
+                    f.write("; ") f.write(ctype) f.write("_delete(&") f.write(aname) f.write(", &(Bool){0}); ") f.write(aname) f.write(" = *_new; free(_new); }\n")
                 }
             } else {
-                f.write("{ "); f.write(ctype); f.write(" *_old = "); f.write(aname); f.write("; "); f.write(aname); f.write(" = ")
+                f.write("{ ") f.write(ctype) f.write(" *_old = ") f.write(aname) f.write("; ") f.write(aname) f.write(" = ")
                 emit_expr(f, rhs, depth)
-                f.write("; "); f.write(ctype); f.write("_delete(_old, &(Bool){1}); }\n")
+                f.write("; ") f.write(ctype) f.write("_delete(_old, &(Bool){1}); }\n")
             }
             return
         }
