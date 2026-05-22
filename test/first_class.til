@@ -132,3 +132,16 @@ test_vec_funcsig_push_len := test() {
     ops.push(own fn_mul)
     assert_eq(__LOC__, ops.len().to_i64(), 2)
 }
+
+// --- Explicit FuncDef / FunctionDef metatype annotation (issue #58) ---
+// rstil's first_class.org uses `FuncDef` as the metatype name for
+// concrete function definitions; til's internal struct is named
+// `FunctionDef`. Both names should be accepted for the annotation.
+
+triple_funcdef : FuncDef = func(x: I64) returns I64 { return x.mul(3) }
+double_funcdef : FunctionDef = func(x: I64) returns I64 { return x.mul(2) }
+
+test_explicit_funcdef_annotation := test() {
+    assert_eq(__LOC__, triple_funcdef(5), 15)
+    assert_eq(__LOC__, double_funcdef(7), 14)
+}

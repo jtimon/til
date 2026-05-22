@@ -2996,7 +2996,12 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
     if is_func_decl(stmt).not() { return false }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
-        if sdecl.explicit_type.len().gt(0).and(sdecl.explicit_type.eq("FunctionDef").not()) {
+        // Issue #58: the metatype name from rstil's first_class.org is
+        // ~FuncDef~; til's internal name is ~FunctionDef~ (the data
+        // struct in src/core/ast.til). Accept both as the annotation
+        // for a FuncDef value.
+        annot_is_funcdef := sdecl.explicit_type.eq("FunctionDef").or(sdecl.explicit_type.eq("FuncDef"))
+        if sdecl.explicit_type.len().gt(0).and(annot_is_funcdef.not()) {
             type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is FunctionDef"))
         }
         switch stmt.child(0).node_type {
