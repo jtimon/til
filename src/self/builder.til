@@ -725,12 +725,16 @@ type_name_to_c_value := func(name: Str) returns Str {
     return name.clone()
 }
 
-emit_u64 := proc(f: File, shallow v: U64) {
+// Returns ref File so `f.emit_u64(v).write(...)` chains via UFCS.
+emit_u64 := proc(f: File, shallow v: U64) returns ref File {
     f.write(v.to_str())
+    return f
 }
 
-emit_i32 := proc(f: File, shallow v: I32) {
+// Returns ref File so `f.emit_i32(v).write(...)` chains via UFCS.
+emit_i32 := proc(f: File, shallow v: I32) returns ref File {
     f.write(v.to_str())
+    return f
 }
 
 priv emit_indent := proc(f: File, shallow depth: I32) {

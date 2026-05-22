@@ -47,12 +47,15 @@ namespace:
         return File(handle = h, is_write = is_write)
     }
 
-    /// Write a string to the file. Panics if not opened for writing.
-    write := proc(self: File, s: Str) {
+    /// Write a string to the file and return `self` so writes chain via
+    /// UFCS: `f.write("a").write("b").write("c")`. Panics if not opened
+    /// for writing.
+    write := proc(self: File, s: Str) returns ref File {
         if self.is_write.not() {
             panic(__LOC__, "File.write: file not opened for writing")
         }
         cfile_write_str(self.handle, s)
+        return self
     }
 
     /// Read the entire file contents into a Str. Panics if opened for writing.
