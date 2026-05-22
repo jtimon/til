@@ -1633,9 +1633,29 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
         if ad.save_old_delete {
             ctype := c_type_name(expr_til_type(e), til_type_name(expr_til_type(e)))
             if is_stack_local(aname).or(is_value_global(aname)) {
-                f.write("{ "); f.write(ctype); f.write(" *_new = ("); f.write(ctype); f.write(" *)")
-                emit_expr(f, rhs, depth)
-                f.write("; "); f.write(ctype); f.write("_delete(&"); f.write(aname); f.write(", &(Bool){0}); "); f.write(aname); f.write(" = *_new; free(_new); }\n")
+                // For LiteralStr RHS, emit_expr produces a heap-malloc'd Str
+                // wrapper (`({ Str *_lit = malloc(...); *_lit = (Str){...}; _lit; })`).
+                // The usual `Str *_new = ...; aname = *_new; free(_new);` shape
+                // mallocs the wrapper just to copy its fields into the stack-
+                // local `aname` and free the wrapper immediately. Skip the
+                // wrapper entirely: emit the compound literal directly into
+                // aname after running the old destructor.
+                if rhs.node_type.is(NodeType.LiteralStr) {
+                    f.write("{ "); f.write(ctype); f.write("_delete(&"); f.write(aname); f.write(", &(Bool){0}); ")
+                    f.write(aname); f.write(" = (Str){.c_str = (void *)\"")
+                    switch rhs.node_type {
+                    case NodeType.LiteralStr(_lit_s):
+                        f.write(_lit_s)
+                        f.write("\", .count = ")
+                        emit_u64(f, c_lit_byte_count(_lit_s).to_u64())
+                    case:
+                    }
+                    f.write("ULL, .cap = TIL_CAP_LIT}; }\n")
+                } else {
+                    f.write("{ "); f.write(ctype); f.write(" *_new = ("); f.write(ctype); f.write(" *)")
+                    emit_expr(f, rhs, depth)
+                    f.write("; "); f.write(ctype); f.write("_delete(&"); f.write(aname); f.write(", &(Bool){0}); "); f.write(aname); f.write(" = *_new; free(_new); }\n")
+                }
             } else {
                 f.write("{ "); f.write(ctype); f.write(" *_old = "); f.write(aname); f.write("; "); f.write(aname); f.write(" = ")
                 emit_expr(f, rhs, depth)
