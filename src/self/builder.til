@@ -1641,8 +1641,13 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                 // wrapper entirely: emit the compound literal directly into
                 // aname after running the old destructor.
                 if rhs.node_type.is(NodeType.LiteralStr) {
-                    f.write("{ "); f.write(ctype); f.write("_delete(&"); f.write(aname); f.write(", &(Bool){0}); ")
-                    f.write(aname); f.write(" = (Str){.c_str = (void *)\"")
+                    f.write("{ ")
+                    f.write(ctype)
+                    f.write("_delete(&")
+                    f.write(aname)
+                    f.write(", &(Bool){0}); ")
+                    f.write(aname)
+                    f.write(" = (Str){.c_str = (void *)\"")
                     switch rhs.node_type {
                     case NodeType.LiteralStr(_lit_s):
                         f.write(_lit_s)
