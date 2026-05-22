@@ -80,52 +80,21 @@ All `make` targets work from the worktree. The main tree stays clean.
 
 Merging to master (local sessions)::
 
-  # After self-hosting changes that regenerate boot/*, the worktree's
-  # boot artifacts and totals files may conflict with origin/master.
-  # Cherry-pick instead of merge to keep the log linear.
   # Start this sequence from a committed worktree branch. If your fix is
-  # still uncommitted, finish the edit/test/commit cycle first -- git
-  # rebase will not start from a dirty worktree.
+  # still uncommitted, finish the edit/test/commit cycle first.
   #
-  # 1. Rebase the worktree branch on top of origin/master.
-  git fetch origin master
-  git rebase origin/master
-
-  # 2. If conflicts appear ONLY in generated files (boot/*, doc/totals.csv,
-  #    img/totals.svg), accept ours and continue. If source files conflict,
-  #    resolve manually.
-  git checkout --ours boot/til.c doc/totals.csv img/totals.svg
-  git add boot/til.c doc/totals.csv img/totals.svg
-  git rebase --continue
-
-  # 3. Soft-reset so the next make test regenerates boot/ against the
-  #    rebased source.
-  git reset --soft HEAD~1
-
-  # 4. Make any additional edits (e.g. doc updates).  Discard totals so
-  #    make test writes fresh ones; they must match the current commit.
-  git restore doc/totals.csv img/totals.svg
-
-  # 5. Rebuild and test.
-  make clean && make test
-
-  # 5b. ASAN leak check (same as doc/bots/merging_from_remote.org Step 6).
-  make bin/til_asan > tmp/asan_build.log 2>&1
-  ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til > tmp/asan_interpret.log 2>&1; grep "SUMMARY" tmp/asan_interpret.log
-  ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til > tmp/asan_translate.log 2>&1; grep "SUMMARY" tmp/asan_translate.log
-  # Compute delta vs the baseline recorded in doc/bots/merging_from_remote.org
-  # and report it to the user. If accepted, update the baseline in that
-  # file now -- the commit below picks it up.
-
-  # 6. Stage everything (including regenerated boot/* and totals) and commit.
-  git add -A && git commit -m "..."
-
-  # 7. Cherry-pick onto master.
+  # 1. Cherry-pick the single worktree commit onto master.
   git checkout master
   git cherry-pick concat-to-format    # or the worktree branch name
 
-  # 8. Only now remove the worktree -- testing may need more edits after
-  #    rebase, so keep it alive until master has the final commit.
+  # 2. Then follow doc/bots/merging_from_remote.org from Step 4 onward on
+  #    master: soft-reset the cherry-picked commit, discard totals from both
+  #    the index and worktree, rerun make test / make test_two_pass,
+  #    run the ASAN checks, update the ASAN baseline table there, and
+  #    recommit with the exact same message.
+
+  # 3. Only now remove the worktree -- testing may need more edits after
+  #    the regen/ASAN pass, so keep it alive until master has the final commit.
   git worktree remove <path>
   git worktree prune
 

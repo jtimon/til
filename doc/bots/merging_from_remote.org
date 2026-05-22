@@ -24,7 +24,9 @@ allowing you to re-commit after regenerating boot artifacts. The totals
 files (doc/totals.csv, img/totals.svg) from the remote commit are stale
 and must be discarded; ~make test~ in Step 5 will regenerate them fresh.
 #+begin_src shell
-git reset --soft HEAD~1 && git checkout HEAD -- doc/totals.csv img/totals.svg
+git reset --soft HEAD~1
+git restore --staged doc/totals.csv img/totals.svg
+git restore          doc/totals.csv img/totals.svg
 #+end_src
 
 *** Aborting after soft reset
@@ -33,19 +35,19 @@ git reset --soft HEAD~1 && git checkout HEAD -- doc/totals.csv img/totals.svg
     NEVER use ~git reset --hard~ -- that would also destroy the previous
     commit which was processed correctly.
 
-    Use ~git checkout HEAD~ to restore individual files:
+    Use ~git restore~ to restore individual files:
     #+begin_src shell
-    git checkout HEAD -- Makefile src/tests.til           # modified files
-    git checkout HEAD -- test/deleted_file.sh          # deleted files
-    git checkout HEAD -- doc/totals.csv img/totals.svg     # auto-generated
+    git restore --staged --worktree Makefile src/tests.til
+    git restore --staged --worktree test/deleted_file.sh
+    git restore --staged --worktree doc/totals.csv img/totals.svg
     #+end_src
 
     Verify clean with ~git status~ -- output should be empty.
 
     If you don't know which files are dirty, check with ~git status --short~:
-    - ~M <file>~ means staged modification (restore with ~git checkout HEAD -- <file>~)
-    - ~D <file>~ means staged deletion (restore with ~git checkout HEAD -- <file>~)
-    - ~ M <file>~ means unstaged modification (restore with ~git checkout HEAD -- <file>~)
+    - ~M <file>~ means staged modification (restore with ~git restore --staged --worktree <file>~)
+    - ~D <file>~ means staged deletion (restore with ~git restore --staged --worktree <file>~)
+    - ~ M <file>~ means unstaged modification (restore with ~git restore --staged --worktree <file>~)
 
     Then the previous commit is safely intact at HEAD and the rejected commit
     is fully discarded.
@@ -76,7 +78,7 @@ systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/build.log 
     local agents keep them (they are picked up by ~git add -A~ in Step
     7). Remote agents must discard them before committing:
     #+begin_src shell
-    git checkout HEAD -- doc/totals.csv img/totals.svg
+    git restore doc/totals.csv img/totals.svg
     #+end_src
     See AGENTS.md for the local/remote agent policy on totals files.
 

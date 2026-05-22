@@ -669,14 +669,14 @@ c_type_name := func(shallow t: Type, struct_name: Str) returns Str {
     if t.is(Type.Struct).or(t.is(Type.Enum)) {
         if is_null(struct_name).not() {
             if struct_name.len().gt(0) {
-                return struct_name.clone()
+                return struct_name
             }
         }
     }
     if t.is(Type.FuncPtr) {
         if is_null(struct_name).not() {
             if struct_name.len().gt(0) {
-                if is_funcsig_type(struct_name) { return struct_name.clone() }
+                if is_funcsig_type(struct_name) { return struct_name }
             }
         }
     }
@@ -686,7 +686,7 @@ c_type_name := func(shallow t: Type, struct_name: Str) returns Str {
 
 func_to_c := func(name: Str) returns Str {
     if name.eq("double") { return "double_" }
-    return name.clone()
+    return name
 }
 
 type_name_to_c := func(name: Str) returns Str {
@@ -703,7 +703,7 @@ type_name_to_c := func(name: Str) returns Str {
     if name.eq("Bool") { return "Bool *" }
     if name.eq("Dynamic") { return "void *" }
     if name.eq("Fn") { return "void *" }
-    if codegen_lp().ctx.funcsig_names.has(name) { return name.clone() }
+    if codegen_lp().ctx.funcsig_names.has(name) { return name }
     return name.format(" *")
 }
 
@@ -721,8 +721,8 @@ type_name_to_c_value := func(name: Str) returns Str {
     if name.eq("Bool") { return "Bool" }
     if name.eq("Dynamic") { return "void *" }
     if name.eq("Fn") { return "void *" }
-    if codegen_lp().ctx.funcsig_names.has(name) { return name.clone() }
-    return name.clone()
+    if codegen_lp().ctx.funcsig_names.has(name) { return name }
+    return name
 }
 
 // Returns ref File so `f.emit_u64(v).write(...)` chains via UFCS.
@@ -3854,7 +3854,7 @@ type_name_to_ctypes := func(name: Str) returns Str {
     if name.eq("Bool") { return "ctypes.c_bool" }
     if name.eq("Str") { return "Str" }
     if name.eq("Dynamic") { return "ctypes.c_void_p" }
-    return name.clone()
+    return name
 }
 
 type_name_to_ctypes_param := func(name: Str, shallow is_shallow: Bool) returns Str {
@@ -5372,7 +5372,7 @@ priv dyn_type_str_display := func(vn: Str) returns Str {
     if vn.eq("None")    { return "" }
     if vn.eq("FuncDef") { return "FunctionDef" }
     if vn.eq("FuncPtr") { return "Fn" }
-    return vn.clone()
+    return vn
 }
 
 // Locate the variants of an enum definition by name in the loaded
@@ -6518,7 +6518,7 @@ format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns
                     chunk.push_str("#+end_src\n\n")
                 }
                 total = total.add(chunk.len())
-                chunks.push(own chunk.clone())
+                chunks.push(own chunk)
             case:
                 UNREACHABLE(__LOC__)
             }

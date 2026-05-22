@@ -1679,7 +1679,7 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
         out.push(own line.clone())
     }
     if carry.is_empty().not() {
-        out.push(own carry.clone())
+        out.push(own carry)
     }
     return out
 }

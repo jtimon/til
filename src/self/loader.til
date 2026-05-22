@@ -18,13 +18,13 @@ realpath_str := ext_func(path: Str) returns Str {}
 // Owned copy of first n bytes of s (substr returns a view, this returns a clone)
 priv str_left := func(s: Str, n: USize) returns Str {
     if n.eq(0) { return "" }
-    if n.gte(s.len()) { return s.clone() }
+    if n.gte(s.len()) { return s }
     return s.substr(0, n).clone()
 }
 
 priv normalize_mode_name := func(mode_name: Str) returns Str {
     if mode_name.len().gt(0) {
-        return mode_name.clone()
+        return mode_name
     }
     return "script"
 }
@@ -35,10 +35,10 @@ display_path := func(p: Str, cwd: Str) returns Str {
     prefix := cwd.concat("/")
     rel := p.strip_prefix(prefix)
     if rel.starts_with("/") {
-        return rel.clone()
+        return rel
     }
     if rel.starts_with("./") {
-        return rel.clone()
+        return rel
     }
     return "./".concat(rel)
 }
@@ -76,7 +76,7 @@ compiler_root := func(ext_c_path: Str) returns Str {
 
 resolve_link_path := func(base_dir: Str, root_dir: Str, path: Str) returns Str {
     if path.starts_with("/") {
-        return path.clone()
+        return path
     }
     rel_candidate := base_dir.format("/", path)
     if realpath_str(rel_candidate).len().gt(0) {
@@ -838,7 +838,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     mut user_unit := ProgramUnit(path = path.clone(), mode = cur_mode.clone())
     if mode_disp.len().gt(0) {
         mut all_imports2 := Vec.new(Str)
-        all_imports2.push(own mode_disp.clone())
+        all_imports2.push(own mode_disp)
         for dep : Str in user_import_disps { all_imports2.push(own dep.clone()) }
         user_unit.imports = all_imports2
     } else {
@@ -1039,7 +1039,7 @@ format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) returns St
     if dd.explicit_type.len().gt(0) {
         return name.concat(" is a ").concat(dd.explicit_type)
     }
-    return name.clone()
+    return name
 }
 
 format_func_info := func(name: Str, fd: FunctionDef) returns Str {

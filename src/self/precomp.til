@@ -97,7 +97,7 @@ priv from_source_form := func(s: Str) returns Str {
     for ii in 0..nn {
         if s.byte_at(ii).eq(92.to_i8()) { has_bs = true; break }
     }
-    if has_bs.not() { return s.clone() }
+    if has_bs.not() { return s }
     n := s.len()
     mut out := ""
     mut i : U32 = 0.to_u32()
@@ -149,7 +149,7 @@ priv needs_source_escape := func(s: Str) returns shallow Bool {
 // consistent regardless of whether the node came from the parser or
 // from a precomp-time fold.
 priv str_to_source_form := func(s: Str) returns Str {
-    if needs_source_escape(s).not() { return s.clone() }
+    if needs_source_escape(s).not() { return s }
     n := s.len()
     mut out := ""
     for i in 0..n {
