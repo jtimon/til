@@ -3385,9 +3385,9 @@ emit_header_func_fwds_prog := proc(f: File, prog: Expr, shallow is_core_pass: Bo
 
 emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
     mut emitted_h := Set.new(Str)
-    emitted_h.add(own "U8".clone()); emitted_h.add(own "I8".clone()); emitted_h.add(own "I16".clone()); emitted_h.add(own "I32".clone())
-    emitted_h.add(own "U32".clone()); emitted_h.add(own "U64".clone()); emitted_h.add(own "I64".clone())
-    emitted_h.add(own "F32".clone()); emitted_h.add(own "Bool".clone())
+    emitted_h.add(own "U8"); emitted_h.add(own "I8"); emitted_h.add(own "I16"); emitted_h.add(own "I32")
+    emitted_h.add(own "U32"); emitted_h.add(own "U64"); emitted_h.add(own "I64")
+    emitted_h.add(own "F32"); emitted_h.add(own "Bool")
     if is_null(core_program).not() { topo_emit_struct_enum_defs(f, core_program, emitted_h) }
     topo_emit_struct_enum_defs(f, program, emitted_h)
     own emitted_h.delete()
@@ -3451,9 +3451,9 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
 
 emit_header_defs_and_funcs_lp := proc(f: File) {
     mut emitted_h := Set.new(Str)
-    emitted_h.add(own "U8".clone()); emitted_h.add(own "I8".clone()); emitted_h.add(own "I16".clone()); emitted_h.add(own "I32".clone())
-    emitted_h.add(own "U32".clone()); emitted_h.add(own "U64".clone()); emitted_h.add(own "I64".clone())
-    emitted_h.add(own "F32".clone()); emitted_h.add(own "Bool".clone())
+    emitted_h.add(own "U8"); emitted_h.add(own "I8"); emitted_h.add(own "I16"); emitted_h.add(own "I32")
+    emitted_h.add(own "U32"); emitted_h.add(own "U64"); emitted_h.add(own "I64")
+    emitted_h.add(own "F32"); emitted_h.add(own "Bool")
     topo_emit_struct_enum_defs_lp(f, emitted_h)
     own emitted_h.delete()
 
@@ -4561,9 +4561,9 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
 
     // Topo-sort struct/enum defs
     mut emitted_mh := Set.new(Str)
-    emitted_mh.add(own "U8".clone()); emitted_mh.add(own "I8".clone()); emitted_mh.add(own "I16".clone()); emitted_mh.add(own "I32".clone())
-    emitted_mh.add(own "U32".clone()); emitted_mh.add(own "U64".clone()); emitted_mh.add(own "I64".clone())
-    emitted_mh.add(own "F32".clone()); emitted_mh.add(own "Bool".clone())
+    emitted_mh.add(own "U8"); emitted_mh.add(own "I8"); emitted_mh.add(own "I16"); emitted_mh.add(own "I32")
+    emitted_mh.add(own "U32"); emitted_mh.add(own "U64"); emitted_mh.add(own "I64")
+    emitted_mh.add(own "F32"); emitted_mh.add(own "Bool")
     if is_null(core_program).not() { topo_emit_struct_enum_defs(f, core_program, emitted_mh) }
     topo_emit_struct_enum_defs(f, program, emitted_mh)
     own emitted_mh.delete()
@@ -4630,9 +4630,9 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
 
     // Topo-sort struct/enum defs across all units
     mut emitted_mh := Set.new(Str)
-    emitted_mh.add(own "U8".clone()); emitted_mh.add(own "I8".clone()); emitted_mh.add(own "I16".clone()); emitted_mh.add(own "I32".clone())
-    emitted_mh.add(own "U32".clone()); emitted_mh.add(own "U64".clone()); emitted_mh.add(own "I64".clone())
-    emitted_mh.add(own "F32".clone()); emitted_mh.add(own "Bool".clone())
+    emitted_mh.add(own "U8"); emitted_mh.add(own "I8"); emitted_mh.add(own "I16"); emitted_mh.add(own "I32")
+    emitted_mh.add(own "U32"); emitted_mh.add(own "U64"); emitted_mh.add(own "I64")
+    emitted_mh.add(own "F32"); emitted_mh.add(own "Bool")
     topo_emit_struct_enum_defs_lp(f, emitted_mh)
     own emitted_mh.delete()
 

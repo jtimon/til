@@ -47,17 +47,17 @@ file_label := func(path: Str) returns Str {
 
 ordered_paths := func() returns Vec {
     mut paths := Vec.new(Str)
-    paths.push(own "src/self/lexer.til".clone())
-    paths.push(own "src/core/ast.til".clone())
-    paths.push(own "src/self/parser.til".clone())
-    paths.push(own "src/self/initer.til".clone())
-    paths.push(own "src/self/typer.til".clone())
-    paths.push(own "src/self/precomp.til".clone())
-    paths.push(own "src/self/scavenger.til".clone())
-    paths.push(own "src/self/builder.til".clone())
-    paths.push(own "src/self/dispatch.til".clone())
-    paths.push(own "src/self/interpreter.til".clone())
-    paths.push(own "src/self/modes.til".clone())
+    paths.push(own "src/self/lexer.til")
+    paths.push(own "src/core/ast.til")
+    paths.push(own "src/self/parser.til")
+    paths.push(own "src/self/initer.til")
+    paths.push(own "src/self/typer.til")
+    paths.push(own "src/self/precomp.til")
+    paths.push(own "src/self/scavenger.til")
+    paths.push(own "src/self/builder.til")
+    paths.push(own "src/self/dispatch.til")
+    paths.push(own "src/self/interpreter.til")
+    paths.push(own "src/self/modes.til")
     return paths
 }
 

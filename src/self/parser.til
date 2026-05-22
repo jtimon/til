@@ -712,7 +712,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             if next_tok.type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
-                mut zero := Expr.new(NodeType.LiteralNum("0".clone()), t_line, t_col)
+                mut zero := Expr.new(NodeType.LiteralNum("0"), t_line, t_col)
                 mut sub_access := Expr.new(NodeType.FieldAccess("sub"), t_line, t_col)
                 sub_access.add_child(own zero)
                 mut sub_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
@@ -753,7 +753,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             if ch.len().gt(0) { byte_val = ch.get(0).to_i64() }
         }
         e = Expr.new(NodeType.LiteralNum(byte_val.to_str()), t_line, t_col)
-        e.til_type = Type.Struct("U8".clone())
+        e.til_type = Type.Struct("U8")
         e_set = true
     }
     if e_set.not().and(t.type.is(TokenType.KwTrue).or(t.type.is(TokenType.KwFalse))) {

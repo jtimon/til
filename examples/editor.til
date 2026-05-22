@@ -28,10 +28,10 @@ main := proc(args: ..Str) {
             }
             // If file ended with newline, last split element is empty, keep it
         } else {
-            lines.push(own "".clone())
+            lines.push(own "")
         }
     } else {
-        lines.push(own "".clone())
+        lines.push(own "")
     }
 
     mut cursor_x := 0
@@ -88,7 +88,7 @@ main := proc(args: ..Str) {
                         new_lines.push(own p.clone())
                     }
                 } else {
-                    new_lines.push(own "".clone())
+                    new_lines.push(own "")
                 }
                 lines = new_lines
                 cursor_x = 0

@@ -485,10 +485,10 @@ namespace:
 // and the drop would double-free.
 expr_til_type := func(e: Expr) returns Type {
     switch e.node_type {
-    case NodeType.LiteralStr:  return Type.Struct("Str".clone())
+    case NodeType.LiteralStr:  return Type.Struct("Str")
     case NodeType.LiteralBool: return Type.Bool
-    case NodeType.MapLit:      return Type.Struct("Map".clone())
-    case NodeType.SetLit:      return Type.Struct("Set".clone())
+    case NodeType.MapLit:      return Type.Struct("Map")
+    case NodeType.SetLit:      return Type.Struct("Set")
     case NodeType.NamedArg:
         if e.children.len().eq(0) { return Type.Unknown }
         return expr_til_type(e.child(0))

@@ -488,6 +488,15 @@ case TerrRestPoint(x = 0): println("origin-x")
 case TerrRestPoint(x = _nx, y = _ny): println("any")
 }
 
+// `.clone()` on a literal receiver is always redundant -- the literal
+// is already a fresh value. Reject at the typer level so callers fix
+// the source instead of paying for the copy.
+terr_clone_lit_str   := "urmom".clone()
+terr_clone_lit_nl    := "\n".clone()
+terr_clone_lit_num   := 32.clone()
+terr_clone_lit_char  := '\n'.clone()
+terr_clone_lit_bool  := true.clone()
+
 // ============================================================
 // Issue #198 follow-up: throw/catch validation diagnostics
 // ============================================================

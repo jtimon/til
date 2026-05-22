@@ -353,17 +353,17 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, shallow
 
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("I64")  { return Type.I64 }
-    if name.eq("U8")   { return Type.Struct("U8".clone()) }
-    if name.eq("I8")   { return Type.Struct("I8".clone()) }
+    if name.eq("U8")   { return Type.Struct("U8") }
+    if name.eq("I8")   { return Type.Struct("I8") }
     if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
-    if name.eq("I32")  { return Type.Struct("I32".clone()) }
+    if name.eq("I32")  { return Type.Struct("I32") }
     if name.eq("U32")  { return Type.U32 }
     if name.eq("U64")  { return Type.U64 }
     if name.eq("USize") { return Type.U32 }
-    if name.eq("Str")  { return Type.Struct("Str".clone()) }
+    if name.eq("Str")  { return Type.Struct("Str") }
     if name.eq("Bool") { return Type.Bool }
-    if name.eq("StructDef") { return Type.Struct("StructDef".clone()) }
-    if name.eq("EnumDef") { return Type.Struct("EnumDef".clone()) }
+    if name.eq("StructDef") { return Type.Struct("StructDef") }
+    if name.eq("EnumDef") { return Type.Struct("EnumDef") }
     if name.eq("Dynamic")   { return Type.Dynamic }
     if is_null(scope).not() {
         ref b : TypeBinding = scope.get_binding(name)
@@ -435,10 +435,10 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         mut builtin_type := Type.Struct(sname.clone())
         mut is_builtin := false
         if sname.eq("I64") { builtin_type = Type.I64; is_builtin = true }
-        else if sname.eq("U8") { builtin_type = Type.Struct("U8".clone()); is_builtin = true }
-        else if sname.eq("I8") { builtin_type = Type.Struct("I8".clone()); is_builtin = true }
+        else if sname.eq("U8") { builtin_type = Type.Struct("U8"); is_builtin = true }
+        else if sname.eq("I8") { builtin_type = Type.Struct("I8"); is_builtin = true }
         else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
-        else if sname.eq("I32") { builtin_type = Type.Struct("I32".clone()); is_builtin = true }
+        else if sname.eq("I32") { builtin_type = Type.Struct("I32"); is_builtin = true }
         else if sname.eq("U32") { builtin_type = Type.U32; is_builtin = true }
         else if sname.eq("U64") { builtin_type = Type.U64; is_builtin = true }
         else if sname.eq("USize") { builtin_type = Type.U32; is_builtin = true }
@@ -759,7 +759,7 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec, mut varian
                 ref pt : Str = edd.payload_types.get(idx)
                 variant_types.push(own pt.clone())
             } else {
-                variant_types.push(own "".clone())
+                variant_types.push(own "")
             }
         }
     case:
@@ -2244,7 +2244,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
         out_type = Type.Bool
         return true
     case NodeType.LiteralStr:
-        out_type = Type.Struct("Str".clone())
+        out_type = Type.Struct("Str")
         return true
     case NodeType.LiteralNull:
         out_type = Type.Dynamic

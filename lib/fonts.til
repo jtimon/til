@@ -140,19 +140,19 @@ build_glyph := func(segments: Vec) returns Glyph {
             }
             xs.push(own seg.x.clone())
             ys.push(own seg.y.clone())
-            on_curve.push(own 1.clone())
+            on_curve.push(own 1)
             contour_open = true
         case SegKind.Line:
             xs.push(own seg.x.clone())
             ys.push(own seg.y.clone())
-            on_curve.push(own 1.clone())
+            on_curve.push(own 1)
         case SegKind.Quad:
             xs.push(own seg.cx.clone())
             ys.push(own seg.cy.clone())
-            on_curve.push(own 0.clone())
+            on_curve.push(own 0)
             xs.push(own seg.x.clone())
             ys.push(own seg.y.clone())
-            on_curve.push(own 1.clone())
+            on_curve.push(own 1)
         case SegKind.Close:
             if contour_open {
                 contour_ends.push(own xs.len().to_i64().sub(1))

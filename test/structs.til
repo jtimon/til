@@ -205,10 +205,14 @@ test_clone := test() {
     l.start.x = 99
     assert_eq(__LOC__, l2.start.x, 1)
 
-    // Clone builtins
-    assert_eq(__LOC__, 42.clone(), 42)
-    assert_eq_str(__LOC__, "hello".clone(), "hello")
-    assert(__LOC__, true.clone())
+    // Clone builtins (must go through a local -- `.clone()` on a literal
+    // receiver is a typer error; the literal is already a fresh value).
+    num := 42
+    s   := "hello"
+    bv  := true
+    assert_eq(__LOC__, num.clone(), 42)
+    assert_eq_str(__LOC__, s.clone(), "hello")
+    assert(__LOC__, bv.clone())
 }
 
 test_delete := test() {
