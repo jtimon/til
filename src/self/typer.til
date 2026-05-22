@@ -1498,6 +1498,27 @@ obj_method_type_name := func(obj: Expr) returns Str {
     return ""
 }
 
+// Maps a `to_T` conversion method to the receiver type name for which
+// the call would be a no-op (the receiver is already T). Returns the
+// expected type name, or "" when ~method~ is not an identity-eligible
+// conversion. USize is an alias for U32 (see core/usize.til), so
+// `.to_usize()` is redundant on a U32 receiver.
+priv expected_type_for_identity_to := func(method: Str) returns Str {
+    if method.eq("to_str")   { return "Str" }
+    if method.eq("to_u8")    { return "U8" }
+    if method.eq("to_u16")   { return "U16" }
+    if method.eq("to_u32")   { return "U32" }
+    if method.eq("to_u64")   { return "U64" }
+    if method.eq("to_i8")    { return "I8" }
+    if method.eq("to_i16")   { return "I16" }
+    if method.eq("to_i32")   { return "I32" }
+    if method.eq("to_i64")   { return "I64" }
+    if method.eq("to_f32")   { return "F32" }
+    if method.eq("to_bool")  { return "Bool" }
+    if method.eq("to_usize") { return "U32" }
+    return ""
+}
+
 infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) returns shallow Bool {
     ref mut fa : Expr = e.child(0)
     ref mut obj : Expr = fa.child(0)
@@ -1531,6 +1552,23 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             obj_is_type = true
         }
     case:
+    }
+
+    // Reject `.to_T()` on a value already of type T. The .clone()-on-
+    // literal check above is the receiver-side analog; this one fires
+    // on any value whose static type already matches the conversion
+    // target (`u32_var.to_u32()`, `s.to_str()`, etc.). Skip namespace
+    // calls like `Str.to_str(x)`, which dispatch on the explicit type.
+    if obj_is_type.not() {
+        expected_to_type := expected_type_for_identity_to(method)
+        if expected_to_type.len().gt(0) {
+            recv_type_name := obj_method_type_name(obj)
+            if recv_type_name.eq(expected_to_type) {
+                type_error(e, format("redundant '.", method, "()' on a '", recv_type_name, "' value"))
+                e.til_type = Type.Unknown
+                return true
+            }
+        }
     }
 
     mut ufcs_desugared := false

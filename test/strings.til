@@ -22,8 +22,11 @@ test_clone := test() {
 }
 
 test_to_str := test() {
-    assert_eq_str(__LOC__, "hello".to_str(), "hello")
-    assert_eq_str(__LOC__, "".to_str(), "")
+    // `.to_str()` on a Str value is rejected by the typer's identity-
+    // conversion rule (see infer_field_access_fcall); call via the
+    // namespace form to exercise Str.to_str directly.
+    assert_eq_str(__LOC__, Str.to_str("hello"), "hello")
+    assert_eq_str(__LOC__, Str.to_str(""), "")
 }
 
 test_len := test() {

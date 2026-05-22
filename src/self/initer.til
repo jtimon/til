@@ -1022,8 +1022,15 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
                 fmt_call.add_child(own prefix)
 
                 mut p_id := Expr.new(NodeType.Ident(pn), line, col)
-                mut tostr_call := make_method_call_fcall(own p_id, "to_str", line, col)
-                fmt_call.add_child(own tostr_call)
+                if vtype.eq("Str") {
+                    // Payload is already Str -- format() takes Str
+                    // variadics, so an extra .to_str() round-trip would
+                    // just trip typer's redundant-conversion check.
+                    fmt_call.add_child(own p_id)
+                } else {
+                    mut tostr_call := make_method_call_fcall(own p_id, "to_str", line, col)
+                    fmt_call.add_child(own tostr_call)
+                }
 
                 mut suffix := Expr.new(NodeType.LiteralStr(")"), line, col)
                 fmt_call.add_child(own suffix)
