@@ -1105,7 +1105,7 @@ void priv___src_self_initer_til__generate_enum_is_method(Expr * enum_def, Str * 
 void generate_enum_eq_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, TypeScope * scope);
 void generate_enum_delete_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
 void generate_enum_to_str_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
-void generate_enum_clone_method(Expr * enum_def, Str * ename, I32 line, I32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads);
+void generate_enum_clone_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads);
 I32 register_enum_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void gen_enum_nonclone_methods_for_stmt(Expr * stmt, TypeScope * scope);
 void gen_missing_enum_clone_for_stmt(Expr * stmt);

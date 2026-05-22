@@ -329,10 +329,10 @@ main := proc() {
 
             // Note buttons: 7 cols x 3 rows
             if my.gte(NOTE_ROW_Y.to_i64()).and(my.lt(NOTE_ROW_Y.add(BTN_H.mul(3)).to_i64())) {
-                col := mx.sub(MARGIN.to_i64()).div(BTN_W.to_i64())
+                col : U32 = mx.sub(MARGIN.to_i64()).div(BTN_W.to_i64()).to_u32()
                 row := my.sub(NOTE_ROW_Y.to_i64()).div(BTN_H.to_i64())
-                if col.gte(0).and(col.lt(7)).and(row.gte(0)).and(row.lt(3)).and(mx.gte(MARGIN.to_i64())) {
-                    sel_diatonic = col.to_u32()
+                if col.lt(7).and(row.gte(0)).and(row.lt(3)).and(mx.gte(MARGIN.to_i64())) {
+                    sel_diatonic = col
                     if row.eq(0) {
                         sel_accidental = -1
                     } else {
@@ -349,9 +349,9 @@ main := proc() {
 
             // Mode buttons: 7 cols x 1 row
             if my.gte(MODE_ROW_Y.to_i64()).and(my.lt(MODE_ROW_Y.add(BTN_H).to_i64())) {
-                col := mx.sub(MARGIN.to_i64()).div(BTN_W.to_i64())
-                if col.gte(0).and(col.lt(7)).and(mx.gte(MARGIN.to_i64())) {
-                    sel_mode = col.to_u32()
+                col : U32 = mx.sub(MARGIN.to_i64()).div(BTN_W.to_i64()).to_u32()
+                if col.lt(7).and(mx.gte(MARGIN.to_i64())) {
+                    sel_mode = col
                     need_recompute = true
                     start_scale(playing, play_idx, play_timer)
                 }
@@ -360,15 +360,15 @@ main := proc() {
             // Radio buttons: lang (PT/ES/EN) + notation (sol/ame)
             if my.gte(RADIO_ROW_Y.to_i64()).and(my.lt(RADIO_ROW_Y.add(BTN_H).to_i64())) {
                 if mx.gte(MARGIN.to_i64()).and(mx.lt(MARGIN.add(LANG_BTN_W.mul(3)).to_i64())) {
-                    lang_col := mx.sub(MARGIN.to_i64()).div(LANG_BTN_W.to_i64())
-                    if lang_col.gte(0).and(lang_col.lt(3)) {
-                        sel_lang = lang_col.to_u32()
+                    lang_col : U32 = mx.sub(MARGIN.to_i64()).div(LANG_BTN_W.to_i64()).to_u32()
+                    if lang_col.lt(3) {
+                        sel_lang = lang_col
                     }
                 }
                 if mx.gte(NOTATION_X.to_i64()).and(mx.lt(NOTATION_X.add(NOTATION_BTN_W.mul(2)).to_i64())) {
-                    not_col := mx.sub(NOTATION_X.to_i64()).div(NOTATION_BTN_W.to_i64())
-                    if not_col.gte(0).and(not_col.lt(2)) {
-                        sel_notation = not_col.to_u32()
+                    not_col : U32 = mx.sub(NOTATION_X.to_i64()).div(NOTATION_BTN_W.to_i64()).to_u32()
+                    if not_col.lt(2) {
+                        sel_notation = not_col
                     }
                 }
             }
