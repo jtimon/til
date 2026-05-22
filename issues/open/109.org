@@ -316,17 +316,20 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
   | pre-typer ASAP-delete extensions                    | 106,342 | 20,671 |
   | LiteralStr save_old_delete + FieldAssign clone->move (3671a4f) |  76,350 | 13,959 |
   | skip-promote shallow-return Struct                  |  87,593 | 15,805 |
-  | 2026-05 (c33adf2, current HEAD)                     |  64,797 | 13,370 |
+  | 2026-05 (c33adf2)                                   |  64,797 | 13,370 |
+  | typer rejects .clone() on literal receiver          |  64,419 | 13,300 |
 
   And the ~strings.til~ baselines that ~doc/bots/merging_from_remote.org~
   tracks per merge:
 
   | channel    | bytes  | allocs | notes                                |
   |------------+--------+--------+--------------------------------------|
-  | interpret  | 88,429 | 17,985 | merging_from_remote.org "post replace trim" |
-  | translate  | 87,458 | 17,932 | merging_from_remote.org "post replace trim" |
-  | interpret  | 84,351 | 17,063 | 2026-05 (c33adf2, current HEAD)      |
-  | translate  | 83,099 | 16,943 | 2026-05 (c33adf2, current HEAD)      |
+  | interpret  | 88,618 | 18,022 | merging_from_remote.org "post replace trim" (current) |
+  | translate  | 87,640 | 17,970 | merging_from_remote.org "post replace trim" (current) |
+  | interpret  | 84,351 | 17,063 | 2026-05 (c33adf2)                    |
+  | translate  | 83,099 | 16,943 | 2026-05 (c33adf2)                    |
+  | interpret  | 85,290 | 17,290 | typer rejects literal .clone()       |
+  | translate  | 84,238 | 17,233 | typer rejects literal .clone()       |
 
   Note: this commit's measurable delta on cli_args interpret is 0 vs
   master after [[file:../../issues/fixed/190.org][#190]]+3671a4f. The fix targets ~str_view~
@@ -424,6 +427,40 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
   ~Vec.new~ migration reintroduced ~17K bytes of leaks via more
   ~dyn_fn~/~dyn_size_of~ dispatch sites; this fix recovers a
   small slice on the typer side.)
+
+  *** 2026-05 Typer rejects '.clone()' on a literal receiver (DONE)
+
+  New rule in [[file:../../src/self/typer.til][src/self/typer.til]]'s
+  ~infer_field_access_fcall~: error when ~method == "clone"~ and the
+  receiver Expr is a ~NodeType.LiteralStr~ / ~LiteralNum~ / ~LiteralBool~.
+  The literal is already a fresh value, so the call is pure overhead --
+  and worse, in ~vec.push(own "lit".clone())~ the extra allocation reads
+  as an ownership transfer that masks the literal's natural move.
+
+  Same change removed 127 literal-clone sites surfaced by
+  ~bin/til build src/til.til~ (effectively the two-pass build) across
+  ~src/self/~ (typer/builder/initer/parser/precomp), ~src/core/ast.til~,
+  ~lib/fonts.til~, ~examples/editor.til~/~uml.til~, and the structs /
+  strings / dynamic tests. typer_errors gained 5 new diagnostics
+  (~"urmom".clone()~, ~"\n".clone()~, ~32.clone()~, ~'\n'.clone()~,
+  ~true.clone()~) plus a 6th collateral fire on the existing
+  ~x = "fresh".clone()~ at typer_errors:350.
+
+  Structural win: the "drop unnecessary ~.clone()~ calls" maintenance
+  burden that surfaced in the historical Bucket A (~Earlier fixes~) and
+  fed into Open Bucket 4 below (~AST clone heritage~) is now closed for
+  literal RHS shapes -- the typer rejects them before they reach
+  codegen. The class cannot regress unless someone changes the rule.
+
+  ASAN baseline at this commit (vs the
+  ~doc/bots/merging_from_remote.org~ "post replace trim" baseline,
+  which is the most recent point a local merger recorded):
+
+  | Channel             | Bytes  | Allocs | Vs merger baseline    |
+  |---------------------+--------+--------+-----------------------|
+  | interpret strings   | 85,290 | 17,290 | -3,328 / -732 (-3.7%) |
+  | translate strings   | 84,238 | 17,233 | -3,402 / -737 (-3.8%) |
+  | cli_args interpret  | 64,419 | 13,300 | (no merger baseline)  |
 
   *** 2026-05 typer ASAP-delete extensions (DONE)
 
@@ -532,18 +569,20 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
      filter rule for ASAN runs.
 
   4. **AST clone heritage** (top remaining cluster on the
-     post-[[./175.org][#175]] baseline). Top three current leak sites on
-     ~cli_args interpret~:
-     - ~795 bytes / 159 objects~ Str_clone via Vec_clone via
-       Expr_clone (whole-Vec deep clone of Expr children).
-     - ~544 bytes / 44 objects~  Str_clone via NodeType_Ident via
-       NodeType_clone via Expr_clone (Ident payload clones).
-     - ~448 bytes / 88 objects~  same shape, different sites.
+     post-[[./175.org][#175]] baseline). Pre-typer-rule leak sites on
+     ~cli_args interpret~ were dominated by:
+     - ~Str_clone~ via ~Vec_clone~ via ~Expr_clone~ (whole-Vec deep
+       clone of Expr children).
+     - ~Str_clone~ via ~NodeType_Ident~ via ~NodeType_clone~ via
+       ~Expr_clone~ (Ident payload clones).
      These are AST nodes cloned during desugar passes that compound
-     across passes. ~[[./146.org][#146]]~ (single-walk typer) is the umbrella
-     fix. Spot-fixes that helped in the past: drop unnecessary
-     ~.clone()~ calls (Bucket A), ownership transfer instead of
-     deep clone (Bucket D, [[./144.org][#144]]).
+     across passes. ~[[./146.org][#146]]~ (single-walk typer) is the
+     umbrella fix. The literal-RHS sub-class is now closed by the
+     2026-05 typer rule above; what remains is the Ident / FieldAccess
+     RHS shapes (clone-of-binding), which need either alias analysis
+     or the single-walk rewrite to retire. Earlier spot-fixes in this
+     family: ownership transfer instead of deep clone (Bucket D,
+     [[./144.org][#144]]).
 
   5. **resolve_imports loop-shadowed sub_ast** (Bucket E).
      ~sub_ast := parse(tokens, ...)~ at [[file:../../src/self/loader.til][src/self/loader.til]] around
@@ -630,79 +669,42 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
     115/115 so the regression is leak-only -- not a correctness
     break.
 
-  - **A "mystery" leak that should already be freed by an
-    existing cleanup loop is often a leak the next master commit
-    plugs.** Spent a session staring at a
-    ~make_str_value_view -> expr_to_value -> is_known ->
-    track_literal_known_only~ leak where ASAN said ~1.4KB / 88
-    objects leaked from the 16-byte ~Str~-struct allocation, but
-    every code path I could trace said
-    ~cleanup_value_payload~'s end-loop in ~precomp_imported~ /
-    ~process_program~ should free them. Considered adding
-    counters / a gdb watchpoint to find the gap.  Next rebase on
-    master made the leak disappear: ~3534795 Two-pass:
-    try_eval_call cleans up arg_val regardless of source node
-    type~ closed a sibling ownership path I hadn't found. When a
-    leak doesn't match the code path, fetch master before
-    instrumenting.
+  - **A "mystery" leak that should already be freed by an existing
+    cleanup loop is often a leak the next master commit plugs.** If a
+    careful trace says cleanup should fire but ASAN disagrees, fetch
+    master before reaching for counters / watchpoints -- a sibling
+    ownership path you haven't found may have already been closed
+    upstream.
 
 
-  - **Skip-promote-shallow-return optimization stops at the
-    function-body top level.** ~promote_own_transferred_locals~
-    detects Struct locals whose only use is a shallow Return-of-Ident
-    and keeps them off the heap. It walks ~body.children~ at the top
-    level only -- when a function body is just ~switch v { case ...:
-    mut result := X; return result; case: ... }~, ~result~ lives in
-    the desugared If's then-body (a nested scope), not in the
-    function's scope. ~collect_scope_locals~ + ~promote_*~ run on the
-    nested scope's body and "result"'s decl_index correctly resolves
-    to the Decl statement, but the optimization still doesn't fire on
-    the then-body's processing path (verified by reading
-    ~boot/til.c~'s ~str_view~ output after attempting the extension:
-    the ~Str *result = malloc(...); ...; return DEREF(result);~ shape
-    persists). ~typer_in_shallow_return~ is a global flag set in
-    ~infer_func_def_expr~ before the body recursion and isn't reset
-    on the nested infer_body calls, so the flag isn't the problem.
-    Something else in the path -- possibly the order of switch
-    desugar vs. ASAP insertion, possibly that the desugared If's
-    then-body is a clone whose own_transfer/last_use don't survive
-    the clone -- swallows the optimization. Workaround in landed code
-    is to hand-lift the Decl + Return to the function body's top
-    level (see commit c8518795 on ~str_view~). Real fix is somewhere
-    around either making the desugar happen BEFORE
-    ~collect_scope_locals~ on the function body, or having the
-    optimization recurse into nested case bodies / if branches /
-    while bodies (helpers ~find_decl_in~ +
-    ~expr_returns_ident~ as drafted would be reusable). A working
-    "scaffolding" attempt at the helpers built and passed 115/115 but
-    did not move the C output for ~str_view~ -- the gap is upstream
-    of where I patched, not in the predicate logic itself.
+  - **Skip-promote-shallow-return optimization fires only on
+    function-body top-level Struct locals.** ~promote_own_transferred_locals~
+    walks ~body.children~ at the top level only, so a local that
+    lives in a desugared switch/if then-body (e.g.
+    ~switch v { case ...: mut result := X; return result; case: ... }~)
+    keeps heap-promoting and the codegen emits the wrapper-leak shape
+    ~Str *result = malloc(...); ...; return DEREF(result);~.
+    ~typer_in_shallow_return~ is not the gate; the gap is upstream
+    (likely desugar order vs ASAP-insert or a clone losing
+    own_transfer/last_use on the nested body). Current workaround is
+    to hand-lift Decl+Return to the function-body top level (see
+    ~str_view~, commit c8518795). Real fix: either desugar before
+    ~collect_scope_locals~ on the function body, or recurse the
+    optimization into nested case/if/while bodies.
 
   - **~lp.ctx.stack_locals~ / ~stack_local_types~ accumulate ~3
-    allocations per ~_t_*~ LiteralStr Decl emitted.** Commit
-    ~23cad544~ ("Emit Str literals as stack compound literals for
-    `_t_*` temps") added a Decl-emit branch in ~emit_stmt_decl~ that
-    stores ~dd.name.clone()~ in ~stack_locals~ (Set<Str>) and a
+    allocations per ~_t_*~ LiteralStr Decl.** ~emit_stmt_decl~ in
+    [[file:../../src/self/builder.til][src/self/builder.til]] stores
+    ~dd.name.clone()~ in ~stack_locals~ (Set<Str>) and a
     ~(dd.name.clone(), ctype.clone())~ pair in ~stack_local_types~
-    (Map<Str,Str>). Same pattern is repeated at the surrounding
-    ~Vec~/~Array~ ctor branches (lines 1146, 1154, 1160, 1173 of
-    ~builder.til~) -- every Decl that opts into the stack
-    representation registers its name and type. The maps DO get reset
-    at function boundaries (line ~2224~, ~2250~, ~3992~, ~4005~,
-    ~5572~), but each reset is ~lp.ctx.stack_locals = Set.new(Str)~ on
-    a context field; the FieldAssign's save_old_delete depends on
-    whether the typer marks ~lp.ctx~ field assignments correctly. The
-    doc baseline jumped +23135 bytes / +4533 allocs at this commit
-    (~doc/bots/merging_from_remote.org~ records 86863/16394 -> 109998/20927
-    on ~test/strings.til interpret~), which matches ~4500 small Str
-    allocations leaking. The follow-up ~9ffb9ff1~ ("single terminal
-    reregister_scope_defs") incidentally drove the baseline back down
-    below pre-~23cad544~ (84811/16086 now vs 86863/16394 then), so the
-    regression in master is no longer visible. But the
-    ~stack_locals~ / ~stack_local_types~ pattern is still present and
-    the +3 alloc per Decl is real -- the missing piece is whether the
-    field-assign on ~lp.ctx~ properly destructs the prior map. If it
-    doesn't, every function boundary leaks its accumulated entries.
-    Verifying needs: (a) a count of how often the branch fires per
-    compilation, (b) whether ~lp.ctx.stack_locals~ field has
-    save_old_delete on its FieldAssign emit path.
+    (Map<Str,Str>) at every Decl that opts into stack representation
+    (the Vec/Array ctor branches do the same). The maps reset at
+    function boundaries via ~lp.ctx.stack_locals = Set.new(Str)~ on a
+    context field; whether that FieldAssign destructs the prior map
+    cleanly depends on the typer's save_old_delete handling for
+    ~lp.ctx~. The earlier regression (~+23K bytes /
+    +4500 allocs on strings.til interpret at commit ~23cad544~) is no
+    longer visible in master, but the +3 alloc per Decl is structural.
+    Verifying needs: (a) how often the branch fires per compilation,
+    (b) whether ~lp.ctx.stack_locals~ field has save_old_delete on its
+    FieldAssign emit path.
