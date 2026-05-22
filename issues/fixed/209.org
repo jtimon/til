@@ -1,0 +1,99 @@
+# priority: low
+** FIXED #209 The semicolon issue: ';' is no longer a statement separator in til
+
+For most of til's life the lexer treated ~;~ as plain whitespace,
+right next to space and tab.  That was a leftover from translating
+between languages where ~;~ terminates a statement (C, JavaScript,
+Java, Rust...) and let people who came in from those languages
+keep writing ~stmt1; stmt2~ on one line.
+
+We don't want that for til:
+
+- til separates statements by newlines, not by punctuation.
+- The codebase had grown a smattering of ~;~-as-separator lines
+  (case arms, single-line ~if~ bodies, struct initializers,
+  RGB triples in GUI examples).  They were inconsistent with the
+  rest of the language and made code harder to scan -- you had
+  to actually parse the line to see how many statements were on it.
+- Translating *to* C / JS / Rust still needs ~;~ in the generated
+  output -- but generated output isn't til source, and the binder
+  already inserts those itself.
+
+*** What got done
+
+1. **Lexer rejects bare ~;~.**  ~src/self/lexer.til~ used to
+   treat ~;~ as whitespace alongside space / tab / CR.  Now any
+   bare ~;~ outside a string / char literal / comment is a lexer
+   error pointing the user at the two legitimate spellings:
+
+       error: ';' is not valid in til; put it inside a string
+       ";" or a character literal ';', or use a new line to
+       separate statements.
+
+   Strings and char literals still parse the byte as a normal
+   character -- ~";"~, ~';'~, ~"a;b"~ and ~"foo; bar"~ are all
+   fine.
+
+2. **Migrated every ~;~ separator in-tree.**  One-shot rewrite
+   across:
+
+   - core: ~src/core/map.til~, ~src/core/set.til~
+   - self-host: ~binder~, ~builder~, ~dispatch~, ~initer~,
+     ~interpreter~, ~parser~, ~precomp~, ~typer~
+   - libs: ~lib/svg.til~, ~lib/fonts.til~
+   - examples: ~minesweeper~, ~music~, ~piano~, ~shootil~
+   - tests: ~test/directives.til~, ~test/enums.til~
+
+   Each ~;~ on those lines became a newline at the current
+   line's indentation.  ~test_col_reflects_position~ in
+   ~test/directives.til~ used to put two ~__COL__~ reads on the
+   same line to force different columns; it now indents the
+   second one deeper instead, and the ~get_line~ assert below
+   shifts by one to match the new line count.
+
+3. **New regression test.**  ~test/semicolon_error.til~ feeds
+   the lexer a bare ~;~ and the runner counts the diagnostic;
+   ~semicolon_error~ is wired into ~src/tests.til~ alongside
+   the other ~qualifier_*_error~ checks.
+
+4. **Emacs til-mode highlight.**  ~editor/til-mode.el~ paints
+   ~;~ as ~compilation-error~ so a stray semicolon stands out
+   in red before the user runs the compiler -- same treatment
+   as ~priv~ / ~private~ / ~UNREACHABLE~ etc.  Left a TODO
+   beside ~UNREACHABLE~ in ~til-error-words~ about deciding
+   whether it ever becomes a real builtin.
+
+*** Why this is the right shape
+
+- One small lexer rule replaces a category of low-grade
+  inconsistency in the existing source.  No new keyword,
+  no new AST node, no parser change -- the error is at the
+  earliest possible layer.
+- The escape hatches (~";"~ and ~';'~) already exist in the
+  language; the diagnostic just points at them.
+- Code generators that emit ~;~ for foreign targets are
+  unaffected -- they build the C/JS/whatever output as strings
+  and the literal ~;~ is fine inside ~"..."~ / ~f"..."~.
+
+*** Alignment-by-= and friends
+
+Vertical alignment by ~=~ or ~:=~ is unaffected.  The
+migration only collapsed runs of statements that had been
+glued together with ~;~ -- it didn't touch column alignment
+on the surviving lines.  If anything is now misaligned that
+was previously aligned, it's because the *first* statement of
+a former one-liner is the one that survives at the old indent
+and the rest moved to a new line; no alignment-bearing
+construct was removed.
+
+*** Out of scope / follow-ups
+
+- The lexer's diagnostic uses a single-quote spelling of
+  ~';'~ in its own message text.  ~src/tests.til~ matches on
+  the unique substring ~"is not valid in til"~ to avoid
+  shell-quoting the needle.  If we ever add a more
+  structured diagnostic channel, this is the kind of thing
+  that becomes a stable error code.
+- No replacement for "multiple statements on one line".  til
+  intentionally has no such shorthand; the lexer error is
+  the documentation.
