@@ -27,6 +27,16 @@ When the user tells you to do something, DO IT. Do not analyze the order. Do not
 
 Always pay attention to what the user says. Always follow the user's instructions. Do not force the user to repeat himself or beg you to do what he asks.
 
+## Declaring Your Commit
+
+At the end of every reply, declare which git commit you are on top of:
+the short SHA of `HEAD` (or, if you have uncommitted changes, the SHA
+HEAD points at plus a note that there are local edits). The user
+needs to know which base your reasoning, file reads, and edits assume,
+because master moves while you work and stale references waste their
+time. One line, no fanfare. Example: "On top of `60bd9a3`." or
+"On top of `60bd9a3` + uncommitted edits to `src/self/builder.til`."
+
 ## Showing Code
 
 When the user says "show me the code", use the Read tool to show the actual code. Do not paraphrase it, do not explain it, do not summarize it. Show the code.
