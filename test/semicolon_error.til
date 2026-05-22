@@ -1,0 +1,5 @@
+mode script
+
+// A bare ';' is not valid til syntax; the lexer must reject it and tell
+// the user to use a string ";" or character literal ';' instead.
+x := 1; y := 2

@@ -62,14 +62,20 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     case Type.U64:       variant_name = "U64"
     case Type.F32:       variant_name = "F32"
     case Type.Bool:      variant_name = "Bool"
-    case Type.Struct(s): variant_name = "Struct"; payload_name = s.clone(); has_payload = true
+    case Type.Struct(s): variant_name = "Struct"
+    payload_name = s.clone()
+has_payload = true
     case Type.StructDef: variant_name = "StructDef"
-    case Type.Enum(s):   variant_name = "Enum"; payload_name = s.clone(); has_payload = true
+    case Type.Enum(s):   variant_name = "Enum"
+    payload_name = s.clone()
+has_payload = true
     case Type.EnumDef:   variant_name = "EnumDef"
     case Type.FuncDef:   variant_name = "FuncDef"
     case Type.FuncPtr:   variant_name = "FuncPtr"
     case Type.Dynamic:   variant_name = "Dynamic"
-    case Type.Custom(s): variant_name = "Custom"; payload_name = s.clone(); has_payload = true
+    case Type.Custom(s): variant_name = "Custom"
+    payload_name = s.clone()
+has_payload = true
     }
     mut fa := Expr.new(NodeType.FieldAccess(variant_name), src.line, src.col)
     fa.add_child(own type_ident)
@@ -545,7 +551,8 @@ mark_ns_member_used := func(sdef: Expr, method: Str) returns shallow Bool {
     if is_null(sdef) { return false }
     ref ns : Vec = def_ns_decls(sdef)
     for fd : Declaration in ns {
-        if fd.name.eq(method) { fd.used = true; return true }
+        if fd.name.eq(method) { fd.used = true
+        return true }
     }
     return false
 }
@@ -2928,19 +2935,29 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bo
         mut builtin_type := Type.Struct(sname.clone())
         mut is_builtin := false
         if is_enum { builtin_type = Type.Enum(sname.clone()) }
-        if sname.eq("I64") { builtin_type = Type.I64; is_builtin = true }
-        else if sname.eq("U8") { builtin_type = Type.Struct("U8"); is_builtin = true }
-        else if sname.eq("I8") { builtin_type = Type.Struct("I8"); is_builtin = true }
-        else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
-        else if sname.eq("I32") { builtin_type = Type.Struct("I32"); is_builtin = true }
-        else if sname.eq("U32") { builtin_type = Type.U32; is_builtin = true }
-        else if sname.eq("U64") { builtin_type = Type.U64; is_builtin = true }
-        else if sname.eq("F32") { builtin_type = Type.F32; is_builtin = true }
+        if sname.eq("I64") { builtin_type = Type.I64
+        is_builtin = true }
+        else if sname.eq("U8") { builtin_type = Type.Struct("U8")
+        is_builtin = true }
+        else if sname.eq("I8") { builtin_type = Type.Struct("I8")
+        is_builtin = true }
+        else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16)
+        is_builtin = true }
+        else if sname.eq("I32") { builtin_type = Type.Struct("I32")
+        is_builtin = true }
+        else if sname.eq("U32") { builtin_type = Type.U32
+        is_builtin = true }
+        else if sname.eq("U64") { builtin_type = Type.U64
+        is_builtin = true }
+        else if sname.eq("F32") { builtin_type = Type.F32
+        is_builtin = true }
         else if sname.eq("Str") { is_builtin = false }
-        else if sname.eq("Bool") { builtin_type = Type.Bool; is_builtin = true }
+        else if sname.eq("Bool") { builtin_type = Type.Bool
+        is_builtin = true }
         else if sname.eq("StructDef") { is_builtin = false }
         else if sname.eq("FunctionDef") { is_builtin = false }
-        else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
+        else if sname.eq("Dynamic") { builtin_type = Type.Dynamic
+        is_builtin = true }
         scope.set(sname, builtin_type, FuncType.None, false, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(sname)
         b.struct_def = stmt.child(0)
@@ -5502,7 +5519,8 @@ is_compile_directive := func(e: Expr) returns shallow Bool {
 
 infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
     ref mut stmt : Expr = body.child(i)
-    if is_compile_directive(stmt) { stmt.til_type =Type.None; return }
+    if is_compile_directive(stmt) { stmt.til_type =Type.None
+    return }
     switch stmt.node_type {
     case NodeType.Decl:
         infer_decl_stmt(scope, stmt, in_func, in_type_body, ctx)
@@ -6622,7 +6640,8 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                                         } else {
                                             for fi in 0..tsv_sdd.fields.len() {
                                                 ref tfd : Declaration = tsv_sdd.fields.get(fi)
-                                                if tfd.name.eq(field_name) { fd_idx = fi.to_i32(); break }
+                                                if tfd.name.eq(field_name) { fd_idx = fi.to_i32()
+                                                break }
                                             }
                                         }
                                         if fd_idx.lt(0.to_i32()) { continue }

@@ -459,6 +459,9 @@ main := proc(args: ..Str) {
     add_count(tests, "qualifier_returns_own_error", "parser",
               "returns are owned by default", 1,
               asan_safe_cmd(format(til_bin, " interpret test/qualifier_returns_own_error.til"), til_bin))
+    add_count(tests, "semicolon_error", "lexer",
+              "is not valid in til", 1,
+              asan_safe_cmd(format(til_bin, " interpret test/semicolon_error.til"), til_bin))
     add_count(tests, "priv_error_interp", "typer",
               "is private to", 4,
               asan_safe_cmd(format(til_bin, " interpret test/priv_error.til"), til_bin))

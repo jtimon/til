@@ -157,7 +157,8 @@ parse_int := func(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
     mut neg := false
     if j.lt(d.len()) {
         ref b : I8 = d.byte_at(j)
-        if b.eq('-') { neg = true; j = j.add(1) }
+        if b.eq('-') { neg = true
+        j = j.add(1) }
         else if b.eq('+') { j = j.add(1) }
     }
     mut val : I64 = 0
@@ -255,13 +256,19 @@ parse_path_d := func(d: Str, mut segments: Vec) {
             y3 := parse_int(d, i, i)
             p0x := cur_x
             p0y := cur_y
-            mut p1x := x1; mut p1y := y1
-            mut p2x := x2; mut p2y := y2
-            mut p3x := x3; mut p3y := y3
+            mut p1x := x1
+            mut p1y := y1
+            mut p2x := x2
+            mut p2y := y2
+            mut p3x := x3
+            mut p3y := y3
             if cmd.eq('c') {
-                p1x = cur_x.add(x1); p1y = cur_y.add(y1)
-                p2x = cur_x.add(x2); p2y = cur_y.add(y2)
-                p3x = cur_x.add(x3); p3y = cur_y.add(y3)
+                p1x = cur_x.add(x1)
+                p1y = cur_y.add(y1)
+                p2x = cur_x.add(x2)
+                p2y = cur_y.add(y2)
+                p3x = cur_x.add(x3)
+                p3y = cur_y.add(y3)
             }
             q1x := p1x.mul(3).sub(p0x).div(2)
             q1y := p1y.mul(3).sub(p0y).div(2)

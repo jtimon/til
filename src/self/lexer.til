@@ -268,8 +268,24 @@ tokenize := proc(src: Str, path: Str) returns Vec {
     while pos.lt(src_len) {
         ref c : I8 = src.byte_at(pos)
 
-        // Skip whitespace (spaces, tabs, \r, semicolons)
-        if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq(';')) {
+        // Skip whitespace (spaces, tabs, \r)
+        if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')) {
+            pos++
+            continue
+        }
+        // Semicolons are not part of til syntax. til translates to and from
+        // languages where ';' is a statement terminator, so forbidding it
+        // here forces the user to put any literal semicolon inside a string
+        // (";") or character literal (';'), where it can't be confused with
+        // syntax. Statement boundaries in til are line breaks; use a new
+        // line instead of ';' to separate statements.
+        if c.eq(';') {
+            col : U32 = pos.sub(line_start).add(1)
+            println(path, ":", line.to_str(), ":", col.to_str(),
+                ": error: ';' is not valid in til; put it inside a string \";\" or a character literal ';', or use a new line to separate statements")
+            tokens.push(own Token(type = TokenType.Error,
+                text = src.substr(pos, 1).clone(),
+                line = line.clone(), col = col.clone()))
             pos++
             continue
         }

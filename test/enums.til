@@ -191,7 +191,8 @@ Data := struct {
     to_str := func(self: Data) returns Str { return format(self.x.to_str(), ",", self.y.to_str()) }
 }
 Kind := enum { A: Data, B: I64, C }
-Container := struct { mut name := ""; mut kind := Kind.C }
+Container := struct { mut name := ""
+mut kind := Kind.C }
 
 test_payload_enum_field := test() {
     c := Container(name = "test", kind = Kind.A(Data(x = 3, y = 4)))

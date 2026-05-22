@@ -51,6 +51,9 @@
 (defconst til-error-words
   '(;; Because they're kind of "dangerous" and it's nice to see them in red
     "throw" "panic" "exit" "TODO" "UNREACHABLE" "NULL"
+    ;; TODO: decide whether UNREACHABLE stays as a marker word or becomes
+    ;; a real builtin (like panic). Until then keep it here so accidental
+    ;; uses stand out, the same way priv/private do.
     ;; Because they are planned, but not implemented yet
     "defer"
     "priv" "private" ;; decide on one once implemmented
@@ -78,6 +81,10 @@
     ("///.*$" 0 font-lock-doc-face t)
     ;; Error words
     (,(regexp-opt til-error-words 'symbols) . compilation-error)
+    ;; Bare semicolons: rejected by the lexer (like priv would be in
+    ;; non-priv contexts). Paint them red so the mistake is obvious before
+    ;; the user runs the compiler.
+    (";" . compilation-error)
     ;; Error words in comments
     (,(concat comment-start-skip "\\(.*\\<\\(" (regexp-opt comment-error-words t) "\\)\\>\\)") . (2 compilation-error t))
     ;; Warning words in comments

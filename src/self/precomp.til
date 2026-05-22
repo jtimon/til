@@ -95,7 +95,8 @@ priv from_source_form := func(s: Str) returns Str {
     mut has_bs := false
     nn := s.len()
     for ii in 0..nn {
-        if s.byte_at(ii).eq(92.to_i8()) { has_bs = true; break }
+        if s.byte_at(ii).eq(92.to_i8()) { has_bs = true
+        break }
     }
     if has_bs.not() { return s.clone() }
     n := s.len()
@@ -107,13 +108,27 @@ priv from_source_form := func(s: Str) returns Str {
         ref b : I8 = s.byte_at(i)
         if b.eq(92.to_i8()).and(i.add(one).lt(n)) {
             ref nx : I8 = s.byte_at(i.add(one))
-            if nx.eq(110.to_i8()) { out = out.concat("\n"); i = i.add(two); continue }
-            if nx.eq(114.to_i8()) { out = out.concat("\r"); i = i.add(two); continue }
-            if nx.eq(116.to_i8()) { out = out.concat("\t"); i = i.add(two); continue }
-            if nx.eq(34.to_i8())  { out = out.concat("\""); i = i.add(two); continue }
-            if nx.eq(92.to_i8())  { out = out.concat("\\"); i = i.add(two); continue }
-            if nx.eq(39.to_i8())  { out = out.concat("'"); i = i.add(two); continue }
-            if nx.eq(48.to_i8())  { out = out.concat("\0"); i = i.add(two); continue }
+            if nx.eq(110.to_i8()) { out = out.concat("\n")
+            i = i.add(two)
+continue }
+            if nx.eq(114.to_i8()) { out = out.concat("\r")
+            i = i.add(two)
+continue }
+            if nx.eq(116.to_i8()) { out = out.concat("\t")
+            i = i.add(two)
+continue }
+            if nx.eq(34.to_i8())  { out = out.concat("\"")
+            i = i.add(two)
+continue }
+            if nx.eq(92.to_i8())  { out = out.concat("\\")
+            i = i.add(two)
+continue }
+            if nx.eq(39.to_i8())  { out = out.concat("'")
+            i = i.add(two)
+continue }
+            if nx.eq(48.to_i8())  { out = out.concat("\0")
+            i = i.add(two)
+continue }
             if nx.eq(120.to_i8()).and(i.add(3.to_u32()).lt(n)) {
                 ref h1 : I8 = s.byte_at(i.add(two))
                 ref h2 : I8 = s.byte_at(i.add(3.to_u32()))
@@ -154,12 +169,18 @@ priv str_to_source_form := func(s: Str) returns Str {
     mut out := ""
     for i in 0..n {
         ref b : I8 = s.byte_at(i)
-        if b.eq(34.to_i8())  { out = out.concat("\\\""); continue }
-        if b.eq(92.to_i8())  { out = out.concat("\\\\"); continue }
-        if b.eq(10.to_i8())  { out = out.concat("\\n"); continue }
-        if b.eq(13.to_i8())  { out = out.concat("\\r"); continue }
-        if b.eq(9.to_i8())   { out = out.concat("\\t"); continue }
-        if b.eq(0.to_i8())   { out = out.concat("\\0"); continue }
+        if b.eq(34.to_i8())  { out = out.concat("\\\"")
+        continue }
+        if b.eq(92.to_i8())  { out = out.concat("\\\\")
+        continue }
+        if b.eq(10.to_i8())  { out = out.concat("\\n")
+        continue }
+        if b.eq(13.to_i8())  { out = out.concat("\\r")
+        continue }
+        if b.eq(9.to_i8())   { out = out.concat("\\t")
+        continue }
+        if b.eq(0.to_i8())   { out = out.concat("\\0")
+        continue }
         if b.lt(32.to_i8()).or(b.gt(126.to_i8())) {
             // Hex escape with explicit terminator -- "" between escape
             // and following digits prevents greedy hex consumption.
@@ -265,7 +286,8 @@ expr_to_value := func(e: Expr) returns shallow Value {
         // on the precomp hot path).
         mut has_bs := false
         for bi in 0..s.len() {
-            if s.byte_at(bi).eq(92.to_i8()) { has_bs = true; break }
+            if s.byte_at(bi).eq(92.to_i8()) { has_bs = true
+            break }
         }
         if has_bs.not() {
             return make_str_value_view(s.c_str, s.count)

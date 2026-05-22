@@ -287,7 +287,10 @@ build_hhea := func(glyph: Glyph, advance: I64) returns Str {
     w_i16(t, 1)              // caretSlopeRise
     w_i16(t, 0)              // caretSlopeRun
     w_i16(t, 0)              // caretOffset
-    w_i16(t, 0); w_i16(t, 0); w_i16(t, 0); w_i16(t, 0)  // reserved
+    w_i16(t, 0)
+    w_i16(t, 0)
+w_i16(t, 0)
+w_i16(t, 0)  // reserved
     w_i16(t, 0)              // metricDataFormat
     w_u16(t, 2)              // numberOfHMetrics
     return t
@@ -535,7 +538,8 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
         if rem.gt(0) {
             pad : USize = 4.to_usize().sub(rem)
             mut pi : USize = 0
-            while pi.lt(pad) { w_u8(file, 0.to_u8()); pi = pi.add(1) }
+            while pi.lt(pad) { w_u8(file, 0.to_u8())
+            pi = pi.add(1) }
         }
     }
 

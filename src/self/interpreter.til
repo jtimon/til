@@ -475,11 +475,26 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             if ch.eq(92) {
                 if i.add(1).lt(raw.count.to_u64()) {
                     ref next : I8 = raw.byte_at(i.add(1).to_usize())
-                    if next.eq(110) { memset(ptr_add(buf, j), 10.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(116) { memset(ptr_add(buf, j), 9.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(92) { memset(ptr_add(buf, j), 92.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(34) { memset(ptr_add(buf, j), 34.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(48) { memset(ptr_add(buf, j), 0.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(110) { memset(ptr_add(buf, j), 10.to_i32(), 1)
+                    j = j.add(1)
+i = i.add(2)
+continue }
+                    if next.eq(116) { memset(ptr_add(buf, j), 9.to_i32(), 1)
+                    j = j.add(1)
+i = i.add(2)
+continue }
+                    if next.eq(92) { memset(ptr_add(buf, j), 92.to_i32(), 1)
+                    j = j.add(1)
+i = i.add(2)
+continue }
+                    if next.eq(34) { memset(ptr_add(buf, j), 34.to_i32(), 1)
+                    j = j.add(1)
+i = i.add(2)
+continue }
+                    if next.eq(48) { memset(ptr_add(buf, j), 0.to_i32(), 1)
+                    j = j.add(1)
+i = i.add(2)
+continue }
                 }
             }
             memcpy(ptr_add(buf, j), ptr_add(raw.c_str, i), 1)
@@ -631,22 +646,32 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns 
         // breaks downstream code that expects ref-Dynamic bindings to stay
         // as Value.Ptr (#180).
         if type_name.eq("Dynamic") { return shallow_copy_value(val) }
-        if type_name.eq("I64") { ref v : I64 = p; return val_i64(v) }
-        if type_name.eq("U8") { ref v : U8 = p; return val_u8(v.to_i64()) }
-        if type_name.eq("I16") { ref v : I16 = p; return val_i16(v.to_i64()) }
-        if type_name.eq("I32") { ref v : I32 = p; return val_i32(v.to_i64()) }
-        if type_name.eq("U32") { ref v : U32 = p; return val_u32(v.to_i64()) }
-        if type_name.eq("U64") { ref v : U64 = p; return val_u64(v) }
-        if type_name.eq("USize") { ref v : U32 = p; return val_u32(v.to_i64()) }
+        if type_name.eq("I64") { ref v : I64 = p
+        return val_i64(v) }
+        if type_name.eq("U8") { ref v : U8 = p
+        return val_u8(v.to_i64()) }
+        if type_name.eq("I16") { ref v : I16 = p
+        return val_i16(v.to_i64()) }
+        if type_name.eq("I32") { ref v : I32 = p
+        return val_i32(v.to_i64()) }
+        if type_name.eq("U32") { ref v : U32 = p
+        return val_u32(v.to_i64()) }
+        if type_name.eq("U64") { ref v : U64 = p
+        return val_u64(v) }
+        if type_name.eq("USize") { ref v : U32 = p
+        return val_u32(v.to_i64()) }
         if type_name.eq("UPtr") {
             ref lp : LoadedProgram = codegen_lp()
             ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
-            if uptr_name.eq("U32") { ref v : U32 = p; return val_u32(v.to_i64()) }
+            if uptr_name.eq("U32") { ref v : U32 = p
+            return val_u32(v.to_i64()) }
             ref v : U64 = p
             return val_u64(v)
         }
-        if type_name.eq("F32") { ref v : F32 = p; return val_f32(v) }
-        if type_name.eq("Bool") { ref v : Bool = p; return val_bool(v) }
+        if type_name.eq("F32") { ref v : F32 = p
+        return val_f32(v) }
+        if type_name.eq("Bool") { ref v : Bool = p
+        return val_bool(v) }
         if type_name.eq("Str") {
             ref sp : Str = p
             return make_str_value_own(sp.c_str, sp.count.to_u64())
@@ -700,10 +725,12 @@ guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shal
             if fc.val.is(Value.None) { return true }
             switch fc.val {
             case Value.Struct(si):
-                if si.borrowed { memcpy(fc.val, val_none(), Value.size()); return true }
+                if si.borrowed { memcpy(fc.val, val_none(), Value.size())
+                return true }
             case:
             }
-            if fc.val.is(Value.Ptr) { memcpy(fc.val, val_none(), Value.size()); return true }
+            if fc.val.is(Value.Ptr) { memcpy(fc.val, val_none(), Value.size())
+            return true }
             return false
         case:
             return false
@@ -939,7 +966,8 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 eval_body(while_scope, stmt.child(1))
                 if has_return { return_value = return_value.clone() }
                 scope_free(own while_scope)
-                if has_break { has_break = false; break }
+                if has_break { has_break = false
+                break }
                 if has_continue { has_continue = false }
             }
         case NodeType.Break:
@@ -1635,12 +1663,18 @@ interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
 
 value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     switch val {
-    case Value.Int(v):     if type_name.eq("I64")  { memcpy(dest, v, 8); return }
-    case Value.Byte(v):    if type_name.eq("U8")   { memcpy(dest, v, 1); return }
-    case Value.Short(v):   if type_name.eq("I16")  { memcpy(dest, v, 2); return }
-    case Value.Int32(v):   if type_name.eq("I32")  { memcpy(dest, v, 4); return }
-    case Value.Uint32(v):  if type_name.eq("U32")  { memcpy(dest, v, 4); return }
-    case Value.Boolean(v): if type_name.eq("Bool") { memcpy(dest, v, 1); return }
+    case Value.Int(v):     if type_name.eq("I64")  { memcpy(dest, v, 8)
+    return }
+    case Value.Byte(v):    if type_name.eq("U8")   { memcpy(dest, v, 1)
+    return }
+    case Value.Short(v):   if type_name.eq("I16")  { memcpy(dest, v, 2)
+    return }
+    case Value.Int32(v):   if type_name.eq("I32")  { memcpy(dest, v, 4)
+    return }
+    case Value.Uint32(v):  if type_name.eq("U32")  { memcpy(dest, v, 4)
+    return }
+    case Value.Boolean(v): if type_name.eq("Bool") { memcpy(dest, v, 1)
+    return }
     case Value.Struct(si):
         switch si.struct_def.node_type {
         case NodeType.StructDef(sd):
@@ -1692,9 +1726,11 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     ref ba_et_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_type")
     write_field(tmp, ba_et_d, make_str_value(elem_type.c_str, elem_type.count.to_u64()))
     ref clone_fn : Value = ns_get(elem_type, "clone")
-    if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_clone"); write_field(tmp, ba_ec_d, shallow_copy_value(clone_fn)) }
+    if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_clone")
+    write_field(tmp, ba_ec_d, shallow_copy_value(clone_fn)) }
     ref delete_fn : Value = ns_get(elem_type, "delete")
-    if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_delete"); write_field(tmp, ba_ed_d, shallow_copy_value(delete_fn)) }
+    if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_delete")
+    write_field(tmp, ba_ed_d, shallow_copy_value(delete_fn)) }
     tmp.data = NULL
     return make_struct_value(lp.ctx.cached_array_name, lp.ctx.cached_array_def, to_ptr(inst_data), false)
 }
@@ -1715,9 +1751,12 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) 
                 if sdef.node_type.is(NodeType.EnumDef).not() { continue }
             }
             if sdef.node_type.is(NodeType.StructDef) {
-                if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
-                if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
-                if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.child(0); ctx.cached_vec_name   = dd.name }
+                if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0)
+                ctx.cached_str_name   = dd.name }
+                if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0)
+                ctx.cached_array_name = dd.name }
+                if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.child(0)
+                ctx.cached_vec_name   = dd.name }
             }
             // Register every struct/enum AST in the comprehensive type-def map
             // so readers can replace Declaration.field_struct_def with a name lookup.
@@ -1876,22 +1915,32 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
         ref rp2 : Dynamic = deref(ptr)
         return Value.Ptr(rp2)
     }
-    if ftype.eq("I64") { ref v : I64 = ptr; return val_i64(v) }
-    if ftype.eq("U8") { ref v : U8 = ptr; return val_u8(v.to_i64()) }
-    if ftype.eq("I16") { ref v : I16 = ptr; return val_i16(v.to_i64()) }
-    if ftype.eq("I32") { ref v : I32 = ptr; return val_i32(v.to_i64()) }
-    if ftype.eq("U32") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
-    if ftype.eq("U64") { ref v : U64 = ptr; return val_u64(v) }
-    if ftype.eq("USize") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
+    if ftype.eq("I64") { ref v : I64 = ptr
+    return val_i64(v) }
+    if ftype.eq("U8") { ref v : U8 = ptr
+    return val_u8(v.to_i64()) }
+    if ftype.eq("I16") { ref v : I16 = ptr
+    return val_i16(v.to_i64()) }
+    if ftype.eq("I32") { ref v : I32 = ptr
+    return val_i32(v.to_i64()) }
+    if ftype.eq("U32") { ref v : U32 = ptr
+    return val_u32(v.to_i64()) }
+    if ftype.eq("U64") { ref v : U64 = ptr
+    return val_u64(v) }
+    if ftype.eq("USize") { ref v : U32 = ptr
+    return val_u32(v.to_i64()) }
     if ftype.eq("UPtr") {
         ref lp : LoadedProgram = codegen_lp()
         ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
-        if uptr_name.eq("U32") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
+        if uptr_name.eq("U32") { ref v : U32 = ptr
+        return val_u32(v.to_i64()) }
         ref v : U64 = ptr
         return val_u64(v)
     }
-    if ftype.eq("F32") { ref v : F32 = ptr; return val_f32(v) }
-    if ftype.eq("Bool") { ref v : Bool = ptr; return val_bool(v) }
+    if ftype.eq("F32") { ref v : F32 = ptr
+    return val_f32(v) }
+    if ftype.eq("Bool") { ref v : Bool = ptr
+    return val_bool(v) }
     // Enum field
     ref mut edef_lookup : Expr = lookup_interp_type_def(ftype)
     if is_null(edef_lookup) {

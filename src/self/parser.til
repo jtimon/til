@@ -93,7 +93,8 @@ priv parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U
     mut pmuts := Vec.new(Bool)
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         mut is_mut := false
-        if check(p, TokenType.KwMut) { advance(p); is_mut = true }
+        if check(p, TokenType.KwMut) { advance(p)
+        is_mut = true }
         ptype := expect_text(p, TokenType.Ident)
         ptypes.push(own ptype)
         pmuts.push(own is_mut)
@@ -190,10 +191,13 @@ parse_func_def := proc(mut p: Parser) returns Expr {
 
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         mut own_type := OwnType.Ref
-        if check(p, TokenType.KwShallow) { advance(p); own_type = OwnType.Shallow }
-        if check(p, TokenType.KwOwn) { advance(p); own_type = OwnType.Own }
+        if check(p, TokenType.KwShallow) { advance(p)
+        own_type = OwnType.Shallow }
+        if check(p, TokenType.KwOwn) { advance(p)
+        own_type = OwnType.Own }
         mut is_mut := false
-        if check(p, TokenType.KwMut) { advance(p); is_mut = true }
+        if check(p, TokenType.KwMut) { advance(p)
+        is_mut = true }
         if check(p, TokenType.KwRef) {
             panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                 ": no need for 'ref' on parameter; parameters are borrowed by default")
@@ -433,7 +437,8 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut ns_name := ""
             mut ns_explicit_type := ""
             mut ns_is_mut := false
-            if check(p, TokenType.KwMut) { advance(p); ns_is_mut = true }
+            if check(p, TokenType.KwMut) { advance(p)
+            ns_is_mut = true }
             ns_name = expect_text(p, TokenType.Ident)
             if check(p, TokenType.ColonEq) {
                 advance(p)
@@ -460,9 +465,12 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
         } else {
             mut f_own_type := OwnType.Shallow
             mut f_is_mut := false
-            if check(p, TokenType.KwOwn) { advance(p); f_own_type = OwnType.Own }
-            if check(p, TokenType.KwRef) { advance(p); f_own_type = OwnType.Ref }
-            if check(p, TokenType.KwMut) { advance(p); f_is_mut = true }
+            if check(p, TokenType.KwOwn) { advance(p)
+            f_own_type = OwnType.Own }
+            if check(p, TokenType.KwRef) { advance(p)
+            f_own_type = OwnType.Ref }
+            if check(p, TokenType.KwMut) { advance(p)
+            f_is_mut = true }
             f_name := expect_text(p, TokenType.Ident)
             mut f_explicit_type := ""
             if check(p, TokenType.Colon) {
@@ -533,7 +541,8 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             mut ns_name := ""
             mut ns_explicit_type := ""
             mut ns_is_mut := false
-            if check(p, TokenType.KwMut) { advance(p); ns_is_mut = true }
+            if check(p, TokenType.KwMut) { advance(p)
+            ns_is_mut = true }
             ns_name = expect_text(p, TokenType.Ident)
             if check(p, TokenType.ColonEq) {
                 advance(p)
@@ -887,7 +896,8 @@ parse_primary := proc(mut p: Parser) returns Expr {
                     }
                 }
                 mut is_own_arg := false
-                if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
+                if check(p, TokenType.KwOwn) { advance(p)
+                is_own_arg = true }
                 mut marg := parse_expression(p)
                 if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
                 mcall.add_child(own marg)
@@ -1137,7 +1147,8 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             advance(p) // skip (
             mut is_fsf := true
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-                if check(p, TokenType.Ident).not() { is_fsf = false; break }
+                if check(p, TokenType.Ident).not() { is_fsf = false
+                break }
                 advance(p)
                 if check(p, TokenType.Comma) { advance(p) }
             }
@@ -1232,7 +1243,8 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                     }
                 }
                 mut is_own_arg := false
-                if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
+                if check(p, TokenType.KwOwn) { advance(p)
+                is_own_arg = true }
                 mut marg := parse_expression(p)
                 if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
                 mcall.add_child(own marg)
@@ -1360,7 +1372,8 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     if t.type.is(TokenType.KwRef) {
         advance(p)
         mut ref_mut := false
-        if check(p, TokenType.KwMut) { advance(p); ref_mut = true }
+        if check(p, TokenType.KwMut) { advance(p)
+        ref_mut = true }
         i_line := peek_line(p)
         i_col := peek_col(p)
         iname := expect_text(p, TokenType.Ident)
@@ -1489,7 +1502,8 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         advance(p)
         if check(p, TokenType.Ident).or(check(p, TokenType.KwMut)) {
             mut own_mut := false
-            if check(p, TokenType.KwMut) { advance(p); own_mut = true }
+            if check(p, TokenType.KwMut) { advance(p)
+            own_mut = true }
             if check(p, TokenType.Ident) {
                 if p.pos.add(1).lt(p.tokens.len()) {
                     ref nt : Token = p.tokens.get(p.pos.add(1))

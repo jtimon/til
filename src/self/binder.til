@@ -83,25 +83,30 @@ priv parse_c_int_literal := func(s: Str, shallow from: USize, shallow to: USize,
     success = true
     mut p := from
     mut negate := false
-    if p.lt(to).and(s.byte_at(p).eq('-')) { negate = true; p = p.add(1) }
+    if p.lt(to).and(s.byte_at(p).eq('-')) { negate = true
+    p = p.add(1) }
     else if p.lt(to).and(s.byte_at(p).eq('+')) { p = p.add(1) }
     // Trim a trailing `L`/`LL`/`U`/`UL`/`LU` suffix.
     mut e := to
     while e.gt(p) {
         ref c : I8 = s.byte_at(e.sub(1))
-        if c.eq('L').or(c.eq('l')).or(c.eq('U')).or(c.eq('u')) { e = e.sub(1); continue }
+        if c.eq('L').or(c.eq('l')).or(c.eq('U')).or(c.eq('u')) { e = e.sub(1)
+        continue }
         break
     }
-    if p.gte(e) { success = false; return 0 }
+    if p.gte(e) { success = false
+    return 0 }
     // Hex?
     mut hex := false
     if p.add(2).lte(e) {
         if s.byte_at(p).eq('0') {
             ref c1 : I8 = s.byte_at(p.add(1))
-            if c1.eq('x').or(c1.eq('X')) { hex = true; p = p.add(2) }
+            if c1.eq('x').or(c1.eq('X')) { hex = true
+            p = p.add(2) }
         }
     }
-    if p.gte(e) { success = false; return 0 }
+    if p.gte(e) { success = false
+    return 0 }
     mut val : I64 = 0
     if hex {
         while p.lt(e) {
@@ -110,14 +115,16 @@ priv parse_c_int_literal := func(s: Str, shallow from: USize, shallow to: USize,
             if c.gte('0').and(c.lte('9')) { digit = c.to_i64().sub('0'.to_i64()) }
             else if c.gte('a').and(c.lte('f')) { digit = 10.add(c.to_i64().sub('a'.to_i64())) }
             else if c.gte('A').and(c.lte('F')) { digit = 10.add(c.to_i64().sub('A'.to_i64())) }
-            else { success = false; return 0 }
+            else { success = false
+            return 0 }
             val = val.mul(16).add(digit)
             p = p.add(1)
         }
     } else {
         while p.lt(e) {
             ref c : I8 = s.byte_at(p)
-            if c.gte('0').and(c.lte('9')).not() { success = false; return 0 }
+            if c.gte('0').and(c.lte('9')).not() { success = false
+            return 0 }
             val = val.mul(10).add(c.to_i64().sub('0'.to_i64()))
             p = p.add(1)
         }
@@ -132,40 +139,65 @@ priv parse_c_int_literal := func(s: Str, shallow from: USize, shallow to: USize,
 // same generated output (struct typedef, enum typedef, plain alias).
 
 priv push_til_base := func(mut out: Str, c: Str) returns Bool {
-    if c.eq("void") { out.push_str("Dynamic"); return true }
+    if c.eq("void") { out.push_str("Dynamic")
+    return true }
     // Plain `char` -> I8, matching Str.c_str's signedness. `unsigned char`
     // stays U8 (raw-byte buffers).
-    if c.eq("char").or(c.eq("signed char")) { out.push_str("I8"); return true }
-    if c.eq("unsigned char") { out.push_str("U8"); return true }
-    if c.eq("short").or(c.eq("short int")) { out.push_str("I16"); return true }
-    if c.eq("unsigned short").or(c.eq("unsigned short int")) { out.push_str("I16"); return true }
-    if c.eq("int").or(c.eq("signed int")).or(c.eq("signed")) { out.push_str("I32"); return true }
-    if c.eq("unsigned").or(c.eq("unsigned int")) { out.push_str("U32"); return true }
+    if c.eq("char").or(c.eq("signed char")) { out.push_str("I8")
+    return true }
+    if c.eq("unsigned char") { out.push_str("U8")
+    return true }
+    if c.eq("short").or(c.eq("short int")) { out.push_str("I16")
+    return true }
+    if c.eq("unsigned short").or(c.eq("unsigned short int")) { out.push_str("I16")
+    return true }
+    if c.eq("int").or(c.eq("signed int")).or(c.eq("signed")) { out.push_str("I32")
+    return true }
+    if c.eq("unsigned").or(c.eq("unsigned int")) { out.push_str("U32")
+    return true }
     if c.eq("long").or(c.eq("long int"))
     .or(c.eq("signed long")).or(c.eq("signed long int"))
     .or(c.eq("long long")).or(c.eq("long long int"))
-    .or(c.eq("signed long long")).or(c.eq("signed long long int")) { out.push_str("I64"); return true }
+    .or(c.eq("signed long long")).or(c.eq("signed long long int")) { out.push_str("I64")
+    return true }
     if c.eq("unsigned long").or(c.eq("unsigned long int"))
-    .or(c.eq("unsigned long long")).or(c.eq("unsigned long long int")) { out.push_str("U64"); return true }
-    if c.eq("size_t") { out.push_str("USize"); return true }
-    if c.eq("ssize_t") { out.push_str("I64"); return true }
-    if c.eq("ptrdiff_t") { out.push_str("I64"); return true }
-    if c.eq("intptr_t") { out.push_str("I64"); return true }
-    if c.eq("uintptr_t") { out.push_str("U64"); return true }
-    if c.eq("int8_t") { out.push_str("I8"); return true }
-    if c.eq("uint8_t") { out.push_str("U8"); return true }
-    if c.eq("int16_t") { out.push_str("I16"); return true }
-    if c.eq("uint16_t") { out.push_str("U16"); return true }
-    if c.eq("int32_t") { out.push_str("I32"); return true }
-    if c.eq("uint32_t") { out.push_str("U32"); return true }
-    if c.eq("int64_t") { out.push_str("I64"); return true }
-    if c.eq("uint64_t") { out.push_str("U64"); return true }
-    if c.eq("bool").or(c.eq("_Bool")) { out.push_str("Bool"); return true }
-    if c.eq("float") { out.push_str("F32"); return true }
+    .or(c.eq("unsigned long long")).or(c.eq("unsigned long long int")) { out.push_str("U64")
+    return true }
+    if c.eq("size_t") { out.push_str("USize")
+    return true }
+    if c.eq("ssize_t") { out.push_str("I64")
+    return true }
+    if c.eq("ptrdiff_t") { out.push_str("I64")
+    return true }
+    if c.eq("intptr_t") { out.push_str("I64")
+    return true }
+    if c.eq("uintptr_t") { out.push_str("U64")
+    return true }
+    if c.eq("int8_t") { out.push_str("I8")
+    return true }
+    if c.eq("uint8_t") { out.push_str("U8")
+    return true }
+    if c.eq("int16_t") { out.push_str("I16")
+    return true }
+    if c.eq("uint16_t") { out.push_str("U16")
+    return true }
+    if c.eq("int32_t") { out.push_str("I32")
+    return true }
+    if c.eq("uint32_t") { out.push_str("U32")
+    return true }
+    if c.eq("int64_t") { out.push_str("I64")
+    return true }
+    if c.eq("uint64_t") { out.push_str("U64")
+    return true }
+    if c.eq("bool").or(c.eq("_Bool")) { out.push_str("Bool")
+    return true }
+    if c.eq("float") { out.push_str("F32")
+    return true }
     // til has no 64-bit float type; map `double` / `long double` onto F32
     // (precision-truncation) so bindings still type-check. Functions that
     // genuinely need 64-bit precision must be hand-edited.
-    if c.eq("double").or(c.eq("long double")) { out.push_str("F32"); return true }
+    if c.eq("double").or(c.eq("long double")) { out.push_str("F32")
+    return true }
     // Unknown -- pass through. Typedefs from the same header land here and
     // resolve via the alias declarations the walker emits earlier.
     out.push_str(c)
@@ -203,8 +235,10 @@ priv is_alias_to_dynamic := func(name: Str) returns shallow Bool {
 }
 
 priv push_til_default := func(mut out: Str, c: Str) {
-    if c.eq("bool").or(c.eq("_Bool")) { out.push_str("false"); return }
-    if c.eq("void") { out.push_str("0"); return }
+    if c.eq("bool").or(c.eq("_Bool")) { out.push_str("false")
+    return }
+    if c.eq("void") { out.push_str("0")
+    return }
     if c.eq("char").or(c.eq("unsigned char")).or(c.eq("signed char"))
     .or(c.eq("short")).or(c.eq("short int"))
     .or(c.eq("unsigned short")).or(c.eq("unsigned short int"))
@@ -704,7 +738,8 @@ priv emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
     while q.add(1).lt(n) {
         if line.byte_at(q).eq('/') {
             ref c1 : I8 = line.byte_at(q.add(1))
-            if c1.eq('/').or(c1.eq('*')) { n = q; break }
+            if c1.eq('/').or(c1.eq('*')) { n = q
+            break }
         }
         q = q.add(1)
     }
@@ -727,8 +762,11 @@ priv emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
     while p.lt(body_end) {
         ref c : I8 = line.byte_at(p)
         if c.eq('(').or(c.eq('[')) { return false }
-        if bind_is_ws(c) { p = p.add(1); continue }
-        if c.eq('*') { ptrs = ptrs.add(1); p = p.add(1); continue }
+        if bind_is_ws(c) { p = p.add(1)
+        continue }
+        if c.eq('*') { ptrs = ptrs.add(1)
+        p = p.add(1)
+continue }
         word_end := skip_word(line, p)
         if word_end.eq(p) { return false }
         if range_eq_lit(line, p, word_end, "const")
@@ -934,8 +972,11 @@ priv emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shall
     mut rt : USize = 0
     while rt.lt(ret_end) {
         ref rc : I8 = sig.byte_at(rt)
-        if rc.eq('*') { ret_ptrs = ret_ptrs.add(1); rt = rt.add(1); continue }
-        if bind_is_ws(rc) { rt = rt.add(1); continue }
+        if rc.eq('*') { ret_ptrs = ret_ptrs.add(1)
+        rt = rt.add(1)
+continue }
+        if bind_is_ws(rc) { rt = rt.add(1)
+        continue }
         rw := skip_word(sig, rt)
         if rw.eq(rt) { return false }
         if range_eq_lit(sig, rt, rw, "const")
@@ -976,7 +1017,8 @@ priv emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shall
         mut b := trim_right(params_view, a, e)
         if a.lt(b) {
             if range_eq_lit(params_view, a, b, "void").not() {
-                if range_eq_lit(params_view, a, b, "...") { failed = true; break }
+                if range_eq_lit(params_view, a, b, "...") { failed = true
+                break }
                 if emitted_any { params_buf.push_str(", ") }
                 mut has_fnptr := false
                 mut s := a
@@ -1009,8 +1051,11 @@ priv emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shall
                     mut t := a
                     while t.lt(b) {
                         ref c : I8 = params_view.byte_at(t)
-                        if bind_is_ws(c) { t = t.add(1); continue }
-                        if c.eq('*') { p_ptrs = p_ptrs.add(1); t = t.add(1); continue }
+                        if bind_is_ws(c) { t = t.add(1)
+                        continue }
+                        if c.eq('*') { p_ptrs = p_ptrs.add(1)
+                        t = t.add(1)
+continue }
                         if c.eq('[') {
                             p_ptrs = p_ptrs.add(1)
                             while t.lt(b).and(params_view.byte_at(t).neq(']')) { t = t.add(1) }
@@ -1018,7 +1063,8 @@ priv emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shall
                             continue
                         }
                         word_end := skip_word(params_view, t)
-                        if word_end.eq(t) { failed = true; break }
+                        if word_end.eq(t) { failed = true
+                        break }
                         if range_eq_lit(params_view, t, word_end, "const")
                         .or(range_eq_lit(params_view, t, word_end, "volatile"))
                         .or(range_eq_lit(params_view, t, word_end, "restrict"))
@@ -1041,7 +1087,8 @@ priv emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shall
                     }
                     if failed { break }
                     anon := p_name_set.and(p_base_set.not())
-                    if p_name_set.not() { failed = true; break }
+                    if p_name_set.not() { failed = true
+                    break }
                     mut p_base_off : USize = 0
                     if anon {
                         p_base_off = p_name_start
@@ -1180,7 +1227,8 @@ priv walk_header := func(mut out: Str, lines: Vec) {
             had_block_prefix = true
             lead = skip_ws(line, q.add(2))
         }
-        if stuck_in_block { i = i.add(1); continue }
+        if stuck_in_block { i = i.add(1)
+        continue }
         if lead.eq(ln) {
             if had_block_prefix { emit_comment_line(out, line) }
             else { out.push_str("\n") }
@@ -1224,7 +1272,8 @@ priv walk_header := func(mut out: Str, lines: Vec) {
             while sp.add(1).lt(ln) {
                 if line.byte_at(sp).eq('/') {
                     ref nc : I8 = line.byte_at(sp.add(1))
-                    if nc.eq('/').or(nc.eq('*')) { stmt_end = sp; break }
+                    if nc.eq('/').or(nc.eq('*')) { stmt_end = sp
+                    break }
                 }
                 sp = sp.add(1)
             }
@@ -1286,7 +1335,8 @@ priv walk_header := func(mut out: Str, lines: Vec) {
                         ref l2 : Str = lines.get(j)
                         l2n := l2.len()
                         l2lead := skip_ws(l2, 0)
-                        if l2lead.lt(l2n).and(l2.byte_at(l2lead).eq('{')) { open = j; break }
+                        if l2lead.lt(l2n).and(l2.byte_at(l2lead).eq('{')) { open = j
+                        break }
                         j = j.add(1)
                     }
                 }
@@ -1301,16 +1351,20 @@ priv walk_header := func(mut out: Str, lines: Vec) {
                     mut k2 : USize = 0
                     while k2.lt(l3n) {
                         ref cc : I8 = l3.byte_at(k2)
-                        if cc.eq('{') { depth = depth.add(1); found_open = true }
+                        if cc.eq('{') { depth = depth.add(1)
+                        found_open = true }
                         else if cc.eq('}') {
                             depth = depth.sub(1)
-                            if found_open.and(depth.eq(0)) { close = j2; done = true; break }
+                            if found_open.and(depth.eq(0)) { close = j2
+                            done = true
+break }
                         }
                         k2 = k2.add(1)
                     }
                     if done.not() { j2 = j2.add(1) }
                 }
-                if done.not() { i = i.add(1); continue }
+                if done.not() { i = i.add(1)
+                continue }
                 i = emit_typedef_struct(out, lines, i, open, close)
                 continue
             }
@@ -1320,7 +1374,8 @@ priv walk_header := func(mut out: Str, lines: Vec) {
                 mut has_brace := false
                 mut k := lead
                 while k.lt(end) {
-                    if line.byte_at(k).eq('{') { has_brace = true; break }
+                    if line.byte_at(k).eq('{') { has_brace = true
+                    break }
                     k = k.add(1)
                 }
                 if has_brace.not() {
@@ -1329,7 +1384,8 @@ priv walk_header := func(mut out: Str, lines: Vec) {
                         ref l2 : Str = lines.get(j)
                         l2n := l2.len()
                         l2lead := skip_ws(l2, 0)
-                        if l2lead.lt(l2n).and(l2.byte_at(l2lead).eq('{')) { open = j; break }
+                        if l2lead.lt(l2n).and(l2.byte_at(l2lead).eq('{')) { open = j
+                        break }
                         j = j.add(1)
                     }
                 }
@@ -1344,16 +1400,20 @@ priv walk_header := func(mut out: Str, lines: Vec) {
                     mut k2 : USize = 0
                     while k2.lt(l3n) {
                         ref cc : I8 = l3.byte_at(k2)
-                        if cc.eq('{') { depth = depth.add(1); found_open = true }
+                        if cc.eq('{') { depth = depth.add(1)
+                        found_open = true }
                         else if cc.eq('}') {
                             depth = depth.sub(1)
-                            if found_open.and(depth.eq(0)) { close = j2; done = true; break }
+                            if found_open.and(depth.eq(0)) { close = j2
+                            done = true
+break }
                         }
                         k2 = k2.add(1)
                     }
                     if done.not() { j2 = j2.add(1) }
                 }
-                if done.not() { i = i.add(1); continue }
+                if done.not() { i = i.add(1)
+                continue }
                 i = emit_typedef_enum(out, lines, i, open, close)
                 continue
             }
@@ -1373,10 +1433,12 @@ priv walk_header := func(mut out: Str, lines: Vec) {
                     mut k2 : USize = 0
                     while k2.lt(l3n) {
                         ref cc : I8 = l3.byte_at(k2)
-                        if cc.eq('{') { depth = depth.add(1); found_open = true }
+                        if cc.eq('{') { depth = depth.add(1)
+                        found_open = true }
                         else if cc.eq('}') {
                             depth = depth.sub(1)
-                            if found_open.and(depth.eq(0)) { done = true; break }
+                            if found_open.and(depth.eq(0)) { done = true
+                            break }
                         }
                         k2 = k2.add(1)
                     }
@@ -1439,7 +1501,8 @@ priv walk_header := func(mut out: Str, lines: Vec) {
             mut k : USize = 0
             while k.lt(l2n) {
                 ref c : I8 = l2.byte_at(k)
-                if c.eq('(') { paren_depth = paren_depth.add(1); saw_paren = true }
+                if c.eq('(') { paren_depth = paren_depth.add(1)
+                saw_paren = true }
                 else if c.eq(')') { paren_depth = paren_depth.sub(1) }
                 else if c.eq(';').and(paren_depth.eq(0)) {
                     found_end = true
@@ -1450,7 +1513,8 @@ priv walk_header := func(mut out: Str, lines: Vec) {
             }
             if found_end.not() { j = j.add(1) }
         }
-        if found_end.not() { i = i.add(1); continue }
+        if found_end.not() { i = i.add(1)
+        continue }
         if is_func {
             emit_function(out, lines, i, j)
         }
@@ -1596,9 +1660,13 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
             ref c0 : I8 = line.byte_at(scan)
             ref c1 : I8 = line.byte_at(scan.add(1))
             if in_block {
-                if c0.eq('*').and(c1.eq('/')) { in_block = false; scan = scan.add(2); continue }
+                if c0.eq('*').and(c1.eq('/')) { in_block = false
+                scan = scan.add(2)
+continue }
             } else {
-                if c0.eq('/').and(c1.eq('*')) { in_block = true; scan = scan.add(2); continue }
+                if c0.eq('/').and(c1.eq('*')) { in_block = true
+                scan = scan.add(2)
+continue }
                 // A `//` line-comment terminates the scan -- nothing on
                 // the rest of the line can open a block.
                 if c0.eq('/').and(c1.eq('/')) { break }
@@ -1612,7 +1680,8 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
         while sp.add(1).lt(ln) {
             if line.byte_at(sp).eq('/') {
                 ref nc : I8 = line.byte_at(sp.add(1))
-                if nc.eq('/').or(nc.eq('*')) { stmt_end = sp; break }
+                if nc.eq('/').or(nc.eq('*')) { stmt_end = sp
+                break }
             }
             sp = sp.add(1)
         }

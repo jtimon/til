@@ -117,7 +117,8 @@ mut god_mode := false
 
 enter_god_mode := func() { god_mode = true }
 
-exit_god_mode := func() { god_mode = false; reset_camera() }
+exit_god_mode := func() { god_mode = false
+reset_camera() }
 
 main := proc() {
     set_config_flags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED)

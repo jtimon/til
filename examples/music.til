@@ -477,7 +477,9 @@ main := proc() {
             mut lr : U64 = 40
             mut lg : U64 = 40
             mut lb : U64 = 40
-            if li.eq(sel_lang) { lr = 0 ; lg = 150 ; lb = 155 }
+            if li.eq(sel_lang) { lr = 0
+            lg = 150
+lb = 155 }
             draw_rectangle(lx, RADIO_ROW_Y.to_i64(), LANG_BTN_W.sub(2).to_i64(), BTN_H.sub(2).to_i64(), lr.to_i64(), lg.to_i64(), lb.to_i64(), 255)
             ref ll : Str = lang_str(li, 0)
             draw_text_font(fnt, ll, lx.add(PAD_X.to_i64()), RADIO_ROW_Y.add(PAD_Y).to_i64(), FONT.to_i64(), 1, 220, 220, 220, 255)
@@ -488,7 +490,9 @@ main := proc() {
             mut nr : U64 = 40
             mut ng : U64 = 40
             mut nb : U64 = 40
-            if ni.eq(sel_notation) { nr = 0 ; ng = 150 ; nb = 155 }
+            if ni.eq(sel_notation) { nr = 0
+            ng = 150
+nb = 155 }
             draw_rectangle(nx, RADIO_ROW_Y.to_i64(), NOTATION_BTN_W.sub(2).to_i64(), BTN_H.sub(2).to_i64(), nr.to_i64(), ng.to_i64(), nb.to_i64(), 255)
             ref nl : Str = lang_str(sel_lang, ni.add(8))
             draw_text_font(fnt, nl, nx.add(PAD_X.to_i64()), RADIO_ROW_Y.add(PAD_Y).to_i64(), FONT.to_i64(), 1, 220, 220, 220, 255)

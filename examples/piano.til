@@ -236,8 +236,10 @@ main := proc() {
             mut ng : U64 = 150
             mut nb : U64 = 155
             oct := en.div(12.to_u32())
-            if oct.eq(1) { ng = 180 ; nb = 185 }
-            if oct.eq(2) { ng = 210 ; nb = 215 }
+            if oct.eq(1) { ng = 180
+            nb = 185 }
+            if oct.eq(2) { ng = 210
+            nb = 215 }
 
             draw_rectangle(x_right, ey, ew, note_h.sub(1).to_i64(), nr.to_i64(), ng.to_i64(), nb.to_i64(), 255)
         }

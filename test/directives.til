@@ -25,8 +25,9 @@ test_line_increments := test() {
 }
 
 test_col_reflects_position := test() {
-    // Same line, different column
-    x := __COL__; y := __COL__
+    // Different columns: y is indented further than x, so __COL__ differs.
+    x := __COL__
+        y := __COL__
     assert(__LOC__, y.gt(x))
 }
 
@@ -37,7 +38,7 @@ get_file := func() returns Str { return __FILE__ }
 test_directives_in_func := test() {
     // __LINE__ inside a func resolves to the source line of the
     // directive itself, not the call site
-    assert_eq(__LOC__, get_line(), 34)
+    assert_eq(__LOC__, get_line(), 35)
     expect(__LOC__, get_file().find("directives.til").neq(-1),
            "__FILE__ in func resolves to source file")
 }

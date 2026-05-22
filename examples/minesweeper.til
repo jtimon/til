@@ -245,14 +245,30 @@ main := proc() {
                             mut nr := 200
                             mut ng := 200
                             mut nb := 200
-                            if dc.eq(1) { nr = 80  ; ng = 120 ; nb = 255 }
-                            if dc.eq(2) { nr = 0   ; ng = 200 ; nb = 0   }
-                            if dc.eq(3) { nr = 230 ; ng = 41  ; nb = 55  }
-                            if dc.eq(4) { nr = 160 ; ng = 32  ; nb = 240 }
-                            if dc.eq(5) { nr = 160 ; ng = 82  ; nb = 45  }
-                            if dc.eq(6) { nr = 0   ; ng = 200 ; nb = 200 }
-                            if dc.eq(7) { nr = 180 ; ng = 180 ; nb = 180 }
-                            if dc.eq(8) { nr = 100 ; ng = 100 ; nb = 100 }
+                            if dc.eq(1) { nr = 80
+                            ng = 120
+nb = 255 }
+                            if dc.eq(2) { nr = 0
+                            ng = 200
+nb = 0   }
+                            if dc.eq(3) { nr = 230
+                            ng = 41
+nb = 55  }
+                            if dc.eq(4) { nr = 160
+                            ng = 32
+nb = 240 }
+                            if dc.eq(5) { nr = 160
+                            ng = 82
+nb = 45  }
+                            if dc.eq(6) { nr = 0
+                            ng = 200
+nb = 200 }
+                            if dc.eq(7) { nr = 180
+                            ng = 180
+nb = 180 }
+                            if dc.eq(8) { nr = 100
+                            ng = 100
+nb = 100 }
                             draw_text(dc.to_str(), px.add(9), py.add(5), 20, nr, ng, nb, 255)
                         }
                     }

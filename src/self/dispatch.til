@@ -825,14 +825,22 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 mut pdata : Dynamic = 0
                 mut psz : I32 = 0
                 switch payload {
-                case Value.Int(x):     pdata = to_ptr(x); psz = 8.to_i32()
-                case Value.Byte(x):    pdata = to_ptr(x); psz = 1.to_i32()
-                case Value.Short(x):   pdata = to_ptr(x); psz = 2.to_i32()
-                case Value.Int32(x):   pdata = to_ptr(x); psz = 4.to_i32()
-                case Value.Uint32(x):  pdata = to_ptr(x); psz = 4.to_i32()
-                case Value.Uint64(x):  pdata = to_ptr(x); psz = 8.to_i32()
-                case Value.Float(x):   pdata = to_ptr(x); psz = 4.to_i32()
-                case Value.Boolean(x): pdata = to_ptr(x); psz = 1.to_i32()
+                case Value.Int(x):     pdata = to_ptr(x)
+                psz = 8.to_i32()
+                case Value.Byte(x):    pdata = to_ptr(x)
+                psz = 1.to_i32()
+                case Value.Short(x):   pdata = to_ptr(x)
+                psz = 2.to_i32()
+                case Value.Int32(x):   pdata = to_ptr(x)
+                psz = 4.to_i32()
+                case Value.Uint32(x):  pdata = to_ptr(x)
+                psz = 4.to_i32()
+                case Value.Uint64(x):  pdata = to_ptr(x)
+                psz = 8.to_i32()
+                case Value.Float(x):   pdata = to_ptr(x)
+                psz = 4.to_i32()
+                case Value.Boolean(x): pdata = to_ptr(x)
+                psz = 1.to_i32()
                 case Value.Struct(si):
                     if is_null(si.struct_def).not() {
                         switch si.struct_def.node_type {
@@ -845,8 +853,10 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Enum(ei):
                     psz = ei.data_size
                     pdata = to_ptr(ei.data)
-                case Value.Ptr(p):  pdata = to_ptr(p); psz = 8.to_i32()
-                case Value.Func(f): pdata = to_ptr(f); psz = 8.to_i32()
+                case Value.Ptr(p):  pdata = to_ptr(p)
+                psz = 8.to_i32()
+                case Value.Func(f): pdata = to_ptr(f)
+                psz = 8.to_i32()
                 case:
                 }
                 mut tmp := val_enum_flat(enum_name, enum_def, ctor_tag, pdata, psz)
@@ -862,16 +872,30 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
 }
 
 ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value) returns shallow Bool {
-    if rtype.eq("I64")        { ref rv : I64 = p;   result = val_i64(rv);            return true }
-    else if rtype.eq("U8")    { ref rv : U8 = p;    result = val_u8(rv.to_i64());    return true }
-    else if rtype.eq("I16")   { ref rv : I16 = p;   result = val_i16(rv.to_i64());   return true }
-    else if rtype.eq("I32")   { ref rv : I32 = p;   result = val_i32(rv.to_i64());   return true }
-    else if rtype.eq("U32")   { ref rv : U32 = p;   result = val_u32(rv.to_i64());   return true }
-    else if rtype.eq("U64")   { ref rv : U64 = p;   result = val_u64(rv);            return true }
+    if rtype.eq("I64")        { ref rv : I64 = p
+    result = val_i64(rv)
+return true }
+    else if rtype.eq("U8")    { ref rv : U8 = p
+    result = val_u8(rv.to_i64())
+return true }
+    else if rtype.eq("I16")   { ref rv : I16 = p
+    result = val_i16(rv.to_i64())
+return true }
+    else if rtype.eq("I32")   { ref rv : I32 = p
+    result = val_i32(rv.to_i64())
+return true }
+    else if rtype.eq("U32")   { ref rv : U32 = p
+    result = val_u32(rv.to_i64())
+return true }
+    else if rtype.eq("U64")   { ref rv : U64 = p
+    result = val_u64(rv)
+return true }
     else if rtype.eq("USize") {
         ref lp : LoadedProgram = codegen_lp()
         ref usize_name : Str = resolve_type_alias(lp.ctx.scope, "USize")
-        if usize_name.eq("U32") { ref rv : U32 = p; result = val_u32(rv.to_i64()); return true }
+        if usize_name.eq("U32") { ref rv : U32 = p
+        result = val_u32(rv.to_i64())
+return true }
         ref rv : U64 = p
         result = val_u64(rv)
         return true
@@ -879,13 +903,19 @@ ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value) returns sha
     else if rtype.eq("UPtr") {
         ref lp : LoadedProgram = codegen_lp()
         ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
-        if uptr_name.eq("U32") { ref rv : U32 = p; result = val_u32(rv.to_i64()); return true }
+        if uptr_name.eq("U32") { ref rv : U32 = p
+        result = val_u32(rv.to_i64())
+return true }
         ref rv : U64 = p
         result = val_u64(rv)
         return true
     }
-    else if rtype.eq("F32")   { ref rv : F32 = p;   result = val_f32(rv);            return true }
-    else if rtype.eq("Bool")  { ref rv : Bool = p;  result = val_bool(rv);           return true }
+    else if rtype.eq("F32")   { ref rv : F32 = p
+    result = val_f32(rv)
+return true }
+    else if rtype.eq("Bool")  { ref rv : Bool = p
+    result = val_bool(rv)
+return true }
     return false
 }
 
@@ -906,14 +936,30 @@ ffi_call_ret_struct_def := func(fe: FFIEntry) returns ref Expr {
 // value (struct/pointer/etc., caller falls back to the Ptr-default
 // path). type_name is what reinterpret_ptr_value understands.
 priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool {
-    if ptr_eq(atype, ffi_type_sint64_ref()) { type_name = "I64"; size = 8.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_uint8_ref())  { type_name = "U8";  size = 1.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_sint8_ref())  { type_name = "I8";  size = 1.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_sint16_ref()) { type_name = "I16"; size = 2.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_sint32_ref()) { type_name = "I32"; size = 4.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_uint32_ref()) { type_name = "U32"; size = 4.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_uint64_ref()) { type_name = "U64"; size = 8.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_float_ref())  { type_name = "F32"; size = 4.to_i32(); return true }
+    if ptr_eq(atype, ffi_type_sint64_ref()) { type_name = "I64"
+    size = 8.to_i32()
+return true }
+    if ptr_eq(atype, ffi_type_uint8_ref())  { type_name = "U8"
+    size = 1.to_i32()
+return true }
+    if ptr_eq(atype, ffi_type_sint8_ref())  { type_name = "I8"
+    size = 1.to_i32()
+return true }
+    if ptr_eq(atype, ffi_type_sint16_ref()) { type_name = "I16"
+    size = 2.to_i32()
+return true }
+    if ptr_eq(atype, ffi_type_sint32_ref()) { type_name = "I32"
+    size = 4.to_i32()
+return true }
+    if ptr_eq(atype, ffi_type_uint32_ref()) { type_name = "U32"
+    size = 4.to_i32()
+return true }
+    if ptr_eq(atype, ffi_type_uint64_ref()) { type_name = "U64"
+    size = 8.to_i32()
+return true }
+    if ptr_eq(atype, ffi_type_float_ref())  { type_name = "F32"
+    size = 4.to_i32()
+return true }
     return false
 }
 
@@ -992,14 +1038,22 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
             // Deep: pass heap-allocated pointer (FFI callee may free it)
             mut dp : Dynamic = 0
             switch v {
-            case Value.Int(p):     dp = malloc(8); memcpy(dp, p, 8)
-            case Value.Byte(p):    dp = malloc(1); memcpy(dp, p, 1)
-            case Value.Short(p):   dp = malloc(2); memcpy(dp, p, 2)
-            case Value.Int32(p):   dp = malloc(4); memcpy(dp, p, 4)
-            case Value.Uint32(p):  dp = malloc(4); memcpy(dp, p, 4)
-            case Value.Uint64(p):  dp = malloc(8); memcpy(dp, p, 8)
-            case Value.Float(p):   dp = malloc(4); memcpy(dp, p, 4)
-            case Value.Boolean(p): dp = malloc(1); memcpy(dp, p, 1)
+            case Value.Int(p):     dp = malloc(8)
+            memcpy(dp, p, 8)
+            case Value.Byte(p):    dp = malloc(1)
+            memcpy(dp, p, 1)
+            case Value.Short(p):   dp = malloc(2)
+            memcpy(dp, p, 2)
+            case Value.Int32(p):   dp = malloc(4)
+            memcpy(dp, p, 4)
+            case Value.Uint32(p):  dp = malloc(4)
+            memcpy(dp, p, 4)
+            case Value.Uint64(p):  dp = malloc(8)
+            memcpy(dp, p, 8)
+            case Value.Float(p):   dp = malloc(4)
+            memcpy(dp, p, 4)
+            case Value.Boolean(p): dp = malloc(1)
+            memcpy(dp, p, 1)
             case Value.Ptr(pv):
                 write_ptr(ptr_add(args, i.to_u64().mul(8)), deref(pv))
             case Value.Struct(si):

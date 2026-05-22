@@ -95,7 +95,9 @@ namespace:
             if c.lt(0) { lo = mid.add(1) }
             else {
                 if c.gt(0) { hi = mid }
-                else { found = true; lo = mid; hi = mid }
+                else { found = true
+                lo = mid
+hi = mid }
             }
         }
         if found {
