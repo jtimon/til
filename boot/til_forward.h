@@ -1213,7 +1213,6 @@ void validate_fcall_arg(Expr * arg, Type * ptype, Str * ptype_name, Str * param_
 void infer_and_validate_fcall_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind, I32 in_func, Context * ctx);
 void resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, I32 in_func, Context * ctx);
 Str * obj_method_type_name(Expr * obj);
-Str * priv___src_self_typer_til__expected_type_for_identity_to(Str * method);
 Bool infer_field_access_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__check_priv_access(Expr * e, Str * name, TypeBinding * b);
 void priv___src_self_typer_til__check_priv_type_name(Expr * e, Str * name, TypeScope * scope);
