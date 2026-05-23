@@ -91,25 +91,25 @@ namespace:
             return b
         }
         if is_null(self.parent).not() {
-            ref pb : TypeBinding = self.parent.get_binding(name.clone())
+            ref pb : TypeBinding = self.parent.get_binding(name)
             return pb
         }
         return NULL
     }
     find := func(self: TypeScope, name: Str) returns ScopeFind {
-        ref b : TypeBinding = self.get_binding(name.clone())
+        ref b : TypeBinding = self.get_binding(name)
         if is_null(b).not() {
             return ScopeFind.Found(b)
         }
         return ScopeFind.NotFound
     }
     get_type := func(self: TypeScope, name: Str) returns Type {
-        ref b : TypeBinding = self.get_binding(name.clone())
+        ref b : TypeBinding = self.get_binding(name)
         if is_null(b).not() { return b.type.clone() }
         return Type.Unknown
     }
     get_func_type := func(self: TypeScope, name: Str) returns shallow FuncType {
-        ref b : TypeBinding = self.get_binding(name.clone())
+        ref b : TypeBinding = self.get_binding(name)
         if is_null(b).not() { return b.func_type }
         return FuncType.None
     }
@@ -119,12 +119,12 @@ namespace:
             if is_null(b.struct_def).not() { return b.struct_def }
         }
         if is_null(self.parent).not() {
-            return self.parent.get_struct(name.clone())
+            return self.parent.get_struct(name)
         }
         return NULL
     }
     is_mut := func(self: TypeScope, name: Str) returns shallow Bool {
-        ref b : TypeBinding = self.get_binding(name.clone())
+        ref b : TypeBinding = self.get_binding(name)
         if is_null(b).not() { return b.is_mut }
         return false
     }
@@ -366,7 +366,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("EnumDef") { return Type.Struct("EnumDef") }
     if name.eq("Dynamic")   { return Type.Dynamic }
     if is_null(scope).not() {
-        ref b : TypeBinding = scope.get_binding(name.clone())
+        ref b : TypeBinding = scope.get_binding(name)
         if is_null(b).not() {
             if b.is_type_alias {
                 if b.alias_target.is_empty().not() {
@@ -382,7 +382,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
                 }
             }
         }
-        ref sdef : Expr = scope.get_struct(name.clone())
+        ref sdef : Expr = scope.get_struct(name)
         if is_null(sdef).not() {
             if sdef.node_type.is(NodeType.EnumDef) {
                 return Type.Enum(name.clone())
@@ -395,7 +395,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
 
 init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
     mut resolved := name.clone()
-    ref b : TypeBinding = scope.get_binding(name.clone())
+    ref b : TypeBinding = scope.get_binding(name)
     if is_null(b).not() {
         if b.is_type_alias {
             if b.alias_target.is_empty().not() {
@@ -418,7 +418,7 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
     case NodeType.Decl(sdecl):
         sname := sdecl.name
 
-        existing_find := scope.find(sname.clone())
+        existing_find := scope.find(sname)
         switch existing_find {
         case ScopeFind.Found(existing):
             if is_null(existing.struct_def).not() {
@@ -449,7 +449,7 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
 
         scope.set(sname, builtin_type, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-        ref mut b : TypeBinding = scope.get_binding(sname.clone())
+        ref mut b : TypeBinding = scope.get_binding(sname)
         b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
         b.is_priv = sdecl.is_priv
@@ -502,7 +502,7 @@ priv is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns sha
     if is_primitive(t) { return true }
     if t.is(Type.FuncPtr) { return true }
     if is_null(scope) { return false }
-    ref sdef : Expr = scope.get_struct(type_name.clone())
+    ref sdef : Expr = scope.get_struct(type_name)
     if is_null(sdef) { return false }
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
@@ -721,7 +721,7 @@ register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) ret
     case NodeType.Decl(edecl):
         ename := edecl.name
 
-        existing_find := scope.find(ename.clone())
+        existing_find := scope.find(ename)
         switch existing_find {
         case ScopeFind.Found(existing):
             if is_null(existing.struct_def).not() {
@@ -736,7 +736,7 @@ register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) ret
         }
 
         scope.set(ename, Type.Enum(ename.clone()), FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-        ref mut b : TypeBinding = scope.get_binding(ename.clone())
+        ref mut b : TypeBinding = scope.get_binding(ename)
         b.struct_def = stmt.child(0)
         b.is_priv = edecl.is_priv
         b.orig_name = edecl.orig_name.clone()
@@ -1332,7 +1332,7 @@ register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeSco
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         scope.set(sdecl.name, Type.FuncPtr, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-        ref mut fb : TypeBinding = scope.get_binding(sdecl.name.clone())
+        ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
         fb.func_def = stmt.child(0)
     case:
         UNREACHABLE(__LOC__)
@@ -1357,8 +1357,8 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
     }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
-        if scope.find(sdecl.name.clone()).is(ScopeFind.Found) { return }
-        find := scope.find(target_name.clone())
+        if scope.find(sdecl.name).is(ScopeFind.Found) { return }
+        find := scope.find(target_name)
         switch find {
         case ScopeFind.Found(target):
             if is_null(target.struct_def).and(target.is_builtin.not()) {
@@ -1370,7 +1370,7 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
                 }
             }
             scope.set(sdecl.name, target.type, target.func_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            ref mut ab : TypeBinding = scope.get_binding(sdecl.name.clone())
+            ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
             ab.struct_def = target.struct_def
             ab.func_def = target.func_def
             ab.is_builtin = target.is_builtin
@@ -1393,7 +1393,7 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
             if til_type.is(Type.Unknown) { return }
             if til_type.is(Type.Custom) { return }
             scope.set(sdecl.name, til_type, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            ref mut ab : TypeBinding = scope.get_binding(sdecl.name.clone())
+            ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
             ab.is_type_alias = true
             ab.alias_target = target_name
         }
@@ -1437,7 +1437,7 @@ register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-        ref mut tlv_b : TypeBinding = scope.get_binding(sdecl.name.clone())
+        ref mut tlv_b : TypeBinding = scope.get_binding(sdecl.name)
         tlv_b.is_priv = sdecl.is_priv
         tlv_b.orig_name = sdecl.orig_name.clone()
     case:
@@ -1460,7 +1460,7 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
     case NodeType.Decl(sdecl):
         if def.children.len().eq(0) {
             scope.set(sdecl.name, Type.FuncPtr, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            ref mut fb : TypeBinding = scope.get_binding(sdecl.name.clone())
+            ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
@@ -1468,7 +1468,7 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
         }
 
         if sdecl.explicit_type.len().gt(0) {
-            fs_find := scope.find(sdecl.explicit_type.clone())
+            fs_find := scope.find(sdecl.explicit_type)
             switch fs_find {
             case ScopeFind.Found(fsb):
                 if is_null(fsb.func_def).not() {
@@ -1519,7 +1519,7 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
                 rt = init_type_from_explicit_type(fdef.return_type, scope)
             }
             scope.set(sdecl.name, rt, ft, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            ref mut fb : TypeBinding = scope.get_binding(sdecl.name.clone())
+            ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
@@ -2012,7 +2012,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
 
                 if ftype.len().gt(0) {
                     if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I8").not()).and(ftype.eq("I16").not()).and(ftype.eq("I32").not()).and(ftype.eq("U32").not()).and(ftype.eq("Bool").not()) {
-                        ref nested_def : Expr = scope.get_struct(ftype.clone())
+                        ref nested_def : Expr = scope.get_struct(ftype)
                         if is_null(nested_def).not() {
                             fd.field_struct_def = nested_def
                         }
@@ -2062,7 +2062,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                     }
                 }
 
-                ref ab : TypeBinding = scope.get_binding(ftype.clone())
+                ref ab : TypeBinding = scope.get_binding(ftype)
                 if is_null(ab).not() {
                     if ab.is_type_alias {
                         if ab.alias_target.is_empty().not() {
@@ -2083,7 +2083,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                 else if ftype.eq("Bool") { fsz = 1; falign = 1 }
                 else if type_from_name_init(ftype, scope).is(Type.FuncPtr) { fsz = 8; falign = 8 }
                 else {
-                    ref nested_def : Expr = scope.get_struct(ftype.clone())
+                    ref nested_def : Expr = scope.get_struct(ftype)
                     if is_null(nested_def).not().and(nested_def.node_type.is(NodeType.EnumDef)) {
                         fsz = compute_enum_layout(nested_def, scope)
                         if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
@@ -2135,7 +2135,7 @@ type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) 
     if ftype.eq("Bool") { sz = 1; al = 1; return }
     if ftype.eq("Dynamic") { sz = 8; al = 8; return }
     if type_from_name_init(ftype, scope).is(Type.FuncPtr) { sz = 8; al = 8; return }
-    ref nested : Expr = scope.get_struct(ftype.clone())
+    ref nested : Expr = scope.get_struct(ftype)
     if is_null(nested) { sz = 8; al = 8; return }
     switch nested.node_type {
     case NodeType.StructDef(_nm):
@@ -2217,7 +2217,7 @@ resolve_field_struct_defs := func(program: Expr, scope: TypeScope) {
                     ftype := fd.explicit_type
                     if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I8").not()).and(ftype.eq("I16").not())
                     .and(ftype.eq("I32").not()).and(ftype.eq("U32").not()).and(ftype.eq("Bool").not()) {
-                        ref nested_def : Expr = scope.get_struct(ftype.clone())
+                        ref nested_def : Expr = scope.get_struct(ftype)
                         if is_null(nested_def).not() {
                             fd.field_struct_def = nested_def
                         }
