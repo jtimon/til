@@ -269,6 +269,55 @@ namespace:
     to_str := func(_self: FCallData) returns Str { return "FCall" }
 }
 
+LiteralNumData := struct {
+    mut text := ""
+    mut til_type := Type.Unknown
+namespace:
+    eq := func(a: LiteralNumData, b: LiteralNumData) returns Bool { return a.text.eq(b.text) }
+    to_str := func(self: LiteralNumData) returns Str { return self.text }
+    to_i64 := func(self: LiteralNumData) returns shallow I64 { return self.text.to_i64() }
+    to_u8 := func(self: LiteralNumData) returns shallow U8 { return self.text.to_u8() }
+    to_i32 := func(self: LiteralNumData) returns shallow I32 { return self.text.to_i32() }
+    to_u32 := func(self: LiteralNumData) returns shallow U32 { return self.text.to_u32() }
+    to_u64 := func(self: LiteralNumData) returns shallow U64 { return self.text.to_u64() }
+    to_usize := func(self: LiteralNumData) returns shallow USize { return self.text.to_usize() }
+    to_f32 := func(self: LiteralNumData) returns shallow F32 { return self.text.to_f32() }
+}
+
+IdentData := struct {
+    mut name := ""
+    mut til_type := Type.Unknown
+namespace:
+    eq := func(a: IdentData, b: IdentData) returns Bool { return a.name.eq(b.name) }
+    to_str := func(self: IdentData) returns Str { return self.name }
+    len := func(self: IdentData) returns shallow U32 { return self.name.len() }
+    is_empty := func(self: IdentData) returns shallow Bool { return self.name.is_empty() }
+    starts_with := func(self: IdentData, prefix: Str) returns shallow Bool { return self.name.starts_with(prefix) }
+    ends_with := func(self: IdentData, suffix: Str) returns shallow Bool { return self.name.ends_with(suffix) }
+    concat := func(self: IdentData, tail: Str) returns Str { return self.name.concat(tail) }
+    replace := func(self: IdentData, old: Str, new: Str) returns Str { return self.name.replace(old, new) }
+    strip_suffix := func(self: IdentData, suffix: Str) returns Str { return self.name.strip_suffix(suffix) }
+    byte_at := func(self: IdentData, i: U32) returns ref I8 { return self.name.byte_at(i) }
+    get := func(self: IdentData, i: U32) returns ref I8 { return self.name.get(i) }
+}
+
+FieldAccessData := struct {
+    mut name := ""
+    mut til_type := Type.Unknown
+namespace:
+    eq := func(a: FieldAccessData, b: FieldAccessData) returns Bool { return a.name.eq(b.name) }
+    to_str := func(self: FieldAccessData) returns Str { return self.name }
+    len := func(self: FieldAccessData) returns shallow U32 { return self.name.len() }
+    is_empty := func(self: FieldAccessData) returns shallow Bool { return self.name.is_empty() }
+    starts_with := func(self: FieldAccessData, prefix: Str) returns shallow Bool { return self.name.starts_with(prefix) }
+    concat := func(self: FieldAccessData, tail: Str) returns Str { return self.name.concat(tail) }
+    replace := func(self: FieldAccessData, old: Str, new: Str) returns Str { return self.name.replace(old, new) }
+}
+
+literal_num_text := func(n: LiteralNumData) returns Str { return n.text.clone() }
+ident_name := func(id: IdentData) returns Str { return id.name.clone() }
+field_access_name := func(fa: FieldAccessData) returns Str { return fa.name.clone() }
+
 set_own_arg := func(mut fcall: Expr, shallow arg_index: USize) {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
@@ -333,6 +382,7 @@ namespace:
 ForInData := struct {
     mut name := ""
     mut is_mut := false
+    mut til_type := Type.Unknown
 namespace:
     eq := func(a: ForInData, b: ForInData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: ForInData) returns Str { return self.name }
@@ -342,17 +392,17 @@ namespace:
 NodeType := enum {
     Body,
     LiteralStr: Str,
-    LiteralNum: Str,
+    LiteralNum: LiteralNumData,
     LiteralBool: Bool,
     LiteralNull,
-    Ident: Str,
+    Ident: IdentData,
     Decl: Declaration,
     Assign: AssignData,
     FCall: FCallData,
     FuncDef: FunctionDef,
     StructDef: StructDef,
     EnumDef: EnumDef,
-    FieldAccess: Str,
+    FieldAccess: FieldAccessData,
     FieldAssign: Str,
     Return,
     If,
@@ -386,7 +436,6 @@ NodeType := enum {
 /// AST expression node with line/col, type, children, and node-specific payload.
 Expr := struct {
     mut node_type := NodeType.Body
-    mut til_type := Type.Unknown
     mut children := Vec.new(Expr)
     mut line : U32 = 0
     mut col : U32 = 0
@@ -463,57 +512,87 @@ namespace:
     }
 }
 
-// #147 step 11 / #206: single chokepoint for Expr.til_type reads. The
-// cached field is still authoritative for most NodeType variants;
-// however, five are derived directly from node_type because their
-// type is deterministic at parse time and ~narrow_dynamic~
-// short-circuits on ~is(Type.Dynamic).not()~ so the typer never
-// mutates them post-write:
-//
-//   ~LiteralStr~  -> Type.Struct("Str")
-//   ~LiteralBool~ -> Type.Bool
-//   ~MapLit~      -> Type.Struct("Map")
-//   ~SetLit~      -> Type.Struct("Set")
-//   ~NamedArg~    -> propagates the type of its sole child
-//
-// Other variants (Ident, FCall, FieldAccess, LiteralNum, LiteralNull,
-// ...) still read from the cached field. The clone is intentional:
-// callers store the result in a `:=` local or pass it on to a helper
-// that takes Type by value, and either path drops the returned Type
-// at end-of-statement. Without the clone the inner Str of named
-// variants (Struct/Enum/Custom) would alias ~e.til_type~'s buffer
-// and the drop would double-free.
+ident_node := func(name: Str) returns NodeType {
+    return NodeType.Ident(IdentData(name = name.clone()))
+}
+
+literal_num_node := func(text: Str) returns NodeType {
+    return NodeType.LiteralNum(LiteralNumData(text = text.clone()))
+}
+
+field_access_node := func(name: Str) returns NodeType {
+    return NodeType.FieldAccess(FieldAccessData(name = name.clone()))
+}
+
 expr_til_type := func(e: Expr) returns Type {
     switch e.node_type {
+    case NodeType.Body:        return Type.None
     case NodeType.LiteralStr:  return Type.Struct("Str")
+    case NodeType.LiteralNum(nd):
+        if nd.til_type.is(Type.Unknown) { return Type.I64 }
+        return nd.til_type.clone()
     case NodeType.LiteralBool: return Type.Bool
+    case NodeType.LiteralNull: return Type.Dynamic
+    case NodeType.Ident(id):   return id.til_type.clone()
+    case NodeType.Decl(dd):    return dd.til_type.clone()
+    case NodeType.Assign:
+        if e.children.len().eq(0) { return Type.Unknown }
+        return expr_til_type(e.child(0))
     case NodeType.MapLit:      return Type.Struct("Map")
     case NodeType.SetLit:      return Type.Struct("Set")
     case NodeType.NamedArg:
         if e.children.len().eq(0) { return Type.Unknown }
         return expr_til_type(e.child(0))
-    case NodeType.FCall(fcd):
-        // Fall back to the legacy Expr.til_type field when the
-        // payload slot is still unset, so writers can migrate
-        // incrementally without breaking the build halfway.
-        if fcd.til_type.is(Type.Unknown).not() { return fcd.til_type.clone() }
-    case:
+    case NodeType.FCall(fcd):  return fcd.til_type.clone()
+    case NodeType.FuncDef:     return Type.FuncPtr
+    case NodeType.StructDef:   return Type.Struct("StructDef")
+    case NodeType.EnumDef:     return Type.Struct("EnumDef")
+    case NodeType.FieldAccess(fd): return fd.til_type.clone()
+    case NodeType.FieldAssign: return Type.None
+    case NodeType.Return:
+        if e.children.len().eq(0) { return Type.None }
+        return expr_til_type(e.child(0))
+    case NodeType.If:          return Type.None
+    case NodeType.While:       return Type.None
+    case NodeType.ForIn(fd):   return fd.til_type.clone()
+    case NodeType.Break:       return Type.None
+    case NodeType.Continue:    return Type.None
+    case NodeType.Switch:      return Type.None
+    case NodeType.Case:        return Type.None
+    case NodeType.NoDefaultArg:return Type.Unknown
+    case NodeType.Throw:
+        if e.children.len().eq(0) { return Type.None }
+        return expr_til_type(e.child(0))
+    case NodeType.Catch:       return Type.None
+    case NodeType.RestPattern: return Type.Unknown
     }
-    return e.til_type.clone()
+    return Type.Unknown
 }
 
-// Issue #206 slice 3: write helper paired with expr_til_type's
-// FCall dispatch. Call sites that previously did
-// ~<fcall_expr>.til_type = X~ now go through this so the FCallData
-// payload gets the value the chokepoint reads back. ~func~ (not
-// ~proc~) so existing ~make_*_call~ funcs can keep their func-ness.
-set_fcall_til_type := func(mut fcall: Expr, shallow t: Type) {
-    switch fcall.node_type {
+set_expr_til_type := func(mut e: Expr, shallow t: Type) {
+    switch e.node_type {
+    case NodeType.LiteralNum(nd):
+        nd.til_type = t
+    case NodeType.Ident(id):
+        id.til_type = t
+    case NodeType.Decl(dd):
+        dd.til_type = t
     case NodeType.FCall(fcd):
         fcd.til_type = t
+    case NodeType.FieldAccess(fd):
+        fd.til_type = t
+    case NodeType.ForIn(fd):
+        fd.til_type = t
+    case NodeType.Throw:
+        if e.children.len().gt(0) {
+            set_expr_til_type(e.child(0), t)
+        }
     case:
-        UNREACHABLE(__LOC__)
     }
+}
+
+set_fcall_til_type := func(mut fcall: Expr, shallow t: Type) {
+    set_expr_til_type(fcall, t)
 }
 
 // --- func_type_variant_name ---
@@ -544,12 +623,12 @@ node_head_str := func(data: NodeType) returns Str {
     switch data {
     case NodeType.Body:           return "Body"
     case NodeType.LiteralStr(s):  return format("LiteralStr \"", s, "\"")
-    case NodeType.LiteralNum(s):  return format("LiteralNum ", s)
+    case NodeType.LiteralNum(s):  return format("LiteralNum ", literal_num_text(s))
     case NodeType.LiteralBool(b):
         if b { return "LiteralBool true" }
         return "LiteralBool false"
     case NodeType.LiteralNull:    return "LiteralNull"
-    case NodeType.Ident(s):       return format("Ident ", s)
+    case NodeType.Ident(s):       return format("Ident ", ident_name(s))
     case NodeType.Decl(d):
         if d.is_mut { return format("Decl mut ", d.name) }
         return format("Decl ", d.name)
@@ -558,7 +637,7 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.FuncDef(f):     return format("FuncDef ", func_type_variant_name(f.func_type))
     case NodeType.StructDef:      return "StructDef"
     case NodeType.EnumDef:        return "EnumDef"
-    case NodeType.FieldAccess(s): return format("FieldAccess ", s)
+    case NodeType.FieldAccess(s): return format("FieldAccess ", field_access_name(s))
     case NodeType.FieldAssign(s): return format("FieldAssign ", s)
     case NodeType.Return:         return "Return"
     case NodeType.If:             return "If"
@@ -659,9 +738,9 @@ ast_print := proc(e: Expr, shallow indent: U32) {
         print(":", til_type_name_c(et))
     }
     switch e.node_type {
-    case NodeType.Ident(s):      print(" \"", s, "\"")
+    case NodeType.Ident(s):      print(" \"", ident_name(s), "\"")
     case NodeType.LiteralStr(s): print(" \"", s, "\"")
-    case NodeType.LiteralNum(s): print(" \"", s, "\"")
+    case NodeType.LiteralNum(s): print(" \"", literal_num_text(s), "\"")
     case NodeType.LiteralBool(b): if b { print(" true") } else { print(" false") }
     case NodeType.ForIn(fi):
         if fi.is_mut { print(" mut") }

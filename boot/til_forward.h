@@ -50,6 +50,9 @@ typedef struct OwnType OwnType;
 typedef struct Declaration Declaration;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
+typedef struct LiteralNumData LiteralNumData;
+typedef struct IdentData IdentData;
+typedef struct FieldAccessData FieldAccessData;
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
 typedef struct AssignData AssignData;
@@ -319,6 +322,24 @@ typedef struct FCallData {
 } FCallData;
 
 
+typedef struct LiteralNumData {
+    Str text;
+    Type til_type;
+} LiteralNumData;
+
+
+typedef struct IdentData {
+    Str name;
+    Type til_type;
+} IdentData;
+
+
+typedef struct FieldAccessData {
+    Str name;
+    Type til_type;
+} FieldAccessData;
+
+
 typedef struct AssignData {
     Str name;
     Bool save_old_delete;
@@ -328,6 +349,7 @@ typedef struct AssignData {
 typedef struct ForInData {
     Str name;
     Bool is_mut;
+    Type til_type;
 } ForInData;
 
 
@@ -657,16 +679,16 @@ struct NodeType {
     NodeType_tag tag;
     union {
         Str LiteralStr;
-        Str LiteralNum;
+        LiteralNumData LiteralNum;
         Bool LiteralBool;
-        Str Ident;
+        IdentData Ident;
         Declaration Decl;
         AssignData Assign;
         FCallData FCall;
         FunctionDef FuncDef;
         StructDef StructDef;
         EnumDef EnumDef;
-        Str FieldAccess;
+        FieldAccessData FieldAccess;
         Str FieldAssign;
         ForInData ForIn;
         Str NamedArg;
@@ -675,7 +697,6 @@ struct NodeType {
 
 typedef struct Expr {
     NodeType node_type;
-    Type til_type;
     Vec children;
     U32 line;
     U32 col;
@@ -945,6 +966,28 @@ U32 FunctionDef_size(void);
 FCallData * FCallData_clone(FCallData * self);
 void FCallData_delete(FCallData * self, Bool * call_free);
 U32 FCallData_size(void);
+I64 LiteralNumData_to_i64(LiteralNumData * self);
+U8 LiteralNumData_to_u8(LiteralNumData * self);
+U64 LiteralNumData_to_u64(LiteralNumData * self);
+F32 LiteralNumData_to_f32(LiteralNumData * self);
+LiteralNumData * LiteralNumData_clone(LiteralNumData * self);
+void LiteralNumData_delete(LiteralNumData * self, Bool * call_free);
+U32 LiteralNumData_size(void);
+U32 IdentData_len(IdentData * self);
+Bool IdentData_starts_with(IdentData * self, Str * prefix);
+Str * IdentData_concat(IdentData * self, Str * tail);
+I8 * IdentData_byte_at(IdentData * self, U32 * i);
+I8 * IdentData_get(IdentData * self, U32 * i);
+IdentData * IdentData_clone(IdentData * self);
+void IdentData_delete(IdentData * self, Bool * call_free);
+U32 IdentData_size(void);
+Bool FieldAccessData_starts_with(FieldAccessData * self, Str * prefix);
+FieldAccessData * FieldAccessData_clone(FieldAccessData * self);
+void FieldAccessData_delete(FieldAccessData * self, Bool * call_free);
+U32 FieldAccessData_size(void);
+Str * literal_num_text(LiteralNumData * n);
+Str * ident_name(IdentData * id);
+Str * field_access_name(FieldAccessData * fa);
 void set_own_arg(Expr * fcall, U32 arg_index);
 Bool get_own_arg(Expr * fcall, U32 arg_index);
 StructDef * StructDef_clone(StructDef * self);
@@ -973,7 +1016,11 @@ Str * Expr_to_str(Expr * self);
 Expr * Expr_clone(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);
 U32 Expr_size(void);
+NodeType * ident_node(Str * name);
+NodeType * literal_num_node(Str * text);
+NodeType * field_access_node(Str * name);
 Type * expr_til_type(Expr * e);
+void set_expr_til_type(Expr * e, Type t);
 Str * func_type_variant_name(FuncType * ft);
 Str * node_head_str(NodeType * data);
 Str * expr_to_str_indent(Expr * self, U32 indent);
@@ -1260,6 +1307,11 @@ Expr * make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, 
 Bool desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Bool desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Str * priv___src_self_typer_til__guess_local_type(Expr * e, Str * var_name);
+Str * priv___src_self_typer_til__guess_prior_local_type_in_vec(Vec * stmts, U32 upto, Str * var_name);
+void priv___src_self_typer_til__collect_throw_ident_names(Expr * e, Set * names);
+void priv___src_self_typer_til__annotate_throw_ident_expr_types(Expr * e, Expr * root_body);
+Bool priv___src_self_typer_til__subtree_has_throw_type(Expr * e, Expr * root_body, Str * type_name);
+Bool priv___src_self_typer_til__has_prior_throw_type_in_vec(Vec * stmts, Expr * root_body, U32 upto, Str * type_name);
 Str * priv___src_self_typer_til__throw_type_name_for_with_body(Expr * e, Expr * body);
 Bool priv___src_self_typer_til__subtree_has_throw_catch(Expr * e);
 Bool priv___src_self_typer_til__subtree_has_bang(Expr * e);
@@ -1288,7 +1340,7 @@ void priv___src_self_typer_til__validate_and_inject_expr_consolidated(Context * 
 Expr * priv___src_self_typer_til__build_bang_lowered(Context * ctx, Str * error_type, U32 line, U32 col);
 void priv___src_self_typer_til__hoist_walk_consolidated(Context * ctx, Expr * parent, U32 * child_idx, Vec * pre_stmts, Vec * types_to_declare, Vec * seen);
 void priv___src_self_typer_til__hoist_nested_bangs_consolidated(Context * ctx, Expr * stmt, Vec * pre_stmts, Vec * types_to_declare, Vec * seen);
-void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Vec * fdef_throws, Vec * pending, Vec * seen, Vec * types_to_declare, Str * path);
+void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec * fdef_throws, Vec * pending, Vec * seen, Vec * types_to_declare, Str * path);
 void process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec * fdef_throws, Str * return_type);
 Bool is_compile_directive(Expr * e);
 void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
@@ -2015,6 +2067,7 @@ extern I32 errors;
 extern Str current_type_name;
 extern Str current_top_func_name;
 extern I32 auto_gen_depth;
+extern Set throw_used_local_names;
 extern Str I64Name;
 extern Str U8Name;
 extern Str I8Name;

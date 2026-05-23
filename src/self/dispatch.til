@@ -404,7 +404,7 @@ h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     method_val := eval_expr(s, e.child(2))
     type_name := str_view(type_name_val)
     method := str_view(method_val)
-    r = val_bool(is_null(ns_get(type_name, method)).not())
+    r = val_bool(is_null(ns_get(type_name.clone(), method.clone())).not())
     return true
 }
 
@@ -413,7 +413,7 @@ h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     method_val := eval_expr(s, e.child(2))
     type_name := str_view(type_name_val)
     method := str_view(method_val)
-    ref nsv : Value = ns_get(type_name, method)
+    ref nsv : Value = ns_get(type_name.clone(), method.clone())
     if is_null(nsv) {
         panic(__LOC__, "dyn_fn: unknown ", type_name, ".", method)
     }
@@ -657,7 +657,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
 h_free := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     switch e.child(1).node_type {
     case NodeType.Ident(ident):
-        ref cell : Cell = scope_get(s, ident)
+        ref cell : Cell = scope_get(s, ident_name(ident))
         free_value(cell.val)
         memcpy(cell.val, val_none(), Value.size())
     case:
@@ -767,10 +767,10 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     method := str_view(method_val)
 
     // Build fake AST: Type.method(args...)
-    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), e.line, e.col)
-    type_ident.til_type = Type.Struct(type_name.clone())
+    mut type_ident := Expr.new(ident_node(type_name.clone()), e.line, e.col)
+    set_expr_til_type(type_ident, Type.Struct(type_name.clone()))
 
-    mut field_access := Expr.new(NodeType.FieldAccess(method.clone()), e.line, e.col)
+    mut field_access := Expr.new(field_access_node(method.clone()), e.line, e.col)
     field_access.add_child(own type_ident)
     // Critical: NodeType.FCall must have an initialized FCallData payload.
     mut fake_call := Expr.new(NodeType.FCall(FCallData()), e.line, e.col)
@@ -780,8 +780,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     ref arity_expr : Expr = e.child(3)
     mut nargs : U32 = 0.to_u32()
     switch arity_expr.node_type {
-    case NodeType.LiteralNum(arity_str):
-        nargs = arity_str.to_u32()
+    case NodeType.LiteralNum(arity_str): nargs = literal_num_text(arity_str).to_u32()
     case:
         UNREACHABLE(__LOC__)
     }
@@ -800,10 +799,10 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
         exit(1)
     }
     // Build fake call: Type.size()
-    mut type_ident := Expr.new(NodeType.Ident(type_name.clone()), src.line, src.col)
-    type_ident.til_type = Type.Struct(type_name.clone())
+    mut type_ident := Expr.new(ident_node(type_name.clone()), src.line, src.col)
+    set_expr_til_type(type_ident, Type.Struct(type_name.clone()))
 
-    mut field_access := Expr.new(NodeType.FieldAccess("size"), src.line, src.col)
+    mut field_access := Expr.new(field_access_node("size"), src.line, src.col)
     field_access.add_child(own type_ident)
 
     // Critical: NodeType.FCall must have an initialized FCallData payload.
@@ -816,7 +815,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
 
 enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value) returns shallow Bool {
     if enum_has_payloads(enum_def) {
-        ctor_tag := enum_variant_tag(enum_def, method)
+        ctor_tag := enum_variant_tag(enum_def, method.clone())
         if ctor_tag.to_i64().gte(0) {
             vtype := enum_variant_type(enum_def, ctor_tag)
             has_payload := vtype.len().gt(0)

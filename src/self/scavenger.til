@@ -12,7 +12,7 @@ priv scav_fa_is_ns := func(e: Expr) returns shallow Bool {
             return true
         }
         // Also check: if ident name matches struct_name, it's a type reference
-        if obj_type_name.len().gt(0).and(obj_type_name.eq(id)) { return true }
+        if obj_type_name.len().gt(0).and(obj_type_name.eq(ident_name(id))) { return true }
     case:
     }
     return false
@@ -71,7 +71,7 @@ collect_refs := func(e: Expr, mut refs: Vec) {
 
     switch e.node_type {
     case NodeType.Ident(ident):
-        vec_push_str(refs, ident)
+        vec_push_str(refs, ident_name(ident))
     case NodeType.FCall:
         // Check for namespace method call: Type.method(args...)
         if e.children.len().gt(0) {
@@ -82,8 +82,8 @@ collect_refs := func(e: Expr, mut refs: Vec) {
                     case NodeType.Ident(type_name):
                         switch fa.node_type {
                         case NodeType.FieldAccess(method):
-                            vec_push_str(refs, type_name)
-                            push_qn(refs, type_name, method)
+                            vec_push_str(refs, ident_name(type_name))
+                            push_qn(refs, ident_name(type_name), field_access_name(method))
                         case:
                             UNREACHABLE(__LOC__)
                             return
@@ -105,9 +105,9 @@ collect_refs := func(e: Expr, mut refs: Vec) {
             if e.child(0).node_type.is(NodeType.Ident) {
                 switch e.child(0).node_type {
                 case NodeType.Ident(cn):
-                    if cn.eq("array") {
+                    if ident_name(cn).eq("array") {
                         push_builtin_methods(refs, "Array", "new", "set", "delete")
-                    } else if cn.eq("vec") {
+                    } else if ident_name(cn).eq("vec") {
                         push_builtin_methods(refs, "Vec", "new", "push", "delete")
                     }
                 case:
@@ -135,8 +135,8 @@ collect_refs := func(e: Expr, mut refs: Vec) {
             if e.child(0).node_type.is(NodeType.Ident) {
                 switch e.child(0).node_type {
                 case NodeType.Ident(type_name):
-                    vec_push_str(refs, type_name)
-                    push_qn(refs, type_name, field_name)
+                    vec_push_str(refs, ident_name(type_name))
+                    push_qn(refs, ident_name(type_name), field_access_name(field_name))
                 case:
                     UNREACHABLE(__LOC__)
                 }
@@ -147,8 +147,8 @@ collect_refs := func(e: Expr, mut refs: Vec) {
             if e.child(0).node_type.is(NodeType.Ident) {
                 switch e.child(0).node_type {
                 case NodeType.Ident(type_name):
-                    vec_push_str(refs, type_name)
-                    push_qn(refs, type_name, field_name)
+                    vec_push_str(refs, ident_name(type_name))
+                    push_qn(refs, ident_name(type_name), field_name)
                 case:
                     UNREACHABLE(__LOC__)
                 }
@@ -256,8 +256,7 @@ priv dyn_call_real_arg_count := func(e: Expr) returns shallow USize {
     ref callee : Expr = e.child(0)
     mut is_dc := false
     switch callee.node_type {
-    case NodeType.Ident(cn):
-        is_dc = cn.eq("dyn_call").or(cn.eq("dyn_call_ret"))
+    case NodeType.Ident(cn): is_dc = ident_name(cn).eq("dyn_call").or(ident_name(cn).eq("dyn_call_ret"))
     case:
     }
     if is_dc.not() { return e.children.len() }
@@ -265,7 +264,7 @@ priv dyn_call_real_arg_count := func(e: Expr) returns shallow USize {
     mut nargs : USize = 0
     switch nargs_e.node_type {
     case NodeType.LiteralNum(s):
-        nargs = s.to_usize()
+        nargs = literal_num_text(s).to_usize()
     case:
         return e.children.len()
     }
@@ -282,7 +281,7 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set, candidates: Set) {
     if is_null(e) { return }
     switch e.node_type {
     case NodeType.Ident(name):
-        refs.add(own name.clone())
+        refs.add(own ident_name(name))
     case NodeType.Assign(adata):
         refs.add(own adata.name.clone())
     case:
@@ -324,7 +323,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
     mut method := ""
     switch callee.node_type {
-    case NodeType.FieldAccess(m): method = m.clone()
+    case NodeType.FieldAccess(m): method = field_access_name(m)
     case:
     }
     if method.eq("delete").not() { return "" }
@@ -343,7 +342,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     if bv { return "" }
     mut tn := ""
     switch arg0.node_type {
-    case NodeType.Ident(n): tn = n.clone()
+    case NodeType.Ident(n): tn = ident_name(n)
     case:
     }
     return tn
@@ -541,7 +540,7 @@ priv match_named_delete := func(stmt: Expr, name: Str) returns shallow Bool {
     if callee.node_type.is(NodeType.FieldAccess).not() { return false }
     mut method_eq := false
     switch callee.node_type {
-    case NodeType.FieldAccess(m): method_eq = m.eq("delete")
+    case NodeType.FieldAccess(m): method_eq = field_access_name(m).eq("delete")
     case:
     }
     if method_eq.not() { return false }
@@ -551,7 +550,7 @@ priv match_named_delete := func(stmt: Expr, name: Str) returns shallow Bool {
     if arg0.node_type.is(NodeType.Ident).not() { return false }
     mut name_eq := false
     switch arg0.node_type {
-    case NodeType.Ident(n): name_eq = n.eq(name)
+    case NodeType.Ident(n): name_eq = ident_name(n).eq(name)
     case:
     }
     if name_eq.not() { return false }

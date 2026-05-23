@@ -38,7 +38,7 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow B
             if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
                 switch d.child(0).node_type {
                 case NodeType.Ident(_di):
-                    if _di.eq(name) {
+                    if ident_name(_di).eq(name) {
                         if expr_uses_var(expr, dd.name) { return true }
                     }
                 case:
@@ -187,7 +187,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
             }
             mut holder_name := ""
             switch target.node_type {
-            case NodeType.Ident(_hn): holder_name = _hn.clone()
+            case NodeType.Ident(_hn): holder_name = ident_name(_hn)
             case:
             }
             if holder_name.len().eq(0) { continue }
@@ -196,7 +196,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
             ref mut value : Expr = stmt.child(1)
             mut src_name := ""
             switch value.node_type {
-            case NodeType.Ident(_sn): src_name = _sn.clone()
+            case NodeType.Ident(_sn): src_name = ident_name(_sn)
             case:
             }
             if src_name.len().eq(0) { continue }
@@ -243,7 +243,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
             switch rhs.node_type {
             case NodeType.Ident(src_name):
                 for local : LocalInfo in locals {
-                    if local.name.eq(src_name).and(local.last_use.lt(ref_last)) {
+                    if local.name.eq(ident_name(src_name)).and(local.last_use.lt(ref_last)) {
                         local.last_use = ref_last
                         ref_changed = true
                     }
@@ -259,7 +259,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
                 switch root.node_type {
                 case NodeType.Ident(src_name):
                     for local : LocalInfo in locals {
-                        if local.name.eq(src_name).and(local.last_use.lt(ref_last)) {
+                        if local.name.eq(ident_name(src_name)).and(local.last_use.lt(ref_last)) {
                             local.last_use = ref_last
                             ref_changed = true
                         }
@@ -277,7 +277,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
                 switch arg.node_type {
                 case NodeType.Ident(aname):
                     for local : LocalInfo in locals {
-                        if local.name.eq(aname).and(local.last_use.lt(ref_last)) {
+                        if local.name.eq(ident_name(aname)).and(local.last_use.lt(ref_last)) {
                             local.last_use = ref_last
                             ref_changed = true
                         }
@@ -473,9 +473,9 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
                         ref _clone_arg : Expr = _fa_rhs.child(1)
                         switch _clone_arg.node_type {
                         case NodeType.Ident(_clone_arg_name):
-                            if _clone_arg_name.eq(local.name) {
-                                mut _bare := Expr.new(NodeType.Ident(local.name.clone()), _fa_rhs.line, _fa_rhs.col)
-                                _bare.til_type = local.type.clone()
+                            if ident_name(_clone_arg_name).eq(local.name) {
+                                mut _bare := Expr.new(ident_node(local.name.clone()), _fa_rhs.line, _fa_rhs.col)
+                                set_expr_til_type(_bare, local.type.clone())
                                 free_expr_slot_in_place(stmt.children.get(1))
                                 stmt.children.set(1, own _bare)
                                 free_call := make_free_call(local.name, local.type, stmt)
@@ -515,7 +515,7 @@ insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
                 ref rhs : Expr = stmt.child(0)
                 if expr_uses_var(rhs, vname) {
                     ad.save_old_delete = true
-                    stmt.til_type = local.type.clone()
+                    set_expr_til_type(stmt, local.type.clone())
                 } else {
                     if type_to_name(local.type).len().gt(0) {
                         heap := local.is_heap
@@ -567,7 +567,7 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals:
                     if last_stmt.children.len().gt(0) {
                         switch last_stmt.child(0).node_type {
                         case NodeType.Ident(rname):
-                            if rname.eq(local.name) { continue }
+                            if ident_name(rname).eq(local.name) { continue }
                         case:
                         }
                     }
@@ -659,4 +659,3 @@ asap_destroy := proc(mut ctx: Context) {
     ctx.typer_in_main_func = saved_in_main
     ctx.typer_in_shallow_return = saved_in_shallow
 }
-

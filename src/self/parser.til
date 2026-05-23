@@ -594,7 +594,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
     mut call := Expr.new(NodeType.FCall(FCallData()), call_line, call_col)
 
     // first child is the callee identifier
-    mut callee := Expr.new(NodeType.Ident(name.clone()), call_line, call_col)
+    mut callee := Expr.new(ident_node(name.clone()), call_line, call_col)
     call.add_child(own callee)
 
     // parse arguments
@@ -679,7 +679,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
 
 // make_binop_call: helper to desugar a OP b -> a.method(b)
 make_binop_call := func(lhs: Expr, method: Str, shallow op_line: U32, shallow op_col: U32, rhs: Expr) returns Expr {
-    mut callee := Expr.new(NodeType.FieldAccess(method), op_line, op_col)
+    mut callee := Expr.new(field_access_node(method), op_line, op_col)
     Expr.add_child(callee, own lhs.clone())
     mut call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
     Expr.add_child(call, own callee)
@@ -702,7 +702,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
     }
     if e_set.not().and(t.type.is(TokenType.Number)) {
         advance(p)
-        e = Expr.new(NodeType.LiteralNum(t.text.clone()), t_line, t_col)
+        e = Expr.new(literal_num_node(t.text.clone()), t_line, t_col)
         e_set = true
     }
     // Unary minus: -N (literal) desugars to 0.sub(N), -expr desugars to expr.neg()
@@ -712,19 +712,19 @@ parse_primary := proc(mut p: Parser) returns Expr {
             if next_tok.type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
-                mut zero := Expr.new(NodeType.LiteralNum("0"), t_line, t_col)
-                mut sub_access := Expr.new(NodeType.FieldAccess("sub"), t_line, t_col)
+                mut zero := Expr.new(literal_num_node("0"), t_line, t_col)
+                mut sub_access := Expr.new(field_access_node("sub"), t_line, t_col)
                 sub_access.add_child(own zero)
                 mut sub_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
                 sub_call.add_child(own sub_access)
-                mut num_arg := Expr.new(NodeType.LiteralNum(num_tok.text.clone()), t_line, t_col)
+                mut num_arg := Expr.new(literal_num_node(num_tok.text.clone()), t_line, t_col)
                 sub_call.add_child(own num_arg)
                 e = sub_call
                 e_set = true
             } else {
                 advance(p) // consume '-'
                 mut operand := parse_primary(p)
-                mut neg_access := Expr.new(NodeType.FieldAccess("neg"), t_line, t_col)
+                mut neg_access := Expr.new(field_access_node("neg"), t_line, t_col)
                 neg_access.add_child(own operand)
                 mut neg_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
                 neg_call.add_child(own neg_access)
@@ -752,8 +752,8 @@ parse_primary := proc(mut p: Parser) returns Expr {
         } else {
             if ch.len().gt(0) { byte_val = ch.get(0).to_i64() }
         }
-        e = Expr.new(NodeType.LiteralNum(byte_val.to_str()), t_line, t_col)
-        e.til_type = Type.Struct("U8")
+        e = Expr.new(literal_num_node(byte_val.to_str()), t_line, t_col)
+        set_expr_til_type(e, Type.Struct("U8"))
         e_set = true
     }
     if e_set.not().and(t.type.is(TokenType.KwTrue).or(t.type.is(TokenType.KwFalse))) {
@@ -777,16 +777,16 @@ parse_primary := proc(mut p: Parser) returns Expr {
             e = Expr.new(NodeType.LiteralStr(p.path.clone()), t_line, t_col)
             e_set = true
         } else if name.eq("__LINE__") {
-            e = Expr.new(NodeType.LiteralNum(t_line.to_str()), t_line, t_col)
+            e = Expr.new(literal_num_node(t_line.to_str()), t_line, t_col)
             e_set = true
         } else if name.eq("__COL__") {
-            e = Expr.new(NodeType.LiteralNum(t_col.to_str()), t_line, t_col)
+            e = Expr.new(literal_num_node(t_col.to_str()), t_line, t_col)
             e_set = true
         } else if check(p, TokenType.LParen) {
             e = parse_call(p, name, t_line, t_col)
             e_set = true
         } else {
-            e = Expr.new(NodeType.Ident(name), t_line, t_col)
+            e = Expr.new(ident_node(name), t_line, t_col)
             e_set = true
         }
     }
@@ -864,7 +864,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.LParen) {
             // Method call: e.method(args)
             advance(p) // consume '('
-            mut callee := Expr.new(NodeType.FieldAccess(fname), f_line, f_col)
+            mut callee := Expr.new(field_access_node(fname), f_line, f_col)
             callee.add_child(own e.clone())
             mut mcall := Expr.new(NodeType.FCall(FCallData()), f_line, f_col)
             mcall.add_child(own callee)
@@ -916,7 +916,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             }
             e = mcall
         } else {
-            mut access := Expr.new(NodeType.FieldAccess(fname), f_line, f_col)
+            mut access := Expr.new(field_access_node(fname), f_line, f_col)
             access.add_child(own e.clone())
             e = access
         }
@@ -926,7 +926,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         pp_line := peek_line(p)
         pp_col := peek_col(p)
         advance(p)
-        mut inc_access := Expr.new(NodeType.FieldAccess("inc"), pp_line, pp_col)
+        mut inc_access := Expr.new(field_access_node("inc"), pp_line, pp_col)
         inc_access.add_child(own e.clone())
         mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col)
         inc_call.add_child(own inc_access)
@@ -936,7 +936,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         mm_line := peek_line(p)
         mm_col := peek_col(p)
         advance(p)
-        mut dec_access := Expr.new(NodeType.FieldAccess("dec"), mm_line, mm_col)
+        mut dec_access := Expr.new(field_access_node("dec"), mm_line, mm_col)
         dec_access.add_child(own e.clone())
         mut dec_call := Expr.new(NodeType.FCall(FCallData()), mm_line, mm_col)
         dec_call.add_child(own dec_access)
@@ -1045,8 +1045,8 @@ parse_expression := proc(mut p: Parser) returns Expr {
         dt_col := peek_col(p)
         advance(p)
         mut rhs := parse_expression(p)
-        mut range_ident := Expr.new(NodeType.Ident("Range"), dt_line, dt_col)
-        mut new_access := Expr.new(NodeType.FieldAccess("new"), dt_line, dt_col)
+        mut range_ident := Expr.new(ident_node("Range"), dt_line, dt_col)
+        mut new_access := Expr.new(field_access_node("new"), dt_line, dt_col)
         new_access.add_child(own range_ident)
         mut rcall := Expr.new(NodeType.FCall(FCallData()), dt_line, dt_col)
         rcall.add_child(own new_access)
@@ -1175,7 +1175,6 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 // Wrap in NODE_DECL with explicit_type
                 mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), til_type = til_type_from_explicit_type(type_name), is_mut = is_mut, own_type = own_type)
                 mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
-                decl.til_type = til_type_from_explicit_type(dd.explicit_type)
                 decl.add_child(own fdef)
                 return decl
             }
@@ -1183,14 +1182,13 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
 
         mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), til_type = til_type_from_explicit_type(type_name), is_mut = is_mut, own_type = own_type)
         mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
-        decl.til_type = til_type_from_explicit_type(dd.explicit_type)
         decl.add_child(own parse_expression(p))
         return decl
     }
 
     // Field access/assign or method call: name.field...
     if check(p, TokenType.Dot) {
-        mut obj := Expr.new(NodeType.Ident(name.clone()), t_line, t_col)
+        mut obj := Expr.new(ident_node(name.clone()), t_line, t_col)
         mut last_field := ""
         mut last_line : U32 = 0
         mut last_col : U32 = 0
@@ -1201,7 +1199,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             last_field = expect_text(p, TokenType.Ident)
             if check(p, TokenType.Dot) {
                 // More dots — intermediate access
-                mut access := Expr.new(NodeType.FieldAccess(last_field.clone()), last_line, last_col)
+                mut access := Expr.new(field_access_node(last_field.clone()), last_line, last_col)
                 access.add_child(own obj.clone())
                 obj = access
             }
@@ -1209,7 +1207,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
         // Method call: name.method(args)
         if check(p, TokenType.LParen) {
             advance(p) // consume '('
-            mut callee := Expr.new(NodeType.FieldAccess(last_field), last_line, last_col)
+            mut callee := Expr.new(field_access_node(last_field), last_line, last_col)
             callee.add_child(own obj.clone())
             mut mcall := Expr.new(NodeType.FCall(FCallData()), last_line, last_col)
             mcall.add_child(own callee)
@@ -1249,9 +1247,9 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             advance(p)
             mut method2 := "dec"
             if is_inc2 { method2 = "inc" }
-            mut facc := Expr.new(NodeType.FieldAccess(last_field), last_line, last_col)
+            mut facc := Expr.new(field_access_node(last_field), last_line, last_col)
             facc.add_child(own obj.clone())
-            mut inc_acc := Expr.new(NodeType.FieldAccess(method2.clone()), pp2_line, pp2_col)
+            mut inc_acc := Expr.new(field_access_node(method2.clone()), pp2_line, pp2_col)
             inc_acc.add_child(own facc)
             mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp2_line, pp2_col)
             inc_call.add_child(own inc_acc)
@@ -1286,8 +1284,8 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
         advance(p)
         mut method := "dec"
         if is_inc { method = "inc" }
-        mut ident := Expr.new(NodeType.Ident(name.clone()), t_line, t_col)
-        mut acc := Expr.new(NodeType.FieldAccess(method.clone()), pp_line, pp_col)
+        mut ident := Expr.new(ident_node(name.clone()), t_line, t_col)
+        mut acc := Expr.new(field_access_node(method.clone()), pp_line, pp_col)
         acc.add_child(own ident)
         mut call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col)
         call.add_child(own acc)
@@ -1375,7 +1373,6 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
             expect_token(p, TokenType.ColonEq)
         }
         mut decl := Expr.new(NodeType.Decl(dd), i_line, i_col)
-        decl.til_type = til_type_from_explicit_type(dd.explicit_type)
         decl.add_child(own parse_expression(p))
         return decl
     }
@@ -1446,7 +1443,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         mut node := Expr.new(NodeType.ForIn(ForInData(name = iname, is_mut = for_is_mut)), i_line, i_col)
         if check(p, TokenType.Colon) {
             advance(p)
-            node.til_type = Type.Custom(expect_text(p, TokenType.Ident))
+            set_expr_til_type(node, Type.Custom(expect_text(p, TokenType.Ident)))
         }
         expect_token(p, TokenType.KwIn)
         node.add_child(own parse_expression(p))
@@ -1547,8 +1544,8 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.LBrace)
         mut body := parse_block(p)
         mut cn := Expr.new(NodeType.Catch, t_line, t_col)
-        cn.add_child(own Expr.new(NodeType.Ident(var_name.clone()), v_line, v_col))
-        cn.add_child(own Expr.new(NodeType.Ident(type_name.clone()), ty_line, ty_col))
+        cn.add_child(own Expr.new(ident_node(var_name.clone()), v_line, v_col))
+        cn.add_child(own Expr.new(ident_node(type_name.clone()), ty_line, ty_col))
         cn.add_child(own body)
         return cn
     }

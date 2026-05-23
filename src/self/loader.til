@@ -124,7 +124,7 @@ extract_imports := func(body: Expr, path: Str) returns Vec {
         if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
             switch stmt.child(0).node_type {
             case NodeType.Ident(_c0id):
-                if _c0id.eq("import") {
+                if ident_name(_c0id).eq("import") {
                     switch stmt.child(1).node_type {
                     case NodeType.LiteralStr(p):
                         if p.ends_with(".til") {
@@ -651,7 +651,7 @@ extract_link_info := func(mut lp: LoadedProgram) {
                 case NodeType.Ident(fname):
                     switch stmt.child(1).node_type {
                     case NodeType.LiteralStr(arg):
-                        if fname.eq("link") {
+                        if ident_name(fname).eq("link") {
                             keep = false
                             if arg.find("/").gte(0) {
                                 resolved := resolve_link_path(base_dir, root_dir, arg)
@@ -668,7 +668,7 @@ extract_link_info := func(mut lp: LoadedProgram) {
                             } else {
                                 lp.link_flags = lp.link_flags.format(" -l", arg)
                             }
-                        } else if fname.eq("link_c") {
+                        } else if ident_name(fname).eq("link_c") {
                             keep = false
                             if lp.link_c_paths.len().gt(0) {
                                 lp.link_c_paths = lp.link_c_paths.concat(" ")

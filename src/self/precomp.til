@@ -13,6 +13,7 @@ precomp_has_func := func(name: Str) returns shallow Bool {
     return funcs.has(name)
 }
 
+
 // Side-effecting names that mustn't be invoked at compile time.
 // Mirrors rstil's hardcoded exit/malloc list, plus the I/O / FFI /
 // environment-dependent ext_funcs that til core ships.
@@ -184,28 +185,28 @@ priv str_to_source_form := func(s: Str) returns Str {
 value_to_expr := func(shallow val: Value, src: Expr) returns ref Expr {
     switch val {
     case Value.Int(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = Type.I64
+        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
+        set_expr_til_type(e, Type.I64)
         return e
     case Value.Byte(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = Type.Struct("U8")
+        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
+        set_expr_til_type(e, Type.Struct("U8"))
         return e
     case Value.Short(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = Type.Primitive(Primitive.I16)
+        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
+        set_expr_til_type(e, Type.Primitive(Primitive.I16))
         return e
     case Value.Int32(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = Type.Struct("I32")
+        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
+        set_expr_til_type(e, Type.Struct("I32"))
         return e
     case Value.Uint32(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = Type.U32
+        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
+        set_expr_til_type(e, Type.U32)
         return e
     case Value.Uint64(x):
-        mut e := Expr.new(NodeType.LiteralNum(x.to_str()), src.line, src.col)
-        e.til_type = Type.U64
+        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
+        set_expr_til_type(e, Type.U64)
         return e
     case Value.Float(_x):
         // F32 to_str uses %g and can emit scientific notation
@@ -294,8 +295,8 @@ is_known := func(e: Expr, mut out: Value) returns shallow Bool {
         out = expr_to_value(e)
         return true
     case NodeType.Ident(id):
-        if known.has(id) {
-            ref v : Value = known.get(id)
+        if known.has(id.clone()) {
+            ref v : Value = known.get(id.clone())
             out = v
             return true
         }
@@ -313,7 +314,7 @@ is_known_check := func(e: Expr) returns shallow Bool {
     case NodeType.LiteralNum:  return true
     case NodeType.LiteralStr:  return true
     case NodeType.LiteralBool: return true
-    case NodeType.Ident(id):   return known.has(id)
+    case NodeType.Ident(id): return known.has(ident_name(id))
     case:                      return false
     }
 }
@@ -349,16 +350,16 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
         // Side-effecting names are "unknown" for fold purposes: their
         // bodies aren't, but invoking them at compile time would kill
         // or corrupt the build.
-        if is_side_effecting_name(name) { return true }
+        if is_side_effecting_name(ident_name(name)) { return true }
         switch func_def.node_type {
         case NodeType.FuncDef(fd):
             for p : Declaration in fd.params {
-                if p.name.eq(name) { return false }
+                if p.name.eq(ident_name(name)) { return false }
             }
         case:
         }
-        if known.has(name) { return false }
-        ref _cell : Cell = scope_get(precomp_scope, name)
+        if known.has(ident_name(name)) { return false }
+        ref _cell : Cell = scope_get(precomp_scope, ident_name(name))
         if is_null(_cell).not() {
             // The Ident resolves to something in precomp scope. If it's
             // a Func, walk its body too -- the surface body may only
@@ -366,8 +367,8 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
             // mut global precomp scope doesn't have.
             switch _cell.val {
             case Value.Func(_fp):
-                if visiting.has(name).not() {
-                    visiting.add(own name.clone())
+                if visiting.has(ident_name(name)).not() {
+                    visiting.add(own ident_name(name))
                     ref _fdef : Expr = deref(_fp)
                     switch _fdef.node_type {
                     case NodeType.FuncDef:
@@ -384,7 +385,7 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
             }
             return false
         }
-        if lenient.and(body_has_local(body_root, name)) { return false }
+        if lenient.and(body_has_local(body_root, ident_name(name))) { return false }
         return true
     case NodeType.Assign(ad):
         // Assign carries the LHS name as the node payload, not as an Ident
@@ -393,10 +394,10 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
         // worse, silently mutate precomp's interpreter scope).
         if body_has_local(body_root, ad.name).not() { return true }
     case NodeType.FieldAccess(mname):
-        if mname.eq("new").and(e.children.len().gt(0)) {
+        if field_access_name(mname).eq("new").and(e.children.len().gt(0)) {
             switch e.child(0).node_type {
             case NodeType.Ident(type_name):
-                if type_name.eq("Vec") { return true }
+                if ident_name(type_name).eq("Vec") { return true }
             case:
             }
         }
@@ -437,8 +438,8 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
         case NodeType.Decl(dd):
             ref ret_val : Expr = ret.child(0)
             switch ret_val.node_type {
-            case NodeType.Ident(ident_name):
-                if ident_name.eq(dd.name).not() { return NULL }
+            case NodeType.Ident(ret_name):
+                if ident_name(ret_name).eq(dd.name).not() { return NULL }
                 ref rhs : Expr = decl.child(0)
                 if rhs.node_type.is(NodeType.LiteralNum)
                     .or(rhs.node_type.is(NodeType.LiteralStr))
@@ -491,8 +492,8 @@ fa_recv_type_name := func(callee: Expr) returns Str {
     case NodeType.Ident(ident):
         // If the Ident names a known type (`Str`/`I64`/...), use it.
         // Otherwise it's a value and we fall back to its til_type.
-        ref _probe : Value = ns_get(ident, "size")
-        if is_null(_probe).not() { return ident.clone() }
+        ref _probe : Value = ns_get(ident_name(ident), "size")
+        if is_null(_probe).not() { return ident_name(ident) }
     case:
     }
     return til_type_name_c(expr_til_type(recv))
@@ -506,7 +507,7 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr) returns ref Expr {
     mut _fc_fp : Dynamic = 0
     switch _fc_callee.node_type {
     case NodeType.Ident(_ci):
-        ref _cell : Cell = scope_get(scope, _ci)
+        ref _cell : Cell = scope_get(scope, ident_name(_ci))
         if is_null(_cell).not() {
             switch _cell.val {
             case Value.Func(p): _fc_fp = p
@@ -515,12 +516,12 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr) returns ref Expr {
         }
         // Fall back to namespace lookup for typer-flattened callees
         // (`Str_size()` instead of `Str.size()`).
-        if is_null(_fc_fp) { _fc_fp = ns_lookup_flat(_ci) }
+        if is_null(_fc_fp) { _fc_fp = ns_lookup_flat(ident_name(_ci)) }
     case NodeType.FieldAccess(_mn):
         if _fc_callee.children.len().gt(0) {
             _sn := fa_recv_type_name(_fc_callee)
             if _sn.is_empty().not() {
-                ref _nv : Value = ns_get(_sn, _mn)
+                ref _nv : Value = ns_get(_sn, field_access_name(_mn))
                 if is_null(_nv).not() {
                     switch _nv {
                     case Value.Func(p): _fc_fp = p
@@ -537,7 +538,7 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr) returns ref Expr {
     ref _lit : Expr = extract_trivial_literal_return(_fc_fdef)
     if is_null(_lit) { return NULL }
     mut _lit_clone := _lit.clone()
-    _lit_clone.til_type = expr_til_type(fcall)
+    set_expr_til_type(_lit_clone, expr_til_type(fcall))
     _heap : Dynamic = malloc(Expr.size().to_u64())
     move(_heap, _lit_clone, Expr.size())
     ref _heap_ref : Expr = to_ptr(_heap)
@@ -556,8 +557,8 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     mut fp : Dynamic = 0
     switch callee.node_type {
     case NodeType.Ident(callee_ident):
-        if is_macro_mode.not().and(is_side_effecting_name(callee_ident)) { return NULL }
-        ref fn_cell : Cell = scope_get(scope, callee_ident)
+        if is_macro_mode.not().and(is_side_effecting_name(ident_name(callee_ident))) { return NULL }
+        ref fn_cell : Cell = scope_get(scope, ident_name(callee_ident))
         if is_null(fn_cell).not() {
             switch fn_cell.val {
             case Value.Func(p): fp = p
@@ -569,15 +570,15 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             ref recv : Expr = callee.child(0)
             switch recv.node_type {
             case NodeType.Ident(_ri):
-                ref _probe : Value = ns_get(_ri, "size")
+                ref _probe : Value = ns_get(ident_name(_ri), "size")
                 if is_null(_probe) {
-                    if known.has(_ri).not() { return NULL }
+                    if known.has(ident_name(_ri)).not() { return NULL }
                 }
             case:
             }
             sname := fa_recv_type_name(callee)
             if sname.is_empty().not() {
-                ref ns_val : Value = ns_get(sname, mname)
+                ref ns_val : Value = ns_get(sname, field_access_name(mname))
                 if is_null(ns_val).not() {
                     switch ns_val {
                     case Value.Func(p): fp = p
@@ -612,7 +613,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     // Build a call with literal args for the interpreter
     nargs := fcall.children.len().sub(1)
     mut ec := Expr.new(NodeType.FCall(FCallData()), fcall.line, fcall.col)
-    ec.til_type = expr_til_type(fcall)
+    set_expr_til_type(ec, expr_til_type(fcall))
     ec.add_child(own fcall.child(0).clone())
 
     for i in 0..nargs {
@@ -623,37 +624,37 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         if arg_is_known.not() {
             switch arg.node_type {
             case NodeType.Ident(arg_id):
-                ref cell : Cell = scope_get(scope, arg_id)
+                ref cell : Cell = scope_get(scope, ident_name(arg_id))
                 if is_null(cell).not() {
                     switch cell.val {
                     case Value.Int(iv):
-                        mut lit := Expr.new(NodeType.LiteralNum(iv.to_str()), arg.line, arg.col)
-                        lit.til_type = Type.I64
+                        mut lit := Expr.new(literal_num_node(iv.to_str()), arg.line, arg.col)
+                        set_expr_til_type(lit, Type.I64)
                         ec.add_child(own lit)
                         continue
                     case Value.Byte(bv):
-                        mut lit := Expr.new(NodeType.LiteralNum(bv.to_str()), arg.line, arg.col)
-                        lit.til_type = Type.Struct("U8")
+                        mut lit := Expr.new(literal_num_node(bv.to_str()), arg.line, arg.col)
+                        set_expr_til_type(lit, Type.Struct("U8"))
                         ec.add_child(own lit)
                         continue
                     case Value.Short(sv):
-                        mut lit := Expr.new(NodeType.LiteralNum(sv.to_str()), arg.line, arg.col)
-                        lit.til_type = Type.Primitive(Primitive.I16)
+                        mut lit := Expr.new(literal_num_node(sv.to_str()), arg.line, arg.col)
+                        set_expr_til_type(lit, Type.Primitive(Primitive.I16))
                         ec.add_child(own lit)
                         continue
                     case Value.Int32(iv):
-                        mut lit := Expr.new(NodeType.LiteralNum(iv.to_str()), arg.line, arg.col)
-                        lit.til_type = Type.Struct("I32")
+                        mut lit := Expr.new(literal_num_node(iv.to_str()), arg.line, arg.col)
+                        set_expr_til_type(lit, Type.Struct("I32"))
                         ec.add_child(own lit)
                         continue
                     case Value.Uint32(uv):
-                        mut lit := Expr.new(NodeType.LiteralNum(uv.to_str()), arg.line, arg.col)
-                        lit.til_type = Type.U32
+                        mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
+                        set_expr_til_type(lit, Type.U32)
                         ec.add_child(own lit)
                         continue
                     case Value.Uint64(uv):
-                        mut lit := Expr.new(NodeType.LiteralNum(uv.to_str()), arg.line, arg.col)
-                        lit.til_type = Type.U64
+                        mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
+                        set_expr_til_type(lit, Type.U64)
                         ec.add_child(own lit)
                         continue
                     case Value.Boolean(bv):
@@ -740,7 +741,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     // runtime Value variant (Uint32 -> U32), but the original fcall might
     // have been typed as USize/U64/... at typer time. Surrounding code
     // (re-typing, codegen) expects the original til_type.
-    lit_local.til_type = expr_til_type(fcall)
+    set_expr_til_type(lit_local, expr_til_type(fcall))
     heap : Dynamic = malloc(Expr.size().to_u64())
     move(heap, lit_local, Expr.size())
     ref heap_lit : Expr = to_ptr(heap)
@@ -796,13 +797,12 @@ is_macro_call := func(e: Expr) returns shallow Bool {
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
     switch callee.node_type {
-    case NodeType.Ident(cname):
-        return precomp_has_macro(cname)
+    case NodeType.Ident(cname): return precomp_has_macro(ident_name(cname))
     case NodeType.FieldAccess(mname):
         sname := fa_recv_type_name(callee)
         if sname.is_empty() { return false }
-        qname := sname.format("_", mname)
-        return precomp_has_macro(qname)
+                qname := sname.format("_", field_access_name(mname))
+        return precomp_has_macro(qname.clone())
     case:
         return false
     }
@@ -813,13 +813,12 @@ is_func_call := func(e: Expr) returns shallow Bool {
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
     switch callee.node_type {
-    case NodeType.Ident(cname):
-        return precomp_has_func(cname)
+    case NodeType.Ident(cname): return precomp_has_func(ident_name(cname))
     case NodeType.FieldAccess(mname):
         sname := fa_recv_type_name(callee)
         if sname.is_empty() { return false }
-        qname := sname.format("_", mname)
-        return precomp_has_func(qname)
+        qname := sname.format("_", field_access_name(mname))
+        return precomp_has_func(qname.clone())
     case:
         return false
     }
@@ -988,7 +987,7 @@ priv expr_uses_var_p := func(e: Expr, name: Str) returns shallow Bool {
     if is_null(e) { return false }
     switch e.node_type {
     case NodeType.Ident(eid):
-        if eid.eq(name) { return true }
+        if ident_name(eid).eq(name) { return true }
     case:
     }
     for child : Expr in e.children {
