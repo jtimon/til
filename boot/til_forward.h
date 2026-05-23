@@ -1780,7 +1780,6 @@ Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
 void scope_set_owned(Scope * s, Str * name, Value * val);
 void scope_set_borrowed(Scope * s, Str * name, Cell * cell);
-void free_expr_in_place(Expr * e);
 void scope_free(Scope * s);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns_with_fname(Expr * obj_expr, Str * sname, Expr * sdef, Str * fname);
 Bool interp_fa_is_ns_inner(Scope * scope, Expr * e, Str * sname);

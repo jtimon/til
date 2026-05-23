@@ -991,14 +991,12 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                             orig_callee := callee_expr.clone()
                             mut flat_ident := callee_expr.clone()
                             flat_ident.node_type = ident_node(fp_flat.clone())
-                            // The slot is an inline Expr in e.children's data
-                            // buffer; a raw move(...) would orphan its heap
-                            // allocations. Free the prior content first.
-                            free_expr_in_place(e.children.get(0))
-                            move(e.children.get(0), flat_ident, Expr.size())
+                            // Replace the inline Expr slot through Vec so the
+                            // old callee gets dropped before we swap in the
+                            // flattened Ident.
+                            e.children.replace(0, own flat_ident)
                             result := eval_call(scope, e)
-                            free_expr_in_place(e.children.get(0))
-                            move(e.children.get(0), orig_callee, Expr.size())
+                            e.children.replace(0, own orig_callee)
                             return result
                         }
                     case:
@@ -1068,15 +1066,11 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                 orig_callee_val := callee_expr.clone()
                 mut flat_ident2 := callee_expr.clone()
                 flat_ident2.node_type = ident_node(flat_str.clone())
-                // Deep-delete the slot's prior content before each move:
-                // the slot is part of e.children's data buffer (inline Expr),
-                // and a raw move(...) would orphan its heap allocations
-                // (NodeType Str, til_type, children Vec, ...).
-                free_expr_in_place(e.children.get(0))
-                move(e.children.get(0), flat_ident2, Expr.size())
+                // Replace the inline Expr slot through Vec so the old callee
+                // gets dropped before we swap in the flattened Ident.
+                e.children.replace(0, own flat_ident2)
                 result := eval_call(scope, e)
-                free_expr_in_place(e.children.get(0))
-                move(e.children.get(0), orig_callee_val, Expr.size())
+                e.children.replace(0, own orig_callee_val)
                 return result
             case:
                 UNREACHABLE(__LOC__)
@@ -1490,15 +1484,6 @@ scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
     // cell_is_local = false (already zeroed by memset)
     s.bindings.set(own k, own v)
 }
-// Free the heap allocations inside an Expr that lives inline in a Vec
-// data buffer. Mirrors Expr.delete(false) but takes a ref since Vec
-// elements aren't owned values til-side. Used before move(...) replaces
-// an in-place Expr to keep the prior content from leaking.
-free_expr_in_place := func(mut e: Expr) {
-    NodeType.delete(own e.node_type, false)
-    Vec.delete(own e.children, false)
-}
-
 scope_free := func(own s: Scope) {
     for i in 0..s.bindings.len() {
         ref b : Binding = Map.val_ptr(s.bindings, i)
