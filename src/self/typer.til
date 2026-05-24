@@ -1534,24 +1534,6 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     case:
     }
 
-    // Reject `.to_str()` on a value already typed Str. The .clone()-on-
-    // literal check above is the receiver-side analog; this one fires
-    // when the static type already matches the conversion target (see
-    // core/str.til:to_str -- the only identity conversion in core, and
-    // doc/strings.org for the receiver-type table). The matching list
-    // is just {to_str -> Str} today because no primitive defines an
-    // identity to_T (U32 has to_i64 / to_u64 / ... but no to_u32);
-    // extend the if-chain if a new identity converter lands. Skip
-    // namespace calls like `Str.to_str(x)`, which dispatch on the
-    // explicit type and are still useful.
-    if obj_is_type.not().and(method.eq("to_str")) {
-        if obj_method_type_name(obj).eq("Str") {
-            type_error(e, "redundant '.to_str()' on a 'Str' value")
-            set_expr_til_type(e,  Type.Unknown)
-            return true
-        }
-    }
-
     mut ufcs_desugared := false
     if obj_is_type.not() {
         type_name := obj_method_type_name(obj)
