@@ -629,6 +629,144 @@ asap_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) re
     return insert_free_calls(ctx, body, scope, 1.to_i32())
 }
 
+// #204 step 3b: per-body scope registration. The typer's scope-management
+// sites used to stack-allocate a TypeScope, call asap_destroy_body, then
+// TypeScope.delete -- all inline. To lift sub-body asap into a single
+// post-typer walk, the typer now keeps the scope heap-allocated and hands
+// it off here, keyed by the body Expr's heap-pointer-as-uptr.
+// asap_destroy_subbodies looks each entry up by the same key and runs
+// insert_free_calls on it; free_cached_subbody_scopes frees the cached
+// TypeScopes at the end of the walk.
+register_body_scope := func(mut ctx: Context, body: Expr, own scope: Dynamic) {
+    key := ptr_to_uptr(body).to_i64()
+    slot : Dynamic = malloc(I64.size())
+    write_ptr(slot, scope)
+    ctx.body_scopes.set(own key, own slot)
+}
+
+priv resolve_body_scope := func(ctx: Context, body: Expr) returns ref TypeScope {
+    key := ptr_to_uptr(body).to_i64()
+    if ctx.body_scopes.has(key).not() { return NULL }
+    return deref(ctx.body_scopes.get(key))
+}
+
+priv asap_destroy_one_subbody := proc(mut ctx: Context, mut body: Expr) {
+    ref ts : TypeScope = resolve_body_scope(ctx, body)
+    if is_null(ts) { return }
+    insert_free_calls(ctx, body, ts, 1.to_i32())
+}
+
+// Recursive AST walk. Visits every Expr; at each FuncDef-typed node, runs
+// asap on the body if it has a registered scope. Recurses into the body's
+// children to reach nested function defs, lambdas, and any other FuncDef
+// nested inside an Expr tree. Also walks ns_decls (struct/enum namespace
+// methods) since their FuncDef bodies are not stored in
+// e.children but on the StructDef/EnumDef payload's ns_decls Vec.
+//
+// `parent_decl_name` carries the enclosing top-level Decl's name down to
+// its FuncDef RHS so the walker can re-derive `typer_in_main_func` for
+// the asap on main's body. Empty for any nested context.
+// Children are walked by index (e.child(j) hands back a ref) rather
+// than `for child : Expr in e.children` -- the value-binding for-in
+// deep-clones every element each iteration, and across this recursive
+// mut walk the typer's asap pass doesn't reliably reclaim those clones,
+// leaking the whole subtree per node visited. Index iteration borrows.
+priv asap_walk_children := proc(mut ctx: Context, mut e: Expr, parent_decl_name: Str) {
+    mut j : USize = 0
+    while j.lt(e.children.len()) {
+        asap_walk_expr(ctx, e.child(j), parent_decl_name)
+        j = j.add(1)
+    }
+}
+
+priv asap_walk_expr := proc(mut ctx: Context, mut e: Expr, parent_decl_name: Str) {
+    switch e.node_type {
+    case NodeType.Decl(dd):
+        // Carry the Decl name down to its FuncDef RHS child (for main
+        // detection). dd is a ref into the payload (get_payload) and
+        // dd.name is passed as a borrow -- no clone.
+        mut j : USize = 0
+        while j.lt(e.children.len()) {
+            asap_walk_expr(ctx, e.child(j), dd.name)
+            j = j.add(1)
+        }
+    case NodeType.FuncDef(fd_walk):
+        if e.children.len().gt(0) {
+            is_main := parent_decl_name.eq("main")
+            shallow_ret := fd_walk.return_own_type.is(OwnType.Shallow)
+            ref body : Expr = e.child(0)
+            // DFS leaf-first: process nested defs before this one so
+            // their deletes land in the inner scope, and the outer
+            // scope's last_use analysis sees the post-asap inner
+            // bodies (matches the typer's prior inline ordering).
+            asap_walk_children(ctx, body, "")
+            saved_main := ctx.typer_in_main_func
+            saved_shallow := ctx.typer_in_shallow_return
+            ctx.typer_in_main_func = is_main
+            // Re-derive the shallow-return flag the typer set inline
+            // (infer_func_def_expr): it gates promote_own_transferred_locals'
+            // skip for `returns shallow X` bodies whose only use of a
+            // Struct local is the matching Return. Without it the local
+            // heap-promotes and leaks its wrapper (the str_view pattern).
+            ctx.typer_in_shallow_return = shallow_ret
+            asap_destroy_one_subbody(ctx, body)
+            ctx.typer_in_main_func = saved_main
+            ctx.typer_in_shallow_return = saved_shallow
+        }
+    case NodeType.StructDef(_):
+        ref sd_ns : Vec = def_ns_decls(e)
+        mut si : USize = 0
+        while si.lt(sd_ns.len()) {
+            ref nsd : Declaration = sd_ns.get(si)
+            if is_null(nsd.default_value).not() {
+                asap_walk_expr(ctx, nsd.default_value, "")
+            }
+            si = si.add(1)
+        }
+        asap_walk_children(ctx, e, "")
+    case NodeType.EnumDef(_):
+        ref ed_ns : Vec = def_ns_decls(e)
+        mut ei : USize = 0
+        while ei.lt(ed_ns.len()) {
+            ref nsd : Declaration = ed_ns.get(ei)
+            if is_null(nsd.default_value).not() {
+                asap_walk_expr(ctx, nsd.default_value, "")
+            }
+            ei = ei.add(1)
+        }
+        asap_walk_children(ctx, e, "")
+    case:
+        asap_walk_children(ctx, e, "")
+    }
+}
+
+// Frees every cached body-scope TypeScope and resets the Map. Called
+// at the end of asap_destroy_subbodies, after every cached scope has
+// been consumed by insert_free_calls. call_free=true so the heap
+// TypeScope wrapper (malloc'd by the typer's TypeScope ctor) is freed,
+// matching the inline `TypeScope.delete(own scope)` it replaces -- not
+// freeing it leaked one wrapper per cached body.
+priv free_cached_subbody_scopes := func(mut ctx: Context) {
+    for i in 0..ctx.body_scopes.len() {
+        ref slot : Dynamic = Map.val_ptr(ctx.body_scopes, i)
+        ref scope_dyn : Dynamic = deref(slot)
+        dyn_call("TypeScope", "delete", 2, scope_dyn, true)
+    }
+    ctx.body_scopes = Map.new(I64, Dynamic)
+}
+
+// Phase walk: runs insert_free_calls on every registered sub-body
+// (function bodies, if/while/block/catch scopes) via the body_scopes
+// cache that the typer populated.  Called from asap_destroy(ctx)
+// before the program-body walk.
+asap_destroy_subbodies := proc(mut ctx: Context) {
+    for i in 0..ctx.imported.len() {
+        ref iu : ImportUnit = Map.val_ptr(ctx.imported, i)
+        asap_walk_expr(ctx, iu.ast, "")
+    }
+    free_cached_subbody_scopes(ctx)
+}
+
 // Phase entry point. Runs the asap-destruction pass on every
 // imported file's program body using the global TypeScope
 // (ctx.scope). Called from the tail of init_and_type_program
@@ -649,6 +787,11 @@ asap_destroy := proc(mut ctx: Context) {
     saved_in_shallow := ctx.typer_in_shallow_return
     ctx.typer_in_main_func = false
     ctx.typer_in_shallow_return = false
+    // Sub-bodies first (DFS leaf-first matches the typer's prior
+    // inline ordering: function bodies and their nested if/while/
+    // block/catch scopes get their deletes before the enclosing
+    // program body's asap runs).
+    asap_destroy_subbodies(ctx)
     for i in 0..ctx.imported.len() {
         ref path : Str = Map.key_ptr(ctx.imported, i)
         ref iu : ImportUnit = Map.val_ptr(ctx.imported, i)

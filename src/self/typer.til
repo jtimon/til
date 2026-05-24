@@ -2404,7 +2404,6 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type)
         }
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
-        asap_destroy_body(ctx, expr.child(0), func_scope)
         ctx.typer_in_shallow_return = saved_in_shallow_ret
         ctx.typer_in_main_func = saved_in_main_func
         if fdef.auto_generated {
@@ -2423,7 +2422,20 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
         check_ref_function_returns(func_scope, expr)
         check_unused_params(func_scope, expr)
         check_unused_locals(func_scope, typer_path)
-        TypeScope.delete(own func_scope)
+        // #204 step 3b: only top-level funcs get their asap deferred
+        // to the phase-end walk. Namespace-method bodies still asap
+        // inline because their parent scope is infer_type_def_expr's
+        // local `inner` -- that gets auto-freed at the end of its
+        // proc, so by the time asap_destroy_subbodies runs the
+        // parent chain has dangled. Keep inline asap for ns methods
+        // until inner gets cached too (or the type-def scope-life
+        // story is reworked).
+        if ifd_in_ns {
+            asap_destroy_body(ctx, expr.child(0), func_scope)
+            TypeScope.delete(own func_scope)
+        } else {
+            register_body_scope(ctx, expr.child(0), own func_scope)
+        }
     case:
         UNREACHABLE(__LOC__)
     }

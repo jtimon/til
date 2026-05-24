@@ -245,6 +245,7 @@ Bool Bool_clone(const Bool *v);
 // chases a real-world non-bug, so keep these non-const for now.
 void *ptr_add(void *buf, UPtr offset);
 void *to_ptr(void *a);
+USize ptr_to_uptr(void *a);
 void *deref(void *slot);
 void write_ptr(void *dest, void *val);
 Bool is(void *self, void *other);

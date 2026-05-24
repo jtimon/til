@@ -23,6 +23,7 @@ ptr_eq := ext_func(a: Dynamic, b: Dynamic) returns shallow Bool {}
 is_null := func(p: Dynamic) returns shallow Bool { return ptr_eq(p, NULL) }
 
 to_ptr := ext_func(a: Dynamic) returns ref Dynamic {}
+ptr_to_uptr := ext_func(a: Dynamic) returns shallow UPtr {}
 
 swap := func(a: Dynamic, b: Dynamic, shallow size: UPtr) {
     tmp : Dynamic = malloc(size)

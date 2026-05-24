@@ -177,6 +177,17 @@ Context := struct {
     mut scope := TypeScope()
     mut is_repl := false
 
+    // #204 step 3b: per-body TypeScope cache. Each scope-management site
+    // in the typer (infer_func_def_expr, infer_if_stmt, infer_while_stmt,
+    // the Body/Catch arms of infer_body_stmt) registers the body's scope
+    // here keyed by the body Expr's heap-pointer-as-uptr. asaper's
+    // top-level asap_destroy_subbodies walk looks each one up by the
+    // same key and runs insert_free_calls on it. Values are heap
+    // TypeScope pointers stored in malloc'd I64-sized slots (same
+    // boxing pattern as func_defs); the asap walk frees them after
+    // running asap on each.
+    mut body_scopes := Map.new(I64, Dynamic)
+
     // True while the typer is inferring a struct/enum namespace member
     // (set in infer_type_def_expr).  Lets infer_func_def_expr accept
     // test() decls at the namespace level even though scope.parent is

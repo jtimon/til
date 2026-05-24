@@ -525,6 +525,7 @@ void *ptr_add(void *buf, UPtr offset) {
     return (char *)buf + offset;
 }
 void *to_ptr(void *a) { return a; }
+USize ptr_to_uptr(void *a) { return (USize)(uintptr_t)a; }
 void *deref(void *slot) { return *(void **)slot; }
 void write_ptr(void *dest, void *val) { *(void **)dest = val; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
