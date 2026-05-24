@@ -1237,6 +1237,49 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect_token(p, TokenType.RParen)
+            // Chain further `.method(args)` calls: `f.write("a").write("b")`.
+            // Statement-level kicks off this branch; the expression-level
+            // parser (parse_primary) handles its own chain loop, but
+            // statement-level used to return after the first call and reject
+            // the next `.` as "expected statement". Loop here so chainable
+            // procs (`File.write` etc.) work at statement scope too.
+            while check(p, TokenType.Dot) {
+                advance(p) // consume '.'
+                chain_line := peek_line(p)
+                chain_col := peek_col(p)
+                chain_name := expect_text(p, TokenType.Ident)
+                expect_token(p, TokenType.LParen)
+                mut chain_callee := Expr.new(field_access_node(chain_name), chain_line, chain_col)
+                chain_callee.add_child(own mcall.clone())
+                mut next_call := Expr.new(NodeType.FCall(FCallData()), chain_line, chain_col)
+                next_call.add_child(own chain_callee)
+                while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+                    if check(p, TokenType.Ident) {
+                        if p.pos.add(1).lt(p.tokens.len()) {
+                            ref nt2 : Token = p.tokens.get(p.pos.add(1))
+                            if nt2.type.is(TokenType.Eq) {
+                                na2_line := peek_line(p)
+                                na2_col := peek_col(p)
+                                aname2 := expect_text(p, TokenType.Ident)
+                                advance(p) // consume '='
+                                mut na2 := Expr.new(NodeType.NamedArg(aname2), na2_line, na2_col)
+                                na2.add_child(own parse_expression(p))
+                                next_call.add_child(own na2)
+                                if check(p, TokenType.Comma) { advance(p) }
+                                continue
+                            }
+                        }
+                    }
+                    mut is_own_arg2 := false
+                    if check(p, TokenType.KwOwn) { advance(p); is_own_arg2 = true }
+                    mut marg2 := parse_expression(p)
+                    if is_own_arg2 { set_own_arg(next_call, next_call.children.len()) }
+                    next_call.add_child(own marg2)
+                    if check(p, TokenType.Comma) { advance(p) }
+                }
+                expect_token(p, TokenType.RParen)
+                mcall = next_call
+            }
             return mcall
         }
         // Postfix increment/decrement on field: obj.field++ or obj.field--
