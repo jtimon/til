@@ -247,7 +247,6 @@ void *ptr_add(void *buf, UPtr offset);
 void *to_ptr(void *a);
 void *deref(void *slot);
 void write_ptr(void *dest, void *val);
-Bool is_null(void *p);
 Bool is(void *self, void *other);
 void *get_payload(void *self);
 
@@ -278,7 +277,6 @@ Str *host_os(void);
 I32 mkdir_p(const Str *path);
 I32 copy_file(const Str *src, const Str *dst);
 I32 copy_tree(const Str *src, const Str *dst);
-USize c_str_len(const I8 *s);
 Bool ptr_eq(void *a, void *b);
 void eprint_single(const Str *s);
 

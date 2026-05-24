@@ -1050,6 +1050,7 @@ void File_close(File * self);
 File * File_clone(File * self);
 void File_delete(File * self, Bool * call_free);
 U32 File_size(void);
+Bool is_null(void * p);
 void swap(void * a, void * b, U64 size);
 void move(void * dest, void * src, U64 size);
 Set * Set_new(Type * T);

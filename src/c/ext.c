@@ -527,7 +527,6 @@ void *ptr_add(void *buf, UPtr offset) {
 void *to_ptr(void *a) { return a; }
 void *deref(void *slot) { return *(void **)slot; }
 void write_ptr(void *dest, void *val) { *(void **)dest = val; }
-Bool is_null(void *p) { return p == NULL; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
 void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
 Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }
@@ -1188,4 +1187,3 @@ Str *til_str_left(const Str *s, U64 n) {
     return result;
 }
 
-USize c_str_len(const I8 *s) { return (USize)strlen((const char *)s); }
