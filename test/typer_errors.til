@@ -497,6 +497,30 @@ terr_clone_lit_num   := 32.clone()
 terr_clone_lit_char  := '\n'.clone()
 terr_clone_lit_bool  := true.clone()
 
+// Calling `to_<self>` on a value that is already of that type is a
+// redundant self-conversion. Reported with a message that names the
+// mistake directly rather than the generic "no method 'to_u32' for
+// type 'U32'". Core defines no identity converters (no `to_u32` on
+// U32, no `to_str` on Str), so the check fires purely on the call
+// shape -- it works uniformly for primitives, Str, and user types.
+terr_self_conv_u32 := func() returns U32 {
+    val := 5.to_u32()
+    return val.to_u32()
+}
+terr_self_conv_i64 := func() returns I64 {
+    val : I64 = 7
+    return val.to_i64()
+}
+terr_self_conv_str := func() returns Str {
+    val : Str = "hello"
+    return val.to_str()
+}
+TerrSelfAaa := struct { mut field := 0 }
+terr_self_conv_struct := func() returns TerrSelfAaa {
+    val := TerrSelfAaa(field = 1)
+    return val.to_terrselfaaa()
+}
+
 // ============================================================
 // Issue #198 follow-up: throw/catch validation diagnostics
 // ============================================================

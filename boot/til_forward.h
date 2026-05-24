@@ -1260,6 +1260,7 @@ void desugar_user_func_fcall_args(Expr * e, Str * name, TypeBinding * callee_bin
 void validate_fcall_arg(Expr * arg, Type * ptype, Str * ptype_name, Str * param_name);
 void infer_and_validate_fcall_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind, I32 in_func, Context * ctx);
 void resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, I32 in_func, Context * ctx);
+Bool is_self_conversion_method(Str * method, Str * type_name);
 Str * obj_method_type_name(Expr * obj);
 Bool infer_field_access_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__check_priv_access(Expr * e, Str * name, TypeBinding * b);

@@ -1484,6 +1484,30 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     }
 }
 
+// True when `method` is a `to_<X>` conversion whose suffix matches the
+// receiver's `type_name` ASCII case-insensitively (e.g. `to_u32` on a
+// U32, `to_aaa` on an Aaa). Converting a value to its own type is
+// always redundant, so the typer emits a clearer diagnostic than the
+// generic "no method 'to_u32' for type 'U32'". The check is purely on
+// the call shape: core defines no identity converters (no `to_u32` on
+// U32, no `to_str` on Str), so this only ever fires on a mistake.
+is_self_conversion_method := func(method: Str, type_name: Str) returns shallow Bool {
+    if method.starts_with("to_").not() { return false }
+    if type_name.len().eq(0) { return false }
+    suffix_len := method.len().sub(3.to_usize())
+    if suffix_len.eq(type_name.len()).not() { return false }
+    for i in 0..suffix_len {
+        ref mc : I8 = method.get(i.add(3.to_usize()))
+        ref tc : I8 = type_name.get(i)
+        if mc.eq(tc) { continue }
+        if tc.gte('A').and(tc.lte('Z')) {
+            if tc.add(32.to_i8()).eq(mc) { continue }
+        }
+        return false
+    }
+    return true
+}
+
 // For methods like `obj.foo(...)`: returns the type-name lookup key
 // (a primitive's c_name, a struct/enum payload name, or "" when no
 // match). Used by infer_field_access_fcall to find the namespace.
@@ -1538,6 +1562,22 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     if obj_is_type.not() {
         type_name := obj_method_type_name(obj)
         has_type_name := type_name.len().gt(0)
+
+        // Calling `to_<self>` on a value that is already of that type is
+        // a redundant self-conversion. Caught here -- before the
+        // namespace lookup -- so the diagnostic names the mistake
+        // directly instead of surfacing as a generic "no method". Skip
+        // namespace calls like `Str.to_str(x)` (handled by the
+        // obj_is_type branch), which dispatch on the explicit type.
+        if has_type_name.and(is_self_conversion_method(method, type_name)) {
+            type_error(e, format(
+                "redundant self-conversion: '", method,
+                "' would convert ", type_name, " to itself; ",
+                "value is already of type '", type_name, "'",
+            ))
+            set_expr_til_type(e, Type.Unknown)
+            return true
+        }
 
         ref sdef1 : Expr = scope.get_struct(type_name)
         ref ns_func1 : Expr = find_namespace_func(sdef1, method)
