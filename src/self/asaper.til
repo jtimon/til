@@ -652,9 +652,13 @@ asap_destroy := proc(mut ctx: Context) {
     for i in 0..ctx.imported.len() {
         ref path : Str = Map.key_ptr(ctx.imported, i)
         ref iu : ImportUnit = Map.val_ptr(ctx.imported, i)
+        // Global Str reassign: drop the prior typer_path c_str manually
+        // (codegen omits save_old_delete for globals).
+        Str.delete(own typer_path)
         typer_path = path.clone()
         insert_free_calls(ctx, iu.ast, ctx.scope, 1.to_i32())
     }
+    Str.delete(own typer_path)
     typer_path = saved_path
     ctx.typer_in_main_func = saved_in_main
     ctx.typer_in_shallow_return = saved_in_shallow

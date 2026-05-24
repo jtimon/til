@@ -6188,6 +6188,11 @@ priv typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr) {
 type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
     errors = 0.to_i32()
     context_enter_file(ctx, path)
+    // Global Str reassignment: the codegen does not auto-insert
+    // save_old_delete for globals (only func-locals), so the prior
+    // typer_path c_str would leak. Match the manual-drop pattern used
+    // by current_type_name / current_top_func_name above.
+    Str.delete(own typer_path)
     typer_path = ctx.path.clone()
     // Lift anonymous func literals out of expression positions to
     // top-level _lambda_<N> priv decls. The typer then types them as
