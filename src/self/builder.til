@@ -873,14 +873,14 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
             switch c0.node_type {
             case NodeType.Ident(callee_name):
                 switch c2.node_type {
-                case NodeType.LiteralStr(method):
+                case NodeType.Literal(Literal.Str(method)):
                     mut has_ret := false
                     if is_dyn_call_name(ident_name(callee_name), has_ret) {
                         mut nargs := 1.to_i32()
                         if e.children.len().gte(4) {
                             ref c3 : Expr = e.child(3)
                             switch c3.node_type {
-                            case NodeType.LiteralNum(num_str):
+                            case NodeType.Literal(Literal.Num(num_str)):
                                 nargs = literal_num_text(num_str).to_i32()
                             case:
                             }
@@ -922,7 +922,7 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
             switch c0.node_type {
             case NodeType.Ident(name):
                 switch c1.node_type {
-                case NodeType.LiteralStr(type_name):
+                case NodeType.Literal(Literal.Str(type_name)):
                     mut is_vec := -1.to_i32()
                     if ident_name(name).eq("array") { is_vec = 0.to_i32() }
                     else if ident_name(name).eq("vec") { is_vec = 1.to_i32() }
@@ -1125,7 +1125,7 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
             case NodeType.Ident(cname):
                 if ident_name(cname).eq("dyn_has_method") {
                     switch c2.node_type {
-                    case NodeType.LiteralStr(method):
+                    case NodeType.Literal(Literal.Str(method)):
                         mut found := false
                         for existing : Str in methods {
                             if existing.eq(method) { found = true }
@@ -1334,7 +1334,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                         f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = malloc(sizeof("); f.write(ctype); f.write("));\n")
                         emit_ctor_fields(f, dd.name, rhs, depth)
                     }
-                } else if rhs.node_type.is(NodeType.LiteralStr).and(is_global.not()) {
+                } else if rhs.node_type.is_literal_str().and(is_global.not()) {
                     // Str literal: emit as a stack-allocated compound-literal
                     // Str value -- no malloc, no Str_lit. Pairs with the
                     // typer's hoist/promote pass keeping LiteralStr decls
@@ -1346,7 +1346,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                     // val)` still operates on a heap wrapper.
                     f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = (Str){.c_str = (void *)\"")
                     switch rhs.node_type {
-                    case NodeType.LiteralStr(s):
+                    case NodeType.Literal(Literal.Str(s)):
                         f.write(s)
                         f.write("\", .count = ")
                         emit_u64(f, c_lit_byte_count(s).to_u64())
@@ -1355,7 +1355,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32) {
                     f.write("ULL, .cap = TIL_CAP_LIT};\n")
                     lp.ctx.stack_locals.add(own dd.name.clone())
                     lp.ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
-                } else if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is(NodeType.LiteralStr))
+                } else if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
                 .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(expr_til_type(rhs).is(Type.Enum))) {
                     if is_global {
                         if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
@@ -1641,11 +1641,11 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                 // local `aname` and free the wrapper immediately. Skip the
                 // wrapper entirely: emit the compound literal directly into
                 // aname after running the old destructor.
-                if rhs.node_type.is(NodeType.LiteralStr) {
+                if rhs.node_type.is_literal_str() {
                     f.write("{ ").write(ctype).write("_delete(&").write(aname).write(", &(Bool){0}); ")
                     f.write(aname).write(" = (Str){.c_str = (void *)\"")
                     switch rhs.node_type {
-                    case NodeType.LiteralStr(_lit_s):
+                    case NodeType.Literal(Literal.Str(_lit_s)):
                         f.write(_lit_s).write("\", .count = ").emit_u64(c_lit_byte_count(_lit_s).to_u64())
                     case:
                     }
@@ -1678,7 +1678,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
                 f.write(aname); f.write(" = "); emit_deref(f, rhs, depth); f.write(";\n")
             }
         } else {
-            if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is(NodeType.LiteralStr))
+            if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
             .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs)).and(expr_til_type(rhs).is(Type.Enum))) {
                 if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs)) {
                     f.write("*"); f.write(aname); f.write(" = ")
@@ -1894,13 +1894,13 @@ emit_str_lit_expr := proc(f: File, s: Str) {
 
 emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
     switch e.node_type {
-    case NodeType.LiteralStr(s):
+    case NodeType.Literal(Literal.Str(s)):
         emit_str_lit_expr(f, s)
-    case NodeType.LiteralNum(num):
+    case NodeType.Literal(Literal.Num(num)):
         f.write(literal_num_text(num))
-    case NodeType.LiteralBool(b):
+    case NodeType.Literal(Literal.Bool(b)):
         if b { emit_i32(f, 1.to_i32()) } else { emit_i32(f, 0.to_i32()) }
-    case NodeType.LiteralNull:
+    case NodeType.Literal(Literal.Null):
         f.write("NULL")
     case NodeType.Ident(ident):
         if expr_til_type(e).is(Type.FuncPtr) {
@@ -1958,9 +1958,9 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 ref c2 : Expr = e.child(2)
                 ref c3 : Expr = e.child(3)
                 switch c2.node_type {
-                case NodeType.LiteralStr(method):
+                case NodeType.Literal(Literal.Str(method)):
                     switch c3.node_type {
-                    case NodeType.LiteralNum(nargs_str):
+                    case NodeType.Literal(Literal.Num(nargs_str)):
                         nargs := literal_num_text(nargs_str).to_i32()
                         f.write("dyn_call_")
                         f.write(method)
@@ -1983,7 +1983,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 f.write(", ")
                 ref method_arg : Expr = e.child(2)
                 switch method_arg.node_type {
-                case NodeType.LiteralStr(ms):
+                case NodeType.Literal(Literal.Str(ms)):
                     f.write("&(Str){.c_str=(void*)\"")
                     f.write(ms)
                     f.write("\", .count=")
@@ -2004,7 +2004,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
             } else if ident_name(name).eq("dyn_has_method") {
                 ref c2b : Expr = e.child(2)
                 switch c2b.node_type {
-                case NodeType.LiteralStr(method):
+                case NodeType.Literal(Literal.Str(method)):
                     f.write("dyn_has_")
                     f.write(method.clone())
                     f.write("(")
@@ -2125,13 +2125,13 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                 // setenv/getenv/unsetenv.)
                 mut obj_is_str_lit := false
                 switch obj.node_type {
-                case NodeType.LiteralStr(_sl):
+                case NodeType.Literal(Literal.Str(_sl)):
                     obj_is_str_lit = true
                 case:
                 }
                 if obj_is_str_lit {
                     switch obj.node_type {
-                    case NodeType.LiteralStr(slit):
+                    case NodeType.Literal(Literal.Str(slit)):
                         f.write("(Str){.c_str = (void *)\"")
                         f.write(slit)
                         f.write("\", .count = ")
@@ -2430,7 +2430,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
                 emit_expr(f, e, depth)
                 f.write(")")
             }
-        case NodeType.LiteralStr(s):
+        case NodeType.Literal(Literal.Str(s)):
             f.write("(Str){.c_str=(void*)\"")
             f.write(s)
             f.write("\", .count=")
@@ -2499,7 +2499,7 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
             }
         }
         emit_expr(f, e, depth)
-    case NodeType.LiteralStr:
+    case NodeType.Literal(Literal.Str):
         emit_expr(f, e, depth)
     case NodeType.FieldAccess(fname):
         if builder_fa_is_ptr(e) {
@@ -2528,7 +2528,7 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
             f.write("&")
             emit_expr(f, e, depth)
         }
-    case NodeType.LiteralNull:
+    case NodeType.Literal(Literal.Null):
         f.write("NULL")
     case:
         ctype := c_type_name(expr_til_type(e), til_type_name(expr_til_type(e)))

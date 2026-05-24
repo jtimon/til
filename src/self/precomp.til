@@ -225,12 +225,12 @@ value_to_expr := func(shallow val: Value, src: Expr) returns ref Expr {
             // before constructing the LiteralStr to keep the invariant
             // consistent.
             escaped := str_to_source_form(sv)
-            mut e := Expr.new(NodeType.LiteralStr(escaped), src.line, src.col)
+            mut e := Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col)
             return e
         }
         return NULL
     case Value.Boolean(b):
-        mut e := Expr.new(NodeType.LiteralBool(b.clone()), src.line, src.col)
+        mut e := Expr.new(NodeType.Literal(Literal.Bool(b.clone())), src.line, src.col)
         return e
     case:
         return NULL
@@ -239,7 +239,7 @@ value_to_expr := func(shallow val: Value, src: Expr) returns ref Expr {
 
 expr_to_value := func(e: Expr) returns shallow Value {
     switch e.node_type {
-    case NodeType.LiteralNum(num):
+    case NodeType.Literal(Literal.Num(num)):
         lit_t := expr_til_type(e)
         switch lit_t {
         case Type.U8:  return val_u8(num.to_u8())
@@ -254,7 +254,7 @@ expr_to_value := func(e: Expr) returns shallow Value {
             return val_i64(num.to_i64())
         case: return val_i64(num.to_i64())
         }
-    case NodeType.LiteralStr(s):
+    case NodeType.Literal(Literal.Str(s)):
         // LiteralStr stores source-form text (parser doesn't process
         // escapes); runtime sees post-escape bytes from C-compiler-
         // interpreted Str_lit. Fast path: most LiteralStr nodes have no
@@ -276,7 +276,7 @@ expr_to_value := func(e: Expr) returns shallow Value {
         // AST), so use make_str_value which memcpys.
         raw := from_source_form(s)
         return make_str_value(raw.c_str, raw.count)
-    case NodeType.LiteralBool(b):
+    case NodeType.Literal(Literal.Bool(b)):
         return val_bool(b)
     case:
         return val_none()
@@ -285,13 +285,13 @@ expr_to_value := func(e: Expr) returns shallow Value {
 
 is_known := func(e: Expr, mut out: Value) returns shallow Bool {
     switch e.node_type {
-    case NodeType.LiteralNum:
+    case NodeType.Literal(Literal.Num):
         out = expr_to_value(e)
         return true
-    case NodeType.LiteralStr:
+    case NodeType.Literal(Literal.Str):
         out = expr_to_value(e)
         return true
-    case NodeType.LiteralBool:
+    case NodeType.Literal(Literal.Bool):
         out = expr_to_value(e)
         return true
     case NodeType.Ident(id):
@@ -311,9 +311,9 @@ is_known := func(e: Expr, mut out: Value) returns shallow Bool {
 // throwaway temporary they pass to is_known.
 is_known_check := func(e: Expr) returns shallow Bool {
     switch e.node_type {
-    case NodeType.LiteralNum:  return true
-    case NodeType.LiteralStr:  return true
-    case NodeType.LiteralBool: return true
+    case NodeType.Literal(Literal.Num):  return true
+    case NodeType.Literal(Literal.Str):  return true
+    case NodeType.Literal(Literal.Bool): return true
     case NodeType.Ident(id): return known.has(ident_name(id))
     case:                      return false
     }
@@ -421,9 +421,9 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
         if ret.node_type.is(NodeType.Return).not() { return NULL }
         if ret.children.len().eq(0) { return NULL }
         ref rv : Expr = ret.child(0)
-        if rv.node_type.is(NodeType.LiteralNum)
-            .or(rv.node_type.is(NodeType.LiteralStr))
-            .or(rv.node_type.is(NodeType.LiteralBool)) {
+        if rv.node_type.is_literal_num()
+            .or(rv.node_type.is_literal_str())
+            .or(rv.node_type.is_literal_bool()) {
             return rv
         }
         return NULL
@@ -441,9 +441,9 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
             case NodeType.Ident(ret_name):
                 if ident_name(ret_name).eq(dd.name).not() { return NULL }
                 ref rhs : Expr = decl.child(0)
-                if rhs.node_type.is(NodeType.LiteralNum)
-                    .or(rhs.node_type.is(NodeType.LiteralStr))
-                    .or(rhs.node_type.is(NodeType.LiteralBool)) {
+                if rhs.node_type.is_literal_num()
+                    .or(rhs.node_type.is_literal_str())
+                    .or(rhs.node_type.is_literal_bool()) {
                     return rhs
                 }
             case:
@@ -658,7 +658,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                         ec.add_child(own lit)
                         continue
                     case Value.Boolean(bv):
-                        mut lit := Expr.new(NodeType.LiteralBool(bv), arg.line, arg.col)
+                        mut lit := Expr.new(NodeType.Literal(Literal.Bool(bv)), arg.line, arg.col)
                         ec.add_child(own lit)
                         continue
                     case:
@@ -959,10 +959,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, shallow at_global: 
             if dd.name.starts_with("hoisted__") {
                 if dstmt.children.len().gt(0) {
                     ref drhs : Expr = dstmt.child(0)
-                    is_lit := drhs.node_type.is(NodeType.LiteralStr)
-                        .or(drhs.node_type.is(NodeType.LiteralNum))
-                        .or(drhs.node_type.is(NodeType.LiteralBool))
-                        .or(drhs.node_type.is(NodeType.LiteralNull))
+                    is_lit := drhs.node_type.is(NodeType.Literal)
                     if is_lit {
                         mut used_elsewhere := false
                         for ui in 0..body.children.len() {

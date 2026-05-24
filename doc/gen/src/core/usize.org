@@ -3,6 +3,6 @@
 
 * USize
 #+begin_src til
-USize is a U32
+USize
 #+end_src
 

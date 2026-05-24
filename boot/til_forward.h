@@ -58,11 +58,15 @@ typedef struct EnumDef EnumDef;
 typedef struct AssignData AssignData;
 typedef struct ForInData ForInData;
 typedef enum {
+    Literal_TAG_Str,
+    Literal_TAG_Num,
+    Literal_TAG_Bool,
+    Literal_TAG_Null
+} Literal_tag;
+typedef struct Literal Literal;
+typedef enum {
     NodeType_TAG_Body,
-    NodeType_TAG_LiteralStr,
-    NodeType_TAG_LiteralNum,
-    NodeType_TAG_LiteralBool,
-    NodeType_TAG_LiteralNull,
+    NodeType_TAG_Literal,
     NodeType_TAG_Ident,
     NodeType_TAG_Decl,
     NodeType_TAG_Assign,
@@ -352,6 +356,15 @@ typedef struct ForInData {
     Type til_type;
 } ForInData;
 
+
+struct Literal {
+    Literal_tag tag;
+    union {
+        Str Str;
+        LiteralNumData Num;
+        Bool Bool;
+    } data;
+};
 
 typedef struct Array {
     U8 *data;
@@ -678,9 +691,7 @@ typedef struct EnumDef {
 struct NodeType {
     NodeType_tag tag;
     union {
-        Str LiteralStr;
-        LiteralNumData LiteralNum;
-        Bool LiteralBool;
+        Literal Literal;
         IdentData Ident;
         Declaration Decl;
         AssignData Assign;
@@ -1002,6 +1013,13 @@ U32 AssignData_size(void);
 ForInData * ForInData_clone(ForInData * self);
 void ForInData_delete(ForInData * self, Bool * call_free);
 U32 ForInData_size(void);
+void Literal_delete(Literal * self, Bool * call_free);
+Literal * Literal_clone(Literal * self);
+U32 Literal_size(void);
+Bool NodeType_is_literal_str(NodeType * self);
+Bool NodeType_is_literal_num(NodeType * self);
+Bool NodeType_is_literal_bool(NodeType * self);
+Bool NodeType_is_literal_null(NodeType * self);
 Bool NodeType_is(NodeType * self, NodeType * other);
 void NodeType_delete(NodeType * self, Bool * call_free);
 NodeType * NodeType_clone(NodeType * self);

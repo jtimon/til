@@ -388,13 +388,20 @@ namespace:
     to_str := func(self: ForInData) returns Str { return self.name }
 }
 
+/// Literal (constant) node kinds: the leaf values written directly in
+/// source. Grouped under NodeType.Literal so "is this any literal?"
+/// is a single check (NodeType.Literal) instead of a four-way chain.
+Literal := enum {
+    Str: Str,
+    Num: LiteralNumData,
+    Bool: Bool,
+    Null,
+}
+
 /// AST node kind. Each variant carries an optional payload (struct, string, bool).
 NodeType := enum {
     Body,
-    LiteralStr: Str,
-    LiteralNum: LiteralNumData,
-    LiteralBool: Bool,
-    LiteralNull,
+    Literal: Literal,
     Ident: IdentData,
     Decl: Declaration,
     Assign: AssignData,
@@ -429,6 +436,23 @@ NodeType := enum {
     // its presence to allow missing-field cases and rejects patterns
     // that omit fields without the marker.
     RestPattern,
+namespace:
+    // is() compares only the outer enum tag, so is(NodeType.Literal(Literal.X))
+    // cannot tell the literal kinds apart -- it matches any Literal. These
+    // switch-based predicates discriminate the inner Literal variant. Use
+    // node_type.is(NodeType.Literal) directly when "any literal" is wanted.
+    is_literal_str := func(self: NodeType) returns shallow Bool {
+        switch self { case NodeType.Literal(Literal.Str): return true case: return false }
+    }
+    is_literal_num := func(self: NodeType) returns shallow Bool {
+        switch self { case NodeType.Literal(Literal.Num): return true case: return false }
+    }
+    is_literal_bool := func(self: NodeType) returns shallow Bool {
+        switch self { case NodeType.Literal(Literal.Bool): return true case: return false }
+    }
+    is_literal_null := func(self: NodeType) returns shallow Bool {
+        switch self { case NodeType.Literal(Literal.Null): return true case: return false }
+    }
 }
 
 // --- Expr struct ---
@@ -517,7 +541,7 @@ ident_node := func(name: Str) returns NodeType {
 }
 
 literal_num_node := func(text: Str) returns NodeType {
-    return NodeType.LiteralNum(LiteralNumData(text = text.clone()))
+    return NodeType.Literal(Literal.Num(LiteralNumData(text = text.clone())))
 }
 
 field_access_node := func(name: Str) returns NodeType {
@@ -527,12 +551,12 @@ field_access_node := func(name: Str) returns NodeType {
 expr_til_type := func(e: Expr) returns Type {
     switch e.node_type {
     case NodeType.Body:        return Type.None
-    case NodeType.LiteralStr:  return Type.Struct("Str")
-    case NodeType.LiteralNum(nd):
+    case NodeType.Literal(Literal.Str):  return Type.Struct("Str")
+    case NodeType.Literal(Literal.Num(nd)):
         if nd.til_type.is(Type.Unknown) { return Type.I64 }
         return nd.til_type.clone()
-    case NodeType.LiteralBool: return Type.Bool
-    case NodeType.LiteralNull: return Type.Dynamic
+    case NodeType.Literal(Literal.Bool): return Type.Bool
+    case NodeType.Literal(Literal.Null): return Type.Dynamic
     case NodeType.Ident(id):   return id.til_type.clone()
     case NodeType.Decl(dd):    return dd.til_type.clone()
     case NodeType.Assign:
@@ -571,7 +595,7 @@ expr_til_type := func(e: Expr) returns Type {
 
 set_expr_til_type := func(mut e: Expr, shallow t: Type) {
     switch e.node_type {
-    case NodeType.LiteralNum(nd):
+    case NodeType.Literal(Literal.Num(nd)):
         nd.til_type = t
     case NodeType.Ident(id):
         id.til_type = t
@@ -622,12 +646,12 @@ func_type_variant_name := func(ft: FuncType) returns Str {
 node_head_str := func(data: NodeType) returns Str {
     switch data {
     case NodeType.Body:           return "Body"
-    case NodeType.LiteralStr(s):  return format("LiteralStr \"", s, "\"")
-    case NodeType.LiteralNum(s):  return format("LiteralNum ", literal_num_text(s))
-    case NodeType.LiteralBool(b):
+    case NodeType.Literal(Literal.Str(s)):  return format("LiteralStr \"", s, "\"")
+    case NodeType.Literal(Literal.Num(s)):  return format("LiteralNum ", literal_num_text(s))
+    case NodeType.Literal(Literal.Bool(b)):
         if b { return "LiteralBool true" }
         return "LiteralBool false"
-    case NodeType.LiteralNull:    return "LiteralNull"
+    case NodeType.Literal(Literal.Null):    return "LiteralNull"
     case NodeType.Ident(s):       return format("Ident ", ident_name(s))
     case NodeType.Decl(d):
         if d.is_mut { return format("Decl mut ", d.name) }
@@ -684,10 +708,10 @@ expr_to_str_indent := func(self: Expr, shallow indent: U32) returns Str {
 node_name := func(data: NodeType) returns Str {
     switch data {
     case NodeType.Body:        return "body"
-    case NodeType.LiteralStr:  return "str"
-    case NodeType.LiteralNum:  return "num"
-    case NodeType.LiteralBool: return "bool"
-    case NodeType.LiteralNull: return "null"
+    case NodeType.Literal(Literal.Str):  return "str"
+    case NodeType.Literal(Literal.Num):  return "num"
+    case NodeType.Literal(Literal.Bool): return "bool"
+    case NodeType.Literal(Literal.Null): return "null"
     case NodeType.Ident:       return "ident"
     case NodeType.Decl:        return "decl"
     case NodeType.Assign:      return "assign"
@@ -739,9 +763,9 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     }
     switch e.node_type {
     case NodeType.Ident(s):      print(" \"", ident_name(s), "\"")
-    case NodeType.LiteralStr(s): print(" \"", s, "\"")
-    case NodeType.LiteralNum(s): print(" \"", literal_num_text(s), "\"")
-    case NodeType.LiteralBool(b): if b { print(" true") } else { print(" false") }
+    case NodeType.Literal(Literal.Str(s)): print(" \"", s, "\"")
+    case NodeType.Literal(Literal.Num(s)): print(" \"", literal_num_text(s), "\"")
+    case NodeType.Literal(Literal.Bool(b)): if b { print(" true") } else { print(" false") }
     case NodeType.ForIn(fi):
         if fi.is_mut { print(" mut") }
         print(" \"", fi.name, "\"")

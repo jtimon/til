@@ -36,21 +36,6 @@ namespace:
 codegen_lp_slot is a Dynamic
 #+end_src
 
-* in_func_def
-#+begin_src til
-in_func_def is a Bool
-#+end_src
-
-* in_main_func
-#+begin_src til
-in_main_func is a Bool
-#+end_src
-
-* ctor_seq
-#+begin_src til
-ctor_seq is a I32
-#+end_src
-
 * codegen_lp
 #+begin_src til
 func codegen_lp() returns ref LoadedProgram
@@ -283,12 +268,12 @@ func type_name_to_c_value(name: Str) returns Str
 
 * emit_u64
 #+begin_src til
-proc emit_u64(f: File, shallow v: U64)
+proc emit_u64(f: File, shallow v: U64) returns ref File
 #+end_src
 
 * emit_i32
 #+begin_src til
-proc emit_i32(f: File, shallow v: I32)
+proc emit_i32(f: File, shallow v: I32) returns ref File
 #+end_src
 
 * priv___src_self_builder_til__emit_indent

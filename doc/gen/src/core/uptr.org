@@ -8,6 +8,6 @@ The source alias defaults to U64; the loader retargets it to U32 for
 32-bit targets before typecheck/codegen.
 
 #+begin_src til
-UPtr is a U64
+UPtr
 #+end_src
 

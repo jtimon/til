@@ -1,14 +1,14 @@
 #+TITLE: src/self/precomp.til
 #+OPTIONS: toc:t
 
-* hoisted__Str_21089
+* hoisted__Str_22271
 #+begin_src til
-hoisted__Str_21089 is a Str
+hoisted__Str_22271 is a Str
 #+end_src
 
-* hoisted__Type_21090
+* hoisted__Type_22272
 #+begin_src til
-hoisted__Type_21090 is a Type
+hoisted__Type_22272 is a Type
 #+end_src
 
 * macros
@@ -16,14 +16,14 @@ hoisted__Type_21090 is a Type
 macros is a Set
 #+end_src
 
-* hoisted__Str_21091
+* hoisted__Str_22273
 #+begin_src til
-hoisted__Str_21091 is a Str
+hoisted__Str_22273 is a Str
 #+end_src
 
-* hoisted__Type_21092
+* hoisted__Type_22274
 #+begin_src til
-hoisted__Type_21092 is a Type
+hoisted__Type_22274 is a Type
 #+end_src
 
 * funcs
@@ -31,24 +31,24 @@ hoisted__Type_21092 is a Type
 funcs is a Set
 #+end_src
 
-* hoisted__Str_21093
+* hoisted__Str_22275
 #+begin_src til
-hoisted__Str_21093 is a Str
+hoisted__Str_22275 is a Str
 #+end_src
 
-* hoisted__Str_21094
+* hoisted__Str_22276
 #+begin_src til
-hoisted__Str_21094 is a Str
+hoisted__Str_22276 is a Str
 #+end_src
 
-* hoisted__Type_21095
+* hoisted__Type_22277
 #+begin_src til
-hoisted__Type_21095 is a Type
+hoisted__Type_22277 is a Type
 #+end_src
 
-* hoisted__Type_21096
+* hoisted__Type_22278
 #+begin_src til
-hoisted__Type_21096 is a Type
+hoisted__Type_22278 is a Type
 #+end_src
 
 * known

@@ -16,6 +16,11 @@ ext_func check_cmd_status(shallow pid: I64) returns shallow I64
 ext_proc sleep_ms(shallow ms: I64)
 #+end_src
 
+* noop_proc
+#+begin_src til
+ext_proc noop_proc()
+#+end_src
+
 * file_mtime
 #+begin_src til
 ext_func file_mtime(path: Str) returns shallow I64

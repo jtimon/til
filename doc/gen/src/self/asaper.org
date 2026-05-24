@@ -25,7 +25,7 @@ func alias_used_in_stmts(stmts: Vec, name: Str, expr: Expr) returns shallow Bool
 
 * collect_scope_locals
 #+begin_src til
-func collect_scope_locals(body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec)
+func collect_scope_locals(ctx: Context, body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec)
 #+end_src
 
 * extend_ref_local_lifetimes
@@ -65,17 +65,17 @@ func insert_assign_delete(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec)
 
 * promote_own_transferred_locals
 #+begin_src til
-func promote_own_transferred_locals(mut body: Expr, mut locals: Vec)
+func promote_own_transferred_locals(ctx: Context, mut body: Expr, mut locals: Vec)
 #+end_src
 
 * insert_free_calls
 #+begin_src til
-proc insert_free_calls(mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool
+proc insert_free_calls(ctx: Context, mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool
 #+end_src
 
 * asap_destroy_body
 #+begin_src til
-proc asap_destroy_body(mut body: Expr, mut scope: TypeScope) returns shallow Bool
+proc asap_destroy_body(ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool
 #+end_src
 
 * asap_destroy

@@ -80,7 +80,7 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     set_expr_til_type(fa, Type.Unknown)
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.add_child(own fa)
-    mut payload := Expr.new(NodeType.LiteralStr(payload_name), src.line, src.col)
+    mut payload := Expr.new(NodeType.Literal(Literal.Str(payload_name)), src.line, src.col)
     call.add_child(own payload)
     set_expr_til_type(call, Type.Enum("Type"))
     return call
@@ -476,10 +476,10 @@ find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
 // compile time.
 expr_is_comptime := func(e: Expr, scope: TypeScope) returns shallow Bool {
     switch e.node_type {
-    case NodeType.LiteralNum:    return true
-    case NodeType.LiteralStr:    return true
-    case NodeType.LiteralBool:   return true
-    case NodeType.LiteralNull:   return true
+    case NodeType.Literal(Literal.Num):    return true
+    case NodeType.Literal(Literal.Str):    return true
+    case NodeType.Literal(Literal.Bool):   return true
+    case NodeType.Literal(Literal.Null):   return true
     case NodeType.Ident(id):
         ref b : TypeBinding = scope.get_binding(ident_name(id))
         if is_null(b) { return false }
@@ -756,7 +756,7 @@ check_ref_field_owned_default := proc(fd: Declaration, scope: TypeScope) {
     if fd.own_type.is(OwnType.Ref).not() { return }
     if is_null(fd.default_value) { return }
     if fd.default_value.node_type.is(NodeType.NoDefaultArg) { return }
-    if fd.default_value.node_type.is(NodeType.LiteralNull) { return }
+    if fd.default_value.node_type.is_literal_null() { return }
     if fd.default_value.node_type.is(NodeType.FCall).not() { return }
     if fcall_returns_own(fd.default_value, scope).not() { return }
     type_error(fd.default_value, "ref field '".concat(fd.name).concat("' default cannot be an owned value (.clone() / constructor / function returning own) -- use NULL or change the field to 'own'"))
@@ -793,7 +793,7 @@ check_ref_local_null_init := proc(stmt: Expr) {
     case NodeType.Decl(sdecl):
         if sdecl.own_type.is(OwnType.Ref).not() { return }
         ref rhs : Expr = stmt.child(0)
-        if rhs.node_type.is(NodeType.LiteralNull).not() { return }
+        if rhs.node_type.is_literal_null().not() { return }
         type_error(stmt, "ref binding '".concat(sdecl.name).concat("' cannot be initialized to NULL -- borrow the source directly, or use a non-ref shape (own/mut + sentinel)"))
     case:
     }
@@ -912,12 +912,12 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
                 }
             }
             if pown {
-                if arg.node_type.is(NodeType.LiteralNull) {
+                if arg.node_type.is_literal_null() {
                     type_error(arg, "cannot pass null to 'own' parameter")
                 }
             }
             if pp2.own_type.is(OwnType.Shallow) {
-                if arg.node_type.is(NodeType.LiteralNull) {
+                if arg.node_type.is_literal_null() {
                     type_error(arg, "cannot pass null to 'shallow' parameter")
                 }
             }
@@ -1195,7 +1195,7 @@ validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_na
     if expr_til_type(arg).is(Type.Dynamic) { return }
     if expr_til_type(arg).is(Type.Unknown) { return }
     switch arg.node_type {
-    case NodeType.LiteralNum(lit_str):
+    case NodeType.Literal(Literal.Num(lit_str)):
         if is_numeric_type(ptype) {
             if literal_in_range(literal_num_text(lit_str), ptype).not() {
                 type_error(arg, "integer literal ".concat(literal_num_text(lit_str)).concat(" out of range for ").concat(type_to_name(ptype)))
@@ -1364,7 +1364,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")).or(name.eq("dyn_fn")) {
         if e.children.len().gte(3) {
             ref method_arg : Expr = e.child(2)
-            if method_arg.node_type.is(NodeType.LiteralStr).not() {
+            if method_arg.node_type.is_literal_str().not() {
                 type_error(method_arg, "dyn_call method argument must be a string literal")
             }
         }
@@ -1372,7 +1372,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     if name.eq("array").or(name.eq("vec")) {
         if e.children.len().gte(2) {
             ref type_arg : Expr = e.child(1)
-            if type_arg.node_type.is(NodeType.LiteralStr).not() {
+            if type_arg.node_type.is_literal_str().not() {
                 type_error(type_arg, "array/vec type_name argument must be a string literal")
             }
         }
@@ -1539,9 +1539,9 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     // surrounding code would have produced anyway. Reject at the typer
     // level so callers fix the source instead of paying for the copy.
     if method.eq("clone") {
-        if obj.node_type.is(NodeType.LiteralStr)
-           .or(obj.node_type.is(NodeType.LiteralNum))
-           .or(obj.node_type.is(NodeType.LiteralBool)) {
+        if obj.node_type.is_literal_str()
+           .or(obj.node_type.is_literal_num())
+           .or(obj.node_type.is_literal_bool()) {
             type_error(e, "redundant '' on a literal")
             set_expr_til_type(e,  Type.Unknown)
             return true
@@ -1783,7 +1783,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             ptype := type_from_name(ptype_name, scope)
             if ptype.is(Type.Dynamic) { continue }
             switch arg.node_type {
-            case NodeType.LiteralNum(lit_str):
+            case NodeType.Literal(Literal.Num(lit_str)):
                 if is_numeric_type(ptype) {
                     if literal_in_range(literal_num_text(lit_str), ptype).not() {
                         type_error(arg, format(
@@ -1861,12 +1861,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                     }
                 }
                 if pown {
-                    if arg.node_type.is(NodeType.LiteralNull) {
+                    if arg.node_type.is_literal_null() {
                         type_error(arg, "cannot pass null to 'own' parameter")
                     }
                 }
                 if pp.own_type.is(OwnType.Shallow) {
-                    if arg.node_type.is(NodeType.LiteralNull) {
+                    if arg.node_type.is_literal_null() {
                         type_error(arg, "cannot pass null to 'shallow' parameter")
                     }
                 }
@@ -2034,8 +2034,8 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
 
 priv infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
     switch expr.node_type {
-    case NodeType.LiteralNum:  infer_literal_expr(expr)
-    case NodeType.LiteralNull: infer_literal_expr(expr)
+    case NodeType.Literal(Literal.Num):  infer_literal_expr(expr)
+    case NodeType.Literal(Literal.Null): infer_literal_expr(expr)
     case NodeType.Ident:       infer_ident_expr(scope, expr)
     case NodeType.FuncDef:     infer_func_def_expr(scope, expr, ctx)
     case NodeType.StructDef:   infer_type_def_expr(scope, expr, ctx)
@@ -2194,10 +2194,10 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                 fd.til_type =type_from_name(fd.explicit_type, inner)
                 if fd.til_type.is(Type.Unknown).not() {
                     if is_null(fd.default_value).not().and(fd.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
-                        if fd.default_value.node_type.is(NodeType.LiteralNum).and(is_numeric_type(fd.til_type)) {
+                        if fd.default_value.node_type.is_literal_num().and(is_numeric_type(fd.til_type)) {
                             set_expr_til_type(fd.default_value, fd.til_type)
                         }
-                        if fd.default_value.node_type.is(NodeType.LiteralNull).not() {
+                        if fd.default_value.node_type.is_literal_null().not() {
                             narrow_dynamic(fd.default_value, fd.til_type)
                         }
                     }
@@ -2794,7 +2794,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                         }
                         mut handled_lit := false
                         switch rhs.node_type {
-                        case NodeType.LiteralNum(lit_str):
+                        case NodeType.Literal(Literal.Num(lit_str)):
                             if is_numeric_type(fld.til_type) {
                                 if literal_in_range(literal_num_text(lit_str), fld.til_type).not() {
                                     type_error(rhs, "integer literal out of range for field '".concat(fname).concat("'"))
@@ -2830,7 +2830,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
                         }
                         mut handled_lit2 := false
                         switch rhs.node_type {
-                        case NodeType.LiteralNum(lit_str):
+                        case NodeType.Literal(Literal.Num(lit_str)):
                             if is_numeric_type(nsd.til_type) {
                                 if literal_in_range(literal_num_text(lit_str), nsd.til_type).not() {
                                     type_error(rhs, "integer literal out of range for field '".concat(fname).concat("'"))
@@ -2912,7 +2912,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
         else_body.add_child(own brk)
         if_node.add_child(own else_body)
 
-        mut true_lit := Expr.new(NodeType.LiteralBool(true), line, col)
+        mut true_lit := Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
         stmt.children.replace(0, own true_lit)
 
         mut old := Vec.new(Expr)
@@ -3084,7 +3084,7 @@ declared_type_for_decl := func(scope: TypeScope, stmt: Expr) returns Type {
 // the source type's namespace.
 pre_coerce_decl_numeric_literals := proc(mut expr: Expr, target: Type) {
     switch expr.node_type {
-    case NodeType.LiteralNum:
+    case NodeType.Literal(Literal.Num):
         set_expr_til_type(expr, target)
     case NodeType.FieldAccess(fname):
         for i in 0..expr.children.len() {
@@ -3118,16 +3118,16 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
         }
         if declared.is(Type.Unknown) {
             type_error(stmt, "undefined type '".concat(sdecl.explicit_type).concat("'"))
-        } else if val.node_type.is(NodeType.LiteralNum).and(is_numeric_type(declared).or(declared.is(Type.Dynamic))) {
+        } else if val.node_type.is_literal_num().and(is_numeric_type(declared).or(declared.is(Type.Dynamic))) {
             switch val.node_type {
-            case NodeType.LiteralNum(lit_str):
+            case NodeType.Literal(Literal.Num(lit_str)):
                 if is_numeric_type(declared).and(literal_in_range(literal_num_text(lit_str), declared).not()) {
                     type_error(val, "integer literal ".concat(literal_num_text(lit_str)).concat(" out of range for ").concat(type_to_name(declared)))
                 }
             case:
             }
             set_expr_til_type(val, declared)
-        } else if val.node_type.is(NodeType.LiteralNull).and(sdecl.own_type.is(OwnType.Ref).not()) {
+        } else if val.node_type.is_literal_null().and(sdecl.own_type.is(OwnType.Ref).not()) {
             type_error(stmt, "null can only be assigned to 'ref' declarations")
         } else if can_implicit_usize_coerce(expr_til_type(val), declared, sdecl.explicit_type).not()
         .and(expr_til_type(val).is(declared).not())
@@ -3358,7 +3358,7 @@ is_simple_lvalue_expr := func(e: Expr) returns shallow Bool {
 // untouched for the caller to drop normally).
 priv fold_and_chain := func(conds: Vec, shallow line: U32, shallow col: U32) returns Expr {
     if conds.len().eq(0) {
-        return Expr.new(NodeType.LiteralBool(true), line, col)
+        return Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
     }
     ref first_c : Expr = conds.get(0)
     if conds.len().eq(1) {
@@ -3806,7 +3806,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         }
     }
 
-    mut sw_ref := Expr.new(NodeType.LiteralNull, sw_line, sw_col)
+    mut sw_ref := Expr.new(NodeType.Literal(Literal.Null), sw_line, sw_col)
     mut block := Expr.new(NodeType.Body, stmt.line, stmt.col)
     // #196.B: Never hoist enum-typed subjects. A hoisted local would be
     // either a shallow value copy (whose destructor frees aliased Vec/Str
@@ -3858,7 +3858,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
         matched_name = "_sw_matched_".concat(ctx.hoist_counter.to_str())
         ctx.hoist_counter++
         mut matched_decl := Expr.new(NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Shallow)), stmt.line, stmt.col)
-        matched_decl.add_child(own Expr.new(NodeType.LiteralBool(false), stmt.line, stmt.col))
+        matched_decl.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
         block.add_child(own matched_decl)
     }
 
@@ -3925,7 +3925,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
                 user_stmts.children.push_take(all_children, n_bindings.add(ui))
             }
             mut matched_assign := Expr.new(NodeType.Assign(AssignData(name = matched_name.clone())), case_node.line, case_node.col)
-            matched_assign.add_child(own Expr.new(NodeType.LiteralBool(true), case_node.line, case_node.col))
+            matched_assign.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), case_node.line, case_node.col))
             user_stmts.add_child(own matched_assign)
 
             if has_guard {
@@ -4065,9 +4065,9 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
     mut elem_type := til_type_name(expr_til_type(stmt))
     if elem_type.len().eq(0) {
         mut type_src := start_expr
-        if start_expr.node_type.is(NodeType.LiteralNum).and(end_expr.node_type.is(NodeType.LiteralNum).not()) {
+        if start_expr.node_type.is_literal_num().and(end_expr.node_type.is_literal_num().not()) {
             type_src = end_expr
-        } else if end_expr.node_type.is(NodeType.LiteralNum).and(start_expr.node_type.is(NodeType.LiteralNum).not()) {
+        } else if end_expr.node_type.is_literal_num().and(start_expr.node_type.is_literal_num().not()) {
             type_src = start_expr
         }
         if is_aggregate(expr_til_type(type_src)) {
@@ -4345,8 +4345,8 @@ priv guess_local_type := proc(e: Expr, var_name: Str) returns Str {
                             case:
                             }
                         }
-                    case NodeType.LiteralStr: return "Str"
-                    case NodeType.LiteralNum: return "I64"
+                    case NodeType.Literal(Literal.Str): return "Str"
+                    case NodeType.Literal(Literal.Num): return "I64"
                     case:
                     }
                 }
@@ -4420,9 +4420,9 @@ priv has_prior_throw_type := proc(e: Expr, root_body: Expr, type_name: Str, shal
                     case:
                     }
                 }
-            case NodeType.LiteralStr:
+            case NodeType.Literal(Literal.Str):
                 thrown_name = "Str"
-            case NodeType.LiteralNum:
+            case NodeType.Literal(Literal.Num):
                 thrown_name = "I64"
             case:
             }
@@ -4448,9 +4448,9 @@ priv subtree_has_throw_type := proc(e: Expr, root_body: Expr, type_name: Str) re
                 case:
                 }
             }
-        case NodeType.LiteralStr:
+        case NodeType.Literal(Literal.Str):
             thrown_name = "Str"
-        case NodeType.LiteralNum:
+        case NodeType.Literal(Literal.Num):
             thrown_name = "I64"
         case:
         }
@@ -4477,8 +4477,8 @@ priv has_prior_throw_type_in_vec := proc(stmts: Vec, root_body: Expr, shallow up
 
 priv throw_type_name_for_with_body := proc(e: Expr, body: Expr) returns Str {
     switch e.node_type {
-    case NodeType.LiteralStr: return "Str"
-    case NodeType.LiteralNum: return "I64"
+    case NodeType.Literal(Literal.Str): return "Str"
+    case NodeType.Literal(Literal.Num): return "I64"
     case NodeType.FCall:
         if e.children.len().eq(0) { return "" }
         switch e.child(0).node_type {
@@ -4572,9 +4572,9 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
                                                     case:
                                                     }
                                                 }
-                                            case NodeType.LiteralStr:
+                                            case NodeType.Literal(Literal.Str):
                                                 tn = "Str"
-                                            case NodeType.LiteralNum:
+                                            case NodeType.Literal(Literal.Num):
                                                 tn = "I64"
                                             case:
                                             }
@@ -4668,8 +4668,8 @@ priv make_assign_stmt := func(name: Str, rhs: Expr, shallow line: U32, shallow c
 }
 
 priv make_default_value_expr := func(type_name: Str, shallow line: U32, shallow col: U32) returns Expr {
-    if type_name.eq("Str") { return Expr.new(NodeType.LiteralStr(""), line, col) }
-    if type_name.eq("Bool") { return Expr.new(NodeType.LiteralBool(false), line, col) }
+    if type_name.eq("Str") { return Expr.new(NodeType.Literal(Literal.Str("")), line, col) }
+    if type_name.eq("Bool") { return Expr.new(NodeType.Literal(Literal.Bool(false)), line, col) }
     if type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("I8")).or(type_name.eq("I16"))
     .or(type_name.eq("I32")).or(type_name.eq("U32")).or(type_name.eq("U64"))
     .or(type_name.eq("F32")) {
@@ -5228,8 +5228,8 @@ priv build_bang_lowered := func(ctx: Context, error_type: Str, shallow line: U32
     loc_str := format(typer_path, ":", line.to_str(), ":", col.to_str())
     mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
     panic_call.add_child(own Expr.new(ident_node("panic"), line, col))
-    panic_call.add_child(own Expr.new(NodeType.LiteralStr(loc_str), line, col))
-    panic_call.add_child(own Expr.new(NodeType.LiteralStr(error_type), line, col))
+    panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(loc_str)), line, col))
+    panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(error_type)), line, col))
     mut blk := Expr.new(NodeType.Body, line, col)
     blk.add_child(own make_assign_stmt("_err_kind", make_int_lit(0, line, col), line, col))
     blk.add_child(own panic_call)
@@ -5582,9 +5582,9 @@ priv process_throw_catch_in_body := proc(
                                                 case:
                                                 }
                                             }
-                                        case NodeType.LiteralStr:
+                                        case NodeType.Literal(Literal.Str):
                                             tn = "Str"
-                                        case NodeType.LiteralNum:
+                                        case NodeType.Literal(Literal.Num):
                                             tn = "I64"
                                         case:
                                         }
@@ -5633,8 +5633,8 @@ priv process_throw_catch_in_body := proc(
                                                 case:
                                                 }
                                             }
-                                        case NodeType.LiteralStr: tn = "Str"
-                                        case NodeType.LiteralNum: tn = "I64"
+                                        case NodeType.Literal(Literal.Str): tn = "Str"
+                                        case NodeType.Literal(Literal.Num): tn = "I64"
                                         case:
                                         }
                                     }
@@ -6254,7 +6254,7 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
     for stmt : Expr in iu.ast.children {
         if stmt.node_type.is(NodeType.FCall).not() { continue }
         if stmt.children.len().neq(2) { continue }
-        if stmt.child(1).node_type.is(NodeType.LiteralStr).not() { continue }
+        if stmt.child(1).node_type.is_literal_str().not() { continue }
         switch stmt.child(0).node_type {
         case NodeType.Ident(id):
             if ident_name(id).eq("import").not() { continue }
@@ -6312,9 +6312,9 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
             }
         case:
         }
-    } else if rhs.node_type.is(NodeType.LiteralNum).and(is_numeric_type(existing)) {
+    } else if rhs.node_type.is_literal_num().and(is_numeric_type(existing)) {
         switch rhs.node_type {
-        case NodeType.LiteralNum(lit_str):
+        case NodeType.Literal(Literal.Num(lit_str)):
             if literal_in_range(literal_num_text(lit_str), existing).not() {
                 type_error(stmt, "integer literal out of range for assignment to '".concat(aname).concat("'"))
             }
@@ -6373,7 +6373,7 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
                 case:
                 }
             }
-        } else if rhs.node_type.is(NodeType.LiteralStr).and(
+        } else if rhs.node_type.is_literal_str().and(
             is_aggregate(existing)
         ) {
             // mut X := some_str; ... X = "literal" -- the outer-scope local
@@ -6902,7 +6902,7 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     field_acc.add_child(own field_assign.child(0).clone())
     call.add_child(own field_acc)
 
-    mut cf_lit := Expr.new(NodeType.LiteralBool(field_own_type.is(OwnType.Own)), field_assign.line, field_assign.col)
+    mut cf_lit := Expr.new(NodeType.Literal(Literal.Bool(field_own_type.is(OwnType.Own))), field_assign.line, field_assign.col)
     call.add_child(own cf_lit)
 
     return call
@@ -6927,7 +6927,7 @@ make_delete_call := func(var_name: Str, shallow type: Type, shallow arg_is_own: 
     if arg_is_own { set_own_arg(call, call.children.len()) }
     call.add_child(own arg)
 
-    mut cf_lit := Expr.new(NodeType.LiteralBool(call_free), src.line, src.col)
+    mut cf_lit := Expr.new(NodeType.Literal(Literal.Bool(call_free)), src.line, src.col)
     call.add_child(own cf_lit)
 
     return call
@@ -7156,11 +7156,11 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     set_expr_til_type(self_id, Type.Struct("DynMap"))
     set_call.add_child(own self_id)
 
-    mut key_lit := Expr.new(NodeType.LiteralStr(key_name), fcall.line, fcall.col)
+    mut key_lit := Expr.new(NodeType.Literal(Literal.Str(key_name)), fcall.line, fcall.col)
     set_call.add_child(own key_lit)
 
     tname := type_to_name(expr_til_type(val))
-    mut type_lit := Expr.new(NodeType.LiteralStr(tname), fcall.line, fcall.col)
+    mut type_lit := Expr.new(NodeType.Literal(Literal.Str(tname)), fcall.line, fcall.col)
     set_call.add_child(own type_lit)
 
     mut size_call := make_ns_call(tname, "size", usize_type(scope), fcall)
@@ -7289,7 +7289,7 @@ desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: V
             if cn_str.eq("vec").or(cn_str.eq("array")).not() { return false }
             ref child1 : Expr = fcall.child(1)
             switch child1.node_type {
-            case NodeType.LiteralStr(elem_type):
+            case NodeType.Literal(Literal.Str(elem_type)):
                 count : U32 = fcall.children.len().sub(2)
                 if cn_str.eq("vec") {
                     vec_name := "_vec_".concat(ctx.coll_counter.to_str())
@@ -7348,7 +7348,7 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
             if rhs.children.len().lt(2) { return false }
             ref child1 : Expr = rhs.child(1)
             switch child1.node_type {
-            case NodeType.LiteralStr(elem_type):
+            case NodeType.Literal(Literal.Str(elem_type)):
                 count : U32 = rhs.children.len().sub(2)
                 mut vec_decl := build_builtin_vec_decl(rhs, scope, elem_type, var_name)
                 set_expr_til_type(vec_decl, Type.Struct("Vec"))
@@ -7372,7 +7372,7 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
             if rhs.children.len().lt(2) { return false }
             ref child1 : Expr = rhs.child(1)
             switch child1.node_type {
-            case NodeType.LiteralStr(elem_type):
+            case NodeType.Literal(Literal.Str(elem_type)):
                 count : U32 = rhs.children.len().sub(2)
                 mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count)
                 set_expr_til_type(arr_decl, Type.Struct("Array"))
@@ -7901,9 +7901,9 @@ hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope
         }
         }
         if arg.node_type.is(NodeType.FCall).not() {
-            if arg.node_type.is(NodeType.LiteralNum).not() {
-                if arg.node_type.is(NodeType.LiteralStr).not() {
-                    if arg.node_type.is(NodeType.LiteralBool).not() {
+            if arg.node_type.is_literal_num().not() {
+                if arg.node_type.is_literal_str().not() {
+                    if arg.node_type.is_literal_bool().not() {
                         continue
                     }
                 }
@@ -7955,9 +7955,9 @@ hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mu
     hoist_expr(ctx, stmt.child(0), hoisted, scope)
     ref rhs : Expr = stmt.child(0)
     if rhs.node_type.is(NodeType.FCall)
-    .or(rhs.node_type.is(NodeType.LiteralNum))
-    .or(rhs.node_type.is(NodeType.LiteralStr))
-    .or(rhs.node_type.is(NodeType.LiteralBool)) {
+    .or(rhs.node_type.is_literal_num())
+    .or(rhs.node_type.is_literal_str())
+    .or(rhs.node_type.is_literal_bool()) {
         replacement := hoist_to_temp(ctx, rhs, hoisted, scope, false)
         free_expr_slot_in_place(stmt.children.get(0.to_usize()))
         stmt.children.set(0, own replacement)
@@ -7987,9 +7987,9 @@ hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut
     ref rhs : Expr = stmt.child(0)
     if do_hoist.and(
         rhs.node_type.is(NodeType.FCall)
-        .or(rhs.node_type.is(NodeType.LiteralNum))
-        .or(rhs.node_type.is(NodeType.LiteralStr))
-        .or(rhs.node_type.is(NodeType.LiteralBool))
+        .or(rhs.node_type.is_literal_num())
+        .or(rhs.node_type.is_literal_str())
+        .or(rhs.node_type.is_literal_bool())
     ) {
         stmt.children.set(0, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
     }
@@ -8007,9 +8007,9 @@ hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
     ref rhs : Expr = stmt.child(1)
     if fa_hoist.and(
         rhs.node_type.is(NodeType.FCall)
-        .or(rhs.node_type.is(NodeType.LiteralNum))
-        .or(rhs.node_type.is(NodeType.LiteralStr))
-        .or(rhs.node_type.is(NodeType.LiteralBool))
+        .or(rhs.node_type.is_literal_num())
+        .or(rhs.node_type.is_literal_str())
+        .or(rhs.node_type.is_literal_bool())
     ) {
         stmt.children.set(1, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
     }
@@ -8377,7 +8377,7 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope) returns sha
 
 expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
     if is_null(e) { return false }
-    if e.node_type.is(NodeType.LiteralNull) { return true }
+    if e.node_type.is_literal_null() { return true }
     if e.node_type.is(NodeType.FCall).and(fcall_returns_ref(e, scope).neq(0)) { return true }
     switch e.node_type {
     case NodeType.Ident(id):
@@ -8455,11 +8455,11 @@ field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns shallow 
 // variant).
 infer_literal_expr := func(mut expr: Expr) {
     switch expr.node_type {
-    case NodeType.LiteralNum:
+    case NodeType.Literal(Literal.Num):
         if is_numeric_type(expr_til_type(expr)).not() {
             set_expr_til_type(expr, Type.I64)
         }
-    case NodeType.LiteralNull:
+    case NodeType.Literal(Literal.Null):
         set_expr_til_type(expr, Type.Dynamic)
     case:
     }
@@ -8586,7 +8586,7 @@ hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec, mut scope: 
     // compound-literal Str values (no malloc). Leaving own_type at
     // Shallow makes the typer-inserted Str.delete use call_free=false,
     // which the builder pairs with `&name` for the own-self arg.
-    is_literal_str := val.node_type.is(NodeType.LiteralStr)
+    is_literal_str := val.node_type.is_literal_str()
 
     decl.add_child(own val.clone())
 

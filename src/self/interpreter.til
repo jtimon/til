@@ -466,7 +466,7 @@ priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str)
 
 eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
     switch e.node_type {
-    case NodeType.LiteralStr(raw):
+    case NodeType.Literal(Literal.Str(raw)):
         buf : Dynamic = malloc(raw.count.to_u64().add(1))
         mut j : U64 = 0
         mut i : U64 = 0
@@ -490,7 +490,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         v := make_str_value(buf, j)
         free(own buf)
         return v
-    case NodeType.LiteralNum(num_str):
+    case NodeType.Literal(Literal.Num(num_str)):
         lit_t := expr_til_type(e)
         switch lit_t {
         case Type.U8:  return val_u8(num_str.to_i64())
@@ -505,9 +505,9 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             return val_i64(num_str.to_i64())
         case: return val_i64(num_str.to_i64())
         }
-    case NodeType.LiteralBool(b):
+    case NodeType.Literal(Literal.Bool(b)):
         return val_bool(b)
-    case NodeType.LiteralNull:
+    case NodeType.Literal(Literal.Null):
         return Value.Ptr(NULL)
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(scope, ident_name(ident))

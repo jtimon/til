@@ -53,14 +53,14 @@ namespace:
 }
 #+end_src
 
-* hoisted__Str_35954
+* hoisted__Str_37487
 #+begin_src til
-hoisted__Str_35954 is a Str
+hoisted__Str_37487 is a Str
 #+end_src
 
-* hoisted__Type_35955
+* hoisted__Type_37488
 #+begin_src til
-hoisted__Type_35955 is a Type
+hoisted__Type_37488 is a Type
 #+end_src
 
 * dispatch_map
@@ -73,24 +73,24 @@ dispatch_map is a Map
 dispatch_inited is a Bool
 #+end_src
 
-* hoisted__Str_35956
+* hoisted__Str_37489
 #+begin_src til
-hoisted__Str_35956 is a Str
+hoisted__Str_37489 is a Str
 #+end_src
 
-* hoisted__Str_35957
+* hoisted__Str_37490
 #+begin_src til
-hoisted__Str_35957 is a Str
+hoisted__Str_37490 is a Str
 #+end_src
 
-* hoisted__Type_35958
+* hoisted__Type_37491
 #+begin_src til
-hoisted__Type_35958 is a Type
+hoisted__Type_37491 is a Type
 #+end_src
 
-* hoisted__Type_35959
+* hoisted__Type_37492
 #+begin_src til
-hoisted__Type_35959 is a Type
+hoisted__Type_37492 is a Type
 #+end_src
 
 * ffi_map
@@ -98,14 +98,14 @@ hoisted__Type_35959 is a Type
 ffi_map is a Map
 #+end_src
 
-* hoisted__Str_35960
+* hoisted__Str_37493
 #+begin_src til
-hoisted__Str_35960 is a Str
+hoisted__Str_37493 is a Str
 #+end_src
 
-* hoisted__Type_35961
+* hoisted__Type_37494
 #+begin_src til
-hoisted__Type_35961 is a Type
+hoisted__Type_37494 is a Type
 #+end_src
 
 * ffi_struct_defs
@@ -118,14 +118,14 @@ ffi_struct_defs is a Map
 ffi_loaded is a Bool
 #+end_src
 
-* hoisted__Str_35962
+* hoisted__Str_37495
 #+begin_src til
-hoisted__Str_35962 is a Str
+hoisted__Str_37495 is a Str
 #+end_src
 
-* hoisted__Type_35963
+* hoisted__Type_37496
 #+begin_src til
-hoisted__Type_35963 is a Type
+hoisted__Type_37496 is a Type
 #+end_src
 
 * ffi_type_cache
@@ -540,12 +540,12 @@ proc ext_function_dispatch(name: Str, scope: Scope, e: Expr, mut result: Value) 
 
 * ffi_register
 #+begin_src til
-func ffi_register(name: Str, fn: Dynamic, fdef: Expr)
+proc ffi_register(name: Str, fn: Dynamic, fdef: Expr)
 #+end_src
 
 * ffi_init_scan_program
 #+begin_src til
-func ffi_init_scan_program(program: Expr)
+proc ffi_init_scan_program(program: Expr)
 #+end_src
 
 * ffi_map_inited

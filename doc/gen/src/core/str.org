@@ -1,44 +1,44 @@
 #+TITLE: src/core/str.til
 #+OPTIONS: toc:t
 
-* hoisted__I64_921
+* hoisted__I64_934
 #+begin_src til
-hoisted__I64_921 is a I64
+hoisted__I64_934 is a I64
 #+end_src
 
-* hoisted__I64_922
+* hoisted__I64_935
 #+begin_src til
-hoisted__I64_922 is a I64
+hoisted__I64_935 is a I64
 #+end_src
 
-* hoisted__I64_923
+* hoisted__I64_936
 #+begin_src til
-hoisted__I64_923 is a I64
+hoisted__I64_936 is a I64
 #+end_src
 
 * CAP_LIT
 #+begin_src til
-CAP_LIT is a USize
+CAP_LIT is a U32
 #+end_src
 
-* hoisted__I64_924
+* hoisted__I64_937
 #+begin_src til
-hoisted__I64_924 is a I64
+hoisted__I64_937 is a I64
 #+end_src
 
-* hoisted__I64_925
+* hoisted__I64_938
 #+begin_src til
-hoisted__I64_925 is a I64
+hoisted__I64_938 is a I64
 #+end_src
 
-* hoisted__I64_926
+* hoisted__I64_939
 #+begin_src til
-hoisted__I64_926 is a I64
+hoisted__I64_939 is a I64
 #+end_src
 
 * CAP_VIEW
 #+begin_src til
-CAP_VIEW is a USize
+CAP_VIEW is a U32
 #+end_src
 
 * format
@@ -79,8 +79,6 @@ namespace:
     /// Free the backing buffer (unless it's a view/literal) and optionally
     /// the struct allocation.
     func delete(own self: Str, call_free: Bool)
-    /// Return a clone of the string.
-    func to_str(val: Str) returns Str
     /// Return a view into `s` from `start` for `n` bytes (no allocation).
     /// Clamps to valid bounds.
     func substr(s: Str, start: U32, n: U32) returns Str

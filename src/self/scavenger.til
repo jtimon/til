@@ -263,7 +263,7 @@ priv dyn_call_real_arg_count := func(e: Expr) returns shallow USize {
     ref nargs_e : Expr = e.child(3)
     mut nargs : USize = 0
     switch nargs_e.node_type {
-    case NodeType.LiteralNum(s):
+    case NodeType.Literal(Literal.Num(s)):
         nargs = literal_num_text(s).to_usize()
     case:
         return e.children.len()
@@ -333,10 +333,10 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     ref arg0 : Expr = stmt.child(1)
     if arg0.node_type.is(NodeType.Ident).not() { return "" }
     ref arg1 : Expr = stmt.child(2)
-    if arg1.node_type.is(NodeType.LiteralBool).not() { return "" }
+    if arg1.node_type.is_literal_bool().not() { return "" }
     mut bv := false
     switch arg1.node_type {
-    case NodeType.LiteralBool(b): bv = b
+    case NodeType.Literal(Literal.Bool(b)): bv = b
     case:
     }
     if bv { return "" }
@@ -357,10 +357,10 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
 priv rhs_is_pure_byvalue := func(e: Expr) returns shallow Bool {
     if is_null(e) { return false }
     switch e.node_type {
-    case NodeType.LiteralNum:  return true
-    case NodeType.LiteralBool: return true
-    case NodeType.LiteralNull: return true
-    case NodeType.LiteralStr:  return true
+    case NodeType.Literal(Literal.Num):  return true
+    case NodeType.Literal(Literal.Bool): return true
+    case NodeType.Literal(Literal.Null): return true
+    case NodeType.Literal(Literal.Str):  return true
     case:
     }
     return false
@@ -554,7 +554,7 @@ priv match_named_delete := func(stmt: Expr, name: Str) returns shallow Bool {
     case:
     }
     if name_eq.not() { return false }
-    return stmt.child(2).node_type.is(NodeType.LiteralBool)
+    return stmt.child(2).node_type.is_literal_bool()
 }
 
 // Precomp folds an FCall RHS to a LiteralStr in place but doesn't
@@ -576,7 +576,7 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
         case NodeType.Decl(dd):
             if dd.own_type.is(OwnType.Own).not() { continue }
             ref rhs : Expr = stmt.child(0)
-            if rhs.node_type.is(NodeType.LiteralStr).not() { continue }
+            if rhs.node_type.is_literal_str().not() { continue }
             ref target : Str = dd.name
             dd.own_type = OwnType.Shallow
             mut j : USize = i.add(1.to_usize())
@@ -584,7 +584,7 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
                 ref del : Expr = body.child(j)
                 if match_named_delete(del, target) {
                     ref bool_arg : Expr = del.child(2)
-                    bool_arg.node_type = NodeType.LiteralBool(false)
+                    bool_arg.node_type = NodeType.Literal(Literal.Bool(false))
                     break
                 }
                 j = j.add(1.to_usize())

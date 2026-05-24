@@ -6,11 +6,6 @@
 ext_func free(own elem: Dynamic)
 #+end_src
 
-* is_null
-#+begin_src til
-ext_func is_null(p: Dynamic) returns shallow Bool
-#+end_src
-
 * malloc
 #+begin_src til
 ext_func malloc(shallow count: U64) returns Dynamic
@@ -59,6 +54,11 @@ ext_func memset(dest: Dynamic, shallow val: I32, shallow len: U64)
 * ptr_eq
 #+begin_src til
 ext_func ptr_eq(a: Dynamic, b: Dynamic) returns shallow Bool
+#+end_src
+
+* is_null
+#+begin_src til
+func is_null(p: Dynamic) returns shallow Bool
 #+end_src
 
 * to_ptr

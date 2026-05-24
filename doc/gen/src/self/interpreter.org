@@ -153,24 +153,24 @@ has_continue is a Bool
 return_value is a Value
 #+end_src
 
-* hoisted__Str_34379
+* hoisted__Str_35899
 #+begin_src til
-hoisted__Str_34379 is a Str
+hoisted__Str_35899 is a Str
 #+end_src
 
-* hoisted__Str_34380
+* hoisted__Str_35900
 #+begin_src til
-hoisted__Str_34380 is a Str
+hoisted__Str_35900 is a Str
 #+end_src
 
-* hoisted__Type_34381
+* hoisted__Type_35901
 #+begin_src til
-hoisted__Type_34381 is a Type
+hoisted__Type_35901 is a Type
 #+end_src
 
-* hoisted__Type_34382
+* hoisted__Type_35902
 #+begin_src til
-hoisted__Type_34382 is a Type
+hoisted__Type_35902 is a Type
 #+end_src
 
 * ns_fields
@@ -183,24 +183,24 @@ ns_fields is a Map
 ns_keys is a Vec
 #+end_src
 
-* hoisted__Str_34383
+* hoisted__Str_35903
 #+begin_src til
-hoisted__Str_34383 is a Str
+hoisted__Str_35903 is a Str
 #+end_src
 
-* hoisted__Str_34384
+* hoisted__Str_35904
 #+begin_src til
-hoisted__Str_34384 is a Str
+hoisted__Str_35904 is a Str
 #+end_src
 
-* hoisted__Type_34385
+* hoisted__Type_35905
 #+begin_src til
-hoisted__Type_34385 is a Type
+hoisted__Type_35905 is a Type
 #+end_src
 
-* hoisted__Type_34386
+* hoisted__Type_35906
 #+begin_src til
-hoisted__Type_34386 is a Type
+hoisted__Type_35906 is a Type
 #+end_src
 
 * interp_type_defs
@@ -258,9 +258,9 @@ func val_f32(shallow v: F32) returns shallow Value
 func val_bool(shallow v: Bool) returns shallow Value
 #+end_src
 
-* hoisted__I64_34387
+* hoisted__I64_35907
 #+begin_src til
-hoisted__I64_34387 is a I64
+hoisted__I64_35907 is a I64
 #+end_src
 
 * ENUM_PAYLOAD_OFFSET
@@ -376,11 +376,6 @@ func scope_set_owned(mut s: Scope, name: Str, val: Value)
 * scope_set_borrowed
 #+begin_src til
 func scope_set_borrowed(mut s: Scope, name: Str, cell: Cell)
-#+end_src
-
-* free_expr_in_place
-#+begin_src til
-func free_expr_in_place(mut e: Expr)
 #+end_src
 
 * scope_free

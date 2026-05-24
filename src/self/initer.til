@@ -470,9 +470,9 @@ priv field_inferred_type_name := func(fd: Declaration) returns Str {
     if is_null(fd.default_value) { return "" }
     ref def_val : Expr = fd.default_value
     switch def_val.node_type {
-    case NodeType.LiteralNum:  return "I64"
-    case NodeType.LiteralBool: return "Bool"
-    case NodeType.LiteralStr:  return "Str"
+    case NodeType.Literal(Literal.Num):  return "I64"
+    case NodeType.Literal(Literal.Bool): return "Bool"
+    case NodeType.Literal(Literal.Str):  return "Str"
     case NodeType.FCall:
         if def_val.children.len().eq(0) { return "" }
         ref callee : Expr = def_val.child(0)
@@ -674,7 +674,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
                 set_own_arg(del_call, 0) // signal UFCS own for self arg
                 del_call.add_child(own del_acc)
 
-                mut cf_lit := Expr.new(NodeType.LiteralBool(fown), stmt.line, stmt.col)
+                mut cf_lit := Expr.new(NodeType.Literal(Literal.Bool(fown)), stmt.line, stmt.col)
                 del_call.add_child(own cf_lit)
                 proc_body.add_child(own del_call)
             }
@@ -696,7 +696,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
             mut proc_decl := FunctionDef(auto_generated = true)
             proc_decl.func_type = FuncType.Func
             proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Own))
-            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = Expr.new(NodeType.LiteralBool(true), stmt.line, stmt.col)))
+            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
             proc_decl.variadic_index = -1.to_i32()
             proc_decl.kwargs_index = -1.to_i32()
 
@@ -854,7 +854,7 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
             mut not_call := make_method_call_fcall(own is_call2, "not", line, col)
 
             mut ret_false := Expr.new(NodeType.Return, line, col)
-            mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col)
+            mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
             ret_false.add_child(own false_lit)
             mut guard_body := Expr.new(NodeType.Body, line, col)
             guard_body.add_child(own ret_false)
@@ -865,7 +865,7 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
 
             if is_funcsig {
                 mut ret_true := Expr.new(NodeType.Return, line, col)
-                mut true_lit := Expr.new(NodeType.LiteralBool(true), line, col)
+                mut true_lit := Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
                 ret_true.add_child(own true_lit)
                 then_body.add_child(own ret_true)
             } else {
@@ -897,7 +897,7 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
     }
 
     mut ret_false := Expr.new(NodeType.Return, line, col)
-    mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col)
+    mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
     ret_false.add_child(own false_lit)
     func_body.add_child(own ret_false)
 
@@ -947,7 +947,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
             set_own_arg(del_call, del_call.children.len())
             del_call.add_child(own gc)
 
-            mut false_lit := Expr.new(NodeType.LiteralBool(false), line, col)
+            mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
             del_call.add_child(own false_lit)
             then_body.add_child(own del_call)
 
@@ -972,7 +972,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
     if_node.add_child(own then_body)
     proc_body.add_child(own if_node)
 
-    mut default_true := Expr.new(NodeType.LiteralBool(true), line, col)
+    mut default_true := Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
@@ -1004,7 +1004,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
             mut then_body := Expr.new(NodeType.Body, line, col)
             if vtype.len().gt(0).and(type_from_name_init(vtype, scope).is(Type.FuncPtr)) {
                 ret_text := format(vn, "(func)")
-                mut ret_str := Expr.new(NodeType.LiteralStr(ret_text), line, col)
+                mut ret_str := Expr.new(NodeType.Literal(Literal.Str(ret_text)), line, col)
                 mut ret := Expr.new(NodeType.Return, line, col)
                 ret.add_child(own ret_str)
                 then_body.add_child(own ret)
@@ -1018,7 +1018,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
                 fmt_call.add_child(own fmt_id)
 
                 prefix_text := format(vn, "(")
-                mut prefix := Expr.new(NodeType.LiteralStr(prefix_text), line, col)
+                mut prefix := Expr.new(NodeType.Literal(Literal.Str(prefix_text)), line, col)
                 fmt_call.add_child(own prefix)
 
                 mut p_id := Expr.new(ident_node(pn), line, col)
@@ -1032,14 +1032,14 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
                     fmt_call.add_child(own tostr_call)
                 }
 
-                mut suffix := Expr.new(NodeType.LiteralStr(")"), line, col)
+                mut suffix := Expr.new(NodeType.Literal(Literal.Str(")")), line, col)
                 fmt_call.add_child(own suffix)
 
                 mut ret := Expr.new(NodeType.Return, line, col)
                 ret.add_child(own fmt_call)
                 then_body.add_child(own ret)
             } else {
-                mut ret_str := Expr.new(NodeType.LiteralStr(vn), line, col)
+                mut ret_str := Expr.new(NodeType.Literal(Literal.Str(vn)), line, col)
                 mut ret := Expr.new(NodeType.Return, line, col)
                 ret.add_child(own ret_str)
                 then_body.add_child(own ret)
@@ -1058,7 +1058,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
             var_acc.add_child(own ename_id)
             eq_call.add_child(own var_acc)
 
-            mut ret_str := Expr.new(NodeType.LiteralStr(vn), line, col)
+            mut ret_str := Expr.new(NodeType.Literal(Literal.Str(vn)), line, col)
             mut ret := Expr.new(NodeType.Return, line, col)
             ret.add_child(own ret_str)
             mut then_body := Expr.new(NodeType.Body, line, col)
@@ -1071,7 +1071,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
         }
     }
 
-    mut unk := Expr.new(NodeType.LiteralStr("unknown"), line, col)
+    mut unk := Expr.new(NodeType.Literal(Literal.Str("unknown")), line, col)
     mut ret_unk := Expr.new(NodeType.Return, line, col)
     ret_unk.add_child(own unk)
     func_body.add_child(own ret_unk)
@@ -1112,7 +1112,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32
         mut ctor_acc := Expr.new(field_access_node(vname), line, col)
         ctor_acc.add_child(own ename_id)
 
-        mut ctor_expr := Expr.new(NodeType.LiteralNull, line, col)
+        mut ctor_expr := Expr.new(NodeType.Literal(Literal.Null), line, col)
         mut pd := Expr.new(NodeType.Body, line, col)
         mut has_pd := false
         ref vtype : Str = variant_types.get(j)
@@ -1137,7 +1137,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32
 
         emit_guard := guard_every.or(j.lt(variant_names.len().sub(1)))
         if emit_guard {
-            mut cond := Expr.new(NodeType.LiteralNull, line, col)
+            mut cond := Expr.new(NodeType.Literal(Literal.Null), line, col)
             if has_payloads {
                 cond = make_is_tag_check_fcall("self", ename, vname, line, col)
             } else {
@@ -1174,7 +1174,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32
         // emit a synthetic loc string directly.
         loc_text := format(ename, ".clone:", line.to_str(), ":", col.to_str())
         mut unr_id := Expr.new(ident_node("UNREACHABLE"), line, col)
-        mut loc_lit := Expr.new(NodeType.LiteralStr(loc_text), line, col)
+        mut loc_lit := Expr.new(NodeType.Literal(Literal.Str(loc_text)), line, col)
         mut unr_call := Expr.new(NodeType.FCall(FCallData()), line, col)
         unr_call.add_child(own unr_id)
         unr_call.add_child(own loc_lit)
@@ -2023,9 +2023,9 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                 if ftype.len().eq(0) {
                     if is_null(fd.default_value).not() {
                         ref def_val : Expr = fd.default_value
-                        if def_val.node_type.is(NodeType.LiteralNum) { ftype = "I64" }
-                        else if def_val.node_type.is(NodeType.LiteralStr) { ftype = "Str" }
-                        else if def_val.node_type.is(NodeType.LiteralBool) { ftype = "Bool" }
+                        if def_val.node_type.is_literal_num() { ftype = "I64" }
+                        else if def_val.node_type.is_literal_str() { ftype = "Str" }
+                        else if def_val.node_type.is_literal_bool() { ftype = "Bool" }
                         else if til_type_name(expr_til_type(def_val)).len().gt(0) { ftype = til_type_name(expr_til_type(def_val)) }
                         else if def_val.node_type.is(NodeType.FCall) {
                             if def_val.children.len().gt(0) {
@@ -2244,16 +2244,16 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
     }
 
     switch rhs.node_type {
-    case NodeType.LiteralNum:
+    case NodeType.Literal(Literal.Num):
         out_type = Type.I64
         return true
-    case NodeType.LiteralBool:
+    case NodeType.Literal(Literal.Bool):
         out_type = Type.Bool
         return true
-    case NodeType.LiteralStr:
+    case NodeType.Literal(Literal.Str):
         out_type = Type.Struct("Str")
         return true
-    case NodeType.LiteralNull:
+    case NodeType.Literal(Literal.Null):
         out_type = Type.Dynamic
         return true
     case NodeType.Ident(id):
@@ -2877,7 +2877,7 @@ count_ast_imports := func(body: Expr) returns shallow USize {
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.FCall).not() { continue }
         if stmt.children.len().neq(2) { continue }
-        if stmt.child(1).node_type.is(NodeType.LiteralStr).not() { continue }
+        if stmt.child(1).node_type.is_literal_str().not() { continue }
         switch stmt.child(0).node_type {
         case NodeType.Ident(id):
             if ident_name(id).eq("import") { n = n.add(1.to_u32()) }
@@ -2910,7 +2910,7 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
     for stmt : Expr in iu.ast.children {
         if stmt.node_type.is(NodeType.FCall).not() { continue }
         if stmt.children.len().neq(2) { continue }
-        if stmt.child(1).node_type.is(NodeType.LiteralStr).not() { continue }
+        if stmt.child(1).node_type.is_literal_str().not() { continue }
         switch stmt.child(0).node_type {
         case NodeType.Ident(id):
             if ident_name(id).eq("import").not() { continue }

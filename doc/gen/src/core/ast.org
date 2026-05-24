@@ -212,6 +212,7 @@ struct FCallData {
     mut does_throw : Bool
     mut is_bang : Bool
     mut own_args : U64
+    mut til_type : Type
 namespace:
     func eq(a: FCallData, b: FCallData) returns Bool
     func to_str(_self: FCallData) returns Str
@@ -219,6 +220,84 @@ namespace:
     func delete(own self: FCallData, call_free: Bool)
     func size() returns shallow U32
 }
+#+end_src
+
+* LiteralNumData
+#+begin_src til
+struct LiteralNumData {
+    mut text : Str
+    mut til_type : Type
+namespace:
+    func eq(a: LiteralNumData, b: LiteralNumData) returns Bool
+    func to_str(self: LiteralNumData) returns Str
+    func to_i64(self: LiteralNumData) returns shallow I64
+    func to_u8(self: LiteralNumData) returns shallow U8
+    func to_i32(self: LiteralNumData) returns shallow I32
+    func to_u32(self: LiteralNumData) returns shallow U32
+    func to_u64(self: LiteralNumData) returns shallow U64
+    func to_usize(self: LiteralNumData) returns shallow U32
+    func to_f32(self: LiteralNumData) returns shallow F32
+    func clone(self: LiteralNumData) returns LiteralNumData
+    func delete(own self: LiteralNumData, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* IdentData
+#+begin_src til
+struct IdentData {
+    mut name : Str
+    mut til_type : Type
+namespace:
+    func eq(a: IdentData, b: IdentData) returns Bool
+    func to_str(self: IdentData) returns Str
+    func len(self: IdentData) returns shallow U32
+    func is_empty(self: IdentData) returns shallow Bool
+    func starts_with(self: IdentData, prefix: Str) returns shallow Bool
+    func ends_with(self: IdentData, suffix: Str) returns shallow Bool
+    func concat(self: IdentData, tail: Str) returns Str
+    func replace(self: IdentData, old: Str, new: Str) returns Str
+    func strip_suffix(self: IdentData, suffix: Str) returns Str
+    func byte_at(self: IdentData, i: U32) returns ref I8
+    func get(self: IdentData, i: U32) returns ref I8
+    func clone(self: IdentData) returns IdentData
+    func delete(own self: IdentData, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* FieldAccessData
+#+begin_src til
+struct FieldAccessData {
+    mut name : Str
+    mut til_type : Type
+namespace:
+    func eq(a: FieldAccessData, b: FieldAccessData) returns Bool
+    func to_str(self: FieldAccessData) returns Str
+    func len(self: FieldAccessData) returns shallow U32
+    func is_empty(self: FieldAccessData) returns shallow Bool
+    func starts_with(self: FieldAccessData, prefix: Str) returns shallow Bool
+    func concat(self: FieldAccessData, tail: Str) returns Str
+    func replace(self: FieldAccessData, old: Str, new: Str) returns Str
+    func clone(self: FieldAccessData) returns FieldAccessData
+    func delete(own self: FieldAccessData, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* literal_num_text
+#+begin_src til
+func literal_num_text(n: LiteralNumData) returns Str
+#+end_src
+
+* ident_name
+#+begin_src til
+func ident_name(id: IdentData) returns Str
+#+end_src
+
+* field_access_name
+#+begin_src til
+func field_access_name(fa: FieldAccessData) returns Str
 #+end_src
 
 * set_own_arg
@@ -290,11 +369,37 @@ Payload for `for name in range` loop nodes.
 struct ForInData {
     mut name : Str
     mut is_mut : Bool
+    mut til_type : Type
 namespace:
     func eq(a: ForInData, b: ForInData) returns Bool
     func to_str(self: ForInData) returns Str
     func clone(self: ForInData) returns ForInData
     func delete(own self: ForInData, call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* Literal
+Literal (constant) node kinds: the leaf values written directly in
+source. Grouped under NodeType.Literal so "is this any literal?"
+is a single check (NodeType.Literal) instead of a four-way chain.
+
+#+begin_src til
+enum Literal {
+    Str: Str
+    Num: LiteralNumData
+    Bool: Bool
+    Null
+namespace:
+    ext_func Str(val: Str) returns Literal
+    ext_func Num(val: LiteralNumData) returns Literal
+    ext_func Bool(val: Bool) returns Literal
+    ext_func Null() returns Literal
+    func is(self: Literal, other: Literal) returns shallow Bool
+    func eq(self: Literal, other: Literal) returns shallow Bool
+    func delete(own self: Literal, call_free: Bool)
+    func to_str(self: Literal) returns Str
+    func clone(self: Literal) returns Literal
     func size() returns shallow U32
 }
 #+end_src
@@ -305,18 +410,15 @@ AST node kind. Each variant carries an optional payload (struct, string, bool).
 #+begin_src til
 enum NodeType {
     Body
-    LiteralStr: Str
-    LiteralNum: Str
-    LiteralBool: Bool
-    LiteralNull
-    Ident: Str
+    Literal: Literal
+    Ident: IdentData
     Decl: Declaration
     Assign: AssignData
     FCall: FCallData
     FuncDef: FunctionDef
     StructDef: StructDef
     EnumDef: EnumDef
-    FieldAccess: Str
+    FieldAccess: FieldAccessData
     FieldAssign: Str
     Return
     If
@@ -334,19 +436,20 @@ enum NodeType {
     Catch
     RestPattern
 namespace:
+    func is_literal_str(self: NodeType) returns shallow Bool
+    func is_literal_num(self: NodeType) returns shallow Bool
+    func is_literal_bool(self: NodeType) returns shallow Bool
+    func is_literal_null(self: NodeType) returns shallow Bool
     ext_func Body() returns NodeType
-    ext_func LiteralStr(val: Str) returns NodeType
-    ext_func LiteralNum(val: Str) returns NodeType
-    ext_func LiteralBool(val: Bool) returns NodeType
-    ext_func LiteralNull() returns NodeType
-    ext_func Ident(val: Str) returns NodeType
+    ext_func Literal(val: Literal) returns NodeType
+    ext_func Ident(val: IdentData) returns NodeType
     ext_func Decl(val: Declaration) returns NodeType
     ext_func Assign(val: AssignData) returns NodeType
     ext_func FCall(val: FCallData) returns NodeType
     ext_func FuncDef(val: FunctionDef) returns NodeType
     ext_func StructDef(val: StructDef) returns NodeType
     ext_func EnumDef(val: EnumDef) returns NodeType
-    ext_func FieldAccess(val: Str) returns NodeType
+    ext_func FieldAccess(val: FieldAccessData) returns NodeType
     ext_func FieldAssign(val: Str) returns NodeType
     ext_func Return() returns NodeType
     ext_func If() returns NodeType
@@ -378,7 +481,6 @@ AST expression node with line/col, type, children, and node-specific payload.
 #+begin_src til
 struct Expr {
     mut node_type : NodeType
-    mut til_type : Type
     mut children : Vec
     mut line : U32
     mut col : U32
@@ -408,9 +510,34 @@ namespace:
 }
 #+end_src
 
+* ident_node
+#+begin_src til
+func ident_node(name: Str) returns NodeType
+#+end_src
+
+* literal_num_node
+#+begin_src til
+func literal_num_node(text: Str) returns NodeType
+#+end_src
+
+* field_access_node
+#+begin_src til
+func field_access_node(name: Str) returns NodeType
+#+end_src
+
 * expr_til_type
 #+begin_src til
 func expr_til_type(e: Expr) returns Type
+#+end_src
+
+* set_expr_til_type
+#+begin_src til
+func set_expr_til_type(mut e: Expr, shallow t: Type)
+#+end_src
+
+* set_fcall_til_type
+#+begin_src til
+func set_fcall_til_type(mut fcall: Expr, shallow t: Type)
 #+end_src
 
 * func_type_variant_name

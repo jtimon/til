@@ -126,7 +126,7 @@ extract_imports := func(body: Expr, path: Str) returns Vec {
             case NodeType.Ident(_c0id):
                 if ident_name(_c0id).eq("import") {
                     switch stmt.child(1).node_type {
-                    case NodeType.LiteralStr(p):
+                    case NodeType.Literal(Literal.Str(p)):
                         if p.ends_with(".til") {
                             bare := p.strip_suffix(".til")
                             loc := path.format(":", stmt.line.to_str(), ":", stmt.col.to_str())
@@ -650,7 +650,7 @@ extract_link_info := func(mut lp: LoadedProgram) {
                 switch stmt.child(0).node_type {
                 case NodeType.Ident(fname):
                     switch stmt.child(1).node_type {
-                    case NodeType.LiteralStr(arg):
+                    case NodeType.Literal(Literal.Str(arg)):
                         if ident_name(fname).eq("link") {
                             keep = false
                             if arg.find("/").gte(0) {
@@ -863,7 +863,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 
 // --- Doc registry synthesis ---
 
-// Escape raw bytes for use as a NodeType.LiteralStr text. The interpreter
+// Escape raw bytes for use as a NodeType.Literal(Literal.Str) text. The interpreter
 // (eval_expr in interpreter.til) and the C codegen (Str_lit in builder.til)
 // both expect the source-level form: \\, \", \n, \t. Escaping here keeps
 // both paths happy when synthesised doc text contains newlines or quotes.

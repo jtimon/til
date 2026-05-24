@@ -31,11 +31,6 @@ namespace:
 }
 #+end_src
 
-* initer_path
-#+begin_src til
-initer_path is a Str
-#+end_src
-
 * priv_c_name
 #+begin_src til
 func priv_c_name(path: Str, name: Str) returns Str
@@ -113,6 +108,18 @@ struct Context {
     mut throw_type_registry : Vec
     mut throws_names_global : Vec
     mut throws_per_global : Vec
+    mut bang_counter : I64
+    mut typer_in_shallow_return : Bool
+    mut typer_in_main_func : Bool
+    mut ctor_seq : I32
+    mut in_func_def : Bool
+    mut in_main_func : Bool
+    mut proc_calls_count : I32
+    mut proc_def_depth : I32
+    mut hoist_counter : I32
+    mut va_counter : I32
+    mut kw_counter : I32
+    mut coll_counter : I32
     mut stack_locals : Set
     mut stack_local_types : Map
     mut unsafe_to_hoist : Set
@@ -169,7 +176,7 @@ func init_type_from_explicit_type(name: Str, scope: TypeScope) returns Type
 
 * register_struct_def_for_stmt
 #+begin_src til
-proc register_struct_def_for_stmt(stmt: Expr, scope: TypeScope) returns shallow I32
+proc register_struct_def_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * priv___src_self_initer_til__field_inferred_type_name
@@ -194,7 +201,7 @@ func generate_missing_struct_clones_and_deletes(program: Expr, scope: TypeScope)
 
 * register_enum_definition
 #+begin_src til
-proc register_enum_definition(stmt: Expr, scope: TypeScope) returns shallow I32
+proc register_enum_definition(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * collect_enum_variants
@@ -229,12 +236,12 @@ func generate_enum_to_str_method(enum_def: Expr, ename: Str, shallow line: U32, 
 
 * generate_enum_clone_method
 #+begin_src til
-func generate_enum_clone_method(enum_def: Expr, ename: Str, shallow line: I32, shallow col: I32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool)
+func generate_enum_clone_method(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool)
 #+end_src
 
 * register_enum_def_for_stmt
 #+begin_src til
-proc register_enum_def_for_stmt(stmt: Expr, scope: TypeScope) returns shallow I32
+proc register_enum_def_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * gen_enum_nonclone_methods_for_stmt
@@ -244,12 +251,12 @@ func gen_enum_nonclone_methods_for_stmt(stmt: Expr, scope: TypeScope)
 
 * register_enum_and_gen_nonclone_methods_for_stmt
 #+begin_src til
-proc register_enum_and_gen_nonclone_methods_for_stmt(stmt: Expr, scope: TypeScope) returns shallow I32
+proc register_enum_and_gen_nonclone_methods_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * register_enums_and_generate_nonclone_methods
 #+begin_src til
-proc register_enums_and_generate_nonclone_methods(program: Expr, scope: TypeScope) returns shallow I32
+proc register_enums_and_generate_nonclone_methods(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * gen_missing_enum_clone_for_stmt
@@ -264,42 +271,42 @@ func generate_missing_enum_clones(program: Expr)
 
 * register_funcsig_alias_for_stmt
 #+begin_src til
-func register_funcsig_alias_for_stmt(stmt: Expr, scope: TypeScope)
+func register_funcsig_alias_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope)
 #+end_src
 
 * register_funcsig_aliases
 #+begin_src til
-func register_funcsig_aliases(program: Expr, scope: TypeScope)
+func register_funcsig_aliases(ctx: Context, program: Expr, scope: TypeScope)
 #+end_src
 
 * register_type_alias_for_stmt
 #+begin_src til
-func register_type_alias_for_stmt(stmt: Expr, scope: TypeScope)
+func register_type_alias_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope)
 #+end_src
 
 * register_type_aliases
 #+begin_src til
-func register_type_aliases(program: Expr, scope: TypeScope)
+func register_type_aliases(ctx: Context, program: Expr, scope: TypeScope)
 #+end_src
 
 * register_top_level_value_for_stmt
 #+begin_src til
-func register_top_level_value_for_stmt(stmt: Expr, scope: TypeScope)
+func register_top_level_value_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope)
 #+end_src
 
 * register_top_level_values
 #+begin_src til
-func register_top_level_values(program: Expr, scope: TypeScope)
+func register_top_level_values(ctx: Context, program: Expr, scope: TypeScope)
 #+end_src
 
 * register_function_def_for_stmt
 #+begin_src til
-func register_function_def_for_stmt(stmt: Expr, scope: TypeScope)
+func register_function_def_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope)
 #+end_src
 
 * register_function_definitions
 #+begin_src til
-func register_function_definitions(program: Expr, scope: TypeScope)
+func register_function_definitions(ctx: Context, program: Expr, scope: TypeScope)
 #+end_src
 
 * gen_struct_size_method_for_stmt
@@ -369,7 +376,7 @@ func infer_top_level_decl_type(stmt: Expr, scope: TypeScope, mut out_type: Type)
 
 * init_declarations
 #+begin_src til
-proc init_declarations(program: Expr, scope: TypeScope) returns shallow I32
+proc init_declarations(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * priv___src_self_initer_til__init_is_lift_target
@@ -424,7 +431,7 @@ proc init_declarations_unit(path: Str, program: Expr, scope: TypeScope, ctx: Con
 
 * init_declarations_global
 #+begin_src til
-proc init_declarations_global(program: Expr, scope: TypeScope) returns shallow I32
+proc init_declarations_global(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * count_ast_imports

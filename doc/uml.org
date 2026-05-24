@@ -145,6 +145,16 @@
 *** mut does_throw := false
 *** mut is_bang := false
 *** mut own_args : U64 = 0
+*** mut til_type := Type.Unknown
+** LiteralNumData: StructDef
+*** mut text := ""
+*** mut til_type := Type.Unknown
+** IdentData: StructDef
+*** mut name := ""
+*** mut til_type := Type.Unknown
+** FieldAccessData: StructDef
+*** mut name := ""
+*** mut til_type := Type.Unknown
 ** StructDef: StructDef
 *** mut total_struct_size : I32 = 0
 *** mut fields := Vec.new(Declaration)
@@ -161,20 +171,23 @@
 ** ForInData: StructDef
 *** mut name := ""
 *** mut is_mut := false
+*** mut til_type := Type.Unknown
+** Literal: EnumDef
+*** Str:Str
+*** Num:LiteralNumData
+*** Bool:Bool
+*** Null
 ** NodeType: EnumDef
 *** Body
-*** LiteralStr:Str
-*** LiteralNum:Str
-*** LiteralBool:Bool
-*** LiteralNull
-*** Ident:Str
+*** Literal:Literal
+*** Ident:IdentData
 *** Decl:Declaration
 *** Assign:AssignData
 *** FCall:FCallData
 *** FuncDef:FunctionDef
 *** StructDef:StructDef
 *** EnumDef:EnumDef
-*** FieldAccess:Str
+*** FieldAccess:FieldAccessData
 *** FieldAssign:Str
 *** Return
 *** If
@@ -193,7 +206,6 @@
 *** RestPattern
 ** Expr: StructDef
 *** mut node_type := NodeType.Body
-*** mut til_type := Type.Unknown
 *** mut children := Vec.new(Expr)
 *** mut line : U32 = 0
 *** mut col : U32 = 0
@@ -255,6 +267,18 @@
 *** mut throw_type_registry := Vec.new(Str)
 *** mut throws_names_global := Vec.new(Str)
 *** mut throws_per_global := Vec.new(Vec)
+*** mut bang_counter : I64 = 0
+*** mut typer_in_shallow_return : Bool = false
+*** mut typer_in_main_func : Bool = false
+*** mut ctor_seq : I32 = 0
+*** mut in_func_def : Bool = false
+*** mut in_main_func : Bool = false
+*** mut proc_calls_count : I32 = 0
+*** mut proc_def_depth : I32 = 0
+*** mut hoist_counter : I32 = 0
+*** mut va_counter : I32 = 0
+*** mut kw_counter : I32 = 0
+*** mut coll_counter : I32 = 0
 *** mut stack_locals := Set.new(Str)
 *** mut stack_local_types := Map.new(Str, Str)
 *** mut unsafe_to_hoist := Set.new(Str)

@@ -780,7 +780,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     ref arity_expr : Expr = e.child(3)
     mut nargs : U32 = 0.to_u32()
     switch arity_expr.node_type {
-    case NodeType.LiteralNum(arity_str): nargs = literal_num_text(arity_str).to_u32()
+    case NodeType.Literal(Literal.Num(arity_str)): nargs = literal_num_text(arity_str).to_u32()
     case:
         UNREACHABLE(__LOC__)
     }

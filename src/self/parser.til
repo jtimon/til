@@ -697,7 +697,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
 
     if t.type.is(TokenType.StringTok) {
         advance(p)
-        e = Expr.new(NodeType.LiteralStr(t.text.clone()), t_line, t_col)
+        e = Expr.new(NodeType.Literal(Literal.Str(t.text.clone())), t_line, t_col)
         e_set = true
     }
     if e_set.not().and(t.type.is(TokenType.Number)) {
@@ -758,12 +758,12 @@ parse_primary := proc(mut p: Parser) returns Expr {
     }
     if e_set.not().and(t.type.is(TokenType.KwTrue).or(t.type.is(TokenType.KwFalse))) {
         advance(p)
-        e = Expr.new(NodeType.LiteralBool(t.type.is(TokenType.KwTrue)), t_line, t_col)
+        e = Expr.new(NodeType.Literal(Literal.Bool(t.type.is(TokenType.KwTrue))), t_line, t_col)
         e_set = true
     }
     if e_set.not().and(t.type.is(TokenType.KwNull)) {
         advance(p)
-        e = Expr.new(NodeType.LiteralNull, t_line, t_col)
+        e = Expr.new(NodeType.Literal(Literal.Null), t_line, t_col)
         e_set = true
     }
     if e_set.not().and(t.type.is(TokenType.Ident)) {
@@ -771,10 +771,10 @@ parse_primary := proc(mut p: Parser) returns Expr {
         name := t.text.clone()
         // Compile-time directives
         if name.eq("__LOC__") {
-            e = Expr.new(NodeType.LiteralStr(format(p.path, ":", t_line.to_str(), ":", t_col.to_str())), t_line, t_col)
+            e = Expr.new(NodeType.Literal(Literal.Str(format(p.path, ":", t_line.to_str(), ":", t_col.to_str()))), t_line, t_col)
             e_set = true
         } else if name.eq("__FILE__") {
-            e = Expr.new(NodeType.LiteralStr(p.path.clone()), t_line, t_col)
+            e = Expr.new(NodeType.Literal(Literal.Str(p.path.clone())), t_line, t_col)
             e_set = true
         } else if name.eq("__LINE__") {
             e = Expr.new(literal_num_node(t_line.to_str()), t_line, t_col)

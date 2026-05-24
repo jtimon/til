@@ -2,7 +2,7 @@
 #+OPTIONS: toc:t
 
 * Map
-Hash map from typed keys to typed values.
+Ordered map from typed keys to typed values.
 
 #+begin_src til
 struct Map {

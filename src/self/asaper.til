@@ -147,7 +147,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
             ref _li_stmt : Expr = body.child(decl_idx.to_u32())
             if _li_stmt.node_type.is(NodeType.Decl).and(_li_stmt.children.len().gt(0)) {
                 ref _li_rhs : Expr = _li_stmt.child(0)
-                if _li_rhs.node_type.is(NodeType.LiteralStr) {
+                if _li_rhs.node_type.is_literal_str() {
                     li.is_heap = false
                 } else if _li_rhs.node_type.is(NodeType.FCall).and(fcall_returns_shallow(_li_rhs, scope).neq(0)) {
                     li.is_heap = false
@@ -542,7 +542,7 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals:
         // generates call_free=false.
         if stmt.children.len().gt(0) {
             ref _rhs0 : Expr = stmt.child(0)
-            if _rhs0.node_type.is(NodeType.LiteralStr) { continue }
+            if _rhs0.node_type.is_literal_str() { continue }
         }
         switch stmt.node_type {
         case NodeType.Decl(dd):

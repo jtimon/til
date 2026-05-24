@@ -67,8 +67,10 @@ namespace:
     ext_proc writefile(path: Str, content: Str)
     /// Open a file at `path` for reading or writing.
     func new(path: Str, shallow is_write: Bool) returns File
-    /// Write a string to the file. Panics if not opened for writing.
-    proc write(self: File, s: Str)
+    /// Write a string to the file and return `self` so writes chain via
+    /// UFCS: `f.write("a").write("b").write("c")`. Panics if not opened
+    /// for writing.
+    proc write(self: File, s: Str) returns ref File
     /// Read the entire file contents into a Str. Panics if opened for writing.
     func read_all(self: File) returns Str
     /// Close the file handle. Sets handle to NULL afterwards.
