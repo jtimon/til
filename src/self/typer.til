@@ -5766,7 +5766,11 @@ process_throw_catch_in_func_body := proc(
     mut pending := Vec.new(Str)
     mut seen := Vec.new(Str)
     mut types_to_declare := Vec.new(Str)
-    Set.delete(own throw_used_local_names, false)
+    // call_free must be true: `own throw_used_local_names` mallocs a
+    // wrapper holding a copy of the global's struct bytes; call_free=false
+    // freed the Set's contents but leaked that wrapper. true frees both
+    // (the global struct itself is untouched and reassigned next line).
+    Set.delete(own throw_used_local_names)
     throw_used_local_names = Set.new(Str)
     collect_throw_ident_names(body, throw_used_local_names)
     // Seed with declared throws so the slots exist as params even
@@ -7256,7 +7260,9 @@ rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, coll_
     mut old_args := Vec.new(Expr)
     old_args.move_from(fcall.children)
     fcall.children = Vec.new(Expr)
-    Vec.delete(own old_args, false)
+    // own-transfer suppresses the scope-exit auto-delete, so call_free
+    // must be true to free old_args's heap wrapper (false leaked it).
+    Vec.delete(own old_args)
     fcall.node_type = ident_node(coll_name.clone())
     set_expr_til_type(fcall, coll_type)
 }
