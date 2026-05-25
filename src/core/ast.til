@@ -851,11 +851,10 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
             ref vn : Str = edd.variants.get(i)
             if vn.eq(variant_name) { return i.to_i32() }
         }
-        return -1
     case:
         UNREACHABLE(__LOC__)
-        return -1
     }
+    return -1
 }
 
 enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
@@ -866,9 +865,8 @@ enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
             ref pt : Str = edd.payload_types.get(idx)
             return pt.clone()
         }
-        return ""
     case:
         UNREACHABLE(__LOC__)
-        return ""
     }
+    return ""
 }
