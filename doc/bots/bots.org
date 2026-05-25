@@ -157,17 +157,39 @@ the merger decides whether to accept them.
 
 ## Background vs Foreground
 
-NEVER run commands in the background. No exceptions. Specifically:
+NEVER run commands in the background. No exceptions. This is the single
+most important operational rule on this machine: backgrounded builds
+pile up, run concurrently, thrash the CPU, and have to be hand-killed.
+Every time you background a build you force the human to stop what they
+are doing and `kill` your orphans. DO NOT DO IT.
 
-- NEVER pass `run_in_background: true` to the Bash tool.
-- NEVER end a shell command with `&` to backgroundize it.
-- NEVER `disown`, `nohup`, `setsid`, or `(cmd &)` -- same effect.
-- NEVER spawn polling loops to "wait" for something.
+ONE TASK AT A TIME. Start a command, WAIT for it to finish in the
+foreground, read its output, THEN start the next one. Never have two
+builds or tests in flight at once. Never start a new build while another
+is still running. If you catch yourself about to launch a second thing
+"while the first one runs", STOP -- that is the exact mistake that
+spawns the orphan pile.
 
-Every command runs in the foreground and blocks until done. The Bash
-tool accepts `timeout` up to 600000 ms (10 minutes); `make clean &&
-make test` fits well inside that. If something needs longer than that,
-stop and ask -- do not background it.
+Specifically, NEVER:
+
+- pass `run_in_background: true` to the Bash tool. Not for builds, not
+  for tests, not for "I'll check on it later", not ever. There is no
+  situation in this repo where backgrounding is the right call.
+- end a shell command with `&` to backgroundize it.
+- `disown`, `nohup`, `setsid`, or `(cmd &)` -- same effect.
+- spawn polling loops (`while pgrep ...; do sleep N; done`) to "wait".
+
+If a build/test is slow, just WAIT for it -- the Bash tool blocks until
+it finishes, however long that takes. Pass a large `timeout` (the tool
+accepts up to 3600000 ms / 60 minutes) and let the single foreground
+command run to completion. Do NOT background it so you can "do other
+things meanwhile" -- the next step depends on the result anyway, so
+there is nothing useful to do in parallel.
+
+If you think you need to background something to stay responsive: you
+don't. Run it in the foreground, wait, then continue. A slow synchronous
+command is always better than an orphaned background task the human has
+to clean up.
 
 Polling is also forbidden. A `while pgrep ...; do sleep N; done` loop
 is a background task in disguise: it stalls the turn, hides errors in

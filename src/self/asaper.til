@@ -489,6 +489,47 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
                     }
                 }
             }
+            // Plain Assign with auto-cloned Ident RHS at the local's last
+            // use: `lhs = local.clone()` where `local` is a dying owned
+            // aggregate. The typer (infer_assign_stmt) wraps the Ident RHS
+            // in .clone() for value semantics, but at the local's last use
+            // the clone is a wasteful copy whose deep allocations leak --
+            // the original `local` is dropped by the scope-end delete right
+            // after. Replace `local.clone()` with bare `local` so codegen
+            // emits a pointer move into lhs, and skip local's scope-end
+            // delete: ownership transfers wholesale to the assign target
+            // (whose own save_old_delete already freed lhs's prior value).
+            if local.is_heap.and(is_aggregate(local.type)) {
+                mut _as_save_old := false
+                switch stmt.node_type {
+                case NodeType.Assign(_as_ad0): _as_save_old = _as_ad0.save_old_delete
+                case:
+                }
+                if stmt.node_type.is(NodeType.Assign).and(_as_save_old).and(stmt.children.len().gte(1)) {
+                    mut _as_target := ""
+                    switch stmt.node_type {
+                    case NodeType.Assign(_as_ad): _as_target = _as_ad.name
+                    case:
+                    }
+                    ref _as_rhs : Expr = stmt.child(0)
+                    // Guard against self-assign `e = e.clone()`: moving there
+                    // would alias the just-deleted old value.
+                    if _as_target.eq(local.name).not().and(rhs_is_clone_fcall(_as_rhs)).and(_as_rhs.children.len().gte(2)) {
+                        ref _as_clone_arg : Expr = _as_rhs.child(1)
+                        switch _as_clone_arg.node_type {
+                        case NodeType.Ident(_as_clone_name):
+                            if ident_name(_as_clone_name).eq(local.name) {
+                                mut _as_bare := Expr.new(ident_node(local.name.clone()), _as_rhs.line, _as_rhs.col)
+                                set_expr_til_type(_as_bare, local.type.clone())
+                                free_expr_slot_in_place(stmt.children.get(0))
+                                stmt.children.set(0, own _as_bare)
+                                continue
+                            }
+                        case:
+                        }
+                    }
+                }
+            }
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
                 del := make_delete_call(local.name, local.type, heap, heap, stmt)
