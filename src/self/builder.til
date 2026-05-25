@@ -2529,15 +2529,11 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
 }
 
 emit_usize_ref := proc(f: File, e: Expr, shallow depth: I32) {
-    f.write("USIZE_REF(")
-    emit_deref(f, e, depth)
-    f.write(")")
+    f.write("USIZE_REF(").emit_deref(e, depth).write(")")
 }
 
 emit_uptr_ref := proc(f: File, e: Expr, shallow depth: I32) {
-    f.write("UPTR_REF(")
-    emit_deref(f, e, depth)
-    f.write(")")
+    f.write("UPTR_REF(").emit_deref(e, depth).write(")")
 }
 
 emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
