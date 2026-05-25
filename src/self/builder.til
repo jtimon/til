@@ -2400,16 +2400,12 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32) returns ref File {
         switch e.node_type {
         case NodeType.Ident(ident):
             if is_ref_local(ident_name(ident)) {
-                f.write("(void *)DEREF(")
-                emit_expr(f, e, depth)
-                f.write(")")
+                f.write("(void *)DEREF(").emit_expr(e, depth).write(")")
             } else {
-                f.write("(void *)")
-                emit_expr(f, e, depth)
+                f.write("(void *)").emit_expr(e, depth)
             }
         case:
-            f.write("(void *)")
-            emit_expr(f, e, depth)
+            f.write("(void *)").emit_expr(e, depth)
         }
     } else {
         switch e.node_type {
@@ -2422,27 +2418,15 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32) returns ref File {
                 // primitive. Emit a typed cast so DEREF doesn't try to
                 // dereference a `void *` (which is invalid C).
                 ctype := til_type_to_c(expr_til_type(e))
-                f.write("DEREF((")
-                f.write(ctype)
-                f.write(" *)")
-                emit_expr(f, e, depth)
-                f.write(")")
+                f.write("DEREF((").write(ctype).write(" *)").emit_expr(e, depth).write(")")
             } else {
-                f.write("DEREF(")
-                emit_expr(f, e, depth)
-                f.write(")")
+                f.write("DEREF(").emit_expr(e, depth).write(")")
             }
         case NodeType.Literal(Literal.Str(s)):
-            f.write("(Str){.c_str=(void*)\"")
-            f.write(s)
-            f.write("\", .count=")
-            emit_u64(f, c_lit_byte_count(s).to_u64())
-            f.write("ULL, .cap=TIL_CAP_LIT}")
+            f.write("(Str){.c_str=(void*)\"").write(s).write("\", .count=").emit_u64(c_lit_byte_count(s).to_u64()).write("ULL, .cap=TIL_CAP_LIT}")
         case NodeType.FieldAccess:
             if builder_fa_is_ns(e).and(expr_til_type(e).is(Type.Enum)) {
-                f.write("(*")
-                emit_expr(f, e, depth)
-                f.write(")")
+                f.write("(*").emit_expr(e, depth).write(")")
             } else {
                 emit_expr(f, e, depth)
             }
