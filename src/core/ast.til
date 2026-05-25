@@ -533,7 +533,7 @@ namespace:
         return false
     }
     to_str := func(self: Expr) returns Str {
-        return expr_to_str_indent(self, 0.to_u32())
+        return expr_to_str_indent(self, 0)
     }
 }
 
@@ -700,7 +700,7 @@ expr_to_str_indent := func(self: Expr, shallow indent: U32) returns Str {
     }
     out = out.concat("((").concat(head).concat(")")
     for c : Expr in self.children {
-        out = out.concat("\n").concat(expr_to_str_indent(c, indent.add(1.to_u32())))
+        out = out.concat("\n").concat(expr_to_str_indent(c, indent.add(1)))
     }
     return out.concat(")")
 }

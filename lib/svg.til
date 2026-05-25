@@ -202,7 +202,7 @@ parse_path_d := func(d: Str, mut segments: Vec) {
     mut cur_y : I64 = 0
     mut start_x : I64 = 0
     mut start_y : I64 = 0
-    mut last_cmd : I8 = 0.to_i8()
+    mut last_cmd : I8 = 0
 
     while i.lt(d.len()) {
         i = skip_ws(d, i)
@@ -214,7 +214,7 @@ parse_path_d := func(d: Str, mut segments: Vec) {
             i = i.add(1)
             i = skip_ws(d, i)
         }
-        if cmd.eq(0.to_i8()) {
+        if cmd.eq(0) {
             panic(__LOC__, "path data must start with a command")
         }
 
@@ -282,7 +282,7 @@ parse_path_d := func(d: Str, mut segments: Vec) {
             cur_x = start_x
             cur_y = start_y
             segments.push(own Segment(kind = SegKind.Close))
-            last_cmd = 0.to_i8()
+            last_cmd = 0
         } else {
             panic(__LOC__, "unsupported SVG path command '",
                   Str.from_byte(cmd.to_i64().and(255).to_u8()), "'")

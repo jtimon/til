@@ -367,7 +367,7 @@ precomp_imported := proc(mut lp: LoadedProgram) {
 // from merged views, then filter each file's canonical AST in ctx.imported.
 priv DeclRef := struct {
     mut path := ""
-    mut idx : U32 = 0.to_u32()
+    mut idx : U32 = 0
 }
 
 find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) returns ref Expr {
@@ -890,9 +890,9 @@ escape_doc_for_literal_str := func(raw: Str) returns Str {
             out = out.concat("\\\\")
         } else if c.eq('"') {
             out = out.concat("\\\"")
-        } else if c.eq(10.to_i8()) {
+        } else if c.eq(10) {
             out = out.concat("\\n")
-        } else if c.eq(9.to_i8()) {
+        } else if c.eq(9) {
             out = out.concat("\\t")
         } else {
             out = out.concat(Str.from_byte(c.to_i64().and(255).to_u8()))
@@ -942,9 +942,9 @@ til_type_user := func(t: Type) returns Str {
 // field/record separators for __doc_lookup__ in core/doc.til.
 append_packed_entry := func(mut packed: Str, name: Str, value: Str) {
     packed.push_str(name)
-    packed.push_str(Str.from_byte(1.to_u8()))
+    packed.push_str(Str.from_byte(1))
     packed.push_str(value)
-    packed.push_str(Str.from_byte(2.to_u8()))
+    packed.push_str(Str.from_byte(2))
 }
 
 // Append "[own |ref |shallow ][mut ]" prefix for d, omitting whichever
@@ -994,7 +994,7 @@ append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
     mut start : USize = 0
     for i in 0..doc.len() {
         ref c : I8 = doc.byte_at(i)
-        if c.eq(10.to_i8()) {
+        if c.eq(10) {
             out.push_str(indent)
             out.push_str("/// ")
             if i.gt(start) { out.push_str(doc.substr(start, i.sub(start))) }
@@ -1059,9 +1059,9 @@ format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) returns St
 }
 
 format_func_info := func(name: Str, fd: FunctionDef) returns Str {
-    mut cap : USize = name.len().add(fd.return_type.len()).add(64.to_usize())
+    mut cap : USize = name.len().add(fd.return_type.len()).add(64)
     for p : Declaration in fd.params {
-        cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+        cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48)
     }
     mut out := Str.with_capacity(cap)
     out.push_str(func_kind(fd.func_type))
@@ -1072,24 +1072,24 @@ format_func_info := func(name: Str, fd: FunctionDef) returns Str {
 }
 
 format_struct_info := func(name: Str, sdef: StructDef) returns Str {
-    mut cap : USize = name.len().add(128.to_usize())
+    mut cap : USize = name.len().add(128)
     for f : Declaration in sdef.fields {
-        cap = cap.add(f.name.len()).add(f.explicit_type.len()).add(f.doc.len().mul(2.to_usize())).add(128.to_usize())
+        cap = cap.add(f.name.len()).add(f.explicit_type.len()).add(f.doc.len().mul(2)).add(128)
     }
     for d : Declaration in sdef.ns_decls {
-        cap = cap.add(d.name.len()).add(d.doc.len().mul(2.to_usize())).add(192.to_usize())
+        cap = cap.add(d.name.len()).add(d.doc.len().mul(2)).add(192)
         if is_null(d.default_value).not() {
             switch d.default_value.node_type {
             case NodeType.FuncDef(fd):
-                cap = cap.add(fd.return_type.len()).add(48.to_usize())
+                cap = cap.add(fd.return_type.len()).add(48)
                 for p : Declaration in fd.params {
-                    cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+                    cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48)
                 }
             case:
             }
         }
     }
-    cap = cap.mul(2.to_usize())
+    cap = cap.mul(2)
     mut out := Str.with_capacity(cap)
     out.push_str("struct ")
     out.push_str(name)
@@ -1110,24 +1110,24 @@ format_struct_info := func(name: Str, sdef: StructDef) returns Str {
 }
 
 format_enum_info := func(name: Str, edef: EnumDef) returns Str {
-    mut cap : USize = name.len().add(128.to_usize())
+    mut cap : USize = name.len().add(128)
     for v : Str in edef.variants {
-        cap = cap.add(v.len()).add(96.to_usize())
+        cap = cap.add(v.len()).add(96)
     }
     for d : Declaration in edef.ns_decls {
-        cap = cap.add(d.name.len()).add(d.doc.len().mul(2.to_usize())).add(192.to_usize())
+        cap = cap.add(d.name.len()).add(d.doc.len().mul(2)).add(192)
         if is_null(d.default_value).not() {
             switch d.default_value.node_type {
             case NodeType.FuncDef(fd):
-                cap = cap.add(fd.return_type.len()).add(48.to_usize())
+                cap = cap.add(fd.return_type.len()).add(48)
                 for p : Declaration in fd.params {
-                    cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+                    cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48)
                 }
             case:
             }
         }
     }
-    cap = cap.mul(2.to_usize())
+    cap = cap.mul(2)
     mut out := Str.with_capacity(cap)
     out.push_str("enum ")
     out.push_str(name)
@@ -1175,21 +1175,21 @@ format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
 // Append "Type.method" qualified entry for a single namespace method.
 collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: Str, mut docs: Str) {
     qual := type_name.format(".", d.name)
-    mut info_cap : USize = qual.len().add(64.to_usize())
+    mut info_cap : USize = qual.len().add(64)
     mut is_func := false
     if is_null(d.default_value).not() {
         switch d.default_value.node_type {
         case NodeType.FuncDef(fd):
             is_func = true
-            info_cap = info_cap.add(fd.return_type.len()).add(48.to_usize())
+            info_cap = info_cap.add(fd.return_type.len()).add(48)
             for p : Declaration in fd.params {
-                info_cap = info_cap.add(p.name.len()).add(p.explicit_type.len()).add(48.to_usize())
+                info_cap = info_cap.add(p.name.len()).add(p.explicit_type.len()).add(48)
             }
         case:
         }
     }
     if is_func.not() {
-        info_cap = info_cap.add(d.explicit_type.len()).add(8.to_usize())
+        info_cap = info_cap.add(d.explicit_type.len()).add(8)
     }
     mut method_info := Str.with_capacity(info_cap)
     if is_func {
@@ -1220,7 +1220,7 @@ collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: S
 collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info: Str, mut docs: Str) {
     for f : Declaration in sdef.fields {
         qual := type_name.format(".", f.name)
-        mut field_info := Str.with_capacity(qual.len().add(f.explicit_type.len()).add(64.to_usize()))
+        mut field_info := Str.with_capacity(qual.len().add(f.explicit_type.len()).add(64))
         field_info.push_str("field ")
         append_qualifier_prefix(field_info, f, OwnType.Shallow)
         field_info.push_str(qual)
@@ -1244,7 +1244,7 @@ collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str
     for i in 0..edef.variants.len() {
         ref v : Str = edef.variants.get(i)
         qual := type_name.format(".", v)
-        mut variant_info := Str.with_capacity(qual.len().add(64.to_usize()))
+        mut variant_info := Str.with_capacity(qual.len().add(64))
         variant_info.push_str("variant ")
         variant_info.push_str(qual)
         if edef.payload_types.has(i.to_i64()) {
@@ -1301,7 +1301,7 @@ build_doc_init_line := func(packed_info: Str, packed_docs: Str) returns Str {
 // the REPL. Non-REPL pipelines don't synthesize doc init calls. `scope`
 // carries inferred types so e.g. `a := 1` shows up as "a is a I64".
 doc_init_src_line := func(core_ast: Expr, user_ast: Expr, scope: TypeScope) returns Str {
-    cap : USize = 262144.to_usize()
+    cap : USize = 262144
     mut packed_info := Str.with_capacity(cap)
     mut packed_docs := Str.with_capacity(cap)
     collect_decl_packed(core_ast, scope, packed_info, packed_docs)

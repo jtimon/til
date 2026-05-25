@@ -143,7 +143,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
         // (which constfold may leave at Own from the original FCall
         // return, and which the typer otherwise leaves at Own for
         // Struct-returning FCalls).
-        if decl_idx.gte(0.to_i32()) {
+        if decl_idx.gte(0) {
             ref _li_stmt : Expr = body.child(decl_idx.to_u32())
             if _li_stmt.node_type.is(NodeType.Decl).and(_li_stmt.children.len().gt(0)) {
                 ref _li_rhs : Expr = _li_stmt.child(0)
@@ -205,7 +205,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
             // holder (e.g. `c := a.clone()` makes c.next alias a.next ==
             // src). Without aliasing analysis we can't pin a tighter bound,
             // so keep src alive through scope exit.
-            mut body_last := body.children.len().sub(1.to_usize()).to_i32()
+            mut body_last := body.children.len().sub(1).to_i32()
             for local : LocalInfo in locals {
                 if local.name.eq(src_name).and(local.last_use.lt(body_last)) {
                     local.last_use = body_last
@@ -573,7 +573,7 @@ insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
 
 promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals: Vec) {
     for local : LocalInfo in locals {
-        if local.decl_index.lt(0.to_i32()) { continue }
+        if local.decl_index.lt(0) { continue }
         ref stmt : Expr = body.child(local.decl_index.to_u32())
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         // Skip LiteralStr-RHS decls (temp or user-visible): the builder
@@ -594,15 +594,15 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals:
         // emits them as value types. is(Type.Struct) alone would
         // pull them into the heap-promote branch.
         is_struct := is_aggregate(local.type)
-        if local.own_transfer.lt(0.to_i32()).and(is_struct.not()) { continue }
+        if local.own_transfer.lt(0).and(is_struct.not()) { continue }
         // Skip heap-promotion if the only "use" is the function's
         // shallow return: the value-copy at return is the transfer,
         // and a heap wrapper just leaks (the codegen does
         // ~return DEREF(rv)~ without freeing rv). Keeping the local
         // Shallow lets the codegen use a stack value and value-copy
         // out cleanly.
-        if ctx.typer_in_shallow_return.and(local.own_transfer.lt(0.to_i32())).and(is_struct) {
-            if local.last_use.gte(0.to_i32()) {
+        if ctx.typer_in_shallow_return.and(local.own_transfer.lt(0)).and(is_struct) {
+            if local.last_use.gte(0) {
                 ref last_stmt : Expr = body.child(local.last_use.to_u32())
                 if last_stmt.node_type.is(NodeType.Return) {
                     if last_stmt.children.len().gt(0) {
@@ -667,7 +667,7 @@ insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, sh
 // caller can decide whether to re-run reregister_scope_defs.
 // See issue #204.
 asap_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool {
-    return insert_free_calls(ctx, body, scope, 1.to_i32())
+    return insert_free_calls(ctx, body, scope, 1)
 }
 
 // Phase entry point. Runs the asap-destruction pass on every
@@ -694,7 +694,7 @@ asap_destroy := proc(mut ctx: Context) {
         ref path : Str = Map.key_ptr(ctx.imported, i)
         ref iu : ImportUnit = Map.val_ptr(ctx.imported, i)
         typer_path = path.clone()
-        insert_free_calls(ctx, iu.ast, ctx.scope, 1.to_i32())
+        insert_free_calls(ctx, iu.ast, ctx.scope, 1)
     }
     typer_path = saved_path
     ctx.typer_in_main_func = saved_in_main

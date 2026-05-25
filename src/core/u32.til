@@ -25,7 +25,7 @@ namespace:
     inc := func(mut self: U32) { self = self.add(1) }
     dec := func(mut self: U32) { self = self.sub(1) }
     /// Return the multiplicative identity (1) for this type.
-    unity := func(_self: U32) returns U32 { return 1.to_u32() }
+    unity := func(_self: U32) returns U32 { return 1 }
     eq := ext_func(shallow a: U32, shallow b: U32) returns shallow Bool {}
     cmp := ext_func(shallow a: U32, shallow b: U32) returns shallow I64 {}
     and := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}

@@ -83,11 +83,11 @@ is_side_effecting_name := func(name: Str) returns shallow Bool {
 // precomp's interpreter sees the same byte count and contents as runtime
 // (e.g. `"viewBox=\""` is 10 source-form bytes but 9 raw bytes).
 priv hex_digit_value := func(b: I8) returns U8 {
-    if b.lt(48).or(b.gt(102)) { return 0.to_u8() }
+    if b.lt(48).or(b.gt(102)) { return 0 }
     if b.lte(57) { return b.to_i64().sub(48).to_u8() }
     if b.gte(97) { return b.to_i64().sub(97).add(10).to_u8() }
     if b.gte(65).and(b.lte(70)) { return b.to_i64().sub(65).add(10).to_u8() }
-    return 0.to_u8()
+    return 0
 }
 
 priv from_source_form := func(s: Str) returns Str {
@@ -96,31 +96,31 @@ priv from_source_form := func(s: Str) returns Str {
     mut has_bs := false
     nn := s.len()
     for ii in 0..nn {
-        if s.byte_at(ii).eq(92.to_i8()) { has_bs = true; break }
+        if s.byte_at(ii).eq(92) { has_bs = true; break }
     }
     if has_bs.not() { return s }
     n := s.len()
     mut out := ""
-    mut i : U32 = 0.to_u32()
-    one : U32 = 1.to_u32()
-    two : U32 = 2.to_u32()
+    mut i : U32 = 0
+    one : U32 = 1
+    two : U32 = 2
     while i.lt(n) {
         ref b : I8 = s.byte_at(i)
-        if b.eq(92.to_i8()).and(i.add(one).lt(n)) {
+        if b.eq(92).and(i.add(one).lt(n)) {
             ref nx : I8 = s.byte_at(i.add(one))
-            if nx.eq(110.to_i8()) { out = out.concat("\n"); i = i.add(two); continue }
-            if nx.eq(114.to_i8()) { out = out.concat("\r"); i = i.add(two); continue }
-            if nx.eq(116.to_i8()) { out = out.concat("\t"); i = i.add(two); continue }
-            if nx.eq(34.to_i8())  { out = out.concat("\""); i = i.add(two); continue }
-            if nx.eq(92.to_i8())  { out = out.concat("\\"); i = i.add(two); continue }
-            if nx.eq(39.to_i8())  { out = out.concat("'"); i = i.add(two); continue }
-            if nx.eq(48.to_i8())  { out = out.concat("\0"); i = i.add(two); continue }
-            if nx.eq(120.to_i8()).and(i.add(3.to_u32()).lt(n)) {
+            if nx.eq(110) { out = out.concat("\n"); i = i.add(two); continue }
+            if nx.eq(114) { out = out.concat("\r"); i = i.add(two); continue }
+            if nx.eq(116) { out = out.concat("\t"); i = i.add(two); continue }
+            if nx.eq(34)  { out = out.concat("\""); i = i.add(two); continue }
+            if nx.eq(92)  { out = out.concat("\\"); i = i.add(two); continue }
+            if nx.eq(39)  { out = out.concat("'"); i = i.add(two); continue }
+            if nx.eq(48)  { out = out.concat("\0"); i = i.add(two); continue }
+            if nx.eq(120).and(i.add(3).lt(n)) {
                 ref h1 : I8 = s.byte_at(i.add(two))
-                ref h2 : I8 = s.byte_at(i.add(3.to_u32()))
-                val : U8 = hex_digit_value(h1).mul(16.to_u8()).add(hex_digit_value(h2))
+                ref h2 : I8 = s.byte_at(i.add(3))
+                val : U8 = hex_digit_value(h1).mul(16).add(hex_digit_value(h2))
                 out = out.concat(Str.from_byte(val))
-                i = i.add(4.to_u32())
+                i = i.add(4)
                 continue
             }
         }
@@ -136,10 +136,10 @@ priv needs_source_escape := func(s: Str) returns shallow Bool {
     n := s.len()
     for i in 0..n {
         ref b : I8 = s.byte_at(i)
-        if b.eq(34.to_i8()) { return true }
-        if b.eq(92.to_i8()) { return true }
-        if b.lt(32.to_i8()) { return true }
-        if b.lt(0.to_i8()).or(b.gt(126.to_i8())) { return true }
+        if b.eq(34) { return true }
+        if b.eq(92) { return true }
+        if b.lt(32) { return true }
+        if b.lt(0).or(b.gt(126)) { return true }
     }
     return false
 }
@@ -155,13 +155,13 @@ priv str_to_source_form := func(s: Str) returns Str {
     mut out := ""
     for i in 0..n {
         ref b : I8 = s.byte_at(i)
-        if b.eq(34.to_i8())  { out = out.concat("\\\""); continue }
-        if b.eq(92.to_i8())  { out = out.concat("\\\\"); continue }
-        if b.eq(10.to_i8())  { out = out.concat("\\n"); continue }
-        if b.eq(13.to_i8())  { out = out.concat("\\r"); continue }
-        if b.eq(9.to_i8())   { out = out.concat("\\t"); continue }
-        if b.eq(0.to_i8())   { out = out.concat("\\0"); continue }
-        if b.lt(32.to_i8()).or(b.gt(126.to_i8())) {
+        if b.eq(34)  { out = out.concat("\\\""); continue }
+        if b.eq(92)  { out = out.concat("\\\\"); continue }
+        if b.eq(10)  { out = out.concat("\\n"); continue }
+        if b.eq(13)  { out = out.concat("\\r"); continue }
+        if b.eq(9)   { out = out.concat("\\t"); continue }
+        if b.eq(0)   { out = out.concat("\\0"); continue }
+        if b.lt(32).or(b.gt(126)) {
             // Hex escape with explicit terminator -- "" between escape
             // and following digits prevents greedy hex consumption.
             // Convert the byte to unsigned for the nibble math: I8's
@@ -169,15 +169,15 @@ priv str_to_source_form := func(s: Str) returns Str {
             // arithmetic the wrong way around for hex display.
             ub : U8 = b.to_i64().and(255).to_u8()
             out = out.concat("\\x")
-            hi : U8 = ub.div(16.to_u8())
-            lo : U8 = ub.mod(16.to_u8())
+            hi : U8 = ub.div(16)
+            lo : U8 = ub.mod(16)
             hex := "0123456789abcdef"
-            out = out.concat(hex.substr(hi.to_u32(), 1.to_u32()))
-            out = out.concat(hex.substr(lo.to_u32(), 1.to_u32()))
+            out = out.concat(hex.substr(hi.to_u32(), 1))
+            out = out.concat(hex.substr(lo.to_u32(), 1))
             out = out.concat("\"\"")
             continue
         }
-        out = out.concat(s.substr(i, 1.to_u32()))
+        out = out.concat(s.substr(i, 1))
     }
     return out
 }
@@ -266,7 +266,7 @@ expr_to_value := func(e: Expr) returns shallow Value {
         // on the precomp hot path).
         mut has_bs := false
         for bi in 0..s.len() {
-            if s.byte_at(bi).eq(92.to_i8()) { has_bs = true; break }
+            if s.byte_at(bi).eq(92) { has_bs = true; break }
         }
         if has_bs.not() {
             return make_str_value_view(s.c_str, s.count)
@@ -464,7 +464,7 @@ ns_lookup_flat := func(name: Str) returns shallow Dynamic {
     n := name.len()
     for i in 1..n {
         ref _b : I8 = name.byte_at(i)
-        if _b.eq(95.to_i8()).not() { continue }
+        if _b.eq(95).not() { continue }
         sname := name.substr(0, i)
         rest_start := i.add(1)
         if rest_start.gte(n) { continue }
@@ -858,7 +858,7 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // copy of every value). memset snapshot_fd to zero so its
             // scope-end Map.delete becomes a no-op.
             memcpy(known, snapshot_fd, Map.size().to_u64())
-            memset(snapshot_fd, 0.to_i32(), Map.size().to_u64())
+            memset(snapshot_fd, 0, Map.size().to_u64())
             continue
         }
         fold_subtree(scope, child, ctx)
@@ -1066,7 +1066,7 @@ precomp_register_defs := func(mut global: Scope, prog: Expr) {
                 case NodeType.Decl(dd):
                     mut val := val_none()
                     // Build Value.Func manually: tag=9 (Func), data=pointer to child(0)
-                    memcpy(val, 9.to_i32(), 4)
+                    memcpy(val, 9, 4)
                     write_ptr(ptr_add(val, 8), stmt.child(0))
                     scope_set_owned(global, dd.name, val)
                 case:

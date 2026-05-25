@@ -228,8 +228,8 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
                     ref iu : ImportUnit = typed_lp.ctx.imported.get(u.path)
                     for stmt : Expr in iu.ast.children { core_merged.add_child(own stmt.clone()) }
                 }
-                mut tmp_core_info := Str.with_capacity(262144.to_usize())
-                mut tmp_core_docs := Str.with_capacity(262144.to_usize())
+                mut tmp_core_info := Str.with_capacity(262144)
+                mut tmp_core_docs := Str.with_capacity(262144)
                 collect_decl_packed(core_merged, typed_lp.ctx.scope, tmp_core_info, tmp_core_docs)
                 cached_core_info = tmp_core_info.clone()
                 cached_core_docs = tmp_core_docs.clone()
@@ -243,8 +243,8 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str) {
                 ref iu : ImportUnit = typed_lp.ctx.imported.get(u.path)
                 for stmt : Expr in iu.ast.children { user_merged.add_child(own stmt.clone()) }
             }
-            mut user_info := Str.with_capacity(65536.to_usize())
-            mut user_docs := Str.with_capacity(65536.to_usize())
+            mut user_info := Str.with_capacity(65536)
+            mut user_docs := Str.with_capacity(65536)
             collect_decl_packed(user_merged, typed_lp.ctx.scope, user_info, user_docs)
 
             // Concatenate cached core + this turn's user. Core comes first

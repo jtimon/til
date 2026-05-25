@@ -32,11 +32,11 @@ priv build_tone := proc(freq: I64, duration_ms: I64, shallow amp: F32) returns S
     buf : Dynamic = malloc(n.mul(4).to_u64())
     attack := sr.div(100)
     release := sr.div(100)
-    pi2 := 6283185.to_f32().div(1000000.to_f32())
+    pi2 := 6283185.to_f32().div(1000000)
     freq_f := freq.to_f32()
     sr_f := sr.to_f32()
     for i in 0..n.to_u64() {
-        mut env : F32 = 1.to_f32()
+        mut env : F32 = 1
         if i.to_i64().lt(attack) {
             env = i.to_f32().div(attack.to_f32())
         }
@@ -60,7 +60,7 @@ priv build_tone := proc(freq: I64, duration_ms: I64, shallow amp: F32) returns S
 
 // Generate a sine wave tone and return the Sound (for polyphonic use).
 make_tone := proc(freq: I64, duration_ms: I64) returns Sound {
-    return build_tone(freq, duration_ms, 1.to_f32().div(10.to_f32()))
+    return build_tone(freq, duration_ms, 1.to_f32().div(10))
 }
 
 // Generate and play a sine wave tone.  Replaces any previous monophonic
@@ -70,7 +70,7 @@ play_tone := proc(freq: I64, duration_ms: I64) {
     if tone_loaded {
         UnloadSound(prev_tone)
     }
-    prev_tone = build_tone(freq, duration_ms, 3.to_f32().div(10.to_f32()))
+    prev_tone = build_tone(freq, duration_ms, 3.to_f32().div(10))
     PlaySound(prev_tone)
     tone_loaded = true
 }
@@ -123,7 +123,7 @@ set_config_flags := proc(flags: I32) { SetConfigFlags(flags.to_u32()) }
 set_window_min_size := proc(w: I64, h: I64) { SetWindowMinSize(w.to_i32(), h.to_i32()) }
 set_window_max_size := proc(w: I64, h: I64) { SetWindowMaxSize(w.to_i32(), h.to_i32()) }
 get_frame_time := proc() returns I64 {
-    return GetFrameTime().mul(1000.to_f32()).to_i64()
+    return GetFrameTime().mul(1000).to_i64()
 }
 get_char_pressed := proc() returns I64 { return GetCharPressed().to_i64() }
 get_random_value := proc(min: I64, max: I64) returns I64 {

@@ -260,7 +260,7 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                 }
                 if type_name.eq(expected_type_name) {
                     idx := coverage_sub_index(coverage, variant_name)
-                    if idx.gte(0.to_i32()) {
+                    if idx.gte(0) {
                         ref sub : CoverageNode = coverage.sub_nodes.get(idx.to_u32())
                         return sub.fully_covered
                     }
@@ -288,7 +288,7 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                         }
                         if type_name2.eq(expected_type_name) {
                             idx2 := coverage_sub_index(coverage, variant_name2)
-                            if idx2.gte(0.to_i32()) {
+                            if idx2.gte(0) {
                                 ref sub2 : CoverageNode = coverage.sub_nodes.get(idx2.to_u32())
                                 if sub2.fully_covered { return true }
                                 ref inner_pat : Expr = pattern.child(1)
@@ -296,7 +296,7 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                                     return false
                                 }
                                 vt_tag := enum_variant_tag(enum_def, variant_name2)
-                                if vt_tag.gte(0.to_i32()) {
+                                if vt_tag.gte(0) {
                                     inner_type_name := enum_variant_type(enum_def, vt_tag)
                                     if inner_type_name.len().gt(0) {
                                         ref inner_def : Expr = scope.get_struct(inner_type_name)
@@ -345,7 +345,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                 }
                 if type_name.eq(expected_type_name) {
                     idx := coverage_sub_index(coverage, variant_name)
-                    if idx.gte(0.to_i32()) {
+                    if idx.gte(0) {
                         ref mut sub : CoverageNode = coverage.sub_nodes.get(idx.to_u32())
                         sub.fully_covered = true
                     }
@@ -375,7 +375,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                         }
                         if type_name2.eq(expected_type_name) {
                             idx2 := coverage_sub_index(coverage, variant_name2)
-                            if idx2.gte(0.to_i32()) {
+                            if idx2.gte(0) {
                                 ref mut sub2 : CoverageNode = coverage.sub_nodes.get(idx2.to_u32())
                                 ref inner_pat : Expr = pattern.child(1)
                                 if inner_pat.node_type.is(NodeType.Ident) {
@@ -384,7 +384,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                                 } else {
                                     // Nested pattern: find inner enum and recurse.
                                     vt_tag := enum_variant_tag(enum_def, variant_name2)
-                                    if vt_tag.gte(0.to_i32()) {
+                                    if vt_tag.gte(0) {
                                         inner_type_name := enum_variant_type(enum_def, vt_tag)
                                         if inner_type_name.len().gt(0) {
                                             ref inner_def : Expr = scope.get_struct(inner_type_name)
@@ -426,7 +426,7 @@ priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enu
             if sub.fully_covered { continue }
             mut recursed := false
             vt_tag := enum_variant_tag(enum_def, vn)
-            if vt_tag.gte(0.to_i32()) {
+            if vt_tag.gte(0) {
                 inner_type_name := enum_variant_type(enum_def, vt_tag)
                 if inner_type_name.len().gt(0) {
                     ref inner_def : Expr = scope.get_struct(inner_type_name)
@@ -1485,7 +1485,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
         if in_func.neq(0) {
             callee_ft := scope.get_func_type(name)
             if callee_ft.is(FuncType.Proc).or(callee_ft.is(FuncType.ExtProc)) {
-                ctx.proc_calls_count = ctx.proc_calls_count.add(1.to_i32())
+                ctx.proc_calls_count = ctx.proc_calls_count.add(1)
                 if debug_exempt.not() {
                     type_error(e, "func cannot call proc '".concat(name).concat("'"))
                 }
@@ -1493,7 +1493,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
         } else if ctx.proc_def_depth.gt(0) {
             callee_ft2 := scope.get_func_type(name)
             if callee_ft2.is(FuncType.Proc).or(callee_ft2.is(FuncType.ExtProc)) {
-                ctx.proc_calls_count = ctx.proc_calls_count.add(1.to_i32())
+                ctx.proc_calls_count = ctx.proc_calls_count.add(1)
             }
         }
     }
@@ -1512,14 +1512,14 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
 is_self_conversion_method := func(method: Str, type_name: Str) returns shallow Bool {
     if method.starts_with("to_").not() { return false }
     if type_name.len().eq(0) { return false }
-    suffix_len := method.len().sub(3.to_usize())
+    suffix_len := method.len().sub(3)
     if suffix_len.eq(type_name.len()).not() { return false }
     for i in 0..suffix_len {
-        ref mc : I8 = method.get(i.add(3.to_usize()))
+        ref mc : I8 = method.get(i.add(3))
         ref tc : I8 = type_name.get(i)
         if mc.eq(tc) { continue }
         if tc.gte('A').and(tc.lte('Z')) {
-            if tc.add(32.to_i8()).eq(mc) { continue }
+            if tc.add(32).eq(mc) { continue }
         }
         return false
     }
@@ -1690,7 +1690,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         switch ns_func2.node_type {
         case NodeType.FuncDef(ns_fdef0):
             if ns_fdef0.func_type.is(FuncType.Proc).or(ns_fdef0.func_type.is(FuncType.ExtProc)) {
-                ctx.proc_calls_count = ctx.proc_calls_count.add(1.to_i32())
+                ctx.proc_calls_count = ctx.proc_calls_count.add(1)
             }
         case:
         }
@@ -2441,16 +2441,18 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
         is_proc := fdef.func_type.is(FuncType.Proc)
         saved_proc_calls := ctx.proc_calls_count
         if is_proc {
-            ctx.proc_calls_count = 0.to_i32()
-            ctx.proc_def_depth = ctx.proc_def_depth.add(1.to_i32())
+            ctx.proc_calls_count = 0
+            ctx.proc_def_depth = ctx.proc_def_depth.add(1)
         }
         if fdef.auto_generated {
-            auto_gen_depth = auto_gen_depth.add(1.to_i32())
+            auto_gen_depth = auto_gen_depth.add(1)
         }
         saved_in_shallow_ret := ctx.typer_in_shallow_return
         ctx.typer_in_shallow_return = fdef.return_own_type.is(OwnType.Shallow)
         saved_in_main_func := ctx.typer_in_main_func
         ctx.typer_in_main_func = current_top_func_name.eq("main").and(is_null(scope.parent))
+        saved_return_type_name := ctx.typer_return_type_name.clone()
+        if is_func { ctx.typer_return_type_name = fdef.return_type.clone() } else { ctx.typer_return_type_name = "" }
         // Issue #198: lower throw/catch BEFORE infer_body so the
         // synthesised mut _err_kind / _err_<T> locals + if-guards
         // get type-checked normally and reach all downstream stages
@@ -2472,15 +2474,16 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
         asap_destroy_body(ctx, expr.child(0), func_scope)
         ctx.typer_in_shallow_return = saved_in_shallow_ret
         ctx.typer_in_main_func = saved_in_main_func
+        ctx.typer_return_type_name = saved_return_type_name
         if fdef.auto_generated {
-            auto_gen_depth = auto_gen_depth.sub(1.to_i32())
+            auto_gen_depth = auto_gen_depth.sub(1)
         }
         if is_proc {
             if ctx.proc_calls_count.eq(0) {
                 type_error(expr, "proc has no proc/ext_proc calls; should be a func")
             }
             ctx.proc_calls_count = saved_proc_calls
-            ctx.proc_def_depth = ctx.proc_def_depth.sub(1.to_i32())
+            ctx.proc_def_depth = ctx.proc_def_depth.sub(1)
         }
         if is_macro.and(fdef.return_type.len().eq(0)) {
             type_error(expr, "macro must declare a return type")
@@ -2568,7 +2571,7 @@ check_unused_priv_top_level := proc(scope: TypeScope) returns shallow I32 {
             type_error_at(b.path, b.line, b.col,
                 "unused priv ".concat(kind).concat(" '").concat(b.orig_name)
                     .concat("'; remove 'priv' to expose it"))
-            found = found.add(1.to_i32())
+            found = found.add(1)
             continue
         }
         if b.orig_name.len().gt(0) {
@@ -2580,13 +2583,13 @@ check_unused_priv_top_level := proc(scope: TypeScope) returns shallow I32 {
                 "unused local ".concat(kind).concat(" '").concat(b.orig_name)
                     .concat("' in '").concat(parent_name)
                     .concat("'; remove it or move it to file scope"))
-            found = found.add(1.to_i32())
+            found = found.add(1)
             continue
         }
         type_error_at(b.path, b.line, b.col,
             "unused priv ".concat(kind).concat(" '").concat(b.name)
                 .concat("'; remove 'priv' to expose it"))
-        found = found.add(1.to_i32())
+        found = found.add(1)
     }
     return found
 }
@@ -2635,7 +2638,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str) returns s
                 type_error_at(path, fl_line, fl_col,
                     "unused priv field '".concat(owner_name).concat(".").concat(fld.name)
                         .concat("'; remove 'priv' to expose it"))
-                found = found.add(1.to_i32())
+                found = found.add(1)
             }
         case:
         }
@@ -2657,15 +2660,35 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str) returns s
             type_error_at(path, ns_line, ns_col,
                 "unused priv ns member '".concat(owner_name).concat(".").concat(nsd.name)
                     .concat("'; remove 'priv' to expose it"))
-            found = found.add(1.to_i32())
+            found = found.add(1)
         }
     }
     return found
 }
 
+// Narrow a bare numeric literal return value to the function's declared
+// numeric return type, mirroring validate_fcall_arg for call arguments.
+// Only fires for a direct Literal.Num return expression; -N (which the
+// parser desugars to 0.sub(N)) and any other expression are left as-is.
+narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context) {
+    if ctx.typer_return_type_name.len().eq(0) { return }
+    switch rv.node_type {
+    case NodeType.Literal(Literal.Num(lit_str)):
+        rt := type_from_name(ctx.typer_return_type_name.clone(), scope)
+        if is_numeric_type(rt) {
+            if literal_in_range(literal_num_text(lit_str), rt).not() {
+                type_error(rv, "integer literal ".concat(literal_num_text(lit_str)).concat(" out of range for ").concat(type_to_name(rt)))
+            }
+            set_expr_til_type(rv, rt)
+        }
+    case:
+    }
+}
+
 infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context) {
     if stmt.children.len().gt(0) {
         infer_expr(scope, stmt.child(0), in_func, ctx)
+        narrow_return_literal(scope, stmt.child(0), ctx)
         set_expr_til_type(stmt, expr_til_type(stmt.child(0)))
         if returns_ref.eq(0) {
             switch stmt.child(0).node_type {
@@ -3470,7 +3493,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 if enum_def.node_type.is(NodeType.EnumDef) {
                                     vt_tag := enum_variant_tag(enum_def, variant_name)
                                     mut payload_type := ""
-                                    if vt_tag.gte(0.to_i32()) {
+                                    if vt_tag.gte(0) {
                                         payload_type = enum_variant_type(enum_def, vt_tag)
                                     }
                                     if payload_type.len().gt(0) {
@@ -3543,7 +3566,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 if enum_def3.node_type.is(NodeType.EnumDef) {
                                     vt_tag3 := enum_variant_tag(enum_def3, variant_name3)
                                     mut payload_type3 := ""
-                                    if vt_tag3.gte(0.to_i32()) {
+                                    if vt_tag3.gte(0) {
                                         payload_type3 = enum_variant_type(enum_def3, vt_tag3)
                                     }
                                     if payload_type3.len().gt(0) {
@@ -3603,7 +3626,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                     if is_null(enum_def).not() {
                     if enum_def.node_type.is(NodeType.EnumDef) {
                         vt_tag2 := enum_variant_tag(enum_def, variant_name)
-                        if vt_tag2.gte(0.to_i32()) {
+                        if vt_tag2.gte(0) {
                             // `case Variant` (no payload binding) -> sw.is(Type.Variant).
                             // Use .is rather than .eq so the desugared check is a
                             // tag-only comparison and never recurses through a
@@ -4228,7 +4251,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
             type_error(stmt, "type '".concat(type_name).concat("' get() second param must match len() return type for for-in"))
             return false
         }
-        ref get_idx_param : Declaration = get_def.params.get(1.to_usize())
+        ref get_idx_param : Declaration = get_def.params.get(1)
         if get_idx_param.explicit_type.len().eq(0).or(get_idx_param.explicit_type.eq(idx_type).not()) {
             type_error(stmt, "type '".concat(type_name).concat("' get() second param must match len() return type for for-in"))
             return false
@@ -6182,7 +6205,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec, mut cou
         // The rhs slot of a NodeType.Decl is a named function definition,
         // not a lambda. Skip lifting; just recurse to find any lambdas
         // nested INSIDE that named function's body.
-        is_decl_rhs := e.node_type.is(NodeType.Decl).and(i.eq(0.to_u32()))
+        is_decl_rhs := e.node_type.is(NodeType.Decl).and(i.eq(0))
         if typer_is_lambda_target(c).and(is_decl_rhs.not()) {
             counter = typer_lift_lambdas_in_expr(c, top_level, counter)
             lname := format("_lambda_", counter.to_str())
@@ -6233,7 +6256,7 @@ priv typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr) {
 }
 
 type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
-    errors = 0.to_i32()
+    errors = 0
     context_enter_file(ctx, path)
     typer_path = ctx.path.clone()
     // Lift anonymous func literals out of expression positions to
@@ -6257,7 +6280,7 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
 // rstil-style typer: recursively type imports then this file.
 type_file := proc(path: Str, ctx: Context) returns shallow I32 {
     if ctx.imports_typer_done.has(path) {
-        return 0.to_i32()
+        return 0
     }
     ctx.imports_typer_done.add(own path.clone())
 
@@ -6268,7 +6291,7 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
     // Loader-prepended mode auto-imports (e.g. mode gui -> gui.til) come
     // first in iu.imports without a matching AST FCall, so process those
     // leading entries before the walk. #165 step 5.
-    mut total : I32 = 0.to_i32()
+    mut total : I32 = 0
     ast_count : USize = count_ast_imports(iu.ast)
     auto_count : USize = iu.imports.len().sub(ast_count)
     for i in 0..auto_count {
@@ -6285,7 +6308,7 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
             if ident_name(id).eq("import").not() { continue }
             ref dep : Str = iu.imports.get(import_idx)
             total = total.add(type_file(dep, ctx))
-            import_idx = import_idx.add(1.to_u32())
+            import_idx = import_idx.add(1)
         case:
             continue
         }
@@ -7016,7 +7039,7 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                                                 if tfd.name.eq(field_name) { fd_idx = fi.to_i32(); break }
                                             }
                                         }
-                                        if fd_idx.lt(0.to_i32()) { continue }
+                                        if fd_idx.lt(0) { continue }
                                         if fd_idx.to_u32().gte(tsv_sdd.fields.len()) { continue }
                                         ref fld_decl : Declaration = tsv_sdd.fields.get(fd_idx.to_u32())
                                         if fld_decl.own_type.is(OwnType.Shallow).not() { continue }
@@ -7145,7 +7168,7 @@ sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope) {
         for i in 0..fd.params.len() {
             ref p : Declaration = fd.params.get(i)
             if p.own_type.is(OwnType.Own) {
-                set_own_arg(call, i.add(1.to_usize()))
+                set_own_arg(call, i.add(1))
             }
         }
     case:
@@ -7335,7 +7358,7 @@ desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: V
                 scope.set(arr_name, Type.Struct("Array"), FuncType.None, false, typer_path, fcall.line, fcall.col, false, OwnType.Own)
                 new_ch.push(own arr_decl)
                 for j in 0..count {
-                    mut setter := build_variadic_array_set(fcall, scope, arr_name, 2.to_i32(), j)
+                    mut setter := build_variadic_array_set(fcall, scope, arr_name, 2, j)
                     new_ch.push(own setter)
                 }
                 rewrite_collection_fcall_to_ident(fcall, arr_name, Type.Struct("Array"))
@@ -7404,7 +7427,7 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
                 scope.set(var_name, Type.Struct("Array"), FuncType.None, true, typer_path, stmt.line, stmt.col, false, OwnType.Shallow)
                 new_ch.push(own arr_decl)
                 for j in 0..count {
-                    mut setter := build_variadic_array_set(rhs, scope, var_name, 2.to_i32(), j)
+                    mut setter := build_variadic_array_set(rhs, scope, var_name, 2, j)
                     new_ch.push(own setter)
                 }
                 return true
@@ -8042,7 +8065,7 @@ hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mu
     .or(rhs.node_type.is_literal_str())
     .or(rhs.node_type.is_literal_bool()) {
         replacement := hoist_to_temp(ctx, rhs, hoisted, scope, false)
-        free_expr_slot_in_place(stmt.children.get(0.to_usize()))
+        free_expr_slot_in_place(stmt.children.get(0))
         stmt.children.set(0, own replacement)
     }
 }
@@ -8179,7 +8202,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
             fcall_data.kwargs_index = fcall_data.kwargs_index.add(delta)
         }
         fcall_data.variadic_index = -1.to_i32()
-        fcall_data.variadic_count = 0.to_u32()
+        fcall_data.variadic_count = 0
     case:
         UNREACHABLE(__LOC__)
     }
@@ -8556,28 +8579,28 @@ narrow_dynamic := func(mut expr: Expr, target: Type) {
 }
 
 fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
-    if fcall.node_type.is(NodeType.FCall).not() { return 0.to_i32() }
-    if fcall.children.len().eq(0) { return 0.to_i32() }
+    if fcall.node_type.is(NodeType.FCall).not() { return 0 }
+    if fcall.children.len().eq(0) { return 0 }
     ref callee : Expr = fcall.child(0)
     switch callee.node_type {
     case NodeType.Ident(_cn):
         ref cb : TypeBinding = scope.get_binding(ident_name(_cn))
         if is_null(cb).not() {
-            if is_null(cb.func_def) { return 0.to_i32() }
+            if is_null(cb.func_def) { return 0 }
             switch cb.func_def.node_type {
             case NodeType.FuncDef(_cfd):
                 return _cfd.return_own_type.is(OwnType.Ref)
             case:
-                return 0.to_i32()
+                return 0
             }
         }
-        return 0.to_i32()
+        return 0
     case NodeType.FieldAccess(_cfa):
         if fa_is_ns(callee, scope) {
             switch callee.child(0).node_type {
             case NodeType.Ident(_cti):
                 ref sdef : Expr = scope.get_struct(ident_name(_cti))
-                if is_null(sdef) { return 0.to_i32() }
+                if is_null(sdef) { return 0 }
                 ref cfa_ns : Vec = def_ns_decls(sdef)
                 for fd : Declaration in cfa_ns {
                     if fd.name.eq(field_access_name(_cfa)) {
@@ -8595,7 +8618,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
         }
     case:
     }
-    return 0.to_i32()
+    return 0
 }
 
 // Parallel to fcall_returns_ref: returns 1 when the FCall's callee is
@@ -8604,28 +8627,28 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
 // builder's shallow-return stack-alloc path (no malloc, so freeing
 // would touch a stack pointer).
 fcall_returns_shallow := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
-    if fcall.node_type.is(NodeType.FCall).not() { return 0.to_i32() }
-    if fcall.children.len().eq(0) { return 0.to_i32() }
+    if fcall.node_type.is(NodeType.FCall).not() { return 0 }
+    if fcall.children.len().eq(0) { return 0 }
     ref callee : Expr = fcall.child(0)
     switch callee.node_type {
     case NodeType.Ident(_cn):
         ref cb : TypeBinding = scope.get_binding(ident_name(_cn))
         if is_null(cb).not() {
-            if is_null(cb.func_def) { return 0.to_i32() }
+            if is_null(cb.func_def) { return 0 }
             switch cb.func_def.node_type {
             case NodeType.FuncDef(_cfd):
                 return _cfd.return_own_type.is(OwnType.Shallow)
             case:
-                return 0.to_i32()
+                return 0
             }
         }
-        return 0.to_i32()
+        return 0
     case NodeType.FieldAccess(_cfa):
         if fa_is_ns(callee, scope) {
             switch callee.child(0).node_type {
             case NodeType.Ident(_cti):
                 ref sdef : Expr = scope.get_struct(ident_name(_cti))
-                if is_null(sdef) { return 0.to_i32() }
+                if is_null(sdef) { return 0 }
                 ref cfa_ns : Vec = def_ns_decls(sdef)
                 for fd : Declaration in cfa_ns {
                     if fd.name.eq(field_access_name(_cfa)) {
@@ -8643,7 +8666,7 @@ fcall_returns_shallow := func(fcall: Expr, scope: TypeScope) returns shallow I32
         }
     case:
     }
-    return 0.to_i32()
+    return 0
 }
 
 hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow is_own: Bool) returns Expr {
@@ -8699,7 +8722,7 @@ hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec, mut scope: 
 }
 
 type_check := proc(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
-    errors = 0.to_i32()
+    errors = 0
     infer_body(scope, program, 0, 1, 0, 0, 0, ctx)
     // Program-scope asap runs from prepare_program via
     // asap_destroy(ctx); see issue #204 step 3b.

@@ -225,6 +225,13 @@ Context := struct {
     mut typer_in_shallow_return : Bool = false
     mut typer_in_main_func : Bool = false
 
+    // Resolved declared return type name of the function currently being
+    // type-checked (empty when none / not in a func). infer_return_stmt
+    // reads it to narrow a bare numeric literal return value to the
+    // declared numeric type, mirroring the call-argument narrowing in
+    // validate_fcall_arg. Saved+restored around each func body.
+    mut typer_return_type_name : Str = ""
+
     // Monotonically-increasing builder counter for synthesised
     // constructor temp names (`_ctor_<N>`). The codegen never
     // resets this -- it just needs unique names across the whole
@@ -421,8 +428,8 @@ init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
 }
 
 register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
-    if stmt.node_type.is(NodeType.Decl).not() { return 0.to_i32() }
-    if stmt.child(0).node_type.is(NodeType.StructDef).not() { return 0.to_i32() }
+    if stmt.node_type.is(NodeType.Decl).not() { return 0 }
+    if stmt.child(0).node_type.is(NodeType.StructDef).not() { return 0 }
 
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
@@ -437,7 +444,7 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
                     ": error: struct '", sname, "' already declared at ",
                     existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
                 )
-                return 1.to_i32()
+                return 1
             }
         case:
         }
@@ -464,10 +471,10 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         b.is_builtin = is_builtin
         b.is_priv = sdecl.is_priv
         b.orig_name = sdecl.orig_name.clone()
-        return 0.to_i32()
+        return 0
     case:
         UNREACHABLE(__LOC__)
-        return 0.to_i32()
+        return 0
     }
 }
 
@@ -1237,8 +1244,8 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32
 }
 
 register_enum_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
-    if stmt.node_type.is(NodeType.Decl).not() { return 0.to_i32() }
-    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return 0.to_i32() }
+    if stmt.node_type.is(NodeType.Decl).not() { return 0 }
+    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return 0 }
     return register_enum_definition(ctx, stmt, scope)
 }
 
@@ -1301,7 +1308,7 @@ register_enum_and_gen_nonclone_methods_for_stmt := proc(ctx: Context, stmt: Expr
     reg_errors := register_enum_def_for_stmt(ctx, stmt, scope)
     if reg_errors.gt(0) { return reg_errors }
     gen_enum_nonclone_methods_for_stmt(stmt, scope)
-    return 0.to_i32()
+    return 0
 }
 
 register_enums_and_generate_nonclone_methods := proc(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32 {
@@ -2209,7 +2216,7 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns shallow I3
         return total
     case:
         UNREACHABLE(__LOC__)
-        return 0.to_i32()
+        return 0
     }
 }
 
@@ -2904,14 +2911,14 @@ init_declarations_global := proc(ctx: Context, program: Expr, scope: TypeScope) 
 // to distinguish mode auto-imports (prepended to iu.imports by the loader)
 // from explicit imports that appear in the source AST.
 count_ast_imports := func(body: Expr) returns shallow USize {
-    mut n : USize = 0.to_u32()
+    mut n : USize = 0
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.FCall).not() { continue }
         if stmt.children.len().neq(2) { continue }
         if stmt.child(1).node_type.is_literal_str().not() { continue }
         switch stmt.child(0).node_type {
         case NodeType.Ident(id):
-            if ident_name(id).eq("import") { n = n.add(1.to_u32()) }
+            if ident_name(id).eq("import") { n = n.add(1) }
         case:
         }
     }
@@ -2920,7 +2927,7 @@ count_ast_imports := func(body: Expr) returns shallow USize {
 
 init_file := proc(path: Str, ctx: Context) returns shallow I32 {
     if ctx.imports_init_done.has(path) {
-        return 0.to_i32()
+        return 0
     }
     ctx.imports_init_done.add(own path.clone())
 
@@ -2947,7 +2954,7 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
             if ident_name(id).eq("import").not() { continue }
             ref dep : Str = iu.imports.get(import_idx)
             init_file(dep, ctx)
-            import_idx = import_idx.add(1.to_u32())
+            import_idx = import_idx.add(1)
         case:
             continue
         }
@@ -2955,7 +2962,7 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
 
     ctx.mode = iu.mode.clone()
     init_declarations_unit(path, iu.ast, ctx.scope, ctx)
-    return 0.to_i32()
+    return 0
 }
 
 // sync_body_ns_to_payload: deleted -- all ns methods now go directly to ns_decls

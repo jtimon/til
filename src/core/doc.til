@@ -36,12 +36,12 @@ __doc_lookup__ := func(blob: Str, name: Str) returns Str {
     mut i : USize = 0
     while i.lt(n) {
         mut sep1 := i
-        while sep1.lt(n).and(blob.byte_at(sep1).neq(1.to_i8())) {
+        while sep1.lt(n).and(blob.byte_at(sep1).neq(1)) {
             sep1 = sep1.add(1)
         }
         if sep1.gte(n) { return "" }
         mut sep2 := sep1.add(1)
-        while sep2.lt(n).and(blob.byte_at(sep2).neq(2.to_i8())) {
+        while sep2.lt(n).and(blob.byte_at(sep2).neq(2)) {
             sep2 = sep2.add(1)
         }
         if sep2.gt(n) { return "" }

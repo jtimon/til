@@ -403,13 +403,13 @@ ENUM_PAYLOAD_OFFSET := 8.to_i32()
 
 val_enum_flat := func(enum_name: Str, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32) returns shallow Value {
     mut total := ENUM_PAYLOAD_OFFSET.add(payload_size)
-    if total.lt(8.to_i32()) {
-        total = 8.to_i32()
+    if total.lt(8) {
+        total = 8
     }
     mut data : U8 = calloc(1, total.to_u64())
     memcpy(data, etag, 4)
     if is_null(payload_data).not() {
-        if payload_size.gt(0.to_i32()) {
+        if payload_size.gt(0) {
             memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.to_u64()), payload_data, payload_size.to_u64())
         }
     }
@@ -427,8 +427,8 @@ elem_size_for_type := func(type_name: Str) returns shallow I32 {
     if type_name.eq("I32") { return I32.size().to_i32() }
     if type_name.eq("U32") { return U32.size().to_i32() }
     if type_name.eq("Bool") { return Bool.size().to_i32() }
-    if type_name.eq("Str") { return 24.to_i32() }
-    return 8.to_i32()
+    if type_name.eq("Str") { return 24 }
+    return 8
 }
 
 parse_cli_arg := func(s: Str, type_name: Str) returns shallow Value {
@@ -492,18 +492,18 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             if ch.eq(92) {
                 if i.add(1).lt(raw.count.to_u64()) {
                     ref next : I8 = raw.byte_at(i.add(1).to_usize())
-                    if next.eq(110) { memset(ptr_add(buf, j), 10.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(116) { memset(ptr_add(buf, j), 9.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(92) { memset(ptr_add(buf, j), 92.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(34) { memset(ptr_add(buf, j), 34.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(48) { memset(ptr_add(buf, j), 0.to_i32(), 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(110) { memset(ptr_add(buf, j), 10, 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(116) { memset(ptr_add(buf, j), 9, 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(92) { memset(ptr_add(buf, j), 92, 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(34) { memset(ptr_add(buf, j), 34, 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(48) { memset(ptr_add(buf, j), 0, 1); j = j.add(1); i = i.add(2); continue }
                 }
             }
             memcpy(ptr_add(buf, j), ptr_add(raw.c_str, i), 1)
             j = j.add(1)
             i = i.add(1)
         }
-        memset(ptr_add(buf, j), 0.to_i32(), 1)
+        memset(ptr_add(buf, j), 0, 1)
         v := make_str_value(buf, j)
         free(own buf)
         return v
@@ -530,7 +530,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         ref cell : Cell = scope_get(scope, ident_name(ident))
         if is_null(cell) {
             interp_error(e, format("undefined variable '", ident_name(ident), "'"))
-            exit(1.to_i32())
+            exit(1)
         }
         return shallow_copy_value(cell.val)
     case NodeType.FCall:
@@ -595,7 +595,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                 return shallow_copy_value(nsv)
             }
             interp_error(e, format("no namespace field '", field_access_name(fname), "'"))
-            exit(1.to_i32())
+            exit(1)
         }
         if is_value_ptr(obj) {
             ref obj_expr : Expr = e.child(0)
@@ -612,14 +612,14 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         }
         if obj.is(Value.Struct).not() {
             interp_error(e, "field access on non-struct")
-            exit(1.to_i32())
+            exit(1)
         }
         switch obj {
         case Value.Struct(si):
             ref fdecl : Declaration = find_field_decl(si.struct_def, field_access_name(fname))
             if is_null(fdecl) {
                 interp_error(e, format("no field '", field_access_name(fname), "'"))
-                exit(1.to_i32())
+                exit(1)
             }
             return read_field(si.data, fdecl)
         case:
@@ -628,7 +628,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
         }
     case:
         interp_lang_error(e, "cannot evaluate node as expression")
-        exit(1.to_i32())
+        exit(1)
         return val_none()
     }
 }
@@ -790,7 +790,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 ref src : Cell = scope_get(scope, ident_name(rhs_ident))
                 if is_null(src) {
                     interp_error(rhs, "undefined variable '".concat(ident_name(rhs_ident)).concat("'"))
-                    exit(1.to_i32())
+                    exit(1)
                 }
                 val = shallow_copy_value(src.val)
                 if val.is(Value.Func).not() {
@@ -810,7 +810,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
             ref cell : Cell = scope_get(scope, ad.name.clone())
             if is_null(cell) {
                 interp_error(stmt, "undefined variable '".concat(ad.name).concat("'"))
-                exit(1.to_i32())
+                exit(1)
             }
             if expr_til_type(stmt).is(Type.Dynamic) {
                 if rhs.node_type.is(NodeType.Ident) {
@@ -860,7 +860,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                     ref mut cur : Expr = stmt.child(0)
                     mut depth : I32 = 0
                     while cur.node_type.is(NodeType.FieldAccess) {
-                        depth = depth.add(1.to_i32())
+                        depth = depth.add(1)
                         cur = cur.child(0)
                     }
                     switch cur.node_type {
@@ -872,7 +872,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                                 base = to_ptr(si.data)
                                 cur_sdef = si.struct_def
                                 // For simplicity, handle depth=1 (most common: a.field = val)
-                                if depth.eq(1.to_i32()) {
+                                if depth.eq(1) {
                                     switch stmt.child(0).node_type {
                                     case NodeType.FieldAccess(fa_name):
                                             ref fd : Declaration = find_field_decl(cur_sdef, field_access_name(fa_name))
@@ -895,11 +895,11 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 }
                 if is_null(base) {
                     interp_error(stmt, "field assign on non-struct")
-                    exit(1.to_i32())
+                    exit(1)
                 }
                 if is_null(cur_sdef) {
                     interp_error(stmt, "field assign on non-struct")
-                    exit(1.to_i32())
+                    exit(1)
                 }
                 ref fdecl : Declaration = find_field_decl(cur_sdef, fname.clone())
                 write_field(base, fdecl, val)
@@ -970,7 +970,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
             has_return = true
         case:
             interp_lang_error(stmt, "unexpected statement type")
-            exit(1.to_i32())
+            exit(1)
         }
     }
 }
@@ -1106,7 +1106,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                     ref arg_cell : Cell = scope_get(scope, ident_name(arg_ident))
                     if is_null(arg_cell) {
                         interp_error(arg_expr, "undefined variable '".concat(ident_name(arg_ident)).concat("'"))
-                        exit(1.to_i32())
+                        exit(1)
                     }
                     if is_value_ptr(arg_cell.val).and(param.explicit_type.len().gt(0)) {
                         mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, scope)
@@ -1213,7 +1213,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                             ref src : Cell = scope_get(scope, ident_name(arg_ident))
                             if is_null(src) {
                                 interp_error(arg, "undefined variable '".concat(ident_name(arg_ident)).concat("'"))
-                                exit(1.to_i32())
+                                exit(1)
                             }
                             val = shallow_copy_value(src.val)
                             if get_own_arg(e, arg_idx).and(val.is(Value.Func).not()) {
@@ -1285,7 +1285,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                     ref arg_cell : Cell = scope_get(scope, ident_name(arg_ident))
                     if is_null(arg_cell) {
                         interp_error(arg_expr, "undefined variable '".concat(ident_name(arg_ident)).concat("'"))
-                        exit(1.to_i32())
+                        exit(1)
                     }
                     if needs_widen(arg_cell.val, param.explicit_type) {
                         mut arg := arg_cell.val.clone()
@@ -1388,7 +1388,7 @@ shallow_copy_value := func(v: Value) returns shallow Value {
 
 make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, shallow borrowed: Bool) returns shallow Value {
     mut r := Value.None
-    mut tag : I32 = 10.to_i32()
+    mut tag : I32 = 10
     memcpy(r, tag, 4)
     switch r {
     case Value.Struct(payload):
@@ -1668,7 +1668,7 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
         value_to_buf(ptr_add(data, i.to_u64().mul(esz.to_u64())), v, elem_type)
     }
     ref lp : LoadedProgram = codegen_lp()
-    mut sz : I32 = 0.to_i32()
+    mut sz : I32 = 0
     switch lp.ctx.cached_array_def.node_type {
     case NodeType.StructDef(asd):
         sz = asd.total_struct_size
@@ -1901,12 +1901,12 @@ read_field := func(inst_data: Dynamic, dd: Declaration) returns shallow Value {
             ref edef : Expr = edef_lookup
             if enum_has_payloads(edef) {
                 ref ei : EnumInstance = deref(ptr)
-                if is_null(ei) { return val_enum_simple(ftype, 0.to_i32()) }
+                if is_null(ei) { return val_enum_simple(ftype, 0) }
                 ref etag_ref : Dynamic = ei.data
                 ref etag : I32 = etag_ref
                 psz := ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
                 mut psz_final := psz
-                if psz.to_i64().lt(0) { psz_final = 0.to_i32() }
+                if psz.to_i64().lt(0) { psz_final = 0 }
                 return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
             }
             ref itag : I32 = ptr
@@ -2008,7 +2008,7 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value) {
         }
     case Value.Enum(ei):
         mut total := ei.data_size
-        if total.to_i64().lt(8) { total = 8.to_i32() }
+        if total.to_i64().lt(8) { total = 8 }
         heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
         memcpy(heap_ei, ei, EnumInstance.size().to_u64())
         // Deep-copy the data buffer
@@ -2035,7 +2035,7 @@ interpret_register_defs := func(mut global: Scope, prog: Expr) {
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     mut val := val_none()
-                    memcpy(val, 9.to_i32(), 4)
+                    memcpy(val, 9, 4)
                     write_ptr(ptr_add(val, 8), stmt.child(0))
                     scope_set_owned(global, dd.name, val)
                 case:
@@ -2063,7 +2063,7 @@ interpret_register_aliases := func(mut global: Scope, prog: Expr) {
                             switch stmt.node_type {
                             case NodeType.Decl(dd):
                                 mut val := val_none()
-                                memcpy(val, 9.to_i32(), 4)
+                                memcpy(val, 9, 4)
                                 write_ptr(ptr_add(val, 8), sdef)
                                 scope_set_owned(global, dd.name, val)
                             case:
@@ -2262,7 +2262,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     scope_free(own global)
     ffi_cleanup()
     ns_inited = false
-    return 0.to_i32()
+    return 0
 }
 
 // Per-file interpreter entrypoint (rstil-style): uses the canonical per-file
@@ -2519,7 +2519,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     ffi_cleanup()
     ns_inited = false
     codegen_clear_lp()
-    return 0.to_i32()
+    return 0
 }
 
 cmd_interpret := proc(lp: LoadedProgram, user_argv: Vec) returns shallow I32 {

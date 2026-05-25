@@ -925,9 +925,9 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
                 switch c1.node_type {
                 case NodeType.Literal(Literal.Str(type_name)):
                     mut is_vec := -1.to_i32()
-                    if ident_name(name).eq("array") { is_vec = 0.to_i32() }
-                    else if ident_name(name).eq("vec") { is_vec = 1.to_i32() }
-                    if is_vec.gte(0.to_i32()) {
+                    if ident_name(name).eq("array") { is_vec = 0 }
+                    else if ident_name(name).eq("vec") { is_vec = 1 }
+                    if is_vec.gte(0) {
                         mut found := false
                         for existing : CollectionInfo in infos {
                             if existing.type_name.eq(type_name) {
@@ -1589,7 +1589,7 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32) {
 // the shape here so emit_stmt can skip the indent too.
 priv is_noop_delete_stmt := func(e: Expr) returns shallow Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len().lt(2.to_u32()) { return false }
+    if e.children.len().lt(2) { return false }
     ref c0 : Expr = e.child(0)
     switch c0.node_type {
     case NodeType.FieldAccess(del_name):
@@ -1802,15 +1802,15 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32) {
     case NodeType.Return:
         emit_stmt_return(f, e, depth)
     case NodeType.Body:
-        f.write("{\n"); emit_body_scoped(f, e, depth.add(1.to_i32())); emit_indent(f, depth); f.write("}\n")
+        f.write("{\n"); emit_body_scoped(f, e, depth.add(1)); emit_indent(f, depth); f.write("}\n")
     case NodeType.If:
         f.write("if ("); emit_deref(f, e.child(0), depth); f.write(") {\n")
-        emit_body_scoped(f, e.child(1), depth.add(1.to_i32())); emit_indent(f, depth)
-        if e.children.len().gt(2) { f.write("} else {\n"); emit_body_scoped(f, e.child(2), depth.add(1.to_i32())); emit_indent(f, depth) }
+        emit_body_scoped(f, e.child(1), depth.add(1)); emit_indent(f, depth)
+        if e.children.len().gt(2) { f.write("} else {\n"); emit_body_scoped(f, e.child(2), depth.add(1)); emit_indent(f, depth) }
         f.write("}\n")
     case NodeType.While:
         f.write("while ("); emit_deref(f, e.child(0), depth); f.write(") {\n")
-        emit_body_scoped(f, e.child(1), depth.add(1.to_i32())); emit_indent(f, depth); f.write("}\n")
+        emit_body_scoped(f, e.child(1), depth.add(1)); emit_indent(f, depth); f.write("}\n")
     case NodeType.Break: f.write("break;\n")
     case NodeType.Continue: f.write("continue;\n")
     case: f.write("/* TODO: unknown stmt type */\n")
@@ -1900,7 +1900,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) returns ref File {
     case NodeType.Literal(Literal.Num(num)):
         f.write(literal_num_text(num))
     case NodeType.Literal(Literal.Bool(b)):
-        if b { emit_i32(f, 1.to_i32()) } else { emit_i32(f, 0.to_i32()) }
+        if b { emit_i32(f, 1) } else { emit_i32(f, 0) }
     case NodeType.Literal(Literal.Null):
         f.write("NULL")
     case NodeType.Ident(ident):
@@ -2018,7 +2018,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) returns ref File {
                 // Struct constructor
                 ctype := c_type_name(expr_til_type(e), til_type_name(expr_til_type(e)))
                 ref mut lp_cs : LoadedProgram = codegen_lp()
-                lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1.to_i32())
+                lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1)
                 id := lp_cs.ctx.ctor_seq
                 f.write("({ ")
                 f.write(ctype)
@@ -2198,7 +2198,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                         if ident_name(callee_ident).eq(arg_sname) {
                             ct := c_type_name(expr_til_type(arg), arg_sname)
                             ref mut lp_cs : LoadedProgram = codegen_lp()
-                            lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1.to_i32())
+                            lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1)
                             id := lp_cs.ctx.ctor_seq
                             tmp := "_cs".concat(id.to_str())
                             f.write(ct)
@@ -2255,7 +2255,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32) {
                         } else {
                         ct := c_type_name(expr_til_type(arg), arg_sname2)
                         ref mut lp_cs : LoadedProgram = codegen_lp()
-                        lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1.to_i32())
+                        lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1)
                         id := lp_cs.ctx.ctor_seq
                         tmp := "_cs".concat(id.to_str())
                         f.write(ct)
@@ -2466,7 +2466,7 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
                 if ident_name(callee_ident).eq(e_sname) {
                     ctype := c_type_name(expr_til_type(e), e_sname)
                     ref mut lp_cs : LoadedProgram = codegen_lp()
-                    lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1.to_i32())
+                    lp_cs.ctx.ctor_seq = lp_cs.ctx.ctor_seq.add(1)
                     id := lp_cs.ctx.ctor_seq
                     f.write("({ ")
                     f.write(ctype)
@@ -2588,14 +2588,14 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         } else {
             f.write("int main(int argc, char **argv) {\n")
             mut fixed := nparam.to_i32()
-            if vi.gte(0.to_i32()) { fixed = fixed.sub(1.to_i32()) }
-            if vi.gte(0.to_i32()) {
+            if vi.gte(0) { fixed = fixed.sub(1) }
+            if vi.gte(0) {
                 f.write("    if (argc - 1 < "); emit_i32(f, fixed); f.write(") { fprintf(stderr, \"error: main expects at least "); emit_i32(f, fixed); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
             } else {
                 f.write("    if (argc - 1 != "); emit_i32(f, nparam.to_i32()); f.write(") { fprintf(stderr, \"error: main expects "); emit_i32(f, nparam.to_i32()); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
             }
         }
-        emit_ns_inits(f, 1.to_i32())
+        emit_ns_inits(f, 1)
         if codegen_lp().ctx.script_globals.len().gt(0) {
             ref lp : LoadedProgram = codegen_lp()
             if lp.skip_core.not() {
@@ -2608,7 +2608,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                             if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
                             if expr_til_type(gs).is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
                         } else if gs.node_type.is(NodeType.FCall).not() { continue }
-                        emit_stmt(f, gs, 1.to_i32())
+                        emit_stmt(f, gs, 1)
                     }
                 }
             }
@@ -2621,7 +2621,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                         if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
                         if expr_til_type(gs).is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
                     } else if gs.node_type.is(NodeType.FCall).not() { continue }
-                    emit_stmt(f, gs, 1.to_i32())
+                    emit_stmt(f, gs, 1)
                 }
             }
         }
@@ -2664,7 +2664,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                     f.write("    }\n")
                 } else {
                     emit_cli_parse_arg(f, p.name, p.explicit_type, argi)
-                    argi = argi.add(1.to_i32())
+                    argi = argi.add(1)
                 }
             }
         }
@@ -2677,7 +2677,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(body)
         lp.ctx.in_main_func = true
-        emit_body(f, body, 1.to_i32())
+        emit_body(f, body, 1)
         lp.ctx.in_main_func = false
         f.write("    return 0;\n")
         f.write("}\n")
@@ -2711,7 +2711,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.ref_dyn_locals = Set.new(Str)
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(body)
-        emit_body(f, body, 1.to_i32())
+        emit_body(f, body, 1)
         lp.ctx.in_func_def = false
         f.write("}\n")
     }
@@ -3670,7 +3670,7 @@ build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str) r
     emit_header_defs_and_funcs(f, core_program, program)
     emit_header_global_decls(f, core_program, program)
     f.close()
-    return 0.to_i32()
+    return 0
 }
 
 build_forward_header_lp := proc(fwd_path: Str) returns shallow I32 {
@@ -3682,7 +3682,7 @@ build_forward_header_lp := proc(fwd_path: Str) returns shallow I32 {
     emit_header_defs_and_funcs_lp(f)
     emit_header_global_decls_lp(f)
     f.close()
-    return 0.to_i32()
+    return 0
 }
 
 build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns shallow I32 {
@@ -3695,7 +3695,7 @@ build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns sha
     emit_header_global_decls(f, core_program, program)
     f.write("#include \"ext.h\"\n\n")
     f.close()
-    return 0.to_i32()
+    return 0
 }
 
 build_header_lp := proc(h_path: Str) returns shallow I32 {
@@ -3708,7 +3708,7 @@ build_header_lp := proc(h_path: Str) returns shallow I32 {
     emit_header_global_decls_lp(f)
     f.write("#include \"ext.h\"\n\n")
     f.close()
-    return 0.to_i32()
+    return 0
 }
 
 emit_binding_ns_method := proc(f: File, fdd_name: Str, fd: FunctionDef, mut has_ns: Bool) returns shallow Bool {
@@ -3824,7 +3824,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns s
         }
     }
     f.close()
-    return 0.to_i32()
+    return 0
 }
 
 type_name_to_ctypes := func(name: Str) returns Str {
@@ -4163,7 +4163,7 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
     }
 
     f.close()
-    return 0.to_i32()
+    return 0
 }
 
 compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, asan: Bool) returns shallow I32 {
@@ -4201,7 +4201,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     mut result := system_cmd(cmd)
     if result.neq(0) {
         println("error: library compilation failed")
-        return 1.to_i32()
+        return 1
     }
 
     // Compile ext.c to object
@@ -4211,7 +4211,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     result = system_cmd(cmd)
     if result.neq(0) {
         println("error: ext.c compilation failed")
-        return 1.to_i32()
+        return 1
     }
 
     // Compile user .c to object if present
@@ -4223,7 +4223,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
         result = system_cmd(cmd)
         if result.neq(0) {
             println("error: user .c compilation failed")
-            return 1.to_i32()
+            return 1
         }
     }
 
@@ -4235,7 +4235,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     result = system_cmd(cmd)
     if result.neq(0) {
         println("error: shared library creation failed")
-        return 1.to_i32()
+        return 1
     }
 
     // Create static library
@@ -4246,10 +4246,10 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     result = system_cmd(cmd)
     if result.neq(0) {
         println("error: static library creation failed")
-        return 1.to_i32()
+        return 1
     }
 
-    return 0.to_i32()
+    return 0
 }
 
 compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool) returns shallow I32 {
@@ -4307,7 +4307,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
             obj_result := system_cmd(obj_cmd)
             if obj_result.neq(0) {
                 println(format("error: link_c compilation failed for ", file))
-                return 1.to_i32()
+                return 1
             }
             all_objs = all_objs.format(" ", user_obj)
         }
@@ -4349,9 +4349,9 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     result := system_cmd(cmd)
     if result.neq(0) {
         println("error: C compilation failed")
-        return 1.to_i32()
+        return 1
     }
-    return 0.to_i32()
+    return 0
 }
 
 register_funcsig_prog := func(prog: Expr) {
@@ -5880,7 +5880,7 @@ emit_test_main := proc(f: File, lp: LoadedProgram) {
                         if fd.func_type.is(FuncType.Test).not() { continue }
                         f.write("    "); f.write(dd.name); f.write("();\n")
                         f.write("    fprintf(stderr, \"  pass: %s\\n\", \""); f.write(dd.name); f.write("\");\n")
-                        test_count = test_count.add(1.to_i32())
+                        test_count = test_count.add(1)
                     case:
                         UNREACHABLE(__LOC__)
                     }
@@ -5898,7 +5898,7 @@ emit_test_main := proc(f: File, lp: LoadedProgram) {
                             qual_name := dd.name.format(".", nsd.name)
                             f.write("    "); f.write(full_name); f.write("();\n")
                             f.write("    fprintf(stderr, \"  pass: %s\\n\", \""); f.write(qual_name); f.write("\");\n")
-                            test_count = test_count.add(1.to_i32())
+                            test_count = test_count.add(1)
                         case:
                         }
                     }
@@ -5908,7 +5908,7 @@ emit_test_main := proc(f: File, lp: LoadedProgram) {
             }
         }
     }
-    if test_count.eq(0.to_i32()) {
+    if test_count.eq(0) {
         f.write("    fprintf(stderr, \"no tests found\\n\");\n")
     } else {
         f.write("    fprintf(stderr, \""); emit_i32(f, test_count); f.write("/"); emit_i32(f, test_count); f.write(" tests passed\\n\");\n")
@@ -6079,7 +6079,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     build_register_lookups_lp()
     build_register_funcsig_names_lp()
     f := File.new(c_output_path, true)
-    if is_null(f) { return 1.to_i32() }
+    if is_null(f) { return 1 }
 
     f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n\n")
 
@@ -6190,7 +6190,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     lp_end.ctx.stack_locals = Set.new(Str)
     lp_end.ctx.stack_local_types = Map.new(Str, Str)
     lp_end.ctx.unsafe_to_hoist = Set.new(Str)
-    return 0.to_i32()
+    return 0
 }
 
 priv BuildPaths := struct {
@@ -6471,13 +6471,13 @@ cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
 format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns Str {
     mut title := unit_path.clone()
     if title.starts_with("./") {
-        title = title.substr(2.to_usize(), title.len().sub(2)).clone()
+        title = title.substr(2, title.len().sub(2)).clone()
     }
     // First pass: render each Decl's chunk separately. format_decl_info
     // already sizes its returned Str to fit, so we don't need to pre-size
     // the page buffer here -- chunks are accumulated and concatenated once.
     chunks := Vec.new(Str)
-    mut total : USize = title.len().add(64.to_usize())
+    mut total : USize = title.len().add(64)
     for stmt : Expr in ast.children {
         if stmt.node_type.is(NodeType.Decl) {
             switch stmt.node_type {
@@ -6486,7 +6486,7 @@ format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns
                 chunk_cap : USize = dd.name.len()
                     .add(dd.doc.len())
                     .add(info.len())
-                    .add(64.to_usize())
+                    .add(64)
                 mut chunk := Str.with_capacity(chunk_cap)
                 chunk.push_str("* ")
                 chunk.push_str(dd.name)
@@ -6521,7 +6521,7 @@ format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns
 til_doc_out_path := func(unit_path: Str) returns Str {
     mut name := unit_path.clone()
     if name.starts_with("./") {
-        name = name.substr(2.to_usize(), name.len().sub(2)).clone()
+        name = name.substr(2, name.len().sub(2)).clone()
     }
     if name.ends_with(".til") {
         name = name.substr(0, name.len().sub(4)).clone()
@@ -6552,5 +6552,5 @@ cmd_doc := proc(lp: LoadedProgram) returns shallow I32 {
         for u : ProgramUnit in lp.core_units { emit_unit_doc(u, lp) }
     }
     for u : ProgramUnit in lp.units { emit_unit_doc(u, lp) }
-    return 0.to_i32()
+    return 0
 }

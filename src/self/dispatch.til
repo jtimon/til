@@ -213,9 +213,9 @@ priv value_to_f32 := func(v: Value) returns F32 {
     case Value.Uint64(x):  return x.to_f32()
     case Value.Float(x):   return x.clone()
     case Value.Boolean(x):
-        if x { return 1.to_f32() }
-        return 0.to_f32()
-    case: return 0.to_f32()
+        if x { return 1 }
+        return 0
+    case: return 0
     }
 }
 
@@ -644,7 +644,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
         st : Dynamic = malloc(ffi_type.size().to_u64())
         ref mut stp : ffi_type = to_ptr(st)
         stp.size = 0
-        stp.alignment = 0.to_i16()
+        stp.alignment = 0
         stp.type = FFI_TYPE_STRUCT.to_i16()
         stp.elements = elements
         box := FFITypePtrBox(ptr = stp)
@@ -780,7 +780,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
     // child 3 is arity literal, actual args start at child 4
     ref arity_expr : Expr = e.child(3)
-    mut nargs : U32 = 0.to_u32()
+    mut nargs : U32 = 0
     switch arity_expr.node_type {
     case NodeType.Literal(Literal.Num(arity_str)): nargs = literal_num_text(arity_str).to_u32()
     case:
@@ -826,14 +826,14 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 mut pdata : Dynamic = 0
                 mut psz : I32 = 0
                 switch payload {
-                case Value.Int(x):     pdata = to_ptr(x); psz = 8.to_i32()
-                case Value.Byte(x):    pdata = to_ptr(x); psz = 1.to_i32()
-                case Value.Short(x):   pdata = to_ptr(x); psz = 2.to_i32()
-                case Value.Int32(x):   pdata = to_ptr(x); psz = 4.to_i32()
-                case Value.Uint32(x):  pdata = to_ptr(x); psz = 4.to_i32()
-                case Value.Uint64(x):  pdata = to_ptr(x); psz = 8.to_i32()
-                case Value.Float(x):   pdata = to_ptr(x); psz = 4.to_i32()
-                case Value.Boolean(x): pdata = to_ptr(x); psz = 1.to_i32()
+                case Value.Int(x):     pdata = to_ptr(x); psz = 8
+                case Value.Byte(x):    pdata = to_ptr(x); psz = 1
+                case Value.Short(x):   pdata = to_ptr(x); psz = 2
+                case Value.Int32(x):   pdata = to_ptr(x); psz = 4
+                case Value.Uint32(x):  pdata = to_ptr(x); psz = 4
+                case Value.Uint64(x):  pdata = to_ptr(x); psz = 8
+                case Value.Float(x):   pdata = to_ptr(x); psz = 4
+                case Value.Boolean(x): pdata = to_ptr(x); psz = 1
                 case Value.Struct(si):
                     if is_null(si.struct_def).not() {
                         switch si.struct_def.node_type {
@@ -846,9 +846,9 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Enum(ei):
                     psz = ei.data_size
                     pdata = to_ptr(ei.data)
-                case Value.Ref(p):     pdata = to_ptr(p); psz = 8.to_i32()
-                case Value.Dynamic(p): pdata = to_ptr(p); psz = 8.to_i32()
-                case Value.Func(f):    pdata = to_ptr(f); psz = 8.to_i32()
+                case Value.Ref(p):     pdata = to_ptr(p); psz = 8
+                case Value.Dynamic(p): pdata = to_ptr(p); psz = 8
+                case Value.Func(f):    pdata = to_ptr(f); psz = 8
                 case:
                 }
                 mut tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz)
@@ -908,14 +908,14 @@ ffi_call_ret_struct_def := func(fe: FFIEntry) returns ref Expr {
 // value (struct/pointer/etc., caller falls back to the Ptr-default
 // path). type_name is what reinterpret_ptr_value understands.
 priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool {
-    if ptr_eq(atype, ffi_type_sint64_ref()) { type_name = "I64"; size = 8.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_uint8_ref())  { type_name = "U8";  size = 1.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_sint8_ref())  { type_name = "I8";  size = 1.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_sint16_ref()) { type_name = "I16"; size = 2.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_sint32_ref()) { type_name = "I32"; size = 4.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_uint32_ref()) { type_name = "U32"; size = 4.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_uint64_ref()) { type_name = "U64"; size = 8.to_i32(); return true }
-    if ptr_eq(atype, ffi_type_float_ref())  { type_name = "F32"; size = 4.to_i32(); return true }
+    if ptr_eq(atype, ffi_type_sint64_ref()) { type_name = "I64"; size = 8; return true }
+    if ptr_eq(atype, ffi_type_uint8_ref())  { type_name = "U8";  size = 1; return true }
+    if ptr_eq(atype, ffi_type_sint8_ref())  { type_name = "I8";  size = 1; return true }
+    if ptr_eq(atype, ffi_type_sint16_ref()) { type_name = "I16"; size = 2; return true }
+    if ptr_eq(atype, ffi_type_sint32_ref()) { type_name = "I32"; size = 4; return true }
+    if ptr_eq(atype, ffi_type_uint32_ref()) { type_name = "U32"; size = 4; return true }
+    if ptr_eq(atype, ffi_type_uint64_ref()) { type_name = "U64"; size = 8; return true }
+    if ptr_eq(atype, ffi_type_float_ref())  { type_name = "F32"; size = 4; return true }
     return false
 }
 
@@ -934,7 +934,7 @@ priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size:
 // to_i16/to_u8/etc. casts on x86-64 little-endian).
 priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic) returns shallow Bool {
     mut tn := ""
-    mut sz : I32 = 0.to_i32()
+    mut sz : I32 = 0
     if ffi_shallow_type_info(atype, tn, sz).not() { return false }
     if is_value_ptr(v) {
         narrowed := reinterpret_ptr_value(v, tn, scope)
@@ -1238,14 +1238,14 @@ ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str
     }
     mut so_path := ""
     if ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, so_path).eq(0).not() {
-        return 1.to_i32()
+        return 1
     }
     ffi_init_link_libs(link_flags)
     ffi_init_struct_defs(program)
     ffi_init_scan_program(program)
     ffi_loaded = true
     if so_path.len().gt(0) { unlink_path(so_path) }
-    return 0.to_i32()
+    return 0
 }
 ffi_cleanup := proc() {
     ffi_close_user_so()

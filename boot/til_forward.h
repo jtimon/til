@@ -762,6 +762,7 @@ typedef struct Context {
     I64 bang_counter;
     Bool typer_in_shallow_return;
     Bool typer_in_main_func;
+    Str typer_return_type_name;
     I32 ctor_seq;
     Bool in_func_def;
     Bool in_main_func;
@@ -1314,6 +1315,7 @@ void check_unused_params(TypeScope * func_scope, Expr * expr);
 void check_unused_locals(TypeScope * scope, Str * path);
 I32 check_unused_priv_top_level(TypeScope * scope);
 I32 check_unused_priv_members_in_program(Expr * program, Str * path);
+void narrow_return_literal(TypeScope * scope, Expr * rv, Context * ctx);
 void infer_return_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref, Context * ctx);
 void infer_if_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void infer_field_access_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);

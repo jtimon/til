@@ -51,7 +51,7 @@ w_bytes := func(mut buf: Str, bytes: Str) { buf.push_str(bytes) }
 // Pad buf up to the next multiple of 4 bytes with zeros.
 pad_to_4 := func(mut buf: Str) {
     while buf.len().mod(4).gt(0) {
-        w_u8(buf, 0.to_u8())
+        w_u8(buf, 0)
     }
 }
 
@@ -99,7 +99,7 @@ utf16be_ascii := func(s: Str) returns Str {
     mut i : USize = 0
     while i.lt(s.len()) {
         ref b : I8 = s.byte_at(i)
-        w_u8(out, 0.to_u8())
+        w_u8(out, 0)
         w_u8(out, b.to_i64().and(255).to_u8())
         i = i.add(1)
     }
@@ -535,7 +535,7 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
         if rem.gt(0) {
             pad : USize = 4.to_usize().sub(rem)
             mut pi : USize = 0
-            while pi.lt(pad) { w_u8(file, 0.to_u8()); pi = pi.add(1) }
+            while pi.lt(pad) { w_u8(file, 0); pi = pi.add(1) }
         }
     }
 
