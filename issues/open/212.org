@@ -49,9 +49,23 @@ to exist.
   - Small unsigned types already auto-widen at call sites
     (test/types.til:55), so `cast` would mainly be needed for
     NARROWING, sign changes, and float<->int -- not widening.
+  - The same-width signed/unsigned reinterpret is INCONSISTENT today.
+    `U64.to_i64` (src/core/u64.til:11) is a plain ext_func -- free
+    `(I64)a` in C -- but the reverse `U64.from_i64`
+    (src/core/u64.til:21) routes through `U64_from_i64_ext`, which
+    PANICS when the I64 is negative. So one direction is a zero-cost
+    reinterpret and the reverse is a checked, panicking conversion.
+    Same story applies to U32/I32. This asymmetry is exactly the kind
+    of thing a uniform `cast` removes.
 
 *** Why a cast-style construct looks better
 
+  0. The motivating case: same-width sign reinterpret. Turning a U64
+     into an I64 (or U32<->I32) is a free, no-op reinterpret at the
+     machine level -- the bits do not change. A `cast(I64) u` should be
+     exactly that: zero cost, C semantics, at the programmer's own risk.
+     The current `U64.from_i64` panic on negative is the opposite of
+     that intent; `cast` makes both directions free and symmetric.
   1. No N x M method matrix. `cast(I32) x` works for any numeric x.
      Adding a new numeric type today means writing conversions to/from
      every existing type in three places (.til, ext.h, ext.c); with
@@ -82,11 +96,14 @@ algorithm. Those are not casts and should not masquerade as one.
     panics on bad input (src/core/str.til:265,314). It is a fallible
     function, not a bit-level cast; `cast(I64) "123"` should not silently
     parse. KEEP these.
-  - F32 <-> integer -- genuinely on the fence. It is a real value-changing
-    numeric conversion (rounding/truncation) and Jai folds it into
-    `cast`. Migrating it eventually is consistent, but it is the
-    lowest-priority piece and may want to keep the explicit method until
-    `cast`'s narrowing-check story is settled.
+  - F32 <-> integer -- the one case where `cast` is NOT free. Same-width
+    int sign-reinterpret and int narrowing are pure bit operations, but
+    float<->int genuinely recomputes a value (rounding/truncation in
+    hardware). It is still a primitive machine conversion, not parsing,
+    so it can live under `cast` (C spells it the same way). But it breaks
+    the "cast is a free reinterpret" intuition, so it is worth calling
+    out explicitly or keeping as a method (to_f32/to_i64) if we want the
+    cost to stay visible in the name. Lowest-priority piece either way.
 
 *** Leads to pursue (open questions)
 
@@ -96,11 +113,13 @@ algorithm. Those are not casts and should not masquerade as one.
   - Typer: where does numeric conversion legality live today, and where
     would a `cast` node be type-checked? (infer_field_access_fcall and
     the surrounding numeric rules in src/self/typer.til.)
-  - Runtime checks: do we want Jai-style range checks on narrowing, and
-    if so, debug-only or always? til currently does no narrowing check --
-    `.to_u8()` just truncates via the C cast. A `cast` could be the place
-    to ADD a checked-narrowing option (potential safety win independent
-    of ergonomics).
+  - Runtime checks: DECIDED -- `cast` is free, C-style, at the
+    programmer's own risk. No range check, no panic; explicitness at the
+    call site IS the safety contract. This is the opposite of Jai's
+    debug-time narrowing check and of til's current panicking
+    `U64.from_i64`. (If a *checked* conversion is ever wanted, it stays a
+    named method/function, distinct from `cast`, so the cost is visible
+    in the name -- not folded into `cast`.)
   - Autocast (`xx`): is context-directed inference worth the typer
     complexity, or is value-directed `cast(T)` alone enough? `xx` needs
     the typer to thread an expected-type downward into the expression.
