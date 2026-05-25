@@ -8,6 +8,8 @@ right for the long run", not for sprint-sized fixes.
 
 ** Builder stack-local Str delete special-case
 
+Tracked as [[../issues/open/209.org][#209]].
+
 src/self/builder.til ~1413-1437 force-emits
 ~Str_delete(&name, &(Bool){0})~ for stack-local Str deletes,
 overriding whatever bool the typer put in the AST.  It exists because
@@ -76,3 +78,16 @@ struct names are interned in the scope's bindings already.  Closing
 this unblocks recursive POD struct clone-skip (~Line_clone~ becomes a
 single C compound-literal expression), which feeds back into the
 builder's POD-ctor optimisation chain.
+
+** Per-literal malloc in dyn_type_to_str returns
+
+Tracked as [[../issues/open/210.org][#210]].
+
+~emit_dyn_type_to_str_body~ in src/self/builder.til emits ~17 malloc'd
+Str wrappers (one per Type variant) for the literal-name returns, even
+though the literal data is static.  The wrapper can't be made static
+without either reworking the ~swap~-based ~mut Str~ lowering (so
+~Str.delete~ can skip free for ~cap == CAP_LIT~) or splitting the
+function's heterogeneous return (static literals vs owned ~Str_clone~
+type names).  See #210 for the full analysis; shares the ~mut Str~/
+~swap~ machinery with #209.

@@ -18,8 +18,9 @@ variant), each hit on every `dyn_fn` / `dyn_size_of` / `Array.new` /
 static; only the Str wrapper is heap. The goal is to return the literal
 without the malloc.
 
-This is documented in [[file:../../doc/long.org][doc/long.org]] is the sibling debt to #209;
-this issue tracks the dyn_type_to_str-specific malloc.
+Also noted in [[file:../../doc/long.org][doc/long.org]] ("Per-literal malloc in
+dyn_type_to_str returns"). Sibling debt to #209 -- both share the
+`mut Str` / `swap` lowering machinery.
 
 *** Why it is not a trivial "return a static Str"
 
