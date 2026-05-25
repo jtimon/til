@@ -40,7 +40,6 @@
 *** [[./open/197.org][#197]] Issue summary generator silently drops some open issues
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods
 *** [[./open/203.org][#203]] bindings_gen: parse_decl_shape returns corrupt Str on real headers
-*** [[./open/206.org][#206]] Remove Expr.til_type: move type info into NodeType payloads (hybrid path, step 11 of #147)
 *** [[./open/207.org][#207]] Consider removing Vec.move_from
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems

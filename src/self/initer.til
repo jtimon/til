@@ -2514,9 +2514,10 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
     if is_null(e) { return }
     init_rename_ident_in_place(e, renamings)
     // `for x : LocalInfo in xs { ... }` stores the loop's explicit type
-    // on e.til_type as Type.Custom("LocalInfo"). No Declaration is
-    // involved (parser.til:1428), so init_rename_decl_in_place misses
-    // it; patch the Type.Custom payload here.
+    // on the ForIn node's payload as Type.Custom("LocalInfo") (read back
+    // via expr_til_type). No Declaration is involved (parser.til:1428),
+    // so init_rename_decl_in_place misses it; patch the Type.Custom
+    // payload here.
     custom_t := expr_til_type(e)
     switch custom_t {
     case Type.Custom(custom_name):
