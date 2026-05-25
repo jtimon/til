@@ -360,5 +360,18 @@ thrown away. Discard doc/totals.csv + img/totals.svg if they are
 modified, then commit and force-push. Only the human can grant this
 exception -- never assume it; redo the regen by default.
 
+The next-to-merge exception is REVOKED the moment the rebase produces
+a conflict in any file OUTSIDE the regen set (boot/*). It only covers
+rebases where every conflict is confined to generated boot/* files and
+all source files (src/**, .github/**, Makefile, etc.) auto-merge
+cleanly. If a source file conflicts -- even one resolved trivially --
+the exception no longer applies: resolve the source conflict and then
+do the full soft-reset + regenerate (4b / 5) so boot/* matches the
+hand-resolved source. The reasoning: a source-level conflict means the
+rebased source is not a clean superset of what either side generated
+boot/* from, so skipping regen could ship a boot/* that no longer
+corresponds to the committed source.
+
+
 NEVER `git rebase --abort` on conflicts in generated files alone. Only
 abort if a source-file conflict is genuinely unresolvable.
