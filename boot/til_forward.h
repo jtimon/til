@@ -1901,6 +1901,7 @@ Bool h_file_mtime(Scope * s, Expr * e, Value * r);
 Bool h_clock_ms(Scope * _s, Expr * _e, Value * r);
 Bool h_get_thread_count(Scope * _s, Expr * _e, Value * r);
 Bool h_cfile_open(Scope * s, Expr * e, Value * r);
+ffi_type * priv___src_self_dispatch_til__known_ffi_type(Str * type_name);
 ffi_type * priv___src_self_dispatch_til__shallow_ffi_type(Str * type_name);
 ffi_type * field_ffi_type(Declaration * dd);
 ffi_type * build_struct_ffi_type(Expr * struct_def);
