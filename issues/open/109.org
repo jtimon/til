@@ -578,6 +578,111 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
     [[./175.org][#175]] fix was a leak source the auto-delete chained through. Item
     1 of the open buckets above is the careful version.
 
+  - Explicit ~free(own sub_ast)~ after ~iu.ast.take_children(sub_ast)~
+    in ~resolve_imports~ (Bucket 5, 2026-05). The shell-Expr left by
+    ~take_children~ is shadowed each iteration without an asap-delete,
+    so the heap wrapper looks like an obvious leak.  Adding the free
+    REGRESSED all three baselines:
+    - cli_args interpret: 64,797 / 13,370 -> 64,870 / 13,381 (+73B/+11).
+    - strings.til interpret: 84,351 / 17,063 -> 89,236 / 18,137 (+4,885B/+1,074).
+    - strings.til translate: 83,099 / 16,943 -> 88,121 / 18,064 (+5,022B/+1,121).
+    The strings.til delta is the giveaway: the typer responded to the
+    new ~free~ by inserting defensive clones at use sites of ~sub_ast~
+    earlier in the iteration (likely the ~extract_imports(sub_ast,
+    disp)~ borrow at line 183 and the ~iu.ast.take_children(sub_ast)~
+    receiver at line 201), turning shallow borrows into clone-and-pass.
+    Net: more clones cost more than the freed wrapper saves.
+
+    Subsequent gen-C reading (2026-05) shows bucket 5's premise was
+    actually wrong all along: the typer at HEAD ALREADY emits
+    ~Expr_delete(sub_ast, &(Bool){1})~ immediately after
+    ~Expr_take_children(iu->ast, sub_ast)~ -- see
+    ~gen/til/til.c:65992-65993~ in ~resolve_imports~.  ~sub_ast~ is
+    not leaking from that site; some prior #109 work plugged it.
+    Bucket 5 should be marked done -- the open follow-up to "fix the
+    typer's ASAP-delete logic for loop-shadowed locals" is still real,
+    but ~sub_ast~ specifically is no longer the witness.
+
+  - Bucket 1 ("FieldAssign auto-delete on owned-typed fields"), 2026-05
+    gen-C audit. Searched ~gen/til/til.c~ for every ~node_type = *_fa~
+    / ~node_type = *_ca~ reassignment (9 sites total: 8402, 8443,
+    25744, 35566, 43171, 51641, 65153, 65223, 98996, 99051, 99277).
+    Every typer/desugar reassignment is preceded by an explicit
+    ~NodeType_delete(&...->node_type, &(Bool){0})~ to free the old
+    variant payload before the overwrite.  The two initializer sites
+    (8402 Expr_new, 8443 Expr_clone) write into a fresh Expr's
+    node_type with no prior value to free.  Conclusion: the ~node_type~
+    FieldAssign sites are NOT a leak source today.  Bucket 1's
+    remaining target is FieldAssigns on OTHER own-typed fields (the
+    ~162 ~.til_type~/~.node_type~/etc. sites mentioned in the bucket
+    text), not on ~node_type~ itself.
+
+  - ~make test_asan_full~ pipeline bisection (2026-05). To narrow the
+    compiler-side leak source, ran ~bin/til_asan~ against an empty
+    ~mode cli run := func() returns I64 { return 0 }~ program with
+    three different commands:
+    - ~ast~: 0 byte leaks. Just parse + cmd_ast, no init/typer.
+    - ~doc~: 64,323 byte leaks / 13,344 allocs. Adds ~init_and_type_program~.
+    - ~interpret~: 64,454 byte leaks / 13,322 allocs. Adds precomp + interpret.
+    Delta from ast to doc = 64K bytes / 13K allocs introduced by the
+    ~init_and_type_program~ pipeline (init_file, init_declarations_global,
+    type_file, asap_destroy).  precomp + interpret add only ~130 bytes
+    / -22 allocs net.  The 64K leak isn't precomp/scavenge/codegen --
+    it's init/typer.
+
+    The top single-allocation leak attribution is ~457 bytes / 46
+    objects~ from ~Str_clone -> NodeType_FieldAccess -> NodeType_clone
+    -> Expr_new -> gen_struct_clone_delete_for_stmt~, reported as
+    *Direct leak*.  46 corresponds to the total field count across all
+    core.til structs that get auto-clone/delete generated.  The chain
+    on paper looks correct: each field_acc Expr is add_child'd into
+    del_acc / del_call / proc_body / proc_def, then proc_def becomes
+    ~Declaration.default_value~ via ~Vec_push(&sdd->ns_decls, ...)~.
+    ~sdd~ is the StructDef payload of an Expr in ~lp.ctx.imported[path].ast~.
+    ~LoadedProgram_delete -> Context_delete -> Map_delete -> Vec_delete
+    on values -> ImportUnit_delete -> Expr_delete(self->ast, true)~
+    SHOULD cascade through ns_decls and free the chain.  Verified each
+    destructor in the chain emits the right calls.  But the leak is
+    reported as Direct, meaning the c_str has no live or leaked
+    container reference: either the enclosing Expr's destructor wasn't
+    run before its memory was freed, or the Expr was orphaned at
+    construction.
+
+    PINPOINTED + FIXED (2026-05). The disconnect was ~try_ufcs_rewrite~
+    in [[file:../../src/self/typer.til][src/self/typer.til]]. When the typer rewrites ~recv.method(args)~
+    into the free-function form ~method(recv, args)~ it did
+    ~e.children.set(0, own fn_ident)~ -- a bit-overwrite of slot 0 (the
+    old ~FieldAccess~ callee ~fa~) with NO destructor run on the prior
+    slot.  That orphaned ~fa~'s method-name Str AND ~fa~'s child subtree
+    (the receiver ~recv~).  For an auto-generated ~clone~ body the
+    receiver is ~self.field~, whose ~FieldAccess~ payload is the
+    field-name Str minted by ~gen_struct_clone_delete_for_stmt~ -- which
+    is exactly the allocation site the Direct-leak trace pointed at (the
+    "look one layer up" lesson, applied: alloc site = gen_struct_clone,
+    loss site = try_ufcs_rewrite).  The old code then re-cloned the
+    receiver (~instance.clone()~) and dropped the original on the floor.
+    Fix: build ~new_children~ with ~fn_ident~, then ~push_take~ the
+    receiver out of ~fa~'s child slot (move, not clone -- push_take
+    zeroes the source slot) and let the trailing
+    ~e.children = new_children~ FieldAssign's save-old-delete free the
+    now-childless ~fa~ (including its method-name Str).  No clone, no
+    leak.  Measured deltas (ASAN_OPTIONS=detect_leaks=1, same binary
+    before/after):
+    | test                | before          | after           | delta        |
+    |---------------------+-----------------+-----------------+--------------|
+    | empty interpret     | 75,436 / 15,231 | 72,891 / 14,791 | -2,545 / -440 |
+    | cli_args interpret  | 75,767 / 15,221 | 72,805 / 14,679 | -2,962 / -542 |
+    | strings.til interp  | 83,713 / 16,450 | 81,815 / 16,049 | -1,898 / -401 |
+    | strings.til xlate   | 80,584 / 16,165 | 79,575 / 15,985 | -1,009 / -180 |
+    A first attempt that cloned the receiver and freed ~fa~ in place
+    (~free_expr_slot_in_place~) cut empty/cli_args but REGRESSED
+    strings.til interp by +729B -- the extra clone of the receiver
+    produced garbage that survived to exit.  The move-not-clone version
+    above improves all four.  Same Vec.set-bit-overwrite shape is worth
+    auditing at the other ~children.set(...)~ sites (asaper.til:480,
+    typer.til:1610/7937/7949/7963/7994/8014, precomp.til:868/881/884,
+    initer.til:2600) for follow-up wins.
+
   *** Lessons learned
 
   - **Leak attribution = allocation site, not ownership-loss site.**

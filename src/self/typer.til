@@ -585,11 +585,14 @@ try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
     }
     if ufcs_match.eq(0) { return false }
     mut fn_ident := Expr.new(ident_node(method), fa.line, fa.col)
-    mut instance := obj
-    e.children.set(0, own fn_ident)
     mut new_children := Vec.new(Expr)
-    new_children.push_take(e.children, 0)
-    new_children.push(own instance.clone())
+    new_children.push(own fn_ident)
+    // Move the receiver out of the old callee `fa` (slot 0) instead of
+    // cloning it: push_take zeroes fa's slot so the trailing
+    // `e.children = new_children` FieldAssign frees the old callee --
+    // including its FieldAccess method-name Str -- without leaking and
+    // without an extra clone of the receiver subtree. #109.
+    new_children.push_take(e.child(0).children, 0)
     for i in 1..e.children.len() {
         new_children.push_take(e.children, i)
     }
