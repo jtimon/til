@@ -50,16 +50,13 @@ ffi_reset := proc() {
     ffi_struct_defs = Map.new(Str, Dynamic)
 }
 
-priv ffi_type_pointer_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_pointer")) }
-priv ffi_type_sint64_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint64")) }
-ffi_type_uint8_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_uint8")) }
-ffi_type_sint8_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint8")) }
-ffi_type_sint16_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint16")) }
-priv ffi_type_sint32_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_sint32")) }
-ffi_type_uint32_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_uint32")) }
-ffi_type_uint64_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_uint64")) }
-ffi_type_float_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_float")) }
-ffi_type_void_ref := func() returns ref ffi_type { return to_ptr(ffi_global_symbol("ffi_type_void")) }
+// libffi exposes its primitive ffi_type descriptors as global symbols
+// (ffi_type_uint8, ffi_type_sint64, ...). Resolve one by name into a
+// ref. Replaces a former family of ten near-identical
+// ffi_type_<t>_ref() one-liner accessors.
+priv ffi_type_ref := func(name: Str) returns ref ffi_type {
+    return to_ptr(ffi_global_symbol(name))
+}
 
 ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().to_u64()) }
 
@@ -192,15 +189,15 @@ value_to_u64 := func(v: Value) returns U64 {
 uptr_ffi_type := func() returns ref ffi_type {
     ref lp : LoadedProgram = codegen_lp()
     ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
-    if uptr_name.eq("U32") { return ffi_type_uint32_ref() }
-    return ffi_type_uint64_ref()
+    if uptr_name.eq("U32") { return ffi_type_ref("ffi_type_uint32") }
+    return ffi_type_ref("ffi_type_uint64")
 }
 
 usize_ffi_type := func() returns ref ffi_type {
     ref lp : LoadedProgram = codegen_lp()
     ref usize_name : Str = resolve_type_alias(lp.ctx.scope, "USize")
-    if usize_name.eq("U32") { return ffi_type_uint32_ref() }
-    return ffi_type_uint64_ref()
+    if usize_name.eq("U32") { return ffi_type_ref("ffi_type_uint32") }
+    return ffi_type_ref("ffi_type_uint64")
 }
 
 priv value_to_f32 := func(v: Value) returns F32 {
@@ -587,43 +584,43 @@ h_cfile_open := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 // type_name -> ffi_type. Inverse mapping in ffi_shallow_type_info; keep
 // the two in sync if a new shallow primitive type lands.
 priv shallow_ffi_type := func(type_name: Str) returns ref ffi_type {
-    if type_name.eq("I64")   { return ffi_type_sint64_ref() }
-    if type_name.eq("U8")    { return ffi_type_uint8_ref() }
-    if type_name.eq("I8")    { return ffi_type_sint8_ref() }
-    if type_name.eq("I16")   { return ffi_type_sint16_ref() }
-    if type_name.eq("I32")   { return ffi_type_sint32_ref() }
-    if type_name.eq("U32")   { return ffi_type_uint32_ref() }
-    if type_name.eq("U64")   { return ffi_type_uint64_ref() }
+    if type_name.eq("I64")   { return ffi_type_ref("ffi_type_sint64") }
+    if type_name.eq("U8")    { return ffi_type_ref("ffi_type_uint8") }
+    if type_name.eq("I8")    { return ffi_type_ref("ffi_type_sint8") }
+    if type_name.eq("I16")   { return ffi_type_ref("ffi_type_sint16") }
+    if type_name.eq("I32")   { return ffi_type_ref("ffi_type_sint32") }
+    if type_name.eq("U32")   { return ffi_type_ref("ffi_type_uint32") }
+    if type_name.eq("U64")   { return ffi_type_ref("ffi_type_uint64") }
     if type_name.eq("USize") { return usize_ffi_type() }
     if type_name.eq("UPtr")  { return uptr_ffi_type() }
-    if type_name.eq("F32")   { return ffi_type_float_ref() }
-    if type_name.eq("Bool")  { return ffi_type_uint8_ref() }
+    if type_name.eq("F32")   { return ffi_type_ref("ffi_type_float") }
+    if type_name.eq("Bool")  { return ffi_type_ref("ffi_type_uint8") }
     if ffi_struct_defs.has(type_name) {
         ref box : ExprPtrBox = ffi_struct_defs.get(type_name)
         return build_struct_ffi_type(box.ptr)
     }
-    return ffi_type_pointer_ref()
+    return ffi_type_ref("ffi_type_pointer")
 }
 
 field_ffi_type := func(dd: Declaration) returns ref ffi_type {
-    if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_pointer_ref() }
-    if dd.explicit_type.len().eq(0) { return ffi_type_sint64_ref() }
-    if dd.explicit_type.eq("I64")   { return ffi_type_sint64_ref() }
-    if dd.explicit_type.eq("U8")    { return ffi_type_uint8_ref() }
-    if dd.explicit_type.eq("I8")    { return ffi_type_sint8_ref() }
-    if dd.explicit_type.eq("I16")   { return ffi_type_sint16_ref() }
-    if dd.explicit_type.eq("I32")   { return ffi_type_sint32_ref() }
-    if dd.explicit_type.eq("U32")   { return ffi_type_uint32_ref() }
-    if dd.explicit_type.eq("U64")   { return ffi_type_uint64_ref() }
+    if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
+    if dd.explicit_type.len().eq(0) { return ffi_type_ref("ffi_type_sint64") }
+    if dd.explicit_type.eq("I64")   { return ffi_type_ref("ffi_type_sint64") }
+    if dd.explicit_type.eq("U8")    { return ffi_type_ref("ffi_type_uint8") }
+    if dd.explicit_type.eq("I8")    { return ffi_type_ref("ffi_type_sint8") }
+    if dd.explicit_type.eq("I16")   { return ffi_type_ref("ffi_type_sint16") }
+    if dd.explicit_type.eq("I32")   { return ffi_type_ref("ffi_type_sint32") }
+    if dd.explicit_type.eq("U32")   { return ffi_type_ref("ffi_type_uint32") }
+    if dd.explicit_type.eq("U64")   { return ffi_type_ref("ffi_type_uint64") }
     if dd.explicit_type.eq("USize") { return usize_ffi_type() }
     if dd.explicit_type.eq("UPtr")  { return uptr_ffi_type() }
-    if dd.explicit_type.eq("F32")   { return ffi_type_float_ref() }
-    if dd.explicit_type.eq("Bool")  { return ffi_type_uint8_ref() }
+    if dd.explicit_type.eq("F32")   { return ffi_type_ref("ffi_type_float") }
+    if dd.explicit_type.eq("Bool")  { return ffi_type_ref("ffi_type_uint8") }
     if ffi_struct_defs.has(dd.explicit_type) {
         ref box : ExprPtrBox = ffi_struct_defs.get(dd.explicit_type)
         return build_struct_ffi_type(box.ptr)
     }
-    return ffi_type_sint64_ref()
+    return ffi_type_ref("ffi_type_sint64")
 }
 
 build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
@@ -908,14 +905,14 @@ ffi_call_ret_struct_def := func(fe: FFIEntry) returns ref Expr {
 // value (struct/pointer/etc., caller falls back to the Ptr-default
 // path). type_name is what reinterpret_ptr_value understands.
 priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool {
-    if ptr_eq(atype, ffi_type_sint64_ref()) { type_name = "I64"; size = 8; return true }
-    if ptr_eq(atype, ffi_type_uint8_ref())  { type_name = "U8";  size = 1; return true }
-    if ptr_eq(atype, ffi_type_sint8_ref())  { type_name = "I8";  size = 1; return true }
-    if ptr_eq(atype, ffi_type_sint16_ref()) { type_name = "I16"; size = 2; return true }
-    if ptr_eq(atype, ffi_type_sint32_ref()) { type_name = "I32"; size = 4; return true }
-    if ptr_eq(atype, ffi_type_uint32_ref()) { type_name = "U32"; size = 4; return true }
-    if ptr_eq(atype, ffi_type_uint64_ref()) { type_name = "U64"; size = 8; return true }
-    if ptr_eq(atype, ffi_type_float_ref())  { type_name = "F32"; size = 4; return true }
+    if ptr_eq(atype, ffi_type_ref("ffi_type_sint64")) { type_name = "I64"; size = 8; return true }
+    if ptr_eq(atype, ffi_type_ref("ffi_type_uint8"))  { type_name = "U8";  size = 1; return true }
+    if ptr_eq(atype, ffi_type_ref("ffi_type_sint8"))  { type_name = "I8";  size = 1; return true }
+    if ptr_eq(atype, ffi_type_ref("ffi_type_sint16")) { type_name = "I16"; size = 2; return true }
+    if ptr_eq(atype, ffi_type_ref("ffi_type_sint32")) { type_name = "I32"; size = 4; return true }
+    if ptr_eq(atype, ffi_type_ref("ffi_type_uint32")) { type_name = "U32"; size = 4; return true }
+    if ptr_eq(atype, ffi_type_ref("ffi_type_uint64")) { type_name = "U64"; size = 8; return true }
+    if ptr_eq(atype, ffi_type_ref("ffi_type_float"))  { type_name = "F32"; size = 4; return true }
     return false
 }
 
@@ -1093,7 +1090,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
                 write_ptr(ptr_add(atypes, k.to_u64().mul(8)), shallow_ffi_type(pk.explicit_type))
                 has_shallow = true
             } else {
-                write_ptr(ptr_add(atypes, k.to_u64().mul(8)), ffi_type_pointer_ref())
+                write_ptr(ptr_add(atypes, k.to_u64().mul(8)), ffi_type_ref("ffi_type_pointer"))
             }
         }
         if has_shallow {
@@ -1118,12 +1115,12 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
         entry.arg_types = atypes
 
         // Resolve return ffi_type
-        ref mut rtype : Dynamic = ffi_type_void_ref()
+        ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
         if is_null(entry.return_type).not() {
             if ret_shallow {
                 rtype = to_ptr(shallow_ffi_type(entry.return_type))
             } else {
-                rtype = to_ptr(ffi_type_pointer_ref())
+                rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
             }
         }
         ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np, rtype, entry.arg_types)

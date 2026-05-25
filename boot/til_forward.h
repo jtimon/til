@@ -1862,16 +1862,7 @@ priv___src_self_dispatch_til__FFITypePtrBox * priv___src_self_dispatch_til__FFIT
 void priv___src_self_dispatch_til__FFITypePtrBox_delete(priv___src_self_dispatch_til__FFITypePtrBox * self, Bool * call_free);
 U32 priv___src_self_dispatch_til__FFITypePtrBox_size(void);
 void ffi_reset(void);
-ffi_type * priv___src_self_dispatch_til__ffi_type_pointer_ref(void);
-ffi_type * priv___src_self_dispatch_til__ffi_type_sint64_ref(void);
-ffi_type * ffi_type_uint8_ref(void);
-ffi_type * ffi_type_sint8_ref(void);
-ffi_type * ffi_type_sint16_ref(void);
-ffi_type * priv___src_self_dispatch_til__ffi_type_sint32_ref(void);
-ffi_type * ffi_type_uint32_ref(void);
-ffi_type * ffi_type_uint64_ref(void);
-ffi_type * ffi_type_float_ref(void);
-ffi_type * ffi_type_void_ref(void);
+ffi_type * priv___src_self_dispatch_til__ffi_type_ref(Str * name);
 void * ffi_alloc_cif(void);
 Bool ffi_cif_rtype_is_struct(ffi_cif * cif);
 U8 * ffi_dlsym(Str * name);
