@@ -332,6 +332,70 @@ priv align_up := func(shallow offset: I32, shallow align: I32) returns shallow I
     return offset.add(align).sub(1).and(align.sub(1).xor(-1))
 }
 
+// Issue #158: classify one top-level statement's foldable macro/func names
+// into ctx (precomp_macros / precomp_funcs). The typer already walks every
+// final top-level decl (in infer_body_unit, after lambda-lifting), so this
+// runs there as a side effect of that walk -- precomp then reuses the sets
+// from Context instead of re-deriving them. Method calls fold under the
+// qualified `<Type>_<method>` name that the precomp dispatch looks up.
+precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
+    if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
+    switch stmt.child(0).node_type {
+    case NodeType.FuncDef(fd):
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if fd.func_type.is(FuncType.Macro) {
+                ctx.precomp_macros.add(own dd.name.clone())
+            } else if fd.func_type.is(FuncType.Func)
+                .or(fd.func_type.is(FuncType.ExtFunc)) {
+                ctx.precomp_funcs.add(own dd.name.clone())
+            }
+        case:
+        }
+    case NodeType.StructDef(sdd_data):
+        switch stmt.node_type {
+        case NodeType.Decl(sdd):
+            for d_j : Declaration in sdd_data.ns_decls {
+                ref fdd : Declaration = d_j
+                ref fdef : Expr = fdd.default_value
+                switch fdef.node_type {
+                case NodeType.FuncDef(ffd):
+                    qname := sdd.name.format("_", fdd.name)
+                    if ffd.func_type.is(FuncType.Macro) {
+                        ctx.precomp_macros.add(own qname)
+                    } else if ffd.func_type.is(FuncType.Func)
+                        .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                        ctx.precomp_funcs.add(own qname)
+                    }
+                case:
+                }
+            }
+        case:
+        }
+    case NodeType.EnumDef(pc_edd):
+        switch stmt.node_type {
+        case NodeType.Decl(sdd):
+            for d_j : Declaration in pc_edd.ns_decls {
+                ref nsd : Declaration = d_j
+                if is_null(nsd.default_value) { continue }
+                switch nsd.default_value.node_type {
+                case NodeType.FuncDef(ffd):
+                    qname := sdd.name.format("_", nsd.name)
+                    if ffd.func_type.is(FuncType.Macro) {
+                        ctx.precomp_macros.add(own qname)
+                    } else if ffd.func_type.is(FuncType.Func)
+                        .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                        ctx.precomp_funcs.add(own qname)
+                    }
+                case:
+                }
+            }
+        case:
+        }
+    case:
+    }
+}
+
 // Build a UFCS-style method call FCall ~recv.method(args...)~. Returns
 // the FCall with the FieldAccess(method) callee installed; the caller
 // pushes any argument children with ~call.add_child(own arg)~.

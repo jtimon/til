@@ -256,21 +256,24 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     // read shared Context fields
     // (cached_str/array/vec_def) populated by interpreter_init_ns below.
     codegen_set_lp(lp)
-    precomp_reset_state(lp.ctx)
-    // 1+2) Issue #158: one walk per unit collects foldable macro/func
-    // names (into ctx) AND builds the fold scope (struct/enum/func defs +
-    // literal global constants), replacing the former three separate
-    // per-unit passes (scan_names, register_defs, register_globals).
+    // Only clear the fold-results map here; the foldable-name sets
+    // (precomp_macros/funcs) were populated upstream by the typer
+    // (precomp_classify_stmt) and must survive into this phase.
+    precomp_clear_known(lp.ctx)
+    // Issue #158: one walk per unit builds the runtime fold scope
+    // (struct/enum/func defs + literal global constants). Name
+    // classification is no longer done here -- it was shared from the
+    // typer's walk and lives on Context.
     global := scope_new(NULL)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            precomp_collect_and_register(global, iu.ast, lp.ctx)
+            precomp_register_fold_scope(global, iu.ast, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        precomp_collect_and_register(global, iu.ast, lp.ctx)
+        precomp_register_fold_scope(global, iu.ast, lp.ctx)
     }
     // Nothing to fold? Skip the FFI/fold setup, but still free the
     // (near-empty) scope built above via the single cleanup at the end.
@@ -1291,6 +1294,11 @@ loaded_add_lflag := func(mut lp: LoadedProgram, lib: Str) {
 // the codegen-prep cost.
 init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
+
+    // Issue #158: the typer populates the foldable-name sets during its
+    // walk (precomp_classify_stmt); clear any stale state up front so a
+    // fresh build (or REPL re-eval reusing this Context) starts clean.
+    precomp_reset_state(lp.ctx)
 
     // Init phase (rstil-style): recursive imports per file.
     lp.ctx.scope = TypeScope()

@@ -6131,6 +6131,10 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, 
     mut i := 0.to_u32()
     while i.lt(body.children.len()) {
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
+        // Issue #158: record foldable macro/func names as we walk the final
+        // top-level decls (lambdas already lifted, methods already generated),
+        // so precomp reuses ctx.precomp_macros/funcs instead of re-scanning.
+        precomp_classify_stmt(body.child(i), ctx)
         i++
     }
     if body_pre_passes(ctx, body, scope, owns_scope) {
