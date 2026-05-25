@@ -1,0 +1,129 @@
+# priority: low
+** OPEN #212 Consider a `cast(T) expr` builtin (and `xx`-style autocast) to replace the integer `.to_*` conversion matrix
+
+*** Summary
+
+til converts between primitive types with an N x M matrix of hand-written
+`.to_<Type>()` methods, each backed by a trivial extern C function. Jai
+instead has a single `cast(T) expr` builtin (plus an `xx` autocast
+operator). This issue records the comparison and proposes adopting a
+`cast`-style construct for the *numeric width/sign* conversions, while
+KEEPING the method form for conversions that are really parsing or
+formatting (notably `to_str` and `Str.to_*`).
+
+Filed for discussion. Language-design call, not a defect -- til is
+correct as-is. Low priority.
+
+*** How Jai does it
+
+  - `cast(T) expr` -- value-directed explicit cast. ONE builtin handles
+    every type pair: int<->int, int<->float, pointer, enum<->int. On
+    lossy numeric narrowing it inserts a runtime range check in debug
+    builds; `cast,no_check(T) expr` and `cast,trunc(T) expr` opt out.
+  - `xx expr` -- context-directed autocast. The target type is inferred
+    from context (assignment LHS, parameter type, return type) and the
+    cast is synthesized: `float x = xx my_int;`, or `foo(xx i)` where
+    `foo`'s parameter type drives the conversion.
+  - No silent implicit numeric conversions otherwise (a deliberate
+    anti-C choice).
+
+The structural point: `cast` is one builtin keyed on the TARGET type,
+and `xx` reads the target from context. Neither needs a per-type method
+to exist.
+
+*** How til does it today
+
+  - Every numeric type carries a fan of `to_*` methods: I64 has 9
+    (to_u8/i8/i16/i32/u32/usize/u64/f32/str), U8 has 7, etc.
+    (src/core/i64.til, src/core/u8.til, ...).
+  - Each is declared in src/c/ext.h and defined in src/c/ext.c as a
+    trivial C cast, e.g. `I64 U8_to_i64(U8 a) { return (I64)a; }`
+    (src/c/ext.c:286+).
+  - Pairs nobody wrote route through the I64 hub:
+    `to_i32 := func(self: Str)... { return self.to_i64().to_i32() }`
+    (src/core/str.til:294); call sites chain `12345.to_i16().to_str()`
+    (test/types.til:111).
+  - The typer needs a dedicated guard, `is_self_conversion_method`
+    (src/self/typer.til:1551), purely to reject `x.to_u32()` when `x`
+    is already U32.
+  - Small unsigned types already auto-widen at call sites
+    (test/types.til:55), so `cast` would mainly be needed for
+    NARROWING, sign changes, and float<->int -- not widening.
+
+*** Why a cast-style construct looks better
+
+  1. No N x M method matrix. `cast(I32) x` works for any numeric x.
+     Adding a new numeric type today means writing conversions to/from
+     every existing type in three places (.til, ext.h, ext.c); with
+     `cast` it is zero.
+  2. Deletes the C backing surface. The `U8_to_i64`-style functions are
+     just `(I64)a`; codegen can emit the C cast inline, dropping the
+     conversion block in ext.h/ext.c and the .til wrappers.
+  3. `xx` removes redundant restatement: `mut x: I32 = xx y` -- the
+     target type is already on the LHS, so `.to_i32()` just repeats it.
+     This also makes `is_self_conversion_method` unnecessary (no method
+     name left to get wrong).
+  4. No hub-routing: `cast` goes direct, losing the `.to_i64().to_i32()`
+     two-step that exists only because the direct pair was not authored.
+  5. Uniform across kinds: the same syntax could later cover pointer and
+     enum casts, which today would each need bespoke methods.
+
+*** What to KEEP as methods (the dividing line)
+
+The clean rule: `cast` is for representation conversion the CPU does
+directly; methods stay for operations that allocate, validate, or run an
+algorithm. Those are not casts and should not masquerade as one.
+
+  - `to_str` on every type -- it is FORMATTING, not reinterpretation: it
+    allocates a heap Str, and for floats/uints runs real logic
+    (F32_to_str uses sprintf, U64_to_str_ext is a divide-by-10 loop --
+    src/c/ext.c:399+,464+). `cast(Str) 42` would be a lie. KEEP to_str.
+  - `Str.to_i64` / `to_f32` / `to_u8` ... -- PARSING with validation that
+    panics on bad input (src/core/str.til:265,314). It is a fallible
+    function, not a bit-level cast; `cast(I64) "123"` should not silently
+    parse. KEEP these.
+  - F32 <-> integer -- genuinely on the fence. It is a real value-changing
+    numeric conversion (rounding/truncation) and Jai folds it into
+    `cast`. Migrating it eventually is consistent, but it is the
+    lowest-priority piece and may want to keep the explicit method until
+    `cast`'s narrowing-check story is settled.
+
+*** Leads to pursue (open questions)
+
+  - Lexer/parser: introduce `cast` as a keyword + `cast(T) expr` grammar.
+    Does the `cast,no_check` / `cast,trunc` modifier syntax fit til, or
+    do we want a simpler split (checked vs unchecked) or none at all?
+  - Typer: where does numeric conversion legality live today, and where
+    would a `cast` node be type-checked? (infer_field_access_fcall and
+    the surrounding numeric rules in src/self/typer.til.)
+  - Runtime checks: do we want Jai-style range checks on narrowing, and
+    if so, debug-only or always? til currently does no narrowing check --
+    `.to_u8()` just truncates via the C cast. A `cast` could be the place
+    to ADD a checked-narrowing option (potential safety win independent
+    of ergonomics).
+  - Autocast (`xx`): is context-directed inference worth the typer
+    complexity, or is value-directed `cast(T)` alone enough? `xx` needs
+    the typer to thread an expected-type downward into the expression.
+  - Pointer/enum casts: scope whether `cast` should subsume any existing
+    pointer/enum-int conversions or stay numeric-only at first.
+  - Migration: a codemod from `expr.to_i32()` to `cast(I32) expr` for the
+    integer pairs, leaving to_str and Str.to_* untouched. Audit call
+    sites for the hub-chained forms (`.to_i64().to_i32()`).
+
+*** Possible immediate action (small, independent of the big decision)
+
+Even without `cast`, the matrix has direct-pair gaps that force
+hub-routing through I64 (e.g. Str.to_i32 = self.to_i64().to_i32()). If we
+decide NOT to pursue `cast` soon, a cheaper win is to document the
+hub-and-spoke convention in doc/ so the chaining is intentional and
+discoverable, rather than looking like missing methods. Conversely, if
+`cast` is accepted, do NOT invest in filling matrix gaps -- `cast`
+removes the matrix entirely.
+
+*** Notes
+
+  - This came out of a research task comparing Jai's cast to til's
+    `.to_*` methods; no code was changed.
+  - Decision is a genuine open choice: keep the explicit method matrix
+    (discoverable, greppable, per-type) vs a single cast builtin (terse,
+    no boilerplate, no C backing). Both are defensible.
