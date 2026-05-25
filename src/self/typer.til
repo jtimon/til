@@ -552,7 +552,22 @@ mark_ns_member_used := func(sdef: Expr, method: Str) returns shallow Bool {
 }
 
 try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str) returns shallow Bool {
-    ref top : TypeBinding = scope.get_binding(method)
+    // Top-level `priv` free functions are file-mangled to
+    // `priv__<path>__<name>`, and init_rewrite_refs only rewrites Ident
+    // references -- not the method name on a UFCS FieldAccess. So
+    // `x.priv_helper(...)` arrives here with the bare name while the
+    // binding lives under the mangled name. Retry the lookup mangled so
+    // priv free functions are UFCS-callable in their own file (the U in
+    // UFCS is universal). cross-file priv access is still rejected later
+    // by check_priv_access.
+    mut lookup_name := method.clone()
+    ref bare : TypeBinding = scope.get_binding(method)
+    if is_null(bare) {
+        mangled := priv_c_name(typer_path, method)
+        ref pm : TypeBinding = scope.get_binding(mangled)
+        if is_null(pm).not() { lookup_name = mangled.clone() }
+    }
+    ref top : TypeBinding = scope.get_binding(lookup_name)
     mut ufcs_match : I32 = 0
     if is_null(top).not() {
         if is_null(top.func_def).not() {
@@ -584,7 +599,7 @@ try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
         }
     }
     if ufcs_match.eq(0) { return false }
-    mut fn_ident := Expr.new(ident_node(method), fa.line, fa.col)
+    mut fn_ident := Expr.new(ident_node(lookup_name), fa.line, fa.col)
     mut new_children := Vec.new(Expr)
     new_children.push(own fn_ident)
     // Move the receiver out of the old callee `fa` (slot 0) instead of
