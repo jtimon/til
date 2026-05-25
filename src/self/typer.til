@@ -1703,9 +1703,14 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     switch ns_func2.node_type {
     case NodeType.FuncDef(ns_fdef):
         np := ns_fdef.params.len()
-        mut new_args := Vec.new(CtorArg)
+        // #109: slot-ordered scratch as Vec<Expr> with a NoDefaultArg
+        // sentinel for unfilled slots (mirrors desugar_user_func_fcall_args),
+        // so new_ch can push_take (move) each arg instead of cloning it a
+        // second time -- the old Vec<CtorArg> path deep-cloned every arg
+        // twice (once into new_args, once into new_ch).
+        mut new_args := Vec.new(Expr)
         for _ in 0..np {
-            new_args.push(own CtorArg.Unfilled())
+            new_args.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
         }
         mut pos_idx : U32 = 0
         mut seen_named := false
@@ -1725,11 +1730,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                 if slot.lt(0) {
                     type_error(arg, format("no parameter '", aname, "'"))
                 } else {
-                    ref slot_arg : CtorArg = new_args.get(slot.to_u32())
-                    if slot_arg.is(CtorArg.Filled) {
+                    ref slot_arg : Expr = new_args.get(slot.to_u32())
+                    if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
                         type_error(arg, format("duplicate argument for parameter '", aname, "'"))
                     } else {
-                        new_args.set(slot.to_u32(), own CtorArg.Filled(arg.child(0).clone()))
+                        free_expr_slot_in_place(new_args.get(slot.to_u32()))
+                        new_args.set(slot.to_u32(), own arg.child(0).clone())
                     }
                 }
             case:
@@ -1737,17 +1743,19 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                     type_error(arg, "positional argument after named argument")
                 }
                 if pos_idx.lt(np) {
-                    new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
+                    free_expr_slot_in_place(new_args.get(pos_idx))
+                    new_args.set(pos_idx, own arg.clone())
                 }
                 pos_idx = pos_idx.add(1)
             }
         }
         for i in 0..np {
-            ref slot_arg : CtorArg = new_args.get(i)
-            if slot_arg.is(CtorArg.Filled).not() {
+            ref slot_arg : Expr = new_args.get(i)
+            if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                 ref param : Declaration = ns_fdef.params.get(i)
                 if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
-                    new_args.set(i, own CtorArg.Filled(param.default_value.clone()))
+                    free_expr_slot_in_place(new_args.get(i))
+                    new_args.set(i, own param.default_value.clone())
                 } else {
                     type_error(e, format("missing argument for parameter '", param.name, "'"))
                 }
@@ -1760,12 +1768,11 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         ref callee : Expr = e.child(0)
         new_ch.push(own callee.clone())
         for i in 0..np {
-            ref slot_arg : CtorArg = new_args.get(i)
-            switch slot_arg {
-            case CtorArg.Filled(filled_arg):
-                new_ch.push(own filled_arg.clone())
-            case:
+            ref slot_arg : Expr = new_args.get(i)
+            if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                 UNREACHABLE(__LOC__)
+            } else {
+                new_ch.push_take(new_args, i)
             }
         }
         // (Issue #109) `e.children = new_ch` is a bitwise overwrite of
