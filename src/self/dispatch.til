@@ -431,6 +431,110 @@ h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
+// Return an owned Str Value copying `src`'s bytes. Used by the
+// struct_field_* handlers: a borrowed view into the AST does not survive
+// being stored into a Declaration field and pushed into a Vec (the
+// header is copied but the bytes must outlive the AST borrow), so the
+// introspection primitives hand back owned copies. Issue #56/#58.
+priv str_to_owned_value := func(src: Str) returns shallow Value {
+    n := src.count.to_u64()
+    buf : Dynamic = malloc(n.add(1))
+    memcpy(buf, src.c_str, n)
+    ref mut term : U8 = ptr_add(buf, n)
+    term = 0.to_u8()
+    return make_str_value_own(buf, n)
+}
+
+// Look up a registered struct type's AST node by name, erroring out if
+// the name is unknown or not a struct. Shared by the struct_field_*
+// introspection handlers (issue #56/#58).
+interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str) returns ref Expr {
+    ref tc : Cell = scope_get(s, type_name)
+    if is_null(tc) {
+        interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"))
+        exit(1.to_i32())
+    }
+    switch tc.val {
+    case Value.Func(fptr):
+        ref node : Expr = deref(fptr)
+        if node.node_type.is(NodeType.StructDef).not() {
+            interp_error(e, who.concat(": '").concat(type_name).concat("' is not a struct"))
+            exit(1.to_i32())
+        }
+        return node
+    case:
+        interp_error(e, who.concat(": '").concat(type_name).concat("' is not a struct"))
+        exit(1.to_i32())
+        return NULL
+    }
+}
+
+h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1)))
+    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count")
+    switch node.node_type {
+    case NodeType.StructDef(sd):
+        r = val_i64(sd.fields.len().to_i64())
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1)))
+    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
+    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name")
+    switch node.node_type {
+    case NodeType.StructDef(sd):
+        if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
+            interp_error(e, "struct_field_name: index out of bounds")
+            exit(1.to_i32())
+        }
+        ref fd : Declaration = sd.fields.get(idx.to_usize())
+        r = str_to_owned_value(fd.name)
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1)))
+    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
+    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut")
+    switch node.node_type {
+    case NodeType.StructDef(sd):
+        if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
+            interp_error(e, "struct_field_is_mut: index out of bounds")
+            exit(1.to_i32())
+        }
+        ref fd : Declaration = sd.fields.get(idx.to_usize())
+        if fd.is_mut { r = val_i64(1) } else { r = val_i64(0) }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1)))
+    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
+    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type")
+    switch node.node_type {
+    case NodeType.StructDef(sd):
+        if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
+            interp_error(e, "struct_field_type: index out of bounds")
+            exit(1.to_i32())
+        }
+        ref fd : Declaration = sd.fields.get(idx.to_usize())
+        r = str_to_owned_value(fd.explicit_type)
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
 h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     type_val := eval_expr(s, e.child(1))
     switch type_val {
@@ -733,6 +837,10 @@ dispatch_init := func() {
     reg_dispatch("dyn_has_method", h_dyn_has_method)
     reg_dispatch("dyn_fn", h_dyn_fn)
     reg_dispatch("dyn_size_of", h_dyn_size_of)
+    reg_dispatch("struct_field_count", h_struct_field_count)
+    reg_dispatch("struct_field_name", h_struct_field_name)
+    reg_dispatch("struct_field_is_mut", h_struct_field_is_mut)
+    reg_dispatch("struct_field_type", h_struct_field_type)
     reg_dispatch("dyn_type_to_str", h_dyn_type_to_str)
     reg_dispatch("File_readfile", h_readfile)
     reg_dispatch("File_writefile", h_writefile)

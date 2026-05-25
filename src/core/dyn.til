@@ -17,6 +17,15 @@ dyn_call_ret := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b:
 dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}
 dyn_size_of := ext_func(type_name: Str) returns shallow USize {}
 
+// Struct introspection primitives (issue #56/#58). Query the loaded
+// program for a registered struct type's field metadata by name. Used
+// by struct_def_of in ast.til. Indexing is 0-based over the struct's
+// declared fields (data members only, not namespace items).
+struct_field_count := ext_func(type_name: Str) returns shallow I64 {}
+struct_field_name := ext_func(type_name: Str, shallow index: I64) returns Str {}
+struct_field_is_mut := ext_func(type_name: Str, shallow index: I64) returns shallow I64 {}
+struct_field_type := ext_func(type_name: Str, shallow index: I64) returns Str {}
+
 // Default function pointer values for container struct fields
 CloneFn := func(Dynamic) returns Dynamic
 DeleteFn := func(Dynamic, Bool)

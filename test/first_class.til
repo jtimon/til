@@ -182,3 +182,17 @@ test_vec_of_struct_instances := test() {
     points.push(own Point56(x=30, y=40))
     assert_eq(__LOC__, points.len().to_i64(), 2)
 }
+
+// --- Struct introspection primitives (issue #56/#58) ---
+// struct_field_* query a registered struct type's fields by name. The
+// queried type must be live in the program (an unused type is DCE'd
+// away), so the constructor call in the previous test keeps Point56 alive.
+
+test_struct_field_primitives := test() {
+    assert_eq(__LOC__, struct_field_count("Point56"), 2)
+    assert_eq_str(__LOC__, "x", struct_field_name("Point56", 0))
+    assert_eq_str(__LOC__, "y", struct_field_name("Point56", 1))
+    assert_eq(__LOC__, struct_field_is_mut("Point56", 0), 1)
+    assert_eq(__LOC__, struct_field_is_mut("Point56", 1), 1)
+    assert_eq_str(__LOC__, "I64", struct_field_type("Point56", 0))
+}

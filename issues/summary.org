@@ -42,6 +42,7 @@
 *** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
 *** [[./open/210.org][#210]] Eliminate the per-literal malloc in dyn_type_to_str returns
 *** [[./open/211.org][#211]] Reconsider the default mutability of struct fields (mut-by-default vs const-by-default)
+*** [[./open/212.org][#212]] Consider a `cast(T) expr` builtin (and `xx`-style autocast) to replace the integer `.to_*` conversion matrix
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)

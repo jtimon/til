@@ -349,6 +349,10 @@ Token *Token_Eof();
 
 void *dyn_fn(Str *type_name, Str *method);
 U32 dyn_size_of(Str *type_name);
+I64 struct_field_count(Str *type_name);
+Str *struct_field_name(Str *type_name, I64 *index);
+I64 struct_field_is_mut(Str *type_name, I64 *index);
+Str *struct_field_type(Str *type_name, I64 *index);
 Str *dyn_type_to_str(Type *type);
 
 #define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))
@@ -2136,6 +2140,174 @@ U32 dyn_size_of(Str *type_name) {
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0) return sizeof(Color);
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) return sizeof(Token);
     fprintf(stderr, "dyn_size_of: unknown type %.*s\n", (int)type_name->count, (char*)type_name->c_str);
+    exit(1);
+}
+
+I64 struct_field_count(Str *type_name) {
+    (void)type_name;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "I8", 2ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) {
+        return 3LL;
+    }
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0) {
+        return 5LL;
+    }
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) {
+        return 2LL;
+    }
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) {
+        return 2LL;
+    }
+    fprintf(stderr, "struct_field_count: type '%.*s' not found\n", (int)type_name->count, (char*)type_name->c_str);
+    exit(1);
+}
+
+Str *struct_field_name(Str *type_name, I64 *index) {
+    (void)type_name; (void)index;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) {
+    }
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "I8", 2ULL) == 0) {
+    }
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"c_str", .count = 5ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) {
+    }
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) {
+    }
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"elem_size", .count = 9ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"elem_clone", .count = 10ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"elem_delete", .count = 11ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"x", .count = 1ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"y", .count = 1ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"top_left", .count = 8ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"bottom_right", .count = 12ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    fprintf(stderr, "struct_field_name: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
+    exit(1);
+}
+
+I64 struct_field_is_mut(Str *type_name, I64 *index) {
+    (void)type_name; (void)index;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) {
+    }
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "I8", 2ULL) == 0) {
+    }
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) {
+        if (*index == 0LL) return 1;
+        if (*index == 1LL) return 1;
+        if (*index == 2LL) return 1;
+    }
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) {
+    }
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) {
+    }
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0) {
+        if (*index == 0LL) return 1;
+        if (*index == 1LL) return 0;
+        if (*index == 2LL) return 0;
+        if (*index == 3LL) return 0;
+        if (*index == 4LL) return 0;
+    }
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) {
+        if (*index == 0LL) return 1;
+        if (*index == 1LL) return 1;
+    }
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) {
+        if (*index == 0LL) return 1;
+        if (*index == 1LL) return 1;
+    }
+    fprintf(stderr, "struct_field_is_mut: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
+    exit(1);
+}
+
+Str *struct_field_type(Str *type_name, I64 *index) {
+    (void)type_name; (void)index;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) {
+    }
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "I8", 2ULL) == 0) {
+    }
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I8", .count = 2ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0) {
+    }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) {
+    }
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) {
+    }
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"CloneFn", .count = 7ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"DeleteFn", .count = 8ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"CfVec2", .count = 6ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"CfVec2", .count = 6ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    fprintf(stderr, "struct_field_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
 }
 

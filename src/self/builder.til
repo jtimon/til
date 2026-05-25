@@ -2002,6 +2002,17 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) returns ref File {
                 f.write("dyn_type_to_str(")
                 emit_as_ptr(f, e.child(1), depth, false)
                 f.write(")")
+            } else if ident_name(name).eq("struct_field_count") {
+                f.write("struct_field_count(")
+                emit_as_ptr(f, e.child(1), depth, false)
+                f.write(")")
+            } else if ident_name(name).eq("struct_field_name").or(ident_name(name).eq("struct_field_is_mut")).or(ident_name(name).eq("struct_field_type")) {
+                f.write(ident_name(name))
+                f.write("(")
+                emit_as_ptr(f, e.child(1), depth, false)
+                f.write(", ")
+                emit_as_ptr(f, e.child(2), depth, false)
+                f.write(")")
             } else if ident_name(name).eq("dyn_has_method") {
                 ref c2b : Expr = e.child(2)
                 switch c2b.node_type {
@@ -5040,6 +5051,10 @@ emit_all_forward_declarations := proc(f: File, mode: Mode) {
     }
     f.write("void *dyn_fn(Str *type_name, Str *method);\n")
     f.write("U32 dyn_size_of(Str *type_name);\n")
+    f.write("I64 struct_field_count(Str *type_name);\n")
+    f.write("Str *struct_field_name(Str *type_name, I64 *index);\n")
+    f.write("I64 struct_field_is_mut(Str *type_name, I64 *index);\n")
+    f.write("Str *struct_field_type(Str *type_name, I64 *index);\n")
     if has_dyn_type_to_str {
         f.write("Str *dyn_type_to_str(Type *type);\n")
     }
@@ -5334,6 +5349,81 @@ emit_dyn_size_of_body := proc(f: File) {
     f.write("    fprintf(stderr, \"dyn_size_of: unknown type %.*s\\n\", (int)type_name->count, (char*)type_name->c_str);\n")
     f.write("    exit(1);\n")
     f.write("}\n\n")
+}
+
+// Issue #56/#58: emit one struct's branch for a struct_field_* function.
+// kind 0 = count (return field count), 1 = name, 2 = is_mut, 3 = type.
+priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
+    if stmt.children.len().eq(0) { return }
+    if stmt.child(0).node_type.is(NodeType.StructDef).not() { return }
+    mut sname := ""
+    switch stmt.node_type {
+    case NodeType.Decl(dd): sname = dd.name
+    case: return
+    }
+    switch stmt.child(0).node_type {
+    case NodeType.StructDef(sd):
+        tlen := sname.len().to_u64()
+        f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(sname); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) {\n")
+        if kind.eq(0.to_i32()) {
+            f.write("        return "); emit_u64(f, sd.fields.len().to_u64()); f.write("LL;\n")
+        } else {
+            for i in 0..sd.fields.len() {
+                ref fd : Declaration = sd.fields.get(i)
+                f.write("        if (*index == "); emit_u64(f, i.to_u64()); f.write("LL) return ")
+                if kind.eq(1.to_i32()) {
+                    emit_str_lit_expr(f, fd.name)
+                } else if kind.eq(2.to_i32()) {
+                    if fd.is_mut { f.write("1") } else { f.write("0") }
+                } else {
+                    emit_str_lit_expr(f, fd.explicit_type)
+                }
+                f.write(";\n")
+            }
+        }
+        f.write("    }\n")
+    case:
+    }
+}
+
+priv emit_struct_field_branches := proc(f: File, shallow kind: I32) {
+    ref lp : LoadedProgram = codegen_lp()
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                emit_struct_field_branch_for_stmt(f, stmt, kind)
+            }
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for stmt : Expr in iu.ast.children {
+            emit_struct_field_branch_for_stmt(f, stmt, kind)
+        }
+    }
+}
+
+// Issue #56/#58: emit the C bodies for the struct_field_* introspection
+// primitives, mirroring rstil's emit_introspection_metadata. Each is a
+// strcmp chain over every loaded struct type.
+emit_struct_introspection_bodies := proc(f: File) {
+    f.write("I64 struct_field_count(Str *type_name) {\n    (void)type_name;\n")
+    emit_struct_field_branches(f, 0.to_i32())
+    f.write("    fprintf(stderr, \"struct_field_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("Str *struct_field_name(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_struct_field_branches(f, 1.to_i32())
+    f.write("    fprintf(stderr, \"struct_field_name: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("I64 struct_field_is_mut(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_struct_field_branches(f, 2.to_i32())
+    f.write("    fprintf(stderr, \"struct_field_is_mut: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("Str *struct_field_type(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_struct_field_branches(f, 3.to_i32())
+    f.write("    fprintf(stderr, \"struct_field_type: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 }
 
 emit_tag_case := proc(f: File, tag: Str, name: Str) {
@@ -6115,6 +6205,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
     emit_dyn_fn_wrappers(f)
     emit_dyn_has_bodies(f)
     emit_dyn_size_of_body(f)
+    emit_struct_introspection_bodies(f)
     ref lp3 : LoadedProgram = codegen_lp()
     mut has_dyn_type_to_str2 := false
     if lp3.skip_core.not() {
