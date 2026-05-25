@@ -145,3 +145,40 @@ test_explicit_funcdef_annotation := test() {
     assert_eq(__LOC__, triple_funcdef(5), 15)
     assert_eq(__LOC__, double_funcdef(7), 14)
 }
+
+// --- First-class structs (issue #56), verified-working foundation ---
+// StructDef-as-value (Vec.new(StructDef) by value, struct_def_of,
+// anonymous struct construction, `func(T) returns T`) still depend on
+// #58's metatype-reflection foundation and are not yet supported.
+// What works today is covered below.
+
+Point56 := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+}
+
+// A struct type can be passed where a `Type` parameter is expected and
+// round-trips through dyn_type_to_str back to its own name.
+type_name_of := func(T: Type) returns Str {
+    return dyn_type_to_str(T)
+}
+
+test_struct_type_as_type_arg := test() {
+    assert_eq_str(__LOC__, "Point56", type_name_of(Point56))
+}
+
+// The StructDef metatype round-trips to "StructDef" both as the bare
+// type name and via the Type enum variant.
+test_structdef_metatype_str := test() {
+    assert_eq_str(__LOC__, "StructDef", dyn_type_to_str(StructDef))
+    assert_eq_str(__LOC__, "StructDef", dyn_type_to_str(Type.StructDef))
+}
+
+// Struct instances (not definitions) are first-class values: storable in
+// a Vec keyed on the concrete struct type.
+test_vec_of_struct_instances := test() {
+    mut points := Vec.new(Point56)
+    points.push(own Point56(x=10, y=20))
+    points.push(own Point56(x=30, y=40))
+    assert_eq(__LOC__, points.len().to_i64(), 2)
+}
