@@ -37,13 +37,26 @@ Always pay attention to what the user says. Always follow the user's instruction
 
 ## Declaring Your Commit
 
-At the end of every reply, declare which git commit you are on top of:
-the short SHA of `HEAD` (or, if you have uncommitted changes, the SHA
-HEAD points at plus a note that there are local edits). The user
-needs to know which base your reasoning, file reads, and edits assume,
-because master moves while you work and stale references waste their
-time. One line, no fanfare. Example: "On top of `60bd9a3`." or
-"On top of `60bd9a3` + uncommitted edits to `src/self/builder.til`."
+At the end of every reply, declare which commit you are on top of. "On
+top of" means the latest *master* commit your work is based on -- the
+master tip you branched/rebased from -- NOT your own HEAD. Your own
+commits sit on top of that master base; the SHA you report is the base
+underneath them. The user needs to know which master your reasoning,
+file reads, and edits assume, because master moves while you work and a
+stale base wastes their time. Report your own HEAD SHA only when it IS a
+master commit (you have made no commits of your own yet).
+
+One line, no fanfare. Examples:
+
+  - "On top of master `60bd9a3`." -- no local commits yet; HEAD is that
+    master commit.
+  - "On top of master `60bd9a3`, + 2 commits of my own." -- your work is
+    layered on master `60bd9a3`.
+  - "On top of master `60bd9a3`, + my commits + uncommitted edits to
+    `src/self/builder.til`." -- same, with a dirty tree.
+
+If you are unsure which master you are based on, find it with
+`git merge-base HEAD origin/master` rather than guessing.
 
 ## Showing Code
 
