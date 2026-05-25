@@ -260,6 +260,17 @@ typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 
 
 
+typedef struct Vec {
+    U8 *data;
+    U32 count;
+    U32 cap;
+    U32 elem_size;
+    U32 elem_kind;
+    void * elem_clone;
+    void * elem_delete;
+} Vec;
+
+
 typedef struct Str {
     I8 *c_str;
     U32 count;
@@ -273,6 +284,13 @@ typedef struct Dynamic {
 
 
 
+
+
+typedef struct Map {
+    Vec keys;
+    Vec values;
+    void * key_cmp;
+} Map;
 
 
 struct Primitive {
@@ -314,6 +332,19 @@ typedef struct Declaration {
 } Declaration;
 
 
+typedef struct FunctionDef {
+    FuncType func_type;
+    Vec params;
+    Str return_type;
+    Vec throw_types;
+    I32 variadic_index;
+    I32 kwargs_index;
+    OwnType return_own_type;
+    Bool auto_generated;
+    Bool is_enum_variant_ctor;
+} FunctionDef;
+
+
 typedef struct FCallData {
     I32 variadic_index;
     U32 variadic_count;
@@ -345,6 +376,22 @@ typedef struct FieldAccessData {
 } FieldAccessData;
 
 
+typedef struct StructDef {
+    I32 total_struct_size;
+    Vec fields;
+    Vec ns_decls;
+    Str c_tag;
+} StructDef;
+
+
+typedef struct EnumDef {
+    Vec ns_decls;
+    Vec variants;
+    Map payload_types;
+    I32 total_enum_size;
+} EnumDef;
+
+
 typedef struct AssignData {
     Str name;
     Bool save_old_delete;
@@ -367,11 +414,36 @@ struct Literal {
     } data;
 };
 
+struct NodeType {
+    NodeType_tag tag;
+    union {
+        Literal Literal;
+        IdentData Ident;
+        Declaration Decl;
+        AssignData Assign;
+        FCallData FCall;
+        FunctionDef FuncDef;
+        StructDef StructDef;
+        EnumDef EnumDef;
+        FieldAccessData FieldAccess;
+        Str FieldAssign;
+        ForInData ForIn;
+        Str NamedArg;
+    } data;
+};
+
+typedef struct Expr {
+    NodeType node_type;
+    Vec children;
+    U32 line;
+    U32 col;
+} Expr;
+
+
 typedef struct Array {
     U8 *data;
     U32 cap;
     U32 elem_size;
-    Str elem_type;
     void * elem_clone;
     void * elem_delete;
 } Array;
@@ -388,7 +460,6 @@ typedef struct Set {
     U32 count;
     U32 cap;
     U32 elem_size;
-    Str elem_type;
     void * elem_clone;
     void * elem_delete;
     void * elem_cmp;
@@ -405,6 +476,15 @@ typedef struct Token {
     U32 line;
     U32 col;
 } Token;
+
+
+typedef struct priv___src_self_parser_til__Parser {
+    Vec tokens;
+    U32 pos;
+    Str path;
+    Vec fn_sig_decls;
+    Str pending_doc;
+} priv___src_self_parser_til__Parser;
 
 
 typedef struct TypeBinding {
@@ -436,6 +516,12 @@ struct ScopeFind {
     } data;
 };
 
+typedef struct TypeScope {
+    Map bindings;
+    TypeScope *parent;
+} TypeScope;
+
+
 typedef struct Mode {
     Bool needs_main;
     Bool decls_only;
@@ -455,6 +541,20 @@ struct Target {
     Target_tag tag;
 };
 
+struct priv___src_self_typer_til__CtorArg {
+    priv___src_self_typer_til__CtorArg_tag tag;
+    union {
+        Expr Filled;
+    } data;
+};
+
+typedef struct priv___src_self_typer_til__CoverageNode {
+    Bool fully_covered;
+    Vec sub_names;
+    Vec sub_nodes;
+} priv___src_self_typer_til__CoverageNode;
+
+
 typedef struct priv___src_self_asaper_til__LocalInfo {
     Str *name;
     Type type;
@@ -464,6 +564,13 @@ typedef struct priv___src_self_asaper_til__LocalInfo {
     Bool skip_scope_delete;
     Bool is_heap;
 } priv___src_self_asaper_til__LocalInfo;
+
+
+typedef struct ProgramUnit {
+    Str path;
+    Mode mode;
+    Vec imports;
+} ProgramUnit;
 
 
 typedef struct priv___src_self_loader_til__DeclRef {
@@ -541,6 +648,12 @@ typedef struct Binding {
     Cell *cell;
     Bool cell_is_local;
 } Binding;
+
+
+typedef struct Scope {
+    Map bindings;
+    Scope *parent;
+} Scope;
 
 
 typedef struct _ffi_type {
@@ -643,94 +756,6 @@ typedef struct CliArgs {
 } CliArgs;
 
 
-typedef struct Vec {
-    U8 *data;
-    U32 count;
-    U32 cap;
-    U32 elem_size;
-    Str elem_type;
-    void * elem_clone;
-    void * elem_delete;
-} Vec;
-
-
-typedef struct Map {
-    Vec keys;
-    Vec values;
-    void * key_cmp;
-} Map;
-
-
-typedef struct FunctionDef {
-    FuncType func_type;
-    Vec params;
-    Str return_type;
-    Vec throw_types;
-    I32 variadic_index;
-    I32 kwargs_index;
-    OwnType return_own_type;
-    Bool auto_generated;
-    Bool is_enum_variant_ctor;
-} FunctionDef;
-
-
-typedef struct StructDef {
-    I32 total_struct_size;
-    Vec fields;
-    Vec ns_decls;
-    Str c_tag;
-} StructDef;
-
-
-typedef struct EnumDef {
-    Vec ns_decls;
-    Vec variants;
-    Map payload_types;
-    I32 total_enum_size;
-} EnumDef;
-
-
-struct NodeType {
-    NodeType_tag tag;
-    union {
-        Literal Literal;
-        IdentData Ident;
-        Declaration Decl;
-        AssignData Assign;
-        FCallData FCall;
-        FunctionDef FuncDef;
-        StructDef StructDef;
-        EnumDef EnumDef;
-        FieldAccessData FieldAccess;
-        Str FieldAssign;
-        ForInData ForIn;
-        Str NamedArg;
-    } data;
-};
-
-typedef struct Expr {
-    NodeType node_type;
-    Vec children;
-    U32 line;
-    U32 col;
-} Expr;
-
-
-typedef struct priv___src_self_parser_til__Parser {
-    Vec tokens;
-    U32 pos;
-    Str path;
-    Vec fn_sig_decls;
-    Str pending_doc;
-} priv___src_self_parser_til__Parser;
-
-
-typedef struct TypeScope {
-    Map bindings;
-    TypeScope *parent;
-} TypeScope;
-
-
 typedef struct ImportUnit {
     Mode mode;
     Expr *ast;
@@ -791,27 +816,6 @@ typedef struct Context {
 } Context;
 
 
-struct priv___src_self_typer_til__CtorArg {
-    priv___src_self_typer_til__CtorArg_tag tag;
-    union {
-        Expr Filled;
-    } data;
-};
-
-typedef struct priv___src_self_typer_til__CoverageNode {
-    Bool fully_covered;
-    Vec sub_names;
-    Vec sub_nodes;
-} priv___src_self_typer_til__CoverageNode;
-
-
-typedef struct ProgramUnit {
-    Str path;
-    Mode mode;
-    Vec imports;
-} ProgramUnit;
-
-
 typedef struct LoadedProgram {
     Vec *core_units;
     Vec *units;
@@ -827,12 +831,6 @@ typedef struct LoadedProgram {
     Str link_c_paths;
     Bool run_tests;
 } LoadedProgram;
-
-
-typedef struct Scope {
-    Map bindings;
-    Scope *parent;
-} Scope;
 
 
 void F32_delete(F32 * self, Bool * call_free);
@@ -2101,6 +2099,9 @@ Value *Value_Dynamic(void *);
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;
+extern U32 ELEM_POD;
+extern U32 ELEM_BOXED;
+extern U32 ELEM_FN;
 extern Str __til_docs_blob__;
 extern Str __til_info_blob__;
 extern Map core_modes;

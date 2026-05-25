@@ -14,7 +14,7 @@ Vec := struct {
     mut count : USize = 0
     mut cap : USize = 0
     elem_size : USize = 0
-    elem_type : Str = ""
+    elem_kind : USize = ELEM_POD
     elem_clone : CloneFn = default_clone
     elem_delete : DeleteFn = default_delete
 
@@ -26,7 +26,7 @@ namespace:
         }
         if elem_type.eq("Dynamic") {
             return Vec(data = malloc(8), cap = 1,
-                       elem_size = 8, elem_type = elem_type.clone())
+                       elem_size = 8, elem_kind = ELEM_POD)
         }
         // Issue #58: function pointers are 8-byte plain values, not heap
         // boxes. Use the same path as Dynamic so push/get/delete are
@@ -34,11 +34,11 @@ namespace:
         // through a non-existent FuncSig.clone/delete.
         if elem_type.eq("Fn") {
             return Vec(data = malloc(8), cap = 1,
-                       elem_size = 8, elem_type = elem_type.clone())
+                       elem_size = 8, elem_kind = ELEM_FN)
         }
         mut sz : USize = dyn_size_of(elem_type)
         return Vec(data = malloc(sz), cap = 1,
-                   elem_size = sz, elem_type = elem_type.clone(),
+                   elem_size = sz, elem_kind = ELEM_BOXED,
                    elem_clone = dyn_fn(elem_type, "clone"),
                    elem_delete = dyn_fn(elem_type, "delete"))
     }
@@ -53,7 +53,7 @@ namespace:
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
     clear := func(mut self: Vec) {
-        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
+        if self.elem_kind.eq(ELEM_BOXED) {
             for i in 0..self.count {
                 self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
             }
@@ -72,7 +72,7 @@ namespace:
         // Issue #58: function pointers arrive as a direct pointer value
         // (the code address), not a heap box of one. Store the pointer
         // value itself into the slot and skip the free.
-        if self.elem_type.eq("Fn") {
+        if self.elem_kind.eq(ELEM_FN) {
             write_ptr(ptr_add(self.data, self.count.mul(self.elem_size)), val)
             self.count = self.count.add(1)
             return
@@ -85,7 +85,7 @@ namespace:
     /// Consume the contents of `other` by appending them to `self`.
     /// `other` is taken by ownership and will be empty after the call.
     append := func(mut self: Vec, own other: Vec) {
-        if self.elem_size.eq(other.elem_size).not().or(self.elem_type.eq(other.elem_type).not()) {
+        if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
             panic(__LOC__, "Vec.append: incompatible vecs")
         }
         if other.count.eq(0) {
@@ -112,10 +112,10 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     move_from := func(mut self: Vec, mut other: Vec) {
-        if self.elem_size.eq(other.elem_size).not().or(self.elem_type.eq(other.elem_type).not()) {
+        if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
             panic(__LOC__, "Vec.move_from: incompatible vecs")
         }
-        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
+        if self.elem_kind.eq(ELEM_BOXED) {
             for i in 0..self.count {
                 self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
             }
@@ -178,7 +178,7 @@ namespace:
         }
         self.count = tail_count
         return Vec(data = prefix_data, count = n, cap = prefix_cap,
-                   elem_size = self.elem_size, elem_type = self.elem_type.clone(),
+                   elem_size = self.elem_size, elem_kind = self.elem_kind,
                    elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 
@@ -203,7 +203,7 @@ namespace:
         if i.gte(self.count) {
             panic(__LOC__, "Vec.replace: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
-        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
+        if self.elem_kind.eq(ELEM_BOXED) {
             self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
         }
         memcpy(ptr_add(self.data, i.mul(self.elem_size)), val, self.elem_size)
@@ -217,7 +217,7 @@ namespace:
         if i.gte(src.count) {
             panic(__LOC__, "Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }
-        if self.elem_size.eq(src.elem_size).not().or(self.elem_type.eq(src.elem_type).not()) {
+        if self.elem_size.eq(src.elem_size).not().or(self.elem_kind.eq(src.elem_kind).not()) {
             panic(__LOC__, "Vec.push_take: incompatible vecs")
         }
         if self.count.eq(self.cap) {
@@ -236,16 +236,13 @@ namespace:
     delete := func(own self: Vec, call_free: Bool = true) {
         Vec.clear(self)
         free(own self.data)
-        if self.elem_type.is_empty().not() {
-            Str.delete(own self.elem_type, false)
-        }
         if call_free { free(own self) }
     }
 
     /// Deep-copy the Vec and all its elements via elem_clone.
     clone := func(self: Vec) returns Vec {
         new_data : Dynamic = malloc(self.cap.mul(self.elem_size))
-        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
+        if self.elem_kind.eq(ELEM_BOXED) {
             for i in 0..self.count {
                 cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
                 memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
@@ -255,7 +252,7 @@ namespace:
             memcpy(new_data, self.data, self.count.mul(self.elem_size))
         }
         return Vec(data = new_data, count = self.count, cap = self.cap,
-                   elem_size = self.elem_size, elem_type = self.elem_type.clone(),
+                   elem_size = self.elem_size, elem_kind = self.elem_kind,
                    elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 }

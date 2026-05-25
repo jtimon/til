@@ -13,7 +13,6 @@ Set := struct {
     mut count : USize = 0
     mut cap : USize = 0
     elem_size : USize = 0
-    elem_type := ""
     elem_clone : CloneFn = default_clone
     elem_delete : DeleteFn = default_delete
     elem_cmp : CmpFn = default_cmp
@@ -28,7 +27,7 @@ namespace:
         }
         sz : USize = dyn_size_of(elem_type)
         return Set(data = malloc(sz), cap = 1,
-                   elem_size = sz, elem_type = elem_type.clone(),
+                   elem_size = sz,
                    elem_clone = dyn_fn(elem_type, "clone"),
                    elem_delete = dyn_fn(elem_type, "delete"),
                    elem_cmp = dyn_fn(elem_type, "cmp"))
@@ -39,11 +38,9 @@ namespace:
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Set can be reused.
     clear := func(mut self: Set) {
-        if self.elem_type.is_empty().not() {
-            for i in 0..self.count {
-                self.elem_delete(
-                          ptr_add(self.data, i.mul(self.elem_size)), false)
-            }
+        for i in 0..self.count {
+            self.elem_delete(
+                      ptr_add(self.data, i.mul(self.elem_size)), false)
         }
         self.count = 0
     }
@@ -82,9 +79,7 @@ namespace:
             }
         }
         if found {
-            if self.elem_type.is_empty().not() {
-                self.elem_delete(val, false)
-            }
+            self.elem_delete(val, false)
             free(own val)
         } else {
             if self.count.eq(self.cap) {
@@ -104,9 +99,6 @@ namespace:
     delete := func(own self: Set, call_free: Bool = true) {
         Set.clear(self)
         free(own self.data)
-        if self.elem_type.is_empty().not() {
-            Str.delete(own self.elem_type, false)
-        }
         if call_free { free(own self) }
     }
 
@@ -119,7 +111,7 @@ namespace:
             free(own cloned)
         }
         return Set(data = new_data, count = self.count, cap = self.cap,
-                   elem_size = self.elem_size, elem_type = self.elem_type.clone(),
+                   elem_size = self.elem_size,
                    elem_clone = self.elem_clone, elem_delete = self.elem_delete,
                    elem_cmp = self.elem_cmp)
     }

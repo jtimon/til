@@ -1686,8 +1686,6 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     write_field(inst_data, ba_cap_d, val_u32(count.to_i64()))
     ref ba_esz_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_size")
     write_field(inst_data, ba_esz_d, val_u32(esz.to_i64()))
-    ref ba_et_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_type")
-    write_field(inst_data, ba_et_d, make_str_value(elem_type.c_str, elem_type.count.to_u64()))
     ref clone_fn : Value = ns_get(elem_type.clone(), "clone")
     if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_clone"); write_field(inst_data, ba_ec_d, shallow_copy_value(clone_fn)) }
     ref delete_fn : Value = ns_get(elem_type.clone(), "delete")

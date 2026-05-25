@@ -3885,7 +3885,6 @@ build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns
     f.write("        ('data', ctypes.POINTER(ctypes.c_ubyte)),\n")
     f.write("        ('cap', ctypes.c_uint),\n")
     f.write("        ('elem_size', ctypes.c_uint),\n")
-    f.write("        ('elem_type', Str),\n")
     f.write("        ('elem_clone', ctypes.c_void_p),\n")
     f.write("        ('elem_delete', ctypes.c_void_p),\n")
     f.write("    ]\n\n")

@@ -29,3 +29,17 @@ default_cmp : CmpFn = (_a, _b) { return 0 }
 default_inc : IncFn = (_v) { }
 default_distance : DistanceFn = (_a, _b) { return 0 }
 dyn_has_method := ext_func(type_name: Str, method: Str) returns shallow Bool {}
+
+// Element kind for Vec. Replaces the old `elem_type : Str` discriminator so
+// Vec never calls Str.eq / Str.delete on a stored type name -- that call was
+// what closed the Vec <-> Str method-synthesis cycle (see issues #165, #174).
+// ELEM_POD: plain bytes (Dynamic / POD); clone is a bulk memcpy and there is
+//   no per-element delete. This is the default for an uninitialized Vec, which
+//   matches the old empty-elem_type behavior.
+// ELEM_BOXED: elements own heap data; clone/delete dispatch per element
+//   through elem_clone / elem_delete.
+// ELEM_FN: unboxed function pointer; push stores the code address directly
+//   (write_ptr, no free) and clone/delete behave like ELEM_POD.
+ELEM_POD : USize = 0
+ELEM_BOXED : USize = 1
+ELEM_FN : USize = 2

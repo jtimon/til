@@ -13,7 +13,6 @@ Array := struct {
     own mut data : U8 = 0
     cap : USize = 0
     elem_size : USize = 0
-    elem_type : Str = ""
     elem_clone : CloneFn = default_clone
     elem_delete : DeleteFn = default_delete
 
@@ -23,7 +22,7 @@ namespace:
         if elem_type.is_empty() { panic(__LOC__, "Array.new: elem_type required") }
         elem_size : USize = dyn_size_of(elem_type)
         return Array(data = calloc(cap, elem_size), cap = cap,
-                     elem_size = elem_size, elem_type = elem_type.clone(),
+                     elem_size = elem_size,
                      elem_clone = dyn_fn(elem_type, "clone"),
                      elem_delete = dyn_fn(elem_type, "delete"))
     }
@@ -60,7 +59,6 @@ namespace:
             self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
         }
         free(own self.data)
-        Str.delete(own self.elem_type, false)
         if call_free { free(own self) }
     }
 
@@ -72,7 +70,7 @@ namespace:
             free(own cloned)
         }
         return Array(data = new_data, cap = self.cap,
-                     elem_size = self.elem_size, elem_type = self.elem_type.clone(),
+                     elem_size = self.elem_size,
                      elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 }

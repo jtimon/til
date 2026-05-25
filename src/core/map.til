@@ -106,15 +106,11 @@ namespace:
             }
         }
         if found {
-            // Delete old key/value at index lo.
-            ref key_type_name : Str = self.keys.elem_type
-            if key_type_name.is_empty().not() {
-                self.keys.elem_delete(self.key_ptr(lo), false)
-            }
-            ref val_type_name : Str = self.values.elem_type
-            if val_type_name.is_empty().not().and(val_type_name.eq("Dynamic").not()) {
-                self.values.elem_delete(self.val_ptr(lo), false)
-            }
+            // Delete old key/value at index lo. elem_delete dispatches via
+            // the sub-Vecs' function pointers; for Dynamic values it is the
+            // no-op default_delete, so the call is safe unconditionally.
+            self.keys.elem_delete(self.key_ptr(lo), false)
+            self.values.elem_delete(self.val_ptr(lo), false)
 
             // Overwrite bytes with new key/value.
             memcpy(self.key_ptr(lo), key, self.keys.elem_size)
@@ -152,19 +148,10 @@ namespace:
     }
 
     clone := func(self: Map) returns Map {
-        mut out := Map.new_type_names(self.keys.elem_type, self.values.elem_type)
-        ref self_val_type_name : Str = self.values.elem_type
-        for i in 0..self.len() {
-            ck : Dynamic = self.keys.elem_clone(self.key_ptr(i))
-            if self_val_type_name.eq("Dynamic") {
-                cv : Dynamic = malloc(self.values.elem_size)
-                memcpy(cv, self.val_ptr(i), self.values.elem_size)
-                out.set(own ck, own cv)
-            } else {
-                cv : Dynamic = self.values.elem_clone(self.val_ptr(i))
-                out.set(own ck, own cv)
-            }
-        }
-        return out
+        // Cloning the sorted key/value Vecs directly preserves order and
+        // lets Vec.clone handle per-element vs bulk (Dynamic) copying via
+        // each Vec's elem_kind -- no need to re-derive types from a name.
+        return Map(keys = self.keys.clone(), values = self.values.clone(),
+                   key_cmp = self.key_cmp)
     }
 }
