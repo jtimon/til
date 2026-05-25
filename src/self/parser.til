@@ -73,7 +73,7 @@ til_type_from_explicit_type := func(name: Str) returns Type {
     if name.eq("Bool")    { return Type.Bool }
     if name.eq("Dynamic") { return Type.Dynamic }
     if name.len().eq(0)   { return Type.Unknown }
-    return Type.Custom(name)
+    return Type.Custom(name.clone())
 }
 
 // --- Parsing functions ---

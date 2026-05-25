@@ -99,7 +99,7 @@ namespace:
     find := func(self: TypeScope, name: Str) returns ScopeFind {
         ref b : TypeBinding = self.get_binding(name)
         if is_null(b).not() {
-            return ScopeFind.Found(b)
+            return ScopeFind.Found(b.clone())
         }
         return ScopeFind.NotFound
     }
@@ -603,7 +603,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
                     mut field_acc := Expr.new(field_access_node(fname), stmt.line, stmt.col)
                     field_acc.add_child(own self_id)
 
-                    mut named := Expr.new(NodeType.NamedArg(fname), stmt.line, stmt.col)
+                    mut named := Expr.new(NodeType.NamedArg(fname.clone()), stmt.line, stmt.col)
                     if fref.eq(1) {
                         named.add_child(own field_acc)
                     } else {
@@ -767,7 +767,7 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec, mut varian
     }
 }
 
-priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
     switch enum_def.node_type {
     case NodeType.EnumDef(evc_edd):
         if has_payloads.not() {
@@ -780,11 +780,17 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shal
         }
 
         for j in 0..variant_names.len() {
-            mut func_decl := FunctionDef(auto_generated = true)
+            mut func_decl := FunctionDef(auto_generated = true, is_enum_variant_ctor = true)
             func_decl.func_type = FuncType.ExtFunc
             ref vtype : Str = variant_types.get(j)
             if vtype.len().gt(0) {
-                param := Declaration(name = "val", explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref)
+                mut payload_own_type := OwnType.Own
+                resolved := type_from_name_init(vtype, scope)
+                if is_primitive(resolved) { payload_own_type = OwnType.Ref }
+                if vtype.eq("Dynamic") { payload_own_type = OwnType.Ref }
+                if resolved.is(Type.FuncPtr) { payload_own_type = OwnType.Ref }
+                if vtype.starts_with("_Fn_") { payload_own_type = OwnType.Ref }
+                param := Declaration(name = "val", explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = payload_own_type)
                 func_decl.params.push(own param)
             }
             func_decl.return_type = ename.clone()
@@ -1039,7 +1045,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
                 ret.add_child(own fmt_call)
                 then_body.add_child(own ret)
             } else {
-                mut ret_str := Expr.new(NodeType.Literal(Literal.Str(vn)), line, col)
+                mut ret_str := Expr.new(NodeType.Literal(Literal.Str(vn.clone())), line, col)
                 mut ret := Expr.new(NodeType.Return, line, col)
                 ret.add_child(own ret_str)
                 then_body.add_child(own ret)
@@ -1058,7 +1064,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
             var_acc.add_child(own ename_id)
             eq_call.add_child(own var_acc)
 
-            mut ret_str := Expr.new(NodeType.Literal(Literal.Str(vn)), line, col)
+            mut ret_str := Expr.new(NodeType.Literal(Literal.Str(vn.clone())), line, col)
             mut ret := Expr.new(NodeType.Return, line, col)
             ret.add_child(own ret_str)
             mut then_body := Expr.new(NodeType.Body, line, col)
@@ -1094,7 +1100,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
     }
 }
 
-generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     // Tag-only enums (no variant carries a payload) need an if-guard
     // for every variant so the auto-gen body always reads ~self~ at
@@ -1126,7 +1132,21 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32
             mut ctor_call := Expr.new(NodeType.FCall(FCallData()), line, col)
             ctor_call.add_child(own ctor_acc)
             mut p_id := Expr.new(ident_node(pn), line, col)
-            ctor_call.add_child(own p_id)
+            // Issue #109: variant ctor payload param is Own for compound
+            // types -- a clone() body produces a fresh enum with its own
+            // owned payload, so deep-clone the extracted payload before
+            // the ctor call. Primitives / Dynamic / FuncSig stay plain.
+            resolved_pc := type_from_name_init(vtype, scope)
+            payload_needs_clone := is_primitive(resolved_pc).not()
+                .and(vtype.eq("Dynamic").not())
+                .and(resolved_pc.is(Type.FuncPtr).not())
+                .and(vtype.starts_with("_Fn_").not())
+            if payload_needs_clone {
+                mut clone_call := make_method_call_fcall(own p_id, "clone", line, col)
+                ctor_call.add_child(own clone_call)
+            } else {
+                ctor_call.add_child(own p_id)
+            }
             ctor_expr = ctor_call
         } else {
             ctor_expr = ctor_acc
@@ -1231,7 +1251,7 @@ gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     variant_types := Vec.new(Str)
     mut has_payloads := false
     collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
-    generate_enum_variant_constructors(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads)
+    generate_enum_variant_constructors(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
 
     mut has_is := false
     mut has_eq := false
@@ -1282,7 +1302,7 @@ register_enums_and_generate_nonclone_methods := proc(ctx: Context, program: Expr
     return errors
 }
 
-gen_missing_enum_clone_for_stmt := func(stmt: Expr) {
+gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
 
@@ -1314,15 +1334,15 @@ gen_missing_enum_clone_for_stmt := func(stmt: Expr) {
         variant_types := Vec.new(Str)
         mut has_payloads := false
         collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
-        generate_enum_clone_method(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads)
+        generate_enum_clone_method(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
         Vec.delete(own variant_names, false)
         Vec.delete(own variant_types, false)
     }
 }
 
-generate_missing_enum_clones := func(program: Expr) {
+generate_missing_enum_clones := func(program: Expr, scope: TypeScope) {
     for stmt : Expr in program.children {
-        gen_missing_enum_clone_for_stmt(stmt)
+        gen_missing_enum_clone_for_stmt(stmt, scope)
     }
 }
 
@@ -2357,7 +2377,7 @@ init_declarations := proc(ctx: Context, program: Expr, scope: TypeScope) returns
     for ei : U32 in enum_idxs {
         ref stmt : Expr = program.child(ei)
         gen_enum_nonclone_methods_for_stmt(stmt, scope)
-        gen_missing_enum_clone_for_stmt(stmt)
+        gen_missing_enum_clone_for_stmt(stmt, scope)
     }
     for si : U32 in struct_idxs {
         ref stmt : Expr = program.child(si)
@@ -2829,7 +2849,7 @@ init_declarations_global := proc(ctx: Context, program: Expr, scope: TypeScope) 
         gen_struct_clone_delete_for_stmt(program.child(si), scope)
     }
     for ei : U32 in enum_idxs {
-        gen_missing_enum_clone_for_stmt(program.child(ei))
+        gen_missing_enum_clone_for_stmt(program.child(ei), scope)
     }
     // Layouts.
     for si : U32 in struct_idxs {

@@ -669,6 +669,7 @@ typedef struct FunctionDef {
     I32 kwargs_index;
     OwnType return_own_type;
     Bool auto_generated;
+    Bool is_enum_variant_ctor;
 } FunctionDef;
 
 
@@ -1166,15 +1167,15 @@ Bool priv___src_self_initer_til__is_pod_type_for_clone(Str * type_name, TypeScop
 void gen_struct_clone_delete_for_stmt(Expr * stmt, TypeScope * scope);
 I32 register_enum_definition(Context * ctx, Expr * stmt, TypeScope * scope);
 void collect_enum_variants(Expr * enum_def, Vec * variant_names, Vec * variant_types, Bool * has_payloads);
-void priv___src_self_initer_til__generate_enum_variant_constructors(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads);
+void priv___src_self_initer_til__generate_enum_variant_constructors(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
 void priv___src_self_initer_til__generate_enum_is_method(Expr * enum_def, Str * ename, U32 line, U32 col);
 void generate_enum_eq_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, TypeScope * scope);
 void generate_enum_delete_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
 void generate_enum_to_str_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
-void generate_enum_clone_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads);
+void generate_enum_clone_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
 I32 register_enum_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void gen_enum_nonclone_methods_for_stmt(Expr * stmt, TypeScope * scope);
-void gen_missing_enum_clone_for_stmt(Expr * stmt);
+void gen_missing_enum_clone_for_stmt(Expr * stmt, TypeScope * scope);
 void register_funcsig_alias_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void register_type_alias_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void register_top_level_value_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
@@ -1427,6 +1428,7 @@ Bool priv___src_self_typer_til__body_pre_passes(Context * ctx, Expr * body, Type
 void apply_hoist_to_stmt(Context * ctx, Expr * stmt, Vec * new_ch, TypeScope * scope);
 void apply_call_hoist_delete(Context * ctx, Expr * stmt, Vec * new_ch, TypeScope * scope, Bool has_array_vec, Bool has_variadic, Bool has_kwargs, Bool do_hoist, Bool needs_delete);
 void hoist_param_swap_assign(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
+Bool fcall_variant_ctor_arg_is_own(Expr * expr, U32 i, TypeScope * scope);
 void hoist_expr(Context * ctx, Expr * expr, Vec * hoisted, TypeScope * scope);
 void hoist_decl_rhs(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_if_cond(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);

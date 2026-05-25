@@ -278,7 +278,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                         md.run_ok = parse_kv(result_line, "run_ok")
                         md.run_mem = parse_kv(result_line, "run_mem")
                         md.output_match = parse_kv(result_line, "match")
-                        t.kind = TestKind.Mode(md)
+                        t.kind = TestKind.Mode(md.clone())
                     case:
                     }
 

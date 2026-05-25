@@ -1,5 +1,13 @@
 # Agent Instructions
 
+## Brevity
+
+Be brief. LLMs write faster than humans read, so long replies just get
+skipped. Get to the point: lead with the answer or result, drop the
+preamble, recaps, and self-narration. A few sentences beats paragraphs.
+When the user asks a question, answer it directly; never reply with
+"I don't know X, want me to find out?" -- just find out.
+
 ## Decision Making
 
 Do not stall the user with questions.

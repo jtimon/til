@@ -1833,6 +1833,13 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             }
         }
         np2 := ns_fdef.params.len()
+        if ns_fdef.is_enum_variant_ctor {
+            for i in 1..e.children.len() {
+                if i.sub(1).gte(np2) { break }
+                ref pp_evc : Declaration = ns_fdef.params.get(i.sub(1))
+                if pp_evc.own_type.is(OwnType.Own) { set_own_arg(e, i) }
+            }
+        }
         if ns_fdef.params.len().gt(0) {
             for i in 1..e.children.len() {
                 if i.sub(1).gte(np2) { break }
@@ -5229,7 +5236,7 @@ priv build_bang_lowered := func(ctx: Context, error_type: Str, shallow line: U32
     mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
     panic_call.add_child(own Expr.new(ident_node("panic"), line, col))
     panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(loc_str)), line, col))
-    panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(error_type)), line, col))
+    panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(error_type.clone())), line, col))
     mut blk := Expr.new(NodeType.Body, line, col)
     blk.add_child(own make_assign_stmt("_err_kind", make_int_lit(0, line, col), line, col))
     blk.add_child(own panic_call)
@@ -7160,7 +7167,7 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     set_call.add_child(own key_lit)
 
     tname := type_to_name(expr_til_type(val))
-    mut type_lit := Expr.new(NodeType.Literal(Literal.Str(tname)), fcall.line, fcall.col)
+    mut type_lit := Expr.new(NodeType.Literal(Literal.Str(tname.clone())), fcall.line, fcall.col)
     set_call.add_child(own type_lit)
 
     mut size_call := make_ns_call(tname, "size", usize_type(scope), fcall)
@@ -7850,6 +7857,51 @@ hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoisted: V
     }
 }
 
+// Issue #109: is FCall `expr` an enum variant constructor whose param
+// at arg index `i` (1-based: child(i)) is Own? The callee is a
+// FieldAccess `EnumName.Variant`. Resolves the enum def, finds the
+// variant ctor FuncDef in its ns_decls, and reads param[i-1].own_type.
+// Used by the hoist pass to mark the hoisted-temp arg Own independently
+// of the per-call own_arg bit (which the auto-own pass may not have
+// reached on a synthesized/hoisted call).
+fcall_variant_ctor_arg_is_own := func(expr: Expr, shallow i: U32, scope: TypeScope) returns shallow Bool {
+    if expr.node_type.is(NodeType.FCall).not() { return false }
+    if expr.children.len().lt(2) { return false }
+    ref callee : Expr = expr.child(0)
+    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
+    if callee.children.len().eq(0) { return false }
+    mut method := ""
+    switch callee.node_type {
+    case NodeType.FieldAccess(fad): method = field_access_name(fad)
+    case: return false
+    }
+    ref type_node : Expr = callee.child(0)
+    mut tn := ""
+    switch type_node.node_type {
+    case NodeType.Ident(idd): tn = ident_name(idd)
+    case: return false
+    }
+    ref sdef : Expr = scope.get_struct(tn)
+    if is_null(sdef) { return false }
+    if sdef.node_type.is(NodeType.EnumDef).not() { return false }
+    ref vc_ns : Vec = def_ns_decls(sdef)
+    for fd : Declaration in vc_ns {
+        if fd.name.eq(method).not() { continue }
+        if is_null(fd.default_value) { return false }
+        if fd.default_value.node_type.is(NodeType.FuncDef).not() { return false }
+        switch fd.default_value.node_type {
+        case NodeType.FuncDef(vfd):
+            if vfd.is_enum_variant_ctor.not() { return false }
+            pidx := i.sub(1)
+            if pidx.gte(vfd.params.len()) { return false }
+            ref vp : Declaration = vfd.params.get(pidx)
+            return vp.own_type.is(OwnType.Own)
+        case: return false
+        }
+    }
+    return false
+}
+
 hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     if expr.node_type.is(NodeType.FuncDef) { return }
     if expr.node_type.is(NodeType.StructDef) { return }
@@ -7932,6 +7984,19 @@ hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope
         }
         } else {
             slot_is_own = get_own_arg(expr, i)
+        }
+        // Issue #109: enum variant constructors (callee is a FieldAccess
+        // `EnumName.Variant`, not a bare Ident, so is_ctor_call is false)
+        // take their compound payload Own. The auto-own bit may not have
+        // reached this synthesized/hoisted call, so resolve the variant
+        // ctor's param ownership directly here rather than trusting
+        // get_own_arg -- otherwise the hoisted temp stays a stack value
+        // and the Own ctor body free()s a stack address.
+        if slot_is_own.not().and(fcall_variant_ctor_arg_is_own(expr, i, scope)) {
+            slot_is_own = true
+            // Also set the call's own_arg bit -- the builder reads it
+            // (not the temp's own_type) to decide malloc-wrap vs `&`.
+            set_own_arg(expr, i)
         }
 
         expr.children.set(i, own hoist_to_temp(ctx, arg.clone(), hoisted, scope, slot_is_own))

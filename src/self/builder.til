@@ -2851,8 +2851,10 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr) {
                 } else if is_funcsig_type(vt).or(vt.eq("Dynamic")) {
                     f.write("    r->data."); f.write(vn); f.write(" = val;\n")
                 } else {
-                    tnc := type_name_to_c(vt)
-                    f.write("    { "); f.write(tnc); f.write(" _tmp = "); f.write(vt); f.write("_clone(val); r->data."); f.write(vn); f.write(" = *_tmp; free(_tmp); }\n")
+                    // Issue #109: payload param is Own -- caller transferred
+                    // the heap `val`, so move its contents and free it.
+                    f.write("    r->data."); f.write(vn); f.write(" = *val;\n")
+                    f.write("    free(val);\n")
                 }
                 f.write("    return r;\n"); f.write("}\n")
             }

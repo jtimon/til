@@ -284,7 +284,7 @@ namespace:
             // clone allocated a fresh one (count > 0 and cap < CAP_VIEW);
             // count == 0 keeps the source's c_str shared.
             mut tmp := si.clone()
-            out := Value.Struct(tmp)
+            out := Value.Struct(tmp.clone())
             if is_null(tmp.data).not() {
                 if tmp.struct_name.eq("Str") {
                     ref s_str : Str = to_ptr(tmp.data)
@@ -301,7 +301,7 @@ namespace:
             // so the returned Value's payload owns a fresh buffer.
             // tmp.data is orphaned and leaks under the no-op delete.
             mut tmp := ei.clone()
-            out := Value.Enum(tmp)
+            out := Value.Enum(tmp.clone())
             if is_null(tmp.data).not() {
                 free(own tmp.data)
                 tmp.data = NULL

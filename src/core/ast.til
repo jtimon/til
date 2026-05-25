@@ -226,6 +226,7 @@ FunctionDef := struct {
     // bodies so genuinely-unused priv members don't get masked by
     // boilerplate references.
     mut auto_generated := false
+    mut is_enum_variant_ctor := false
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type.eq(b.return_type) }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }
