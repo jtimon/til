@@ -230,7 +230,7 @@ priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) retur
         ref n : Str = coverage.sub_names.get(csi)
         if n.eq(variant_name) { return csi.to_i32() }
     }
-    return -1.to_i32()
+    return -1
 }
 
 // Read-only mirror of mark_pattern_coverage: true iff every value the
@@ -5688,7 +5688,7 @@ priv process_throw_catch_in_body := proc(
                                         }
                                     }
                                 }
-                                scan_decl = -1.to_i32()
+                                scan_decl = -1
                                 continue
                             }
                         case:
@@ -7030,7 +7030,7 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                                     case NodeType.Ident(_an):
                                         if ident_name(_an).eq(var_name).not() { continue }
                                         // Resolve the receiving field.
-                                        mut fd_idx : I32 = -1.to_i32()
+                                        mut fd_idx : I32 = -1
                                         if field_name.is_empty() {
                                             // Positional: arg position ci-1 maps to field index.
                                             fd_idx = ci.sub(1).to_i32()
@@ -8202,7 +8202,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
             delta := 1.to_i32().sub(vc.to_i32())
             fcall_data.kwargs_index = fcall_data.kwargs_index.add(delta)
         }
-        fcall_data.variadic_index = -1.to_i32()
+        fcall_data.variadic_index = -1
         fcall_data.variadic_count = 0
     case:
         UNREACHABLE(__LOC__)
@@ -8294,7 +8294,7 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr) returns shallow Bool {
         }
         fcall.children.move_from(fcall_new_ch)
         set_own_arg(fcall, vi.to_usize())
-        fcd.variadic_index = -1.to_i32()
+        fcd.variadic_index = -1
         fcd.variadic_count = 0
         return true
     case:
@@ -8359,7 +8359,7 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
 
         fcall.children.move_from(fcall_new_ch)
         fcd.own_args = new_own
-        fcd.kwargs_index = -1.to_i32()
+        fcd.kwargs_index = -1
         fcd.kwargs_count = 0
     case:
         UNREACHABLE(__LOC__)

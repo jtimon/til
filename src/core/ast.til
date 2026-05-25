@@ -217,8 +217,8 @@ FunctionDef := struct {
     // the function does not throw. Names match Type.Custom payloads
     // (e.g. ~"DivideByZero"~, ~"Str"~).
     mut throw_types := Vec.new(Str)
-    mut variadic_index : I32 = -1.to_i32()
-    mut kwargs_index : I32 = -1.to_i32()
+    mut variadic_index : I32 = -1
+    mut kwargs_index : I32 = -1
     mut return_own_type := OwnType.Own
     // #187 step 2: set true on FuncDefs emitted by initer's auto-gen
     // helpers (clone/delete/size/eq/to_str/variant constructors).
@@ -235,9 +235,9 @@ namespace:
 // --- FCall payload struct ---
 /// Per-callsite data for function calls: variadic/kwargs counts, own_args bitmap.
 FCallData := struct {
-    mut variadic_index : I32 = -1.to_i32()
+    mut variadic_index : I32 = -1
     mut variadic_count : USize = 0
-    mut kwargs_index : I32 = -1.to_i32()
+    mut kwargs_index : I32 = -1
     mut kwargs_count : USize = 0
     mut is_splat := false
     // Issue #198: parser sets this when the call is followed by ~?~,
@@ -520,9 +520,9 @@ namespace:
         mut out := Expr(node_type = data.clone(), line = line, col = col)
         switch out.node_type {
         case NodeType.FCall(fcall_data):
-            fcall_data.variadic_index = -1.to_i32()
+            fcall_data.variadic_index = -1
             fcall_data.variadic_count = 0
-            fcall_data.kwargs_index = -1.to_i32()
+            fcall_data.kwargs_index = -1
             fcall_data.kwargs_count = 0
         case:
         }
@@ -851,10 +851,10 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
             ref vn : Str = edd.variants.get(i)
             if vn.eq(variant_name) { return i.to_i32() }
         }
-        return -1.to_i32()
+        return -1
     case:
         UNREACHABLE(__LOC__)
-        return -1.to_i32()
+        return -1
     }
 }
 

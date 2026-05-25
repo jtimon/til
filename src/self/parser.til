@@ -128,8 +128,8 @@ priv parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U
     else { fd.func_type = FuncType.Proc }
     fd.return_type = return_type
     fd.return_own_type = OwnType.Own
-    fd.variadic_index = -1.to_i32()
-    fd.kwargs_index = -1.to_i32()
+    fd.variadic_index = -1
+    fd.kwargs_index = -1
     for i in 0..ptypes.len() {
         ref t : Str = ptypes.get(i)
         ref m : Bool = pmuts.get(i)
@@ -218,7 +218,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                     panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                         ": kwargs parameter cannot be own/mut/shallow")
                 }
-                if fd.kwargs_index.neq(-1.to_i32()) {
+                if fd.kwargs_index.neq(-1) {
                     panic(__LOC__, "only one kwargs parameter is allowed")
                 }
                 fd.kwargs_index = fd.params.len().to_i32()
@@ -243,7 +243,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if own_type.is(OwnType.Own) { panic(__LOC__, "variadic param cannot be 'own'") }
                 if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
                 if own_type.is(OwnType.Shallow) { panic(__LOC__, "variadic param cannot be 'shallow'") }
-                if fd.variadic_index.neq(-1.to_i32()) { panic(__LOC__, "only one variadic param allowed") }
+                if fd.variadic_index.neq(-1) { panic(__LOC__, "only one variadic param allowed") }
                 fd.variadic_index = fd.params.len().to_i32()
                 is_variadic = true
                 // Same as kwargs above: regular til funcs get auto-cleanup
@@ -283,13 +283,13 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             param_decl.default_value = parse_expression(p)
             has_default = true
         }
-        if fd.variadic_index.neq(-1.to_i32()).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
+        if fd.variadic_index.neq(-1).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
             panic(__LOC__, "positional param not allowed after variadic")
         }
         // Variadic and kwargs may coexist (Python-style *args + **kwargs);
         // when both are present, kwargs must come last so positional vs
         // named-arg slots don't get tangled at the call site.
-        if fd.kwargs_index.neq(-1.to_i32()).and(is_kwargs.not()) {
+        if fd.kwargs_index.neq(-1).and(is_kwargs.not()) {
             panic(__LOC__, "no parameter allowed after kwargs")
         }
 
@@ -1160,8 +1160,8 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 // Build incomplete FuncDef (types filled by initer)
                 mut ffd := FunctionDef()
                 ffd.func_type = FuncType.Func // placeholder
-                ffd.variadic_index = -1.to_i32()
-                ffd.kwargs_index = -1.to_i32()
+                ffd.variadic_index = -1
+                ffd.kwargs_index = -1
                 for pn : Str in pnames {
                     ffd.params.push(own Declaration(name = pn.clone(), own_type = OwnType.Ref))
                 }

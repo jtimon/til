@@ -26,7 +26,7 @@ priv LocalInfo := struct {
     mut type := Type.Unknown
     mut decl_index : I32 = 0
     mut last_use : I32 = 0
-    mut own_transfer : I32 = -1.to_i32()
+    mut own_transfer : I32 = -1
     mut skip_scope_delete := false
     mut is_heap := false
 }
@@ -72,7 +72,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
             case:
             }
         }
-        if decl_idx.eq(-1.to_i32()) {
+        if decl_idx.eq(-1) {
             for j in 0..body.children.len() {
                 if expr_contains_decl(body.child(j), b.name) {
                     decl_idx = j.to_i32()
@@ -93,7 +93,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
             if expr_uses_var(stmt, b.name) {
                 last_use = j.to_i32()
             }
-            if own_transfer.eq(-1.to_i32()) {
+            if own_transfer.eq(-1) {
                 if expr_transfers_own(stmt, b.name, scope) {
                     own_transfer = j.to_i32()
                 }
@@ -233,7 +233,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
                     ref_last = j.to_i32()
                 }
             }
-            if ref_last.eq(-1.to_i32()) { ref_last = i.to_i32() }
+            if ref_last.eq(-1) { ref_last = i.to_i32() }
             for local : LocalInfo in locals {
                 if local.name.eq(dd_name).and(local.last_use.gt(ref_last)) {
                     ref_last = local.last_use
@@ -365,7 +365,7 @@ insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
         if local.decl_index.lt(stmt_idx.to_i32()) {
-            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1.to_i32())) {
+            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
                 live_vec.push(own local.clone())
             }
         }
@@ -401,7 +401,7 @@ insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: V
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
         if local.decl_index.lt(stmt_idx.to_i32()) {
-            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1.to_i32())) {
+            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
                 if type_to_name(local.type).len().gt(0) {
                     heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
@@ -536,7 +536,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
                 if is_null(del).not() { new_ch.push(own del) }
             }
         }
-        if local.last_use.eq(-1.to_i32()).and(local.decl_index.eq(stmt_idx.to_i32())) {
+        if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i32())) {
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
                 del := make_delete_call(local.name, local.type, heap, heap, stmt)

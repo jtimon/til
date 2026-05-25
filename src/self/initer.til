@@ -309,7 +309,7 @@ Context := struct {
 }
 
 priv align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {
-    return offset.add(align).sub(1).and(align.sub(1).xor(-1.to_i32()))
+    return offset.add(align).sub(1).and(align.sub(1).xor(-1))
 }
 
 // Build a UFCS-style method call FCall ~recv.method(args...)~. Returns
@@ -641,8 +641,8 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
             if field_names.len().eq(0) { self_pname = "_self" }
             func_decl.params.push(own Declaration(name = self_pname, explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref))
             func_decl.return_type = sname.clone()
-            func_decl.variadic_index = -1.to_i32()
-            func_decl.kwargs_index = -1.to_i32()
+            func_decl.variadic_index = -1
+            func_decl.kwargs_index = -1
 
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
             func_def.add_child(own func_body)
@@ -714,8 +714,8 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
             proc_decl.func_type = FuncType.Func
             proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Own))
             proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
-            proc_decl.variadic_index = -1.to_i32()
-            proc_decl.kwargs_index = -1.to_i32()
+            proc_decl.variadic_index = -1
+            proc_decl.kwargs_index = -1
 
             mut proc_def := Expr.new(NodeType.FuncDef(proc_decl), stmt.line, stmt.col)
             proc_def.add_child(own proc_body)
@@ -811,8 +811,8 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shal
                 func_decl.params.push(own param)
             }
             func_decl.return_type = ename.clone()
-            func_decl.variadic_index = -1.to_i32()
-            func_decl.kwargs_index = -1.to_i32()
+            func_decl.variadic_index = -1
+            func_decl.kwargs_index = -1
 
             mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col)
             mut func_body := Expr.new(NodeType.Body, line, col)
@@ -847,8 +847,8 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, shallow line: U
     func_decl.params.push(own other_param)
     func_decl.return_type = "Bool"
     func_decl.return_own_type = OwnType.Shallow
-    func_decl.variadic_index = -1.to_i32()
-    func_decl.kwargs_index = -1.to_i32()
+    func_decl.variadic_index = -1
+    func_decl.kwargs_index = -1
 
     mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col)
     func_def.add_child(own func_body)
@@ -930,8 +930,8 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
     fdecl.params.push(own Declaration(name = "other", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
     fdecl.return_type = "Bool"
     fdecl.return_own_type = OwnType.Shallow
-    fdecl.variadic_index = -1.to_i32()
-    fdecl.kwargs_index = -1.to_i32()
+    fdecl.variadic_index = -1
+    fdecl.kwargs_index = -1
 
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
@@ -1001,8 +1001,8 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
     fdecl.func_type = FuncType.Func
     fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Own))
     fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
-    fdecl.variadic_index = -1.to_i32()
-    fdecl.kwargs_index = -1.to_i32()
+    fdecl.variadic_index = -1
+    fdecl.kwargs_index = -1
 
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own proc_body)
@@ -1103,8 +1103,8 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
     fdecl.func_type = FuncType.Func
     fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
     fdecl.return_type = "Str"
-    fdecl.variadic_index = -1.to_i32()
-    fdecl.kwargs_index = -1.to_i32()
+    fdecl.variadic_index = -1
+    fdecl.kwargs_index = -1
 
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
@@ -1229,8 +1229,8 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32
     fdecl.func_type = FuncType.Func
     fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
     fdecl.return_type = ename.clone()
-    fdecl.variadic_index = -1.to_i32()
-    fdecl.kwargs_index = -1.to_i32()
+    fdecl.variadic_index = -1
+    fdecl.kwargs_index = -1
 
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
@@ -1615,8 +1615,8 @@ gen_struct_size_method_for_stmt := func(stmt: Expr) {
         func_decl.func_type = FuncType.Func
         func_decl.return_type = "USize"
         func_decl.return_own_type = OwnType.Shallow
-        func_decl.variadic_index = -1.to_i32()
-        func_decl.kwargs_index = -1.to_i32()
+        func_decl.variadic_index = -1
+        func_decl.kwargs_index = -1
 
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
@@ -1670,8 +1670,8 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     func_decl.func_type = FuncType.Func
     func_decl.return_type = "USize"
     func_decl.return_own_type = OwnType.Shallow
-    func_decl.variadic_index = -1.to_i32()
-    func_decl.kwargs_index = -1.to_i32()
+    func_decl.variadic_index = -1
+    func_decl.kwargs_index = -1
 
     mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
     func_def.add_child(own func_body)
@@ -1752,8 +1752,8 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
         func_decl.func_type = FuncType.Func
         param := Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), is_mut = true, own_type = OwnType.Ref)
         func_decl.params.push(own param)
-        func_decl.variadic_index = -1.to_i32()
-        func_decl.kwargs_index = -1.to_i32()
+        func_decl.variadic_index = -1
+        func_decl.kwargs_index = -1
 
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own proc_body)
@@ -1828,8 +1828,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
         func_decl.return_own_type = OwnType.Shallow
-        func_decl.variadic_index = -1.to_i32()
-        func_decl.kwargs_index = -1.to_i32()
+        func_decl.variadic_index = -1
+        func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
         switch def.node_type {
@@ -1865,8 +1865,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
         func_decl.return_own_type = OwnType.Shallow
-        func_decl.variadic_index = -1.to_i32()
-        func_decl.kwargs_index = -1.to_i32()
+        func_decl.variadic_index = -1
+        func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
         switch def.node_type {
@@ -1899,8 +1899,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
         func_decl.return_own_type = OwnType.Shallow
-        func_decl.variadic_index = -1.to_i32()
-        func_decl.kwargs_index = -1.to_i32()
+        func_decl.variadic_index = -1
+        func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
         switch def.node_type {
@@ -1931,8 +1931,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
         func_decl.return_own_type = OwnType.Shallow
-        func_decl.variadic_index = -1.to_i32()
-        func_decl.kwargs_index = -1.to_i32()
+        func_decl.variadic_index = -1
+        func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
         switch def.node_type {
@@ -1963,8 +1963,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
         func_decl.return_own_type = OwnType.Shallow
-        func_decl.variadic_index = -1.to_i32()
-        func_decl.kwargs_index = -1.to_i32()
+        func_decl.variadic_index = -1
+        func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
         switch def.node_type {
@@ -1995,8 +1995,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
         func_decl.return_own_type = OwnType.Shallow
-        func_decl.variadic_index = -1.to_i32()
-        func_decl.kwargs_index = -1.to_i32()
+        func_decl.variadic_index = -1
+        func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
         switch def.node_type {
