@@ -177,6 +177,13 @@ Context := struct {
     mut scope := TypeScope()
     mut is_repl := false
 
+    // Precomp state moved off module globals. The same Context crosses
+    // imported files and later phases, so these three tables live here
+    // directly rather than as a separate module-global side store.
+    mut precomp_macros := Set.new(Str)
+    mut precomp_funcs := Set.new(Str)
+    mut precomp_known := Map.new(Str, Value)
+
     // True while the typer is inferring a struct/enum namespace member
     // (set in infer_type_def_expr).  Lets infer_func_def_expr accept
     // test() decls at the namespace level even though scope.parent is

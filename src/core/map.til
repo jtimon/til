@@ -40,6 +40,13 @@ namespace:
 
     len := func(self: Map) returns USize { return self.keys.count }
 
+    /// Drop all live keys and values but keep the allocated storage and
+    /// comparator/type metadata so the Map can be reused.
+    clear := func(mut self: Map) {
+        Vec.clear(self.keys)
+        Vec.clear(self.values)
+    }
+
     /// Ref to the key slot at sorted index `i`.
     key_ptr := func(self: Map, i: USize) returns ref Dynamic {
         return self.keys.get(i)
@@ -138,6 +145,7 @@ namespace:
     }
 
     delete := func(own self: Map, call_free: Bool = true) {
+        Map.clear(self)
         Vec.delete(own self.keys, false)
         Vec.delete(own self.values, false)
         if call_free { free(own self) }

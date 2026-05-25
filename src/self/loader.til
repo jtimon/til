@@ -256,24 +256,22 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     // read shared Context fields
     // (cached_str/array/vec_def) populated by interpreter_init_ns below.
     codegen_set_lp(lp)
+    precomp_reset_state(lp.ctx)
     // 1) Collect macro and pure func names across all files
-    macros = Set.new(Str)
-    funcs = Set.new(Str)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            precomp_scan_names(iu.ast)
+            precomp_scan_names(iu.ast, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        precomp_scan_names(iu.ast)
+        precomp_scan_names(iu.ast, lp.ctx)
     }
 
     // Nothing to fold?
-    if macros.count.eq(0).and(funcs.count.eq(0)) {
-        Set.delete(own macros, false)
-        Set.delete(own funcs, false)
+    if lp.ctx.precomp_macros.count.eq(0).and(lp.ctx.precomp_funcs.count.eq(0)) {
+        precomp_reset_state(lp.ctx)
         codegen_clear_lp()
         return
     }
@@ -295,12 +293,12 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            precomp_register_globals(global, iu.ast)
+            precomp_register_globals(global, iu.ast, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        precomp_register_globals(global, iu.ast)
+        precomp_register_globals(global, iu.ast, lp.ctx)
     }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -335,7 +333,6 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     ffi_loaded = true
 
     // 3) Fold calls in every file
-    known = Map.new(Str, Value)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -349,17 +346,8 @@ precomp_imported := proc(mut lp: LoadedProgram) {
         process_body(global, iu.ast, lp.ctx, true)
     }
 
-    // Cleanup. Free each known value's heap payload before the Map drops
-    // them: StructInstance.delete is a no-op on .data (callers that move
-    // payloads via memcpy rely on that), so we do the deep free here.
-    for ki in 0..known.len() {
-        ref kv : Value = Map.val_ptr(known, ki)
-        cleanup_value_payload(kv)
-    }
-    Map.delete(own known, false)
     scope_free(own global)
-    Set.delete(own macros, false)
-    Set.delete(own funcs, false)
+    precomp_reset_state(lp.ctx)
     codegen_clear_lp()
 }
 
@@ -717,7 +705,6 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     // Single resolved set for all imports (core + user), so no file is loaded twice
     resolved := Set.new(Str)
     resolve_stack := Vec.new(Expr)
-    ctx := Context()
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
     abs_path := realpath_str(path)
@@ -733,7 +720,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     mut core_mode_str := ""
     core_ast := parse(core_tokens, core_disp.clone(), core_mode_str)
     ref core_mode : Mode = require_mode(core_disp, "lib")
-    context_register_path_mode(ctx, core_disp, core_mode)
+    context_register_path_mode(lp.ctx, core_disp, core_mode)
 
     // Add core.til to resolved set; skip prepending if user file IS core.til
     mut skip_core := false
@@ -751,7 +738,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
-            core_units, "", ctx, "lib", cwd)
+            core_units, "", lp.ctx, "lib", cwd)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve core imports")
         }
@@ -766,8 +753,8 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     imports := extract_imports(user_ast, path)
     mode_str = normalize_mode_name(mode_str)
     ref mut cur_mode : Mode = require_mode(path, mode_str)
-    context_register_path_mode(ctx, path, cur_mode)
-    ctx.mode = cur_mode.clone()
+    context_register_path_mode(lp.ctx, path, cur_mode)
+    lp.ctx.mode = cur_mode.clone()
 
     // If mode has auto_import, load its .til declarations
     auto_import := cur_mode.auto_import
@@ -778,7 +765,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     user_import_disps := resolve_import_disps(imports, user_dir, lib_dir, cwd)
     if imports.len().gt(0) {
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
-            units, lib_dir, ctx, "", cwd)
+            units, lib_dir, lp.ctx, "", cwd)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve imports")
         }
@@ -788,11 +775,11 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     mut core_iu := ImportUnit(mode = core_mode.clone())
     core_iu.ast.take_children(core_ast)
     core_iu.imports = resolve_import_disps(core_imports, bin_dir.concat("/src/core"), "", cwd)
-    ctx.imported.set(own core_disp.clone(), own core_iu)
+    lp.ctx.imported.set(own core_disp.clone(), own core_iu)
 
     // Core entrypoint unit (after its imports).
     mut core_unit := ProgramUnit(path = core_disp.clone(), mode = core_mode.clone())
-    ref ciu : ImportUnit = ctx.imported.get(core_disp)
+    ref ciu : ImportUnit = lp.ctx.imported.get(core_disp)
     core_unit.imports = ciu.imports.clone()
     core_units.push(own core_unit)
 
@@ -808,14 +795,14 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         mode_ast := parse(mode_tokens, mode_disp, mode_mode)
         mode_mode = normalize_mode_name(mode_mode)
         ref mode_mode_def : Mode = require_mode(mode_disp, mode_mode)
-        context_register_path_mode(ctx, mode_disp, mode_mode_def)
+        context_register_path_mode(lp.ctx, mode_disp, mode_mode_def)
 
         // Resolve the auto-import file's own imports (mirrors core.til).
         mode_imports := extract_imports(mode_ast, mode_disp)
         mode_dir := bin_dir.concat("/src/modes")
         if mode_imports.len().gt(0) {
             err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
-                units, lib_dir, ctx, "", cwd)
+                units, lib_dir, lp.ctx, "", cwd)
             if err.gt(0) {
                 panic(__LOC__, "failed to resolve mode auto-import imports")
             }
@@ -825,11 +812,11 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
         mut mode_iu := ImportUnit(mode = mode_mode_def.clone())
         mode_iu.ast.take_children(mode_ast)
         mode_iu.imports = resolve_import_disps(mode_imports, mode_dir, lib_dir, cwd)
-        ctx.imported.set(own mode_disp.clone(), own mode_iu)
+        lp.ctx.imported.set(own mode_disp.clone(), own mode_iu)
 
         // Mode auto-import unit.
         mut mode_unit := ProgramUnit(path = mode_disp.clone(), mode = mode_mode_def.clone())
-        ref miu : ImportUnit = ctx.imported.get(mode_disp)
+        ref miu : ImportUnit = lp.ctx.imported.get(mode_disp)
         mode_unit.imports = miu.imports.clone()
         units.push(own mode_unit)
 
@@ -848,7 +835,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     } else {
         user_iu.imports = user_import_disps.clone()
     }
-    ctx.imported.set(own path.clone(), own user_iu)
+    lp.ctx.imported.set(own path.clone(), own user_iu)
 
     // User entrypoint unit.
     mut user_unit := ProgramUnit(path = path.clone(), mode = cur_mode.clone())
@@ -865,9 +852,8 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     lp.core_units = core_units
     lp.units = units
     lp.cur_mode = cur_mode.clone()
-    lp.ctx = ctx
 
-    // ctx.imported is populated during import resolution and for the
+    // lp.ctx.imported is populated during import resolution and for the
     // entrypoint files above.
 
     lp.skip_core = skip_core

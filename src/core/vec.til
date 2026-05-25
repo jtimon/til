@@ -50,6 +50,17 @@ namespace:
 
     len := func(self: Vec) returns shallow USize { return self.count }
 
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    clear := func(mut self: Vec) {
+        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
+            for i in 0..self.count {
+                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+            }
+        }
+        self.count = 0
+    }
+
     /// Append an element to the end. `val` is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: Vec, own val: Dynamic) {
@@ -223,11 +234,7 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     delete := func(own self: Vec, call_free: Bool = true) {
-        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
-            for i in 0..self.count {
-                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
-            }
-        }
+        Vec.clear(self)
         free(own self.data)
         if self.elem_type.is_empty().not() {
             Str.delete(own self.elem_type, false)

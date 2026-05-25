@@ -36,6 +36,18 @@ namespace:
 
     len := func(self: Set) returns USize { return self.count }
 
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Set can be reused.
+    clear := func(mut self: Set) {
+        if self.elem_type.is_empty().not() {
+            for i in 0..self.count {
+                self.elem_delete(
+                          ptr_add(self.data, i.mul(self.elem_size)), false)
+            }
+        }
+        self.count = 0
+    }
+
     /// True if the set contains an element equal to `val`.
     has := func(self: Set, val: Dynamic) returns shallow Bool {
         mut lo : USize = 0
@@ -90,12 +102,7 @@ namespace:
     }
 
     delete := func(own self: Set, call_free: Bool = true) {
-        if self.elem_type.is_empty().not() {
-            for i in 0..self.count {
-                self.elem_delete(
-                          ptr_add(self.data, i.mul(self.elem_size)), false)
-            }
-        }
+        Set.clear(self)
         free(own self.data)
         if self.elem_type.is_empty().not() {
             Str.delete(own self.elem_type, false)

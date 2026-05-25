@@ -1,16 +1,26 @@
 mode lib
 
 // Precomp: constant folding for macros and pure functions
-mut macros := Set.new(Str)
-mut funcs := Set.new(Str)
-mut known := Map.new(Str, Value)
-
-precomp_has_macro := func(name: Str) returns shallow Bool {
-    return macros.has(name)
+precomp_clear_known := func(mut ctx: Context) {
+    for i in 0..ctx.precomp_known.len() {
+        ref v : Value = Map.val_ptr(ctx.precomp_known, i)
+        cleanup_value_payload(v)
+    }
+    Map.clear(ctx.precomp_known)
 }
 
-precomp_has_func := func(name: Str) returns shallow Bool {
-    return funcs.has(name)
+precomp_reset_state := func(mut ctx: Context) {
+    precomp_clear_known(ctx)
+    Set.clear(ctx.precomp_macros)
+    Set.clear(ctx.precomp_funcs)
+}
+
+precomp_has_macro := func(ctx: Context, name: Str) returns shallow Bool {
+    return ctx.precomp_macros.has(name)
+}
+
+precomp_has_func := func(ctx: Context, name: Str) returns shallow Bool {
+    return ctx.precomp_funcs.has(name)
 }
 
 
@@ -283,7 +293,7 @@ expr_to_value := func(e: Expr) returns shallow Value {
     }
 }
 
-is_known := func(e: Expr, mut out: Value) returns shallow Bool {
+is_known := func(ctx: Context, e: Expr, mut out: Value) returns shallow Bool {
     switch e.node_type {
     case NodeType.Literal(Literal.Num):
         out = expr_to_value(e)
@@ -295,8 +305,8 @@ is_known := func(e: Expr, mut out: Value) returns shallow Bool {
         out = expr_to_value(e)
         return true
     case NodeType.Ident(id):
-        if known.has(id.clone()) {
-            ref v : Value = known.get(id.clone())
+        if ctx.precomp_known.has(ident_name(id)) {
+            ref v : Value = ctx.precomp_known.get(ident_name(id))
             out = v
             return true
         }
@@ -309,12 +319,12 @@ is_known := func(e: Expr, mut out: Value) returns shallow Bool {
 // Cheap is_known check that doesn't allocate or fill an out-Value.
 // Use when callers only need the boolean and would otherwise leak the
 // throwaway temporary they pass to is_known.
-is_known_check := func(e: Expr) returns shallow Bool {
+is_known_check := func(ctx: Context, e: Expr) returns shallow Bool {
     switch e.node_type {
     case NodeType.Literal(Literal.Num):  return true
     case NodeType.Literal(Literal.Str):  return true
     case NodeType.Literal(Literal.Bool): return true
-    case NodeType.Ident(id): return known.has(ident_name(id))
+    case NodeType.Ident(id):   return ctx.precomp_known.has(ident_name(id))
     case:                      return false
     }
 }
@@ -342,7 +352,7 @@ body_has_local := proc(body: Expr, name: Str) returns shallow Bool {
 // any Ident not in params/known/scope is unknown, which keeps macro
 // fold from forcing eval into a body whose hoisted temps the eval
 // scope can't see.
-func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool, mut visiting: Set) returns shallow Bool {
+func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool, mut visiting: Set, ctx: Context) returns shallow Bool {
     switch e.node_type {
     case NodeType.FuncDef:
         return false
@@ -358,7 +368,7 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
             }
         case:
         }
-        if known.has(ident_name(name)) { return false }
+        if ctx.precomp_known.has(ident_name(name)) { return false }
         ref _cell : Cell = scope_get(precomp_scope, ident_name(name))
         if is_null(_cell).not() {
             // The Ident resolves to something in precomp scope. If it's
@@ -374,7 +384,7 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
                     case NodeType.FuncDef:
                         if _fdef.children.len().gt(0) {
                             ref _called_body : Expr = _fdef.child(0)
-                            if func_uses_unknown_globals(_called_body, _fdef, precomp_scope, _called_body, lenient, visiting) {
+                            if func_uses_unknown_globals(_called_body, _fdef, precomp_scope, _called_body, lenient, visiting, ctx) {
                                 return true
                             }
                         }
@@ -404,7 +414,7 @@ func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope,
     case:
     }
     for e_ci : Expr in e.children {
-        if func_uses_unknown_globals(e_ci, func_def, precomp_scope, body_root, lenient, visiting) { return true }
+        if func_uses_unknown_globals(e_ci, func_def, precomp_scope, body_root, lenient, visiting, ctx) { return true }
     }
     return false
 }
@@ -572,7 +582,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             case NodeType.Ident(_ri):
                 ref _probe : Value = ns_get(ident_name(_ri), "size")
                 if is_null(_probe) {
-                    if known.has(ident_name(_ri)).not() { return NULL }
+                    if ctx.precomp_known.has(ident_name(_ri)).not() { return NULL }
                 }
             case:
             }
@@ -600,9 +610,9 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             if fdef.children.len().gt(0) {
                 // Issue #191: skip unknown-global check for macro calls.
                 if is_macro_mode.not() {
-                    mut fuug_visiting := Set.new(Str)
-                    uses_unknown := func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), true, fuug_visiting)
-                    Set.delete(own fuug_visiting, false)
+                    mut _fuug_visiting := Set.new(Str)
+                    uses_unknown := func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), true, _fuug_visiting, ctx)
+                    Set.delete(own _fuug_visiting, false)
                     if uses_unknown {
                         return NULL
                     }
@@ -621,7 +631,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     for i in 0..nargs {
         ref arg : Expr = fcall.child(i.add(1))
         mut arg_val := val_none()
-        mut arg_is_known := is_known(arg, arg_val)
+        mut arg_is_known := is_known(ctx, arg, arg_val)
         // Issue #191: also check interpreter scope for arg values
         if arg_is_known.not() {
             switch arg.node_type {
@@ -750,18 +760,18 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     return heap_lit
 }
 
-track_literal := func(scope: Scope, name: Str, rhs: Expr) {
+track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
     mut v := val_none()
-    if is_known(rhs, v) {
+    if is_known(ctx, rhs, v) {
         // Map.set deletes the old value via Value.delete(false), which is
         // a no-op on .data -- so a same-name overwrite leaks the old
         // payload. Deep-free it before set.
-        if known.has(name) {
-            ref old : Value = known.get(name)
+        if ctx.precomp_known.has(name) {
+            ref old : Value = ctx.precomp_known.get(name)
             cleanup_value_payload(old)
         }
         mut vcopy := v
-        known.set(own name.clone(), own vcopy)
+        ctx.precomp_known.set(own name.clone(), own vcopy)
         scope_set_owned(scope, name, v)
     }
 }
@@ -772,15 +782,15 @@ track_literal := func(scope: Scope, name: Str, rhs: Expr) {
 // the entire compilation). Without this split, freeing known's payloads
 // during the FuncDef save/restore would dangle the shared scope binding
 // and corrupt the heap on the next interpreter lookup that touched it.
-track_literal_known_only := func(name: Str, rhs: Expr) {
+track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
     mut v := val_none()
-    if is_known(rhs, v) {
-        if known.has(name) {
-            ref old : Value = known.get(name)
+    if is_known(ctx, rhs, v) {
+        if ctx.precomp_known.has(name) {
+            ref old : Value = ctx.precomp_known.get(name)
             cleanup_value_payload(old)
         }
         mut vcopy := v
-        known.set(own name.clone(), own vcopy)
+        ctx.precomp_known.set(own name.clone(), own vcopy)
     }
     // is_known writes through `mut out: Value`, allocating Str payload
     // bytes inside the caller's v for LiteralStr inputs. Unlike
@@ -794,33 +804,35 @@ track_literal_known_only := func(name: Str, rhs: Expr) {
     cleanup_value_payload(v)
 }
 
-is_macro_call := func(e: Expr) returns shallow Bool {
+is_macro_call := func(e: Expr, ctx: Context) returns shallow Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
     switch callee.node_type {
-    case NodeType.Ident(cname): return precomp_has_macro(ident_name(cname))
+    case NodeType.Ident(cname):
+        return precomp_has_macro(ctx, ident_name(cname))
     case NodeType.FieldAccess(mname):
         sname := fa_recv_type_name(callee)
         if sname.is_empty() { return false }
-                qname := sname.format("_", field_access_name(mname))
-        return precomp_has_macro(qname.clone())
+        qname := sname.format("_", field_access_name(mname))
+        return precomp_has_macro(ctx, qname)
     case:
         return false
     }
 }
 
-is_func_call := func(e: Expr) returns shallow Bool {
+is_func_call := func(e: Expr, ctx: Context) returns shallow Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
     switch callee.node_type {
-    case NodeType.Ident(cname): return precomp_has_func(ident_name(cname))
+    case NodeType.Ident(cname):
+        return precomp_has_func(ctx, ident_name(cname))
     case NodeType.FieldAccess(mname):
         sname := fa_recv_type_name(callee)
         if sname.is_empty() { return false }
         qname := sname.format("_", field_access_name(mname))
-        return precomp_has_func(qname.clone())
+        return precomp_has_func(ctx, qname)
     case:
         return false
     }
@@ -837,7 +849,7 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         // Save+restore `known` around any nested FuncDef body so user-named
         // locals tracked inside one func body don't pollute siblings.
         if child.node_type.is(NodeType.FuncDef) {
-            mut snapshot_fd := known.clone()
+            mut snapshot_fd := ctx.precomp_known.clone()
             fold_subtree(scope, child, ctx)
             // Free payloads of every entry in `known` (both inherited
             // and inner-fold-added) before dropping the Map. Map.delete
@@ -847,32 +859,32 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // snapshot wired into known. Safe because body-local
             // track_literal_known_only does not share Value payloads
             // with `scope`.
-            for ki in 0..known.len() {
-                ref kv : Value = Map.val_ptr(known, ki)
+            for ki in 0..ctx.precomp_known.len() {
+                ref kv : Value = Map.val_ptr(ctx.precomp_known, ki)
                 cleanup_value_payload(kv)
             }
-            Map.delete(own known, false)
+            Map.clear(ctx.precomp_known)
             // Transfer snapshot_fd into known via memcpy (avoids the
             // implicit Map.clone that til codegen would emit for a plain
             // `known = snapshot_fd`, which would leak a second deep
             // copy of every value). memset snapshot_fd to zero so its
             // scope-end Map.delete becomes a no-op.
-            memcpy(known, snapshot_fd, Map.size().to_u64())
-            memset(snapshot_fd, 0, Map.size().to_u64())
+            memcpy(ctx.precomp_known, snapshot_fd, Map.size().to_u64())
+            memset(snapshot_fd, 0.to_i32(), Map.size().to_u64())
             continue
         }
         fold_subtree(scope, child, ctx)
         if child.node_type.is(NodeType.FCall) {
-            if is_macro_call(child) {
+            if is_macro_call(child, ctx) {
                 // Issue #191: always fold macro calls. Typer already
                 // validated that all args are comptime.
                 ref lit : Expr = try_eval_call(scope, child, true, ctx)
                 if is_null(lit).not() { e.children.set(i, own lit.clone()) }
-            } else if is_func_call(child) {
+            } else if is_func_call(child, ctx) {
                 // Issue #191: fold func calls when all args are comptime.
                 mut all_comptime := true
                 for ai in 1..child.children.len() {
-                    if is_known_check(child.child(ai)).not() {
+                    if is_known_check(ctx, child.child(ai)).not() {
                         all_comptime = false
                         break
                     }
@@ -898,7 +910,7 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             if dd.is_mut.not()
             .and(dd.own_type.is(OwnType.Ref).not())
             .and(child.children.len().gt(0)) {
-                track_literal_known_only(dd.name, child.child(0))
+                track_literal_known_only(dd.name, child.child(0), ctx)
             }
         case:
         }
@@ -939,7 +951,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, shallow at_global: 
         case NodeType.Decl(dd):
             if dd.is_mut { continue }
             if dd.own_type.is(OwnType.Ref) { continue }
-            track_literal(scope, dd.name, rhs)
+            track_literal(scope, dd.name, rhs, ctx)
         case:
         }
     }
@@ -995,7 +1007,7 @@ priv expr_uses_var_p := func(e: Expr, name: Str) returns shallow Bool {
     return false
 }
 
-precomp_scan_names := func(prog: Expr) {
+precomp_scan_names := func(prog: Expr, ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             switch stmt.child(0).node_type {
@@ -1003,10 +1015,10 @@ precomp_scan_names := func(prog: Expr) {
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     if fd.func_type.is(FuncType.Macro) {
-                        macros.add(own dd.name.clone())
+                        ctx.precomp_macros.add(own dd.name.clone())
                     } else if fd.func_type.is(FuncType.Func)
                         .or(fd.func_type.is(FuncType.ExtFunc)) {
-                        funcs.add(own dd.name.clone())
+                        ctx.precomp_funcs.add(own dd.name.clone())
                     }
                 case:
                 }
@@ -1020,10 +1032,10 @@ precomp_scan_names := func(prog: Expr) {
                         case NodeType.FuncDef(ffd):
                             qname := sdd.name.format("_", fdd.name)
                             if ffd.func_type.is(FuncType.Macro) {
-                                macros.add(own qname)
+                                ctx.precomp_macros.add(own qname)
                             } else if ffd.func_type.is(FuncType.Func)
                                 .or(ffd.func_type.is(FuncType.ExtFunc)) {
-                                funcs.add(own qname)
+                                ctx.precomp_funcs.add(own qname)
                             }
                         case:
                         }
@@ -1040,10 +1052,10 @@ precomp_scan_names := func(prog: Expr) {
                         case NodeType.FuncDef(ffd):
                             qname := sdd.name.format("_", nsd.name)
                             if ffd.func_type.is(FuncType.Macro) {
-                                macros.add(own qname)
+                                ctx.precomp_macros.add(own qname)
                             } else if ffd.func_type.is(FuncType.Func)
                                 .or(ffd.func_type.is(FuncType.ExtFunc)) {
-                                funcs.add(own qname)
+                                ctx.precomp_funcs.add(own qname)
                             }
                         case:
                         }
@@ -1078,7 +1090,7 @@ precomp_register_defs := func(mut global: Scope, prog: Expr) {
 
 // Issue #191: register global constants in the precomp scope before
 // folding, so macro bodies that call procs can access them.
-precomp_register_globals := func(mut global: Scope, prog: Expr) {
+precomp_register_globals := func(mut global: Scope, prog: Expr, ctx: Context) {
     // Hardcode core constants that macro bodies may need.
     // CAP_VIEW = -2 as USize (U32) = 0xFFFFFFFE = 4294967294
     // CAP_LIT = -1 as USize (U32) = 0xFFFFFFFF = 4294967295
@@ -1102,7 +1114,7 @@ precomp_register_globals := func(mut global: Scope, prog: Expr) {
                     // Only register literals for now. Complex expressions
                     // like `-1.to_usize()` need full interpreter support.
                     mut v := val_none()
-                    if is_known(rhs, v) {
+                    if is_known(ctx, rhs, v) {
                         scope_set_owned(global, dd.name, v)
                     }
                 }
@@ -1113,16 +1125,14 @@ precomp_register_globals := func(mut global: Scope, prog: Expr) {
 }
 
 precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
+    precomp_reset_state(ctx)
     // 1. Collect macro and pure func names
-    macros = Set.new(Str)
-    funcs = Set.new(Str)
-    if is_null(core_program).not() { precomp_scan_names(core_program) }
-    precomp_scan_names(program)
+    if is_null(core_program).not() { precomp_scan_names(core_program, ctx) }
+    precomp_scan_names(program, ctx)
 
     // Nothing to fold?
-    if macros.count.eq(0).and(funcs.count.eq(0)) {
-        Set.delete(own macros, false)
-        Set.delete(own funcs, false)
+    if ctx.precomp_macros.count.eq(0).and(ctx.precomp_funcs.count.eq(0)) {
+        precomp_reset_state(ctx)
         return
     }
 
@@ -1132,8 +1142,8 @@ precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     precomp_register_defs(global, program)
     // Issue #191: register global constants before folding so macro bodies
     // that call procs can access them (e.g. CAP_VIEW for Str ops).
-    if is_null(core_program).not() { precomp_register_globals(global, core_program) }
-    precomp_register_globals(global, program)
+    if is_null(core_program).not() { precomp_register_globals(global, core_program, ctx) }
+    precomp_register_globals(global, program, ctx)
     if is_null(core_program).not() { interpreter_init_ns(ctx, global, core_program) }
     interpreter_init_ns(ctx, global, program)
 
@@ -1145,19 +1155,9 @@ precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     }
 
     // 3. Fold calls in both core and user programs.
-    known = Map.new(Str, Value)
     if is_null(core_program).not() { process_body(global, core_program, ctx, true) }
     process_body(global, program, ctx, true)
 
-    // Cleanup. Free each known value's heap payload before the Map drops
-    // them: StructInstance.delete is a no-op on .data (callers that move
-    // payloads via memcpy rely on that), so we do the deep free here.
-    for i in 0..known.len() {
-        ref v : Value = Map.val_ptr(known, i)
-        cleanup_value_payload(v)
-    }
-    Map.delete(own known, false)
     scope_free(own global)
-    Set.delete(own macros, false)
-    Set.delete(own funcs, false)
+    precomp_reset_state(ctx)
 }

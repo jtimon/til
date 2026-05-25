@@ -5,11 +5,15 @@ import("builder")
 
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 
-// Active file path for diagnostics (Expr no longer stores path).
-mut interp_path := ""
+interp_error_path := func() returns Str {
+    if is_null(codegen_lp_slot).not() {
+        return codegen_lp().ctx.path.clone()
+    }
+    return ""
+}
 
 interp_error := proc(e: Expr, msg: Str) {
-    println(interp_path, ":", e.line.to_str(), ":", e.col.to_str(), ": error: ", msg)
+    println(interp_error_path(), ":", e.line.to_str(), ":", e.col.to_str(), ": error: ", msg)
 }
 
 interp_lang_error := proc(e: Expr, msg: Str) {
@@ -2114,15 +2118,17 @@ interpret_copy_alias_ns := func(prog: Expr, global: Scope) {
 }
 
 interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32 {
+    mut lp := LoadedProgram()
+    context_enter_file(lp.ctx, path)
     mut user_argc : U32 = 0
     if is_null(user_argv).not() { user_argc = user_argv.len() }
 
     ffi_rc := ffi_init(program, fwd_path, user_c, ext_c, link_flags)
     if ffi_rc.to_i64().eq(0).not() { return ffi_rc }
     if is_null(core_program).not() { ffi_init_scan_program(core_program) }
+    codegen_set_lp(lp)
 
     global := scope_new(NULL)
-    mut ctx := Context()
 
     // Pre-register func/struct/enum definitions
     if is_null(core_program).not() { interpret_register_defs(global, core_program) }
@@ -2133,8 +2139,8 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     interpret_register_aliases(global, program)
 
     // Initialize namespace fields
-    if is_null(core_program).not() { interpreter_init_ns(ctx, global, core_program) }
-    interpreter_init_ns(ctx, global, program)
+    if is_null(core_program).not() { interpreter_init_ns(lp.ctx, global, core_program) }
+    interpreter_init_ns(lp.ctx, global, program)
 
     // Copy namespace entries for type aliases
     if is_null(core_program).not() { interpret_copy_alias_ns(core_program, global) }
@@ -2262,7 +2268,8 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     scope_free(own global)
     ffi_cleanup()
     ns_inited = false
-    return 0
+    codegen_clear_lp()
+    return 0.to_i32()
 }
 
 // Per-file interpreter entrypoint (rstil-style): uses the canonical per-file
@@ -2350,13 +2357,13 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            interp_path = u.path.clone()
+            context_enter_file(lp.ctx, u.path)
             eval_body(global, iu.ast)
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        interp_path = u.path.clone()
+        context_enter_file(lp.ctx, u.path)
         eval_body(global, iu.ast)
     }
 
@@ -2377,7 +2384,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
                             case NodeType.Decl(dd):
                                 test_count = test_count.add(1)
                                 test_scope := scope_new(global)
-                                interp_path = lp.path.clone()
+                                context_enter_file(lp.ctx, u.path)
                                 eval_body(test_scope, stmt.child(0).child(0))
                                 if has_return {
                                     return_value = return_value.clone()
@@ -2407,7 +2414,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
                                     if nsfd.func_type.is(FuncType.Test).not() { continue }
                                     test_count = test_count.add(1)
                                     test_scope := scope_new(global)
-                                    interp_path = lp.path.clone()
+                                    context_enter_file(lp.ctx, u.path)
                                     eval_body(test_scope, nsfdef.child(0))
                                     if has_return {
                                         return_value = return_value.clone()
