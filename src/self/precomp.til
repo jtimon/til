@@ -600,8 +600,10 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             if fdef.children.len().gt(0) {
                 // Issue #191: skip unknown-global check for macro calls.
                 if is_macro_mode.not() {
-                    mut _fuug_visiting := Set.new(Str)
-                    if func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), true, _fuug_visiting) {
+                    mut fuug_visiting := Set.new(Str)
+                    uses_unknown := func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), true, fuug_visiting)
+                    Set.delete(own fuug_visiting, false)
+                    if uses_unknown {
                         return NULL
                     }
                 }
