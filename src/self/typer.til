@@ -8040,7 +8040,7 @@ hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope
             set_own_arg(expr, i)
         }
 
-        expr.children.set(i, own hoist_to_temp(ctx, arg.clone(), hoisted, scope, slot_is_own))
+        expr.children.set(i, own hoist_to_temp(ctx, arg, hoisted, scope, slot_is_own))
     }
 }
 
