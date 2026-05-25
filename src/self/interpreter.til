@@ -347,20 +347,12 @@ Scope := struct {
     ref mut parent : Scope = NULL
 }
 
-// --- Return value mechanism ---
-mut has_return := false
-mut has_break := false
-mut has_continue := false
-mut return_value := Value.None
-
-// Cached struct defs for C-side construction live on Context
-// (cached_str_def/_name, cached_array_def/_name, cached_vec_def/_name).
-// Populated during interpret_register_struct_defs; read here through
-// codegen_lp().ctx.cached_*.
-
-// --- Namespace fields (static struct fields) ---
-mut ns_fields := Map.new(Str, Value)
-mut ns_keys := Vec.new(Dynamic)
+// Return-value / control-flow state and namespace fields now live on
+// Context (has_return, has_break, has_continue, return_value,
+// ns_fields, ns_keys, ns_inited), reached in the eval functions via
+// `ref mut c : Context = codegen_lp().ctx`. Cached struct defs for
+// C-side construction likewise live on Context (cached_*_def),
+// populated during interpret_register_struct_defs.
 
 // --- Type-def registry: maps struct/enum names to their AST def Expr.
 // Populated by interpreter_init_ns from every struct/enum decl seen in core+user
@@ -768,10 +760,11 @@ resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr
 }
 
 eval_body := proc(scope: Scope, mut body: Expr) {
+    ref mut c : Context = codegen_lp().ctx
     for mut e_i : Expr in body.children {
-        if has_return { return }
-        if has_break { return }
-        if has_continue { return }
+        if c.has_return { return }
+        if c.has_break { return }
+        if c.has_continue { return }
         ref mut stmt : Expr = e_i
         switch stmt.node_type {
         case NodeType.Decl(dd):
@@ -918,8 +911,8 @@ eval_body := proc(scope: Scope, mut body: Expr) {
         case NodeType.Body:
             block_scope := scope_new(scope)
             eval_body(block_scope, stmt)
-            if has_return {
-                return_value = return_value.clone()
+            if c.has_return {
+                c.return_value = c.return_value.clone()
             }
             scope_free(own block_scope)
         case NodeType.If:
@@ -934,17 +927,17 @@ eval_body := proc(scope: Scope, mut body: Expr) {
             if cv {
                 then_scope := scope_new(scope)
                 eval_body(then_scope, stmt.child(1))
-                if has_return { return_value = return_value.clone() }
+                if c.has_return { c.return_value = c.return_value.clone() }
                 scope_free(own then_scope)
             } else if stmt.children.len().gt(2) {
                 else_scope := scope_new(scope)
                 eval_body(else_scope, stmt.child(2))
-                if has_return { return_value = return_value.clone() }
+                if c.has_return { c.return_value = c.return_value.clone() }
                 scope_free(own else_scope)
             }
         case NodeType.While:
             while true {
-                if has_return { break }
+                if c.has_return { break }
                 cond := eval_expr(scope, stmt.child(0))
                 mut cv := false
                 switch cond {
@@ -956,22 +949,22 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                 if cv.not() { break }
                 while_scope := scope_new(scope)
                 eval_body(while_scope, stmt.child(1))
-                if has_return { return_value = return_value.clone() }
+                if c.has_return { c.return_value = c.return_value.clone() }
                 scope_free(own while_scope)
-                if has_break { has_break = false; break }
-                if has_continue { has_continue = false }
+                if c.has_break { c.has_break = false; break }
+                if c.has_continue { c.has_continue = false }
             }
         case NodeType.Break:
-            has_break = true
+            c.has_break = true
         case NodeType.Continue:
-            has_continue = true
+            c.has_continue = true
         case NodeType.Return:
             if stmt.children.len().gt(0) {
-                return_value = eval_expr(scope, stmt.child(0))
+                c.return_value = eval_expr(scope, stmt.child(0))
             } else {
-                return_value = val_none()
+                c.return_value = val_none()
             }
-            has_return = true
+            c.has_return = true
         case:
             interp_lang_error(stmt, "unexpected statement type")
             exit(1)
@@ -980,6 +973,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
 }
 
 eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
+    ref mut c : Context = codegen_lp().ctx
     ref callee_expr : Expr = e.child(0)
 
     // Namespace method call: Struct.method(args)
@@ -999,9 +993,9 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                 UNREACHABLE(__LOC__)
             }
             if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
-                for ki in 0..ns_fields.len() {
-                    ref qn : Str = Map.key_ptr(ns_fields, ki)
-                    ref nsv : Value = Map.val_ptr(ns_fields, ki)
+                for ki in 0..c.ns_fields.len() {
+                    ref qn : Str = Map.key_ptr(c.ns_fields, ki)
+                    ref nsv : Value = Map.val_ptr(c.ns_fields, ki)
                     switch nsv {
                     case Value.Func(nsv_fptr):
                         ref nsv_fdef : Expr = deref(nsv_fptr)
@@ -1134,12 +1128,12 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
             }
         case:
         }
-        has_return = false
+        c.has_return = false
         eval_body(call_scope, body_ns)
         mut result := val_none()
-        if has_return {
-            result = return_value.clone()
-            has_return = false
+        if c.has_return {
+            result = c.return_value.clone()
+            c.has_return = false
         }
         scope_free(own call_scope)
         return result
@@ -1305,12 +1299,12 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                 }
             }
 
-            has_return = false
+            c.has_return = false
             eval_body(call_scope2, body2)
             mut result := val_none()
-            if has_return {
-                result = return_value.clone()
-                has_return = false
+            if c.has_return {
+                result = c.return_value.clone()
+                c.has_return = false
             }
             scope_free(own call_scope2)
             return result
@@ -1693,12 +1687,11 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     return make_struct_value(lp.ctx.cached_array_name, lp.ctx.cached_array_def, to_ptr(inst_data), false)
 }
 
-mut ns_inited := false
 interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) {
-    if ns_inited.not() {
-        ns_fields = Map.new(Str, Value)
-        ns_keys = Vec.new(Dynamic)
-        ns_inited = true
+    if ctx.ns_inited.not() {
+        ctx.ns_fields = Map.new(Str, Value)
+        ctx.ns_keys = Vec.new(Dynamic)
+        ctx.ns_inited = true
     }
     for stmt : Expr in program.children {
         switch stmt.node_type {
@@ -1747,17 +1740,19 @@ priv ns_qname := func(sname: Str, fname: Str) returns Str {
 }
 
 ns_get := func(sname: Str, fname: Str) returns ref Value {
+    ref mut c : Context = codegen_lp().ctx
     qn := ns_qname(sname, fname)
-    if ns_fields.has(qn).not() { return NULL }
-    ref v : Value = ns_fields.get(qn)
+    if c.ns_fields.has(qn).not() { return NULL }
+    ref v : Value = c.ns_fields.get(qn)
     return v
 }
 
 
 ns_set := func(sname: Str, fname: Str, shallow val: Value) {
+    ref mut c : Context = codegen_lp().ctx
     qn := ns_qname(sname, fname)
     mut vcopy := val
-    ns_fields.set(own qn, own vcopy)
+    c.ns_fields.set(own qn, own vcopy)
 }
 
 make_str_value := func(data: Dynamic, shallow len: U64) returns shallow Value {
@@ -2117,6 +2112,7 @@ interpret_copy_alias_ns := func(prog: Expr, global: Scope) {
 
 interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32 {
     mut lp := LoadedProgram()
+    ref mut c : Context = lp.ctx
     context_enter_file(lp.ctx, path)
     mut user_argc : U32 = 0
     if is_null(user_argv).not() { user_argc = user_argv.len() }
@@ -2162,8 +2158,8 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
                             test_count = test_count.add(1)
                             test_scope := scope_new(global)
                             eval_body(test_scope, stmt.child(0).child(0))
-                            if has_return {
-                                return_value = return_value.clone()
+                            if c.has_return {
+                                c.return_value = c.return_value.clone()
                             }
                             scope_free(own test_scope)
                             pass_count = pass_count.add(1)
@@ -2265,7 +2261,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
 
     scope_free(own global)
     ffi_cleanup()
-    ns_inited = false
+    c.ns_inited = false
     codegen_clear_lp()
     return 0.to_i32()
 }
@@ -2277,6 +2273,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     // Ensure codegen_lp() is available throughout interpretation so
     // interpreter helpers can read shared Context fields (#177/#178).
     codegen_set_lp(lp)
+    ref mut c : Context = lp.ctx
     // Ensure builtin dispatch table is initialized deterministically.
     if dispatch_inited.not() { dispatch_init() }
 
@@ -2384,8 +2381,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
                                 test_scope := scope_new(global)
                                 context_enter_file(lp.ctx, u.path)
                                 eval_body(test_scope, stmt.child(0).child(0))
-                                if has_return {
-                                    return_value = return_value.clone()
+                                if c.has_return {
+                                    c.return_value = c.return_value.clone()
                                 }
                                 scope_free(own test_scope)
                                 pass_count = pass_count.add(1)
@@ -2414,8 +2411,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
                                     test_scope := scope_new(global)
                                     context_enter_file(lp.ctx, u.path)
                                     eval_body(test_scope, nsfdef.child(0))
-                                    if has_return {
-                                        return_value = return_value.clone()
+                                    if c.has_return {
+                                        c.return_value = c.return_value.clone()
                                     }
                                     scope_free(own test_scope)
                                     pass_count = pass_count.add(1)
@@ -2522,7 +2519,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
 
     scope_free(own global)
     ffi_cleanup()
-    ns_inited = false
+    c.ns_inited = false
     codegen_clear_lp()
     return 0
 }

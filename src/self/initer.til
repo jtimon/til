@@ -184,6 +184,19 @@ Context := struct {
     mut precomp_funcs := Set.new(Str)
     mut precomp_known := Map.new(Str, Value)
 
+    // Interpreter runtime state, moved off module globals (same
+    // direct-on-Context approach as the precomp tables above). The
+    // control-flow flags and return slot drive eval_body /
+    // eval_user_func; ns_fields/ns_keys hold static struct fields keyed
+    // `<Type>.<field>`; ns_inited guards their one-time (re)creation.
+    mut has_return := false
+    mut has_break := false
+    mut has_continue := false
+    mut return_value := Value.None
+    mut ns_fields := Map.new(Str, Value)
+    mut ns_keys := Vec.new(Dynamic)
+    mut ns_inited := false
+
     // True while the typer is inferring a struct/enum namespace member
     // (set in infer_type_def_expr).  Lets infer_func_def_expr accept
     // test() decls at the namespace level even though scope.parent is
