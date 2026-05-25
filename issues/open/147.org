@@ -110,12 +110,15 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      rstil's ~FCallInfo~ also has ~does_throw~ / ~is_bang~ parse facts
      that til doesn't track yet -- those are additions, not
      replacements for the typer-artifact fields.
-   - Step 11 (stretch) -- remove ~Expr.til_type~. Long-term shape is
-     rstil's derive-from-Context+AST (no per-Expr storage, no node
-     IDs); see "Implications for removal" below for the path. Tracked
-     separately under ~[[./206.org][#206]]~ (hybrid path: push per-variant type
-     storage into NodeType payloads, slice by slice, before the final
-     cut). Once
+   - Step 11 (stretch) -- *done* (via ~[[./206.org][#206]]~). ~Expr.til_type~ removed;
+     ~expr_til_type~ is now a pure function of ~node_type~ + payload
+     (no per-Expr storage). The hybrid path won: per-variant type
+     storage lives on the NodeType payloads (~IdentData~,
+     ~LiteralNumData~, ~FCallData~, ~FieldAccessData~, ~ForInData~)
+     and the trivially-derivable variants (literals, Map/Set, NamedArg,
+     the 19 type-less statement nodes) derive on demand. The further
+     rstil-style derive-from-Context+AST shape (no payload storage at
+     all) is not pursued here. Once
      ~Expr.til_type~ is gone (or absent on Idents specifically),
      ~narrow_dynamic~ ([[file:../../src/self/typer.til:5224][src/self/typer.til:5224]]) loses its in-place
      mutation target and would have to hoist a typed Decl instead --

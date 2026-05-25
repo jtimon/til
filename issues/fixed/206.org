@@ -1,5 +1,32 @@
 # priority: medium
-** OPEN #206 Remove Expr.til_type: move type info into NodeType payloads (hybrid path, step 11 of #147)
+** DONE #206 Remove Expr.til_type: move type info into NodeType payloads (hybrid path, step 11 of #147)
+
+   Shipped. ~Expr.til_type~ is gone from ~src/core/ast.til~; the ~Expr~
+   struct now carries only ~node_type~ / ~children~ / ~line~ / ~col~.
+   ~expr_til_type~ is a pure function of ~node_type~ + payload with no
+   per-Expr storage, and ~set_expr_til_type~ / ~set_fcall_til_type~
+   write into the payload of the variant being typed.
+
+   Type storage that survived the cut lives on the NodeType payloads:
+   ~IdentData.til_type~, ~LiteralNumData.til_type~ (Int vs Float
+   disambiguation), ~FCallData.til_type~ (resolved return type),
+   ~FieldAccessData.til_type~, and ~ForInData.til_type~. The trivially
+   derivable variants compute on demand: ~LiteralStr -> Type.Struct("Str")~,
+   ~LiteralBool -> Type.Bool~, ~LiteralNull -> Type.Dynamic~,
+   ~MapLit -> Type.Struct("Map")~, ~SetLit -> Type.Struct("Set")~,
+   ~NamedArg~/~Assign~/~Return~/~Throw~ propagate the child's type, and
+   the remaining type-less statement nodes return ~Type.None~/~Type.Unknown~.
+
+   Slices that landed (all of 1-7 of the plan below):
+   - Ident, literal, FCall, FieldAccess, MapLit/SetLit/NamedArg type
+     storage migrated to payloads / on-demand derivation.
+   - The dead-variant ~Type.Unknown~ writes were dropped along with the
+     field, since ~expr_til_type~ now answers those variants directly.
+   - Final cut: ~Expr.til_type~ deleted; ~expr_til_type~ kept as the
+     read API, dispatching purely on ~node_type~.
+
+   #147 step 11 marked done. ~make clean && make test~ green
+   (two-pass bootstrap included).
 
    Carved out of [[./147.org][#147]] step 11. ~Expr.til_type~ is the per-Expr
    typer cache field documented in ~[[file:../../src/core/ast.til][src/core/ast.til]]~ at the
