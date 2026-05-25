@@ -1,0 +1,116 @@
+# priority: low
+** OPEN #210 Eliminate the per-literal malloc in dyn_type_to_str returns
+
+*** Summary
+
+`dyn_type_to_str(Type *type)` (emitted by `emit_dyn_type_to_str_body`
+in [[file:../../src/self/builder.til][src/self/builder.til]]) returns a `Str *` and, for every
+non-payload / nested-enum variant, returns a freshly malloc'd Str
+wrapper via `emit_str_lit_expr`:
+
+  case Type_TAG_I64: return ({ Str *_lit = malloc(sizeof(Str));
+      *_lit = (Str){.c_str=(void*)"I64", .count=3ULL, .cap=TIL_CAP_LIT};
+      _lit; });
+
+That's ~17 mallocs in the generated `dyn_type_to_str` (one per Type
+variant), each hit on every `dyn_fn` / `dyn_size_of` / `Array.new` /
+`Vec.new` / etc. dispatch that needs a type name. The literal data is
+static; only the Str wrapper is heap. The goal is to return the literal
+without the malloc.
+
+This is documented in [[file:../../doc/long.org][doc/long.org]] is the sibling debt to #209;
+this issue tracks the dyn_type_to_str-specific malloc.
+
+*** Why it is not a trivial "return a static Str"
+
+The function's return is HETEROGENEOUS:
+
+  - Literal cases (`I64`, `Bool`, nested enum variant names, fallback
+    `"?"`): the Str data is static -- a `static Str` or stack value
+    would do, no ownership.
+  - `Str_clone` cases (Custom / Struct / Enum type names, e.g.
+    `return Str_clone(&type->data.Custom)`): genuinely heap-owned --
+    the caller must free these.
+
+Callers do `elem_type := dyn_type_to_str(T)`; the typer treats the
+result as `Own` and emits `Str.delete(elem_type, true)` at scope exit.
+With a uniform `Str *` return and the caller always free-ing:
+
+  - Making the literals heap (current state) is the only way the
+    uniform `delete(.., true)` is correct for both kinds. Hence the
+    mallocs.
+
+*** Approaches considered and why each is blocked today
+
+1. *Make Str.delete skip free when cap == CAP_LIT.* Then literals could
+   be static and the caller's `delete(.., true)` would be a safe no-op.
+   BLOCKED: the `mut Str` param lowering uses a `swap` + `Str_delete(
+   wrapper, true)` idiom (see emitted `greet`/`out = out.concat(...)`),
+   where after `swap` a HEAP-allocated wrapper holds the literal's
+   fields (`cap == CAP_LIT`). Skipping free for CAP_LIT then leaks that
+   heap wrapper. Verified: it caused LeakSanitizer failures in
+   test/strings.til (test_mut_param_concat, test_join). A separate
+   `CAP_STATIC` sentinel does not escape this -- `swap` copies the
+   sentinel into the heap wrapper too.
+
+2. *Return `Str` by value (`returns shallow Str`).* Literals return a
+   stack `(Str){...}` cleanly. BLOCKED by the `Str_clone` cases: a
+   by-value return of the clone result would need `return *clone` plus
+   freeing the clone wrapper, and the heterogeneity makes the codegen
+   awkward; also every caller's binding shape changes.
+
+3. *Return `ref Str` (borrow).* Caller wouldn't own it -> no exit
+   delete -> literals as function-local `static Str` are fine. BLOCKED
+   by the `Str_clone` cases: those produce owned heap that nobody would
+   free -> leak.
+
+*** What needs further research
+
+1. *Rework `mut Str` lowering off the `swap` idiom* so wrapper cleanup
+   doesn't depend on the runtime `cap` of a possibly-swapped wrapper.
+   Concretely, replace `swap(out, new, sizeof(Str)); Str_delete(new,
+   true)` with an explicit form like:
+
+     Str *new = Str_concat(out, ...);
+     Str_delete(out, &(Bool){0});  // free old c_str if owned; not the wrapper
+     *out = *new;                  // move fields (incl. c_str ownership)
+     free(new);                    // free wrapper only -- known heap
+
+   With the wrapper-free as a plain `free` on a known-heap pointer, the
+   CAP_LIT-skip change to Str.delete (approach 1) becomes safe, which in
+   turn unblocks static literals in dyn_type_to_str. NOTE: this is the
+   same `mut Str`/swap machinery as #209's stack-local delete debt;
+   the two issues likely want to be solved together or in sequence.
+
+2. *Or split dyn_type_to_str's two return kinds.* E.g. return a small
+   tagged value (borrowed-static vs owned-heap) and have the ONE
+   reusable caller wrapper (it is almost always
+   `elem_type := dyn_type_to_str(T)` feeding `Array.new_type_name` /
+   `Vec.new_type_names` / `dyn_size_of`) clone-on-demand only when it
+   needs ownership. Audit the call sites: most consumers either compare
+   the name or clone it themselves, so many may not need an owned Str
+   at all -- a borrowed static would suffice and the `Str_clone` cases
+   could borrow into `type->data.Custom` (lifetime permitting).
+
+3. Audit lifetime of `type->data.Custom/Struct/Enum`: if the `Type`
+   value outlives the dyn_type_to_str result at every call site, the
+   `Str_clone` cases could become borrows (CAP_VIEW) instead of clones,
+   making ALL returns borrowed and removing both the mallocs and the
+   clones. Needs careful aliasing analysis -- the Type value can be a
+   temporary.
+
+*** Cheap interim note
+
+The 17 mallocs are small (one `sizeof(Str)` each) and short-lived;
+this is an allocation-count / churn optimization, not a correctness
+bug. dyn_type_to_str is correct as-is. Prioritize behind any real leak
+or UAF work.
+
+*** Context
+
+Fell out of the Str-literal stack-emission work (the `Str_lit` ->
+inline-compound-literal migration). All OTHER literal sites in the
+compiler now avoid the malloc (stack compound literals for Decls,
+`save_old_delete` direct assigns, etc.); dyn_type_to_str is the last
+holdout precisely because of the return-by-pointer + heterogeneous
+ownership combination above.

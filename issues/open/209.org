@@ -1,0 +1,120 @@
+# priority: low
+** OPEN #209 Move the stack-vs-heap Str delete decision out of the builder into the AST
+
+*** Summary
+
+`src/self/builder.til`'s FCall-delete emission path force-rewrites
+`<Type>.delete(name, <bool>)` into `<Type>_delete(&name, &(Bool){0})`
+for stack-local Str/POD-struct receivers, overriding whatever
+`call_free` bool the typer recorded in the AST. This is a workaround
+for the builder and the typer disagreeing about whether a binding is
+heap- or stack-allocated. The long-term fix is to make the AST the
+single source of truth: decide stack-vs-heap once (typer or a
+dedicated post-typer pass), record it on the Decl, and derive the
+cleanup bool from that record so the builder becomes a pure translator.
+
+This is documented in [[file:../../doc/long.org][doc/long.org]] ("Builder stack-local Str delete
+special-case"); this issue tracks actually doing it.
+
+*** Where the workaround lives
+
+`src/self/builder.til`, the `case NodeType.FCall:` arm of `emit_stmt`
+(grep for `Stack-local Str (compound-literal init)` and
+`is_stack_local(ident_name(del_arg))`). It currently fires when:
+
+  - the FCall is `<Type>.delete(name, call_free)`,
+  - `name` is `is_stack_local(...)`, AND
+  - the receiver's C type is `Str` or `is_pod_struct(ctype)`.
+
+In that case it emits `T_delete(&name, &(Bool){0})` regardless of the
+AST's `call_free` arg, and `(void)`s the hoisted call_free bool temp so
+`-Wunused-variable` doesn't trip.
+
+*** Why the disagreement exists
+
+The typer commits to `own_type` (hence `is_heap`, hence the generated
+`<Type>.delete(name, true|false)`) at type-check time. The builder
+LATER decides to stack-allocate certain bindings:
+
+  - LiteralStr-RHS Decls (emitted as `Str x = (Str){...};`).
+  - Shallow-return-FCall locals like `str_view` in
+    `src/self/interpreter.til` (`returns shallow Str`).
+  - POD-struct ctor Decls emitted as C compound literals.
+
+`call_free=true` on a stack pointer is undefined behaviour (free of a
+non-heap pointer), so the builder rewrites the call at emission time.
+
+*** What is already partly fixed
+
+The post-precomp fold case (a Decl whose FCall RHS was constant-folded
+to a LiteralStr after the typer ran) is ALREADY handled in the AST, not
+the builder: `fix_stale_litstr_in_body` in
+[[file:../../src/self/scavenger.til][src/self/scavenger.til]] re-aligns such Decls to `own_type =
+Shallow` and rewrites the matching `delete` stmt's bool arg to
+`Literal.Bool(false)`. So the litstr path no longer relies on the
+builder special-case -- DCE and emission both act on a correct AST.
+
+The builder special-case remains ONLY for the cases no post-typer pass
+rewrites yet:
+  - shallow-return-FCall stack locals (str_view shape), and
+  - POD-struct compound-literal Decls.
+
+*** Proposed direction
+
+Mirror `fix_stale_litstr_in_body`'s approach for the remaining cases:
+a post-typer pass (extend the scavenger, or add a dedicated pass) that
+detects every binding the builder will stack-allocate, sets its Decl
+`own_type = Shallow`, and rewrites the matching scope-exit `delete`
+stmt's bool arg to false. Then delete the builder special-case so the
+builder emits whatever the AST says, verbatim.
+
+*** What needs further research
+
+1. *The hard part: replicating the builder's stack-allocation
+   prediction in a pass that runs before emission.* Today "will this
+   Decl be stack-allocated?" is decided inside the builder's Decl-emit
+   path (LiteralStr branch, shallow-return-FCall hoist, POD-ctor
+   branch). The pass needs the same predicate. Options:
+   a. Extract the prediction into a shared pure function both the new
+      pass and the builder call (single source of truth for the
+      decision, even if the *recording* still happens in the pass).
+   b. Have the builder, when it stack-allocates, additionally stamp the
+      Decl/AST -- but that's emission-time mutation feeding back into
+      already-emitted delete stmts, which is the current tangle; avoid.
+   Option (a) is the clean one; scope it first.
+
+2. Shallow-return detection: `promote_own_transferred_locals` in
+   [[file:../../src/self/typer.til][src/self/typer.til]] already has a `typer_in_shallow_return`
+   notion and skips heap-promotion for "Struct local whose only use is
+   a shallow return" (see #109 / #175 notes). Check whether that pass
+   can ALSO stamp `own_type = Shallow` + realign the delete bool, which
+   might cover the str_view case without a new pass.
+
+3. POD-struct ctor Decls: find where the builder decides to emit a
+   ctor Decl as a C compound literal (`is_pod_struct` + ctor RHS) and
+   confirm the same realign applies. POD structs have no owned heap
+   fields, so their delete is already a near-noop, but the
+   `free(&name)` on a stack pointer is still UB and must be suppressed.
+
+4. Once the pass covers all three, delete the builder special-case and
+   confirm `make clean && make test` (and `make test_asan_full`) stay
+   green. The builder's `is_noop_delete_stmt` filter (which drops
+   stack-local PRIMITIVE deletes before indent) may also be foldable
+   into the same AST realign -- audit it.
+
+*** Payoff
+
+Every future codegen optimization that stack-allocates something would
+otherwise grow another builder special-case. Doing this once makes the
+AST trustworthy for the builder, linters, and any alternative backend,
+and removes a class of "typer says X, builder does Y" bugs.
+
+*** Risk
+
+Touches the typer/scavenger cleanup machinery and the builder's
+hottest emit path; a wrong realign reintroduces double-frees or
+use-after-frees that only ASAN catches. Land incrementally (one case
+at a time: litstr is already done; do shallow-return next, then POD),
+each behind `make test_asan_full`, keeping the builder special-case as
+a fallback until the pass provably covers the case (verify by reading
+the emitted boot/til.c for the target function, e.g. `str_view`).
