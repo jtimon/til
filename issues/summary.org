@@ -10,7 +10,6 @@
 *** [[./open/143.org][#143]] Avoid unnecessary heap round-trips for Expr construction
 *** [[./open/146.org][#146]] Unify typer desugar/insert passes into a single walk
 *** [[./open/147.org][#147]] AST/Context redesign: lessons from rstil
-*** [[./open/158.org][#158]] One pass per phase across the whole pipeline
 *** [[./open/163.org][#163]] Per-file AST/import graph + Context.path (prep for removing Expr.path)
 *** [[./open/165.org][#165]] Declaration order should not matter inside a file or across imports
 *** [[./open/170.org][#170]] All-or-nothing caching for translate/build/run
@@ -61,6 +60,7 @@
 * WIP
 ** High
 *** [[./open/127.org][#127]] Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
+*** [[./open/158.org][#158]] One pass per phase across the whole pipeline
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
 ** Medium
 ** Low

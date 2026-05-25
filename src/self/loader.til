@@ -257,93 +257,77 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     // (cached_str/array/vec_def) populated by interpreter_init_ns below.
     codegen_set_lp(lp)
     precomp_reset_state(lp.ctx)
-    // 1) Collect macro and pure func names across all files
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            precomp_scan_names(iu.ast, lp.ctx)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        precomp_scan_names(iu.ast, lp.ctx)
-    }
-
-    // Nothing to fold?
-    if lp.ctx.precomp_macros.count.eq(0).and(lp.ctx.precomp_funcs.count.eq(0)) {
-        precomp_reset_state(lp.ctx)
-        codegen_clear_lp()
-        return
-    }
-
-    // 2) Set up interpreter scope
+    // 1+2) Issue #158: one walk per unit collects foldable macro/func
+    // names (into ctx) AND builds the fold scope (struct/enum/func defs +
+    // literal global constants), replacing the former three separate
+    // per-unit passes (scan_names, register_defs, register_globals).
     global := scope_new(NULL)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            precomp_register_defs(global, iu.ast)
+            precomp_collect_and_register(global, iu.ast, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        precomp_register_defs(global, iu.ast)
+        precomp_collect_and_register(global, iu.ast, lp.ctx)
     }
-    // Issue #191: register global constants before folding so macro bodies
-    // that call procs can access them (e.g. CAP_VIEW for Str ops).
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            precomp_register_globals(global, iu.ast, lp.ctx)
+    // Nothing to fold? Skip the FFI/fold setup, but still free the
+    // (near-empty) scope built above via the single cleanup at the end.
+    // til's ownership checker is flow-insensitive, so we keep exactly one
+    // scope_free(own global) rather than an early-return that moves it.
+    has_fold := lp.ctx.precomp_macros.count.gt(0).or(lp.ctx.precomp_funcs.count.gt(0))
+    if has_fold {
+        // Issue #191: core constants registered after the defs walk so they
+        // win over any like-named definition (e.g. CAP_VIEW for Str ops).
+        precomp_register_core_constants(global)
+
+        if lp.skip_core.not() {
+            for u : ProgramUnit in lp.core_units {
+                ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+                interpreter_init_ns(lp.ctx, global, iu.ast)
+            }
         }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        precomp_register_globals(global, iu.ast, lp.ctx)
-    }
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
+        for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             interpreter_init_ns(lp.ctx, global, iu.ast)
         }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        interpreter_init_ns(lp.ctx, global, iu.ast)
-    }
 
-    // 2b) Init FFI for the interpreter used by precomp.
-    // Scan per-file ASTs directly to avoid merged-AST cloning.
-    ffi_reset()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
+        // 2b) Init FFI for the interpreter used by precomp.
+        // Scan per-file ASTs directly to avoid merged-AST cloning.
+        ffi_reset()
+        if lp.skip_core.not() {
+            for u : ProgramUnit in lp.core_units {
+                ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+                ffi_init_struct_defs_append(iu.ast)
+                ffi_init_scan_program(iu.ast)
+            }
+        }
+        for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             ffi_init_struct_defs_append(iu.ast)
             ffi_init_scan_program(iu.ast)
         }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        ffi_init_struct_defs_append(iu.ast)
-        ffi_init_scan_program(iu.ast)
-    }
-    // Mark FFI loaded so ext_dispatch_ffi will dispatch the entries we
-    // just registered. Built-in ext_funcs (I64_add etc.) are statically
-    // linked, so no .so needs dlopen'ing for precomp's eval-based fold
-    // to call them.
-    ffi_loaded = true
+        // Mark FFI loaded so ext_dispatch_ffi will dispatch the entries we
+        // just registered. Built-in ext_funcs (I64_add etc.) are statically
+        // linked, so no .so needs dlopen'ing for precomp's eval-based fold
+        // to call them.
+        ffi_loaded = true
 
-    // 3) Fold calls in every file
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
+        // 3) Fold calls in every file. The known-fold map lives on ctx
+        // (ctx.precomp_known); precomp_reset_state below clears it.
+        if lp.skip_core.not() {
+            for u : ProgramUnit in lp.core_units {
+                ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+                context_enter_file(lp.ctx, u.path)
+                process_body(global, iu.ast, lp.ctx, true)
+            }
+        }
+        for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             context_enter_file(lp.ctx, u.path)
             process_body(global, iu.ast, lp.ctx, true)
         }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        context_enter_file(lp.ctx, u.path)
-        process_body(global, iu.ast, lp.ctx, true)
     }
 
     scope_free(own global)

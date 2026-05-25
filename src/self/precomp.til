@@ -1124,6 +1124,101 @@ precomp_register_globals := func(mut global: Scope, prog: Expr, ctx: Context) {
     }
 }
 
+// Issue #158: one walk for precomp's setup. The three former per-unit
+// sub-passes (precomp_scan_names, precomp_register_defs,
+// precomp_register_globals) each re-walked prog.children even though
+// every statement already carries all the data each one needed. This
+// folds them into a single pass: per Decl we classify foldable
+// macro/func names, register struct/enum/func defs in the fold scope,
+// and register literal global constants -- all before moving on.
+// Core constants (CAP_VIEW/CAP_LIT) are registered separately by
+// precomp_register_core_constants so they keep winning over any
+// like-named def, matching the old defs-before-globals ordering.
+precomp_collect_and_register := func(mut global: Scope, prog: Expr, ctx: Context) {
+    for stmt : Expr in prog.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+        is_def := rhs.node_type.is(NodeType.FuncDef)
+            .or(rhs.node_type.is(NodeType.StructDef))
+            .or(rhs.node_type.is(NodeType.EnumDef))
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if is_def {
+                // Register the def in the fold scope: Value.Func tag=9,
+                // data = pointer to child(0).
+                mut val := val_none()
+                memcpy(val, 9, 4)
+                write_ptr(ptr_add(val, 8), rhs)
+                scope_set_owned(global, dd.name, val)
+                // Classify foldable names (top-level + namespace methods).
+                switch rhs.node_type {
+                case NodeType.FuncDef(fd):
+                    if fd.func_type.is(FuncType.Macro) {
+                        ctx.precomp_macros.add(own dd.name.clone())
+                    } else if fd.func_type.is(FuncType.Func)
+                        .or(fd.func_type.is(FuncType.ExtFunc)) {
+                        ctx.precomp_funcs.add(own dd.name.clone())
+                    }
+                case NodeType.StructDef(sdd_data):
+                    for d_j : Declaration in sdd_data.ns_decls {
+                        ref fdd : Declaration = d_j
+                        ref fdef : Expr = fdd.default_value
+                        switch fdef.node_type {
+                        case NodeType.FuncDef(ffd):
+                            qname := dd.name.format("_", fdd.name)
+                            if ffd.func_type.is(FuncType.Macro) {
+                                ctx.precomp_macros.add(own qname)
+                            } else if ffd.func_type.is(FuncType.Func)
+                                .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                                ctx.precomp_funcs.add(own qname)
+                            }
+                        case:
+                        }
+                    }
+                case NodeType.EnumDef(pc_edd):
+                    for d_j : Declaration in pc_edd.ns_decls {
+                        ref nsd : Declaration = d_j
+                        if is_null(nsd.default_value) { continue }
+                        switch nsd.default_value.node_type {
+                        case NodeType.FuncDef(ffd):
+                            qname := dd.name.format("_", nsd.name)
+                            if ffd.func_type.is(FuncType.Macro) {
+                                ctx.precomp_macros.add(own qname)
+                            } else if ffd.func_type.is(FuncType.Func)
+                                .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                                ctx.precomp_funcs.add(own qname)
+                            }
+                        case:
+                        }
+                    }
+                case:
+                }
+            } else if dd.is_mut.not().and(dd.own_type.is(OwnType.Ref).not()) {
+                // Issue #191: register literal global constants so macro
+                // bodies that read them can fold. Only literals register;
+                // complex expressions need full interpreter support.
+                mut v := val_none()
+                if is_known(ctx, rhs, v) {
+                    scope_set_owned(global, dd.name, v)
+                }
+            }
+        case:
+        }
+    }
+}
+
+// Issue #191: core constants macro bodies may need. Registered after the
+// defs walk so they win over any like-named definition.
+// CAP_VIEW = -2 as USize (U32) = 0xFFFFFFFE = 4294967294
+// CAP_LIT  = -1 as USize (U32) = 0xFFFFFFFF = 4294967295
+precomp_register_core_constants := func(mut global: Scope) {
+    mut cap_view_val := val_u32(4294967294)
+    scope_set_owned(global, "CAP_VIEW", cap_view_val)
+    mut cap_lit_val := val_u32(4294967295)
+    scope_set_owned(global, "CAP_LIT", cap_lit_val)
+}
+
 precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     precomp_reset_state(ctx)
     // 1. Collect macro and pure func names

@@ -1,5 +1,62 @@
 # priority: high
-** OPEN #158 One pass per phase across the whole pipeline
+** WIP #158 One pass per phase across the whole pipeline
+
+   Progress / current state (read the source, the original list below
+   is stale):
+
+   - lexer (~tokenize~), parser (~parse~): single pass. Done.
+   - initer (~init_declarations~ / ~init_declarations_unit~): now a
+     single AST walk that buckets each Decl into index lists; the
+     post-walk loops iterate those small filtered lists (not the AST)
+     in dependency order (type names in scope -> aliases -> layouts ->
+     size/derived methods). The 12 sub-procs the old list named are
+     gone. Done.
+   - typer (~infer_body~ -> ~body_pre_passes~): the 7 desugar/insert
+     sub-passes are one prefilter + one move-out/rebuild/move-back.
+     That is [[./146.org][#146]]'s scope. Done.
+   - precomp (~precomp_imported~): the three setup sub-passes
+     (scan_names, register_defs, register_globals) re-walked the AST
+     even though every statement already carries all the data each one
+     needed and none reads the scope the others build. Collapsed into a
+     single walk (~precomp_collect_and_register~). Done. (precomp's
+     state -- macro/func name sets and the fold-results map -- now also
+     lives on ~Context~ as ~precomp_macros~/~precomp_funcs~/
+     ~precomp_known~, per the [[./178.org][#178]] direction.)
+
+   Remaining phases keep multiple walks, but these are NOT redundant
+   re-walks -- they are an irreducible dependency chain. Each later
+   walk consumes the *complete* output of an earlier walk over the whole
+   program, so it cannot start until the earlier one finishes (top-level
+   forward references / graph reachability / C output ordering):
+
+   - interpreter (~interpret~ / its imported variant): register_defs ->
+     {register_aliases, init_ns} -> copy_alias_ns -> eval. register_defs
+     must precede the rest (an alias ~Foo := Bar~ or a method body can
+     reference a name defined later). Merging register_aliases with
+     init_ns is NOT behaviour-preserving: ~interpreter_init_ns~ calls
+     ~eval_expr~ on every namespace-member default, which reads the
+     ~global~ scope that ~register_aliases~ writes -- a ns default that
+     names a type by its *alias* would resolve under the current
+     "all aliases first" ordering but not under an interleaved walk.
+     copy_alias_ns reads the namespaces init_ns fills, so it stays last.
+   - scavenger: build top maps -> seed worklist -> BFS -> filter. BFS
+     follows edges, not source order; the sweep needs the full mark.
+   - builder: header/forward decls -> globals -> function bodies. C
+     requires a declaration before its use. [[./178.org][#178]] already moved the
+     builder's redundant lookup *tables* onto Context.
+
+   The one redundancy left is cross-phase, not within-phase: precomp's
+   name classification (and the interpreter's def/alias/ns registration)
+   re-derive facts the typer already computed. The storage half of that
+   is done -- [[./178.org][#178]] / [[./147.org][#147]] moved the per-phase symbol/cache state
+   onto Context. What remains is to *populate* the foldable-name set
+   during the typer's existing walk so precomp can drop its scan step
+   entirely. The typer is the correct capture point because initer runs
+   before the typer lifts lambdas and generates derived methods that
+   precomp must also see. That is the natural next step and is tracked
+   here.
+
+** Original report (kept for reference)
 
 Each phase listed in doc/pipeline.org (lex, parse,
    init_declarations, type_check, precomp, scavenge, interpret /
