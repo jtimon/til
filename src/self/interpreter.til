@@ -185,7 +185,6 @@ namespace:
 
 EnumInstance := struct {
     ref mut enum_name : Str = NULL
-    ref mut enum_def : Expr = NULL
     own mut data : U8 = 0
     mut data_size : I32 = 0
 namespace:
@@ -199,14 +198,12 @@ namespace:
     clone := func(self: EnumInstance) returns EnumInstance {
         if is_null(self.data) {
             return EnumInstance(enum_name = self.enum_name,
-                enum_def = self.enum_def,
                 data = NULL,
                 data_size = self.data_size)
         }
         buf : Dynamic = malloc(self.data_size.to_usize())
         memcpy(buf, self.data, self.data_size.to_usize())
         return EnumInstance(enum_name = self.enum_name,
-            enum_def = self.enum_def,
             data = buf,
             data_size = self.data_size)
     }
@@ -361,12 +358,13 @@ mut ns_keys := Vec.new(Dynamic)
 // Populated by interpreter_init_ns from every struct/enum decl seen in core+user
 // programs. Replaces dangerous Declaration.field_struct_def reads at use sites.
 // (#147 anti-pattern catalog: layout cache on AST nodes / dangerous refs.)
-mut interp_type_defs := Map.new(Str, ExprPtrBox)
-
+// The map itself lives on Context (ctx.interp_type_defs); this reader
+// reaches it through codegen_lp(), which interpret_units installs
+// before any eval runs.
 lookup_interp_type_def := func(name: Str) returns ref Expr {
-    if interp_type_defs.has(name).not() { return NULL }
-    ref box : ExprPtrBox = interp_type_defs.get(name)
-    return box.ptr
+    ref m : Map = codegen_lp().ctx.interp_type_defs
+    if m.has(name).not() { return NULL }
+    return deref(m.get(name))
 }
 
 val_none := func() returns shallow Value {
@@ -399,7 +397,7 @@ val_bool := func(shallow v: Bool) returns shallow Value {
 
 ENUM_PAYLOAD_OFFSET := 8.to_i32()
 
-val_enum_flat := func(enum_name: Str, enum_def: Expr, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32) returns shallow Value {
+val_enum_flat := func(enum_name: Str, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32) returns shallow Value {
     mut total := ENUM_PAYLOAD_OFFSET.add(payload_size)
     if total.lt(8.to_i32()) {
         total = 8.to_i32()
@@ -411,11 +409,11 @@ val_enum_flat := func(enum_name: Str, enum_def: Expr, shallow etag: I32, payload
             memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.to_u64()), payload_data, payload_size.to_u64())
         }
     }
-    return Value.Enum(EnumInstance(enum_name = enum_name, enum_def = enum_def, data = data, data_size = total))
+    return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = total))
 }
 
 val_enum_simple := func(enum_name: Str, shallow etag: I32) returns shallow Value {
-    return val_enum_flat(enum_name, NULL, etag, NULL, 0.to_i32())
+    return val_enum_flat(enum_name, etag, NULL, 0.to_i32())
 }
 
 elem_size_for_type := func(type_name: Str) returns shallow I32 {
@@ -560,7 +558,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                                             tag := enum_variant_tag(edef, field_access_name(fname))
                                             if tag.to_i64().gte(0) {
                                                 if enum_has_payloads(edef) {
-                                                    return val_enum_flat(sname, edef, tag, NULL, 0.to_i32())
+                                                    return val_enum_flat(sname, tag, NULL, 0.to_i32())
                                                 } else {
                                                     return val_i32(tag.to_i64())
                                                 }
@@ -604,7 +602,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                 interp_error(e, format("no field '", field_access_name(fname), "'"))
                 exit(1.to_i32())
             }
-            return read_field(si, fdecl)
+            return read_field(si.data, fdecl)
         case:
             UNREACHABLE(__LOC__)
             return val_none()
@@ -668,7 +666,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns 
                     if enum_has_payloads(tdef) {
                         ecopy : Dynamic = malloc(8)
                         memcpy(ecopy, ptr_add(p, ENUM_PAYLOAD_OFFSET.to_u64()), 8)
-                        return val_enum_flat(type_name, tdef, etag, ecopy, 8.to_i32())
+                        return val_enum_flat(type_name, etag, ecopy, 8.to_i32())
                     }
                     return val_i32(etag.to_i64())
                 }
@@ -885,9 +883,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                     exit(1.to_i32())
                 }
                 ref fdecl : Declaration = find_field_decl(cur_sdef, fname.clone())
-                mut tmp_inst := StructInstance(struct_name = NULL, struct_def = cur_sdef, data = base, borrowed = true)
-                write_field(tmp_inst, fdecl, val)
-                tmp_inst.data = NULL
+                write_field(base, fdecl, val)
                 if is_null(move_src).not() {
                     if move_src.val.is(Value.Func).not() {
                         memcpy(move_src.val, val_none(), Value.size())
@@ -1207,7 +1203,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                         case:
                             val = eval_expr(scope, arg)
                         }
-                        write_field(si_inst, fdd, val)
+                        write_field(si_inst.data, fdd, val)
                     }
                 case:
                     UNREACHABLE(__LOC__)
@@ -1661,20 +1657,18 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
         UNREACHABLE(__LOC__)
     }
     inst_data : Dynamic = calloc(1, sz.to_u64())
-    mut tmp := StructInstance(struct_name = lp.ctx.cached_array_name, struct_def = lp.ctx.cached_array_def, data = to_ptr(inst_data), borrowed = true)
     ref ba_data_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "data")
-    write_field(tmp, ba_data_d, Value.Ptr(data))
+    write_field(inst_data, ba_data_d, Value.Ptr(data))
     ref ba_cap_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "cap")
-    write_field(tmp, ba_cap_d, val_u32(count.to_i64()))
+    write_field(inst_data, ba_cap_d, val_u32(count.to_i64()))
     ref ba_esz_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_size")
-    write_field(tmp, ba_esz_d, val_u32(esz.to_i64()))
+    write_field(inst_data, ba_esz_d, val_u32(esz.to_i64()))
     ref ba_et_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_type")
-    write_field(tmp, ba_et_d, make_str_value(elem_type.c_str, elem_type.count.to_u64()))
+    write_field(inst_data, ba_et_d, make_str_value(elem_type.c_str, elem_type.count.to_u64()))
     ref clone_fn : Value = ns_get(elem_type.clone(), "clone")
-    if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_clone"); write_field(tmp, ba_ec_d, shallow_copy_value(clone_fn)) }
+    if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_clone"); write_field(inst_data, ba_ec_d, shallow_copy_value(clone_fn)) }
     ref delete_fn : Value = ns_get(elem_type.clone(), "delete")
-    if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_delete"); write_field(tmp, ba_ed_d, shallow_copy_value(delete_fn)) }
-    tmp.data = NULL
+    if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_delete"); write_field(inst_data, ba_ed_d, shallow_copy_value(delete_fn)) }
     return make_struct_value(lp.ctx.cached_array_name, lp.ctx.cached_array_def, to_ptr(inst_data), false)
 }
 
@@ -1701,9 +1695,11 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) 
             // Register every struct/enum AST in the comprehensive type-def map
             // so readers can replace Declaration.field_struct_def with a name lookup.
             // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
-            // AST gets rebuilt later in the run.
-            td_box := ExprPtrBox(ptr = sdef)
-            interp_type_defs.set(own dd.name.clone(), own td_box)
+            // AST gets rebuilt later in the run. The map value is a malloc'd cell
+            // holding the Expr pointer (same encoding as ctx.struct_def_exprs).
+            _tdv : Dynamic = malloc(I64.size())
+            write_ptr(_tdv, sdef)
+            ctx.interp_type_defs.set(own dd.name.clone(), own _tdv)
             ref ien_ns : Vec = def_ns_decls(sdef)
             for d_j : Declaration in ien_ns {
                 ref nsd : Declaration = d_j
@@ -1818,8 +1814,8 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
 
 ENUM_PAYLOAD_OFFSET : I32 = 8
 
-read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value {
-    ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_u64())
+read_field := func(inst_data: Dynamic, dd: Declaration) returns shallow Value {
+    ref ptr : Dynamic = ptr_add(inst_data, dd.field_offset.to_u64())
     // Resolve the field's type name. For own/ref enum fields the typer
     // sometimes leaves explicit_type empty -- recover the enum name from
     // til_type when available so the enum branch below applies regardless
@@ -1892,7 +1888,7 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
                 psz := ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
                 mut psz_final := psz
                 if psz.to_i64().lt(0) { psz_final = 0.to_i32() }
-                return val_enum_flat(ei.enum_name, edef, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
+                return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
             }
             ref itag : I32 = ptr
             return val_i32(itag.to_i64())
@@ -1917,19 +1913,19 @@ read_field := func(inst: StructInstance, dd: Declaration) returns shallow Value 
         }
     }
     // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
-    ref ptr2 : Dynamic = ptr_add(inst.data, dd.field_offset.to_u64())
+    ref ptr2 : Dynamic = ptr_add(inst_data, dd.field_offset.to_u64())
     if ftype.len().gt(0) {
         ref stored : Dynamic = deref(ptr2)
         if is_null(stored).not() { return Value.Func(stored) }
     }
     // Fallback
-    ref ptr3 : Dynamic = ptr_add(inst.data, dd.field_offset.to_u64())
+    ref ptr3 : Dynamic = ptr_add(inst_data, dd.field_offset.to_u64())
     ref fi : I64 = ptr3
     return val_i64(fi)
 }
 
-write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
-    ref ptr : Dynamic = ptr_add(inst.data, dd.field_offset.to_u64())
+write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value) {
+    ref ptr : Dynamic = ptr_add(inst_data, dd.field_offset.to_u64())
     fsz := dd.field_size
     // Enum-typed fields use the same heap-EnumInstance encoding regardless
     // of own_type; let the unified switch below allocate the heap instance.
@@ -1995,8 +1991,10 @@ write_field := func(mut inst: StructInstance, dd: Declaration, val: Value) {
         // Deep-copy the data buffer
         new_data : Dynamic = malloc(total.to_u64())
         memcpy(new_data, ei.data, total.to_u64())
-        // Write data pointer into the heap EnumInstance
-        write_ptr(ptr_add(heap_ei, 16), new_data)
+        // Write data pointer into the heap EnumInstance. After dropping the
+        // dead enum_def field, EnumInstance is { enum_name(0..8),
+        // data(8..16), data_size(16..) } so the data slot is at offset 8.
+        write_ptr(ptr_add(heap_ei, 8), new_data)
         write_ptr(ptr, heap_ei)
     case Value.Ptr(pv):  write_ptr(ptr, deref(pv))
     case Value.Func(fv): write_ptr(ptr, deref(fv))

@@ -506,7 +506,6 @@ typedef struct StructInstance {
 
 typedef struct EnumInstance {
     Str *enum_name;
-    Expr *enum_def;
     U8 *data;
     I32 data_size;
 } EnumInstance;
@@ -782,6 +781,7 @@ typedef struct Context {
     Str *cached_array_name;
     Expr *cached_vec_def;
     Str *cached_vec_name;
+    Map interp_type_defs;
 } Context;
 
 
@@ -1780,7 +1780,7 @@ Value val_u32(I64 v);
 Value val_u64(U64 v);
 Value val_f32(F32 v);
 Value val_bool(Bool v);
-Value val_enum_flat(Str * enum_name, Expr * enum_def, I32 etag, void * payload_data, I32 payload_size);
+Value val_enum_flat(Str * enum_name, I32 etag, void * payload_data, I32 payload_size);
 Value val_enum_simple(Str * enum_name, I32 etag);
 I32 elem_size_for_type(Str * type_name);
 Value parse_cli_arg(Str * s, Str * type_name);
@@ -1818,8 +1818,8 @@ Value make_str_value_view(void * data, U64 len);
 Value make_str_value_own(void * data, U64 len);
 Str str_view(Value v);
 Declaration * find_field_decl(Expr * struct_def, Str * fname);
-Value read_field(StructInstance * inst, Declaration * dd);
-void write_field(StructInstance * inst, Declaration * dd, Value * val);
+Value read_field(void * inst_data, Declaration * dd);
+void write_field(void * inst_data, Declaration * dd, Value * val);
 void interpret_register_defs(Scope * global, Expr * prog);
 void interpret_register_aliases(Scope * global, Expr * prog);
 void interpret_copy_alias_ns(Expr * prog, Scope * global);
@@ -2112,7 +2112,6 @@ extern Bool has_continue;
 extern Value return_value;
 extern Map ns_fields;
 extern Vec ns_keys;
-extern Map interp_type_defs;
 extern I32 ENUM_PAYLOAD_OFFSET;
 extern Bool ns_inited;
 extern I32 ENUM_PAYLOAD_OFFSET;

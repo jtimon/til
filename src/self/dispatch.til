@@ -848,10 +848,10 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Func(f): pdata = to_ptr(f); psz = 8.to_i32()
                 case:
                 }
-                mut tmp := val_enum_flat(enum_name, enum_def, ctor_tag, pdata, psz)
+                mut tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz)
                 move(result, tmp, Value.size())
             } else {
-                mut tmp := val_enum_flat(enum_name, enum_def, ctor_tag, NULL, 0.to_i32())
+                mut tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0.to_i32())
                 move(result, tmp, Value.size())
             }
             return true

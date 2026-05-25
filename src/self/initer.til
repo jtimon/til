@@ -289,6 +289,16 @@ Context := struct {
     ref mut cached_array_name : Str = NULL
     ref mut cached_vec_def : Expr = NULL
     ref mut cached_vec_name : Str = NULL
+
+    // Interpreter type-def registry: maps every struct/enum name to its
+    // AST def Expr. Populated by interpreter_init_ns, read via
+    // lookup_interp_type_def. This is the rstil-style "external type
+    // map" that lets struct/enum values carry only a heap pointer +
+    // type name and recover their layout by name lookup. Stored as
+    // Map(Str, Dynamic) of malloc'd cells holding the Expr pointer
+    // (same encoding as struct_def_exprs / func_defs) so the field type
+    // stays in scope at the Context definition in this file.
+    mut interp_type_defs := Map.new(Str, Dynamic)
 }
 
 priv align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {
