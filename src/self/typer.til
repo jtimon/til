@@ -2668,8 +2668,9 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str) returns s
 
 // Narrow a bare numeric literal return value to the function's declared
 // numeric return type, mirroring validate_fcall_arg for call arguments.
-// Only fires for a direct Literal.Num return expression; -N (which the
-// parser desugars to 0.sub(N)) and any other expression are left as-is.
+// Fires for a direct Literal.Num return expression (including negative
+// literals like -1, which the parser now produces as a single literal);
+// any other expression is left as-is.
 narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context) {
     if ctx.typer_return_type_name.len().eq(0) { return }
     switch rv.node_type {

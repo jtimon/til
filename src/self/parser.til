@@ -705,21 +705,16 @@ parse_primary := proc(mut p: Parser) returns Expr {
         e = Expr.new(literal_num_node(t.text.clone()), t_line, t_col)
         e_set = true
     }
-    // Unary minus: -N (literal) desugars to 0.sub(N), -expr desugars to expr.neg()
+    // Unary minus: -N (literal) parses as a single negative numeric
+    // literal so it narrows like any other literal (args, decls, assigns,
+    // returns); -expr desugars to expr.neg().
     if e_set.not().and(t.type.is(TokenType.Minus)) {
         if p.pos.add(1).lt(p.tokens.len()) {
             ref next_tok : Token = p.tokens.get(p.pos.add(1))
             if next_tok.type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
-                mut zero := Expr.new(literal_num_node("0"), t_line, t_col)
-                mut sub_access := Expr.new(field_access_node("sub"), t_line, t_col)
-                sub_access.add_child(own zero)
-                mut sub_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
-                sub_call.add_child(own sub_access)
-                mut num_arg := Expr.new(literal_num_node(num_tok.text.clone()), t_line, t_col)
-                sub_call.add_child(own num_arg)
-                e = sub_call
+                e = Expr.new(literal_num_node("-".concat(num_tok.text.clone())), t_line, t_col)
                 e_set = true
             } else {
                 advance(p) // consume '-'
