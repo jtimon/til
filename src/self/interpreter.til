@@ -413,7 +413,7 @@ val_enum_flat := func(enum_name: Str, shallow etag: I32, payload_data: Dynamic, 
 }
 
 val_enum_simple := func(enum_name: Str, shallow etag: I32) returns shallow Value {
-    return val_enum_flat(enum_name, etag, NULL, 0.to_i32())
+    return val_enum_flat(enum_name, etag, NULL, 0)
 }
 
 elem_size_for_type := func(type_name: Str) returns shallow I32 {
@@ -558,7 +558,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                                             tag := enum_variant_tag(edef, field_access_name(fname))
                                             if tag.to_i64().gte(0) {
                                                 if enum_has_payloads(edef) {
-                                                    return val_enum_flat(sname, tag, NULL, 0.to_i32())
+                                                    return val_enum_flat(sname, tag, NULL, 0)
                                                 } else {
                                                     return val_i32(tag.to_i64())
                                                 }
@@ -666,7 +666,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns 
                     if enum_has_payloads(tdef) {
                         ecopy : Dynamic = malloc(8)
                         memcpy(ecopy, ptr_add(p, ENUM_PAYLOAD_OFFSET.to_u64()), 8)
-                        return val_enum_flat(type_name, etag, ecopy, 8.to_i32())
+                        return val_enum_flat(type_name, etag, ecopy, 8)
                     }
                     return val_i32(etag.to_i64())
                 }
