@@ -49,23 +49,27 @@ to exist.
   - Small unsigned types already auto-widen at call sites
     (test/types.til:55), so `cast` would mainly be needed for
     NARROWING, sign changes, and float<->int -- not widening.
-  - The same-width signed/unsigned reinterpret is INCONSISTENT today.
-    `U64.to_i64` (src/core/u64.til:11) is a plain ext_func -- free
-    `(I64)a` in C -- but the reverse `U64.from_i64`
-    (src/core/u64.til:21) routes through `U64_from_i64_ext`, which
-    PANICS when the I64 is negative. So one direction is a zero-cost
-    reinterpret and the reverse is a checked, panicking conversion.
-    Same story applies to U32/I32. This asymmetry is exactly the kind
-    of thing a uniform `cast` removes.
+  - Same-width signed/unsigned reinterpret is ALREADY free both ways:
+    `U64.to_i64` (src/core/u64.til:11) and `I64.to_u64`
+    (src/core/i64.til:60) are both plain ext_funcs emitting `(I64)a` /
+    `(U64)a` -- no check, no panic. There is even a third, redundant
+    spelling: `U64.from_i64` (src/core/u64.til:22) is also just
+    `(U64)*a` (src/c/ext.c:461) and has ZERO call sites -- dead code
+    duplicating `I64.to_u64`. (Its doc comment claims "Panics if
+    negative", which is false -- the C body does no such check.) So the
+    problem `cast` solves here is NOT safety or asymmetry -- the casts
+    are already free -- but the proliferation of redundant, type-specific
+    spellings for one trivial reinterpret.
 
 *** Why a cast-style construct looks better
 
   0. The motivating case: same-width sign reinterpret. Turning a U64
      into an I64 (or U32<->I32) is a free, no-op reinterpret at the
-     machine level -- the bits do not change. A `cast(I64) u` should be
-     exactly that: zero cost, C semantics, at the programmer's own risk.
-     The current `U64.from_i64` panic on negative is the opposite of
-     that intent; `cast` makes both directions free and symmetric.
+     machine level -- the bits do not change, and til already emits it
+     as a bare C cast. A `cast(I64) u` keeps that zero cost and C
+     semantics under ONE spelling, replacing the current pile of
+     per-type methods (I64.to_u64, U64.to_i64, plus the dead, redundant
+     U64.from_i64) that all compile to the same `(T)x`.
   1. No N x M method matrix. `cast(I32) x` works for any numeric x.
      Adding a new numeric type today means writing conversions to/from
      every existing type in three places (.til, ext.h, ext.c); with
@@ -116,8 +120,8 @@ algorithm. Those are not casts and should not masquerade as one.
   - Runtime checks: DECIDED -- `cast` is free, C-style, at the
     programmer's own risk. No range check, no panic; explicitness at the
     call site IS the safety contract. This is the opposite of Jai's
-    debug-time narrowing check and of til's current panicking
-    `U64.from_i64`. (If a *checked* conversion is ever wanted, it stays a
+    debug-time narrowing check. (If a *checked* conversion is ever
+    wanted, it stays a
     named method/function, distinct from `cast`, so the cost is visible
     in the name -- not folded into `cast`.)
   - Autocast (`xx`): is context-directed inference worth the typer
@@ -129,15 +133,35 @@ algorithm. Those are not casts and should not masquerade as one.
     integer pairs, leaving to_str and Str.to_* untouched. Audit call
     sites for the hub-chained forms (`.to_i64().to_i32()`).
 
-*** Possible immediate action (small, independent of the big decision)
+*** Possible immediate actions (small, independent of the big decision)
 
-Even without `cast`, the matrix has direct-pair gaps that force
-hub-routing through I64 (e.g. Str.to_i32 = self.to_i64().to_i32()). If we
-decide NOT to pursue `cast` soon, a cheaper win is to document the
-hub-and-spoke convention in doc/ so the chaining is intentional and
-discoverable, rather than looking like missing methods. Conversely, if
-`cast` is accepted, do NOT invest in filling matrix gaps -- `cast`
-removes the matrix entirely.
+Low-hanging fruit, in increasing order of effort:
+
+  1. Remove the dead, redundant `U64.from_i64`. It has ZERO call sites
+     (`grep '\.from_i64('` across src/test/lib is empty), duplicates the
+     free `I64.to_u64`, and carries a false "Panics if negative" comment.
+     Removal touches src/core/u64.til (method), src/c/ext.h:216 +
+     src/c/ext.c:461 (the `U64_from_i64_ext` backing); it is NOT
+     registered for interpreter dispatch (unlike F32_from_i64), so no
+     dispatch.til change. Bootstrap-safe (nothing references it). This is
+     a public-API removal, so it needs an explicit OK, but it is the
+     cleanest single win and directly serves the "one free spelling"
+     goal. (`F32.from_i64` is also call-site-free but IS dispatch-
+     registered and is the int->float path's alt spelling, so treat it
+     separately.)
+  2. Document the hub-and-spoke convention. The matrix has direct-pair
+     gaps that force hub-routing through I64 (e.g. Str.to_i32 =
+     self.to_i64().to_i32()). Documenting it in doc/ makes the chaining
+     look intentional rather than like missing methods. Skip this if
+     `cast` is accepted -- `cast` removes the matrix entirely.
+  3. Implement the `cast(T) expr` machinery (parser/typer/builder/ast)
+     WITHOUT using it in src/, plus a test under test/ (compiled by the
+     freshly built bin/til, so bootstrap-safe in one commit). This is the
+     real first step of the feature; bigger than 1-2 but self-contained.
+     The call-site migration + same-size method removal must follow in a
+     SEPARATE commit, after this one lands on master (HEAD's til_boot
+     cannot parse `cast` until then -- see doc/self.org "Staged migration
+     across master merges").
 
 *** Notes
 
