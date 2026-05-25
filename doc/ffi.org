@@ -154,3 +154,62 @@ before committing the regenerated files.  Useful workflow:
 
 Routine builds (~make~, ~make test~, ~make two_pass~) never
 touch ~vendor/bindings/~ -- they consume the committed files.
+
+** Ownership audit (raylib), 2026-05
+
+A pass over every pointer-returning and free-style function in
+~vendor/bindings/raylib.til~.  Conclusion: the binder's defaults are
+correct for raylib's *manual* memory model, where the user pairs
+each ~LoadX~ with an explicit ~UnloadX~ / ~MemFree~ and til stays
+out of the lifecycle.  Specifically:
+
+- *Pointer returns are all ~returns ref T~.*  ~GetClipboardText~,
+  ~GetMonitorName~, ~Get*Name~, the whole ~Text*~ family, ...
+  return raylib-internal/static buffers the caller must NOT free.
+  The ~Load*~ family (~LoadFileData~, ~LoadImageColors~,
+  ~LoadFontData~, ~LoadCodepoints~, ~LoadWaveSamples~,
+  ~LoadMaterials~, ~LoadModelAnimations~, ~CompressData~, the
+  ~Compute*~ hashes, ...) return heap the caller owns but frees via
+  the matching ~UnloadX~ / ~MemFree~, NOT via ~free()~.  Either way
+  til must not auto-free, so ~ref~ (til does not own) is correct.
+  Promoting these to owned (~returns T~) would make til emit a
+  generic ~free()~ at scope end -- a double-free against the user's
+  ~UnloadX~, and wrong anyway for compound unloads
+  (~UnloadModelAnimations~ frees nested arrays; ~free()~ wouldn't).
+
+- *~Unload*~ / ~MemFree~ args are borrowed (or ~shallow~ for
+  by-value structs).*  This is the correct mirror of the ~ref~
+  returns: the value isn't til-owned, so there's no ownership to
+  transfer with ~own~.  By-value resource structs (~Texture~,
+  ~Image~, ~Sound~, ~Font~, ~Model~, ~Wave~, ~Music~, ...) pass
+  ~shallow~; raylib frees their internal GPU/heap state.  No til
+  pointer ownership is involved.
+
+- *No arg needs ~own~.*  raylib copies or borrows every pointer arg
+  (e.g. ~Load*FromMemory~ copies ~fileData~; ~UpdateTexture~ copies
+  ~pixels~); none stores or frees a caller buffer in a way that maps
+  to til's ownership-transfer.
+
+*** Watch-list: ambiguous ~returns Dynamic~
+
+A handful of functions return raw ~void *~ / ~void **~ as
+~Dynamic~, which is til's *owned* raw-pointer type.  None has a til
+caller today (no ~src/modes/gui.til~ wrapper), so there is no live
+bug, but a wrapper author MUST pick the right shape per function
+rather than letting til treat the result as owned:
+
+- ~MemAlloc~, ~MemRealloc~: genuinely owned (caller frees via
+  ~MemFree~).  ~Dynamic~ is right.
+- ~GetWindowHandle~: returns the platform/GLFW window handle --
+  *borrowed*, must never be freed.  A wrapper should treat it as a
+  borrowed pointer, not an owned ~Dynamic~.
+- ~TextSplit~: returns ~char **~ into raylib's internal static
+  buffer -- *borrowed*, do not free.
+- ~LoadTextLines~: allocates; freed via ~UnloadTextLines~ (compound,
+  not a plain ~free()~), so a wrapper must route cleanup through
+  ~UnloadTextLines~, not til's owned-Dynamic auto-free.
+
+tinyfd (~tinyfd_*Dialog~ -> ~returns ref I8~ into a static buffer)
+and libffi (~ffi_closure_alloc~ -> ~Dynamic~, freed via
+~ffi_closure_free~) follow the same rules and were spot-checked
+clean.
