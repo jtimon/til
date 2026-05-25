@@ -126,9 +126,6 @@ I16 I16_from_i64_ext(const I64 *a);
 // I16 clone
 I16 I16_clone(const I16 *v);
 
-// I16 CLI
-I16 *cli_parse_i16(const char *s);
-
 // I32 arithmetic
 I32 I32_add(I32 a, I32 b);
 I32 I32_sub(I32 a, I32 b);
@@ -153,9 +150,6 @@ I32 I32_from_i64_ext(const I64 *a);
 
 // I32 clone
 I32 I32_clone(const I32 *v);
-
-// I32 CLI
-I32 *cli_parse_i32(const char *s);
 
 // F32 arithmetic
 F32 F32_add(F32 a, F32 b);
@@ -249,14 +243,6 @@ void *deref(void *slot);
 void write_ptr(void *dest, void *val);
 Bool is(void *self, void *other);
 void *get_payload(void *self);
-
-// CLI arg parsing
-I64 *cli_parse_i64(const char *s);
-U8 *cli_parse_u8(const char *s);
-U32 *cli_parse_u32(const char *s);
-U64 *cli_parse_u64(const char *s);
-UPtr *cli_parse_uptr(const char *s);
-Bool *cli_parse_bool(const char *s);
 
 // System primitives
 Str *File_readfile(const Str *path);

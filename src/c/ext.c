@@ -225,18 +225,10 @@ static int copy_tree_cstr(const char *src, const char *dst) {
 #endif
 }
 
-// Internal helpers for heap-allocating scalar values
+// Internal helper for heap-allocating scalar values. The per-type
+// new_u8/new_i8/.../new_bool helpers were only used by the cli_parse_*
+// family, which now lives in til (src/core/str.til); dropped with them.
 static I64 *new_i64(I64 v) { I64 *r = malloc(sizeof(I64)); *r = v; return r; }
-static U8 *new_u8(U8 v) { U8 *r = malloc(sizeof(U8)); *r = v; return r; }
-static I8 *new_i8(I8 v) { I8 *r = malloc(sizeof(I8)); *r = v; return r; }
-static I16 *new_i16(I16 v) { I16 *r = malloc(sizeof(I16)); *r = v; return r; }
-static I32 *new_i32(I32 v) { I32 *r = malloc(sizeof(I32)); *r = v; return r; }
-static U32 *new_u32(U32 v) { U32 *r = malloc(sizeof(U32)); *r = v; return r; }
-
-__attribute__((unused)) static F32 *new_f32(F32 v) { F32 *r = malloc(sizeof(F32)); *r = v; return r; }
-static U64 *new_u64(U64 v) { U64 *r = malloc(sizeof(U64)); *r = v; return r; }
-static UPtr *new_uptr(UPtr v) { UPtr *r = malloc(sizeof(UPtr)); *r = v; return r; }
-static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r; }
 
 // --- Small libc wrappers ---
 
@@ -362,17 +354,6 @@ I16 I16_from_i64_ext(const I64 *a) { return (I16)*a; }
 // I16 clone
 I16 I16_clone(const I16 *v) { return *v; }
 
-// I16 CLI
-I16 *cli_parse_i16(const char *s) {
-    char *end;
-    long v = strtol(s, &end, 10);
-    if (*end != '\0' || v < -32768 || v > 32767) {
-        fprintf(stderr, "error: cannot parse '%s' as I16\n", s);
-        exit(1);
-    }
-    return new_i16((I16)v);
-}
-
 // I32 arithmetic
 I32 I32_add(I32 a, I32 b) { return a + b; }
 I32 I32_sub(I32 a, I32 b) { return a - b; }
@@ -399,19 +380,6 @@ I32 I32_from_i64_ext(const I64 *a) { return (I32)*a; }
 
 // I32 clone
 I32 I32_clone(const I32 *v) { return *v; }
-
-// I32 CLI
-I32 *cli_parse_i32(const char *s) {
-    char *end;
-    // strtoll is used instead of strtol because 'long' is 32-bit on Windows,
-    // which makes the INT32 range check below always-false under -Wtype-limits.
-    long long v = strtoll(s, &end, 10);
-    if (*end != '\0' || v < (long long)INT32_MIN || v > (long long)INT32_MAX) {
-        fprintf(stderr, "error: cannot parse '%s' as I32\n", s);
-        exit(1);
-    }
-    return new_i32((I32)v);
-}
 
 // F32 arithmetic
 F32 F32_add(F32 a, F32 b) { return a + b; }
@@ -533,66 +501,6 @@ Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }
 void *get_payload(void *self) { return (U8*)self + sizeof(I64); }
 
 // CLI arg parsing
-I64 *cli_parse_i64(const char *s) {
-    char *end;
-    I64 v = strtoll(s, &end, 10);
-    if (*end != '\0') {
-        fprintf(stderr, "error: cannot parse '%s' as I64\n", s);
-        exit(1);
-    }
-    return new_i64(v);
-}
-U8 *cli_parse_u8(const char *s) {
-    char *end;
-    long v = strtol(s, &end, 10);
-    if (*end != '\0' || v < 0 || v > 255) {
-        fprintf(stderr, "error: cannot parse '%s' as U8\n", s);
-        exit(1);
-    }
-    return new_u8((U8)v);
-}
-I8 *cli_parse_i8(const char *s) {
-    char *end;
-    long v = strtol(s, &end, 10);
-    if (*end != '\0' || v < -128 || v > 127) {
-        fprintf(stderr, "error: cannot parse '%s' as I8\n", s);
-        exit(1);
-    }
-    return new_i8((I8)v);
-}
-U32 *cli_parse_u32(const char *s) {
-    char *end;
-    unsigned long v = strtoul(s, &end, 10);
-    if (*end != '\0' || v > 0xFFFFFFFF) {
-        fprintf(stderr, "error: cannot parse '%s' as U32\n", s);
-        exit(1);
-    }
-    return new_u32((U32)v);
-}
-U64 *cli_parse_u64(const char *s) {
-    char *end;
-    unsigned long long v = strtoull(s, &end, 10);
-    if (*end != '\0') {
-        fprintf(stderr, "error: cannot parse '%s' as U64\n", s);
-        exit(1);
-    }
-    return new_u64((U64)v);
-}
-UPtr *cli_parse_uptr(const char *s) {
-    char *end;
-    unsigned long long v = strtoull(s, &end, 10);
-    if (*end != '\0' || v > UINTPTR_MAX) {
-        fprintf(stderr, "error: cannot parse '%s' as UPtr\n", s);
-        exit(1);
-    }
-    return new_uptr((UPtr)v);
-}
-Bool *cli_parse_bool(const char *s) {
-    if (strcmp(s, "true") == 0) return new_bool(1);
-    if (strcmp(s, "false") == 0) return new_bool(0);
-    fprintf(stderr, "error: cannot parse '%s' as Bool (expected true/false)\n", s);
-    exit(1);
-}
 
 // --- System primitives ---
 // These use the codegen Str layout: { U8 *c_str, U64 count, U64 cap }.

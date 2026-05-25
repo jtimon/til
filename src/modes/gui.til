@@ -145,24 +145,8 @@ measure_text_font := func(font: Font, text: Str, font_size: I64, spacing: I64) r
     return v.x.to_i64()
 }
 
-// Byte-walking c-string length.  Can't bind libc's strlen directly:
-// til's generated C #includes <string.h> for memcpy/memset, so libc's
-// `size_t strlen(const char *)` prototype is already in scope -- our
-// own `ext_func` declaration would clash on the return type (USize is
-// U32, size_t is unsigned long).  The til loop sidesteps the issue
-// and keeps the C-side primitive surface free of the wrapper that
-// would otherwise be needed just to bridge typedefs.
-c_str_len := func(s: I8) returns shallow USize {
-    mut n : USize = 0
-    while true {
-        ref b : I8 = ptr_add(s, n)
-        if b.eq(0.to_i8()) { return n }
-        n = n.add(1)
-    }
-    return n
-}
-
 // File dialog helpers -- return file path or empty string on cancel
+// (c_str_len lives in src/core/str.til, reachable here via core import)
 save_file_dialog := proc(title: Str, default_path: Str) returns Str {
     ref result : I8 = tinyfd_saveFileDialog(title.c_str, default_path.c_str, 0, NULL, NULL)
     if is_null(result) { return "" }
