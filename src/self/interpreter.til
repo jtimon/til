@@ -236,7 +236,8 @@ Value := enum {
     Func: Dynamic,
     Struct: StructInstance,
     Enum: EnumInstance,
-    Ptr: Dynamic
+    Ref: Dynamic,
+    Dynamic: Dynamic
 namespace:
     eq := func(a: Value, b: Value) returns Bool {
         switch a {
@@ -317,9 +318,12 @@ namespace:
             // void* payload reinterpreted via U64 (both 8 bytes)
             ref raw : U64 = payload
             return Value.Func(ptr_add(NULL, raw))
-        case Value.Ptr(payload):
+        case Value.Ref(payload):
             ref raw : U64 = payload
-            return Value.Ptr(ptr_add(NULL, raw))
+            return Value.Ref(ptr_add(NULL, raw))
+        case Value.Dynamic(payload):
+            ref raw : U64 = payload
+            return Value.Dynamic(ptr_add(NULL, raw))
         }
     }
 }
@@ -441,9 +445,25 @@ parse_cli_arg := func(s: Str, type_name: Str) returns shallow Value {
     return val_none()
 }
 
-// For Value.Ptr objects whose static type is Struct/Enum/Custom, look
-// up the type's def in scope and reinterpret the pointer as a struct
-// value so subsequent field-access has a struct to read from.
+// Borrowed pointer-view accessor: returns the slot ref backing a
+// Value.Ref (borrowed view) or Value.Dynamic (owning opaque pointer).
+// Neither variant is freed here; this is a read-only view helper.
+value_ptr_view := func(v: Value) returns ref Dynamic {
+    switch v {
+    case Value.Ref(p):     return p
+    case Value.Dynamic(p): return p
+    case: return NULL
+    }
+}
+
+is_value_ptr := func(v: Value) returns shallow Bool {
+    return v.is(Value.Ref).or(v.is(Value.Dynamic))
+}
+
+// For pointer-like objects (Value.Ref / Value.Dynamic) whose static type
+// is Struct/Enum/Custom, look up the type's def in scope and reinterpret
+// the pointer as a struct value so subsequent field-access has a struct
+// to read from.
 priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str) {
     if obj_sname.len().eq(0) { return }
     ref tc : Cell = scope_get(scope, obj_sname.clone())
@@ -452,10 +472,9 @@ priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str)
     case Value.Func(tptr):
         ref tdef : Expr = deref(tptr)
         if tdef.node_type.is(NodeType.StructDef) {
-            switch obj {
-            case Value.Ptr(pv):
+            if is_value_ptr(obj) {
+                ref pv : Dynamic = value_ptr_view(obj)
                 obj = make_struct_value(obj_sname, tdef, deref(pv), true)
-            case:
             }
         }
     case:
@@ -506,7 +525,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
     case NodeType.Literal(Literal.Bool(b)):
         return val_bool(b)
     case NodeType.Literal(Literal.Null):
-        return Value.Ptr(NULL)
+        return Value.Ref(NULL)
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(scope, ident_name(ident))
         if is_null(cell) {
@@ -578,7 +597,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
             interp_error(e, format("no namespace field '", field_access_name(fname), "'"))
             exit(1.to_i32())
         }
-        if obj.is(Value.Ptr) {
+        if is_value_ptr(obj) {
             ref obj_expr : Expr = e.child(0)
             obj_t := expr_til_type(obj_expr)
             switch obj_t {
@@ -614,20 +633,21 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
     }
 }
 
-// Reinterpret a Value.Ptr to the appropriate scalar/struct/enum Value
-// based on a type name. Used by eval_call (param binding) and eval_body (ref decl).
+// Reinterpret a pointer-like Value (Value.Ref / Value.Dynamic) to the
+// appropriate scalar/struct/enum Value based on a type name. Used by
+// eval_call (param binding) and eval_body (ref decl).
 reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns Value {
-    switch val {
-    case Value.Ptr(pv):
+    if is_value_ptr(val) {
+        ref pv : Dynamic = value_ptr_view(val)
         ref p : Dynamic = deref(pv)
         if is_null(p) { return shallow_copy_value(val) }
         if type_name.len().eq(0) { return shallow_copy_value(val) }
         // Dynamic is a void-pointer type; the slot pointer IS the value, no
         // narrowing needed. Without this early-return the generic StructDef
         // lookup below would match Dynamic (registered as StructDef in
-        // src/core/dyn.til) and wrap the Ptr into a Value.Struct, which
+        // src/core/dyn.til) and wrap the pointer into a Value.Struct, which
         // breaks downstream code that expects ref-Dynamic bindings to stay
-        // as Value.Ptr (#180).
+        // as Value.Ref/Value.Dynamic (#180).
         if type_name.eq("Dynamic") { return shallow_copy_value(val) }
         if type_name.eq("I64") { ref v : I64 = p; return val_i64(v) }
         if type_name.eq("U8") { ref v : U8 = p; return val_u8(v.to_i64()) }
@@ -677,12 +697,11 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns 
             }
         }
         return shallow_copy_value(val)
-    case:
-        return shallow_copy_value(val)
     }
+    return shallow_copy_value(val)
 }
 
-// Check if call should be skipped because first own param is None/borrowed/Ptr.
+// Check if call should be skipped because first own param is None/borrowed/pointer-like.
 // Returns true if call should be skipped (caller returns val_none).
 guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shallow Bool {
     switch func_def.node_type {
@@ -701,7 +720,7 @@ guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shal
                 if si.borrowed { memcpy(fc.val, val_none(), Value.size()); return true }
             case:
             }
-            if fc.val.is(Value.Ptr) { memcpy(fc.val, val_none(), Value.size()); return true }
+            if is_value_ptr(fc.val) { memcpy(fc.val, val_none(), Value.size()); return true }
             return false
         case:
             return false
@@ -1089,7 +1108,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                         interp_error(arg_expr, "undefined variable '".concat(ident_name(arg_ident)).concat("'"))
                         exit(1.to_i32())
                     }
-                    if arg_cell.val.is(Value.Ptr).and(param.explicit_type.len().gt(0)) {
+                    if is_value_ptr(arg_cell.val).and(param.explicit_type.len().gt(0)) {
                         mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, scope)
                         arg = widen_numeric(arg, param.explicit_type)
                         scope_set_owned(call_scope, param.name, arg)
@@ -1102,7 +1121,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                     }
                 case:
                     mut arg := eval_expr(scope, arg_expr)
-                    if arg.is(Value.Ptr).and(param.explicit_type.len().gt(0)) {
+                    if is_value_ptr(arg).and(param.explicit_type.len().gt(0)) {
                         arg = reinterpret_ptr_value(arg, param.explicit_type, scope)
                     }
                     arg = widen_numeric(arg, param.explicit_type)
@@ -1246,7 +1265,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                                 }
                             case:
                             }
-                            if fc.val.is(Value.Ptr) {
+                            if is_value_ptr(fc.val) {
                                 fc.val = val_none()
                                 return val_none()
                             }
@@ -1658,7 +1677,7 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     }
     inst_data : Dynamic = calloc(1, sz.to_u64())
     ref ba_data_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "data")
-    write_field(inst_data, ba_data_d, Value.Ptr(data))
+    write_field(inst_data, ba_data_d, Value.Ref(data))
     ref ba_cap_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "cap")
     write_field(inst_data, ba_cap_d, val_u32(count.to_i64()))
     ref ba_esz_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_size")
@@ -1841,16 +1860,16 @@ read_field := func(inst_data: Dynamic, dd: Declaration) returns shallow Value {
             return make_struct_value(ftype, dd.field_struct_def, owned, true)
         }
         ref owned2 : Dynamic = deref(ptr)
-        return Value.Ptr(owned2)
+        return Value.Dynamic(owned2)
     }
     if dd.own_type.is(OwnType.Ref).and(is_enum_field.not()) {
-        if is_null(deref(ptr)) { return Value.Ptr(NULL) }
+        if is_null(deref(ptr)) { return Value.Ref(NULL) }
         if is_null(dd.field_struct_def).not() {
             ref rp : Dynamic = deref(ptr)
             return make_struct_value(ftype, dd.field_struct_def, rp, true)
         }
         ref rp2 : Dynamic = deref(ptr)
-        return Value.Ptr(rp2)
+        return Value.Ref(rp2)
     }
     if ftype.eq("I64") { ref v : I64 = ptr; return val_i64(v) }
     if ftype.eq("U8") { ref v : U8 = ptr; return val_u8(v.to_i64()) }
@@ -1941,7 +1960,9 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value) {
         switch val {
         case Value.Struct(si):
             write_ptr(ptr, si.data)
-        case Value.Ptr(pv):
+        case Value.Ref(pv):
+            write_ptr(ptr, deref(pv))
+        case Value.Dynamic(pv):
             write_ptr(ptr, deref(pv))
         case Value.Func(fv):
             write_ptr(ptr, deref(fv))
@@ -1952,7 +1973,9 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value) {
     }
     if dd.own_type.is(OwnType.Ref).and(is_enum_field.not()) {
         switch val {
-        case Value.Ptr(pv):
+        case Value.Ref(pv):
+            write_ptr(ptr, deref(pv))
+        case Value.Dynamic(pv):
             write_ptr(ptr, deref(pv))
         case Value.Struct(si):
             write_ptr(ptr, si.data)
@@ -1996,8 +2019,9 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value) {
         // data(8..16), data_size(16..) } so the data slot is at offset 8.
         write_ptr(ptr_add(heap_ei, 8), new_data)
         write_ptr(ptr, heap_ei)
-    case Value.Ptr(pv):  write_ptr(ptr, deref(pv))
-    case Value.Func(fv): write_ptr(ptr, deref(fv))
+    case Value.Ref(pv):     write_ptr(ptr, deref(pv))
+    case Value.Dynamic(pv): write_ptr(ptr, deref(pv))
+    case Value.Func(fv):    write_ptr(ptr, deref(fv))
     case:
     }
 }

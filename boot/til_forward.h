@@ -230,7 +230,8 @@ typedef enum {
     Value_TAG_Func,
     Value_TAG_Struct,
     Value_TAG_Enum,
-    Value_TAG_Ptr
+    Value_TAG_Ref,
+    Value_TAG_Dynamic
 } Value_tag;
 typedef struct Value Value;
 typedef struct Cell Cell;
@@ -525,7 +526,8 @@ struct Value {
         void * Func;
         StructInstance Struct;
         EnumInstance Enum;
-        void * Ptr;
+        void * Ref;
+        void * Dynamic;
     } data;
 };
 
@@ -915,6 +917,17 @@ Vec * Str_split(Str * self, Str * delim);
 U32 Str_size(void);
 Bool Str_eq(Str * a, Str * b);
 Str * join(Vec * parts, Str * sep);
+U32 c_str_len(I8 * s);
+Str * priv___src_core_str_til__cli_view(I8 * s);
+I64 * cli_parse_i64(I8 * s);
+U8 * cli_parse_u8(I8 * s);
+I8 * cli_parse_i8(I8 * s);
+I16 * cli_parse_i16(I8 * s);
+I32 * cli_parse_i32(I8 * s);
+U32 * cli_parse_u32(I8 * s);
+U64 * cli_parse_u64(I8 * s);
+U64 * cli_parse_uptr(I8 * s);
+Bool * cli_parse_bool(I8 * s);
 U32 * Dynamic_size(void);
 void * default_clone(void * v);
 void default_delete(void * _v, Bool * _cf);
@@ -1757,7 +1770,8 @@ Value * Value_Boolean(Bool * val);
 Value * Value_Func(void * val);
 Value * Value_Struct(StructInstance * val);
 Value * Value_Enum(EnumInstance * val);
-Value * Value_Ptr(void * val);
+Value * Value_Ref(void * val);
+Value * Value_Dynamic(void * val);
 Bool Value_is(Value * self, Value * other);
 void Value_delete(Value * self, Bool * call_free);
 U32 Value_size(void);
@@ -1784,6 +1798,8 @@ Value val_enum_flat(Str * enum_name, I32 etag, void * payload_data, I32 payload_
 Value val_enum_simple(Str * enum_name, I32 etag);
 I32 elem_size_for_type(Str * type_name);
 Value parse_cli_arg(Str * s, Str * type_name);
+void * value_ptr_view(Value * v);
+Bool is_value_ptr(Value * v);
 void priv___src_self_interpreter_til__resolve_ptr_to_struct(Value * obj, Scope * scope, Str * obj_sname);
 Value eval_expr(Scope * scope, Expr * e);
 Value * reinterpret_ptr_value(Value * val, Str * type_name, Scope * scope);
@@ -2077,7 +2093,8 @@ Value *Value_Boolean(Bool *);
 Value *Value_Func(void *);
 Value *Value_Struct(StructInstance *);
 Value *Value_Enum(EnumInstance *);
-Value *Value_Ptr(void *);
+Value *Value_Ref(void *);
+Value *Value_Dynamic(void *);
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;

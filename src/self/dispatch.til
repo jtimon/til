@@ -236,12 +236,13 @@ priv value_variant_name := func(v: Value) returns Str {
     if v.is(Value.Func)    { return "Func" }
     if v.is(Value.Struct)  { return "Struct" }
     if v.is(Value.Enum)    { return "Enum" }
-    if v.is(Value.Ptr)     { return "Ptr" }
+    if v.is(Value.Ref)     { return "Ref" }
+    if v.is(Value.Dynamic) { return "Dynamic" }
     return "?"
 }
 
 // Narrow an FCall arg to a Value.Boolean. Used by h_Bool_and/or/not to
-// pull the (possibly Value.Ptr) arg out of eval_expr and route it
+// pull the (possibly Value.Ref/Value.Dynamic) arg out of eval_expr and route it
 // through reinterpret_ptr_value -- the same helper ref bindings, param
 // binding, and ext_dispatch_ffi use. Panics if the arg doesn't end up
 // as a Bool (silently defaulting to false would mask cast/typer bugs;
@@ -386,7 +387,8 @@ h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 
 val_to_ptr := func(v: Value) returns ref Dynamic {
     switch v {
-    case Value.Ptr(p):     return p
+    case Value.Ref(p):     return p
+    case Value.Dynamic(p): return p
     case Value.Int(p):     return p
     case Value.Byte(p):    return p
     case Value.Short(p):   return p
@@ -574,7 +576,7 @@ h_cfile_open := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     path := str_view(path_v)
     switch is_write_v {
     case Value.Boolean(is_write):
-        r = Value.Ptr(cfile_open(path, is_write))
+        r = Value.Dynamic(cfile_open(path, is_write))
         return true
     case:
         UNREACHABLE(__LOC__)
@@ -691,7 +693,7 @@ h_ptr_add := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     offset := eval_expr(s, e.child(2))
     ref base : Dynamic = val_to_ptr(buf)
     off := value_to_u64(offset)
-    r = Value.Ptr(ptr_add(deref(base), off))
+    r = Value.Ref(ptr_add(deref(base), off))
     return true
 }
 
@@ -844,8 +846,9 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Enum(ei):
                     psz = ei.data_size
                     pdata = to_ptr(ei.data)
-                case Value.Ptr(p):  pdata = to_ptr(p); psz = 8.to_i32()
-                case Value.Func(f): pdata = to_ptr(f); psz = 8.to_i32()
+                case Value.Ref(p):     pdata = to_ptr(p); psz = 8.to_i32()
+                case Value.Dynamic(p): pdata = to_ptr(p); psz = 8.to_i32()
+                case Value.Func(f):    pdata = to_ptr(f); psz = 8.to_i32()
                 case:
                 }
                 mut tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz)
@@ -920,7 +923,7 @@ priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size:
 // Returns false if `atype` isn't a known primitive (caller falls back to
 // the Ptr-default path).
 //
-// For Value.Ptr args (slot pointers from Vec/Array/Map.get etc.) the
+// For pointer-like args (Value.Ref/Value.Dynamic slot pointers from Vec/Array/Map.get etc.) the
 // narrowing is delegated to reinterpret_ptr_value -- the same helper
 // ref bindings, param binding, and eval_arg use -- so the four paths
 // can't drift apart and re-introduce #166 on the FFI side.
@@ -933,7 +936,7 @@ priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: 
     mut tn := ""
     mut sz : I32 = 0.to_i32()
     if ffi_shallow_type_info(atype, tn, sz).not() { return false }
-    if v.is(Value.Ptr) {
+    if is_value_ptr(v) {
         narrowed := reinterpret_ptr_value(v, tn, scope)
         ref payload : Dynamic = val_to_ptr(narrowed)
         memcpy(dst, payload, sz.to_u64())
@@ -977,9 +980,11 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
                 ref atype : Dynamic = deref(at)
                 ref dst : Dynamic = ptr_add(args, i.to_u64().mul(8))
                 if ffi_write_shallow_arg(scope, v, atype, dst).not() {
-                    // Default: Ptr value
+                    // Default: pointer-like value
                     switch v {
-                    case Value.Ptr(pv):
+                    case Value.Ref(pv):
+                        write_ptr(dst, deref(pv))
+                    case Value.Dynamic(pv):
                         write_ptr(dst, deref(pv))
                     case:
                         write_ptr(dst, NULL)
@@ -999,7 +1004,9 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
             case Value.Uint64(p):  dp = malloc(8); memcpy(dp, p, 8)
             case Value.Float(p):   dp = malloc(4); memcpy(dp, p, 4)
             case Value.Boolean(p): dp = malloc(1); memcpy(dp, p, 1)
-            case Value.Ptr(pv):
+            case Value.Ref(pv):
+                write_ptr(ptr_add(args, i.to_u64().mul(8)), deref(pv))
+            case Value.Dynamic(pv):
                 write_ptr(ptr_add(args, i.to_u64().mul(8)), deref(pv))
             case Value.Struct(si):
                 write_ptr(ptr_add(args, i.to_u64().mul(8)), si.data)
@@ -1049,7 +1056,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
             ref sp : ExtStr = raw_ptr
             result = make_str_value_own(sp.data, sp.count)
         } else if rtype.eq("Dynamic") {
-            result = Value.Ptr(raw_ptr)
+            result = Value.Dynamic(raw_ptr)
         } else if ffi_decode_scalar(rtype, raw_ptr, result) {
         } else if ffi_struct_defs.has(fe.return_type) {
             ref sdef_ptr : Dynamic = ffi_struct_defs.get(fe.return_type)

@@ -1,5 +1,5 @@
 # priority: high
-** OPEN #127 Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
+** WIP #127 Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
 
 The interpreter runtime currently overloads one mechanism for several
   different ownership cases:
@@ -57,4 +57,24 @@ The interpreter runtime currently overloads one mechanism for several
 
   This should be tackled as a focused runtime ownership cleanup, not mixed
   into unrelated dispatcher translations.
+
+  Progress:
+  - Structural split landed: ~Value.Ptr~ is replaced by two variants,
+    ~Value.Ref~ (borrowed/nullable pointer views) and ~Value.Dynamic~
+    (owning opaque pointers). Producers are now classified:
+    - ~Value.Ref~: ~null~, ~ptr_add(...)~, ref field reads, container
+      data fields (e.g. ~Array.data~ in build_argv_array).
+    - ~Value.Dynamic~: own field reads exposing owned storage, FFI
+      ~Dynamic~ returns, ~cfile_open~ handles.
+  - Two read-only view helpers added in interpreter.til:
+    ~value_ptr_view(v) returns ref Dynamic~ and ~is_value_ptr(v)~.
+    ~val_to_ptr~ in dispatch.til now matches both variants.
+  - This step is intentionally behavior-preserving: neither variant is
+    auto-freed yet. Auto-freeing ~Value.Dynamic~ at scope teardown /
+    overwrite is NOT safe without first adding move/clone tracking --
+    e.g. ~p := malloc(...); return p~ (return value is cloned to a
+    borrowed view) and explicit ~free(own p)~ would both double-free or
+    dangle. That owner-cleanup work is the remaining deferred piece,
+    along with simplifying ~val_to_ptr~ to a pure borrowed-view helper
+    and repairing ~scope_free~ Struct-data cleanup.
 

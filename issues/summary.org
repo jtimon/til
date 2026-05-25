@@ -4,7 +4,6 @@
 *** [[./open/116.org][#116]] Imported files are parsed in isolation
 *** [[./open/124.org][#124]] Raw `Dynamic` ownership should not require explicit `free(...)` in til
 *** [[./open/125.org][#125]] Enum payload method generation should not assume ~eq~/~to_str~
-*** [[./open/127.org][#127]] Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
 *** [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
 *** [[./open/130.org][#130]] AST / ~Expr~ representation cleanup
 *** [[./open/136.org][#136]] Precomp doesn't fold pure function calls
@@ -59,6 +58,7 @@
 
 * WIP
 ** High
+*** [[./open/127.org][#127]] Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
 ** Medium
 ** Low
