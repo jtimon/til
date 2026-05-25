@@ -31,11 +31,11 @@ WINDOW_W := 1024
 WINDOW_H := 768
 
 // Per-second physics constants (anchored to the old 120 Hz "feel").
-PHYSICS_HZ : F32 = 120.to_f32()                 // simulation steps per second
+PHYSICS_HZ : F32 = 120                 // simulation steps per second
 PHYSICS_DT : F32 = 1.to_f32() / PHYSICS_HZ      // simulation step length (s)
-MOVE_SPEED : F32 = 12.to_f32()                  // 12 u/s (was 0.1/frame @ 120 Hz)
-JUMP_SPEED : F32 = 36.to_f32()                  // 36 u/s
-GRAVITY    : F32 = 144.to_f32()                 // 144 u/s^2
+MOVE_SPEED : F32 = 12                  // 12 u/s (was 0.1/frame @ 120 Hz)
+JUMP_SPEED : F32 = 36                  // 36 u/s
+GRAVITY    : F32 = 144                 // 144 u/s^2
 MOUSE_SENS : F32 = 5.to_f32() / 100.to_f32()    // pixel-based, framerate-independent
 FRAME_CAP  : F32 = 1.to_f32() / 4.to_f32()      // clamp frame_time to 0.25 s
 
@@ -82,7 +82,7 @@ mut camera := Camera3D(
     position = INIT_POS,
     target = INIT_TARGET,
     up = v3(0, 1, 0),
-    fovy = 60.to_f32(),
+    fovy = 60,
     projection = CAMERA_PERSPECTIVE,
 )
 
@@ -158,18 +158,18 @@ main := proc() {
     )
 
     small_s := 1.to_f32()
-    small_y := small_s.div(2.to_f32())
+    small_y := small_s.div(2)
     small_size := Vector3(x = small_s, y = small_s, z = small_s)
     small_positions := array("Vector3",
-        Vector3(x = 2.to_f32(),  y = small_y, z = -1.to_f32()),
-        Vector3(x = -3.to_f32(), y = small_y, z = -4.to_f32()),
-        Vector3(x = 10.to_f32(), y = small_y, z = -8.to_f32()),
-        Vector3(x = -6.to_f32(), y = small_y, z = -12.to_f32()),
-        Vector3(x = 7.to_f32(),  y = small_y, z = -14.to_f32()),
+        Vector3(x = 2,  y = small_y, z = -1),
+        Vector3(x = -3, y = small_y, z = -4),
+        Vector3(x = 10, y = small_y, z = -8),
+        Vector3(x = -6, y = small_y, z = -12),
+        Vector3(x = 7,  y = small_y, z = -14),
     )
 
     floor_pos := v3(0, 0, 0)
-    floor_size := Vector2(x = 50.to_f32(), y = 50.to_f32())
+    floor_size := Vector2(x = 50, y = 50)
     floor_half := floor_size.x / 2.to_f32()
 
     // Build AABBs for collision detection.
@@ -435,7 +435,7 @@ main := proc() {
             DrawCubeWiresV(pos, small_size, black)
         }
         EndMode3D()
-        DrawFPS(10.to_i32(), 10.to_i32())
+        DrawFPS(10, 10)
         if menu_open.not() {
             sw := get_screen_width()
             if god_mode {

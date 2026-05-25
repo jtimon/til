@@ -166,9 +166,9 @@ bug185_bool_dyn_arg_chain := test() {
 }
 
 bug185_u8_dyn_arg := test() {
-    v := vec("U8", 1.to_u8(), 2.to_u8(), 3.to_u8())
+    v := vec("U8", 1, 2, 3)
     ref x : Dynamic = v.get(1)
-    y : U8 = 10.to_u8()
+    y : U8 = 10
     // Mixed typed/Dynamic args to a typed-primitive method.
     assert_eq(__LOC__, y.add(x).to_i64(), 12)
 }

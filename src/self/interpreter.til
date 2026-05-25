@@ -2263,7 +2263,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     ffi_cleanup()
     c.ns_inited = false
     codegen_clear_lp()
-    return 0.to_i32()
+    return 0
 }
 
 // Per-file interpreter entrypoint (rstil-style): uses the canonical per-file

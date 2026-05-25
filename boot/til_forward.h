@@ -1301,6 +1301,8 @@ Bool infer_func_ptr_field_call(TypeScope * scope, Expr * e, Expr * fa, Expr * ob
 void validate_fcall_own_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind);
 Bool infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
 void desugar_user_func_fcall_args(Expr * e, Str * name, TypeBinding * callee_bind);
+Bool redundant_literal_conversion(Expr * e, Type * expected);
+void redundant_conversion_error(Expr * at, Type * expected);
 void validate_fcall_arg(Expr * arg, Type * ptype, Str * ptype_name, Str * param_name);
 void infer_and_validate_fcall_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind, I32 in_func, Context * ctx);
 void resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, I32 in_func, Context * ctx);

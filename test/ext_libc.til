@@ -18,8 +18,8 @@ getenv := ext_func(name: I8) returns ref I8 {}
 unsetenv := ext_func(name: I8) returns shallow I32 {}
 
 main := proc() {
-    rc1 := setenv("TIL_ISSUE_176".c_str, "expected".c_str, 1.to_i32())
-    if rc1.neq(0.to_i32()) {
+    rc1 := setenv("TIL_ISSUE_176".c_str, "expected".c_str, 1)
+    if rc1.neq(0) {
         println("setenv failed")
         return
     }
@@ -29,7 +29,7 @@ main := proc() {
         return
     }
     rc2 := unsetenv("TIL_ISSUE_176".c_str)
-    if rc2.neq(0.to_i32()) {
+    if rc2.neq(0) {
         println("unsetenv failed")
         return
     }

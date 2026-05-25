@@ -60,10 +60,10 @@ test_forward_struct := test() {
 FwdAliasTop := U32
 
 FwdAliasTopHolder := struct {
-    mut count : FwdAliasTop = 0.to_u32()
+    mut count : FwdAliasTop = 0
 namespace:
     inc := func(mut self: FwdAliasTopHolder) {
-        self.count = self.count.add(1.to_u32())
+        self.count = self.count.add(1)
     }
 }
 
@@ -79,7 +79,7 @@ test_alias_top_of_file := test() {
 // In-file source order should not matter for type aliases to builtin
 // primitives.
 FwdAliasBottomHolder := struct {
-    mut value : FwdAliasBottom = 0.to_u32()
+    mut value : FwdAliasBottom = 0
 namespace:
     set := func(mut self: FwdAliasBottomHolder, v: FwdAliasBottom) {
         self.value = v
@@ -90,6 +90,6 @@ FwdAliasBottom := U32
 
 test_alias_bottom_of_file := test() {
     mut h := FwdAliasBottomHolder()
-    h.set(42.to_u32())
+    h.set(42)
     assert_eq(__LOC__, h.value.to_i64(), 42)
 }

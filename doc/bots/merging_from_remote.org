@@ -105,8 +105,8 @@ checking out the prior commit.
 
 | Channel   | Bytes    | Allocs   | Notes                |
 |-----------+----------+----------+----------------------|
-| interpret | 370377   | 25449    | post scope lookups   |
-| translate | 517820   | 27151    | post scope lookups   |
+| interpret | 369969   | 25426    | post scope lookups   |
+| translate | 515268   | 27140    | post scope lookups   |
 
 Build the ASAN binary:
 #+begin_src shell

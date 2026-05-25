@@ -1209,9 +1209,48 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
 // numeric literals to fit the param type, applies implicit widen /
 // usize-coerce, and emits a type_error on mismatch. Skips Dynamic-typed
 // args (the caller has already decided this arg is not constrained).
+// A numeric literal that is the receiver of a `to_<numeric>()` conversion
+// is a redundant conversion when the surrounding context already narrows
+// the bare literal to `expected` with the same value (literal_in_range
+// holds). Out-of-range cases stay legal because the conversion is then
+// doing real work: -1.to_usize() (wraparound to the max sentinel) and
+// 300.to_u8() (truncation) both return false here.
+redundant_literal_conversion := func(e: Expr, expected: Type) returns shallow Bool {
+    if is_numeric_type(expected).not() { return false }
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len().neq(1) { return false }
+    if is_numeric_type(expr_til_type(e)).not() { return false }
+    ref fa : Expr = e.child(0)
+    mut method := ""
+    switch fa.node_type {
+    case NodeType.FieldAccess(m):
+        method = field_access_name(m)
+    case:
+        return false
+    }
+    if method.starts_with("to_").not() { return false }
+    if fa.children.len().eq(0) { return false }
+    ref recv : Expr = fa.child(0)
+    switch recv.node_type {
+    case NodeType.Literal(Literal.Num(lit_str)):
+        return literal_in_range(literal_num_text(lit_str), expected)
+    case:
+        return false
+    }
+}
+
+redundant_conversion_error := proc(at: Expr, expected: Type) {
+    type_error(at, "redundant conversion: numeric literal already narrows to "
+        .concat(type_to_name(expected)).concat(" in this context; drop the .to_* conversion"))
+}
+
 validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str) {
     if expr_til_type(arg).is(Type.Dynamic) { return }
     if expr_til_type(arg).is(Type.Unknown) { return }
+    if redundant_literal_conversion(arg, ptype) {
+        redundant_conversion_error(arg, ptype)
+        return
+    }
     switch arg.node_type {
     case NodeType.Literal(Literal.Num(lit_str)):
         if is_numeric_type(ptype) {
@@ -2673,16 +2712,18 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str) returns s
 // any other expression is left as-is.
 narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context) {
     if ctx.typer_return_type_name.len().eq(0) { return }
+    rt := type_from_name(ctx.typer_return_type_name.clone(), scope)
+    if is_numeric_type(rt).not() { return }
     switch rv.node_type {
     case NodeType.Literal(Literal.Num(lit_str)):
-        rt := type_from_name(ctx.typer_return_type_name.clone(), scope)
-        if is_numeric_type(rt) {
-            if literal_in_range(literal_num_text(lit_str), rt).not() {
-                type_error(rv, "integer literal ".concat(literal_num_text(lit_str)).concat(" out of range for ").concat(type_to_name(rt)))
-            }
-            set_expr_til_type(rv, rt)
+        if literal_in_range(literal_num_text(lit_str), rt).not() {
+            type_error(rv, "integer literal ".concat(literal_num_text(lit_str)).concat(" out of range for ").concat(type_to_name(rt)))
         }
+        set_expr_til_type(rv, rt)
     case:
+        if redundant_literal_conversion(rv, rt) {
+            redundant_conversion_error(rv, rt)
+        }
     }
 }
 
@@ -3167,6 +3208,8 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
         }
         if declared.is(Type.Unknown) {
             type_error(stmt, "undefined type '".concat(sdecl.explicit_type).concat("'"))
+        } else if redundant_literal_conversion(val, declared) {
+            redundant_conversion_error(val, declared)
         } else if val.node_type.is_literal_num().and(is_numeric_type(declared).or(declared.is(Type.Dynamic))) {
             switch val.node_type {
             case NodeType.Literal(Literal.Num(lit_str)):
@@ -6349,6 +6392,8 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     existing := scope.get_type(aname)
     if existing.is(Type.Unknown) {
         type_error(stmt, "undefined symbol '".concat(aname).concat("'"))
+    } else if redundant_literal_conversion(rhs, existing) {
+        redundant_conversion_error(rhs, existing)
     } else if scope.is_mut(aname).not() {
         type_error(stmt, "cannot assign to immutable variable '".concat(aname).concat("'"))
         sf := scope.find(aname)

@@ -65,11 +65,11 @@ test_f32_arithmetic := test() {
     assert_eq_str(__LOC__, y.mul(y).to_str(), "6.25")
 
     // Comparisons
-    assert(__LOC__, a.eq(10.to_f32()))
+    assert(__LOC__, a.eq(10))
     assert(__LOC__, a.eq(b).not())
     assert_eq(__LOC__, a.cmp(b), 1)
     assert_eq(__LOC__, b.cmp(a), -1)
-    assert_eq(__LOC__, a.cmp(10.to_f32()), 0)
+    assert_eq(__LOC__, a.cmp(10), 0)
 
     // Conversions
     assert_eq(__LOC__, F32.size().to_i64(), 4)
@@ -223,7 +223,7 @@ test_op_increment_decrement := test() {
     assert_eq(__LOC__, i, 0)
 
     // Works on other integer types
-    mut x : I32 = 10.to_i32()
+    mut x : I32 = 10
     x++
     assert_eq(__LOC__, x.to_i64(), 11)
     x--

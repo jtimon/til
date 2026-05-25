@@ -123,7 +123,7 @@ main := proc() {
                         for j : USize in 0..5 {
                             ref bpos : USize = BLACK_KEY_POS.get(j)
                             ref bchrom_off : USize = BLACK_CHROMS.get(j)
-                            chrom := bchrom_off.add(oct.mul(12.to_u32()))
+                            chrom := bchrom_off.add(oct.mul(12))
                             bx := oct.to_i64().mul(7).add(bpos.to_i64()).add(1).mul(WHITE_W.to_i64()).sub(BLACK_W.div(2).to_i64())
                             if chrom.lt(NUM_KEYS).and(mx.gte(bx)).and(mx.lt(bx.add(BLACK_W.to_i64()))) {
                                 mouse_note = chrom.to_i64()
@@ -137,7 +137,7 @@ main := proc() {
                     if wk.gte(0).and(wk.lt(21)) {
                         oct := wk.div(7)
                         ref nat : USize = NATURALS.get(wk.mod(7).to_u32())
-                        mouse_note = nat.add(oct.to_u32().mul(12.to_u32())).to_i64()
+                        mouse_note = nat.add(oct.to_u32().mul(12)).to_i64()
                     }
                 }
                 if mouse_note.gte(0).and(mouse_note.lt(NUM_KEYS.to_i64())) {
@@ -197,12 +197,12 @@ main := proc() {
         note_h : U64 = ROLL_H.div(NUM_KEYS)
         for i in 0..NUM_KEYS {
             ny := i.to_i64().mul(note_h.to_i64())
-            ref ib : USize = IS_BLACK.get(i.mod(12.to_u32()))
+            ref ib : USize = IS_BLACK.get(i.mod(12))
             if ib.eq(1) {
                 draw_rectangle(0, ny, WINDOW_WIDTH.to_i64(), note_h.to_i64(), 15, 15, 25, 255)
             }
             // Octave separator
-            if i.mod(12.to_u32()).eq(0).and(i.gt(0)) {
+            if i.mod(12).eq(0).and(i.gt(0)) {
                 draw_rectangle(0, ny, WINDOW_WIDTH.to_i64(), 1, 40, 40, 60, 255)
             }
         }
@@ -227,7 +227,7 @@ main := proc() {
             if x_left.gt(WINDOW_WIDTH.to_i64()) { x_left = WINDOW_WIDTH.to_i64() }
 
             // y position: note 0 at bottom of roll, note 35 at top
-            ey := ROLL_H.to_i64().sub(en.add(1.to_u32()).to_i64().mul(note_h.to_i64()))
+            ey := ROLL_H.to_i64().sub(en.add(1).to_i64().mul(note_h.to_i64()))
             mut ew : I64 = x_left.sub(x_right)
             if ew.lt(2) { ew = 2 }
 
@@ -235,7 +235,7 @@ main := proc() {
             mut nr : U64 = 0
             mut ng : U64 = 150
             mut nb : U64 = 155
-            oct := en.div(12.to_u32())
+            oct := en.div(12)
             if oct.eq(1) { ng = 180 ; nb = 185 }
             if oct.eq(2) { ng = 210 ; nb = 215 }
 
@@ -244,9 +244,9 @@ main := proc() {
 
         // Note labels on left side of roll
         for i in 0..NUM_KEYS {
-            ny := ROLL_H.to_i64().sub(i.add(1.to_u32()).to_i64().mul(note_h.to_i64()))
-            ref nn : Str = NOTE_NAMES.get(i.mod(12.to_u32()))
-            oct_label := nn.concat(i.div(12.to_u32()).add(3.to_u32()).to_str())
+            ny := ROLL_H.to_i64().sub(i.add(1).to_i64().mul(note_h.to_i64()))
+            ref nn : Str = NOTE_NAMES.get(i.mod(12))
+            oct_label := nn.concat(i.div(12).add(3).to_str())
             draw_text_font(fnt, oct_label, 4, ny, note_h.sub(2).to_i64(), 1, 60, 60, 80, 255)
         }
 
@@ -254,9 +254,9 @@ main := proc() {
         // Draw 21 white keys (3 octaves)
         for i : USize in 0..21 {
             kx := i.to_i64().mul(WHITE_W.to_i64())
-            oct := i.div(7.to_u32())
+            oct := i.div(7)
             ref nat : USize = NATURALS.get(i.mod(7))
-            chrom := nat.add(oct.mul(12.to_u32()))
+            chrom := nat.add(oct.mul(12))
 
             mut kr : U64 = 240
             mut kg : U64 = 240
@@ -283,7 +283,7 @@ main := proc() {
             for j : USize in 0..5 {
                 ref bpos : USize = BLACK_KEY_POS.get(j)
                 ref bchrom_off : USize = BLACK_CHROMS.get(j)
-                chrom := bchrom_off.add(oct.mul(12.to_u32()))
+                chrom := bchrom_off.add(oct.mul(12))
                 bx := oct.to_i64().mul(7).add(bpos.to_i64()).add(1).mul(WHITE_W.to_i64()).sub(BLACK_W.div(2).to_i64())
 
                 mut br : U64 = 20

@@ -230,7 +230,7 @@ recompute_scale := func(sel_diatonic: USize, sel_accidental: I64, sel_mode: USiz
 
         // Next note
         if k.lt(7) {
-            ref step : U64 = INTERVALS.get(sel_mode.mul(7.to_u32()).add(k))
+            ref step : U64 = INTERVALS.get(sel_mode.mul(7).add(k))
             chrom_total = chrom_total.add(step.to_i64())
             prev_diat = diat_pos
             diat_pos = diat_pos.add(1).mod(7)
@@ -258,8 +258,8 @@ draw_piano := proc(active_chrom: I64, active_oct: USize) {
     // 2 octaves: 15 white keys (C4-B4, C5-B5, C6)
     for i : USize in 0..15 {
         kx := STAFF_X.to_i64().add(i.to_i64().mul(WHITE_W.to_i64()))
-        ref nat : USize = NATURALS.get(i.mod(7.to_u32()))
-        key_oct := i.div(7.to_u32())
+        ref nat : USize = NATURALS.get(i.mod(7))
+        key_oct := i.div(7)
         mut kr : U64 = 240
         mut kg : U64 = 240
         mut kb : U64 = 240
