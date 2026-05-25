@@ -735,10 +735,11 @@ emit_i32 := proc(f: File, shallow v: I32) returns ref File {
     return f
 }
 
-priv emit_indent := proc(f: File, shallow depth: I32) {
+priv emit_indent := proc(f: File, shallow depth: I32) returns ref File {
     for _ : I32 in 0..depth {
         f.write("    ")
     }
+    return f
 }
 
 // Post-escape byte count for a source-form string literal: each `\n`,
@@ -1892,7 +1893,7 @@ emit_str_lit_expr := proc(f: File, s: Str) {
     f.write("ULL, .cap = TIL_CAP_LIT}; _lit; })")
 }
 
-emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
+emit_expr := proc(f: File, e: Expr, shallow depth: I32) returns ref File {
     switch e.node_type {
     case NodeType.Literal(Literal.Str(s)):
         emit_str_lit_expr(f, s)
@@ -1923,7 +1924,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
                     f.write("))(")
                     emit_fcall_funcptr_args(f, e, sig, depth)
                     f.write(")")
-                    return
+                    return f
                 }
             }
             // Namespace method call
@@ -2151,6 +2152,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32) {
     case:
         f.write("/* TODO: unknown expr type */")
     }
+    return f
 }
 
 priv emit_body := proc(f: File, body: Expr, shallow depth: I32) {
@@ -2391,7 +2393,7 @@ emit_body_scoped := proc(f: File, body: Expr, shallow depth: I32) {
     lp.ctx.ref_dyn_locals = saved_rdl
 }
 
-priv emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
+priv emit_deref := proc(f: File, e: Expr, shallow depth: I32) returns ref File {
     if expr_til_type(e).is(Type.Dynamic) {
         emit_expr(f, e, depth)
     } else if expr_til_type(e).is(Type.FuncPtr) {
@@ -2448,9 +2450,10 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32) {
             emit_expr(f, e, depth)
         }
     }
+    return f
 }
 
-emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) {
+emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) returns ref File {
     switch e.node_type {
     case NodeType.Ident(ident):
         if is_shallow_param(ident_name(ident)).or(is_stack_local(ident_name(ident))).or(is_value_global(ident_name(ident))) {
@@ -2493,7 +2496,7 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
                     f.write(" _sc")
                     emit_i32(f, id)
                     f.write("; })")
-                    return
+                    return f
                 }
             case:
             }
@@ -2538,6 +2541,7 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool) 
         emit_expr(f, e, depth)
         f.write("}")
     }
+    return f
 }
 
 emit_usize_ref := proc(f: File, e: Expr, shallow depth: I32) {
