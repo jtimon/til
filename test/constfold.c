@@ -2307,10 +2307,10 @@ I64 struct_field_is_mut(Str *type_name, I64 *index) {
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0) {
         if (*index == 0LL) return 1;
-        if (*index == 1LL) return 0;
-        if (*index == 2LL) return 0;
-        if (*index == 3LL) return 0;
-        if (*index == 4LL) return 0;
+        if (*index == 1LL) return 1;
+        if (*index == 2LL) return 1;
+        if (*index == 3LL) return 1;
+        if (*index == 4LL) return 1;
     }
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) {
         if (*index == 0LL) return 1;

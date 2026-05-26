@@ -137,6 +137,7 @@ typedef enum {
     TokenType_TAG_Char,
     TokenType_TAG_DocComment,
     TokenType_TAG_KwMut,
+    TokenType_TAG_KwConst,
     TokenType_TAG_KwOwn,
     TokenType_TAG_KwRef,
     TokenType_TAG_KwShallow,
@@ -2105,6 +2106,7 @@ TokenType *TokenType_Number();
 TokenType *TokenType_Char();
 TokenType *TokenType_DocComment();
 TokenType *TokenType_KwMut();
+TokenType *TokenType_KwConst();
 TokenType *TokenType_KwOwn();
 TokenType *TokenType_KwRef();
 TokenType *TokenType_KwShallow();

@@ -1,5 +1,50 @@
 # priority: low
-** OPEN #211 Reconsider the default mutability of struct fields (mut-by-default vs const-by-default)
+** WIP #211 Reconsider the default mutability of struct fields (mut-by-default vs const-by-default)
+
+*** Progress (staged migration -- see doc/self.org "Staged migration across master merges")
+
+Decision: proceed with option (2) -- flip STRUCT INSTANCE fields to
+mut-by-default with a `const` opt-out. Namespace decls inside a struct
+keep const-by-default (they behave like module-level constants), and
+enum payloads are left for a separate pass (still an open question
+below).
+
+Because `const` is a NEW keyword that HEAD's til_boot does not know, and
+because a bare field means the OPPOSITE thing under the old vs new
+default, this cannot land in a single commit -- it needs the staged
+sequence, each step merged to master before the next:
+
+  - COMMIT 1 (transitional, DONE): teach the compiler the new rule
+    without migrating sources.
+      * lexer: add the `KwConst` token ("const" keyword).
+      * parser `parse_struct_def`: instance fields default to mutable
+        (`f_is_mut := true`); `const` opts out; `mut` is still ACCEPTED
+        (redundant, no error yet) so existing sources keep parsing under
+        HEAD's til_boot.
+      * typer: the instance-field assign error now says "cannot assign
+        to const field '<f>'; remove the 'const' keyword ..." (the
+        namespace-field assign error is unchanged -- namespace decls
+        stay const-by-default).
+      * test/typer_errors.til: the field it relied on for the
+        immutable-assign error is now `const id := 0` so the negative
+        test still fires (count stays 117).
+    No source migration in this commit; once it is on master, master's
+    til_boot understands `const` AND defaults fields to mutable.
+
+  - COMMIT 2 (migration + enforcement, PENDING commit 1 landing on
+    master -- a remote agent cannot author it before then):
+      * strip the now-redundant `mut` from every struct FIELD decl
+        across src/**, test/**, and add `const` to every field that is
+        bare today (currently immutable) so its guarantee is preserved
+        (audit: a bare field never assigned is silently const now and
+        would silently become mut otherwise).
+      * add the typer error that FORBIDS redundant `mut` on a field
+        (model on redundant_conversion_error), and drop the
+        `else if check(p, TokenType.KwMut)` acceptance in the parser.
+      * update build_til_binding in src/self/builder.til to emit `const`
+        for immutable fields instead of `mut` for mutable ones.
+      * update doc/facts.org ("Everything is immutable by default") and
+        doc/qualifiers.org.
 
 *** Summary
 

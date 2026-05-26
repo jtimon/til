@@ -33,7 +33,7 @@ TokenType := enum {
     DocComment,
 
     // Keywords
-    KwMut, KwOwn, KwRef, KwShallow,
+    KwMut, KwConst, KwOwn, KwRef, KwShallow,
     KwStruct, KwEnum, KwNamespace,
     KwFunc, KwProc, KwTest, KwMacro, KwExtFunc, KwExtProc, KwExtStruct,
     KwReturns, KwThrows,
@@ -121,6 +121,7 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.Char: return "char"
     case TokenType.DocComment: return "doc_comment"
     case TokenType.KwMut: return "mut"
+    case TokenType.KwConst: return "const"
     case TokenType.KwOwn: return "own"
     case TokenType.KwRef: return "ref"
     case TokenType.KwShallow: return "shallow"
@@ -216,6 +217,7 @@ lookup_two_char := func(c: I8, c2: I8) returns shallow TokenType {
 priv lookup_keyword := func(word: Str) returns TokenType {
     switch word {
     case "mut": return TokenType.KwMut
+    case "const": return TokenType.KwConst
     case "own": return TokenType.KwOwn
     case "ref": return TokenType.KwRef
     case "shallow": return TokenType.KwShallow

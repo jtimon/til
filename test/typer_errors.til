@@ -52,9 +52,9 @@ assign_param := proc(a: I64) {
 mut m := 42
 m = "oops"
 
-// cannot assign to immutable struct field
+// cannot assign to const struct field (#211: fields are mut by default)
 ImmutStruct := struct {
-    id := 0
+    const id := 0
     mut name := "x"
 }
 immut_struct := ImmutStruct()

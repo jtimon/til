@@ -459,10 +459,14 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             }
         } else {
             mut f_own_type := OwnType.Shallow
-            mut f_is_mut := false
+            // #211: struct instance fields are mutable by default; `const`
+            // opts out. `mut` is still accepted (redundant) during the staged
+            // migration -- a later commit forbids it once sources are migrated.
+            mut f_is_mut := true
             if check(p, TokenType.KwOwn) { advance(p); f_own_type = OwnType.Own }
             if check(p, TokenType.KwRef) { advance(p); f_own_type = OwnType.Ref }
-            if check(p, TokenType.KwMut) { advance(p); f_is_mut = true }
+            if check(p, TokenType.KwConst) { advance(p); f_is_mut = false }
+            else if check(p, TokenType.KwMut) { advance(p) }
             f_name := expect_text(p, TokenType.Ident)
             mut f_explicit_type := ""
             if check(p, TokenType.Colon) {
