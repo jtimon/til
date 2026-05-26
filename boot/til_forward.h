@@ -240,9 +240,9 @@ typedef struct Scope Scope;
 typedef struct priv___src_self_interpreter_til__DynPtrBox priv___src_self_interpreter_til__DynPtrBox;
 typedef struct _ffi_type ffi_type;
 typedef struct priv___src_self_dispatch_til__ExtStr priv___src_self_dispatch_til__ExtStr;
-typedef struct priv___src_self_dispatch_til__FFIEntry priv___src_self_dispatch_til__FFIEntry;
+typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
-typedef struct priv___src_self_dispatch_til__FFITypePtrBox priv___src_self_dispatch_til__FFITypePtrBox;
+typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
 typedef struct Vector3 Vector3;
 typedef struct Vector4 Vector4;
@@ -688,7 +688,7 @@ typedef struct priv___src_self_dispatch_til__ExtStr {
 } priv___src_self_dispatch_til__ExtStr;
 
 
-typedef struct priv___src_self_dispatch_til__FFIEntry {
+typedef struct FFIEntry {
     U8 *fn;
     Str *return_type;
     I32 nparam;
@@ -696,7 +696,7 @@ typedef struct priv___src_self_dispatch_til__FFIEntry {
     Bool return_is_shallow;
     ffi_cif *cif;
     void * *arg_types;
-} priv___src_self_dispatch_til__FFIEntry;
+} FFIEntry;
 
 
 typedef struct ExprPtrBox {
@@ -704,9 +704,9 @@ typedef struct ExprPtrBox {
 } ExprPtrBox;
 
 
-typedef struct priv___src_self_dispatch_til__FFITypePtrBox {
+typedef struct FFITypePtrBox {
     ffi_type *ptr;
-} priv___src_self_dispatch_til__FFITypePtrBox;
+} FFITypePtrBox;
 
 
 typedef struct priv___src_self_binder_til__BinderState {
@@ -838,6 +838,14 @@ typedef struct Context {
     Expr *cached_vec_def;
     Str *cached_vec_name;
     Map interp_type_defs;
+    Map dispatch_map;
+    Bool dispatch_inited;
+    Map ffi_map;
+    Bool ffi_map_inited;
+    Bool ffi_loaded;
+    Map ffi_struct_defs;
+    Vec ffi_type_cache;
+    Bool ffi_type_cache_inited;
 } Context;
 
 
@@ -1897,24 +1905,24 @@ U32 ffi_cif_size(void);
 priv___src_self_dispatch_til__ExtStr * priv___src_self_dispatch_til__ExtStr_clone(priv___src_self_dispatch_til__ExtStr * self);
 void priv___src_self_dispatch_til__ExtStr_delete(priv___src_self_dispatch_til__ExtStr * self, Bool * call_free);
 U32 priv___src_self_dispatch_til__ExtStr_size(void);
-priv___src_self_dispatch_til__FFIEntry * priv___src_self_dispatch_til__FFIEntry_clone(priv___src_self_dispatch_til__FFIEntry * self);
-void priv___src_self_dispatch_til__FFIEntry_delete(priv___src_self_dispatch_til__FFIEntry * self, Bool * call_free);
-U32 priv___src_self_dispatch_til__FFIEntry_size(void);
+FFIEntry * FFIEntry_clone(FFIEntry * self);
+void FFIEntry_delete(FFIEntry * self, Bool * call_free);
+U32 FFIEntry_size(void);
 ExprPtrBox * ExprPtrBox_clone(ExprPtrBox * self);
 void ExprPtrBox_delete(ExprPtrBox * self, Bool * call_free);
 U32 ExprPtrBox_size(void);
-priv___src_self_dispatch_til__FFITypePtrBox * priv___src_self_dispatch_til__FFITypePtrBox_clone(priv___src_self_dispatch_til__FFITypePtrBox * self);
-void priv___src_self_dispatch_til__FFITypePtrBox_delete(priv___src_self_dispatch_til__FFITypePtrBox * self, Bool * call_free);
-U32 priv___src_self_dispatch_til__FFITypePtrBox_size(void);
-void ffi_reset(void);
+FFITypePtrBox * FFITypePtrBox_clone(FFITypePtrBox * self);
+void FFITypePtrBox_delete(FFITypePtrBox * self, Bool * call_free);
+U32 FFITypePtrBox_size(void);
+void ffi_reset(Context * ctx);
 ffi_type * priv___src_self_dispatch_til__ffi_type_ref(Str * name);
 void * ffi_alloc_cif(void);
 Bool ffi_cif_rtype_is_struct(ffi_cif * cif);
 U8 * ffi_dlsym(Str * name);
 void ffi_init_link_libs(Str * link_flags);
 I32 ffi_init_user_so(Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Str * so_path_out);
-void ffi_init_struct_defs(Expr * program);
-void ffi_init_struct_defs_append(Expr * program);
+void ffi_init_struct_defs(Expr * program, Context * ctx);
+void ffi_init_struct_defs_append(Expr * program, Context * ctx);
 U64 * value_to_u64(Value * v);
 ffi_type * uptr_ffi_type(Context * ctx);
 ffi_type * usize_ffi_type(Context * ctx);
@@ -1973,14 +1981,14 @@ Bool h_cfile_close(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_cfile_write_str(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_ptr_add(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_cfile_read_all(Scope * s, Expr * e, Value * r, Context * ctx);
-void reg_dispatch(Str * name, DispatchFn handler);
-void dispatch_init(void);
+void reg_dispatch(Str * name, DispatchFn handler, Context * ctx);
+void dispatch_init(Context * ctx);
 Bool ext_dispatch_builtin(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
 Bool h_dyn_call(Scope * s, Expr * e, Value * r, Context * ctx);
 I32 get_elem_size(Scope * s, Str * type_name, Expr * src, Context * ctx);
 Bool enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result, Context * ctx);
 Bool ffi_decode_scalar(Str * rtype, void * p, Value * result, Context * ctx);
-Expr * ffi_call_ret_struct_def(priv___src_self_dispatch_til__FFIEntry * fe);
+Expr * ffi_call_ret_struct_def(FFIEntry * fe, Context * ctx);
 Bool priv___src_self_dispatch_til__ffi_shallow_type_info(void * atype, Str * type_name, I32 * size);
 Bool priv___src_self_dispatch_til__ffi_write_shallow_arg(Scope * scope, Value * v, void * atype, void * dst, Context * ctx);
 Bool ext_dispatch_ffi(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
@@ -1988,7 +1996,7 @@ Bool ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result, 
 void ffi_register(Str * name, void * fn, Expr * fdef, Context * ctx);
 void ffi_init_scan_program(Expr * program, Context * ctx);
 I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Context * ctx);
-void ffi_cleanup(void);
+void ffi_cleanup(Context * ctx);
 Bool priv___src_self_binder_til__bind_is_ws(I8 * c);
 U32 * priv___src_self_binder_til__skip_ws(Str * s, U32 from);
 U32 * priv___src_self_binder_til__skip_word(Str * s, U32 from);
@@ -2210,14 +2218,6 @@ extern I32 FFI_BAD_TYPEDEF;
 extern I32 FFI_BAD_ABI;
 extern I32 FFI_BAD_ARGTYPE;
 extern I64 FFI_SIZEOF_ARG;
-extern Map dispatch_map;
-extern Bool dispatch_inited;
-extern Map ffi_map;
-extern Map ffi_struct_defs;
-extern Bool ffi_loaded;
-extern Vec ffi_type_cache;
-extern Bool ffi_type_cache_inited;
-extern Bool ffi_map_inited;
 extern I64 RAYLIB_VERSION_MAJOR;
 extern I64 RAYLIB_VERSION_MINOR;
 extern I64 RAYLIB_VERSION_PATCH;

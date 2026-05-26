@@ -2213,7 +2213,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
             eprint_single(test_count.to_str())
             eprint_single(" tests passed\n")
         }
-        ffi_cleanup()
+        ffi_cleanup(lp.ctx)
         if pass_count.eq(test_count).not() { exit(1) }
         // Fall through to final cleanup
     }
@@ -2292,7 +2292,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     } }
 
     scope_free(own global)
-    ffi_cleanup()
+    ffi_cleanup(lp.ctx)
     c.ns_inited = false
     return 0
 }
@@ -2305,26 +2305,26 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     // interpreter helpers can read shared Context fields (#177/#178).
     ref mut c : Context = lp.ctx
     // Ensure builtin dispatch table is initialized deterministically.
-    if dispatch_inited.not() { dispatch_init() }
+    if lp.ctx.dispatch_inited.not() { dispatch_init(lp.ctx) }
 
     mut user_argc : U32 = 0
     if is_null(user_argv).not() { user_argc = user_argv.len() }
 
     // FFI init: reset, load the shared lib, then scan per-file ASTs.
-    ffi_reset()
+    ffi_reset(lp.ctx)
     mut empty := Expr.new(NodeType.Body, 0, 0)
     ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
     if ffi_rc.to_i64().eq(0).not() { return ffi_rc }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-            ffi_init_struct_defs_append(iu.ast)
+            ffi_init_struct_defs_append(iu.ast, lp.ctx)
             ffi_init_scan_program(iu.ast, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        ffi_init_struct_defs_append(iu.ast)
+        ffi_init_struct_defs_append(iu.ast, lp.ctx)
         ffi_init_scan_program(iu.ast, lp.ctx)
     }
 
@@ -2468,7 +2468,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
             eprint_single(test_count.to_str())
             eprint_single(" tests passed\n")
         }
-        ffi_cleanup()
+        ffi_cleanup(lp.ctx)
         if pass_count.eq(test_count).not() { exit(1) }
     }
 
@@ -2548,7 +2548,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     } } }
 
     scope_free(own global)
-    ffi_cleanup()
+    ffi_cleanup(lp.ctx)
     c.ns_inited = false
     return 0
 }

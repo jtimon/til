@@ -341,6 +341,21 @@ Context := struct {
     // (same encoding as struct_def_exprs / func_defs) so the field type
     // stays in scope at the Context definition in this file.
     mut interp_type_defs := Map.new(Str, Dynamic)
+
+    // Dispatch / FFI runtime state (previously module-level globals in
+    // dispatch.til). FFIEntry / FFITypePtrBox are defined in dispatch.til
+    // but resolve here via whole-program merge (same as ns_fields' Value).
+    // ffi_cleanup frees the inner C-heap pointers (cifs etc.) and resets
+    // these maps to fresh, so Context's auto-delete only ever frees empty
+    // containers -- no double free of the libffi allocations.
+    mut dispatch_map := Map.new(Str, Dynamic)
+    mut dispatch_inited := false
+    mut ffi_map := Map.new(Str, FFIEntry)
+    mut ffi_map_inited := false
+    mut ffi_loaded := false
+    mut ffi_struct_defs := Map.new(Str, Dynamic)
+    mut ffi_type_cache := Vec.new(FFITypePtrBox)
+    mut ffi_type_cache_inited := false
 }
 
 priv align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {

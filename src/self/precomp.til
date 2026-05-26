@@ -1159,7 +1159,7 @@ precomp := proc(core_program: Expr, program: Expr, ctx: Context) {
     // 2b. Init FFI
     ffi_init(program, NULL, NULL, NULL, NULL, ctx)
     if is_null(core_program).not() {
-        ffi_init_struct_defs(core_program)
+        ffi_init_struct_defs(core_program, ctx)
         ffi_init_scan_program(core_program, ctx)
     }
 
