@@ -576,6 +576,11 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             }
         }
     case NodeType.FieldAccess(mname):
+        // Method-shaped side-effecting calls (File.readfile, File.writefile,
+        // ...) must not fold -- the name guard only ran on Ident callees
+        // before, and the ext_func bail (removed in #136 item 1) used to
+        // mask them. Mirror the Ident-callee check on the method name.
+        if is_macro_mode.not().and(is_side_effecting_name(field_access_name(mname))) { return NULL }
         if callee.children.len().gt(0) {
             ref recv : Expr = callee.child(0)
             switch recv.node_type {
@@ -604,9 +609,12 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         switch fdef.node_type {
         case NodeType.FuncDef(_fd):
             if _fd.return_own_type.is(OwnType.Ref) { return NULL }
-            // Issue #191: macros can call ext_funcs (e.g. run_cmd).
-            // Funcs still can't.
-            if is_macro_mode.not().and(_fd.func_type.is(FuncType.ExtFunc)) { return NULL }
+            // Issue #136 item 1: ext_funcs are foldable too. Built-ins
+            // (I64_add etc.) are statically linked and dispatch via
+            // ext_function_dispatch; a user .so that wasn't dlopen'd at
+            // precomp time is undispatchable and the interpreter returns
+            // val_none() for it, so try_eval_call bails cleanly below
+            // (can_convert.not()) rather than baking a bad value.
             if fdef.children.len().gt(0) {
                 // Issue #191: skip unknown-global check for macro calls.
                 if is_macro_mode.not() {

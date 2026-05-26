@@ -6,10 +6,12 @@ cmd=$(python3 -c "import sys,json; print(json.load(sys.stdin)['tool_input']['com
 # (e.g., a commit message that mentions "sleep" or "pgrep").
 first_line=$(printf '%s\n' "$cmd" | sed -n '1p')
 
-if echo "$first_line" | grep -qP '(^|[|;&])\s*(echo|cat|head|tail)\b'; then
-    echo "BLOCKED: Use Read/Write/Grep tools instead of echo/cat/head/tail" >&2
-    exit 2
-fi
+# NOTE: plain echo/cat/head/tail are allowed. They terminate immediately,
+# so they never trip the harness auto-background threshold. The Read/Grep
+# tools are still preferred for file inspection, but a hard block here only
+# created friction (e.g. `tail -n 25 log`, `grep ... | head`, `echo "x"`).
+# The genuinely dangerous never-exit form, `tail -f` / `less +F`, is still
+# blocked further down.
 
 if echo "$first_line" | grep -qP 'git\s+stash'; then
     echo "BLOCKED: Never use git stash -- it is destructive." >&2

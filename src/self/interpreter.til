@@ -1172,6 +1172,22 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         exit(1)
     }
 
+    // An ext_func reaching here did not dispatch above (not a builtin and
+    // not FFI-registered -- e.g. a user .so not dlopen'd at precomp time).
+    // It has no body to execute, so refuse rather than falling through to
+    // the bodyless-func path. Lets precomp's try_eval_call bail cleanly via
+    // can_convert.not() instead of crashing.
+    switch fn_cell.val {
+    case Value.Func(ext_fp):
+        ref ext_def : Expr = deref(ext_fp)
+        switch ext_def.node_type {
+        case NodeType.FuncDef(ext_fd):
+            if ext_fd.func_type.is(FuncType.ExtFunc) { return val_none() }
+        case:
+        }
+    case:
+    }
+
     // Struct instantiation
     switch fn_cell.val {
     case Value.Func(si_fptr):

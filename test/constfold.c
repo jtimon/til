@@ -413,10 +413,8 @@ U32 * U32_size(void) {
 }
 
 Bool U32_lt(U32 * a, U32 * b) {
-    I64 hoisted__I64_54 = 0;
-    I64 hoisted__I64_55 = 1;
     I64 hoisted__I64_56 = U32_cmp(DEREF(a), DEREF(b));
-    I64 hoisted__I64_57 = I64_sub(hoisted__I64_54, hoisted__I64_55);
+    I64 hoisted__I64_57 = -1;
     Bool hoisted__Bool_58 = I64_eq(hoisted__I64_56, hoisted__I64_57);
     return hoisted__Bool_58;
 }
@@ -837,10 +835,8 @@ U32 * I64_size(void) {
 }
 
 Bool I64_lt(I64 * a, I64 * b) {
-    I64 hoisted__I64_1047 = 0;
-    I64 hoisted__I64_1048 = 1;
     I64 hoisted__I64_1049 = I64_cmp(DEREF(a), DEREF(b));
-    I64 hoisted__I64_1050 = I64_sub(hoisted__I64_1047, hoisted__I64_1048);
+    I64 hoisted__I64_1050 = -1;
     Bool hoisted__Bool_1051 = I64_eq(hoisted__I64_1049, hoisted__I64_1050);
     return hoisted__Bool_1051;
 }
@@ -1926,9 +1922,6 @@ void *Str_eq_dyn(void *_a0, void *_a1) {
 void *I64_to_u8_dyn(void *_a0) {
     U8 *_r = malloc(sizeof(U8)); *_r = I64_to_u8(*(I64 *)_a0); return _r;
 }
-void *I64_to_usize_dyn(void *_a0) {
-    U32 *_r = malloc(sizeof(U32)); *_r = I64_to_usize(*(I64 *)_a0); return _r;
-}
 void *I64_add_dyn(void *_a0, void *_a1) {
     I64 *_r = malloc(sizeof(I64)); *_r = I64_add(*(I64 *)_a0, *(I64 *)_a1); return _r;
 }
@@ -2044,7 +2037,6 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Dynamic_size;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_str", 6ULL) == 0) return (void*)I64_to_str;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "to_u8", 5ULL) == 0) return (void*)I64_to_u8_dyn;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 8ULL && memcmp(method->c_str, "to_usize", 8ULL) == 0) return (void*)I64_to_usize_dyn;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "add", 3ULL) == 0) return (void*)I64_add_dyn;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "sub", 3ULL) == 0) return (void*)I64_sub_dyn;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "div", 3ULL) == 0) return (void*)I64_div_dyn;
@@ -2342,10 +2334,8 @@ Str *dyn_type_to_str(Type *type) {
 }
 
 int main(void) {
-    I64 hoisted__I64_929 = -1;
-    CAP_LIT = I64_to_usize(hoisted__I64_929);
-    I64 hoisted__I64_930 = -2;
-    CAP_VIEW = I64_to_usize(hoisted__I64_930);
+    CAP_LIT = 4294967295;
+    CAP_VIEW = 4294967294;
     ELEM_POD = 0;
     ELEM_BOXED = 1;
     ELEM_FN = 2;

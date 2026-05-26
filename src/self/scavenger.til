@@ -430,8 +430,16 @@ priv dce_one_body := proc(mut body: Expr, shallow at_top_level: Bool) returns sh
             if dd.is_mut { continue }
             if dd.own_type.is(OwnType.Own) { continue }
             // At top level only ever drop compiler-internal temps;
-            // user-named globals may be exported.
-            if at_top_level.and(dd.name.starts_with("hoisted__").not()) { continue }
+            // user-named globals may be exported. Both hoisted__* and
+            // codegen _t_* temps are compiler-internal (users cannot name
+            // a leading-underscore binding), so both are safe to drop --
+            // _t_* matters since precomp's ext_func folding (issue #136
+            // item 1) orphans arg temps like `_t_I64_858 = -2` in main()'s
+            // top-level init.
+            if at_top_level {
+                is_internal := dd.name.starts_with("hoisted__").or(dd.name.starts_with("_t_"))
+                if is_internal.not() { continue }
+            }
             ref rhs : Expr = stmt.child(0)
             if dd.own_type.is(OwnType.Ref) {
                 // Ref-typed hoisted temps come from stmt-level FCalls

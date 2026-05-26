@@ -16,35 +16,33 @@ Reopened: an earlier "fix" landed (Vec.move_from / Vec.push_take work,
      runtime call. The ~lolalolo~ / ~lalei~ strings the test asserts on
      are computed at runtime, not at compile time.
 
-   Status update (post-rstil-parity merges): items 3, 6, 7, 9 below
+   Status update (post-rstil-parity merges): items 1, 3, 6, 7, 9 below
    are no longer in master. ~test_lolalalo~ AND ~test_string_concat~
    both fold to ~Str_lit("...", N)~ at compile time now (see
    ~test/constfold.c~). What's left is the residual exception
-   list, plus one DCE-shaped follow-up surfaced by trying to remove
-   item 1 -- documented inline below.
+   list (items 2, 4, 5, 8, 10-13).
 
    Bails / exceptions added in src/self/precomp.til (none of these are
    in rstil; remove one by one until the suite still passes with
    fewer of them):
 
-   1. ~try_eval_call~ bails when ~_fd.func_type.is(FuncType.ExtFunc)~
-      (gated on ~is_macro_mode.not()~ since #191). Workaround for
-      user .so not dlopen'd at precomp time. Built-in ext_funcs
-      (I64_add etc.) are statically linked and ~ext_dispatch_ffi~
-      would dispatch them gracefully (it returns false on
-      unregistered names, so a user .so that wasn't dlopen'd at
-      precomp time would just refuse to fold rather than crash).
-      Tried removing the bail (master ~7bf0cc9~): folds proceeded
-      but ~test_runner.til~ failed compile with
-      ~-Werror=unused-variable~ on temps like ~_t_I64_858 = -2~ in
-      ~main()~'s top-level init -- the fold replaced
-      ~CAP_LIT = something(...)~ with ~CAP_LIT = 4294967295~ and
-      orphaned the arg temps. ~ee487a5~ (Body-level DCE for
-      post-precomp dead temps) handles function-body Decls but does
-      NOT walk ~main()~'s top-level init sequence, so the dead
-      temps slip through and gcc rejects them. Real fix: extend
-      DCE to the main()/init codegen path before this bail can
-      come out.
+   1. (REMOVED.) The ~try_eval_call~ ExtFunc bail is gone -- ext_funcs
+      fold now. Built-in ext_funcs (I64_add, I64_to_usize, ...) are
+      statically linked and dispatch via ~ext_function_dispatch~; a
+      user .so that wasn't dlopen'd at precomp time is undispatchable
+      and the interpreter now returns ~val_none()~ for it (instead of
+      crashing on the bodyless-func path), so ~try_eval_call~ bails
+      cleanly via ~can_convert.not()~ rather than baking a bad value.
+      The DCE follow-up is handled two ways: the top-level body DCE in
+      ~scavenger.til~ (~dce_one_body~) now drops compiler-internal
+      ~_t_*~ temps as well as ~hoisted__*~ ones, and ~CAP_LIT~ /
+      ~CAP_VIEW~ in ~main()~ fold to literals with their arg temps
+      removed (verified: ~test/constfold.c~, full suite under
+      ~-Werror=unused-variable~). Removing the bail also exposed that
+      the side-effecting-name guard only ran on Ident callees, letting
+      ~File.readfile("...")~ run at compile time -- fixed by mirroring
+      the ~is_side_effecting_name~ check on FieldAccess callees in
+      ~try_eval_call~.
 
    2. ~try_eval_call~ FA-callee path bails when the receiver Ident
       isn't a registered struct namespace and isn't a known constant
