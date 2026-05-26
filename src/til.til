@@ -25,6 +25,9 @@ link("pthread")
 link("rt")
 import("../vendor/bindings/tinyfd")
 link("vendor/tinyfiledialogs/libtinyfd.a")
+import("../vendor/bindings/nng")
+link("vendor/nng/libnng.a")
+link("atomic")
 
 link("dl")
 
