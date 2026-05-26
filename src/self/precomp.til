@@ -620,7 +620,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                 if is_macro_mode.not() {
                     mut _fuug_visiting := Set.new(Str)
                     uses_unknown := func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), true, _fuug_visiting, ctx)
-                    Set.delete(own _fuug_visiting, true)
+                    Set.delete(own _fuug_visiting, false)
                     if uses_unknown {
                         return NULL
                     }
@@ -872,13 +872,6 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                 cleanup_value_payload(kv)
             }
             Map.clear(ctx.precomp_known)
-            // Map.clear drops the elements but keeps the keys/values data
-            // buffers. The memcpy below overwrites those Vec headers (data
-            // pointers included) with the snapshot's, so free the current
-            // buffers first or they are orphaned -- one leak per FuncDef
-            // fold, which scales with how much precomp folds.
-            free(own ctx.precomp_known.keys.data)
-            free(own ctx.precomp_known.values.data)
             // Transfer snapshot_fd into known via memcpy (avoids the
             // implicit Map.clone that til codegen would emit for a plain
             // `known = snapshot_fd`, which would leak a second deep

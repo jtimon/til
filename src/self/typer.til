@@ -188,7 +188,7 @@ BoolName := "Bool"
 // payload does not leak. Non-priv so the asaper module
 // (src/self/asaper.til) can reuse it from insert_post_stmt_deletes.
 free_expr_slot_in_place := func(mut e: Expr) {
-    Type.delete(own expr_til_type(e), true)
+    Type.delete(own expr_til_type(e), false)
     NodeType.delete(own e.node_type, false)
     Vec.delete(own e.children, false)
 }
