@@ -2534,7 +2534,13 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             // of desugar_bang + validate + lower + inject + fallback
             // return). One walk does the work the five old passes
             // did, integrated per stmt.
-            process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type)
+            mut err_param_types := Vec.new(Str)
+            for p : Declaration in fdef.params {
+                if p.name.starts_with("_err_").and(p.name.eq("_err_kind").not()) {
+                    err_param_types.push(own p.name.substr(5, p.name.len().sub(5)))
+                }
+            }
+            process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type, fdef.return_own_type.is(OwnType.Ref), err_param_types)
         }
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
         asap_destroy_body(ctx, expr.child(0), func_scope)
@@ -3299,6 +3305,11 @@ infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
     if expr_til_type(stmt).is(Type.Dynamic) {
         switch stmt.node_type {
         case NodeType.Decl(sdecl):
+            // A ref binding aliases a borrow source rather than storing a
+            // value, so a Dynamic result needs no concrete annotation
+            // (e.g. the bang hoister's `ref _bang_ret_<n> := vec.get(i)?`).
+            // Method resolution on the alias happens at the use site.
+            if sdecl.own_type.is(OwnType.Ref) { return }
             type_error(stmt, "cannot store Dynamic in '".concat(sdecl.name)
                 .concat("'; add a type annotation like '").concat(sdecl.name).concat(" : Type = ...' to specify the concrete type"), ctx)
         case:
@@ -4317,9 +4328,10 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     }
     mut elem_type := til_type_name(expr_til_type(stmt))
     mut get_returns_ref := false
+    mut get_throws := Vec.new(Str)
     switch get_func.node_type {
     case NodeType.FuncDef(get_def):
-        if get_def.params.len().neq(2) {
+        if get_def.params.len().lt(2) {
             type_error(stmt, "type '".concat(type_name).concat("' get() second param must match len() return type for for-in"), ctx)
             return false
         }
@@ -4336,6 +4348,19 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
             elem_type = get_def.return_type.clone()
         }
         get_returns_ref = get_def.return_own_type.is(OwnType.Ref)
+        // Derive the err-args to inject from the resolved get()'s actual
+        // _err_<T> PARAMS, not its declared throw_types: same-named
+        // non-throwing siblings (Str.get) get err params via
+        // extend_name_matched_func_sigs but have empty throw_types, so the
+        // implicit get(i) call must still pass them. Reading the params
+        // (rather than the registry) also keeps a 2-param get -- e.g. the
+        // builtin variadic Array.get a file sees without importing array --
+        // injection-free, matching its arity.
+        for gp : Declaration in get_def.params {
+            if gp.name.starts_with("_err_").and(gp.name.eq("_err_kind").not()) {
+                get_throws.push(own gp.name.substr(5, gp.name.len().sub(5)))
+            }
+        }
     case:
         UNREACHABLE(__LOC__)
         return false
@@ -4380,6 +4405,22 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     idx_decl.add_child(own zero)
     block.add_child(own idx_decl)
 
+    // When get() throws (e.g. Vec.get throwing OutOfBounds), declare the
+    // hidden err slots once so the synthesized element access can pass
+    // them. Use UNIQUELY-named slots (per for-in) so they do not collide
+    // with the function-level _err_kind/_err_<T> a sibling banged get may
+    // also declare -- a name clash confuses the asap ownership analysis.
+    // Iteration is always in-bounds, so the panic guard never fires.
+    fe_ctr := ctx.bang_counter.to_str()
+    ctx.bang_counter = ctx.bang_counter.add(1)
+    fe_kind := "_fe_kind_".concat(fe_ctr)
+    if get_throws.len().gt(0) {
+        block.add_child(own make_typed_mut_decl(fe_kind, "I64", make_int_lit(0, line, col), line, col))
+        for etn : Str in get_throws {
+            block.add_child(own make_typed_mut_decl("_fe_err_".concat(etn).concat("_").concat(fe_ctr), etn, make_default_value_expr(etn, line, col), line, col))
+        }
+    }
+
     mut while_node := Expr.new(NodeType.While, line, col)
 
     mut idx_ident_cond := Expr.new(ident_node(idx_name), line, col)
@@ -4397,8 +4438,21 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
     mut get_call := make_method_call_fcall(own col_ident_get, "get", line, col)
     mut idx_ident_get := Expr.new(ident_node(idx_name), line, col)
     get_call.add_child(own idx_ident_get)
+    if get_throws.len().gt(0) {
+        mut kind_arg := Expr.new(ident_node(fe_kind), line, col)
+        set_expr_til_type(kind_arg, Type.I64)
+        get_call.add_child(own kind_arg)
+        for etn2 : Str in get_throws {
+            mut slot_arg := Expr.new(ident_node("_fe_err_".concat(etn2).concat("_").concat(fe_ctr)), line, col)
+            set_expr_til_type(slot_arg, til_type_from_explicit_type(etn2))
+            get_call.add_child(own slot_arg)
+        }
+    }
     elem_decl.add_child(own get_call)
     wbody.add_child(own elem_decl)
+    for etn3 : Str in get_throws {
+        wbody.add_child(own build_bang_lowered_named(ctx, etn3, fe_kind, "_fe_err_".concat(etn3).concat("_").concat(fe_ctr), line, col))
+    }
 
     mut idx_assign := Expr.new(NodeType.Assign(AssignData(name = idx_name.clone())), line, col)
     mut idx_ident_inc := Expr.new(ident_node(idx_name), line, col)
@@ -4638,6 +4692,29 @@ priv subtree_has_throw_catch := func(e: Expr) returns shallow Bool {
     return false
 }
 
+// Like subtree_has_throw_catch but EXCLUDES `!`-banged calls. A banged
+// call never propagates (it panics on throw and otherwise continues with
+// _err_kind == 0), so it must not mark subsequent statements as needing
+// the `if _err_kind == 0` skip-wrapper -- doing so would scope their
+// local decls into the wrapper block and break later uses. Used for the
+// seen_throwing trigger; the gate still uses subtree_has_throw_catch.
+priv subtree_has_propagating_throw := func(e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.Throw).or(e.node_type.is(NodeType.Catch)) {
+        return true
+    }
+    if e.node_type.is(NodeType.FCall) {
+        switch e.node_type {
+        case NodeType.FCall(fcd):
+            if fcd.does_throw { return true }
+        case:
+        }
+    }
+    for c : Expr in e.children {
+        if subtree_has_propagating_throw(c) { return true }
+    }
+    return false
+}
+
 // Issue #202: any subtree FCall with is_bang flag set?
 priv subtree_has_bang := func(e: Expr) returns shallow Bool {
     if e.node_type.is(NodeType.FCall) {
@@ -4649,6 +4726,23 @@ priv subtree_has_bang := func(e: Expr) returns shallow Bool {
     }
     for c : Expr in e.children {
         if subtree_has_bang(c) { return true }
+    }
+    return false
+}
+
+// A body that merely CALLS a throwing function -- without its own
+// throw/catch/bang or a throws clause -- must still be walked so the
+// call is validated (clean "missing '?'" error) and gets its hidden
+// _err_kind/_err_<T> args injected. Skipping it leaves the call at the
+// callee's err-augmented arity, which crashes arg-filling instead of
+// reporting a useful error. Used by the gate in
+// process_throw_catch_in_func_body.
+priv subtree_has_throwing_call := func(ctx: Context, e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.FCall) {
+        if find_callee_throws_idx(ctx, e).gt(0) { return true }
+    }
+    for c : Expr in e.children {
+        if subtree_has_throwing_call(ctx, c) { return true }
     }
     return false
 }
@@ -4895,7 +4989,7 @@ priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names:
 // matching slots as the extra args. Idempotent: skips functions
 // whose params already contain _err_kind. Recurses into nested
 // FuncDef bodies so inner lambdas with throws also get extended.
-priv register_func_throws := func(mut ctx: Context, name: Str, throws_list: Vec) {
+priv register_func_throws := func(mut ctx: Context, name: Str, throws_list: Vec, shallow returns_ref: Bool) {
     if name.len().eq(0) { return }
     if throws_list.len().eq(0) { return }
     for existing : Str in ctx.throws_names_global {
@@ -4907,6 +5001,12 @@ priv register_func_throws := func(mut ctx: Context, name: Str, throws_list: Vec)
         tt.push(own t.clone())
     }
     ctx.throws_per_global.push(own tt)
+    if returns_ref { ctx.throws_ref_names.add(own name.clone()) }
+}
+
+// Whether the throwing function registered under `name` returns a ref.
+priv name_returns_ref := func(ctx: Context, name: Str) returns shallow Bool {
+    return ctx.throws_ref_names.has(name)
 }
 
 extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
@@ -4919,7 +5019,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                 if rhs.node_type.is(NodeType.FuncDef) {
                     switch rhs.node_type {
                     case NodeType.FuncDef(rfd):
-                        register_func_throws(ctx, dn.name, rfd.throw_types)
+                        register_func_throws(ctx, dn.name, rfd.throw_types, rfd.return_own_type.is(OwnType.Ref))
                     case:
                     }
                 }
@@ -4990,7 +5090,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
             if dv.node_type.is(NodeType.FuncDef) {
                 switch dv.node_type {
                 case NodeType.FuncDef(rfd_reg):
-                    register_func_throws(ctx, nd.name, rfd_reg.throw_types)
+                    register_func_throws(ctx, nd.name, rfd_reg.throw_types, rfd_reg.return_own_type.is(OwnType.Ref))
                 case:
                 }
             }
@@ -5003,7 +5103,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
             if dv.node_type.is(NodeType.FuncDef) {
                 switch dv.node_type {
                 case NodeType.FuncDef(rfd_reg_e):
-                    register_func_throws(ctx, nd.name, rfd_reg_e.throw_types)
+                    register_func_throws(ctx, nd.name, rfd_reg_e.throw_types, rfd_reg_e.return_own_type.is(OwnType.Ref))
                 case:
                 }
             }
@@ -5015,6 +5115,114 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
         ref mut sub : Expr = e.child(ci)
         extend_throwing_func_sigs(ctx, sub)
     }
+}
+
+// Append the synthetic _err_kind / _err_<T> out-params to a FuncDef.
+// Idempotent: skips if _err_kind is already present.
+priv append_err_params_to_funcdef := func(mut fdef_expr: Expr, throws_list: Vec) {
+    if throws_list.len().eq(0) { return }
+    switch fdef_expr.node_type {
+    case NodeType.FuncDef(efd):
+        for p : Declaration in efd.params {
+            if p.name.eq("_err_kind") { return }
+        }
+        mut kp := Declaration(name = "_err_kind",
+            explicit_type = "I64",
+            til_type = Type.I64,
+            is_mut = true,
+            own_type = OwnType.Ref,
+            used = true)
+        efd.params.push(own kp)
+        for tn : Str in throws_list {
+            mut tp := Declaration(name = err_slot_name(tn),
+                explicit_type = tn.clone(),
+                til_type = til_type_from_explicit_type(tn),
+                is_mut = true,
+                own_type = OwnType.Ref,
+                used = true)
+            efd.params.push(own tp)
+        }
+    case:
+    }
+}
+
+// Return a copy of the throws list registered under `name`, or empty.
+priv throws_for_name := func(ctx: Context, name: Str) returns Vec {
+    mut out := Vec.new(Str)
+    for i in 0..ctx.throws_names_global.len() {
+        ref n : Str = ctx.throws_names_global.get(i)
+        if n.eq(name) {
+            ref tts : Vec = ctx.throws_per_global.get(i)
+            for t : Str in tts { out.push(own t.clone()) }
+            return out
+        }
+    }
+    return out
+}
+
+// Second pass (after extend_throwing_func_sigs has registered every
+// throwing name): give the err-out params to methods that SHARE a name
+// with a throwing method but do not themselves declare `throws`. til's
+// throws machinery keys callee lookups by bare method name, so once one
+// `get` throws, every `.get()` call site has err-args injected; the
+// non-throwing same-named methods (Map.get, Str.get, ...) must accept
+// those args or arg-filling fails with "too many arguments". They never
+// set _err_kind, so they keep their original (panicking) behavior. A
+// separate pass is required because registration order across files is
+// not guaranteed, so the name may not be registered yet during the
+// first walk.
+priv extend_name_matched_func_sigs := func(ctx: Context, mut e: Expr) {
+    if e.node_type.is(NodeType.Decl) {
+        if e.children.len().gt(0) {
+            switch e.node_type {
+            case NodeType.Decl(dn):
+                ref mut rhs : Expr = e.child(0)
+                if rhs.node_type.is(NodeType.FuncDef) {
+                    maybe_append_name_matched(ctx, rhs, dn.name)
+                }
+            case:
+            }
+        }
+    }
+    switch e.node_type {
+    case NodeType.StructDef(esd_nm):
+        for ci in 0..esd_nm.ns_decls.len() {
+            ref mut nd : Declaration = esd_nm.ns_decls.get(ci)
+            if nd.default_value.node_type.is(NodeType.FuncDef) {
+                maybe_append_name_matched(ctx, nd.default_value, nd.name)
+            }
+            extend_name_matched_func_sigs(ctx, nd.default_value)
+        }
+    case NodeType.EnumDef(eed_nm):
+        for ci in 0..eed_nm.ns_decls.len() {
+            ref mut nd : Declaration = eed_nm.ns_decls.get(ci)
+            if nd.default_value.node_type.is(NodeType.FuncDef) {
+                maybe_append_name_matched(ctx, nd.default_value, nd.name)
+            }
+            extend_name_matched_func_sigs(ctx, nd.default_value)
+        }
+    case:
+    }
+    for ci in 0..e.children.len() {
+        ref mut sub : Expr = e.child(ci)
+        extend_name_matched_func_sigs(ctx, sub)
+    }
+}
+
+priv maybe_append_name_matched := func(ctx: Context, mut fdef_expr: Expr, name: Str) {
+    mut own_empty := false
+    switch fdef_expr.node_type {
+    case NodeType.FuncDef(efd_nm):
+        own_empty = efd_nm.throw_types.len().eq(0)
+    case:
+        return
+    }
+    // Methods that declare their own throws were already extended by
+    // extend_throwing_func_sigs; only the same-named non-throwing
+    // siblings need this.
+    if own_empty.not() { return }
+    reg := throws_for_name(ctx, name)
+    append_err_params_to_funcdef(fdef_expr, reg)
 }
 
 // Build a parallel-Vec map of FuncName -> Vec[Str] (throws) for
@@ -5343,17 +5551,27 @@ priv validate_and_inject_expr_consolidated := proc(
 // avoids an intermediate NodeType.Catch that would need a separate
 // lowering pass to convert. Emits:
 //   if I64.eq(_err_kind, <tag>) { _err_kind = 0; panic("<loc>", "<T>") }
-priv build_bang_lowered := func(ctx: Context, error_type: Str, shallow line: U32, shallow col: U32) returns Expr {
+// Build `if <kind_name> == tag(error_type) { <kind_name> = 0; panic(loc,
+// <slot_name>.msg) }`. The kind/slot names are parameterized so callers
+// (e.g. the for-in lowering) can use uniquely-named slots that do not
+// collide with the function-level _err_kind/_err_<T>.
+priv build_bang_lowered_named := func(ctx: Context, error_type: Str, kind_name: Str, slot_name: Str, shallow line: U32, shallow col: U32) returns Expr {
     tag := tag_for_type(ctx, error_type, Vec.new(Str))
     loc_str := format(ctx.path, ":", line.to_str(), ":", col.to_str())
     mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
     panic_call.add_child(own Expr.new(ident_node("panic"), line, col))
     panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(loc_str)), line, col))
-    panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(error_type.clone())), line, col))
+    // Panic with the thrown error's `msg` field so `!` reproduces the
+    // message the callee would have panicked with. Every error type used
+    // with `!` carries a `msg: Str`.
+    mut slot_ident := Expr.new(ident_node(slot_name), line, col)
+    mut msg_access := Expr.new(NodeType.FieldAccess(FieldAccessData(name = "msg")), line, col)
+    msg_access.add_child(own slot_ident)
+    panic_call.add_child(own msg_access)
     mut blk := Expr.new(NodeType.Body, line, col)
-    blk.add_child(own make_assign_stmt("_err_kind", make_int_lit(0, line, col), line, col))
+    blk.add_child(own make_assign_stmt(kind_name, make_int_lit(0, line, col), line, col))
     blk.add_child(own panic_call)
-    mut kind_id := Expr.new(ident_node("_err_kind"), line, col)
+    mut kind_id := Expr.new(ident_node(kind_name), line, col)
     mut tag_lit := make_int_lit(tag, line, col)
     mut cond := make_method_call_fcall(own kind_id, "eq", line, col)
     cond.add_child(own tag_lit)
@@ -5361,6 +5579,10 @@ priv build_bang_lowered := func(ctx: Context, error_type: Str, shallow line: U32
     if_node.add_child(own cond)
     if_node.add_child(own blk)
     return if_node
+}
+
+priv build_bang_lowered := func(ctx: Context, error_type: Str, shallow line: U32, shallow col: U32) returns Expr {
+    return build_bang_lowered_named(ctx, error_type, "_err_kind", err_slot_name(error_type), line, col)
 }
 
 // Recursive hoister for bangs nested inside an expression. Pushes
@@ -5418,7 +5640,11 @@ priv hoist_walk_consolidated := proc(
     // validate+inject step (pre_stmts go straight into new_ch), so
     // inject err out-args here directly.
     inject_err_args_on_one_fcall_consolidated(ctx, cloned)
-    mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone())), line, col)
+    // A ref-returning throwing call (e.g. Vec.get) cannot be hoisted
+    // into an owned temp; bind the temp as a ref borrow instead.
+    mut tmp_own := OwnType.Shallow
+    if name_returns_ref(ctx, cname) { tmp_own = OwnType.Ref }
+    mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone(), own_type = tmp_own)), line, col)
     tmp_decl.add_child(own cloned)
     pre_stmts.push(own tmp_decl)
     ref tts : Vec = ctx.throws_per_global.get(found_idx.sub(1).to_u32())
@@ -5520,9 +5746,43 @@ priv process_throw_catch_in_body := proc(
             continue
         }
 
+        // A `while` whose condition contains a `!` cannot have that bang
+        // hoisted: the hoist lifts the call into a temp evaluated ONCE
+        // before the loop, so the condition reads a stale value every
+        // iteration. Restructure to
+        //   while true { mut _wc := <cond>; if _wc {} else { break }; <body> }
+        // so the condition (and its bang) re-evaluate each iteration. The
+        // _wc decl's bang is lowered by the While-body recursion below,
+        // which lands it inside the loop.
+        if stmt.node_type.is(NodeType.While).and(stmt.children.len().gte(2)) {
+            if subtree_has_bang(stmt.child(0)) {
+                wcl := stmt.line
+                wcc := stmt.col
+                wcname := "_wcbang_".concat(ctx.bang_counter.to_str())
+                ctx.bang_counter = ctx.bang_counter.add(1)
+                mut wc_decl := Expr.new(NodeType.Decl(Declaration(name = wcname.clone(), is_mut = true)), wcl, wcc)
+                wc_decl.add_child(own stmt.child(0).clone())
+                mut new_wbody := Expr.new(NodeType.Body, wcl, wcc)
+                new_wbody.add_child(own wc_decl)
+                mut wif := Expr.new(NodeType.If, wcl, wcc)
+                wif.add_child(own Expr.new(ident_node(wcname), wcl, wcc))
+                wif.add_child(own Expr.new(NodeType.Body, wcl, wcc))
+                mut welse := Expr.new(NodeType.Body, wcl, wcc)
+                welse.add_child(own Expr.new(NodeType.Break, wcl, wcc))
+                wif.add_child(own welse)
+                new_wbody.add_child(own wif)
+                ref orig_wbody : Expr = stmt.child(1)
+                for wbi in 0..orig_wbody.children.len() {
+                    new_wbody.add_child(own orig_wbody.child(wbi).clone())
+                }
+                stmt.children.replace(0, own Expr.new(NodeType.Literal(Literal.Bool(true)), wcl, wcc))
+                stmt.children.replace(1, own new_wbody)
+            }
+        }
+
         // Capture pre-rewrite "could this throw?" for the next stmt's
         // wrap decision.
-        had_throw_subtree := subtree_has_throw_catch(stmt)
+        had_throw_subtree := subtree_has_propagating_throw(stmt)
 
         // 1. Hoist nested bangs in stmt's expression tree.
         mut pre_stmts := Vec.new(Expr)
@@ -5840,7 +6100,9 @@ priv process_throw_catch_in_body := proc(
             if stmt.node_type.is(NodeType.Return) {
                 tmp_name := format("_bang_ret_", ctx.bang_counter.to_str())
                 ctx.bang_counter = ctx.bang_counter.add(1)
-                mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone())), stmt_line, stmt_col)
+                mut ret_tmp_own := OwnType.Shallow
+                if name_returns_ref(ctx, cname_root) { ret_tmp_own = OwnType.Ref }
+                mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone(), own_type = ret_tmp_own)), stmt_line, stmt_col)
                 tmp_decl.add_child(own stmt.child(0).clone())
                 new_ch.push(own tmp_decl)
                 for tn : Str in root_bang_throws {
@@ -5894,14 +6156,20 @@ process_throw_catch_in_func_body := proc(
     mut ctx: Context,
     mut body: Expr,
     fdef_throws: Vec,
-    return_type: Str
+    return_type: Str,
+    returns_ref: Bool,
+    err_param_types: Vec
 ) {
+    // _err_kind is a param iff any _err_<T> param exists (they are added
+    // together by extend_throwing_func_sigs / extend_name_matched_func_sigs).
+    has_err_param := err_param_types.len().gt(0)
     has_body_throw_catch := subtree_has_throw_catch(body)
     has_fdef_throws := fdef_throws.len().gt(0)
     has_body_bang := subtree_has_bang(body)
     if has_body_throw_catch.not()
         .and(has_fdef_throws.not())
-        .and(has_body_bang.not()) { return }
+        .and(has_body_bang.not())
+        .and(subtree_has_throwing_call(ctx, body).not()) { return }
 
     // Pre-pass: annotate every Throw with its resolved type so the
     // body walk can read expr_til_type(stmt) directly during rewriting.
@@ -5948,13 +6216,23 @@ process_throw_catch_in_func_body := proc(
     old.move_from(body.children)
     mut new_ch := Vec.new(Expr)
 
-    if has_fdef_throws.not() {
+    // Skip declaring local err slots that already exist as params: a
+    // function with a `throws` clause (pass 1) or a same-named throwing
+    // sibling extended by extend_name_matched_func_sigs (pass 2) already
+    // receives _err_kind/_err_<T> as params -- redeclaring them locally
+    // is a C redeclaration (e.g. IdentData.get, a non-throwing sibling
+    // whose body bangs Str.get).
+    if has_fdef_throws.not().and(has_err_param.not()) {
         new_ch.push(own make_typed_mut_decl("_err_kind", "I64",
             make_int_lit(0, line, col), line, col))
     }
     for i in 0..types_to_declare.len() {
         ref tn : Str = types_to_declare.get(i)
-        mut is_param := false
+        // A slot is already a param when its type is in the function's
+        // err-param set (declared throws OR a pass-2 sibling's injected
+        // params). Types thrown+caught locally without a param still need
+        // a local decl.
+        mut is_param := vec_str_contains(err_param_types, tn)
         for ft : Str in fdef_throws {
             if ft.eq(tn) { is_param = true }
         }
@@ -5968,7 +6246,17 @@ process_throw_catch_in_func_body := proc(
     }
     if has_fdef_throws.and(return_type.len().gt(0)) {
         mut ret := Expr.new(NodeType.Return, line, col)
-        ret.add_child(own make_default_value_expr(return_type, line, col))
+        if returns_ref {
+            // A ref-returning function cannot fall back to a
+            // default-constructed value (builtin types like Dynamic
+            // are not instantiable, and an owned value cannot be
+            // returned from a ref function). The throw path never
+            // uses this value -- the caller branches on _err_kind
+            // first -- so NULL is the correct placeholder.
+            ret.add_child(own Expr.new(NodeType.Literal(Literal.Null), line, col))
+        } else {
+            ret.add_child(own make_default_value_expr(return_type, line, col))
+        }
         new_ch.push(own ret)
     }
     body.children.move_from(new_ch)
@@ -6348,6 +6636,10 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
     // any body type-checking so call-site rewrites in
     // inject_throw_args_in_body see the post-extension param list.
     extend_throwing_func_sigs(ctx, program)
+    // Second pass: same-named non-throwing methods (e.g. Map.get when
+    // Vec.get throws) must accept the injected err-args. Runs after the
+    // first pass has registered every throwing name.
+    extend_name_matched_func_sigs(ctx, program)
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
     // Program-scope asap runs from prepare_program via

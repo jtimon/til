@@ -229,6 +229,10 @@ Context := struct {
     mut throw_type_registry := Vec.new(Str)
     mut throws_names_global := Vec.new(Str)
     mut throws_per_global := Vec.new(Vec)
+    // Throwing function names whose FuncDef returns a ref. The bang
+    // hoister binds `_bang_ret_<N>` as a ref for these so a ref-returning
+    // throwing call (e.g. Vec.get) is not owned.
+    mut throws_ref_names := Set.new(Str)
 
     // Issue #202: monotonically-increasing counter for `_bang_ret_<N>`
     // temps emitted when hoisting nested `f()!` calls. Lives on

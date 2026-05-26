@@ -228,8 +228,8 @@ test_multi_throw_success := test() {
 // Caller/callee with different throws sets
 // ==========================================================
 
-CallerCalleeErrorA := struct {}
-CallerCalleeErrorB := struct {}
+CallerCalleeErrorA := struct { mut msg: Str = "" }
+CallerCalleeErrorB := struct { mut msg: Str = "" }
 
 callee2_throws_both := func(throw_a: Bool, throw_b: Bool) throws CallerCalleeErrorA, CallerCalleeErrorB {
     if throw_b {

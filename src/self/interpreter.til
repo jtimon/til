@@ -1094,6 +1094,10 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         switch func_def.node_type {
         case NodeType.FuncDef(fdef_params):
             for pi in 0..fdef_params.params.len() {
+                // Synthetic err-out params (_err_kind/_err_<T>) are appended
+                // after the real params; a comptime fold supplies no args
+                // for them, and an in-bounds folded call never reads them.
+                if pi.add(1).gte(e.children.len()) { break }
                 ref param : Declaration = fdef_params.params.get(pi)
                 ref arg_expr : Expr = e.child(pi.add(1))
                 switch arg_expr.node_type {
@@ -1298,6 +1302,9 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             call_scope2 := scope_new(scope)
             nparam2 := fdef2.params.len()
             for pi in 0..nparam2 {
+                // See note above: skip synthetic err-out params with no
+                // corresponding comptime arg.
+                if pi.add(1).gte(e.children.len()) { break }
                 ref arg_expr : Expr = e.child(pi.add(1))
                 ref param : Declaration = fdef2.params.get(pi)
                 switch arg_expr.node_type {

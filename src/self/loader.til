@@ -722,8 +722,11 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     core_imports := extract_imports(core_ast, core_disp)
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
+        // Pass core_dir as the lib_dir fallback so a core file's imports
+        // still resolve when its own dir can't be derived (e.g. during
+        // cyclic core imports); every core module lives in core_dir.
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
-            core_units, "", lp.ctx, "lib", cwd)
+            core_units, core_dir, lp.ctx, "lib", cwd)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve core imports")
         }
