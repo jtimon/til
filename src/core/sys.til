@@ -54,8 +54,9 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     pid := spawn_cmd(cmd.format(" > ", tmpf, " 2>&1"))
     ec := wait_cmd(pid)
     content := File.readfile(tmpf)
-    // Copy content data into output (transfer ownership via memcpy)
-    memcpy(output, content, Str.size())
-    free(own content)
+    // Move content into output: copies the bytes and zeroes content, so the
+    // asap pass's scope-end Str.delete(content) frees only the (now empty)
+    // box -- no explicit free needed, and output keeps the c_str.
+    move(output, content, Str.size())
     return ec
 }

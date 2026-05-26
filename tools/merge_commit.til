@@ -15,8 +15,9 @@ capture := proc(cmd: Str, mut out: Str) returns I64 {
     pid := spawn_cmd(format(cmd, " > ", tmpf, " 2>&1"))
     ec := wait_cmd(pid)
     content := File.readfile(tmpf)
-    memcpy(out, content, Str.size())
-    free(own content)
+    // Move content into out: copies the bytes and zeroes content so the
+    // asap pass's scope-end Str.delete frees only the (now empty) box.
+    move(out, content, Str.size())
     return ec
 }
 

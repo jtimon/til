@@ -2056,6 +2056,43 @@ check_member_priv := proc(mut e: Expr, owner_name: Str, member_name: Str, member
         .concat("' is private to its struct; remove 'priv' to expose it"), ctx)
 }
 
+// Forbid `free(own X)` when X is an aggregate local whose type has a
+// `delete` method. Such a shallow free releases only the struct box, and
+// because passing `own X` makes the asap pass treat X as transferred (see
+// expr_transfers_own), asap then skips the proper X.delete -- so X's owned
+// fields leak. Demonstrated: `free(own vec_local)` leaks the element buffer.
+// Exceptions fall out naturally: `self` is a param (not a local) so a
+// delete method's own `free(own self)` box-release is allowed, and raw
+// pointer types (U8/Dynamic) have no `delete` method so raw frees are fine.
+priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
+    if e.children.len().lt(2) { return }
+    if get_own_arg(e, 1).not() { return }
+    ref arg : Expr = e.child(1)
+    switch arg.node_type {
+    case NodeType.Ident(an):
+        sf := scope.find(ident_name(an))
+        switch sf {
+        case ScopeFind.Found(b):
+            if b.is_param { return }
+            if b.own_type.is(OwnType.Ref) { return }
+            tn := til_type_name(b.type)
+            if tn.len().eq(0) { return }
+            ref sdef : Expr = scope.get_struct(tn)
+            if is_null(sdef) { return }
+            ref del : Expr = find_namespace_func(sdef, "delete")
+            if is_null(del) { return }
+            type_error(e, format(
+                "free(own ", ident_name(an), ") shallow-frees managed type '", tn,
+                "': passing 'own' makes the asap pass skip ", tn,
+                ".delete, leaking its owned fields -- call ", tn, ".delete(own ",
+                ident_name(an), ", true) or let the asap pass free it",
+            ), ctx)
+        case:
+        }
+    case:
+    }
+}
+
 infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) {
     if e.child(0).node_type.is(NodeType.FieldAccess) {
         if infer_field_access_fcall(scope, e, in_func, ctx) { return }
@@ -2107,6 +2144,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
         }
     }
     infer_and_validate_fcall_args(scope, e, callee_bind, in_func, ctx)
+    if name.eq("free") { check_free_managed_local(scope, e, ctx) }
     // Issue #191: macro calls require all arguments to be comptime-known.
     if is_null(callee_bind).not() {
         if callee_bind.func_type.is(FuncType.Macro) {

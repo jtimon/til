@@ -1350,6 +1350,7 @@ Bool infer_field_access_fcall(TypeScope * scope, Expr * e, I32 in_func, Context 
 void priv___src_self_typer_til__check_priv_access(Expr * e, Str * name, TypeBinding * b, Context * ctx);
 void priv___src_self_typer_til__check_priv_type_name(Expr * e, Str * name, TypeScope * scope, Context * ctx);
 void check_member_priv(Expr * e, Str * owner_name, Str * member_name, Bool * member_is_priv, Context * ctx);
+void priv___src_self_typer_til__check_free_managed_local(TypeScope * scope, Expr * e, Context * ctx);
 void infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void infer_ident_expr(TypeScope * scope, Expr * expr, Context * ctx);
