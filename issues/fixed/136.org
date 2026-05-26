@@ -1,0 +1,94 @@
+# priority: high
+** #136 Precomp doesn't fold pure function calls
+
+Goal (met): rstil parity for compile-time folding of pure func / macro
+calls with comptime args. test/constfold.til ~test_lolalalo~ must compile
+to a constant string the same way rstil's does, and ~add(1, 2)~ must not
+reach runtime.
+
+Status: FIXED. The precomp eval-fold now folds simple/nested/deeply-nested
+integer arithmetic, string concat, the 248-byte ~test_lolalalo~
+permutation poem, struct constructors, enum variant ops, AND F32-returning
+pure calls -- all at compile time. See ~test/constfold.c~ (the committed
+snapshot of the generated C) and the ~test_*~ cases in
+~test/constfold.til~, all green in the suite (run in both interp and
+compile mode).
+
+*** Postmortem -- what fixed it
+
+The fix landed incrementally across the rstil-parity merges, then the
+ext_func work, then the F32 work:
+
+- String/struct folding: ~value_to_expr~ serialises ~Value.Struct(Str)~
+  back into a faithful LiteralStr via the ~str_to_source_form~ /
+  ~from_source_form~ escape round-trip, so concat/substr/format results
+  bake as ~Str_lit("...", N)~. ~test_string_concat~ and ~test_lolalalo~
+  fold.
+- Transitive purity: ~func_uses_unknown_globals~ walks called bodies via
+  a ~visiting~ Set and the precomp interpreter scope tracks global consts
+  (~CAP_VIEW~ / ~CAP_LIT~), so clone/delete/concat/substr/format stop
+  reading as "unknown" and the recursive ~poem~ folds.
+- ext_func folding: the ~try_eval_call~ ExtFunc bail was removed
+  (~6508193~). Built-ins (I64_add, I64_to_usize, ...) are statically
+  linked and dispatch via ~ext_function_dispatch~. An undispatchable
+  ext_func (e.g. a user .so not dlopen'd at precomp time) returns
+  ~val_none()~ from the interpreter instead of crashing on the
+  bodyless-func path, so ~try_eval_call~ bails cleanly via
+  ~can_convert.not()~. Folding ~CAP_LIT = I64_to_usize(I64_sub(0,1))~ ->
+  ~CAP_LIT = 4294967295~ in ~main()~'s init orphaned arg temps, so the
+  top-level body DCE in ~scavenger.til~ (~dce_one_body~) was extended to
+  drop compiler-internal ~_t_*~ temps as well as ~hoisted__*~ ones.
+  Removing the bail also exposed that the side-effect guard only ran on
+  Ident callees, letting ~File.readfile("...")~ run at compile time --
+  fixed by mirroring ~is_side_effecting_name~ on FieldAccess callees.
+- F32 folding (was item 8): folded F32 results now bake faithfully. The
+  blocker was float-literal fidelity, not precomp: ~F32_to_str~ uses ~%g~
+  (lossy) and ~Str.to_f32~ was a hand-rolled decimal parser that dropped
+  precision and couldn't read exponents. Fixed by adding C ~F32_to_repr~
+  (~snprintf "%.9g"~ -- 9 sig digits uniquely identify any IEEE-754
+  single) and C ~str_parse_f32~ (~strtof~); ~Str.to_f32~ now delegates to
+  the latter and ~F32.to_repr~ to the former. ~value_to_expr~ emits the
+  ~to_repr~ text for ~Value.Float~ and ~can_convert~ accepts ~Value.Float~.
+  The literal round-trips back to the same F32 in interp (re-parsed via
+  ~Str.to_f32~) and in codegen (emitted verbatim as a C float literal).
+  Verified: ~test_fold_f32~ in test/constfold.til folds ~mulf(2.5,2.5)~
+  to ~6.25~ at compile time, suite green.
+
+*** Residual bails -- proven necessary, kept
+
+The remaining ~return NULL~ / ~return true~ guards in ~precomp.til~ are
+correctness invariants. Verified empirically: removing items 2, 4 and 5
+together regresses the suite to 115/117 -- ~test/ref.til~ fails at runtime
+(folding a ref-returning func bakes a copy where an alias was expected)
+and ~build_shootil~ regresses. They stay:
+
+   2. FA-callee path bails when the receiver Ident is neither a registered
+      struct namespace nor a known constant. You cannot eval a method on a
+      value that isn't known at compile time; a genuinely comptime receiver
+      is already in ~ctx.precomp_known~ and folds fine.
+   4. ~func_uses_unknown_globals~ flags Assign whose LHS isn't a
+      body-local: folding such a func would mutate precomp's interpreter
+      scope or panic on an unbound global.
+   5. ~try_eval_call~ bails when ~return_own_type~ is ~Ref~: folding a
+      ref-returning func bakes the referent's value in place of the alias
+      the caller expects -- a miscompile (proven by ~test/ref.til~).
+
+~is_side_effecting_name~ (was item 13) hard-codes the I/O / FFI / memory /
+env / time / nondeterministic ext_funcs that must not run at compile time.
+Audited: every entry is genuinely unsafe to invoke at precomp time, so the
+list is the minimum unsafe set -- nothing to prune.
+
+*** Corrections to the old exception list (stale by the time it closed)
+
+   - Items 3, 6, 7, 9: removed during the rstil-parity merges.
+   - Item 10: resolved. ~fold_subtree~ now tracks all non-mut/non-ref
+     Decls (not just ~_t_*~), because the precomp Context refactor added a
+     per-FuncDef-body snapshot save/restore -- the scope isolation the item
+     said til lacked.
+   - Items 8/12: F32 folding fixed (above); ~can_convert~ now accepts
+     ~Value.Float~ and ~Value.Struct~.
+
+Pre-existing fix that landed earlier (kept; not part of the precomp work):
+~Vec.move_from~ / ~Vec.push_take~ in src/core/vec.til for in-place
+body.children rebuilds in the typer desugar passes. Related:
+[[../open/146.org][#146]] (unify desugar/insert passes), [[../open/109.org][#109]] (ASAN leaks).

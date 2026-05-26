@@ -310,40 +310,11 @@ namespace:
         return self.to_i64().to_usize()
     }
 
-    /// Parse as a decimal floating-point number.
+    /// Parse as a floating-point number. Backed by C strtof: handles
+    /// decimal and scientific notation at full precision, so a value
+    /// printed by F32.to_repr round-trips exactly back to the same F32.
     to_f32 := func(self: Str) returns shallow F32 {
-        mut start : USize = 0
-        mut neg := false
-        if self.len().gt(0).and(self.get(0).eq(45)) {
-            neg = true
-            start = 1
-        }
-
-        rest := self.substr(start, self.len().sub(start))
-        dot := rest.find(".")
-        if dot.eq(-1) {
-            out := rest.to_i64().to_f32()
-            if neg { return 0.to_f32().sub(out) }
-            return out
-        }
-
-        int_part := rest.substr(0, dot.to_usize())
-        frac_part := rest.substr(dot.to_usize().add(1), rest.len().sub(dot.to_usize().add(1)))
-
-        mut out : F32 = 0
-        if int_part.len().gt(0) {
-            out = int_part.to_i64().to_f32()
-        }
-        if frac_part.len().gt(0) {
-            frac := frac_part.to_i64().to_f32()
-            mut scale : F32 = 1
-            for _ in 0..frac_part.len() {
-                scale = scale.mul(10)
-            }
-            out = out.add(frac.div(scale))
-        }
-        if neg { return 0.to_f32().sub(out) }
-        return out
+        return str_parse_f32(self)
     }
 
     /// Split the string on `delim`, returning a Vec of Str clones.
@@ -391,6 +362,10 @@ join := func(parts: Vec, sep: Str) returns Str {
 // return type (USize is U32, size_t is unsigned long).  The byte loop
 // sidesteps that and keeps the C primitive surface free of the
 // typedef-bridge wrapper.
+// Faithful float parse (C strtof). Top-level so the interpreter's dispatch
+// handler can reach it; Str.to_f32 delegates here.
+str_parse_f32 := ext_func(s: Str) returns shallow F32 {}
+
 c_str_len := func(s: I8) returns shallow USize {
     mut n : USize = 0
     while true {

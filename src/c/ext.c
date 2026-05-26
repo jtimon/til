@@ -408,6 +408,32 @@ Str *F32_to_str(F32 v) {
     return s;
 }
 
+// Round-trippable F32 repr: 9 significant digits uniquely identify any
+// IEEE-754 single, so strtof(F32_to_repr(x)) == x. Used by precomp to bake
+// folded F32 results as source literals (F32_to_str's %g loses precision).
+Str *F32_to_repr(F32 v) {
+    char buf[32];
+    snprintf(buf, 32, "%.9g", (double)v);
+    USize len = (USize)strlen(buf);
+    Str *s = malloc(sizeof(Str));
+    s->c_str = malloc(len + 1);
+    memcpy(s->c_str, buf, len + 1);
+    s->count = len;
+    s->cap = len;
+    return s;
+}
+
+// Faithful decimal/scientific float parse (strtof) -- handles exponents
+// and full precision, unlike the old hand-rolled Str.to_f32. Backs
+// Str.to_f32 so folded F32 literals round-trip in interp and codegen.
+F32 str_parse_f32(const Str *s) {
+    char *p = dup_n(s->c_str, s->count);
+    float v = strtof(p, NULL);
+    free(p);
+    return (F32)v;
+}
+
+
 
 // F32 clone
 F32 F32_clone(const F32 *v) { return *v; }

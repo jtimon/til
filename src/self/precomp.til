@@ -218,12 +218,14 @@ value_to_expr := func(shallow val: Value, src: Expr) returns ref Expr {
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
         set_expr_til_type(e, Type.U64)
         return e
-    case Value.Float(_x):
-        // F32 to_str uses %g and can emit scientific notation
-        // ("6.28318e+06") that doesn't round-trip through Str.to_f32.
-        // Don't fold F32-returning calls until we have a faithful F32
-        // literal representation in the AST.
-        return NULL
+    case Value.Float(x):
+        // F32.to_repr emits 9 significant digits, which round-trips back
+        // through Str.to_f32 (strtof) to the same F32 -- both in interp
+        // (the literal is re-parsed) and codegen (emitted verbatim as a C
+        // float literal). So folded F32 results are faithful.
+        mut e := Expr.new(literal_num_node(x.to_repr()), src.line, src.col)
+        set_expr_til_type(e, Type.F32)
+        return e
     case Value.Struct(si):
         if si.to_str().eq("Str") {
             sv := str_view(val)
@@ -723,8 +725,6 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     // Evaluate the call using the interpreter
     result := eval_expr(scope, ec, ctx)
 
-    // Value.Float intentionally excluded: F32_to_str -> %g can yield
-    // scientific notation that doesn't round-trip through Str.to_f32.
     mut can_convert := result.is(Value.Int)
     .or(result.is(Value.Byte))
     .or(result.is(Value.Short))
@@ -732,6 +732,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     .or(result.is(Value.Uint32))
     .or(result.is(Value.Uint64))
     .or(result.is(Value.Boolean))
+    .or(result.is(Value.Float))
     .or(result.is(Value.Struct))
     if can_convert.not() {
         if require_known {

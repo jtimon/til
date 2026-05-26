@@ -165,6 +165,8 @@ I64 F32_cmp(F32 a, F32 b);
 I64 F32_to_i64(F32 a);
 F32 F32_from_i64_ext(const I64 *a);
 Str *F32_to_str(F32 v);
+Str *F32_to_repr(F32 v);
+F32 str_parse_f32(const Str *s);
 
 // F32 clone
 F32 F32_clone(const F32 *v);

@@ -866,6 +866,12 @@ h_file_mtime := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shal
     return true
 }
 
+h_str_parse_f32 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    arg := eval_expr(s, e.child(1), ctx)
+    r = val_f32(str_parse_f32(str_view(arg)))
+    return true
+}
+
 h_clock_ms := func(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
     r = val_i64(clock_ms())
     return true
@@ -1066,6 +1072,7 @@ dispatch_init := func(ctx: Context) {
     reg_dispatch("check_cmd_status", h_check_cmd_status, ctx)
     reg_dispatch("sleep", h_sleep, ctx)
     reg_dispatch("file_mtime", h_file_mtime, ctx)
+    reg_dispatch("str_parse_f32", h_str_parse_f32, ctx)
     reg_dispatch("clock_ms", h_clock_ms, ctx)
     reg_dispatch("get_thread_count", h_get_thread_count, ctx)
     reg_dispatch("cfile_open", h_cfile_open, ctx)

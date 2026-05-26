@@ -100,6 +100,19 @@ test_loc_folded := test() {
     assert(__LOC__, __LOC__.contains(":"))
 }
 
+// Test 7b: F32-returning pure calls fold. The result bakes as a faithful
+// literal (F32.to_repr 9-digit round-trip), so it survives both interp
+// (re-parsed via Str.to_f32/strtof) and codegen (emitted as a C literal).
+mulf := func(a: F32, b: F32) returns F32 { return a.mul(b) }
+addf := func(a: F32, b: F32) returns F32 { return a.add(b) }
+
+test_fold_f32 := test() {
+    r1 := mulf(2.5, 2.5)
+    assert_eq_str(__LOC__, r1.to_str(), "6.25")
+    r2 := addf(1.5, 2.0)
+    assert_eq_str(__LOC__, r2.to_str(), "3.5")
+}
+
 // --- Struct comptime folding ---
 
 CfVec2 := struct {

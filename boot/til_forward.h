@@ -1969,6 +1969,7 @@ Bool h_dyn_type_to_str(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_check_cmd_status(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_sleep(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_file_mtime(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool h_str_parse_f32(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_clock_ms(Scope * _s, Expr * _e, Value * r);
 Bool h_get_thread_count(Scope * _s, Expr * _e, Value * r);
 Bool h_cfile_open(Scope * s, Expr * e, Value * r, Context * ctx);
