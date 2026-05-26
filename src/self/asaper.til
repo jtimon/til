@@ -60,7 +60,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
         if is_null(b.struct_def).not() { continue }
         if is_null(b.func_def).not() { continue }
 
-        mut decl_idx := -1.to_i32()
+        mut decl_idx : I32 = -1
         for j in 0..body.children.len() {
             ref s : Expr = body.child(j)
             switch s.node_type {
@@ -81,8 +81,8 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
             }
         }
 
-        mut last_use := -1.to_i32()
-        mut own_transfer := -1.to_i32()
+        mut last_use : I32 = -1
+        mut own_transfer : I32 = -1
         mut scan_from : USize = 0
         if decl_idx.gte(0) {
             scan_from = decl_idx.add(1).to_usize()
@@ -227,7 +227,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
             if dd_is_ref.not() { continue }
             ref mut rhs : Expr = stmt.child(0)
 
-            mut ref_last := -1.to_i32()
+            mut ref_last : I32 = -1
             for j in i.add(1)..body.children.len() {
                 if expr_uses_var(body.child(j), dd_name) {
                     ref_last = j.to_i32()

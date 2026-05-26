@@ -441,7 +441,7 @@ priv str_to_owned_value := func(src: Str) returns shallow Value {
     buf : Dynamic = malloc(n.add(1))
     memcpy(buf, src.c_str, n)
     ref mut term : U8 = ptr_add(buf, n)
-    term = 0.to_u8()
+    term = 0
     return make_str_value_own(buf, n)
 }
 
@@ -452,19 +452,19 @@ interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str) return
     ref tc : Cell = scope_get(s, type_name)
     if is_null(tc) {
         interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"))
-        exit(1.to_i32())
+        exit(1)
     }
     switch tc.val {
     case Value.Func(fptr):
         ref node : Expr = deref(fptr)
         if node.node_type.is(NodeType.StructDef).not() {
             interp_error(e, who.concat(": '").concat(type_name).concat("' is not a struct"))
-            exit(1.to_i32())
+            exit(1)
         }
         return node
     case:
         interp_error(e, who.concat(": '").concat(type_name).concat("' is not a struct"))
-        exit(1.to_i32())
+        exit(1)
         return NULL
     }
 }
@@ -489,7 +489,7 @@ h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value) returns shallow Boo
     case NodeType.StructDef(sd):
         if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
             interp_error(e, "struct_field_name: index out of bounds")
-            exit(1.to_i32())
+            exit(1)
         }
         ref fd : Declaration = sd.fields.get(idx.to_usize())
         r = str_to_owned_value(fd.name)
@@ -507,7 +507,7 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value) returns shallow B
     case NodeType.StructDef(sd):
         if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
             interp_error(e, "struct_field_is_mut: index out of bounds")
-            exit(1.to_i32())
+            exit(1)
         }
         ref fd : Declaration = sd.fields.get(idx.to_usize())
         if fd.is_mut { r = val_i64(1) } else { r = val_i64(0) }
@@ -525,7 +525,7 @@ h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value) returns shallow Boo
     case NodeType.StructDef(sd):
         if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
             interp_error(e, "struct_field_type: index out of bounds")
-            exit(1.to_i32())
+            exit(1)
         }
         ref fd : Declaration = sd.fields.get(idx.to_usize())
         r = str_to_owned_value(fd.explicit_type)

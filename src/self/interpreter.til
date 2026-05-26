@@ -395,7 +395,7 @@ val_bool := func(shallow v: Bool) returns shallow Value {
     return Value.Boolean(v)
 }
 
-ENUM_PAYLOAD_OFFSET := 8.to_i32()
+ENUM_PAYLOAD_OFFSET : I32 = 8
 
 val_enum_flat := func(enum_name: Str, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32) returns shallow Value {
     mut total := ENUM_PAYLOAD_OFFSET.add(payload_size)

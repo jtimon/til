@@ -1000,7 +1000,7 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
             ref arg : Expr = e.child(i)
             switch arg.node_type {
             case NodeType.NamedArg(aname):
-                mut slot := -1.to_i32()
+                mut slot : I32 = -1
                 for j in 0..nfields {
                     ref fld_decl : Declaration = ctor_sdd.fields.get(j)
                     if fld_decl.name.eq(aname) {
@@ -1096,7 +1096,7 @@ desugar_user_func_fcall_args :=proc(mut e: Expr, name: Str, callee_bind: TypeBin
             switch arg.node_type {
             case NodeType.NamedArg(aname):
                 seen_named = true
-                mut slot := -1.to_i32()
+                mut slot : I32 = -1
                 for j in 0..nparam {
                     if j.to_i32().eq(vi) { continue }
                     if j.to_i32().eq(kwi) { continue }
@@ -1753,7 +1753,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             switch arg.node_type {
             case NodeType.NamedArg(aname):
                 seen_named = true
-                mut slot := -1.to_i32()
+                mut slot : I32 = -1
                 for j in 0..np {
                     ref param : Declaration = ns_fdef.params.get(j)
                     if param.name.eq(aname) {
@@ -2473,9 +2473,9 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                 }
             }
         }
-        mut in_func_val := 0.to_i32()
+        mut in_func_val : I32 = 0
         if is_func { in_func_val = 1 }
-        mut returns_ref_val := 0.to_i32()
+        mut returns_ref_val : I32 = 0
         if fdef.return_own_type.is(OwnType.Ref) { returns_ref_val = 1 }
         is_proc := fdef.func_type.is(FuncType.Proc)
         saved_proc_calls := ctx.proc_calls_count
@@ -6113,7 +6113,7 @@ reregister_field_struct_defs := func(body: Expr, scope: TypeScope) {
 // themselves before tearing the scope down.
 infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
     set_expr_til_type(body, Type.None)
-    mut i := 0.to_u32()
+    mut i : U32 = 0
     while i.lt(body.children.len()) {
         if is_null(scope.parent).and(in_func.eq(0)).and(in_type_body.eq(0)) {
             context_set_mode_from_path(ctx, typer_path)
@@ -6128,7 +6128,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
 
 infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
     set_expr_til_type(body, Type.None)
-    mut i := 0.to_u32()
+    mut i : U32 = 0
     while i.lt(body.children.len()) {
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         // Issue #158: record foldable macro/func names as we walk the final
@@ -8027,7 +8027,7 @@ hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope
     }
     ref hoist_sdef : Expr = scope.get_struct(expr_sname)
 
-    mut fi := 0.to_usize()
+    mut fi : USize = 0
     for i in 1..expr.children.len() {
         if is_dyn_call {
             if i.eq(2).or(i.eq(3)) { continue }

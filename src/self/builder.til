@@ -877,7 +877,7 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
                 case NodeType.Literal(Literal.Str(method)):
                     mut has_ret := false
                     if is_dyn_call_name(ident_name(callee_name), has_ret) {
-                        mut nargs := 1.to_i32()
+                        mut nargs : I32 = 1
                         if e.children.len().gte(4) {
                             ref c3 : Expr = e.child(3)
                             switch c3.node_type {
@@ -924,7 +924,7 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
             case NodeType.Ident(name):
                 switch c1.node_type {
                 case NodeType.Literal(Literal.Str(type_name)):
-                    mut is_vec := -1.to_i32()
+                    mut is_vec : I32 = -1
                     if ident_name(name).eq("array") { is_vec = 0 }
                     else if ident_name(name).eq("vec") { is_vec = 1 }
                     if is_vec.gte(0) {
@@ -2633,7 +2633,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
             }
         }
         if nparam.gt(0) {
-            mut argi := 1.to_i32()
+            mut argi : I32 = 1
             for i in 0..nparam {
                 ref p : Declaration = fd.params.get(i)
                 ii := i.to_i32()
@@ -5366,15 +5366,15 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind
     case NodeType.StructDef(sd):
         tlen := sname.len().to_u64()
         f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(sname); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) {\n")
-        if kind.eq(0.to_i32()) {
+        if kind.eq(0) {
             f.write("        return "); emit_u64(f, sd.fields.len().to_u64()); f.write("LL;\n")
         } else {
             for i in 0..sd.fields.len() {
                 ref fd : Declaration = sd.fields.get(i)
                 f.write("        if (*index == "); emit_u64(f, i.to_u64()); f.write("LL) return ")
-                if kind.eq(1.to_i32()) {
+                if kind.eq(1) {
                     emit_str_lit_expr(f, fd.name)
-                } else if kind.eq(2.to_i32()) {
+                } else if kind.eq(2) {
                     if fd.is_mut { f.write("1") } else { f.write("0") }
                 } else {
                     emit_str_lit_expr(f, fd.explicit_type)
@@ -5410,19 +5410,19 @@ priv emit_struct_field_branches := proc(f: File, shallow kind: I32) {
 // strcmp chain over every loaded struct type.
 emit_struct_introspection_bodies := proc(f: File) {
     f.write("I64 struct_field_count(Str *type_name) {\n    (void)type_name;\n")
-    emit_struct_field_branches(f, 0.to_i32())
+    emit_struct_field_branches(f, 0)
     f.write("    fprintf(stderr, \"struct_field_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 
     f.write("Str *struct_field_name(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
-    emit_struct_field_branches(f, 1.to_i32())
+    emit_struct_field_branches(f, 1)
     f.write("    fprintf(stderr, \"struct_field_name: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 
     f.write("I64 struct_field_is_mut(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
-    emit_struct_field_branches(f, 2.to_i32())
+    emit_struct_field_branches(f, 2)
     f.write("    fprintf(stderr, \"struct_field_is_mut: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 
     f.write("Str *struct_field_type(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
-    emit_struct_field_branches(f, 3.to_i32())
+    emit_struct_field_branches(f, 3)
     f.write("    fprintf(stderr, \"struct_field_type: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 }
 
