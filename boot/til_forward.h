@@ -56,6 +56,7 @@ typedef struct FieldAccessData FieldAccessData;
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
 typedef struct AssignData AssignData;
+typedef struct FieldAssignData FieldAssignData;
 typedef struct ForInData ForInData;
 typedef enum {
     Literal_TAG_Str,
@@ -400,6 +401,12 @@ typedef struct AssignData {
 } AssignData;
 
 
+typedef struct FieldAssignData {
+    Str name;
+    Bool save_old_delete;
+} FieldAssignData;
+
+
 typedef struct ForInData {
     Str name;
     Bool is_mut;
@@ -428,7 +435,7 @@ struct NodeType {
         StructDef StructDef;
         EnumDef EnumDef;
         FieldAccessData FieldAccess;
-        Str FieldAssign;
+        FieldAssignData FieldAssign;
         ForInData ForIn;
         Str NamedArg;
     } data;
@@ -1061,6 +1068,9 @@ U32 EnumDef_size(void);
 AssignData * AssignData_clone(AssignData * self);
 void AssignData_delete(AssignData * self, Bool * call_free);
 U32 AssignData_size(void);
+FieldAssignData * FieldAssignData_clone(FieldAssignData * self);
+void FieldAssignData_delete(FieldAssignData * self, Bool * call_free);
+U32 FieldAssignData_size(void);
 ForInData * ForInData_clone(ForInData * self);
 void ForInData_delete(ForInData * self, Bool * call_free);
 U32 ForInData_size(void);
@@ -1460,7 +1470,6 @@ Expr * find_kwargs_fcall(Expr * e);
 Expr * find_array_vec_fcall(Expr * e);
 Str * type_prefix(Type * t);
 Str * type_to_name(Type * t);
-Expr * make_field_delete(Expr * field_assign, OwnType field_own_type);
 Expr * make_delete_call(Str * var_name, Type type, Bool arg_is_own, Bool call_free, Expr * src);
 Bool transfer_is_shallow_field_value_copy(Expr * e, Str * var_name, TypeScope * scope);
 Expr * make_free_call(Str * var_name, Type type, Expr * src);

@@ -1295,7 +1295,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
         }
         // Field assignment: name.field = value
         expect_token(p, TokenType.Eq)
-        mut fa := Expr.new(NodeType.FieldAssign(last_field), t_line, t_col)
+        mut fa := Expr.new(NodeType.FieldAssign(FieldAssignData(name=last_field)), t_line, t_col)
         fa.add_child(own obj.clone())
         fa.add_child(own parse_expression(p))
         return fa

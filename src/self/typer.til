@@ -20,8 +20,8 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns shallow Bool {
     switch e.node_type {
     case NodeType.FieldAccess(fn):
         fname = field_access_name(fn)
-    case NodeType.FieldAssign(fn):
-        fname = fn
+    case NodeType.FieldAssign(fad):
+        fname = fad.name
     case:
         UNREACHABLE(__LOC__)
         return false
@@ -119,8 +119,8 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
     switch e.node_type {
     case NodeType.FieldAccess(fn):
         fname = field_access_name(fn)
-    case NodeType.FieldAssign(fn):
-        fname = fn
+    case NodeType.FieldAssign(fad):
+        fname = fad.name
     case:
         UNREACHABLE(__LOC__)
         return OwnType.Shallow
@@ -2214,7 +2214,8 @@ priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns shallow Bool
                 }
             }
         }
-    case NodeType.FieldAssign(_fa_name):
+    case NodeType.FieldAssign(fad):
+        _fa_name := fad.name
         if _fa_name.eq(field_name) {
             if e.children.len().gt(0) {
                 ref recv2 : Expr = e.child(0)
@@ -2884,7 +2885,8 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
     ref mut rhs : Expr = stmt.child(1)
     mut fname := ""
     switch stmt.node_type {
-    case NodeType.FieldAssign(fn):
+    case NodeType.FieldAssign(fad):
+        fn := fad.name
         fname = fn.clone()
     case:
         UNREACHABLE(__LOC__)
@@ -7019,7 +7021,8 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
 
     mut fa_name := ""
     switch field_assign.node_type {
-    case NodeType.FieldAssign(fn):
+    case NodeType.FieldAssign(fad):
+        fn := fad.name
         fa_name = fn.clone()
     case:
         UNREACHABLE(__LOC__)
@@ -7938,12 +7941,14 @@ apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Ve
         apply_hoist_to_stmt(ctx, stmt, new_ch, scope)
     }
     if needs_delete.and(stmt.node_type.is(NodeType.FieldAssign)) {
-        fot := fa_own_type(stmt, scope)
         if field_assign_needs_delete(stmt, scope) {
             ref rhs : Expr = stmt.child(1)
             if type_to_name(expr_til_type(rhs)).len().gt(0) {
-                del := make_field_delete(stmt, fot)
-                new_ch.push(own del)
+                switch stmt.node_type {
+                case NodeType.FieldAssign(fad):
+                    fad.save_old_delete = true
+                case:
+                }
             }
         }
     }

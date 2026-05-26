@@ -402,8 +402,8 @@ builder_fa_is_ptr := func(e: Expr, ctx: Context) returns shallow Bool {
     switch e.node_type {
     case NodeType.FieldAccess(fname):
         return builder_fa_is_ptr_with_fname(sname, field_access_name(fname), ctx)
-    case NodeType.FieldAssign(fname):
-        return builder_fa_is_ptr_with_fname(sname, fname, ctx)
+    case NodeType.FieldAssign(fad):
+        return builder_fa_is_ptr_with_fname(sname, fad.name, ctx)
     case:
         return false
     }
@@ -446,8 +446,8 @@ builder_fa_is_ns := func(e: Expr, ctx: Context) returns shallow Bool {
     switch e.node_type {
     case NodeType.FieldAccess(fname):
         return builder_fa_is_ns_with_fname(e, sname, field_access_name(fname), ctx)
-    case NodeType.FieldAssign(fname):
-        return builder_fa_is_ns_with_fname(e, sname, fname, ctx)
+    case NodeType.FieldAssign(fad):
+        return builder_fa_is_ns_with_fname(e, sname, fad.name, ctx)
     case:
         return false
     }
@@ -1663,9 +1663,26 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
             }
             f.write(";\n")
         }
-    case NodeType.FieldAssign(fname):
+    case NodeType.FieldAssign(fad):
+        fname := fad.name
         ref obj : Expr = e.child(0)
         ref rhs_fa : Expr = e.child(1)
+        mut did_save_old := fad.save_old_delete
+        mut old_ctype := ""
+        if did_save_old {
+            old_ctype = c_type_name(expr_til_type(rhs_fa), til_type_name(expr_til_type(rhs_fa)), ctx)
+            f.write("{ ") f.write(old_ctype)
+            if builder_fa_is_ptr(e, ctx) {
+                f.write(" *_old = ")
+            } else {
+                f.write(" _old = ")
+            }
+            emit_expr(f, obj, depth, ctx)
+            if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
+            f.write(fname) f.write(";\n")
+            emit_indent(f, depth)
+        }
+
         if rhs_fa.node_type.is(NodeType.FCall).and(builder_fa_is_ptr(e, ctx).not()).and(builder_fa_is_ns(e, ctx).not()) {
             if fcall_is_shallow_return(rhs_fa, ctx) {
                 emit_expr(f, obj, depth, ctx)
@@ -1692,6 +1709,16 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                 emit_deref(f, rhs_fa, depth, ctx)
             }
             f.write(";\n")
+        }
+
+        if did_save_old {
+            emit_indent(f, depth)
+            f.write(old_ctype) f.write("_delete(")
+            if builder_fa_is_ptr(e, ctx) {
+                f.write("_old, &(Bool){1}); }\n")
+            } else {
+                f.write("&_old, &(Bool){0}); }\n")
+            }
         }
     case NodeType.FCall:
         if e.children.len().gt(0) {

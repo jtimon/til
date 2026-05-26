@@ -142,7 +142,8 @@ collect_refs := func(e: Expr, mut refs: Vec) {
                 }
             }
         }
-    case NodeType.FieldAssign(field_name):
+    case NodeType.FieldAssign(fad):
+        field_name := fad.name
         if scav_fa_is_ns(e) {
             if e.child(0).node_type.is(NodeType.Ident) {
                 switch e.child(0).node_type {

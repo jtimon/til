@@ -379,6 +379,14 @@ namespace:
     to_str := func(self: AssignData) returns Str { return self.name }
 }
 
+FieldAssignData := struct {
+    mut name := ""
+    mut save_old_delete := false
+namespace:
+    eq := func(a: FieldAssignData, b: FieldAssignData) returns Bool { return a.name.eq(b.name) }
+    to_str := func(self: FieldAssignData) returns Str { return self.name }
+}
+
 /// Payload for `for name in range` loop nodes.
 ForInData := struct {
     mut name := ""
@@ -411,7 +419,7 @@ NodeType := enum {
     StructDef: StructDef,
     EnumDef: EnumDef,
     FieldAccess: FieldAccessData,
-    FieldAssign: Str,
+    FieldAssign: FieldAssignData,
     Return,
     If,
     While,
@@ -663,7 +671,7 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.StructDef:      return "StructDef"
     case NodeType.EnumDef:        return "EnumDef"
     case NodeType.FieldAccess(s): return format("FieldAccess ", field_access_name(s))
-    case NodeType.FieldAssign(s): return format("FieldAssign ", s)
+    case NodeType.FieldAssign(fad): return format("FieldAssign ", fad.name)
     case NodeType.Return:         return "Return"
     case NodeType.If:             return "If"
     case NodeType.While:          return "While"

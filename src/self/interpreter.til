@@ -821,7 +821,8 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
             }
             new_val := eval_expr(scope, rhs, ctx)
             memcpy(cell.val, new_val, Value.size())
-        case NodeType.FieldAssign(fname):
+        case NodeType.FieldAssign(fad):
+            fname := fad.name
             ref val_expr : Expr = stmt.child(1)
             mut val := val_none()
             ref move_src : Cell = field_assign_dyn_move_src(scope, val_expr)
@@ -1630,8 +1631,8 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow
         switch e.node_type {
         case NodeType.FieldAccess(fname):
             return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, field_access_name(fname))
-        case NodeType.FieldAssign(fname):
-            return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fname)
+        case NodeType.FieldAssign(fad):
+            return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fad.name)
         case:
             return false
         }
