@@ -249,7 +249,9 @@ main := proc(args: ..Str) {
                "| translate | ", trans_bytes.to_str(), "   | ", trans_allocs.to_str(), "    | ",
                tb_pct, " / ", ta_pct, "     |\n"))
 
-    print("\n=== Next: review the diff (Step 3), then commit (Step 7) ===\n")
-    print("  Commit message saved in tmp/commit_msg.txt\n")
-    print("  After review: git add -A && git commit -F tmp/commit_msg.txt\n")
+    // ---- Step 7: commit ----
+    run("git add -A")
+    run(format("git commit -F tmp/commit_msg.txt"))
+
+    print("\n=== Committed. Review the diff for correctness. ===\n")
 }

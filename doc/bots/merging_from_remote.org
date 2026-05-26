@@ -5,24 +5,21 @@ commit.
 
 ** Quick start (scripted path)
 
-Steps 2, 4, 5, and 6 are automated by =tools/merge_commit.til=.
-The script captures the commit message to =tmp/commit_msg.txt=, does
-the soft-reset, runs make test (or make test_two_pass for "Two-pass: "
-commits), builds and runs ASAN, computes deltas with percentages,
-updates =doc/bots/asan.org=, and prints a summary.
+Run the script first. It handles everything: captures the commit
+message, soft-resets, runs make test (or make test_two_pass for
+"Two-pass: " commits), builds and runs ASAN, computes deltas with
+percentages, updates =doc/bots/asan.org=, and commits.
 
 #+begin_src shell
 bin/til run tools/merge_commit.til HASH
 #+end_src
 
-The merger still does these manually:
+If tests fail, STOP and report the error. Do not investigate.
 
-1. Step 1 -- identify HEAD
+If the script succeeds, the merger only does:
+
+1. Step 1 -- identify HEAD (~git log --oneline -5~)
 2. Step 3 -- read the diff of non-boot files and review it
-3. Step 7 -- commit:
-   #+begin_src shell
-   git add -A && git commit -F tmp/commit_msg.txt
-   #+end_src
 
 ** ASAN baseline
 
