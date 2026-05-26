@@ -7849,6 +7849,13 @@ priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeSc
         Vec.delete(own temp_ch, false)
     }
     body.children.move_from(new_ch)
+    // Free the two scratch buffers (like temp_ch above). move_from zeroed
+    // new_ch.count, and every slot moved out of old was zeroed by
+    // push_take, so the only elements Vec.delete drops are old's
+    // desugar-replaced husks -- dead AST whose contents already moved into
+    // the emitted stmts. call_free is false: the Vec values are locals.
+    Vec.delete(own new_ch, false)
+    Vec.delete(own old, false)
     return true
 }
 
