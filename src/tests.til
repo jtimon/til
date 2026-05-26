@@ -365,61 +365,98 @@ main := proc(args: ..Str) {
     tests := Vec.new(Test)
     flags := mode_flags(en_interp, en_run, asan_flag)
 
-    // === 35 mode tests ===
-    add_mode(tests, "test/types.til", flags)
-    add_mode(tests, "test/operators.til", flags)
-    add_mode(tests, "test/functions.til", flags)
-    add_mode(tests, "test/structs.til", flags)
-    add_mode(tests, "test/local_defs.til", flags)
-    add_mode(tests, "test/optional_args.til", flags)
-    add_mode(tests, "test/forward_refs.til", flags)
-    add_mode(tests, "test/flow.til", flags)
+    // Tests are registered slowest-first: run_all_parallel fills its parallel
+    // slots in registration order and never reorders, so front-loading the
+    // long-running jobs (GUI builds, then the slow mode tests) keeps the
+    // parallel tail short. The ordering below is based on per-test times from
+    // a full `make test` run.
+
+    // === GUI build tests (slowest: build + run under xvfb with timeout) ===
+    if en_gui.eq(1) {
+        gui_files := array("Str",
+            "examples/music.til",
+            "examples/piano.til",
+            "examples/chess.til",
+            "examples/checkers.til",
+            "examples/go.til",
+            "examples/snake.til",
+            "examples/shootil.til",
+            "examples/editor.til",
+            "examples/minesweeper.til",
+            "examples/font_test.til",
+            "examples/popcorn.til",
+            "examples/tilminal.til",
+            "examples/game_of_life.til",
+            "examples/gui_hello.til",
+        )
+        for gf : Str in gui_files {
+            bn := test_basename(gf)
+            mut run_args := ""
+            if bn.eq("popcorn") { run_args = " --mute" }
+            add_single(tests, format("build_", bn), "build", 124, "",
+                       asan_safe_cmd(
+                           format(til_bin, " build", asan_flag, " ", gf, " '&&' xvfb-run --auto-servernum timeout ", GUI_TIMEOUT, " bin/", bn, run_args),
+                           til_bin))
+        }
+    }
+
+    // === mode tests (sorted slowest-first) ===
+    add_mode(tests, "test/kwargs.til", flags)
+    add_mode(tests, "test/constfold.til", flags)
     add_mode(tests, "test/strings.til", flags)
-    add_mode(tests, "test/ref.til", flags)
-    add_mode(tests, "test/own_fields.til", flags)
+    add_mode(tests, "test/enums.til", flags)
+    add_mode(tests, "test/dynamic.til", flags)
+    add_mode(tests, "test/maps.til", flags)
+    add_mode(tests, "test/operators.til", flags)
+    add_mode(tests, "test/flow.til", flags)
+    add_mode(tests, "test/asting.til", flags)
+    add_mode(tests, "test/structs.til", flags)
+    add_mode(tests, "test/types.til", flags)
+    add_mode(tests, "test/directives.til", flags)
+    add_mode(tests, "test/variadic.til", flags)
+    add_mode(tests, "test/loops.til", flags)
+    add_mode(tests, "test/aliases.til", flags)
+    add_mode(tests, "test/fn_ptr.til", flags)
+    add_mode(tests, "test/comparisons.til", flags)
+    add_mode(tests, "test/vecs.til", flags)
+    add_mode(tests, "test/priv.til", flags)
+    add_mode(tests, "test/trailing.til", flags)
+    add_mode(tests, "test/globals.til", flags)
+    add_mode(tests, "test/errors.til", flags)
+    add_mode(tests, "test/tuples.til", flags)
+    add_mode(tests, "test/auto.til", flags)
+    add_mode(tests, "test/first_class.til", flags)
+    add_mode(tests, "test/regression.til", flags)
+    add_mode(tests, "test/files.til", flags)
+    add_mode(tests, "test/import_diamond.til", flags)
     // macros.til contains a macro that prints during precomp; the line
     // appears in interpret output but not in compiled-run output, so
     // skip the run-vs-interp comparison.
     add_mode(tests, "test/macros.til", format(flags, " -no-match"))
-    add_mode(tests, "test/enums.til", flags)
-    add_mode(tests, "test/enums_lifecycle.til", mode_flags(0, en_run, asan_flag))
-    add_mode(tests, "test/errors.til", flags)
-    add_mode(tests, "test/vecs.til", flags)
-    add_mode(tests, "test/dynamic.til", flags)
-    add_mode(tests, "test/tuples.til", flags)
-    add_mode(tests, "test/arrays.til", flags)
     add_mode(tests, "test/sets.til", flags)
-    add_mode(tests, "test/maps.til", flags)
-    add_mode(tests, "test/regression.til", flags)
-    add_mode(tests, "test/globals.til", flags)
-    add_mode(tests, "test/globals_cli.til", flags)
-    add_mode(tests, "test/directives.til", flags)
-    add_mode(tests, "test/variadic.til", flags)
-    add_mode(tests, "test/auto.til", flags)
     add_mode(tests, "test/array_lit.til", flags)
-    add_mode(tests, "test/comparisons.til", flags)
-    add_mode(tests, "test/ufcs.til", flags)
+    add_mode(tests, "test/optional_args.til", flags)
     add_mode(tests, "test/booleans.til", flags)
-    add_mode(tests, "test/imports.til", flags)
-    add_mode(tests, "test/import_diamond.til", flags)
-    add_mode(tests, "test/priv.til", flags)
-    add_mode(tests, "examples/priv_demo.til", flags)
-    add_mode(tests, "test/aliases.til", flags)
-    add_mode(tests, "test/loops.til", flags)
-    add_mode(tests, "test/splat.til", flags)
+    add_mode(tests, "test/local_defs.til", flags)
     add_mode(tests, "test/shallow.til", flags)
+    add_mode(tests, "test/globals_cli.til", flags)
+    add_mode(tests, "test/own_fields.til", flags)
+    add_mode(tests, "examples/priv_demo.til", flags)
+    add_mode(tests, "test/imports.til", flags)
+    add_mode(tests, "test/arrays.til", flags)
+    add_mode(tests, "test/test_in_namespace.til", flags)
+    add_mode(tests, "test/forward_refs.til", flags)
+    add_mode(tests, "test/splat.til", flags)
+    add_mode(tests, "test/ufcs.til", flags)
+    add_mode(tests, "test/functions.til", flags)
+    add_mode(tests, "test/ref.til", flags)
+    // enums_lifecycle runs compile-only (interp disabled), so it is the
+    // fastest mode test; keep it last.
+    add_mode(tests, "test/enums_lifecycle.til", mode_flags(0, en_run, asan_flag))
     // TODO: lexing.til and parsing.til fail interp mode after Token line/col I64→U32
     // (interpreter doesn't handle U32 struct fields correctly)
     // add_mode(tests, "test/lexing.til", flags)
     // add_mode(tests, "test/parsing.til", flags)
-    add_mode(tests, "test/fn_ptr.til", flags)
-    add_mode(tests, "test/first_class.til", flags)
-    add_mode(tests, "test/asting.til", flags)
-    add_mode(tests, "test/trailing.til", flags)
-    add_mode(tests, "test/kwargs.til", flags)
-    add_mode(tests, "test/files.til", flags)
-    add_mode(tests, "test/constfold.til", flags)
-    add_mode(tests, "test/test_in_namespace.til", flags)
     // TODO(#114): help()/doc comments are REPL-only for now; doc_comments.til
     // assumes docs are populated for til test / til interpret.
     // add_mode(tests, "test/doc_comments.til", flags)
@@ -441,6 +478,44 @@ main := proc(args: ..Str) {
     File.writefile(ext_libc_exp, format("ok", NL))
     add_single(tests, "ext_libc_run", "ffi", 0, ext_libc_exp,
                asan_safe_cmd(format(til_bin, " run", asan_flag, " test/ext_libc.til"), til_bin))
+
+    // === library mode checks (pure/pura build are the heaviest here) ===
+    add_single(tests, "pure_build", "library", 0, "",
+               asan_safe_cmd(format(til_bin, " build", asan_flag, " test/pure.til"), til_bin))
+    add_single(tests, "pura_build", "library", 0, "",
+               asan_safe_cmd(format(til_bin, " build", asan_flag, " test/pura.til"), til_bin))
+    add_single(tests, "pure_interp_forbidden", "library", 1, "",
+               asan_safe_cmd(format(til_bin, " interpret test/pure.til"), til_bin))
+    add_single(tests, "pure_run_forbidden", "library", 1, "",
+               asan_safe_cmd(format(til_bin, " run", asan_flag, " test/pure.til"), til_bin))
+    add_single(tests, "pura_interp_forbidden", "library", 1, "",
+               asan_safe_cmd(format(til_bin, " interpret test/pura.til"), til_bin))
+    add_single(tests, "pura_run_forbidden", "library", 1, "",
+               asan_safe_cmd(format(til_bin, " run", asan_flag, " test/pura.til"), til_bin))
+
+    // === build tests: svg2ttf + issues summary ===
+    // svg2ttf: transparent 2-colour logo produces fonts/til_logo.ttf (exit=0);
+    // the full-colour logo panics with "too many colours" (exit=1).
+    // Compiled-run only (no interpret variant); the interpreted run takes
+    // ~90s and dominates wall time. Categorised as "build" so its time goes
+    // into build_ms rather than cli_ms in totals.
+    run("mkdir -p fonts")
+    add_single(tests, "svg2ttf_ok", "build", 0, "",
+               asan_safe_cmd(format(til_bin,
+                      " run", asan_flag, " -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ",
+                      "examples/svg2ttf.til ",
+                      "img/logo-transparent.svg fonts/til_logo.ttf"), til_bin))
+    add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
+               asan_safe_cmd(format(til_bin,
+                      " run", asan_flag, " -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ",
+                      "examples/svg2ttf.til ",
+                      "img/logo.svg tmp/svg2ttf_fail.ttf"), til_bin))
+    // issues.til is fast enough to keep in the regular suite; it refreshes
+    // issues/summary.org from the current issue files.
+    add_single(tests, "issues_summary", "build", 0, "",
+               asan_safe_cmd(format(til_bin,
+                      " run", asan_flag, " -o bin/c/issues_summary -c gen/c/issues_summary.c ",
+                      "examples/issues.til"), til_bin))
 
     // === til test command (issue #51): runs interpret + compile-and-run
     // and counts "tests passed" lines so both backends are exercised.
@@ -555,71 +630,6 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_typed_err1", "examples/cli_typed.til", "alice", 1, "", til_bin, asan_flag)
     add_cli_pair(tests, "cli_typed_err2", "examples/cli_typed.til", "a b c", 1, "", til_bin, asan_flag)
     add_cli_pair(tests, "hello_cli_err", "examples/hello_cli.til", "extra", 1, "", til_bin, asan_flag)
-
-    // svg2ttf: transparent 2-colour logo produces fonts/til_logo.ttf (exit=0);
-    // the full-colour logo panics with "too many colours" (exit=1).
-    // Compiled-run only (no interpret variant); the interpreted run takes
-    // ~90s and dominates wall time. Categorised as "build" so its time goes
-    // into build_ms rather than cli_ms in totals.
-    run("mkdir -p fonts")
-    add_single(tests, "svg2ttf_ok", "build", 0, "",
-               asan_safe_cmd(format(til_bin,
-                      " run", asan_flag, " -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ",
-                      "examples/svg2ttf.til ",
-                      "img/logo-transparent.svg fonts/til_logo.ttf"), til_bin))
-    add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
-               asan_safe_cmd(format(til_bin,
-                      " run", asan_flag, " -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ",
-                      "examples/svg2ttf.til ",
-                      "img/logo.svg tmp/svg2ttf_fail.ttf"), til_bin))
-    // issues.til is fast enough to keep in the regular suite; it refreshes
-    // issues/summary.org from the current issue files.
-    add_single(tests, "issues_summary", "build", 0, "",
-               asan_safe_cmd(format(til_bin,
-                      " run", asan_flag, " -o bin/c/issues_summary -c gen/c/issues_summary.c ",
-                      "examples/issues.til"), til_bin))
-    // === library mode checks ===
-    add_single(tests, "pure_build", "library", 0, "",
-               asan_safe_cmd(format(til_bin, " build", asan_flag, " test/pure.til"), til_bin))
-    add_single(tests, "pura_build", "library", 0, "",
-               asan_safe_cmd(format(til_bin, " build", asan_flag, " test/pura.til"), til_bin))
-    add_single(tests, "pure_interp_forbidden", "library", 1, "",
-               asan_safe_cmd(format(til_bin, " interpret test/pure.til"), til_bin))
-    add_single(tests, "pure_run_forbidden", "library", 1, "",
-               asan_safe_cmd(format(til_bin, " run", asan_flag, " test/pure.til"), til_bin))
-    add_single(tests, "pura_interp_forbidden", "library", 1, "",
-               asan_safe_cmd(format(til_bin, " interpret test/pura.til"), til_bin))
-    add_single(tests, "pura_run_forbidden", "library", 1, "",
-               asan_safe_cmd(format(til_bin, " run", asan_flag, " test/pura.til"), til_bin))
-
-    // === build tests (build + run with timeout) ===
-    if en_gui.eq(1) {
-        gui_files := array("Str",
-            "examples/checkers.til",
-            "examples/chess.til",
-            "examples/editor.til",
-            "examples/font_test.til",
-            "examples/game_of_life.til",
-            "examples/go.til",
-            "examples/gui_hello.til",
-            "examples/minesweeper.til",
-            "examples/music.til",
-            "examples/piano.til",
-            "examples/popcorn.til",
-            "examples/shootil.til",
-            "examples/snake.til",
-            "examples/tilminal.til",
-        )
-        for gf : Str in gui_files {
-            bn := test_basename(gf)
-            mut run_args := ""
-            if bn.eq("popcorn") { run_args = " --mute" }
-            add_single(tests, format("build_", bn), "build", 124, "",
-                       asan_safe_cmd(
-                           format(til_bin, " build", asan_flag, " ", gf, " '&&' xvfb-run --auto-servernum timeout ", GUI_TIMEOUT, " bin/", bn, run_args),
-                           til_bin))
-        }
-    }
 
     // === Run all tests in parallel ===
     run_all_parallel(tests, j, fail)
