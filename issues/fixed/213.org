@@ -1,5 +1,23 @@
 # priority: high
-** OPEN #213 Use-after-free returning an owned aggregate that holds a Vec of structs
+** FIXED #213 Use-after-free returning an owned aggregate that holds a Vec of structs
+
+*** Resolution
+
+   Root cause was an off-by-one in ~eval_call~'s struct-constructor
+   argument loop (~src/self/interpreter.til~). After reading
+   ~e.child(arg_idx)~ the loop incremented ~arg_idx~ *before* the
+   ~get_own_arg(e, arg_idx)~ own-arg check, so it tested the *next*
+   field's own-bit and nulled the wrong source cell. For ~Vec.new(T)~
+   the ~elem_kind=ELEM_BOXED~ argument is a global constant; the
+   following ~elem_clone~ argument is owned, so the off-by-one cleared
+   the ~ELEM_BOXED~ global to ~None~. Every later ~Vec.new~ then read
+   ~elem_kind == 0~ (ELEM_POD) with null clone/delete fns, corrupting
+   any heap-pressured Vec of structs-with-owned-fields -- the
+   use-after-free / element corruption reported here. Fixed by
+   checking ~get_own_arg~ against the current (pre-increment) child
+   index. ~struct_def_of~ now assembles a ~StructDef~ correctly;
+   regression test ~test_struct_def_of_213~ added to
+   ~test/first_class.til~.
 
 Returning a struct value that contains a ~Vec~ of structs-with-owned-fields
 from a ~func~ frees the inner Vec data before the caller-side return-clone

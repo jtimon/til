@@ -18,7 +18,6 @@
 *** [[./open/182.org][#182]] Support ~/** */~ block doc comments (in addition to ~///~)
 *** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
 *** [[./open/204.org][#204]] Asap destruction is its own phase, not part of the typer
-*** [[./open/213.org][#213]] Use-after-free returning an owned aggregate that holds a Vec of structs
 *** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
 ** Medium
 ** Low

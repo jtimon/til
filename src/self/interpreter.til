@@ -1215,7 +1215,8 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 case Value.Struct(si_inst):
                     mut arg_idx : U32 = 1
                     for fdd : Declaration in sdd.fields {
-                        ref arg : Expr = e.child(arg_idx)
+                        cur_idx := arg_idx
+                        ref arg : Expr = e.child(cur_idx)
                         arg_idx = arg_idx.add(1)
                         mut val := val_none()
                         switch arg.node_type {
@@ -1226,7 +1227,15 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                 exit(1)
                             }
                             val = shallow_copy_value(src.val)
-                            if get_own_arg(e, arg_idx).and(val.is(Value.Func).not()) {
+                            // Null the source only when THIS arg (cur_idx) is
+                            // marked own. Using the post-increment arg_idx here
+                            // tested the next arg's own-bit, which nulled the
+                            // wrong source cell -- e.g. a global constant like
+                            // ELEM_BOXED passed for `elem_kind` got cleared
+                            // because the following `elem_clone` arg was own,
+                            // leaving every later Vec.new with elem_kind == 0
+                            // (issue #213).
+                            if get_own_arg(e, cur_idx).and(val.is(Value.Func).not()) {
                                 src.val = val_none()
                             }
                         case:
