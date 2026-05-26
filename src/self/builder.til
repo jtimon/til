@@ -61,8 +61,8 @@ priv is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns shallow Bool
 // emit_stmt_decl and read back by fcall_fn_sig when a FuncPtr local is
 // called. Lives on Context (#178 first table); the builder swaps it at
 // emit_func_def boundaries to scope it per emission.
-priv resolve_local_fn_sig := func(name: Str) returns ref Expr {
-    ref m : Map = codegen_lp().ctx.local_fn_sigs
+priv resolve_local_fn_sig := func(lp: LoadedProgram, name: Str) returns ref Expr {
+    ref m : Map = lp.ctx.local_fn_sigs
     if m.has(name).not() { return NULL }
     return deref(m.get(name))
 }
@@ -140,7 +140,7 @@ fcall_fn_sig := func(fcall: Expr) returns ref Expr {
         }
         // Fallback 2: local FuncPtr decl whose signature was captured at
         // emit_stmt_decl time.
-        ref via_local : Expr = resolve_local_fn_sig(ident_name(name))
+        ref via_local : Expr = resolve_local_fn_sig(codegen_lp(), ident_name(name))
         if is_null(via_local).not() { return via_local }
         // Fallback 3: the Ident itself is a known global function name used
         // as a FuncPtr value (e.g. an inlined ref to a top-level func).
@@ -1021,9 +1021,8 @@ fcall_return_ctype := func(fcall: Expr) returns Str {
     return callee_return_ctype(callee)
 }
 
-check_fcall_mut_args := proc(e: Expr) {
+check_fcall_mut_args := proc(lp: LoadedProgram, e: Expr) {
     if is_null(e) { return }
-    ref mut lp : LoadedProgram = codegen_lp()
     if e.node_type.is(NodeType.FCall) {
         ref mut fdef : Expr = fcall_fn_sig(e)
         if is_null(fdef) {
@@ -1056,14 +1055,13 @@ check_fcall_mut_args := proc(e: Expr) {
         }
     }
     for e_ci : Expr in e.children {
-        check_fcall_mut_args(e_ci)
+        check_fcall_mut_args(lp, e_ci)
     }
 }
 
-collect_unsafe_to_hoist := proc(body: Expr) {
-    ref mut lp : LoadedProgram = codegen_lp()
+collect_unsafe_to_hoist := proc(lp: LoadedProgram, body: Expr) {
     for stmt : Expr in body.children {
-        check_fcall_mut_args(stmt)
+        check_fcall_mut_args(lp, stmt)
         if stmt.node_type.is(NodeType.Decl) {
             switch stmt.node_type {
             case NodeType.Decl(dd):
@@ -1102,16 +1100,16 @@ collect_unsafe_to_hoist := proc(body: Expr) {
         }
         if stmt.node_type.is(NodeType.If) {
             for c in 1..stmt.children.len() {
-                collect_unsafe_to_hoist(stmt.child(c))
+                collect_unsafe_to_hoist(lp, stmt.child(c))
             }
         }
         if stmt.node_type.is(NodeType.While) {
             if stmt.children.len().gt(1) {
-                collect_unsafe_to_hoist(stmt.child(1))
+                collect_unsafe_to_hoist(lp, stmt.child(1))
             }
         }
         if stmt.node_type.is(NodeType.Body) {
-            collect_unsafe_to_hoist(stmt)
+            collect_unsafe_to_hoist(lp, stmt)
         }
     }
 }
@@ -2682,7 +2680,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.ref_locals = Set.new(Str)
         lp.ctx.ref_dyn_locals = Set.new(Str)
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
-        collect_unsafe_to_hoist(body)
+        collect_unsafe_to_hoist(lp, body)
         lp.ctx.in_main_func = true
         emit_body(f, body, 1)
         lp.ctx.in_main_func = false
@@ -2717,7 +2715,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.ref_locals = Set.new(Str)
         lp.ctx.ref_dyn_locals = Set.new(Str)
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
-        collect_unsafe_to_hoist(body)
+        collect_unsafe_to_hoist(lp, body)
         emit_body(f, body, 1)
         lp.ctx.in_func_def = false
         f.write("}\n")
@@ -3177,8 +3175,7 @@ emit_funcsig_typedefs := proc(f: File, core_program: Expr, program: Expr) {
     f.write("\n")
 }
 
-emit_funcsig_typedefs_lp := proc(f: File) {
-    ref lp : LoadedProgram = codegen_lp()
+emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -3278,8 +3275,7 @@ emit_header_forward_decls := proc(f: File, core_program: Expr, program: Expr) {
     f.write("\n")
 }
 
-emit_header_forward_decls_lp := proc(f: File) {
-    ref lp : LoadedProgram = codegen_lp()
+emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -3465,15 +3461,13 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr) {
     f.write("\n")
 }
 
-emit_header_defs_and_funcs_lp := proc(f: File) {
+emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     mut emitted_h := Set.new(Str)
     emitted_h.add(own "U8"); emitted_h.add(own "I8"); emitted_h.add(own "I16"); emitted_h.add(own "I32")
     emitted_h.add(own "U32"); emitted_h.add(own "U64"); emitted_h.add(own "I64")
     emitted_h.add(own "F32"); emitted_h.add(own "Bool")
     topo_emit_struct_enum_defs_lp(f, emitted_h)
     own emitted_h.delete()
-
-    ref lp : LoadedProgram = codegen_lp()
 
     // Function forward declarations
     if lp.skip_core.not() {
@@ -3623,8 +3617,7 @@ emit_header_global_decls := proc(f: File, core_program: Expr, program: Expr) {
     f.write("\n")
 }
 
-emit_header_global_decls_lp := proc(f: File) {
-    ref lp : LoadedProgram = codegen_lp()
+emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -3680,14 +3673,14 @@ build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str) r
     return 0
 }
 
-build_forward_header_lp := proc(fwd_path: Str) returns shallow I32 {
-    build_register_funcsig_names_lp()
+build_forward_header_lp := proc(fwd_path: Str, lp: LoadedProgram) returns shallow I32 {
+    build_register_funcsig_names_lp(lp)
     f := File.new(fwd_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
-    emit_header_forward_decls_lp(f)
-    emit_funcsig_typedefs_lp(f)
-    emit_header_defs_and_funcs_lp(f)
-    emit_header_global_decls_lp(f)
+    emit_header_forward_decls_lp(f, lp)
+    emit_funcsig_typedefs_lp(f, lp)
+    emit_header_defs_and_funcs_lp(f, lp)
+    emit_header_global_decls_lp(f, lp)
     f.close()
     return 0
 }
@@ -3705,14 +3698,14 @@ build_header := proc(core_program: Expr, program: Expr, h_path: Str) returns sha
     return 0
 }
 
-build_header_lp := proc(h_path: Str) returns shallow I32 {
-    build_register_funcsig_names_lp()
+build_header_lp := proc(h_path: Str, lp: LoadedProgram) returns shallow I32 {
+    build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
-    emit_header_forward_decls_lp(f)
-    emit_funcsig_typedefs_lp(f)
-    emit_header_defs_and_funcs_lp(f)
-    emit_header_global_decls_lp(f)
+    emit_header_forward_decls_lp(f, lp)
+    emit_funcsig_typedefs_lp(f, lp)
+    emit_header_defs_and_funcs_lp(f, lp)
+    emit_header_global_decls_lp(f, lp)
     f.write("#include \"ext.h\"\n\n")
     f.close()
     return 0
@@ -3754,10 +3747,7 @@ emit_binding_ns_methods := proc(f: File, def: Expr) {
     }
 }
 
-build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {
-    // program is kept for signature compatibility; emit from lp units.
-    if is_null(program) { }
-    ref lp : LoadedProgram = codegen_lp()
+build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) returns shallow I32 {
     f := File.new(til_path, true)
     f.write("// Auto-generated FFI binding for "); f.write(lib_name); f.write("\n")
     f.write("link(\""); f.write(lib_name); f.write("\")\n\n")
@@ -3861,10 +3851,7 @@ type_name_to_ctypes_return := func(name: Str, shallow is_shallow: Bool) returns 
     return format("ctypes.POINTER(", base, ")")
 }
 
-build_python_binding := proc(program: Expr, py_path: Str, lib_name: Str) returns shallow I32 {
-    // program is kept for signature compatibility; emit from lp units.
-    if is_null(program) { }
-    ref lp : LoadedProgram = codegen_lp()
+build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) returns shallow I32 {
     f := File.new(py_path, true)
     f.write("# Auto-generated Python binding for "); f.write(lib_name); f.write("\n")
     f.write("import ctypes\n")
@@ -4426,8 +4413,7 @@ build_register_funcsig_names := func(core_program: Expr, program: Expr) {
     if is_null(program).not()      { register_funcsig_prog(program) }
 }
 
-build_register_funcsig_names_lp := func() {
-    ref mut lp : LoadedProgram = codegen_lp()
+build_register_funcsig_names_lp := func(lp: LoadedProgram) {
     lp.ctx.funcsig_names = Set.new(Str)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -4506,8 +4492,7 @@ build_register_lookups := func(core_program: Expr, program: Expr) {
     register_lookups_prog(program)
 }
 
-build_register_lookups_lp := func() {
-    ref mut lp : LoadedProgram = codegen_lp()
+build_register_lookups_lp := func(lp: LoadedProgram) {
     lp.ctx.struct_def_exprs = Map.new(Str, Dynamic)
     lp.ctx.func_defs = Map.new(Str, Dynamic)
     lp.ctx.stack_locals = Set.new(Str)
@@ -4638,10 +4623,10 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
     }
 }
 
-emit_monolithic_header_lp := proc(f: File, mode: Mode) {
+emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     f.write("#include \"ext.h\"\n\n")
-    emit_header_forward_decls_lp(f)
-    emit_funcsig_typedefs_lp(f)
+    emit_header_forward_decls_lp(f, lp)
+    emit_funcsig_typedefs_lp(f, lp)
 
     // Topo-sort struct/enum defs across all units
     mut emitted_mh := Set.new(Str)
@@ -4650,8 +4635,6 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode) {
     emitted_mh.add(own "F32"); emitted_mh.add(own "Bool")
     topo_emit_struct_enum_defs_lp(f, emitted_mh)
     own emitted_mh.delete()
-
-    ref lp : LoadedProgram = codegen_lp()
 
     // Emit function declarations
     if lp.skip_core.not() {
@@ -6010,7 +5993,7 @@ emit_script_main := proc(f: File) {
     // Collect hoist restrictions across all user units.
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
-        collect_unsafe_to_hoist(iu.ast)
+        collect_unsafe_to_hoist(lp, iu.ast)
     }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -6157,12 +6140,12 @@ emit_lib_init := proc(f: File) {
     f.write("}\n\n")
 }
 
-build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns shallow I32 {
+build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str, lp: LoadedProgram) returns shallow I32 {
     mut is_lib := false
     if is_null(mode).not() { is_lib = mode.is_library }
 
-    build_register_lookups_lp()
-    build_register_funcsig_names_lp()
+    build_register_lookups_lp(lp)
+    build_register_funcsig_names_lp(lp)
     f := File.new(c_output_path, true)
     if is_null(f) { return 1 }
 
@@ -6173,11 +6156,10 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str) returns s
         if mode.decls_only { is_script = false }
     }
 
-    emit_monolithic_header_lp(f, mode)
+    emit_monolithic_header_lp(f, mode, lp)
     f.write("#include \"ext.h\"\n\n")
 
     // Ext decls from user units only.
-    ref lp : LoadedProgram = codegen_lp()
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         emit_ext_func_declarations(f, iu.ast)
@@ -6345,17 +6327,17 @@ make_build_dirs := func(paths: BuildPaths) {
 
 priv translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow I32 {
     codegen_set_lp(lp)
-    mut result := build_forward_header_lp(paths.fwd_path)
+    mut result := build_forward_header_lp(paths.fwd_path, lp)
     if result.eq(0) {
-        result = build(lp.cur_mode, lp.run_tests, paths.c_path)
+        result = build(lp.cur_mode, lp.run_tests, paths.c_path, lp)
     }
     if result.eq(0).and(paths.do_lib) {
-        result = build_header_lp(paths.h_path)
+        result = build_header_lp(paths.h_path, lp)
         if result.eq(0) {
-            result = build_til_binding(NULL, paths.til_path, paths.name)
+            result = build_til_binding(lp, paths.til_path, paths.name)
         }
         if result.eq(0) {
-            result = build_python_binding(NULL, paths.py_path, paths.name)
+            result = build_python_binding(lp, paths.py_path, paths.name)
         }
     }
     codegen_clear_lp()
