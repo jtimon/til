@@ -255,7 +255,6 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     // Make codegen_lp() available so dispatch helpers like make_str_value can
     // read shared Context fields
     // (cached_str/array/vec_def) populated by interpreter_init_ns below.
-    codegen_set_lp(lp)
     // Only clear the fold-results map here; the foldable-name sets
     // (precomp_macros/funcs) were populated upstream by the typer
     // (precomp_classify_stmt) and must survive into this phase.
@@ -303,13 +302,13 @@ precomp_imported := proc(mut lp: LoadedProgram) {
             for u : ProgramUnit in lp.core_units {
                 ref iu : ImportUnit = lp.ctx.imported.get(u.path)
                 ffi_init_struct_defs_append(iu.ast)
-                ffi_init_scan_program(iu.ast)
+                ffi_init_scan_program(iu.ast, lp.ctx)
             }
         }
         for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             ffi_init_struct_defs_append(iu.ast)
-            ffi_init_scan_program(iu.ast)
+            ffi_init_scan_program(iu.ast, lp.ctx)
         }
         // Mark FFI loaded so ext_dispatch_ffi will dispatch the entries we
         // just registered. Built-in ext_funcs (I64_add etc.) are statically
@@ -335,7 +334,6 @@ precomp_imported := proc(mut lp: LoadedProgram) {
 
     scope_free(own global)
     precomp_reset_state(lp.ctx)
-    codegen_clear_lp()
 }
 
 // Scavenge across per-file units (rstil-style): compute a single visited set

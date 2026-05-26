@@ -16,38 +16,10 @@ priv DynCallInfo := struct {
     mut has_return := false
 }
 
-// --- Globals ---
-
-// Points at the LoadedProgram passed to cmd_build/cmd_run for the duration of
-// codegen, so helpers can iterate per-file ASTs without building merged views.
-mut codegen_lp_slot : Dynamic = 0
 // in_func_def / in_main_func / ctor_seq previously lived here as
-// module-level mut; they moved to Context (see initer.til). The
-// codegen reads/writes via lp.ctx.<field> (binding
-// `ref mut lp_X : LoadedProgram = lp` first when an
-// assignment is needed -- the parser does not accept call-chain
-// assignments) so the same Context that already owns the rest of
-// the builder lookup tables also owns these flags.
-
-codegen_lp := func() returns ref LoadedProgram {
-    if is_null(codegen_lp_slot) {
-        panic(__LOC__, "builder: codegen_lp_slot is NULL")
-    }
-    ref lp : LoadedProgram = deref(codegen_lp_slot)
-    if is_null(lp) {
-        panic(__LOC__, "builder: codegen_lp_slot points to NULL")
-    }
-    return lp
-}
-
-codegen_set_lp := func(lp: LoadedProgram) {
-    // Store pointer to stack-owned lp; valid for duration of build.
-    codegen_lp_slot = to_ptr(lp)
-}
-
-codegen_clear_lp := func() {
-    codegen_lp_slot = NULL
-}
+// module-level mut; they moved to Context (see initer.til). The active
+// LoadedProgram is threaded explicitly as an `lp` parameter (and `ctx`
+// for Context-only consumers) rather than parked in a module global.
 
 // --- Leaf functions ---
 
@@ -6395,7 +6367,6 @@ make_build_dirs := func(paths: BuildPaths) {
 }
 
 priv translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow I32 {
-    codegen_set_lp(lp)
     mut result := build_forward_header_lp(paths.fwd_path, lp)
     if result.eq(0) {
         result = build(lp.cur_mode, lp.run_tests, paths.c_path, lp)
@@ -6409,7 +6380,6 @@ priv translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow
             result = build_python_binding(lp, paths.py_path, paths.name)
         }
     }
-    codegen_clear_lp()
     return result
 }
 

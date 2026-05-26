@@ -186,16 +186,14 @@ value_to_u64 := func(v: Value) returns U64 {
     }
 }
 
-uptr_ffi_type := func() returns ref ffi_type {
-    ref lp : LoadedProgram = codegen_lp()
-    ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
+uptr_ffi_type := func(ctx: Context) returns ref ffi_type {
+    ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
     if uptr_name.eq("U32") { return ffi_type_ref("ffi_type_uint32") }
     return ffi_type_ref("ffi_type_uint64")
 }
 
-usize_ffi_type := func() returns ref ffi_type {
-    ref lp : LoadedProgram = codegen_lp()
-    ref usize_name : Str = resolve_type_alias(lp.ctx.scope, "USize")
+usize_ffi_type := func(ctx: Context) returns ref ffi_type {
+    ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
     if usize_name.eq("U32") { return ffi_type_ref("ffi_type_uint32") }
     return ffi_type_ref("ffi_type_uint64")
 }
@@ -245,8 +243,8 @@ priv value_variant_name := func(v: Value) returns Str {
 // as a Bool (silently defaulting to false would mask cast/typer bugs;
 // the Bool handlers are reached via FFI dispatch on top-level
 // and/or/not, so the typer should only let Bool-shaped values through).
-priv narrow_bool_arg := proc(s: Scope, e: Expr) returns Bool {
-    v := reinterpret_ptr_value(eval_expr(s, e), "Bool", s)
+priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
+    v := reinterpret_ptr_value(eval_expr(s, e, ctx), "Bool", s, ctx)
     switch v {
     case Value.Boolean(bv):
         return bv.clone()
@@ -256,28 +254,28 @@ priv narrow_bool_arg := proc(s: Scope, e: Expr) returns Bool {
     }
 }
 
-h_Bool_and := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    av := narrow_bool_arg(s, e.child(1))
-    bv := narrow_bool_arg(s, e.child(2))
+h_Bool_and := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    av := narrow_bool_arg(s, e.child(1), ctx)
+    bv := narrow_bool_arg(s, e.child(2), ctx)
     r = val_bool(and(av, bv))
     return true
 }
 
-h_Bool_or := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    av := narrow_bool_arg(s, e.child(1))
-    bv := narrow_bool_arg(s, e.child(2))
+h_Bool_or := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    av := narrow_bool_arg(s, e.child(1), ctx)
+    bv := narrow_bool_arg(s, e.child(2), ctx)
     r = val_bool(or(av, bv))
     return true
 }
 
-h_Bool_not := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    bv := narrow_bool_arg(s, e.child(1))
+h_Bool_not := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    bv := narrow_bool_arg(s, e.child(1), ctx)
     r = val_bool(not(bv))
     return true
 }
 
-h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    v := eval_expr(s, e.child(1))
+h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
         r = val_u8(i)
@@ -288,8 +286,8 @@ h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     }
 }
 
-h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    v := eval_expr(s, e.child(1))
+h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
         r = val_i16(i)
@@ -300,8 +298,8 @@ h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     }
 }
 
-h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    v := eval_expr(s, e.child(1))
+h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
         r = val_i32(i)
@@ -312,8 +310,8 @@ h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     }
 }
 
-h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    v := eval_expr(s, e.child(1))
+h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
         r = val_f32(i.to_f32())
@@ -324,8 +322,8 @@ h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     }
 }
 
-h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    v := eval_expr(s, e.child(1))
+h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
         r = val_u32(i)
@@ -336,21 +334,21 @@ h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     }
 }
 
-priv h_print_single := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    arg := eval_expr(s, e.child(1))
+priv h_print_single := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    arg := eval_expr(s, e.child(1), ctx)
     print_single(str_view(arg))
     r = val_none()
     return true
 }
 
-h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
+h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value, _ctx: Context) returns shallow Bool {
     print_flush()
     r = val_none()
     return true
 }
 
-h_exit := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    a := eval_expr(s, e.child(1))
+h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    a := eval_expr(s, e.child(1), ctx)
     switch a {
     case Value.Int(code):
         exit(code)
@@ -361,23 +359,23 @@ h_exit := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
-h_readfile := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    path := eval_expr(s, e.child(1))
+h_readfile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    path := eval_expr(s, e.child(1), ctx)
     content := File.readfile(str_view(path))
-    r = make_str_value(content.c_str, content.count)
+    r = make_str_value(content.c_str, content.count, ctx)
     return true
 }
 
-h_writefile := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    path := eval_expr(s, e.child(1))
-    content := eval_expr(s, e.child(2))
+h_writefile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    path := eval_expr(s, e.child(1), ctx)
+    content := eval_expr(s, e.child(2), ctx)
     File.writefile(str_view(path), str_view(content))
     r = val_none()
     return true
 }
 
-h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    cmd := eval_expr(s, e.child(1))
+h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    cmd := eval_expr(s, e.child(1), ctx)
     r = val_i64(spawn_cmd(str_view(cmd)))
     return true
 }
@@ -402,21 +400,21 @@ val_to_ptr := func(v: Value) returns ref Dynamic {
     }
 }
 
-h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name_val := eval_expr(s, e.child(1))
-    method_val := eval_expr(s, e.child(2))
+h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name_val := eval_expr(s, e.child(1), ctx)
+    method_val := eval_expr(s, e.child(2), ctx)
     type_name := str_view(type_name_val)
     method := str_view(method_val)
-    r = val_bool(is_null(ns_get(type_name, method)).not())
+    r = val_bool(is_null(ns_get(type_name, method, ctx)).not())
     return true
 }
 
-h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name_val := eval_expr(s, e.child(1))
-    method_val := eval_expr(s, e.child(2))
+h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name_val := eval_expr(s, e.child(1), ctx)
+    method_val := eval_expr(s, e.child(2), ctx)
     type_name := str_view(type_name_val)
     method := str_view(method_val)
-    ref nsv : Value = ns_get(type_name, method)
+    ref nsv : Value = ns_get(type_name, method, ctx)
     if is_null(nsv) {
         panic(__LOC__, "dyn_fn: unknown ", type_name, ".", method)
     }
@@ -427,10 +425,10 @@ h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
-h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name_val := eval_expr(s, e.child(1))
+h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name_val := eval_expr(s, e.child(1), ctx)
     type_name := str_view(type_name_val)
-    sz := get_elem_size(s, type_name, e)
+    sz := get_elem_size(s, type_name, e, ctx)
     r = val_u32(sz.to_i64())
     return true
 }
@@ -440,42 +438,42 @@ h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 // being stored into a Declaration field and pushed into a Vec (the
 // header is copied but the bytes must outlive the AST borrow), so the
 // introspection primitives hand back owned copies. Issue #56/#58.
-priv str_to_owned_value := func(src: Str) returns shallow Value {
+priv str_to_owned_value := func(src: Str, ctx: Context) returns shallow Value {
     n := src.count.to_u64()
     buf : Dynamic = malloc(n.add(1))
     memcpy(buf, src.c_str, n)
     ref mut term : U8 = ptr_add(buf, n)
     term = 0
-    return make_str_value_own(buf, n)
+    return make_str_value_own(buf, n, ctx)
 }
 
 // Look up a registered struct type's AST node by name, erroring out if
 // the name is unknown or not a struct. Shared by the struct_field_*
 // introspection handlers (issue #56/#58).
-interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str) returns ref Expr {
+interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
     if is_null(tc) {
-        interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"))
+        interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
         exit(1)
     }
     switch tc.val {
     case Value.Func(fptr):
         ref node : Expr = deref(fptr)
         if node.node_type.is(NodeType.StructDef).not() {
-            interp_error(e, who.concat(": '").concat(type_name).concat("' is not a struct"))
+            interp_error(e, who.concat(": '").concat(type_name).concat("' is not a struct"), ctx)
             exit(1)
         }
         return node
     case:
-        interp_error(e, who.concat(": '").concat(type_name).concat("' is not a struct"))
+        interp_error(e, who.concat(": '").concat(type_name).concat("' is not a struct"), ctx)
         exit(1)
         return NULL
     }
 }
 
-h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name := str_view(eval_expr(s, e.child(1)))
-    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count")
+h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
         r = val_i64(sd.fields.len().to_i64())
@@ -485,32 +483,32 @@ h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bo
     return true
 }
 
-h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name := str_view(eval_expr(s, e.child(1)))
-    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
-    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name")
+h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
         if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
-            interp_error(e, "struct_field_name: index out of bounds")
+            interp_error(e, "struct_field_name: index out of bounds", ctx)
             exit(1)
         }
         ref fd : Declaration = sd.fields.get(idx.to_usize())
-        r = str_to_owned_value(fd.name)
+        r = str_to_owned_value(fd.name, ctx)
     case:
         UNREACHABLE(__LOC__)
     }
     return true
 }
 
-h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name := str_view(eval_expr(s, e.child(1)))
-    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
-    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut")
+h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
         if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
-            interp_error(e, "struct_field_is_mut: index out of bounds")
+            interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
             exit(1)
         }
         ref fd : Declaration = sd.fields.get(idx.to_usize())
@@ -521,18 +519,18 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value) returns shallow B
     return true
 }
 
-h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name := str_view(eval_expr(s, e.child(1)))
-    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
-    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type")
+h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
         if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
-            interp_error(e, "struct_field_type: index out of bounds")
+            interp_error(e, "struct_field_type: index out of bounds", ctx)
             exit(1)
         }
         ref fd : Declaration = sd.fields.get(idx.to_usize())
-        r = str_to_owned_value(fd.explicit_type)
+        r = str_to_owned_value(fd.explicit_type, ctx)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -542,30 +540,30 @@ h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value) returns shallow Boo
 // Look up a registered enum type's AST node by name, erroring out if
 // the name is unknown or not an enum. Shared by the enum_variant_*
 // introspection handlers (issue #57/#58).
-interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str) returns ref Expr {
+interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
     if is_null(tc) {
-        interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"))
+        interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
         exit(1)
     }
     switch tc.val {
     case Value.Func(fptr):
         ref node : Expr = deref(fptr)
         if node.node_type.is(NodeType.EnumDef).not() {
-            interp_error(e, who.concat(": '").concat(type_name).concat("' is not an enum"))
+            interp_error(e, who.concat(": '").concat(type_name).concat("' is not an enum"), ctx)
             exit(1)
         }
         return node
     case:
-        interp_error(e, who.concat(": '").concat(type_name).concat("' is not an enum"))
+        interp_error(e, who.concat(": '").concat(type_name).concat("' is not an enum"), ctx)
         exit(1)
         return NULL
     }
 }
 
-h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name := str_view(eval_expr(s, e.child(1)))
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count")
+h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
         r = val_i64(ed.variants.len().to_i64())
@@ -575,32 +573,32 @@ h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bo
     return true
 }
 
-h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name := str_view(eval_expr(s, e.child(1)))
-    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name")
+h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
         if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
-            interp_error(e, "enum_variant_name: index out of bounds")
+            interp_error(e, "enum_variant_name: index out of bounds", ctx)
             exit(1)
         }
         ref vn : Str = ed.variants.get(idx.to_usize())
-        r = str_to_owned_value(vn)
+        r = str_to_owned_value(vn, ctx)
     case:
         UNREACHABLE(__LOC__)
     }
     return true
 }
 
-h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name := str_view(eval_expr(s, e.child(1)))
-    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload")
+h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
         if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
-            interp_error(e, "enum_variant_has_payload: index out of bounds")
+            interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
             exit(1)
         }
         if ed.payload_types.has(idx) {
@@ -615,21 +613,21 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value) returns shal
     return true
 }
 
-h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name := str_view(eval_expr(s, e.child(1)))
-    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type")
+h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
         if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
-            interp_error(e, "enum_variant_payload_type: index out of bounds")
+            interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
             exit(1)
         }
         if ed.payload_types.has(idx) {
             ref pt : Str = ed.payload_types.get(idx)
-            r = str_to_owned_value(pt)
+            r = str_to_owned_value(pt, ctx)
         } else {
-            r = str_to_owned_value("")
+            r = str_to_owned_value("", ctx)
         }
     case:
         UNREACHABLE(__LOC__)
@@ -637,11 +635,11 @@ h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value) returns sha
     return true
 }
 
-h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_val := eval_expr(s, e.child(1))
+h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_val := eval_expr(s, e.child(1), ctx)
     switch type_val {
     case Value.Enum(ei):
-        ref til_type_def : Expr = lookup_interp_type_def("Type")
+        ref til_type_def : Expr = lookup_interp_type_def("Type", ctx)
         if is_null(til_type_def) {
             panic(__LOC__, "dyn_type_to_str: Type definition not registered")
         }
@@ -649,82 +647,82 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
         ref tag_ref : I32 = tag_ptr
         tag := tag_ref
         if tag.eq(enum_variant_tag(til_type_def, "Unknown")).or(tag.eq(enum_variant_tag(til_type_def, "None"))) {
-            r = make_str_value("".c_str, 0)
+            r = make_str_value("".c_str, 0, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "I64")) {
-            r = make_str_value("I64".c_str, 3)
+            r = make_str_value("I64".c_str, 3, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "U8")) {
-            r = make_str_value("U8".c_str, 2)
+            r = make_str_value("U8".c_str, 2, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "I8")) {
-            r = make_str_value("I8".c_str, 2)
+            r = make_str_value("I8".c_str, 2, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "I16")) {
-            r = make_str_value("I16".c_str, 3)
+            r = make_str_value("I16".c_str, 3, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "I32")) {
-            r = make_str_value("I32".c_str, 3)
+            r = make_str_value("I32".c_str, 3, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "U32")) {
-            r = make_str_value("U32".c_str, 3)
+            r = make_str_value("U32".c_str, 3, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "U64")) {
-            r = make_str_value("U64".c_str, 3)
+            r = make_str_value("U64".c_str, 3, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "F32")) {
-            r = make_str_value("F32".c_str, 3)
+            r = make_str_value("F32".c_str, 3, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Bool")) {
-            r = make_str_value("Bool".c_str, 4)
+            r = make_str_value("Bool".c_str, 4, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Struct")) {
             ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
-            r = make_str_value(payload.c_str, payload.count.to_u64())
+            r = make_str_value(payload.c_str, payload.count.to_u64(), ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "StructDef")) {
-            r = make_str_value("StructDef".c_str, 9)
+            r = make_str_value("StructDef".c_str, 9, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Enum")) {
             ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
-            r = make_str_value(payload2.c_str, payload2.count.to_u64())
+            r = make_str_value(payload2.c_str, payload2.count.to_u64(), ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "EnumDef")) {
-            r = make_str_value("EnumDef".c_str, 7)
+            r = make_str_value("EnumDef".c_str, 7, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "FuncDef")) {
-            r = make_str_value("FunctionDef".c_str, 11)
+            r = make_str_value("FunctionDef".c_str, 11, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "FuncPtr")) {
-            r = make_str_value("Fn".c_str, 2)
+            r = make_str_value("Fn".c_str, 2, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Dynamic")) {
-            r = make_str_value("Dynamic".c_str, 7)
+            r = make_str_value("Dynamic".c_str, 7, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Custom")) {
             ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
-            r = make_str_value(payload3.c_str, payload3.count.to_u64())
+            r = make_str_value(payload3.c_str, payload3.count.to_u64(), ctx)
             return true
         }
         panic(__LOC__, "dyn_type_to_str: unknown Type tag")
-        r = make_str_value("".c_str, 0)
+        r = make_str_value("".c_str, 0, ctx)
         return true
     case:
         panic(__LOC__, "dyn_type_to_str: expected Type enum value")
@@ -732,8 +730,8 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
     }
 }
 
-h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    pidv := eval_expr(s, e.child(1))
+h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    pidv := eval_expr(s, e.child(1), ctx)
     switch pidv {
     case Value.Int(pid):
         r = val_i64(check_cmd_status(pid))
@@ -744,8 +742,8 @@ h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool
     }
 }
 
-h_sleep := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    msv := eval_expr(s, e.child(1))
+h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    msv := eval_expr(s, e.child(1), ctx)
     switch msv {
     case Value.Int(ms):
         sleep_ms(ms)
@@ -757,8 +755,8 @@ h_sleep := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     }
 }
 
-h_file_mtime := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    path := eval_expr(s, e.child(1))
+h_file_mtime := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    path := eval_expr(s, e.child(1), ctx)
     r = val_i64(file_mtime(str_view(path)))
     return true
 }
@@ -773,9 +771,9 @@ h_get_thread_count := func(_s: Scope, _e: Expr, mut r: Value) returns shallow Bo
     return true
 }
 
-h_cfile_open := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    path_v := eval_expr(s, e.child(1))
-    is_write_v := eval_expr(s, e.child(2))
+h_cfile_open := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    path_v := eval_expr(s, e.child(1), ctx)
+    is_write_v := eval_expr(s, e.child(2), ctx)
     path := str_view(path_v)
     switch is_write_v {
     case Value.Boolean(is_write):
@@ -794,7 +792,7 @@ h_cfile_open := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
 // is neither a known primitive nor a registered struct.  Shared by
 // shallow_ffi_type and field_ffi_type, which differ only in the
 // fallback they pick for an unknown type.
-priv known_ffi_type := func(type_name: Str) returns ref ffi_type {
+priv known_ffi_type := func(type_name: Str, ctx: Context) returns ref ffi_type {
     if type_name.eq("I64")   { return ffi_type_ref("ffi_type_sint64") }
     if type_name.eq("U8")    { return ffi_type_ref("ffi_type_uint8") }
     if type_name.eq("I8")    { return ffi_type_ref("ffi_type_sint8") }
@@ -802,13 +800,13 @@ priv known_ffi_type := func(type_name: Str) returns ref ffi_type {
     if type_name.eq("I32")   { return ffi_type_ref("ffi_type_sint32") }
     if type_name.eq("U32")   { return ffi_type_ref("ffi_type_uint32") }
     if type_name.eq("U64")   { return ffi_type_ref("ffi_type_uint64") }
-    if type_name.eq("USize") { return usize_ffi_type() }
-    if type_name.eq("UPtr")  { return uptr_ffi_type() }
+    if type_name.eq("USize") { return usize_ffi_type(ctx) }
+    if type_name.eq("UPtr")  { return uptr_ffi_type(ctx) }
     if type_name.eq("F32")   { return ffi_type_ref("ffi_type_float") }
     if type_name.eq("Bool")  { return ffi_type_ref("ffi_type_uint8") }
     if ffi_struct_defs.has(type_name) {
         ref box : ExprPtrBox = ffi_struct_defs.get(type_name)
-        return build_struct_ffi_type(box.ptr)
+        return build_struct_ffi_type(box.ptr, ctx)
     }
     return NULL
 }
@@ -816,21 +814,21 @@ priv known_ffi_type := func(type_name: Str) returns ref ffi_type {
 // type_name -> ffi_type. Inverse mapping in ffi_shallow_type_info; keep
 // the two in sync if a new shallow primitive type lands.  Unknown
 // types are passed as opaque pointers.
-priv shallow_ffi_type := func(type_name: Str) returns ref ffi_type {
-    ref t : ffi_type = known_ffi_type(type_name)
+priv shallow_ffi_type := func(type_name: Str, ctx: Context) returns ref ffi_type {
+    ref t : ffi_type = known_ffi_type(type_name, ctx)
     if is_null(t).not() { return t }
     return ffi_type_ref("ffi_type_pointer")
 }
 
-field_ffi_type := func(dd: Declaration) returns ref ffi_type {
+field_ffi_type := func(dd: Declaration, ctx: Context) returns ref ffi_type {
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.explicit_type.len().eq(0) { return ffi_type_ref("ffi_type_sint64") }
-    ref t : ffi_type = known_ffi_type(dd.explicit_type)
+    ref t : ffi_type = known_ffi_type(dd.explicit_type, ctx)
     if is_null(t).not() { return t }
     return ffi_type_ref("ffi_type_sint64")
 }
 
-build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
+build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_type {
     if ffi_type_cache_inited.not() {
         ffi_type_cache = Vec.new(FFITypePtrBox)
         ffi_type_cache_inited = true
@@ -841,7 +839,7 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
         elements : Dynamic = malloc(nfields.add(1).to_u64().mul(Dynamic.size().to_u64()))
         for i in 0..nfields {
             ref fd : Declaration = bsf_sdd.fields.get(i)
-            ref ft : ffi_type = field_ffi_type(fd)
+            ref ft : ffi_type = field_ffi_type(fd, ctx)
             memcpy(ptr_add(elements, i.to_u64().mul(Dynamic.size().to_u64())), ft, Dynamic.size().to_u64())
         }
         memset(ptr_add(elements, nfields.to_u64().mul(Dynamic.size().to_u64())), 0, Dynamic.size().to_u64())
@@ -860,31 +858,31 @@ build_struct_ffi_type := func(struct_def: Expr) returns ref ffi_type {
     }
 }
 
-h_free := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     switch e.child(1).node_type {
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(s, ident_name(ident))
         free_value_full(cell.val)
         memcpy(cell.val, val_none(), Value.size())
     case:
-        val := eval_expr(s, e.child(1))
+        val := eval_expr(s, e.child(1), ctx)
         free_value_full(val)
     }
     r = val_none()
     return true
 }
 
-h_cfile_close := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    handle_v := eval_expr(s, e.child(1))
+h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    handle_v := eval_expr(s, e.child(1), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     cfile_close(deref(hp))
     r = val_none()
     return true
 }
 
-h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    handle_v := eval_expr(s, e.child(1))
-    str_v := eval_expr(s, e.child(2))
+h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    handle_v := eval_expr(s, e.child(1), ctx)
+    str_v := eval_expr(s, e.child(2), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     sv := str_view(str_v)
     cfile_write_str(deref(hp), sv)
@@ -892,24 +890,24 @@ h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool 
     return true
 }
 
-h_ptr_add := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    buf := eval_expr(s, e.child(1))
-    offset := eval_expr(s, e.child(2))
+h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    buf := eval_expr(s, e.child(1), ctx)
+    offset := eval_expr(s, e.child(2), ctx)
     ref base : Dynamic = val_to_ptr(buf)
     off := value_to_u64(offset)
     r = Value.Ref(ptr_add(deref(base), off))
     return true
 }
 
-h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    handle_v := eval_expr(s, e.child(1))
+h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    handle_v := eval_expr(s, e.child(1), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     content := cfile_read_all(deref(hp))
-    r = make_str_value(content.c_str, content.count.to_u64())
+    r = make_str_value(content.c_str, content.count.to_u64(), ctx)
     return true
 }
 
-DispatchFn := proc(Scope, Expr, mut Value) returns shallow Bool
+DispatchFn := proc(Scope, Expr, mut Value, Context) returns shallow Bool
 
 reg_dispatch := func(name: Str, handler: DispatchFn) {
     v : Dynamic = malloc(8)
@@ -966,18 +964,18 @@ dispatch_init := func() {
     dispatch_inited = true
 }
 
-ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
+ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns shallow Bool {
     if dispatch_map.has(name) {
         ref fp : DispatchFn = to_ptr(dispatch_map.get(name))
-        return fp(scope, e, result)
+        return fp(scope, e, result, ctx)
     }
     return false
 }
 
-h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
-    type_name_val := eval_expr(s, e.child(1))
+h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name_val := eval_expr(s, e.child(1), ctx)
     type_name := str_view(type_name_val)
-    method_val := eval_expr(s, e.child(2))
+    method_val := eval_expr(s, e.child(2), ctx)
     method := str_view(method_val)
 
     // Build fake AST: Type.method(args...)
@@ -1002,14 +1000,14 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
         fake_call.push_child_clone(e.child(ai.add(4)))
     }
 
-    r = eval_call(s, fake_call)
+    r = eval_call(s, fake_call, ctx)
     return true
 }
 
-get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
-    ref size_fn : Value = ns_get(type_name, "size")
+get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns shallow I32 {
+    ref size_fn : Value = ns_get(type_name, "size", ctx)
     if is_null(size_fn) {
-        interp_error(src, type_name.concat(" has no size() method"))
+        interp_error(src, type_name.concat(" has no size() method"), ctx)
         exit(1)
     }
     // Build fake call: Type.size()
@@ -1023,18 +1021,18 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
     mut fake_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     fake_call.add_child(own field_access)
 
-    result := eval_call(s, fake_call)
+    result := eval_call(s, fake_call, ctx)
     return value_to_u64(result).to_i32()
 }
 
-enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value) returns shallow Bool {
+enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value, ctx: Context) returns shallow Bool {
     if enum_has_payloads(enum_def) {
         ctor_tag := enum_variant_tag(enum_def, method)
         if ctor_tag.to_i64().gte(0) {
             vtype := enum_variant_type(enum_def, ctor_tag)
             has_payload := vtype.len().gt(0)
             if has_payload {
-                payload := eval_expr(scope, e.child(1))
+                payload := eval_expr(scope, e.child(1), ctx)
                 mut pdata : Dynamic = 0
                 mut psz : I32 = 0
                 switch payload {
@@ -1075,7 +1073,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
     return false
 }
 
-ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value) returns shallow Bool {
+ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: Context) returns shallow Bool {
     if rtype.eq("I64")        { ref rv : I64 = p;   result = val_i64(rv);            return true }
     else if rtype.eq("U8")    { ref rv : U8 = p;    result = val_u8(rv.to_i64());    return true }
     else if rtype.eq("I16")   { ref rv : I16 = p;   result = val_i16(rv.to_i64());   return true }
@@ -1083,16 +1081,14 @@ ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value) returns sha
     else if rtype.eq("U32")   { ref rv : U32 = p;   result = val_u32(rv.to_i64());   return true }
     else if rtype.eq("U64")   { ref rv : U64 = p;   result = val_u64(rv);            return true }
     else if rtype.eq("USize") {
-        ref lp : LoadedProgram = codegen_lp()
-        ref usize_name : Str = resolve_type_alias(lp.ctx.scope, "USize")
+        ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
         if usize_name.eq("U32") { ref rv : U32 = p; result = val_u32(rv.to_i64()); return true }
         ref rv : U64 = p
         result = val_u64(rv)
         return true
     }
     else if rtype.eq("UPtr") {
-        ref lp : LoadedProgram = codegen_lp()
-        ref uptr_name : Str = resolve_type_alias(lp.ctx.scope, "UPtr")
+        ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
         if uptr_name.eq("U32") { ref rv : U32 = p; result = val_u32(rv.to_i64()); return true }
         ref rv : U64 = p
         result = val_u64(rv)
@@ -1144,12 +1140,12 @@ priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size:
 // numeric conversion) or value_to_u64 (all integer-shaped ffi_types,
 // truncated by memcpy'ing only `size` bytes -- equivalent to the old
 // to_i16/to_u8/etc. casts on x86-64 little-endian).
-priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic) returns shallow Bool {
+priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic, ctx: Context) returns shallow Bool {
     mut tn := ""
     mut sz : I32 = 0
     if ffi_shallow_type_info(atype, tn, sz).not() { return false }
     if is_value_ptr(v) {
-        narrowed := reinterpret_ptr_value(v, tn, scope)
+        narrowed := reinterpret_ptr_value(v, tn, scope, ctx)
         ref payload : Dynamic = val_to_ptr(narrowed)
         memcpy(dst, payload, sz.to_u64())
     } else if tn.eq("F32") {
@@ -1162,7 +1158,7 @@ priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: 
     return true
 }
 
-ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
+ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns shallow Bool {
     if ffi_loaded.not() { return false }
     if ffi_map.has(name).not() { return false }
 
@@ -1175,7 +1171,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     arg_ptrs : Dynamic = malloc(alloc_n.to_u64().mul(8))
 
     for i in 0..nargs {
-        v := eval_expr(scope, e.child(i.add(1)))
+        v := eval_expr(scope, e.child(i.add(1)), ctx)
         mut is_shallow := is_null(fe.param_shallows).not()
         .and(i.lt(fe.nparam.to_usize()))
         if is_shallow {
@@ -1191,7 +1187,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
                 ref at : Dynamic = ptr_add(fe.arg_types, i.to_u64().mul(8))
                 ref atype : Dynamic = deref(at)
                 ref dst : Dynamic = ptr_add(args, i.to_u64().mul(8))
-                if ffi_write_shallow_arg(scope, v, atype, dst).not() {
+                if ffi_write_shallow_arg(scope, v, atype, dst, ctx).not() {
                     // Default: pointer-like value
                     switch v {
                     case Value.Ref(pv):
@@ -1258,7 +1254,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     } else if is_null(ret_sdef).not() {
         result = make_struct_value(fe.return_type, ret_sdef, ret_buf, false)
     } else if fe.return_is_shallow {
-        if ffi_decode_scalar(fe.return_type, to_ptr(raw), result).not() {
+        if ffi_decode_scalar(fe.return_type, to_ptr(raw), result, ctx).not() {
             result = val_none()
         }
     } else {
@@ -1266,10 +1262,10 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
         ref raw_ptr : Dynamic = deref(raw)
         if rtype.eq("Str") {
             ref sp : ExtStr = raw_ptr
-            result = make_str_value_own(sp.data, sp.count)
+            result = make_str_value_own(sp.data, sp.count, ctx)
         } else if rtype.eq("Dynamic") {
             result = Value.Dynamic(raw_ptr)
-        } else if ffi_decode_scalar(rtype, raw_ptr, result) {
+        } else if ffi_decode_scalar(rtype, raw_ptr, result, ctx) {
         } else if ffi_struct_defs.has(fe.return_type) {
             ref sdef_ptr : Dynamic = ffi_struct_defs.get(fe.return_type)
             ref sdef : Expr = deref(sdef_ptr)
@@ -1284,12 +1280,12 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value) re
     return true
 }
 
-ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool {
+ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns shallow Bool {
     if dispatch_inited.not() { dispatch_init() }
-    if ext_dispatch_builtin(name, scope, e, result) { return true }
-    return ext_dispatch_ffi(name, scope, e, result)
+    if ext_dispatch_builtin(name, scope, e, result, ctx) { return true }
+    return ext_dispatch_ffi(name, scope, e, result, ctx)
 }
-ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
+ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         np := fd.params.len()
@@ -1302,7 +1298,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
         for k in 0..np {
             ref pk : Declaration = fd.params.get(k)
             if pk.own_type.is(OwnType.Shallow) {
-                write_ptr(ptr_add(atypes, k.to_u64().mul(8)), shallow_ffi_type(pk.explicit_type))
+                write_ptr(ptr_add(atypes, k.to_u64().mul(8)), shallow_ffi_type(pk.explicit_type, ctx))
                 has_shallow = true
             } else {
                 write_ptr(ptr_add(atypes, k.to_u64().mul(8)), ffi_type_ref("ffi_type_pointer"))
@@ -1333,7 +1329,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
         ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
         if is_null(entry.return_type).not() {
             if ret_shallow {
-                rtype = to_ptr(shallow_ffi_type(entry.return_type))
+                rtype = to_ptr(shallow_ffi_type(entry.return_type, ctx))
             } else {
                 rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
             }
@@ -1355,7 +1351,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr) {
 }
 
 
-ffi_init_scan_program := proc(program: Expr) {
+ffi_init_scan_program := proc(program: Expr, ctx: Context) {
     if ffi_map_inited.not() {
         ffi_map = Map.new(Str, FFIEntry)
         ffi_map_inited = true
@@ -1374,7 +1370,7 @@ ffi_init_scan_program := proc(program: Expr) {
                         case NodeType.Decl(dname):
                             ref fn_ptr : U8 = ffi_dlsym(dname.name)
                             if is_null(fn_ptr).not() {
-                                ffi_register(dname.name, fn_ptr, fdef)
+                                ffi_register(dname.name, fn_ptr, fdef, ctx)
                             }
                         case:
                         }
@@ -1403,7 +1399,7 @@ ffi_init_scan_program := proc(program: Expr) {
                             flat_name := sdd.name.clone().format("_", fdd.name)
                             ref fn_ptr : U8 = ffi_dlsym(flat_name)
                             if is_null(fn_ptr).not() {
-                                ffi_register(flat_name, fn_ptr, fdef)
+                                ffi_register(flat_name, fn_ptr, fdef, ctx)
                             }
                         } else if fd_func_type.is(FuncType.Func).or(fd_func_type.is(FuncType.Proc)) {
                             // Scan function body for nested ext_func/ext_proc
@@ -1418,7 +1414,7 @@ ffi_init_scan_program := proc(program: Expr) {
                                             case NodeType.Decl(iname):
                                                 ref ifn : U8 = ffi_dlsym(iname.name)
                                                 if is_null(ifn).not() {
-                                                    ffi_register(iname.name, ifn, idef)
+                                                    ffi_register(iname.name, ifn, idef, ctx)
                                                 }
                                             case:
                                                 UNREACHABLE(__LOC__)
@@ -1443,7 +1439,7 @@ ffi_init_scan_program := proc(program: Expr) {
 
 mut ffi_map_inited := false
 
-ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {
+ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, ctx: Context) returns shallow I32 {
     if ffi_loaded {
         ffi_cleanup()
         ffi_map_inited = false
@@ -1454,7 +1450,7 @@ ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str
     }
     ffi_init_link_libs(link_flags)
     ffi_init_struct_defs(program)
-    ffi_init_scan_program(program)
+    ffi_init_scan_program(program, ctx)
     ffi_loaded = true
     if so_path.len().gt(0) { unlink_path(so_path) }
     return 0
