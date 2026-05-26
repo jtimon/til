@@ -484,7 +484,6 @@ U32 U64_to_u32(U64 a) { return (U32)a; }
 I32 U64_to_i32(U64 a) { return (I32)a; }
 USize U64_to_usize(U64 a) { return (USize)a; }
 F32 U64_to_f32(U64 a) { return (F32)a; }
-U64 U64_from_i64_ext(const I64 *a) { return (U64)*a; }
 
 // U64 to_str
 Str *U64_to_str_ext(U64 v) {

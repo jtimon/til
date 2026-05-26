@@ -18,11 +18,6 @@ namespace:
         U64_to_str_ext := ext_func(shallow val: U64) returns Str {}
         return U64_to_str_ext(val)
     }
-    /// Convert from I64. Panics if negative.
-    from_i64 := func(val: I64) returns U64 {
-        U64_from_i64_ext := ext_func(val: I64) returns shallow U64 {}
-        return U64_from_i64_ext(val)
-    }
     add := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     sub := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     mul := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}

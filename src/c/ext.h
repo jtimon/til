@@ -215,7 +215,6 @@ U32 U64_to_u32(U64 a);
 I32 U64_to_i32(U64 a);
 USize U64_to_usize(U64 a);
 F32 U64_to_f32(U64 a);
-U64 U64_from_i64_ext(const I64 *a);
 Str *U64_to_str_ext(U64 v);
 
 // U64 clone
