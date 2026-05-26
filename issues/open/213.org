@@ -1,0 +1,85 @@
+# priority: high
+** OPEN #213 Use-after-free returning an owned aggregate that holds a Vec of structs
+
+Returning a struct value that contains a ~Vec~ of structs-with-owned-fields
+from a ~func~ frees the inner Vec data before the caller-side return-clone
+reads it, yielding a use-after-free. Blocks the ~struct_def_of~ /
+~enum_def_of~ assemblers for first-class structs/enums ([[./56.org][#56]] /
+[[./57.org][#57]] / [[./58.org][#58]]): the struct/enum introspection
+*primitives* (~struct_field_*~, ~enum_variant_*~) are merged and correct,
+but the helper that assembles them into a ~StructDef~/~EnumDef~ value
+trips this bug.
+
+*** Reproduction
+
+   Add to src/core/ast.til (after the StructDef struct):
+
+   #+begin_src til
+   struct_def_of := func(type_name: Str) returns StructDef {
+       mut def := StructDef()
+       n := struct_field_count(type_name)
+       for _ in 0..n {
+           mut decl := Declaration()
+           decl.name = "x"            // literal -- bug is NOT in the primitives
+           decl.is_mut = true
+           decl.explicit_type = "I64"
+           def.fields.push(own decl)
+       }
+       return def
+   }
+   #+end_src
+
+   Then in a test file with several other structs/funcs (heap pressure
+   matters -- it does not reproduce in a tiny standalone file):
+
+   #+begin_src til
+   def := struct_def_of("Point")          // Point must be live
+   ref f0 : Declaration = def.fields.get(0.to_usize())
+   assert_eq_str(loc(), "x", f0.name)     // f0.name.count is garbage
+   #+end_src
+
+   In interpret mode this fails non-deterministically ("expected 'x',
+   found ''"); in a heap-heavy file it became consistent.
+
+*** ASAN diagnosis
+
+   ~bin/til_asan interpret test/first_class.til~ (with the test above
+   added) reports:
+
+   #+begin_src
+   AddressSanitizer: heap-buffer-overflow
+   READ of size 3200171710 ... in memcpy
+     ffi_call_unix64 -> ext_dispatch_ffi (gen/til/til.c) ...
+   allocated by: calloc in eval_call (struct constructor inst_data)
+   #+end_src
+
+   The last ext_func before the fault is ~memcpy~ (via ~Str.clone~:
+   ~malloc(count); memcpy(dst, src, count)~). The bogus size ~3200171710~
+   (~0xBE...~) is AddressSanitizer's freed-memory poison, so a ~Str~
+   header whose ~count~ lives in *freed* memory is being cloned. The freed
+   memory is the returned StructDef's inner ~Vec(Declaration)~ data: it is
+   released before/around the return-value clone.
+
+   It reproduces with *literal* field names, so the introspection
+   primitives are not at fault -- this is a general interpreter ownership
+   bug in returning an owned aggregate (struct containing a Vec of
+   structs with owned fields).
+
+*** Where to look
+
+   - ~src/self/interpreter.til~: ~NodeType.Return~ sets
+     ~c.return_value = eval_expr(...)~ via ~shallow_copy_value~ (shares the
+     struct's inner ~fields.data~ pointer); the enclosing scopes clone
+     ~c.return_value~ before ~scope_free~ at each boundary
+     (~c.return_value = c.return_value.clone()~ near the if/while/block
+     exits, and ~result = c.return_value.clone()~ at the call level).
+     Suspect: an inner scope (the ~for~ loop body, or ~push(own decl)~
+     ownership transfer not nulling the source cell) frees the Vec data
+     or a Declaration the return value still aliases.
+   - ~src/core/vec.til~ ~push~ (ELEM_BOXED path: ~memcpy~ + ~free(val)~)
+     vs the loop-scope ~scope_free~ double-handling the moved-in
+     Declaration.
+
+   Fix with ASAN (~ulimit -d unlimited && bin/til_asan interpret ...~) and
+   re-run ~struct_def_of~/~enum_def_of~ to confirm; both assemblers
+   unblock once this is fixed.

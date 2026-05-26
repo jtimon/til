@@ -2009,6 +2009,17 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, lp: LoadedProgram) retur
                 f.write(", ")
                 emit_as_ptr(f, e.child(2), depth, false, lp)
                 f.write(")")
+            } else if ident_name(name).eq("enum_variant_count") {
+                f.write("enum_variant_count(")
+                emit_as_ptr(f, e.child(1), depth, false, lp)
+                f.write(")")
+            } else if ident_name(name).eq("enum_variant_name").or(ident_name(name).eq("enum_variant_has_payload")).or(ident_name(name).eq("enum_variant_payload_type")) {
+                f.write(ident_name(name))
+                f.write("(")
+                emit_as_ptr(f, e.child(1), depth, false, lp)
+                f.write(", ")
+                emit_as_ptr(f, e.child(2), depth, false, lp)
+                f.write(")")
             } else if ident_name(name).eq("dyn_has_method") {
                 ref c2b : Expr = e.child(2)
                 switch c2b.node_type {
@@ -5020,6 +5031,10 @@ emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgram) {
     f.write("Str *struct_field_name(Str *type_name, I64 *index);\n")
     f.write("I64 struct_field_is_mut(Str *type_name, I64 *index);\n")
     f.write("Str *struct_field_type(Str *type_name, I64 *index);\n")
+    f.write("I64 enum_variant_count(Str *type_name);\n")
+    f.write("Str *enum_variant_name(Str *type_name, I64 *index);\n")
+    f.write("I64 enum_variant_has_payload(Str *type_name, I64 *index);\n")
+    f.write("Str *enum_variant_payload_type(Str *type_name, I64 *index);\n")
     if has_dyn_type_to_str {
         f.write("Str *dyn_type_to_str(Type *type);\n")
     }
@@ -5386,6 +5401,90 @@ emit_struct_introspection_bodies := proc(f: File, lp: LoadedProgram) {
     f.write("Str *struct_field_type(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
     emit_struct_field_branches(f, 3, lp)
     f.write("    fprintf(stderr, \"struct_field_type: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+}
+
+// Issue #57/#58: emit one enum's branch for an enum_variant_* function.
+// kind 0 = count, 1 = name, 2 = has_payload, 3 = payload_type.
+priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
+    if stmt.children.len().eq(0) { return }
+    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
+    mut ename := ""
+    switch stmt.node_type {
+    case NodeType.Decl(dd): ename = dd.name
+    case: return
+    }
+    switch stmt.child(0).node_type {
+    case NodeType.EnumDef(ed):
+        tlen := ename.len().to_u64()
+        f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(ename); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) {\n")
+        if kind.eq(0) {
+            f.write("        return "); emit_u64(f, ed.variants.len().to_u64()); f.write("LL;\n")
+        } else {
+            for i in 0..ed.variants.len() {
+                idx := i.to_i64()
+                mut has_pl := false
+                if ed.payload_types.has(idx) {
+                    ref pt : Str = ed.payload_types.get(idx)
+                    if pt.len().gt(0) { has_pl = true }
+                }
+                f.write("        if (*index == "); emit_u64(f, i.to_u64()); f.write("LL) return ")
+                if kind.eq(1) {
+                    ref vn : Str = ed.variants.get(i)
+                    emit_str_lit_expr(f, vn)
+                } else if kind.eq(2) {
+                    if has_pl { f.write("1") } else { f.write("0") }
+                } else {
+                    if has_pl {
+                        ref pt2 : Str = ed.payload_types.get(idx)
+                        emit_str_lit_expr(f, pt2)
+                    } else {
+                        emit_str_lit_expr(f, "")
+                    }
+                }
+                f.write(";\n")
+            }
+        }
+        f.write("    }\n")
+    case:
+    }
+}
+
+priv emit_enum_variant_branches := proc(f: File, shallow kind: I32, lp: LoadedProgram) {
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                emit_enum_variant_branch_for_stmt(f, stmt, kind)
+            }
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for stmt : Expr in iu.ast.children {
+            emit_enum_variant_branch_for_stmt(f, stmt, kind)
+        }
+    }
+}
+
+// Issue #57/#58: emit the C bodies for the enum_variant_* introspection
+// primitives. Each is a strcmp chain over every loaded enum type.
+emit_enum_introspection_bodies := proc(f: File, lp: LoadedProgram) {
+    f.write("I64 enum_variant_count(Str *type_name) {\n    (void)type_name;\n")
+    emit_enum_variant_branches(f, 0, lp)
+    f.write("    fprintf(stderr, \"enum_variant_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("Str *enum_variant_name(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_enum_variant_branches(f, 1, lp)
+    f.write("    fprintf(stderr, \"enum_variant_name: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("I64 enum_variant_has_payload(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_enum_variant_branches(f, 2, lp)
+    f.write("    fprintf(stderr, \"enum_variant_has_payload: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("Str *enum_variant_payload_type(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_enum_variant_branches(f, 3, lp)
+    f.write("    fprintf(stderr, \"enum_variant_payload_type: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 }
 
 emit_tag_case := proc(f: File, tag: Str, name: Str) {
@@ -6159,6 +6258,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str, lp: Loade
     emit_dyn_has_bodies(f, lp)
     emit_dyn_size_of_body(f, lp)
     emit_struct_introspection_bodies(f, lp)
+    emit_enum_introspection_bodies(f, lp)
     mut has_dyn_type_to_str2 := false
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {

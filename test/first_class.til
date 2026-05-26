@@ -196,3 +196,29 @@ test_struct_field_primitives := test() {
     assert_eq(__LOC__, struct_field_is_mut("Point56", 1), 1)
     assert_eq_str(__LOC__, "I64", struct_field_type("Point56", 0))
 }
+
+// --- Enum introspection primitives (issue #57/#58) ---
+// enum_variant_* query a registered enum type's variants by name. Like
+// the struct primitives, the type must be live (the switch below keeps
+// Shape56 alive). Mixes payload and payload-less variants.
+
+Shape56 := enum {
+    Circle: I64,
+    Square,
+    Label: Str,
+}
+
+test_enum_variant_primitives := test() {
+    s := Shape56.Square
+    expect(__LOC__, s.is(Shape56.Square), "Shape56 stays live")
+    assert_eq(__LOC__, enum_variant_count("Shape56"), 3)
+    assert_eq_str(__LOC__, "Circle", enum_variant_name("Shape56", 0))
+    assert_eq_str(__LOC__, "Square", enum_variant_name("Shape56", 1))
+    assert_eq_str(__LOC__, "Label", enum_variant_name("Shape56", 2))
+    assert_eq(__LOC__, enum_variant_has_payload("Shape56", 0), 1)
+    assert_eq(__LOC__, enum_variant_has_payload("Shape56", 1), 0)
+    assert_eq(__LOC__, enum_variant_has_payload("Shape56", 2), 1)
+    assert_eq_str(__LOC__, "I64", enum_variant_payload_type("Shape56", 0))
+    assert_eq_str(__LOC__, "", enum_variant_payload_type("Shape56", 1))
+    assert_eq_str(__LOC__, "Str", enum_variant_payload_type("Shape56", 2))
+}

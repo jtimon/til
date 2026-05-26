@@ -539,6 +539,104 @@ h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value) returns shallow Boo
     return true
 }
 
+// Look up a registered enum type's AST node by name, erroring out if
+// the name is unknown or not an enum. Shared by the enum_variant_*
+// introspection handlers (issue #57/#58).
+interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str) returns ref Expr {
+    ref tc : Cell = scope_get(s, type_name)
+    if is_null(tc) {
+        interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"))
+        exit(1)
+    }
+    switch tc.val {
+    case Value.Func(fptr):
+        ref node : Expr = deref(fptr)
+        if node.node_type.is(NodeType.EnumDef).not() {
+            interp_error(e, who.concat(": '").concat(type_name).concat("' is not an enum"))
+            exit(1)
+        }
+        return node
+    case:
+        interp_error(e, who.concat(": '").concat(type_name).concat("' is not an enum"))
+        exit(1)
+        return NULL
+    }
+}
+
+h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1)))
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count")
+    switch node.node_type {
+    case NodeType.EnumDef(ed):
+        r = val_i64(ed.variants.len().to_i64())
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1)))
+    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name")
+    switch node.node_type {
+    case NodeType.EnumDef(ed):
+        if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
+            interp_error(e, "enum_variant_name: index out of bounds")
+            exit(1)
+        }
+        ref vn : Str = ed.variants.get(idx.to_usize())
+        r = str_to_owned_value(vn)
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1)))
+    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload")
+    switch node.node_type {
+    case NodeType.EnumDef(ed):
+        if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
+            interp_error(e, "enum_variant_has_payload: index out of bounds")
+            exit(1)
+        }
+        if ed.payload_types.has(idx) {
+            ref pt : Str = ed.payload_types.get(idx)
+            if pt.len().gt(0) { r = val_i64(1) } else { r = val_i64(0) }
+        } else {
+            r = val_i64(0)
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1)))
+    idx := value_to_u64(eval_expr(s, e.child(2))).to_i64()
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type")
+    switch node.node_type {
+    case NodeType.EnumDef(ed):
+        if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
+            interp_error(e, "enum_variant_payload_type: index out of bounds")
+            exit(1)
+        }
+        if ed.payload_types.has(idx) {
+            ref pt : Str = ed.payload_types.get(idx)
+            r = str_to_owned_value(pt)
+        } else {
+            r = str_to_owned_value("")
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
 h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     type_val := eval_expr(s, e.child(1))
     switch type_val {
@@ -848,6 +946,10 @@ dispatch_init := func() {
     reg_dispatch("struct_field_name", h_struct_field_name)
     reg_dispatch("struct_field_is_mut", h_struct_field_is_mut)
     reg_dispatch("struct_field_type", h_struct_field_type)
+    reg_dispatch("enum_variant_count", h_enum_variant_count)
+    reg_dispatch("enum_variant_name", h_enum_variant_name)
+    reg_dispatch("enum_variant_has_payload", h_enum_variant_has_payload)
+    reg_dispatch("enum_variant_payload_type", h_enum_variant_payload_type)
     reg_dispatch("dyn_type_to_str", h_dyn_type_to_str)
     reg_dispatch("File_readfile", h_readfile)
     reg_dispatch("File_writefile", h_writefile)
