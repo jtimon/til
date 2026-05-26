@@ -1,0 +1,255 @@
+mode cli
+
+import("../src/core/io")
+import("../src/core/str")
+
+run := proc(cmd: Str) returns I64 {
+    pid := spawn_cmd(cmd)
+    return wait_cmd(pid)
+}
+
+capture := proc(cmd: Str, mut out: Str) returns I64 {
+    _mk := run("mkdir -p tmp >/dev/null 2>&1")
+    if _mk.lt(0) { }
+    tmpf := format("tmp/_mc_", clock_ms().to_str())
+    pid := spawn_cmd(format(cmd, " > ", tmpf, " 2>&1"))
+    ec := wait_cmd(pid)
+    content := File.readfile(tmpf)
+    memcpy(out, content, Str.size())
+    free(own content)
+    return ec
+}
+
+parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
+    sum_start := summary.find("SUMMARY:")
+    if sum_start.eq(-1) { return }
+    tail := summary.substr(sum_start.to_usize(), summary.len().sub(sum_start.to_usize()))
+
+    byte_pos := tail.find(" byte(s)")
+    mut bstart : I64 = byte_pos.sub(1)
+    while bstart.gte(0) {
+        c := tail.substr(bstart.to_usize(), 1)
+        if c.eq(" ") { break }
+        bstart = bstart.sub(1)
+    }
+    num_str := tail.substr(bstart.add(1).to_usize(), byte_pos.sub(bstart).sub(1).to_usize())
+    bytes = num_str.to_i64()
+
+    alloc_pos := tail.find(" allocation(s)")
+    bstart = alloc_pos.sub(1)
+    while bstart.gte(0) {
+        c := tail.substr(bstart.to_usize(), 1)
+        if c.eq(" ") { break }
+        bstart = bstart.sub(1)
+    }
+    num_str2 := tail.substr(bstart.add(1).to_usize(), alloc_pos.sub(bstart).sub(1).to_usize())
+    allocs = num_str2.to_i64()
+}
+
+pct_str := func(old_val: I64, new_val: I64) returns Str {
+    if old_val.eq(0) { return "0.0" }
+    delta := new_val.sub(old_val)
+    mut pct_x10 := delta.mul(1000).div(old_val)
+    whole := pct_x10.div(10)
+    mut frac := pct_x10.mod(10)
+    if frac.lt(0) { frac = frac.neg() }
+    return format(whole.to_str(), ".", frac.to_str(), "%")
+}
+
+delta_str := func(old_val: I64, new_val: I64) returns Str {
+    delta := new_val.sub(old_val)
+    mut sign := ""
+    if delta.gte(0) { sign = "+" }
+    return format(sign, delta.to_str())
+}
+
+count_subject_end := func(s: Str) returns USize {
+    nl := s.find("\n")
+    if nl.eq(-1) { return s.len() }
+    return nl.to_usize()
+}
+
+vec_from_str_lines := func(s: Str) returns Vec {
+    mut out := Vec.new(Str)
+    mut start : USize = 0
+    while start.lt(s.len()) {
+        rest := s.substr(start, s.len().sub(start))
+        nl := rest.find("\n")
+        if nl.eq(-1) {
+            out.push(own rest.clone())
+            break
+        }
+        line := rest.substr(0, nl.to_usize())
+        out.push(own line.clone())
+        start = start.add(nl.to_usize()).add(1)
+    }
+    return out
+}
+
+trim_spaces := func(s: Str) returns Str {
+    mut start : USize = 0; mut end : USize = s.len()
+    while start.lt(end) {
+        c := s.substr(start, 1)
+        if c.eq(" ").not() { break }
+        start = start.add(1)
+    }
+    while end.gt(start) {
+        c := s.substr(end.sub(1), 1)
+        if c.eq(" ").not() { break }
+        end = end.sub(1)
+    }
+    return s.substr(start, end.sub(start))
+}
+
+// Parse the org table from doc/bots/asan.org.
+// Lines like: | interpret | 247188   | 23238    | post scope lookups   |
+parse_asan_org := func(content: Str, mut ib: I64, mut ia: I64, mut tb: I64, mut ta: I64) {
+    lines := vec_from_str_lines(content)
+    for li in 0..lines.len() {
+        ref line : Str = lines.get(li)
+        if line.starts_with("| interpret | ") {
+            cells := split_by_pipe(line)
+            if cells.len().gte(4) {
+                ib = trim_spaces(cells.get(2)).to_i64()
+                ia = trim_spaces(cells.get(3)).to_i64()
+            }
+            Vec.delete(own cells, false)
+        }
+        if line.starts_with("| translate | ") {
+            cells := split_by_pipe(line)
+            if cells.len().gte(4) {
+                tb = trim_spaces(cells.get(2)).to_i64()
+                ta = trim_spaces(cells.get(3)).to_i64()
+            }
+            Vec.delete(own cells, false)
+        }
+    }
+    Vec.delete(own lines, false)
+}
+
+split_by_pipe := func(s: Str) returns Vec {
+    mut out := Vec.new(Str)
+    mut start : USize = 0
+    while start.lt(s.len()) {
+        rest := s.substr(start, s.len().sub(start))
+        pipe := rest.find("|")
+        if pipe.eq(-1) {
+            out.push(own rest.clone())
+            break
+        }
+        cell := rest.substr(0, pipe.to_usize())
+        out.push(own cell.clone())
+        start = start.add(pipe.to_usize()).add(1)
+    }
+    return out
+}
+
+main := proc(args: ..Str) {
+    if args.len().lt(1) {
+        eprint_single("usage: til run tools/merge_commit.til <HASH>\n")
+        exit(1)
+    }
+
+    ref hash : Str = args.get(0)
+
+    // ---- Step 2: capture commit message + stat ----
+    mut msg := ""
+    capture(format("git show ", hash.clone(), " --format=\"%B\" --no-patch"), msg)
+    File.writefile("tmp/commit_msg.txt", msg)
+
+    mut stat := ""
+    capture(format("git show ", hash.clone(), " --stat"), stat)
+    print(stat)
+    print("\n")
+
+    subject := msg.substr(0, count_subject_end(msg))
+    mut test_target := "make test"
+    if subject.starts_with("Two-pass: ") { test_target = "make test_two_pass" }
+
+    // ---- Step 4: soft reset + revert totals ----
+    run("git reset --soft HEAD~1")
+    run("git restore --staged doc/totals.csv img/totals.svg")
+    run("git restore doc/totals.csv img/totals.svg")
+
+    // ---- Step 5: full test suite ----
+    print("Running: make clean && ", test_target, "\n")
+    run(format(
+        "systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/build.log 2>&1 && ",
+        test_target, " >> tmp/build.log 2>&1'"))
+
+    build_log := File.readfile("tmp/build.log")
+    if build_log.find("all tests passed").eq(-1) {
+        eprint_single("Tests: FAILED\n")
+        mut i : USize = 0
+        while i.lt(build_log.len()) {
+            remaining : Str = build_log.substr(i, build_log.len().sub(i))
+            if remaining.find("FAIL").neq(-1).or(remaining.find("error:").neq(-1)) {
+                eprint_single(remaining)
+                exit(1)
+            }
+            nl := remaining.find("\n")
+            if nl.eq(-1) { break }
+            i = i.add(nl.to_usize()).add(1)
+        }
+        exit(1)
+    }
+    print("Tests: PASSED\n")
+
+    // ---- Step 6: ASAN leak check ----
+    run("make bin/til_asan > tmp/asan_build.log 2>&1")
+
+    mut int_summary := ""
+    capture("ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til", int_summary)
+    mut trans_summary := ""
+    capture("ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til", trans_summary)
+
+    mut int_bytes : I64 = 0; mut int_allocs : I64 = 0
+    mut trans_bytes : I64 = 0; mut trans_allocs : I64 = 0
+    parse_asan_summary(int_summary, int_bytes, int_allocs)
+    parse_asan_summary(trans_summary, trans_bytes, trans_allocs)
+
+    // Read baseline from doc/bots/asan.org; fall back to current values.
+    mut old_int_bytes : I64 = int_bytes
+    mut old_int_allocs : I64 = int_allocs
+    mut old_trans_bytes : I64 = trans_bytes
+    mut old_trans_allocs : I64 = trans_allocs
+
+    asan_org := File.readfile("doc/bots/asan.org")
+    parse_asan_org(asan_org, old_int_bytes, old_int_allocs, old_trans_bytes, old_trans_allocs)
+
+    print("=== ASAN delta ===\n")
+    print("  interpret: ", old_int_bytes.to_str(), " -> ", int_bytes.to_str(),
+          " bytes (", delta_str(old_int_bytes, int_bytes), ", ",
+          pct_str(old_int_bytes, int_bytes), "), ",
+          old_int_allocs.to_str(), " -> ", int_allocs.to_str(),
+          " allocs (", delta_str(old_int_allocs, int_allocs), ", ",
+          pct_str(old_int_allocs, int_allocs), ")\n")
+
+    print("  translate: ", old_trans_bytes.to_str(), " -> ", trans_bytes.to_str(),
+          " bytes (", delta_str(old_trans_bytes, trans_bytes), ", ",
+          pct_str(old_trans_bytes, trans_bytes), "), ",
+          old_trans_allocs.to_str(), " -> ", trans_allocs.to_str(),
+          " allocs (", delta_str(old_trans_allocs, trans_allocs), ", ",
+          pct_str(old_trans_allocs, trans_allocs), ")\n")
+
+    // Rewrite doc/bots/asan.org with the new baseline.
+    ib_pct := pct_str(old_int_bytes, int_bytes)
+    ia_pct := pct_str(old_int_allocs, int_allocs)
+    tb_pct := pct_str(old_trans_bytes, trans_bytes)
+    ta_pct := pct_str(old_trans_allocs, trans_allocs)
+
+    File.writefile("doc/bots/asan.org",
+        format("* ASAN baseline\n\n",
+               "Last known good from the previous processed commit.\n",
+               "Updated by tools/merge_commit.til.\n\n",
+               "| Channel   | Bytes    | Allocs   | Delta           |\n",
+               "|-----------+----------+----------+-----------------|\n",
+               "| interpret | ", int_bytes.to_str(), "   | ", int_allocs.to_str(), "    | ",
+               ib_pct, " / ", ia_pct, "     |\n",
+               "| translate | ", trans_bytes.to_str(), "   | ", trans_allocs.to_str(), "    | ",
+               tb_pct, " / ", ta_pct, "     |\n"))
+
+    print("\n=== Next: review the diff (Step 3), then commit (Step 7) ===\n")
+    print("  Commit message saved in tmp/commit_msg.txt\n")
+    print("  After review: git add -A && git commit -F tmp/commit_msg.txt\n")
+}
