@@ -1294,13 +1294,6 @@ loaded_add_lflag := func(mut lp: LoadedProgram, lib: Str) {
 // the codegen-prep cost.
 init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
-    // Make codegen_lp() available during init/type so leaf typer helpers
-    // (notably type_error / type_error_at) can reach the active Context
-    // for the error counter and path without threading ctx through their
-    // ~120 call sites. Nothing in init/type called codegen_lp() before
-    // (it would have panicked on the unset slot), so installing it early
-    // is purely additive; precomp_imported / interpret_units reinstall it.
-    codegen_set_lp(lp)
 
     // Issue #158: the typer populates the foldable-name sets during its
     // walk (precomp_classify_stmt); clear any stale state up front so a
@@ -1355,19 +1348,19 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     type_errors = type_errors.add(type_file(user_root.path, lp.ctx))
     // Issue #187 step 1: priv top-level decls that nothing in the
     // file references are dead code -- no importer can reach them.
-    type_errors = type_errors.add(check_unused_priv_top_level(lp.ctx.scope))
+    type_errors = type_errors.add(check_unused_priv_top_level(lp.ctx.scope, lp.ctx))
     // Issue #187 steps 2-3: priv struct fields and namespace members
     // that no code in the struct's own namespace ever reads. Walk
     // every loaded unit's AST.
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
             ref ciu : ImportUnit = lp.ctx.imported.get(cu.path)
-            type_errors = type_errors.add(check_unused_priv_members_in_program(ciu.ast, cu.path))
+            type_errors = type_errors.add(check_unused_priv_members_in_program(ciu.ast, cu.path, lp.ctx))
         }
     }
     for uu : ProgramUnit in lp.units {
         ref uiu : ImportUnit = lp.ctx.imported.get(uu.path)
-        type_errors = type_errors.add(check_unused_priv_members_in_program(uiu.ast, uu.path))
+        type_errors = type_errors.add(check_unused_priv_members_in_program(uiu.ast, uu.path, lp.ctx))
     }
     if type_errors.gt(0) {
         println(type_errors.to_str(), " type error(s) found")

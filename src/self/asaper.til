@@ -94,7 +94,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
                 last_use = j.to_i32()
             }
             if own_transfer.eq(-1) {
-                if expr_transfers_own(stmt, b.name, scope) {
+                if expr_transfers_own(stmt, b.name, scope, ctx) {
                     own_transfer = j.to_i32()
                 }
             }
@@ -289,13 +289,13 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
     }
 }
 
-check_use_after_own_transfer := proc(body: Expr, mut locals: Vec) {
+check_use_after_own_transfer := proc(body: Expr, mut locals: Vec, ctx: Context) {
     for local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
             ref stmt : Expr = body.child(local.last_use.to_usize())
-            type_error(stmt, "use of '".concat(local.name).concat("' after ownership transfer"))
+            type_error(stmt, "use of '".concat(local.name).concat("' after ownership transfer"), ctx)
             ref xfer : Expr = body.child(local.own_transfer.to_usize())
-            println(codegen_lp().ctx.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
+            println(ctx.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
             println("  help: pass a clone instead: own ", local.name, ".clone()")
         }
     }
@@ -637,7 +637,7 @@ insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, sh
     if locals_vec.len().eq(0) { return false }
 
     extend_ref_local_lifetimes(body, locals_vec, scope)
-    check_use_after_own_transfer(body, locals_vec)
+    check_use_after_own_transfer(body, locals_vec, ctx)
     promote_own_transferred_locals(ctx, body, locals_vec)
 
     mut old := Vec.new(Expr)
