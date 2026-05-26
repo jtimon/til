@@ -197,23 +197,12 @@ test_struct_field_primitives := test() {
     assert_eq_str(__LOC__, "I64", struct_field_type("Point56", 0))
 }
 
-// --- Issue #213 repro: returning an owned aggregate holding a Vec of
-// structs-with-owned-fields ---
+// --- struct_def_of assembler (issue #56/#58) ---
+// Builds a StructDef value from the struct_field_* primitives (in
+// src/core/ast.til). Also exercises the #213 fix: returning an owned
+// aggregate holding a Vec of structs-with-owned-fields.
 
-struct_def_of := func(type_name: Str) returns StructDef {
-    mut def := StructDef()
-    n := struct_field_count(type_name)
-    for _ in 0..n {
-        mut decl := Declaration()
-        decl.name = "x"
-        decl.is_mut = true
-        decl.explicit_type = "I64"
-        def.fields.push(own decl)
-    }
-    return def
-}
-
-test_struct_def_of_213 := test() {
+test_struct_def_of := test() {
     def := struct_def_of("Point56")
     assert_eq(__LOC__, def.fields.len().to_i64(), 2)
     ref f0 : Declaration = def.fields.get(0.to_usize())
@@ -221,7 +210,7 @@ test_struct_def_of_213 := test() {
     assert_eq_str(__LOC__, "I64", f0.explicit_type)
     expect(__LOC__, f0.is_mut, "f0 is_mut")
     ref f1 : Declaration = def.fields.get(1.to_usize())
-    assert_eq_str(__LOC__, "x", f1.name)
+    assert_eq_str(__LOC__, "y", f1.name)
     assert_eq_str(__LOC__, "I64", f1.explicit_type)
 }
 
@@ -251,6 +240,26 @@ test_enum_variant_primitives := test() {
     assert_eq_str(__LOC__, "Str", enum_variant_payload_type("Shape56", 2))
 }
 
+// --- enum_def_of assembler (issue #57/#58) ---
+// Builds an EnumDef value from the enum_variant_* primitives.
+
+test_enum_def_of := test() {
+    def := enum_def_of("Shape56")
+    assert_eq(__LOC__, def.variants.len().to_i64(), 3)
+    ref v0 : Str = def.variants.get(0.to_usize())
+    assert_eq_str(__LOC__, "Circle", v0)
+    ref v1 : Str = def.variants.get(1.to_usize())
+    assert_eq_str(__LOC__, "Square", v1)
+    ref v2 : Str = def.variants.get(2.to_usize())
+    assert_eq_str(__LOC__, "Label", v2)
+    expect(__LOC__, def.payload_types.has(0), "Circle has payload")
+    expect(__LOC__, def.payload_types.has(1).not(), "Square no payload")
+    ref p0 : Str = def.payload_types.get(0)
+    assert_eq_str(__LOC__, "I64", p0)
+    ref p2 : Str = def.payload_types.get(2)
+    assert_eq_str(__LOC__, "Str", p2)
+}
+
 // --- FuncSig introspection primitives (issue #58) ---
 // func_sig_* query a registered FuncSig (a bodyless func/proc) for its
 // parameter types, return type, and throw types by name. The FuncSig
@@ -269,4 +278,19 @@ test_func_sig_primitives := test() {
     assert_eq(__LOC__, func_sig_return_count("BinaryOp"), 1)
     assert_eq_str(__LOC__, "I64", func_sig_return_type("BinaryOp", 0))
     assert_eq(__LOC__, func_sig_throw_count("BinaryOp"), 0)
+}
+
+// --- func_sig_of assembler (issue #58) ---
+// Builds a FunctionDef (signature) value from the func_sig_* primitives.
+
+test_func_sig_of := test() {
+    assert_eq(__LOC__, apply_bin58(add58, 1, 1), 2)  // keep BinaryOp live
+    sig := func_sig_of("BinaryOp")
+    assert_eq(__LOC__, sig.params.len().to_i64(), 2)
+    ref p0 : Declaration = sig.params.get(0.to_usize())
+    assert_eq_str(__LOC__, "I64", p0.explicit_type)
+    ref p1 : Declaration = sig.params.get(1.to_usize())
+    assert_eq_str(__LOC__, "I64", p1.explicit_type)
+    assert_eq_str(__LOC__, "I64", sig.return_type)
+    assert_eq(__LOC__, sig.throw_types.len().to_i64(), 0)
 }

@@ -368,6 +368,63 @@ namespace:
     to_str := func(_self: EnumDef) returns Str { return "EnumDef" }
 }
 
+// Issue #56/#58: assemble a StructDef value for a registered struct type
+// by querying the loaded program through the struct_field_* introspection
+// primitives (src/core/dyn.til). Each field becomes a Declaration carrying
+// its name, mutability, and declared type. Mirrors rstil's struct_def_of.
+struct_def_of := func(type_name: Str) returns StructDef {
+    mut def := StructDef()
+    n := struct_field_count(type_name)
+    for i in 0..n {
+        mut decl := Declaration()
+        decl.name = struct_field_name(type_name, i)
+        decl.is_mut = struct_field_is_mut(type_name, i).eq(1)
+        decl.explicit_type = struct_field_type(type_name, i)
+        def.fields.push(own decl)
+    }
+    return def
+}
+
+// Issue #57/#58: assemble an EnumDef value for a registered enum type via
+// the enum_variant_* primitives. Variant names go into `variants`;
+// payload-bearing variants record their type in `payload_types` keyed by
+// variant index. Mirrors rstil's enum_def_of.
+enum_def_of := func(type_name: Str) returns EnumDef {
+    mut def := EnumDef()
+    n := enum_variant_count(type_name)
+    for i in 0..n {
+        def.variants.push(own enum_variant_name(type_name, i))
+        if enum_variant_has_payload(type_name, i).eq(1) {
+            pt := enum_variant_payload_type(type_name, i)
+            def.payload_types.set(own i.clone(), own pt)
+        }
+    }
+    return def
+}
+
+// Issue #58: assemble a FunctionDef (signature) value for a registered
+// FuncSig type via the func_sig_* primitives. Parameter Declarations
+// carry only their type (signatures have no parameter names); a single
+// return type and the throw-type list are filled when present. Mirrors
+// rstil's func_sig_of.
+func_sig_of := func(type_name: Str) returns FunctionDef {
+    mut sig := FunctionDef()
+    pn := func_sig_param_count(type_name)
+    for i in 0..pn {
+        mut decl := Declaration()
+        decl.explicit_type = func_sig_param_type(type_name, i)
+        sig.params.push(own decl)
+    }
+    if func_sig_return_count(type_name).eq(1) {
+        sig.return_type = func_sig_return_type(type_name, 0)
+    }
+    tn := func_sig_throw_count(type_name)
+    for i in 0..tn {
+        sig.throw_types.push(own func_sig_throw_type(type_name, i))
+    }
+    return sig
+}
+
 // --- NodeType payload enum (25 variants) ---
 
 /// Payload for assignment nodes: which name is being assigned to.
