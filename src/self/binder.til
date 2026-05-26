@@ -178,31 +178,34 @@ priv push_til_base := func(mut out: Str, c: Str) returns Bool {
 // builtin scalar that can't be instantiated with a constructor call.
 // Stored as a single `|NAME|...|` Str so the lookup is a `.contains` check
 // with no Vec<Str> ownership to manage.
-mut alias_to_primitive := "|"
-
-// Names that have been emitted earlier as `NAME := Dynamic` (typedef
-// function-pointer, typedef pointer-to-X, typedef union -> Dynamic).
-// Fields/params of these types are pointer-shaped: emit `ref mut` and
-// default `NULL` so the typer doesn't expect heap-owning Dynamic.
-mut alias_to_dynamic := "|"
-
-priv register_alias := func(name: Str) {
-    alias_to_primitive = format(alias_to_primitive, name, "|")
+// alias_to_primitive / alias_to_dynamic accumulate the typedef names
+// emitted so far in this run. They were module globals; the binder is
+// a standalone tool with no pipeline Context, so they live in a
+// BinderState threaded through the emit tree instead (no module-level
+// mutable state). Stored as single `|NAME|...|` Strs so lookups are a
+// `.contains` check with no Vec<Str> ownership to manage.
+priv BinderState := struct {
+    mut alias_to_primitive := "|"
+    mut alias_to_dynamic := "|"
 }
 
-priv register_dynamic_alias := func(name: Str) {
-    alias_to_dynamic = format(alias_to_dynamic, name, "|")
+priv register_alias := func(mut bs: BinderState, name: Str) {
+    bs.alias_to_primitive = format(bs.alias_to_primitive, name, "|")
 }
 
-priv is_alias_to_primitive := func(name: Str) returns shallow Bool {
-    return alias_to_primitive.contains(format("|", name, "|"))
+priv register_dynamic_alias := func(mut bs: BinderState, name: Str) {
+    bs.alias_to_dynamic = format(bs.alias_to_dynamic, name, "|")
 }
 
-priv is_alias_to_dynamic := func(name: Str) returns shallow Bool {
-    return alias_to_dynamic.contains(format("|", name, "|"))
+priv is_alias_to_primitive := func(bs: BinderState, name: Str) returns shallow Bool {
+    return bs.alias_to_primitive.contains(format("|", name, "|"))
 }
 
-priv push_til_default := func(mut out: Str, c: Str) {
+priv is_alias_to_dynamic := func(bs: BinderState, name: Str) returns shallow Bool {
+    return bs.alias_to_dynamic.contains(format("|", name, "|"))
+}
+
+priv push_til_default := func(bs: BinderState, mut out: Str, c: Str) {
     if c.eq("bool").or(c.eq("_Bool")) { out.push_str("false"); return }
     if c.eq("void") { out.push_str("0"); return }
     if c.eq("char").or(c.eq("unsigned char")).or(c.eq("signed char"))
@@ -229,7 +232,7 @@ priv push_til_default := func(mut out: Str, c: Str) {
     // Recognised as a typedef-to-primitive (or to Dynamic) earlier in this
     // run -- emit a scalar zero, since calling `Alias()` would try to
     // instantiate the builtin type that Alias resolves to.
-    if is_alias_to_primitive(c) {
+    if is_alias_to_primitive(bs, c) {
         out.push_str("0")
         return
     }
@@ -240,7 +243,7 @@ priv push_til_default := func(mut out: Str, c: Str) {
 
 // --- field declaration -------------------------------------------------
 
-priv bind_emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool {
+priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: Str) returns Bool {
     n := line.len()
     if n.eq(0) { return true }
     // Pre-filter unsupported shapes (arrays, function pointers, bitfields,
@@ -315,7 +318,7 @@ priv bind_emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool
     base_view := line.substr(base_off, prev_end.sub(base_off))
 
     out.push_str("    ")
-    if ptrs.eq(0).and(is_alias_to_dynamic(base_view)) {
+    if ptrs.eq(0).and(is_alias_to_dynamic(bs, base_view)) {
         // Field is typed as a previously-emitted Dynamic alias (typedef'd
         // pointer or function pointer). Treat it like a pointer field.
         out.push_str("ref mut ")
@@ -329,7 +332,7 @@ priv bind_emit_field := func(mut out: Str, line: Str, comment: Str) returns Bool
         out.push_str(" : ")
         push_til_base(out, base_view)
         out.push_str(" = ")
-        push_til_default(out, base_view)
+        push_til_default(bs, out, base_view)
     } else if ptrs.eq(1).and(range_eq_lit(line, base_first, prev_end, "void")) {
         out.push_str("ref mut ")
         out.push_str(line.substr(name_start, word_len))
@@ -371,7 +374,7 @@ priv emit_comment_line := func(mut out: Str, line: Str) {
 
 // --- struct body ------------------------------------------------------
 
-priv emit_struct_body := func(mut out: Str, lines: Vec, shallow open: USize, shallow close: USize) returns Bool {
+priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec, shallow open: USize, shallow close: USize) returns Bool {
     for i in open.add(1)..close {
         ref line : Str = lines.get(i)
         n := line.len()
@@ -454,7 +457,7 @@ priv emit_struct_body := func(mut out: Str, lines: Vec, shallow open: USize, sha
         }
         comment_view := line.substr(cs, ce.sub(cs))
         code_view := line.substr(lead, new_code_end.sub(lead))
-        if bind_emit_field(out, code_view, comment_view).not() {
+        if bind_emit_field(bs, out, code_view, comment_view).not() {
             return false
         }
     }
@@ -463,7 +466,7 @@ priv emit_struct_body := func(mut out: Str, lines: Vec, shallow open: USize, sha
 
 // --- typedef struct ---------------------------------------------------
 
-priv emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
+priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
     ref close_line : Str = lines.get(close)
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
@@ -526,7 +529,7 @@ priv emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize,
     // Render the body into a tmp Str so a mid-body failure can downgrade
     // to opaque without leaving a half-written declaration in `out`.
     mut body_buf := Str.with_capacity(65536)
-    body_ok := emit_struct_body(body_buf, lines, open, close)
+    body_ok := emit_struct_body(bs, body_buf, lines, open, close)
 
     out.push_str(close_line.substr(name_start, name_len))
     if have_tag.not() {
@@ -580,7 +583,7 @@ priv emit_typedef_struct := func(mut out: Str, lines: Vec, shallow start: USize,
 
 // --- typedef enum -----------------------------------------------------
 
-priv emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
+priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
     ref close_line : Str = lines.get(close)
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
@@ -597,7 +600,7 @@ priv emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, s
     if cp.lt(cright) {
         out.push_str(close_line.substr(cp, cright.sub(cp)))
         out.push_str(" := I32\n\n")
-        register_alias(close_line.substr(cp, cright.sub(cp)))
+        register_alias(bs, close_line.substr(cp, cright.sub(cp)))
     }
 
     mut next_val : I64 = 0
@@ -694,7 +697,7 @@ priv emit_typedef_enum := func(mut out: Str, lines: Vec, shallow start: USize, s
 
 // --- typedef alias (single line) --------------------------------------
 
-priv emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
+priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) returns Bool {
     mut n := line.len()
     lead := skip_ws(line, 0)
     if range_eq_lit(line, lead, lead.add(8), "typedef ").not() { return false }
@@ -760,17 +763,17 @@ priv emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
     out.push_str(" := ")
     if ptrs.gt(0) {
         out.push_str("Dynamic")
-        register_dynamic_alias(line.substr(name_start, name_end.sub(name_start)))
+        register_dynamic_alias(bs, line.substr(name_start, name_end.sub(name_start)))
     } else {
         // If the base resolves to a known primitive (or a previously-emitted
         // primitive alias), the new alias is also primitive-shaped.
         c := line.substr(base_off, base_len)
         if push_til_base(out, c) {
-            register_alias(line.substr(name_start, name_end.sub(name_start)))
-        } else if is_alias_to_primitive(c) {
-            register_alias(line.substr(name_start, name_end.sub(name_start)))
-        } else if is_alias_to_dynamic(c) {
-            register_dynamic_alias(line.substr(name_start, name_end.sub(name_start)))
+            register_alias(bs, line.substr(name_start, name_end.sub(name_start)))
+        } else if is_alias_to_primitive(bs, c) {
+            register_alias(bs, line.substr(name_start, name_end.sub(name_start)))
+        } else if is_alias_to_dynamic(bs, c) {
+            register_dynamic_alias(bs, line.substr(name_start, name_end.sub(name_start)))
         }
     }
     out.push_str("\n\n")
@@ -779,7 +782,7 @@ priv emit_typedef_alias := func(mut out: Str, line: Str) returns Bool {
 
 // --- typedef function-pointer (one line) ------------------------------
 
-priv emit_typedef_fnptr := func(mut out: Str, line: Str) returns Bool {
+priv emit_typedef_fnptr := func(mut bs: BinderState, mut out: Str, line: Str) returns Bool {
     // `typedef RET (*NAME)(ARGS);` -> emit `NAME := Dynamic`.
     n := line.len()
     lead := skip_ws(line, 0)
@@ -797,7 +800,7 @@ priv emit_typedef_fnptr := func(mut out: Str, line: Str) returns Bool {
     if name_end.eq(name_start) { return false }
     out.push_str(line.substr(name_start, name_end.sub(name_start)))
     out.push_str(" := Dynamic\n\n")
-    register_dynamic_alias(line.substr(name_start, name_end.sub(name_start)))
+    register_dynamic_alias(bs, line.substr(name_start, name_end.sub(name_start)))
     return true
 }
 
@@ -831,7 +834,7 @@ priv emit_define := func(mut out: Str, line: Str) returns Bool {
 
 // --- function declaration ---------------------------------------------
 
-priv emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shallow end: USize) returns Bool {
+priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, shallow start: USize, shallow end: USize) returns Bool {
     // Join [start, end] into one signature, dropping line comments. End-of-
     // signature is a `);` on `lines.get(end)`. Use Str.with_capacity +
     // push_str so we never re-bind a function-returning Str to a local.
@@ -1065,7 +1068,7 @@ priv emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shall
                         // pointer-to-X) aren't scalar, so the typer rejects
                         // `shallow`. Drop the qualifier so the default Ref
                         // applies, matching the underlying C pointer.
-                        if is_alias_to_dynamic(p_base_view).not() {
+                        if is_alias_to_dynamic(bs, p_base_view).not() {
                             params_buf.push_str("shallow ")
                         }
                         if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
@@ -1133,7 +1136,7 @@ priv emit_function := func(mut out: Str, lines: Vec, shallow start: USize, shall
 //     function
 //   * other top-level `Type name;` -> drop (extern var)
 
-priv walk_header := func(mut out: Str, lines: Vec) {
+priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
     n_lines := lines.len()
     mut i : USize = 0
     // Track whether we're currently inside an unterminated `/* ... */`
@@ -1241,7 +1244,7 @@ priv walk_header := func(mut out: Str, lines: Vec) {
             stmt_right := trim_right(line, lead, stmt_end)
             if has_fnptr.and(stmt_right.gt(0))
             .and(line.byte_at(stmt_right.sub(1)).eq(';')) {
-                emit_typedef_fnptr(out, line)
+                emit_typedef_fnptr(bs, out, line)
                 i = i.add(1)
                 continue
             }
@@ -1311,7 +1314,7 @@ priv walk_header := func(mut out: Str, lines: Vec) {
                     if done.not() { j2 = j2.add(1) }
                 }
                 if done.not() { i = i.add(1); continue }
-                i = emit_typedef_struct(out, lines, i, open, close)
+                i = emit_typedef_struct(bs, out, lines, i, open, close)
                 continue
             }
             if range_eq_lit(line, tp, tp.add(4), "enum") {
@@ -1354,7 +1357,7 @@ priv walk_header := func(mut out: Str, lines: Vec) {
                     if done.not() { j2 = j2.add(1) }
                 }
                 if done.not() { i = i.add(1); continue }
-                i = emit_typedef_enum(out, lines, i, open, close)
+                i = emit_typedef_enum(bs, out, lines, i, open, close)
                 continue
             }
             if range_eq_lit(line, tp, tp.add(5), "union") {
@@ -1411,7 +1414,7 @@ priv walk_header := func(mut out: Str, lines: Vec) {
                         if name_a.lt(cl_right) {
                             out.push_str(close_l.substr(name_a, cl_right.sub(name_a)))
                             out.push_str(" := Dynamic  // typedef union from C, opaque here\n\n")
-                            register_dynamic_alias(close_l.substr(name_a, cl_right.sub(name_a)))
+                            register_dynamic_alias(bs, close_l.substr(name_a, cl_right.sub(name_a)))
                         }
                     }
                 } else {
@@ -1421,7 +1424,7 @@ priv walk_header := func(mut out: Str, lines: Vec) {
                 continue
             }
             // Plain alias on one line.
-            emit_typedef_alias(out, line)
+            emit_typedef_alias(bs, out, line)
             i = i.add(1)
             continue
         }
@@ -1452,7 +1455,7 @@ priv walk_header := func(mut out: Str, lines: Vec) {
         }
         if found_end.not() { i = i.add(1); continue }
         if is_func {
-            emit_function(out, lines, i, j)
+            emit_function(bs, out, lines, i, j)
         }
         i = j.add(1)
     }
@@ -1723,7 +1726,8 @@ generate_bindings := proc(in_path: Str, out_path: Str) {
     if lines.len().eq(0) { panic(__LOC__, "no lines from ", in_path, " after filtering by ", incdir) }
     mut out := Str.with_capacity(262144)
     out.push_str("mode lib\n\n")
-    walk_header(out, lines)
+    mut bs := BinderState()
+    walk_header(bs, out, lines)
     collapsed := collapse_blank_runs(out)
     File.writefile(out_path, collapsed)
 }

@@ -295,7 +295,7 @@ check_use_after_own_transfer := proc(body: Expr, mut locals: Vec) {
             ref stmt : Expr = body.child(local.last_use.to_usize())
             type_error(stmt, "use of '".concat(local.name).concat("' after ownership transfer"))
             ref xfer : Expr = body.child(local.own_transfer.to_usize())
-            println(typer_path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
+            println(codegen_lp().ctx.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
             println("  help: pass a clone instead: own ", local.name, ".clone()")
         }
     }
@@ -685,7 +685,7 @@ asap_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) re
 // per-body scope ownership, which needs either a scope cache on
 // Context (#158) or an on-the-fly scope rebuild in asaper.
 asap_destroy := proc(mut ctx: Context) {
-    saved_path := typer_path.clone()
+    saved_path := ctx.path.clone()
     saved_in_main := ctx.typer_in_main_func
     saved_in_shallow := ctx.typer_in_shallow_return
     ctx.typer_in_main_func = false
@@ -693,10 +693,10 @@ asap_destroy := proc(mut ctx: Context) {
     for i in 0..ctx.imported.len() {
         ref path : Str = Map.key_ptr(ctx.imported, i)
         ref iu : ImportUnit = Map.val_ptr(ctx.imported, i)
-        typer_path = path.clone()
+        ctx.path = path.clone()
         insert_free_calls(ctx, iu.ast, ctx.scope, 1)
     }
-    typer_path = saved_path
+    ctx.path = saved_path
     ctx.typer_in_main_func = saved_in_main
     ctx.typer_in_shallow_return = saved_in_shallow
 }

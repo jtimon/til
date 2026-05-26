@@ -289,6 +289,21 @@ Context := struct {
     mut kw_counter : I32 = 0
     mut coll_counter : I32 = 0
 
+    // Remaining typer-phase scratch, moved off module globals. errors is
+    // the per-unit type-error counter (reset and returned by
+    // type_check_unit / type_check); current_type_name / current_top_func_name
+    // track the type/function whose body is being typed (for the priv
+    // access checks); auto_gen_depth counts nesting of auto-generated
+    // FuncDef bodies so the unused-priv-member check ignores boilerplate
+    // reads; throw_used_local_names tracks err-slot locals referenced
+    // while lowering throw/catch. (typer_path is not duplicated here --
+    // it was always a copy of ctx.path.)
+    mut errors : I32 = 0
+    mut current_type_name := ""
+    mut current_top_func_name := ""
+    mut auto_gen_depth : I32 = 0
+    mut throw_used_local_names := Set.new(Str)
+
     // #178 builder per-function transients. The builder resets these on
     // entering each function body and reads them throughout that body's
     // emission. emit_func_def is not actually recursive (the typer lifts
