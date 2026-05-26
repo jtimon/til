@@ -1992,6 +1992,18 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, lp: LoadedProgram) retur
                 f.write(", ")
                 emit_as_ptr(f, e.child(2), depth, false, lp)
                 f.write(")")
+            } else if ident_name(name).eq("func_sig_param_count").or(ident_name(name).eq("func_sig_return_count")).or(ident_name(name).eq("func_sig_throw_count")) {
+                f.write(ident_name(name))
+                f.write("(")
+                emit_as_ptr(f, e.child(1), depth, false, lp)
+                f.write(")")
+            } else if ident_name(name).eq("func_sig_param_type").or(ident_name(name).eq("func_sig_return_type")).or(ident_name(name).eq("func_sig_throw_type")) {
+                f.write(ident_name(name))
+                f.write("(")
+                emit_as_ptr(f, e.child(1), depth, false, lp)
+                f.write(", ")
+                emit_as_ptr(f, e.child(2), depth, false, lp)
+                f.write(")")
             } else if ident_name(name).eq("dyn_has_method") {
                 ref c2b : Expr = e.child(2)
                 switch c2b.node_type {
@@ -5007,6 +5019,12 @@ emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgram) {
     f.write("Str *enum_variant_name(Str *type_name, I64 *index);\n")
     f.write("I64 enum_variant_has_payload(Str *type_name, I64 *index);\n")
     f.write("Str *enum_variant_payload_type(Str *type_name, I64 *index);\n")
+    f.write("I64 func_sig_param_count(Str *type_name);\n")
+    f.write("Str *func_sig_param_type(Str *type_name, I64 *index);\n")
+    f.write("I64 func_sig_return_count(Str *type_name);\n")
+    f.write("Str *func_sig_return_type(Str *type_name, I64 *index);\n")
+    f.write("I64 func_sig_throw_count(Str *type_name);\n")
+    f.write("Str *func_sig_throw_type(Str *type_name, I64 *index);\n")
     if has_dyn_type_to_str {
         f.write("Str *dyn_type_to_str(Type *type);\n")
     }
@@ -5457,6 +5475,101 @@ emit_enum_introspection_bodies := proc(f: File, lp: LoadedProgram) {
     f.write("Str *enum_variant_payload_type(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
     emit_enum_variant_branches(f, 3, lp)
     f.write("    fprintf(stderr, \"enum_variant_payload_type: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+}
+
+// Issue #58: emit one FuncSig's branch for a func_sig_* function. A
+// FuncSig is a bodyless func/proc decl. kind 0 = param_count,
+// 1 = param_type, 2 = return_count, 3 = return_type, 4 = throw_count,
+// 5 = throw_type.
+priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
+    if stmt.children.len().eq(0) { return }
+    if stmt.child(0).node_type.is(NodeType.FuncDef).not() { return }
+    if stmt.child(0).children.len().neq(0) { return }
+    mut fname := ""
+    switch stmt.node_type {
+    case NodeType.Decl(dd): fname = dd.name
+    case: return
+    }
+    switch stmt.child(0).node_type {
+    case NodeType.FuncDef(fd):
+        tlen := fname.len().to_u64()
+        f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(fname); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) {\n")
+        if kind.eq(0) {
+            f.write("        return "); emit_u64(f, fd.params.len().to_u64()); f.write("LL;\n")
+        } else if kind.eq(2) {
+            if fd.return_type.len().gt(0) { f.write("        return 1LL;\n") } else { f.write("        return 0LL;\n") }
+        } else if kind.eq(4) {
+            f.write("        return "); emit_u64(f, fd.throw_types.len().to_u64()); f.write("LL;\n")
+        } else if kind.eq(1) {
+            for i in 0..fd.params.len() {
+                ref pd : Declaration = fd.params.get(i)
+                f.write("        if (*index == "); emit_u64(f, i.to_u64()); f.write("LL) return ")
+                emit_str_lit_expr(f, pd.explicit_type)
+                f.write(";\n")
+            }
+        } else if kind.eq(3) {
+            if fd.return_type.len().gt(0) {
+                f.write("        if (*index == 0LL) return ")
+                emit_str_lit_expr(f, fd.return_type)
+                f.write(";\n")
+            }
+        } else {
+            for i in 0..fd.throw_types.len() {
+                ref tt : Str = fd.throw_types.get(i)
+                f.write("        if (*index == "); emit_u64(f, i.to_u64()); f.write("LL) return ")
+                emit_str_lit_expr(f, tt)
+                f.write(";\n")
+            }
+        }
+        f.write("    }\n")
+    case:
+    }
+}
+
+priv emit_funcsig_branches := proc(f: File, shallow kind: I32, lp: LoadedProgram) {
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            for stmt : Expr in iu.ast.children {
+                emit_funcsig_branch_for_stmt(f, stmt, kind)
+            }
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        for stmt : Expr in iu.ast.children {
+            emit_funcsig_branch_for_stmt(f, stmt, kind)
+        }
+    }
+}
+
+// Issue #58: emit the C bodies for the func_sig_* introspection
+// primitives. Each is a strcmp chain over every loaded FuncSig type.
+emit_funcsig_introspection_bodies := proc(f: File, lp: LoadedProgram) {
+    f.write("I64 func_sig_param_count(Str *type_name) {\n    (void)type_name;\n")
+    emit_funcsig_branches(f, 0, lp)
+    f.write("    fprintf(stderr, \"func_sig_param_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("Str *func_sig_param_type(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_funcsig_branches(f, 1, lp)
+    f.write("    fprintf(stderr, \"func_sig_param_type: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("I64 func_sig_return_count(Str *type_name) {\n    (void)type_name;\n")
+    emit_funcsig_branches(f, 2, lp)
+    f.write("    fprintf(stderr, \"func_sig_return_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("Str *func_sig_return_type(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_funcsig_branches(f, 3, lp)
+    f.write("    fprintf(stderr, \"func_sig_return_type: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("I64 func_sig_throw_count(Str *type_name) {\n    (void)type_name;\n")
+    emit_funcsig_branches(f, 4, lp)
+    f.write("    fprintf(stderr, \"func_sig_throw_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("Str *func_sig_throw_type(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_funcsig_branches(f, 5, lp)
+    f.write("    fprintf(stderr, \"func_sig_throw_type: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 }
 
 emit_tag_case := proc(f: File, tag: Str, name: Str) {
@@ -6231,6 +6344,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str, lp: Loade
     emit_dyn_size_of_body(f, lp)
     emit_struct_introspection_bodies(f, lp)
     emit_enum_introspection_bodies(f, lp)
+    emit_funcsig_introspection_bodies(f, lp)
     mut has_dyn_type_to_str2 := false
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {

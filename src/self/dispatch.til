@@ -635,6 +635,119 @@ h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
     return true
 }
 
+// Look up a registered FuncSig type's bodyless FuncDef node by name,
+// erroring out if the name is unknown or not a function signature.
+// Shared by the func_sig_* introspection handlers (issue #58).
+interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
+    ref tc : Cell = scope_get(s, type_name)
+    if is_null(tc) {
+        interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
+        exit(1)
+    }
+    switch tc.val {
+    case Value.Func(fptr):
+        ref node : Expr = deref(fptr)
+        if node.node_type.is(NodeType.FuncDef).not() {
+            interp_error(e, who.concat(": '").concat(type_name).concat("' is not a function signature"), ctx)
+            exit(1)
+        }
+        return node
+    case:
+        interp_error(e, who.concat(": '").concat(type_name).concat("' is not a function signature"), ctx)
+        exit(1)
+        return NULL
+    }
+}
+
+h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
+    switch node.node_type {
+    case NodeType.FuncDef(fd):
+        r = val_i64(fd.params.len().to_i64())
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
+    switch node.node_type {
+    case NodeType.FuncDef(fd):
+        if idx.lt(0).or(idx.to_usize().gte(fd.params.len())) {
+            interp_error(e, "func_sig_param_type: index out of bounds", ctx)
+            exit(1)
+        }
+        ref pd : Declaration = fd.params.get(idx.to_usize())
+        r = str_to_owned_value(pd.explicit_type, ctx)
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
+    switch node.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.return_type.len().gt(0) { r = val_i64(1) } else { r = val_i64(0) }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
+    switch node.node_type {
+    case NodeType.FuncDef(fd):
+        if idx.neq(0).or(fd.return_type.len().eq(0)) {
+            interp_error(e, "func_sig_return_type: index out of bounds", ctx)
+            exit(1)
+        }
+        r = str_to_owned_value(fd.return_type, ctx)
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
+    switch node.node_type {
+    case NodeType.FuncDef(fd):
+        r = val_i64(fd.throw_types.len().to_i64())
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
+h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
+    switch node.node_type {
+    case NodeType.FuncDef(fd):
+        if idx.lt(0).or(idx.to_usize().gte(fd.throw_types.len())) {
+            interp_error(e, "func_sig_throw_type: index out of bounds", ctx)
+            exit(1)
+        }
+        ref tt : Str = fd.throw_types.get(idx.to_usize())
+        r = str_to_owned_value(tt, ctx)
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return true
+}
+
 h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     type_val := eval_expr(s, e.child(1), ctx)
     switch type_val {
@@ -948,6 +1061,12 @@ dispatch_init := func() {
     reg_dispatch("enum_variant_name", h_enum_variant_name)
     reg_dispatch("enum_variant_has_payload", h_enum_variant_has_payload)
     reg_dispatch("enum_variant_payload_type", h_enum_variant_payload_type)
+    reg_dispatch("func_sig_param_count", h_func_sig_param_count)
+    reg_dispatch("func_sig_param_type", h_func_sig_param_type)
+    reg_dispatch("func_sig_return_count", h_func_sig_return_count)
+    reg_dispatch("func_sig_return_type", h_func_sig_return_type)
+    reg_dispatch("func_sig_throw_count", h_func_sig_throw_count)
+    reg_dispatch("func_sig_throw_type", h_func_sig_throw_type)
     reg_dispatch("dyn_type_to_str", h_dyn_type_to_str)
     reg_dispatch("File_readfile", h_readfile)
     reg_dispatch("File_writefile", h_writefile)

@@ -222,3 +222,23 @@ test_enum_variant_primitives := test() {
     assert_eq_str(__LOC__, "", enum_variant_payload_type("Shape56", 1))
     assert_eq_str(__LOC__, "Str", enum_variant_payload_type("Shape56", 2))
 }
+
+// --- FuncSig introspection primitives (issue #58) ---
+// func_sig_* query a registered FuncSig (a bodyless func/proc) for its
+// parameter types, return type, and throw types by name. The FuncSig
+// must be live (kept so by the real calls below). til funcs have at most
+// one return type, so func_sig_return_count is 0 or 1; parameter names
+// are not part of a signature, only types.
+
+apply_bin58 := func(op: BinaryOp, a: I64, b: I64) returns I64 { return op(a, b) }
+add58 := func(a: I64, b: I64) returns I64 { return a.add(b) }
+
+test_func_sig_primitives := test() {
+    assert_eq(__LOC__, apply_bin58(add58, 3, 4), 7)  // keep BinaryOp live
+    assert_eq(__LOC__, func_sig_param_count("BinaryOp"), 2)
+    assert_eq_str(__LOC__, "I64", func_sig_param_type("BinaryOp", 0))
+    assert_eq_str(__LOC__, "I64", func_sig_param_type("BinaryOp", 1))
+    assert_eq(__LOC__, func_sig_return_count("BinaryOp"), 1)
+    assert_eq_str(__LOC__, "I64", func_sig_return_type("BinaryOp", 0))
+    assert_eq(__LOC__, func_sig_throw_count("BinaryOp"), 0)
+}

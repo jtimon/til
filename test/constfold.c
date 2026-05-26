@@ -357,6 +357,12 @@ I64 enum_variant_count(Str *type_name);
 Str *enum_variant_name(Str *type_name, I64 *index);
 I64 enum_variant_has_payload(Str *type_name, I64 *index);
 Str *enum_variant_payload_type(Str *type_name, I64 *index);
+I64 func_sig_param_count(Str *type_name);
+Str *func_sig_param_type(Str *type_name, I64 *index);
+I64 func_sig_return_count(Str *type_name);
+Str *func_sig_return_type(Str *type_name, I64 *index);
+I64 func_sig_throw_count(Str *type_name);
+Str *func_sig_throw_type(Str *type_name, I64 *index);
 Str *dyn_type_to_str(Type *type);
 
 #define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))
@@ -2442,6 +2448,76 @@ Str *enum_variant_payload_type(Str *type_name, I64 *index) {
         if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; _lit; });
     }
     fprintf(stderr, "enum_variant_payload_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
+    exit(1);
+}
+
+I64 func_sig_param_count(Str *type_name) {
+    (void)type_name;
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "CloneFn", 7ULL) == 0) {
+        return 1LL;
+    }
+    if (type_name->count == 8ULL && memcmp(type_name->c_str, "DeleteFn", 8ULL) == 0) {
+        return 2LL;
+    }
+    fprintf(stderr, "func_sig_param_count: type '%.*s' not found\n", (int)type_name->count, (char*)type_name->c_str);
+    exit(1);
+}
+
+Str *func_sig_param_type(Str *type_name, I64 *index) {
+    (void)type_name; (void)index;
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "CloneFn", 7ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    if (type_name->count == 8ULL && memcmp(type_name->c_str, "DeleteFn", 8ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    fprintf(stderr, "func_sig_param_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
+    exit(1);
+}
+
+I64 func_sig_return_count(Str *type_name) {
+    (void)type_name;
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "CloneFn", 7ULL) == 0) {
+        return 1LL;
+    }
+    if (type_name->count == 8ULL && memcmp(type_name->c_str, "DeleteFn", 8ULL) == 0) {
+        return 0LL;
+    }
+    fprintf(stderr, "func_sig_return_count: type '%.*s' not found\n", (int)type_name->count, (char*)type_name->c_str);
+    exit(1);
+}
+
+Str *func_sig_return_type(Str *type_name, I64 *index) {
+    (void)type_name; (void)index;
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "CloneFn", 7ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    if (type_name->count == 8ULL && memcmp(type_name->c_str, "DeleteFn", 8ULL) == 0) {
+    }
+    fprintf(stderr, "func_sig_return_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
+    exit(1);
+}
+
+I64 func_sig_throw_count(Str *type_name) {
+    (void)type_name;
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "CloneFn", 7ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 8ULL && memcmp(type_name->c_str, "DeleteFn", 8ULL) == 0) {
+        return 0LL;
+    }
+    fprintf(stderr, "func_sig_throw_count: type '%.*s' not found\n", (int)type_name->count, (char*)type_name->c_str);
+    exit(1);
+}
+
+Str *func_sig_throw_type(Str *type_name, I64 *index) {
+    (void)type_name; (void)index;
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "CloneFn", 7ULL) == 0) {
+    }
+    if (type_name->count == 8ULL && memcmp(type_name->c_str, "DeleteFn", 8ULL) == 0) {
+    }
+    fprintf(stderr, "func_sig_throw_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
 }
 
