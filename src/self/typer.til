@@ -8133,7 +8133,20 @@ hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope
                 field_type = h_fd.til_type
             }
             if fld_own.is(OwnType.Own).not() {
-                if is_aggregate(field_type) {
+                // Issue #201: skip hoisting a heap-returning arg into an
+                // owned temp when it flows into a non-own aggregate field.
+                // The builder's inline `{ T *_ca = ...; field = *_ca;
+                // free(_ca); }` path transfers ownership correctly; a
+                // hoisted temp would Str_delete the value AND leave the
+                // field pointing at the freed storage (double-free). Check
+                // both the field's static type and the arg's runtime type,
+                // and treat Type.Custom (unresolved cross-file name) as
+                // aggregate.
+                if is_aggregate(field_type).or(field_type.is(Type.Custom)) {
+                    continue
+                }
+                arg_type := expr_til_type(arg)
+                if is_aggregate(arg_type).or(arg_type.is(Type.Custom)) {
                     continue
                 }
             }
@@ -8141,6 +8154,13 @@ hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope
         case:
             slot_is_own = get_own_arg(expr, i)
         }
+        } else if is_ctor_call {
+            // Ctor for a type whose StructDef isn't reachable in this
+            // scope (defined later in the same file or behind a circular
+            // import). Without field metadata we can't decide ownership
+            // safely; skip hoisting and let the builder's inline field
+            // assign emit the ownership transfer.
+            continue
         } else {
             slot_is_own = get_own_arg(expr, i)
         }

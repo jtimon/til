@@ -316,3 +316,292 @@ test_bang_inside_bang := test() {
     assert(__LOC__, inner.eq(42))
     assert(__LOC__, outer.eq(42))
 }
+
+// ==========================================================
+// Issue #201: built-in safe_* methods on numeric types
+// ==========================================================
+
+// F32.safe_div (reuses DivideByZero from src/core/i64.til)
+test_f32_safe_div_ok := test() {
+    result := F32.safe_div(F32.from_i64(10), F32.from_i64(2))?
+    catch (err: DivideByZero) {
+        assert(__LOC__, false)
+    }
+    assert(__LOC__, result.eq(F32.from_i64(5)))
+}
+
+test_f32_safe_div_zero := test() {
+    mut caught := false
+    _ := F32.safe_div(F32.from_i64(10), F32.from_i64(0))?
+    catch (err: DivideByZero) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_f32_safe_div_ufcs := test() {
+    mut caught := false
+    _ := F32.from_i64(10).safe_div(F32.from_i64(0))?
+    catch (err: DivideByZero) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+// ==========================================================
+// Issue #201: I64.safe_add / safe_sub / safe_mul
+// ==========================================================
+
+MAX_I64_LIT : I64 = 9223372036854775807
+// MIN_I64 is derived inside the underflow tests from a `mut`
+// local, not from MAX_I64_LIT directly: folding a const
+// `MAX_I64_LIT.neg().sub(1)` to INT64_MIN trips an interpreter
+// constant-folding quirk (stringifying INT64_MIN). A mut local
+// is not const-folded, so the value is computed at runtime.
+
+test_i64_safe_add_ok := test() {
+    result := I64.safe_add(2, 3)?
+    catch (err: IntegerOverflow) {
+        assert(__LOC__, false)
+    }
+    assert(__LOC__, result.eq(5))
+}
+
+test_i64_safe_add_overflow := test() {
+    mut caught := false
+    mut emsg := ""
+    _ := I64.safe_add(MAX_I64_LIT, 1)?
+    catch (err: IntegerOverflow) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("I64.safe_add"))
+}
+
+test_i64_safe_add_underflow := test() {
+    mut caught := false
+    mut mx : I64 = 9223372036854775807
+    min_i64 := mx.neg().sub(1)
+    _ := I64.safe_add(min_i64, -1)?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_i64_safe_sub_ok := test() {
+    result := I64.safe_sub(10, 3)?
+    catch (err: IntegerOverflow) {
+        assert(__LOC__, false)
+    }
+    assert(__LOC__, result.eq(7))
+}
+
+test_i64_safe_sub_underflow := test() {
+    mut caught := false
+    mut emsg := ""
+    mut mx : I64 = 9223372036854775807
+    min_i64 := mx.neg().sub(1)
+    _ := I64.safe_sub(min_i64, 1)?
+    catch (err: IntegerOverflow) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("I64.safe_sub"))
+}
+
+test_i64_safe_sub_overflow := test() {
+    mut caught := false
+    _ := I64.safe_sub(MAX_I64_LIT, -1)?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_i64_safe_mul_ok := test() {
+    result := I64.safe_mul(7, 6)?
+    catch (err: IntegerOverflow) {
+        assert(__LOC__, false)
+    }
+    assert(__LOC__, result.eq(42))
+}
+
+test_i64_safe_mul_overflow := test() {
+    mut caught := false
+    mut emsg := ""
+    _ := I64.safe_mul(MAX_I64_LIT, 2)?
+    catch (err: IntegerOverflow) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("I64.safe_mul"))
+}
+
+// --- U64 / U32 / U8 (unsigned widths) ---
+
+test_u64_safe_add_overflow := test() {
+    mut caught := false
+    mut emsg := ""
+    max_u64 := -1.to_u64()
+    _ := U64.safe_add(max_u64, 1.to_u64())?
+    catch (err: IntegerOverflow) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("U64.safe_add"))
+}
+
+test_u64_safe_sub_underflow := test() {
+    mut caught := false
+    mut emsg := ""
+    _ := U64.safe_sub(0.to_u64(), 1.to_u64())?
+    catch (err: IntegerOverflow) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("U64.safe_sub"))
+}
+
+test_u64_safe_mul_overflow := test() {
+    mut caught := false
+    mut emsg := ""
+    big := -1.to_u64()
+    _ := U64.safe_mul(big, 2.to_u64())?
+    catch (err: IntegerOverflow) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("U64.safe_mul"))
+}
+
+test_u32_safe_add_overflow := test() {
+    mut caught := false
+    mut emsg := ""
+    max_u32 := -1.to_u32()
+    _ := U32.safe_add(max_u32, 1.to_u32())?
+    catch (err: IntegerOverflow) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("U32.safe_add"))
+}
+
+test_u32_safe_sub_underflow := test() {
+    mut caught := false
+    _ := U32.safe_sub(0.to_u32(), 1.to_u32())?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_u32_safe_mul_overflow := test() {
+    mut caught := false
+    big := -1.to_u32()
+    _ := U32.safe_mul(big, 2.to_u32())?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_u8_safe_add_overflow := test() {
+    mut caught := false
+    _ := U8.safe_add(255.to_u8(), 1.to_u8())?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_u8_safe_sub_underflow := test() {
+    mut caught := false
+    _ := U8.safe_sub(0.to_u8(), 1.to_u8())?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_u8_safe_mul_overflow := test() {
+    mut caught := false
+    _ := U8.safe_mul(200.to_u8(), 2.to_u8())?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+// --- I32 / I16 / I8 (signed widths) ---
+
+test_i32_safe_add_overflow := test() {
+    mut caught := false
+    mut emsg := ""
+    max_i32 := 2147483647.to_i32()
+    _ := I32.safe_add(max_i32, 1.to_i32())?
+    catch (err: IntegerOverflow) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("I32.safe_add"))
+}
+
+test_i32_safe_sub_overflow := test() {
+    mut caught := false
+    max_i32 := 2147483647.to_i32()
+    _ := I32.safe_sub(max_i32, -1.to_i32())?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_i32_safe_mul_overflow := test() {
+    mut caught := false
+    max_i32 := 2147483647.to_i32()
+    _ := I32.safe_mul(max_i32, 2.to_i32())?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_i16_safe_add_overflow := test() {
+    mut caught := false
+    max_i16 := 32767.to_i16()
+    _ := I16.safe_add(max_i16, 1.to_i16())?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_i16_safe_sub_overflow := test() {
+    mut caught := false
+    max_i16 := 32767.to_i16()
+    _ := I16.safe_sub(max_i16, -1.to_i16())?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
+test_i16_safe_mul_overflow := test() {
+    mut caught := false
+    max_i16 := 32767.to_i16()
+    _ := I16.safe_mul(max_i16, 2.to_i16())?
+    catch (err: IntegerOverflow) {
+        caught = true
+    }
+    assert(__LOC__, caught)
+}
+
