@@ -1817,6 +1817,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         // drops the old contents in place, resizes if needed, and
         // bit-copies the new payload over.
         e.children.move_from(new_ch)
+        Vec.delete(own new_ch, false)
         // After UFCS rewriting, e.child(1) is the original receiver
         // Expr that was already inferred at the top of this proc. Skip
         // it (and any already-typed positional arg) to avoid firing
@@ -3020,6 +3021,8 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
             new_ch.push_take(old, j)
         }
         body.children.move_from(new_ch)
+        Vec.delete(own new_ch, false)
+        Vec.delete(own old, false)
     }
     while_scope := TypeScope(parent = scope)
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
@@ -3564,6 +3567,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                             new_ch.push_take(old, bi)
                                         }
                                     case_body.children.move_from(new_ch)
+                                        Vec.delete(own new_ch, false)
+                                        Vec.delete(own old, false)
                                         has_condition = true
                                     }
                                 }
@@ -5854,6 +5859,9 @@ priv process_throw_catch_in_body := proc(
     }
 
     body.children.move_from(new_ch)
+    Vec.delete(own new_ch, false)
+    Vec.delete(own old, false)
+    Vec.delete(own old_snapshot, false)
 }
 
 // Function-body wrapper for the single-walk consolidated processing.
@@ -5942,6 +5950,8 @@ process_throw_catch_in_func_body := proc(
         new_ch.push(own ret)
     }
     body.children.move_from(new_ch)
+    Vec.delete(own new_ch, false)
+    Vec.delete(own old, false)
 }
 
 is_compile_directive := func(e: Expr) returns shallow Bool {
