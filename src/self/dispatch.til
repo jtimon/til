@@ -407,7 +407,7 @@ h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     method_val := eval_expr(s, e.child(2))
     type_name := str_view(type_name_val)
     method := str_view(method_val)
-    r = val_bool(is_null(ns_get(type_name.clone(), method.clone())).not())
+    r = val_bool(is_null(ns_get(type_name, method)).not())
     return true
 }
 
@@ -416,7 +416,7 @@ h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     method_val := eval_expr(s, e.child(2))
     type_name := str_view(type_name_val)
     method := str_view(method_val)
-    ref nsv : Value = ns_get(type_name.clone(), method.clone())
+    ref nsv : Value = ns_get(type_name, method)
     if is_null(nsv) {
         panic(__LOC__, "dyn_fn: unknown ", type_name, ".", method)
     }
@@ -879,10 +879,10 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     method := str_view(method_val)
 
     // Build fake AST: Type.method(args...)
-    mut type_ident := Expr.new(ident_node(type_name.clone()), e.line, e.col)
+    mut type_ident := Expr.new(ident_node(type_name), e.line, e.col)
     set_expr_til_type(type_ident, Type.Struct(type_name.clone()))
 
-    mut field_access := Expr.new(field_access_node(method.clone()), e.line, e.col)
+    mut field_access := Expr.new(field_access_node(method), e.line, e.col)
     field_access.add_child(own type_ident)
     // Critical: NodeType.FCall must have an initialized FCallData payload.
     mut fake_call := Expr.new(NodeType.FCall(FCallData()), e.line, e.col)
@@ -911,7 +911,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
         exit(1)
     }
     // Build fake call: Type.size()
-    mut type_ident := Expr.new(ident_node(type_name.clone()), src.line, src.col)
+    mut type_ident := Expr.new(ident_node(type_name), src.line, src.col)
     set_expr_til_type(type_ident, Type.Struct(type_name.clone()))
 
     mut field_access := Expr.new(field_access_node("size"), src.line, src.col)
@@ -927,7 +927,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr) returns shallow I32 {
 
 enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value) returns shallow Bool {
     if enum_has_payloads(enum_def) {
-        ctor_tag := enum_variant_tag(enum_def, method.clone())
+        ctor_tag := enum_variant_tag(enum_def, method)
         if ctor_tag.to_i64().gte(0) {
             vtype := enum_variant_type(enum_def, ctor_tag)
             has_payload := vtype.len().gt(0)

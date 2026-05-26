@@ -67,8 +67,10 @@ test_dyn_has_method := test() {
     // TODO(#15): dummy references so scavenger keeps clone
     n  := 1
     hi := "hi"
-    assert_eq(__LOC__, n.clone(), 1)
-    assert_eq_str(__LOC__, hi.clone(), "hi")
+    n_c  := n.clone()
+    hi_c := hi.clone()
+    assert_eq(__LOC__, n_c, 1)
+    assert_eq_str(__LOC__, hi_c, "hi")
 
     expect(__LOC__, dyn_has_method("I64", "delete"), "I64 has delete")
     expect(__LOC__, dyn_has_method("I64", "clone"), "I64 has clone")

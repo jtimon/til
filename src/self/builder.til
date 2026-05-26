@@ -960,7 +960,7 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
 
 emit_field := proc(f: File, var: Str, field: Str, lp: LoadedProgram) {
     f.write(var)
-    if is_stack_local(var.clone(), lp).or(is_value_global(var, lp)) {
+    if is_stack_local(var, lp).or(is_value_global(var, lp)) {
         f.write(".")
     } else {
         f.write("->")
@@ -1615,7 +1615,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, lp: LoadedProgram) 
     case NodeType.Assign(ad):
         aname := ad.name
         ref rhs : Expr = e.child(0)
-        if is_ref_local(aname.clone(), lp) {
+        if is_ref_local(aname, lp) {
             mut do_rebind := false
             switch rhs.node_type {
             case NodeType.FieldAccess: do_rebind = true
@@ -1631,7 +1631,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, lp: LoadedProgram) 
         }
         if ad.save_old_delete {
             ctype := c_type_name(expr_til_type(e), til_type_name(expr_til_type(e)), lp)
-            if is_stack_local(aname.clone(), lp).or(is_value_global(aname, lp)) {
+            if is_stack_local(aname, lp).or(is_value_global(aname, lp)) {
                 // For LiteralStr RHS, emit_expr produces a heap-malloc'd Str
                 // wrapper (`({ Str *_lit = malloc(...); *_lit = (Str){...}; _lit; })`).
                 // The usual `Str *_new = ...; aname = *_new; free(_new);` shape
@@ -1660,7 +1660,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, lp: LoadedProgram) 
             }
             return
         }
-        is_hoisted := is_stack_local(aname.clone(), lp).or(is_value_global(aname, lp))
+        is_hoisted := is_stack_local(aname, lp).or(is_value_global(aname, lp))
         if expr_til_type(e).is(Type.Dynamic) {
             f.write(aname); f.write(" = "); emit_deref(f, rhs, depth, lp); f.write(";\n"); return
         }
@@ -2681,7 +2681,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         ret := func_return_ctype(fd, lp)
         // Signature
         if is_static { f.write("static __attribute__((unused)) ") }
-        f.write(ret); f.write(" "); fc := func_to_c(name.clone()); f.write(fc); f.write("(")
+        f.write(ret); f.write(" "); fc := func_to_c(name); f.write(fc); f.write("(")
         emit_param_list(f, func_def, true, false, lp)
         f.write(") {\n")
         // Suppress -Wunused-parameter for params that aren't referenced
@@ -3372,7 +3372,7 @@ emit_header_func_fwds_prog := proc(f: File, prog: Expr, shallow is_core_pass: Bo
                     // ext_func / ext_proc methods (the branch above) keep
                     // emitting -- no other emit path covers them.
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-                    fc := func_to_c(dd.name.clone())
+                    fc := func_to_c(dd.name)
                     emit_func_forward_decl(f, fc, rhs, true, lp)
                 case:
                 }
@@ -3485,7 +3485,7 @@ emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                         case NodeType.FuncDef(fd):
                             if rhs.children.len().eq(0) { continue }
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
-                            fc := func_to_c(dd.name.clone())
+                            fc := func_to_c(dd.name)
                             emit_func_forward_decl(f, fc, rhs, true, lp)
                         case:
                         }
@@ -3515,7 +3515,7 @@ emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                     }
                 } else if rhs.node_type.is(NodeType.FuncDef) {
                     if rhs.children.len().eq(0) { continue }
-                    fc := func_to_c(dd.name.clone())
+                    fc := func_to_c(dd.name)
                     emit_func_forward_decl(f, fc, rhs, true, lp)
                 }
             case:
@@ -4027,7 +4027,7 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                     if fd.func_type.is(FuncType.Test) { continue }
 
-                    c_name := func_to_c(dd.name.clone())
+                    c_name := func_to_c(dd.name)
 
                     // argtypes
                     f.write("_lib."); f.write(c_name); f.write(".argtypes = [")
@@ -4526,7 +4526,7 @@ emit_monolithic_header_func_decls_prog := proc(f: File, prog: Expr, mode: Mode, 
                             if dd.name.eq("main") { continue }
                         }
                     }
-                    fc := func_to_c(dd.name.clone())
+                    fc := func_to_c(dd.name)
                     emit_func_forward_decl(f, fc, rhs, true, lp)
                 case:
                 }
@@ -4652,7 +4652,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                                     if dd.name.eq("main") { continue }
                                 }
                             }
-                            fc := func_to_c(dd.name.clone())
+                            fc := func_to_c(dd.name)
                             emit_func_forward_decl(f, fc, rhs, true, lp)
                         case:
                         }
@@ -4694,7 +4694,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                                 if dd.name.eq("main") { continue }
                             }
                         }
-                        fc := func_to_c(dd.name.clone())
+                        fc := func_to_c(dd.name)
                         emit_func_forward_decl(f, fc, rhs, true, lp)
                     case:
                     }
@@ -4794,7 +4794,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgram) {
                                     if dd.name.eq("main") { continue }
                                 }
                             }
-                            fc := func_to_c(dd.name.clone())
+                            fc := func_to_c(dd.name)
                             emit_func_forward_decl(f, fc, rhs, true, lp)
                         case:
                         }
@@ -4832,7 +4832,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgram) {
                                 if dd.name.eq("main") { continue }
                             }
                         }
-                        fc := func_to_c(dd.name.clone())
+                        fc := func_to_c(dd.name)
                         emit_func_forward_decl(f, fc, rhs, true, lp)
                     case:
                     }
@@ -6088,9 +6088,9 @@ emit_ext_func_declarations := proc(f: File, program: Expr, lp: LoadedProgram) {
                     mut rt := ""
                     if fd.return_own_type.is(OwnType.Shallow) { rt = type_name_to_c_value(fd.return_type, lp) }
                     else { rt = type_name_to_c(fd.return_type, lp) }
-                    f.write(rt); f.write(" "); fc := func_to_c(dd.name.clone()); f.write(fc); f.write("(")
+                    f.write(rt); f.write(" "); fc := func_to_c(dd.name); f.write(fc); f.write("(")
                 } else {
-                    f.write("void "); fc := func_to_c(dd.name.clone()); f.write(fc); f.write("(")
+                    f.write("void "); fc := func_to_c(dd.name); f.write(fc); f.write("(")
                 }
                 emit_param_list(f, fdef, false, true, lp)
                 f.write(");\n")

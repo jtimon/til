@@ -401,7 +401,7 @@ parse_args := proc(args: Array) returns CliArgs {
 
     if cli.command.eq("repl") {
         ref mode_arg : Str = args.get(1)
-        run_repl(mode_arg.clone())
+        run_repl(mode_arg)
         cli.early_return = true
         return cli
     }

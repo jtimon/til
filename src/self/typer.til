@@ -865,6 +865,21 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
     return false
 }
 
+// True when `e` is a `.clone()` method call (either UFCS form
+// `x.clone()` or the desugared namespace form `Type.clone(x)`): an FCall
+// whose callee is a FieldAccess named "clone".
+is_clone_fcall := func(e: Expr) returns shallow Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len().eq(0) { return false }
+    ref callee : Expr = e.child(0)
+    switch callee.node_type {
+    case NodeType.FieldAccess(cfa):
+        return field_access_name(cfa).eq("clone")
+    case:
+        return false
+    }
+}
+
 validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBinding) {
     if is_null(callee_bind) { return }
     if is_null(callee_bind.func_def) { return }
@@ -912,6 +927,16 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
             ref pp2 : Declaration = fdef_data.params.get(pi)
             pown := pp2.own_type.is(OwnType.Own)
             ref arg : Expr = e.child(ci)
+            // A `.clone()` passed to an immutable ref (borrow) parameter
+            // is pure waste: the callee only borrows, so the fresh copy
+            // is allocated and dropped without ever being retained or
+            // mutated. Pass the value directly. (Own params legitimately
+            // consume the clone; ref-mut params may mutate the copy.)
+            if pp2.own_type.is(OwnType.Ref).and(pp2.is_mut.not()) {
+                if is_clone_fcall(arg) {
+                    type_error(arg, "redundant '.clone()': parameter '".concat(pp2.name).concat("' is a ref (borrow); pass the value directly"))
+                }
+            }
             if pown {
                 if get_own_arg(e, ci).not() {
                     type_error(arg, "argument for 'own' parameter '".concat(pp2.name).concat("' must be marked 'own'"))
@@ -2074,7 +2099,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
     }
     ref resolved_name : Str = resolve_type_alias(scope, name)
     if resolved_name.eq(name).not() {
-        callee.node_type = ident_node(resolved_name.clone())
+        callee.node_type = ident_node(resolved_name)
         name = resolved_name.clone()
     }
     if infer_struct_constructor_fcall(scope, e, name, in_func, ctx) { return }
@@ -2718,7 +2743,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str) returns s
 // any other expression is left as-is.
 narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context) {
     if ctx.typer_return_type_name.len().eq(0) { return }
-    rt := type_from_name(ctx.typer_return_type_name.clone(), scope)
+    rt := type_from_name(ctx.typer_return_type_name, scope)
     if is_numeric_type(rt).not() { return }
     switch rv.node_type {
     case NodeType.Literal(Literal.Num(lit_str)):
@@ -4492,7 +4517,7 @@ priv annotate_throw_ident_expr_types := proc(mut e: Expr, root_body: Expr) {
     if e.node_type.is(NodeType.Throw).and(e.children.len().eq(1)) {
         switch e.child(0).node_type {
         case NodeType.Ident(idn):
-            tn := guess_local_type(root_body, idn.name.clone())
+            tn := guess_local_type(root_body, idn.name)
             if tn.len().gt(0) {
                 set_expr_til_type(e.child(0), Type.Custom(tn.clone()))
             }
@@ -4510,7 +4535,7 @@ priv has_prior_throw_type := proc(e: Expr, root_body: Expr, type_name: Str, shal
         if thrown_name.len().eq(0) {
             switch e.child(0).node_type {
             case NodeType.Ident(idn):
-                thrown_name = guess_local_type(root_body, idn.name.clone())
+                thrown_name = guess_local_type(root_body, idn.name)
             case NodeType.FCall:
                 if e.child(0).children.len().gt(0) {
                     switch e.child(0).child(0).node_type {
@@ -4538,7 +4563,7 @@ priv subtree_has_throw_type := proc(e: Expr, root_body: Expr, type_name: Str) re
         mut thrown_name := ""
         switch e.child(0).node_type {
         case NodeType.Ident(idn):
-            thrown_name = guess_local_type(root_body, idn.name.clone())
+            thrown_name = guess_local_type(root_body, idn.name)
         case NodeType.FCall:
             if e.child(0).children.len().gt(0) {
                 switch e.child(0).child(0).node_type {
@@ -4589,7 +4614,7 @@ priv throw_type_name_for_with_body := proc(e: Expr, body: Expr) returns Str {
             }
         case: return ""
         }
-    case NodeType.Ident(idn): return guess_local_type(body, idn.name.clone())
+    case NodeType.Ident(idn): return guess_local_type(body, idn.name)
     case: return ""
     }
 }
@@ -4817,7 +4842,7 @@ priv rewrite_ident := proc(mut e: Expr, old_name: Str, new_name: Str) {
     switch e.node_type {
     case NodeType.Ident(ridn):
         if ident_name(ridn).eq(old_name) {
-            e.node_type = ident_node(new_name.clone())
+            e.node_type = ident_node(new_name)
         }
     case:
     }
@@ -5698,7 +5723,7 @@ priv process_throw_catch_in_body := proc(
                         register_throw_type(ctx, tn)
                         tag_direct := tag_for_type(ctx, tn, Vec.new(Str))
                         if tag_direct.gt(0) {
-                            new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.child(0).clone(), stmt_line, stmt_col))
+                            new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.child(0), stmt_line, stmt_col))
                             new_ch.push(own make_assign_stmt("_err_kind", make_int_lit(tag_direct, stmt_line, stmt_col), stmt_line, stmt_col))
                             vec_str_push_uniq(types_to_declare, tn)
                             vec_str_push_uniq(seen, tn)
@@ -5754,21 +5779,21 @@ priv process_throw_catch_in_body := proc(
                         }
                     }
                     if tn.len().eq(0) {
-                        tn = guess_local_type(root_body, idn.name.clone())
+                        tn = guess_local_type(root_body, idn.name)
                     }
                 case:
                 }
                 if tn.len().eq(0) {
                     switch stmt.child(0).node_type {
                     case NodeType.Ident(idn):
-                        tn = guess_prior_local_type_in_vec(old_snapshot, j, idn.name.clone())
+                        tn = guess_prior_local_type_in_vec(old_snapshot, j, idn.name)
                     case:
                     }
                 }
                 if tn.len().gt(0) { register_throw_type(ctx, tn) }
                 tag := tag_for_type(ctx, tn, Vec.new(Str))
                 if tn.len().gt(0).and(tag.gt(0)) {
-                    new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.child(0).clone(), stmt_line, stmt_col))
+                    new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.child(0), stmt_line, stmt_col))
                     new_ch.push(own make_assign_stmt("_err_kind", make_int_lit(tag, stmt_line, stmt_col), stmt_line, stmt_col))
                     vec_str_push_uniq(types_to_declare, tn)
                     vec_str_push_uniq(seen, tn)
@@ -5835,7 +5860,7 @@ priv process_throw_catch_in_body := proc(
                 continue
             }
             if seen_throwing {
-                mut wrapped := make_if_kind_eq_zero_wrap(stmt.clone(), stmt_line, stmt_col)
+                mut wrapped := make_if_kind_eq_zero_wrap(stmt, stmt_line, stmt_col)
                 new_ch.push(own wrapped)
             } else {
                 new_ch.push_take(old, j)
@@ -5850,7 +5875,7 @@ priv process_throw_catch_in_body := proc(
 
         // 8. Generic stmt: push (possibly wrapped in if-guard).
         if seen_throwing {
-            mut wrapped := make_if_kind_eq_zero_wrap(stmt.clone(), stmt_line, stmt_col)
+            mut wrapped := make_if_kind_eq_zero_wrap(stmt, stmt_line, stmt_col)
             new_ch.push(own wrapped)
         } else {
             new_ch.push_take(old, j)
@@ -7382,7 +7407,7 @@ rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, coll_
     old_args.move_from(fcall.children)
     fcall.children = Vec.new(Expr)
     Vec.delete(own old_args, false)
-    fcall.node_type = ident_node(coll_name.clone())
+    fcall.node_type = ident_node(coll_name)
     set_expr_til_type(fcall, coll_type)
 }
 

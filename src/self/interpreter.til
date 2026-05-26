@@ -462,7 +462,7 @@ is_value_ptr := func(v: Value) returns shallow Bool {
 // to read from.
 priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str) {
     if obj_sname.len().eq(0) { return }
-    ref tc : Cell = scope_get(scope, obj_sname.clone())
+    ref tc : Cell = scope_get(scope, obj_sname)
     if is_null(tc) { return }
     switch tc.val {
     case Value.Func(tptr):
@@ -564,7 +564,7 @@ eval_expr := proc(scope: Scope, e: Expr) returns shallow Value {
                         switch fdef.node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is(FuncType.ExtFunc) {
-                                ref tc : Cell = scope_get(scope, sname.clone())
+                                ref tc : Cell = scope_get(scope, sname)
                                 if is_null(tc).not() {
                                     switch tc.val {
                                     case Value.Func(eptr):
@@ -665,7 +665,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope) returns 
             ref sp : Str = p
             return make_str_value_own(sp.c_str, sp.count.to_u64())
         }
-        ref tc : Cell = scope_get(scope, type_name.clone())
+        ref tc : Cell = scope_get(scope, type_name)
         if is_null(tc).not() {
             switch tc.val {
             case Value.Func(fptr):
@@ -804,7 +804,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
             scope_set_owned(scope, dd.name, val)
         case NodeType.Assign(ad):
             ref rhs : Expr = stmt.child(0)
-            ref cell : Cell = scope_get(scope, ad.name.clone())
+            ref cell : Cell = scope_get(scope, ad.name)
             if is_null(cell) {
                 interp_error(stmt, "undefined variable '".concat(ad.name).concat("'"))
                 exit(1)
@@ -847,7 +847,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                     case:
                     }
                 }
-                ns_set(sname, fname.clone(), val)
+                ns_set(sname, fname, val)
                 if is_null(move_src).not() { memcpy(move_src.val, val_none(), Value.size()) }
             } else {
                 ref mut base : Dynamic = resolve_field_assign_base(scope, stmt.child(0))
@@ -898,7 +898,7 @@ eval_body := proc(scope: Scope, mut body: Expr) {
                     interp_error(stmt, "field assign on non-struct")
                     exit(1)
                 }
-                ref fdecl : Declaration = find_field_decl(cur_sdef, fname.clone())
+                ref fdecl : Declaration = find_field_decl(cur_sdef, fname)
                 write_field(base, fdecl, val)
                 if is_null(move_src).not() {
                     if move_src.val.is(Value.Func).not() {
@@ -1003,7 +1003,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                             fp_flat := qn.replace(".", "_")
                             orig_callee := callee_expr.clone()
                             mut flat_ident := callee_expr.clone()
-                            flat_ident.node_type = ident_node(fp_flat.clone())
+                            flat_ident.node_type = ident_node(fp_flat)
                             // Replace the inline Expr slot through Vec so the
                             // old callee gets dropped before we swap in the
                             // flattened Ident.
@@ -1027,7 +1027,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
         }
         if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)) {
             parent_sname := til_type_name(expr_til_type(callee_expr.child(0)))
-            ref tc : Cell = scope_get(scope, parent_sname.clone())
+            ref tc : Cell = scope_get(scope, parent_sname)
             if is_null(tc).not() {
                 switch tc.val {
                 case Value.Func(tc_fptr):
@@ -1078,7 +1078,7 @@ eval_call := proc(scope: Scope, e: Expr) returns shallow Value {
                 }
                 orig_callee_val := callee_expr.clone()
                 mut flat_ident2 := callee_expr.clone()
-                flat_ident2.node_type = ident_node(flat_str.clone())
+                flat_ident2.node_type = ident_node(flat_str)
                 // Replace the inline Expr slot through Vec so the old callee
                 // gets dropped before we swap in the flattened Ident.
                 e.children.replace(0, own flat_ident2)
@@ -1615,7 +1615,7 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
 
 interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow Bool {
     ref obj_expr : Expr = e.child(0)
-    ref tc : Cell = scope_get(scope, sname.clone())
+    ref tc : Cell = scope_get(scope, sname)
     if is_null(tc) { return false }
     switch tc.val {
     case Value.Func(fptr):
@@ -1721,9 +1721,9 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     write_field(inst_data, ba_cap_d, val_u32(count.to_i64()))
     ref ba_esz_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_size")
     write_field(inst_data, ba_esz_d, val_u32(esz.to_i64()))
-    ref clone_fn : Value = ns_get(elem_type.clone(), "clone")
+    ref clone_fn : Value = ns_get(elem_type, "clone")
     if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_clone"); write_field(inst_data, ba_ec_d, shallow_copy_value(clone_fn)) }
-    ref delete_fn : Value = ns_get(elem_type.clone(), "delete")
+    ref delete_fn : Value = ns_get(elem_type, "delete")
     if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(lp.ctx.cached_array_def, "elem_delete"); write_field(inst_data, ba_ed_d, shallow_copy_value(delete_fn)) }
     return make_struct_value(lp.ctx.cached_array_name, lp.ctx.cached_array_def, to_ptr(inst_data), false)
 }

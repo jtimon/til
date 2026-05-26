@@ -296,7 +296,7 @@ expand_jumps := func(mut cells: Array, piece_pos: I64, side: I64,
         ref jmp : I64 = tmp_j.get(j.to_u32())
         mut child := Array.new(I64, 64)
         copy_board(child, cells)
-        new_piece := execute_move(child, piece_pos, dest.clone(), jmp.clone())
+        new_piece := execute_move(child, piece_pos, dest, jmp)
         ref orig : I64 = cells.get(piece_pos.to_u32())
         mut was_promoted := false
         if orig.eq(1).and(new_piece.eq(2)) { was_promoted = true }
@@ -307,7 +307,7 @@ expand_jumps := func(mut cells: Array, piece_pos: I64, side: I64,
             checkers_pack(b2, child, opp2)
             result.push(own b2)
         } else {
-            expand_jumps(child, dest.clone(), side, result, tmp_m, tmp_j)
+            expand_jumps(child, dest, side, result, tmp_m, tmp_j)
         }
         j = j.add(1)
     }
@@ -340,7 +340,7 @@ checkers_next_boards : NextBoardsFn = (b) {
                     ref dest : I64 = tmp_m.get(j.to_u32())
                     mut child := Array.new(I64, 64)
                     copy_board(child, cells)
-                    execute_move(child, i, dest.clone(), -1)
+                    execute_move(child, i, dest, -1)
                     opp := 3.sub(side)
                     mut nb := Board()
                     checkers_pack(nb, child, opp)
@@ -468,7 +468,7 @@ main := proc() {
                             ref jmp : I64 = tmp_jumped.get(mj.to_u32())
                             mut child := Array.new(I64, 64)
                             copy_board(child, board)
-                            execute_move(child, multi_jump_idx, dest.clone(), jmp.clone())
+                            execute_move(child, multi_jump_idx, dest, jmp)
                             mut child_b := Board()
                             checkers_pack(child_b, child, human_side)
                             score := 0.sub(ai.search(child_b))

@@ -210,9 +210,12 @@ test_clone := test() {
     num := 42
     s   := "hello"
     bv  := true
-    assert_eq(__LOC__, num.clone(), 42)
-    assert_eq_str(__LOC__, s.clone(), "hello")
-    assert(__LOC__, bv.clone())
+    num_c := num.clone()
+    s_c   := s.clone()
+    bv_c  := bv.clone()
+    assert_eq(__LOC__, num_c, 42)
+    assert_eq_str(__LOC__, s_c, "hello")
+    assert(__LOC__, bv_c)
 }
 
 test_delete := test() {

@@ -2594,7 +2594,7 @@ priv init_rename_ident_in_place := func(mut e: Expr, renamings: Map) {
     case NodeType.Ident(name):
         new_name := init_lookup_name(renamings, ident_name(name))
         if new_name.len().gt(0) {
-            e.node_type = ident_node(new_name.clone())
+            e.node_type = ident_node(new_name)
         }
     case NodeType.Assign(ad):
         // Assignments to a renamed top-level priv: `local_counter = ...`
@@ -2724,10 +2724,10 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
             if slot_rhs.node_type.is(NodeType.FuncDef) {
                 if slot_rhs.children.len().gt(0) {
                     ref mut fbody : Expr = slot_rhs.child(0)
-                    init_lift_in_body(fbody, slot_dd.name.clone(), top_level)
+                    init_lift_in_body(fbody, slot_dd.name, top_level)
                 }
             } else if slot_rhs.node_type.is(NodeType.StructDef).or(slot_rhs.node_type.is(NodeType.EnumDef)) {
-                init_lift_in_ns_decls(slot_rhs, slot_dd.name.clone(), top_level)
+                init_lift_in_ns_decls(slot_rhs, slot_dd.name, top_level)
             }
             top_level.push(own slot.clone())
         case:
@@ -2749,7 +2749,7 @@ priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_le
             if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
             if nd.default_value.children.len().eq(0) { continue }
             ref mut nbody : Expr = nd.default_value.child(0)
-            init_lift_in_body(nbody, parent_prefix.clone(), top_level)
+            init_lift_in_body(nbody, parent_prefix, top_level)
         }
     case NodeType.EnumDef(ld_edd):
         for mut nd : Declaration in ld_edd.ns_decls {
@@ -2757,7 +2757,7 @@ priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_le
             if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
             if nd.default_value.children.len().eq(0) { continue }
             ref mut nbody : Expr = nd.default_value.child(0)
-            init_lift_in_body(nbody, parent_prefix.clone(), top_level)
+            init_lift_in_body(nbody, parent_prefix, top_level)
         }
     case:
     }
@@ -2840,7 +2840,7 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
         switch lstmt.node_type {
         case NodeType.Decl(lift_dd):
             ref mut lbody : Expr = lrhs.child(0)
-            init_lift_in_body(lbody, lift_dd.name.clone(), nested_lifted)
+            init_lift_in_body(lbody, lift_dd.name, nested_lifted)
         case:
             UNREACHABLE(__LOC__)
         }

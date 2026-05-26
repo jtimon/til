@@ -176,7 +176,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
             source := File.readfile(abs)
             tokens := tokenize(source, disp)
             mut sub_mode := ""
-            sub_ast := parse(tokens, disp.clone(), sub_mode)
+            sub_ast := parse(tokens, disp, sub_mode)
             sub_mode = normalize_mode_name(sub_mode)
             ref sub_mode_def : Mode = require_mode(disp, sub_mode)
             context_register_path_mode(ctx, disp, sub_mode_def)
@@ -705,7 +705,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     core_source := File.readfile(core_path)
     core_tokens := tokenize(core_source, core_disp)
     mut core_mode_str := ""
-    core_ast := parse(core_tokens, core_disp.clone(), core_mode_str)
+    core_ast := parse(core_tokens, core_disp, core_mode_str)
     ref core_mode : Mode = require_mode(core_disp, "lib")
     context_register_path_mode(lp.ctx, core_disp, core_mode)
 
@@ -736,7 +736,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     source := File.readfile(path)
     tokens := tokenize(source, path)
     mut mode_str := ""
-    user_ast := parse(tokens, path.clone(), mode_str)
+    user_ast := parse(tokens, path, mode_str)
     imports := extract_imports(user_ast, path)
     mode_str = normalize_mode_name(mode_str)
     ref mut cur_mode : Mode = require_mode(path, mode_str)

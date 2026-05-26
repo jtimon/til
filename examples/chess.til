@@ -698,7 +698,7 @@ chess_next_boards : NextBoardsFn = (b) {
                 copy_board(child_cells, cells)
                 mut child_cf := Array.new(I64, 6)
                 copy_cf(child_cf, cf)
-                child_ep := execute_move(child_cells, i, dest.clone(), side, child_cf)
+                child_ep := execute_move(child_cells, i, dest, side, child_cf)
                 opp := 1.sub(side)
                 mut nb := Board()
                 chess_pack(nb, child_cells, opp, child_ep, child_cf)

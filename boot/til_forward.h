@@ -1317,6 +1317,7 @@ void check_ref_field_owned_default(Declaration * fd, TypeScope * scope);
 void check_ref_assign_owned_rhs(Expr * stmt, Str * target_name, Expr * rhs, TypeScope * scope);
 void check_ref_local_null_init(Expr * stmt);
 Bool infer_func_ptr_field_call(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Expr * sdef, Str * method, I32 in_func, Context * ctx);
+Bool is_clone_fcall(Expr * e);
 void validate_fcall_own_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind);
 Bool infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
 void desugar_user_func_fcall_args(Expr * e, Str * name, TypeBinding * callee_bind);

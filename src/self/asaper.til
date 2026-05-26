@@ -474,7 +474,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
                         switch _clone_arg.node_type {
                         case NodeType.Ident(_clone_arg_name):
                             if ident_name(_clone_arg_name).eq(local.name) {
-                                mut _bare := Expr.new(ident_node(local.name.clone()), _fa_rhs.line, _fa_rhs.col)
+                                mut _bare := Expr.new(ident_node(local.name), _fa_rhs.line, _fa_rhs.col)
                                 set_expr_til_type(_bare, local.type.clone())
                                 free_expr_slot_in_place(stmt.children.get(1))
                                 stmt.children.set(1, own _bare)
@@ -519,7 +519,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
                         switch clone_arg.node_type {
                         case NodeType.Ident(clone_arg_name):
                             if ident_name(clone_arg_name).eq(local.name) {
-                                mut bare_ident := Expr.new(ident_node(local.name.clone()), assign_rhs.line, assign_rhs.col)
+                                mut bare_ident := Expr.new(ident_node(local.name), assign_rhs.line, assign_rhs.col)
                                 set_expr_til_type(bare_ident, local.type.clone())
                                 free_expr_slot_in_place(stmt.children.get(0))
                                 stmt.children.set(0, own bare_ident)

@@ -594,7 +594,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
     mut call := Expr.new(NodeType.FCall(FCallData()), call_line, call_col)
 
     // first child is the callee identifier
-    mut callee := Expr.new(ident_node(name.clone()), call_line, call_col)
+    mut callee := Expr.new(ident_node(name), call_line, call_col)
     call.add_child(own callee)
 
     // parse arguments
@@ -702,7 +702,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
     }
     if e_set.not().and(t.type.is(TokenType.Number)) {
         advance(p)
-        e = Expr.new(literal_num_node(t.text.clone()), t_line, t_col)
+        e = Expr.new(literal_num_node(t.text), t_line, t_col)
         e_set = true
     }
     // Unary minus: -N (literal) parses as a single negative numeric
@@ -714,7 +714,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             if next_tok.type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
-                e = Expr.new(literal_num_node("-".concat(num_tok.text.clone())), t_line, t_col)
+                e = Expr.new(literal_num_node("-".concat(num_tok.text)), t_line, t_col)
                 e_set = true
             } else {
                 advance(p) // consume '-'
@@ -1183,7 +1183,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
 
     // Field access/assign or method call: name.field...
     if check(p, TokenType.Dot) {
-        mut obj := Expr.new(ident_node(name.clone()), t_line, t_col)
+        mut obj := Expr.new(ident_node(name), t_line, t_col)
         mut last_field := ""
         mut last_line : U32 = 0
         mut last_col : U32 = 0
@@ -1194,7 +1194,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             last_field = expect_text(p, TokenType.Ident)
             if check(p, TokenType.Dot) {
                 // More dots — intermediate access
-                mut access := Expr.new(field_access_node(last_field.clone()), last_line, last_col)
+                mut access := Expr.new(field_access_node(last_field), last_line, last_col)
                 access.add_child(own obj.clone())
                 obj = access
             }
@@ -1287,7 +1287,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             if is_inc2 { method2 = "inc" }
             mut facc := Expr.new(field_access_node(last_field), last_line, last_col)
             facc.add_child(own obj.clone())
-            mut inc_acc := Expr.new(field_access_node(method2.clone()), pp2_line, pp2_col)
+            mut inc_acc := Expr.new(field_access_node(method2), pp2_line, pp2_col)
             inc_acc.add_child(own facc)
             mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp2_line, pp2_col)
             inc_call.add_child(own inc_acc)
@@ -1322,8 +1322,8 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
         advance(p)
         mut method := "dec"
         if is_inc { method = "inc" }
-        mut ident := Expr.new(ident_node(name.clone()), t_line, t_col)
-        mut acc := Expr.new(field_access_node(method.clone()), pp_line, pp_col)
+        mut ident := Expr.new(ident_node(name), t_line, t_col)
+        mut acc := Expr.new(field_access_node(method), pp_line, pp_col)
         acc.add_child(own ident)
         mut call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col)
         call.add_child(own acc)
@@ -1582,8 +1582,8 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.LBrace)
         mut body := parse_block(p)
         mut cn := Expr.new(NodeType.Catch, t_line, t_col)
-        cn.add_child(own Expr.new(ident_node(var_name.clone()), v_line, v_col))
-        cn.add_child(own Expr.new(ident_node(type_name.clone()), ty_line, ty_col))
+        cn.add_child(own Expr.new(ident_node(var_name), v_line, v_col))
+        cn.add_child(own Expr.new(ident_node(type_name), ty_line, ty_col))
         cn.add_child(own body)
         return cn
     }
