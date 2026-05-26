@@ -1,15 +1,17 @@
 # priority: low
-** OPEN #212 Consider a `cast(T) expr` builtin (and `xx`-style autocast) to replace the integer `.to_*` conversion matrix
+** OPEN #212 Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
 
 *** Summary
 
 til converts between primitive types with an N x M matrix of hand-written
-`.to_<Type>()` methods, each backed by a trivial extern C function. Jai
-instead has a single `cast(T) expr` builtin (plus an `xx` autocast
-operator). This issue records the comparison and proposes adopting a
-`cast`-style construct for the *numeric width/sign* conversions, while
-KEEPING the method form for conversions that are really parsing or
-formatting (notably `to_str` and `Str.to_*`).
+`.to_<Type>()` methods, each backed by a trivial extern C function. This
+issue proposes a single `cast` builtin for the *numeric width/sign*
+conversions, while KEEPING the method form for conversions that are
+really parsing or formatting (notably `to_str` and `Str.to_*`).
+
+The chosen interface (see "Interface" below) is a two-argument builtin
+`cast(e, T)` callable UFCS-style as `e.cast(T)`, NOT Jai's prefix
+`cast(T) expr`. The Jai form is kept below as background/contrast.
 
 Filed for discussion. Language-design call, not a defect -- til is
 correct as-is. Low priority.
@@ -30,6 +32,45 @@ correct as-is. Low priority.
 The structural point: `cast` is one builtin keyed on the TARGET type,
 and `xx` reads the target from context. Neither needs a per-type method
 to exist.
+
+*** Interface (decided): `cast(e, T)`, UFCS-callable
+
+Rather than copy Jai's prefix operator, til models `cast` as an ordinary
+two-argument builtin so it composes with existing machinery (UFCS,
+Dynamic, and type-name-as-argument) and needs NO new keyword or grammar:
+
+    cast := ext_func(e: Dynamic, T: Type) returns Dynamic {}
+
+Usage, plain and UFCS:
+
+    a : U32 = 0
+    b : I32 = cast(a, I32)      // plain call
+    b : I32 = a.cast(I32)       // UFCS, the intended spelling
+
+Design notes:
+
+  - `returns Dynamic` is a STOPGAP. The true signature is
+    `cast(e: Dynamic, T: Type) returns T` -- the result type is the
+    *value* of the T argument -- but til has no dependent/type-parametric
+    return syntax yet. Until it does, `cast` declares `returns Dynamic`
+    and the typer special-cases it (see below). When a `returns T` form
+    lands, drop the special-case and the stopgap.
+  - Typer special-case: when resolving a `cast` call, read the second
+    argument's `Type` value and set the call expression's result type to
+    exactly that type -- NOT generic `Dynamic`. That makes
+    `b : I32 = a.cast(I32)` type-check directly instead of leaning on
+    Dynamic->I32 narrowing at the assignment.
+  - `T: Type` as an argument reuses the same type-name-as-value mechanism
+    that `Vec.new(Str)` / `Set.new(Str)` already rely on; the parser/typer
+    turns the type name `I32` in argument position into a `Type` value.
+  - UFCS: `a.cast(I32)` desugars to `cast(a, I32)` through the existing
+    `try_ufcs_rewrite` path, so `cast` is reachable as a method on any
+    value without per-type definitions.
+  - Codegen: the builder intercepts `cast` and emits `(<CType>)e`; there
+    is no real C body despite the `ext_func` shape (like other builtins).
+  - Ergonomics: `b : I32 = a.cast(I32)` restates `I32` on both sides.
+    That is the accepted cost of NOT adopting `xx`-style autocast; the
+    explicit target at the call site doubles as the safety contract.
 
 *** How til does it today
 
@@ -66,24 +107,26 @@ to exist.
   0. The motivating case: same-width sign reinterpret. Turning a U64
      into an I64 (or U32<->I32) is a free, no-op reinterpret at the
      machine level -- the bits do not change, and til already emits it
-     as a bare C cast. A `cast(I64) u` keeps that zero cost and C
+     as a bare C cast. `u.cast(I64)` keeps that zero cost and C
      semantics under ONE spelling, replacing the current pile of
      per-type methods (I64.to_u64, U64.to_i64, plus the dead, redundant
      U64.from_i64) that all compile to the same `(T)x`.
-  1. No N x M method matrix. `cast(I32) x` works for any numeric x.
+  1. No N x M method matrix. `x.cast(I32)` works for any value x.
      Adding a new numeric type today means writing conversions to/from
      every existing type in three places (.til, ext.h, ext.c); with
      `cast` it is zero.
   2. Deletes the C backing surface. The `U8_to_i64`-style functions are
      just `(I64)a`; codegen can emit the C cast inline, dropping the
      conversion block in ext.h/ext.c and the .til wrappers.
-  3. `xx` removes redundant restatement: `mut x: I32 = xx y` -- the
-     target type is already on the LHS, so `.to_i32()` just repeats it.
-     This also makes `is_self_conversion_method` unnecessary (no method
-     name left to get wrong).
+  3. Collapses many method names into one. `is_self_conversion_method`
+     (the typer guard rejecting `x.to_u32()` on a U32) becomes
+     unnecessary -- there is no per-type conversion method name left to
+     misuse; the target is just the T argument to one `cast`. (til does
+     NOT adopt Jai's `xx` autocast; the target is always written
+     explicitly as T.)
   4. No hub-routing: `cast` goes direct, losing the `.to_i64().to_i32()`
      two-step that exists only because the direct pair was not authored.
-  5. Uniform across kinds: the same syntax could later cover pointer and
+  5. Uniform across kinds: the one builtin could later cover pointer and
      enum casts, which today would each need bespoke methods.
 
 *** What to KEEP as methods (the dividing line)
@@ -95,10 +138,10 @@ algorithm. Those are not casts and should not masquerade as one.
   - `to_str` on every type -- it is FORMATTING, not reinterpretation: it
     allocates a heap Str, and for floats/uints runs real logic
     (F32_to_str uses sprintf, U64_to_str_ext is a divide-by-10 loop --
-    src/c/ext.c:399+,464+). `cast(Str) 42` would be a lie. KEEP to_str.
+    src/c/ext.c:399+,464+). `42.cast(Str)` would be a lie. KEEP to_str.
   - `Str.to_i64` / `to_f32` / `to_u8` ... -- PARSING with validation that
     panics on bad input (src/core/str.til:265,314). It is a fallible
-    function, not a bit-level cast; `cast(I64) "123"` should not silently
+    function, not a bit-level cast; `"123".cast(I64)` should not silently
     parse. KEEP these.
   - F32 <-> integer -- the one case where `cast` is NOT free. Same-width
     int sign-reinterpret and int narrowing are pure bit operations, but
@@ -111,27 +154,35 @@ algorithm. Those are not casts and should not masquerade as one.
 
 *** Leads to pursue (open questions)
 
-  - Lexer/parser: introduce `cast` as a keyword + `cast(T) expr` grammar.
-    Does the `cast,no_check` / `cast,trunc` modifier syntax fit til, or
-    do we want a simpler split (checked vs unchecked) or none at all?
-  - Typer: where does numeric conversion legality live today, and where
-    would a `cast` node be type-checked? (infer_field_access_fcall and
-    the surrounding numeric rules in src/self/typer.til.)
+  - No new grammar needed. `a.cast(I32)` is an ordinary UFCS method call
+    with a type-name argument -- syntax the parser already handles (cf.
+    `Vec.new(Str)`). So the lexer/parser need no `cast` keyword and no
+    prefix form. The work is in the TYPER (special-case the result type)
+    and BUILDER (emit `(<CType>)e`), not the front end.
+  - Typer: where to register the `cast` special-case. It must (a) accept
+    `e: Dynamic, T: Type`, (b) read the T-argument's `Type` value, (c)
+    set the call's result type to that T (not Dynamic), (d) restrict the
+    legal pairs (initially: same-size integer reinterpret -- exclude F32
+    and Bool). Likely near infer_field_access_fcall / the UFCS rewrite
+    and the numeric rules in src/self/typer.til.
+  - Builder: intercept `cast` calls and emit a C cast `(<til_type_name_c
+    of T>)e` instead of a function call. No ext.c body is generated.
   - Runtime checks: DECIDED -- `cast` is free, C-style, at the
-    programmer's own risk. No range check, no panic; explicitness at the
-    call site IS the safety contract. This is the opposite of Jai's
-    debug-time narrowing check. (If a *checked* conversion is ever
-    wanted, it stays a
-    named method/function, distinct from `cast`, so the cost is visible
-    in the name -- not folded into `cast`.)
-  - Autocast (`xx`): is context-directed inference worth the typer
-    complexity, or is value-directed `cast(T)` alone enough? `xx` needs
-    the typer to thread an expected-type downward into the expression.
+    programmer's own risk. No range check, no panic; the explicit T at
+    the call site IS the safety contract. (If a *checked* conversion is
+    ever wanted, it stays a named method/function, distinct from `cast`,
+    so the cost is visible in the name -- not folded into `cast`.)
+  - Dependent return type: the honest signature is
+    `cast(e: Dynamic, T: Type) returns T`. Once til gains a way to spell
+    a return type that depends on a `Type`-valued argument, drop the
+    `returns Dynamic` stopgap and the typer special-case for the result
+    type (the legal-pair check still stays).
   - Pointer/enum casts: scope whether `cast` should subsume any existing
-    pointer/enum-int conversions or stay numeric-only at first.
-  - Migration: a codemod from `expr.to_i32()` to `cast(I32) expr` for the
-    integer pairs, leaving to_str and Str.to_* untouched. Audit call
-    sites for the hub-chained forms (`.to_i64().to_i32()`).
+    pointer/enum-int conversions or stay integer-only at first.
+  - Migration: a codemod from `expr.to_i32()` to `expr.cast(I32)` for the
+    same-size integer pairs only (receiver type must match the target
+    width), leaving to_str, Str.to_*, and the widening/narrowing
+    conversions untouched. Audit hub-chained forms (`.to_i64().to_i32()`).
 
 *** Possible immediate actions (small, independent of the big decision)
 
@@ -154,19 +205,23 @@ Low-hanging fruit, in increasing order of effort:
      self.to_i64().to_i32()). Documenting it in doc/ makes the chaining
      look intentional rather than like missing methods. Skip this if
      `cast` is accepted -- `cast` removes the matrix entirely.
-  3. Implement the `cast(T) expr` machinery (parser/typer/builder/ast)
-     WITHOUT using it in src/, plus a test under test/ (compiled by the
-     freshly built bin/til, so bootstrap-safe in one commit). This is the
-     real first step of the feature; bigger than 1-2 but self-contained.
-     The call-site migration + same-size method removal must follow in a
-     SEPARATE commit, after this one lands on master (HEAD's til_boot
-     cannot parse `cast` until then -- see doc/self.org "Staged migration
-     across master merges").
+  3. Implement the `cast(e, T)` builtin: declare the `cast` ext_func,
+     add the typer special-case (result type = T; same-size integer
+     pairs only) and the builder emit (`(<CType>)e`), WITHOUT using cast
+     in src/, plus a test under test/ exercising `a.cast(I32)` (compiled
+     by the freshly built bin/til, so bootstrap-safe in one commit).
+     Note: there is NO new grammar, so HEAD's til_boot can already PARSE
+     `a.cast(I32)`; the staging is the milder emit-side kind
+     (doc/self.org "preparation + use commits" / two_pass), because
+     HEAD's boot does not yet know cast's typer/codegen behaviour. The
+     call-site migration + same-size method removal therefore follow in a
+     SEPARATE commit, after this one lands on master.
 
 *** Notes
 
   - This came out of a research task comparing Jai's cast to til's
-    `.to_*` methods; no code was changed.
+    `.to_*` methods. Immediate action 1 (remove the dead U64.from_i64)
+    has since landed; the `cast` builtin itself is not yet implemented.
   - Decision is a genuine open choice: keep the explicit method matrix
     (discoverable, greppable, per-type) vs a single cast builtin (terse,
     no boilerplate, no C backing). Both are defensible.
