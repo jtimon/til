@@ -284,6 +284,25 @@ way through.
 - When told "in the whole codebase", that means every file, every path, every occurrence. No exceptions.
 - When the user asks you a question, stop whatever you're doing and answer his questions. They're not rhetorical questions and even if they are, or socratic method, you answer them the best you can and completely honestly.
 
+## Remote master ref can mirror your own branch (remote sessions)
+
+In the hosted sandbox the remote `master` ref is NOT a reliable view of
+the human's authoritative master. After you push (or force-push) your
+assigned feature branch, `git fetch origin master` / `origin/master` can
+come back pointing at your OWN just-pushed commit -- so `git merge-base
+HEAD origin/master` equals your HEAD and the branch looks "already
+merged" when it is not. (This is the misunderstanding behind a session
+that rebased, pushed, then wrongly reported "already merged, nothing to
+do" instead of surfacing the branch.)
+
+Never conclude your work is merged, and never skip pushing, on that
+basis. A remote session's job ends at: commit, push the feature branch,
+and report the branch name so the human can merge it manually. Always
+push and always surface the branch name even when origin/master appears
+to already contain your commit. For "Declaring Your Commit", take the
+true master base from the SHA the human gives you rather than trusting
+origin/master.
+
 ## Rebasing (remote sessions)
 
 When rebasing a feature branch on top of origin/master, do NOT abort on
