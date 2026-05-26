@@ -352,7 +352,6 @@ typedef struct FCallData {
     I32 variadic_index;
     U32 variadic_count;
     I32 kwargs_index;
-    U32 kwargs_count;
     Bool is_splat;
     Bool does_throw;
     Bool is_bang;
@@ -1104,6 +1103,7 @@ Str * func_type_variant_name(FuncType * ft);
 Str * node_head_str(NodeType * data);
 Str * expr_to_str_indent(Expr * self, U32 indent);
 Str * func_type_name(FuncType * ft);
+U32 * fcall_kwargs_count(Expr * fcall);
 Bool is_decl_with_child(Expr * stmt);
 Bool is_struct_or_enum(Expr * stmt);
 Bool is_func_decl(Expr * stmt);

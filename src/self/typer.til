@@ -895,12 +895,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
         }
         mut fkc : U32 = 0
         if fkwi.gte(0) {
-            switch e.node_type {
-            case NodeType.FCall(fcall_data1):
-                fkc = fcall_data1.kwargs_count
-            case:
-                UNREACHABLE(__LOC__)
-            }
+            fkc = fcall_kwargs_count(e)
         }
         mut ci : U32 = 1
         mut pi : U32 = 0
@@ -1211,7 +1206,6 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
                     for kwi2 in 0..kw_count {
                         new_ch.push_take(kw_args, kwi2)
                     }
-                    fcall_data.kwargs_count = kw_count
                 case:
                     UNREACHABLE(__LOC__)
                 }
@@ -1329,12 +1323,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         }
         mut fkc : U32 = 0
         if fkwi.gte(0) {
-            switch e.node_type {
-            case NodeType.FCall(fcall_data1):
-                fkc = fcall_data1.kwargs_count
-            case:
-                UNREACHABLE(__LOC__)
-            }
+            fkc = fcall_kwargs_count(e)
         }
         mut ci : U32 = 1
         mut pi : U32 = 0
@@ -7797,7 +7786,7 @@ process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mu
         }
         if has_kwargs.and(fcall_data.kwargs_index.gte(0)) {
             ki := fcall_data.kwargs_index
-            kc := fcall_data.kwargs_count
+            kc := fcall_kwargs_count(e)
             kw_name := "_kw".concat(ctx.kw_counter.to_str())
             ctx.kw_counter++
             kw_decl := build_kwargs_dynmap_decl(e, kw_name)
@@ -8435,7 +8424,7 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
         ki := fcd.kwargs_index
-        kc := fcd.kwargs_count
+        kc := fcall_kwargs_count(fcall)
         old_own := fcd.own_args
         mut old_args := Vec.new(Expr)
         old_args.move_from(fcall.children)
@@ -8488,7 +8477,6 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
         fcall.children.move_from(fcall_new_ch)
         fcd.own_args = new_own
         fcd.kwargs_index = -1
-        fcd.kwargs_count = 0
     case:
         UNREACHABLE(__LOC__)
     }

@@ -102,14 +102,31 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    - Step 4 -- remove ~Declaration.field_offset~ /
      ~field_size~ / ~field_struct_def~ and ~StructDef.total_struct_size~
      / ~EnumDef.total_enum_size~. Blocked on step 3.
-   - Step 7 remainder -- with ~fn_sig~ already gone, six typer-
-     resolution fields remain on ~FCallData~ (~variadic_index~,
-     ~variadic_count~, ~kwargs_index~, ~kwargs_count~, ~is_splat~,
-     ~own_args~). Compute on demand from the resolved callee
-     ~FunctionDef~, same lookup pattern that replaced ~fn_sig~. Note:
-     rstil's ~FCallInfo~ also has ~does_throw~ / ~is_bang~ parse facts
-     that til doesn't track yet -- those are additions, not
-     replacements for the typer-artifact fields.
+   - Step 7 remainder -- with ~fn_sig~ already gone, the typer-
+     resolution fields on ~FCallData~ are being trimmed. Re-auditing
+     the original "six fields, none are parse facts" claim corrected
+     it: ~is_splat~ is a *parse fact* (the parser sets it from
+     ~..expr~ call syntax; it is read only inside the typer and
+     cleared before builder, and cannot be recomputed from the
+     callee), and ~own_args~ is a *mix* (the parser sets bits from
+     ~own expr~ argument syntax, then the typer syncs/shifts them).
+     Both belong in the same keep-bucket as the genuine parse facts
+     ~does_throw~ (#198) and ~is_bang~ (#202), which til now tracks.
+     The genuine typer-resolution artifacts are the four count/index
+     fields ~variadic_index~, ~variadic_count~, ~kwargs_index~,
+     ~kwargs_count~. Of those, ~kwargs_count~ has been *removed*:
+     kwargs is always the last parameter (the parser forbids any
+     parameter after kwargs), so the per-call kwargs arg count is the
+     trailing-children count, derived via ~fcall_kwargs_count~
+     (children length minus ~kwargs_index~) -- callee-free, valid even
+     after the variadic rewrite shifts ~kwargs_index~. ~variadic_count~
+     is *kept*: default-valued params may follow a variadic, so the
+     variadic block is not trailing and its count needs the callee's
+     param layout, which the variadic desugar sites lack -- that
+     removal belongs with the index-field work. The two index fields
+     survive into builder/interpreter, so removing them is the broad
+     "compute on demand from the resolved callee ~FunctionDef~" work,
+     same lookup pattern that replaced ~fn_sig~.
    - Step 11 (stretch) -- *done* (via ~[[./206.org][#206]]~). ~Expr.til_type~ removed;
      ~expr_til_type~ is now a pure function of ~node_type~ + payload
      (no per-Expr storage). The hybrid path won: per-variant type
@@ -135,7 +152,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    | ~Expr~       | 5 fields: ~node_type, til_type, children, line, col~                                                                   | 4 fields: ~node_type, params, line, col~                       |
    | ~Declaration~ | 10 fields: ~name, doc, explicit_type, is_mut, own_type, til_type, field_offset, field_size, field_struct_def, default_value~ | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
    | ~Context~    | 10 fields: ~mode, path, path_modes, imported, imports_init_done, imports_typer_done, imports_precomp_done, imports_eval_done, scope, is_repl~ | ~19 fields: mode_def, path, scope_stack, temp_enum_payload, imported_asts, imported_modes, imports_*_done x4 Sets, current_precomp_func, precomp_forin_counter, precomputed_heap_values, anon_{struct,enum,func}_counter, anon_{struct,enum}_decls, anon_func_map |
-   | ~FCallData~  | 6 fields: ~variadic_index, variadic_count, kwargs_index, kwargs_count, is_splat, own_args~                             | 2 fields: ~does_throw, is_bang~                                |
+   | ~FCallData~  | ~variadic_index, variadic_count, kwargs_index, is_splat, does_throw, is_bang, own_args, til_type~ (kwargs_count removed -- derived via fcall_kwargs_count) | 2 fields: ~does_throw, is_bang~                                |
    | ~StructDef~  | 4 fields: ~total_struct_size, fields, ns_decls, c_tag~                                                                 | 3 fields: ~members, default_values, ns~                        |
    | ~EnumDef~    | 4 fields: ~ns_decls, variants, payload_types, total_enum_size~                                                         | 3 fields: ~variants, methods, ns~                              |
 
@@ -272,21 +289,31 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    **** FCallData resolution artifacts (step 7)
 
    ~fn_sig~ has been removed; readers now scope-walk via
-   ~resolve_fn_sig~ / ~fcall_fn_sig~. Six typer-written fields remain
-   on ~FCallData~: ~variadic_index~, ~variadic_count~, ~kwargs_index~,
-   ~kwargs_count~, ~is_splat~, ~own_args~. None are parse facts.
+   ~resolve_fn_sig~ / ~fcall_fn_sig~. The remaining ~FCallData~ fields
+   split into two groups, contrary to the original "none are parse
+   facts" note:
 
-   Path forward: compute on demand during desugar from the resolved
-   ~FunctionDef~ (rstil's approach), reusing the same lookup that
-   replaced ~fn_sig~. A side table keyed on Expr identity
+   - Parse facts (keep): ~is_splat~ (set from ~..expr~ call syntax),
+     ~own_args~ (bits set from ~own expr~ argument syntax, later
+     synced/shifted by the typer), ~does_throw~ (#198, ~?~ suffix),
+     ~is_bang~ (#202, ~!~ suffix). til now tracks ~does_throw~ /
+     ~is_bang~, matching rstil's ~FCallInfo~.
+   - Typer-resolution artifacts: ~variadic_index~, ~variadic_count~,
+     ~kwargs_index~, ~kwargs_count~. ~kwargs_count~ is *removed* --
+     derived via ~fcall_kwargs_count~ (children length minus
+     ~kwargs_index~) because kwargs is the trailing children block
+     (parser forbids any parameter after kwargs). ~variadic_count~ is
+     *kept* for now: a variadic may be followed by default-valued
+     params, so its block is not trailing and the count needs the
+     callee's param layout. The two index fields survive into
+     builder/interpreter.
+
+   Path forward for the index fields: compute on demand during desugar
+   from the resolved ~FunctionDef~ (rstil's approach), reusing the same
+   lookup that replaced ~fn_sig~. A side table keyed on Expr identity
    (~Map<Expr-id, FCallResolution>~) was considered earlier but
    rejected for the same reason as the ~Expr.til_type~ side-table
    option above: til has decided against node IDs.
-
-   Note: rstil's ~FCallInfo~ also tracks ~does_throw~ / ~is_bang~
-   parse facts (whether the call is ~?~ or ~!~). til doesn't store
-   those today; adding them is orthogonal to removing the typer
-   artifacts above.
 
    **** explicit_type / til_type duplication (step 5 finish)
 

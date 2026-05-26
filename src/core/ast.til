@@ -233,12 +233,15 @@ namespace:
 }
 
 // --- FCall payload struct ---
-/// Per-callsite data for function calls: variadic/kwargs counts, own_args bitmap.
+/// Per-callsite data for function calls: variadic index/count, kwargs
+/// index, own_args bitmap, result type. The kwargs arg count is not
+/// stored: it is derived from kwargs_index + children length via
+/// fcall_kwargs_count (the kwargs block is always the trailing children,
+/// since the parser forbids any parameter after kwargs).
 FCallData := struct {
     mut variadic_index : I32 = -1
     mut variadic_count : USize = 0
     mut kwargs_index : I32 = -1
-    mut kwargs_count : USize = 0
     mut is_splat := false
     // Issue #198: parser sets this when the call is followed by ~?~,
     // marking it as a call to a throwing function. The typer
@@ -265,7 +268,6 @@ namespace:
         return a.variadic_index.eq(b.variadic_index)
         .and(a.variadic_count.eq(b.variadic_count))
         .and(a.kwargs_index.eq(b.kwargs_index))
-        .and(a.kwargs_count.eq(b.kwargs_count))
     }
     to_str := func(_self: FCallData) returns Str { return "FCall" }
 }
@@ -588,7 +590,6 @@ namespace:
             fcall_data.variadic_index = -1
             fcall_data.variadic_count = 0
             fcall_data.kwargs_index = -1
-            fcall_data.kwargs_count = 0
         case:
         }
         return out
@@ -853,6 +854,24 @@ ast_print := proc(e: Expr, shallow indent: U32) {
         }
     }
     println(")")
+}
+
+// Per-call count of kwargs args. The kwargs param is always the last
+// parameter (parser enforces "no parameter allowed after kwargs"), so
+// the kwargs args are the trailing children block: their count is the
+// children length minus the stored kwargs_index. Returns 0 when the
+// call has no kwargs block (kwargs_index < 0), so it stays valid after
+// the kwargs desugar clears the index. Derived rather than stored to
+// keep FCallData free of a redundant typer-written count.
+fcall_kwargs_count := func(fcall: Expr) returns USize {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        if fcd.kwargs_index.lt(0) { return 0 }
+        return fcall.children.len().sub(fcd.kwargs_index.to_usize())
+    case:
+        UNREACHABLE(__LOC__)
+        return 0
+    }
 }
 
 // --- Decl/type helpers ---
