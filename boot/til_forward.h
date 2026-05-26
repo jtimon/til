@@ -237,6 +237,7 @@ typedef struct Value Value;
 typedef struct Cell Cell;
 typedef struct Binding Binding;
 typedef struct Scope Scope;
+typedef struct priv___src_self_interpreter_til__DynPtrBox priv___src_self_interpreter_til__DynPtrBox;
 typedef struct _ffi_type ffi_type;
 typedef struct priv___src_self_dispatch_til__ExtStr priv___src_self_dispatch_til__ExtStr;
 typedef struct priv___src_self_dispatch_til__FFIEntry priv___src_self_dispatch_til__FFIEntry;
@@ -654,6 +655,11 @@ typedef struct Scope {
     Map bindings;
     Scope *parent;
 } Scope;
+
+
+typedef struct priv___src_self_interpreter_til__DynPtrBox {
+    U8 *p;
+} priv___src_self_interpreter_til__DynPtrBox;
 
 
 typedef struct _ffi_type {
@@ -1831,6 +1837,10 @@ void eval_body(Scope * scope, Expr * body);
 Value eval_call(Scope * scope, Expr * e);
 void free_value(Value v);
 void cleanup_value_payload(Value v);
+priv___src_self_interpreter_til__DynPtrBox * priv___src_self_interpreter_til__DynPtrBox_clone(priv___src_self_interpreter_til__DynPtrBox * self);
+void priv___src_self_interpreter_til__DynPtrBox_delete(priv___src_self_interpreter_til__DynPtrBox * self, Bool * call_free);
+U32 priv___src_self_interpreter_til__DynPtrBox_size(void);
+void free_value_full(Value v);
 Bool needs_widen(Value * val, Str * ptype);
 Value shallow_copy_value(Value * v);
 Value make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed);

@@ -1,5 +1,5 @@
 # priority: high
-** WIP #127 Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
+** FIXED #127 Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
 
 The interpreter runtime currently overloads one mechanism for several
   different ownership cases:
@@ -58,23 +58,40 @@ The interpreter runtime currently overloads one mechanism for several
   This should be tackled as a focused runtime ownership cleanup, not mixed
   into unrelated dispatcher translations.
 
-  Progress:
+  Resolution:
   - Structural split landed: ~Value.Ptr~ is replaced by two variants,
     ~Value.Ref~ (borrowed/nullable pointer views) and ~Value.Dynamic~
-    (owning opaque pointers). Producers are now classified:
-    - ~Value.Ref~: ~null~, ~ptr_add(...)~, ref field reads, container
-      data fields (e.g. ~Array.data~ in build_argv_array).
-    - ~Value.Dynamic~: own field reads exposing owned storage, FFI
-      ~Dynamic~ returns, ~cfile_open~ handles.
-  - Two read-only view helpers added in interpreter.til:
-    ~value_ptr_view(v) returns ref Dynamic~ and ~is_value_ptr(v)~.
-    ~val_to_ptr~ in dispatch.til now matches both variants.
-  - This step is intentionally behavior-preserving: neither variant is
-    auto-freed yet. Auto-freeing ~Value.Dynamic~ at scope teardown /
-    overwrite is NOT safe without first adding move/clone tracking --
-    e.g. ~p := malloc(...); return p~ (return value is cloned to a
-    borrowed view) and explicit ~free(own p)~ would both double-free or
-    dangle. That owner-cleanup work is the remaining deferred piece,
-    along with simplifying ~val_to_ptr~ to a pure borrowed-view helper
-    and repairing ~scope_free~ Struct-data cleanup.
+    (owning opaque pointers). Two read-only view helpers were added in
+    interpreter.til -- ~value_ptr_view(v) returns ref Dynamic~ and
+    ~is_value_ptr(v)~ -- and ~val_to_ptr~ in dispatch.til matches both
+    variants. ~val_to_ptr~ is now documented as a borrowed pointer-view
+    helper that never transfers ownership.
+  - Producer classification resolves the "borrowed vs owning" ambiguity:
+    - ~Value.Ref~ (borrowed views, never freed by the runtime): ~null~,
+      ~ptr_add(...)~, ref field reads, own field reads (the struct still
+      owns the storage), container data fields (e.g. ~Array.data~), and
+      ~cfile_open~ FILE* handles (closed via ~fclose~, never ~free()~'d).
+    - ~Value.Dynamic~ (owning, free()-managed): FFI ~Dynamic~ returns
+      (malloc-like), and ~clone~ of an owning pointer (ownership transfer
+      on return).
+  - Real owner cleanup: ~free(own x)~ on a ~Value.Dynamic~ now actually
+    releases the heap buffer. Previously ~free_value~ only freed managed
+    Struct/Enum payloads, so the raw owning pointer leaked. The blocker
+    was that the owning pointer lives in the ~Value.Dynamic~ payload slot
+    and ~deref~/~to_ptr~ return a borrowed ~ref Dynamic~ the ownership
+    checker rejects for ~own~. Fixed with a single-field ~DynPtrBox~
+    (~own mut p : U8~, mirroring ~StructInstance.data~): ~free_value_full~
+    reinterprets the slot as a struct with an ~own~ field that ~free()~
+    accepts, and ~h_free~ calls it. ~free_value_full~ is used only by the
+    ~free(own x)~ builtin, NOT on scope_set_owned overwrite, because a
+    reassignment may consume the old pointer (~realloc(own p, n)~).
+  - Validated: ~free(own p)~ frees the buffer (confirmed via ASAN that
+    the allocation is released and the call reaches the free path),
+    ~q := p~ moves ownership so there is no double-free, and the full
+    suite stays green (117/117).
+
+  Out of scope (tracked elsewhere): freeing managed Struct payloads at
+  ~scope_free~ teardown remains conservative (aliasing risk) and the
+  broader raw-~Dynamic~ leak elimination across all paths belongs to the
+  memory-leak / ownership-tracking work in #109 and #124.
 

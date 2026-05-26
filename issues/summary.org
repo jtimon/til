@@ -61,7 +61,6 @@
 
 * WIP
 ** High
-*** [[./open/127.org][#127]] Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
 *** [[./open/158.org][#158]] One pass per phase across the whole pipeline
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
 ** Medium

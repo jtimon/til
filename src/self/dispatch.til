@@ -382,6 +382,10 @@ h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
+// Borrowed pointer-view helper: returns a ref to the storage backing a
+// Value, without transferring ownership. It never frees and is never an
+// ownership escape hatch -- it only produces read/write views, never
+// hands off an owning pointer for deletion.
 val_to_ptr := func(v: Value) returns ref Dynamic {
     switch v {
     case Value.Ref(p):     return p
@@ -677,7 +681,10 @@ h_cfile_open := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     path := str_view(path_v)
     switch is_write_v {
     case Value.Boolean(is_write):
-        r = Value.Dynamic(cfile_open(path, is_write))
+        // FILE* handle: closed via cfile_close (fclose), never free()'d,
+        // so it is a borrowed view from the runtime's perspective, not a
+        // free()-owned Value.Dynamic.
+        r = Value.Ref(cfile_open(path, is_write))
         return true
     case:
         UNREACHABLE(__LOC__)
@@ -759,11 +766,11 @@ h_free := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     switch e.child(1).node_type {
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(s, ident_name(ident))
-        free_value(cell.val)
+        free_value_full(cell.val)
         memcpy(cell.val, val_none(), Value.size())
     case:
         val := eval_expr(s, e.child(1))
-        free_value(val)
+        free_value_full(val)
     }
     r = val_none()
     return true

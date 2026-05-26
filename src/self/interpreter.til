@@ -1376,6 +1376,31 @@ cleanup_value_payload := func(shallow v: Value) {
     }
 }
 
+// Single owning-pointer box. Lets free_value_full reinterpret a
+// Value.Dynamic payload slot as a struct with one `own` field so the raw
+// heap pointer it holds can be passed to free() -- deref/to_ptr return a
+// borrowed `ref Dynamic` that the ownership checker rejects for `own`,
+// whereas an `own` struct field is accepted (same trick as the Str c_str
+// free in cleanup_value_payload above).
+priv DynPtrBox := struct {
+    own mut p : U8 = 0
+}
+
+// Destroy a binding that is the real owner being explicitly deleted: frees
+// managed payloads (via free_value) AND the raw heap pointer behind an
+// owning Value.Dynamic. Used only by the `free(own x)` builtin -- NOT on
+// scope overwrite, because a reassignment may consume the old pointer
+// (e.g. realloc(own p, n)), so overwriting must not free it.
+free_value_full := func(shallow v: Value) {
+    free_value(v)
+    switch v {
+    case Value.Dynamic(slot):
+        ref box : DynPtrBox = slot
+        if is_null(box.p).not() { free(own box.p) }
+    case:
+    }
+}
+
 needs_widen := func(val: Value, ptype: Str) returns shallow Bool {
     if is_null(ptype) { return false }
     if ptype.len().eq(0) { return false }
@@ -1873,7 +1898,10 @@ read_field := func(inst_data: Dynamic, dd: Declaration) returns shallow Value {
             return make_struct_value(ftype, dd.field_struct_def, owned, true)
         }
         ref owned2 : Dynamic = deref(ptr)
-        return Value.Dynamic(owned2)
+        // Reading an own field yields a borrowed view: the struct still
+        // owns the storage. Classifying it as Value.Dynamic would let
+        // free(own x) / overwrite delete the struct's field. Use Ref.
+        return Value.Ref(owned2)
     }
     if dd.own_type.is(OwnType.Ref).and(is_enum_field.not()) {
         if is_null(deref(ptr)) { return Value.Ref(NULL) }
