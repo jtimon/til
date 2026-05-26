@@ -12,6 +12,8 @@ vendor/libffi/doc/libffi.info
 vendor/tinyfiledialogs/tinyfiledialogs.o
 vendor/tinyfiledialogs/libtinyfd.a
 vendor/tinyfiledialogs/libtinyfd-win64.a
+vendor/nng/libnng.a
+vendor/nng/build/
 *~
 \#*\#
 .#*

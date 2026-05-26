@@ -29,6 +29,9 @@ RAYLIB_FLAGS := -Lvendor/raylib/src -lraylib -lm -lpthread -lrt
 TINYFD_LIB := vendor/tinyfiledialogs/libtinyfd.a
 TINYFD_FLAGS := -Lvendor/tinyfiledialogs -ltinyfd
 
+NNG_LIB := vendor/nng/libnng.a
+NNG_FLAGS := -Lvendor/nng -lnng -lpthread -latomic
+
 LIBFFI_DIR := vendor/libffi
 LIBFFI_INCDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/include))
 LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
@@ -42,6 +45,14 @@ $(RAYLIB_LIB):
 $(TINYFD_LIB):
 	cc -Wall -Wextra -c -o vendor/tinyfiledialogs/tinyfiledialogs.o vendor/tinyfiledialogs/tinyfiledialogs.c
 	ar rcs $@ vendor/tinyfiledialogs/tinyfiledialogs.o
+
+# nng (nanomsg-next-gen) static lib, built from vendored source via cmake.
+# Static-only, no tests/tools/TLS to keep the build self-contained.
+$(NNG_LIB):
+	cmake -S vendor/nng -B vendor/nng/build -DCMAKE_BUILD_TYPE=Release \
+	  -DBUILD_SHARED_LIBS=OFF -DNNG_TESTS=OFF -DNNG_ENABLE_NNGCAT=OFF -DNNG_ENABLE_TLS=OFF
+	cmake --build vendor/nng/build --parallel
+	cp vendor/nng/build/libnng.a $@
 
 vendor/libffi/.built:
 	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --disable-docs --quiet
@@ -73,10 +84,20 @@ vendor/libffi/.built:
 # including raylib.h; cc -E only preprocesses (no type checking) so the
 # binder emits those decls verbatim and they resolve against the
 # raylib.h block once the two are joined.
+#
+# nng generates from the single umbrella header nng/nng.h. The protocol
+# constructors (nng_pair0_open, nng_pub0_open, ...) live in separate
+# nng/protocol/*/*.h headers that reference NNG_DECL/nng_socket without
+# including nng.h, so they do NOT preprocess cleanly standalone; they are
+# hand-appended to vendor/bindings/nng.til (see the "Protocol
+# constructors" section there). After regenerating, re-apply the audited
+# hand-edits documented in doc/ffi.org (nng_logger alias, the non-shallow
+# logger param, and the protocol-constructor block).
 update_c_libs: bin/til | tmp
 	mkdir -p vendor/bindings
 	bin/til bindings -o vendor/bindings/tinyfd.til vendor/tinyfiledialogs/tinyfiledialogs.h
 	bin/til bindings -o vendor/bindings/libffi.til $(LIBFFI_BINDGEN_INCDIR)/ffi.h
+	bin/til bindings -o vendor/bindings/nng.til vendor/nng/include/nng/nng.h
 	bin/til bindings -o tmp/raylib_main.til vendor/raylib/src/raylib.h
 	bin/til bindings -o tmp/rcamera.til vendor/raylib/src/rcamera.h
 	cp tmp/raylib_main.til vendor/bindings/raylib.til
@@ -84,7 +105,7 @@ update_c_libs: bin/til | tmp
 
 # --- Boot compiler (from last commit, always safe) ---
 
-bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) vendor/libffi/.built
+bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) vendor/libffi/.built
 	mkdir -p bin tmp/boot/boot tmp/boot/src/c
 	for f in $$(git ls-tree --name-only HEAD boot/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
@@ -92,7 +113,7 @@ bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) vendor/libffi/.built
 	for f in $$(git ls-tree --name-only HEAD src/c/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
 	done
-	cc -Wall -Wextra -Werror -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) -o bin/til_boot
+	cc -Wall -Wextra -Werror -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) -o bin/til_boot
 
 # --- Self-hosted compiler (current code) + regenerate boot/ ---
 
@@ -129,7 +150,7 @@ bin/til_asan: bin/til
 bin/til_debug: bin/til
 	cc -g -O0 -Wno-all \
 	  -Iboot -Isrc -Isrc/c boot/til.c src/c/*.c \
-	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) \
+	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) \
 	  -o bin/til_debug
 
 # --- Test programs ---
@@ -241,9 +262,11 @@ $(TINYFD_WIN_LIB):
 	x86_64-w64-mingw32-ar rcs $@ tmp/tinyfiledialogs-win.o
 
 # raylib.til is a "direct raylib FFI" demo with hardcoded Linux link()
-# paths -- it deliberately doesn't use mode gui. Excluded from the
-# cross-compile sweep; the other 24 examples cover the Windows build.
-WIN_EXAMPLES_SRC := $(filter-out examples/raylib.til,$(wildcard examples/*.til))
+# paths -- it deliberately doesn't use mode gui. nng_pair.til and
+# nng_pubsub.til likewise link the Linux libnng.a directly and there is
+# no Windows nng build. All three are excluded from the cross-compile
+# sweep; the other examples cover the Windows build.
+WIN_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/nng_pair.til examples/nng_pubsub.til,$(wildcard examples/*.til))
 WIN_EXAMPLES := $(patsubst examples/%.til,bin/%.exe,$(WIN_EXAMPLES_SRC))
 
 build_win: $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB) $(WIN_EXAMPLES)

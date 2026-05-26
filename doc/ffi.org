@@ -129,12 +129,40 @@ really is pure -- often the right fix is to flip *it* to
 
 ~make update_c_libs~ runs ~bin/til bindings~ against
 ~vendor/raylib/src/raylib.h~, ~vendor/raylib/src/rcamera.h~,
-~vendor/tinyfiledialogs/tinyfiledialogs.h~, and libffi's
+~vendor/tinyfiledialogs/tinyfiledialogs.h~,
+~vendor/nng/include/nng/nng.h~, and libffi's
 ~ffi.h~, and writes the output to
-~vendor/bindings/{raylib,tinyfd,libffi}.til~.
+~vendor/bindings/{raylib,tinyfd,nng,libffi}.til~.
 
 *This destroys any hand-edits.*  Re-do the audit (see above)
-before committing the regenerated files.  Useful workflow:
+before committing the regenerated files.
+
+nng has four hand-edits the generator cannot produce, all of
+which must be re-applied after regeneration:
+
+0. *Every binding is ext_proc.*  The binder defaults to ext_func,
+   but nng has no pure functions -- each call mutates or reads live
+   socket/pipe/dialer/listener/ctx/aio/msg state, does I/O,
+   allocates, or returns an internal pointer.  Folding any of them
+   in precomp (opening sockets at compile time, or baking a
+   compiler-process pointer into the output) is wrong, so flip the
+   whole file: ~sed -i 's/:= ext_func(/:= ext_proc(/g'~.
+
+1. *~nng_logger~ alias.*  The binder leaves the ~nng_logger~
+   function-pointer typedef undefined; add ~nng_logger := Dynamic~
+   before the logging functions.
+2. *Non-shallow logger param.*  ~nng_log_set_logger~ takes a
+   ~nng_logger~ (now ~Dynamic~), so its parameter must NOT be
+   ~shallow~ (shallow requires a scalar/struct type).
+3. *Protocol constructors.*  ~nng_pair0_open~, ~nng_pub0_open~,
+   ~nng_sub0_open~, etc. live in ~nng/protocol/*/*.h~, not in
+   ~nng.h~, and reference ~NNG_DECL~/~nng_socket~ without including
+   ~nng.h~ -- so they do not preprocess standalone.  Re-append the
+   hand-written "Protocol constructors" block (each is
+   ~ext_proc(sock : nng_socket) returns shallow I32 {}~, taking the
+   socket out-parameter by address).
+
+Useful workflow:
 
 1. Save the current ~vendor/bindings/raylib.til~ somewhere
    outside the repo as a reference for the previous audit.
