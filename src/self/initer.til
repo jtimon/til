@@ -2815,13 +2815,66 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
 // program.children so the registration walk below registers it and
 // generates its clone/delete/eq/to_str methods) and rewrites child 0 to
 // reference the generated name. Mirrors rstil's anon-literal expansion.
+//
+// Structurally-identical literals within a unit share one generated type
+// (keyed by anon_def_key in the cache): two `enum { Red, Green }` literals
+// become the same AnonEnumN, so a value built from one matches a `switch`
+// case built from the other. The key folds in field/variant names, types,
+// mut/own modifiers, default-value trees and namespace-method bodies, so
+// any observable difference yields a distinct type.
 mut anon_struct_counter : I64 = 0
 
-priv init_expand_anon_structs := proc(mut e: Expr, mut new_decls: Vec) {
+// Canonical structural signature for a StructDef/EnumDef literal. Two
+// literals produce the same key iff they would generate the same type.
+priv anon_def_key := func(def: Expr) returns Str {
+    switch def.node_type {
+    case NodeType.StructDef(sdd):
+        mut k := "struct{"
+        for f : Declaration in sdd.fields {
+            k = k.concat(anon_decl_key(f))
+        }
+        k = k.concat("|ns:")
+        for n : Declaration in sdd.ns_decls {
+            k = k.concat(anon_decl_key(n))
+        }
+        return k.concat("}")
+    case NodeType.EnumDef(edd):
+        mut k := "enum{"
+        for j in 0..edd.variants.len() {
+            ref vn : Str = edd.variants.get(j)
+            k = k.concat(vn)
+            idx := j.to_i64()
+            if edd.payload_types.has(idx) {
+                ref pt : Str = edd.payload_types.get(idx)
+                k = k.concat(":").concat(pt)
+            }
+            k = k.concat(";")
+        }
+        k = k.concat("|ns:")
+        for n : Declaration in edd.ns_decls {
+            k = k.concat(anon_decl_key(n))
+        }
+        return k.concat("}")
+    case:
+        return ""
+    }
+}
+
+priv anon_decl_key := func(d: Declaration) returns Str {
+    mut own_tag := "S"
+    if d.own_type.is(OwnType.Own) { own_tag = "O" }
+    if d.own_type.is(OwnType.Ref) { own_tag = "R" }
+    mut mut_tag := "c"
+    if d.is_mut { mut_tag = "m" }
+    return format(d.name, ":", d.explicit_type, ":", mut_tag, own_tag, ":",
+        d.default_value.to_str(), ";")
+}
+
+priv init_expand_anon_structs := proc(mut e: Expr, mut new_decls: Vec, mut cache: Map) {
     if is_null(e) { return }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.child(i)
-        init_expand_anon_structs(c, new_decls)
+        init_expand_anon_structs(c, new_decls, cache)
     }
     holds_callee := e.node_type.is(NodeType.FCall).or(e.node_type.is(NodeType.FieldAccess))
     if holds_callee.not() { return }
@@ -2830,11 +2883,19 @@ priv init_expand_anon_structs := proc(mut e: Expr, mut new_decls: Vec) {
     if e.child(0).node_type.is(NodeType.StructDef) { kind = "AnonStruct" }
     if e.child(0).node_type.is(NodeType.EnumDef) { kind = "AnonEnum" }
     if kind.eq("") { return }
-    name := kind.concat(anon_struct_counter.to_str())
-    anon_struct_counter = anon_struct_counter.add(1)
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), e.line, e.col)
-    decl.add_child(own e.child(0).clone())
-    new_decls.push(own decl)
+    key := anon_def_key(e.child(0))
+    mut name := ""
+    if cache.has(key) {
+        ref hit : Str = cache.get(key)
+        name = hit.clone()
+    } else {
+        name = kind.concat(anon_struct_counter.to_str())
+        anon_struct_counter = anon_struct_counter.add(1)
+        cache.set(own key.clone(), own name.clone())
+        mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), e.line, e.col)
+        decl.add_child(own e.child(0).clone())
+        new_decls.push(own decl)
+    }
     mut id := Expr.new(ident_node(name), e.line, e.col)
     e.children.set(0.to_usize(), own id)
 }
@@ -2849,9 +2910,10 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
     // top-level AnonStructN decls before the registration walk, so they
     // get registered (and their methods generated) like any named struct.
     mut anon_lifted := Vec.new(Expr)
+    mut anon_cache := Map.new(Str, Str)
     for ai in 0..program.children.len() {
         ref mut astmt : Expr = program.child(ai)
-        init_expand_anon_structs(astmt, anon_lifted)
+        init_expand_anon_structs(astmt, anon_lifted, anon_cache)
     }
     for al : Expr in anon_lifted {
         program.children.push(own al.clone())

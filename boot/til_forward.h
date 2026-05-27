@@ -1261,7 +1261,9 @@ void priv___src_self_initer_til__init_lift_in_body(Expr * body, Str * parent_pre
 void priv___src_self_initer_til__init_lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec * top_level);
 void priv___src_self_initer_til__init_recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec * top_level);
 void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_prefix, Vec * top_level);
-void priv___src_self_initer_til__init_expand_anon_structs(Expr * e, Vec * new_decls);
+Str * priv___src_self_initer_til__anon_def_key(Expr * def);
+Str * priv___src_self_initer_til__anon_decl_key(Declaration * d);
+void priv___src_self_initer_til__init_expand_anon_structs(Expr * e, Vec * new_decls, Map * cache);
 I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 init_declarations_global(Context * ctx, Expr * program, TypeScope * scope);
 U32 count_ast_imports(Expr * body);
