@@ -23,7 +23,7 @@ list_dir := proc(dir: Str) returns Vec {
     names := content.split(NL)
     for fname : Str in names {
         if fname.is_empty() { continue }
-        if fname.ends_with(".org").not() { continue }
+        if !fname.ends_with(".org") { continue }
         files.push(own fname.clone())
     }
     return files
@@ -77,7 +77,7 @@ parse_issue_body := func(fname: Str, content: Str) returns Str {
     link := format("*** [[./open/", fname, "][", num_str_own, "]]", after_num_own)
 
     mut tag := "H"
-    if is_high.not() { tag = "L" }
+    if !is_high { tag = "L" }
     if is_wip { tag = format(tag, "W") }
     return format(tag, NL, link)
 }
@@ -97,7 +97,7 @@ main := proc() {
     mut entries := Vec.new(Str)
     for fname : Str in files {
         line := parse_issue(fname)
-        if line.is_empty().not() {
+        if !line.is_empty() {
             entries.push(own line)
         }
     }

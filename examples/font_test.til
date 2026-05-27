@@ -41,7 +41,7 @@ main := proc() {
 
     mut sel : USize = 0
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         if IsMouseButtonPressed(0) {
             sel = sel.add(1).mod(NUM_FONTS)
         }

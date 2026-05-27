@@ -97,7 +97,7 @@ main := proc() {
 
     mut timer := 0
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         dt := get_frame_time()
         timer = timer.add(dt)
 

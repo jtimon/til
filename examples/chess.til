@@ -110,7 +110,7 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
     while kki.lte(1) {
         mut kkj := -1
         while kkj.lte(1) {
-            if kki.eq(0).and(kkj.eq(0)).not() {
+            if !(kki.eq(0).and(kkj.eq(0))) {
                 nr := r.add(kki)
                 nc := c.add(kkj)
                 if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
@@ -270,7 +270,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
         if nr.gte(0).and(nr.lt(8)) {
             ref fp : I64 = board.get(nr.mul(8).add(c).to_u32())
             if fp.eq(0) {
-                if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(c), side).not() {
+                if !move_leaves_in_check(board, tmp, idx, nr.mul(8).add(c), side) {
                     moves.set(count.to_u32(), own nr.mul(8).add(c))
                     count = count.add(1)
                 }
@@ -279,7 +279,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                     nr2 := r.add(dir.mul(2))
                     ref fp2 : I64 = board.get(nr2.mul(8).add(c).to_u32())
                     if fp2.eq(0) {
-                        if move_leaves_in_check(board, tmp, idx, nr2.mul(8).add(c), side).not() {
+                        if !move_leaves_in_check(board, tmp, idx, nr2.mul(8).add(c), side) {
                             moves.set(count.to_u32(), own nr2.mul(8).add(c))
                             count = count.add(1)
                         }
@@ -307,7 +307,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                         }
                     }
                     if can_capture.or(is_ep) {
-                        if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side).not() {
+                        if !move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side) {
                             // For en passant, also check removing the captured pawn
                             mut ok := true
                             if is_ep {
@@ -345,8 +345,8 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
             nc := c.add(dc)
             if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
                 ref dp : I64 = board.get(nr.mul(8).add(nc).to_u32())
-                if is_side(dp, side).not() {
-                    if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side).not() {
+                if !is_side(dp, side) {
+                    if !move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side) {
                         moves.set(count.to_u32(), own nr.mul(8).add(nc))
                         count = count.add(1)
                     }
@@ -369,13 +369,13 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
             while sr.gte(0).and(sr.lt(8)).and(sc.gte(0)).and(sc.lt(8)) {
                 ref sp : I64 = board.get(sr.mul(8).add(sc).to_u32())
                 if sp.eq(0) {
-                    if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
+                    if !move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side) {
                         moves.set(count.to_u32(), own sr.mul(8).add(sc))
                         count = count.add(1)
                     }
                 } else {
-                    if is_side(sp, side).not() {
-                        if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
+                    if !is_side(sp, side) {
+                        if !move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side) {
                             moves.set(count.to_u32(), own sr.mul(8).add(sc))
                             count = count.add(1)
                         }
@@ -406,13 +406,13 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
             while sr.gte(0).and(sr.lt(8)).and(sc.gte(0)).and(sc.lt(8)) {
                 ref sp : I64 = board.get(sr.mul(8).add(sc).to_u32())
                 if sp.eq(0) {
-                    if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
+                    if !move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side) {
                         moves.set(count.to_u32(), own sr.mul(8).add(sc))
                         count = count.add(1)
                     }
                 } else {
-                    if is_side(sp, side).not() {
-                        if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
+                    if !is_side(sp, side) {
+                        if !move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side) {
                             moves.set(count.to_u32(), own sr.mul(8).add(sc))
                             count = count.add(1)
                         }
@@ -435,13 +435,13 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
         while kki.lte(1) {
             mut kkj := -1
             while kkj.lte(1) {
-                if kki.eq(0).and(kkj.eq(0)).not() {
+                if !(kki.eq(0).and(kkj.eq(0))) {
                     nr := r.add(kki)
                     nc := c.add(kkj)
                     if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
                         ref dp : I64 = board.get(nr.mul(8).add(nc).to_u32())
-                        if is_side(dp, side).not() {
-                            if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side).not() {
+                        if !is_side(dp, side) {
+                            if !move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side) {
                                 moves.set(count.to_u32(), own nr.mul(8).add(nc))
                                 count = count.add(1)
                             }
@@ -467,7 +467,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
             if km.eq(0) {
                 opp := 1.sub(side)
                 // Not currently in check
-                if is_attacked(board, r, 4, opp).not() {
+                if !is_attacked(board, r, 4, opp) {
                     // Kingside castling (O-O)
                     ref rk_h : I64 = castle_flags.get(cf_offset.add(2).to_u32())
                     if rk_h.eq(0) {
@@ -476,7 +476,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                         ref sq7 : I64 = board.get(r.mul(8).add(7).to_u32())
                         rook_piece := side.mul(6).add(4)
                         if sq5.eq(0).and(sq6.eq(0)).and(sq7.eq(rook_piece)) {
-                            if is_attacked(board, r, 5, opp).not().and(is_attacked(board, r, 6, opp).not()) {
+                            if (!is_attacked(board, r, 5, opp)).and(!is_attacked(board, r, 6, opp)) {
                                 moves.set(count.to_u32(), own r.mul(8).add(6))
                                 count = count.add(1)
                             }
@@ -491,7 +491,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                         ref sq0 : I64 = board.get(r.mul(8).to_u32())
                         rook_piece := side.mul(6).add(4)
                         if sq3.eq(0).and(sq2.eq(0)).and(sq1.eq(0)).and(sq0.eq(rook_piece)) {
-                            if is_attacked(board, r, 3, opp).not().and(is_attacked(board, r, 2, opp).not()) {
+                            if (!is_attacked(board, r, 3, opp)).and(!is_attacked(board, r, 2, opp)) {
                                 moves.set(count.to_u32(), own r.mul(8).add(2))
                                 count = count.add(1)
                             }
@@ -761,7 +761,7 @@ main := proc() {
         i = i.add(1)
     }
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         // --- INPUT: restart + radio buttons ---
         if IsMouseButtonPressed(0) {
             raw_mx := get_mouse_x()
@@ -879,7 +879,7 @@ main := proc() {
                     valid_count = 0
 
                     // Check for checkmate/stalemate
-                    if has_legal_moves(board, tmp_board, human_side, valid_moves, ep_col, castle_flags).not() {
+                    if !has_legal_moves(board, tmp_board, human_side, valid_moves, ep_col, castle_flags) {
                         if in_check(board, human_side) {
                             game_over = 1
                             winner = ai_side
@@ -995,7 +995,7 @@ main := proc() {
                                 valid_count = 0
 
                                 // Check for checkmate/stalemate
-                                if has_legal_moves(board, tmp_board, turn, valid_moves, ep_col, castle_flags).not() {
+                                if !has_legal_moves(board, tmp_board, turn, valid_moves, ep_col, castle_flags) {
                                     if in_check(board, turn) {
                                         game_over = 1
                                         winner = 1.sub(turn)

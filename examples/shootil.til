@@ -215,7 +215,7 @@ main := proc() {
     mut accumulator := zero_f
     mut wants_jump := false
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         if IsKeyPressed(KEY_ESCAPE) { break }
 
         // TODO: ESC does not work for toggling the menu because Raylib
@@ -241,7 +241,7 @@ main := proc() {
             ToggleFullscreen()
         }
 
-        if menu_open.not() {
+        if !menu_open {
             if IsKeyPressed(KEY_G) {
                 if god_mode {
                     exit_god_mode()
@@ -379,7 +379,7 @@ main := proc() {
                     if camera.position.x + cam_radius > floor_half { hit = true }
                     if camera.position.z - cam_radius < nf { hit = true }
                     if camera.position.z + cam_radius > floor_half { hit = true }
-                    if hit.not() {
+                    if !hit {
                         mut i : USize = 0
                         while i.lt(aabbs.len()) {
                             ref bb : BoundingBox = aabbs.get(i)
@@ -412,7 +412,7 @@ main := proc() {
         }
 
         // ---- Render with interpolation ----
-        if menu_open.not() {
+        if !menu_open {
             alpha := accumulator / PHYSICS_DT
             camera.position = v3_lerp(prev_pos, sim_pos, alpha)
             camera.target = v3_lerp(prev_target, sim_target, alpha)
@@ -436,7 +436,7 @@ main := proc() {
         }
         EndMode3D()
         DrawFPS(10, 10)
-        if menu_open.not() {
+        if !menu_open {
             sw := get_screen_width()
             if god_mode {
                 draw_text("G: normal", sw - 180, 10, 20, 180, 180, 180, 255)
@@ -462,7 +462,7 @@ main := proc() {
         // Restore camera to the authoritative sim state so the next frame's
         // mouse-look and physics integrate from there, not from the lerped
         // render state.
-        if menu_open.not() {
+        if !menu_open {
             camera.position = sim_pos
             camera.target = sim_target
         }

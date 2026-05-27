@@ -396,7 +396,7 @@ main := proc() {
         init_i = init_i.add(1)
     }
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         // --- INPUT: restart + radio buttons ---
         if IsMouseButtonPressed(0) {
             raw_mx := get_mouse_x()
@@ -500,14 +500,14 @@ main := proc() {
                         mut more_moves := Array.new(I64, 64)
                         mut more_jumped := Array.new(I64, 64)
                         more := gen_captures(board, bd_val, ai_side, more_moves, more_jumped)
-                        if more.gt(0).and(was_promoted.not()) {
+                        if more.gt(0).and(!was_promoted) {
                             multi_jump_idx = bd_val
                         } else {
                             multi_jump_idx = -1
                             turn = human_side
                             selected = -1
                             valid_count = 0
-                            if has_legal_moves(board, human_side, tmp_moves, tmp_jumped).not() {
+                            if (!has_legal_moves(board, human_side, tmp_moves, tmp_jumped)) {
                                 game_over = ai_side
                             }
                         }
@@ -613,13 +613,13 @@ main := proc() {
                             mut more_moves := Array.new(I64, 64)
                             mut more_jumped := Array.new(I64, 64)
                             more := gen_captures(board, to_val, ai_side, more_moves, more_jumped)
-                            if more.gt(0).and(was_promoted.not()) {
+                            if more.gt(0).and(!was_promoted) {
                                 multi_jump_idx = to_val
                             } else {
                                 turn = human_side
                                 selected = -1
                                 valid_count = 0
-                                if has_legal_moves(board, human_side, tmp_moves, tmp_jumped).not() {
+                                if (!has_legal_moves(board, human_side, tmp_moves, tmp_jumped)) {
                                     game_over = ai_side
                                 }
                             }
@@ -627,7 +627,7 @@ main := proc() {
                             turn = human_side
                             selected = -1
                             valid_count = 0
-                            if has_legal_moves(board, human_side, tmp_moves, tmp_jumped).not() {
+                            if (!has_legal_moves(board, human_side, tmp_moves, tmp_jumped)) {
                                 game_over = ai_side
                             }
                         }
@@ -688,7 +688,7 @@ main := proc() {
                                         if orig_val.eq(3).and(new_piece.eq(4)) { was_promoted = true }
 
                                         more := gen_captures(board, click_idx, turn, valid_moves, valid_jumped)
-                                        if more.gt(0).and(was_promoted.not()) {
+                                        if more.gt(0).and(!was_promoted) {
                                             multi_jump_idx = click_idx
                                             selected = click_idx
                                             valid_count = more
@@ -698,7 +698,7 @@ main := proc() {
                                             turn = opp
                                             selected = -1
                                             valid_count = 0
-                                            if has_legal_moves(board, turn, tmp_moves, tmp_jumped).not() {
+                                            if (!has_legal_moves(board, turn, tmp_moves, tmp_jumped)) {
                                                 if turn.eq(1) { game_over = 2 }
                                                 else { game_over = 1 }
                                             }
@@ -746,7 +746,7 @@ main := proc() {
                                         if orig_val.eq(3).and(new_piece.eq(4)) { was_promoted = true }
 
                                         more := gen_captures(board, click_idx, turn, valid_moves, valid_jumped)
-                                        if more.gt(0).and(was_promoted.not()) {
+                                        if more.gt(0).and(!was_promoted) {
                                             multi_jump_idx = click_idx
                                             selected = click_idx
                                             valid_count = more
@@ -756,7 +756,7 @@ main := proc() {
                                             selected = -1
                                             valid_count = 0
                                             multi_jump_idx = -1
-                                            if has_legal_moves(board, turn, tmp_moves, tmp_jumped).not() {
+                                            if (!has_legal_moves(board, turn, tmp_moves, tmp_jumped)) {
                                                 if turn.eq(1) { game_over = 2 }
                                                 else { game_over = 1 }
                                             }
@@ -767,7 +767,7 @@ main := proc() {
                                         selected = -1
                                         valid_count = 0
                                         multi_jump_idx = -1
-                                        if has_legal_moves(board, turn, tmp_moves, tmp_jumped).not() {
+                                        if (!has_legal_moves(board, turn, tmp_moves, tmp_jumped)) {
                                             if turn.eq(1) { game_over = 2 }
                                             else { game_over = 1 }
                                         }

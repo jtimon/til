@@ -46,7 +46,7 @@ main := proc(args: ..Str) {
     set_window_min_size(400, 200)
     set_target_fps(60)
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         dt := get_frame_time()
         if status_timer.gt(0) {
             status_timer = status_timer.sub(dt)
@@ -160,7 +160,7 @@ main := proc(args: ..Str) {
 
         // Enter
         if IsKeyPressed(257) {
-            if ctrl.not() {
+            if !ctrl {
                 ref cur_line : Str = lines.get(cursor_y.to_u32())
                 // Split line at cursor
                 before := cur_line.substr(0, cursor_x.to_u32()).clone()
@@ -286,7 +286,7 @@ main := proc(args: ..Str) {
         }
 
         // Character input (ASCII only, skip if ctrl held)
-        if ctrl.not() {
+        if !ctrl {
             mut ch := get_char_pressed()
             while ch.gt(0) {
                 if ch.gte(32).and(ch.lt(127)) {

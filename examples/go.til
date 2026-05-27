@@ -557,10 +557,10 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
             }
 
             // Assign territory if bordered by only one color
-            if touches_black.and(touches_white.not()) {
+            if touches_black.and(!touches_white) {
                 black_score = black_score.add(region_size)
             }
-            if touches_white.and(touches_black.not()) {
+            if touches_white.and(!touches_black) {
                 white_score = white_score.add(region_size)
             }
         }
@@ -615,7 +615,7 @@ main := proc() {
     clear_arr(board, init_total)
     clear_arr(ko_board, init_total)
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         // --- INPUT: restart + radio buttons ---
         if IsMouseButtonPressed(0) {
             raw_mx := get_mouse_x()
@@ -685,7 +685,7 @@ main := proc() {
         stone_r := cell_size.mul(4).div(10)
 
         // --- AI MOVE (alpha-beta search) ---
-        if vs_ai.eq(2).and(turn.eq(ai_color)).and(game_over.not()) {
+        if vs_ai.eq(2).and(turn.eq(ai_color)).and(!game_over) {
             ai_timer = ai_timer.add(1)
             if ai_timer.gt(20) {
                 ai_timer = 0
@@ -746,7 +746,7 @@ main := proc() {
         }
 
         // --- HUMAN INPUT ---
-        if game_over.not() {
+        if !game_over {
             mut is_human := true
             if vs_ai.eq(2).and(turn.eq(ai_color)) { is_human = false }
 
@@ -897,7 +897,7 @@ main := proc() {
         }
 
         // Hover indicator
-        if game_over.not() {
+        if !game_over {
             mut show_hover := true
             if vs_ai.eq(2).and(turn.eq(ai_color)) { show_hover = false }
             if show_hover {

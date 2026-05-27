@@ -43,7 +43,7 @@ main := proc() {
     mut food_x := 0
     mut food_y := 0
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         // Restart handler (single place for all reset logic)
         if restart {
             restart = false
@@ -99,7 +99,7 @@ main := proc() {
                         restart = true
                     }
                 } else {
-                    if two_player.not() {
+                    if !two_player {
                         two_player = true
                         restart = true
                     }
@@ -112,26 +112,26 @@ main := proc() {
             if IsKeyPressed(82) { restart = true }
         } else {
             // P1: WASD (+ arrows in 1P mode)
-            if IsKeyPressed(87).or(two_player.not().and(IsKeyPressed(265))) {
-                if dy.eq(1).not() {
+            if IsKeyPressed(87).or((!two_player).and(IsKeyPressed(265))) {
+                if !dy.eq(1) {
                     next_dx = 0
                     next_dy = -1
                 }
             }
-            if IsKeyPressed(83).or(two_player.not().and(IsKeyPressed(264))) {
-                if dy.eq(-1).not() {
+            if IsKeyPressed(83).or((!two_player).and(IsKeyPressed(264))) {
+                if !dy.eq(-1) {
                     next_dx = 0
                     next_dy = 1
                 }
             }
-            if IsKeyPressed(65).or(two_player.not().and(IsKeyPressed(263))) {
-                if dx.eq(1).not() {
+            if IsKeyPressed(65).or((!two_player).and(IsKeyPressed(263))) {
+                if !dx.eq(1) {
                     next_dx = -1
                     next_dy = 0
                 }
             }
-            if IsKeyPressed(68).or(two_player.not().and(IsKeyPressed(262))) {
-                if dx.eq(-1).not() {
+            if IsKeyPressed(68).or((!two_player).and(IsKeyPressed(262))) {
+                if !dx.eq(-1) {
                     next_dx = 1
                     next_dy = 0
                 }
@@ -140,25 +140,25 @@ main := proc() {
             // P2: Arrow keys (only in 2P mode)
             if two_player {
                 if IsKeyPressed(265) {
-                    if dy2.eq(1).not() {
+                    if !dy2.eq(1) {
                         next_dx2 = 0
                         next_dy2 = -1
                     }
                 }
                 if IsKeyPressed(264) {
-                    if dy2.eq(-1).not() {
+                    if !dy2.eq(-1) {
                         next_dx2 = 0
                         next_dy2 = 1
                     }
                 }
                 if IsKeyPressed(263) {
-                    if dx2.eq(1).not() {
+                    if !dx2.eq(1) {
                         next_dx2 = -1
                         next_dy2 = 0
                     }
                 }
                 if IsKeyPressed(262) {
-                    if dx2.eq(-1).not() {
+                    if !dx2.eq(-1) {
                         next_dx2 = 1
                         next_dy2 = 0
                     }
@@ -200,7 +200,7 @@ main := proc() {
                     }
 
                     // P1 head vs P1 body
-                    if game_over.not() {
+                    if !game_over {
                         mut i : USize = 0
                         while i.lt(snake_len) {
                             ref seg : I64 = body.get(i)
@@ -209,7 +209,7 @@ main := proc() {
                         }
                     }
                     // P1 head vs P2 body
-                    if game_over.not() {
+                    if !game_over {
                         mut i : USize = 0
                         while i.lt(snake_len2) {
                             ref seg : I64 = body2.get(i)
@@ -218,7 +218,7 @@ main := proc() {
                         }
                     }
                     // P2 head vs P2 body
-                    if game_over.not() {
+                    if !game_over {
                         mut i : USize = 0
                         while i.lt(snake_len2) {
                             ref seg : I64 = body2.get(i)
@@ -227,7 +227,7 @@ main := proc() {
                         }
                     }
                     // P2 head vs P1 body
-                    if game_over.not() {
+                    if !game_over {
                         mut i : USize = 0
                         while i.lt(snake_len) {
                             ref seg : I64 = body.get(i)
@@ -238,7 +238,7 @@ main := proc() {
 
                     if p1_dead.or(p2_dead) { game_over = true }
 
-                    if game_over.not() {
+                    if !game_over {
                         // Shift P1 body
                         mut j : USize = snake_len.sub(1)
                         while j.gt(0) {
@@ -296,7 +296,7 @@ main := proc() {
                         i = i.add(1)
                     }
 
-                    if game_over.not() {
+                    if !game_over {
                         mut j : USize = snake_len.sub(1)
                         while j.gt(0) {
                             ref prev_ref : I64 = body.get(j.sub(1))
@@ -333,7 +333,7 @@ main := proc() {
 
         // Button bar
         btn_w := w.div(2)
-        if two_player.not() {
+        if !two_player {
             draw_rectangle(0, 0, btn_w, bar_h, 60, 60, 60, 255)
             draw_rectangle(btn_w, 0, btn_w, bar_h, 30, 30, 30, 255)
         } else {

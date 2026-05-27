@@ -36,10 +36,10 @@ main := proc(args: ..Str) {
     mut timer := 0
     mut done := false
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         dt := get_frame_time()
 
-        if done.not() {
+        if !done {
             timer = timer.add(dt)
             if timer.gte(gap) {
                 timer = 0

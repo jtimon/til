@@ -179,7 +179,7 @@ draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc:
 
     // Accidental text
     ref na : I64 = sc_acc.get(dni)
-    if na.eq(0).not() {
+    if !na.eq(0) {
         mut aw := NOTE_R
         if na.abs().eq(2) { aw = NOTE_R.mul(2) }
         at := acc_text(na)
@@ -319,7 +319,7 @@ main := proc() {
     mut clicked_note := -1
     mut clicked_timer := 0
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         dt := get_frame_time()
 
         // Input: mouse clicks

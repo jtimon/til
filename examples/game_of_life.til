@@ -27,10 +27,10 @@ main := proc() {
     mut speed := 6
     mut generation := 0
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         // Input: SPACE to toggle pause/run
         if IsKeyPressed(32) {
-            running = running.not()
+            running = !running
         }
 
         // Input: C to clear

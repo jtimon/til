@@ -731,6 +731,16 @@ parse_primary := proc(mut p: Parser) returns Expr {
             }
         }
     }
+    if e_set.not().and(t.type.is(TokenType.Bang)) {
+        advance(p) // consume '!'
+        mut operand := parse_primary(p)
+        mut not_access := Expr.new(field_access_node("not"), t_line, t_col)
+        not_access.add_child(own operand)
+        mut not_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
+        not_call.add_child(own not_access)
+        e = not_call
+        e_set = true
+    }
     if e_set.not().and(t.type.is(TokenType.Char)) {
         advance(p)
         // Parse char literal to byte value

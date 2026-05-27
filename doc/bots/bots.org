@@ -79,8 +79,10 @@ Always run `make clean && make test` and verify all tests pass before committing
 Local sessions only: use `systemd-run --user --scope -p MemoryMax=64G make clean && make test`
 to limit memory usage (prevents OOM from memory leaks killing the system).
 Remote sessions: just use `make clean && make test` directly (systemd-run is not available).
-Session type rule: OpenCode/Codex CLI runs in a local checkout count as LOCAL
-sessions. "Remote" means CI or hosted bot runs on assigned bot branches.
+Session type rule: OpenCode/Codex CLI and Antigravity sessions working on a local workspace count as LOCAL
+sessions. "Remote" sessions at the moment just mean Claude in the cloud (CI or hosted bot runs on assigned
+bot branches). Even though Antigravity is a hosted AI agent, it operates directly on the user's local
+worktree/system and is therefore a LOCAL session.
 See doc/self.org for the build workflow.
 
 ## Worktrees (local sessions)
@@ -250,8 +252,8 @@ way through.
 - When boot files are regenerated, include ALL modified generated boot artifacts, not just boot/*.c.
   This includes boot/*.c, boot/*.h, boot/*_forward.h, and any other changed files under boot/.
 - Local agents: include doc/totals.csv and img/totals.svg in commits
-  (this includes OpenCode/Codex CLI runs in a local checkout).
-- Remote agents (GitHub Actions, hosted bots, etc.): do NOT include doc/totals.csv
+  (this includes OpenCode/Codex CLI and Antigravity sessions working on a local checkout).
+- Remote agents (specifically Claude in the cloud, GitHub Actions, etc.): do NOT include doc/totals.csv
   or img/totals.svg. After `make test` regenerates them, DISCARD the changes
   before committing -- either form is fine:
       git checkout HEAD -- doc/totals.csv img/totals.svg

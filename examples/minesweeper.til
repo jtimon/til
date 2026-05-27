@@ -28,7 +28,7 @@ main := proc() {
     // Flood fill stack
     mut stack := Vec.new(I64)
 
-    while WindowShouldClose().not() {
+    while !WindowShouldClose() {
         // Input
         if IsKeyPressed(82) {
             // R = restart
@@ -46,7 +46,7 @@ main := proc() {
             flags = 0
         }
 
-        if game_over.not().and(game_won.not()) {
+        if (!game_over).and(!game_won) {
             if IsMouseButtonPressed(0) {
                 // Left click - reveal
                 mx := get_mouse_x().div(cell)
