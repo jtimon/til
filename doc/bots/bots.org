@@ -111,7 +111,9 @@ Merging to master (local sessions)::
   git cherry-pick <worktree-branch-name>
 
   # Note: The human runs the merge script directly. Local sessions
-  # just need to cherry-pick to master when told.
+  # must NEVER cherry-pick to master on their own initiative or make
+  # decisions behind the human's back. ALWAYS wait for the human to
+  # explicitly ask you to cherry-pick before doing so.
   # Do NOT run tests, make clean, or any extra commands after cherry-picking
   # to master, unless the user explicitly tells you to.
 

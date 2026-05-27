@@ -4,29 +4,25 @@ mode gui
 // QWERTY keyboard maps to 3 octaves (C3-B5)
 // Notes scroll left across the top as you play
 
-WINDOW_WIDTH : U64 = 1920
-WINDOW_HEIGHT : U64 = 1080
-FPS : U64 = 60
+WINDOW_WIDTH : I32 = 1920
+WINDOW_HEIGHT : I32 = 1080
+FPS : I32 = 60
 NUM_KEYS : USize = 36
 MAX_NOTES : USize = 256
 
 // Layout
-MARGIN : U64 = 40
-ROLL_H : U64 = WINDOW_HEIGHT.div(2)
-PIANO_Y : U64 = WINDOW_HEIGHT.sub(WINDOW_HEIGHT.div(3))
-WHITE_W : U64 = WINDOW_WIDTH.div(21)
-WHITE_H : U64 = WINDOW_HEIGHT.sub(PIANO_Y)
-BLACK_W : U64 = WHITE_W.mul(3).div(5)
-BLACK_H : U64 = WHITE_H.mul(2).div(3)
-FONT : U64 = 20
-SCROLL_SPEED : U64 = 300
+MARGIN : F32 = 40
+ROLL_H : I32 = WINDOW_HEIGHT / 2
+PIANO_Y : I32 = WINDOW_HEIGHT - WINDOW_HEIGHT / 3
+WHITE_W : I32 = WINDOW_WIDTH / 21
+WHITE_H : I32 = WINDOW_HEIGHT - PIANO_Y
+BLACK_W : I32 = WHITE_W * 3 / 5
+BLACK_H : I32 = WHITE_H * 2 / 3
+FONT : F32 = 20
+SCROLL_SPEED : I32 = 300
 
 // Raylib key codes for 36 keys (left-to-right = low-to-high)
-// Row 1: 1 2 3 4 5 6 7 8 9 0
-// Row 2: Q W E R T Y U I O P
-// Row 3: A S D F G H J K L
-// Row 4: Z X C V B N M
-KEYCODES := array("U64",
+KEYCODES := array("I32",
     49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
     81, 87, 69, 82, 84, 89, 85, 73, 79, 80,
     65, 83, 68, 70, 71, 72, 74, 75, 76,
@@ -42,41 +38,40 @@ KEY_LABELS := array("Str",
 )
 
 // Frequencies for 36 chromatic notes C3-B5
-FREQS := array("U64",
+FREQS := array("I64",
     131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247,
     262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494,
     523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988
 )
 
 // Piano key layout helpers
-NATURALS := array("U32", 0, 2, 4, 5, 7, 9, 11)
-BLACK_CHROMS := array("U32", 1, 3, 6, 8, 10)
-BLACK_KEY_POS := array("U32", 0, 1, 3, 4, 5)
+NATURALS := array("I32", 0, 2, 4, 5, 7, 9, 11)
+BLACK_CHROMS := array("I32", 1, 3, 6, 8, 10)
+BLACK_KEY_POS := array("I32", 0, 1, 3, 4, 5)
 
 // Map chromatic note (0-35) to white key index (-1 if black)
-// Within each octave: C=0 D=1 E=2 F=3 G=4 A=5 B=6, black=-1
-CHROM_TO_WHITE := array("U32", 0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6)
-IS_BLACK := array("U32", 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0)
+CHROM_TO_WHITE := array("I32", 0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6)
+IS_BLACK := array("I32", 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0)
 
 // Note names for piano roll labels
 NOTE_NAMES := array("Str", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 main := proc() {
     init_window(WINDOW_WIDTH.to_i64(), WINDOW_HEIGHT.to_i64(), "piano")
-    set_target_fps(FPS.to_i64())
+    SetTargetFPS(FPS)
     InitAudioDevice()
-    fnt := load_font("assets/DejaVuSans.ttf", 48)
+    fnt := LoadFontEx("assets/DejaVuSans.ttf".c_str, 48, NULL, 0)
 
     // Key state tracking
-    mut key_down := Array.new(U32, NUM_KEYS)
-    mut prev_down := Array.new(U32, NUM_KEYS)
+    mut key_down := Array.new(I32, NUM_KEYS)
+    mut prev_down := Array.new(I32, NUM_KEYS)
     for i in 0..NUM_KEYS {
         key_down.set(i, own 0)
         prev_down.set(i, own 0)
     }
 
     // Note events (circular buffer)
-    mut ev_note := Array.new(U32, MAX_NOTES)
+    mut ev_note := Array.new(I32, MAX_NOTES)
     mut ev_start := Array.new(I64, MAX_NOTES)
     mut ev_end := Array.new(I64, MAX_NOTES)
     for i in 0..MAX_NOTES {
@@ -90,12 +85,24 @@ main := proc() {
     // Pre-generate all 36 sounds for polyphony
     mut sounds := Array.new(Sound, NUM_KEYS)
     for i in 0..NUM_KEYS {
-        ref freq : U64 = FREQS.get(i)
-        s := make_tone(freq.to_i64(), 10000)
+        ref freq : I64 = FREQS.get(i)
+        s := make_tone(freq, 10000)
         sounds.set(i, own s)
     }
 
-    mut timer := 0
+    mut timer : I64 = 0
+
+    BG_COLOR := Color(r = 20, g = 20, b = 30, a = 255)
+    ROLL_BG := Color(r = 10, g = 10, b = 20, a = 255)
+    GRID_BLACK := Color(r = 15, g = 15, b = 25, a = 255)
+    GRID_LINE := Color(r = 40, g = 40, b = 60, a = 255)
+    KEY_WHITE_PRESSED := Color(r = 0, g = 200, b = 210, a = 255)
+    KEY_WHITE := Color(r = 240, g = 240, b = 240, a = 255)
+    KEY_LABEL_COLOR := Color(r = 80, g = 80, b = 80, a = 255)
+    KEY_BLACK_PRESSED := Color(r = 0, g = 150, b = 155, a = 255)
+    KEY_BLACK := Color(r = 20, g = 20, b = 20, a = 255)
+    KEY_LABEL_BLACK := Color(r = 180, g = 180, b = 180, a = 255)
+    LABEL_COLOR := Color(r = 60, g = 60, b = 80, a = 255)
 
     while !WindowShouldClose() {
         dt := get_frame_time()
@@ -103,8 +110,8 @@ main := proc() {
 
         // -- Input: reset key_down, then set from keyboard + mouse --
         for i in 0..NUM_KEYS {
-            ref kc : U64 = KEYCODES.get(i)
-            if IsKeyDown(kc.to_i32()) {
+            ref kc : I32 = KEYCODES.get(i)
+            if IsKeyDown(kc) {
                 key_down.set(i, own 1)
             } else {
                 key_down.set(i, own 0)
@@ -113,51 +120,52 @@ main := proc() {
 
         // Mouse click on piano keys
         if IsMouseButtonDown(0) {
-            mx := get_mouse_x()
-            my := get_mouse_y()
-            if my.gte(PIANO_Y.to_i64()) {
-                mut mouse_note : I64 = -1
+            mx := GetMouseX()
+            my := GetMouseY()
+            if my.gte(PIANO_Y) {
+                mut mouse_note : I32 = -1
                 // Check black keys first (they're on top)
-                if my.lt(PIANO_Y.add(BLACK_H).to_i64()) {
+                if my.lt(PIANO_Y.add(BLACK_H)) {
                     for oct : USize in 0..3 {
                         for j : USize in 0..5 {
-                            ref bpos : USize = BLACK_KEY_POS.get(j)
-                            ref bchrom_off : USize = BLACK_CHROMS.get(j)
-                            chrom := bchrom_off.add(oct.mul(12))
-                            bx := oct.to_i64().mul(7).add(bpos.to_i64()).add(1).mul(WHITE_W.to_i64()).sub(BLACK_W.div(2).to_i64())
-                            if chrom.lt(NUM_KEYS).and(mx.gte(bx)).and(mx.lt(bx.add(BLACK_W.to_i64()))) {
-                                mouse_note = chrom.to_i64()
+                            ref bpos : I32 = BLACK_KEY_POS.get(j)
+                            ref bchrom_off : I32 = BLACK_CHROMS.get(j)
+                            chrom := bchrom_off.add(oct.to_i32().mul(12))
+                            bx := oct.to_i32().mul(7).add(bpos).add(1).mul(WHITE_W).sub(BLACK_W.div(2))
+                            if chrom.to_usize().lt(NUM_KEYS).and(mx.gte(bx)).and(mx.lt(bx.add(BLACK_W))) {
+                                mouse_note = chrom
                             }
                         }
                     }
                 }
                 // If no black key hit, check white keys
                 if mouse_note.lt(0) {
-                    wk := mx.div(WHITE_W.to_i64())
+                    wk := mx.div(WHITE_W)
                     if wk.gte(0).and(wk.lt(21)) {
                         oct := wk.div(7)
-                        ref nat : USize = NATURALS.get(wk.mod(7).to_u32())
-                        mouse_note = nat.add(oct.to_u32().mul(12)).to_i64()
+                        ref nat : I32 = NATURALS.get(wk.mod(7).to_usize())
+                        mouse_note = nat.add(oct.mul(12))
                     }
                 }
-                if mouse_note.gte(0).and(mouse_note.lt(NUM_KEYS.to_i64())) {
-                    key_down.set(mouse_note.to_u32(), own 1)
+                if mouse_note.gte(0).and(mouse_note.to_usize().lt(NUM_KEYS)) {
+                    key_down.set(mouse_note.to_usize(), own 1)
                 }
             }
         }
 
         // Detect press/release by comparing with prev_down
         for i in 0..NUM_KEYS {
-            ref kd : USize = key_down.get(i)
-            ref pd : USize = prev_down.get(i)
+            ref kd : I32 = key_down.get(i)
+            ref pd : I32 = prev_down.get(i)
             // Newly pressed
             if kd.eq(1).and(pd.eq(0)) {
                 ref s : Sound = sounds.get(i)
                 PlaySound(s)
                 // Add note event
-                ev_note.set(ev_head.to_u32(), own i.clone())
-                ev_start.set(ev_head.to_u32(), own timer.clone())
-                ev_end.set(ev_head.to_u32(), own -1)
+                ev_note.set(ev_head.to_usize(), own i.to_i32())
+                t_val := timer
+                ev_start.set(ev_head.to_usize(), own t_val)
+                ev_end.set(ev_head.to_usize(), own -1)
                 ev_head = ev_head.add(1).mod(MAX_NOTES.to_i64())
                 if ev_count.lt(MAX_NOTES.to_i64()) {
                     ev_count = ev_count.add(1)
@@ -169,11 +177,12 @@ main := proc() {
                 StopSound(s)
                 // Close the note event
                 for j in 0..ev_count.to_u32() {
-                    idx := ev_head.sub(1).sub(j.to_i64()).add(MAX_NOTES.to_i64()).mod(MAX_NOTES.to_i64())
-                    ref en : USize = ev_note.get(idx.to_u32())
-                    ref ee : I64 = ev_end.get(idx.to_u32())
-                    if en.eq(i).and(ee.eq(-1)) {
-                        ev_end.set(idx.to_u32(), own timer.clone())
+                    idx := (ev_head - 1 - j.to_i64() + MAX_NOTES.to_i64()) % MAX_NOTES.to_i64()
+                    ref en : I32 = ev_note.get(idx.to_usize())
+                    ref ee : I64 = ev_end.get(idx.to_usize())
+                    if en.eq(i.to_i32()).and(ee.eq(-1)) {
+                        t_val := timer
+                        ev_end.set(idx.to_usize(), own t_val)
                         break
                     }
                 }
@@ -182,133 +191,124 @@ main := proc() {
 
         // Copy current state to prev
         for i in 0..NUM_KEYS {
-            ref kd : USize = key_down.get(i)
-            prev_down.set(i, own kd.clone())
+            ref kd : I32 = key_down.get(i)
+            kd_val := kd
+            prev_down.set(i, own kd_val)
         }
 
         // -- Draw --
         BeginDrawing()
-        clear_background(20, 20, 30, 255)
+        ClearBackground(BG_COLOR)
 
         // Piano roll background
-        draw_rectangle(0, 0, WINDOW_WIDTH.to_i64(), ROLL_H.to_i64(), 10, 10, 20, 255)
+        DrawRectangle(0, 0, WINDOW_WIDTH, ROLL_H, ROLL_BG)
 
         // Piano roll grid lines (one per note, horizontal)
-        note_h : U64 = ROLL_H.div(NUM_KEYS)
+        note_h := ROLL_H.div(NUM_KEYS.to_i32())
         for i in 0..NUM_KEYS {
-            ny := i.to_i64().mul(note_h.to_i64())
-            ref ib : USize = IS_BLACK.get(i.mod(12))
+            ny := i.to_i32().mul(note_h)
+            ref ib : I32 = IS_BLACK.get(i.mod(12))
             if ib.eq(1) {
-                draw_rectangle(0, ny, WINDOW_WIDTH.to_i64(), note_h.to_i64(), 15, 15, 25, 255)
+                DrawRectangle(0, ny, WINDOW_WIDTH, note_h, GRID_BLACK)
             }
             // Octave separator
             if i.mod(12).eq(0).and(i.gt(0)) {
-                draw_rectangle(0, ny, WINDOW_WIDTH.to_i64(), 1, 40, 40, 60, 255)
+                DrawRectangle(0, ny, WINDOW_WIDTH, 1, GRID_LINE)
             }
         }
 
         // Draw note events
         for j in 0..ev_count.to_u32() {
-            idx := ev_head.sub(ev_count).add(j.to_i64()).add(MAX_NOTES.to_i64()).mod(MAX_NOTES.to_i64())
-            ref en : USize = ev_note.get(idx.to_u32())
-            ref es : I64 = ev_start.get(idx.to_u32())
-            ref ee : I64 = ev_end.get(idx.to_u32())
+            idx := (ev_head - ev_count + j.to_i64() + MAX_NOTES.to_i64()) % MAX_NOTES.to_i64()
+            ref en : I32 = ev_note.get(idx.to_usize())
+            ref es : I64 = ev_start.get(idx.to_usize())
+            ref ee : I64 = ev_end.get(idx.to_usize())
 
             // x positions (time -> x, scrolling left)
-            mut x_right : I64 = WINDOW_WIDTH.to_i64().sub(timer.sub(es).mul(SCROLL_SPEED.to_i64()).div(1000))
-            mut x_left : I64 = WINDOW_WIDTH.to_i64()
+            mut x_right : I32 = WINDOW_WIDTH - ((timer - es) * SCROLL_SPEED.to_i64() / 1000).to_i32()
+            mut x_left : I32 = WINDOW_WIDTH
             if ee.gte(0) {
-                x_left = WINDOW_WIDTH.to_i64().sub(timer.sub(ee).mul(SCROLL_SPEED.to_i64()).div(1000))
+                x_left = WINDOW_WIDTH - ((timer - ee) * SCROLL_SPEED.to_i64() / 1000).to_i32()
             }
 
             // Skip if fully off-screen
             if x_left.lt(0) { continue }
             if x_right.lt(0) { x_right = 0 }
-            if x_left.gt(WINDOW_WIDTH.to_i64()) { x_left = WINDOW_WIDTH.to_i64() }
+            if x_left.gt(WINDOW_WIDTH) { x_left = WINDOW_WIDTH }
 
             // y position: note 0 at bottom of roll, note 35 at top
-            ey := ROLL_H.to_i64().sub(en.add(1).to_i64().mul(note_h.to_i64()))
-            mut ew : I64 = x_left.sub(x_right)
+            ey := ROLL_H - (en + 1) * note_h
+            mut ew := x_left - x_right
             if ew.lt(2) { ew = 2 }
 
             // Color: teal with brightness per octave
-            mut nr : U64 = 0
-            mut ng : U64 = 150
-            mut nb : U64 = 155
-            oct := en.div(12)
-            if oct.eq(1) { ng = 180 ; nb = 185 }
-            if oct.eq(2) { ng = 210 ; nb = 215 }
+            mut note_color := Color(r = 0, g = 150, b = 155, a = 255)
+            oct := en / 12
+            if oct.eq(1) { note_color = Color(r = 0, g = 180, b = 185, a = 255) }
+            if oct.eq(2) { note_color = Color(r = 0, g = 210, b = 215, a = 255) }
 
-            draw_rectangle(x_right, ey, ew, note_h.sub(1).to_i64(), nr.to_i64(), ng.to_i64(), nb.to_i64(), 255)
+            DrawRectangle(x_right, ey, ew, note_h - 1, note_color)
         }
 
         // Note labels on left side of roll
         for i in 0..NUM_KEYS {
-            ny := ROLL_H.to_i64().sub(i.add(1).to_i64().mul(note_h.to_i64()))
+            ny := ROLL_H - (i.to_i32() + 1) * note_h
             ref nn : Str = NOTE_NAMES.get(i.mod(12))
-            oct_label := nn.concat(i.div(12).add(3).to_str())
-            draw_text_font(fnt, oct_label, 4, ny, note_h.sub(2).to_i64(), 1, 60, 60, 80, 255)
+            oct_label := nn.concat((i.div(12) + 3).to_str())
+            DrawTextEx(fnt, oct_label.c_str, Vector2(x = 4.to_f32(), y = ny.to_f32()), (note_h - 2).to_f32(), 1.to_f32(), LABEL_COLOR)
         }
 
         // -- Piano keyboard --
         // Draw 21 white keys (3 octaves)
         for i : USize in 0..21 {
-            kx := i.to_i64().mul(WHITE_W.to_i64())
-            oct := i.div(7)
-            ref nat : USize = NATURALS.get(i.mod(7))
-            chrom := nat.add(oct.mul(12))
+            kx := i.to_i32() * WHITE_W
+            oct := i / 7
+            ref nat : I32 = NATURALS.get(i.mod(7))
+            chrom := nat + oct.to_i32() * 12
 
-            mut kr : U64 = 240
-            mut kg : U64 = 240
-            mut kb : U64 = 240
-            if chrom.lt(NUM_KEYS) {
-                ref kd : USize = key_down.get(chrom)
+            mut k_color := KEY_WHITE
+            if chrom.to_usize().lt(NUM_KEYS) {
+                ref kd : I32 = key_down.get(chrom.to_usize())
                 if kd.eq(1) {
-                    kr = 0
-                    kg = 200
-                    kb = 210
+                    k_color = KEY_WHITE_PRESSED
                 }
             }
-            draw_rectangle(kx, PIANO_Y.to_i64(), WHITE_W.sub(2).to_i64(), WHITE_H.to_i64(), kr.to_i64(), kg.to_i64(), kb.to_i64(), 255)
+            DrawRectangle(kx, PIANO_Y, WHITE_W - 2, WHITE_H, k_color)
 
             // Key label
-            if chrom.lt(NUM_KEYS) {
-                ref lbl : Str = KEY_LABELS.get(chrom)
-                draw_text_font(fnt, lbl, kx.add(WHITE_W.div(4).to_i64()), PIANO_Y.add(WHITE_H).sub(30).to_i64(), 18, 1, 80, 80, 80, 255)
+            if chrom.to_usize().lt(NUM_KEYS) {
+                ref lbl : Str = KEY_LABELS.get(chrom.to_usize())
+                DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + WHITE_W / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
             }
         }
 
         // Draw 15 black keys (5 per octave, 3 octaves)
         for oct : USize in 0..3 {
             for j : USize in 0..5 {
-                ref bpos : USize = BLACK_KEY_POS.get(j)
-                ref bchrom_off : USize = BLACK_CHROMS.get(j)
-                chrom := bchrom_off.add(oct.mul(12))
-                bx := oct.to_i64().mul(7).add(bpos.to_i64()).add(1).mul(WHITE_W.to_i64()).sub(BLACK_W.div(2).to_i64())
+                ref bpos : I32 = BLACK_KEY_POS.get(j)
+                ref bchrom_off : I32 = BLACK_CHROMS.get(j)
+                chrom := bchrom_off + oct.to_i32() * 12
+                bx := (oct.to_i32() * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
 
-                mut br : U64 = 20
-                mut bg : U64 = 20
-                mut bb : U64 = 20
-                if chrom.lt(NUM_KEYS) {
-                    ref kd : USize = key_down.get(chrom)
+                mut kb_color := KEY_BLACK
+                if chrom.to_usize().lt(NUM_KEYS) {
+                    ref kd : I32 = key_down.get(chrom.to_usize())
                     if kd.eq(1) {
-                        br = 0
-                        bg = 150
-                        bb = 155
+                        kb_color = KEY_BLACK_PRESSED
                     }
                 }
-                draw_rectangle(bx, PIANO_Y.to_i64(), BLACK_W.to_i64(), BLACK_H.to_i64(), br.to_i64(), bg.to_i64(), bb.to_i64(), 255)
+                DrawRectangle(bx, PIANO_Y, BLACK_W, BLACK_H, kb_color)
 
                 // Key label
-                if chrom.lt(NUM_KEYS) {
-                    ref lbl : Str = KEY_LABELS.get(chrom)
-                    draw_text_font(fnt, lbl, bx.add(BLACK_W.div(4).to_i64()), PIANO_Y.add(BLACK_H).sub(20).to_i64(), 14, 1, 180, 180, 180, 255)
+                if chrom.to_usize().lt(NUM_KEYS) {
+                    ref lbl : Str = KEY_LABELS.get(chrom.to_usize())
+                    DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + BLACK_W / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
                 }
             }
         }
 
         // Hint
-        draw_text_font(fnt, "press keyboard keys to play (1-0, Q-P, A-L, Z-M)", MARGIN.to_i64(), PIANO_Y.sub(30).to_i64(), FONT.to_i64(), 1, 80, 80, 80, 255)
+        DrawTextEx(fnt, "press keyboard keys to play (1-0, Q-P, A-L, Z-M)".c_str, Vector2(x = MARGIN, y = (PIANO_Y - 30).to_f32()), FONT, 1.to_f32(), KEY_LABEL_COLOR)
 
         EndDrawing()
     }
