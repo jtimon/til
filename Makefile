@@ -196,9 +196,8 @@ test_asan: test
 
 # test_asan_full: do both -- run the suite via the ASAN-instrumented compiler
 # (bin/til_asan) AND pass --asan through so compiled binaries are sanitized too.
-# Maximally strict. Compiler leaks are suppressed via asan_safe_cmd (the
-# compiler itself is known to leak), but use-after-free / heap-buffer-overflow
-# from either side still fail the run.
+# Maximally strict. Compiler leaks will fail the run, as well as use-after-free
+# and heap-buffer-overflow from either side.
 test_asan_full: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
 	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
 

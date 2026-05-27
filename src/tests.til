@@ -200,19 +200,12 @@ add_cli_pair := func(tests: Vec, name: Str, file: Str,
                      til: Str, asan_flag: Str) {
     mut cmd_i := format(til, " interpret ", file)
     if cli_args.len().gt(0) { cmd_i = format(cmd_i, " ", cli_args) }
-    add_single(tests, format(name, "_i"), "cli", expected_exit, expected_out, asan_safe_cmd(cmd_i, til))
+    add_single(tests, format(name, "_i"), "cli", expected_exit, expected_out, cmd_i)
     mut cmd_r := format(til, " run", asan_flag, " -o bin/c/", name,
         " -c gen/c/", name, ".c ",
         file)
     if cli_args.len().gt(0) { cmd_r = format(cmd_r, " ", cli_args) }
-    add_single(tests, format(name, "_r"), "cli", expected_exit, expected_out, asan_safe_cmd(cmd_r, til))
-}
-
-asan_safe_cmd := func(cmd: Str, til_bin: Str) returns Str {
-    if til_bin.ends_with("_asan") {
-        return format("ASAN_OPTIONS=detect_leaks=0 ", cmd)
-    }
-    return cmd
+    add_single(tests, format(name, "_r"), "cli", expected_exit, expected_out, cmd_r)
 }
 
 // --- Blind parallel runner ---
@@ -394,9 +387,7 @@ main := proc(args: ..Str) {
             mut run_args := ""
             if bn.eq("popcorn") { run_args = " --mute" }
             add_single(tests, format("build_", bn), "build", 124, "",
-                       asan_safe_cmd(
-                           format(til_bin, " build", asan_flag, " ", gf, " '&&' xvfb-run --auto-servernum timeout ", GUI_TIMEOUT, " bin/", bn, run_args),
-                           til_bin))
+                       format(til_bin, " build", asan_flag, " ", gf, " '&&' xvfb-run --auto-servernum timeout ", GUI_TIMEOUT, " bin/", bn, run_args))
         }
     }
 
@@ -467,33 +458,33 @@ main := proc(args: ..Str) {
     ffi_exp := "gen/out/expected/ffi.out"
     File.writefile(ffi_exp, format("hello world", NL, "hello universe", NL))
     add_single(tests, "ffi_interp", "ffi", 0, ffi_exp,
-               asan_safe_cmd(format(til_bin, " interpret examples/ffi/ext_module.til"), til_bin))
+               format(til_bin, " interpret examples/ffi/ext_module.til"))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
-               asan_safe_cmd(format(til_bin, " run", asan_flag, " examples/ffi/ext_module.til"), til_bin))
+               format(til_bin, " run", asan_flag, " examples/ffi/ext_module.til"))
     ffi_scavenge_exp := "gen/out/expected/ffi_scavenge.out"
     File.writefile(ffi_scavenge_exp, "ok")
     add_single(tests, "ffi_scavenge_link_c_run", "ffi", 0, ffi_scavenge_exp,
-               asan_safe_cmd(format(til_bin, " run", asan_flag, " test/ffi_scavenge_link_c.til"), til_bin))
+               format(til_bin, " run", asan_flag, " test/ffi_scavenge_link_c.til"))
     // Issue #176: binding libc functions like setenv/getenv directly via
     // ext_func must compile under -Werror and produce the expected behaviour.
     ext_libc_exp := "gen/out/expected/ext_libc.out"
     File.writefile(ext_libc_exp, format("ok", NL))
     add_single(tests, "ext_libc_run", "ffi", 0, ext_libc_exp,
-               asan_safe_cmd(format(til_bin, " run", asan_flag, " test/ext_libc.til"), til_bin))
+               format(til_bin, " run", asan_flag, " test/ext_libc.til"))
 
     // === library mode checks (pure/pura build are the heaviest here) ===
     add_single(tests, "pure_build", "library", 0, "",
-               asan_safe_cmd(format(til_bin, " build", asan_flag, " test/pure.til"), til_bin))
+               format(til_bin, " build", asan_flag, " test/pure.til"))
     add_single(tests, "pura_build", "library", 0, "",
-               asan_safe_cmd(format(til_bin, " build", asan_flag, " test/pura.til"), til_bin))
+               format(til_bin, " build", asan_flag, " test/pura.til"))
     add_single(tests, "pure_interp_forbidden", "library", 1, "",
-               asan_safe_cmd(format(til_bin, " interpret test/pure.til"), til_bin))
+               format(til_bin, " interpret test/pure.til"))
     add_single(tests, "pure_run_forbidden", "library", 1, "",
-               asan_safe_cmd(format(til_bin, " run", asan_flag, " test/pure.til"), til_bin))
+               format(til_bin, " run", asan_flag, " test/pure.til"))
     add_single(tests, "pura_interp_forbidden", "library", 1, "",
-               asan_safe_cmd(format(til_bin, " interpret test/pura.til"), til_bin))
+               format(til_bin, " interpret test/pura.til"))
     add_single(tests, "pura_run_forbidden", "library", 1, "",
-               asan_safe_cmd(format(til_bin, " run", asan_flag, " test/pura.til"), til_bin))
+               format(til_bin, " run", asan_flag, " test/pura.til"))
 
     // === build tests: svg2ttf + issues summary ===
     // svg2ttf: transparent 2-colour logo produces fonts/til_logo.ttf (exit=0);
@@ -503,57 +494,57 @@ main := proc(args: ..Str) {
     // into build_ms rather than cli_ms in totals.
     run("mkdir -p fonts")
     add_single(tests, "svg2ttf_ok", "build", 0, "",
-               asan_safe_cmd(format(til_bin,
+               format(til_bin,
                       " run", asan_flag, " -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ",
                       "examples/svg2ttf.til ",
-                      "img/logo-transparent.svg fonts/til_logo.ttf"), til_bin))
+                      "img/logo-transparent.svg fonts/til_logo.ttf"))
     add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
-               asan_safe_cmd(format(til_bin,
+               format(til_bin,
                       " run", asan_flag, " -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ",
                       "examples/svg2ttf.til ",
-                      "img/logo.svg tmp/svg2ttf_fail.ttf"), til_bin))
+                      "img/logo.svg tmp/svg2ttf_fail.ttf"))
     // issues.til is fast enough to keep in the regular suite; it refreshes
     // issues/summary.org from the current issue files.
     add_single(tests, "issues_summary", "build", 0, "",
-               asan_safe_cmd(format(til_bin,
+               format(til_bin,
                       " run", asan_flag, " -o bin/c/issues_summary -c gen/c/issues_summary.c ",
-                      "examples/issues.til"), til_bin))
+                      "examples/issues.til"))
 
     // === til test command (issue #51): runs interpret + compile-and-run
     // and counts "tests passed" lines so both backends are exercised.
     add_count(tests, "til_test_cmd", "test", "tests passed", 2,
-              asan_safe_cmd(format(til_bin, " test", asan_flag, " test/test_in_namespace.til"), til_bin))
+              format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
     add_count(tests, "typer_errors", "typer", "error:", 117,
-               asan_safe_cmd(format(til_bin, " interpret test/typer_errors.til"), til_bin))
+               format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
-               asan_safe_cmd(format(til_bin, " interpret test/qualifier_shallow_local_error.til"), til_bin))
+               format(til_bin, " interpret test/qualifier_shallow_local_error.til"))
     add_count(tests, "qualifier_ref_param_error", "parser",
               "parameters are borrowed by default", 1,
-              asan_safe_cmd(format(til_bin, " interpret test/qualifier_ref_param_error.til"), til_bin))
+              format(til_bin, " interpret test/qualifier_ref_param_error.til"))
     add_count(tests, "qualifier_returns_own_error", "parser",
               "returns are owned by default", 1,
-              asan_safe_cmd(format(til_bin, " interpret test/qualifier_returns_own_error.til"), til_bin))
+              format(til_bin, " interpret test/qualifier_returns_own_error.til"))
     add_count(tests, "priv_error_interp", "typer",
               "is private to", 4,
-              asan_safe_cmd(format(til_bin, " interpret test/priv_error.til"), til_bin))
+              format(til_bin, " interpret test/priv_error.til"))
     add_count(tests, "priv_error_build", "typer",
               "is private to", 4,
-              asan_safe_cmd(format(til_bin, " build", asan_flag, " test/priv_error.til"), til_bin))
+              format(til_bin, " build", asan_flag, " test/priv_error.til"))
     add_count(tests, "priv_unused_error_interp", "typer",
               "unused priv", 7,
-              asan_safe_cmd(format(til_bin, " interpret test/priv_unused_error.til"), til_bin))
+              format(til_bin, " interpret test/priv_unused_error.til"))
     add_count(tests, "priv_unused_error_build", "typer",
               "unused priv", 7,
-              asan_safe_cmd(format(til_bin, " build", asan_flag, " test/priv_unused_error.til"), til_bin))
+              format(til_bin, " build", asan_flag, " test/priv_unused_error.til"))
     add_count(tests, "enum_switch_missing_case_interp", "typer",
               "non-exhaustive switch on enum", 4,
-              asan_safe_cmd(format(til_bin, " interpret test/enum_switch_missing_case.til"), til_bin))
+              format(til_bin, " interpret test/enum_switch_missing_case.til"))
     add_count(tests, "enum_switch_missing_case_build", "typer",
               "non-exhaustive switch on enum", 4,
-              asan_safe_cmd(format(til_bin, " build", asan_flag, " test/enum_switch_missing_case.til"), til_bin))
+              format(til_bin, " build", asan_flag, " test/enum_switch_missing_case.til"))
 
     // === CLI tests ===
     exp := "gen/out/expected/"
@@ -562,9 +553,9 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_args_hello", "examples/cli_args.til",
                  "hello world", 0, format(exp, "cli_args_hello.out"), til_bin, asan_flag)
     add_single(tests, "cli_args_default_args", "cli", 0, format(exp, "cli_args_hello.out"),
-               asan_safe_cmd(format(til_bin, " examples/cli_args.til hello world"), til_bin))
+               format(til_bin, " examples/cli_args.til hello world"))
     add_single(tests, "cli_args_dd_default_args", "cli", 0, format(exp, "cli_args_hello.out"),
-               asan_safe_cmd(format(til_bin, " -- examples/cli_args.til hello world"), til_bin))
+               format(til_bin, " -- examples/cli_args.til hello world"))
 
     File.writefile(format(exp, "cli_args_empty.out"), "")
     add_cli_pair(tests, "cli_args_empty", "examples/cli_args.til",
@@ -602,11 +593,11 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "hello_cli", "examples/hello_cli.til",
                  "", 0, format(exp, "hello_cli.out"), til_bin, asan_flag)
     add_single(tests, "hello_cli_dd_default", "cli", 0, format(exp, "hello_cli.out"),
-               asan_safe_cmd(format(til_bin, " -- examples/hello_cli.til"), til_bin))
+               format(til_bin, " -- examples/hello_cli.til"))
     add_single(tests, "hello_cli_dd_i", "cli", 0, format(exp, "hello_cli.out"),
-               asan_safe_cmd(format(til_bin, " interpret -- examples/hello_cli.til"), til_bin))
+               format(til_bin, " interpret -- examples/hello_cli.til"))
     add_single(tests, "hello_cli_dd_r", "cli", 0, format(exp, "hello_cli.out"),
-               asan_safe_cmd(format(til_bin, " run", asan_flag, " -o bin/c/hello_cli_dd -c gen/c/hello_cli_dd.c -- examples/hello_cli.til"), til_bin))
+               format(til_bin, " run", asan_flag, " -o bin/c/hello_cli_dd -c gen/c/hello_cli_dd.c -- examples/hello_cli.til"))
 
     File.writefile(format(exp, "variadic_add.out"), format("60", NL))
     add_cli_pair(tests, "variadic_add", "examples/cli_variadic_i64.til",
