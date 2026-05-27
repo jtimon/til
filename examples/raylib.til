@@ -10,26 +10,21 @@ link("m")
 link("pthread")
 link("rt")
 
-// Helper: build a Color struct from R/G/B/A in 0..255.
-color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns Color {
-    return Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8())
-}
-
-title : Str = "hello from til!"
-InitWindow(800, 450, title.c_str)
+TITLE := "hello from til!"
+InitWindow(800, 450, TITLE.c_str)
 SetTargetFPS(60)
 
-black := color(0, 0, 0, 255)
-red := color(230, 41, 55, 255)
+BLACK := Color(r = 0, g = 0, b = 0, a = 255)
+RED := Color(r = 230, g = 41, b = 55, a = 255)
 
-mut x := 0
-mut y := 0
+mut x : I32 = 0
+mut y : I32 = 0
 while !WindowShouldClose() {
-    x = x.add(2)
-    y = y.add(1)
     BeginDrawing()
-    ClearBackground(black)
-    DrawRectangle(x.to_i32(), y.to_i32(), 50, 50, red)
+    ClearBackground(BLACK)
+    DrawRectangle(x, y, 50, 50, RED)
     EndDrawing()
+    x++
+    y--
 }
 CloseWindow()

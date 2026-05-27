@@ -406,6 +406,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
 
     // 2) Seed worklist from the concatenated user-unit stream
     mut worklist := Vec.new(Str)
+    vec_push_str(worklist, "Str")
     if is_cli {
         vec_push_str(worklist, "main")
         // The generated CLI entry wrapper (emit_cli_parse_arg in
