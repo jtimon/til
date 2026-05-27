@@ -108,16 +108,12 @@ Merging to master (local sessions)::
   #
   # 1. Cherry-pick the single worktree commit onto master.
   git checkout master
-  git cherry-pick concat-to-format    # or the worktree branch name
+  git cherry-pick <worktree-branch-name>
 
-  # 2. Then follow doc/bots/merging_from_remote.org from Step 4 onward on
-  #    master: soft-reset the cherry-picked commit, discard totals from both
-  #    the index and worktree, rerun make test / make test_two_pass,
-  #    run the ASAN checks, update the ASAN baseline table there, and
-  #    recommit with the exact same message.
+  # Note: The human runs the merge script directly. Local sessions
+  # just need to cherry-pick to master when told.
 
-  # 3. Only now remove the worktree -- testing may need more edits after
-  #    the regen/ASAN pass, so keep it alive until master has the final commit.
+  # 2. Only now remove the worktree.
   git worktree remove <path>
   git worktree prune
 
@@ -143,8 +139,8 @@ due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
     grep "SUMMARY" tmp/asan.log
 
 Remote sessions must NOT update the ASAN baseline recorded in
-`doc/bots/merging_from_remote.org`. The baseline is rolled forward by the local
-session doing the master merge (see the "Merging to master (local sessions)"
+`doc/bots/asan.org`. The baseline is updated automatically by the merge script
+run by the human.
 section above). A remote session may report its own ASAN numbers for context,
 but should not edit the baseline table or treat small deltas as a blocker --
 the merger decides whether to accept them.
@@ -331,8 +327,8 @@ The base procedure is:
          - `Two-pass: `-prefixed commits: `make clean && make test_two_pass`.
            These commits depend on the new compiler's self-applied
            output -- pass 1 alone would commit a `boot/til.c` that
-           the local merger's `make test_two_pass` (per
-           `doc/bots/merging_from_remote.org`) would regenerate
+            the local merger's `make test_two_pass` (run via the merge script)
+            would regenerate
            differently. See `doc/self.org` "Two-pass build" for
            the bootstrap reasoning.
       If the branch mixes prefixes, choose `make test_two_pass` (it
@@ -355,11 +351,10 @@ boot/* conflicts; a clean rebase needs no soft-reset on remote sessions.
 Exception: when the user says the rebased branch is *next to merge*
 (no other remote branches will land between this push and the local
 merger picking it up), the soft-reset + regenerate step at (4b) /
-(5) can be skipped. The local merger's `make test` / `make
-test_two_pass` (per `doc/bots/merging_from_remote.org`) regenerates
-boot/* against the rebased source anyway, so the work would just be
-thrown away. Discard doc/totals.csv + img/totals.svg if they are
-modified, then commit and force-push. Only the human can grant this
+(5) can be skipped. The local merger's `make test` / `make test_two_pass`
+(run via the merge script) regenerates boot/* against the rebased source anyway,
+so the work would just be thrown away. Discard doc/totals.csv + img/totals.svg
+if they are modified, then commit and force-push. Only the human can grant this
 exception -- never assume it; redo the regen by default.
 
 The next-to-merge exception is REVOKED the moment the rebase produces
