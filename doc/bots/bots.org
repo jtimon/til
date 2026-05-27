@@ -183,12 +183,13 @@ spawns the orphan pile.
 
 Specifically, NEVER:
 
-- pass `run_in_background: true` to the Bash tool. Not for builds, not
+- pass `run_in_background: true` or set `WaitMsBeforeAsync` < `3600000` in the run_command tool. Not for builds, not
   for tests, not for "I'll check on it later", not ever. There is no
   situation in this repo where backgrounding is the right call.
 - end a shell command with `&` to backgroundize it.
 - `disown`, `nohup`, `setsid`, or `(cmd &)` -- same effect.
 - spawn polling loops (`while pgrep ...; do sleep N; done`) to "wait".
+- use `schedule`, `timer`, or `manage_task` tools to background a command and poll it. Always run commands synchronously in the foreground.
 
 If a build/test is slow, just WAIT for it -- the Bash tool blocks until
 it finishes, however long that takes. Pass a large `timeout` (the tool
@@ -266,7 +267,7 @@ way through.
   "Foo (#167)"). Lines beginning with `#` are comments in git's commit
   message buffer and get stripped by some tools.
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
-- Local sessions do NOT push. Humans handle all pushes manually.
+- Local sessions do NOT fetch and do NOT push. Humans handle all syncing with remotes. If rebasing in a local session, rebase on the local `master` branch directly.
 - Do NOT remind Jorge to push. Local pushes are handled manually and don't
   need bot follow-up nudges.
 - Remote sessions may push only to their own assigned feature branches

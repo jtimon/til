@@ -15,7 +15,8 @@ color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) re
     return Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8())
 }
 
-InitWindow(800, 450, "hello from til!".c_str)
+title : Str = "hello from til!"
+InitWindow(800, 450, title.c_str)
 SetTargetFPS(60)
 
 black := color(0, 0, 0, 255)

@@ -381,6 +381,7 @@ main := proc(args: ..Str) {
             "examples/tilminal.til",
             "examples/game_of_life.til",
             "examples/gui_hello.til",
+            "examples/raylib.til",
         )
         for gf : Str in gui_files {
             bn := test_basename(gf)
