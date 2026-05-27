@@ -819,7 +819,13 @@ parse_primary := proc(mut p: Parser) returns Expr {
         return parse_struct_def(p, tag)
     }
     if e_set.not().and(t.type.is(TokenType.KwEnum)) {
-        return parse_enum_def(p)
+        // Anonymous enum: `enum { ... }.Variant` (or `.Variant(payload)`).
+        // Parse the EnumDef literal, then fall through to the postfix
+        // `.field` loop so the variant access attaches to it. init lifts
+        // the literal to a top-level AnonEnumN decl (issue #57). A bare
+        // `enum { ... }` (no trailing `.`) stays an EnumDef literal.
+        e = parse_enum_def(p)
+        e_set = true
     }
     if e_set.not().and(t.type.is(TokenType.LBrace)) {
         advance(p)

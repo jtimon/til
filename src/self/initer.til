@@ -2804,15 +2804,17 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
     }
 }
 
-// Issue #56: anonymous struct instantiation. The parser turns
-// `struct { ... }(args)` into an FCall whose callee (child 0) is a
-// StructDef literal. This walk lifts each such literal to a fresh
-// top-level `AnonStructN := struct { ... }` decl (collected in
-// new_decls, appended to program.children so the registration walk
-// below registers it and generates its clone/delete/size methods) and
-// rewrites the FCall callee to reference the generated name -- turning
-// `struct { ... }(args)` into `AnonStructN(args)`. Mirrors rstil's
-// expand_anon_struct_fcalls_recursive.
+// Issue #56 / #57: anonymous struct and enum literals used as values.
+// The parser leaves an inline definition literal as child 0 of the node
+// that consumes it:
+//   `struct { ... }(args)`         -> FCall whose callee is a StructDef
+//   `enum { ... }.Variant`         -> FieldAccess whose target is an EnumDef
+//   `enum { ... }.Variant(payload)`-> FCall(FieldAccess(EnumDef, ...))
+// This walk lifts each such literal to a fresh top-level
+// `AnonStructN`/`AnonEnumN` decl (collected in new_decls, appended to
+// program.children so the registration walk below registers it and
+// generates its clone/delete/eq/to_str methods) and rewrites child 0 to
+// reference the generated name. Mirrors rstil's anon-literal expansion.
 mut anon_struct_counter : I64 = 0
 
 priv init_expand_anon_structs := proc(mut e: Expr, mut new_decls: Vec) {
@@ -2821,10 +2823,14 @@ priv init_expand_anon_structs := proc(mut e: Expr, mut new_decls: Vec) {
         ref mut c : Expr = e.child(i)
         init_expand_anon_structs(c, new_decls)
     }
-    if e.node_type.is(NodeType.FCall).not() { return }
+    holds_callee := e.node_type.is(NodeType.FCall).or(e.node_type.is(NodeType.FieldAccess))
+    if holds_callee.not() { return }
     if e.children.len().eq(0) { return }
-    if e.child(0).node_type.is(NodeType.StructDef).not() { return }
-    name := "AnonStruct".concat(anon_struct_counter.to_str())
+    mut kind := ""
+    if e.child(0).node_type.is(NodeType.StructDef) { kind = "AnonStruct" }
+    if e.child(0).node_type.is(NodeType.EnumDef) { kind = "AnonEnum" }
+    if kind.eq("") { return }
+    name := kind.concat(anon_struct_counter.to_str())
     anon_struct_counter = anon_struct_counter.add(1)
     mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), e.line, e.col)
     decl.add_child(own e.child(0).clone())

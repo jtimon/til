@@ -204,6 +204,26 @@ test_anon_struct_defaults := test() {
     assert_eq(__LOC__, q.a, 7)
 }
 
+// --- Anonymous enum literals (issue #57) ---
+// `enum { ... }.Variant` (and `.Variant(payload)`) reference a variant of
+// an inline anonymous enum. init lifts the literal to a top-level
+// AnonEnumN type, so it works in both interpret and compile mode.
+
+test_anon_enum_variant := test() {
+    c := enum {
+        Red, Green, Blue
+    }.Green
+    assert_eq_str(__LOC__, c.to_str(), "Green")
+}
+
+test_anon_enum_payload := test() {
+    v := enum {
+        Num: I64
+        Nothing
+    }.Num(42)
+    assert_eq_str(__LOC__, v.to_str(), "Num(42)")
+}
+
 // --- Struct introspection primitives (issue #56/#58) ---
 // struct_field_* query a registered struct type's fields by name. The
 // queried type must be live in the program (an unused type is DCE'd
