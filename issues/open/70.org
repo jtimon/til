@@ -20,6 +20,19 @@ The builder emits top-level constants as heap-allocated runtime
   gets them through the normal generated headers, while the remaining
   broader constant-folding work stays here.
 
+  Progress: precomp now folds struct-VALUED pure calls. ~value_to_expr~
+  (src/self/precomp.til) reconstructs a non-Str ~Value.Struct~ into a
+  positional POD-struct constructor (Ident(name) + one folded arg per
+  field, in field order); the builder emits it as a compile-time C
+  compound literal via ~emit_pod_compound_literal~. Only POD structs fold
+  (no own/ref fields); nested POD structs recurse. Verified in
+  test/constfold.til: ~CfVec2.magic()~ -> ~(CfVec2){.x=42,.y=99}~,
+  ~CfVec2.at(10,20)~, and nested ~CfRect.sample()~ all fold (see
+  test/constfold.c), with stack-value access and call_free=false deletes.
+  Still TODO under this issue: collection-valued folds (Vec/Map/Array),
+  enum-valued folds (~Value.Enum~), namespace/static-field globals
+  (~Str.CAP_LIT~ -> generated ~Str_CAP_LIT~), and ~const~ emission.
+
   Current status after the real ~[[./104.org][#104]]~ fix:
   - ordinary top-level globals are now usable from handwritten C through
     generated ~extern~ declarations in ~boot/til_forward.h~

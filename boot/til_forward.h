@@ -1544,7 +1544,7 @@ U8 * priv___src_self_precomp_til__hex_digit_value(I8 * b);
 Str * priv___src_self_precomp_til__from_source_form(Str * s);
 Bool priv___src_self_precomp_til__needs_source_escape(Str * s);
 Str * priv___src_self_precomp_til__str_to_source_form(Str * s);
-Expr * value_to_expr(Value val, Expr * src);
+Expr * value_to_expr(Value val, Expr * src, Context * ctx);
 Value expr_to_value(Expr * e, Context * ctx);
 Bool is_known(Context * ctx, Expr * e, Value * out);
 Bool is_known_check(Context * ctx, Expr * e);

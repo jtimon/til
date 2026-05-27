@@ -191,14 +191,11 @@ void test_lolalalo(void);
 void test_fold_variable(void);
 void test_loc_folded(void);
 void test_fold_f32(void);
-CfVec2 * CfVec2_magic(void);
-CfVec2 * CfVec2_at(I64 * x, I64 * y);
 CfVec2 * CfVec2_clone(CfVec2 * self);
 void CfVec2_delete(CfVec2 * self, Bool * call_free);
 U32 CfVec2_size(void);
 void test_struct_fold_simple(void);
 void test_struct_fold_values(void);
-CfRect * CfRect_sample(void);
 CfRect * CfRect_clone(CfRect * self);
 void CfRect_delete(CfRect * self, Bool * call_free);
 U32 CfRect_size(void);
@@ -298,14 +295,11 @@ void test_lolalalo(void);
 void test_fold_variable(void);
 void test_loc_folded(void);
 void test_fold_f32(void);
-CfVec2 * CfVec2_magic(void);
-CfVec2 * CfVec2_at(I64 * x, I64 * y);
 CfVec2 * CfVec2_clone(CfVec2 * self);
 void CfVec2_delete(CfVec2 * self, Bool * call_free);
 U32 CfVec2_size(void);
 void test_struct_fold_simple(void);
 void test_struct_fold_values(void);
-CfRect * CfRect_sample(void);
 CfRect * CfRect_clone(CfRect * self);
 void CfRect_delete(CfRect * self, Bool * call_free);
 U32 CfRect_size(void);
@@ -1621,18 +1615,6 @@ void test_fold_f32(void) {
     Str_delete(&hoisted__Str_4398, &(Bool){0});
 }
 
-CfVec2 * CfVec2_magic(void) {
-    I64 hoisted__I64_4399 = 42;
-    I64 hoisted__I64_4400 = 99;
-    CfVec2 hoisted__CfVec2_4401 = (CfVec2){.x = hoisted__I64_4399, .y = hoisted__I64_4400};
-    { CfVec2 *_r = malloc(sizeof(CfVec2)); *_r = hoisted__CfVec2_4401; return _r; }
-}
-
-CfVec2 * CfVec2_at(I64 * x, I64 * y) {
-    CfVec2 hoisted__CfVec2_4402 = (CfVec2){.x = DEREF(x), .y = DEREF(y)};
-    { CfVec2 *_r = malloc(sizeof(CfVec2)); *_r = hoisted__CfVec2_4402; return _r; }
-}
-
 CfVec2 * CfVec2_clone(CfVec2 * self) {
     CfVec2 hoisted__CfVec2_4403 = (CfVec2){.x = self->x, .y = self->y};
     { CfVec2 *_r = malloc(sizeof(CfVec2)); *_r = hoisted__CfVec2_4403; return _r; }
@@ -1650,40 +1632,29 @@ U32 CfVec2_size(void) {
 }
 
 void test_struct_fold_simple(void) {
-    CfVec2 *v = CfVec2_magic();
+    CfVec2 v = (CfVec2){.x = 42, .y = 99};
     Str hoisted__Str_4405 = (Str){.c_str = (void *)"test/constfold.til:135:15", .count = 25ULL, .cap = TIL_CAP_LIT};
     I64 hoisted__I64_4406 = 42;
-    assert_eq(&hoisted__Str_4405, &v->x, &hoisted__I64_4406);
+    assert_eq(&hoisted__Str_4405, &v.x, &hoisted__I64_4406);
     Str_delete(&hoisted__Str_4405, &(Bool){0});
     Str hoisted__Str_4407 = (Str){.c_str = (void *)"test/constfold.til:136:15", .count = 25ULL, .cap = TIL_CAP_LIT};
     I64 hoisted__I64_4408 = 99;
-    assert_eq(&hoisted__Str_4407, &v->y, &hoisted__I64_4408);
+    assert_eq(&hoisted__Str_4407, &v.y, &hoisted__I64_4408);
     Str_delete(&hoisted__Str_4407, &(Bool){0});
-    CfVec2_delete(v, &(Bool){1});
+    CfVec2_delete(&v, &(Bool){0});
 }
 
 void test_struct_fold_values(void) {
-    I64 hoisted__I64_4409 = 10;
-    I64 hoisted__I64_4410 = 20;
-    CfVec2 *p = CfVec2_at(&hoisted__I64_4409, &hoisted__I64_4410);
+    CfVec2 p = (CfVec2){.x = 10, .y = 20};
     Str hoisted__Str_4411 = (Str){.c_str = (void *)"test/constfold.til:142:15", .count = 25ULL, .cap = TIL_CAP_LIT};
     I64 hoisted__I64_4412 = 10;
-    assert_eq(&hoisted__Str_4411, &p->x, &hoisted__I64_4412);
+    assert_eq(&hoisted__Str_4411, &p.x, &hoisted__I64_4412);
     Str_delete(&hoisted__Str_4411, &(Bool){0});
     Str hoisted__Str_4413 = (Str){.c_str = (void *)"test/constfold.til:143:15", .count = 25ULL, .cap = TIL_CAP_LIT};
     I64 hoisted__I64_4414 = 20;
-    assert_eq(&hoisted__Str_4413, &p->y, &hoisted__I64_4414);
+    assert_eq(&hoisted__Str_4413, &p.y, &hoisted__I64_4414);
     Str_delete(&hoisted__Str_4413, &(Bool){0});
-    CfVec2_delete(p, &(Bool){1});
-}
-
-CfRect * CfRect_sample(void) {
-    I64 hoisted__I64_4415 = 5;
-    I64 hoisted__I64_4416 = 10;
-    I64 hoisted__I64_4417 = 100;
-    I64 hoisted__I64_4418 = 200;
-    CfRect hoisted__CfRect_4419 = (CfRect){.top_left = (CfVec2){.x = hoisted__I64_4415, .y = hoisted__I64_4416}, .bottom_right = (CfVec2){.x = hoisted__I64_4417, .y = hoisted__I64_4418}};
-    { CfRect *_r = malloc(sizeof(CfRect)); *_r = hoisted__CfRect_4419; return _r; }
+    CfVec2_delete(&p, &(Bool){0});
 }
 
 CfRect * CfRect_clone(CfRect * self) {
@@ -1703,24 +1674,24 @@ U32 CfRect_size(void) {
 }
 
 void test_struct_fold_nested(void) {
-    CfRect *r = CfRect_sample();
+    CfRect r = (CfRect){.top_left = (CfVec2){.x = 5, .y = 10}, .bottom_right = (CfVec2){.x = 100, .y = 200}};
     Str hoisted__Str_4422 = (Str){.c_str = (void *)"test/constfold.til:159:15", .count = 25ULL, .cap = TIL_CAP_LIT};
     I64 hoisted__I64_4423 = 5;
-    assert_eq(&hoisted__Str_4422, &r->top_left.x, &hoisted__I64_4423);
+    assert_eq(&hoisted__Str_4422, &r.top_left.x, &hoisted__I64_4423);
     Str_delete(&hoisted__Str_4422, &(Bool){0});
     Str hoisted__Str_4424 = (Str){.c_str = (void *)"test/constfold.til:160:15", .count = 25ULL, .cap = TIL_CAP_LIT};
     I64 hoisted__I64_4425 = 10;
-    assert_eq(&hoisted__Str_4424, &r->top_left.y, &hoisted__I64_4425);
+    assert_eq(&hoisted__Str_4424, &r.top_left.y, &hoisted__I64_4425);
     Str_delete(&hoisted__Str_4424, &(Bool){0});
     Str hoisted__Str_4426 = (Str){.c_str = (void *)"test/constfold.til:161:15", .count = 25ULL, .cap = TIL_CAP_LIT};
     I64 hoisted__I64_4427 = 100;
-    assert_eq(&hoisted__Str_4426, &r->bottom_right.x, &hoisted__I64_4427);
+    assert_eq(&hoisted__Str_4426, &r.bottom_right.x, &hoisted__I64_4427);
     Str_delete(&hoisted__Str_4426, &(Bool){0});
     Str hoisted__Str_4428 = (Str){.c_str = (void *)"test/constfold.til:162:15", .count = 25ULL, .cap = TIL_CAP_LIT};
     I64 hoisted__I64_4429 = 200;
-    assert_eq(&hoisted__Str_4428, &r->bottom_right.y, &hoisted__I64_4429);
+    assert_eq(&hoisted__Str_4428, &r.bottom_right.y, &hoisted__I64_4429);
     Str_delete(&hoisted__Str_4428, &(Bool){0});
-    CfRect_delete(r, &(Bool){1});
+    CfRect_delete(&r, &(Bool){0});
 }
 
 Color *Color_Red() {
@@ -2143,12 +2114,9 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Array_delete;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)Array_clone;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Array_size_dyn;
-    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "magic", 5ULL) == 0) return (void*)CfVec2_magic;
-    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "at", 2ULL) == 0) return (void*)CfVec2_at;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)CfVec2_clone;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)CfVec2_delete;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)CfVec2_size_dyn;
-    if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "sample", 6ULL) == 0) return (void*)CfRect_sample;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)CfRect_clone;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)CfRect_delete;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)CfRect_size_dyn;

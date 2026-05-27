@@ -192,7 +192,7 @@ priv str_to_source_form := func(s: Str) returns Str {
     return out
 }
 
-value_to_expr := func(shallow val: Value, src: Expr) returns ref Expr {
+value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref Expr {
     switch val {
     case Value.Int(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
@@ -240,7 +240,44 @@ value_to_expr := func(shallow val: Value, src: Expr) returns ref Expr {
             mut e := Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col)
             return e
         }
-        return NULL
+        // Non-Str struct: reconstruct a positional POD-struct constructor
+        // (Ident(name) + one folded arg per field, in field order) so the
+        // builder emits a compile-time compound literal instead of a
+        // runtime call. Only POD structs fold: any own/ref field, or any
+        // field whose value doesn't itself fold, bails and the call stays
+        // at runtime. Nested POD structs recurse through value_to_expr.
+        // read_field returns a shallow (borrowed) view into si.data, so the
+        // field values are not freed here.
+        ref sdef : Expr = si.struct_def
+        if is_null(sdef) { return NULL }
+        // si.to_str() is called fresh per consumer: each builds its own
+        // owned Str so no buffer is shared across the Ident and the two
+        // Type.Struct payloads (a shared borrow would be freed multiple
+        // times when each temporary is dropped). It is not `.clone()`, so
+        // it does not trip the redundant-clone-to-ref lint.
+        switch sdef.node_type {
+        case NodeType.StructDef(sfd):
+            mut ctor := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+            mut callee := Expr.new(ident_node(si.to_str()), src.line, src.col)
+            set_expr_til_type(callee, Type.Struct(si.to_str()))
+            ctor.add_child(own callee)
+            for fd : Declaration in sfd.fields {
+                // Owned/ref fields are not POD; the compound-literal path
+                // can't represent them. Bail (leaks the partial ctor -- a
+                // precomp-only allocation, consistent with the arg loop's
+                // existing clone-without-free; the call just stays runtime).
+                if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) {
+                    return NULL
+                }
+                ref farg : Expr = value_to_expr(read_field(si.data, fd, ctx), src, ctx)
+                if is_null(farg) { return NULL }
+                ctor.add_child(own farg.clone())
+            }
+            set_expr_til_type(ctor, Type.Struct(si.to_str()))
+            return ctor
+        case:
+            return NULL
+        }
     case Value.Boolean(b):
         mut e := Expr.new(NodeType.Literal(Literal.Bool(b.clone())), src.line, src.col)
         return e
@@ -697,7 +734,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             }
             return NULL
         }
-        ref _arg_lit : Expr = value_to_expr(arg_val, arg)
+        ref _arg_lit : Expr = value_to_expr(arg_val, arg, ctx)
         if is_null(_arg_lit) {
             // Free the arg_val payload before bailing. is_known's
             // Ident branch goes through Value_clone (per the swap+
@@ -746,7 +783,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     }
 
     // value_to_expr can still return NULL (e.g. Value.Struct non-Str).
-    ref lit_local : Expr = value_to_expr(result, fcall)
+    ref lit_local : Expr = value_to_expr(result, fcall, ctx)
     if is_null(lit_local) {
         // result was produced by eval_expr and is owned by us; nothing
         // else holds a reference past this point. Free it before bailing.
