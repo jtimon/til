@@ -345,7 +345,22 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: 
                 if type_to_name(local.type).len().gt(0) {
                     heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
-                    if is_null(del).not() { new_ch.push(own del) }
+                    if is_null(del).not() {
+                        if stmt.node_type.is(NodeType.Return).and(stmt.children.len().gt(0)) {
+                            stmt.add_child(own del)
+                        } else {
+                            new_ch.push(own del)
+                        }
+                    }
+                } else if local.is_heap {
+                    del := make_free_call(local.name, local.type, stmt)
+                    if is_null(del).not() {
+                        if stmt.node_type.is(NodeType.Return).and(stmt.children.len().gt(0)) {
+                            stmt.add_child(own del)
+                        } else {
+                            new_ch.push(own del)
+                        }
+                    }
                 }
             }
         }
@@ -405,6 +420,9 @@ insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: V
                 if type_to_name(local.type).len().gt(0) {
                     heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
+                    if is_null(del).not() { new_ch.push(own del) }
+                } else if local.is_heap {
+                    del := make_free_call(local.name, local.type, stmt)
                     if is_null(del).not() { new_ch.push(own del) }
                 }
             }
@@ -534,12 +552,18 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
                 heap := local.is_heap
                 del := make_delete_call(local.name, local.type, heap, heap, stmt)
                 if is_null(del).not() { new_ch.push(own del) }
+            } else if local.is_heap {
+                del := make_free_call(local.name, local.type, stmt)
+                if is_null(del).not() { new_ch.push(own del) }
             }
         }
         if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i32())) {
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
                 del := make_delete_call(local.name, local.type, heap, heap, stmt)
+                if is_null(del).not() { new_ch.push(own del) }
+            } else if local.is_heap {
+                del := make_free_call(local.name, local.type, stmt)
                 if is_null(del).not() { new_ch.push(own del) }
             }
         }
@@ -561,6 +585,9 @@ insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
                     if type_to_name(local.type).len().gt(0) {
                         heap := local.is_heap
                         del := make_delete_call(local.name, local.type, heap, heap, stmt)
+                        if is_null(del).not() { new_ch.push(own del) }
+                    } else if local.is_heap {
+                        del := make_free_call(local.name, local.type, stmt)
                         if is_null(del).not() { new_ch.push(own del) }
                     }
                 }

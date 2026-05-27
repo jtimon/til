@@ -1256,7 +1256,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
             // are til's deliberately-unused convention; the typer skips
             // them in check_unused_locals, so we need a (void) guard to
             // keep C's -Wunused-variable quiet.
-            if dd.name.starts_with("_") {
+            if dd.name.starts_with("_").or(dd.name.starts_with("hoisted__")) {
                 emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
             }
         } else {
@@ -1417,7 +1417,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
         // typer skips them in check_unused_locals, so we need a (void)
         // guard for C. Any non-_-prefixed local that reaches here is
         // either used or a typer bug -- gcc surfacing it is fine.
-        if dd.name.starts_with("_") {
+        if dd.name.starts_with("_").or(dd.name.starts_with("hoisted__")) {
             emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
         }
     }
@@ -1425,6 +1425,18 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
         UNREACHABLE(__LOC__)
     }
 }
+builder_get_c_return_type := func(ctx: Context) returns Str {
+    ref cf : Expr = ctx.current_fdef
+    if is_null(cf).not() {
+        switch cf.node_type {
+        case NodeType.FuncDef(fd):
+            return func_return_ctype(fd, ctx)
+        case:
+        }
+    }
+    return "void *"
+}
+
 emit_return_ctype := func(rv: Expr, ctx: Context) returns Str {
     ref cf : Expr = ctx.current_fdef
     if is_null(cf).not() {
@@ -1437,11 +1449,18 @@ emit_return_ctype := func(rv: Expr, ctx: Context) returns Str {
     return c_type_name(expr_til_type(rv), til_type_name(expr_til_type(rv)), ctx)
 }
 
-emit_return_box := proc(f: File, rv: Expr, shallow depth: I32, ctx: Context) {
+emit_return_box := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
+    ref rv : Expr = e.child(0)
     ctype := emit_return_ctype(rv, ctx)
     f.write("{ "); f.write(ctype); f.write(" *_r = malloc(sizeof("); f.write(ctype); f.write(")); *_r = ")
     emit_expr(f, rv, depth, ctx)
-    f.write("; return _r; }\n")
+    f.write(";\n")
+    for i in 1..e.children.len() {
+        emit_indent(f, depth)
+        emit_stmt(f, e.child(i), depth, ctx)
+    }
+    emit_indent(f, depth)
+    f.write("return _r; }\n")
 }
 
 emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
@@ -1460,6 +1479,10 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                     ctype := c_type_name(expr_til_type(rv), rv_sname, ctx)
                     f.write("{ "); f.write(ctype); f.write(" *_r = malloc(sizeof("); f.write(ctype); f.write("));\n")
                     emit_ctor_fields(f, "_r", rv, depth, ctx)
+                    for i in 1..e.children.len() {
+                        emit_indent(f, depth)
+                        emit_stmt(f, e.child(i), depth, ctx)
+                    }
                     emit_indent(f, depth); f.write("return _r; }\n")
                     return
                 }
@@ -1472,11 +1495,27 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
             switch cf2.node_type {
             case NodeType.FuncDef(fd):
                 if fd.return_own_type.is(OwnType.Ref) {
-                    f.write("return "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n"); return
+                    if e.children.len().gt(1) {
+                        ctype := builder_get_c_return_type(ctx)
+                        f.write("{ "); f.write(ctype); f.write(" _ret_val = "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
+                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                        emit_indent(f, depth); f.write("return _ret_val; }\n")
+                    } else {
+                        f.write("return "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
+                    }
+                    return
                 }
                 if fd.return_own_type.is(OwnType.Shallow) {
                     if rv.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rv, ctx)) {
-                        f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n"); return
+                        if e.children.len().gt(1) {
+                            ctype := builder_get_c_return_type(ctx)
+                            f.write("{ "); f.write(ctype); f.write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
+                            for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                            emit_indent(f, depth); f.write("return _ret_val; }\n")
+                        } else {
+                            f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
+                        }
+                        return
                     }
                     // Asap fix: shallow return of a hoisted compiler temp
                     // (hoist_to_temp always heap-promotes Own for FCall /
@@ -1492,13 +1531,23 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                                 is_value_global(ident_name(rv_name), ctx).not()).and(
                                 expr_til_type(rv).is(Type.Dynamic).not()) {
                                 ctype := emit_return_ctype(rv, ctx)
-                                f.write("{ "); f.write(ctype); f.write(" _ret = DEREF("); f.write(ident_name(rv_name)); f.write("); free("); f.write(ident_name(rv_name)); f.write("); return _ret; }\n")
+                                f.write("{ "); f.write(ctype); f.write(" _ret = DEREF("); f.write(ident_name(rv_name)); f.write("); free("); f.write(ident_name(rv_name)); f.write(");\n")
+                                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                                emit_indent(f, depth); f.write("return _ret; }\n")
                                 return
                             }
                         case:
                         }
                     }
-                    f.write("return "); emit_deref(f, rv, depth, ctx); f.write(";\n"); return
+                    if e.children.len().gt(1) {
+                        ctype := builder_get_c_return_type(ctx)
+                        f.write("{ "); f.write(ctype); f.write(" _ret_val = "); emit_deref(f, rv, depth, ctx); f.write(";\n")
+                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                        emit_indent(f, depth); f.write("return _ret_val; }\n")
+                    } else {
+                        f.write("return "); emit_deref(f, rv, depth, ctx); f.write(";\n")
+                    }
+                    return
                 }
             case:
             }
@@ -1506,10 +1555,10 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
         // Inline field value: box for return
         if rv.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ptr(rv, ctx).not())
         .and(builder_fa_is_ns(rv, ctx).not()).and(expr_til_type(rv).is(Type.Dynamic).not()) {
-            emit_return_box(f, rv, depth, ctx)
+            emit_return_box(f, e, depth, ctx)
             // Shallow fcall: box for return
         } else if rv.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rv, ctx)) {
-            emit_return_box(f, rv, depth, ctx)
+            emit_return_box(f, e, depth, ctx)
             // Hoisted local: box for return
         } else if rv.node_type.is(NodeType.Ident) {
             switch rv.node_type {
@@ -1526,12 +1575,28 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                 if is_stack_local(ident_name(rv_name), ctx).or(is_value_global(ident_name(rv_name), ctx)) {
                     if is_shallow_ret.not() {
                         ctype := emit_return_ctype(rv, ctx)
-                        f.write("{ "); f.write(ctype); f.write(" *_r = malloc(sizeof("); f.write(ctype); f.write(")); *_r = "); f.write(ident_name(rv_name)); f.write("; return _r; }\n")
+                        f.write("{ "); f.write(ctype); f.write(" *_r = malloc(sizeof("); f.write(ctype); f.write(")); *_r = "); f.write(ident_name(rv_name)); f.write(";\n")
+                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                        emit_indent(f, depth); f.write("return _r; }\n")
+                    } else {
+                        if e.children.len().gt(1) {
+                            ctype := builder_get_c_return_type(ctx)
+                            f.write("{ "); f.write(ctype); f.write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
+                            for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                            emit_indent(f, depth); f.write("return _ret_val; }\n")
+                        } else {
+                            f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
+                        }
+                    }
+                } else {
+                    if e.children.len().gt(1) {
+                        ctype := builder_get_c_return_type(ctx)
+                        f.write("{ "); f.write(ctype); f.write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
+                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                        emit_indent(f, depth); f.write("return _ret_val; }\n")
                     } else {
                         f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
                     }
-                } else {
-                    f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
                 }
             case:
                 UNREACHABLE(__LOC__)
@@ -1541,12 +1606,21 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
             sn := til_type_name(expr_til_type(rv.child(0)))
             switch rv.node_type {
             case NodeType.FieldAccess(vname):
-                f.write("{ "); f.write(sn); f.write(" *_r = malloc(sizeof("); f.write(sn); f.write(")); _r->tag = "); f.write(sn); f.write("_TAG_"); f.write(field_access_name(vname)); f.write("; return _r; }\n")
+                f.write("{ "); f.write(sn); f.write(" *_r = malloc(sizeof("); f.write(sn); f.write(")); _r->tag = "); f.write(sn); f.write("_TAG_"); f.write(field_access_name(vname)); f.write(";\n")
+                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                emit_indent(f, depth); f.write("return _r; }\n")
             case:
                 UNREACHABLE(__LOC__)
             }
         } else {
-            f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
+            if e.children.len().gt(1) {
+                ctype := builder_get_c_return_type(ctx)
+                f.write("{ "); f.write(ctype); f.write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
+                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                emit_indent(f, depth); f.write("return _ret_val; }\n")
+            } else {
+                f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
+            }
         }
     }
 }
@@ -1789,6 +1863,11 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                     f.write(tname); f.write("_delete(")
                     emit_expr(f, e, depth, ctx)
                     f.write(", &(Bool){1});\n")
+                    return
+                } else {
+                    f.write("free(")
+                    emit_expr(f, e, depth, ctx)
+                    f.write(");\n")
                     return
                 }
             }

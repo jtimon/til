@@ -429,7 +429,6 @@ priv dce_one_body := proc(mut body: Expr, shallow at_top_level: Bool) returns sh
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if dd.is_mut { continue }
-            if dd.own_type.is(OwnType.Own) { continue }
             // At top level only ever drop compiler-internal temps;
             // user-named globals may be exported. Both hoisted__* and
             // codegen _t_* temps are compiler-internal (users cannot name
