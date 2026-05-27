@@ -1431,7 +1431,7 @@ Expr * priv___src_self_typer_til__build_bang_lowered(Context * ctx, Str * error_
 void priv___src_self_typer_til__hoist_walk_consolidated(Context * ctx, Expr * parent, U32 * child_idx, Vec * pre_stmts, Vec * types_to_declare, Vec * seen);
 void priv___src_self_typer_til__hoist_nested_bangs_consolidated(Context * ctx, Expr * stmt, Vec * pre_stmts, Vec * types_to_declare, Vec * seen);
 void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec * fdef_throws, Vec * pending, Vec * seen, Vec * types_to_declare, Str * path);
-void process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec * fdef_throws, Str * return_type);
+void process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec * fdef_throws, Str * return_type, OwnType * return_own_type);
 Bool is_compile_directive(Expr * e);
 void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void reregister_scope_defs(Expr * body, TypeScope * scope);

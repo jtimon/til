@@ -2412,9 +2412,11 @@ infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
 }
 
 check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, ctx: Context) {
+    mut throws_count : USize = 0
     switch expr.node_type {
     case NodeType.FuncDef(fdef):
         if fdef.return_own_type.is(OwnType.Ref).not() { return }
+        throws_count = fdef.throw_types.len()
     case:
         UNREACHABLE(__LOC__)
         return
@@ -2424,6 +2426,11 @@ check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, ctx: Conte
         if stmt.node_type.is(NodeType.Return).not() { continue }
         if stmt.children.len().eq(0) { continue }
         ref rv : Expr = stmt.child(0)
+        // A throwing ref-returning fn gets a synthetic `return null`
+        // fallback from process_throw_catch_in_func_body. It is
+        // unreachable on the success path and unused on the error path
+        // (the err code flows out through the out-param), so allow it.
+        if throws_count.gt(0).and(rv.node_type.is_literal_null()) { continue }
         if expr_is_borrow_source(rv, func_scope).not() {
             type_error(stmt, "ref function must return a parameter or ref variable", ctx)
         }
@@ -2561,7 +2568,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             // of desugar_bang + validate + lower + inject + fallback
             // return). One walk does the work the five old passes
             // did, integrated per stmt.
-            process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type)
+            process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type, fdef.return_own_type)
         }
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
         asap_destroy_body(ctx, expr.child(0), func_scope)
@@ -4822,6 +4829,11 @@ priv make_default_value_expr := func(type_name: Str, shallow line: U32, shallow 
     .or(type_name.eq("F32")) {
         return Expr.new(literal_num_node("0"), line, col)
     }
+    // Pointer-shaped builtins have no constructor. Used only for the
+    // (unreachable) fallback return appended to throwing functions.
+    if type_name.eq("Dynamic").or(type_name.eq("Ptr")) {
+        return Expr.new(NodeType.Literal(Literal.Null), line, col)
+    }
     mut tident := Expr.new(ident_node(type_name), line, col)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
     call.add_child(own tident)
@@ -5921,7 +5933,8 @@ process_throw_catch_in_func_body := proc(
     mut ctx: Context,
     mut body: Expr,
     fdef_throws: Vec,
-    return_type: Str
+    return_type: Str,
+    return_own_type: OwnType
 ) {
     has_body_throw_catch := subtree_has_throw_catch(body)
     has_fdef_throws := fdef_throws.len().gt(0)
@@ -5993,9 +6006,18 @@ process_throw_catch_in_func_body := proc(
     for j in 0..old.len() {
         new_ch.push_take(old, j)
     }
+    // Append a fallback return so every C path returns. Ref-returning
+    // throwing fns get `return null` (no constructible borrow exists);
+    // check_ref_function_returns allows that null since it is unreachable
+    // on the success path and unused on the error path (the err code
+    // flows out through the out-param).
     if has_fdef_throws.and(return_type.len().gt(0)) {
         mut ret := Expr.new(NodeType.Return, line, col)
-        ret.add_child(own make_default_value_expr(return_type, line, col))
+        if return_own_type.is(OwnType.Ref) {
+            ret.add_child(own Expr.new(NodeType.Literal(Literal.Null), line, col))
+        } else {
+            ret.add_child(own make_default_value_expr(return_type, line, col))
+        }
         new_ch.push(own ret)
     }
     body.children.move_from(new_ch)
