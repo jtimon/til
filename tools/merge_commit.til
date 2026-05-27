@@ -146,12 +146,11 @@ split_by_pipe := func(s: Str) returns Vec {
 }
 
 main := proc(args: ..Str) {
-    if args.len().lt(1) {
-        eprint_single("usage: til run tools/merge_commit.til <HASH>\n")
-        exit(1)
+    mut hash := "HEAD"
+    if args.len().gte(1) {
+        ref arg0 : Str = args.get(0)
+        hash = arg0.clone()
     }
-
-    ref hash : Str = args.get(0)
 
     // ---- Step 2: capture commit message + stat ----
     mut msg := ""
@@ -252,7 +251,12 @@ main := proc(args: ..Str) {
 
     // ---- Step 7: commit ----
     run("git add -A")
-    run(format("git commit -F tmp/commit_msg.txt"))
+    ec := run(format("git commit -F tmp/commit_msg.txt > tmp/commit.log 2>&1"))
+    if ec.neq(0) {
+        eprint_single("Commit: FAILED\n")
+        eprint_single(File.readfile("tmp/commit.log"))
+        exit(1)
+    }
 
     print("\n=== Committed. Review the diff for correctness. ===\n")
 }
