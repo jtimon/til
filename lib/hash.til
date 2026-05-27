@@ -1,0 +1,51 @@
+mode lib
+
+// Cheap, dependency-free hash primitives for hash-based collections.
+// Returns U64 so callers can do `bucket(h, cap)` for any cap, or fold
+// the low bits themselves.
+//
+// "Cheap" means a small constant amount of arithmetic per input byte
+// (or per fixed-width input) and no allocations. til exposes mul / xor
+// on U64 but not shl / shr, so multiplicative hashes (Knuth, FNV-1a)
+// are the natural fit; bit-rotation hashes would need an ext_func.
+
+// Knuth's 32-bit golden-ratio multiplier. The 64-bit constant
+// (11400714819323198485) overflows I64 literals, so the wider variant
+// would need a U64 literal escape; this 32-bit form is good enough for
+// the bucket counts a self-hosting compiler reaches.
+KNUTH_MULT : I64 = 2654435761
+
+// FNV-1a 32-bit basis and prime, promoted to U64 so the accumulator
+// can wrap as unsigned without signed-overflow UB.
+FNV_OFFSET : U64 = 2166136261.to_u64()
+FNV_PRIME  : U64 = 16777619.to_u64()
+
+// Hash an I64 by Knuth's multiplicative hash. One multiply, bit-cast
+// through U64 so negative inputs don't panic and so the wrap-around is
+// well-defined.
+hash_i64 := func(x: I64) returns U64 {
+    return x.to_u64().mul(KNUTH_MULT.to_u64())
+}
+
+// Same multiplicative hash for U64.
+hash_u64 := func(x: U64) returns U64 {
+    return x.mul(KNUTH_MULT.to_u64())
+}
+
+// FNV-1a over the bytes of a Str. Reuses Str.byte_at so we don't pay
+// for the bounds check on every byte.
+hash_str := func(s: Str) returns U64 {
+    mut h : U64 = FNV_OFFSET
+    for i in 0..s.len() {
+        ref b : I8 = s.byte_at(i)
+        h = h.xor(b.to_u64()).mul(FNV_PRIME)
+    }
+    return h
+}
+
+// Reduce a hash to a bucket index. Plain modulo works for any cap;
+// callers that pick a power-of-two cap can replace this with
+// `h.to_usize().and(cap.sub(1.to_usize()))` to drop the divide.
+bucket := func(h: U64, cap: USize) returns USize {
+    return h.to_usize().mod(cap)
+}

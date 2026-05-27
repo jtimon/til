@@ -1,0 +1,94 @@
+mode test
+
+import("../lib/hash")
+
+test_hash_i64_deterministic := test() {
+    a := hash_i64(42)
+    b := hash_i64(42)
+    assert(__LOC__, a.eq(b))
+}
+
+test_hash_i64_distinct := test() {
+    a := hash_i64(0)
+    b := hash_i64(1)
+    c := hash_i64(2)
+    assert(__LOC__, a.eq(b).not())
+    assert(__LOC__, b.eq(c).not())
+    assert(__LOC__, a.eq(c).not())
+}
+
+test_hash_i64_negative_does_not_panic := test() {
+    h := hash_i64(-1)
+    g := hash_i64(-42)
+    assert(__LOC__, h.eq(g).not())
+}
+
+test_hash_u64_deterministic := test() {
+    a := hash_u64(99.to_u64())
+    b := hash_u64(99.to_u64())
+    assert(__LOC__, a.eq(b))
+}
+
+test_hash_u64_distinct := test() {
+    a := hash_u64(0.to_u64())
+    b := hash_u64(1.to_u64())
+    assert(__LOC__, a.eq(b).not())
+}
+
+test_hash_str_deterministic := test() {
+    a := hash_str("hello")
+    b := hash_str("hello")
+    assert(__LOC__, a.eq(b))
+}
+
+test_hash_str_distinct := test() {
+    a := hash_str("hello")
+    b := hash_str("world")
+    assert(__LOC__, a.eq(b).not())
+}
+
+test_hash_str_one_char_diff := test() {
+    // Avalanche check: a single-byte change must alter the hash.
+    a := hash_str("abc")
+    b := hash_str("abd")
+    assert(__LOC__, a.eq(b).not())
+}
+
+test_hash_str_empty := test() {
+    h := hash_str("")
+    // Empty input collapses to the FNV offset basis.
+    assert(__LOC__, h.eq(FNV_OFFSET))
+}
+
+test_bucket_in_range := test() {
+    cap : USize = 16.to_usize()
+    for i in 0..100 {
+        bi := bucket(hash_i64(i), cap)
+        assert(__LOC__, bi.lt(cap))
+    }
+}
+
+test_bucket_covers_all_with_enough_keys := test() {
+    // 1000 distinct I64 keys against 16 buckets should hit every bucket
+    // if the hash spreads at all. Tracked in a 16-byte stack-style flag
+    // vector built out of an I64 bitset to avoid pulling in Array here.
+    cap : USize = 16.to_usize()
+    mut seen : I64 = 0
+    for i in 0..1000 {
+        bi := bucket(hash_i64(i), cap)
+        mask : I64 = 1.mul(pow2(bi.to_i64()))
+        seen = seen.or(mask)
+    }
+    // 16 buckets -> low 16 bits all set -> 0xFFFF.
+    assert_eq(__LOC__, seen, 65535)
+}
+
+// Local helper: 2^n for small n (n < 16). Cheap stand-in for a missing
+// shift-left intrinsic.
+pow2 := func(n: I64) returns I64 {
+    mut r := 1
+    for _ in 0..n {
+        r = r.mul(2)
+    }
+    return r
+}

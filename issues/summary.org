@@ -41,6 +41,7 @@
 *** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
 *** [[./open/210.org][#210]] Eliminate the per-literal malloc in dyn_type_to_str returns
 *** [[./open/212.org][#212]] Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
+*** [[./open/214.org][#214]] Unordered HashMap for big tables where key order does not matter
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
