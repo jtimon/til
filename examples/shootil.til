@@ -191,9 +191,9 @@ main := proc() {
 
     cam_radius := 1.to_f32() / 2.to_f32()
 
-    teal := color(0, 200, 210, 255)
-    white := color(255, 255, 255, 255)
-    black := color(0, 0, 0, 255)
+    TEAL := Color(r = 0, g = 200, b = 210, a = 255)
+    WHITE := Color(r = 255, g = 255, b = 255, a = 255)
+    BLACK := Color(r = 0, g = 0, b = 0, a = 255)
 
     zero_f := 0.to_f32()
     one_f := 1.to_f32()
@@ -419,20 +419,20 @@ main := proc() {
         }
 
         BeginDrawing()
-        ClearBackground(black)
+        ClearBackground(BLACK)
         BeginMode3D(camera)
-        DrawPlane(floor_pos, floor_size, white)
+        DrawPlane(floor_pos, floor_size, WHITE)
         for pos : Vector3 in cube_positions {
-            DrawCubeV(pos, cube_size, teal)
-            DrawCubeWiresV(pos, cube_size, black)
+            DrawCubeV(pos, cube_size, TEAL)
+            DrawCubeWiresV(pos, cube_size, BLACK)
         }
         for pos : Vector3 in tall_positions {
-            DrawCubeV(pos, tall_size, teal)
-            DrawCubeWiresV(pos, tall_size, black)
+            DrawCubeV(pos, tall_size, TEAL)
+            DrawCubeWiresV(pos, tall_size, BLACK)
         }
         for pos : Vector3 in small_positions {
-            DrawCubeV(pos, small_size, teal)
-            DrawCubeWiresV(pos, small_size, black)
+            DrawCubeV(pos, small_size, TEAL)
+            DrawCubeWiresV(pos, small_size, BLACK)
         }
         EndMode3D()
         DrawFPS(10, 10)

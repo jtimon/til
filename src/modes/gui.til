@@ -75,17 +75,6 @@ play_tone := proc(freq: I64, duration_ms: I64) {
     tone_loaded = true
 }
 
-stop_tone := proc() {
-    if tone_loaded {
-        StopSound(prev_tone)
-    }
-}
-
-// Color helper: build a raylib Color value from RGBA bytes.
-color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns Color {
-    return Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8())
-}
-
 // init_window forces a Mesa+llvmpipe fallback when GLX picks a vendor
 // that fails on this machine; everything else is a thin wrapper that
 // adds either a type conversion (I64 <-> I32) or a Color packing step,
@@ -104,16 +93,16 @@ init_window := proc(w: I64, h: I64, title: Str) {
 set_target_fps := proc(fps: I64) { SetTargetFPS(fps.to_i32()) }
 
 clear_background := proc(r: I64, g: I64, b: I64, a: I64) {
-    ClearBackground(color(r, g, b, a))
+    ClearBackground(Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8()))
 }
 draw_rectangle := proc(x: I64, y: I64, w: I64, h: I64, r: I64, g: I64, b: I64, a: I64) {
-    DrawRectangle(x.to_i32(), y.to_i32(), w.to_i32(), h.to_i32(), color(r, g, b, a))
+    DrawRectangle(x.to_i32(), y.to_i32(), w.to_i32(), h.to_i32(), Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8()))
 }
 draw_text := proc(text: Str, x: I64, y: I64, font_size: I64, r: I64, g: I64, b: I64, a: I64) {
-    DrawText(text.c_str, x.to_i32(), y.to_i32(), font_size.to_i32(), color(r, g, b, a))
+    DrawText(text.c_str, x.to_i32(), y.to_i32(), font_size.to_i32(), Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8()))
 }
 draw_circle := proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I64) {
-    DrawCircle(cx.to_i32(), cy.to_i32(), radius.to_f32(), color(r, g, b, a))
+    DrawCircle(cx.to_i32(), cy.to_i32(), radius.to_f32(), Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8()))
 }
 
 get_screen_width := proc() returns I64 { return GetScreenWidth().to_i64() }
@@ -121,7 +110,6 @@ get_screen_height := proc() returns I64 { return GetScreenHeight().to_i64() }
 
 set_config_flags := proc(flags: I32) { SetConfigFlags(flags.to_u32()) }
 set_window_min_size := proc(w: I64, h: I64) { SetWindowMinSize(w.to_i32(), h.to_i32()) }
-set_window_max_size := proc(w: I64, h: I64) { SetWindowMaxSize(w.to_i32(), h.to_i32()) }
 get_frame_time := proc() returns I64 {
     return GetFrameTime().mul(1000).to_i64()
 }
@@ -138,11 +126,7 @@ load_font := proc(path: Str, size: I64) returns Font {
 }
 draw_text_font := proc(font: Font, text: Str, x: I64, y: I64, font_size: I64, spacing: I64, r: I64, g: I64, b: I64, a: I64) {
     pos := Vector2(x=x.to_f32(), y=y.to_f32())
-    DrawTextEx(font, text.c_str, pos, font_size.to_f32(), spacing.to_f32(), color(r, g, b, a))
-}
-measure_text_font := func(font: Font, text: Str, font_size: I64, spacing: I64) returns I64 {
-    v := MeasureTextEx(font, text.c_str, font_size.to_f32(), spacing.to_f32())
-    return v.x.to_i64()
+    DrawTextEx(font, text.c_str, pos, font_size.to_f32(), spacing.to_f32(), Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = a.to_u8()))
 }
 
 // File dialog helpers -- return file path or empty string on cancel
