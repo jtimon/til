@@ -48,8 +48,8 @@ namespace:
     }
     size := func() returns USize { return 2 }
 
-    /// Issue #201: addition that throws IntegerOverflow on signed
-    /// wrap. Use I16.add for the wrapping variant.
+    /// Addition that throws IntegerOverflow on signed wrap.
+    /// Use I16.add for the wrapping variant.
     safe_add := func(a: I16, b: I16) returns I16 throws IntegerOverflow {
         result := a.add(b)
         if b.gt(0.to_i16()) {
@@ -67,8 +67,8 @@ namespace:
         return result
     }
 
-    /// Issue #201: subtraction that throws IntegerOverflow on signed
-    /// wrap. Use I16.sub for the wrapping variant.
+    /// Subtraction that throws IntegerOverflow on signed wrap.
+    /// Use I16.sub for the wrapping variant.
     safe_sub := func(a: I16, b: I16) returns I16 throws IntegerOverflow {
         result := a.sub(b)
         if b.gt(0.to_i16()) {
@@ -86,8 +86,8 @@ namespace:
         return result
     }
 
-    /// Issue #201: multiplication that throws IntegerOverflow on signed
-    /// wrap. Use I16.mul for the wrapping variant.
+    /// Multiplication that throws IntegerOverflow on signed wrap.
+    /// Use I16.mul for the wrapping variant.
     safe_mul := func(a: I16, b: I16) returns I16 throws IntegerOverflow {
         result := a.mul(b)
         if a.eq(0.to_i16()).not() {

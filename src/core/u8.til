@@ -46,8 +46,8 @@ namespace:
     }
     size := func() returns USize { return 1 }
 
-    /// Issue #201: addition that throws IntegerOverflow on unsigned
-    /// wrap. Use U8.add for the wrapping variant.
+    /// Addition that throws IntegerOverflow on unsigned wrap.
+    /// Use U8.add for the wrapping variant.
     safe_add := func(a: U8, b: U8) returns U8 throws IntegerOverflow {
         result := a.add(b)
         if result.lt(a) {
@@ -57,8 +57,8 @@ namespace:
         return result
     }
 
-    /// Issue #201: subtraction that throws IntegerOverflow when a < b
-    /// (underflow wraps unsigned). Use U8.sub for the wrapping variant.
+    /// Subtraction that throws IntegerOverflow when a < b (underflow
+    /// wraps unsigned). Use U8.sub for the wrapping variant.
     safe_sub := func(a: U8, b: U8) returns U8 throws IntegerOverflow {
         if a.lt(b) {
             throw IntegerOverflow(msg = format(__LOC__, ":U8.safe_sub: ",
@@ -67,8 +67,8 @@ namespace:
         return a.sub(b)
     }
 
-    /// Issue #201: multiplication that throws IntegerOverflow on
-    /// unsigned wrap. Use U8.mul for the wrapping variant.
+    /// Multiplication that throws IntegerOverflow on unsigned wrap.
+    /// Use U8.mul for the wrapping variant.
     safe_mul := func(a: U8, b: U8) returns U8 throws IntegerOverflow {
         result := a.mul(b)
         if a.eq(0.to_u8()).not() {

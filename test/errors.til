@@ -360,7 +360,7 @@ MAX_I64_LIT : I64 = 9223372036854775807
 // is not const-folded, so the value is computed at runtime.
 
 test_i64_safe_add_ok := test() {
-    result := I64.safe_add(2, 3)?
+    result := 2.safe_add(3)?
     catch (err: IntegerOverflow) {
         assert(__LOC__, false)
     }
@@ -370,7 +370,7 @@ test_i64_safe_add_ok := test() {
 test_i64_safe_add_overflow := test() {
     mut caught := false
     mut emsg := ""
-    _ := I64.safe_add(MAX_I64_LIT, 1)?
+    _ := MAX_I64_LIT.safe_add(1)?
     catch (err: IntegerOverflow) {
         caught = true
         emsg = err.msg
@@ -383,7 +383,7 @@ test_i64_safe_add_underflow := test() {
     mut caught := false
     mut mx : I64 = 9223372036854775807
     min_i64 := mx.neg().sub(1)
-    _ := I64.safe_add(min_i64, -1)?
+    _ := min_i64.safe_add(-1)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -391,7 +391,7 @@ test_i64_safe_add_underflow := test() {
 }
 
 test_i64_safe_sub_ok := test() {
-    result := I64.safe_sub(10, 3)?
+    result := 10.safe_sub(3)?
     catch (err: IntegerOverflow) {
         assert(__LOC__, false)
     }
@@ -403,7 +403,7 @@ test_i64_safe_sub_underflow := test() {
     mut emsg := ""
     mut mx : I64 = 9223372036854775807
     min_i64 := mx.neg().sub(1)
-    _ := I64.safe_sub(min_i64, 1)?
+    _ := min_i64.safe_sub(1)?
     catch (err: IntegerOverflow) {
         caught = true
         emsg = err.msg
@@ -414,7 +414,7 @@ test_i64_safe_sub_underflow := test() {
 
 test_i64_safe_sub_overflow := test() {
     mut caught := false
-    _ := I64.safe_sub(MAX_I64_LIT, -1)?
+    _ := MAX_I64_LIT.safe_sub(-1)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -422,7 +422,7 @@ test_i64_safe_sub_overflow := test() {
 }
 
 test_i64_safe_mul_ok := test() {
-    result := I64.safe_mul(7, 6)?
+    result := 7.safe_mul(6)?
     catch (err: IntegerOverflow) {
         assert(__LOC__, false)
     }
@@ -432,7 +432,7 @@ test_i64_safe_mul_ok := test() {
 test_i64_safe_mul_overflow := test() {
     mut caught := false
     mut emsg := ""
-    _ := I64.safe_mul(MAX_I64_LIT, 2)?
+    _ := MAX_I64_LIT.safe_mul(2)?
     catch (err: IntegerOverflow) {
         caught = true
         emsg = err.msg
@@ -447,7 +447,7 @@ test_u64_safe_add_overflow := test() {
     mut caught := false
     mut emsg := ""
     max_u64 := -1.to_u64()
-    _ := U64.safe_add(max_u64, 1.to_u64())?
+    _ := max_u64.safe_add(1)?
     catch (err: IntegerOverflow) {
         caught = true
         emsg = err.msg
@@ -459,7 +459,8 @@ test_u64_safe_add_overflow := test() {
 test_u64_safe_sub_underflow := test() {
     mut caught := false
     mut emsg := ""
-    _ := U64.safe_sub(0.to_u64(), 1.to_u64())?
+    zero : U64 = 0
+    _ := zero.safe_sub(1)?
     catch (err: IntegerOverflow) {
         caught = true
         emsg = err.msg
@@ -472,7 +473,7 @@ test_u64_safe_mul_overflow := test() {
     mut caught := false
     mut emsg := ""
     big := -1.to_u64()
-    _ := U64.safe_mul(big, 2.to_u64())?
+    _ := big.safe_mul(2)?
     catch (err: IntegerOverflow) {
         caught = true
         emsg = err.msg
@@ -485,7 +486,7 @@ test_u32_safe_add_overflow := test() {
     mut caught := false
     mut emsg := ""
     max_u32 := -1.to_u32()
-    _ := U32.safe_add(max_u32, 1.to_u32())?
+    _ := max_u32.safe_add(1)?
     catch (err: IntegerOverflow) {
         caught = true
         emsg = err.msg
@@ -496,7 +497,8 @@ test_u32_safe_add_overflow := test() {
 
 test_u32_safe_sub_underflow := test() {
     mut caught := false
-    _ := U32.safe_sub(0.to_u32(), 1.to_u32())?
+    zero : U32 = 0
+    _ := zero.safe_sub(1)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -506,7 +508,7 @@ test_u32_safe_sub_underflow := test() {
 test_u32_safe_mul_overflow := test() {
     mut caught := false
     big := -1.to_u32()
-    _ := U32.safe_mul(big, 2.to_u32())?
+    _ := big.safe_mul(2)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -515,7 +517,8 @@ test_u32_safe_mul_overflow := test() {
 
 test_u8_safe_add_overflow := test() {
     mut caught := false
-    _ := U8.safe_add(255.to_u8(), 1.to_u8())?
+    max_u8 : U8 = 255
+    _ := max_u8.safe_add(1)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -524,7 +527,8 @@ test_u8_safe_add_overflow := test() {
 
 test_u8_safe_sub_underflow := test() {
     mut caught := false
-    _ := U8.safe_sub(0.to_u8(), 1.to_u8())?
+    zero : U8 = 0
+    _ := zero.safe_sub(1)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -533,7 +537,8 @@ test_u8_safe_sub_underflow := test() {
 
 test_u8_safe_mul_overflow := test() {
     mut caught := false
-    _ := U8.safe_mul(200.to_u8(), 2.to_u8())?
+    val : U8 = 200
+    _ := val.safe_mul(2)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -545,8 +550,8 @@ test_u8_safe_mul_overflow := test() {
 test_i32_safe_add_overflow := test() {
     mut caught := false
     mut emsg := ""
-    max_i32 := 2147483647.to_i32()
-    _ := I32.safe_add(max_i32, 1.to_i32())?
+    max_i32 : I32 = 2147483647
+    _ := max_i32.safe_add(1)?
     catch (err: IntegerOverflow) {
         caught = true
         emsg = err.msg
@@ -557,8 +562,8 @@ test_i32_safe_add_overflow := test() {
 
 test_i32_safe_sub_overflow := test() {
     mut caught := false
-    max_i32 := 2147483647.to_i32()
-    _ := I32.safe_sub(max_i32, -1.to_i32())?
+    max_i32 : I32 = 2147483647
+    _ := max_i32.safe_sub(-1)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -567,8 +572,8 @@ test_i32_safe_sub_overflow := test() {
 
 test_i32_safe_mul_overflow := test() {
     mut caught := false
-    max_i32 := 2147483647.to_i32()
-    _ := I32.safe_mul(max_i32, 2.to_i32())?
+    max_i32 : I32 = 2147483647
+    _ := max_i32.safe_mul(2)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -577,8 +582,8 @@ test_i32_safe_mul_overflow := test() {
 
 test_i16_safe_add_overflow := test() {
     mut caught := false
-    max_i16 := 32767.to_i16()
-    _ := I16.safe_add(max_i16, 1.to_i16())?
+    max_i16 : I16 = 32767
+    _ := max_i16.safe_add(1)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -587,8 +592,8 @@ test_i16_safe_add_overflow := test() {
 
 test_i16_safe_sub_overflow := test() {
     mut caught := false
-    max_i16 := 32767.to_i16()
-    _ := I16.safe_sub(max_i16, -1.to_i16())?
+    max_i16 : I16 = 32767
+    _ := max_i16.safe_sub(-1)?
     catch (err: IntegerOverflow) {
         caught = true
     }
@@ -597,8 +602,8 @@ test_i16_safe_sub_overflow := test() {
 
 test_i16_safe_mul_overflow := test() {
     mut caught := false
-    max_i16 := 32767.to_i16()
-    _ := I16.safe_mul(max_i16, 2.to_i16())?
+    max_i16 : I16 = 32767
+    _ := max_i16.safe_mul(2)?
     catch (err: IntegerOverflow) {
         caught = true
     }

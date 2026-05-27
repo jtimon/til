@@ -28,8 +28,8 @@ namespace:
     }
     size := func() returns USize { return 4 }
 
-    /// Issue #201: division that throws DivideByZero when dividing by
-    /// zero. Reuses the DivideByZero type from src/core/i64.til.
+    /// Division that throws DivideByZero when dividing by zero.
+    /// Reuses the DivideByZero type from src/core/i64.til.
     /// Use F32.div for the silent (NaN/Inf) variant.
     safe_div := func(a: F32, b: F32) returns F32 throws DivideByZero {
         if b.eq(F32.from_i64(0)) {

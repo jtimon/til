@@ -99,8 +99,8 @@ namespace:
         return a.div(b)
     }
 
-    /// Issue #201: addition that throws IntegerOverflow on signed
-    /// wrap. Use I64.add for the wrapping variant.
+    /// Addition that throws IntegerOverflow on signed wrap.
+    /// Use I64.add for the wrapping variant.
     safe_add := func(a: I64, b: I64) returns I64 throws IntegerOverflow {
         result := a.add(b)
         if b.gt(0) {
@@ -118,8 +118,8 @@ namespace:
         return result
     }
 
-    /// Issue #201: subtraction that throws IntegerOverflow on signed
-    /// wrap. Use I64.sub for the wrapping variant.
+    /// Subtraction that throws IntegerOverflow on signed wrap.
+    /// Use I64.sub for the wrapping variant.
     safe_sub := func(a: I64, b: I64) returns I64 throws IntegerOverflow {
         result := a.sub(b)
         if b.gt(0) {
@@ -137,8 +137,8 @@ namespace:
         return result
     }
 
-    /// Issue #201: multiplication that throws IntegerOverflow on signed
-    /// wrap. Use I64.mul for the wrapping variant.
+    /// Multiplication that throws IntegerOverflow on signed wrap.
+    /// Use I64.mul for the wrapping variant.
     safe_mul := func(a: I64, b: I64) returns I64 throws IntegerOverflow {
         result := a.mul(b)
         if a.eq(0).not() {
@@ -154,8 +154,8 @@ namespace:
 /// Error thrown by I64.safe_div when dividing by zero.
 DivideByZero := struct {}
 
-/// Issue #201: error thrown by safe_add / safe_sub / safe_mul on the
-/// integer types when the operation would wrap. Carries a
+/// Error thrown by safe_add / safe_sub / safe_mul on the integer
+/// types when the operation would wrap. Carries a
 /// "file:line:col:<method>: a OP b overflows/underflows" msg. One
 /// shared type for all integer widths.
 IntegerOverflow := struct {
