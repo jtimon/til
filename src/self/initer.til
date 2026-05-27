@@ -2804,11 +2804,52 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
     }
 }
 
+// Issue #56: anonymous struct instantiation. The parser turns
+// `struct { ... }(args)` into an FCall whose callee (child 0) is a
+// StructDef literal. This walk lifts each such literal to a fresh
+// top-level `AnonStructN := struct { ... }` decl (collected in
+// new_decls, appended to program.children so the registration walk
+// below registers it and generates its clone/delete/size methods) and
+// rewrites the FCall callee to reference the generated name -- turning
+// `struct { ... }(args)` into `AnonStructN(args)`. Mirrors rstil's
+// expand_anon_struct_fcalls_recursive.
+mut anon_struct_counter : I64 = 0
+
+priv init_expand_anon_structs := proc(mut e: Expr, mut new_decls: Vec) {
+    if is_null(e) { return }
+    for i in 0..e.children.len() {
+        ref mut c : Expr = e.child(i)
+        init_expand_anon_structs(c, new_decls)
+    }
+    if e.node_type.is(NodeType.FCall).not() { return }
+    if e.children.len().eq(0) { return }
+    if e.child(0).node_type.is(NodeType.StructDef).not() { return }
+    name := "AnonStruct".concat(anon_struct_counter.to_str())
+    anon_struct_counter = anon_struct_counter.add(1)
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), e.line, e.col)
+    decl.add_child(own e.child(0).clone())
+    new_decls.push(own decl)
+    mut id := Expr.new(ident_node(name), e.line, e.col)
+    e.children.set(0.to_usize(), own id)
+}
+
 // rstil-style unit initializer: index declarations for one file, but do not
 // run global layout/method generation that must see the whole program.
 init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
     context_enter_file(ctx, path)
     mut errors : I32 = 0
+
+    // Issue #56: lift anonymous `struct { ... }(args)` literals to
+    // top-level AnonStructN decls before the registration walk, so they
+    // get registered (and their methods generated) like any named struct.
+    mut anon_lifted := Vec.new(Expr)
+    for ai in 0..program.children.len() {
+        ref mut astmt : Expr = program.child(ai)
+        init_expand_anon_structs(astmt, anon_lifted)
+    }
+    for al : Expr in anon_lifted {
+        program.children.push(own al.clone())
+    }
 
     // Single AST walk: register every type name in scope (struct, enum,
     // funcsig) and bucket each remaining Decl's index for post-walk work.

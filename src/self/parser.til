@@ -591,14 +591,13 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     return def
 }
 
-// parse_call: identifier name already consumed, current token is '('
-parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow call_col: U32) returns Expr {
+// parse_call: callee Expr already built, current token is '('. The callee
+// is usually an Ident, but may be a StructDef literal for anonymous-struct
+// instantiation (`struct { ... }(args)`).
+parse_call := proc(mut p: Parser, own callee: Expr, shallow call_line: U32, shallow call_col: U32) returns Expr {
     advance(p) // consume '('
 
     mut call := Expr.new(NodeType.FCall(FCallData()), call_line, call_col)
-
-    // first child is the callee identifier
-    mut callee := Expr.new(ident_node(name), call_line, call_col)
     call.add_child(own callee)
 
     // parse arguments
@@ -782,7 +781,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             e = Expr.new(literal_num_node(t_col.to_str()), t_line, t_col)
             e_set = true
         } else if check(p, TokenType.LParen) {
-            e = parse_call(p, name, t_line, t_col)
+            e = parse_call(p, own Expr.new(ident_node(name), t_line, t_col), t_line, t_col)
             e_set = true
         } else {
             e = Expr.new(ident_node(name), t_line, t_col)
@@ -795,7 +794,17 @@ parse_primary := proc(mut p: Parser) returns Expr {
             return parse_func_def(p)
         }
     if e_set.not().and(t.type.is(TokenType.KwStruct)) {
-        return parse_struct_def(p, "")
+        mut sdef := parse_struct_def(p, "")
+        // Anonymous struct instantiation: `struct { ... }(args)`. The
+        // StructDef literal becomes the FCall callee; init lifts it to a
+        // top-level AnonStructN decl (issue #56). A bare `struct { ... }`
+        // (no trailing `(`) stays a StructDef literal as before.
+        if check(p, TokenType.LParen) {
+            e = parse_call(p, own sdef, t_line, t_col)
+            e_set = true
+        } else {
+            return sdef
+        }
     }
     if e_set.not().and(t.type.is(TokenType.KwExtStruct)) {
         advance(p)
@@ -1315,7 +1324,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
 
     // Function call: name(...)
     if check(p, TokenType.LParen) {
-        return parse_call(p, name, t_line, t_col)
+        return parse_call(p, own Expr.new(ident_node(name), t_line, t_col), t_line, t_col)
     }
 
     // Postfix increment/decrement: name++ or name--

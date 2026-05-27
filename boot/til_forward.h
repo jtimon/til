@@ -1175,7 +1175,7 @@ Expr * priv___src_self_parser_til__parse_block(priv___src_self_parser_til__Parse
 Expr * parse_func_def(priv___src_self_parser_til__Parser * p);
 Expr * parse_struct_def(priv___src_self_parser_til__Parser * p, Str * c_tag);
 Expr * parse_enum_def(priv___src_self_parser_til__Parser * p);
-Expr * parse_call(priv___src_self_parser_til__Parser * p, Str * name, U32 call_line, U32 call_col);
+Expr * parse_call(priv___src_self_parser_til__Parser * p, Expr * callee, U32 call_line, U32 call_col);
 Expr * make_binop_call(Expr * lhs, Str * method, U32 op_line, U32 op_col, Expr * rhs);
 Expr * parse_primary(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_multiplicative(priv___src_self_parser_til__Parser * p);
@@ -1261,6 +1261,7 @@ void priv___src_self_initer_til__init_lift_in_body(Expr * body, Str * parent_pre
 void priv___src_self_initer_til__init_lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec * top_level);
 void priv___src_self_initer_til__init_recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec * top_level);
 void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_prefix, Vec * top_level);
+void priv___src_self_initer_til__init_expand_anon_structs(Expr * e, Vec * new_decls);
 I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 init_declarations_global(Context * ctx, Expr * program, TypeScope * scope);
 U32 count_ast_imports(Expr * body);
@@ -2184,6 +2185,7 @@ extern U32 ELEM_BOXED;
 extern U32 ELEM_FN;
 extern Str __til_docs_blob__;
 extern Str __til_info_blob__;
+extern I64 anon_struct_counter;
 extern Map core_modes;
 extern Str I64Name;
 extern Str U8Name;
