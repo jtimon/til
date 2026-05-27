@@ -412,6 +412,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/asting.til", flags)
     add_mode(tests, "test/structs.til", flags)
     add_mode(tests, "test/types.til", flags)
+    add_mode(tests, "test/cast.til", flags)
     add_mode(tests, "test/directives.til", flags)
     add_mode(tests, "test/variadic.til", flags)
     add_mode(tests, "test/loops.til", flags)

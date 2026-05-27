@@ -2082,6 +2082,59 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
     }
 }
 
+// Issue #212: byte size of an integer primitive Type, or 0 for any
+// non-integer-reinterpret-able type. F32 (4 bytes) and Bool are
+// deliberately excluded -- `cast` is a bit reinterpret, not a value
+// conversion. Only the sizes with a full same-size signed/unsigned pair
+// in both the codegen and interpreter value model are returned (4 and 8);
+// 1-byte (I8 has no interpreter Value variant) and 2-byte (no U16) are
+// intentionally left at 0 for now.
+cast_int_size := func(t: Type) returns shallow I32 {
+    tn := til_type_name_c(t)
+    if tn.eq("I32").or(tn.eq("U32")) { return 4 }
+    if tn.eq("I64").or(tn.eq("U64")) { return 8 }
+    return 0
+}
+
+// Issue #212: type-check a `cast(e, T)` call. Validates that e and T are
+// integer primitives of the same byte size, rewrites the T argument into
+// a Type value (so downstream passes see a well-formed Type, as with
+// Vec.new(I32)), and sets the call's result type to T -- the typer's
+// stand-in for the not-yet-expressible `returns T`.
+infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) {
+    if e.children.len().neq(3) {
+        type_error(e, "cast expects (value, Type), e.g. x.cast(I32)", ctx)
+        set_expr_til_type(e, Type.Unknown)
+        return
+    }
+    infer_expr(scope, e.child(1), in_func, ctx)
+    src_type := expr_til_type(e.child(1))
+    mut tname := ""
+    switch e.child(2).node_type {
+    case NodeType.Ident(tn0): tname = ident_name(tn0)
+    case:
+        type_error(e.child(2), "cast target must be a type name, e.g. cast(x, I32)", ctx)
+        set_expr_til_type(e, Type.Unknown)
+        return
+    }
+    target_type := til_type_from_explicit_type(tname)
+    src_size := cast_int_size(src_type)
+    target_size := cast_int_size(target_type)
+    if src_size.eq(0).or(target_size.eq(0)).or(src_size.neq(target_size)) {
+        type_error(e, format(
+            "cast only supports same-size integer reinterpret ",
+            "(I32<->U32, I64<->U64); cannot cast ",
+            til_type_name_c(src_type), " to ", tname,
+        ), ctx)
+        set_expr_til_type(e, Type.Unknown)
+        return
+    }
+    mut replacement := make_til_type_expr(e.child(2), target_type)
+    move(e.child(2), replacement, Expr.size())
+    infer_expr(scope, e.child(2), in_func, ctx)
+    set_expr_til_type(e, target_type)
+}
+
 infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) {
     if e.child(0).node_type.is(NodeType.FieldAccess) {
         if infer_field_access_fcall(scope, e, in_func, ctx) { return }
@@ -2122,6 +2175,10 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
     if resolved_name.eq(name).not() {
         callee.node_type = ident_node(resolved_name)
         name = resolved_name.clone()
+    }
+    if name.eq("cast") {
+        infer_cast_fcall(scope, e, in_func, ctx)
+        return
     }
     if infer_struct_constructor_fcall(scope, e, name, in_func, ctx) { return }
     ref mut callee_bind : TypeBinding = scope.get_binding(name)

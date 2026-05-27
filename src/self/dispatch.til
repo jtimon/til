@@ -326,6 +326,22 @@ h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns sh
     }
 }
 
+// Issue #212: same-size integer reinterpret cast. The typer set this
+// FCall's til_type to the target type T; reinterpret the operand's bits
+// into the matching Value variant. value_to_u64 gives the raw bits; the
+// val_* constructors mask/sign-interpret to the target width.
+h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    v := eval_expr(s, e.child(1), ctx)
+    raw := value_to_u64(v)
+    tn := til_type_name_c(expr_til_type(e))
+    if tn.eq("I32") { r = val_i32(raw.to_i64()); return true }
+    if tn.eq("U32") { r = val_u32(raw.to_i64()); return true }
+    if tn.eq("I64") { r = val_i64(raw.to_i64()); return true }
+    if tn.eq("U64") { r = val_u64(raw); return true }
+    UNREACHABLE(__LOC__)
+    return false
+}
+
 priv h_print_single := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     arg := eval_expr(s, e.child(1), ctx)
     print_single(str_view(arg))
@@ -1043,6 +1059,7 @@ dispatch_init := func(ctx: Context) {
     reg_dispatch("F32_from_i64_ext", h_F32_from_i64, ctx)
     reg_dispatch("U32_from_i64", h_U32_from_i64, ctx)
     reg_dispatch("U32_from_i64_ext", h_U32_from_i64, ctx)
+    reg_dispatch("cast", h_cast, ctx)
     reg_dispatch("exit", h_exit, ctx)
     reg_dispatch("free", h_free, ctx)
     reg_dispatch("ptr_add", h_ptr_add, ctx)

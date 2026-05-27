@@ -1989,6 +1989,14 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
                     emit_as_ptr(f, method_arg, depth, false, ctx)
                 }
                 f.write(")")
+            } else if ident_name(name).eq("cast") {
+                // Issue #212: same-size integer reinterpret -> bare C cast.
+                // The typer set this FCall's til_type to the target type T.
+                f.write("(")
+                f.write(til_type_name_c(expr_til_type(e)))
+                f.write(")(")
+                emit_deref(f, e.child(1), depth, ctx)
+                f.write(")")
             } else if ident_name(name).eq("dyn_size_of") {
                 f.write("dyn_size_of(")
                 emit_as_ptr(f, e.child(1), depth, false, ctx)

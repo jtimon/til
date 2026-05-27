@@ -3,6 +3,7 @@ mode lib
 import("array")
 import("ast")
 import("bool")
+import("cast")
 import("doc")
 import("dyn")
 import("dyn_map")

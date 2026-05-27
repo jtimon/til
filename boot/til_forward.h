@@ -1353,6 +1353,8 @@ void priv___src_self_typer_til__check_priv_access(Expr * e, Str * name, TypeBind
 void priv___src_self_typer_til__check_priv_type_name(Expr * e, Str * name, TypeScope * scope, Context * ctx);
 void check_member_priv(Expr * e, Str * owner_name, Str * member_name, Bool * member_is_priv, Context * ctx);
 void priv___src_self_typer_til__check_free_managed_local(TypeScope * scope, Expr * e, Context * ctx);
+I32 cast_int_size(Type * t);
+void infer_cast_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void infer_ident_expr(TypeScope * scope, Expr * expr, Context * ctx);
@@ -1949,6 +1951,7 @@ Bool h_I16_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_I32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_F32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_U32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool h_cast(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_dispatch_til__h_print_single(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_print_flush(Scope * _s, Expr * _e, Value * r, Context * _ctx);
 Bool h_exit(Scope * s, Expr * e, Value * r, Context * ctx);
