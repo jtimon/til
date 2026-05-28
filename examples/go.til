@@ -8,34 +8,34 @@ import("../lib/alphabeta")
 // Chinese scoring (area) with 6.5 komi
 // Board sizes: 9x9, 13x13, 19x19
 
-WINDOW_WIDTH := 800
-WINDOW_HEIGHT := 920
-FPS := 60
-FONT_SZ := 20
-FONT_LG := 40
-MAX_CELLS := 361
+WINDOW_WIDTH : I32 = 800
+WINDOW_HEIGHT : I32 = 920
+FPS : I32 = 60
+FONT_SZ : I32 = 20
+FONT_LG : I32 = 40
+MAX_CELLS : I32 = 361
 
 // Board colors
-BOARD_R := 220
-BOARD_G := 179
-BOARD_B := 92
+BOARD_R : I32 = 220
+BOARD_G : I32 = 179
+BOARD_B : I32 = 92
 
 // Header buttons (radio + restart) layout
-RADIO_Y := 15
-BTN_H := 30
-BTN_PAD_X := 10
-BTN_PAD_Y := 5
-RESTART_X := 10
-RESTART_BTN_W := 90
-COLOR_X := 110
-COLOR_BTN_W := 60
-MODE_X := 240
-MODE_BTN_W := 40
-SIZE_X := 330
-SIZE_BTN_W := 65
-DIFF_LABEL_X := 535
-DIFF_X := 665
-DIFF_BTN_W := 25
+RADIO_Y : I32 = 15
+BTN_H : I32 = 30
+BTN_PAD_X : I32 = 10
+BTN_PAD_Y : I32 = 5
+RESTART_X : I32 = 10
+RESTART_BTN_W : I32 = 90
+COLOR_X : I32 = 110
+COLOR_BTN_W : I32 = 60
+MODE_X : I32 = 240
+MODE_BTN_W : I32 = 40
+SIZE_X : I32 = 330
+SIZE_BTN_W : I32 = 65
+DIFF_LABEL_X : I32 = 535
+DIFF_X : I32 = 665
+DIFF_BTN_W : I32 = 25
 
 COLOR_LABELS := array("Str", "White", "Black")
 MODE_LABELS := array("Str", "1P", "2P")
@@ -370,29 +370,29 @@ go_pack := func(mut b: Board, mut cells: Array, side: I64, size: I64,
         board_set_i64(b, i, v)
         i = i.add(1)
     }
-    board_set_i64(b, MAX_CELLS, side)
-    board_set_i64(b, GO_IDX_SIZE, size)
+    board_set_i64(b, MAX_CELLS.to_i64(), side)
+    board_set_i64(b, GO_IDX_SIZE.to_i64(), size)
     mut has_ko_i := 0
     if has_ko { has_ko_i = 1 }
-    board_set_i64(b, GO_IDX_HAS_KO, has_ko_i)
+    board_set_i64(b, GO_IDX_HAS_KO.to_i64(), has_ko_i)
     i = 0
     while i.lt(total) {
         ref v : I64 = ko_board.get(i.to_u32())
-        board_set_i64(b, GO_IDX_KO.add(i), v)
+        board_set_i64(b, (GO_IDX_KO + i.to_i32()).to_i64(), v)
         i = i.add(1)
     }
 }
 
 go_unpack_side := func(b: Board) returns I64 {
-    return board_get_i64(b, MAX_CELLS).clone()
+    return board_get_i64(b, MAX_CELLS.to_i64()).clone()
 }
 
 go_unpack_size := func(b: Board) returns I64 {
-    return board_get_i64(b, GO_IDX_SIZE).clone()
+    return board_get_i64(b, GO_IDX_SIZE.to_i64()).clone()
 }
 
 go_unpack_has_ko := func(b: Board) returns Bool {
-    return board_get_i64(b, GO_IDX_HAS_KO).eq(1)
+    return board_get_i64(b, GO_IDX_HAS_KO.to_i64()).eq(1)
 }
 
 go_heuristic : Heuristic = (b) {
@@ -423,7 +423,7 @@ go_next_boards : NextBoardsFn = (b) {
     mut ci := 0
     while ci.lt(total) {
         cells.set(ci.to_u32(), own board_get_i64(gb, ci).clone())
-        ko_cells.set(ci.to_u32(), own board_get_i64(gb, GO_IDX_KO.add(ci)).clone())
+        ko_cells.set(ci.to_u32(), own board_get_i64(gb, (GO_IDX_KO + ci.to_i32()).to_i64()).clone())
         ci = ci.add(1)
     }
     result := Vec.new(Board)
@@ -572,7 +572,7 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
 
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "go")
-    set_target_fps(FPS)
+    SetTargetFPS(FPS)
 
     // AI (depth applied on Restart from sel_difficulty)
     mut ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards, depth = 1)
@@ -618,29 +618,29 @@ main := proc() {
     while !WindowShouldClose() {
         // --- INPUT: restart + radio buttons ---
         if IsMouseButtonPressed(0) {
-            raw_mx := get_mouse_x()
-            raw_my := get_mouse_y()
-            if raw_my.gte(RADIO_Y).and(raw_my.lt(RADIO_Y.add(BTN_H))) {
+            raw_mx := GetMouseX()
+            raw_my := GetMouseY()
+            if raw_my >= RADIO_Y & raw_my < RADIO_Y + BTN_H {
                 // Restart button (leftmost): apply radio settings + reset board
-                if raw_mx.gte(RESTART_X).and(raw_mx.lt(RESTART_X.add(RESTART_BTN_W))) {
-                    if sel_color.eq(0) {
+                if raw_mx >= RESTART_X & raw_mx < RESTART_X + RESTART_BTN_W {
+                    if sel_color == 0 {
                         human_color = 2
                     } else {
                         human_color = 1
                     }
-                    ai_color = 3.sub(human_color)
-                    if sel_2p.eq(0) { vs_ai = 2 } else { vs_ai = 1 }
-                    if sel_size.eq(0) {
+                    ai_color = 3 - human_color
+                    if sel_2p == 0 { vs_ai = 2 } else { vs_ai = 1 }
+                    if sel_size == 0 {
                         board_size = 9
                     } else {
-                        if sel_size.eq(1) {
+                        if sel_size == 1 {
                             board_size = 13
                         } else {
                             board_size = 19
                         }
                     }
                     ai.depth = sel_difficulty
-                    rt := board_size.mul(board_size)
+                    rt := board_size * board_size
                     clear_arr(board, rt)
                     clear_arr(ko_board, rt)
                     turn = 1
@@ -656,21 +656,21 @@ main := proc() {
                     move_num = 0
                 }
                 // Color radio (White / Black)
-                if raw_mx.gte(COLOR_X).and(raw_mx.lt(COLOR_X.add(COLOR_BTN_W.mul(2)))) {
-                    sel_color = raw_mx.sub(COLOR_X).div(COLOR_BTN_W)
+                if raw_mx >= COLOR_X & raw_mx < COLOR_X + COLOR_BTN_W * 2 {
+                    sel_color = ((raw_mx - COLOR_X) / COLOR_BTN_W).to_i64()
                 }
                 // Mode radio (1P / 2P)
-                if raw_mx.gte(MODE_X).and(raw_mx.lt(MODE_X.add(MODE_BTN_W.mul(2)))) {
-                    sel_2p = raw_mx.sub(MODE_X).div(MODE_BTN_W)
+                if raw_mx >= MODE_X & raw_mx < MODE_X + MODE_BTN_W * 2 {
+                    sel_2p = ((raw_mx - MODE_X) / MODE_BTN_W).to_i64()
                 }
                 // Size radio (9x9 / 13x13 / 19x19)
-                if raw_mx.gte(SIZE_X).and(raw_mx.lt(SIZE_X.add(SIZE_BTN_W.mul(3)))) {
-                    sel_size = raw_mx.sub(SIZE_X).div(SIZE_BTN_W)
+                if raw_mx >= SIZE_X & raw_mx < SIZE_X + SIZE_BTN_W * 3 {
+                    sel_size = ((raw_mx - SIZE_X) / SIZE_BTN_W).to_i64()
                 }
                 // Difficulty radio (1..5, only when 1P selected)
-                if sel_2p.eq(0) {
-                    if raw_mx.gte(DIFF_X).and(raw_mx.lt(DIFF_X.add(DIFF_BTN_W.mul(5)))) {
-                        sel_difficulty = raw_mx.sub(DIFF_X).div(DIFF_BTN_W).add(1)
+                if sel_2p == 0 {
+                    if raw_mx >= DIFF_X & raw_mx < DIFF_X + DIFF_BTN_W * 5 {
+                        sel_difficulty = ((raw_mx - DIFF_X) / DIFF_BTN_W + 1).to_i64()
                     }
                 }
             }
@@ -678,11 +678,12 @@ main := proc() {
 
         // --- LAYOUT (depends on board_size, recomputed after possible restart) ---
         total := board_size.mul(board_size)
-        margin := 40
-        cell_size := WINDOW_WIDTH.sub(margin.mul(2)).div(board_size.sub(1))
-        board_px := margin
-        board_py := 100
-        stone_r := cell_size.mul(4).div(10)
+        margin : I32 = 40
+        cell_size : I32 = (WINDOW_WIDTH - margin * 2) / (board_size.to_i32() - 1)
+        board_px : I32 = margin
+        board_py : I32 = 100
+        stone_r : I32 = (cell_size * 4) / 10
+        grid_span : I32 = cell_size * (board_size.to_i32() - 1)
 
         // --- AI MOVE (alpha-beta search) ---
         if vs_ai.eq(2).and(turn.eq(ai_color)).and(!game_over) {
@@ -767,16 +768,15 @@ main := proc() {
 
                 // Click to place (board area only, not radio row)
                 if IsMouseButtonPressed(0) {
-                    raw_my := get_mouse_y()
-                    if raw_my.gte(board_py) {
-                        mx := get_mouse_x().sub(board_px)
-                        my := raw_my.sub(board_py)
-                        half := cell_size.div(2)
-                        col := mx.add(half).div(cell_size)
-                        row := my.add(half).div(cell_size)
-
-                        if row.gte(0).and(row.lt(board_size)).and(col.gte(0)).and(col.lt(board_size)) {
-                            idx := row.mul(board_size).add(col)
+                    raw_my := GetMouseY()
+                    if raw_my >= board_py {
+                        mx := GetMouseX() - board_px
+                        my := raw_my - board_py
+                        half := cell_size / 2
+                        col := (mx + half) / cell_size
+                        row := (my + half) / cell_size
+                        if row >= 0 & row < board_size.to_i32() & col >= 0 & col < board_size.to_i32() {
+                            idx := row.to_i64() * board_size + col.to_i64()
                             copy_board(tmp_board, board, total)
                             cap := try_place(tmp_board, visited, lib_seen, stk, idx, board_size, turn, ko_board, has_ko)
                             if cap.gte(0) {
@@ -801,123 +801,122 @@ main := proc() {
 
         // --- DRAW ---
         BeginDrawing()
-        clear_background(30, 30, 30, 255)
+        ClearBackground(Color(r = 30, g = 30, b = 30, a = 255))
 
         // Board background: extend full window width and cover top/bottom
         // label rows so coordinate text isn't drawn over the dark window bg.
-        grid_span := cell_size.mul(board_size.sub(1))
-        draw_rectangle(0, board_py.sub(margin),
-                       WINDOW_WIDTH, grid_span.add(margin.mul(2)),
-                       BOARD_R, BOARD_G, BOARD_B, 255)
+        DrawRectangle(0, board_py - margin,
+                       WINDOW_WIDTH, grid_span + margin * 2,
+                       Color(r = BOARD_R.to_i64().to_u8(), g = BOARD_G.to_i64().to_u8(), b = BOARD_B.to_i64().to_u8(), a = 255))
 
         // Grid lines
-        mut gi := 0
-        while gi.lt(board_size) {
-            hy := board_py.add(gi.mul(cell_size))
-            draw_rectangle(board_px, hy, grid_span, 1, 40, 30, 10, 255)
-            vx := board_px.add(gi.mul(cell_size))
-            draw_rectangle(vx, board_py, 1, grid_span, 40, 30, 10, 255)
-            gi = gi.add(1)
+        mut gi : I32 = 0
+        while gi < board_size.to_i32() {
+            hy := board_py + gi * cell_size
+            DrawRectangle(board_px, hy, grid_span, 1, Color(r = 40, g = 30, b = 10, a = 255))
+            vx := board_px + gi * cell_size
+            DrawRectangle(vx, board_py, 1, grid_span, Color(r = 40, g = 30, b = 10, a = 255))
+            gi = gi + 1
         }
 
         // Star points (hoshi)
-        if board_size.eq(9) {
+        if board_size == 9 {
             HOSHI := array("I64", 2, 2, 2, 6, 4, 4, 6, 2, 6, 6)
-            mut hi := 0
-            while hi.lt(10) {
+            mut hi : I32 = 0
+            while hi < 10 {
                 ref hr : I64 = HOSHI.get(hi.to_u32())
-                ref hc : I64 = HOSHI.get(hi.add(1).to_u32())
-                draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
-                hi = hi.add(2)
+                ref hc : I64 = HOSHI.get((hi + 1).to_u32())
+                DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4.to_f32(), Color(r = 40, g = 30, b = 10, a = 255))
+                hi = hi + 2
             }
         }
-        if board_size.eq(13) {
+        if board_size == 13 {
             HOSHI := array("I64", 3, 3, 3, 9, 6, 6, 9, 3, 9, 9)
-            mut hi := 0
-            while hi.lt(10) {
+            mut hi : I32 = 0
+            while hi < 10 {
                 ref hr : I64 = HOSHI.get(hi.to_u32())
-                ref hc : I64 = HOSHI.get(hi.add(1).to_u32())
-                draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
-                hi = hi.add(2)
+                ref hc : I64 = HOSHI.get((hi + 1).to_u32())
+                DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4.to_f32(), Color(r = 40, g = 30, b = 10, a = 255))
+                hi = hi + 2
             }
         }
-        if board_size.eq(19) {
+        if board_size == 19 {
             HOSHI := array("I64", 3, 3, 3, 9, 3, 15, 9, 3, 9, 9, 9, 15, 15, 3, 15, 9, 15, 15)
-            mut hi := 0
-            while hi.lt(18) {
+            mut hi : I32 = 0
+            while hi < 18 {
                 ref hr : I64 = HOSHI.get(hi.to_u32())
-                ref hc : I64 = HOSHI.get(hi.add(1).to_u32())
-                draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
-                hi = hi.add(2)
+                ref hc : I64 = HOSHI.get((hi + 1).to_u32())
+                DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4.to_f32(), Color(r = 40, g = 30, b = 10, a = 255))
+                hi = hi + 2
             }
         }
 
         // Coordinate labels
         COL_LABELS := array("Str", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")
-        mut ci := 0
-        while ci.lt(board_size) {
+        mut ci : I32 = 0
+        while ci < board_size.to_i32() {
             ref cl : Str = COL_LABELS.get(ci.to_u32())
-            lx := board_px.add(ci.mul(cell_size)).sub(4)
-            draw_text(cl, lx, board_py.sub(margin.div(2)).sub(6), 14, 80, 60, 30, 255)
-            draw_text(cl, lx, board_py.add(grid_span).add(margin.div(2)).sub(6), 14, 80, 60, 30, 255)
-            row_num := board_size.sub(ci).to_str()
-            ry := board_py.add(ci.mul(cell_size)).sub(6)
-            draw_text(row_num, board_px.sub(margin.div(2)).sub(10), ry, 14, 80, 60, 30, 255)
-            draw_text(row_num, board_px.add(grid_span).add(margin.div(2)).sub(4), ry, 14, 80, 60, 30, 255)
-            ci = ci.add(1)
+            lx := board_px + ci * cell_size - 4
+            DrawText(cl.c_str, lx, board_py - margin / 2 - 6, 14, Color(r = 80, g = 60, b = 30, a = 255))
+            DrawText(cl.c_str, lx, board_py + grid_span + margin / 2 - 6, 14, Color(r = 80, g = 60, b = 30, a = 255))
+            row_num := (board_size - ci.to_i64()).to_str()
+            ry := board_py + ci * cell_size - 6
+            DrawText(row_num.c_str, board_px - margin / 2 - 10, ry, 14, Color(r = 80, g = 60, b = 30, a = 255))
+            DrawText(row_num.c_str, board_px + grid_span + margin / 2 - 4, ry, 14, Color(r = 80, g = 60, b = 30, a = 255))
+            ci = ci + 1
         }
 
         // Stones
-        mut si := 0
-        while si.lt(total) {
+        mut si : I32 = 0
+        while si < total.to_i32() {
             ref sp : I64 = board.get(si.to_u32())
             if sp.neq(0) {
-                sr := si.div(board_size)
-                sc := si.mod(board_size)
-                sx := board_px.add(sc.mul(cell_size))
-                sy := board_py.add(sr.mul(cell_size))
+                sr := si / board_size.to_i32()
+                sc := si % board_size.to_i32()
+                sx := board_px + sc * cell_size
+                sy := board_py + sr * cell_size
 
                 if sp.eq(1) {
-                    draw_circle(sx, sy, stone_r, 10, 10, 10, 255)
-                    draw_circle(sx.sub(stone_r.div(4)), sy.sub(stone_r.div(4)), stone_r.div(3), 60, 60, 60, 120)
+                    DrawCircle(sx, sy, stone_r.to_f32(), Color(r = 10, g = 10, b = 10, a = 255))
+                    DrawCircle(sx - stone_r / 4, sy - stone_r / 4, (stone_r / 3).to_f32(), Color(r = 60, g = 60, b = 60, a = 120))
                 } else {
-                    draw_circle(sx, sy, stone_r, 230, 230, 230, 255)
-                    draw_circle(sx.sub(stone_r.div(4)), sy.sub(stone_r.div(4)), stone_r.div(3), 255, 255, 255, 120)
+                    DrawCircle(sx, sy, stone_r.to_f32(), Color(r = 230, g = 230, b = 230, a = 255))
+                    DrawCircle(sx - stone_r / 4, sy - stone_r / 4, (stone_r / 3).to_f32(), Color(r = 255, g = 255, b = 255, a = 120))
                 }
 
-                if si.eq(last_move) {
+                if si.to_i64() == last_move {
                     if sp.eq(1) {
-                        draw_circle(sx, sy, 4, 255, 255, 255, 255)
+                        DrawCircle(sx, sy, 4.to_f32(), Color(r = 255, g = 255, b = 255, a = 255))
                     } else {
-                        draw_circle(sx, sy, 4, 10, 10, 10, 255)
+                        DrawCircle(sx, sy, 4.to_f32(), Color(r = 10, g = 10, b = 10, a = 255))
                     }
                 }
             }
-            si = si.add(1)
+            si = si + 1
         }
 
         // Hover indicator
         if !game_over {
             mut show_hover := true
-            if vs_ai.eq(2).and(turn.eq(ai_color)) { show_hover = false }
+            if vs_ai == 2 & turn == ai_color { show_hover = false }
             if show_hover {
-                raw_my := get_mouse_y()
-                if raw_my.gte(board_py) {
-                    mx := get_mouse_x().sub(board_px)
-                    my := raw_my.sub(board_py)
-                    half := cell_size.div(2)
-                    hcol := mx.add(half).div(cell_size)
-                    hrow := my.add(half).div(cell_size)
-                    if hrow.gte(0).and(hrow.lt(board_size)).and(hcol.gte(0)).and(hcol.lt(board_size)) {
-                        hidx := hrow.mul(board_size).add(hcol)
+                raw_my := GetMouseY()
+                if raw_my >= board_py {
+                    mx := GetMouseX() - board_px
+                    my := raw_my - board_py
+                    half := cell_size / 2
+                    hcol := (mx + half) / cell_size
+                    hrow := (my + half) / cell_size
+                    if hrow >= 0 & hrow < board_size.to_i32() & hcol >= 0 & hcol < board_size.to_i32() {
+                        hidx := (hrow * board_size.to_i32() + hcol).to_i64()
                         ref hp : I64 = board.get(hidx.to_u32())
                         if hp.eq(0) {
-                            hx := board_px.add(hcol.mul(cell_size))
-                            hy := board_py.add(hrow.mul(cell_size))
-                            if turn.eq(1) {
-                                draw_circle(hx, hy, stone_r, 30, 30, 30, 100)
+                            hx := board_px + hcol * cell_size
+                            hy := board_py + hrow * cell_size
+                            if turn == 1 {
+                                DrawCircle(hx, hy, stone_r.to_f32(), Color(r = 30, g = 30, b = 30, a = 100))
                             } else {
-                                draw_circle(hx, hy, stone_r, 220, 220, 220, 100)
+                                DrawCircle(hx, hy, stone_r.to_f32(), Color(r = 220, g = 220, b = 220, a = 100))
                             }
                         }
                     }
@@ -927,114 +926,114 @@ main := proc() {
 
         // --- HEADER BUTTONS: restart (leftmost) + color + mode + size + difficulty (1P only) ---
         // Restart button (always-on color, distinct from radios)
-        draw_rectangle(RESTART_X, RADIO_Y, RESTART_BTN_W.sub(2), BTN_H.sub(2), 130, 70, 30, 255)
-        draw_text("Restart", RESTART_X.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 240, 240, 240, 255)
+        DrawRectangle(RESTART_X, RADIO_Y, RESTART_BTN_W - 2, BTN_H - 2, Color(r = 130, g = 70, b = 30, a = 255))
+        DrawText("Restart".c_str, RESTART_X + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 240, g = 240, b = 240, a = 255))
 
         // Color radio
-        mut bi := 0
-        while bi.lt(2) {
-            cx := COLOR_X.add(bi.mul(COLOR_BTN_W))
+        mut bi : I32 = 0
+        while bi < 2 {
+            cx := COLOR_X + bi * COLOR_BTN_W
             mut br := 40
             mut bg := 40
             mut bb := 40
-            if bi.eq(sel_color) {
+            if bi.to_i64() == sel_color {
                 br = 0
                 bg = 150
                 bb = 155
             }
-            draw_rectangle(cx, RADIO_Y, COLOR_BTN_W.sub(2), BTN_H.sub(2), br, bg, bb, 255)
+            DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
             ref clabel : Str = COLOR_LABELS.get(bi.to_u32())
-            draw_text(clabel, cx.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
-            bi = bi.add(1)
+            DrawText(clabel.c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            bi = bi + 1
         }
         // Mode radio
         bi = 0
-        while bi.lt(2) {
-            mxp := MODE_X.add(bi.mul(MODE_BTN_W))
+        while bi < 2 {
+            mxp := MODE_X + bi * MODE_BTN_W
             mut mr := 40
             mut mg := 40
             mut mb := 40
-            if bi.eq(sel_2p) {
+            if bi.to_i64() == sel_2p {
                 mr = 0
                 mg = 150
                 mb = 155
             }
-            draw_rectangle(mxp, RADIO_Y, MODE_BTN_W.sub(2), BTN_H.sub(2), mr, mg, mb, 255)
+            DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
             ref mlabel : Str = MODE_LABELS.get(bi.to_u32())
-            draw_text(mlabel, mxp.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
-            bi = bi.add(1)
+            DrawText(mlabel.c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            bi = bi + 1
         }
         // Size radio
         bi = 0
-        while bi.lt(3) {
-            sxp := SIZE_X.add(bi.mul(SIZE_BTN_W))
+        while bi < 3 {
+            sxp := SIZE_X + bi * SIZE_BTN_W
             mut sr := 40
             mut sg := 40
             mut sb := 40
-            if bi.eq(sel_size) {
+            if bi.to_i64() == sel_size {
                 sr = 0
                 sg = 150
                 sb = 155
             }
-            draw_rectangle(sxp, RADIO_Y, SIZE_BTN_W.sub(2), BTN_H.sub(2), sr, sg, sb, 255)
+            DrawRectangle(sxp, RADIO_Y, SIZE_BTN_W - 2, BTN_H - 2, Color(r = sr.to_u8(), g = sg.to_u8(), b = sb.to_u8(), a = 255))
             ref slabel : Str = SIZE_LABELS.get(bi.to_u32())
-            draw_text(slabel, sxp.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
-            bi = bi.add(1)
+            DrawText(slabel.c_str, sxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            bi = bi + 1
         }
         // Difficulty label + 5 buttons (only when 1P selected)
-        if sel_2p.eq(0) {
-            draw_text("Difficulty", DIFF_LABEL_X, RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 200, 200, 200, 255)
+        if sel_2p == 0 {
+            DrawText("Difficulty".c_str, DIFF_LABEL_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 200, g = 200, b = 200, a = 255))
             bi = 0
-            while bi.lt(5) {
-                diff_val := bi.add(1)
-                dx := DIFF_X.add(bi.mul(DIFF_BTN_W))
-                mut dr := 40
-                mut dg := 40
-                mut db := 40
-                if diff_val.eq(sel_difficulty) {
-                    dr = 0
-                    dg = 150
-                    db = 155
+            while bi < 5 {
+                diff_val := bi + 1
+                dx := DIFF_X + bi * DIFF_BTN_W
+                mut dr_btn := 40
+                mut dg_btn := 40
+                mut db_btn := 40
+                if diff_val.to_i64() == sel_difficulty {
+                    dr_btn = 0
+                    dg_btn = 150
+                    db_btn = 155
                 }
-                draw_rectangle(dx, RADIO_Y, DIFF_BTN_W.sub(2), BTN_H.sub(2), dr, dg, db, 255)
-                draw_text(diff_val.to_str(), dx.add(BTN_PAD_X.div(2)), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
-                bi = bi.add(1)
+                DrawRectangle(dx, RADIO_Y, DIFF_BTN_W - 2, BTN_H - 2, Color(r = dr_btn.to_u8(), g = dg_btn.to_u8(), b = db_btn.to_u8(), a = 255))
+                DrawText(diff_val.to_i64().to_str().c_str, dx + BTN_PAD_X / 2, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+                bi = bi + 1
             }
         }
 
         // Status bar
-        status_y := board_py.add(grid_span).add(margin).add(10)
+        status_y := board_py + grid_span + margin + 10
 
         if game_over {
             // Komi: 6.5 points for white
-            bsx10 := black_score.mul(10)
-            wsx10 := white_score.mul(10).add(65)
+            bsx10 := black_score * 10
+            wsx10 := white_score * 10 + 65
             bs_str := format("Black: ", black_score.to_str(), ".0")
-            ws_int := wsx10.div(10)
-            ws_frac := wsx10.mod(10)
+            ws_int := wsx10 / 10
+            ws_frac := wsx10 % 10
             ws_str := format("  White: ", ws_int.to_str(), ".", ws_frac.to_str(), " (komi 6.5)")
-            draw_text(bs_str, 10, status_y, FONT_SZ, 255, 255, 255, 255)
-            draw_text(ws_str, 160, status_y, FONT_SZ, 200, 200, 200, 255)
-            if bsx10.gt(wsx10) {
-                draw_text("Black wins!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
+            DrawText(bs_str.c_str, 10, status_y, FONT_SZ, Color(r = 255, g = 255, b = 255, a = 255))
+            DrawText(ws_str.c_str, 160, status_y, FONT_SZ, Color(r = 200, g = 200, b = 200, a = 255))
+            if bsx10 > wsx10 {
+                DrawText("Black wins!".c_str, 10, status_y + 28, FONT_SZ, Color(r = 255, g = 255, b = 0, a = 255))
             } else {
-                if bsx10.eq(wsx10) {
-                    draw_text("Draw!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
+                if bsx10 == wsx10 {
+                    DrawText("Draw!".c_str, 10, status_y + 28, FONT_SZ, Color(r = 255, g = 255, b = 0, a = 255))
                 } else {
-                    draw_text("White wins!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
+                    DrawText("White wins!".c_str, 10, status_y + 28, FONT_SZ, Color(r = 255, g = 255, b = 0, a = 255))
                 }
             }
         } else {
-            if turn.eq(1) {
-                draw_text("Black to play", 10, status_y, FONT_SZ, 255, 255, 255, 255)
+            if turn == 1 {
+                DrawText("Black to play".c_str, 10, status_y, FONT_SZ, Color(r = 255, g = 255, b = 255, a = 255))
             } else {
-                draw_text("White to play", 10, status_y, FONT_SZ, 200, 200, 200, 255)
+                DrawText("White to play".c_str, 10, status_y, FONT_SZ, Color(r = 200, g = 200, b = 200, a = 255))
             }
             cap_str := format("captures  B:", black_caps.to_str(), "  W:", white_caps.to_str(), "  move:", move_num.to_str())
-            draw_text(cap_str, 10, status_y.add(25), 16, 150, 150, 150, 255)
+            DrawText(cap_str.c_str, 10, status_y + 25, 16, Color(r = 150, g = 150, b = 150, a = 255))
         }
 
-        draw_text("P=pass", WINDOW_WIDTH.sub(80), status_y, 16, 100, 100, 100, 255)
+        DrawText("P=pass".c_str, WINDOW_WIDTH - 80, status_y, 16, Color(r = 100, g = 100, b = 100, a = 255))
 
         EndDrawing()
     }

@@ -9,28 +9,28 @@ import("../lib/alphabeta")
 // Red moves up (row decreases), Black moves down (row increases)
 // Red starts at bottom (rows 5-7), Black starts at top (rows 0-2)
 
-WINDOW_WIDTH := 720
-WINDOW_HEIGHT := 800
-FPS := 60
-CELL := 80
-BOARD_Y := 80
-FONT_SZ := 20
-FONT_LG := 40
+WINDOW_WIDTH : I32 = 720
+WINDOW_HEIGHT : I32 = 800
+FPS : I32 = 60
+CELL : I32 = 80
+BOARD_Y : I32 = 80
+FONT_SZ : I32 = 20
+FONT_LG : I32 = 40
 
 // Header buttons (radio + restart) layout
-RADIO_Y := 40
-BTN_H := 30
-BTN_PAD_X := 10
-BTN_PAD_Y := 5
-RESTART_X := 10
-RESTART_BTN_W := 90
-COLOR_X := 110
-COLOR_BTN_W := 70
-MODE_X := 260
-MODE_BTN_W := 45
-DIFF_LABEL_X := 360
-DIFF_X := 480
-DIFF_BTN_W := 30
+RADIO_Y : I32 = 40
+BTN_H : I32 = 30
+BTN_PAD_X : I32 = 10
+BTN_PAD_Y : I32 = 5
+RESTART_X : I32 = 10
+RESTART_BTN_W : I32 = 90
+COLOR_X : I32 = 110
+COLOR_BTN_W : I32 = 70
+MODE_X : I32 = 260
+MODE_BTN_W : I32 = 45
+DIFF_LABEL_X : I32 = 360
+DIFF_X : I32 = 480
+DIFF_BTN_W : I32 = 30
 
 COLOR_LABELS := array("Str", "Red", "Black")
 MODE_LABELS := array("Str", "1P", "2P")
@@ -356,7 +356,7 @@ checkers_next_boards : NextBoardsFn = (b) {
 
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "checkers")
-    set_target_fps(FPS)
+    SetTargetFPS(FPS)
 
     // AI (depth applied on Restart from sel_difficulty)
     mut ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards, depth = 1)
@@ -399,24 +399,24 @@ main := proc() {
     while !WindowShouldClose() {
         // --- INPUT: restart + radio buttons ---
         if IsMouseButtonPressed(0) {
-            raw_mx := get_mouse_x()
-            raw_my := get_mouse_y()
-            if raw_my.gte(RADIO_Y).and(raw_my.lt(RADIO_Y.add(BTN_H))) {
+            raw_mx := GetMouseX()
+            raw_my := GetMouseY()
+            if raw_my >= RADIO_Y & raw_my < RADIO_Y + BTN_H {
                 // Restart button (leftmost): apply radio settings + reset board
-                if raw_mx.gte(RESTART_X).and(raw_mx.lt(RESTART_X.add(RESTART_BTN_W))) {
-                    if sel_color.eq(0) {
+                if raw_mx >= RESTART_X & raw_mx < RESTART_X + RESTART_BTN_W {
+                    if sel_color == 0 {
                         human_side = 1
                     } else {
                         human_side = 2
                     }
-                    ai_side = 3.sub(human_side)
-                    if sel_2p.eq(0) { vs_ai = 2 } else { vs_ai = 1 }
+                    ai_side = 3 - human_side
+                    if sel_2p == 0 { vs_ai = 2 } else { vs_ai = 1 }
                     ai.depth = sel_difficulty
                     mut ri := 0
-                    while ri.lt(64) {
+                    while ri < 64 {
                         ref init_p : I64 = INIT_BOARD.get(ri.to_u32())
                         board.set(ri.to_u32(), own init_p.clone())
-                        ri = ri.add(1)
+                        ri = ri + 1
                     }
                     turn = 1
                     selected = -1
@@ -429,17 +429,17 @@ main := proc() {
                     black_caps = 0
                 }
                 // Color radio (Red / Black)
-                if raw_mx.gte(COLOR_X).and(raw_mx.lt(COLOR_X.add(COLOR_BTN_W.mul(2)))) {
-                    sel_color = raw_mx.sub(COLOR_X).div(COLOR_BTN_W)
+                if raw_mx >= COLOR_X & raw_mx < COLOR_X + COLOR_BTN_W * 2 {
+                    sel_color = ((raw_mx - COLOR_X) / COLOR_BTN_W).to_i64()
                 }
                 // Mode radio (1P / 2P)
-                if raw_mx.gte(MODE_X).and(raw_mx.lt(MODE_X.add(MODE_BTN_W.mul(2)))) {
-                    sel_2p = raw_mx.sub(MODE_X).div(MODE_BTN_W)
+                if raw_mx >= MODE_X & raw_mx < MODE_X + MODE_BTN_W * 2 {
+                    sel_2p = ((raw_mx - MODE_X) / MODE_BTN_W).to_i64()
                 }
                 // Difficulty radio (1..5, only when 1P selected)
-                if sel_2p.eq(0) {
-                    if raw_mx.gte(DIFF_X).and(raw_mx.lt(DIFF_X.add(DIFF_BTN_W.mul(5)))) {
-                        sel_difficulty = raw_mx.sub(DIFF_X).div(DIFF_BTN_W).add(1)
+                if sel_2p == 0 {
+                    if raw_mx >= DIFF_X & raw_mx < DIFF_X + DIFF_BTN_W * 5 {
+                        sel_difficulty = ((raw_mx - DIFF_X) / DIFF_BTN_W + 1).to_i64()
                     }
                 }
             }
@@ -647,15 +647,15 @@ main := proc() {
             }
 
             if is_human_turn.and(IsMouseButtonPressed(0)) {
-                raw_my := get_mouse_y()
-                if raw_my.gte(BOARD_Y) {
-                    mx := get_mouse_x()
-                    my := raw_my.sub(BOARD_Y)
-                    click_c := mx.div(CELL)
-                    click_r := my.div(CELL)
+                raw_my := GetMouseY()
+                if raw_my >= BOARD_Y {
+                    mx := GetMouseX()
+                    my := raw_my - BOARD_Y
+                    click_c := mx / CELL
+                    click_r := my / CELL
 
-                    if click_r.gte(0).and(click_r.lt(8)).and(click_c.gte(0).and(click_c.lt(8))) {
-                        click_idx := click_r.mul(8).add(click_c)
+                    if click_r >= 0 & click_r < 8 & click_c >= 0 & click_c < 8 {
+                        click_idx := (click_r * 8 + click_c).to_i64()
 
                         if multi_jump_idx.gte(0) {
                             // In a multi-jump chain: only the jumping piece can move
@@ -805,120 +805,120 @@ main := proc() {
 
         // --- DRAW ---
         BeginDrawing()
-        clear_background(30, 30, 30, 255)
+        ClearBackground(Color(r = 30, g = 30, b = 30, a = 255))
 
         // Status bar
-        if game_over.eq(0) {
-            if turn.eq(1) {
-                draw_text("Red to move", 10, 10, FONT_SZ, 220, 60, 60, 255)
+        if game_over == 0 {
+            if turn == 1 {
+                DrawText("Red to move".c_str, 10, 10, FONT_SZ, Color(r = 220, g = 60, b = 60, a = 255))
             } else {
-                draw_text("Black to move", 10, 10, FONT_SZ, 180, 180, 180, 255)
+                DrawText("Black to move".c_str, 10, 10, FONT_SZ, Color(r = 180, g = 180, b = 180, a = 255))
             }
             if must_capture {
-                draw_text("MUST CAPTURE!", 250, 10, FONT_SZ, 255, 200, 0, 255)
+                DrawText("MUST CAPTURE!".c_str, 250, 10, FONT_SZ, Color(r = 255, g = 200, b = 0, a = 255))
             }
-            if multi_jump_idx.gte(0) {
-                draw_text("MULTI-JUMP!", 450, 10, FONT_SZ, 255, 200, 0, 255)
+            if multi_jump_idx >= 0 {
+                DrawText("MULTI-JUMP!".c_str, 450, 10, FONT_SZ, Color(r = 255, g = 200, b = 0, a = 255))
             }
         } else {
-            if game_over.eq(1) {
-                draw_text("RED WINS!", 10, 10, FONT_SZ, 255, 255, 0, 255)
+            if game_over == 1 {
+                DrawText("RED WINS!".c_str, 10, 10, FONT_SZ, Color(r = 255, g = 255, b = 0, a = 255))
             }
-            if game_over.eq(2) {
-                draw_text("BLACK WINS!", 10, 10, FONT_SZ, 255, 255, 0, 255)
+            if game_over == 2 {
+                DrawText("BLACK WINS!".c_str, 10, 10, FONT_SZ, Color(r = 255, g = 255, b = 0, a = 255))
             }
-            if game_over.eq(3) {
-                draw_text("DRAW!", 10, 10, FONT_SZ, 200, 200, 0, 255)
+            if game_over == 3 {
+                DrawText("DRAW!".c_str, 10, 10, FONT_SZ, Color(r = 200, g = 200, b = 0, a = 255))
             }
         }
 
         // --- HEADER BUTTONS: restart (leftmost) + color + mode + difficulty (1P only) ---
         // Restart button (always-on color, distinct from radios)
-        draw_rectangle(RESTART_X, RADIO_Y, RESTART_BTN_W.sub(2), BTN_H.sub(2), 130, 70, 30, 255)
-        draw_text("Restart", RESTART_X.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 240, 240, 240, 255)
+        DrawRectangle(RESTART_X, RADIO_Y, RESTART_BTN_W - 2, BTN_H - 2, Color(r = 130, g = 70, b = 30, a = 255))
+        DrawText("Restart".c_str, RESTART_X + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 240, g = 240, b = 240, a = 255))
 
         // Color radio
-        mut bi := 0
-        while bi.lt(2) {
-            cx := COLOR_X.add(bi.mul(COLOR_BTN_W))
+        mut bi : I32 = 0
+        while bi < 2 {
+            cx := COLOR_X + bi * COLOR_BTN_W
             mut br := 40
             mut bg := 40
             mut bb := 40
-            if bi.eq(sel_color) {
+            if bi.to_i64() == sel_color {
                 br = 0
                 bg = 150
                 bb = 155
             }
-            draw_rectangle(cx, RADIO_Y, COLOR_BTN_W.sub(2), BTN_H.sub(2), br, bg, bb, 255)
+            DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
             ref clabel : Str = COLOR_LABELS.get(bi.to_u32())
-            draw_text(clabel, cx.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
-            bi = bi.add(1)
+            DrawText(clabel.c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            bi = bi + 1
         }
         // Mode radio
         bi = 0
-        while bi.lt(2) {
-            mxp := MODE_X.add(bi.mul(MODE_BTN_W))
+        while bi < 2 {
+            mxp := MODE_X + bi * MODE_BTN_W
             mut mr := 40
             mut mg := 40
             mut mb := 40
-            if bi.eq(sel_2p) {
+            if bi.to_i64() == sel_2p {
                 mr = 0
                 mg = 150
                 mb = 155
             }
-            draw_rectangle(mxp, RADIO_Y, MODE_BTN_W.sub(2), BTN_H.sub(2), mr, mg, mb, 255)
+            DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
             ref mlabel : Str = MODE_LABELS.get(bi.to_u32())
-            draw_text(mlabel, mxp.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
-            bi = bi.add(1)
+            DrawText(mlabel.c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            bi = bi + 1
         }
         // Difficulty label + 5 buttons (only when 1P selected)
-        if sel_2p.eq(0) {
-            draw_text("Difficulty", DIFF_LABEL_X, RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 200, 200, 200, 255)
+        if sel_2p == 0 {
+            DrawText("Difficulty".c_str, DIFF_LABEL_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 200, g = 200, b = 200, a = 255))
             bi = 0
-            while bi.lt(5) {
-                diff_val := bi.add(1)
-                dx := DIFF_X.add(bi.mul(DIFF_BTN_W))
-                mut dr := 40
-                mut dg := 40
-                mut db := 40
-                if diff_val.eq(sel_difficulty) {
-                    dr = 0
-                    dg = 150
-                    db = 155
+            while bi < 5 {
+                diff_val := bi + 1
+                dx := DIFF_X + bi * DIFF_BTN_W
+                mut dr_btn := 40
+                mut dg_btn := 40
+                mut db_btn := 40
+                if diff_val.to_i64() == sel_difficulty {
+                    dr_btn = 0
+                    dg_btn = 150
+                    db_btn = 155
                 }
-                draw_rectangle(dx, RADIO_Y, DIFF_BTN_W.sub(2), BTN_H.sub(2), dr, dg, db, 255)
-                draw_text(diff_val.to_str(), dx.add(BTN_PAD_X), RADIO_Y.add(BTN_PAD_Y), FONT_SZ, 220, 220, 220, 255)
-                bi = bi.add(1)
+                DrawRectangle(dx, RADIO_Y, DIFF_BTN_W - 2, BTN_H - 2, Color(r = dr_btn.to_u8(), g = dg_btn.to_u8(), b = db_btn.to_u8(), a = 255))
+                DrawText(diff_val.to_i64().to_str().c_str, dx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+                bi = bi + 1
             }
         }
 
         // Draw board
-        mut dr := 0
-        while dr.lt(8) {
-            mut dc := 0
-            while dc.lt(8) {
-                px := dc.mul(CELL)
-                py := dr.mul(CELL).add(BOARD_Y)
-                idx := dr.mul(8).add(dc)
+        mut dr : I32 = 0
+        while dr < 8 {
+            mut dc : I32 = 0
+            while dc < 8 {
+                px := dc * CELL
+                py := dr * CELL + BOARD_Y
+                idx := (dr * 8 + dc).to_i64()
 
                 // Square color
                 mut sq_r := 238
                 mut sq_g := 238
                 mut sq_b := 210
-                if dr.add(dc).mod(2).eq(1) {
+                if (dr + dc) % 2 == 1 {
                     sq_r = 118
                     sq_g = 150
                     sq_b = 86
                 }
 
                 // Highlight selected square
-                if idx.eq(selected) {
+                if idx == selected {
                     sq_r = 186
                     sq_g = 202
                     sq_b = 68
                 }
 
-                draw_rectangle(px, py, CELL, CELL, sq_r, sq_g, sq_b, 255)
+                DrawRectangle(px, py, CELL, CELL, Color(r = sq_r.to_u8(), g = sq_g.to_u8(), b = sq_b.to_u8(), a = 255))
 
                 // Draw valid move indicators
                 mut vi := 0
@@ -927,12 +927,12 @@ main := proc() {
                     if vm.eq(idx) {
                         ref dp : I64 = board.get(idx.to_u32())
                         if dp.eq(0) {
-                            draw_circle(px.add(CELL.div(2)), py.add(CELL.div(2)), 8, 100, 100, 100, 128)
+                            DrawCircle(px + CELL / 2, py + CELL / 2, 8.to_f32(), Color(r = 100, g = 100, b = 100, a = 128))
                         } else {
-                            draw_rectangle(px, py, 12, 12, 200, 50, 50, 180)
-                            draw_rectangle(px.add(CELL).sub(12), py, 12, 12, 200, 50, 50, 180)
-                            draw_rectangle(px, py.add(CELL).sub(12), 12, 12, 200, 50, 50, 180)
-                            draw_rectangle(px.add(CELL).sub(12), py.add(CELL).sub(12), 12, 12, 200, 50, 50, 180)
+                            DrawRectangle(px, py, 12, 12, Color(r = 200, g = 50, b = 50, a = 180))
+                            DrawRectangle(px + CELL - 12, py, 12, 12, Color(r = 200, g = 50, b = 50, a = 180))
+                            DrawRectangle(px, py + CELL - 12, 12, 12, Color(r = 200, g = 50, b = 50, a = 180))
+                            DrawRectangle(px + CELL - 12, py + CELL - 12, 12, 12, Color(r = 200, g = 50, b = 50, a = 180))
                         }
                     }
                     vi = vi.add(1)
@@ -941,33 +941,33 @@ main := proc() {
                 // Draw piece
                 ref piece : I64 = board.get(idx.to_u32())
                 if piece.neq(0) {
-                    cx := px.add(CELL.div(2))
-                    cy := py.add(CELL.div(2))
+                    cx := px + CELL / 2
+                    cy := py + CELL / 2
 
                     if is_red(piece) {
-                        draw_circle(cx, cy, 30, 180, 30, 30, 255)
-                        draw_circle(cx, cy, 26, 220, 50, 50, 255)
+                        DrawCircle(cx, cy, 30.to_f32(), Color(r = 180, g = 30, b = 30, a = 255))
+                        DrawCircle(cx, cy, 26.to_f32(), Color(r = 220, g = 50, b = 50, a = 255))
                         if is_king(piece) {
-                            draw_text("K", cx.sub(8), cy.sub(12), 24, 255, 255, 200, 255)
+                            DrawText("K".c_str, cx - 8, cy - 12, 24, Color(r = 255, g = 255, b = 200, a = 255))
                         }
                     } else {
-                        draw_circle(cx, cy, 30, 20, 20, 20, 255)
-                        draw_circle(cx, cy, 26, 50, 50, 50, 255)
+                        DrawCircle(cx, cy, 30.to_f32(), Color(r = 20, g = 20, b = 20, a = 255))
+                        DrawCircle(cx, cy, 26.to_f32(), Color(r = 50, g = 50, b = 50, a = 255))
                         if is_king(piece) {
-                            draw_text("K", cx.sub(8), cy.sub(12), 24, 200, 200, 200, 255)
+                            DrawText("K".c_str, cx - 8, cy - 12, 24, Color(r = 200, g = 200, b = 200, a = 255))
                         }
                     }
                 }
-                dc = dc.add(1)
+                dc = dc + 1
             }
-            dr = dr.add(1)
+            dr = dr + 1
         }
 
         // Capture counts
         cap_str := format("captures  R:", red_caps.to_str(), "  B:", black_caps.to_str())
-        draw_text(cap_str, 10, WINDOW_HEIGHT.sub(55), 16, 150, 150, 150, 255)
+        DrawText(cap_str.c_str, 10, WINDOW_HEIGHT - 55, 16, Color(r = 150, g = 150, b = 150, a = 255))
 
-        draw_text("click a piece to select, click destination to move", 10, WINDOW_HEIGHT.sub(30), 14, 80, 80, 80, 255)
+        DrawText("click a piece to select, click destination to move".c_str, 10, WINDOW_HEIGHT - 30, 14, Color(r = 80, g = 80, b = 80, a = 255))
 
         EndDrawing()
     }

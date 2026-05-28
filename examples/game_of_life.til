@@ -9,12 +9,11 @@ main := proc() {
     ROWS : I32 = 30
     CELL : I32 = 15
     BAR_H : I32 = 30
-    GRID_W : I32 = COLS.mul(CELL)
-    GRID_H : I32 = ROWS.mul(CELL)
-    TOTAL : I32 = COLS.mul(ROWS)
+    GRID_W : I32 = COLS * CELL
+    GRID_H : I32 = ROWS * CELL
+    TOTAL : I32 = COLS * ROWS
 
-    TITLE := "game of life"
-    InitWindow(GRID_W, GRID_H.add(BAR_H), TITLE.c_str)
+    InitWindow(GRID_W, GRID_H + BAR_H, "game of life".c_str)
     SetTargetFPS(60)
 
     BLACK := Color(r = 0, g = 0, b = 0, a = 255)
@@ -52,13 +51,13 @@ main := proc() {
 
         // Input: mouse click to toggle cells
         if IsMouseButtonPressed(0) {
-            mx := GetMouseX().div(CELL)
-            my := GetMouseY().sub(BAR_H).div(CELL)
-            if mx.to_i64().gte(0).and(mx.to_i64().lt(COLS.to_i64())).and(my.to_i64().gte(0)).and(my.to_i64().lt(ROWS.to_i64())) {
-                idx := my.to_i64().mul(COLS.to_i64()).add(mx.to_i64())
+            mx := GetMouseX() / CELL
+            my := (GetMouseY() - BAR_H) / CELL
+            if mx >= 0 & mx < COLS & my >= 0 & my < ROWS {
+                idx := (my * COLS + mx).to_i64()
                 idx_u : USize = idx.to_usize()
                 ref val : I64 = grid.get(idx_u)
-                if val.eq(0) {
+                if val == 0 {
                     grid.set(idx_u, own 1)
                 } else {
                     grid.set(idx_u, own 0)
@@ -68,10 +67,10 @@ main := proc() {
 
         // Simulation step
         if running {
-            frame = frame.add(1)
-            if frame.gte(speed) {
+            frame++
+            if frame >= speed {
                 frame = 0
-                generation = generation.add(1)
+                generation++
                 ca_step(grid, next, COLS.to_i64(), ROWS.to_i64(), born, 1, survive, 2)
                 ca_swap(grid, next, TOTAL.to_i64())
             }
@@ -88,23 +87,23 @@ main := proc() {
             DrawText("PAUSED".c_str, 10, 7, 16, YELLOW)
         }
         DrawText(format("gen: ", generation.to_str()).c_str, 120, 7, 16, LIGHT_GRAY)
-        DrawText("SPACE=run/pause  C=clear  click=toggle".c_str, GRID_W.to_i64().sub(370).to_i32(), 7, 14, DARK_GRAY)
-        DrawRectangle(0, BAR_H.to_i64().sub(1).to_i32(), GRID_W, 1, GRAY)
+        DrawText("SPACE=run/pause  C=clear  click=toggle".c_str, GRID_W - 370, 7, 14, DARK_GRAY)
+        DrawRectangle(0, BAR_H - 1, GRID_W, 1, GRAY)
 
         // Grid cells
         mut di : I32 = 0
-        while di.to_i64().lt(TOTAL.to_i64()) {
-            dx := di.to_i64().mod(COLS.to_i64()).to_i32()
-            dy := di.to_i64().div(COLS.to_i64()).to_i32()
-            px := dx.to_i64().mul(CELL.to_i64()).to_i32()
-            py := dy.to_i64().mul(CELL.to_i64()).add(BAR_H.to_i64()).to_i32()
+        while di < TOTAL {
+            dx := di % COLS
+            dy := di / COLS
+            px := dx * CELL
+            py := dy * CELL + BAR_H
 
             di_u : USize = di.to_usize()
             ref dv : I64 = grid.get(di_u)
-            if dv.eq(1) {
-                DrawRectangle(px.to_i64().add(1).to_i32(), py.to_i64().add(1).to_i32(), CELL.to_i64().sub(2).to_i32(), CELL.to_i64().sub(2).to_i32(), GREEN)
+            if dv == 1 {
+                DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GREEN)
             } else {
-                DrawRectangle(px.to_i64().add(1).to_i32(), py.to_i64().add(1).to_i32(), CELL.to_i64().sub(2).to_i32(), CELL.to_i64().sub(2).to_i32(), GRID_GRAY)
+                DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_GRAY)
             }
 
             di++

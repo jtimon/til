@@ -6,12 +6,11 @@ main := proc() {
     CELL : I32 = 30
     NUM_MINES : I32 = 40
     TOP_BAR : I32 = 50
-    GRID_W : I32 = COLS.mul(CELL)
-    GRID_H : I32 = ROWS.mul(CELL)
-    TOTAL : I32 = COLS.mul(ROWS)
+    GRID_W : I32 = COLS * CELL
+    GRID_H : I32 = ROWS * CELL
+    TOTAL : I32 = COLS * ROWS
 
-    TITLE := "minesweeper"
-    InitWindow(GRID_W, GRID_H.add(TOP_BAR), TITLE.c_str)
+    InitWindow(GRID_W, GRID_H + TOP_BAR, "minesweeper".c_str)
     SetTargetFPS(60)
 
     // State arrays
@@ -43,7 +42,7 @@ main := proc() {
         if IsKeyPressed(82) {
             // R = restart
             mut ri : I32 = 0
-            while ri.lt(TOTAL) {
+            while ri < TOTAL {
                 ri_u : USize = ri.to_usize()
                 mines.set(ri_u, own 0)
                 counts.set(ri_u, own 0)
@@ -56,57 +55,57 @@ main := proc() {
             flags = 0
         }
 
-        if (!game_over).and(!game_won) {
+        if !game_over & !game_won {
             if IsMouseButtonPressed(0) {
                 // Left click - reveal
-                mx := GetMouseX().div(CELL)
-                my := GetMouseY().sub(TOP_BAR).div(CELL)
-                if mx.gte(0).and(mx.lt(COLS)).and(my.gte(0)).and(my.lt(ROWS)) {
-                    idx := my.mul(COLS).add(mx)
+                mx := GetMouseX() / CELL
+                my := (GetMouseY() - TOP_BAR) / CELL
+                if mx >= 0 & mx < COLS & my >= 0 & my < ROWS {
+                    idx := my * COLS + mx
                     idx_u : USize = idx.to_usize()
                     ref st : I32 = state.get(idx_u)
-                    if st.eq(0) {
+                    if st == 0 {
                         if first_click {
                             // Place mines, avoiding clicked cell + neighbors
                             first_click = false
                             mut placed : I32 = 0
-                            while placed.lt(NUM_MINES) {
-                                pos := GetRandomValue(0, TOTAL.sub(1))
+                            while placed < NUM_MINES {
+                                pos := GetRandomValue(0, TOTAL - 1)
                                 pos_u : USize = pos.to_usize()
                                 ref m : I32 = mines.get(pos_u)
-                                if m.eq(0) {
+                                if m == 0 {
                                     // Check not near first click
-                                    px := pos.mod(COLS)
-                                    py := pos.div(COLS)
-                                    mut diff_x := px.sub(mx)
-                                    if diff_x.lt(0) { diff_x = 0.to_i32().sub(diff_x) }
-                                    mut diff_y := py.sub(my)
-                                    if diff_y.lt(0) { diff_y = 0.to_i32().sub(diff_y) }
-                                    if diff_x.gt(1).or(diff_y.gt(1)) {
+                                    px := pos % COLS
+                                    py := pos / COLS
+                                    mut diff_x := px - mx
+                                    if diff_x < 0 { diff_x = -diff_x }
+                                    mut diff_y := py - my
+                                    if diff_y < 0 { diff_y = -diff_y }
+                                    if diff_x > 1 | diff_y > 1 {
                                         mines.set(pos_u, own 1)
-                                        placed = placed.add(1)
+                                        placed = placed + 1
                                     }
                                 }
                             }
                             // Compute neighbor counts
                             mut ci : I32 = 0
-                            while ci.lt(TOTAL) {
+                            while ci < TOTAL {
                                 ci_u : USize = ci.to_usize()
                                 ref cm : I32 = mines.get(ci_u)
-                                if cm.eq(0) {
-                                    cx := ci.mod(COLS)
-                                    cy := ci.div(COLS)
+                                if cm == 0 {
+                                    cx := ci % COLS
+                                    cy := ci / COLS
                                     mut cnt : I32 = 0
-                                    mut ny : I32 = cy.sub(1)
-                                    while ny.lte(cy.add(1)) {
-                                        mut nx : I32 = cx.sub(1)
-                                        while nx.lte(cx.add(1)) {
-                                            if nx.gte(0).and(nx.lt(COLS)).and(ny.gte(0)).and(ny.lt(ROWS)) {
-                                                ni := ny.mul(COLS).add(nx)
+                                    mut ny : I32 = cy - 1
+                                    while ny <= cy + 1 {
+                                        mut nx : I32 = cx - 1
+                                        while nx <= cx + 1 {
+                                            if nx >= 0 & nx < COLS & ny >= 0 & ny < ROWS {
+                                                ni := ny * COLS + nx
                                                 ni_u : USize = ni.to_usize()
                                                 ref nm : I32 = mines.get(ni_u)
-                                                if nm.eq(1) {
-                                                    cnt = cnt.add(1)
+                                                if nm == 1 {
+                                                    cnt = cnt + 1
                                                 }
                                             }
                                             nx++
@@ -121,14 +120,14 @@ main := proc() {
 
                         // Check mine
                         ref is_mine : I32 = mines.get(idx_u)
-                        if is_mine.eq(1) {
+                        if is_mine == 1 {
                             game_over = true
                             // Reveal all mines
                             mut ri2 : I32 = 0
-                            while ri2.lt(TOTAL) {
+                            while ri2 < TOTAL {
                                 ri2_u : USize = ri2.to_usize()
                                 ref rm : I32 = mines.get(ri2_u)
-                                if rm.eq(1) {
+                                if rm == 1 {
                                     state.set(ri2_u, own 1)
                                 }
                                 ri2++
@@ -136,30 +135,30 @@ main := proc() {
                         } else {
                             // Flood fill reveal
                             stack.push(own idx)
-                            while stack.len().gt(0) {
-                                ref top_ref : I32 = stack.get(stack.len().sub(1))
+                            while stack.len() > 0 {
+                                ref top_ref : I32 = stack.get(stack.len() - 1)
                                 cur := top_ref
                                 // Pop by reducing count manually
-                                stack.count = stack.count.sub(1)
+                                stack.count = stack.count - 1
 
                                 cur_u : USize = cur.to_usize()
                                 ref cur_st : I32 = state.get(cur_u)
-                                if cur_st.eq(0) {
+                                if cur_st == 0 {
                                     state.set(cur_u, own 1)
                                     ref cur_cnt : I32 = counts.get(cur_u)
-                                    if cur_cnt.eq(0) {
+                                    if cur_cnt == 0 {
                                         // Push all neighbors
-                                        cur_x := cur.mod(COLS)
-                                        cur_y := cur.div(COLS)
-                                        mut py : I32 = cur_y.sub(1)
-                                        while py.lte(cur_y.add(1)) {
-                                            mut px : I32 = cur_x.sub(1)
-                                            while px.lte(cur_x.add(1)) {
-                                                if px.gte(0).and(px.lt(COLS)).and(py.gte(0)).and(py.lt(ROWS)) {
-                                                    ni := py.mul(COLS).add(px)
+                                        cur_x := cur % COLS
+                                        cur_y := cur / COLS
+                                        mut py : I32 = cur_y - 1
+                                        while py <= cur_y + 1 {
+                                            mut px : I32 = cur_x - 1
+                                            while px <= cur_x + 1 {
+                                                if px >= 0 & px < COLS & py >= 0 & py < ROWS {
+                                                    ni := py * COLS + px
                                                     ni_u : USize = ni.to_usize()
                                                     ref ns : I32 = state.get(ni_u)
-                                                    if ns.eq(0) {
+                                                    if ns == 0 {
                                                         stack.push(own ni)
                                                     }
                                                 }
@@ -174,11 +173,11 @@ main := proc() {
                             // Check win
                             mut revealed : I32 = 0
                             for ws : I32 in state {
-                                if ws.eq(1) {
-                                    revealed = revealed.add(1)
+                                if ws == 1 {
+                                    revealed = revealed + 1
                                 }
                             }
-                            if revealed.eq(TOTAL.sub(NUM_MINES)) {
+                            if revealed == TOTAL - NUM_MINES {
                                 game_won = true
                             }
                         }
@@ -188,19 +187,19 @@ main := proc() {
 
             if IsMouseButtonPressed(1) {
                 // Right click - toggle flag
-                mx := GetMouseX().div(CELL)
-                my := GetMouseY().sub(TOP_BAR).div(CELL)
-                if mx.gte(0).and(mx.lt(COLS)).and(my.gte(0)).and(my.lt(ROWS)) {
-                    idx := my.mul(COLS).add(mx)
+                mx := GetMouseX() / CELL
+                my := (GetMouseY() - TOP_BAR) / CELL
+                if mx >= 0 & mx < COLS & my >= 0 & my < ROWS {
+                    idx := my * COLS + mx
                     idx_u : USize = idx.to_usize()
                     ref st : I32 = state.get(idx_u)
-                    if st.eq(0) {
+                    if st == 0 {
                         state.set(idx_u, own 2)
-                        flags = flags.add(1)
+                        flags = flags + 1
                     } else {
-                        if st.eq(2) {
+                        if st == 2 {
                             state.set(idx_u, own 0)
-                            flags = flags.sub(1)
+                            flags = flags - 1
                         }
                     }
                 }
@@ -212,19 +211,19 @@ main := proc() {
         ClearBackground(BLACK)
 
         // Top bar
-        DrawText(format("mines: ", NUM_MINES.sub(flags).to_str()).c_str, 10, 15, 20, YELLOW)
+        DrawText(format("mines: ", (NUM_MINES - flags).to_str()).c_str, 10, 15, 20, YELLOW)
         if game_won {
-            DrawText("WIN!".c_str, GRID_W.div(2).sub(30), 15, 20, GREEN)
+            DrawText("WIN!".c_str, GRID_W / 2 - 30, 15, 20, GREEN)
         } else {
             if game_over {
-                DrawText("BOOM!".c_str, GRID_W.div(2).sub(35), 15, 20, RED)
+                DrawText("BOOM!".c_str, GRID_W / 2 - 35, 15, 20, RED)
             }
         }
-        DrawText("R=restart".c_str, GRID_W.sub(120), 15, 16, GRAY)
+        DrawText("R=restart".c_str, GRID_W - 120, 15, 16, GRAY)
 
         // Grid
         mut di : I32 = 0
-        while di.lt(TOTAL) {
+        while di < TOTAL {
             dx := di % COLS
             dy := di / COLS
             px := dx * CELL
@@ -232,36 +231,36 @@ main := proc() {
 
             di_u : USize = di.to_usize()
             ref ds : I32 = state.get(di_u)
-            if ds.eq(0) {
+            if ds == 0 {
                 // Hidden
                 DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_HIDDEN)
             } else {
-                if ds.eq(2) {
+                if ds == 2 {
                     // Flagged
                     DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_HIDDEN)
                     DrawText("F".c_str, px + 9, py + 5, 20, YELLOW)
                 } else {
                     // Revealed
                     ref dm : I32 = mines.get(di_u)
-                    if dm.eq(1) {
+                    if dm == 1 {
                         // Mine
                         DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_REVEALED)
                         DrawCircle(px + CELL / 2, py + CELL / 2, 8.to_f32(), RED)
                     } else {
                         DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_REVEALED)
                         ref dc : I32 = counts.get(di_u)
-                        if dc.gt(0) {
+                        if dc > 0 {
                             // Number colors
                             mut nc := WHITE
-                            if dc.eq(1) { nc = Color(r = 80,  g = 120, b = 255, a = 255) }
-                            if dc.eq(2) { nc = Color(r = 0,   g = 200, b = 0,   a = 255) }
-                            if dc.eq(3) { nc = Color(r = 230, g = 41,  b = 55,  a = 255) }
-                            if dc.eq(4) { nc = Color(r = 160, g = 32,  b = 240, a = 255) }
-                            if dc.eq(5) { nc = Color(r = 160, g = 82,  b = 45,  a = 255) }
-                            if dc.eq(6) { nc = Color(r = 0,   g = 200, b = 200, a = 255) }
-                            if dc.eq(7) { nc = Color(r = 180, g = 180, b = 180, a = 255) }
-                            if dc.eq(8) { nc = Color(r = 100, g = 100, b = 100, a = 255) }
-                            DrawText(dc.to_i64().to_str().c_str, px + 9, py + 5, 20, nc)
+                            if dc == 1 { nc = Color(r = 80,  g = 120, b = 255, a = 255) }
+                            if dc == 2 { nc = Color(r = 0,   g = 200, b = 0,   a = 255) }
+                            if dc == 3 { nc = Color(r = 230, g = 41,  b = 55,  a = 255) }
+                            if dc == 4 { nc = Color(r = 160, g = 32,  b = 240, a = 255) }
+                            if dc == 5 { nc = Color(r = 160, g = 82,  b = 45,  a = 255) }
+                            if dc == 6 { nc = Color(r = 0,   g = 200, b = 200, a = 255) }
+                            if dc == 7 { nc = Color(r = 180, g = 180, b = 180, a = 255) }
+                            if dc == 8 { nc = Color(r = 100, g = 100, b = 100, a = 255) }
+                            DrawText(dc.to_str().c_str, px + 9, py + 5, 20, nc)
                         }
                     }
                 }

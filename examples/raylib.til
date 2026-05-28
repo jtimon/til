@@ -10,8 +10,7 @@ link("m")
 link("pthread")
 link("rt")
 
-TITLE := "hello from til!"
-InitWindow(800, 450, TITLE.c_str)
+InitWindow(800, 450, "hello from til!".c_str)
 SetTargetFPS(60)
 
 BLACK := Color(r = 0, g = 0, b = 0, a = 255)

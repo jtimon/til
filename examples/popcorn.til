@@ -2,19 +2,18 @@ mode gui
 
 main := proc(args: ..Str) {
     for a : Str in args {
-        if a.eq("--mute") {
+        if a == "--mute" {
             sound_enabled = false
         }
     }
 
-    TITLE := "popcorn"
-    InitWindow(480, 320, TITLE.c_str)
+    InitWindow(480, 320, "popcorn".c_str)
     SetTargetFPS(60)
     InitAudioDevice()
 
     BLACK := Color(r = 0, g = 0, b = 0, a = 255)
     YELLOW := Color(r = 255, g = 255, b = 0, a = 255)
-    DARK_GRAY := Color(r = 150, g = 150, b = 150, a = 255)
+    DARK_GRAY := Color(r = 150, g = 150, b = 155, a = 255)
     GREEN := Color(r = 0, g = 200, b = 0, a = 255)
     LIGHT_GRAY := Color(r = 200, g = 200, b = 200, a = 255)
     BG_GRAY := Color(r = 80, g = 80, b = 80, a = 128)
@@ -36,24 +35,24 @@ main := proc(args: ..Str) {
         // Phrase 1 finale
         523, 587, 622, 587, 622, 523, 415, 0
     )
-    num_notes : I32 = 56
-    note_dur := 130
-    gap := 150
+    num_notes : I64 = 56
+    note_dur : I64 = 130
+    gap : I64 = 150
 
-    mut note_idx : I32 = 0
-    mut timer := 0
+    mut note_idx : I64 = 0
+    mut timer : I64 = 0
     mut done := false
 
     while !WindowShouldClose() {
-        dt := get_frame_time()
+        dt := (GetFrameTime() * 1000.to_f32()).to_i64()
 
         if !done {
-            timer = timer.add(dt)
-            if timer.gte(gap) {
+            timer = timer + dt
+            if timer >= gap {
                 timer = 0
-                if note_idx.to_i64().lt(num_notes.to_i64()) {
+                if note_idx < num_notes {
                     ref freq : I64 = notes.get(note_idx.to_usize())
-                    if freq.gt(0) {
+                    if freq > 0 {
                         play_tone(freq, note_dur)
                     }
                     note_idx++
@@ -71,13 +70,13 @@ main := proc(args: ..Str) {
         DrawText("Gershon Kingsley, 1969".c_str, 130, 70, 16, DARK_GRAY)
 
         // Visualizer: bouncing bars for current note
-        if note_idx.to_i64().gt(0).and(note_idx.to_i64().lte(num_notes.to_i64())) {
-            ref cur_freq : I64 = notes.get(note_idx.to_i64().sub(1).to_usize())
-            if cur_freq.gt(0) {
+        if note_idx > 0 & note_idx <= num_notes {
+            ref cur_freq : I64 = notes.get((note_idx - 1).to_usize())
+            if cur_freq > 0 {
                 // Bar height proportional to frequency
-                bar_h : I32 = cur_freq.div(4).to_i32()
+                bar_h : I32 = (cur_freq / 4).to_i32()
                 bar_x : I32 = 180
-                bar_y : I32 = 280.to_i32().sub(bar_h)
+                bar_y : I32 = 280 - bar_h
                 DrawRectangle(bar_x, bar_y, 120, bar_h, GREEN)
             }
         }
@@ -86,13 +85,13 @@ main := proc(args: ..Str) {
         if done {
             DrawText("done!".c_str, 200, 140, 20, GREEN)
         } else {
-            DrawText(format(note_idx.to_i64().to_str(), " / ", num_notes.to_i64().to_str()).c_str,
+            DrawText(format(note_idx.to_str(), " / ", num_notes.to_str()).c_str,
                       200, 140, 16, LIGHT_GRAY)
         }
 
         // Progress bar
-        if num_notes.gt(0) {
-            prog_w : I32 = note_idx.to_i64().mul(400).div(num_notes.to_i64()).to_i32()
+        if num_notes > 0 {
+            prog_w : I32 = (note_idx * 400 / num_notes).to_i32()
             DrawRectangle(40, 290, prog_w, 8, YELLOW)
             DrawRectangle(40, 290, 400, 8, BG_GRAY)
         }
@@ -105,4 +104,3 @@ main := proc(args: ..Str) {
     CloseAudioDevice()
     CloseWindow()
 }
-

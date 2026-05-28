@@ -28,8 +28,7 @@ FONTS := array("Str",
 NUM_FONTS : USize = 21
 
 main := proc() {
-    TITLE := "font test"
-    InitWindow(1200, 800, TITLE.c_str)
+    InitWindow(1200, 800, "font test".c_str)
     SetTargetFPS(60)
 
     // Load all fonts
@@ -53,10 +52,10 @@ main := proc() {
 
     while !WindowShouldClose() {
         if IsMouseButtonPressed(0) {
-            sel = sel.add(1).mod(NUM_FONTS)
+            sel = (sel + 1) % NUM_FONTS
         }
         if IsMouseButtonPressed(1) {
-            sel = sel.add(NUM_FONTS).sub(1).mod(NUM_FONTS)
+            sel = (sel + NUM_FONTS - 1) % NUM_FONTS
         }
 
         BeginDrawing()
@@ -70,7 +69,7 @@ main := proc() {
         for i in 0..NUM_FONTS {
             ref path : Str = FONTS.get(i)
             ref font : Font = fonts.get(i)
-            if i.eq(sel) {
+            if i == sel {
                 DrawRectangle(0, y - 2, 1200, 30, BG_BAR)
                 DrawTextEx(font, path.c_str, Vector2(x = 30.to_f32(), y = y.to_f32()), 24, 1.to_f32(), YELLOW)
             } else {

@@ -5,7 +5,7 @@ push_line := func(lines: Vec, text: Str) {
 }
 
 push_output := func(lines: Vec, output: Str) {
-    if output.len().eq(0) {
+    if output.len() == 0 {
         push_line(lines, "")
         return
     }
@@ -18,7 +18,7 @@ push_output := func(lines: Vec, output: Str) {
 run_shell_command := proc(lines: Vec, cmd: Str) {
     push_line(lines, "$ ".concat(cmd))
 
-    if cmd.eq("help") {
+    if cmd == "help" {
         push_line(lines, "help: run any shell command")
         push_line(lines, "clear: clear the terminal")
         return
@@ -32,10 +32,10 @@ run_shell_command := proc(lines: Vec, cmd: Str) {
 }
 
 main := proc(args: ..Str) {
-    line_h := 18
-    pad_x := 10
-    pad_y := 10
-    input_h := 36
+    line_h : I32 = 18
+    pad_x : I32 = 10
+    pad_y : I32 = 10
+    input_h : I32 = 36
 
     mut lines := Vec.new(Str)
     push_line(lines, "tilminal")
@@ -44,26 +44,26 @@ main := proc(args: ..Str) {
     push_line(lines, "")
 
     // Optional startup command: tilminal.til "<command>"
-    if args.len().gt(0) {
+    if args.len() > 0 {
         ref startup_cmd : Str = args.get(0)
-        if startup_cmd.len().gt(0) {
+        if startup_cmd.len() > 0 {
             run_shell_command(lines, startup_cmd)
         }
     }
 
     mut input := ""
 
-    set_config_flags(FLAG_WINDOW_RESIZABLE)
-    init_window(960, 640, "tilminal")
-    set_window_min_size(320, 200)
-    set_target_fps(60)
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE.to_u32())
+    InitWindow(960, 640, "tilminal".c_str)
+    SetWindowMinSize(320, 200)
+    SetTargetFPS(60)
 
     while !WindowShouldClose() {
         // Enter: run command
         if IsKeyPressed(257) {
-            if input.len().gt(0) {
+            if input.len() > 0 {
                 cmd := input.clone()
-                if cmd.eq("clear") {
+                if cmd == "clear" {
                     mut fresh := Vec.new(Str)
                     lines = fresh
                 } else {
@@ -75,55 +75,53 @@ main := proc(args: ..Str) {
 
         // Backspace
         if IsKeyPressed(259) {
-            if input.len().gt(0) {
-                input = input.substr(0, input.len().sub(1))
+            if input.len() > 0 {
+                input = input.substr(0, input.len() - 1)
             }
         }
 
         // Character input (printable ASCII)
-        mut ch := get_char_pressed()
-        while ch.gt(0) {
-            if ch.gte(32).and(ch.lt(127)) {
-                input = input.concat(Str.from_byte(ch.to_u8()))
+        mut ch := GetCharPressed()
+        while ch > 0 {
+            if ch >= 32 & ch < 127 {
+                input = input.concat(Str.from_byte(ch.to_i64().to_u8()))
             }
-            ch = get_char_pressed()
+            ch = GetCharPressed()
         }
 
         BeginDrawing()
-        clear_background(10, 12, 16, 255)
+        ClearBackground(Color(r = 10, g = 12, b = 16, a = 255))
 
         // Dynamic window dimensions
-        w := get_screen_width()
-        h := get_screen_height()
+        w := GetScreenWidth()
+        h := GetScreenHeight()
 
         // Output region
-        out_h := h.sub(input_h).sub(pad_y.mul(2))
-        max_lines := out_h.div(line_h)
-        total_lines := lines.len().to_i64()
-        mut start := 0
-        if total_lines.gt(max_lines) {
-            start = total_lines.sub(max_lines)
+        out_h := h - input_h - pad_y * 2
+        max_lines := out_h / line_h
+        mut start : USize = 0
+        if lines.len() > max_lines.to_usize() {
+            start = lines.len() - max_lines.to_usize()
         }
 
-        draw_rectangle(0, h.sub(input_h), w, input_h, 25, 28, 36, 255)
+        DrawRectangle(0, h - input_h, w, input_h, Color(r = 25, g = 28, b = 36, a = 255))
 
-        mut row := 0
-        mut i : USize = start.to_u32()
+        mut row : I32 = 0
+        mut i := start
         while i.lt(lines.len()) {
-            if row.gte(max_lines) { break }
+            if row >= max_lines { break }
             ref line : Str = lines.get(i)
-            draw_text(line, pad_x, pad_y.add(row.mul(line_h)), 16, 220, 220, 220, 255)
-            row = row.add(1)
-            i = i.add(1)
+            DrawText(line.c_str, pad_x, pad_y + row * line_h, 16, Color(r = 220, g = 220, b = 220, a = 255))
+            row++
+            i++
         }
 
         prompt := "$ ".concat(input)
-        draw_text(prompt, pad_x, h.sub(input_h).add(10), 18, 120, 255, 120, 255)
-        draw_text("Enter=run  Esc=quit", w.sub(190), h.sub(input_h).add(12), 14, 130, 130, 150, 255)
+        DrawText(prompt.c_str, pad_x, h - input_h + 10, 18, Color(r = 120, g = 255, b = 120, a = 255))
+        DrawText("Enter=run  Esc=quit".c_str, w - 190, h - input_h + 12, 14, Color(r = 130, g = 130, b = 150, a = 255))
 
         EndDrawing()
     }
 
     CloseWindow()
 }
-
