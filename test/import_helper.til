@@ -8,3 +8,5 @@ Point := struct {
     x := 0
     y := 0
 }
+
+MyConst := 123

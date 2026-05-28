@@ -1,0 +1,24 @@
+# priority: low
+** FIXED #66 Better imports: qualified namespaces
+
+:RELATED: [[./65.org][#65]]
+  Currently ~import("file.til")~ dumps all symbols into the current scope.
+  Qualified imports would let you namespace them, returning a module object, and selective imports would let you choose exactly what is imported.
+
+  #+begin_src til
+  // 1. Qualified namespace import (all exports from the file)
+  core := import("core.til")
+  core.exit(0)
+
+  // 2. Selective import (into the current scope)
+  import("core.til", Str, Vec, Map, exit)
+  exit(0)
+
+  // 3. Selective namespace import
+  core := import("core.til", Str, Vec, Map)
+  core.exit(0) // compile error: exit was not imported into 'core'
+  #+end_src
+
+  Resolved Design Decisions:
+  - Backwards compatibility: Existing ~import("file.til")~ continues to dump everything into scope.
+  - Representation: ~import()~ on the RHS desugars into an anonymous struct (namespace) just like issue #65.

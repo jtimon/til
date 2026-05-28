@@ -118,26 +118,49 @@ resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
 // The .til suffix is appended internally; paths already ending in ".til" are
 // rejected with a helpful error suggesting the bare-name form.
+priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec) {
+    if imp_stmt.children.len().gte(2) {
+        switch imp_stmt.child(0).node_type {
+        case NodeType.Ident(_c0id):
+            if ident_name(_c0id).eq("import") {
+                switch imp_stmt.child(1).node_type {
+                case NodeType.Literal(Literal.Str(p)):
+                    if p.ends_with(".til") {
+                        bare := p.strip_suffix(".til")
+                        loc := path.format(":", imp_stmt.line.to_str(), ":", imp_stmt.col.to_str())
+                        panic(loc, "import path must not end in '.til' (got \"", p,
+                            "\"); use import(\"", bare, "\") instead")
+                    }
+                    paths.push(own p.concat(".til"))
+                case:
+                }
+            }
+        case:
+        }
+    }
+}
+
 extract_imports := func(body: Expr, path: Str) returns Vec {
     mut paths := Vec.new(Str)
     for stmt : Expr in body.children {
-        if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
-            switch stmt.child(0).node_type {
-            case NodeType.Ident(_c0id):
-                if ident_name(_c0id).eq("import") {
-                    switch stmt.child(1).node_type {
-                    case NodeType.Literal(Literal.Str(p)):
-                        if p.ends_with(".til") {
-                            bare := p.strip_suffix(".til")
-                            loc := path.format(":", stmt.line.to_str(), ":", stmt.col.to_str())
-                            panic(loc, "import path must not end in '.til' (got \"", p,
-                                "\"); use import(\"", bare, "\") instead")
-                        }
-                        paths.push(own p.concat(".til"))
-                    case:
-                    }
-                }
-            case:
+        mut is_imp := false
+        mut is_decl_rhs := false
+        if stmt.node_type.is(NodeType.FCall) {
+            is_imp = true
+        } else if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            if stmt.child(0).node_type.is(NodeType.FCall) {
+                is_imp = true
+                is_decl_rhs = true
+            }
+        }
+
+        if is_imp {
+            if is_decl_rhs {
+                ref imp_stmt : Expr = stmt.child(0)
+                extract_one_import(imp_stmt, path, paths)
+            } else {
+                ref imp_stmt : Expr = stmt
+                extract_one_import(imp_stmt, path, paths)
             }
         }
     }
@@ -1291,8 +1314,209 @@ loaded_add_lflag := func(mut lp: LoadedProgram, lib: Str) {
 // Run init + typer + field-struct resolution. Stops short of precomp and
 // scavenge so callers that only need a typed AST (e.g. `til doc`) don't pay
 // the codegen-prep cost.
+priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec, shallow is_decl_rhs: Bool, decl_name: Str, shallow is_mut: Bool, shallow decl_line: U32, shallow decl_col: U32, ctx: Context, resolved_path: Str) returns shallow Bool {
+    mut handled := false
+    if imp_stmt.children.len().gte(1) {
+        switch imp_stmt.child(0).node_type {
+        case NodeType.Ident(id):
+            if ident_name(id).eq("import") {
+                if imp_stmt.children.len().gt(1) {
+                    mut path := ""
+                    switch imp_stmt.child(1).node_type {
+                    case NodeType.Literal(Literal.Str(p)):
+                        path = p.concat(".til")
+                    case:
+                    }
+
+                    if path.len().gt(0) {
+                        mut exp_symbols := Vec.new(Str)
+                        if imp_stmt.children.len().gt(2) {
+                            for arg_i in 2..imp_stmt.children.len() {
+                                switch imp_stmt.child(arg_i).node_type {
+                                case NodeType.Ident(sym_id):
+                                    exp_symbols.push(own ident_name(sym_id))
+                                case:
+                                }
+                            }
+                        } else if is_decl_rhs {
+                            if ctx.imported.has(resolved_path) {
+                                ref iu : ImportUnit = ctx.imported.get(resolved_path)
+                                if is_null(iu).not() {
+                                    for child : Expr in iu.ast.children {
+                                        if child.node_type.is(NodeType.Decl) {
+                                            switch child.node_type {
+                                            case NodeType.Decl(dd):
+                                                if dd.is_priv.not() {
+                                                    exp_symbols.push(own dd.name.clone())
+                                                }
+                                            case:
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if is_decl_rhs {
+                            handled = true
+                            mut def := Expr.new(NodeType.StructDef(StructDef()), imp_stmt.line, imp_stmt.col)
+                            if ctx.imported.has(resolved_path) {
+                                ref iu : ImportUnit = ctx.imported.get(resolved_path)
+                                if is_null(iu).not() {
+                                    for sym : Str in exp_symbols {
+                                        mut found := false
+                                        for dd : Expr in iu.ast.children {
+                                            switch dd.node_type {
+                                            case NodeType.Decl(cd):
+                                                if cd.name.eq(sym) {
+                                                    switch def.node_type {
+                                                    case NodeType.StructDef(sdd):
+                                                        mut cloned_cd := cd.clone()
+                                                        if dd.children.len().gt(0) {
+                                                            cloned_cd.default_value = dd.child(0).clone()
+                                                        }
+                                                        sdd.ns_decls.push(own cloned_cd)
+                                                    case:
+                                                    }
+                                                    found = true
+                                                }
+                                            case:
+                                            }
+                                            if found { break }
+                                        }
+                                        if found.not() {
+                                            imp_stmt.error(resolved_path, format("symbol '", sym, "' not found in '", resolved_path, "'"))
+                                            return false
+                                        }
+                                    }
+                                }
+                            }
+                            mut struct_body := Expr.new(NodeType.Body, imp_stmt.line, imp_stmt.col)
+                            def.add_child(own struct_body)
+                            mut new_decl := Expr.new(NodeType.Decl(Declaration(name = decl_name.clone(), is_mut = is_mut)), decl_line, decl_col)
+                            new_decl.add_child(own def)
+                            new_ch.push(own new_decl)
+                        }
+                        Vec.delete(own exp_symbols, false)
+                    }
+                }
+            }
+        case:
+        }
+    }
+    return handled
+}
+
+priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
+    mut old := Vec.new(Expr)
+    old.move_from(iu.ast.children)
+    mut new_ch := Vec.new(Expr)
+    mut imp_idx : U32 = 0
+
+    for i in 0..old.len() {
+        ref stmt : Expr = old.get(i)
+
+        mut is_imp := false
+        mut is_decl_rhs := false
+        mut decl_name := ""
+        mut decl_line : U32 = 0
+        mut decl_col : U32 = 0
+        mut is_mut := false
+
+        if stmt.node_type.is(NodeType.FCall) {
+            is_imp = true
+        } else if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            if stmt.child(0).node_type.is(NodeType.FCall) {
+                is_imp = true
+                is_decl_rhs = true
+                switch stmt.node_type {
+                case NodeType.Decl(dd):
+                    decl_name = dd.name.clone()
+                    is_mut = dd.is_mut
+                case:
+                }
+                decl_line = stmt.line
+                decl_col = stmt.col
+            }
+        }
+
+        mut handled := false
+        if is_imp {
+            mut is_valid_import := false
+            if is_decl_rhs {
+                ref imp_stmt_ref : Expr = stmt.child(0)
+                if imp_stmt_ref.children.len().gte(2) {
+                    switch imp_stmt_ref.child(0).node_type {
+                    case NodeType.Ident(id):
+                        if ident_name(id).eq("import") {
+                            switch imp_stmt_ref.child(1).node_type {
+                            case NodeType.Literal(Literal.Str(_p)):
+                                is_valid_import = true
+                            case:
+                            }
+                        }
+                    case:
+                    }
+                }
+            } else {
+                ref imp_stmt_ref : Expr = stmt
+                if imp_stmt_ref.children.len().gte(2) {
+                    switch imp_stmt_ref.child(0).node_type {
+                    case NodeType.Ident(id):
+                        if ident_name(id).eq("import") {
+                            switch imp_stmt_ref.child(1).node_type {
+                            case NodeType.Literal(Literal.Str(_p)):
+                                is_valid_import = true
+                            case:
+                            }
+                        }
+                    case:
+                    }
+                }
+            }
+
+            if is_valid_import {
+                mut resolved := ""
+                if imp_idx.lt(iu.imports.len()) {
+                    ref s : Str = iu.imports.get(imp_idx)
+                    resolved = s.clone()
+                }
+                imp_idx++
+                if is_decl_rhs {
+                    ref imp_stmt_ref2 : Expr = stmt.child(0)
+                    handled = desugar_one_import(imp_stmt_ref2, new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
+                } else {
+                    ref imp_stmt_ref2 : Expr = stmt
+                    handled = desugar_one_import(imp_stmt_ref2, new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
+                }
+            }
+        }
+
+        if handled.not() {
+            new_ch.push_take(old, i)
+        }
+    }
+
+    iu.ast.children.move_from(new_ch)
+    Vec.delete(own new_ch, false)
+    Vec.delete(own old, false)
+}
+
 init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
+
+    // Desugar namespace and selective imports BEFORE init_file runs,
+    // so the initer sees the generated Decls and populates the scope.
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            desugar_namespace_imports(iu, lp.ctx)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        desugar_namespace_imports(iu, lp.ctx)
+    }
 
     // Issue #158: the typer populates the foldable-name sets during its
     // walk (precomp_classify_stmt); clear any stale state up front so a

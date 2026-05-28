@@ -11,3 +11,18 @@ test_import_struct := test() {
     expect(__LOC__, p.x.eq(3), "Point.x")
     expect(__LOC__, p.y.eq(4), "Point.y")
 }
+
+helper := import("import_helper")
+
+test_namespace_import := test() {
+    r := helper.double(21)
+    expect(__LOC__, r.eq(42), "helper.double(21)")
+    p := helper.Point(x = 1, y = 2)
+    expect(__LOC__, p.x.eq(1), "helper.Point.x")
+}
+
+import("import_helper", MyConst)
+
+test_selective_import := test() {
+    expect(__LOC__, MyConst.eq(123), "MyConst")
+}

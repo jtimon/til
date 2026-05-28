@@ -461,11 +461,29 @@ type_error_at := proc(path: Str, shallow line: U32, shallow col: U32, msg: Str, 
     ctx.errors++
 }
 
-find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
+find_namespace_func := func(sdef: Expr, method: Str, scope: TypeScope) returns ref Expr {
     if is_null(sdef) { return NULL }
     ref ns : Vec = def_ns_decls(sdef)
     for fd : Declaration in ns {
-        if fd.name.eq(method) { return fd.default_value }
+        if fd.name.eq(method) {
+            ref e : Expr = fd.default_value
+            if is_null(scope).not() {
+                if e.node_type.is(NodeType.Ident) {
+                    switch e.node_type {
+                    case NodeType.Ident(id):
+                        sf := scope.find(ident_name(id))
+                        switch sf {
+                        case ScopeFind.Found(b):
+                            if is_null(b.func_def).not() { return b.func_def }
+                            if is_null(b.struct_def).not() { return b.struct_def }
+                        case:
+                        }
+                    case:
+                    }
+                }
+            }
+            return e
+        }
     }
     return NULL
 }
@@ -716,7 +734,7 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns shallow Bool {
             switch callee.child(0).node_type {
             case NodeType.Ident(_cti):
                 ref sdef : Expr = scope.get_struct(ident_name(_cti))
-                ref method : Expr = find_namespace_func(sdef, field_access_name(_cfa))
+                ref method : Expr = find_namespace_func(sdef, field_access_name(_cfa), scope)
                 if is_null(method) { return false }
                 switch method.node_type {
                 case NodeType.FuncDef(_ffd):
@@ -733,7 +751,7 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns shallow Bool {
             sname := til_type_name(expr_til_type(obj))
             if sname.len().eq(0) { return false }
             ref sdef : Expr = scope.get_struct(sname)
-            ref method : Expr = find_namespace_func(sdef, field_access_name(_cfa))
+            ref method : Expr = find_namespace_func(sdef, field_access_name(_cfa), scope)
             if is_null(method) { return false }
             switch method.node_type {
             case NodeType.FuncDef(_ffd):
@@ -970,6 +988,10 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
 infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, shallow in_func: I32, ctx: Context) returns shallow Bool {
     ref sdef : Expr = scope.get_struct(name)
     if is_null(sdef) { return false }
+    return infer_struct_constructor_fcall_impl(scope, sdef, e, name, in_func, ctx)
+}
+
+infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e: Expr, name: Str, shallow in_func: I32, ctx: Context) returns shallow Bool {
     // #187 step 1: mark the struct binding as used so a priv struct
     // that is only ever instantiated (no namespace method calls) is
     // not misreported as dead. Skip when current_type_name matches
@@ -1651,7 +1673,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         }
 
         ref sdef1 : Expr = scope.get_struct(type_name)
-        ref ns_func1 : Expr = find_namespace_func(sdef1, method)
+        ref ns_func1 : Expr = find_namespace_func(sdef1, method, scope)
         if is_null(ns_func1) {
             if try_ufcs_rewrite(scope, e, fa, obj, method, type_name, ctx) {
                 return false
@@ -1731,7 +1753,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         }
     }
     ref sdef2 : Expr = scope.get_struct(obj3_sname)
-    ref ns_func2 : Expr = find_namespace_func(sdef2, method)
+    ref ns_func2 : Expr = find_namespace_func(sdef2, method, scope)
     if is_null(ns_func2) {
         type_error(e, format("no namespace function '", method, "'"), ctx)
         set_expr_til_type(e, Type.Unknown)
@@ -1964,6 +1986,10 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                 }
             }
         }
+    case NodeType.StructDef(_ns_sdef):
+        mut type_ident := Expr.new(ident_node(method), e.child(0).line, e.child(0).col)
+        e.children.set(0, own type_ident)
+        return infer_struct_constructor_fcall_impl(scope, ns_func2, e, method, in_func, ctx)
     case:
         UNREACHABLE(__LOC__)
         return false
@@ -2068,7 +2094,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
             if tn.len().eq(0) { return }
             ref sdef : Expr = scope.get_struct(tn)
             if is_null(sdef) { return }
-            ref del : Expr = find_namespace_func(sdef, "delete")
+            ref del : Expr = find_namespace_func(sdef, "delete", scope)
             if is_null(del) { return }
             type_error(e, format(
                 "free(own ", ident_name(an), ") shallow-frees managed type '", tn,
@@ -4382,8 +4408,8 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow
         return false
     }
 
-    ref len_func : Expr = find_namespace_func(sdef, "len")
-    ref get_func : Expr = find_namespace_func(sdef, "get")
+    ref len_func : Expr = find_namespace_func(sdef, "len", scope)
+    ref get_func : Expr = find_namespace_func(sdef, "get", scope)
 
     if is_null(len_func) {
         type_error(stmt, "type '".concat(type_name).concat("' has no 'len' method (required for for-in)"), ctx)
@@ -7349,7 +7375,7 @@ sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope) {
     }
     ref sdef : Expr = scope.get_struct(type_name)
     if is_null(sdef) { return }
-    ref ns_func : Expr = find_namespace_func(sdef, method)
+    ref ns_func : Expr = find_namespace_func(sdef, method, scope)
     if is_null(ns_func) { return }
     switch ns_func.node_type {
     case NodeType.FuncDef(fd):

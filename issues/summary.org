@@ -50,7 +50,6 @@
 *** [[./open/57.org][#57]] First-class enums: EnumDef as values
 *** [[./open/58.org][#58]] First-class functions: Type hierarchy and FuncSig/FuncDef
 *** [[./open/63.org][#63]] User-defined modes
-*** [[./open/66.org][#66]] Better imports: qualified namespaces
 *** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation

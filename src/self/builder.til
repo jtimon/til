@@ -2450,6 +2450,7 @@ emit_ns_inits := proc(f: File, shallow depth: I32, lp: LoadedProgram) {
                         for dd : Declaration in ni_ns {
                             if is_null(dd.default_value) { continue }
                             if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
+                            if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
                             emit_indent(f, depth)
                             f.write(sdecl.name)
                             f.write("_")
@@ -2478,6 +2479,7 @@ emit_ns_inits := proc(f: File, shallow depth: I32, lp: LoadedProgram) {
                     for dd : Declaration in ni_ns {
                         if is_null(dd.default_value) { continue }
                         if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
+                        if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
                         emit_indent(f, depth)
                         f.write(sdecl.name)
                         f.write("_")
@@ -2867,6 +2869,7 @@ emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
     for dd : Declaration in ng_ns {
         if is_null(dd.default_value) { continue }
         if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
+        if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
         if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)) {
             ng_sname := til_type_name(expr_til_type(dd.default_value))
             if ng_sname.len().gt(0) {
@@ -5844,7 +5847,7 @@ emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                     ref stmt : Expr = e_i
                     if is_struct_or_enum(stmt).not() { continue }
                     ref def : Expr = stmt.child(0)
-                    ref method_fdef : Expr = find_namespace_func(def, method)
+                    ref method_fdef : Expr = find_namespace_func(def, method, lp.ctx.scope)
                     if is_null(method_fdef) { continue }
                     if method_fdef.node_type.is(NodeType.FuncDef).not() { continue }
                     switch stmt.node_type {
@@ -5909,7 +5912,7 @@ emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                 ref stmt : Expr = e_i
                 if is_struct_or_enum(stmt).not() { continue }
                 ref def : Expr = stmt.child(0)
-                ref method_fdef : Expr = find_namespace_func(def, method)
+                ref method_fdef : Expr = find_namespace_func(def, method, lp.ctx.scope)
                 if is_null(method_fdef) { continue }
                 if method_fdef.node_type.is(NodeType.FuncDef).not() { continue }
                 switch stmt.node_type {

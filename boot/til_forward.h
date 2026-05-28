@@ -1327,7 +1327,7 @@ void priv___src_self_typer_til__mark_pattern_coverage(TypeScope * scope, priv___
 void priv___src_self_typer_til__collect_missing_paths(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Expr * enum_def, Str * prefix, Vec * out, Context * ctx);
 void type_error(Expr * e, Str * msg, Context * ctx);
 void type_error_at(Str * path, U32 line, U32 col, Str * msg, Context * ctx);
-Expr * find_namespace_func(Expr * sdef, Str * method);
+Expr * find_namespace_func(Expr * sdef, Str * method, TypeScope * scope);
 Bool expr_is_comptime(Expr * e, TypeScope * scope);
 Bool namespace_member_is_priv(Expr * sdef, Str * method);
 Bool mark_ns_member_used(Expr * sdef, Str * method);
@@ -1342,6 +1342,7 @@ Bool infer_func_ptr_field_call(TypeScope * scope, Expr * e, Expr * fa, Expr * ob
 Bool is_clone_fcall(Expr * e);
 void validate_fcall_own_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind, Context * ctx);
 Bool infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
+Bool infer_struct_constructor_fcall_impl(TypeScope * scope, Expr * sdef, Expr * e, Str * name, I32 in_func, Context * ctx);
 void desugar_user_func_fcall_args(Expr * e, Str * name, TypeBinding * callee_bind, Context * ctx);
 Bool redundant_literal_conversion(Expr * e, Type * expected);
 void redundant_conversion_error(Expr * at, Type * expected, Context * ctx);
@@ -1600,6 +1601,7 @@ ProgramUnit * ProgramUnit_clone(ProgramUnit * self);
 void ProgramUnit_delete(ProgramUnit * self, Bool * call_free);
 U32 ProgramUnit_size(void);
 Vec * resolve_import_disps(Vec * import_paths, Str * base_dir, Str * lib_dir, Str * cwd);
+void priv___src_self_loader_til__extract_one_import(Expr * imp_stmt, Str * path, Vec * paths);
 Vec * extract_imports(Expr * body, Str * path);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
@@ -1636,6 +1638,8 @@ void collect_enum_members_packed(Str * type_name, EnumDef * edef, Str * info, St
 void collect_decl_packed(Expr * body, TypeScope * scope, Str * info, Str * docs);
 Str * build_doc_init_line(Str * packed_info, Str * packed_docs);
 void loaded_add_lflag(LoadedProgram * lp, Str * lib);
+Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Vec * new_ch, Bool is_decl_rhs, Str * decl_name, Bool is_mut, U32 decl_line, U32 decl_col, Context * ctx, Str * resolved_path);
+void priv___src_self_loader_til__desugar_namespace_imports(ImportUnit * iu, Context * ctx);
 void init_and_type_program(LoadedProgram * lp, Bool run_tests);
 void prepare_program(LoadedProgram * lp, Bool run_tests);
 void cmd_ast(LoadedProgram * lp);
