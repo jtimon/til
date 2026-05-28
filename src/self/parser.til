@@ -747,16 +747,37 @@ parse_call := proc(mut p: Parser, own callee: Expr, shallow call_line: U32, shal
             is_own_arg = true
         }
         mut arg := parse_expression(p)
-        if is_own_arg { set_own_arg(call, call.children.len()) }
-        if is_splat {
-            switch call.node_type {
-            case NodeType.FCall(fcd):
-                fcd.is_splat = true
-            case:
-                UNREACHABLE(__LOC__)
+        // Issue #56/#57: a bare anonymous `struct { ... }` / `enum { ... }`
+        // passed as a call argument resolves to the corresponding generated
+        // AnonStructN/AnonEnumN type name -- so e.g. count_variants(enum { ... })
+        // is shaped just like count_variants(NamedEnum), and a `func(T: Type)`
+        // signature can introspect it via til_type_name + enum_variant_count.
+        if arg.node_type.is(NodeType.StructDef).or(arg.node_type.is(NodeType.EnumDef)) {
+            arg_line := arg.line
+            arg_col := arg.col
+            lifted_name := anon_lift(p, own arg, arg_line, arg_col)
+            if is_own_arg { set_own_arg(call, call.children.len()) }
+            if is_splat {
+                switch call.node_type {
+                case NodeType.FCall(fcd):
+                    fcd.is_splat = true
+                case:
+                    UNREACHABLE(__LOC__)
+                }
             }
+            call.add_child(own Expr.new(ident_node(lifted_name), arg_line, arg_col))
+        } else {
+            if is_own_arg { set_own_arg(call, call.children.len()) }
+            if is_splat {
+                switch call.node_type {
+                case NodeType.FCall(fcd):
+                    fcd.is_splat = true
+                case:
+                    UNREACHABLE(__LOC__)
+                }
+            }
+            call.add_child(own arg)
         }
-        call.add_child(own arg)
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)

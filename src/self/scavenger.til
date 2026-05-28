@@ -84,6 +84,23 @@ collect_refs := func(e: Expr, mut refs: Vec) {
                         case NodeType.FieldAccess(method):
                             vec_push_str(refs, ident_name(type_name))
                             push_qn(refs, ident_name(type_name), field_access_name(method))
+                            // Issue #56/#57: when the typer rewrites a Type-typed
+                            // arg (e.g. count_variants(Color3) where T: Type) into
+                            // Type.Enum("Color3") / Type.Struct(...) / Type.Custom(...),
+                            // the underlying type name only survives as the string
+                            // literal arg. Without recording it here the scavenger
+                            // would prune the enum/struct decl as unused.
+                            if ident_name(type_name).eq("Type") {
+                                mn := field_access_name(method)
+                                is_named_type_ctor := mn.eq("Enum").or(mn.eq("Struct")).or(mn.eq("Custom"))
+                                if is_named_type_ctor.and(e.children.len().gte(2)) {
+                                    switch e.child(1).node_type {
+                                    case NodeType.Literal(Literal.Str(tname)):
+                                        vec_push_str(refs, tname)
+                                    case:
+                                    }
+                                }
+                            }
                         case:
                             UNREACHABLE(__LOC__)
                             return
