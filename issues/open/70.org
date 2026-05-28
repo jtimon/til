@@ -29,8 +29,22 @@ The builder emits top-level constants as heap-allocated runtime
   test/constfold.til: ~CfVec2.magic()~ -> ~(CfVec2){.x=42,.y=99}~,
   ~CfVec2.at(10,20)~, and nested ~CfRect.sample()~ all fold (see
   test/constfold.c), with stack-value access and call_free=false deletes.
-  Still TODO under this issue: collection-valued folds (Vec/Map/Array),
-  enum-valued folds (~Value.Enum~), namespace/static-field globals
+  Progress: precomp also folds enum-VALUED pure calls (no-payload variants).
+  The interpreter resolves a no-payload variant access (~Color.Green~) via
+  the EnumDef's ns_decls ~default_value~ to its integer tag (~Value.Int32~),
+  so naively converting that to a Num literal baked ~*c = 1~ (an int into
+  a Color struct). ~value_to_expr~ now intercepts when the source call's
+  return type is ~Type.Enum~ and reconstructs the variant FieldAccess
+  ~Color.<variant>~ wrapped in ~Color.clone(...)~ -- mirroring the typer's
+  handling of direct ~c := Color.Green~. The builder's
+  ~is_pod_enum_clone_call~ path then emits a stack value with
+  ~stack_locals~ tracking (~call_free=false~ on the matching delete).
+  Verified in test/constfold.til: ~mk_color() -> Color.Green~ folds to the
+  same ~Color_clone(&(Color){.tag = Color_TAG_Green})~ codegen as the
+  direct variant access (see test/constfold.c), suite green under ASAN.
+  Still TODO under this issue: payload-bearing enum folds (~Token.Num(42)~
+  via an enum-returning call -- ~value_to_expr~ currently bails for those),
+  collection-valued folds (Vec/Map/Array), namespace/static-field globals
   (~Str.CAP_LIT~ -> generated ~Str_CAP_LIT~), and ~const~ emission.
 
   Current status after the real ~[[./104.org][#104]]~ fix:

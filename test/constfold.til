@@ -181,3 +181,13 @@ test_enum_payload_fold := test() {
     assert(__LOC__, t.is(Token.Num))
     assert(__LOC__, t.is(Token.Eof).not())
 }
+
+// Test 12b: a no-payload enum-returning pure call folds to the bare
+// variant (mk_color() -> Color.Green), eliminating the runtime call.
+mk_color := func() returns Color { return Color.Green }
+
+test_enum_return_fold := test() {
+    c := mk_color()
+    assert(__LOC__, c.eq(Color.Green))
+    assert(__LOC__, c.eq(Color.Red).not())
+}

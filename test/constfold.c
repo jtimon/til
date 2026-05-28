@@ -210,6 +210,7 @@ void Token_delete(Token * self, Bool * call_free);
 Token * Token_clone(Token * self);
 U32 Token_size(void);
 void test_enum_payload_fold(void);
+void test_enum_return_fold(void);
 Bool Color_eq(Color *, Color *);
 Color *Color_Red();
 Color *Color_Green();
@@ -317,6 +318,7 @@ void Token_delete(Token * self, Bool * call_free);
 Token * Token_clone(Token * self);
 U32 Token_size(void);
 void test_enum_payload_fold(void);
+void test_enum_return_fold(void);
 Bool Primitive_eq(Primitive *, Primitive *);
 Primitive *Primitive_I16();
 Bool * Type_eq(Type *, Type *);
@@ -2318,6 +2320,25 @@ void test_enum_payload_fold(void) {
     Str_delete(&hoisted__Str_4518, &(Bool){0});
 }
 
+void test_enum_return_fold(void) {
+    Color *c = Color_clone(&(Color){.tag = Color_TAG_Green});
+    Str hoisted__Str_4521 = (Str){.c_str = (void *)"test/constfold.til:191:12", .count = 25ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_4521;
+    Bool hoisted__Bool_4522 = Color_eq(c, &(Color){.tag = Color_TAG_Green});
+    (void)hoisted__Bool_4522;
+    Bool_delete(assert(&hoisted__Str_4521, &hoisted__Bool_4522), &(Bool){1});
+    Str_delete(&hoisted__Str_4521, &(Bool){0});
+    Bool hoisted__Bool_4524 = Color_eq(c, &(Color){.tag = Color_TAG_Red});
+    (void)hoisted__Bool_4524;
+    Color_delete(c, &(Bool){1});
+    Str hoisted__Str_4525 = (Str){.c_str = (void *)"test/constfold.til:192:12", .count = 25ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_4525;
+    Bool hoisted__Bool_4526 = not(hoisted__Bool_4524);
+    (void)hoisted__Bool_4526;
+    Bool_delete(assert(&hoisted__Str_4525, &hoisted__Bool_4526), &(Bool){1});
+    Str_delete(&hoisted__Str_4525, &(Bool){0});
+}
+
 void *F32_cmp_dyn(void *_a0, void *_a1) {
     I64 *_r = malloc(sizeof(I64)); *_r = F32_cmp(*(F32 *)_a0, *(F32 *)_a1); return _r;
 }
@@ -3071,6 +3092,8 @@ int main(void) {
     fprintf(stderr, "  pass: %s\n", "test_enum_fold");
     test_enum_payload_fold();
     fprintf(stderr, "  pass: %s\n", "test_enum_payload_fold");
-    fprintf(stderr, "13/13 tests passed\n");
+    test_enum_return_fold();
+    fprintf(stderr, "  pass: %s\n", "test_enum_return_fold");
+    fprintf(stderr, "14/14 tests passed\n");
     return 0;
 }

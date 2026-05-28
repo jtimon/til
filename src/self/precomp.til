@@ -193,6 +193,59 @@ priv str_to_source_form := func(s: Str) returns Str {
 }
 
 value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref Expr {
+    // If the source expression returns an enum, the interpreter folded a
+    // no-payload variant access to its integer tag (Value.Int32, set up in
+    // interpreter_init_ns). Naively turning that into a Num literal would
+    // bake `*c = 1` -- an int assigned to a Color struct. Reconstruct the
+    // variant FieldAccess (Color.<variant>) so the builder emits a
+    // compile-time compound literal `&(Color){.tag = Color_TAG_<variant>}`.
+    // Bail (return NULL) for payload variants or anything we can't map.
+    src_t := expr_til_type(src)
+    if src_t.is(Type.Enum) {
+        mut etag : I32 = -1
+        switch val {
+        case Value.Int(iv):    etag = iv.to_i32()
+        case Value.Int32(iv):  etag = iv
+        case Value.Uint32(uv): etag = uv.to_i32()
+        case:
+        }
+        if etag.gte(0) {
+            ename := til_type_name(src_t)
+            ref edef : Expr = lookup_interp_type_def(ename, ctx)
+            if is_null(edef).not() {
+                switch edef.node_type {
+                case NodeType.EnumDef(edd):
+                    if etag.to_usize().lt(edd.variants.len())
+                       .and(edd.payload_types.has(etag.to_i64()).not()) {
+                        ref vname : Str = edd.variants.get(etag.to_usize())
+                        // Build the inner variant FieldAccess Color.Green.
+                        mut recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
+                        set_expr_til_type(recv, Type.Enum(til_type_name(src_t)))
+                        mut fa := Expr.new(field_access_node(vname), src.line, src.col)
+                        fa.add_child(own recv)
+                        set_expr_til_type(fa, Type.Enum(til_type_name(src_t)))
+                        // Wrap as Color.clone(Color.Green) -- mirrors the typer's
+                        // handling of `c := Color.Green` so the builder's
+                        // is_pod_enum_clone_call path emits a stack value with
+                        // stack_locals tracking (call_free=false on the matching
+                        // delete). Without the wrap, the Decl emits a pointer to a
+                        // stack compound literal that the heap-delete would free.
+                        mut clone_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
+                        set_expr_til_type(clone_recv, Type.Enum(til_type_name(src_t)))
+                        mut clone_callee := Expr.new(field_access_node("clone"), src.line, src.col)
+                        clone_callee.add_child(own clone_recv)
+                        mut clone_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+                        clone_call.add_child(own clone_callee)
+                        clone_call.add_child(own fa)
+                        set_expr_til_type(clone_call, Type.Enum(til_type_name(src_t)))
+                        return clone_call
+                    }
+                case:
+                }
+            }
+        }
+        return NULL
+    }
     switch val {
     case Value.Int(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
