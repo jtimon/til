@@ -191,3 +191,15 @@ test_enum_return_fold := test() {
     assert(__LOC__, c.eq(Color.Green))
     assert(__LOC__, c.eq(Color.Red).not())
 }
+
+// Test 12c: payload-bearing enum-returning pure call folds to the variant
+// constructor with its decoded payload (mk_tok(7) -> Token.Num(7)),
+// eliminating the wrapping call. The reconstructed FCall emits the same
+// way as a direct `t := Token.Num(7)` (Token_Num returns heap-allocated).
+mk_tok := func(n: I64) returns Token { return Token.Num(n) }
+
+test_enum_payload_return_fold := test() {
+    t := mk_tok(7)
+    assert(__LOC__, t.is(Token.Num))
+    assert(__LOC__, t.is(Token.Eof).not())
+}

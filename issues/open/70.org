@@ -42,8 +42,27 @@ The builder emits top-level constants as heap-allocated runtime
   Verified in test/constfold.til: ~mk_color() -> Color.Green~ folds to the
   same ~Color_clone(&(Color){.tag = Color_TAG_Green})~ codegen as the
   direct variant access (see test/constfold.c), suite green under ASAN.
-  Still TODO under this issue: payload-bearing enum folds (~Token.Num(42)~
-  via an enum-returning call -- ~value_to_expr~ currently bails for those),
+
+  Progress: payload-bearing enum-returning pure calls also fold. The
+  interpreter returns ~Value.Enum(EnumInstance)~ for an enum-typed call
+  when the enum has any payload variants; ~value_to_expr~'s enum
+  intercept now decodes the variant tag from ~ei.data~, reads the payload
+  bytes at ~ei.data + ENUM_PAYLOAD_OFFSET~ via a fabricated Declaration
+  whose ~explicit_type~ is the variant's payload type (from
+  ~EnumDef.payload_types[tag]~) and a ~read_field~ call, recurses
+  ~value_to_expr~ on the decoded payload with a synthetic non-enum src
+  (so the intercept doesn't refire on the scalar), and assembles
+  ~Token.Num(<payload>)~ as an FCall. No clone wrap: variant ctors are
+  heap-allocating funcs, so the Decl init emits exactly the codegen of a
+  direct ~t := Token.Num(...)~. Verified in test/constfold.til:
+  ~mk_tok(7) -> Token.Num(7)~ folds to
+  ~Token *t = Token_Num(&(I64){7});~ (see test/constfold.c). Nested-enum
+  payloads (an enum whose payload is another enum) currently bail; the
+  synthetic src skips the intercept and the default ~Value.Enum~ branch
+  of the scalar switch returns NULL. Also added ~Value.Enum~ to
+  ~can_convert~ in ~try_eval_call~.
+
+  Still TODO under this issue: nested-enum payload folds,
   collection-valued folds (Vec/Map/Array), namespace/static-field globals
   (~Str.CAP_LIT~ -> generated ~Str_CAP_LIT~), and ~const~ emission.
 

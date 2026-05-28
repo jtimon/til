@@ -202,6 +202,11 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
     // Bail (return NULL) for payload variants or anything we can't map.
     src_t := expr_til_type(src)
     if src_t.is(Type.Enum) {
+        // Case A: no-payload variant. The interpreter resolves a no-payload
+        // variant access (Color.Green) via the EnumDef ns_decls default_value
+        // to its integer tag (Value.Int32). Reconstruct the variant access
+        // wrapped in Type.clone(...) so the builder's is_pod_enum_clone_call
+        // path emits a stack value with stack_locals tracking.
         mut etag : I32 = -1
         switch val {
         case Value.Int(iv):    etag = iv.to_i32()
@@ -243,6 +248,63 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
                 case:
                 }
             }
+        }
+        // Case B: payload-bearing variant. The interpreter returns
+        // Value.Enum(EnumInstance) for an enum-typed call whose enum has
+        // any payload variants. Read the tag from ei.data and the payload
+        // bytes from ei.data + ENUM_PAYLOAD_OFFSET (typed by
+        // EnumDef.payload_types[tag]), then reconstruct Token.Num(<payload>)
+        // as an FCall. Unlike no-payload variants, the variant ctor
+        // (Token_Num) is a heap-allocating function -- the Decl init emits
+        // it directly without a clone wrap, matching the codegen of a
+        // direct `t := Token.Num(42)`.
+        switch val {
+        case Value.Enum(ei):
+            ref etag_ptr2 : Dynamic = ei.data
+            if is_null(etag_ptr2) { return NULL }
+            ref etag_ref2 : I32 = etag_ptr2
+            etag2 := etag_ref2
+            if etag2.lt(0) { return NULL }
+            ename2 := til_type_name(src_t)
+            ref edef2 : Expr = lookup_interp_type_def(ename2, ctx)
+            if is_null(edef2) { return NULL }
+            switch edef2.node_type {
+            case NodeType.EnumDef(edd2):
+                if etag2.to_usize().gte(edd2.variants.len()) { return NULL }
+                if edd2.payload_types.has(etag2.to_i64()).not() { return NULL }
+                ref payload_type_name : Str = edd2.payload_types.get(etag2.to_i64())
+                // Fabricate a Declaration whose explicit_type matches the
+                // variant's payload type so read_field can decode the bytes
+                // sitting at ei.data + ENUM_PAYLOAD_OFFSET. (The variant's
+                // declared name doesn't matter -- read_field only uses the
+                // type info and the offset.)
+                mut payload_decl := Declaration()
+                payload_decl.explicit_type = payload_type_name.clone()
+                payload_decl.field_offset = ENUM_PAYLOAD_OFFSET
+                payload_val := read_field(ei.data, payload_decl, ctx)
+                // Recurse with a synthetic src whose til_type is NOT
+                // Type.Enum so this same intercept doesn't refire on the
+                // scalar payload. The main switch's Value variant cases
+                // don't depend on src.til_type, so a default-typed Expr is
+                // sufficient for I64/Bool/Str/struct payloads. Nested-enum
+                // payloads currently bail (synthetic src skips the
+                // intercept and the default Value.Enum case returns NULL).
+                mut payload_src := Expr.new(NodeType.NoDefaultArg, src.line, src.col)
+                ref payload_expr : Expr = value_to_expr(payload_val, payload_src, ctx)
+                if is_null(payload_expr) { return NULL }
+                ref vname2 : Str = edd2.variants.get(etag2.to_usize())
+                mut variant_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
+                set_expr_til_type(variant_recv, Type.Enum(til_type_name(src_t)))
+                mut variant_callee := Expr.new(field_access_node(vname2), src.line, src.col)
+                variant_callee.add_child(own variant_recv)
+                mut variant_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+                variant_call.add_child(own variant_callee)
+                variant_call.add_child(own payload_expr.clone())
+                set_expr_til_type(variant_call, Type.Enum(til_type_name(src_t)))
+                return variant_call
+            case:
+            }
+        case:
         }
         return NULL
     }
@@ -833,6 +895,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     .or(result.is(Value.Boolean))
     .or(result.is(Value.Float))
     .or(result.is(Value.Struct))
+    .or(result.is(Value.Enum))
     if can_convert.not() {
         if require_known {
             panic(
