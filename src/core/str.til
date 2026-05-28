@@ -118,6 +118,45 @@ namespace:
         return Str(c_str = ptr_add(s.c_str, st), count = ln, cap = CAP_VIEW)
     }
 
+    /// Return a view of `s` with leading ASCII whitespace (space, tab,
+    /// newline, carriage return) removed. View-only -- no allocation.
+    trim_start := func(s: Str) returns Str {
+        mut st : USize = 0
+        while st.lt(s.count) {
+            ref c : I8 = s.byte_at(st)
+            if c.eq(' ').or(c.eq('\t')).or(c.eq('\n')).or(c.eq('\r')) {
+                st = st.add(1)
+            } else {
+                break
+            }
+        }
+        return s.substr(st, s.count.sub(st))
+    }
+
+    /// Return a view of `s` with leading and trailing ASCII whitespace
+    /// removed. View-only -- no allocation.
+    trim := func(s: Str) returns Str {
+        mut st : USize = 0
+        while st.lt(s.count) {
+            ref c : I8 = s.byte_at(st)
+            if c.eq(' ').or(c.eq('\t')).or(c.eq('\n')).or(c.eq('\r')) {
+                st = st.add(1)
+            } else {
+                break
+            }
+        }
+        mut en := s.count
+        while en.gt(st) {
+            ref c : I8 = s.byte_at(en.sub(1))
+            if c.eq(' ').or(c.eq('\t')).or(c.eq('\n')).or(c.eq('\r')) {
+                en = en.sub(1)
+            } else {
+                break
+            }
+        }
+        return s.substr(st, en.sub(st))
+    }
+
     /// True if `a` contains `b` as a substring.
     contains := func(a: Str, b: Str) returns shallow Bool {
         if b.count.eq(0) { return true }

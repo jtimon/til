@@ -43,7 +43,6 @@
 *** [[./open/212.org][#212]] Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
 *** [[./open/214.org][#214]] Unordered HashMap for big tables where key order does not matter
 *** [[./open/215.org][#215]] Investigate mode safe_script (port from rstil)
-*** [[./open/216.org][#216]] Audit src/core/sys.til and move non-essential syscalls into src/std
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)

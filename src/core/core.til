@@ -19,7 +19,6 @@ import("mem")
 import("range")
 import("set")
 import("str")
-import("sys")
 import("tuple")
 import("u32")
 import("u64")
@@ -27,3 +26,10 @@ import("u8")
 import("uptr")
 import("usize")
 import("vec")
+
+// Empty proc; users stick `noop_proc()` inside a func body to force
+// precomp to treat that func as impure (no compile-time fold). It has no
+// host side effect, so it stays in core rather than std/sys.til (issue
+// #216) -- it is a precomp escape hatch, not a syscall, and lives here in
+// the aggregator because it doesn't belong to any data-type module.
+noop_proc := ext_proc() {}

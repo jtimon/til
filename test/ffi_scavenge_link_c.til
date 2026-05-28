@@ -2,7 +2,7 @@ mode cli
 
 import("../src/core/io")
 import("../src/core/str")
-import("../src/core/sys")
+import("../src/std/sys")
 
 main := proc() {
     out_path := "tmp/ffi_scavenge_link_c.c"

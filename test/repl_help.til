@@ -1,5 +1,7 @@
 mode cli
 
+import("../src/std/sys")
+
 // REPL smoke test for #157: pipe one help() call into bin/til, capture
 // stdout, and verify the expected core doc text appears. Invoked via
 // `make test_repl_help` rather than `make test` because the REPL spawns

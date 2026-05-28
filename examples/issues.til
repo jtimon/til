@@ -1,7 +1,7 @@
 mode cli
 
 import("../src/core/io")
-import("../src/core/sys")
+import("../src/std/sys")
 import("../src/core/str")
 import("../src/core/vec")
 import("../src/core/i64")

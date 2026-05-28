@@ -12,6 +12,7 @@ get_version := macro() returns shallow Str {
 VERSION := get_version()
 
 // Import self-hosted modules
+import("std/sys")
 import("self/modes")
 import("self/loader")
 import("self/builder")
