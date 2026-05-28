@@ -495,6 +495,8 @@ typedef struct priv___src_self_parser_til__Parser {
     U32 pos;
     Str path;
     Vec fn_sig_decls;
+    Vec anon_decls;
+    Map anon_cache;
     Str pending_doc;
 } priv___src_self_parser_til__Parser;
 
@@ -1174,6 +1176,10 @@ Str * expect_text(priv___src_self_parser_til__Parser * p, TokenType * type);
 U32 peek_line(priv___src_self_parser_til__Parser * p);
 U32 peek_col(priv___src_self_parser_til__Parser * p);
 Type * til_type_from_explicit_type(Str * name);
+Str * priv___src_self_parser_til__anon_decl_key(Declaration * d);
+Str * priv___src_self_parser_til__anon_def_key(Expr * def);
+Str * priv___src_self_parser_til__anon_lift(priv___src_self_parser_til__Parser * p, Expr * def, U32 line, U32 col);
+Str * priv___src_self_parser_til__parse_type_ref(priv___src_self_parser_til__Parser * p);
 Str * priv___src_self_parser_til__parse_fn_signature(priv___src_self_parser_til__Parser * p, U32 line, U32 col);
 Expr * priv___src_self_parser_til__parse_block(priv___src_self_parser_til__Parser * p);
 Expr * parse_func_def(priv___src_self_parser_til__Parser * p);
@@ -1265,9 +1271,6 @@ void priv___src_self_initer_til__init_lift_in_body(Expr * body, Str * parent_pre
 void priv___src_self_initer_til__init_lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec * top_level);
 void priv___src_self_initer_til__init_recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec * top_level);
 void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_prefix, Vec * top_level);
-Str * priv___src_self_initer_til__anon_def_key(Expr * def);
-Str * priv___src_self_initer_til__anon_decl_key(Declaration * d);
-void priv___src_self_initer_til__init_expand_anon_structs(Expr * e, Vec * new_decls, Map * cache);
 I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 init_declarations_global(Context * ctx, Expr * program, TypeScope * scope);
 U32 count_ast_imports(Expr * body);

@@ -9,6 +9,15 @@ priv Parser := struct {
     pos : USize = 0
     path := ""
     fn_sig_decls := Vec.new(Expr)
+    // Issue #56/#57: top-level decls synthesised for anonymous struct/enum
+    // literals (`struct { ... }(args)`, `enum { ... }.V`, and inline defs in
+    // type positions). anon_cache maps a literal's structural key (anon_def_key)
+    // to its generated AnonStructN/AnonEnumN name so structurally-identical
+    // literals in one file share a single type -- including a type-position
+    // literal and the value-position literal it is assigned from. Flushed into
+    // the program root by `parse`, like fn_sig_decls.
+    anon_decls := Vec.new(Expr)
+    anon_cache := Map.new(Str, Str)
     // Accumulates the text of leading /// doc comments. Cleared by
     // parse_statement after attaching to the next NodeType.Decl.
     pending_doc := ""
@@ -78,6 +87,98 @@ til_type_from_explicit_type := func(name: Str) returns Type {
 }
 
 // --- Parsing functions ---
+
+// Issue #56/#57: monotonic counter for generated anon type names. Module
+// global (not a Parser field) so names stay unique across files in one
+// compilation -- two files each lifting an anon literal get distinct names
+// (AnonStruct0, AnonStruct1) rather than colliding on AnonStruct0.
+mut anon_struct_counter : I64 = 0
+
+// Canonical structural signature for a StructDef/EnumDef literal. Two
+// literals produce the same key iff they would generate the same type, so
+// the key drives anon_cache dedup. Folds in field/variant names, types,
+// mut/own modifiers, default-value trees and namespace-method bodies (the
+// latter two via Expr.to_str), so any observable difference yields a
+// distinct type.
+priv anon_decl_key := func(d: Declaration) returns Str {
+    mut own_tag := "S"
+    if d.own_type.is(OwnType.Own) { own_tag = "O" }
+    if d.own_type.is(OwnType.Ref) { own_tag = "R" }
+    mut mut_tag := "c"
+    if d.is_mut { mut_tag = "m" }
+    return format(d.name, ":", d.explicit_type, ":", mut_tag, own_tag, ":",
+        d.default_value.to_str(), ";")
+}
+
+priv anon_def_key := func(def: Expr) returns Str {
+    switch def.node_type {
+    case NodeType.StructDef(sdd):
+        mut k := "struct{"
+        for f : Declaration in sdd.fields {
+            k = k.concat(anon_decl_key(f))
+        }
+        k = k.concat("|ns:")
+        for n : Declaration in sdd.ns_decls {
+            k = k.concat(anon_decl_key(n))
+        }
+        return k.concat("}")
+    case NodeType.EnumDef(edd):
+        mut k := "enum{"
+        for j in 0..edd.variants.len() {
+            ref vn : Str = edd.variants.get(j)
+            k = k.concat(vn)
+            idx := j.to_i64()
+            if edd.payload_types.has(idx) {
+                ref pt : Str = edd.payload_types.get(idx)
+                k = k.concat(":").concat(pt)
+            }
+            k = k.concat(";")
+        }
+        k = k.concat("|ns:")
+        for n : Declaration in edd.ns_decls {
+            k = k.concat(anon_decl_key(n))
+        }
+        return k.concat("}")
+    case:
+        return ""
+    }
+}
+
+// anon_lift: register an anonymous struct/enum literal as a top-level decl
+// and return its generated type name. Structurally-identical literals in
+// the same file (anon_cache hit) reuse the name without emitting a second
+// decl. Consumes `def`.
+priv anon_lift := func(mut p: Parser, own def: Expr, shallow line: U32, shallow col: U32) returns Str {
+    mut kind := "AnonStruct"
+    if def.node_type.is(NodeType.EnumDef) { kind = "AnonEnum" }
+    key := anon_def_key(def)
+    if p.anon_cache.has(key) {
+        ref hit : Str = p.anon_cache.get(key)
+        return hit.clone()
+    }
+    name := kind.concat(anon_struct_counter.to_str())
+    anon_struct_counter = anon_struct_counter.add(1)
+    p.anon_cache.set(own key.clone(), own name.clone())
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), line, col)
+    decl.add_child(own def)
+    p.anon_decls.push(own decl)
+    return name.clone()
+}
+
+// parse_type_ref: parse a type annotation. Normally a bare identifier, but
+// an inline `struct { ... }` / `enum { ... }` is lifted to a generated
+// AnonStructN/AnonEnumN type (issue #56/#57) and its name returned.
+priv parse_type_ref := proc(mut p: Parser) returns Str {
+    tr_line := peek_line(p)
+    tr_col := peek_col(p)
+    if check(p, TokenType.KwStruct) {
+        return anon_lift(p, own parse_struct_def(p, ""), tr_line, tr_col)
+    }
+    if check(p, TokenType.KwEnum) {
+        return anon_lift(p, own parse_enum_def(p), tr_line, tr_col)
+    }
+    return expect_text(p, TokenType.Ident)
+}
 
 // parse_fn_signature: parse Fn(T1, T2, ...) returns T after "Fn" has been consumed.
 // Generates a synthetic type name (e.g. "_Fn_I64_I64_ret_Bool"), creates a
@@ -258,11 +359,11 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 } else {
                     param_decl.own_type = OwnType.Own
                 }
-                param_decl.explicit_type = expect_text(p, TokenType.Ident)
+                param_decl.explicit_type = parse_type_ref(p)
                 param_decl.til_type = til_type_from_explicit_type(param_decl.explicit_type)
                 param_decl.name = pname.clone()
             } else {
-                param_decl.explicit_type = expect_text(p, TokenType.Ident)
+                param_decl.explicit_type = parse_type_ref(p)
                 param_decl.til_type = til_type_from_explicit_type(param_decl.explicit_type)
                 param_decl.name = pname.clone()
             }
@@ -312,7 +413,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             advance(p)
             fd.return_own_type = OwnType.Shallow
         }
-        fd.return_type = expect_text(p, TokenType.Ident)
+        fd.return_type = parse_type_ref(p)
     }
 
     // Issue #198: optional 'throws T1, T2, ...' clause after returns.
@@ -440,7 +541,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
                 advance(p)
             } else if check(p, TokenType.Colon) {
                 advance(p)
-                ns_explicit_type = expect_text(p, TokenType.Ident)
+                ns_explicit_type = parse_type_ref(p)
                 expect_token(p, TokenType.Eq)
             }
             ns_doc := p.pending_doc.clone()
@@ -473,7 +574,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut f_explicit_type := ""
             if check(p, TokenType.Colon) {
                 advance(p)
-                f_explicit_type = expect_text(p, TokenType.Ident)
+                f_explicit_type = parse_type_ref(p)
                 if check(p, TokenType.Eq) { advance(p) }
                 else { expect_token(p, TokenType.ColonEq) }
             } else {
@@ -546,7 +647,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
                 advance(p)
             } else if check(p, TokenType.Colon) {
                 advance(p)
-                ns_explicit_type = expect_text(p, TokenType.Ident)
+                ns_explicit_type = parse_type_ref(p)
                 expect_token(p, TokenType.Eq)
             }
             ns_doc := p.pending_doc.clone()
@@ -808,12 +909,13 @@ parse_primary := proc(mut p: Parser) returns Expr {
         }
     if e_set.not().and(t.type.is(TokenType.KwStruct)) {
         mut sdef := parse_struct_def(p, "")
-        // Anonymous struct instantiation: `struct { ... }(args)`. The
-        // StructDef literal becomes the FCall callee; init lifts it to a
-        // top-level AnonStructN decl (issue #56). A bare `struct { ... }`
-        // (no trailing `(`) stays a StructDef literal as before.
+        // Anonymous struct instantiation: `struct { ... }(args)`. Lift the
+        // literal to a top-level AnonStructN decl (issue #56) and call the
+        // generated constructor. A bare `struct { ... }` (no trailing `(`)
+        // stays a StructDef literal as before (named struct decls, etc).
         if check(p, TokenType.LParen) {
-            e = parse_call(p, own sdef, t_line, t_col)
+            name := anon_lift(p, own sdef, t_line, t_col)
+            e = parse_call(p, own Expr.new(ident_node(name), t_line, t_col), t_line, t_col)
             e_set = true
         } else {
             return sdef
@@ -832,13 +934,19 @@ parse_primary := proc(mut p: Parser) returns Expr {
         return parse_struct_def(p, tag)
     }
     if e_set.not().and(t.type.is(TokenType.KwEnum)) {
-        // Anonymous enum: `enum { ... }.Variant` (or `.Variant(payload)`).
-        // Parse the EnumDef literal, then fall through to the postfix
-        // `.field` loop so the variant access attaches to it. init lifts
-        // the literal to a top-level AnonEnumN decl (issue #57). A bare
-        // `enum { ... }` (no trailing `.`) stays an EnumDef literal.
-        e = parse_enum_def(p)
-        e_set = true
+        // Anonymous enum variant: `enum { ... }.Variant` (or
+        // `.Variant(payload)`). Lift the literal to a top-level AnonEnumN
+        // decl (issue #57) and let the postfix `.field` loop attach the
+        // variant access to the generated name. A bare `enum { ... }` (no
+        // trailing `.`) stays an EnumDef literal (named enum decls, etc).
+        mut edef := parse_enum_def(p)
+        if check(p, TokenType.Dot) {
+            name := anon_lift(p, own edef, t_line, t_col)
+            e = Expr.new(ident_node(name), t_line, t_col)
+            e_set = true
+        } else {
+            return edef
+        }
     }
     if e_set.not().and(t.type.is(TokenType.LBrace)) {
         advance(p)
@@ -1147,7 +1255,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
             return decl
         }
 
-        mut type_name := expect_text(p, TokenType.Ident)
+        mut type_name := parse_type_ref(p)
 
         // If type is Fn, parse optional Fn(T1, T2) returns T signature
         if type_name.eq("Fn") {
@@ -1436,7 +1544,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         if ref_mut { dd.is_mut = true }
         if check(p, TokenType.Colon) {
             advance(p)
-            dd.explicit_type = expect_text(p, TokenType.Ident)
+            dd.explicit_type = parse_type_ref(p)
             dd.til_type = til_type_from_explicit_type(dd.explicit_type)
             expect_token(p, TokenType.Eq)
         } else {
@@ -1653,6 +1761,10 @@ parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
     // Append synthetic Fn type declarations (initer registers them before typer runs)
     for d : Expr in p.fn_sig_decls {
         root.add_child(own d.clone())
+    }
+    // Append synthetic anon struct/enum type declarations (issue #56/#57).
+    for ad : Expr in p.anon_decls {
+        root.add_child(own ad.clone())
     }
     // Anonymous lambdas (`func(...){...}` literals in expression positions)
     // used to be lifted here too, but they now move to top level in the
