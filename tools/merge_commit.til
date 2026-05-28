@@ -8,17 +8,15 @@ run := proc(cmd: Str) returns I64 {
     return wait_cmd(pid)
 }
 
-capture := proc(cmd: Str, mut out: Str) returns I64 {
+capture := proc(cmd: Str) returns Str {
     _mk := run("mkdir -p tmp >/dev/null 2>&1")
     if _mk.lt(0) { }
     tmpf := format("tmp/_mc_", clock_ms().to_str())
     pid := spawn_cmd(format(cmd, " > ", tmpf, " 2>&1"))
     ec := wait_cmd(pid)
+    (void)ec
     content := File.readfile(tmpf)
-    // Move content into out: copies the bytes and zeroes content so the
-    // asap pass's scope-end Str.delete frees only the (now empty) box.
-    move(out, content, Str.size())
-    return ec
+    return content
 }
 
 parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
@@ -102,6 +100,34 @@ trim_spaces := func(s: Str) returns Str {
     return s.substr(start, end.sub(start))
 }
 
+trim_leading_whitespace := func(s: Str) returns Str {
+    mut start : USize = 0
+    while start.lt(s.len()) {
+        c := s.substr(start, 1)
+        if c.eq(" ").not().and(c.eq("\n").not()).and(c.eq("\r").not()).and(c.eq("\t").not()) {
+            break
+        }
+        start = start.add(1)
+    }
+    return s.substr(start, s.len().sub(start))
+}
+
+trim_quotes := func(s: Str) returns Str {
+    mut start : USize = 0; mut end : USize = s.len()
+    while start.lt(end) {
+        c := s.substr(start, 1)
+        if c.eq("\"").not().and(c.eq("'").not()) { break }
+        start = start.add(1)
+    }
+    while end.gt(start) {
+        c := s.substr(end.sub(1), 1)
+        if c.eq("\"").not().and(c.eq("'").not()) { break }
+        end = end.sub(1)
+    }
+    return s.substr(start, end.sub(start))
+}
+
+
 // Parse the org table from doc/bots/asan.org.
 // Lines like: | interpret | 247188   | 23238    | post scope lookups   |
 parse_asan_org := func(content: Str, mut ib: I64, mut ia: I64, mut tb: I64, mut ta: I64) {
@@ -153,18 +179,26 @@ main := proc(args: ..Str) {
     }
 
     // ---- Step 2: capture commit message + stat ----
-    mut msg := ""
-    capture(format("git show ", hash.clone(), " --format=\"%B\" --no-patch"), msg)
-    File.writefile("tmp/commit_msg.txt", msg)
+    msg := capture(format("git show ", hash.clone(), " --format=\"%B\" --no-patch"))
+    File.writefile("tmp/commit_msg.txt", msg.clone())
 
-    mut stat := ""
-    capture(format("git show ", hash.clone(), " --stat"), stat)
-    print(stat)
+    stat := capture(format("git show ", hash.clone(), " --stat"))
+    print(stat.clone())
     print("\n")
 
-    subject := msg.substr(0, count_subject_end(msg))
+    mut clean_msg := trim_leading_whitespace(msg)
+    raw_subject := clean_msg.substr(0, count_subject_end(clean_msg))
+    subject := trim_quotes(trim_spaces(raw_subject))
+
     mut test_target := "make test"
-    if subject.starts_with("Two-pass: ") { test_target = "make test_two_pass" }
+    mut is_two_pass := false
+    if subject.starts_with("Two-pass:") { is_two_pass = true }
+    if subject.starts_with("Two-Pass:") { is_two_pass = true }
+    if subject.starts_with("two-pass:") { is_two_pass = true }
+    if subject.starts_with("Two-pass: ") { is_two_pass = true }
+    if subject.starts_with("Two-Pass: ") { is_two_pass = true }
+    if subject.starts_with("two-pass: ") { is_two_pass = true }
+    if is_two_pass { test_target = "make test_two_pass" }
 
     // ---- Step 4: soft reset + revert totals ----
     run("git reset --soft HEAD~1")
@@ -198,10 +232,8 @@ main := proc(args: ..Str) {
     // ---- Step 6: ASAN leak check ----
     run("make bin/til_asan > tmp/asan_build.log 2>&1")
 
-    mut int_summary := ""
-    capture("ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til", int_summary)
-    mut trans_summary := ""
-    capture("ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til", trans_summary)
+    int_summary := capture("ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til")
+    trans_summary := capture("ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til")
 
     mut int_bytes : I64 = 0; mut int_allocs : I64 = 0
     mut trans_bytes : I64 = 0; mut trans_allocs : I64 = 0
